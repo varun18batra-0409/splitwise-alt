@@ -45,6 +45,20 @@ and it never holds or moves real money: it only keeps track of who owes whom.
    3000 → **Port visibility → Public**.
 5. When you're done, stop the codespace so it doesn't use up free hours.
 
+## Hosted version (Vercel + Turso, both free)
+
+The live app runs on **Vercel**, and its data is in **Turso** (online SQLite).
+Every push to `main` re-deploys it by itself in about two minutes: the
+schema is synced to Turso (`scripts/turso-sync.mjs`), old data is upgraded
+(`prisma/upgrade-data.mjs`), then the app is built.
+
+Settings in Vercel → Project → Settings → Environment Variables:
+
+- `TURSO_DATABASE_URL`: the database address, starting `libsql://`
+- `TURSO_AUTH_TOKEN`: a read-and-write token from Turso
+
+Without these (Codespaces, tests) the app uses the local file `prisma/dev.db`.
+
 ## Checks on every update
 
 Each push to GitHub runs all the tests, builds the app, and takes phone-sized
