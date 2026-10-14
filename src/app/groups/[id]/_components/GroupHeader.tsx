@@ -58,7 +58,7 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
         </div>
       </details>
 
-      <InviteSheet groupId={group.id} groupName={group.name} inviteCode={group.inviteCode} memberCount={group.members.length} />
+      <InviteSheet groupId={group.id} groupName={group.name} inviteCode={group.inviteCode} memberCount={group.members.filter((m) => !m.leftAt).length} />
       <Link href={`/groups/${group.id}/settings`} aria-label="Group settings" className={iconButtonClass}>
         <GearIcon size={20} />
       </Link>

@@ -29,7 +29,7 @@ export async function loadMyGroups(memberships: Record<string, string>) {
   const groups = await db.group.findMany({
     where: { id: { in: Object.keys(memberships) } },
     include: {
-      members: { select: { id: true, name: true, phone: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
+      members: { select: { id: true, name: true, phone: true, leftAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
       expenses: { include: { shares: true }, orderBy: { createdAt: "desc" } },
       payments: { orderBy: { createdAt: "desc" } },
     },

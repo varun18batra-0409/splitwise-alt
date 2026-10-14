@@ -22,7 +22,12 @@ and it never holds or moves real money: it only keeps track of who owes whom.
 - **History, undo and notifications.** Anyone in the group can edit or
   delete anything. Every change is kept in the history, can be undone or
   restored, and shows up in everyone else's bell.
+- **People.** Rename anyone, remove someone added by mistake, or leave a
+  group once you're settled up (you stay in the history).
+- **Search and filter** the history by words, category or person.
 - **Charts.** Spending by category, currency, day and person.
+- **Download** a group as a spreadsheet (CSV) for Excel or Google Sheets.
+- **Install it like an app**: Chrome's "Install app" / "Add to Home screen".
 
 ## Open it from your phone (GitHub Codespaces)
 

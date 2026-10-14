@@ -72,7 +72,7 @@ export function GroupSummary({ v, sp }: { v: GroupView; sp: Notices }) {
         <p className="mt-2 text-sm text-gray-500">
           {money(spent)}
           {eq(spent) && ` (${eq(spent)})`} spent across {expenses.length} {expenses.length === 1 ? "expense" : "expenses"},{" "}
-          {group.members.length} people
+          {group.members.filter((m) => !m.leftAt).length} people
           <Link href={`/groups/${group.id}/settings`} className="ml-1 text-gray-400">
             ({group.currency}, card markup {formatPercent(group.cardMarkupBp)})
           </Link>

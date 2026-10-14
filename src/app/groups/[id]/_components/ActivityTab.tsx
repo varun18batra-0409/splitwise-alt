@@ -61,7 +61,7 @@ export function ActivityTab({ v, filter = {} }: { v: GroupView; filter?: Activit
             <option value="">All categories</option>
             {CATEGORIES.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.emoji} {c.label}
+                {c.emoji} {c.short}
               </option>
             ))}
           </select>

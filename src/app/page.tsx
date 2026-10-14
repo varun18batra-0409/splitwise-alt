@@ -347,7 +347,7 @@ function GroupRow({
         <span className="min-w-0 flex-1">
           <span className={`block truncate font-medium ${closed ? "text-gray-500" : ""}`}>{g.group.name}</span>
           <span className="block truncate text-sm text-gray-400">
-            {g.group.members.length} people, {closed ? "closed" : activeText(g.lastActivity)}
+            {g.group.members.filter((m) => !m.leftAt).length} people, {closed ? "closed" : activeText(g.lastActivity)}
           </span>
         </span>
         <span className={`shrink-0 text-right text-sm tabular-nums ${b > 0 ? "text-owed" : b < 0 ? "text-owe" : "text-gray-400"}`}>
