@@ -3,6 +3,7 @@ import { diffExpense, expenseState, logEvent, parseUndo, type UndoPayload } from
 import { setExpenseDeleted, setPaymentDeleted } from "./save-expense";
 import { formatPercent } from "./money";
 import { setMember } from "./people";
+import { applySettleAll } from "./settle-all";
 
 // Undo any change in a group. Undoing is itself a logged change that everyone
 // is notified about, and it can be undone too ("redo").
@@ -26,12 +27,12 @@ type EventLike = {
 
 const MONEY_KINDS = new Set([
   "expense_added", "expense_edited", "expense_deleted", "expense_restored",
-  "payment_recorded", "payment_deleted", "payment_restored", "currency_changed",
+  "payment_recorded", "payment_deleted", "payment_restored", "currency_changed", "group_settled_closed",
 ]);
 
 // Close and reopen are one setting; members added/removed are one list.
 const settingFamily = (kind: string) =>
-  kind === "group_closed" || kind === "group_reopened" ? "open-state" : kind === "members_added" || kind === "members_removed" ? "members" : kind;
+  kind === "group_closed" || kind === "group_reopened" || kind === "group_settled_closed" ? "open-state" : kind === "members_added" || kind === "members_removed" ? "members" : kind;
 
 const later = (a: EventLike, b: EventLike) =>
   a.createdAt.getTime() > b.createdAt.getTime() || (a.createdAt.getTime() === b.createdAt.getTime() && a.id > b.id);
@@ -54,6 +55,11 @@ export function canUndo(ev: EventLike, all: EventLike[]): { ok: true } | { ok: f
   }
   if ((payload.type === "members_remove" || payload.type === "members_restore") && newer.some((x) => settingFamily(x.kind) === "members")) {
     return { ok: false, reason: "People were added or removed again since. Undo the newer change first." };
+  }
+  if (payload.type === "settle_all") {
+    if (newer.some((x) => settingFamily(x.kind) === "open-state" || (x.paymentId && payload.paymentIds.includes(x.paymentId)))) {
+      return { ok: false, reason: "The group or those payments changed since. Undo the newer change first." };
+    }
   }
   if (payload.type === "member_set") {
     const sameKind = (x: EventLike) => {
@@ -110,6 +116,8 @@ async function apply(p: UndoPayload, groupId: string, actorId: string, originalT
       return removeMembers(groupId, actorId, p.memberIds);
     case "members_restore":
       return restoreMembers(groupId, actorId, p.members);
+    case "settle_all":
+      return fromResult(await applySettleAll(groupId, actorId, p.paymentIds, p.apply));
     case "member_set":
       return fromResult(await setMember(groupId, actorId, p.memberId, p.data, true));
   }

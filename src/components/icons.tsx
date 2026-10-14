@@ -86,5 +86,12 @@ export const BackIcon = (p: P) => (
 );
 
 // A round, quiet icon button for headers.
+export const SearchIcon = (p: P) => (
+  <Svg {...p}>
+    <circle cx="11" cy="11" r="6.5" />
+    <path d="m20 20-4.4-4.4" />
+  </Svg>
+);
+
 export const iconButtonClass =
   "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-line text-gray-700 active:bg-mist";

@@ -14,7 +14,7 @@ import { settleAcrossGroups } from "@/app/actions";
 import { db } from "@/lib/db";
 import { canUndo } from "@/lib/undo";
 import { UndoBar } from "@/components/UndoBar";
-import { BellIcon, GroupIcon, SettleIcon, iconButtonClass } from "@/components/icons";
+import { BellIcon, GroupIcon, SearchIcon, SettleIcon, iconButtonClass } from "@/components/icons";
 
 export default async function Home({
   searchParams,
@@ -49,6 +49,28 @@ export default async function Home({
     const r = await getRate(cur, common);
     rates.set(cur, r.ok ? r.rate : null);
   }
+  // Net = everything you're owed minus everything you owe, in one currency
+  // when rates are known (≈ when converted); otherwise one figure per currency.
+  const netCommon = ((): { value: number; converted: boolean } | null => {
+    let value = 0;
+    let converted = false;
+    for (const g of open) {
+      const b = g.myBalance;
+      if (g.group.currency === common || b === 0) {
+        value += g.group.currency === common ? b : 0;
+        continue;
+      }
+      const rate = rates.get(g.group.currency);
+      const c = rate ? convertAmount(Math.abs(b), g.group.currency, common, rate) : null;
+      if (c === null) return null;
+      value += Math.sign(b) * c;
+      converted = true;
+    }
+    return { value, converted };
+  })();
+  const netLines = [...totals].map(([c, t]) => `${t.owed - t.owe >= 0 ? "+" : "−"}${formatMoney(Math.abs(t.owed - t.owe), c)}`);
+  const netValue = netCommon ? netCommon.value : [...totals].reduce((a, [, t]) => a + Math.sign(t.owed - t.owe), 0);
+
   const { items: settleItems, skippedGroups } = crossSettle(
     all.map((g) => ({
       groupId: g.group.id,
@@ -97,12 +119,21 @@ export default async function Home({
     <>
       {undoBar && <UndoBar key={undoBar.eventId} {...undoBar} back="home" redo={undone === "1"} />}
       {error && <p className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+      {justClosed === "1" && !undone && (
+        <p className="mb-4 flex items-center gap-2 rounded-xl bg-mist px-4 py-3 text-sm text-fg">
+          <span aria-hidden>🎉</span> Group closed. It’s under “Show closed groups” whenever you need it.
+        </p>
+      )}
       <header className="mb-8 flex items-center justify-between">
         <div>
           <p className="font-display text-[26px] font-semibold leading-none tracking-tight">split</p>
           <p className="mt-1.5 text-xs text-gray-400">{dayLabel(new Date())}</p>
         </div>
         {all.length > 0 && (
+          <div className="flex items-center gap-2">
+          <Link href="/search" aria-label="Search by words, month or year" className={iconButtonClass}>
+            <SearchIcon size={19} />
+          </Link>
           <Link href="/notifications" aria-label={unread ? `Notifications, ${unread} new` : "Notifications"} className={`relative ${iconButtonClass}`}>
             <BellIcon size={20} />
             {unread > 0 && (
@@ -111,6 +142,7 @@ export default async function Home({
               </span>
             )}
           </Link>
+          </div>
         )}
       </header>
 
@@ -129,23 +161,41 @@ export default async function Home({
             {owedLines.length === 0 && oweLines.length === 0 ? (
               <>
                 <p className="text-sm text-fg/55">Across your groups</p>
-                <h1 className="mt-1 font-display text-[40px] font-semibold leading-none tracking-tight">All square</h1>
+                <h1 className="mt-1 font-display text-[40px] font-semibold leading-none tracking-tight">All square 🎉</h1>
               </>
             ) : (
               <>
-                <p className="text-sm text-fg/55">{owedLines.length > 0 ? "You’re owed" : "You owe"}</p>
+                <p className="text-sm text-fg/55">
+                  Net balance{netCommon && netCommon.converted ? ` · in ${common}` : ""}
+                </p>
                 <h1
                   className={`mt-1.5 font-display text-[44px] font-semibold leading-none tracking-tight tabular-nums ${
-                    owedLines.length > 0 ? "text-owed" : "text-owe"
+                    netValue > 0 ? "text-owed" : netValue < 0 ? "text-owe" : ""
                   }`}
                 >
-                  {(owedLines.length > 0 ? owedLines : oweLines).join(" + ")}
+                  {netCommon ? (
+                    <>
+                      {netCommon.converted ? "≈ " : ""}
+                      {netCommon.value > 0 ? "+" : netCommon.value < 0 ? "−" : ""}
+                      {formatMoney(Math.abs(netCommon.value), common)}
+                    </>
+                  ) : (
+                    netLines.join(" · ")
+                  )}
                 </h1>
-                {owedLines.length > 0 && oweLines.length > 0 && (
-                  <p className="mt-3 text-sm text-fg/60">
-                    You owe <span className="font-display text-base text-owe tabular-nums">{oweLines.join(" + ")}</span>
-                  </p>
-                )}
+                <p className="mt-1.5 text-sm text-fg/55">
+                  {netValue > 0 ? "Overall, you get money back." : netValue < 0 ? "Overall, you need to pay." : "It all evens out."}
+                </p>
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                  <div className="rounded-xl bg-fg/[0.04] px-3 py-2.5">
+                    <p className="text-[11px] uppercase tracking-wider text-fg/45">You’re owed</p>
+                    <p className="mt-0.5 font-display text-lg leading-tight text-owed tabular-nums">{owedLines.length ? owedLines.join(" + ") : "—"}</p>
+                  </div>
+                  <div className="rounded-xl bg-fg/[0.04] px-3 py-2.5">
+                    <p className="text-[11px] uppercase tracking-wider text-fg/45">You owe</p>
+                    <p className="mt-0.5 font-display text-lg leading-tight text-owe tabular-nums">{oweLines.length ? oweLines.join(" + ") : "—"}</p>
+                  </div>
+                </div>
               </>
             )}
 

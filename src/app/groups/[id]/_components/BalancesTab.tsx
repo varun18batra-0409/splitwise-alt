@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { pairwiseDebtCount, type Transfer } from "@/lib/settle";
 import { toInputAmount } from "@/lib/money";
-import { recordPayment } from "@/app/actions";
+import { recordPayment, settleEverything } from "@/app/actions";
+import { nudgeLink } from "@/lib/nudge";
+import { planKey } from "@/lib/settle-all";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { Avatar } from "@/components/ui";
 import type { GroupView } from "./view";
 
@@ -37,7 +40,13 @@ export function BalancesTab({ v, paid }: { v: GroupView; paid?: boolean }) {
         {paid && <p className="mt-3 rounded-xl bg-mist px-4 py-3 text-sm text-fg">Payment recorded. Balances updated.</p>}
 
         {transfers.length === 0 ? (
-          <p className="mt-4 rounded-2xl bg-mist px-4 py-6 text-center text-sm text-gray-600">Everyone is settled up.</p>
+          <div className="mt-4 rounded-2xl bg-mist px-4 py-8 text-center">
+            <p className="text-3xl" aria-hidden>
+              🎉
+            </p>
+            <p className="mt-2 font-display text-xl font-semibold">All square</p>
+            <p className="mt-1 text-sm text-gray-500">Nobody owes anybody in this group.</p>
+          </div>
         ) : (
           <>
             {mine.length > 0 && (
@@ -55,6 +64,52 @@ export function BalancesTab({ v, paid }: { v: GroupView; paid?: boolean }) {
           </>
         )}
         <p className="mt-3 text-xs text-gray-400">Recording a payment only notes it here. The app never moves real money.</p>
+
+        {!group.closed && (
+          <details className="group/kill mt-6 border border-line">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3.5 [&::-webkit-details-marker]:hidden">
+              <span>
+                <span className="block text-sm font-medium text-fg">
+                  {transfers.length > 0 ? "Settled outside the app?" : "Done with this group?"}
+                </span>
+                <span className="block text-xs text-gray-400">
+                  {transfers.length > 0 ? "Mark everything as paid and close the group in one go" : "Everyone’s square, so you can close it"}
+                </span>
+              </span>
+              <span className="shrink-0 text-sm text-gray-400 group-open/kill:rotate-180">⌄</span>
+            </summary>
+            <form action={settleEverything} className="border-t border-line px-4 pb-4 pt-3">
+              <input type="hidden" name="groupId" value={group.id} />
+              <input type="hidden" name="plan" value={planKey(transfers)} />
+              {transfers.length > 0 && (
+                <>
+                  <p className="mb-2 text-sm text-gray-500">This records these payments, then closes the group:</p>
+                  <ul className="mb-4 space-y-1 text-sm">
+                    {transfers.map((t) => (
+                      <li key={`${t.from}-${t.to}`} className="flex justify-between gap-3">
+                        <span>
+                          {nameOf(t.from)} → {t.to === myId ? "you" : nameOf(t.to)}
+                        </span>
+                        <span className="tabular-nums">{money(t.amount)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              <ConfirmButton
+                message={
+                  transfers.length > 0
+                    ? `Mark all ${transfers.length} payments as paid and close ${group.name}? Everyone will be notified. You can undo this.`
+                    : `Close ${group.name}? You can reopen it any time.`
+                }
+                className="pop block w-full bg-fg px-4 py-3 text-center text-sm font-semibold text-canvas [--pop-edge:#6e6b63]"
+              >
+                {transfers.length > 0 ? "Settle everything & close" : "Close group"}
+              </ConfirmButton>
+              <p className="mt-2 text-xs text-gray-400">One Undo puts everything back.</p>
+            </form>
+          </details>
+        )}
       </section>
 
       {/* Between people: each person's balance and exactly who they pay / get paid by. */}
@@ -137,6 +192,16 @@ function TransferList({
           </div>
           {!group.closed && (
             <div className="mt-2 flex justify-end gap-2">
+              {t.to === myId && (
+                <a
+                  href={nudgeLink(group.members.find((m) => m.id === t.from)?.phone ?? "", nameOf(t.from), money(t.amount), group.name)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mr-auto border border-line px-3 py-1.5 text-sm text-gray-600 active:bg-mist"
+                >
+                  Remind
+                </a>
+              )}
               <Link href={payHref(t.from, t.to, t.amount)} className="border border-line px-3 py-1.5 text-sm text-gray-600 active:bg-mist">
                 Part
               </Link>

@@ -10,6 +10,7 @@ import { getRate, type RateAnswer } from "@/lib/rate-cache";
 import { deletePayment, saveExpense, setExpenseDeleted, setPaymentDeleted, type SaveExpenseInput } from "@/lib/save-expense";
 import { removeMembers, undoEvent } from "@/lib/undo";
 import { isMemberUsed, renameMember, setMemberLeft } from "@/lib/people";
+import { settleAllAndClose } from "@/lib/settle-all";
 import { changeGroupCurrency, updateGroupBasics } from "@/lib/group-changes";
 import { logEvent } from "@/lib/events";
 import { formatMoney } from "@/lib/money";
@@ -392,4 +393,16 @@ export async function removePerson(formData: FormData) {
 export async function setPersonLeft(formData: FormData) {
   const { groupId, memberId, myId } = await peopleContext(formData);
   backToPeople(groupId, await setMemberLeft(groupId, myId, memberId, formData.get("left") === "1"));
+}
+
+// "We settled outside the app": record every Smart Settle payment and close the group.
+export async function settleEverything(formData: FormData) {
+  const groupId = String(formData.get("groupId") ?? "");
+  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
+  if (!group) redirect("/");
+  const myId = await getMyMemberId(group.id);
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect(`/join/${group.inviteCode}`);
+  const r = await settleAllAndClose(group.id, myId, String(formData.get("plan") ?? ""));
+  if (!r.ok) redirect(`/groups/${group.id}?tab=balances&error=${encodeURIComponent(r.error)}`);
+  redirect(`/?closed=1&did=${r.eventId}&g=${group.id}`);
 }

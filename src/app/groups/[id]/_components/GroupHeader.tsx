@@ -1,24 +1,24 @@
 import Link from "next/link";
 import { formatMoney } from "@/lib/money";
-import { ChevronDown, GearIcon, HomeIcon, iconButtonClass } from "@/components/icons";
+import { ChevronDown, GearIcon, HomeIcon, SearchIcon, iconButtonClass } from "@/components/icons";
 import { InviteSheet } from "@/components/InviteSheet";
 import type { GroupView } from "./view";
 
 type SwitchItem = { id: string; name: string; currency: string; myBalance: number };
 
-// Home · group name (tap to switch group) · Invite · Settings.
+// Home · group name (tap to switch group) · Search · Invite · Settings.
 export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchItem[] }) {
   const { group, myId } = v;
   const me = group.members.find((m) => m.id === myId);
   return (
-    <header className="mb-8 flex items-center gap-2.5">
+    <header className="mb-8 flex items-center gap-2">
       <Link href="/" aria-label="Home" className={iconButtonClass}>
         <HomeIcon size={20} />
       </Link>
 
       <details className="group/switch relative min-w-0 flex-1">
         <summary className="flex cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden">
-          <h1 className="truncate font-display text-2xl font-semibold tracking-tight">{group.name}</h1>
+          <h1 className="truncate font-display text-[22px] font-semibold tracking-tight">{group.name}</h1>
           <span className="shrink-0 text-gray-400 transition-transform group-open/switch:rotate-180">
             <ChevronDown size={18} />
           </span>
@@ -58,6 +58,9 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
         </div>
       </details>
 
+      <Link href={`/search?g=${group.id}`} aria-label="Search this group by words, month or year" className={iconButtonClass}>
+        <SearchIcon size={19} />
+      </Link>
       <InviteSheet groupId={group.id} groupName={group.name} inviteCode={group.inviteCode} memberCount={group.members.filter((m) => !m.leftAt).length} />
       <Link href={`/groups/${group.id}/settings`} aria-label="Group settings" className={iconButtonClass}>
         <GearIcon size={20} />
