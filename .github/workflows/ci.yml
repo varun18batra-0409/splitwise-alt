@@ -21,3 +21,40 @@ jobs:
         run: |
           set -o pipefail
           npm run build 2>&1 | tee build.log || { echo "::error title=Build failed::$(tail -60 build.log | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"; exit 1; }
+
+  # Builds the app with demo data, opens every screen in a phone-sized browser
+  # and saves the pictures to the "screenshots" branch, so the design can be checked.
+  screens:
+    needs: check
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm install --no-save tsx@4.19.2 playwright@1.48.2
+      - run: npx playwright install --with-deps chromium
+      - run: npm run db:setup
+      - name: Demo data
+        run: |
+          set -o pipefail
+          npx tsx scripts/seed-demo.ts 2>&1 | tee seed.log || { echo "::error title=Seed failed::$(tail -40 seed.log | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"; exit 1; }
+      - run: npm run build
+      - name: Screenshots
+        run: |
+          set -o pipefail
+          (npm run start > server.log 2>&1 &)
+          npx --yes wait-on@8.0.1 -t 60000 http://localhost:3000
+          npx tsx scripts/screenshots.ts 2>&1 | tee shots.log || { echo "::error title=Screenshots failed::$(tail -40 shots.log | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')%0A--- server ---%0A$(tail -20 server.log | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"; exit 1; }
+      - name: Save to the screenshots branch
+        run: |
+          cd screenshots
+          git init -q -b screenshots
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add . && git commit -qm "Screens for ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" screenshots
