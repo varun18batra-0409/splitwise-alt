@@ -4,9 +4,9 @@ import type { MetadataRoute } from "next";
 // opens full-screen without the browser bar.
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Barabar",
-    short_name: "Barabar",
-    description: "Split it. Keep it barabar.",
+    name: "Loopin",
+    short_name: "Loopin",
+    description: "Everyone’s in. Everything adds up.",
     start_url: "/",
     scope: "/",
     display: "standalone",

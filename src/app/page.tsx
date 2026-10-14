@@ -126,7 +126,7 @@ export default async function Home({
       )}
       <header className="mb-8 flex items-center justify-between">
         <div>
-          <p className="font-display text-[26px] font-semibold leading-none tracking-tight">barabar</p>
+          <p className="font-display text-[26px] font-semibold leading-none tracking-tight">loopin</p>
           <p className="mt-1.5 text-xs text-gray-400">{dayLabel(new Date())}</p>
         </div>
         {all.length > 0 && (
@@ -148,7 +148,7 @@ export default async function Home({
 
       {all.length === 0 ? (
         <section className="vault rounded-[24px] px-6 py-10 text-fg">
-          <h1 className="font-display text-3xl font-semibold leading-tight tracking-tight">Split costs with your people.</h1>
+          <h1 className="font-display text-3xl font-semibold leading-tight tracking-tight">Everyone’s in. Everything adds up.</h1>
           <p className="mt-3 text-fg/60">Make a group for a trip, a flat or a dinner, then add what everyone spent.</p>
           <Link href="/groups/new" className="pop mt-8 block bg-fg px-4 py-3.5 text-center font-semibold text-canvas [--pop-edge:#6e6b63]">
             Create your first group
