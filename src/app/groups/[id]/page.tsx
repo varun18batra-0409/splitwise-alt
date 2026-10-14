@@ -158,9 +158,6 @@ export default async function GroupPage({
           </Link>
         </p>
         {sp.saved === "settings" && <p className="mt-2 text-sm text-accent-dark">Settings saved. Everyone in the group has been notified.</p>}
-        {sp.edited === "1" && <p className="mt-2 text-sm text-accent-dark">Changes saved. Everyone in the group has been notified.</p>}
-        {sp.deleted === "1" && <p className="mt-2 text-sm text-accent-dark">Deleted. It stays in the history below, and everyone has been notified.</p>}
-        {sp.restored === "1" && <p className="mt-2 text-sm text-accent-dark">Restored. It counts again.</p>}
         {sp.error && <p className="mt-2 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{sp.error}</p>}
         {sp.added !== undefined && (
           <p className="mt-2 text-sm text-accent-dark">
