@@ -1,6 +1,6 @@
-# Split — a simple Splitwise alternative
+# Barabar — split it, keep it barabar
 
-A phone-first web app for splitting expenses with friends. No accounts, no ads,
+A phone-first app for splitting expenses with friends ("barabar" is Hindi for "equal"). No accounts, no ads,
 and it never holds or moves real money: it only keeps track of who owes whom.
 
 ## What it does

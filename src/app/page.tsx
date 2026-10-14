@@ -126,7 +126,7 @@ export default async function Home({
       )}
       <header className="mb-8 flex items-center justify-between">
         <div>
-          <p className="font-display text-[26px] font-semibold leading-none tracking-tight">split</p>
+          <p className="font-display text-[26px] font-semibold leading-none tracking-tight">barabar</p>
           <p className="mt-1.5 text-xs text-gray-400">{dayLabel(new Date())}</p>
         </div>
         {all.length > 0 && (

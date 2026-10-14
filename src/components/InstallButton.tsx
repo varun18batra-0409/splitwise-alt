@@ -35,7 +35,7 @@ export function InstallButton() {
       className="mt-10 flex w-full items-center justify-between border border-line px-4 py-3 text-left text-sm active:bg-mist"
     >
       <span>
-        <span className="block font-medium text-fg">Install Split on this phone</span>
+        <span className="block font-medium text-fg">Install Barabar on this phone</span>
         <span className="block text-xs text-gray-400">Opens like an app, from your home screen</span>
       </span>
       <span className="text-gray-400">Install</span>

@@ -1,7 +1,7 @@
 // A friendly WhatsApp reminder: opens WhatsApp with the message ready to send
 // (straight to their chat if we have their number). Nothing is sent by the app.
 export function nudgeMessage(name: string, amountText: string, groupName: string): string {
-  return `Hey ${name}! 👋 Quick one from Split: you owe me ${amountText} for “${groupName}”. Settle whenever you can, thanks!`;
+  return `Hey ${name}! 👋 Quick one from Barabar: you owe me ${amountText} for “${groupName}”. Settle whenever you can, thanks!`;
 }
 
 export function nudgeLink(phone: string, name: string, amountText: string, groupName: string): string {

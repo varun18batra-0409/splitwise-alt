@@ -8,10 +8,10 @@ import { AddExpenseButton } from "@/components/AddExpenseButton";
 const fraunces = Fraunces({ subsets: ["latin"], variable: "--font-fraunces", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Split",
-  description: "Split bills with friends",
-  applicationName: "Split",
-  appleWebApp: { capable: true, title: "Split", statusBarStyle: "black-translucent" },
+  title: "Barabar",
+  description: "Split it. Keep it barabar.",
+  applicationName: "Barabar",
+  appleWebApp: { capable: true, title: "Barabar", statusBarStyle: "black-translucent" },
 };
 
 export const viewport: Viewport = {
