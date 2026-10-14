@@ -2,7 +2,7 @@
   "name": "Splitwise alternative",
   "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
   "postCreateCommand": "npm install && npm run db:setup",
-  "postAttachCommand": "npm run dev",
+  "postAttachCommand": "git pull --ff-only; npm install && npm run dev",
   "forwardPorts": [3000],
   "portsAttributes": {
     "3000": { "label": "App", "onAutoForward": "openBrowser" }

@@ -42,6 +42,7 @@ model Expense {
   description String
   amount      Int // total, in paise
   splitType   String // "equal" | "exact" | "percent"
+  category    String         @default("other") // smart bucket, e.g. "food", "drinks"
   paidById    String
   paidBy      Member         @relation("PaidBy", fields: [paidById], references: [id])
   createdAt   DateTime       @default(now())

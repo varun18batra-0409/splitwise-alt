@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { AddExpenseButton } from "@/components/AddExpenseButton";
 
 export const metadata: Metadata = {
   title: "Split",
@@ -17,6 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className="antialiased">
         <main className="mx-auto min-h-dvh max-w-md px-5 pb-32 pt-6">{children}</main>
+        <AddExpenseButton />
       </body>
     </html>
   );
