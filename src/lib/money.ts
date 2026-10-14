@@ -132,3 +132,10 @@ export function formatMoney(minor: number, currency = "INR"): string {
 export function formatPercent(bp: number): string {
   return `${Number((bp / 100).toFixed(2))}%`; // 300 → "3%", 350 → "3.5%", 3333 → "33.33%"
 }
+
+// Smallest units → what a person would type, e.g. 300000 THB → "3000", 9950 → "99.5".
+export function toInputAmount(minor: number, currency = "INR"): string {
+  const d = decimalsOf(currency);
+  const s = (minor / 10 ** d).toFixed(d);
+  return d > 0 ? s.replace(/\.?0+$/, "") : s;
+}

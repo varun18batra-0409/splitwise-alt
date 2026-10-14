@@ -8,7 +8,7 @@ export function AddExpenseButton() {
   const path = usePathname();
 
   // Hide it where it would get in the way (forms and invite pages).
-  if (path.startsWith("/join") || path === "/groups/new" || path === "/add" || path.endsWith("/add")) {
+  if (path.startsWith("/join") || path === "/groups/new" || path === "/add" || path.endsWith("/add") || path.endsWith("/edit") || path === "/notifications") {
     return null;
   }
 

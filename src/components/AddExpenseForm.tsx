@@ -20,6 +20,26 @@ type RateState =
 
 const labelClass = "mb-2 block text-sm font-medium text-gray-600";
 
+// Values to start from when editing an existing expense.
+export type ExpenseInitial = {
+  name: string;
+  amount: string;
+  currency: string;
+  category: string;
+  paidById: string;
+  forMode: ForMode;
+  selected: string[];
+  onePersonId: string;
+  splitType: SplitType;
+  exact: Record<string, string>;
+  percent: Record<string, string>;
+  paymentMethod: PaymentMethod;
+  markupChoice: ExpenseDraft["markupChoice"];
+  markupCustom: string;
+  rate: string; // the rate saved with the expense
+  rateDate: string;
+};
+
 // Fast path (3 taps): + Add expense → type name & amount → Save.
 // Defaults: paid by you, for everyone, split equally, in the last currency used.
 export function AddExpenseForm({
@@ -28,22 +48,26 @@ export function AddExpenseForm({
   groupMarkupBp,
   members,
   myId,
+  expenseId,
+  initial,
 }: {
   groupId: string;
   baseCurrency: string;
   groupMarkupBp: number;
   members: Member[];
   myId: string;
+  expenseId?: string; // editing this expense
+  initial?: ExpenseInitial;
 }) {
   const memberIds = useMemo(() => members.map((m) => m.id), [members]);
   const nameOf = (id: string) => members.find((m) => m.id === id)?.name ?? "?";
   const who = (id: string) => (id === myId ? "You" : nameOf(id));
 
   // 1–4: what, how much, category, currency
-  const [name, setName] = useState("");
-  const [amount, setAmount] = useState("");
-  const [pickedCategory, setPickedCategory] = useState<string | null>(null); // null = smart guess
-  const [currency, setCurrency] = useState(baseCurrency);
+  const [name, setName] = useState(initial?.name ?? "");
+  const [amount, setAmount] = useState(initial?.amount ?? "");
+  const [pickedCategory, setPickedCategory] = useState<string | null>(initial?.category ?? null); // null = smart guess
+  const [currency, setCurrency] = useState(initial?.currency ?? baseCurrency);
   const [showCurrencies, setShowCurrencies] = useState(false);
   const [showCategories, setShowCategories] = useState(false);
 
@@ -51,20 +75,22 @@ export function AddExpenseForm({
   const [rateState, setRateState] = useState<RateState>({ status: "none" });
   const [rateMode, setRateMode] = useState<"auto" | "manual">("auto");
   const [manualRate, setManualRate] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("card");
-  const [markupChoice, setMarkupChoice] = useState<ExpenseDraft["markupChoice"]>("group");
-  const [markupCustom, setMarkupCustom] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(initial?.paymentMethod ?? "card");
+  const [markupChoice, setMarkupChoice] = useState<ExpenseDraft["markupChoice"]>(initial?.markupChoice ?? "group");
+  const [markupCustom, setMarkupCustom] = useState(initial?.markupCustom ?? "");
   const [showMarkup, setShowMarkup] = useState(false);
+  // Editing: keep the rate saved with the expense unless the person asks for today's.
+  const [keepSavedRate, setKeepSavedRate] = useState(Boolean(initial && initial.currency !== baseCurrency && initial.rate));
 
   // 5–7: who paid, who it was for, how to split
   const [showPeople, setShowPeople] = useState(false);
-  const [paidById, setPaidById] = useState(myId);
-  const [forMode, setForMode] = useState<ForMode>("everyone");
-  const [selected, setSelected] = useState<string[]>(memberIds);
-  const [onePersonId, setOnePersonId] = useState(memberIds.find((id) => id !== myId) ?? myId);
-  const [splitType, setSplitType] = useState<SplitType>("equal");
-  const [exact, setExact] = useState<Record<string, string>>({});
-  const [percent, setPercent] = useState<Record<string, string>>({});
+  const [paidById, setPaidById] = useState(initial?.paidById ?? myId);
+  const [forMode, setForMode] = useState<ForMode>(initial?.forMode ?? "everyone");
+  const [selected, setSelected] = useState<string[]>(initial?.selected ?? memberIds);
+  const [onePersonId, setOnePersonId] = useState(initial?.onePersonId || (memberIds.find((id) => id !== myId) ?? myId));
+  const [splitType, setSplitType] = useState<SplitType>(initial?.splitType ?? "equal");
+  const [exact, setExact] = useState<Record<string, string>>(initial?.exact ?? {});
+  const [percent, setPercent] = useState<Record<string, string>>(initial?.percent ?? {});
 
   const [error, setError] = useState("");
   const [saving, startSaving] = useTransition();
@@ -72,13 +98,14 @@ export function AddExpenseForm({
   // Remember the last currency used in this group (handy on a trip).
   const storageKey = `split-currency-${groupId}`;
   useEffect(() => {
+    if (initial) return; // editing: start from the expense's own currency
     try {
       const saved = localStorage.getItem(storageKey);
       if (saved && isSupportedCurrency(saved)) setCurrency(saved);
     } catch {
       /* storage unavailable — keep the default */
     }
-  }, [storageKey]);
+  }, [storageKey, initial]);
 
   // Fetch a rate only when the currency changes — never on each keystroke.
   const rateCache = useRef(new Map<string, RateState>());
@@ -86,6 +113,10 @@ export function AddExpenseForm({
   useEffect(() => {
     if (!foreign) {
       setRateState({ status: "none" });
+      return;
+    }
+    if (keepSavedRate && initial && currency === initial.currency) {
+      setRateState({ status: "ok", rate: initial.rate, date: initial.rateDate, stale: false });
       return;
     }
     const key = `${currency}-${baseCurrency}`;
@@ -110,10 +141,11 @@ export function AddExpenseForm({
     return () => {
       cancelled = true;
     };
-  }, [currency, baseCurrency, foreign]);
+  }, [currency, baseCurrency, foreign, keepSavedRate, initial]);
 
   function chooseCurrency(code: string) {
     setCurrency(code);
+    setKeepSavedRate(false);
     setShowCurrencies(false);
     setRateMode("auto");
     setManualRate("");
@@ -169,7 +201,7 @@ export function AddExpenseForm({
       return;
     }
     startSaving(async () => {
-      const res = await addExpense({ ...draft, groupId, name, category: category.id, rateMode: usingManualRate ? "manual" : "auto", manualRate });
+      const res = await addExpense({ ...draft, groupId, name, category: category.id, expenseId, rateMode: usingManualRate ? "manual" : keepSavedRate ? "keep" : "auto", manualRate });
       if (res?.error) setError(res.error);
     });
   }
@@ -282,9 +314,17 @@ export function AddExpenseForm({
                     1 {currency} = {rateText(rateState.rate, baseCurrency)}
                   </span>
                   <br />
-                  {rateState.stale ? "Last saved rate, from " : "Rate for "}
-                  {niceDate(rateState.date)}
+                  {keepSavedRate ? "Rate saved with this expense" : rateState.stale ? "Last saved rate, from " : "Rate for "}
+                  {keepSavedRate ? (rateState.date ? `, ${niceDate(rateState.date)}` : "") : niceDate(rateState.date)}
                   {rateState.stale && " — live rates unavailable right now"}
+                  {keepSavedRate && (
+                    <>
+                      <br />
+                      <button type="button" onClick={() => setKeepSavedRate(false)} className="py-1 font-medium text-accent">
+                        Use today’s rate instead
+                      </button>
+                    </>
+                  )}
                 </p>
                 <button
                   type="button"
@@ -554,7 +594,7 @@ export function AddExpenseForm({
       {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
       <button type="submit" disabled={saving || rateState.status === "loading"} className={primaryButtonClass}>
-        {saving ? "Saving…" : "Save expense"}
+        {saving ? "Saving…" : expenseId ? "Save changes" : "Save expense"}
       </button>
     </form>
   );

@@ -1,5 +1,7 @@
-// One history list for a group: expenses and settle-up payments, newest first,
-// each with what it meant for "me".
+// One history list for a group: expenses, settle-up payments and group changes
+// (renamed, currency changed, people added, closed…), newest first, each with
+// what it meant for "me". Deleted items stay in the list, marked as deleted,
+// and count for nothing.
 
 type ExpenseRow = {
   id: string;
@@ -9,8 +11,25 @@ type ExpenseRow = {
   paidById: string;
   createdAt: Date;
   shares: { memberId: string; amount: number }[];
+  createdById?: string;
+  editedAt?: Date | null;
+  deletedAt?: Date | null;
+  deletedById?: string | null;
 };
-type PaymentRow = { id: string; fromId: string; toId: string; amount: number; createdAt: Date };
+type PaymentRow = {
+  id: string;
+  fromId: string;
+  toId: string;
+  amount: number;
+  createdAt: Date;
+  createdById?: string;
+  deletedAt?: Date | null;
+  deletedById?: string | null;
+};
+type EventRow = { id: string; kind: string; actorId: string; text: string; details: string; createdAt: Date };
+
+// Group-level changes shown as their own lines (expense/payment changes show on the item itself).
+const GROUP_EVENT_KINDS = new Set(["group_renamed", "currency_changed", "markup_changed", "members_added", "group_closed", "group_reopened"]);
 
 export type ActivityItem =
   | {
@@ -23,13 +42,28 @@ export type ActivityItem =
       paidById: string;
       people: string[]; // who it was for
       effect: number; // + you're owed this much more, − you owe this much more, 0 not involved
+      createdById: string;
+      edited: boolean;
+      deletedById: string | null; // set when deleted
     }
-  | { kind: "payment"; id: string; date: Date; fromId: string; toId: string; amount: number; effect: number };
+  | {
+      kind: "payment";
+      id: string;
+      date: Date;
+      fromId: string;
+      toId: string;
+      amount: number;
+      effect: number;
+      createdById: string;
+      deletedById: string | null;
+    }
+  | { kind: "event"; id: string; date: Date; actorId: string; text: string; details: string; effect: 0 };
 
-export function buildActivity(expenses: ExpenseRow[], payments: PaymentRow[], myId: string): ActivityItem[] {
+export function buildActivity(expenses: ExpenseRow[], payments: PaymentRow[], myId: string, events: EventRow[] = []): ActivityItem[] {
   const items: ActivityItem[] = [
     ...expenses.map((e): ActivityItem => {
       const myShare = e.shares.find((s) => s.memberId === myId)?.amount ?? 0;
+      const deleted = Boolean(e.deletedAt);
       return {
         kind: "expense",
         id: e.id,
@@ -39,7 +73,10 @@ export function buildActivity(expenses: ExpenseRow[], payments: PaymentRow[], my
         amount: e.amount,
         paidById: e.paidById,
         people: e.shares.map((s) => s.memberId),
-        effect: (e.paidById === myId ? e.amount : 0) - myShare,
+        effect: deleted ? 0 : (e.paidById === myId ? e.amount : 0) - myShare,
+        createdById: e.createdById ?? e.paidById,
+        edited: Boolean(e.editedAt),
+        deletedById: deleted ? (e.deletedById ?? "") : null,
       };
     }),
     ...payments.map(
@@ -50,9 +87,14 @@ export function buildActivity(expenses: ExpenseRow[], payments: PaymentRow[], my
         fromId: p.fromId,
         toId: p.toId,
         amount: p.amount,
-        effect: p.fromId === myId ? p.amount : p.toId === myId ? -p.amount : 0,
+        effect: p.deletedAt ? 0 : p.fromId === myId ? p.amount : p.toId === myId ? -p.amount : 0,
+        createdById: p.createdById ?? p.fromId,
+        deletedById: p.deletedAt ? (p.deletedById ?? "") : null,
       }),
     ),
+    ...events
+      .filter((e) => GROUP_EVENT_KINDS.has(e.kind))
+      .map((e): ActivityItem => ({ kind: "event", id: e.id, date: e.createdAt, actorId: e.actorId, text: e.text, details: e.details, effect: 0 })),
   ];
   return items.sort((a, b) => b.date.getTime() - a.date.getTime());
 }

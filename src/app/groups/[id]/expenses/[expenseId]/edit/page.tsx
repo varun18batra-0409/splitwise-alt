@@ -1,0 +1,106 @@
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
+import { db } from "@/lib/db";
+import { getMyMemberId } from "@/lib/identity";
+import { toInputAmount } from "@/lib/money";
+import { allocateByWeights, type ForMode, type SplitType } from "@/lib/split";
+import type { PaymentMethod } from "@/lib/conversion";
+import { deleteExpense } from "@/app/actions";
+import { AddExpenseForm, type ExpenseInitial } from "@/components/AddExpenseForm";
+import { ConfirmButton } from "@/components/ConfirmButton";
+import { PageHeader } from "@/components/ui";
+
+// Edit an expense: everything can change (name, amount, currency, category,
+// who paid, who it was for, how it's split). Only the person who added it can.
+export default async function EditExpensePage({ params }: { params: Promise<{ id: string; expenseId: string }> }) {
+  const { id, expenseId } = await params;
+  const group = await db.group.findUnique({
+    where: { id },
+    include: { members: { orderBy: { createdAt: "asc" }, select: { id: true, name: true } } },
+  });
+  if (!group) notFound();
+  const myId = await getMyMemberId(group.id);
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect(`/join/${group.inviteCode}`);
+
+  const e = await db.expense.findFirst({ where: { id: expenseId, groupId: group.id }, include: { shares: true } });
+  if (!e) notFound();
+
+  const back = `/groups/${group.id}?tab=activity`;
+  const creator = group.members.find((m) => m.id === e.createdById)?.name ?? "the person who added it";
+  const blocked =
+    e.createdById !== myId
+      ? `Only ${creator} can change this expense, because they added it.`
+      : e.deletedAt
+        ? "This expense was deleted. Restore it from the Activity list to change it."
+        : group.closed
+          ? "This group is closed. Reopen it to change expenses."
+          : null;
+  if (blocked) {
+    return (
+      <>
+        <PageHeader title={e.description} back={back} />
+        <p className="text-gray-600">{blocked}</p>
+        <Link href={back} className="mt-6 inline-block font-medium text-accent">
+          Back to the group
+        </Link>
+      </>
+    );
+  }
+
+  // Rebuild what was typed, from what was saved.
+  const shares = e.shares.filter((s) => s.amount > 0);
+  const weights = shares.map((s) => ({ memberId: s.memberId, weight: s.amount }));
+  const exact = Object.fromEntries(
+    allocateByWeights(e.originalAmount, weights).map((s) => [s.memberId, toInputAmount(s.amount, e.originalCurrency)]),
+  );
+  const percent = Object.fromEntries(allocateByWeights(10000, weights).map((s) => [s.memberId, String(s.amount / 100)]));
+  const foreignCard = e.originalCurrency !== e.baseCurrency && e.paymentMethod === "card";
+
+  const initial: ExpenseInitial = {
+    name: e.description,
+    amount: toInputAmount(e.originalAmount, e.originalCurrency),
+    currency: e.originalCurrency,
+    category: e.category,
+    paidById: e.paidById,
+    forMode: (["everyone", "selected", "one"].includes(e.forMode) ? e.forMode : "everyone") as ForMode,
+    selected: shares.map((s) => s.memberId),
+    onePersonId: shares.length === 1 ? shares[0].memberId : "",
+    splitType: (["equal", "exact", "percent"].includes(e.splitType) ? e.splitType : "equal") as SplitType,
+    exact,
+    percent,
+    paymentMethod: (["card", "cash", "bank"].includes(e.paymentMethod) ? e.paymentMethod : "card") as PaymentMethod,
+    markupChoice: !foreignCard || e.markupBp === group.cardMarkupBp ? "group" : e.markupBp === 0 ? "none" : "custom",
+    markupCustom: foreignCard && e.markupBp !== group.cardMarkupBp ? String(e.markupBp / 100) : "",
+    rate: e.exchangeRate,
+    rateDate: e.rateDate,
+  };
+
+  return (
+    <>
+      <PageHeader title="Edit expense" back={back} />
+      <AddExpenseForm
+        groupId={group.id}
+        baseCurrency={group.currency}
+        groupMarkupBp={group.cardMarkupBp}
+        members={group.members}
+        myId={myId}
+        expenseId={e.id}
+        initial={initial}
+      />
+
+      <form action={deleteExpense} className="mt-10 border-t border-gray-100 pt-6">
+        <input type="hidden" name="groupId" value={group.id} />
+        <input type="hidden" name="expenseId" value={e.id} />
+        <p className="mb-3 text-sm text-gray-500">
+          Deleting removes it from balances and charts. It stays in the history, and you can restore it.
+        </p>
+        <ConfirmButton
+          message={`Delete “${e.description}”? Everyone in the group will be notified.`}
+          className="w-full rounded-xl border border-red-200 px-4 py-3.5 text-base font-medium text-red-700 active:bg-red-50"
+        >
+          Delete expense
+        </ConfirmButton>
+      </form>
+    </>
+  );
+}

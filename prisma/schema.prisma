@@ -26,12 +26,14 @@ model Group {
   members    Member[]
   expenses   Expense[]
   payments   Payment[]
+  events     GroupEvent[]
 }
 
 model Member {
   id        String   @id @default(cuid())
   name      String
   phone     String   @default("") // from the phone's contacts, if they were added that way
+  seenEventsAt DateTime? // notifications newer than this are unread for this person (empty = since they joined)
   groupId   String
   group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
@@ -70,6 +72,11 @@ model Expense {
   paidBy      Member         @relation("PaidBy", fields: [paidById], references: [id])
   createdAt   DateTime       @default(now())
   shares      ExpenseShare[] // one line per person; receipt items can hang off this later
+
+  createdById String    @default("") // who added it — only they can edit or delete it
+  editedAt    DateTime? // last time it was changed
+  deletedAt   DateTime? // deleted expenses stay in history but no longer count
+  deletedById String?
 }
 
 model ExpenseShare {
@@ -90,8 +97,29 @@ model Payment {
   from      Member   @relation("PaymentFrom", fields: [fromId], references: [id])
   toId      String
   to        Member   @relation("PaymentTo", fields: [toId], references: [id])
-  amount    Int // in paise
+  amount    Int // in the group's currency
   createdAt DateTime @default(now())
+
+  createdById String    @default("") // who recorded it
+  deletedAt   DateTime? // deleted payments stay in history but no longer count
+  deletedById String?
+}
+
+// Everything that happens in a group: the change history and the source of
+// notifications. Each person sees events by others since they last looked.
+model GroupEvent {
+  id        String   @id @default(cuid())
+  groupId   String
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  actorId   String // member who did it
+  kind      String // expense_added | expense_edited | expense_deleted | expense_restored | payment_recorded | payment_deleted | group_renamed | currency_changed | markup_changed | members_added | group_closed | group_reopened
+  text      String // ready-to-show summary, e.g. "added Dinner (₹900)"
+  details   String   @default("[]") // JSON list of changes, e.g. ["Amount: ₹900 → ₹1,200"]
+  expenseId String?
+  paymentId String?
+  createdAt DateTime @default(now())
+
+  @@index([groupId, createdAt])
 }
 
 // Cache of exchange rates fetched from frankfurter.dev, so we call it rarely.

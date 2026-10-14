@@ -51,6 +51,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await db.groupEvent.deleteMany({ where: { groupId } });
   await db.payment.deleteMany({ where: { groupId } });
   await db.expenseShare.deleteMany({ where: { expense: { groupId } } });
   await db.expense.deleteMany({ where: { groupId } });
@@ -128,9 +129,108 @@ describe("closing a group and recording payments", () => {
   it("refuses new expenses while a group is closed, and accepts them again after reopening", async () => {
     await db.group.update({ where: { id: groupId }, data: { closed: true, closedAt: new Date() } });
     const blocked = await saveExpense(input({ name: "Late snack" }), me, fixedRate);
-    expect(blocked).toEqual({ ok: false, error: "This group is closed. Reopen it to add expenses." });
+    expect(blocked).toEqual({ ok: false, error: "This group is closed. Reopen it to add or change expenses." });
     await db.group.update({ where: { id: groupId }, data: { closed: false, closedAt: null } });
     expect((await saveExpense(input({ name: "Late snack" }), me, fixedRate)).ok).toBe(true);
+  });
+});
+
+describe("editing, deleting and notifications", () => {
+  it("only the person who added an expense can change it, every field can change, and the change is logged", async () => {
+    const { setExpenseDeleted } = await import("@/lib/save-expense");
+    const r = await saveExpense(input({ name: "Taxi", currency: "INR", amount: "600", paymentMethod: "cash" }), me, fixedRate);
+    const id = r.ok ? r.id : "";
+
+    // Someone else can't edit or delete it.
+    expect((await saveExpense(input({ expenseId: id, name: "Taxi", currency: "INR", amount: "999" }), a, fixedRate)).ok).toBe(false);
+    expect((await setExpenseDeleted(id, a, true)).ok).toBe(false);
+
+    // The person who added it changes name, amount, payer and who it was for.
+    const edit = await saveExpense(
+      input({ expenseId: id, name: "Airport taxi", currency: "INR", amount: "900", paidById: a, forMode: "selected", selected: [me, a], paymentMethod: "cash" }),
+      me,
+      fixedRate,
+    );
+    expect(edit.ok).toBe(true);
+    const e = await db.expense.findUniqueOrThrow({ where: { id }, include: { shares: true } });
+    expect([e.description, e.amount, e.paidById, e.forMode, e.createdById, Boolean(e.editedAt)]).toEqual(["Airport taxi", 90000, a, "selected", me, true]);
+    expect(e.shares.map((x) => x.amount).sort()).toEqual([45000, 45000]);
+
+    const ev = await db.groupEvent.findFirstOrThrow({ where: { expenseId: id, kind: "expense_edited" } });
+    expect(JSON.parse(ev.details)).toEqual(
+      expect.arrayContaining(["Name: Taxi → Airport taxi", "Amount: ₹600 → ₹900", "Paid by: Me → A", "For: everyone → selected people"]),
+    );
+  });
+
+  it("editing keeps the saved exchange rate unless asked for today's", async () => {
+    const r = await saveExpense(input({ name: "Boat", amount: "1000", paymentMethod: "cash" }), me, fixedRate); // saved at 2.5
+    const id = r.ok ? r.id : "";
+    const newer = async (): Promise<RateAnswer> => ({ ok: true, rate: "3", date: "2026-11-01" });
+    await saveExpense(input({ expenseId: id, name: "Boat trip", amount: "1000", paymentMethod: "cash", rateMode: "keep" }), me, newer);
+    const kept = await db.expense.findUniqueOrThrow({ where: { id } });
+    expect([kept.exchangeRate, kept.amount, kept.description]).toEqual(["2.5", 250000, "Boat trip"]);
+    await saveExpense(input({ expenseId: id, name: "Boat trip", amount: "1000", paymentMethod: "cash", rateMode: "auto" }), me, newer);
+    const fresh = await db.expense.findUniqueOrThrow({ where: { id } });
+    expect([fresh.exchangeRate, fresh.amount, fresh.rateDate]).toEqual(["3", 300000, "2026-11-01"]);
+  });
+
+  it("deleting stops an expense counting but keeps it in history; restoring brings it back", async () => {
+    const { setExpenseDeleted } = await import("@/lib/save-expense");
+    const { loadGroup } = await import("@/lib/group-data");
+    const r = await saveExpense(input({ name: "Snacks", currency: "INR", amount: "300", paymentMethod: "cash" }), me, fixedRate);
+    const id = r.ok ? r.id : "";
+    const withIt = (await loadGroup(groupId))!.net[me];
+
+    expect((await setExpenseDeleted(id, me, true)).ok).toBe(true);
+    const after = await loadGroup(groupId);
+    expect(after!.net[me]).toBe(withIt - 20000); // my ₹200 lent no longer counts
+    expect(after!.group.expenses.some((x) => x.id === id && x.deletedAt)).toBe(true); // still in history
+
+    expect((await setExpenseDeleted(id, me, false)).ok).toBe(true);
+    expect((await loadGroup(groupId))!.net[me]).toBe(withIt);
+    const kinds = (await db.groupEvent.findMany({ where: { expenseId: id }, orderBy: { createdAt: "asc" } })).map((x) => x.kind);
+    expect(kinds).toEqual(["expense_added", "expense_deleted", "expense_restored"]);
+  });
+
+  it("everyone else gets notified; you don't get notified about your own changes", async () => {
+    const { loadNotifications, markNotificationsSeen } = await import("@/lib/group-data");
+    await db.member.update({ where: { id: a }, data: { seenEventsAt: new Date(Date.now() - 1000) } });
+    await saveExpense(input({ name: "Coffee", currency: "INR", amount: "150", paymentMethod: "cash" }), me, fixedRate);
+
+    const forA = await loadNotifications({ [groupId]: a });
+    expect(forA.unread).toBeGreaterThan(0);
+    expect(forA.items[0].event.text).toContain("added Coffee");
+    expect(forA.items[0].actorName).toBe("Me");
+
+    const forMe = await loadNotifications({ [groupId]: me });
+    expect(forMe.items.some((n) => n.event.text.includes("Coffee"))).toBe(false);
+
+    await markNotificationsSeen({ [groupId]: a });
+    expect((await loadNotifications({ [groupId]: a })).unread).toBe(0);
+  });
+
+  it("renaming the group and changing its currency converts everything and notifies everyone", async () => {
+    const { updateGroupBasics, changeGroupCurrency } = await import("@/lib/group-changes");
+    const { loadGroup } = await import("@/lib/group-data");
+    expect((await updateGroupBasics(groupId, a, { name: "Test: Bangkok 2026" })).ok).toBe(true);
+
+    const before = (await loadGroup(groupId))!;
+    const ok = await changeGroupCurrency(groupId, a, "USD", "0.012");
+    expect(ok.ok).toBe(true);
+
+    const after = (await loadGroup(groupId))!;
+    expect([after.group.name, after.group.currency]).toEqual(["Test: Bangkok 2026", "USD"]);
+    for (const e of after.group.expenses) {
+      expect(e.baseCurrency).toBe("USD");
+      expect(e.shares.reduce((s, x) => s + x.amount, 0)).toBe(e.amount); // still exact
+    }
+    // Original receipt amounts unchanged.
+    expect(after.group.expenses.map((e) => [e.id, e.originalAmount, e.originalCurrency]).sort())
+      .toEqual(before.group.expenses.map((e) => [e.id, e.originalAmount, e.originalCurrency]).sort());
+    expect(Object.values(after.net).reduce((s, v) => s + v, 0)).toBe(0);
+
+    const kinds = (await db.groupEvent.findMany({ where: { groupId, actorId: a } })).map((x) => x.kind);
+    expect(kinds).toEqual(expect.arrayContaining(["group_renamed", "currency_changed"]));
   });
 });
 
@@ -149,7 +249,7 @@ describe("upgrading data saved by the older version", () => {
       category: e.category, amount: e.amount, originalAmount: e.originalAmount, originalCurrency: e.originalCurrency,
       convertedAmount: e.convertedAmount, exchangeRate: e.exchangeRate, markupAmount: e.markupAmount, shares: e.shares.length,
     }).toEqual({
-      category: "food", amount: 60000, originalAmount: 60000, originalCurrency: "INR",
+      category: "food", amount: 60000, originalAmount: 60000, originalCurrency: "USD", // the group's currency by now
       convertedAmount: 60000, exchangeRate: "1", markupAmount: 0, shares: 2,
     });
   });

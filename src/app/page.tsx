@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getMemberships } from "@/lib/identity";
-import { loadMyGroups } from "@/lib/group-data";
+import { loadMyGroups, loadNotifications } from "@/lib/group-data";
 import { buildActivity, dayLabel } from "@/lib/activity";
 import { formatMoney } from "@/lib/money";
 import { BalanceMeter } from "@/components/BalanceMeter";
@@ -11,6 +11,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
   const { closed: justClosed } = await searchParams;
   const memberships = await getMemberships();
   const all = await loadMyGroups(memberships);
+  const { unread } = await loadNotifications(memberships, 1);
   const open = all.filter((g) => !g.group.closed);
   const closed = all.filter((g) => g.group.closed);
 
@@ -33,7 +34,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
   const recent = open
     .flatMap((g) => {
       const names = new Map(g.group.members.map((m) => [m.id, m.id === g.myId ? "You" : m.name]));
-      return buildActivity(g.group.expenses, g.group.payments, g.myId).map((item) => ({
+      return buildActivity(g.expenses, g.payments, g.myId).map((item) => ({
         item,
         currency: g.group.currency,
         groupName: g.group.name,
@@ -47,7 +48,23 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
     <>
       <header className="mb-6 flex items-center justify-between">
         <p className="font-display text-xl font-semibold tracking-tight">Split</p>
-        <p className="text-sm text-gray-400">{dayLabel(new Date())}</p>
+        <span className="flex items-center gap-3">
+          <span className="text-sm text-gray-400">{dayLabel(new Date())}</span>
+          {all.length > 0 && (
+            <Link
+              href="/notifications"
+              aria-label={unread ? `Notifications, ${unread} new` : "Notifications"}
+              className="relative -mr-2 flex h-10 w-10 items-center justify-center rounded-full text-xl active:bg-gray-100"
+            >
+              <span aria-hidden>🔔</span>
+              {unread > 0 && (
+                <span className="absolute right-0.5 top-0.5 min-w-[18px] rounded-full bg-owe px-1 text-center text-[11px] font-semibold leading-[18px] text-white">
+                  {unread > 99 ? "99+" : unread}
+                </span>
+              )}
+            </Link>
+          )}
+        </span>
       </header>
 
       {all.length === 0 ? (

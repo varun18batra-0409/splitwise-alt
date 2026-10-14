@@ -7,7 +7,9 @@ import { pairwiseDebtCount } from "@/lib/settle";
 import { formatMoney, formatPercent } from "@/lib/money";
 import { niceDate, rateText } from "@/lib/format";
 import { CATEGORIES, getCategory } from "@/lib/categories";
-import { recordPayment, setGroupClosed } from "@/app/actions";
+import { recordPayment, removePayment, restoreExpense, setGroupClosed } from "@/app/actions";
+import { parseDetails } from "@/lib/events";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { ActivityRow } from "@/components/ActivityRow";
 import { BalanceMeter } from "@/components/BalanceMeter";
 import { ColumnChart, HBarChart } from "@/components/Charts";
@@ -27,7 +29,7 @@ export default async function GroupPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string; saved?: string; added?: string; skipped?: string; paid?: string }>;
+  searchParams: Promise<{ tab?: string; saved?: string; added?: string; skipped?: string; paid?: string; edited?: string; deleted?: string; restored?: string; error?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -35,7 +37,7 @@ export default async function GroupPage({
 
   const data = await loadGroup(id);
   if (!data) notFound();
-  const { group, net, transfers } = data;
+  const { group, net, transfers, expenses: activeExpenses, payments: activePayments } = data;
 
   // If this phone hasn't said who it is in this group yet, ask first.
   const myId = await getMyMemberId(group.id);
@@ -44,7 +46,7 @@ export default async function GroupPage({
   const money = (p: number) => formatMoney(p, group.currency);
   const nameOf = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");
   const mine = net[myId] ?? 0;
-  const spent = group.expenses.reduce((s, e) => s + e.amount, 0);
+  const spent = activeExpenses.reduce((s, e) => s + e.amount, 0);
   const expenseById = new Map(group.expenses.map((e) => [e.id, e]));
 
   return (
@@ -87,12 +89,16 @@ export default async function GroupPage({
           {mine > 0 ? `You’re owed ${money(mine)}` : mine < 0 ? `You owe ${money(-mine)}` : "All square"}
         </p>
         <p className="mt-1 text-sm text-gray-500">
-          {money(spent)} spent across {group.expenses.length} {group.expenses.length === 1 ? "expense" : "expenses"}, {group.members.length} people
+          {money(spent)} spent across {activeExpenses.length} {activeExpenses.length === 1 ? "expense" : "expenses"}, {group.members.length} people
           <Link href={`/groups/${group.id}/settings`} className="ml-1 text-gray-400">
             ({group.currency}, card markup {formatPercent(group.cardMarkupBp)})
           </Link>
         </p>
-        {sp.saved === "settings" && <p className="mt-2 text-sm text-accent-dark">Settings saved.</p>}
+        {sp.saved === "settings" && <p className="mt-2 text-sm text-accent-dark">Settings saved. Everyone in the group has been notified.</p>}
+        {sp.edited === "1" && <p className="mt-2 text-sm text-accent-dark">Changes saved. Everyone in the group has been notified.</p>}
+        {sp.deleted === "1" && <p className="mt-2 text-sm text-accent-dark">Deleted. It stays in the history below, and everyone has been notified.</p>}
+        {sp.restored === "1" && <p className="mt-2 text-sm text-accent-dark">Restored. It counts again.</p>}
+        {sp.error && <p className="mt-2 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{sp.error}</p>}
         {sp.added !== undefined && (
           <p className="mt-2 text-sm text-accent-dark">
             {Number(sp.added) === 1 ? "1 person added." : `${Number(sp.added) || 0} people added.`}
@@ -121,9 +127,14 @@ export default async function GroupPage({
     </>
   );
 
-  // ---- Activity: every expense and payment, by date, with who and how much ----
+  // ---- Activity: every expense, payment and group change, by date, with who and how much ----
   function ActivityTab() {
-    const items = buildActivity(group.expenses, group.payments, myId!);
+    const items = buildActivity(group.expenses, group.payments, myId!, group.events);
+    const when = (d: Date) =>
+      d.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+    const historyOf = (key: "expenseId" | "paymentId", id: string) =>
+      group.events.filter((ev) => ev[key] === id).sort((x, y) => x.createdAt.getTime() - y.createdAt.getTime());
+
     if (items.length === 0) {
       return (
         <div className="rounded-2xl border border-dashed border-gray-200 py-10 text-center text-sm text-gray-500">
@@ -138,23 +149,59 @@ export default async function GroupPage({
             <h2 className="sticky top-0 z-10 -mx-5 bg-white/95 px-5 py-1.5 text-sm font-medium text-gray-500 backdrop-blur">{day.day}</h2>
             <ul className="divide-y divide-gray-100">
               {day.items.map((item) => {
-                if (item.kind === "payment") {
+                if (item.kind === "event") {
+                  const details = parseDetails(item.details);
                   return (
                     <li key={item.id}>
                       <ActivityRow item={item} currency={group.currency} nameOf={nameOf} />
+                      {details.length > 0 && (
+                        <ul className="-mt-1 mb-2 ml-[3.25rem] space-y-0.5 text-xs text-gray-400">
+                          {details.map((d) => (
+                            <li key={d}>{d}</li>
+                          ))}
+                        </ul>
+                      )}
                     </li>
                   );
                 }
+
+                if (item.kind === "payment") {
+                  const mineToDelete = item.createdById === myId && item.deletedById === null;
+                  return (
+                    <li key={item.id}>
+                      <details>
+                        <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                          <ActivityRow item={item} currency={group.currency} nameOf={nameOf} />
+                        </summary>
+                        <div className="mb-3 ml-[3.25rem] space-y-2 rounded-xl bg-mist p-3 text-sm text-gray-600">
+                          <History events={historyOf("paymentId", item.id)} fallback={`Recorded ${when(item.date)}`} />
+                          {mineToDelete && (
+                            <form action={removePayment}>
+                              <input type="hidden" name="groupId" value={group.id} />
+                              <input type="hidden" name="paymentId" value={item.id} />
+                              <ConfirmButton message="Delete this payment? Balances will go back to before it was recorded." className="text-sm font-medium text-red-700">
+                                Delete payment
+                              </ConfirmButton>
+                            </form>
+                          )}
+                        </div>
+                      </details>
+                    </li>
+                  );
+                }
+
                 const e = expenseById.get(item.id)!;
                 const cat = getCategory(e.category);
                 const foreign = e.originalCurrency !== e.baseCurrency;
+                const isMine = e.createdById === myId;
+                const deleted = Boolean(e.deletedAt);
                 return (
                   <li key={item.id}>
                     <details>
                       <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
                         <ActivityRow item={item} currency={group.currency} nameOf={nameOf} />
                       </summary>
-                      {/* Tap an expense to see exactly how it was worked out. */}
+                      {/* Tap an expense to see exactly how it was worked out, and its history. */}
                       <div className="mb-3 ml-[3.25rem] space-y-1.5 rounded-xl bg-mist p-3 text-sm text-gray-600">
                         <Line label="Category" value={`${cat.emoji} ${cat.label}`} />
                         {foreign && (
@@ -162,7 +209,7 @@ export default async function GroupPage({
                             <Line label="Original expense" value={formatMoney(e.originalAmount, e.originalCurrency)} />
                             <Line label="Exchange rate" value={`1 ${e.originalCurrency} = ${rateText(e.exchangeRate, e.baseCurrency)}`} />
                             <p className="-mt-1 text-right text-xs text-gray-400">
-                              {e.rateSource === "manual" ? "Entered by hand" : "Live rate"}
+                              {e.rateSource === "manual" ? "Entered by hand" : e.rateSource === "converted" ? "Adjusted when the group currency changed" : "Live rate"}
                               {e.rateDate && `, ${niceDate(e.rateDate)}`}
                             </p>
                             <Line label="Paid with" value={PAID_WITH[e.paymentMethod] ?? "—"} />
@@ -177,10 +224,30 @@ export default async function GroupPage({
                           {e.shares.map((sh) => (
                             <Line key={sh.id} label={`  ${nameOf(sh.memberId)}`} value={money(sh.amount)} />
                           ))}
-                          <p className="pt-1 text-right text-xs text-gray-400">
-                            Added {e.createdAt.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
-                          </p>
                         </div>
+                        <div className="border-t border-gray-200 pt-2">
+                          <History events={historyOf("expenseId", e.id)} fallback={`Added by ${nameOf(e.createdById)}, ${when(e.createdAt)}`} />
+                        </div>
+                        {isMine && !group.closed && (
+                          <div className="flex gap-4 pt-1">
+                            {deleted ? (
+                              <form action={restoreExpense}>
+                                <input type="hidden" name="groupId" value={group.id} />
+                                <input type="hidden" name="expenseId" value={e.id} />
+                                <button type="submit" className="text-sm font-medium text-accent">
+                                  Restore
+                                </button>
+                              </form>
+                            ) : (
+                              <Link href={`/groups/${group.id}/expenses/${e.id}/edit`} className="text-sm font-medium text-accent">
+                                Edit or delete
+                              </Link>
+                            )}
+                          </div>
+                        )}
+                        {!isMine && !deleted && (
+                          <p className="pt-1 text-xs text-gray-400">Only {nameOf(e.createdById) === "You" ? "you" : nameOf(e.createdById)} can change this.</p>
+                        )}
                       </div>
                     </details>
                   </li>
@@ -193,9 +260,33 @@ export default async function GroupPage({
     );
   }
 
+  // Who did what to one item, oldest first.
+  function History({ events, fallback }: { events: typeof group.events; fallback: string }) {
+    const when = (d: Date) =>
+      d.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+    if (events.length === 0) return <p className="text-xs text-gray-400">{fallback}</p>;
+    return (
+      <ol className="space-y-1.5 text-xs text-gray-500">
+        {events.map((ev) => (
+          <li key={ev.id}>
+            <span className="font-medium text-gray-700">{nameOf(ev.actorId)}</span> {ev.text.replace(/^(added|changed|deleted|restored|recorded) .*/, (m) => m.split(" ")[0])}
+            <span className="text-gray-400"> · {when(ev.createdAt)}</span>
+            {parseDetails(ev.details).length > 0 && ev.kind === "expense_edited" && (
+              <ul className="ml-3 mt-0.5 list-disc pl-3 text-gray-500">
+                {parseDetails(ev.details).map((d) => (
+                  <li key={d}>{d}</li>
+                ))}
+              </ul>
+            )}
+          </li>
+        ))}
+      </ol>
+    );
+  }
+
   // ---- Balances: Smart Settle suggestions + everyone's balance ----
   function BalancesTab() {
-    const before = pairwiseDebtCount(group.expenses, group.payments);
+    const before = pairwiseDebtCount(activeExpenses, activePayments);
     return (
       <div className="space-y-10">
         <section>
@@ -256,13 +347,13 @@ export default async function GroupPage({
 
   // ---- Charts ----
   function ChartsTab() {
-    if (group.expenses.length === 0) {
+    if (activeExpenses.length === 0) {
       return <p className="rounded-2xl bg-mist px-4 py-8 text-center text-sm text-gray-600">Charts appear once the group has expenses.</p>;
     }
 
-    const sumBy = (keyOf: (e: (typeof group.expenses)[number]) => string[], amountOf: (e: (typeof group.expenses)[number], k: string) => number) => {
+    const sumBy = (keyOf: (e: (typeof activeExpenses)[number]) => string[], amountOf: (e: (typeof activeExpenses)[number], k: string) => number) => {
       const m = new Map<string, number>();
-      for (const e of group.expenses) for (const k of keyOf(e)) m.set(k, (m.get(k) ?? 0) + amountOf(e, k));
+      for (const e of activeExpenses) for (const k of keyOf(e)) m.set(k, (m.get(k) ?? 0) + amountOf(e, k));
       return m;
     };
 

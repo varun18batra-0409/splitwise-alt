@@ -37,7 +37,16 @@ for (const e of old) {
   });
 }
 
-if (moved || old.length) {
-  console.log(`Data upgrade: ${moved} categories updated, ${old.length} older expenses given currency details.`);
+// 3. Who added each expense / payment (older ones didn't record it): use the payer.
+const noCreator = await db.expense.findMany({ where: { createdById: "" }, select: { id: true, paidById: true } });
+for (const e of noCreator) await db.expense.update({ where: { id: e.id }, data: { createdById: e.paidById } });
+const noRecorder = await db.payment.findMany({ where: { createdById: "" }, select: { id: true, fromId: true } });
+for (const p of noRecorder) await db.payment.update({ where: { id: p.id }, data: { createdById: p.fromId } });
+
+if (moved || old.length || noCreator.length || noRecorder.length) {
+  console.log(
+    `Data upgrade: ${moved} categories updated, ${old.length} expenses given currency details, ` +
+      `${noCreator.length + noRecorder.length} items given an owner.`,
+  );
 }
 await db.$disconnect();

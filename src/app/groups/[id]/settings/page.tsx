@@ -1,39 +1,100 @@
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
-import { setGroupClosed, updateGroupSettings } from "@/app/actions";
-import { formatPercent } from "@/lib/money";
+import { convertGroupCurrency, setGroupClosed, updateGroupSettings } from "@/app/actions";
+import { currencyInfo, formatMoney, formatPercent, isSupportedCurrency } from "@/lib/money";
+import { getRate } from "@/lib/rate-cache";
+import { niceDate } from "@/lib/format";
+import Link from "next/link";
 import { CurrencySelect } from "@/components/CurrencySelect";
-import { ErrorNote, PageHeader, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
+import { ErrorNote, PageHeader, inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
 
 const PRESETS = [0, 200, 300, 400];
 
 const ERRORS: Record<string, string> = {
   markup: "Enter a markup between 0% and 20%, like 3.5.",
   currency: "Pick a currency from the list.",
-  locked: "The group currency can't change once expenses have been added.",
+  name: "Give the group a name.",
 };
 
-// Group settings: base settlement currency and the foreign card markup.
+// Group settings: name, currency (converting existing amounts if needed),
+// foreign card markup, and close / reopen. Every change notifies the group.
 export default async function GroupSettings({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; convert?: string }>;
 }) {
   const { id } = await params;
-  const { error } = await searchParams;
+  const { error, convert } = await searchParams;
   const group = await db.group.findUnique({
     where: { id },
-    include: { members: { select: { id: true } }, _count: { select: { expenses: true } } },
+    include: {
+      members: { select: { id: true } },
+      expenses: { where: { deletedAt: null }, select: { amount: true } },
+      _count: { select: { expenses: true, payments: true } },
+    },
   });
   if (!group) notFound();
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect(`/join/${group.inviteCode}`);
 
-  const locked = group._count.expenses > 0;
   const isPreset = PRESETS.includes(group.cardMarkupBp);
+
+  // Step 2 of changing the currency: confirm the conversion rate.
+  if (convert && isSupportedCurrency(convert) && convert !== group.currency) {
+    const live = await getRate(group.currency, convert);
+    const total = group.expenses.reduce((s, e) => s + e.amount, 0);
+    const to = currencyInfo(convert);
+    return (
+      <>
+        <PageHeader title="Change group currency" back={`/groups/${group.id}/settings`} />
+        {error && <ErrorNote>{error}</ErrorNote>}
+        <p className="mb-6 text-gray-600">
+          Switching from <strong>{group.currency}</strong> to{" "}
+          <strong>
+            {to.flag} {convert}
+          </strong>
+          . All {group._count.expenses} expenses, every share and {group._count.payments} payments will be converted at the
+          rate below. Original receipt amounts stay as they were, and everyone is notified.
+        </p>
+        <form action={convertGroupCurrency} className="space-y-6">
+          <input type="hidden" name="groupId" value={group.id} />
+          <input type="hidden" name="currency" value={convert} />
+          <label className="block">
+            <span className="mb-2 block text-sm font-medium text-gray-600">Conversion rate</span>
+            <span className="flex items-center gap-2">
+              <span className="shrink-0 text-gray-600">1 {group.currency} =</span>
+              <input
+                name="rate"
+                required
+                inputMode="decimal"
+                defaultValue={live.ok ? live.rate : ""}
+                placeholder="rate"
+                className={inputClass}
+              />
+              <span className="shrink-0 text-gray-600">{convert}</span>
+            </span>
+            <span className="mt-2 block text-sm text-gray-500">
+              {live.ok ? `Live rate for ${niceDate(live.date)}. You can change it.` : live.message}
+            </span>
+          </label>
+          {total > 0 && (
+            <p className="rounded-xl bg-mist px-4 py-3 text-sm text-gray-600">
+              Current group total: {formatMoney(total, group.currency)}
+            </p>
+          )}
+          <button type="submit" className={primaryButtonClass}>
+            Convert to {convert}
+          </button>
+          <Link href={`/groups/${group.id}/settings`} className={`block ${secondaryButtonClass}`}>
+            Cancel
+          </Link>
+        </form>
+      </>
+    );
+  }
 
   return (
     <>
@@ -43,19 +104,18 @@ export default async function GroupSettings({
       <form action={updateGroupSettings} className="space-y-10">
         <input type="hidden" name="groupId" value={group.id} />
 
+        <label className="block">
+          <span className="mb-2 block text-base font-semibold">Group name</span>
+          <input name="name" required defaultValue={group.name} maxLength={60} autoComplete="off" className={inputClass} />
+        </label>
+
         <fieldset>
           <legend className="mb-1 text-base font-semibold">Group currency</legend>
           <p className="mb-4 text-sm text-gray-500">
             Balances and settle-up amounts are shown in this currency. Expenses in other currencies are converted into it.
+            {group._count.expenses + group._count.payments > 0 && " If you change it, you’ll confirm a rate to convert existing amounts next."}
           </p>
-          <CurrencySelect name="currency" defaultValue={group.currency} disabled={locked} />
-          {/* A disabled dropdown isn't sent with the form, so send the current value. */}
-          {locked && <input type="hidden" name="currency" value={group.currency} />}
-          {locked && (
-            <p className="mt-2 text-sm text-gray-500">
-              Locked because this group already has expenses, so saved amounts keep their meaning.
-            </p>
-          )}
+          <CurrencySelect name="currency" defaultValue={group.currency} />
         </fieldset>
 
         <fieldset>

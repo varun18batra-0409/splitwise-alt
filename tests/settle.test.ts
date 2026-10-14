@@ -109,3 +109,26 @@ describe("pairwiseDebtCount (debts before Smart Settle)", () => {
     expect(pairwiseDebtCount([{ paidById: "a", shares: [share("b", 100)] }], [{ fromId: "b", toId: "a", amount: 100 }])).toBe(0);
   });
 });
+
+describe("history keeps deleted items and shows group changes", () => {
+  it("deleted items stay in the list but count for nothing", () => {
+    const d = (s: string) => new Date(s);
+    const items = buildActivity(
+      [{ id: "e1", description: "Dinner", category: "food", amount: 900, paidById: "me", createdAt: d("2026-10-12T10:00:00Z"),
+         shares: [{ memberId: "me", amount: 450 }, { memberId: "a", amount: 450 }], createdById: "me", deletedAt: d("2026-10-13T10:00:00Z"), deletedById: "me" }],
+      [{ id: "p1", fromId: "a", toId: "me", amount: 450, createdAt: d("2026-10-12T11:00:00Z"), createdById: "a", deletedAt: null }],
+      "me",
+      [
+        { id: "ev1", kind: "group_renamed", actorId: "a", text: "renamed the group to “Goa”", details: "[]", createdAt: d("2026-10-14T10:00:00Z") },
+        { id: "ev2", kind: "expense_added", actorId: "me", text: "added Dinner", details: "[]", createdAt: d("2026-10-12T10:00:00Z") },
+      ],
+    );
+    expect(items.map((i) => [i.kind, i.id, i.effect])).toEqual([
+      ["event", "ev1", 0], // group change shown as its own line
+      ["payment", "p1", -450],
+      ["expense", "e1", 0], // deleted: still listed, no effect
+    ]);
+    const e1 = items.find((i) => i.id === "e1");
+    expect(e1?.kind === "expense" && e1.deletedById).toBe("me");
+  });
+});
