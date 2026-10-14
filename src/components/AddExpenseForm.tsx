@@ -9,6 +9,7 @@ import { currencyInfo, formatMoney, formatPercent, isSupportedCurrency, parseAmo
 import { CurrencyPicker } from "./CurrencyPicker";
 import { participantsFor, type ForMode, type SplitType } from "@/lib/split";
 import { niceDate, rateText } from "@/lib/format";
+import { todayKey } from "@/lib/dates";
 import { inputClass, primaryButtonClass } from "./ui";
 
 type Member = { id: string; name: string };
@@ -38,6 +39,7 @@ export type ExpenseInitial = {
   markupCustom: string;
   rate: string; // the rate saved with the expense
   rateDate: string;
+  date: string; // "2026-10-14"
 };
 
 // Fast path (3 taps): + Add expense → type name & amount → Save.
@@ -66,6 +68,8 @@ export function AddExpenseForm({
   // 1–4: what, how much, category, currency
   const [name, setName] = useState(initial?.name ?? "");
   const [amount, setAmount] = useState(initial?.amount ?? "");
+  const today = todayKey();
+  const [date, setDate] = useState(initial?.date ?? today);
   const [pickedCategory, setPickedCategory] = useState<string | null>(initial?.category ?? null); // null = smart guess
   const [currency, setCurrency] = useState(initial?.currency ?? baseCurrency);
   const [showCurrencies, setShowCurrencies] = useState(false);
@@ -204,7 +208,7 @@ export function AddExpenseForm({
       return;
     }
     startSaving(async () => {
-      const res = await addExpense({ ...draft, groupId, name, category: category.id, expenseId, rateMode: usingManualRate ? "manual" : keepSavedRate ? "keep" : "auto", manualRate });
+      const res = await addExpense({ ...draft, groupId, name, category: category.id, expenseId, date, rateMode: usingManualRate ? "manual" : keepSavedRate ? "keep" : "auto", manualRate });
       if (res?.error) setError(res.error);
     });
   }
@@ -312,6 +316,28 @@ export function AddExpenseForm({
           />
         </div>
         {showCurrencies && <CurrencyPicker value={currency} recent={[baseCurrency, currency]} onPick={chooseCurrency} />}
+
+        {/* When it was spent — today unless changed. */}
+        <label className="mt-2 flex items-center gap-2 text-sm text-gray-500">
+          <span className="shrink-0">Date</span>
+          <span className="relative">
+            <input
+              type="date"
+              value={date}
+              max={today}
+              onChange={(e) => setDate(e.target.value || today)}
+              aria-label="Date of the expense"
+              className="border border-line bg-transparent px-2.5 py-1.5 text-sm text-fg outline-none focus:border-accent [color-scheme:dark]"
+            />
+          </span>
+          {date === today ? (
+            <span className="text-gray-400">· today</span>
+          ) : (
+            <button type="button" onClick={() => setDate(today)} className="text-xs font-semibold text-fg">
+              Use today
+            </button>
+          )}
+        </label>
       </div>
 
       {/* Currency conversion — only shown for foreign currencies */}

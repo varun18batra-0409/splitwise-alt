@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getMemberships, getMyMemberId, setMyMemberId } from "@/lib/identity";
 import { cleanNames, cleanPeople, sameName } from "@/lib/names";
-import { isSupportedCurrency, parsePercent } from "@/lib/money";
+import { isSupportedCurrency, parseAmount, parsePercent } from "@/lib/money";
 import { getRate, type RateAnswer } from "@/lib/rate-cache";
 import { deletePayment, saveExpense, setExpenseDeleted, setPaymentDeleted, type SaveExpenseInput } from "@/lib/save-expense";
 import { undoEvent } from "@/lib/undo";
@@ -324,4 +324,38 @@ export async function settleAcrossGroups(formData: FormData) {
     }
   });
   redirect("/?settle=done#settle");
+}
+
+// "Record a payment": any amount (full or part) between any two people in the group.
+export async function recordCustomPayment(formData: FormData) {
+  const groupId = String(formData.get("groupId") ?? "");
+  const fromId = String(formData.get("fromId") ?? "");
+  const toId = String(formData.get("toId") ?? "");
+  const amountText = String(formData.get("amount") ?? "");
+
+  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true, name: true } } } });
+  if (!group) redirect("/");
+  const myId = await getMyMemberId(group.id);
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect(`/join/${group.inviteCode}`);
+
+  const back = (error: string) =>
+    redirect(`/groups/${group.id}/pay?${new URLSearchParams({ from: fromId, to: toId, amount: amountText, error })}`);
+  const nameOf = (id: string) => group.members.find((m) => m.id === id)?.name;
+  if (!nameOf(fromId) || !nameOf(toId)) back("Pick who paid and who they paid.");
+  if (fromId === toId) back("Pick two different people.");
+  const amount = parseAmount(amountText, group.currency);
+  if (amount === null) back("Enter a valid amount, like 500 or 99.50.");
+
+  const did = await db.$transaction(async (tx) => {
+    const p = await tx.payment.create({ data: { groupId: group.id, fromId, toId, amount: amount!, createdById: myId } });
+    return logEvent(tx, {
+      groupId: group.id,
+      actorId: myId,
+      kind: "payment_recorded",
+      text: `recorded ${nameOf(fromId)} paid ${nameOf(toId)} ${formatMoney(amount!, group.currency)}`,
+      paymentId: p.id,
+      undo: { type: "payment_delete", paymentId: p.id },
+    });
+  });
+  redirect(`/groups/${group.id}?tab=balances&paid=1&did=${did}`);
 }

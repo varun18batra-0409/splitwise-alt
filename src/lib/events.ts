@@ -1,6 +1,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { getCategory } from "./categories";
 import { formatMoney, formatPercent } from "./money";
+import { niceDate } from "./format";
 
 // The group's change history. Every add / edit / delete / settings change is
 // written here; it powers both the history shown in the group and the
@@ -43,10 +44,11 @@ export type ExpenseState = {
   paymentMethod: string;
   markupBp: number;
   markupAmount: number;
+  spentAt: string | null; // the chosen day, as an ISO time; null = the day it was added
   shares: { memberId: string; amount: number }[];
 };
 
-export function expenseState(e: ExpenseState): ExpenseState {
+export function expenseState(e: Omit<ExpenseState, "spentAt"> & { spentAt?: Date | string | null }): ExpenseState {
   return {
     description: e.description,
     category: e.category,
@@ -64,6 +66,7 @@ export function expenseState(e: ExpenseState): ExpenseState {
     paymentMethod: e.paymentMethod,
     markupBp: e.markupBp,
     markupAmount: e.markupAmount,
+    spentAt: e.spentAt instanceof Date ? e.spentAt.toISOString() : (e.spentAt ?? null),
     shares: e.shares.map((s) => ({ memberId: s.memberId, amount: s.amount })),
   };
 }
@@ -147,6 +150,7 @@ export type ExpenseSnapshot = {
   paidById: string;
   forMode: string;
   splitType: string;
+  day?: string; // "2026-10-14"
   shares: { memberId: string; amount: number }[];
 };
 
@@ -161,6 +165,7 @@ export function diffExpense(before: ExpenseSnapshot, after: ExpenseSnapshot, nam
     if (a !== b) out.push(`${label}: ${a} → ${b}`);
   };
   add("Name", before.description, after.description);
+  if (before.day && after.day) add("Date", niceDate(before.day), niceDate(after.day));
   add("Amount", formatMoney(before.originalAmount, before.originalCurrency), formatMoney(after.originalAmount, after.originalCurrency));
   if (before.originalCurrency !== before.baseCurrency || after.originalCurrency !== after.baseCurrency) {
     add("Exchange rate", before.exchangeRate, after.exchangeRate);

@@ -31,7 +31,7 @@ export default async function GroupSettings({
   const group = await db.group.findUnique({
     where: { id },
     include: {
-      members: { select: { id: true } },
+      members: { select: { id: true, name: true } },
       expenses: { where: { deletedAt: null }, select: { amount: true } },
       _count: { select: { expenses: true, payments: true } },
     },
@@ -186,6 +186,18 @@ export default async function GroupSettings({
           Save settings
         </button>
       </form>
+
+      {/* Who this phone is in the group */}
+      <section className="mt-12 border-t border-line pt-8">
+        <h2 className="mb-1 text-base font-semibold">You on this phone</h2>
+        <p className="mb-4 text-sm text-gray-500">
+          This phone is set up as <span className="text-fg">{group.members.find((m) => m.id === myId)?.name}</span>. Picked the wrong name
+          when joining? Switch to the right one.
+        </p>
+        <Link href={`/join/${group.inviteCode}`} className={secondaryButtonClass}>
+          Switch person
+        </Link>
+      </section>
 
       {/* Close / reopen */}
       <section className="mt-12 border-t border-gray-100 pt-8">

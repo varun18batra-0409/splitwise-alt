@@ -128,7 +128,10 @@ async function revertExpense(expenseId: string, before: Parameters<typeof expens
 
   const eventId = await db.$transaction(async (tx) => {
     await tx.expenseShare.deleteMany({ where: { expenseId } });
-    await tx.expense.update({ where: { id: expenseId }, data: { ...fields, editedAt: new Date(), shares: { create: shares } } });
+    await tx.expense.update({
+      where: { id: expenseId },
+      data: { ...fields, spentAt: fields.spentAt ? new Date(fields.spentAt) : null, editedAt: new Date(), shares: { create: shares } },
+    });
     return logEvent(tx, {
       groupId: e.groupId,
       actorId,

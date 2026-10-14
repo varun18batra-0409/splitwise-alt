@@ -15,6 +15,7 @@ export function AddExpenseButton() {
     path.endsWith("/add") ||
     path.endsWith("/edit") ||
     path.endsWith("/settings") ||
+    path.endsWith("/pay") ||
     path === "/notifications";
   if (hidden) return null;
 

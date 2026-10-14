@@ -18,6 +18,7 @@ type ExpenseRow = {
   editedAt?: Date | null;
   deletedAt?: Date | null;
   deletedById?: string | null;
+  spentAt?: Date | null; // the day it was spent, if chosen
   originalAmount?: number;
   originalCurrency?: string;
   baseCurrency?: string;
@@ -86,7 +87,7 @@ export function buildActivity(expenses: ExpenseRow[], payments: PaymentRow[], my
       return {
         kind: "expense",
         id: e.id,
-        date: e.createdAt,
+        date: e.spentAt ?? e.createdAt,
         title: e.description,
         category: e.category,
         amount: e.amount,

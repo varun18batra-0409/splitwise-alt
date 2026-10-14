@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
 import { toInputAmount } from "@/lib/money";
+import { dayKey } from "@/lib/dates";
 import { allocateByWeights, type ForMode, type SplitType } from "@/lib/split";
 import type { PaymentMethod } from "@/lib/conversion";
 import { deleteExpense } from "@/app/actions";
@@ -71,6 +72,7 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
     markupCustom: foreignCard && e.markupBp !== group.cardMarkupBp ? String(e.markupBp / 100) : "",
     rate: e.exchangeRate,
     rateDate: e.rateDate,
+    date: dayKey(e.spentAt ?? e.createdAt),
   };
 
   return (

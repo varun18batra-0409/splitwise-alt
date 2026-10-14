@@ -74,7 +74,8 @@ model Expense {
   createdAt   DateTime       @default(now())
   shares      ExpenseShare[] // one line per person; receipt items can hang off this later
 
-  createdById String    @default("") // who added it — only they can edit or delete it
+  spentAt     DateTime? // the day it was spent (chosen when adding); empty = the day it was added
+  createdById String    @default("") // who added it
   editedAt    DateTime? // last time it was changed
   deletedAt   DateTime? // deleted expenses stay in history but no longer count
   deletedById String?

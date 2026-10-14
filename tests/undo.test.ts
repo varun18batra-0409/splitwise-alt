@@ -87,6 +87,24 @@ describe("undo and redo", () => {
     expect(again.shares).toHaveLength(1);
   });
 
+  it("expenses keep the day they were spent; changing it is logged and can be undone", async () => {
+    const { dayKey } = await import("@/lib/dates");
+    const r = await saveExpense(input({ name: "Breakfast", amount: "200", date: "2026-10-10" }), me, rate);
+    if (!r.ok) throw new Error(r.error);
+    expect(dayKey((await db.expense.findUniqueOrThrow({ where: { id: r.id } })).spentAt!)).toBe("2026-10-10");
+
+    const edit = await saveExpense(input({ expenseId: r.id, name: "Breakfast", amount: "200", date: "2026-10-11" }), me, rate);
+    if (!edit.ok) throw new Error(edit.error);
+    const ev = await db.groupEvent.findUniqueOrThrow({ where: { id: edit.eventId! } });
+    expect(JSON.parse(ev.details)).toContain("Date: 10 Oct 2026 → 11 Oct 2026");
+
+    await undo(edit.eventId);
+    expect(dayKey((await db.expense.findUniqueOrThrow({ where: { id: r.id } })).spentAt!)).toBe("2026-10-10");
+
+    const bad = await saveExpense(input({ name: "Future", amount: "1", date: "2099-01-01" }), me, rate);
+    expect(bad.ok).toBe(false);
+  });
+
   it("refuses to undo an older change once the expense was changed again", async () => {
     const r = await saveExpense(input({ name: "Lunch", amount: "300" }), me, rate);
     const id = r.ok ? r.id : "";

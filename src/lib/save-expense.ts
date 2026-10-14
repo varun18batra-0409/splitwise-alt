@@ -5,11 +5,13 @@ import { formatMoney, isSupportedCurrency } from "./money";
 import { parseRate, PAYMENT_METHODS } from "./conversion";
 import { diffExpense, expenseState, logEvent, type ExpenseSnapshot } from "./events";
 import type { RateAnswer } from "./rate-cache";
+import { dayKey, parseDay } from "./dates";
 
 export type SaveExpenseInput = ExpenseDraft & {
   groupId: string;
   expenseId?: string; // set when editing an existing expense
   name: string;
+  date?: string; // "2026-10-14"; empty = today (new) or unchanged (edit)
   category: string; // "" = guess from the name
   rateMode: "auto" | "manual" | "keep"; // "keep" = editing, keep the rate saved with the expense
   manualRate: string; // used when rateMode = "manual"
@@ -76,6 +78,16 @@ export async function saveExpense(input: SaveExpenseInput, actingMemberId: strin
   if (!built.ok) return built;
   const e = built.expense;
 
+  // The day it was spent.
+  let spentAt: Date | null = existing ? existing.spentAt : null;
+  if (input.date && input.date.trim()) {
+    const d = parseDay(input.date);
+    if (!d) return { ok: false, error: "Pick a real date, not more than a day ahead." };
+    spentAt = d;
+  } else if (!existing) {
+    spentAt = new Date();
+  }
+
   const name = input.name.trim().replace(/\s+/g, " ").slice(0, 80) || "Expense";
   const category = isCategory(input.category) ? input.category : guessCategory(name);
   const fields = {
@@ -95,6 +107,7 @@ export async function saveExpense(input: SaveExpenseInput, actingMemberId: strin
     paymentMethod: e.paymentMethod,
     markupBp: e.markupBp,
     markupAmount: e.markupAmount,
+    spentAt,
   };
   const nameOf = (id: string) => group.members.find((m) => m.id === id)?.name ?? "Someone";
   const money = formatMoney(e.amount, group.currency);
@@ -116,7 +129,11 @@ export async function saveExpense(input: SaveExpenseInput, actingMemberId: strin
     return { ok: true, id: saved.created.id, eventId: saved.eventId };
   }
 
-  const changes = diffExpense(snapshot(existing), snapshot({ ...fields, shares: e.shares }), nameOf);
+  const changes = diffExpense(
+    { ...snapshot(existing), day: dayKey(existing.spentAt ?? existing.createdAt) },
+    { ...snapshot({ ...fields, shares: e.shares }), day: dayKey(spentAt ?? existing.createdAt) },
+    nameOf,
+  );
   if (changes.length === 0) return { ok: true, id: existing.id }; // nothing changed
 
   const eventId = await db.$transaction(async (tx) => {
