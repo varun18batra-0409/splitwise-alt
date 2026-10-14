@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { addExpense, lookupRate } from "@/app/actions";
-import { CATEGORIES, getCategory, guessCategory } from "@/lib/categories";
+import { CATEGORIES, analyzeName, applySuggestion, getCategory } from "@/lib/categories";
 import { computeTotals, PAYMENT_METHODS, type PaymentMethod } from "@/lib/conversion";
 import { buildExpense, chosenMarkupBp, type ExpenseDraft } from "@/lib/expense";
 import { currencyInfo, formatMoney, formatPercent, isSupportedCurrency, parseAmount, parsePercent } from "@/lib/money";
@@ -159,7 +159,10 @@ export function AddExpenseForm({
   const usingManualRate = foreign && (rateMode === "manual" || rateState.status === "missing");
   const effectiveRate = !foreign ? "1" : usingManualRate ? manualRate : rateState.status === "ok" ? rateState.rate : "";
 
-  const category = getCategory(pickedCategory ?? guessCategory(name));
+  const nameCheck = analyzeName(name);
+  const category = getCategory(pickedCategory ?? nameCheck.category);
+  const [dismissedTypo, setDismissedTypo] = useState("");
+  const typo = nameCheck.suggestion && nameCheck.suggestion.wrong !== dismissedTypo ? nameCheck.suggestion : null;
   const draft: ExpenseDraft = {
     amount, currency, paidById, forMode, selected, onePersonId, splitType, exact, percent,
     paymentMethod, markupChoice, markupCustom,
@@ -229,12 +232,32 @@ export function AddExpenseForm({
             onClick={() => setShowCategories((v) => !v)}
             aria-label={`Category: ${category.label}${pickedCategory ? "" : " (picked automatically)"}. Tap to change`}
             title={category.label}
-            className="flex w-14 shrink-0 flex-col items-center justify-center rounded-xl border border-gray-200 text-xl active:bg-gray-50"
+            className="flex shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-line px-2.5 active:bg-mist"
           >
-            {category.emoji}
-            <span className="text-[10px] leading-none text-gray-400">{pickedCategory ? "▾" : "auto"}</span>
+            <span className="text-lg leading-none">{category.emoji}</span>
+            <span className="text-[11px] leading-none text-gray-500">
+              {category.short}
+              {!pickedCategory && name.trim() && <span className="text-gray-400"> · auto</span>}
+            </span>
           </button>
         </div>
+        {typo && (
+          <p className="mt-2 flex items-center gap-2 text-sm text-gray-500">
+            <span className="min-w-0 truncate">
+              Did you mean <span className="font-medium text-fg">“{typo.right}”</span>?
+            </span>
+            <button
+              type="button"
+              onClick={() => setName((n) => applySuggestion(n, typo))}
+              className="shrink-0 border border-line px-2.5 py-1 text-xs font-semibold text-fg active:bg-mist"
+            >
+              Fix
+            </button>
+            <button type="button" onClick={() => setDismissedTypo(typo.wrong)} className="shrink-0 px-1 text-xs text-gray-400">
+              Keep
+            </button>
+          </p>
+        )}
         {showCategories && (
           <div className="mt-2 flex flex-wrap gap-2">
             {CATEGORIES.map((c) => (

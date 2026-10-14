@@ -130,3 +130,38 @@ describe("world currencies", () => {
     expect(flagOf("XOF")).toBe("🌍");
   });
 });
+
+describe("categories cope with typos and suggest the right spelling", () => {
+  it.each([
+    ["Dinnr", "food"], ["dinnerr", "food"], ["Breakfst", "food"], ["Cofee", "food"], ["Nashta", "food"],
+    ["Petrl", "transport"], ["Flght", "transport"], ["Hotl", "accommodation"], ["Air bnb", "accommodation"],
+    ["Grocries", "groceries"], ["Big Basket", "groceries"], ["Movei", "activities"], ["Bookmyshow", "activities"],
+    ["Electrcity", "bills"], ["Shoping", "shopping"], ["Room rent", "bills"],
+  ])("%s → %s", async (text, expected) => {
+    const { guessCategory } = await import("@/lib/categories");
+    expect(guessCategory(text)).toBe(expected);
+  });
+
+  it("offers the correct spelling, keeping the capital letter", async () => {
+    const { analyzeName, applySuggestion } = await import("@/lib/categories");
+    const r = analyzeName("Dinnr at Toit");
+    expect(r).toEqual({ category: "food", suggestion: { wrong: "Dinnr", right: "Dinner" } });
+    expect(applySuggestion("Dinnr at Toit", r.suggestion!)).toBe("Dinner at Toit");
+    expect(analyzeName("grocries from DMart").suggestion).toEqual({ wrong: "grocries", right: "groceries" });
+  });
+
+  it("doesn't 'correct' real words or correctly spelled names", async () => {
+    const { analyzeName } = await import("@/lib/categories");
+    for (const t of ["Rest of the money", "Full refund", "Dinner", "Petrol", "Uber to airport"]) {
+      expect(analyzeName(t).suggestion).toBeUndefined();
+    }
+    expect(analyzeName("Rest of the money").category).toBe("other");
+  });
+
+  it("measures typos sensibly", async () => {
+    const { editDistance } = await import("@/lib/categories");
+    expect(editDistance("movei", "movie")).toBe(1); // swapped letters count as one
+    expect(editDistance("dinnr", "dinner")).toBe(1);
+    expect(editDistance("grocries", "groceries")).toBe(1);
+  });
+});
