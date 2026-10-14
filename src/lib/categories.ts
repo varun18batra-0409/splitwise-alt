@@ -90,7 +90,7 @@ const KNOWN = new Set(KEYWORDS.map((k) => k.word));
 // Real English words that look like typos of a keyword but aren't
 // ("rest" ≠ "rent", "full" ≠ "fuel"). They're never "corrected".
 const COMMON = new Set([
-  "rest", "test", "best", "west", "nest", "full", "fill", "fell", "fall", "call", "cell", "hall", "ball", "wall",
+  "thai", "goa", "rest", "test", "best", "west", "nest", "full", "fill", "fell", "fall", "call", "cell", "hall", "ball", "wall",
   "tall", "card", "cart", "care", "sale", "same", "lake", "make", "take", "fake", "line", "fine", "mine", "nine",
   "wine", "dine", "time", "home", "come", "some", "game", "came", "name", "part", "port", "post", "past", "fast",
   "last", "mast", "show", "slow", "snow", "stay", "star", "stop", "shop", "ship", "trap", "tram", "team", "tram",
@@ -137,7 +137,8 @@ export function analyzeName(name: string): CategoryGuess {
     if (better) best = { category: k.category, index: m.index, length: m[0].length };
   }
   // 2. Words split by a space that belong together ("Air bnb", "Big Basket").
-  const words = [...text.matchAll(/[A-Za-z]+/g)].map((m) => m[0]);
+  const wordHits = [...text.matchAll(/[A-Za-z]+/g)];
+  const words = wordHits.map((m) => m[0]);
   let joinedCategory: string | null = null;
   for (let i = 0; i < words.length - 1 && !joinedCategory; i++) {
     for (const span of [3, 2]) {
@@ -154,8 +155,9 @@ export function analyzeName(name: string): CategoryGuess {
   // 3. Typos: one wrong, missing, extra or swapped letter (two for long words).
   //    Checked even when another word already decided the category, so the
   //    spelling can still be offered.
-  let typo: { category: string; suggestion: { wrong: string; right: string } } | null = null;
-  for (const original of words) {
+  let typo: { category: string; index: number; suggestion: { wrong: string; right: string } } | null = null;
+  for (const hit of wordHits) {
+    const original = hit[0];
     const w = original.toLowerCase();
     if (w.length < 4 || COMMON.has(w) || KNOWN.has(w) || KNOWN.has(w.replace(/(es|s)$/, ""))) continue;
     const stem = w.replace(/(es|s)$/, "");
@@ -169,12 +171,15 @@ export function analyzeName(name: string): CategoryGuess {
     }
     if (found) {
       const right = original[0] === original[0].toUpperCase() ? found.word[0].toUpperCase() + found.word.slice(1) : found.word;
-      typo = { category: found.category, suggestion: { wrong: original, right } };
+      typo = { category: found.category, index: hit.index ?? 0, suggestion: { wrong: original, right } };
       break;
     }
   }
 
-  const category = best?.category ?? joinedCategory ?? typo?.category ?? "other";
+  // A misspelt word that comes before the first exact word decides, as it
+  // would have if spelt right ("Dinnr at the market" → Food, not Shopping).
+  const typoFirst = typo && best && typo.index < best.index && typo.suggestion.wrong.length >= 5;
+  const category = (typoFirst ? typo!.category : null) ?? best?.category ?? joinedCategory ?? typo?.category ?? "other";
   return typo ? { category, suggestion: typo.suggestion } : { category };
 }
 

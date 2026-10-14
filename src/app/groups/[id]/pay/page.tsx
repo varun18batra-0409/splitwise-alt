@@ -75,7 +75,7 @@ export default async function RecordPayment({
               <label key={m.id} className={chip}>
                 <input type="radio" name="toId" value={m.id} defaultChecked={m.id === to} className="sr-only" required />
                 {m.id === myId ? "You" : m.name}
-                {net[m.id] > 0 && <span className="text-xs opacity-60">gets {money(net[m.id])}</span>}
+                {net[m.id] > 0 && <span className="text-xs opacity-60">{m.id === myId ? "get" : "gets"} {money(net[m.id])}</span>}
               </label>
             ))}
           </div>

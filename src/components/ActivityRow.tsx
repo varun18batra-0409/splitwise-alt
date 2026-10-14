@@ -3,6 +3,17 @@ import { formatMoney } from "@/lib/money";
 import type { ActivityItem } from "@/lib/activity";
 import { GearIcon, SettleIcon } from "./icons";
 
+// Right-hand side: a small label over the amount, so names get the room.
+function Effect({ label, amount, sub, cls }: { label: string; amount?: string; sub?: string; cls: string }) {
+  return (
+    <span className="shrink-0 text-right leading-tight">
+      <span className="block text-[11px] text-gray-400">{label}</span>
+      {amount && <span className={`block text-sm font-medium tabular-nums ${cls}`}>{amount}</span>}
+      {sub && <span className="block text-[11px] tabular-nums text-gray-400">{sub}</span>}
+    </span>
+  );
+}
+
 // One line of history: an expense, a settle-up payment or a group change,
 // and what it meant for you. Deleted items stay visible, crossed out.
 export function ActivityRow({
@@ -33,13 +44,6 @@ export function ActivityRow({
   }
 
   const deleted = item.deletedById !== null;
-  const effect = deleted
-    ? { text: "deleted", cls: "text-gray-400" }
-    : item.effect > 0
-      ? { text: item.kind === "payment" ? `you paid ${money(item.effect)}` : `you lent ${money(item.effect)}`, cls: "text-owed" }
-      : item.effect < 0
-        ? { text: item.kind === "payment" ? `you got ${money(-item.effect)}` : `you owe ${money(-item.effect)}`, cls: "text-owe" }
-        : { text: "not involved", cls: "text-gray-400" };
   const deletedNote = deleted ? `Deleted by ${item.deletedById ? nameOf(item.deletedById) : "someone"}` : "";
 
   if (item.kind === "payment") {
@@ -58,7 +62,15 @@ export function ActivityRow({
             {groupName && ` · ${groupName}`}
           </p>
         </div>
-        <span className={`shrink-0 text-right text-sm ${effect.cls}`}>{effect.text}</span>
+        {deleted ? (
+          <Effect label="deleted" cls="" />
+        ) : item.effect > 0 ? (
+          <Effect label="you paid" amount={money(item.effect)} cls="text-ink" />
+        ) : item.effect < 0 ? (
+          <Effect label="you received" amount={money(-item.effect)} cls="text-ink" />
+        ) : (
+          <Effect label="not involved" cls="" />
+        )}
       </div>
     );
   }
@@ -66,15 +78,7 @@ export function ActivityRow({
   const cat = getCategory(item.category);
   // Foreign-currency expense: show the amount in its own currency first, then the group currency.
   const o = item.original;
-  const both = (orig: number, base: number) => (o ? `${formatMoney(orig, o.currency)} · ${money(base)}` : money(base));
-  const expenseEffect =
-    deleted || !o
-      ? effect
-      : item.effect > 0
-        ? { text: `you lent ${both(o.effect, item.effect)}`, cls: "text-owed" }
-        : item.effect < 0
-          ? { text: `you owe ${both(-o.effect, -item.effect)}`, cls: "text-owe" }
-          : effect;
+  const shown = (orig: number, base: number) => (o ? formatMoney(orig, o.currency) : money(base));
   return (
     <div className={`flex items-center gap-3 py-3 ${deleted ? "opacity-60" : ""}`}>
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-mist text-xl" title={cat.label}>
@@ -87,12 +91,20 @@ export function ActivityRow({
         </p>
         <p className="truncate text-sm text-gray-400">
           {deleted
-            ? `${deletedNote} · ${o ? both(o.amount, item.amount) : money(item.amount)}`
-            : `${nameOf(item.paidById)} paid ${o ? both(o.amount, item.amount) : money(item.amount)}`}
+            ? `${deletedNote} · ${shown(o?.amount ?? 0, item.amount)}`
+            : `${nameOf(item.paidById)} paid ${shown(o?.amount ?? 0, item.amount)}`}
           {groupName && ` · ${groupName}`}
         </p>
       </div>
-      <span className={`max-w-[46%] shrink-0 text-right text-sm leading-snug ${expenseEffect.cls}`}>{expenseEffect.text}</span>
+      {deleted ? (
+        <Effect label="deleted" cls="" />
+      ) : item.effect > 0 ? (
+        <Effect label="you lent" amount={money(item.effect)} sub={o ? formatMoney(o.effect, o.currency) : undefined} cls="text-owed" />
+      ) : item.effect < 0 ? (
+        <Effect label="you owe" amount={money(-item.effect)} sub={o ? formatMoney(-o.effect, o.currency) : undefined} cls="text-owe" />
+      ) : (
+        <Effect label="not involved" cls="" />
+      )}
     </div>
   );
 }

@@ -147,6 +147,9 @@ describe("categories cope with typos and suggest the right spelling", () => {
     const r = analyzeName("Dinnr at Toit");
     expect(r).toEqual({ category: "food", suggestion: { wrong: "Dinnr", right: "Dinner" } });
     expect(applySuggestion("Dinnr at Toit", r.suggestion!)).toBe("Dinner at Toit");
+    // The misspelt word comes first, so it decides — not "market".
+    expect(analyzeName("Dinnr at the night market").category).toBe("food");
+    expect(analyzeName("Night market dinnr").category).toBe("shopping");
     expect(analyzeName("grocries from DMart").suggestion).toEqual({ wrong: "grocries", right: "groceries" });
   });
 

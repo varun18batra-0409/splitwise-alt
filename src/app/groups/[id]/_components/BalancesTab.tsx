@@ -21,20 +21,18 @@ export function BalancesTab({ v, paid }: { v: GroupView; paid?: boolean }) {
   return (
     <div className="space-y-10">
       <section>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="font-display text-lg font-semibold tracking-tight">Smart Settle</h2>
-            <p className="text-sm text-gray-500">
-              The fewest payments that clear every debt.
-              {transfers.length > 0 && before > transfers.length && ` ${transfers.length} instead of ${before}.`}
-            </p>
-          </div>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="font-display text-lg font-semibold tracking-tight">Smart Settle</h2>
           {!group.closed && (
-            <Link href={payHref()} className="shrink-0 border border-line px-3 py-2 text-sm font-medium text-fg active:bg-mist">
-              Record a payment
+            <Link href={payHref()} className="shrink-0 border border-line px-3 py-1.5 text-sm font-medium text-fg active:bg-mist">
+              + Record payment
             </Link>
           )}
         </div>
+        <p className="mt-1 text-sm text-gray-500">
+          The fewest payments that clear every debt.
+          {transfers.length > 0 && before > transfers.length && ` ${transfers.length} instead of ${before}.`}
+        </p>
 
         {paid && <p className="mt-3 rounded-xl bg-mist px-4 py-3 text-sm text-fg">Payment recorded. Balances updated.</p>}
 
