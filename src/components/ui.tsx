@@ -2,19 +2,36 @@ import Link from "next/link";
 
 // Small shared building blocks so every screen looks the same.
 
-export function PageHeader({ title, back }: { title: string; back?: string }) {
+export function PageHeader({
+  title,
+  back,
+  action,
+}: {
+  title: string;
+  back?: string;
+  action?: { href: string; label: string; icon: string };
+}) {
   return (
     <header className="mb-8 flex items-center gap-3">
       {back && (
         <Link
           href={back}
           aria-label="Back"
-          className="-ml-2 flex h-10 w-10 items-center justify-center rounded-full text-2xl text-gray-500 active:bg-gray-100"
+          className="-ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-2xl text-gray-500 active:bg-gray-100"
         >
           ‹
         </Link>
       )}
-      <h1 className="truncate text-2xl font-semibold tracking-tight">{title}</h1>
+      <h1 className="min-w-0 flex-1 truncate text-2xl font-semibold tracking-tight">{title}</h1>
+      {action && (
+        <Link
+          href={action.href}
+          aria-label={action.label}
+          className="-mr-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl text-gray-500 active:bg-gray-100"
+        >
+          {action.icon}
+        </Link>
+      )}
     </header>
   );
 }

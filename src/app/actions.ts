@@ -5,8 +5,9 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getMyMemberId, setMyMemberId } from "@/lib/identity";
 import { cleanNames, sameName } from "@/lib/names";
-import { computeSplit, type SplitType } from "@/lib/split";
-import { guessCategory, isCategory } from "@/lib/categories";
+import { BASE_CURRENCIES, isSupportedCurrency, parsePercent } from "@/lib/money";
+import { getRate, type RateAnswer } from "@/lib/rate-cache";
+import { saveExpense, type SaveExpenseInput } from "@/lib/save-expense";
 
 function newInviteCode() {
   return randomBytes(6).toString("base64url"); // 8 characters, hard to guess
@@ -21,9 +22,12 @@ export async function createGroup(formData: FormData) {
     (n) => !sameName(n, yourName),
   );
 
+  const baseCurrency = String(formData.get("currency") ?? "INR");
+
   const group = await db.group.create({
     data: {
       name: groupName,
+      currency: BASE_CURRENCIES.includes(baseCurrency) ? baseCurrency : "INR",
       inviteCode: newInviteCode(),
       members: { create: [{ name: yourName }, ...others.map((name) => ({ name }))] },
     },
@@ -66,49 +70,49 @@ export async function joinAsNew(formData: FormData) {
   redirect(`/groups/${group.id}`);
 }
 
-export type ExpenseInput = {
-  groupId: string;
-  amount: string; // as typed, e.g. "250.50"
-  description: string;
-  category: string; // "" = guess from the description
-  paidById: string;
-  splitType: SplitType;
-  participants: string[];
-  exact: Record<string, string>;
-  percent: Record<string, string>;
-};
+// Saves a new expense, then goes back to the group page.
+export async function addExpense(input: SaveExpenseInput): Promise<{ error: string }> {
+  const result = await saveExpense(input, await getMyMemberId(input.groupId), getRate);
+  if (!result.ok) return { error: result.error };
+  redirect(`/groups/${input.groupId}`);
+}
 
-// Saves a new expense. Re-checks everything here on the server, so a
-// mistake on the phone can never store numbers that don't add up.
-export async function addExpense(input: ExpenseInput): Promise<{ error: string }> {
-  const group = await db.group.findUnique({
-    where: { id: input.groupId },
-    include: { members: { orderBy: { createdAt: "asc" } } },
-  });
-  if (!group) return { error: "This group no longer exists." };
+// Looks up today's exchange rate when a currency is picked (not on every keystroke).
+export async function lookupRate(from: string, to: string): Promise<RateAnswer> {
+  if (!isSupportedCurrency(from) || !isSupportedCurrency(to)) {
+    return { ok: false, reason: "unsupported", message: "That currency isn't supported. Enter the rate yourself." };
+  }
+  return getRate(from, to);
+}
 
+// Group settings: base currency and foreign card markup.
+export async function updateGroupSettings(formData: FormData) {
+  const groupId = String(formData.get("groupId") ?? "");
+  const group = await db.group.findUnique({ where: { id: groupId }, include: { _count: { select: { expenses: true } } } });
+  if (!group) redirect("/");
   const myId = await getMyMemberId(group.id);
-  const memberIds = group.members.map((m) => m.id);
-  if (!myId || !memberIds.includes(myId)) return { error: "Please join this group first." };
-  if (!memberIds.includes(input.paidById)) return { error: "Pick who paid." };
-  if (!["equal", "exact", "percent"].includes(input.splitType)) return { error: "Pick how to split." };
+  if (!myId) redirect(`/join/${group.inviteCode}`);
 
-  const result = computeSplit({ ...input, memberIds, currency: group.currency });
-  if (!result.ok || result.total === null) return { error: result.ok ? "Enter an amount." : result.error };
+  const back = `/groups/${group.id}/settings`;
 
-  const description = input.description.trim().slice(0, 80) || "Expense";
-  const category = isCategory(input.category) ? input.category : guessCategory(description);
+  // Markup: "0" | "200" | "300" | "400" | "custom" (+ customMarkup like "3.5")
+  const choice = String(formData.get("markup") ?? "0");
+  let markupBp: number | null;
+  if (choice === "custom") {
+    markupBp = parsePercent(String(formData.get("customMarkup") ?? ""));
+  } else {
+    markupBp = ["0", "200", "300", "400"].includes(choice) ? Number(choice) : null;
+  }
+  if (markupBp === null || markupBp > 2000) redirect(`${back}?error=markup`);
 
-  await db.expense.create({
-    data: {
-      groupId: group.id,
-      description,
-      category,
-      amount: result.total,
-      splitType: input.splitType,
-      paidById: input.paidById,
-      shares: { create: result.shares.map((s) => ({ memberId: s.memberId, amount: s.amount })) },
-    },
-  });
-  redirect(`/groups/${group.id}`);
+  // Base currency can only change while the group has no expenses,
+  // so saved amounts never silently change meaning.
+  const currency = String(formData.get("currency") ?? group.currency);
+  if (currency !== group.currency) {
+    if (!BASE_CURRENCIES.includes(currency)) redirect(`${back}?error=currency`);
+    if (group._count.expenses > 0) redirect(`${back}?error=locked`);
+  }
+
+  await db.group.update({ where: { id: group.id }, data: { currency, cardMarkupBp: markupBp } });
+  redirect(`/groups/${group.id}?saved=settings`);
 }

@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { computeSplit, splitEqual, splitExact, splitPercent, type Share } from "@/lib/split";
+import {
+  allocateByWeights,
+  computeSplit,
+  participantsFor,
+  splitEqual,
+  splitExact,
+  splitPercent,
+  type Share,
+} from "@/lib/split";
 
 const sum = (shares: Share[]) => shares.reduce((s, x) => s + x.amount, 0);
 function shares(r: ReturnType<typeof splitEqual>) {
@@ -19,8 +27,7 @@ describe("splitEqual", () => {
   });
 
   it("handles 1 paisa among many people", () => {
-    const s = shares(splitEqual(1, ["a", "b", "c"]));
-    expect(s.map((x) => x.amount)).toEqual([1, 0, 0]);
+    expect(shares(splitEqual(1, ["a", "b", "c"])).map((x) => x.amount)).toEqual([1, 0, 0]);
   });
 
   it("ignores the same person listed twice", () => {
@@ -80,7 +87,6 @@ describe("splitPercent", () => {
   });
 
   it("gives rounding leftovers to whoever lost the most", () => {
-    // ₹0.10 split 55% / 45% → 5.5p and 4.5p → first gets the extra paisa (tie → listed first)
     const s = shares(splitPercent(10, [{ memberId: "a", basisPoints: 5500 }, { memberId: "b", basisPoints: 4500 }]));
     expect(s.map((x) => x.amount)).toEqual([6, 4]);
   });
@@ -109,25 +115,70 @@ describe("splitPercent", () => {
   });
 });
 
-describe("computeSplit (what the Add expense screen uses)", () => {
-  const base = { memberIds: ["a", "b", "c"], participants: ["a", "b", "c"], exact: {}, percent: {} };
+describe("allocateByWeights", () => {
+  it("scales typed amounts up to a larger total (e.g. after card markup)", () => {
+    // THB 1,000 / 2,000 typed; final total ₹7,725 → ₹2,575 / ₹5,150
+    expect(allocateByWeights(772500, [{ memberId: "a", weight: 100000 }, { memberId: "b", weight: 200000 }])).toEqual([
+      { memberId: "a", amount: 257500 },
+      { memberId: "b", amount: 515000 },
+    ]);
+  });
 
-  it("equal split among only the ticked people", () => {
-    const r = computeSplit({ ...base, amount: "300", splitType: "equal", participants: ["a", "c"] });
+  it("always adds up exactly, even with huge weights", () => {
+    for (let i = 0; i < 300; i++) {
+      const total = 1 + Math.floor(Math.random() * 2_000_000_000);
+      const w = [1, 2, 3].map(() => 1 + Math.floor(Math.random() * 2_000_000_000));
+      const s = allocateByWeights(total, w.map((weight, k) => ({ memberId: `p${k}`, weight })));
+      expect(sum(s)).toBe(total);
+    }
+  });
+});
+
+describe("participantsFor (who was it for?)", () => {
+  const memberIds = ["me", "a", "b"];
+  it("everyone", () => {
+    expect(participantsFor({ forMode: "everyone", memberIds, selected: [], onePersonId: "" })).toEqual(memberIds);
+  });
+  it("selected people, kept in group order", () => {
+    expect(participantsFor({ forMode: "selected", memberIds, selected: ["b", "a"], onePersonId: "" })).toEqual(["a", "b"]);
+  });
+  it("one person", () => {
+    expect(participantsFor({ forMode: "one", memberIds, selected: [], onePersonId: "a" })).toEqual(["a"]);
+  });
+  it("ignores people who aren't in the group", () => {
+    expect(participantsFor({ forMode: "one", memberIds, selected: [], onePersonId: "zz" })).toEqual([]);
+  });
+});
+
+describe("computeSplit", () => {
+  const base = { originalCurrency: "INR", participants: ["a", "b", "c"], exact: {}, percent: {} };
+
+  it("equal split among the chosen people", () => {
+    const r = computeSplit({ ...base, total: 30000, originalAmount: 30000, splitType: "equal", participants: ["a", "c"] });
     expect(r.ok && r.shares).toEqual([{ memberId: "a", amount: 15000 }, { memberId: "c", amount: 15000 }]);
   });
 
-  it("exact split from typed amounts, blanks mean zero", () => {
-    const r = computeSplit({ ...base, amount: "500", splitType: "exact", exact: { a: "300", b: "200", c: "" } });
-    expect(r.ok && r.shares.length).toBe(2);
+  it("exact amounts in the same currency", () => {
+    const r = computeSplit({ ...base, total: 50000, originalAmount: 50000, splitType: "exact", exact: { a: "300", b: "200", c: "" } });
+    expect(r.ok && r.shares).toEqual([{ memberId: "a", amount: 30000 }, { memberId: "b", amount: 20000 }]);
   });
 
-  it("percent split from typed percentages", () => {
-    const r = computeSplit({ ...base, amount: "1000", splitType: "percent", percent: { a: "50", b: "25", c: "25" } });
+  it("exact amounts typed in THB must add up to the THB total", () => {
+    const r = computeSplit({
+      ...base, originalCurrency: "THB", total: 772500, originalAmount: 300000, splitType: "exact",
+      exact: { a: "1000", b: "1000", c: "500" },
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toContain("THB 2,500");
+  });
+
+  it("percent split", () => {
+    const r = computeSplit({ ...base, total: 100000, originalAmount: 100000, splitType: "percent", percent: { a: "50", b: "25", c: "25" } });
     expect(r.ok && r.shares.map((s) => s.amount)).toEqual([50000, 25000, 25000]);
   });
 
-  it("rejects a bad amount", () => {
-    expect(computeSplit({ ...base, amount: "abc", splitType: "equal" }).ok).toBe(false);
+  it("only counts amounts for people the expense was for", () => {
+    const r = computeSplit({ ...base, total: 1000, originalAmount: 1000, splitType: "exact", participants: ["a"], exact: { a: "10", b: "99" } });
+    expect(r.ok && r.shares).toEqual([{ memberId: "a", amount: 1000 }]);
   });
 });

@@ -18,7 +18,13 @@ export default async function AddExpensePage({ params }: { params: Promise<{ id:
   return (
     <>
       <PageHeader title={`Add to ${group.name}`} back={`/groups/${group.id}`} />
-      <AddExpenseForm groupId={group.id} currency={group.currency} members={group.members} myId={myId} />
+      <AddExpenseForm
+        groupId={group.id}
+        baseCurrency={group.currency}
+        groupMarkupBp={group.cardMarkupBp}
+        members={group.members}
+        myId={myId}
+      />
     </>
   );
 }

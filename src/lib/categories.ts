@@ -1,62 +1,65 @@
-// Smart "buckets": guesses a category from the description, e.g.
-// "dinner" → Food, "beer" → Drinks, "uber" → Transport.
+// Expense categories. The app guesses one from the expense name
+// ("dinner" → Food & Drinks, "uber" → Transport) and the person can change it.
 // Runs inside the app — no paid AI service. Add words to the lists to teach it more.
 
-export type Category = { id: string; label: string; emoji: string; words: string[] };
+export type Category = { id: string; label: string; short: string; emoji: string; words: string[] };
 
 export const CATEGORIES: Category[] = [
   {
-    id: "food", label: "Food", emoji: "🍽️",
+    id: "food", label: "Food & Drinks", short: "Food", emoji: "🍽️",
     words: ["food", "dinner", "lunch", "breakfast", "brunch", "meal", "restaurant", "dhaba", "cafe", "coffee",
       "tea", "chai", "snack", "pizza", "burger", "biryani", "dosa", "idli", "momo", "thali", "paratha", "maggi",
       "noodle", "sandwich", "dessert", "cake", "sweet", "ice cream", "icecream", "swiggy", "zomato", "kfc",
-      "mcdonalds", "dominos", "starbucks", "takeaway", "dine"],
+      "mcdonalds", "dominos", "starbucks", "takeaway", "dine", "street food", "pad thai", "pho", "ramen", "sushi",
+      "drink", "beer", "wine", "whisky", "whiskey", "vodka", "rum", "gin", "tequila", "shot", "cocktail",
+      "alcohol", "liquor", "daru", "booze", "bar", "pub", "brewery", "theka", "juice", "smoothie"],
   },
   {
-    id: "drinks", label: "Drinks", emoji: "🍺",
-    words: ["drink", "beer", "wine", "whisky", "whiskey", "vodka", "rum", "gin", "tequila", "shot", "cocktail",
-      "alcohol", "liquor", "daru", "booze", "bar", "pub", "brewery", "theka"],
+    id: "transport", label: "Transport", short: "Transport", emoji: "🚕",
+    words: ["uber", "ola", "rapido", "grab", "bolt", "taxi", "cab", "auto", "rickshaw", "tuk tuk", "tuktuk",
+      "metro", "bts", "mrt", "bus", "train", "petrol", "diesel", "fuel", "parking", "toll", "fastag", "ride",
+      "scooty", "scooter", "bike rental", "car rental", "flight", "airline", "airport", "indigo", "vistara",
+      "air india", "airasia", "irctc", "ferry", "transfer"],
   },
   {
-    id: "groceries", label: "Groceries", emoji: "🛒",
-    words: ["grocery", "groceries", "vegetable", "veggies", "sabzi", "fruit", "milk", "egg", "bread", "kirana",
-      "supermarket", "blinkit", "zepto", "bigbasket", "instamart", "dmart"],
+    id: "accommodation", label: "Accommodation", short: "Stay", emoji: "🏨",
+    words: ["hotel", "airbnb", "hostel", "resort", "stay", "room", "oyo", "homestay", "villa", "lodge",
+      "guesthouse", "guest house", "accommodation", "booking"],
   },
   {
-    id: "transport", label: "Transport", emoji: "🚕",
-    words: ["uber", "ola", "rapido", "taxi", "cab", "auto", "rickshaw", "metro", "bus", "train", "petrol",
-      "diesel", "fuel", "parking", "toll", "fastag", "ride", "scooty"],
-  },
-  {
-    id: "travel", label: "Travel", emoji: "✈️",
-    words: ["flight", "airline", "airport", "indigo", "vistara", "air india", "irctc", "visa", "trip", "tour",
-      "sightseeing", "boat", "cruise", "trek"],
-  },
-  {
-    id: "stay", label: "Stay", emoji: "🏨",
-    words: ["hotel", "airbnb", "hostel", "resort", "stay", "room", "oyo", "homestay", "villa", "lodge"],
-  },
-  {
-    id: "fun", label: "Entertainment", emoji: "🎬",
-    words: ["movie", "cinema", "film", "pvr", "inox", "netflix", "spotify", "hotstar", "concert", "party", "club",
-      "bowling", "game", "gaming", "show", "event", "cover charge"],
-  },
-  {
-    id: "shopping", label: "Shopping", emoji: "🛍️",
+    id: "shopping", label: "Shopping", short: "Shopping", emoji: "🛍️",
     words: ["shopping", "amazon", "flipkart", "myntra", "ajio", "nykaa", "clothes", "shirt", "jeans", "shoe",
-      "gift", "mall", "electronics"],
+      "gift", "souvenir", "mall", "market", "electronics", "sim card", "sim"],
   },
   {
-    id: "bills", label: "Bills", emoji: "💡",
+    id: "groceries", label: "Groceries", short: "Groceries", emoji: "🛒",
+    words: ["grocery", "groceries", "vegetable", "veggies", "sabzi", "fruit", "milk", "egg", "bread", "kirana",
+      "supermarket", "blinkit", "zepto", "bigbasket", "instamart", "dmart", "7-eleven", "7 eleven", "seven eleven"],
+  },
+  {
+    id: "activities", label: "Activities & Tickets", short: "Activities", emoji: "🎟️",
+    words: ["ticket", "entry", "entrance", "museum", "temple", "palace", "park", "tour", "trip", "sightseeing",
+      "boat", "cruise", "trek", "snorkel", "snorkeling", "diving", "scuba", "spa", "massage", "show", "movie",
+      "cinema", "film", "pvr", "inox", "concert", "party", "club", "bowling", "game", "gaming", "event",
+      "cover charge", "activity", "excursion", "safari"],
+  },
+  {
+    id: "bills", label: "Bills & Utilities", short: "Bills", emoji: "💡",
     words: ["rent", "electricity", "wifi", "internet", "broadband", "recharge", "phone bill", "mobile bill",
-      "gas", "cylinder", "maintenance", "maid", "laundry", "subscription", "bill"],
+      "gas", "cylinder", "maintenance", "maid", "laundry", "subscription", "netflix", "spotify", "hotstar",
+      "bill", "utilities", "insurance", "visa"],
   },
-  {
-    id: "health", label: "Health", emoji: "💊",
-    words: ["medicine", "pharmacy", "chemist", "doctor", "hospital", "clinic", "gym", "medical"],
-  },
-  { id: "other", label: "Other", emoji: "📦", words: [] },
+  { id: "other", label: "Other", short: "Other", emoji: "📦", words: [] },
 ];
+
+// Categories used before this list existed, mapped to their new home.
+export const LEGACY_CATEGORY_MAP: Record<string, string> = {
+  drinks: "food",
+  travel: "transport",
+  stay: "accommodation",
+  fun: "activities",
+  health: "other",
+};
 
 const BY_ID = new Map(CATEGORIES.map((c) => [c.id, c]));
 
@@ -67,7 +70,7 @@ const PATTERNS = CATEGORIES.filter((c) => c.words.length > 0).map((c) => ({
   re: new RegExp(`\\b(?:${c.words.map(escape).join("|")})(?:s|es)?\\b`, "i"),
 }));
 
-// Picks the category whose word appears FIRST, so "dinner and drinks" → Food.
+// Picks the category whose word appears FIRST, so "flight tickets" → Transport.
 export function guessCategory(description: string): string {
   let best: { id: string; index: number } | null = null;
   for (const p of PATTERNS) {
@@ -78,7 +81,7 @@ export function guessCategory(description: string): string {
 }
 
 export function getCategory(id: string): Category {
-  return BY_ID.get(id) ?? BY_ID.get("other")!;
+  return BY_ID.get(id) ?? BY_ID.get(LEGACY_CATEGORY_MAP[id] ?? "other")!;
 }
 
 export function isCategory(id: string): boolean {

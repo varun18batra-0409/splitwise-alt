@@ -1,4 +1,9 @@
-// Database design. All money is stored as whole paise (₹12.50 = 1250).
+// Database design. All money is stored as whole numbers in the currency's
+// smallest unit (₹12.50 = 1250 paise; THB 3,000 = 300000 satang; ¥500 = 500).
+//
+// Every new column has a default, so `prisma db push` adds them to an existing
+// database without touching saved data. prisma/upgrade-data.mjs then fills in
+// the right values for expenses saved before multi-currency existed.
 
 generator client {
   provider = "prisma-client-js"
@@ -12,8 +17,9 @@ datasource db {
 model Group {
   id         String    @id @default(cuid())
   name       String
-  currency   String    @default("INR") // kept per group so multi-currency can come later
-  inviteCode String    @unique
+  currency     String    @default("INR") // base settlement currency: balances are shown in this
+  cardMarkupBp Int       @default(0) // foreign card markup default, hundredths of a % (300 = 3%)
+  inviteCode   String    @unique
   createdAt  DateTime  @default(now())
   members    Member[]
   expenses   Expense[]
@@ -40,9 +46,23 @@ model Expense {
   groupId     String
   group       Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
   description String
-  amount      Int // total, in paise
+  amount      Int // FINAL total in the group's currency (converted + markup). Shares add up to this.
   splitType   String // "equal" | "exact" | "percent"
-  category    String         @default("other") // smart bucket, e.g. "food", "drinks"
+  forMode     String         @default("everyone") // who it was for: "everyone" | "selected" | "one"
+  category    String         @default("other") // e.g. "food", "transport"
+
+  // Currency details, frozen when the expense is saved so later rate changes never alter it.
+  originalAmount   Int    @default(0) // in the original currency's smallest unit
+  originalCurrency String @default("INR")
+  baseCurrency     String @default("INR") // group currency at the time
+  exchangeRate     String @default("1") // exact text, e.g. "2.8367" = 1 original → 2.8367 base
+  rateDate         String @default("") // date the rate applies to, e.g. "2026-10-14"
+  rateSource       String @default("same") // "same" (no conversion) | "api" | "manual"
+  convertedAmount  Int    @default(0) // original × rate, in base currency
+  paymentMethod    String @default("") // "card" | "cash" | "bank"; "" when no conversion
+  markupBp         Int    @default(0) // card markup applied, hundredths of a % (300 = 3%)
+  markupAmount     Int    @default(0) // markup in base currency
+
   paidById    String
   paidBy      Member         @relation("PaidBy", fields: [paidById], references: [id])
   createdAt   DateTime       @default(now())
@@ -69,4 +89,17 @@ model Payment {
   to        Member   @relation("PaymentTo", fields: [toId], references: [id])
   amount    Int // in paise
   createdAt DateTime @default(now())
+}
+
+// Cache of exchange rates fetched from frankfurter.dev, so we call it rarely.
+// Expenses keep their own copy of the rate they used; this table is only a cache.
+model ExchangeRate {
+  id        String   @id @default(cuid())
+  base      String // e.g. "THB"
+  quote     String // e.g. "INR"
+  rate      String // exact text, e.g. "2.8367"
+  date      String // the date the rate applies to
+  fetchedAt DateTime @default(now())
+
+  @@index([base, quote, fetchedAt])
 }

@@ -3,12 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "predev": "prisma db push",
+    "predev": "npm run db:setup",
     "dev": "next dev -H 0.0.0.0",
     "build": "next build",
     "start": "next start",
     "test": "vitest run",
-    "db:setup": "prisma db push",
+    "db:setup": "prisma db push && node prisma/upgrade-data.mjs",
     "postinstall": "prisma generate"
   },
   "dependencies": {

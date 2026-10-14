@@ -1,280 +1,612 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import { addExpense } from "@/app/actions";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { addExpense, lookupRate } from "@/app/actions";
 import { CATEGORIES, getCategory, guessCategory } from "@/lib/categories";
-import { computeSplit, type SplitType } from "@/lib/split";
-import { formatMoney } from "@/lib/money";
+import { computeTotals, PAYMENT_METHODS, type PaymentMethod } from "@/lib/conversion";
+import { buildExpense, chosenMarkupBp, type ExpenseDraft } from "@/lib/expense";
+import { CURRENCIES, currencyInfo, formatMoney, formatPercent, parseAmount, parsePercent } from "@/lib/money";
+import { participantsFor, type ForMode, type SplitType } from "@/lib/split";
+import { niceDate, rateText } from "@/lib/format";
 import { inputClass, primaryButtonClass } from "./ui";
 
 type Member = { id: string; name: string };
+type RateState =
+  | { status: "none" }
+  | { status: "loading" }
+  | { status: "ok"; rate: string; date: string; stale: boolean }
+  | { status: "missing"; message: string };
 
-const SPLIT_LABELS: Record<SplitType, string> = { equal: "Equally", exact: "Exact amounts", percent: "Percentages" };
+const labelClass = "mb-2 block text-sm font-medium text-gray-600";
 
-// Fast path (3 taps): + Add expense → type amount & what it was for → Save.
-// "Paid by you, split equally among everyone" unless you change it.
+// Fast path (3 taps): + Add expense → type name & amount → Save.
+// Defaults: paid by you, for everyone, split equally, in the last currency used.
 export function AddExpenseForm({
   groupId,
-  currency,
+  baseCurrency,
+  groupMarkupBp,
   members,
   myId,
 }: {
   groupId: string;
-  currency: string;
+  baseCurrency: string;
+  groupMarkupBp: number;
   members: Member[];
   myId: string;
 }) {
-  const memberIds = members.map((m) => m.id);
-  const nameOf = (id: string) => (id === myId ? "you" : members.find((m) => m.id === id)?.name ?? "?");
+  const memberIds = useMemo(() => members.map((m) => m.id), [members]);
+  const nameOf = (id: string) => members.find((m) => m.id === id)?.name ?? "?";
+  const who = (id: string) => (id === myId ? "You" : nameOf(id));
 
+  // 1–4: what, how much, category, currency
+  const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
-  const [description, setDescription] = useState("");
   const [pickedCategory, setPickedCategory] = useState<string | null>(null); // null = smart guess
-  const [showCategories, setShowCategories] = useState(false);
+  const [currency, setCurrency] = useState(baseCurrency);
+  const [showCurrencies, setShowCurrencies] = useState(false);
+
+  // Conversion (only when currency ≠ group currency)
+  const [rateState, setRateState] = useState<RateState>({ status: "none" });
+  const [rateMode, setRateMode] = useState<"auto" | "manual">("auto");
+  const [manualRate, setManualRate] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("card");
+  const [markupChoice, setMarkupChoice] = useState<ExpenseDraft["markupChoice"]>("group");
+  const [markupCustom, setMarkupCustom] = useState("");
+  const [showMarkup, setShowMarkup] = useState(false);
+
+  // 5–7: who paid, who it was for, how to split
+  const [showPeople, setShowPeople] = useState(false);
   const [paidById, setPaidById] = useState(myId);
+  const [forMode, setForMode] = useState<ForMode>("everyone");
+  const [selected, setSelected] = useState<string[]>(memberIds);
+  const [onePersonId, setOnePersonId] = useState(memberIds.find((id) => id !== myId) ?? myId);
   const [splitType, setSplitType] = useState<SplitType>("equal");
-  const [participants, setParticipants] = useState<string[]>(memberIds);
   const [exact, setExact] = useState<Record<string, string>>({});
   const [percent, setPercent] = useState<Record<string, string>>({});
-  const [showOptions, setShowOptions] = useState(false);
+
   const [error, setError] = useState("");
   const [saving, startSaving] = useTransition();
 
-  const category = getCategory(pickedCategory ?? guessCategory(description));
-
-  const preview = useMemo(
-    () => computeSplit({ amount, splitType, participants, memberIds, exact, percent, currency }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [amount, splitType, participants, exact, percent, currency],
-  );
-  const shareOf = (id: string) => (preview.ok ? preview.shares.find((s) => s.memberId === id)?.amount ?? 0 : null);
-
-  // Running total for exact / percent so you can see what's left.
-  const remaining = useMemo(() => {
-    if (splitType === "equal" || preview.total === null) return null;
-    if (splitType === "exact") {
-      const typed = memberIds.reduce((s, id) => {
-        const v = Number((exact[id] ?? "").replace(/,/g, ""));
-        return s + (Number.isFinite(v) ? Math.round(v * 100) : 0);
-      }, 0);
-      return { label: formatMoney(Math.abs(preview.total - typed), currency), over: typed > preview.total, done: typed === preview.total };
+  // Remember the last currency used in this group (handy on a trip).
+  const storageKey = `split-currency-${groupId}`;
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved && CURRENCIES.some((c) => c.code === saved)) setCurrency(saved);
+    } catch {
+      /* storage unavailable — keep the default */
     }
-    const typed = memberIds.reduce((s, id) => {
-      const v = Number(percent[id] ?? "");
-      return s + (Number.isFinite(v) ? Math.round(v * 100) : 0);
-    }, 0);
-    const left = 10000 - typed;
-    return { label: `${(Math.abs(left) / 100).toFixed(left % 100 === 0 ? 0 : 2)}%`, over: left < 0, done: left === 0 };
-  }, [splitType, preview.total, exact, percent, memberIds, currency]);
+  }, [storageKey]);
 
-  const splitSummary =
-    splitType === "equal"
-      ? participants.length === members.length
-        ? `equally among all ${members.length}`
-        : `equally among ${participants.length}`
-      : `by ${SPLIT_LABELS[splitType].toLowerCase()}`;
+  // Fetch a rate only when the currency changes — never on each keystroke.
+  const rateCache = useRef(new Map<string, RateState>());
+  const foreign = currency !== baseCurrency;
+  useEffect(() => {
+    if (!foreign) {
+      setRateState({ status: "none" });
+      return;
+    }
+    const key = `${currency}-${baseCurrency}`;
+    const cached = rateCache.current.get(key);
+    if (cached) {
+      setRateState(cached);
+      return;
+    }
+    let cancelled = false;
+    setRateState({ status: "loading" });
+    lookupRate(currency, baseCurrency)
+      .then((r) => {
+        const next: RateState = r.ok
+          ? { status: "ok", rate: r.rate, date: r.date, stale: Boolean("stale" in r && r.stale) }
+          : { status: "missing", message: r.message };
+        rateCache.current.set(key, next);
+        if (!cancelled) setRateState(next);
+      })
+      .catch(() => {
+        if (!cancelled) setRateState({ status: "missing", message: "Couldn't reach the rate service. Enter the rate yourself." });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currency, baseCurrency, foreign]);
 
-  function toggleParticipant(id: string) {
-    setParticipants((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  function chooseCurrency(code: string) {
+    setCurrency(code);
+    setShowCurrencies(false);
+    setRateMode("auto");
+    setManualRate("");
+    try {
+      localStorage.setItem(storageKey, code);
+    } catch {
+      /* ignore */
+    }
   }
+
+  const usingManualRate = foreign && (rateMode === "manual" || rateState.status === "missing");
+  const effectiveRate = !foreign ? "1" : usingManualRate ? manualRate : rateState.status === "ok" ? rateState.rate : "";
+
+  const category = getCategory(pickedCategory ?? guessCategory(name));
+  const draft: ExpenseDraft = {
+    amount, currency, paidById, forMode, selected, onePersonId, splitType, exact, percent,
+    paymentMethod, markupChoice, markupCustom,
+  };
+  const ctx = { memberIds, baseCurrency, groupMarkupBp, rate: effectiveRate };
+  const markupBp = chosenMarkupBp(draft, groupMarkupBp);
+  const totals = computeTotals({ amount, currency, baseCurrency, rate: effectiveRate, paymentMethod, markupBp: markupBp ?? 0 });
+  const preview = buildExpense(draft, ctx);
+  const participants = participantsFor({ ...draft, memberIds });
+
+  const base = (minor: number) => formatMoney(minor, baseCurrency);
+  const orig = (minor: number) => formatMoney(minor, currency);
+  const cur = currencyInfo(currency);
+
+  // Running total for custom amounts / percentages.
+  const remaining = (() => {
+    if (participants.length < 2 || splitType === "equal" || !totals.originalAmount) return null;
+    if (splitType === "exact") {
+      const typed = participants.reduce((s, id) => s + (parseAmount(exact[id] ?? "", currency) ?? 0), 0);
+      const left = totals.originalAmount - typed;
+      return { text: left === 0 ? "✓ Adds up" : left > 0 ? `${orig(left)} left to assign` : `${orig(-left)} too much`, state: left === 0 ? "done" : left > 0 ? "left" : "over" };
+    }
+    const typed = participants.reduce((s, id) => s + (parsePercent(percent[id] ?? "") ?? 0), 0);
+    const left = 10000 - typed;
+    return { text: left === 0 ? "✓ Adds up to 100%" : left > 0 ? `${formatPercent(left)} left to assign` : `${formatPercent(-left)} too much`, state: left === 0 ? "done" : left > 0 ? "left" : "over" };
+  })();
+
+  const forSummary =
+    forMode === "everyone" ? "everyone" : forMode === "one" ? who(onePersonId) : `${participants.length} ${participants.length === 1 ? "person" : "people"}`;
+  const splitSummary =
+    participants.length <= 1 ? "100% to them" : splitType === "equal" ? "split equally" : splitType === "exact" ? "custom amounts" : "by percentage";
 
   function save(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     if (!preview.ok) {
       setError(preview.error);
-      if (splitType !== "equal" || participants.length === 0) setShowOptions(true);
+      if (/person|amounts|percent/i.test(preview.error)) setShowPeople(true);
       return;
     }
     startSaving(async () => {
-      const res = await addExpense({
-        groupId,
-        amount,
-        description,
-        category: category.id,
-        paidById,
-        splitType,
-        participants,
-        exact,
-        percent,
-      });
+      const res = await addExpense({ ...draft, groupId, name, category: category.id, rateMode: usingManualRate ? "manual" : "auto", manualRate });
       if (res?.error) setError(res.error);
     });
   }
 
   return (
-    <form onSubmit={save} className="space-y-6">
-      {/* Amount */}
+    <form onSubmit={save} className="space-y-7">
+      {/* 1. Expense name */}
       <label className="block">
-        <span className="sr-only">Amount</span>
-        <div className="flex items-baseline gap-2 border-b-2 border-gray-100 pb-2 focus-within:border-accent">
-          <span className="text-3xl font-light text-gray-400">₹</span>
+        <span className={labelClass}>Expense name</span>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. Dinner at the night market"
+          autoComplete="off"
+          maxLength={80}
+          autoFocus
+          className={inputClass}
+        />
+      </label>
+
+      {/* 2 + 4. Amount and currency */}
+      <div>
+        <span className={labelClass}>Amount</span>
+        <div className="flex items-stretch gap-2">
+          <button
+            type="button"
+            onClick={() => setShowCurrencies((s) => !s)}
+            aria-label={`Currency: ${cur.name}. Tap to change`}
+            className="flex shrink-0 items-center gap-1.5 rounded-xl border border-gray-200 px-3 text-base font-medium active:bg-gray-50"
+          >
+            <span className="text-lg">{cur.flag}</span>
+            {currency}
+            <span className="text-gray-400">▾</span>
+          </button>
           <input
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             inputMode="decimal"
             placeholder="0"
-            autoFocus
             autoComplete="off"
-            className="w-full bg-transparent text-5xl font-semibold tracking-tight outline-none placeholder:text-gray-200"
+            aria-label="Amount"
+            className={`${inputClass} text-2xl font-semibold`}
           />
         </div>
-      </label>
-
-      {/* What it was for + smart category */}
-      <div className="flex gap-2">
-        <input
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="What was it for? e.g. Dinner"
-          autoComplete="off"
-          maxLength={80}
-          className={inputClass}
-        />
-        <button
-          type="button"
-          onClick={() => setShowCategories((s) => !s)}
-          aria-label={`Category: ${category.label}. Tap to change`}
-          className="flex shrink-0 items-center gap-1 rounded-xl border border-gray-200 px-3 text-sm active:bg-gray-50"
-        >
-          <span className="text-lg">{category.emoji}</span>
-          <span className="text-gray-600">{category.label}</span>
-        </button>
+        {showCurrencies && (
+          <ul className="mt-2 grid grid-cols-2 gap-2">
+            {CURRENCIES.map((c) => (
+              <li key={c.code}>
+                <button
+                  type="button"
+                  onClick={() => chooseCurrency(c.code)}
+                  className={`flex w-full items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm ${
+                    c.code === currency ? "border-accent bg-accent-soft" : "border-gray-200 active:bg-gray-50"
+                  }`}
+                >
+                  <span className="text-lg">{c.flag}</span>
+                  <span>
+                    <span className="block font-medium">{c.code}</span>
+                    <span className="block text-xs text-gray-500">{c.name}</span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
-      {showCategories && (
-        <div className="flex flex-wrap gap-2">
+      {/* 3. Category */}
+      <div>
+        <span className={labelClass}>
+          Category
+          {!pickedCategory && name.trim() && <span className="font-normal text-gray-400"> · picked from the name</span>}
+        </span>
+        <div className="grid grid-cols-4 gap-2">
           {CATEGORIES.map((c) => (
             <button
               key={c.id}
               type="button"
-              onClick={() => {
-                setPickedCategory(c.id);
-                setShowCategories(false);
-              }}
-              className={`rounded-full border px-3 py-2 text-sm ${
-                c.id === category.id ? "border-accent bg-accent-soft text-accent-dark" : "border-gray-200 text-gray-700"
+              onClick={() => setPickedCategory(c.id)}
+              aria-label={c.label}
+              aria-pressed={c.id === category.id}
+              className={`flex flex-col items-center gap-1 rounded-xl border px-1 py-2.5 text-xs ${
+                c.id === category.id ? "border-accent bg-accent-soft font-medium text-accent-dark" : "border-gray-200 text-gray-600 active:bg-gray-50"
               }`}
             >
-              {c.emoji} {c.label}
+              <span className="text-xl">{c.emoji}</span>
+              {c.short}
             </button>
           ))}
-          {pickedCategory && (
-            <button
-              type="button"
-              onClick={() => {
-                setPickedCategory(null);
-                setShowCategories(false);
-              }}
-              className="rounded-full px-3 py-2 text-sm text-gray-400"
-            >
-              Auto
-            </button>
-          )}
         </div>
+      </div>
+
+      {/* Currency conversion — only shown for foreign currencies */}
+      {foreign && (
+        <section className="space-y-4 rounded-2xl border border-gray-100 bg-gray-50/60 p-4">
+          <div>
+            <span className={labelClass}>Paid with</span>
+            <Segmented
+              options={PAYMENT_METHODS.map((p) => ({ id: p.id, label: p.label }))}
+              value={paymentMethod}
+              onChange={(v) => setPaymentMethod(v as PaymentMethod)}
+            />
+          </div>
+
+          {/* Exchange rate */}
+          <div className="text-sm">
+            {rateState.status === "loading" && <p className="text-gray-500">Getting today’s exchange rate…</p>}
+
+            {rateState.status === "ok" && !usingManualRate && (
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-gray-600">
+                  <span className="font-medium text-gray-900">
+                    1 {currency} = {rateText(rateState.rate, baseCurrency)}
+                  </span>
+                  <br />
+                  {rateState.stale ? "Last saved rate, from " : "Rate for "}
+                  {niceDate(rateState.date)}
+                  {rateState.stale && " — live rates unavailable right now"}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRateMode("manual");
+                    setManualRate(rateState.rate);
+                  }}
+                  className="shrink-0 py-1 font-medium text-accent"
+                >
+                  Edit rate
+                </button>
+              </div>
+            )}
+
+            {usingManualRate && (
+              <div>
+                {rateState.status === "missing" && <p className="mb-2 text-orange-700">{rateState.message}</p>}
+                <label className="flex items-center gap-2">
+                  <span className="shrink-0 text-gray-600">1 {currency} =</span>
+                  <span className="flex flex-1 items-center rounded-xl border border-gray-200 bg-white px-3 focus-within:border-accent">
+                    <span className="text-gray-400">{baseCurrency === "INR" ? "₹" : baseCurrency}</span>
+                    <input
+                      value={manualRate}
+                      onChange={(e) => setManualRate(e.target.value)}
+                      inputMode="decimal"
+                      placeholder="rate"
+                      aria-label="Exchange rate"
+                      className="w-full bg-transparent px-2 py-2.5 outline-none"
+                    />
+                  </span>
+                </label>
+                {rateState.status === "ok" && (
+                  <button type="button" onClick={() => setRateMode("auto")} className="mt-1 py-1 font-medium text-accent">
+                    Use live rate ({rateText(rateState.rate, baseCurrency)})
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Card markup */}
+          {paymentMethod === "card" && (
+            <div className="text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-gray-600">
+                  Card markup:{" "}
+                  <span className="font-medium text-gray-900">
+                    {markupBp === null ? "—" : formatPercent(markupBp)}
+                  </span>
+                  {markupChoice === "group" && <span className="text-gray-400"> (group default)</span>}
+                </p>
+                <button type="button" onClick={() => setShowMarkup((s) => !s)} className="py-1 font-medium text-accent">
+                  {showMarkup ? "Done" : "Change"}
+                </button>
+              </div>
+              {showMarkup && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Chip on={markupChoice === "group"} onClick={() => setMarkupChoice("group")}>
+                    Default ({formatPercent(groupMarkupBp)})
+                  </Chip>
+                  <Chip on={markupChoice === "none"} onClick={() => setMarkupChoice("none")}>
+                    None
+                  </Chip>
+                  {["2", "3", "4"].map((p) => (
+                    <Chip
+                      key={p}
+                      on={markupChoice === "custom" && markupCustom === p}
+                      onClick={() => {
+                        setMarkupChoice("custom");
+                        setMarkupCustom(p);
+                      }}
+                    >
+                      {p}%
+                    </Chip>
+                  ))}
+                  <span className="flex items-center rounded-full border border-gray-200 bg-white px-3">
+                    <input
+                      value={markupChoice === "custom" && !["2", "3", "4"].includes(markupCustom) ? markupCustom : ""}
+                      onChange={(e) => {
+                        setMarkupChoice("custom");
+                        setMarkupCustom(e.target.value);
+                      }}
+                      inputMode="decimal"
+                      placeholder="Custom"
+                      aria-label="Custom markup percentage"
+                      className="w-16 bg-transparent py-1.5 text-sm outline-none"
+                    />
+                    %
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* The calculation, line by line */}
+          {totals.ok && (
+            <dl className="space-y-1.5 border-t border-gray-200 pt-3 text-sm">
+              <Row label="Original expense" value={orig(totals.originalAmount)} />
+              <Row label="Converted amount" value={base(totals.convertedAmount)} />
+              {paymentMethod === "card" && (
+                <Row
+                  label={`Card markup (${formatPercent(totals.markupBp)})`}
+                  value={totals.markupAmount > 0 ? `+ ${base(totals.markupAmount)}` : base(0)}
+                />
+              )}
+              <Row label="Total group expense" value={base(totals.total)} strong />
+            </dl>
+          )}
+          {paymentMethod === "card" && (
+            <p className="text-xs text-gray-400">
+              The card markup is an estimate of your bank’s foreign-currency fee. Actual bank charges can differ.
+            </p>
+          )}
+        </section>
       )}
 
-      {/* "Paid by you · split equally among all 3" — tap to change */}
-      <button
-        type="button"
-        onClick={() => setShowOptions((s) => !s)}
-        className="w-full rounded-xl bg-gray-50 px-4 py-3 text-left text-sm text-gray-600 active:bg-gray-100"
-      >
-        Paid by <strong className="text-gray-900">{nameOf(paidById)}</strong> · split{" "}
-        <strong className="text-gray-900">{splitSummary}</strong>
-        <span className="float-right text-gray-400">{showOptions ? "Done" : "Change"}</span>
-      </button>
+      {/* 5–7. Who paid, who it was for, how to split — summarised, tap to change */}
+      <section className="rounded-2xl border border-gray-100">
+        <button
+          type="button"
+          onClick={() => setShowPeople((s) => !s)}
+          className="flex w-full items-start justify-between gap-3 px-4 py-3.5 text-left text-sm"
+        >
+          <span className="text-gray-600">
+            Paid by <strong className="text-gray-900">{who(paidById)}</strong> · for{" "}
+            <strong className="text-gray-900">{forSummary}</strong> · <strong className="text-gray-900">{splitSummary}</strong>
+          </span>
+          <span className="shrink-0 font-medium text-accent">{showPeople ? "Done" : "Change"}</span>
+        </button>
 
-      {showOptions && (
-        <div className="space-y-6">
-          <div>
-            <p className="mb-2 text-sm font-medium text-gray-600">Who paid?</p>
-            <div className="flex flex-wrap gap-2">
-              {members.map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => setPaidById(m.id)}
-                  className={`rounded-full border px-4 py-2 text-sm ${
-                    m.id === paidById ? "border-accent bg-accent-soft font-medium text-accent-dark" : "border-gray-200 text-gray-700"
-                  }`}
-                >
-                  {m.id === myId ? "You" : m.name}
-                </button>
-              ))}
+        {showPeople && (
+          <div className="space-y-6 border-t border-gray-100 px-4 pb-4 pt-4">
+            <div>
+              <span className={labelClass}>Who paid?</span>
+              <div className="flex flex-wrap gap-2">
+                {members.map((m) => (
+                  <Chip key={m.id} on={m.id === paidById} onClick={() => setPaidById(m.id)}>
+                    {who(m.id)}
+                  </Chip>
+                ))}
+              </div>
             </div>
-          </div>
 
-          <div>
-            <p className="mb-2 text-sm font-medium text-gray-600">How to split?</p>
-            <div className="grid grid-cols-3 gap-1 rounded-xl bg-gray-100 p-1">
-              {(Object.keys(SPLIT_LABELS) as SplitType[]).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setSplitType(t)}
-                  className={`rounded-lg py-2 text-sm ${t === splitType ? "bg-white font-medium shadow-sm" : "text-gray-500"}`}
-                >
-                  {t === "equal" ? "Equal" : t === "exact" ? "₹ Exact" : "%"}
-                </button>
-              ))}
+            <div>
+              <span className={labelClass}>Who was it for?</span>
+              <Segmented
+                options={[
+                  { id: "everyone", label: "Everyone" },
+                  { id: "selected", label: "Selected" },
+                  { id: "one", label: "One person" },
+                ]}
+                value={forMode}
+                onChange={(v) => setForMode(v as ForMode)}
+              />
+              {forMode === "selected" && (
+                <ul className="mt-3 space-y-1">
+                  {members.map((m) => (
+                    <li key={m.id}>
+                      <label className="flex items-center gap-3 py-1.5">
+                        <input
+                          type="checkbox"
+                          checked={selected.includes(m.id)}
+                          onChange={() =>
+                            setSelected((s) => (s.includes(m.id) ? s.filter((x) => x !== m.id) : [...s, m.id]))
+                          }
+                          className="h-5 w-5 accent-[var(--color-accent)]"
+                        />
+                        {who(m.id)}
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {forMode === "one" && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {members.map((m) => (
+                    <Chip key={m.id} on={m.id === onePersonId} onClick={() => setOnePersonId(m.id)}>
+                      {who(m.id)}
+                    </Chip>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
 
-          <ul className="divide-y divide-gray-100">
-            {members.map((m) => {
-              const share = shareOf(m.id);
-              return (
-                <li key={m.id} className="flex items-center gap-3 py-3">
-                  {splitType === "equal" ? (
-                    <label className="flex flex-1 items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={participants.includes(m.id)}
-                        onChange={() => toggleParticipant(m.id)}
-                        className="h-5 w-5 accent-[var(--color-accent)]"
-                      />
-                      <span className="flex-1">{m.id === myId ? `${m.name} (you)` : m.name}</span>
-                      <span className="text-sm text-gray-500">
-                        {participants.includes(m.id) && share !== null ? formatMoney(share, currency) : "—"}
-                      </span>
-                    </label>
+            {participants.length > 1 ? (
+              <div>
+                <span className={labelClass}>How should it be split?</span>
+                <Segmented
+                  options={[
+                    { id: "equal", label: "Equally" },
+                    { id: "exact", label: "Amounts" },
+                    { id: "percent", label: "%" },
+                  ]}
+                  value={splitType}
+                  onChange={(v) => setSplitType(v as SplitType)}
+                />
+                {splitType !== "equal" && (
+                  <ul className="mt-3 divide-y divide-gray-100">
+                    {participants.map((id) => (
+                      <li key={id} className="flex items-center gap-3 py-2">
+                        <span className="flex-1">{who(id)}</span>
+                        <span className="flex w-36 items-center rounded-xl border border-gray-200 px-3 focus-within:border-accent">
+                          {splitType === "exact" && <span className="text-xs text-gray-400">{currency}</span>}
+                          <input
+                            inputMode="decimal"
+                            placeholder="0"
+                            aria-label={`${who(id)} ${splitType === "exact" ? "amount" : "percentage"}`}
+                            value={(splitType === "exact" ? exact : percent)[id] ?? ""}
+                            onChange={(e) =>
+                              (splitType === "exact" ? setExact : setPercent)((prev) => ({ ...prev, [id]: e.target.value }))
+                            }
+                            className="w-full bg-transparent py-2 text-right outline-none"
+                          />
+                          {splitType === "percent" && <span className="text-gray-400">%</span>}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {remaining && (
+                  <p className={`mt-2 text-sm ${remaining.state === "done" ? "text-accent-dark" : remaining.state === "over" ? "text-red-600" : "text-gray-500"}`}>
+                    {remaining.text}
+                  </p>
+                )}
+              </div>
+            ) : (
+              participants.length === 1 && (
+                <p className="text-sm text-gray-500">The whole expense goes to {who(participants[0])}.</p>
+              )
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* Result: who owes whom for this expense */}
+      {preview.ok && (
+        <section className="rounded-2xl bg-accent-soft/60 p-4 text-sm">
+          <p className="mb-2 font-medium text-accent-dark">
+            {who(paidById)} paid {base(preview.expense.amount)}
+            {foreign && <span className="font-normal text-gray-500"> ({orig(preview.expense.originalAmount)})</span>}
+          </p>
+          <ul className="space-y-1 text-gray-700">
+            {preview.expense.shares.map((s) =>
+              s.memberId === paidById ? (
+                <li key={s.memberId}>
+                  {s.memberId === myId ? "Your" : `${nameOf(s.memberId)}’s`} own share: {base(s.amount)}
+                </li>
+              ) : (
+                <li key={s.memberId}>
+                  {s.memberId === myId ? (
+                    <>
+                      <strong>You</strong> owe {who(paidById)} <strong>{base(s.amount)}</strong>
+                    </>
                   ) : (
                     <>
-                      <span className="flex-1">{m.id === myId ? `${m.name} (you)` : m.name}</span>
-                      <div className="flex w-32 items-center rounded-xl border border-gray-200 px-3 focus-within:border-accent">
-                        {splitType === "exact" && <span className="text-gray-400">₹</span>}
-                        <input
-                          inputMode="decimal"
-                          placeholder="0"
-                          value={(splitType === "exact" ? exact : percent)[m.id] ?? ""}
-                          onChange={(e) =>
-                            (splitType === "exact" ? setExact : setPercent)((prev) => ({ ...prev, [m.id]: e.target.value }))
-                          }
-                          className="w-full bg-transparent py-2 text-right outline-none"
-                        />
-                        {splitType === "percent" && <span className="text-gray-400">%</span>}
-                      </div>
+                      <strong>{nameOf(s.memberId)}</strong> owes {paidById === myId ? "you" : nameOf(paidById)}{" "}
+                      <strong>{base(s.amount)}</strong>
                     </>
                   )}
                 </li>
-              );
-            })}
+              ),
+            )}
           </ul>
-
-          {remaining && (
-            <p className={`text-sm ${remaining.done ? "text-accent-dark" : remaining.over ? "text-red-600" : "text-gray-500"}`}>
-              {remaining.done ? "✓ Adds up" : remaining.over ? `${remaining.label} too much` : `${remaining.label} left to assign`}
-            </p>
-          )}
-        </div>
+        </section>
       )}
 
       {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
-      <button type="submit" disabled={saving} className={primaryButtonClass}>
-        {saving ? "Saving…" : "Save"}
+      <button type="submit" disabled={saving || rateState.status === "loading"} className={primaryButtonClass}>
+        {saving ? "Saving…" : "Save expense"}
       </button>
     </form>
+  );
+}
+
+function Segmented({
+  options,
+  value,
+  onChange,
+}: {
+  options: { id: string; label: string }[];
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  return (
+    <div className="grid gap-1 rounded-xl bg-gray-100 p-1" style={{ gridTemplateColumns: `repeat(${options.length}, 1fr)` }}>
+      {options.map((o) => (
+        <button
+          key={o.id}
+          type="button"
+          onClick={() => onChange(o.id)}
+          aria-pressed={o.id === value}
+          className={`rounded-lg py-2 text-sm ${o.id === value ? "bg-white font-medium shadow-sm" : "text-gray-500"}`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={on}
+      className={`rounded-full border px-4 py-2 text-sm ${
+        on ? "border-accent bg-accent-soft font-medium text-accent-dark" : "border-gray-200 bg-white text-gray-700"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <div className={`flex justify-between gap-3 ${strong ? "pt-1 font-semibold text-gray-900" : "text-gray-600"}`}>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
   );
 }
