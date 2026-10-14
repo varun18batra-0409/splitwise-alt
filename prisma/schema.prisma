@@ -6,7 +6,8 @@
 // the right values for expenses saved before multi-currency existed.
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"] // lets the hosted app use Turso (online SQLite)
 }
 
 datasource db {

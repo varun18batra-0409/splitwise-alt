@@ -3,7 +3,15 @@
 // and it never deletes anything. Runs automatically before `npm run dev`.
 import { PrismaClient } from "@prisma/client";
 
-const db = new PrismaClient();
+// Hosted app: Turso (online SQLite). Otherwise: the local file.
+const db = process.env.TURSO_DATABASE_URL
+  ? new PrismaClient({
+      adapter: new (await import("@prisma/adapter-libsql")).PrismaLibSQL({
+        url: process.env.TURSO_DATABASE_URL,
+        authToken: process.env.TURSO_AUTH_TOKEN,
+      }),
+    })
+  : new PrismaClient();
 
 // 1. Old categories → new categories.
 const LEGACY = { drinks: "food", travel: "transport", stay: "accommodation", fun: "activities", health: "other" };

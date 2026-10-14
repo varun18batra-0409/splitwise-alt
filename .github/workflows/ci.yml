@@ -22,14 +22,17 @@ jobs:
           set -o pipefail
           npm run build 2>&1 | tee build.log || { echo "::error title=Build failed::$(tail -60 build.log | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"; exit 1; }
 
-  # Builds the app with demo data, opens every screen in a phone-sized browser
-  # and saves the pictures to the "screenshots" branch, so the design can be checked.
+  # Builds the app the way the hosting does (online-database mode, here with a
+  # local stand-in file), fills it with demo data, opens every screen in a
+  # phone-sized browser and saves the pictures to the "screenshots" branch.
   screens:
     needs: check
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      TURSO_DATABASE_URL: file:/tmp/online-stand-in.db
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -38,12 +41,16 @@ jobs:
       - run: npm install
       - run: npm install --no-save tsx@4.19.2 playwright@1.48.2
       - run: npx playwright install --with-deps chromium
-      - run: npm run db:setup
+      - name: Hosting build (schema sync, data upgrade, build)
+        run: |
+          set -o pipefail
+          npm run vercel-build 2>&1 | tee vb.log || { echo "::error title=Hosting build failed::$(tail -60 vb.log | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"; exit 1; }
+          node scripts/turso-sync.mjs | tee sync2.log
+          grep -q "already matches" sync2.log || { echo "::error title=Schema sync not idempotent::$(cat sync2.log | tr '\n' ' ')"; exit 1; }
       - name: Demo data
         run: |
           set -o pipefail
           npx tsx scripts/seed-demo.ts 2>&1 | tee seed.log || { echo "::error title=Seed failed::$(tail -40 seed.log | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"; exit 1; }
-      - run: npm run build
       - name: Screenshots
         run: |
           set -o pipefail
