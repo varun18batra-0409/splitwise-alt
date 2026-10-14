@@ -12,5 +12,12 @@ jobs:
           node-version: 22
       - run: npm install
       - run: npm run db:setup
-      - run: npm test
-      - run: npm run build
+      - name: Tests
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee test.log || { echo "::error title=Tests failed::$(tail -60 test.log | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"; exit 1; }
+          echo "::notice title=Tests::$(grep -E 'Test Files|Tests ' test.log | tr '\n' ' ')"
+      - name: Build
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee build.log || { echo "::error title=Build failed::$(tail -60 build.log | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"; exit 1; }
