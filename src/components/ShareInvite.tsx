@@ -31,15 +31,14 @@ export function ShareInvite({ code, groupName }: { code: string; groupName: stri
   }
 
   return (
-    <div className="rounded-2xl bg-accent-soft p-4">
-      <p className="text-sm font-medium text-accent-dark">Invite people</p>
-      <p className="mt-1 break-all text-sm text-gray-600">{link}</p>
+    <div className="border border-line bg-white p-4">
+      <p className="truncate font-mono text-[13px] text-gray-500">{link.replace(/^https?:\/\//, "")}</p>
       <button
         type="button"
         onClick={share}
-        className="mt-3 w-full rounded-xl bg-white px-4 py-3 text-base font-semibold text-accent-dark active:bg-gray-50"
+        className="pop mt-3 w-full bg-fg px-4 py-3 text-[15px] font-semibold tracking-wide text-canvas"
       >
-        {copied ? "Link copied ✓" : "Share invite link"}
+        {copied ? "Link copied" : "Share invite link"}
       </button>
     </div>
   );

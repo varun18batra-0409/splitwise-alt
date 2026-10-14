@@ -13,6 +13,7 @@ import { settleAcrossGroups } from "@/app/actions";
 import { db } from "@/lib/db";
 import { canUndo } from "@/lib/undo";
 import { UndoBar } from "@/components/UndoBar";
+import { BellIcon, GroupIcon, SettleIcon, iconButtonClass } from "@/components/icons";
 
 export default async function Home({
   searchParams,
@@ -95,28 +96,21 @@ export default async function Home({
     <>
       {undoBar && <UndoBar key={undoBar.eventId} {...undoBar} back="home" redo={undone === "1"} />}
       {error && <p className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
-      <header className="mb-6 flex items-center justify-between">
-        <p className="font-display text-xl font-semibold tracking-tight">Split</p>
-        <span className="flex items-center gap-3">
-          <span className="text-sm text-gray-400">{dayLabel(new Date())}</span>
-          {all.length > 0 && (
-            <Link
-              href="/notifications"
-              aria-label={unread ? `Notifications, ${unread} new` : "Notifications"}
-              className="relative -mr-2 flex h-10 w-10 items-center justify-center rounded-full text-gray-600 active:bg-mist"
-            >
-              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M6 16.5V11a6 6 0 1 1 12 0v5.5l1.5 1.5h-15L6 16.5Z" />
-                <path d="M10 20.5a2.2 2.2 0 0 0 4 0" />
-              </svg>
-              {unread > 0 && (
-                <span className="absolute right-1 top-1 min-w-[16px] rounded-full bg-accent px-1 text-center text-[10px] font-semibold leading-4 text-canvas tabular-nums">
-                  {unread > 9 ? "9+" : unread}
-                </span>
-              )}
-            </Link>
-          )}
-        </span>
+      <header className="mb-8 flex items-center justify-between">
+        <div>
+          <p className="font-display text-[26px] font-semibold leading-none tracking-tight">split</p>
+          <p className="mt-1.5 text-xs text-gray-400">{dayLabel(new Date())}</p>
+        </div>
+        {all.length > 0 && (
+          <Link href="/notifications" aria-label={unread ? `Notifications, ${unread} new` : "Notifications"} className={`relative ${iconButtonClass}`}>
+            <BellIcon size={20} />
+            {unread > 0 && (
+              <span className="absolute -right-1 -top-1 min-w-[18px] rounded-full bg-fg px-1 text-center text-[10px] font-semibold leading-[18px] text-canvas tabular-nums">
+                {unread > 9 ? "9+" : unread}
+              </span>
+            )}
+          </Link>
+        )}
       </header>
 
       {all.length === 0 ? (
@@ -132,24 +126,30 @@ export default async function Home({
           {/* The balance panel */}
           <section className="vault rounded-[24px] px-5 pb-6 pt-6 text-fg">
             {owedLines.length === 0 && oweLines.length === 0 ? (
-              <h1 className="font-display text-3xl font-semibold tracking-tight">You’re all square.</h1>
+              <>
+                <p className="text-sm text-fg/55">Across your groups</p>
+                <h1 className="mt-1 font-display text-[40px] font-semibold leading-none tracking-tight">All square</h1>
+              </>
             ) : (
-              <div className="space-y-1">
-                {owedLines.length > 0 && (
-                  <h1 className="font-display text-[28px] font-semibold leading-tight tracking-tight tabular-nums">
-                    You’re owed <span className="text-accent-dark">{owedLines.join(" + ")}</span>
-                  </h1>
-                )}
-                {oweLines.length > 0 && (
-                  <p className={`font-display tabular-nums ${owedLines.length ? "text-lg text-fg/80" : "text-[28px] font-semibold leading-tight tracking-tight"}`}>
-                    You owe <span className="text-owe">{oweLines.join(" + ")}</span>
+              <>
+                <p className="text-sm text-fg/55">{owedLines.length > 0 ? "You’re owed" : "You owe"}</p>
+                <h1
+                  className={`mt-1.5 font-display text-[44px] font-semibold leading-none tracking-tight tabular-nums ${
+                    owedLines.length > 0 ? "text-owed" : "text-owe"
+                  }`}
+                >
+                  {(owedLines.length > 0 ? owedLines : oweLines).join(" + ")}
+                </h1>
+                {owedLines.length > 0 && oweLines.length > 0 && (
+                  <p className="mt-3 text-sm text-fg/60">
+                    You owe <span className="font-display text-base text-owe tabular-nums">{oweLines.join(" + ")}</span>
                   </p>
                 )}
-              </div>
+              </>
             )}
 
             {open.length > 0 && (
-              <div className="mt-7">
+              <div className="mt-7 border-t border-fg/10 pt-6">
                 <BalanceMeter
                   tone="dark"
                   rows={open.map((g) => ({
@@ -165,12 +165,11 @@ export default async function Home({
           </section>
 
           {/* Shortcuts */}
-          <nav className="mt-4 grid grid-cols-3 gap-2" aria-label="Shortcuts">
-            <Shortcut href="/groups/new" icon="⊕" label="New group" />
-            <Shortcut href="/add" icon="+" label="Add expense" />
+          <nav className="mt-3 grid grid-cols-2 gap-2" aria-label="Shortcuts">
+            <Shortcut href="/groups/new" icon={<GroupIcon />} label="New group" />
             <Shortcut
               href="#settle"
-              icon="⇄"
+              icon={<SettleIcon />}
               label="Smart Settle"
               hint={settleItems.length ? `${settleItems.length} ${settleItems.length === 1 ? "person" : "people"}` : "All settled"}
             />
@@ -204,7 +203,7 @@ export default async function Home({
                             <>You and <strong className="font-medium">{it.name}</strong> are even</>
                           )}
                         </p>
-                        <p className={`shrink-0 font-display font-semibold tabular-nums ${it.net < 0 ? "text-owe" : it.net > 0 ? "text-accent-dark" : "text-gray-400"}`}>
+                        <p className={`shrink-0 font-display font-semibold tabular-nums ${it.net < 0 ? "text-owe" : it.net > 0 ? "text-owed" : "text-gray-400"}`}>
                           {it.net === 0 ? "—" : amt(it.net)}
                         </p>
                       </div>
@@ -225,7 +224,7 @@ export default async function Home({
                             name="parts"
                             value={JSON.stringify(it.parts.map((p) => ({ groupId: p.groupId, fromId: p.fromId, toId: p.toId, amount: p.amount })))}
                           />
-                          <button type="submit" className="rounded-full border border-accent/40 px-3 py-1.5 text-sm font-medium text-accent-dark active:bg-accent-soft">
+                          <button type="submit" className="border border-line px-3 py-1.5 text-sm font-medium text-fg active:bg-mist">
                             Mark as paid
                           </button>
                         </form>
@@ -297,28 +296,25 @@ export default async function Home({
             </section>
           )}
 
-          <Link href="/groups/new" className={`mt-10 block ${primaryButtonClass}`}>
-            Create a group
-          </Link>
         </>
       )}
     </>
   );
 }
 
-function Shortcut({ href, icon, label, hint }: { href?: string; icon: string; label: string; hint?: string }) {
+function Shortcut({ href, icon, label, hint }: { href?: string; icon: React.ReactNode; label: string; hint?: string }) {
   const inner = (
     <>
-      <span className="font-display text-xl leading-none text-accent-dark" aria-hidden>
-        {icon}
+      <span className="text-gray-700">{icon}</span>
+      <span className="min-w-0">
+        <span className="block text-sm font-medium">{label}</span>
+        {hint && <span className="block truncate text-xs text-gray-400">{hint}</span>}
       </span>
-      <span className="mt-2 block text-sm font-medium">{label}</span>
-      {hint && <span className="block truncate text-xs text-gray-400">{hint}</span>}
     </>
   );
-  const cls = "block rounded-2xl border border-gray-100 bg-mist px-3 py-3.5";
+  const cls = "flex items-center gap-3 rounded-2xl border border-line bg-white px-4 py-3.5";
   return href ? (
-    <Link href={href} className={`${cls} active:bg-accent-soft`}>
+    <Link href={href} className={`${cls} active:bg-mist`}>
       {inner}
     </Link>
   ) : (
@@ -341,7 +337,7 @@ function GroupRow({
       <Link href={`/groups/${g.group.id}`} className="flex items-center gap-3 py-3.5 active:bg-gray-50">
         <span
           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl font-display text-base font-semibold ${
-            closed ? "bg-gray-100 text-gray-400" : "bg-accent-soft text-accent-dark"
+            closed ? "bg-gray-50 text-gray-400" : "bg-mist text-fg"
           }`}
           aria-hidden
         >
@@ -353,7 +349,7 @@ function GroupRow({
             {g.group.members.length} people, {closed ? "closed" : activeText(g.lastActivity)}
           </span>
         </span>
-        <span className={`shrink-0 text-right text-sm tabular-nums ${b > 0 ? "text-accent-dark" : b < 0 ? "text-owe" : "text-gray-400"}`}>
+        <span className={`shrink-0 text-right text-sm tabular-nums ${b > 0 ? "text-owed" : b < 0 ? "text-owe" : "text-gray-400"}`}>
           {b > 0 ? `owed ${formatMoney(b, g.group.currency)}` : b < 0 ? `owe ${formatMoney(-b, g.group.currency)}` : "settled"}
         </span>
       </Link>

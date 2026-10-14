@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Person } from "@/lib/names";
+import { InviteIcon } from "./icons";
 
 // Opens the phone's own contacts list (with its search box) so people can be
 // picked instead of typed. Uses the browser's Contact Picker, available in
@@ -57,9 +58,9 @@ export function ContactPickerButton({ onPick }: { onPick: (people: Person[]) => 
       <button
         type="button"
         onClick={pick}
-        className="flex w-full items-center justify-center gap-2 rounded-xl border border-accent/40 bg-accent-soft px-4 py-3 text-base font-medium text-accent-dark active:bg-accent-soft/60"
+        className="flex w-full items-center justify-center gap-2 border border-line px-4 py-3 text-[15px] font-medium text-fg active:bg-mist"
       >
-        <span aria-hidden>📇</span> Choose from contacts
+        <InviteIcon size={18} /> Choose from contacts
       </button>
       {message && <p className="mt-1 text-xs text-red-600">{message}</p>}
     </div>

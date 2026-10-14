@@ -1,6 +1,7 @@
 import { getCategory } from "@/lib/categories";
 import { formatMoney } from "@/lib/money";
 import type { ActivityItem } from "@/lib/activity";
+import { GearIcon, SettleIcon } from "./icons";
 
 // One line of history: an expense, a settle-up payment or a group change,
 // and what it meant for you. Deleted items stay visible, crossed out.
@@ -20,8 +21,8 @@ export function ActivityRow({
   if (item.kind === "event") {
     return (
       <div className="flex items-center gap-3 py-2.5">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center text-base text-gray-400" aria-hidden>
-          ⚙︎
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center text-gray-400">
+          <GearIcon size={18} />
         </span>
         <p className="min-w-0 flex-1 text-sm text-gray-500">
           <span className="font-medium text-ink">{nameOf(item.actorId)}</span> {item.text}
@@ -35,7 +36,7 @@ export function ActivityRow({
   const effect = deleted
     ? { text: "deleted", cls: "text-gray-400" }
     : item.effect > 0
-      ? { text: item.kind === "payment" ? `you paid ${money(item.effect)}` : `you lent ${money(item.effect)}`, cls: "text-accent-dark" }
+      ? { text: item.kind === "payment" ? `you paid ${money(item.effect)}` : `you lent ${money(item.effect)}`, cls: "text-owed" }
       : item.effect < 0
         ? { text: item.kind === "payment" ? `you got ${money(-item.effect)}` : `you owe ${money(-item.effect)}`, cls: "text-owe" }
         : { text: "not involved", cls: "text-gray-400" };
@@ -45,8 +46,8 @@ export function ActivityRow({
     const to = nameOf(item.toId);
     return (
       <div className={`flex items-center gap-3 py-3 ${deleted ? "opacity-60" : ""}`}>
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-lg text-accent-dark" aria-hidden>
-          ⇄
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-mist text-gray-700">
+          <SettleIcon size={18} />
         </span>
         <div className="min-w-0 flex-1">
           <p className={`truncate font-medium ${deleted ? "line-through decoration-gray-400" : ""}`}>

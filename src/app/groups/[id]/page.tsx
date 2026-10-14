@@ -13,6 +13,7 @@ import { CATEGORIES, getCategory } from "@/lib/categories";
 import { recordPayment, removePayment, restoreExpense, restorePayment, setGroupClosed, undoChange } from "@/app/actions";
 import { canUndo } from "@/lib/undo";
 import { UndoBar } from "@/components/UndoBar";
+import { ChevronDown, GearIcon, HomeIcon, iconButtonClass } from "@/components/icons";
 import { parseDetails } from "@/lib/events";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { ActivityRow } from "@/components/ActivityRow";
@@ -73,16 +74,16 @@ export default async function GroupPage({
   return (
     <>
       {/* Header: back · name · Invite · settings */}
-      <header className="mb-6 flex items-center gap-2">
-        <Link href="/" aria-label="Home" className="-ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-2xl text-gray-500 active:bg-gray-100">
-          ‹
+      <header className="mb-8 flex items-center gap-2.5">
+        <Link href="/" aria-label="Home" className={iconButtonClass}>
+          <HomeIcon size={20} />
         </Link>
         {/* Tap the name to jump to another open group. */}
         <details className="group/switch relative min-w-0 flex-1">
           <summary className="flex cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden">
             <h1 className="truncate font-display text-2xl font-semibold tracking-tight">{group.name}</h1>
-            <span className="shrink-0 text-sm text-gray-400 transition-transform group-open/switch:rotate-180" aria-hidden>
-              ▾
+            <span className="shrink-0 text-gray-400 transition-transform group-open/switch:rotate-180">
+              <ChevronDown size={18} />
             </span>
             <span className="sr-only">Switch group</span>
           </summary>
@@ -97,7 +98,7 @@ export default async function GroupPage({
                     <li key={g.group.id}>
                       <Link href={`/groups/${g.group.id}`} className="flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 active:bg-mist">
                         <span className="truncate font-medium">{g.group.name}</span>
-                        <span className={`shrink-0 text-xs tabular-nums ${g.myBalance > 0 ? "text-accent-dark" : g.myBalance < 0 ? "text-owe" : "text-gray-400"}`}>
+                        <span className={`shrink-0 text-xs tabular-nums ${g.myBalance > 0 ? "text-owed" : g.myBalance < 0 ? "text-owe" : "text-gray-400"}`}>
                           {g.myBalance > 0 ? `+${formatMoney(g.myBalance, g.group.currency)}` : g.myBalance < 0 ? `−${formatMoney(-g.myBalance, g.group.currency)}` : "settled"}
                         </span>
                       </Link>
@@ -106,18 +107,11 @@ export default async function GroupPage({
                 </ul>
               </>
             )}
-            <Link href="/" className="mt-1 block rounded-xl border-t border-gray-100 px-3 py-2.5 text-sm font-medium text-accent active:bg-mist">
-              All groups
-            </Link>
           </div>
         </details>
         <InviteSheet groupId={group.id} groupName={group.name} inviteCode={group.inviteCode} memberCount={group.members.length} />
-        <Link
-          href={`/groups/${group.id}/settings`}
-          aria-label="Group settings"
-          className="-mr-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl text-gray-500 active:bg-gray-100"
-        >
-          ⚙︎
+        <Link href={`/groups/${group.id}/settings`} aria-label="Group settings" className={iconButtonClass}>
+          <GearIcon size={20} />
         </Link>
       </header>
 
@@ -139,7 +133,7 @@ export default async function GroupPage({
       {/* Summary */}
       <section className="mb-6">
         <p className="text-sm text-gray-500">Your balance</p>
-        <p className={`font-display text-[32px] font-semibold leading-tight tracking-tight tabular-nums ${mine > 0 ? "text-accent-dark" : mine < 0 ? "text-owe" : ""}`}>
+        <p className={`font-display text-[32px] font-semibold leading-tight tracking-tight tabular-nums ${mine > 0 ? "text-owed" : mine < 0 ? "text-owe" : ""}`}>
           {mine > 0 ? `You’re owed ${money(mine)}` : mine < 0 ? `You owe ${money(-mine)}` : "All square"}
         </p>
         {mine !== 0 && eq(mine) && <p className="font-display text-lg tabular-nums text-gray-500">{eq(mine)}</p>}
@@ -411,7 +405,7 @@ export default async function GroupPage({
               {transfers.map((t) => {
                 const involvesMe = t.from === myId || t.to === myId;
                 return (
-                  <li key={`${t.from}-${t.to}`} className={`rounded-2xl border px-4 py-3 ${involvesMe ? "border-accent/30 bg-accent-soft/40" : "border-gray-100"}`}>
+                  <li key={`${t.from}-${t.to}`} className={`rounded-2xl border px-4 py-3 ${involvesMe ? "border-gray-300 bg-mist/60" : "border-gray-100"}`}>
                     <div className="flex items-center justify-between gap-3">
                       <p className="min-w-0 text-sm">
                         <strong className="font-medium">{nameOf(t.from)}</strong>
@@ -428,7 +422,7 @@ export default async function GroupPage({
                       <input type="hidden" name="fromId" value={t.from} />
                       <input type="hidden" name="toId" value={t.to} />
                       <input type="hidden" name="amount" value={t.amount} />
-                      <button type="submit" className="rounded-full border border-accent/40 px-3 py-1.5 text-sm font-medium text-accent-dark active:bg-accent-soft">
+                      <button type="submit" className="border border-line px-3 py-1.5 text-sm font-medium text-fg active:bg-mist">
                         Mark as paid
                       </button>
                     </form>

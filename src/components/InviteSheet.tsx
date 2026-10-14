@@ -5,6 +5,7 @@ import { addMembers } from "@/app/actions";
 import { MemberInputs } from "./MemberInputs";
 import { ShareInvite } from "./ShareInvite";
 import { primaryButtonClass } from "./ui";
+import { InviteIcon, iconButtonClass } from "./icons";
 
 // "Invite" button in the group header. Opens a sheet from the bottom with both
 // ways to bring people in: share the link, or pick them from your phone's contacts.
@@ -34,12 +35,8 @@ export function InviteSheet({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="pop shrink-0 bg-accent px-4 py-2 text-sm font-semibold text-canvas [--pop-edge:#1d7a4c]"
-      >
-        Invite
+      <button type="button" onClick={() => setOpen(true)} aria-label="Invite people" className={iconButtonClass}>
+        <InviteIcon size={20} />
       </button>
 
       {open && (

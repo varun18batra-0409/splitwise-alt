@@ -28,9 +28,12 @@
   --color-gray-800: #e6e3dc;
   --color-gray-900: #f4f2ec;
 
-  --color-accent: #3fd18a; /* actions; "owed to you" */
-  --color-accent-dark: #6fe3a8; /* accent as text on dark */
-  --color-accent-soft: #11281d;
+  /* Actions are monochrome (off-white on black), like CRED. Colour is kept for money. */
+  --color-accent: #f4f2ec; /* buttons, links, focus, selection */
+  --color-accent-dark: #f4f2ec; /* selected / emphasised text */
+  --color-accent-soft: #232328; /* selected background */
+  --color-owed: #6fe3a8; /* "owed to you" amounts */
+  --color-owed-soft: #11281d;
   --color-owe: #ffab6b; /* "you owe" text */
   --color-owe-soft: #2e1e12;
   --color-meter-up: #25a96f; /* bars: checked for colour-blind contrast on the dark surface */
@@ -62,28 +65,28 @@ body {
 }
 
 ::selection {
-  background: var(--color-accent);
+  background: var(--color-fg);
   color: var(--color-canvas);
 }
 
 /* NeoPOP buttons: flat, square, with a hard edge that collapses when pressed. */
 .pop {
   border-radius: 0;
-  box-shadow: 4px 4px 0 0 var(--pop-edge, #6e6b63);
+  box-shadow: 3px 3px 0 0 var(--pop-edge, #4a4a50);
   transition:
     transform 90ms ease-out,
     box-shadow 90ms ease-out;
 }
 .pop:active {
-  transform: translate(3px, 3px);
-  box-shadow: 1px 1px 0 0 var(--pop-edge, #6e6b63);
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 0 var(--pop-edge, #4a4a50);
 }
 
-/* The balance "vault": a dark card with a fine grid, a brushed-metal edge and a soft mint glow. */
+/* The balance "vault": a dark card with a fine grid, a brushed-metal edge and a quiet silver sheen. */
 .vault {
   position: relative;
   background:
-    radial-gradient(110% 70% at 100% 0%, rgb(63 209 138 / 0.16), transparent 55%),
+    radial-gradient(120% 80% at 100% 0%, rgb(244 242 236 / 0.09), transparent 55%),
     linear-gradient(rgb(244 242 236 / 0.035) 1px, transparent 1px),
     linear-gradient(90deg, rgb(244 242 236 / 0.035) 1px, transparent 1px),
     linear-gradient(165deg, #1b1b20 0%, #111114 70%);
@@ -97,7 +100,7 @@ body {
   inset: -1px;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(135deg, rgb(244 242 236 / 0.35), rgb(244 242 236 / 0.04) 40%, rgb(63 209 138 / 0.3));
+  background: linear-gradient(135deg, rgb(244 242 236 / 0.4), rgb(244 242 236 / 0.04) 45%, rgb(244 242 236 / 0.18));
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);

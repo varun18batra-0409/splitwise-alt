@@ -1,7 +1,10 @@
 import Link from "next/link";
+import { BackIcon, HomeIcon, iconButtonClass } from "./icons";
 
 // Small shared building blocks so every screen looks the same.
 
+// Every inner screen: Back (to where you came from) on the left, the title,
+// and a separate Home button on the right.
 export function PageHeader({
   title,
   back,
@@ -9,27 +12,24 @@ export function PageHeader({
 }: {
   title: string;
   back?: string;
-  action?: { href: string; label: string; icon: string };
+  action?: { href: string; label: string; icon: React.ReactNode };
 }) {
   return (
     <header className="mb-8 flex items-center gap-3">
       {back && (
-        <Link
-          href={back}
-          aria-label="Back"
-          className="-ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-2xl text-gray-500 active:bg-gray-100"
-        >
-          ‹
+        <Link href={back} aria-label="Back" className={iconButtonClass}>
+          <BackIcon size={20} />
         </Link>
       )}
       <h1 className="min-w-0 flex-1 truncate font-display text-2xl font-semibold tracking-tight">{title}</h1>
       {action && (
-        <Link
-          href={action.href}
-          aria-label={action.label}
-          className="-mr-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl text-gray-500 active:bg-gray-100"
-        >
+        <Link href={action.href} aria-label={action.label} className={iconButtonClass}>
           {action.icon}
+        </Link>
+      )}
+      {back !== "/" && (
+        <Link href="/" aria-label="Home" className={iconButtonClass}>
+          <HomeIcon size={20} />
         </Link>
       )}
     </header>
@@ -54,7 +54,7 @@ export function ErrorNote({ children }: { children: React.ReactNode }) {
 
 export function Avatar({ name }: { name: string }) {
   return (
-    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-soft text-sm font-semibold text-accent-dark">
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-mist font-display text-sm font-semibold text-fg">
       {name.trim().charAt(0).toUpperCase()}
     </span>
   );

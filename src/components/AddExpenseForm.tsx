@@ -561,7 +561,7 @@ export function AddExpenseForm({
 
       {/* Result: who owes whom for this expense */}
       {preview.ok && (
-        <section className="rounded-2xl bg-accent-soft/60 p-4 text-sm">
+        <section className="border border-line bg-white p-4 text-sm">
           <p className="mb-2 font-medium text-accent-dark">
             {who(paidById)} paid {base(preview.expense.amount)}
             {foreign && <span className="font-normal text-gray-500"> ({orig(preview.expense.originalAmount)})</span>}
@@ -633,7 +633,7 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
       onClick={onClick}
       aria-pressed={on}
       className={`rounded-full border px-4 py-2 text-sm ${
-        on ? "border-accent bg-accent-soft font-medium text-accent-dark" : "border-gray-200 bg-white text-gray-700"
+        on ? "border-fg bg-fg font-medium text-canvas" : "border-line bg-white text-gray-700"
       }`}
     >
       {children}

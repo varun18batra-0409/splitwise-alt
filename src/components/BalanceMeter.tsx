@@ -29,7 +29,7 @@ export function BalanceMeter({ rows, tone = "light" }: { rows: MeterRow[]; tone?
           r.value > 0 ? `+${formatMoney(r.value, r.currency)}` : r.value < 0 ? `−${formatMoney(-r.value, r.currency)}` : "Settled";
         const words = r.value > 0 ? "owed to you" : r.value < 0 ? "you owe" : "";
         const valueInk =
-          r.value > 0 ? "text-accent-dark" : r.value < 0 ? "text-owe" : subInk;
+          r.value > 0 ? "text-owed" : r.value < 0 ? "text-owe" : subInk;
 
         const body = (
           <>
