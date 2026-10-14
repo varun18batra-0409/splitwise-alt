@@ -5,6 +5,7 @@ import { loadGroup, loadMyGroups } from "@/lib/group-data";
 import { resolveSecondary, spentByCurrency } from "@/lib/secondary";
 import { getRate } from "@/lib/rate-cache";
 import { convertAmount } from "@/lib/conversion";
+import { foreignLedgers, originalShares } from "@/lib/currency-ledgers";
 import { buildActivity, byDay } from "@/lib/activity";
 import { pairwiseDebtCount } from "@/lib/settle";
 import { formatMoney, formatPercent } from "@/lib/money";
@@ -56,8 +57,17 @@ export default async function GroupPage({
   const expenseById = new Map(group.expenses.map((e) => [e.id, e]));
   const eventById = new Map(group.events.map((ev) => [ev.id, ev]));
 
-  // Second currency (≈), e.g. THB for an INR group on a Thailand trip.
-  const secondary = resolveSecondary(group.secondaryCurrency, group.currency, activeExpenses);
+  // Balances in each foreign currency the group spent in — WITHOUT card markup
+  // (the markup is only the cost of converting to the group currency).
+  const ledgers = foreignLedgers(activeExpenses, group.currency, group.members.map((m) => m.id));
+  const hasMarkup = activeExpenses.some((e) => e.markupAmount > 0);
+  const signed = (minor: number, cur: string) =>
+    minor > 0 ? `+${formatMoney(minor, cur)}` : minor < 0 ? `−${formatMoney(-minor, cur)}` : `${formatMoney(0, cur)}`;
+
+  // Second currency (≈), e.g. THB for an INR group on a Thailand trip. Only used
+  // when that currency has no expenses of its own (otherwise its real balance is shown).
+  const secondaryRaw = resolveSecondary(group.secondaryCurrency, group.currency, activeExpenses);
+  const secondary = secondaryRaw && !ledgers.some((l) => l.currency === secondaryRaw) ? secondaryRaw : null;
   const secRate = secondary ? await getRate(group.currency, secondary) : null;
   const eq = (minor: number): string | null => {
     if (!secondary || !secRate?.ok) return null;
@@ -137,6 +147,29 @@ export default async function GroupPage({
           {mine > 0 ? `You’re owed ${money(mine)}` : mine < 0 ? `You owe ${money(-mine)}` : "All square"}
         </p>
         {mine !== 0 && eq(mine) && <p className="font-display text-lg tabular-nums text-gray-500">{eq(mine)}</p>}
+        {hasMarkup && <p className="mt-0.5 text-xs text-gray-400">In {group.currency}, including card markup.</p>}
+
+        {/* The same, in each foreign currency the group spent in, without card markup. */}
+        {ledgers.length > 0 && (
+          <ul className="mt-4 divide-y divide-line border border-line bg-white">
+            {ledgers.map((l) => {
+              const v = l.net[myId] ?? 0;
+              return (
+                <li key={l.currency} className="flex items-center justify-between gap-3 px-4 py-3">
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium">{l.currency} expenses</span>
+                    <span className="block text-xs text-gray-400">
+                      {formatMoney(l.spent, l.currency)} spent · no card markup
+                    </span>
+                  </span>
+                  <span className={`shrink-0 text-right font-display tabular-nums ${v > 0 ? "text-owed" : v < 0 ? "text-owe" : "text-gray-400"}`}>
+                    {v > 0 ? `owed ${formatMoney(v, l.currency)}` : v < 0 ? `owe ${formatMoney(-v, l.currency)}` : "even"}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
         {secondary && (
           <p className="mt-1 text-xs text-gray-400">
             {secRate?.ok
@@ -302,9 +335,19 @@ export default async function GroupPage({
                         <div className="border-t border-gray-200 pt-1.5">
                           <Line label="Paid by" value={nameOf(e.paidById)} />
                           <Line label="For" value={FOR_MODE[e.forMode] ?? "Everyone"} />
-                          {e.shares.map((sh) => (
-                            <Line key={sh.id} label={`  ${nameOf(sh.memberId)}`} value={money(sh.amount)} />
-                          ))}
+                          {(() => {
+                            const orig = foreign ? originalShares(e) : [];
+                            return e.shares.map((sh) => {
+                              const o = orig.find((x) => x.memberId === sh.memberId);
+                              return (
+                                <Line
+                                  key={sh.id}
+                                  label={`  ${nameOf(sh.memberId)}`}
+                                  value={o ? `${formatMoney(o.amount, e.originalCurrency)} · ${money(sh.amount)}` : money(sh.amount)}
+                                />
+                              );
+                            });
+                          })()}
                         </div>
                         <div className="border-t border-gray-200 pt-2">
                           <History events={historyOf("expenseId", e.id)} fallback={`Added by ${nameOf(e.createdById)}, ${when(e.createdAt)}`} />
@@ -435,12 +478,20 @@ export default async function GroupPage({
         </section>
 
         <section>
-          <h2 className="mb-4 font-display text-lg font-semibold tracking-tight">Everyone’s balance</h2>
+          <h2 className="font-display text-lg font-semibold tracking-tight">Everyone’s balance</h2>
+          <p className="mb-4 text-sm text-gray-500">
+            {ledgers.length > 0
+              ? `Bars in ${group.currency}${hasMarkup ? ", including card markup" : ""}. Small figures: ${ledgers.map((l) => l.currency).join(", ")} expenses only, without markup.`
+              : `In ${group.currency}.`}
+          </p>
           <BalanceMeter
             rows={group.members.map((m) => ({
               key: m.id,
               label: m.id === myId ? "You" : m.name,
-              sublabel: (net[m.id] ? eq(net[m.id] ?? 0) : null) ?? undefined,
+              sublabel:
+                ledgers.length > 0
+                  ? ledgers.map((l) => `${signed(l.net[m.id] ?? 0, l.currency)}`).join(" · ")
+                  : ((net[m.id] ? eq(net[m.id] ?? 0) : null) ?? undefined),
               value: net[m.id] ?? 0,
               currency: group.currency,
             }))}

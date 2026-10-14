@@ -64,6 +64,17 @@ export function ActivityRow({
   }
 
   const cat = getCategory(item.category);
+  // Foreign-currency expense: show the amount in its own currency first, then the group currency.
+  const o = item.original;
+  const both = (orig: number, base: number) => (o ? `${formatMoney(orig, o.currency)} · ${money(base)}` : money(base));
+  const expenseEffect =
+    deleted || !o
+      ? effect
+      : item.effect > 0
+        ? { text: `you lent ${both(o.effect, item.effect)}`, cls: "text-owed" }
+        : item.effect < 0
+          ? { text: `you owe ${both(-o.effect, -item.effect)}`, cls: "text-owe" }
+          : effect;
   return (
     <div className={`flex items-center gap-3 py-3 ${deleted ? "opacity-60" : ""}`}>
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-mist text-xl" title={cat.label}>
@@ -75,11 +86,13 @@ export function ActivityRow({
           {item.edited && !deleted && <span className="shrink-0 rounded-full bg-mist px-1.5 py-0.5 text-[10px] text-gray-500">edited</span>}
         </p>
         <p className="truncate text-sm text-gray-400">
-          {deleted ? `${deletedNote} · ${money(item.amount)}` : `${nameOf(item.paidById)} paid ${money(item.amount)}`}
+          {deleted
+            ? `${deletedNote} · ${o ? both(o.amount, item.amount) : money(item.amount)}`
+            : `${nameOf(item.paidById)} paid ${o ? both(o.amount, item.amount) : money(item.amount)}`}
           {groupName && ` · ${groupName}`}
         </p>
       </div>
-      <span className={`shrink-0 text-right text-sm ${effect.cls}`}>{effect.text}</span>
+      <span className={`max-w-[46%] shrink-0 text-right text-sm leading-snug ${expenseEffect.cls}`}>{expenseEffect.text}</span>
     </div>
   );
 }

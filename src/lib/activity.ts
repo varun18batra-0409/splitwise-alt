@@ -1,6 +1,9 @@
+import { originalShares } from "./currency-ledgers";
+
 // One history list for a group: expenses, settle-up payments and group changes
 // (renamed, currency changed, people added, closed…), newest first, each with
-// what it meant for "me". Deleted items stay in the list, marked as deleted,
+// what it meant for "me". Foreign-currency expenses also carry the amounts in
+// their own currency (without card markup). Deleted items stay in the list, marked as deleted,
 // and count for nothing.
 
 type ExpenseRow = {
@@ -15,6 +18,9 @@ type ExpenseRow = {
   editedAt?: Date | null;
   deletedAt?: Date | null;
   deletedById?: string | null;
+  originalAmount?: number;
+  originalCurrency?: string;
+  baseCurrency?: string;
 };
 type PaymentRow = {
   id: string;
@@ -45,6 +51,8 @@ export type ActivityItem =
       createdById: string;
       edited: boolean;
       deletedById: string | null; // set when deleted
+      // For foreign-currency expenses: the same, in that currency, without card markup.
+      original: { currency: string; amount: number; effect: number } | null;
     }
   | {
       kind: "payment";
@@ -58,6 +66,17 @@ export type ActivityItem =
       deletedById: string | null;
     }
   | { kind: "event"; id: string; date: Date; actorId: string; text: string; details: string; effect: 0 };
+
+function originalOf(e: ExpenseRow, myId: string, deleted: boolean) {
+  if (e.originalAmount === undefined || !e.originalCurrency || !e.baseCurrency || e.originalCurrency === e.baseCurrency) return null;
+  const mine = originalShares({ amount: e.amount, originalAmount: e.originalAmount, originalCurrency: e.originalCurrency, paidById: e.paidById, shares: e.shares })
+    .find((s) => s.memberId === myId)?.amount ?? 0;
+  return {
+    currency: e.originalCurrency,
+    amount: e.originalAmount,
+    effect: deleted ? 0 : (e.paidById === myId ? e.originalAmount : 0) - mine,
+  };
+}
 
 export function buildActivity(expenses: ExpenseRow[], payments: PaymentRow[], myId: string, events: EventRow[] = []): ActivityItem[] {
   const items: ActivityItem[] = [
@@ -77,6 +96,7 @@ export function buildActivity(expenses: ExpenseRow[], payments: PaymentRow[], my
         createdById: e.createdById ?? e.paidById,
         edited: Boolean(e.editedAt),
         deletedById: deleted ? (e.deletedById ?? "") : null,
+        original: originalOf(e, myId, deleted),
       };
     }),
     ...payments.map(
