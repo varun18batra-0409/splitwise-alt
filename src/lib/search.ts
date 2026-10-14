@@ -38,6 +38,7 @@ type RecapExpense = { amount: number; category: string; currency: string; mine: 
 export function recap(expenses: RecapExpense[]) {
   const byCurrency = new Map<string, { spent: number; mine: number }>();
   const catCount = new Map<string, number>();
+  const catAmount = new Map<string, number>();
   for (const e of expenses) {
     const t = byCurrency.get(e.currency) ?? { spent: 0, mine: 0 };
     t.spent += e.amount;
@@ -45,8 +46,11 @@ export function recap(expenses: RecapExpense[]) {
     byCurrency.set(e.currency, t);
     const c = getCategory(e.category).id;
     catCount.set(c, (catCount.get(c) ?? 0) + 1);
+    catAmount.set(c, (catAmount.get(c) ?? 0) + e.amount);
   }
-  const top = [...catCount].sort((a, b) => b[1] - a[1])[0];
+  // Top category by money when it's all one currency, otherwise by how often.
+  const oneCurrency = byCurrency.size === 1;
+  const top = [...(oneCurrency ? catAmount : catCount)].sort((a, b) => b[1] - a[1])[0];
   return {
     count: expenses.length,
     totals: [...byCurrency].map(([currency, t]) => ({ currency, ...t })),
