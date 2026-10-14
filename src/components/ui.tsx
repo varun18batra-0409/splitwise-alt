@@ -22,7 +22,7 @@ export function PageHeader({
           ‹
         </Link>
       )}
-      <h1 className="min-w-0 flex-1 truncate text-2xl font-semibold tracking-tight">{title}</h1>
+      <h1 className="min-w-0 flex-1 truncate font-display text-2xl font-semibold tracking-tight">{title}</h1>
       {action && (
         <Link
           href={action.href}
@@ -37,13 +37,14 @@ export function PageHeader({
 }
 
 export const inputClass =
-  "w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-base outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft";
+  "w-full rounded-xl border border-line bg-mist px-4 py-3 text-base text-fg outline-none placeholder:text-gray-400 focus:border-accent focus:ring-2 focus:ring-accent/20";
 
+// NeoPOP: square, off-white, with a hard edge that presses in.
 export const primaryButtonClass =
-  "w-full rounded-xl bg-accent px-4 py-3.5 text-center text-base font-semibold text-white active:bg-accent-dark disabled:opacity-50";
+  "pop block w-full bg-fg px-4 py-3.5 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63] disabled:opacity-50";
 
 export const secondaryButtonClass =
-  "w-full rounded-xl border border-gray-200 px-4 py-3.5 text-center text-base font-medium text-gray-800 active:bg-gray-50";
+  "block w-full border border-line px-4 py-3.5 text-center text-base font-medium text-fg active:bg-mist";
 
 export function ErrorNote({ children }: { children: React.ReactNode }) {
   return (

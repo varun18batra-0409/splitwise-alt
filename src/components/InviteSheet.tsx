@@ -37,15 +37,15 @@ export function InviteSheet({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="shrink-0 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white active:bg-accent-dark"
+        className="pop shrink-0 bg-accent px-4 py-2 text-sm font-semibold text-canvas [--pop-edge:#1d7a4c]"
       >
         Invite
       </button>
 
       {open && (
         <div className="fixed inset-0 z-40 flex items-end justify-center" role="dialog" aria-modal="true" aria-label="Invite people">
-          <button type="button" aria-label="Close" onClick={() => setOpen(false)} className="absolute inset-0 bg-ink/40" />
-          <div className="sheet-enter relative max-h-[88dvh] w-full max-w-md overflow-y-auto rounded-t-[28px] bg-white px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-3">
+          <button type="button" aria-label="Close" onClick={() => setOpen(false)} className="absolute inset-0 bg-black/70" />
+          <div className="sheet-enter relative max-h-[88dvh] w-full max-w-md overflow-y-auto rounded-t-[28px] border-t border-line bg-white px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-3">
             <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-gray-200" aria-hidden />
             <div className="mb-5 flex items-center justify-between">
               <h2 className="font-display text-xl font-semibold tracking-tight">Invite to {groupName}</h2>

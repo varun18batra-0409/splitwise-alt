@@ -29,7 +29,7 @@ export function AddExpenseButton() {
           <Link
             href="/"
             aria-label="Home"
-            className="pointer-events-auto absolute left-5 flex h-12 w-12 items-center justify-center rounded-full border border-gray-200 bg-white/95 text-ink shadow-lg shadow-ink/10 backdrop-blur active:bg-gray-50"
+            className="pointer-events-auto absolute left-5 flex h-12 w-12 items-center justify-center rounded-full border border-line bg-white/90 text-fg shadow-lg shadow-black/50 backdrop-blur active:bg-mist"
           >
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M3 10.5 12 3l9 7.5" />
@@ -41,7 +41,7 @@ export function AddExpenseButton() {
         {!hideAdd && (
           <Link
             href={href}
-            className="pointer-events-auto rounded-full bg-accent px-7 py-4 text-base font-semibold text-white shadow-lg shadow-accent/30 active:bg-accent-dark"
+            className="pop pointer-events-auto bg-accent px-7 py-4 text-base font-semibold text-canvas [--pop-edge:#1d7a4c]"
           >
             + Add expense
           </Link>

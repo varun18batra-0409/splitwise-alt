@@ -83,7 +83,7 @@ export default async function GroupPage({
             </span>
             <span className="sr-only">Switch group</span>
           </summary>
-          <div className="absolute left-0 top-full z-30 mt-2 w-72 max-w-[calc(100vw-2.5rem)] rounded-2xl border border-gray-100 bg-white p-2 shadow-xl shadow-ink/10">
+          <div className="absolute left-0 top-full z-30 mt-2 w-72 max-w-[calc(100vw-2.5rem)] rounded-2xl border border-gray-100 bg-white p-2 shadow-2xl shadow-black/60">
             {switchTo.length === 0 ? (
               <p className="px-3 py-2 text-sm text-gray-500">No other open groups.</p>
             ) : (
@@ -174,7 +174,7 @@ export default async function GroupPage({
             key={t.id}
             href={`/groups/${group.id}?tab=${t.id}`}
             aria-current={t.id === tab ? "page" : undefined}
-            className={`rounded-lg py-2 text-center text-sm ${t.id === tab ? "bg-white font-medium shadow-sm" : "text-gray-500"}`}
+            className={`rounded-lg py-2 text-center text-sm ${t.id === tab ? "bg-fg font-semibold text-canvas" : "text-gray-500"}`}
           >
             {t.label}
           </Link>
@@ -206,7 +206,7 @@ export default async function GroupPage({
       <div className="space-y-6">
         {byDay(items).map((day) => (
           <section key={day.day}>
-            <h2 className="sticky top-0 z-10 -mx-5 bg-white/95 px-5 py-1.5 text-sm font-medium text-gray-500 backdrop-blur">{day.day}</h2>
+            <h2 className="sticky top-0 z-10 -mx-5 bg-canvas/95 px-5 py-1.5 text-sm font-medium text-gray-500 backdrop-blur">{day.day}</h2>
             <ul className="divide-y divide-gray-100">
               {day.items.map((item) => {
                 if (item.kind === "event") {
@@ -226,7 +226,7 @@ export default async function GroupPage({
                 }
 
                 if (item.kind === "payment") {
-                  const mineToDelete = item.createdById === myId && item.deletedById === null;
+                  const mineToDelete = item.deletedById === null && !group.closed;
                   return (
                     <li key={item.id}>
                       <details>
@@ -253,7 +253,6 @@ export default async function GroupPage({
                 const e = expenseById.get(item.id)!;
                 const cat = getCategory(e.category);
                 const foreign = e.originalCurrency !== e.baseCurrency;
-                const isMine = e.createdById === myId;
                 const deleted = Boolean(e.deletedAt);
                 return (
                   <li key={item.id}>
@@ -288,7 +287,7 @@ export default async function GroupPage({
                         <div className="border-t border-gray-200 pt-2">
                           <History events={historyOf("expenseId", e.id)} fallback={`Added by ${nameOf(e.createdById)}, ${when(e.createdAt)}`} />
                         </div>
-                        {isMine && !group.closed && (
+                        {!group.closed && (
                           <div className="flex gap-4 pt-1">
                             {deleted ? (
                               <form action={restoreExpense}>
@@ -304,9 +303,6 @@ export default async function GroupPage({
                               </Link>
                             )}
                           </div>
-                        )}
-                        {!isMine && !deleted && (
-                          <p className="pt-1 text-xs text-gray-400">Only {nameOf(e.createdById) === "You" ? "you" : nameOf(e.createdById)} can change this.</p>
                         )}
                       </div>
                     </details>

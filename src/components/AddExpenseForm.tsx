@@ -617,7 +617,7 @@ function Segmented({
           type="button"
           onClick={() => onChange(o.id)}
           aria-pressed={o.id === value}
-          className={`rounded-lg py-2 text-sm ${o.id === value ? "bg-white font-medium shadow-sm" : "text-gray-500"}`}
+          className={`rounded-lg py-2 text-sm ${o.id === value ? "bg-fg font-semibold text-canvas" : "text-gray-500"}`}
         >
           {o.label}
         </button>

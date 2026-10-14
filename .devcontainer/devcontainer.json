@@ -2,7 +2,9 @@
   "name": "Splitwise alternative",
   "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
   "postCreateCommand": "npm install && npm run db:setup",
-  "postAttachCommand": "git pull --ff-only; npm install && npm run dev",
+  // Every time you open the codespace: get the latest code, make the app's address
+  // public (so invite links work for friends), and start the app.
+  "postAttachCommand": "git pull --ff-only; npm install; (sleep 25 && npm run share) & npm run dev",
   "forwardPorts": [3000],
   "portsAttributes": {
     "3000": { "label": "App", "onAutoForward": "openBrowser" }

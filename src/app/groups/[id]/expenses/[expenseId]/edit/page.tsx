@@ -11,7 +11,8 @@ import { ConfirmButton } from "@/components/ConfirmButton";
 import { PageHeader } from "@/components/ui";
 
 // Edit an expense: everything can change (name, amount, currency, category,
-// who paid, who it was for, how it's split). Only the person who added it can.
+// who paid, who it was for, how it's split). Anyone in the group can; the change
+// is logged with their name and everyone else is notified.
 export default async function EditExpensePage({ params }: { params: Promise<{ id: string; expenseId: string }> }) {
   const { id, expenseId } = await params;
   const group = await db.group.findUnique({
@@ -26,11 +27,8 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
   if (!e) notFound();
 
   const back = `/groups/${group.id}?tab=activity`;
-  const creator = group.members.find((m) => m.id === e.createdById)?.name ?? "the person who added it";
   const blocked =
-    e.createdById !== myId
-      ? `Only ${creator} can change this expense, because they added it.`
-      : e.deletedAt
+    e.deletedAt
         ? "This expense was deleted. Restore it from the Activity list to change it."
         : group.closed
           ? "This group is closed. Reopen it to change expenses."

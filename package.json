@@ -9,7 +9,8 @@
     "start": "next start",
     "test": "vitest run",
     "db:setup": "prisma db push && node prisma/upgrade-data.mjs",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "share": "gh codespace ports visibility 3000:public -c \"$CODESPACE_NAME\" && echo \"✓ The app address is public: invite links now work for friends.\" || echo \"Could not make the address public automatically. In the Ports tab, long-press port 3000 → Port Visibility → Public.\""
   },
   "dependencies": {
     "@prisma/client": "^6.8.0",

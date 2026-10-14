@@ -24,7 +24,7 @@ export function HBarChart({ title, data, total }: { title: string; data: BarDatu
               <span className="shrink-0 tabular-nums text-gray-500">{d.valueText}</span>
             </div>
             <div className="h-2 rounded-full bg-mist">
-              <div className="h-2 rounded-r-[4px] rounded-l-full bg-accent" style={{ width: `${Math.max(2, (d.value / max) * 100)}%` }} />
+              <div className="h-2 rounded-r-[4px] rounded-l-full bg-meter-up" style={{ width: `${Math.max(2, (d.value / max) * 100)}%` }} />
             </div>
           </li>
         ))}
@@ -45,11 +45,11 @@ export function ColumnChart({ title, data, total }: { title: string; data: BarDa
         {total && <span className="text-sm tabular-nums text-gray-500">{total}</span>}
       </figcaption>
       {peak && <p className="mb-2 text-xs text-gray-500">Busiest day: {peak.label}, {peak.valueText}</p>}
-      <div className="flex h-36 items-end gap-[2px] border-b border-gray-200" role="img" aria-label={`${title}. Busiest day ${peak?.label}, ${peak?.valueText}`}>
+      <div className="flex h-36 items-end gap-[2px] border-b border-line" role="img" aria-label={`${title}. Busiest day ${peak?.label}, ${peak?.valueText}`}>
         {data.map((d) => (
           <div key={d.key} className="flex h-full flex-1 items-end" title={`${d.label}: ${d.valueText}`}>
             <div
-              className={`w-full rounded-t-[4px] ${d === peak ? "bg-accent" : "bg-accent/55"}`}
+              className={`w-full rounded-t-[4px] ${d === peak ? "bg-meter-up" : "bg-meter-up/50"}`}
               style={{ height: `${Math.max(2, (d.value / max) * 100)}%` }}
             />
           </div>

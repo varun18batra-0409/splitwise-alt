@@ -38,13 +38,13 @@ export async function saveExpense(input: SaveExpenseInput, actingMemberId: strin
   if (!["everyone", "selected", "one"].includes(input.forMode)) return { ok: false, error: "Pick who it was for." };
   if (!PAYMENT_METHODS.some((p) => p.id === input.paymentMethod)) return { ok: false, error: "Pick how it was paid." };
 
-  // Editing: only the person who added it, and not once it's deleted.
+  // Editing: anyone in the group can change any expense (every change is logged
+  // with who made it and everyone else is notified), but not once it's deleted.
   const existing = input.expenseId
     ? await db.expense.findFirst({ where: { id: input.expenseId, groupId: group.id }, include: { shares: true } })
     : null;
   if (input.expenseId) {
     if (!existing) return { ok: false, error: "That expense no longer exists." };
-    if (existing.createdById !== actingMemberId) return { ok: false, error: "Only the person who added this expense can change it." };
     if (existing.deletedAt) return { ok: false, error: "This expense was deleted. Restore it before changing it." };
   }
 
@@ -143,10 +143,10 @@ function snapshot(x: Omit<ExpenseSnapshot, "shares"> & { shares: { memberId: str
 // Delete or restore an expense. Deleted expenses stay in history (crossed out)
 // but stop counting towards balances, Smart Settle and charts.
 export async function setExpenseDeleted(expenseId: string, actingMemberId: string | undefined, deleted: boolean): Promise<Result> {
-  const expense = await db.expense.findUnique({ where: { id: expenseId }, include: { group: true } });
+  const expense = await db.expense.findUnique({ where: { id: expenseId }, include: { group: { include: { members: { select: { id: true } } } } } });
   if (!expense) return { ok: false, error: "That expense no longer exists." };
-  if (!actingMemberId || expense.createdById !== actingMemberId) {
-    return { ok: false, error: "Only the person who added this expense can delete or restore it." };
+  if (!actingMemberId || !expense.group.members.some((m) => m.id === actingMemberId)) {
+    return { ok: false, error: "Only people in this group can delete or restore its expenses." };
   }
   if (expense.group.closed) return { ok: false, error: "This group is closed. Reopen it to change expenses." };
   if (Boolean(expense.deletedAt) === deleted) return { ok: true, id: expense.id };
@@ -167,12 +167,15 @@ export async function setExpenseDeleted(expenseId: string, actingMemberId: strin
   return { ok: true, id: expense.id };
 }
 
-// Delete a recorded settle-up payment (only whoever recorded it). It stays in history.
+// Delete a recorded settle-up payment (anyone in the group). It stays in history.
 export async function deletePayment(paymentId: string, actingMemberId: string | undefined): Promise<Result> {
-  const payment = await db.payment.findUnique({ where: { id: paymentId }, include: { group: true, from: true, to: true } });
+  const payment = await db.payment.findUnique({
+    where: { id: paymentId },
+    include: { group: { include: { members: { select: { id: true } } } }, from: true, to: true },
+  });
   if (!payment) return { ok: false, error: "That payment no longer exists." };
-  if (!actingMemberId || payment.createdById !== actingMemberId) {
-    return { ok: false, error: "Only the person who recorded this payment can delete it." };
+  if (!actingMemberId || !payment.group.members.some((m) => m.id === actingMemberId)) {
+    return { ok: false, error: "Only people in this group can delete its payments." };
   }
   if (payment.deletedAt) return { ok: true, id: payment.id };
   await db.$transaction(async (tx) => {

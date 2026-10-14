@@ -82,12 +82,15 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
             <Link
               href="/notifications"
               aria-label={unread ? `Notifications, ${unread} new` : "Notifications"}
-              className="relative -mr-2 flex h-10 w-10 items-center justify-center rounded-full text-xl active:bg-gray-100"
+              className="relative -mr-2 flex h-10 w-10 items-center justify-center rounded-full text-gray-600 active:bg-mist"
             >
-              <span aria-hidden>🔔</span>
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M6 16.5V11a6 6 0 1 1 12 0v5.5l1.5 1.5h-15L6 16.5Z" />
+                <path d="M10 20.5a2.2 2.2 0 0 0 4 0" />
+              </svg>
               {unread > 0 && (
-                <span className="absolute right-0.5 top-0.5 min-w-[18px] rounded-full bg-owe px-1 text-center text-[11px] font-semibold leading-[18px] text-white">
-                  {unread > 99 ? "99+" : unread}
+                <span className="absolute right-1 top-1 min-w-[16px] rounded-full bg-accent px-1 text-center text-[10px] font-semibold leading-4 text-canvas tabular-nums">
+                  {unread > 9 ? "9+" : unread}
                 </span>
               )}
             </Link>
@@ -96,29 +99,29 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
       </header>
 
       {all.length === 0 ? (
-        <section className="lagoon-grid rounded-[28px] px-6 py-10 text-white">
+        <section className="vault rounded-[24px] px-6 py-10 text-fg">
           <h1 className="font-display text-3xl font-semibold leading-tight tracking-tight">Split costs with your people.</h1>
-          <p className="mt-3 text-white/60">Make a group for a trip, a flat or a dinner, then add what everyone spent.</p>
-          <Link href="/groups/new" className="mt-8 block rounded-xl bg-white px-4 py-3.5 text-center font-semibold text-lagoon active:bg-white/90">
+          <p className="mt-3 text-fg/60">Make a group for a trip, a flat or a dinner, then add what everyone spent.</p>
+          <Link href="/groups/new" className="pop mt-8 block bg-fg px-4 py-3.5 text-center font-semibold text-canvas [--pop-edge:#6e6b63]">
             Create your first group
           </Link>
         </section>
       ) : (
         <>
           {/* The balance panel */}
-          <section className="lagoon-grid rounded-[28px] px-5 pb-6 pt-6 text-white">
+          <section className="vault rounded-[24px] px-5 pb-6 pt-6 text-fg">
             {owedLines.length === 0 && oweLines.length === 0 ? (
               <h1 className="font-display text-3xl font-semibold tracking-tight">You’re all square.</h1>
             ) : (
               <div className="space-y-1">
                 {owedLines.length > 0 && (
                   <h1 className="font-display text-[28px] font-semibold leading-tight tracking-tight tabular-nums">
-                    You’re owed <span className="text-[#5fd6ad]">{owedLines.join(" + ")}</span>
+                    You’re owed <span className="text-accent-dark">{owedLines.join(" + ")}</span>
                   </h1>
                 )}
                 {oweLines.length > 0 && (
-                  <p className={`font-display tabular-nums ${owedLines.length ? "text-lg text-white/80" : "text-[28px] font-semibold leading-tight tracking-tight"}`}>
-                    You owe <span className="text-[#f0b768]">{oweLines.join(" + ")}</span>
+                  <p className={`font-display tabular-nums ${owedLines.length ? "text-lg text-fg/80" : "text-[28px] font-semibold leading-tight tracking-tight"}`}>
+                    You owe <span className="text-owe">{oweLines.join(" + ")}</span>
                   </p>
                 )}
               </div>

@@ -13,12 +13,12 @@ export function BalanceMeter({ rows, tone = "light" }: { rows: MeterRow[]; tone?
   for (const r of rows) maxByCurrency.set(r.currency, Math.max(maxByCurrency.get(r.currency) ?? 0, Math.abs(r.value)));
 
   const dark = tone === "dark";
-  const up = dark ? "bg-meter-up" : "bg-accent";
-  const down = dark ? "bg-meter-down" : "bg-owe";
-  const track = dark ? "bg-white/[0.06]" : "bg-mist";
-  const zero = dark ? "bg-white/30" : "bg-gray-300";
-  const labelInk = dark ? "text-white" : "text-ink";
-  const subInk = dark ? "text-white/50" : "text-gray-400";
+  const up = "bg-meter-up";
+  const down = "bg-meter-down";
+  const track = dark ? "bg-fg/[0.06]" : "bg-mist";
+  const zero = dark ? "bg-fg/30" : "bg-gray-300";
+  const labelInk = "text-fg";
+  const subInk = dark ? "text-fg/50" : "text-gray-400";
 
   return (
     <ul className="space-y-4">
@@ -29,7 +29,7 @@ export function BalanceMeter({ rows, tone = "light" }: { rows: MeterRow[]; tone?
           r.value > 0 ? `+${formatMoney(r.value, r.currency)}` : r.value < 0 ? `−${formatMoney(-r.value, r.currency)}` : "Settled";
         const words = r.value > 0 ? "owed to you" : r.value < 0 ? "you owe" : "";
         const valueInk =
-          r.value > 0 ? (dark ? "text-[#5fd6ad]" : "text-accent-dark") : r.value < 0 ? (dark ? "text-[#f0b768]" : "text-owe") : subInk;
+          r.value > 0 ? "text-accent-dark" : r.value < 0 ? "text-owe" : subInk;
 
         const body = (
           <>
@@ -64,7 +64,7 @@ export function BalanceMeter({ rows, tone = "light" }: { rows: MeterRow[]; tone?
         return (
           <li key={r.key}>
             {r.href ? (
-              <Link href={r.href} className="-mx-2 block rounded-xl px-2 py-1 active:bg-white/5">
+              <Link href={r.href} className="-mx-2 block rounded-xl px-2 py-1 active:bg-fg/5">
                 {body}
               </Link>
             ) : (

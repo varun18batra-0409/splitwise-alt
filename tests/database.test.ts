@@ -137,19 +137,17 @@ describe("closing a group and recording payments", () => {
 });
 
 describe("editing, deleting and notifications", () => {
-  it("only the person who added an expense can change it, every field can change, and the change is logged", async () => {
-    const { setExpenseDeleted } = await import("@/lib/save-expense");
+  it("anyone in the group can change every field of an expense, and the change is logged with who did it", async () => {
     const r = await saveExpense(input({ name: "Taxi", currency: "INR", amount: "600", paymentMethod: "cash" }), me, fixedRate);
     const id = r.ok ? r.id : "";
 
-    // Someone else can't edit or delete it.
-    expect((await saveExpense(input({ expenseId: id, name: "Taxi", currency: "INR", amount: "999" }), a, fixedRate)).ok).toBe(false);
-    expect((await setExpenseDeleted(id, a, true)).ok).toBe(false);
+    // People outside the group can't touch it.
+    expect((await saveExpense(input({ expenseId: id, name: "Taxi", currency: "INR", amount: "999" }), "outsider", fixedRate)).ok).toBe(false);
 
-    // The person who added it changes name, amount, payer and who it was for.
+    // A (not the person who added it) changes name, amount, payer and who it was for.
     const edit = await saveExpense(
       input({ expenseId: id, name: "Airport taxi", currency: "INR", amount: "900", paidById: a, forMode: "selected", selected: [me, a], paymentMethod: "cash" }),
-      me,
+      a,
       fixedRate,
     );
     expect(edit.ok).toBe(true);
@@ -158,6 +156,7 @@ describe("editing, deleting and notifications", () => {
     expect(e.shares.map((x) => x.amount).sort()).toEqual([45000, 45000]);
 
     const ev = await db.groupEvent.findFirstOrThrow({ where: { expenseId: id, kind: "expense_edited" } });
+    expect(ev.actorId).toBe(a);
     expect(JSON.parse(ev.details)).toEqual(
       expect.arrayContaining(["Name: Taxi → Airport taxi", "Amount: ₹600 → ₹900", "Paid by: Me → A", "For: everyone → selected people"]),
     );
