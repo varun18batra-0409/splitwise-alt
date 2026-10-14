@@ -18,7 +18,7 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
   const { id, expenseId } = await params;
   const group = await db.group.findUnique({
     where: { id },
-    include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true } } },
+    include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true } } },
   });
   if (!group) notFound();
   const myId = await getMyMemberId(group.id);
@@ -82,7 +82,9 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
         groupId={group.id}
         baseCurrency={group.currency}
         groupMarkupBp={group.cardMarkupBp}
-        members={group.members}
+        members={group.members
+          .filter((m) => !m.leftAt || m.id === e.paidById || e.shares.some((s) => s.memberId === m.id))
+          .map(({ id, name }) => ({ id, name }))}
         myId={myId}
         expenseId={e.id}
         initial={initial}

@@ -23,7 +23,8 @@ export default async function RecordPayment({
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect(`/join/${group.inviteCode}`);
 
-  const isMember = (x?: string) => Boolean(x && group.members.some((m) => m.id === x));
+  const people = group.members.filter((m) => !m.leftAt); // people who left aren't offered
+  const isMember = (x?: string) => Boolean(x && people.some((m) => m.id === x));
   const from = isMember(sp.from) ? sp.from! : myId;
   const to = isMember(sp.to) && sp.to !== from ? sp.to! : "";
   const nameOf = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");
@@ -59,7 +60,7 @@ export default async function RecordPayment({
         <fieldset>
           <legend className="mb-2 text-sm font-medium text-gray-600">Who paid?</legend>
           <div className="flex flex-wrap gap-2">
-            {group.members.map((m) => (
+            {people.map((m) => (
               <label key={m.id} className={chip}>
                 <input type="radio" name="fromId" value={m.id} defaultChecked={m.id === from} className="sr-only" required />
                 {m.id === myId ? "You" : m.name}
@@ -71,7 +72,7 @@ export default async function RecordPayment({
         <fieldset>
           <legend className="mb-2 text-sm font-medium text-gray-600">Paid to</legend>
           <div className="flex flex-wrap gap-2">
-            {group.members.map((m) => (
+            {people.map((m) => (
               <label key={m.id} className={chip}>
                 <input type="radio" name="toId" value={m.id} defaultChecked={m.id === to} className="sr-only" required />
                 {m.id === myId ? "You" : m.name}

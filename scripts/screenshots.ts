@@ -68,6 +68,12 @@ await shot("11-edit-expense", `${g}/expenses/${demo.trip.expenseId}/edit`);
 await shot("12-record-payment", `${g}/pay`);
 await shot("13-settings", `${g}/settings`);
 await shot("14-notifications", "/notifications");
+await shot("17-people", `${g}/people`, async (p) => {
+  await p.locator("details.group\\/p summary").nth(2).click();
+  await p.waitForTimeout(300);
+});
+await shot("18-search", `${g}?tab=activity&q=dinner`);
+await shot("19-filter-person", `${g}?tab=activity&cat=food&who=${demo.trip.ravi}`);
 await shot("15-new-group", "/groups/new");
 await context.clearCookies();
 await shot("16-join", `/join/${demo.trip.invite}`);

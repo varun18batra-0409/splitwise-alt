@@ -2,6 +2,7 @@ import { db } from "./db";
 import { diffExpense, expenseState, logEvent, parseUndo, type UndoPayload } from "./events";
 import { setExpenseDeleted, setPaymentDeleted } from "./save-expense";
 import { formatPercent } from "./money";
+import { setMember } from "./people";
 
 // Undo any change in a group. Undoing is itself a logged change that everyone
 // is notified about, and it can be undone too ("redo").
@@ -54,6 +55,13 @@ export function canUndo(ev: EventLike, all: EventLike[]): { ok: true } | { ok: f
   if ((payload.type === "members_remove" || payload.type === "members_restore") && newer.some((x) => settingFamily(x.kind) === "members")) {
     return { ok: false, reason: "People were added or removed again since. Undo the newer change first." };
   }
+  if (payload.type === "member_set") {
+    const sameKind = (x: EventLike) => {
+      const q = parseUndo(x.undo);
+      return q?.type === "member_set" && q.memberId === payload.memberId && ("name" in q.data) === ("name" in payload.data);
+    };
+    if (newer.some(sameKind)) return { ok: false, reason: "This person was changed again since. Undo the newer change first." };
+  }
   if (payload.type === "currency_restore" && newer.some((x) => MONEY_KINDS.has(x.kind))) {
     return { ok: false, reason: "Expenses or payments changed after the currency change, so it can’t be undone safely." };
   }
@@ -102,6 +110,8 @@ async function apply(p: UndoPayload, groupId: string, actorId: string, originalT
       return removeMembers(groupId, actorId, p.memberIds);
     case "members_restore":
       return restoreMembers(groupId, actorId, p.members);
+    case "member_set":
+      return fromResult(await setMember(groupId, actorId, p.memberId, p.data, true));
   }
 }
 
@@ -232,8 +242,8 @@ async function restoreCurrency(groupId: string, actorId: string, p: Extract<Undo
 }
 
 // Take back "added people" — only if they haven't been used anywhere yet.
-async function removeMembers(groupId: string, actorId: string, memberIds: string[]): Promise<UndoResult> {
-  if (memberIds.includes(actorId)) return { ok: false, error: "You can’t remove yourself this way." };
+export async function removeMembers(groupId: string, actorId: string, memberIds: string[], undoing = true): Promise<UndoResult> {
+  if (memberIds.includes(actorId)) return { ok: false, error: "You can’t remove yourself. Use “Leave group” instead." };
   const members = await db.member.findMany({ where: { id: { in: memberIds }, groupId } });
   for (const m of members) {
     const used =
@@ -249,7 +259,7 @@ async function removeMembers(groupId: string, actorId: string, memberIds: string
       groupId,
       actorId,
       kind: "members_removed",
-      text: `removed ${members.map((m) => m.name).join(", ")} (undo)`,
+      text: `removed ${members.map((m) => m.name).join(", ")}${undoing ? " (undo)" : " from the group"}`,
       undo: { type: "members_restore", members: members.map((m) => ({ id: m.id, name: m.name, phone: m.phone, createdAt: m.createdAt.toISOString() })) },
     });
   });

@@ -21,6 +21,9 @@ export type EventKind =
   | "display_currency_changed"
   | "members_added"
   | "members_removed"
+  | "member_renamed"
+  | "member_left"
+  | "member_rejoined"
   | "group_closed"
   | "group_reopened";
 
@@ -87,7 +90,8 @@ export type UndoPayload =
       payments: { id: string; amount: number }[];
     }
   | { type: "members_remove"; memberIds: string[] }
-  | { type: "members_restore"; members: { id: string; name: string; phone: string; createdAt: string }[] };
+  | { type: "members_restore"; members: { id: string; name: string; phone: string; createdAt: string }[] }
+  | { type: "member_set"; memberId: string; data: { name?: string; leftAt?: string | null } };
 
 export function parseUndo(json: string): UndoPayload | null {
   if (!json) return null;

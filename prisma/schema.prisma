@@ -35,6 +35,7 @@ model Member {
   name      String
   phone     String   @default("") // from the phone's contacts, if they were added that way
   seenEventsAt DateTime? // notifications newer than this are unread for this person (empty = since they joined)
+  leftAt    DateTime? // set when they left the group: kept in history, not offered for new expenses
   groupId   String
   group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())

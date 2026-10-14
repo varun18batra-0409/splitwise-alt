@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { InstallButton } from "@/components/InstallButton";
 import { getMemberships } from "@/lib/identity";
 import { loadMyGroups, loadNotifications } from "@/lib/group-data";
 import { buildActivity, dayLabel } from "@/lib/activity";
@@ -295,9 +296,9 @@ export default async function Home({
               </ul>
             </section>
           )}
-
         </>
       )}
+      <InstallButton />
     </>
   );
 }

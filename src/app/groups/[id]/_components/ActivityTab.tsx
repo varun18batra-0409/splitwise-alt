@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { buildActivity, byDay } from "@/lib/activity";
-import { getCategory } from "@/lib/categories";
+import { buildActivity, byDay, filterActivity, hasFilter, type ActivityFilter } from "@/lib/activity";
+import { CATEGORIES, getCategory } from "@/lib/categories";
 import { originalShares } from "@/lib/currency-ledgers";
 import { dayKey, expenseDate } from "@/lib/dates";
 import { parseDetails } from "@/lib/events";
@@ -21,13 +21,19 @@ const when = (d: Date) =>
 
 // Every expense, payment and group change, by day — tap one for its details,
 // its history, and Edit / Delete / Restore / Undo.
-export function ActivityTab({ v }: { v: GroupView }) {
+export function ActivityTab({ v, filter = {} }: { v: GroupView; filter?: ActivityFilter }) {
   const { group, myId, nameOf, money, expenseById, eventById } = v;
-  const items = buildActivity(group.expenses, group.payments, myId, group.events);
+  const all = buildActivity(group.expenses, group.payments, myId, group.events);
+  const searchName = (id: string) => {
+    const name = group.members.find((m) => m.id === id)?.name ?? "";
+    return id === myId ? `${name} you` : name;
+  };
+  const items = filterActivity(all, filter, searchName);
+  const filtering = hasFilter(filter);
   const historyOf = (key: "expenseId" | "paymentId", id: string) =>
     group.events.filter((ev) => ev[key] === id).sort((x, y) => x.createdAt.getTime() - y.createdAt.getTime());
 
-  if (items.length === 0) {
+  if (all.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-line py-10 text-center text-sm text-gray-500">
         {group.closed ? "This group had no expenses." : "No expenses yet. Tap Add expense below to add the first one."}
@@ -35,8 +41,57 @@ export function ActivityTab({ v }: { v: GroupView }) {
     );
   }
 
+  const field = "min-w-0 rounded-lg border border-line bg-mist px-3 py-2 text-sm text-fg outline-none focus:border-accent";
   return (
     <div className="space-y-6">
+      {(all.length >= 6 || filtering) && (
+      <form method="get" action={`/groups/${group.id}`} role="search" className="space-y-2">
+        <input type="hidden" name="tab" value="activity" />
+        <input
+          type="search"
+          name="q"
+          defaultValue={filter.q ?? ""}
+          placeholder="Search expenses, people…"
+          aria-label="Search"
+          enterKeyHint="search"
+          className={`${field} w-full`}
+        />
+        <div className="flex gap-2">
+          <select name="cat" defaultValue={filter.cat ?? ""} aria-label="Category" className={`${field} flex-1`}>
+            <option value="">All categories</option>
+            {CATEGORIES.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.emoji} {c.label}
+              </option>
+            ))}
+          </select>
+          <select name="who" defaultValue={filter.who ?? ""} aria-label="Person" className={`${field} flex-1`}>
+            <option value="">Everyone</option>
+            {group.members.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.id === myId ? "You" : m.name}
+              </option>
+            ))}
+          </select>
+          <button type="submit" className="shrink-0 border border-line px-3 py-2 text-sm font-medium text-fg active:bg-mist">
+            Go
+          </button>
+        </div>
+        {filtering && (
+          <p className="flex items-center justify-between text-sm text-gray-500">
+            <span>
+              {items.length} {items.length === 1 ? "match" : "matches"}
+            </span>
+            <Link href={`/groups/${group.id}?tab=activity`} className="font-medium text-fg underline underline-offset-4">
+              Clear
+            </Link>
+          </p>
+        )}
+      </form>
+      )}
+
+      {items.length === 0 && <p className="rounded-2xl bg-mist px-4 py-8 text-center text-sm text-gray-500">Nothing matches. Try other words.</p>}
+
       {byDay(items).map((day) => (
         <section key={day.day}>
           <h2 className="sticky top-0 z-10 -mx-5 bg-canvas/95 px-5 py-1.5 text-sm font-medium text-gray-500 backdrop-blur">{day.day}</h2>

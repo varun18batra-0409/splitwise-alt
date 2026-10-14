@@ -31,7 +31,7 @@ export default async function GroupSettings({
   const group = await db.group.findUnique({
     where: { id },
     include: {
-      members: { select: { id: true, name: true } },
+      members: { select: { id: true, name: true, leftAt: true } },
       expenses: { where: { deletedAt: null }, select: { amount: true } },
       _count: { select: { expenses: true, payments: true } },
     },
@@ -186,6 +186,26 @@ export default async function GroupSettings({
           Save settings
         </button>
       </form>
+
+      {/* People */}
+      <section className="mt-12 border-t border-line pt-8">
+        <h2 className="mb-1 text-base font-semibold">People</h2>
+        <p className="mb-4 text-sm text-gray-500">Rename someone, remove a person added by mistake, or leave the group.</p>
+        <Link href={`/groups/${group.id}/people`} className={secondaryButtonClass}>
+          Manage people ({group.members.filter((m) => !m.leftAt).length})
+        </Link>
+      </section>
+
+      {/* Export */}
+      <section className="mt-12 border-t border-line pt-8">
+        <h2 className="mb-1 text-base font-semibold">Download as a spreadsheet</h2>
+        <p className="mb-4 text-sm text-gray-500">
+          Every expense and payment, with each person’s share, as a CSV file. Opens in Excel or Google Sheets.
+        </p>
+        <a href={`/groups/${group.id}/export`} download className={secondaryButtonClass}>
+          Download CSV
+        </a>
+      </section>
 
       {/* Who this phone is in the group */}
       <section className="mt-12 border-t border-line pt-8">

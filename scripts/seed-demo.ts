@@ -43,10 +43,12 @@ async function add(groupId: string, actor: string, over: Partial<SaveExpenseInpu
 async function main() {
 const trip = await group(
   "Thailand trip",
-  [{ name: "Varun" }, { name: "Asha", phone: "+91 98765 43210" }, { name: "Ravi" }, { name: "Meera" }],
+  [{ name: "Varun" }, { name: "Asha", phone: "+91 98765 43210" }, { name: "Ravi" }, { name: "Meera" }, { name: "Dev" }],
   { cardMarkupBp: 300 },
 );
 const V = trip.id("Varun"), A = trip.id("Asha"), R = trip.id("Ravi"), M = trip.id("Meera");
+// Dev couldn't come: left before any expense, so he's in the "Left the group" list.
+await db.member.update({ where: { id: trip.id("Dev") }, data: { leftAt: new Date("2026-10-07T10:00:00Z") } });
 await add(trip.g.id, V, { name: "Flights to Bangkok", amount: "48000", date: "2026-10-08" });
 await add(trip.g.id, A, { name: "Hotel in Sukhumvit", amount: "12000", currency: "THB", paymentMethod: "card", date: "2026-10-09" });
 await add(trip.g.id, R, { name: "Dinner at Jay Fai", amount: "3000", currency: "THB", paymentMethod: "cash", date: "2026-10-10" });
@@ -79,7 +81,7 @@ writeFileSync(
   JSON.stringify(
     {
       memberships: { [trip.g.id]: V, [flat.g.id]: FV, [goa.g.id]: goa.id("Varun") },
-      trip: { id: trip.g.id, invite: trip.g.inviteCode, expenseId: snacks.id },
+      trip: { id: trip.g.id, invite: trip.g.inviteCode, expenseId: snacks.id, ravi: R },
       flat: { id: flat.g.id },
     },
     null,

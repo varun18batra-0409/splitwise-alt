@@ -28,7 +28,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 export async function saveExpense(input: SaveExpenseInput, actingMemberId: string | undefined, lookupRate: RateLookupFn): Promise<Result> {
   const group = await db.group.findUnique({
     where: { id: input.groupId },
-    include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true } } },
+    include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true } } },
   });
   if (!group) return { ok: false, error: "This group no longer exists." };
   if (group.closed) return { ok: false, error: "This group is closed. Reopen it to add or change expenses." };
@@ -74,7 +74,11 @@ export async function saveExpense(input: SaveExpenseInput, actingMemberId: strin
     }
   }
 
-  const built = buildExpense(input, { memberIds, baseCurrency: group.currency, groupMarkupBp: group.cardMarkupBp, rate });
+  // People who left aren't part of new expenses ("everyone" means everyone still
+  // in the group); an edit keeps anyone who was already in that expense.
+  const inExisting = (id: string) => Boolean(existing && (existing.paidById === id || existing.shares.some((s) => s.memberId === id)));
+  const pool = group.members.filter((m) => !m.leftAt || inExisting(m.id)).map((m) => m.id);
+  const built = buildExpense(input, { memberIds: pool, baseCurrency: group.currency, groupMarkupBp: group.cardMarkupBp, rate });
   if (!built.ok) return built;
   const e = built.expense;
 

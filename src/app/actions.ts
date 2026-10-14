@@ -8,7 +8,8 @@ import { cleanNames, cleanPeople, sameName } from "@/lib/names";
 import { isSupportedCurrency, parseAmount, parsePercent } from "@/lib/money";
 import { getRate, type RateAnswer } from "@/lib/rate-cache";
 import { deletePayment, saveExpense, setExpenseDeleted, setPaymentDeleted, type SaveExpenseInput } from "@/lib/save-expense";
-import { undoEvent } from "@/lib/undo";
+import { removeMembers, undoEvent } from "@/lib/undo";
+import { isMemberUsed, renameMember, setMemberLeft } from "@/lib/people";
 import { changeGroupCurrency, updateGroupBasics } from "@/lib/group-changes";
 import { logEvent } from "@/lib/events";
 import { formatMoney } from "@/lib/money";
@@ -164,6 +165,7 @@ export async function undoChange(formData: FormData) {
   const r = await undoEvent(eventId, await getMyMemberId(groupId));
   const q = r.ok ? `undone=1${r.eventId ? `&did=${r.eventId}` : ""}` : `error=${encodeURIComponent(r.error)}`;
   if (back === "home") redirect(`/?${q}&g=${groupId}`);
+  if (back === "people") redirect(`/groups/${groupId}/people?${q}`);
   redirect(`/groups/${groupId}?tab=${back === "balances" ? "balances" : "activity"}&${q}`);
 }
 
@@ -358,4 +360,36 @@ export async function recordCustomPayment(formData: FormData) {
     });
   });
   redirect(`/groups/${group.id}?tab=balances&paid=1&did=${did}`);
+}
+
+// People screen: rename, remove (never used), leave / rejoin.
+async function peopleContext(formData: FormData) {
+  const groupId = String(formData.get("groupId") ?? "");
+  const memberId = String(formData.get("memberId") ?? "");
+  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
+  if (!group) redirect("/");
+  const myId = await getMyMemberId(group.id);
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect(`/join/${group.inviteCode}`);
+  return { groupId, memberId, myId };
+}
+
+function backToPeople(groupId: string, r: { ok: true; eventId?: string } | { ok: false; error: string }): never {
+  const q = r.ok ? (r.eventId ? `did=${r.eventId}` : "") : `error=${encodeURIComponent(r.error)}`;
+  redirect(`/groups/${groupId}/people${q ? `?${q}` : ""}`);
+}
+
+export async function renamePerson(formData: FormData) {
+  const { groupId, memberId, myId } = await peopleContext(formData);
+  backToPeople(groupId, await renameMember(groupId, myId, memberId, String(formData.get("name") ?? "")));
+}
+
+export async function removePerson(formData: FormData) {
+  const { groupId, memberId, myId } = await peopleContext(formData);
+  if (await isMemberUsed(memberId)) backToPeople(groupId, { ok: false, error: "They’re already part of expenses or payments. They can leave instead, once settled up." });
+  backToPeople(groupId, await removeMembers(groupId, myId, [memberId], false));
+}
+
+export async function setPersonLeft(formData: FormData) {
+  const { groupId, memberId, myId } = await peopleContext(formData);
+  backToPeople(groupId, await setMemberLeft(groupId, myId, memberId, formData.get("left") === "1"));
 }

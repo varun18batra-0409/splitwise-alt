@@ -9,7 +9,7 @@ export default async function AddExpensePage({ params }: { params: Promise<{ id:
   const { id } = await params;
   const group = await db.group.findUnique({
     where: { id },
-    include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true } } },
+    include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true } } },
   });
   if (!group) notFound();
 
@@ -32,6 +32,18 @@ export default async function AddExpensePage({ params }: { params: Promise<{ id:
     );
   }
 
+  if (group.members.find((m) => m.id === myId)?.leftAt) {
+    return (
+      <>
+        <PageHeader title={`Add to ${group.name}`} back={`/groups/${group.id}`} />
+        <p className="mb-6 text-gray-600">You left this group. Rejoin it to add expenses again.</p>
+        <a href={`/groups/${group.id}/people`} className={primaryButtonClass}>
+          Go to People
+        </a>
+      </>
+    );
+  }
+
   return (
     <>
       <PageHeader title={`Add to ${group.name}`} back={`/groups/${group.id}`} />
@@ -39,7 +51,7 @@ export default async function AddExpensePage({ params }: { params: Promise<{ id:
         groupId={group.id}
         baseCurrency={group.currency}
         groupMarkupBp={group.cardMarkupBp}
-        members={group.members}
+        members={group.members.filter((m) => !m.leftAt).map(({ id, name }) => ({ id, name }))}
         myId={myId}
       />
     </>

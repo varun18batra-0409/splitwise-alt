@@ -1,3 +1,4 @@
+import { getCategory } from "./categories";
 import { originalShares } from "./currency-ledgers";
 
 // One history list for a group: expenses, settle-up payments and group changes
@@ -148,4 +149,37 @@ export function byDay<T extends { date: Date }>(items: T[], now = new Date()): {
     else out.push({ day, items: [item] });
   }
   return out;
+}
+
+// Search and filter for a group's history. Any mix of: words (matched against
+// the expense name, category and people), one category, one person.
+export type ActivityFilter = { q?: string; cat?: string; who?: string };
+
+export function hasFilter(f: ActivityFilter): boolean {
+  return Boolean(f.q?.trim() || f.cat || f.who);
+}
+
+export function filterActivity(items: ActivityItem[], f: ActivityFilter, nameOf: (id: string) => string): ActivityItem[] {
+  if (!hasFilter(f)) return items;
+  const words = (f.q ?? "").toLowerCase().split(/\s+/).filter(Boolean);
+  const matches = (text: string) => {
+    const t = text.toLowerCase();
+    return words.every((w) => t.includes(w));
+  };
+  return items.filter((item) => {
+    if (item.kind === "event") {
+      // Group changes only show up for a plain word search.
+      if (f.cat || f.who) return false;
+      return matches(`${nameOf(item.actorId)} ${item.text}`);
+    }
+    if (item.kind === "payment") {
+      if (f.cat) return false;
+      if (f.who && item.fromId !== f.who && item.toId !== f.who) return false;
+      return matches(`${nameOf(item.fromId)} paid ${nameOf(item.toId)} payment settle-up`);
+    }
+    const cat = getCategory(item.category);
+    if (f.cat && cat.id !== f.cat) return false;
+    if (f.who && item.paidById !== f.who && !item.people.includes(f.who)) return false;
+    return matches(`${item.title} ${cat.label} ${nameOf(item.paidById)} ${item.people.map(nameOf).join(" ")}`);
+  });
 }

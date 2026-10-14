@@ -67,7 +67,7 @@ export function BalancesTab({ v, paid }: { v: GroupView; paid?: boolean }) {
           person to see what’s due between them and the others.
         </p>
         <ul className="divide-y divide-line border-y border-line">
-          {group.members.map((m) => {
+          {group.members.filter((m) => !m.leftAt || (v.net[m.id] ?? 0) !== 0).map((m) => {
             const b = net[m.id] ?? 0;
             const theirs = transfers.filter((t) => t.from === m.id || t.to === m.id);
             const foreign = ledgers.map((l) => signed(l.net[m.id] ?? 0, l.currency)).join(" · ");
