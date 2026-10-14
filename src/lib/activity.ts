@@ -29,7 +29,7 @@ type PaymentRow = {
 type EventRow = { id: string; kind: string; actorId: string; text: string; details: string; createdAt: Date };
 
 // Group-level changes shown as their own lines (expense/payment changes show on the item itself).
-const GROUP_EVENT_KINDS = new Set(["group_renamed", "currency_changed", "markup_changed", "members_added", "group_closed", "group_reopened"]);
+const GROUP_EVENT_KINDS = new Set(["group_renamed", "currency_changed", "markup_changed", "display_currency_changed", "members_added", "group_closed", "group_reopened"]);
 
 export type ActivityItem =
   | {

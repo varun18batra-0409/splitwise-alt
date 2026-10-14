@@ -16,6 +16,7 @@ export type EventKind =
   | "group_renamed"
   | "currency_changed"
   | "markup_changed"
+  | "display_currency_changed"
   | "members_added"
   | "group_closed"
   | "group_reopened";

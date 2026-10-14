@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { getMyMemberId } from "@/lib/identity";
-import { loadGroup } from "@/lib/group-data";
+import { getMemberships, getMyMemberId } from "@/lib/identity";
+import { loadGroup, loadMyGroups } from "@/lib/group-data";
+import { resolveSecondary, spentByCurrency } from "@/lib/secondary";
+import { getRate } from "@/lib/rate-cache";
+import { convertAmount } from "@/lib/conversion";
 import { buildActivity, byDay } from "@/lib/activity";
 import { pairwiseDebtCount } from "@/lib/settle";
 import { formatMoney, formatPercent } from "@/lib/money";
@@ -49,14 +52,62 @@ export default async function GroupPage({
   const spent = activeExpenses.reduce((s, e) => s + e.amount, 0);
   const expenseById = new Map(group.expenses.map((e) => [e.id, e]));
 
+  // Second currency (≈), e.g. THB for an INR group on a Thailand trip.
+  const secondary = resolveSecondary(group.secondaryCurrency, group.currency, activeExpenses);
+  const secRate = secondary ? await getRate(group.currency, secondary) : null;
+  const eq = (minor: number): string | null => {
+    if (!secondary || !secRate?.ok) return null;
+    const v = convertAmount(Math.abs(minor), group.currency, secondary, secRate.rate);
+    return v === null ? null : `≈ ${formatMoney(v, secondary)}`;
+  };
+
+  // Group switcher: up to 5 of my other open groups, most recently active first.
+  const switchTo = (await loadMyGroups(await getMemberships()))
+    .filter((g) => !g.group.closed && g.group.id !== group.id)
+    .sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime())
+    .slice(0, 5);
+
   return (
     <>
       {/* Header: back · name · Invite · settings */}
       <header className="mb-6 flex items-center gap-2">
-        <Link href="/" aria-label="Back" className="-ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-2xl text-gray-500 active:bg-gray-100">
+        <Link href="/" aria-label="Home" className="-ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-2xl text-gray-500 active:bg-gray-100">
           ‹
         </Link>
-        <h1 className="min-w-0 flex-1 truncate font-display text-2xl font-semibold tracking-tight">{group.name}</h1>
+        {/* Tap the name to jump to another open group. */}
+        <details className="group/switch relative min-w-0 flex-1">
+          <summary className="flex cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden">
+            <h1 className="truncate font-display text-2xl font-semibold tracking-tight">{group.name}</h1>
+            <span className="shrink-0 text-sm text-gray-400 transition-transform group-open/switch:rotate-180" aria-hidden>
+              ▾
+            </span>
+            <span className="sr-only">Switch group</span>
+          </summary>
+          <div className="absolute left-0 top-full z-30 mt-2 w-72 max-w-[calc(100vw-2.5rem)] rounded-2xl border border-gray-100 bg-white p-2 shadow-xl shadow-ink/10">
+            {switchTo.length === 0 ? (
+              <p className="px-3 py-2 text-sm text-gray-500">No other open groups.</p>
+            ) : (
+              <>
+                <p className="px-3 pb-1 pt-1.5 text-xs text-gray-400">Switch to</p>
+                <ul>
+                  {switchTo.map((g) => (
+                    <li key={g.group.id}>
+                      <Link href={`/groups/${g.group.id}`} className="flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 active:bg-mist">
+                        <span className="truncate font-medium">{g.group.name}</span>
+                        <span className={`shrink-0 text-xs tabular-nums ${g.myBalance > 0 ? "text-accent-dark" : g.myBalance < 0 ? "text-owe" : "text-gray-400"}`}>
+                          {g.myBalance > 0 ? `+${formatMoney(g.myBalance, g.group.currency)}` : g.myBalance < 0 ? `−${formatMoney(-g.myBalance, g.group.currency)}` : "settled"}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+            <Link href="/" className="mt-1 block rounded-xl border-t border-gray-100 px-3 py-2.5 text-sm font-medium text-accent active:bg-mist">
+              All groups
+            </Link>
+          </div>
+        </details>
         <InviteSheet groupId={group.id} groupName={group.name} inviteCode={group.inviteCode} memberCount={group.members.length} />
         <Link
           href={`/groups/${group.id}/settings`}
@@ -88,8 +139,17 @@ export default async function GroupPage({
         <p className={`font-display text-[32px] font-semibold leading-tight tracking-tight tabular-nums ${mine > 0 ? "text-accent-dark" : mine < 0 ? "text-owe" : ""}`}>
           {mine > 0 ? `You’re owed ${money(mine)}` : mine < 0 ? `You owe ${money(-mine)}` : "All square"}
         </p>
+        {mine !== 0 && eq(mine) && <p className="font-display text-lg tabular-nums text-gray-500">{eq(mine)}</p>}
+        {secondary && (
+          <p className="mt-1 text-xs text-gray-400">
+            {secRate?.ok
+              ? `1 ${group.currency} = ${secRate.rate} ${secondary}, rate for ${niceDate(secRate.date)}`
+              : `No live ${group.currency} → ${secondary} rate right now, so ${secondary} amounts are hidden.`}
+          </p>
+        )}
         <p className="mt-1 text-sm text-gray-500">
-          {money(spent)} spent across {activeExpenses.length} {activeExpenses.length === 1 ? "expense" : "expenses"}, {group.members.length} people
+          {money(spent)}
+          {eq(spent) && ` (${eq(spent)})`} spent across {activeExpenses.length} {activeExpenses.length === 1 ? "expense" : "expenses"}, {group.members.length} people
           <Link href={`/groups/${group.id}/settings`} className="ml-1 text-gray-400">
             ({group.currency}, card markup {formatPercent(group.cardMarkupBp)})
           </Link>
@@ -310,7 +370,10 @@ export default async function GroupPage({
                         <span className="text-gray-500"> {t.from === myId ? "pay" : "pays"} </span>
                         <strong className="font-medium">{t.to === myId ? "you" : nameOf(t.to)}</strong>
                       </p>
-                      <p className="shrink-0 font-display font-semibold tabular-nums">{money(t.amount)}</p>
+                      <p className="shrink-0 text-right font-display font-semibold tabular-nums">
+                        {money(t.amount)}
+                        {eq(t.amount) && <span className="block font-sans text-xs font-normal text-gray-400">{eq(t.amount)}</span>}
+                      </p>
                     </div>
                     <form action={recordPayment} className="mt-2 flex justify-end">
                       <input type="hidden" name="groupId" value={group.id} />
@@ -335,7 +398,7 @@ export default async function GroupPage({
             rows={group.members.map((m) => ({
               key: m.id,
               label: m.id === myId ? "You" : m.name,
-              sublabel: m.phone || undefined,
+              sublabel: (net[m.id] ? eq(net[m.id] ?? 0) : null) ?? undefined,
               value: net[m.id] ?? 0,
               currency: group.currency,
             }))}
@@ -383,6 +446,15 @@ export default async function GroupPage({
     return (
       <div className="space-y-10">
         <HBarChart title="Spending by category" data={catData} total={money(spent)} />
+        <HBarChart
+          title="Spent by currency"
+          data={spentByCurrency(activeExpenses).map((r) => ({
+            key: r.currency,
+            label: r.currency === group.currency ? `${r.currency} (group currency)` : r.currency,
+            value: r.group,
+            valueText: r.currency === group.currency ? money(r.group) : `${formatMoney(r.original, r.currency)} = ${money(r.group)}`,
+          }))}
+        />
         <ColumnChart title={shownDays.length < days.length ? "Spending by day (last 21 days)" : "Spending by day"} data={dayData} />
         <HBarChart title="Who paid" data={people(paid)} />
         <HBarChart title="Each person’s share" data={people(shares)} />

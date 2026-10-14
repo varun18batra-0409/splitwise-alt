@@ -29,7 +29,7 @@ export async function loadMyGroups(memberships: Record<string, string>) {
   const groups = await db.group.findMany({
     where: { id: { in: Object.keys(memberships) } },
     include: {
-      members: { select: { id: true, name: true } },
+      members: { select: { id: true, name: true, phone: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
       expenses: { include: { shares: true }, orderBy: { createdAt: "desc" } },
       payments: { orderBy: { createdAt: "desc" } },
     },
@@ -46,7 +46,7 @@ export async function loadMyGroups(memberships: Record<string, string>) {
         .filter((d): d is Date => Boolean(d))
         .sort((a, b) => b.getTime() - a.getTime())[0];
       const spent = expenses.reduce((s, e) => s + e.amount, 0);
-      return { group: g, expenses, payments, myId, myBalance: net[myId] ?? 0, lastActivity, spent };
+      return { group: g, expenses, payments, myId, net, transfers: smartSettle(net), myBalance: net[myId] ?? 0, lastActivity, spent };
     });
 }
 

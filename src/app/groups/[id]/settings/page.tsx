@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
 import { convertGroupCurrency, setGroupClosed, updateGroupSettings } from "@/app/actions";
-import { currencyInfo, formatMoney, formatPercent, isSupportedCurrency } from "@/lib/money";
+import { CURRENCIES, currencyInfo, formatMoney, formatPercent, isSupportedCurrency, POPULAR_CURRENCIES } from "@/lib/money";
 import { getRate } from "@/lib/rate-cache";
 import { niceDate } from "@/lib/format";
 import Link from "next/link";
@@ -117,6 +117,35 @@ export default async function GroupSettings({
           </p>
           <CurrencySelect name="currency" defaultValue={group.currency} />
         </fieldset>
+
+        <label className="block">
+          <span className="mb-1 block text-base font-semibold">Also show amounts in</span>
+          <span className="mb-4 block text-sm text-gray-500">
+            Balances are also shown in this currency (≈), converted at today’s rate. Handy on a trip: a {group.currency} group in
+            Thailand can show baht too. Automatic uses the foreign currency your expenses use most.
+          </span>
+          <select name="secondaryCurrency" defaultValue={group.secondaryCurrency} className={inputClass}>
+            <option value="">Automatic</option>
+            <option value="none">Don’t show a second currency</option>
+            <optgroup label="Popular">
+              {POPULAR_CURRENCIES.filter((c) => c !== group.currency).map((code) => {
+                const c = currencyInfo(code);
+                return (
+                  <option key={code} value={code}>
+                    {c.flag} {code} — {c.name}
+                  </option>
+                );
+              })}
+            </optgroup>
+            <optgroup label="All currencies">
+              {CURRENCIES.filter((c) => c.code !== group.currency && !POPULAR_CURRENCIES.includes(c.code)).map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.flag} {c.code} — {c.name}
+                </option>
+              ))}
+            </optgroup>
+          </select>
+        </label>
 
         <fieldset>
           <legend className="mb-1 text-base font-semibold">Foreign-currency credit-card markup</legend>

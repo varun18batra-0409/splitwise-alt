@@ -3,7 +3,7 @@
 import { randomBytes } from "node:crypto";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { getMyMemberId, setMyMemberId } from "@/lib/identity";
+import { getMemberships, getMyMemberId, setMyMemberId } from "@/lib/identity";
 import { cleanNames, cleanPeople, sameName } from "@/lib/names";
 import { isSupportedCurrency, parsePercent } from "@/lib/money";
 import { getRate, type RateAnswer } from "@/lib/rate-cache";
@@ -167,7 +167,8 @@ export async function updateGroupSettings(formData: FormData) {
   if (markupBp === null || markupBp > 2000) redirect(`${back}?error=markup`);
 
   const name = String(formData.get("name") ?? group.name);
-  const basics = await updateGroupBasics(group.id, myId, { name, markupBp });
+  const secondaryCurrency = String(formData.get("secondaryCurrency") ?? group.secondaryCurrency);
+  const basics = await updateGroupBasics(group.id, myId, { name, markupBp, secondaryCurrency });
   if (!basics.ok) redirect(`${back}?error=name`);
 
   const currency = String(formData.get("currency") ?? group.currency);
@@ -246,4 +247,43 @@ export async function setGroupClosed(formData: FormData) {
     });
   }
   redirect(closed ? "/?closed=1" : `/groups/${group.id}`);
+}
+
+// Smart Settle across groups: records each group's part of a combined settle-up.
+// Every part is re-checked against that group's current Smart Settle first.
+export async function settleAcrossGroups(formData: FormData) {
+  let parts: { groupId: string; fromId: string; toId: string; amount: number }[] = [];
+  try {
+    const raw = JSON.parse(String(formData.get("parts") ?? "[]"));
+    if (Array.isArray(raw)) parts = raw;
+  } catch {
+    redirect("/?settle=error#settle");
+  }
+  const { loadGroup } = await import("@/lib/group-data");
+  const memberships = await getMemberships();
+  const checked: { groupId: string; fromId: string; toId: string; amount: number; currency: string; names: Map<string, string> }[] = [];
+
+  for (const p of parts) {
+    const myId = memberships[String(p.groupId)];
+    const data = myId ? await loadGroup(String(p.groupId)) : null;
+    if (!data || !myId) redirect("/?settle=error#settle");
+    const ok = data.transfers.some((t) => t.from === p.fromId && t.to === p.toId && t.amount === p.amount) && (p.fromId === myId || p.toId === myId);
+    if (!ok) redirect("/?settle=changed#settle"); // balances moved since the page loaded
+    checked.push({ ...p, currency: data.group.currency, names: new Map(data.group.members.map((m) => [m.id, m.name])) });
+  }
+
+  await db.$transaction(async (tx) => {
+    for (const c of checked) {
+      const myId = memberships[c.groupId];
+      const pay = await tx.payment.create({ data: { groupId: c.groupId, fromId: c.fromId, toId: c.toId, amount: c.amount, createdById: myId } });
+      await logEvent(tx, {
+        groupId: c.groupId,
+        actorId: myId,
+        kind: "payment_recorded",
+        text: `recorded ${c.names.get(c.fromId) ?? "Someone"} paid ${c.names.get(c.toId) ?? "Someone"} ${formatMoney(c.amount, c.currency)} (Smart Settle across groups)`,
+        paymentId: pay.id,
+      });
+    }
+  });
+  redirect("/?settle=done#settle");
 }

@@ -7,13 +7,31 @@ import { rebaseExpense, rebasePayment } from "./rebase";
 type Result = { ok: true } | { ok: false; error: string };
 
 // Rename the group and/or change its card markup. Logged for everyone.
-export async function updateGroupBasics(groupId: string, actorId: string, changes: { name?: string; markupBp?: number }): Promise<Result> {
+export async function updateGroupBasics(
+  groupId: string,
+  actorId: string,
+  changes: { name?: string; markupBp?: number; secondaryCurrency?: string },
+): Promise<Result> {
   const group = await db.group.findUnique({ where: { id: groupId } });
   if (!group) return { ok: false, error: "This group no longer exists." };
   const name = changes.name?.trim().replace(/\s+/g, " ").slice(0, 60);
   if (changes.name !== undefined && !name) return { ok: false, error: "Give the group a name." };
 
+  const sec = changes.secondaryCurrency;
+  if (sec !== undefined && sec !== "" && sec !== "none" && !isSupportedCurrency(sec)) return { ok: false, error: "Pick a currency from the list." };
+
   await db.$transaction(async (tx) => {
+    if (sec !== undefined && sec !== group.secondaryCurrency) {
+      await tx.group.update({ where: { id: group.id }, data: { secondaryCurrency: sec } });
+      const label = (v: string) => (v === "" ? "automatic" : v === "none" ? "off" : v);
+      await logEvent(tx, {
+        groupId,
+        actorId,
+        kind: "display_currency_changed",
+        text: sec === "none" ? "turned off the second currency" : `set the second currency to ${label(sec)}`,
+        details: [`Also shown in: ${label(group.secondaryCurrency)} → ${label(sec)}`],
+      });
+    }
     if (name && name !== group.name) {
       await tx.group.update({ where: { id: group.id }, data: { name } });
       await logEvent(tx, { groupId, actorId, kind: "group_renamed", text: `renamed the group to “${name}”`, details: [`Name: ${group.name} → ${name}`] });
