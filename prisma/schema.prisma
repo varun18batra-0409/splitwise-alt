@@ -1,0 +1,71 @@
+// Database design. All money is stored as whole paise (₹12.50 = 1250).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Group {
+  id         String    @id @default(cuid())
+  name       String
+  currency   String    @default("INR") // kept per group so multi-currency can come later
+  inviteCode String    @unique
+  createdAt  DateTime  @default(now())
+  members    Member[]
+  expenses   Expense[]
+  payments   Payment[]
+}
+
+model Member {
+  id        String   @id @default(cuid())
+  name      String
+  groupId   String
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  paid         Expense[]      @relation("PaidBy")
+  shares       ExpenseShare[]
+  paymentsSent Payment[]      @relation("PaymentFrom")
+  paymentsRecv Payment[]      @relation("PaymentTo")
+
+  @@unique([groupId, name])
+}
+
+model Expense {
+  id          String         @id @default(cuid())
+  groupId     String
+  group       Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  description String
+  amount      Int // total, in paise
+  splitType   String // "equal" | "exact" | "percent"
+  paidById    String
+  paidBy      Member         @relation("PaidBy", fields: [paidById], references: [id])
+  createdAt   DateTime       @default(now())
+  shares      ExpenseShare[] // one line per person; receipt items can hang off this later
+}
+
+model ExpenseShare {
+  id        String  @id @default(cuid())
+  expenseId String
+  expense   Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  memberId  String
+  member    Member  @relation(fields: [memberId], references: [id])
+  amount    Int // this person's share, in paise
+}
+
+// A record that one person paid another back. The app never moves real money.
+model Payment {
+  id        String   @id @default(cuid())
+  groupId   String
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  fromId    String
+  from      Member   @relation("PaymentFrom", fields: [fromId], references: [id])
+  toId      String
+  to        Member   @relation("PaymentTo", fields: [toId], references: [id])
+  amount    Int // in paise
+  createdAt DateTime @default(now())
+}

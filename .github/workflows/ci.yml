@@ -1,0 +1,16 @@
+# Every time code is pushed, GitHub installs everything, runs the tests and
+# checks the app builds. A green tick on GitHub means it all worked.
+name: Check
+on: [push, pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm run db:setup
+      - run: npm test
+      - run: npm run build
