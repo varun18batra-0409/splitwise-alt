@@ -3,7 +3,7 @@ import { buildExpense, type ExpenseDraft } from "./expense";
 import { getCategory, guessCategory, isCategory } from "./categories";
 import { formatMoney, isSupportedCurrency } from "./money";
 import { parseRate, PAYMENT_METHODS } from "./conversion";
-import { diffExpense, logEvent, type ExpenseSnapshot } from "./events";
+import { diffExpense, expenseState, logEvent, type ExpenseSnapshot } from "./events";
 import type { RateAnswer } from "./rate-cache";
 
 export type SaveExpenseInput = ExpenseDraft & {
@@ -16,7 +16,7 @@ export type SaveExpenseInput = ExpenseDraft & {
 };
 
 type RateLookupFn = (from: string, to: string) => Promise<RateAnswer>;
-type Result = { ok: true; id: string } | { ok: false; error: string };
+export type Result = { ok: true; id: string; eventId?: string } | { ok: false; error: string };
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -102,38 +102,40 @@ export async function saveExpense(input: SaveExpenseInput, actingMemberId: strin
   if (!existing) {
     const saved = await db.$transaction(async (tx) => {
       const created = await tx.expense.create({ data: { ...fields, groupId: group.id, createdById: actingMemberId, shares: { create: e.shares } } });
-      await logEvent(tx, {
+      const eventId = await logEvent(tx, {
         groupId: group.id,
         actorId: actingMemberId,
         kind: "expense_added",
         text: `added ${name} (${money})`,
         details: [`${getCategory(category).emoji} ${getCategory(category).label}`, `Paid by ${nameOf(e.paidById)}`],
         expenseId: created.id,
+        undo: { type: "expense_delete", expenseId: created.id },
       });
-      return created;
+      return { created, eventId };
     });
-    return { ok: true, id: saved.id };
+    return { ok: true, id: saved.created.id, eventId: saved.eventId };
   }
 
   const changes = diffExpense(snapshot(existing), snapshot({ ...fields, shares: e.shares }), nameOf);
   if (changes.length === 0) return { ok: true, id: existing.id }; // nothing changed
 
-  await db.$transaction(async (tx) => {
+  const eventId = await db.$transaction(async (tx) => {
     await tx.expenseShare.deleteMany({ where: { expenseId: existing.id } });
     await tx.expense.update({
       where: { id: existing.id },
       data: { ...fields, editedAt: new Date(), shares: { create: e.shares } },
     });
-    await logEvent(tx, {
+    return logEvent(tx, {
       groupId: group.id,
       actorId: actingMemberId,
       kind: "expense_edited",
       text: `changed ${name}`,
       details: changes,
       expenseId: existing.id,
+      undo: { type: "expense_revert", expenseId: existing.id, before: expenseState(existing) },
     });
   });
-  return { ok: true, id: existing.id };
+  return { ok: true, id: existing.id, eventId };
 }
 
 function snapshot(x: Omit<ExpenseSnapshot, "shares"> & { shares: { memberId: string; amount: number }[] }): ExpenseSnapshot {
@@ -151,24 +153,30 @@ export async function setExpenseDeleted(expenseId: string, actingMemberId: strin
   if (expense.group.closed) return { ok: false, error: "This group is closed. Reopen it to change expenses." };
   if (Boolean(expense.deletedAt) === deleted) return { ok: true, id: expense.id };
 
-  await db.$transaction(async (tx) => {
+  const eventId = await db.$transaction(async (tx) => {
     await tx.expense.update({
       where: { id: expense.id },
       data: deleted ? { deletedAt: new Date(), deletedById: actingMemberId } : { deletedAt: null, deletedById: null },
     });
-    await logEvent(tx, {
+    return logEvent(tx, {
       groupId: expense.groupId,
       actorId: actingMemberId,
       kind: deleted ? "expense_deleted" : "expense_restored",
       text: `${deleted ? "deleted" : "restored"} ${expense.description} (${formatMoney(expense.amount, expense.baseCurrency)})`,
       expenseId: expense.id,
+      undo: { type: deleted ? "expense_restore" : "expense_delete", expenseId: expense.id },
     });
   });
-  return { ok: true, id: expense.id };
+  return { ok: true, id: expense.id, eventId };
 }
 
 // Delete a recorded settle-up payment (anyone in the group). It stays in history.
 export async function deletePayment(paymentId: string, actingMemberId: string | undefined): Promise<Result> {
+  return setPaymentDeleted(paymentId, actingMemberId, true);
+}
+
+// Delete or restore a settle-up payment. Deleted payments stay in history.
+export async function setPaymentDeleted(paymentId: string, actingMemberId: string | undefined, deleted: boolean): Promise<Result> {
   const payment = await db.payment.findUnique({
     where: { id: paymentId },
     include: { group: { include: { members: { select: { id: true } } } }, from: true, to: true },
@@ -177,16 +185,20 @@ export async function deletePayment(paymentId: string, actingMemberId: string | 
   if (!actingMemberId || !payment.group.members.some((m) => m.id === actingMemberId)) {
     return { ok: false, error: "Only people in this group can delete its payments." };
   }
-  if (payment.deletedAt) return { ok: true, id: payment.id };
-  await db.$transaction(async (tx) => {
-    await tx.payment.update({ where: { id: payment.id }, data: { deletedAt: new Date(), deletedById: actingMemberId } });
-    await logEvent(tx, {
+  if (Boolean(payment.deletedAt) === deleted) return { ok: true, id: payment.id };
+  const eventId = await db.$transaction(async (tx) => {
+    await tx.payment.update({
+      where: { id: payment.id },
+      data: deleted ? { deletedAt: new Date(), deletedById: actingMemberId } : { deletedAt: null, deletedById: null },
+    });
+    return logEvent(tx, {
       groupId: payment.groupId,
       actorId: actingMemberId,
-      kind: "payment_deleted",
-      text: `deleted the payment ${payment.from.name} → ${payment.to.name} (${formatMoney(payment.amount, payment.group.currency)})`,
+      kind: deleted ? "payment_deleted" : "payment_restored",
+      text: `${deleted ? "deleted" : "restored"} the payment ${payment.from.name} → ${payment.to.name} (${formatMoney(payment.amount, payment.group.currency)})`,
       paymentId: payment.id,
+      undo: { type: deleted ? "payment_restore" : "payment_delete", paymentId: payment.id },
     });
   });
-  return { ok: true, id: payment.id };
+  return { ok: true, id: payment.id, eventId };
 }

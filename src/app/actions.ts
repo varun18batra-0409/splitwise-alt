@@ -7,7 +7,8 @@ import { getMemberships, getMyMemberId, setMyMemberId } from "@/lib/identity";
 import { cleanNames, cleanPeople, sameName } from "@/lib/names";
 import { isSupportedCurrency, parsePercent } from "@/lib/money";
 import { getRate, type RateAnswer } from "@/lib/rate-cache";
-import { deletePayment, saveExpense, setExpenseDeleted, type SaveExpenseInput } from "@/lib/save-expense";
+import { deletePayment, saveExpense, setExpenseDeleted, setPaymentDeleted, type SaveExpenseInput } from "@/lib/save-expense";
+import { undoEvent } from "@/lib/undo";
 import { changeGroupCurrency, updateGroupBasics } from "@/lib/group-changes";
 import { logEvent } from "@/lib/events";
 import { formatMoney } from "@/lib/money";
@@ -58,18 +59,24 @@ export async function addMembers(formData: FormData) {
     formData.getAll("memberPhone").map(String),
     group.members.map((m) => m.name),
   );
+  let did = "";
   if (people.length > 0) {
-    await db.member.createMany({ data: people.map((p) => ({ ...p, groupId: group.id })) });
-    await logEvent(db, {
-      groupId: group.id,
-      actorId: myId,
-      kind: "members_added",
-      text: `added ${people.map((p) => p.name).join(", ")} to the group`,
+    did = await db.$transaction(async (tx) => {
+      const created: { id: string }[] = [];
+      for (const p of people) created.push(await tx.member.create({ data: { ...p, groupId: group.id } }));
+      return logEvent(tx, {
+        groupId: group.id,
+        actorId: myId,
+        kind: "members_added",
+        text: `added ${people.map((p) => p.name).join(", ")} to the group`,
+        undo: { type: "members_remove", memberIds: created.map((m) => m.id) },
+      });
     });
   }
   const q = new URLSearchParams({ added: String(people.length) });
   if (skipped.length) q.set("skipped", skipped.join(", "));
   q.set("tab", "balances");
+  if (did) q.set("did", did);
   redirect(`/groups/${group.id}?${q}`);
 }
 
@@ -100,7 +107,13 @@ export async function joinAsNew(formData: FormData) {
   }
 
   const member = await db.member.create({ data: { name, groupId: group.id } });
-  await logEvent(db, { groupId: group.id, actorId: member.id, kind: "members_added", text: "joined the group" });
+  await logEvent(db, {
+    groupId: group.id,
+    actorId: member.id,
+    kind: "members_added",
+    text: "joined the group",
+    undo: { type: "members_remove", memberIds: [member.id] },
+  });
   await setMyMemberId(group.id, member.id);
   redirect(`/groups/${group.id}`);
 }
@@ -109,7 +122,7 @@ export async function joinAsNew(formData: FormData) {
 export async function addExpense(input: SaveExpenseInput): Promise<{ error: string }> {
   const result = await saveExpense(input, await getMyMemberId(input.groupId), getRate);
   if (!result.ok) return { error: result.error };
-  redirect(`/groups/${input.groupId}?tab=activity${input.expenseId ? "&edited=1" : ""}`);
+  redirect(`/groups/${input.groupId}?tab=activity${result.eventId ? `&did=${result.eventId}` : ""}`);
 }
 
 // Delete / restore an expense (only whoever added it). History keeps it.
@@ -123,7 +136,7 @@ async function toggleExpense(formData: FormData, deleted: boolean) {
   const groupId = String(formData.get("groupId") ?? "");
   const expenseId = String(formData.get("expenseId") ?? "");
   const r = await setExpenseDeleted(expenseId, await getMyMemberId(groupId), deleted);
-  const q = r.ok ? (deleted ? "deleted=1" : "restored=1") : `error=${encodeURIComponent(r.error)}`;
+  const q = r.ok ? (r.eventId ? `did=${r.eventId}` : "") : `error=${encodeURIComponent(r.error)}`;
   redirect(`/groups/${groupId}?tab=activity&${q}`);
 }
 
@@ -132,7 +145,26 @@ export async function removePayment(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const paymentId = String(formData.get("paymentId") ?? "");
   const r = await deletePayment(paymentId, await getMyMemberId(groupId));
-  redirect(`/groups/${groupId}?tab=activity&${r.ok ? "deleted=1" : `error=${encodeURIComponent(r.error)}`}`);
+  redirect(`/groups/${groupId}?tab=activity&${r.ok ? (r.eventId ? `did=${r.eventId}` : "") : `error=${encodeURIComponent(r.error)}`}`);
+}
+
+// Bring back a deleted settle-up payment.
+export async function restorePayment(formData: FormData) {
+  const groupId = String(formData.get("groupId") ?? "");
+  const paymentId = String(formData.get("paymentId") ?? "");
+  const r = await setPaymentDeleted(paymentId, await getMyMemberId(groupId), false);
+  redirect(`/groups/${groupId}?tab=activity&${r.ok ? (r.eventId ? `did=${r.eventId}` : "") : `error=${encodeURIComponent(r.error)}`}`);
+}
+
+// Undo (or redo) any change in a group. `back` says which page to return to.
+export async function undoChange(formData: FormData) {
+  const groupId = String(formData.get("groupId") ?? "");
+  const eventId = String(formData.get("eventId") ?? "");
+  const back = String(formData.get("back") ?? "group");
+  const r = await undoEvent(eventId, await getMyMemberId(groupId));
+  const q = r.ok ? `undone=1${r.eventId ? `&did=${r.eventId}` : ""}` : `error=${encodeURIComponent(r.error)}`;
+  if (back === "home") redirect(`/?${q}&g=${groupId}`);
+  redirect(`/groups/${groupId}?tab=${back === "balances" ? "balances" : "activity"}&${q}`);
 }
 
 // Looks up today's exchange rate when a currency is picked (not on every keystroke).
@@ -170,15 +202,17 @@ export async function updateGroupSettings(formData: FormData) {
   const secondaryCurrency = String(formData.get("secondaryCurrency") ?? group.secondaryCurrency);
   const basics = await updateGroupBasics(group.id, myId, { name, markupBp, secondaryCurrency });
   if (!basics.ok) redirect(`${back}?error=name`);
+  const did = basics.eventId ? `&did=${basics.eventId}` : "";
 
   const currency = String(formData.get("currency") ?? group.currency);
   if (currency !== group.currency) {
     if (!isSupportedCurrency(currency)) redirect(`${back}?error=currency`);
     // With money already in the group, confirm the conversion rate first.
     if (group._count.expenses + group._count.payments > 0) redirect(`${back}?convert=${currency}`);
-    await changeGroupCurrency(group.id, myId, currency, "1");
+    const c = await changeGroupCurrency(group.id, myId, currency, "1");
+    if (c.ok && c.eventId) redirect(`/groups/${group.id}?saved=settings&did=${c.eventId}`);
   }
-  redirect(`/groups/${group.id}?saved=settings`);
+  redirect(`/groups/${group.id}?saved=settings${did}`);
 }
 
 // Second step of changing the currency: convert everything at the confirmed rate.
@@ -192,7 +226,7 @@ export async function convertGroupCurrency(formData: FormData) {
   if (!myId || !group.members.some((m) => m.id === myId)) redirect(`/join/${group.inviteCode}`);
   const r = await changeGroupCurrency(group.id, myId, currency, rate);
   if (!r.ok) redirect(`/groups/${group.id}/settings?convert=${currency}&error=${encodeURIComponent(r.error)}`);
-  redirect(`/groups/${group.id}?saved=settings`);
+  redirect(`/groups/${group.id}?saved=settings${r.eventId ? `&did=${r.eventId}` : ""}`);
 }
 
 // Records that one person paid another back (from Smart Settle's "Mark as paid").
@@ -213,17 +247,18 @@ export async function recordPayment(formData: FormData) {
 
   const names = await db.member.findMany({ where: { id: { in: [fromId, toId] } }, select: { id: true, name: true } });
   const nameOf = (id: string) => names.find((n) => n.id === id)?.name ?? "Someone";
-  await db.$transaction(async (tx) => {
+  const did = await db.$transaction(async (tx) => {
     const p = await tx.payment.create({ data: { groupId: group.id, fromId, toId, amount, createdById: myId } });
-    await logEvent(tx, {
+    return logEvent(tx, {
       groupId: group.id,
       actorId: myId,
       kind: "payment_recorded",
       text: `recorded ${nameOf(fromId)} paid ${nameOf(toId)} ${formatMoney(amount, group.currency)}`,
       paymentId: p.id,
+      undo: { type: "payment_delete", paymentId: p.id },
     });
   });
-  redirect(`/groups/${group.id}?tab=balances&paid=1`);
+  redirect(`/groups/${group.id}?tab=balances&paid=1&did=${did}`);
 }
 
 // Close a group (hide it from the main list, stop new expenses) or reopen it.
@@ -235,18 +270,20 @@ export async function setGroupClosed(formData: FormData) {
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect(`/join/${group.inviteCode}`);
 
+  let did = "";
   if (group.closed !== closed) {
-    await db.$transaction(async (tx) => {
+    did = await db.$transaction(async (tx) => {
       await tx.group.update({ where: { id: group.id }, data: { closed, closedAt: closed ? new Date() : null } });
-      await logEvent(tx, {
+      return logEvent(tx, {
         groupId: group.id,
         actorId: myId,
         kind: closed ? "group_closed" : "group_reopened",
         text: closed ? "closed the group" : "reopened the group",
+        undo: { type: "group_set", data: { closed: group.closed, closedAt: group.closedAt ? group.closedAt.toISOString() : null } },
       });
     });
   }
-  redirect(closed ? "/?closed=1" : `/groups/${group.id}`);
+  redirect(closed ? `/?closed=1${did ? `&did=${did}&g=${group.id}` : ""}` : `/groups/${group.id}${did ? `?did=${did}` : ""}`);
 }
 
 // Smart Settle across groups: records each group's part of a combined settle-up.
@@ -279,6 +316,7 @@ export async function settleAcrossGroups(formData: FormData) {
       await logEvent(tx, {
         groupId: c.groupId,
         actorId: myId,
+        undo: { type: "payment_delete", paymentId: pay.id },
         kind: "payment_recorded",
         text: `recorded ${c.names.get(c.fromId) ?? "Someone"} paid ${c.names.get(c.toId) ?? "Someone"} ${formatMoney(c.amount, c.currency)} (Smart Settle across groups)`,
         paymentId: pay.id,

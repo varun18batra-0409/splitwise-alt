@@ -10,7 +10,9 @@ import { pairwiseDebtCount } from "@/lib/settle";
 import { formatMoney, formatPercent } from "@/lib/money";
 import { niceDate, rateText } from "@/lib/format";
 import { CATEGORIES, getCategory } from "@/lib/categories";
-import { recordPayment, removePayment, restoreExpense, setGroupClosed } from "@/app/actions";
+import { recordPayment, removePayment, restoreExpense, restorePayment, setGroupClosed, undoChange } from "@/app/actions";
+import { canUndo } from "@/lib/undo";
+import { UndoBar } from "@/components/UndoBar";
 import { parseDetails } from "@/lib/events";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { ActivityRow } from "@/components/ActivityRow";
@@ -32,7 +34,7 @@ export default async function GroupPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string; saved?: string; added?: string; skipped?: string; paid?: string; edited?: string; deleted?: string; restored?: string; error?: string }>;
+  searchParams: Promise<{ tab?: string; saved?: string; added?: string; skipped?: string; paid?: string; error?: string; did?: string; undone?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -51,6 +53,7 @@ export default async function GroupPage({
   const mine = net[myId] ?? 0;
   const spent = activeExpenses.reduce((s, e) => s + e.amount, 0);
   const expenseById = new Map(group.expenses.map((e) => [e.id, e]));
+  const eventById = new Map(group.events.map((ev) => [ev.id, ev]));
 
   // Second currency (≈), e.g. THB for an INR group on a Thailand trip.
   const secondary = resolveSecondary(group.secondaryCurrency, group.currency, activeExpenses);
@@ -184,6 +187,22 @@ export default async function GroupPage({
       {tab === "activity" && <ActivityTab />}
       {tab === "balances" && <BalancesTab />}
       {tab === "charts" && <ChartsTab />}
+
+      {/* Right after a change: offer Undo (or Redo after an undo). */}
+      {(() => {
+        const ev = sp.did ? group.events.find((x) => x.id === sp.did) : undefined;
+        if (!ev || !canUndo(ev, group.events).ok) return null;
+        return (
+          <UndoBar
+            key={ev.id}
+            text={sp.undone ? "Undone." : `${nameOf(ev.actorId)} ${ev.text}`}
+            groupId={group.id}
+            eventId={ev.id}
+            back={tab === "balances" ? "balances" : "group"}
+            redo={sp.undone === "1"}
+          />
+        );
+      })()}
     </>
   );
 
@@ -221,6 +240,9 @@ export default async function GroupPage({
                           ))}
                         </ul>
                       )}
+                      <div className="-mt-1 mb-2 ml-[3.25rem]">
+                        <UndoControl ev={eventById.get(item.id)} />
+                      </div>
                     </li>
                   );
                 }
@@ -235,6 +257,15 @@ export default async function GroupPage({
                         </summary>
                         <div className="mb-3 ml-[3.25rem] space-y-2 rounded-xl bg-mist p-3 text-sm text-gray-600">
                           <History events={historyOf("paymentId", item.id)} fallback={`Recorded ${when(item.date)}`} />
+                          {item.deletedById !== null && !group.closed && (
+                            <form action={restorePayment}>
+                              <input type="hidden" name="groupId" value={group.id} />
+                              <input type="hidden" name="paymentId" value={item.id} />
+                              <button type="submit" className="text-sm font-medium text-accent">
+                                Restore payment
+                              </button>
+                            </form>
+                          )}
                           {mineToDelete && (
                             <form action={removePayment}>
                               <input type="hidden" name="groupId" value={group.id} />
@@ -316,6 +347,24 @@ export default async function GroupPage({
     );
   }
 
+  // "Undo" for a change that can still be undone, or who undid it.
+  function UndoControl({ ev }: { ev?: (typeof group.events)[number] }) {
+    if (!ev) return null;
+    if (ev.undoneAt) {
+      return <span className="text-xs text-gray-400">undone by {ev.undoneById ? nameOf(ev.undoneById) : "someone"}</span>;
+    }
+    if (!canUndo(ev, group.events).ok) return null;
+    return (
+      <form action={undoChange} className="inline">
+        <input type="hidden" name="groupId" value={group.id} />
+        <input type="hidden" name="eventId" value={ev.id} />
+        <button type="submit" className="text-xs font-semibold text-accent">
+          Undo
+        </button>
+      </form>
+    );
+  }
+
   // Who did what to one item, oldest first.
   function History({ events, fallback }: { events: typeof group.events; fallback: string }) {
     const when = (d: Date) =>
@@ -325,8 +374,14 @@ export default async function GroupPage({
       <ol className="space-y-1.5 text-xs text-gray-500">
         {events.map((ev) => (
           <li key={ev.id}>
-            <span className="font-medium text-gray-700">{nameOf(ev.actorId)}</span> {ev.text.replace(/^(added|changed|deleted|restored|recorded) .*/, (m) => m.split(" ")[0])}
+            <span className={ev.undoneAt ? "line-through decoration-gray-400" : ""}>
+              <span className="font-medium text-gray-700">{nameOf(ev.actorId)}</span>{" "}
+              {ev.text.replace(/^(added|changed|deleted|restored|recorded) .*/, (m) => m.split(" ")[0])}
+            </span>
             <span className="text-gray-400"> · {when(ev.createdAt)}</span>
+            <span className="ml-2 inline-block">
+              <UndoControl ev={ev} />
+            </span>
             {parseDetails(ev.details).length > 0 && ev.kind === "expense_edited" && (
               <ul className="ml-3 mt-0.5 list-disc pl-3 text-gray-500">
                 {parseDetails(ev.details).map((d) => (

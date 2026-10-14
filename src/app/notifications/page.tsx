@@ -12,6 +12,9 @@ const ICON: Record<string, string> = {
   expense_restored: "↺",
   payment_recorded: "⇄",
   payment_deleted: "✕",
+  payment_restored: "↺",
+  members_removed: "👤",
+  display_currency_changed: "💱",
   group_renamed: "✎",
   currency_changed: "💱",
   markup_changed: "％",
@@ -58,6 +61,7 @@ export default async function Notifications() {
                         <span className="min-w-0 flex-1">
                           <span className="block text-sm">
                             <strong className="font-medium">{n.actorName}</strong> {n.event.text}
+                            {n.event.undoneAt && <span className="text-gray-400"> (since undone)</span>}
                           </span>
                           {n.event.kind === "expense_edited" && details.length > 0 && (
                             <span className="mt-0.5 block text-xs text-gray-500">{details.join(" · ")}</span>

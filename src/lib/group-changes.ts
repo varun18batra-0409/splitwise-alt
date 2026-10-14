@@ -4,7 +4,7 @@ import { formatMoney, formatPercent, isSupportedCurrency } from "./money";
 import { parseRate } from "./conversion";
 import { rebaseExpense, rebasePayment } from "./rebase";
 
-type Result = { ok: true } | { ok: false; error: string };
+type Result = { ok: true; eventId?: string } | { ok: false; error: string };
 
 // Rename the group and/or change its card markup. Logged for everyone.
 export async function updateGroupBasics(
@@ -20,13 +20,15 @@ export async function updateGroupBasics(
   const sec = changes.secondaryCurrency;
   if (sec !== undefined && sec !== "" && sec !== "none" && !isSupportedCurrency(sec)) return { ok: false, error: "Pick a currency from the list." };
 
+  let lastEventId: string | undefined;
   await db.$transaction(async (tx) => {
     if (sec !== undefined && sec !== group.secondaryCurrency) {
       await tx.group.update({ where: { id: group.id }, data: { secondaryCurrency: sec } });
       const label = (v: string) => (v === "" ? "automatic" : v === "none" ? "off" : v);
-      await logEvent(tx, {
+      lastEventId = await logEvent(tx, {
         groupId,
         actorId,
+        undo: { type: "group_set", data: { secondaryCurrency: group.secondaryCurrency } },
         kind: "display_currency_changed",
         text: sec === "none" ? "turned off the second currency" : `set the second currency to ${label(sec)}`,
         details: [`Also shown in: ${label(group.secondaryCurrency)} → ${label(sec)}`],
@@ -34,20 +36,28 @@ export async function updateGroupBasics(
     }
     if (name && name !== group.name) {
       await tx.group.update({ where: { id: group.id }, data: { name } });
-      await logEvent(tx, { groupId, actorId, kind: "group_renamed", text: `renamed the group to “${name}”`, details: [`Name: ${group.name} → ${name}`] });
+      lastEventId = await logEvent(tx, {
+        groupId,
+        actorId,
+        kind: "group_renamed",
+        text: `renamed the group to “${name}”`,
+        details: [`Name: ${group.name} → ${name}`],
+        undo: { type: "group_set", data: { name: group.name } },
+      });
     }
     if (changes.markupBp !== undefined && changes.markupBp !== group.cardMarkupBp) {
       await tx.group.update({ where: { id: group.id }, data: { cardMarkupBp: changes.markupBp } });
-      await logEvent(tx, {
+      lastEventId = await logEvent(tx, {
         groupId,
         actorId,
+        undo: { type: "group_set", data: { cardMarkupBp: group.cardMarkupBp } },
         kind: "markup_changed",
         text: `set the card markup to ${formatPercent(changes.markupBp)}`,
         details: [`Card markup: ${formatPercent(group.cardMarkupBp)} → ${formatPercent(changes.markupBp)}`, "Applies to new expenses only"],
       });
     }
   });
-  return { ok: true };
+  return { ok: true, eventId: lastEventId };
 }
 
 // Change the group's currency. Every expense, share and payment is converted
@@ -73,7 +83,24 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
   const totalBefore = group.expenses.filter((e) => !e.deletedAt).reduce((s, e) => s + e.amount, 0);
   const totalAfter = expenseUpdates.filter((x) => !x.e.deletedAt).reduce((s, x) => s + x.r!.amount, 0);
 
-  await db.$transaction(async (tx) => {
+  // Exactly what every amount was, so the change can be undone without rounding.
+  const before = {
+    type: "currency_restore" as const,
+    currency: oldCurrency,
+    expenses: group.expenses.map((e) => ({
+      id: e.id,
+      baseCurrency: e.baseCurrency,
+      exchangeRate: e.exchangeRate,
+      rateSource: e.rateSource,
+      convertedAmount: e.convertedAmount,
+      markupAmount: e.markupAmount,
+      amount: e.amount,
+      shares: e.shares.map((s) => ({ id: s.id, amount: s.amount })),
+    })),
+    payments: group.payments.map((p) => ({ id: p.id, amount: p.amount })),
+  };
+
+  const eventId = await db.$transaction(async (tx) => {
     for (const { e, r } of expenseUpdates) {
       await tx.expense.update({
         where: { id: e.id },
@@ -90,9 +117,10 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
     }
     for (const { p, amount } of paymentUpdates) await tx.payment.update({ where: { id: p.id }, data: { amount: amount! } });
     await tx.group.update({ where: { id: group.id }, data: { currency: newCurrency } });
-    await logEvent(tx, {
+    return logEvent(tx, {
       groupId,
       actorId,
+      undo: before,
       kind: "currency_changed",
       text: `changed the group currency to ${newCurrency}`,
       details: hasMoney
@@ -104,5 +132,5 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
         : [`Currency: ${oldCurrency} → ${newCurrency}`],
     });
   });
-  return { ok: true };
+  return { ok: true, eventId };
 }

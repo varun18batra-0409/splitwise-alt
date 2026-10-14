@@ -10,9 +10,16 @@ import { crossSettle } from "@/lib/cross-settle";
 import { convertAmount } from "@/lib/conversion";
 import { getRate } from "@/lib/rate-cache";
 import { settleAcrossGroups } from "@/app/actions";
+import { db } from "@/lib/db";
+import { canUndo } from "@/lib/undo";
+import { UndoBar } from "@/components/UndoBar";
 
-export default async function Home({ searchParams }: { searchParams: Promise<{ closed?: string; settle?: string }> }) {
-  const { closed: justClosed, settle: settleNotice } = await searchParams;
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ closed?: string; settle?: string; did?: string; g?: string; undone?: string; error?: string }>;
+}) {
+  const { closed: justClosed, settle: settleNotice, did, g: didGroup, undone, error } = await searchParams;
   const memberships = await getMemberships();
   const all = await loadMyGroups(memberships);
   const { unread } = await loadNotifications(memberships, 1);
@@ -55,6 +62,18 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
       return rate ? convertAmount(amount, cur, common, rate) : null;
     },
   );
+  // Undo bar after a change made from the home screen (e.g. closing a group).
+  let undoBar: { text: string; groupId: string; eventId: string } | null = null;
+  if (did && didGroup && memberships[didGroup]) {
+    const events = await db.groupEvent.findMany({ where: { groupId: didGroup } });
+    const ev = events.find((e) => e.id === did);
+    if (ev && canUndo(ev, events).ok) {
+      const grp = all.find((x) => x.group.id === didGroup);
+      const actor = ev.actorId === memberships[didGroup] ? "You" : grp?.group.members.find((m) => m.id === ev.actorId)?.name ?? "Someone";
+      undoBar = { text: undone ? "Undone." : `${actor} ${ev.text}${grp ? ` · ${grp.group.name}` : ""}`, groupId: didGroup, eventId: ev.id };
+    }
+  }
+
   // Groups where other people still need to settle with each other.
   const othersPending = all.filter((g) => g.transfers.some((t) => t.from !== g.myId && t.to !== g.myId));
 
@@ -74,6 +93,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
 
   return (
     <>
+      {undoBar && <UndoBar key={undoBar.eventId} {...undoBar} back="home" redo={undone === "1"} />}
+      {error && <p className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
       <header className="mb-6 flex items-center justify-between">
         <p className="font-display text-xl font-semibold tracking-tight">Split</p>
         <span className="flex items-center gap-3">

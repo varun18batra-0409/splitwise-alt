@@ -118,6 +118,9 @@ model GroupEvent {
   details   String   @default("[]") // JSON list of changes, e.g. ["Amount: ₹900 → ₹1,200"]
   expenseId String?
   paymentId String?
+  undo      String   @default("") // JSON describing how to reverse this change ("" = can't be undone)
+  undoneAt  DateTime? // set once someone undoes it
+  undoneById String?
   createdAt DateTime @default(now())
 
   @@index([groupId, createdAt])

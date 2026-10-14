@@ -13,21 +13,103 @@ export type EventKind =
   | "expense_restored"
   | "payment_recorded"
   | "payment_deleted"
+  | "payment_restored"
   | "group_renamed"
   | "currency_changed"
   | "markup_changed"
   | "display_currency_changed"
   | "members_added"
+  | "members_removed"
   | "group_closed"
   | "group_reopened";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
+// Everything needed to put an expense back exactly as it was.
+export type ExpenseState = {
+  description: string;
+  category: string;
+  amount: number;
+  splitType: string;
+  forMode: string;
+  paidById: string;
+  originalAmount: number;
+  originalCurrency: string;
+  baseCurrency: string;
+  exchangeRate: string;
+  rateDate: string;
+  rateSource: string;
+  convertedAmount: number;
+  paymentMethod: string;
+  markupBp: number;
+  markupAmount: number;
+  shares: { memberId: string; amount: number }[];
+};
+
+export function expenseState(e: ExpenseState): ExpenseState {
+  return {
+    description: e.description,
+    category: e.category,
+    amount: e.amount,
+    splitType: e.splitType,
+    forMode: e.forMode,
+    paidById: e.paidById,
+    originalAmount: e.originalAmount,
+    originalCurrency: e.originalCurrency,
+    baseCurrency: e.baseCurrency,
+    exchangeRate: e.exchangeRate,
+    rateDate: e.rateDate,
+    rateSource: e.rateSource,
+    convertedAmount: e.convertedAmount,
+    paymentMethod: e.paymentMethod,
+    markupBp: e.markupBp,
+    markupAmount: e.markupAmount,
+    shares: e.shares.map((s) => ({ memberId: s.memberId, amount: s.amount })),
+  };
+}
+
+// How to reverse a change. Stored with each event; undoing it is itself a
+// logged, undoable change (so "undo" can always be followed by "redo").
+export type UndoPayload =
+  | { type: "expense_delete"; expenseId: string }
+  | { type: "expense_restore"; expenseId: string }
+  | { type: "expense_revert"; expenseId: string; before: ExpenseState }
+  | { type: "payment_delete"; paymentId: string }
+  | { type: "payment_restore"; paymentId: string }
+  | { type: "group_set"; data: { name?: string; cardMarkupBp?: number; secondaryCurrency?: string; closed?: boolean; closedAt?: string | null } }
+  | {
+      type: "currency_restore";
+      currency: string;
+      expenses: { id: string; baseCurrency: string; exchangeRate: string; rateSource: string; convertedAmount: number; markupAmount: number; amount: number; shares: { id: string; amount: number }[] }[];
+      payments: { id: string; amount: number }[];
+    }
+  | { type: "members_remove"; memberIds: string[] }
+  | { type: "members_restore"; members: { id: string; name: string; phone: string; createdAt: string }[] };
+
+export function parseUndo(json: string): UndoPayload | null {
+  if (!json) return null;
+  try {
+    const v = JSON.parse(json);
+    return v && typeof v === "object" && typeof v.type === "string" ? (v as UndoPayload) : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function logEvent(
   db: Db,
-  e: { groupId: string; actorId: string; kind: EventKind; text: string; details?: string[]; expenseId?: string; paymentId?: string },
-) {
-  await db.groupEvent.create({
+  e: {
+    groupId: string;
+    actorId: string;
+    kind: EventKind;
+    text: string;
+    details?: string[];
+    expenseId?: string;
+    paymentId?: string;
+    undo?: UndoPayload;
+  },
+): Promise<string> {
+  const created = await db.groupEvent.create({
     data: {
       groupId: e.groupId,
       actorId: e.actorId,
@@ -36,8 +118,10 @@ export async function logEvent(
       details: JSON.stringify(e.details ?? []),
       expenseId: e.expenseId ?? null,
       paymentId: e.paymentId ?? null,
+      undo: e.undo ? JSON.stringify(e.undo) : "",
     },
   });
+  return created.id;
 }
 
 export function parseDetails(json: string): string[] {
