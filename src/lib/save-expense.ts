@@ -28,6 +28,7 @@ export async function saveExpense(
     include: { members: { orderBy: { createdAt: "asc" }, select: { id: true } } },
   });
   if (!group) return { ok: false, error: "This group no longer exists." };
+  if (group.closed) return { ok: false, error: "This group is closed. Reopen it to add expenses." };
 
   const memberIds = group.members.map((m) => m.id);
   if (!actingMemberId || !memberIds.includes(actingMemberId)) return { ok: false, error: "Please join this group first." };

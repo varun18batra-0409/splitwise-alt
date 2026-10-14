@@ -9,7 +9,7 @@ import { PageHeader } from "@/components/ui";
 export default async function PickGroupForExpense() {
   const memberships = await getMemberships();
   const groups = await db.group.findMany({
-    where: { id: { in: Object.keys(memberships) } },
+    where: { id: { in: Object.keys(memberships) }, closed: false },
     orderBy: { createdAt: "desc" },
   });
 

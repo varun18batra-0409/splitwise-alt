@@ -1,10 +1,10 @@
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
-import { updateGroupSettings } from "@/app/actions";
+import { setGroupClosed, updateGroupSettings } from "@/app/actions";
 import { formatPercent } from "@/lib/money";
 import { CurrencySelect } from "@/components/CurrencySelect";
-import { ErrorNote, PageHeader, primaryButtonClass } from "@/components/ui";
+import { ErrorNote, PageHeader, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
 
 const PRESETS = [0, 200, 300, 400];
 
@@ -97,6 +97,24 @@ export default async function GroupSettings({
           Save settings
         </button>
       </form>
+
+      {/* Close / reopen */}
+      <section className="mt-12 border-t border-gray-100 pt-8">
+        <h2 className="mb-1 text-base font-semibold">{group.closed ? "This group is closed" : "Close this group"}</h2>
+        <p className="mb-4 text-sm text-gray-500">
+          {group.closed
+            ? "It’s hidden from your main list and new expenses are paused. Its full history is kept."
+            : "When a trip or plan is over, close the group. It moves under “Show closed groups” on the home screen, keeps its full history, and can be reopened any time."}
+        </p>
+        <form action={setGroupClosed}>
+          <input type="hidden" name="groupId" value={group.id} />
+          <input type="hidden" name="closed" value={group.closed ? "0" : "1"} />
+          <button type="submit" className={secondaryButtonClass}>
+            {group.closed ? "Reopen group" : "Close group"}
+          </button>
+        </form>
+      </section>
+
     </>
   );
 }

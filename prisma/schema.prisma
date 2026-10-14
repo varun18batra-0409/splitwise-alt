@@ -19,6 +19,8 @@ model Group {
   name       String
   currency     String    @default("INR") // base settlement currency: balances are shown in this
   cardMarkupBp Int       @default(0) // foreign card markup default, hundredths of a % (300 = 3%)
+  closed       Boolean   @default(false) // closed groups are hidden from the main list and read-only for new expenses
+  closedAt     DateTime?
   inviteCode   String    @unique
   createdAt  DateTime  @default(now())
   members    Member[]

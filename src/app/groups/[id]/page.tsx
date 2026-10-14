@@ -1,220 +1,308 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
+import { loadGroup } from "@/lib/group-data";
+import { buildActivity, byDay } from "@/lib/activity";
+import { pairwiseDebtCount } from "@/lib/settle";
 import { formatMoney, formatPercent } from "@/lib/money";
 import { niceDate, rateText } from "@/lib/format";
-import { getCategory } from "@/lib/categories";
-import { Avatar, PageHeader, primaryButtonClass } from "@/components/ui";
-import { ShareInvite } from "@/components/ShareInvite";
-import { MemberInputs } from "@/components/MemberInputs";
-import { addMembers } from "@/app/actions";
+import { CATEGORIES, getCategory } from "@/lib/categories";
+import { recordPayment, setGroupClosed } from "@/app/actions";
+import { ActivityRow } from "@/components/ActivityRow";
+import { BalanceMeter } from "@/components/BalanceMeter";
+import { ColumnChart, HBarChart } from "@/components/Charts";
+import { InviteSheet } from "@/components/InviteSheet";
 
 const PAID_WITH: Record<string, string> = { card: "Card", cash: "Cash", bank: "Bank / UPI" };
 const FOR_MODE: Record<string, string> = { everyone: "Everyone", selected: "Selected people", one: "One person" };
+const TABS = [
+  { id: "activity", label: "Activity" },
+  { id: "balances", label: "Balances" },
+  { id: "charts", label: "Charts" },
+] as const;
+type Tab = (typeof TABS)[number]["id"];
 
 export default async function GroupPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ saved?: string; added?: string; skipped?: string }>;
+  searchParams: Promise<{ tab?: string; saved?: string; added?: string; skipped?: string; paid?: string }>;
 }) {
   const { id } = await params;
-  const { saved, added, skipped } = await searchParams;
-  const group = await db.group.findUnique({
-    where: { id },
-    include: {
-      members: { orderBy: { createdAt: "asc" } },
-      expenses: { orderBy: { createdAt: "desc" }, include: { shares: true } },
-    },
-  });
-  if (!group) notFound();
+  const sp = await searchParams;
+  const tab: Tab = TABS.some((t) => t.id === sp.tab) ? (sp.tab as Tab) : "activity";
+
+  const data = await loadGroup(id);
+  if (!data) notFound();
+  const { group, net, transfers } = data;
 
   // If this phone hasn't said who it is in this group yet, ask first.
   const myId = await getMyMemberId(group.id);
-  if (!myId || !group.members.some((m) => m.id === myId)) {
-    redirect(`/join/${group.inviteCode}`);
-  }
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect(`/join/${group.inviteCode}`);
 
   const money = (p: number) => formatMoney(p, group.currency);
   const nameOf = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");
-
-  // Spending by category, biggest first.
-  const totals = new Map<string, number>();
-  for (const e of group.expenses) totals.set(e.category, (totals.get(e.category) ?? 0) + e.amount);
-  const byCategory = [...totals.entries()].sort((a, b) => b[1] - a[1]);
-  const groupTotal = byCategory.reduce((s, [, v]) => s + v, 0);
+  const mine = net[myId] ?? 0;
+  const spent = group.expenses.reduce((s, e) => s + e.amount, 0);
+  const expenseById = new Map(group.expenses.map((e) => [e.id, e]));
 
   return (
     <>
-      <PageHeader title={group.name} back="/" action={{ href: `/groups/${group.id}/settings`, label: "Group settings", icon: "⚙️" }} />
+      {/* Header: back · name · Invite · settings */}
+      <header className="mb-6 flex items-center gap-2">
+        <Link href="/" aria-label="Back" className="-ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-2xl text-gray-500 active:bg-gray-100">
+          ‹
+        </Link>
+        <h1 className="min-w-0 flex-1 truncate font-display text-2xl font-semibold tracking-tight">{group.name}</h1>
+        <InviteSheet groupId={group.id} groupName={group.name} inviteCode={group.inviteCode} memberCount={group.members.length} />
+        <Link
+          href={`/groups/${group.id}/settings`}
+          aria-label="Group settings"
+          className="-mr-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl text-gray-500 active:bg-gray-100"
+        >
+          ⚙︎
+        </Link>
+      </header>
 
-      <Link
-        href={`/groups/${group.id}/settings`}
-        className="-mt-6 mb-8 block text-sm text-gray-400"
-      >
-        Group currency {group.currency} · Card markup {formatPercent(group.cardMarkupBp)}
-        {saved === "settings" && <span className="ml-2 text-accent-dark">✓ Saved</span>}
-      </Link>
-
-      {/* Expenses */}
-      <section>
-        <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-gray-400">Expenses</h2>
-        {group.expenses.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-gray-200 py-10 text-center text-sm text-gray-400">
-            No expenses yet. Tap <span className="font-medium text-accent">+ Add expense</span> below.
-          </div>
-        ) : (
-          <ul className="divide-y divide-gray-100">
-            {group.expenses.map((e) => {
-              const cat = getCategory(e.category);
-              const myShare = e.shares.find((s) => s.memberId === myId)?.amount ?? 0;
-              const iPaid = e.paidById === myId;
-              const note = iPaid
-                ? e.amount - myShare > 0
-                  ? { text: `you lent ${money(e.amount - myShare)}`, cls: "text-accent-dark" }
-                  : { text: "just you", cls: "text-gray-400" }
-                : myShare > 0
-                  ? { text: `you owe ${money(myShare)}`, cls: "text-orange-600" }
-                  : { text: "not involved", cls: "text-gray-400" };
-              const foreign = e.originalCurrency !== e.baseCurrency;
-              return (
-                <li key={e.id}>
-                  <details className="group">
-                    <summary className="flex cursor-pointer list-none items-center gap-3 py-3 [&::-webkit-details-marker]:hidden">
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-xl" title={cat.label}>
-                        {cat.emoji}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium">{e.description}</p>
-                        <p className="truncate text-sm text-gray-400">
-                          {nameOf(e.paidById)} paid {money(e.amount)}
-                          {foreign && ` · ${formatMoney(e.originalAmount, e.originalCurrency)}`}
-                        </p>
-                      </div>
-                      <span className={`shrink-0 text-right text-sm ${note.cls}`}>{note.text}</span>
-                    </summary>
-
-                    {/* Tap an expense to see exactly how it was worked out. */}
-                    <div className="mb-3 ml-[3.25rem] space-y-1.5 rounded-xl bg-gray-50 p-3 text-sm text-gray-600">
-                      <Line label="Category" value={`${cat.emoji} ${cat.label}`} />
-                      {foreign && (
-                        <>
-                          <Line label="Original expense" value={formatMoney(e.originalAmount, e.originalCurrency)} />
-                          <Line
-                            label="Exchange rate"
-                            value={`1 ${e.originalCurrency} = ${rateText(e.exchangeRate, e.baseCurrency)}`}
-                          />
-                          <p className="-mt-1 text-right text-xs text-gray-400">
-                            {e.rateSource === "manual" ? "Entered by hand" : "Live rate"}
-                            {e.rateDate && `, ${niceDate(e.rateDate)}`}
-                          </p>
-                          <Line label="Paid with" value={PAID_WITH[e.paymentMethod] ?? "—"} />
-                          <Line label="Converted amount" value={money(e.convertedAmount)} />
-                          {e.paymentMethod === "card" && (
-                            <Line label={`Card markup (${formatPercent(e.markupBp)})`} value={money(e.markupAmount)} />
-                          )}
-                        </>
-                      )}
-                      <Line label="Total group expense" value={money(e.amount)} strong />
-                      <div className="border-t border-gray-200 pt-1.5">
-                        <Line label="Paid by" value={nameOf(e.paidById)} />
-                        <Line label="For" value={FOR_MODE[e.forMode] ?? "Everyone"} />
-                        {e.shares.map((sh) => (
-                          <Line key={sh.id} label={`  ${nameOf(sh.memberId)}’s share`} value={money(sh.amount)} />
-                        ))}
-                      </div>
-                    </div>
-                  </details>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-
-      {/* Spending by category */}
-      {byCategory.length > 0 && (
-        <section className="mt-10">
-          <h2 className="mb-3 flex justify-between text-sm font-medium uppercase tracking-wide text-gray-400">
-            <span>Spending by category</span>
-            <span className="normal-case tracking-normal text-gray-500">{money(groupTotal)}</span>
-          </h2>
-          <ul className="space-y-3">
-            {byCategory.map(([cid, total]) => {
-              const cat = getCategory(cid);
-              const pct = Math.round((total / groupTotal) * 100);
-              return (
-                <li key={cid}>
-                  <div className="mb-1 flex justify-between text-sm">
-                    <span>
-                      {cat.emoji} {cat.label}
-                    </span>
-                    <span className="text-gray-500">
-                      {money(total)} · {pct}%
-                    </span>
-                  </div>
-                  <div className="h-2 rounded-full bg-gray-100">
-                    <div className="h-2 rounded-full bg-accent" style={{ width: `${Math.max(pct, 2)}%` }} />
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
-
-      {/* People + invite */}
-      <section id="people" className="mt-10 scroll-mt-6">
-        <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-gray-400">
-          People · {group.members.length}
-        </h2>
-        {added !== undefined && (
-          <p className="mb-3 rounded-xl bg-accent-soft px-4 py-3 text-sm text-accent-dark">
-            {Number(added) === 1 ? "1 person added." : `${Number(added) || 0} people added.`}
-            {skipped && <span className="text-gray-600"> Already in the group: {skipped}.</span>}
-          </p>
-        )}
-        <ul className="mb-4 divide-y divide-gray-100">
-          {group.members.map((m) => (
-            <li key={m.id} className="flex items-center gap-3 py-3">
-              <Avatar name={m.name} />
-              <span className="min-w-0">
-                <span className="font-medium">{m.name}</span>
-                {m.id === myId && <span className="text-sm text-gray-400"> (you)</span>}
-                {m.phone && <span className="block text-xs text-gray-400">{m.phone}</span>}
-              </span>
-            </li>
-          ))}
-        </ul>
-
-        {/* Add people by typing names or picking from the phone's contacts */}
-        <details className="mb-4 rounded-2xl border border-gray-100">
-          <summary className="cursor-pointer list-none px-4 py-3.5 text-sm font-medium text-accent [&::-webkit-details-marker]:hidden">
-            + Add people
-          </summary>
-          <form action={addMembers} className="space-y-4 border-t border-gray-100 p-4">
+      {group.closed && (
+        <div className="mb-5 flex items-center justify-between gap-3 rounded-2xl bg-mist px-4 py-3 text-sm">
+          <span className="text-gray-600">
+            Closed{group.closedAt ? ` on ${niceDate(group.closedAt.toISOString().slice(0, 10))}` : ""}. History stays here; new expenses are paused.
+          </span>
+          <form action={setGroupClosed}>
             <input type="hidden" name="groupId" value={group.id} />
-            <MemberInputs firstPlaceholderNumber={group.members.length + 1} />
-            <button type="submit" className={primaryButtonClass}>
-              Add to group
+            <input type="hidden" name="closed" value="0" />
+            <button type="submit" className="shrink-0 font-medium text-accent">
+              Reopen
             </button>
           </form>
-        </details>
+        </div>
+      )}
 
-        <ShareInvite code={group.inviteCode} groupName={group.name} />
-        <Link href={`/join/${group.inviteCode}`} className="mt-2 inline-block py-2 text-sm text-gray-400">
-          Not you? Switch person
-        </Link>
+      {/* Summary */}
+      <section className="mb-6">
+        <p className="text-sm text-gray-500">Your balance</p>
+        <p className={`font-display text-[32px] font-semibold leading-tight tracking-tight tabular-nums ${mine > 0 ? "text-accent-dark" : mine < 0 ? "text-owe" : ""}`}>
+          {mine > 0 ? `You’re owed ${money(mine)}` : mine < 0 ? `You owe ${money(-mine)}` : "All square"}
+        </p>
+        <p className="mt-1 text-sm text-gray-500">
+          {money(spent)} spent across {group.expenses.length} {group.expenses.length === 1 ? "expense" : "expenses"}, {group.members.length} people
+          <Link href={`/groups/${group.id}/settings`} className="ml-1 text-gray-400">
+            ({group.currency}, card markup {formatPercent(group.cardMarkupBp)})
+          </Link>
+        </p>
+        {sp.saved === "settings" && <p className="mt-2 text-sm text-accent-dark">Settings saved.</p>}
+        {sp.added !== undefined && (
+          <p className="mt-2 text-sm text-accent-dark">
+            {Number(sp.added) === 1 ? "1 person added." : `${Number(sp.added) || 0} people added.`}
+            {sp.skipped && <span className="text-gray-600"> Already in the group: {sp.skipped}.</span>}
+          </p>
+        )}
       </section>
+
+      {/* Tabs */}
+      <nav className="mb-6 grid grid-cols-3 gap-1 rounded-xl bg-mist p-1" aria-label="Group sections">
+        {TABS.map((t) => (
+          <Link
+            key={t.id}
+            href={`/groups/${group.id}?tab=${t.id}`}
+            aria-current={t.id === tab ? "page" : undefined}
+            className={`rounded-lg py-2 text-center text-sm ${t.id === tab ? "bg-white font-medium shadow-sm" : "text-gray-500"}`}
+          >
+            {t.label}
+          </Link>
+        ))}
+      </nav>
+
+      {tab === "activity" && <ActivityTab />}
+      {tab === "balances" && <BalancesTab />}
+      {tab === "charts" && <ChartsTab />}
     </>
   );
+
+  // ---- Activity: every expense and payment, by date, with who and how much ----
+  function ActivityTab() {
+    const items = buildActivity(group.expenses, group.payments, myId!);
+    if (items.length === 0) {
+      return (
+        <div className="rounded-2xl border border-dashed border-gray-200 py-10 text-center text-sm text-gray-500">
+          {group.closed ? "This group had no expenses." : "No expenses yet. Tap + Add expense below to add the first one."}
+        </div>
+      );
+    }
+    return (
+      <div className="space-y-6">
+        {byDay(items).map((day) => (
+          <section key={day.day}>
+            <h2 className="sticky top-0 z-10 -mx-5 bg-white/95 px-5 py-1.5 text-sm font-medium text-gray-500 backdrop-blur">{day.day}</h2>
+            <ul className="divide-y divide-gray-100">
+              {day.items.map((item) => {
+                if (item.kind === "payment") {
+                  return (
+                    <li key={item.id}>
+                      <ActivityRow item={item} currency={group.currency} nameOf={nameOf} />
+                    </li>
+                  );
+                }
+                const e = expenseById.get(item.id)!;
+                const cat = getCategory(e.category);
+                const foreign = e.originalCurrency !== e.baseCurrency;
+                return (
+                  <li key={item.id}>
+                    <details>
+                      <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                        <ActivityRow item={item} currency={group.currency} nameOf={nameOf} />
+                      </summary>
+                      {/* Tap an expense to see exactly how it was worked out. */}
+                      <div className="mb-3 ml-[3.25rem] space-y-1.5 rounded-xl bg-mist p-3 text-sm text-gray-600">
+                        <Line label="Category" value={`${cat.emoji} ${cat.label}`} />
+                        {foreign && (
+                          <>
+                            <Line label="Original expense" value={formatMoney(e.originalAmount, e.originalCurrency)} />
+                            <Line label="Exchange rate" value={`1 ${e.originalCurrency} = ${rateText(e.exchangeRate, e.baseCurrency)}`} />
+                            <p className="-mt-1 text-right text-xs text-gray-400">
+                              {e.rateSource === "manual" ? "Entered by hand" : "Live rate"}
+                              {e.rateDate && `, ${niceDate(e.rateDate)}`}
+                            </p>
+                            <Line label="Paid with" value={PAID_WITH[e.paymentMethod] ?? "—"} />
+                            <Line label="Converted amount" value={money(e.convertedAmount)} />
+                            {e.paymentMethod === "card" && <Line label={`Card markup (${formatPercent(e.markupBp)})`} value={money(e.markupAmount)} />}
+                          </>
+                        )}
+                        <Line label="Total group expense" value={money(e.amount)} strong />
+                        <div className="border-t border-gray-200 pt-1.5">
+                          <Line label="Paid by" value={nameOf(e.paidById)} />
+                          <Line label="For" value={FOR_MODE[e.forMode] ?? "Everyone"} />
+                          {e.shares.map((sh) => (
+                            <Line key={sh.id} label={`  ${nameOf(sh.memberId)}`} value={money(sh.amount)} />
+                          ))}
+                          <p className="pt-1 text-right text-xs text-gray-400">
+                            Added {e.createdAt.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
+                          </p>
+                        </div>
+                      </div>
+                    </details>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ))}
+      </div>
+    );
+  }
+
+  // ---- Balances: Smart Settle suggestions + everyone's balance ----
+  function BalancesTab() {
+    const before = pairwiseDebtCount(group.expenses, group.payments);
+    return (
+      <div className="space-y-10">
+        <section>
+          <h2 className="font-display text-lg font-semibold tracking-tight">Smart Settle</h2>
+          <p className="mb-4 text-sm text-gray-500">
+            The fewest payments that clear every debt in the group.
+            {transfers.length > 0 && before > transfers.length && ` ${transfers.length} instead of ${before}.`}
+          </p>
+          {sp.paid === "1" && <p className="mb-3 rounded-xl bg-accent-soft px-4 py-3 text-sm text-accent-dark">Payment recorded. Balances updated.</p>}
+          {transfers.length === 0 ? (
+            <p className="rounded-2xl bg-mist px-4 py-6 text-center text-sm text-gray-600">Everyone is settled up.</p>
+          ) : (
+            <ul className="space-y-2">
+              {transfers.map((t) => {
+                const involvesMe = t.from === myId || t.to === myId;
+                return (
+                  <li key={`${t.from}-${t.to}`} className={`rounded-2xl border px-4 py-3 ${involvesMe ? "border-accent/30 bg-accent-soft/40" : "border-gray-100"}`}>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="min-w-0 text-sm">
+                        <strong className="font-medium">{nameOf(t.from)}</strong>
+                        <span className="text-gray-500"> {t.from === myId ? "pay" : "pays"} </span>
+                        <strong className="font-medium">{t.to === myId ? "you" : nameOf(t.to)}</strong>
+                      </p>
+                      <p className="shrink-0 font-display font-semibold tabular-nums">{money(t.amount)}</p>
+                    </div>
+                    <form action={recordPayment} className="mt-2 flex justify-end">
+                      <input type="hidden" name="groupId" value={group.id} />
+                      <input type="hidden" name="fromId" value={t.from} />
+                      <input type="hidden" name="toId" value={t.to} />
+                      <input type="hidden" name="amount" value={t.amount} />
+                      <button type="submit" className="rounded-full border border-accent/40 px-3 py-1.5 text-sm font-medium text-accent-dark active:bg-accent-soft">
+                        Mark as paid
+                      </button>
+                    </form>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <p className="mt-2 text-xs text-gray-400">“Mark as paid” only records it here. The app never moves real money.</p>
+        </section>
+
+        <section>
+          <h2 className="mb-4 font-display text-lg font-semibold tracking-tight">Everyone’s balance</h2>
+          <BalanceMeter
+            rows={group.members.map((m) => ({
+              key: m.id,
+              label: m.id === myId ? "You" : m.name,
+              sublabel: m.phone || undefined,
+              value: net[m.id] ?? 0,
+              currency: group.currency,
+            }))}
+          />
+        </section>
+      </div>
+    );
+  }
+
+  // ---- Charts ----
+  function ChartsTab() {
+    if (group.expenses.length === 0) {
+      return <p className="rounded-2xl bg-mist px-4 py-8 text-center text-sm text-gray-600">Charts appear once the group has expenses.</p>;
+    }
+
+    const sumBy = (keyOf: (e: (typeof group.expenses)[number]) => string[], amountOf: (e: (typeof group.expenses)[number], k: string) => number) => {
+      const m = new Map<string, number>();
+      for (const e of group.expenses) for (const k of keyOf(e)) m.set(k, (m.get(k) ?? 0) + amountOf(e, k));
+      return m;
+    };
+
+    const byCat = sumBy((e) => [getCategory(e.category).id], (e) => e.amount);
+    const catData = CATEGORIES.filter((c) => byCat.has(c.id))
+      .map((c) => ({ key: c.id, label: c.label, icon: c.emoji, value: byCat.get(c.id)!, valueText: `${money(byCat.get(c.id)!)} · ${Math.round((byCat.get(c.id)! / spent) * 100)}%` }))
+      .sort((a, b) => b.value - a.value);
+
+    const paid = sumBy((e) => [e.paidById], (e) => e.amount);
+    const shares = sumBy((e) => e.shares.map((s) => s.memberId), (e, k) => e.shares.find((s) => s.memberId === k)?.amount ?? 0);
+    const people = (m: Map<string, number>) =>
+      group.members
+        .map((mem) => ({ key: mem.id, label: mem.id === myId ? "You" : mem.name, value: m.get(mem.id) ?? 0, valueText: money(m.get(mem.id) ?? 0) }))
+        .sort((a, b) => b.value - a.value);
+
+    // Spending per day (Indian time), every day from the first expense to the last (up to 21 days).
+    const dayKey = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+    const perDay = sumBy((e) => [dayKey(e.createdAt)], (e) => e.amount);
+    const keys = [...perDay.keys()].sort();
+    const days: string[] = [];
+    for (let d = new Date(`${keys[0]}T00:00:00Z`); d <= new Date(`${keys[keys.length - 1]}T00:00:00Z`); d = new Date(d.getTime() + 86_400_000)) {
+      days.push(d.toISOString().slice(0, 10));
+    }
+    const shownDays = days.slice(-21);
+    const dayData = shownDays.map((k) => ({ key: k, label: niceDate(k).replace(/ \d{4}$/, ""), value: perDay.get(k) ?? 0, valueText: money(perDay.get(k) ?? 0) }));
+
+    return (
+      <div className="space-y-10">
+        <HBarChart title="Spending by category" data={catData} total={money(spent)} />
+        <ColumnChart title={shownDays.length < days.length ? "Spending by day (last 21 days)" : "Spending by day"} data={dayData} />
+        <HBarChart title="Who paid" data={people(paid)} />
+        <HBarChart title="Each person’s share" data={people(shares)} />
+      </div>
+    );
+  }
 }
 
 function Line({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
-    <p className={`flex justify-between gap-3 ${strong ? "font-semibold text-gray-900" : ""}`}>
+    <p className={`flex justify-between gap-3 ${strong ? "font-semibold text-ink" : ""}`}>
       <span className="whitespace-pre">{label}</span>
       <span className="text-right">{value}</span>
     </p>

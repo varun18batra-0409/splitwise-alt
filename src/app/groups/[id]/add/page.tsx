@@ -1,7 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
-import { PageHeader } from "@/components/ui";
+import { PageHeader, primaryButtonClass } from "@/components/ui";
+import { setGroupClosed } from "@/app/actions";
 import { AddExpenseForm } from "@/components/AddExpenseForm";
 
 export default async function AddExpensePage({ params }: { params: Promise<{ id: string }> }) {
@@ -14,6 +15,22 @@ export default async function AddExpensePage({ params }: { params: Promise<{ id:
 
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect(`/join/${group.inviteCode}`);
+
+  if (group.closed) {
+    return (
+      <>
+        <PageHeader title={`Add to ${group.name}`} back={`/groups/${group.id}`} />
+        <p className="mb-6 text-gray-600">This group is closed, so new expenses can’t be added. Reopen it to keep adding.</p>
+        <form action={setGroupClosed}>
+          <input type="hidden" name="groupId" value={group.id} />
+          <input type="hidden" name="closed" value="0" />
+          <button type="submit" className={primaryButtonClass}>
+            Reopen group
+          </button>
+        </form>
+      </>
+    );
+  }
 
   return (
     <>

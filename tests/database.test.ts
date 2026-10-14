@@ -51,6 +51,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await db.payment.deleteMany({ where: { groupId } });
   await db.expenseShare.deleteMany({ where: { expense: { groupId } } });
   await db.expense.deleteMany({ where: { groupId } });
   await db.member.deleteMany({ where: { groupId } });
@@ -110,6 +111,26 @@ describe("saving expenses to the database", () => {
     expect(net[me] + net[a] + net[b]).toBe(0);
     // Dinner: me +7725 −2575, A −2575, B −2575 · Hotel: me +7725, A −7725 · VND: me +875 −291.67…
     expect(net[a]).toBe(-257500 - 772500 - 29167);
+  });
+});
+
+describe("closing a group and recording payments", () => {
+  it("records a settle-up payment that Smart Settle then accounts for", async () => {
+    const { loadGroup } = await import("@/lib/group-data");
+    const before = await loadGroup(groupId);
+    const firstTransfer = before!.transfers[0];
+    await db.payment.create({ data: { groupId, fromId: firstTransfer.from, toId: firstTransfer.to, amount: firstTransfer.amount } });
+    const after = await loadGroup(groupId);
+    expect(after!.transfers.length).toBe(before!.transfers.length - 1);
+    expect(Object.values(after!.net).reduce((s, v) => s + v, 0)).toBe(0);
+  });
+
+  it("refuses new expenses while a group is closed, and accepts them again after reopening", async () => {
+    await db.group.update({ where: { id: groupId }, data: { closed: true, closedAt: new Date() } });
+    const blocked = await saveExpense(input({ name: "Late snack" }), me, fixedRate);
+    expect(blocked).toEqual({ ok: false, error: "This group is closed. Reopen it to add expenses." });
+    await db.group.update({ where: { id: groupId }, data: { closed: false, closedAt: null } });
+    expect((await saveExpense(input({ name: "Late snack" }), me, fixedRate)).ok).toBe(true);
   });
 });
 

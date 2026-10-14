@@ -60,7 +60,8 @@ export async function addMembers(formData: FormData) {
   }
   const q = new URLSearchParams({ added: String(people.length) });
   if (skipped.length) q.set("skipped", skipped.join(", "));
-  redirect(`/groups/${group.id}?${q}#people`);
+  q.set("tab", "balances");
+  redirect(`/groups/${group.id}?${q}`);
 }
 
 // "I'm already in this group" — pick your name from the list.
@@ -139,4 +140,37 @@ export async function updateGroupSettings(formData: FormData) {
 
   await db.group.update({ where: { id: group.id }, data: { currency, cardMarkupBp: markupBp } });
   redirect(`/groups/${group.id}?saved=settings`);
+}
+
+// Records that one person paid another back (from Smart Settle's "Mark as paid").
+// This is only a record — the app never moves real money.
+export async function recordPayment(formData: FormData) {
+  const groupId = String(formData.get("groupId") ?? "");
+  const fromId = String(formData.get("fromId") ?? "");
+  const toId = String(formData.get("toId") ?? "");
+  const amount = Number(formData.get("amount") ?? 0);
+
+  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
+  if (!group) redirect("/");
+  const ids = group.members.map((m) => m.id);
+  const myId = await getMyMemberId(group.id);
+  if (!myId || !ids.includes(myId)) redirect(`/join/${group.inviteCode}`);
+  if (!ids.includes(fromId) || !ids.includes(toId) || fromId === toId) redirect(`/groups/${group.id}?tab=balances`);
+  if (!Number.isSafeInteger(amount) || amount <= 0 || amount > 2_000_000_000) redirect(`/groups/${group.id}?tab=balances`);
+
+  await db.payment.create({ data: { groupId: group.id, fromId, toId, amount } });
+  redirect(`/groups/${group.id}?tab=balances&paid=1`);
+}
+
+// Close a group (hide it from the main list, stop new expenses) or reopen it.
+export async function setGroupClosed(formData: FormData) {
+  const groupId = String(formData.get("groupId") ?? "");
+  const closed = formData.get("closed") === "1";
+  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
+  if (!group) redirect("/");
+  const myId = await getMyMemberId(group.id);
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect(`/join/${group.inviteCode}`);
+
+  await db.group.update({ where: { id: group.id }, data: { closed, closedAt: closed ? new Date() : null } });
+  redirect(closed ? "/?closed=1" : `/groups/${group.id}`);
 }
