@@ -100,7 +100,7 @@ describe("search by month and year", () => {
     ]);
     expect(r.count).toBe(3);
     expect(r.totals).toEqual([{ currency: "INR", spent: 4500, mine: 1500 }]);
-    expect(r.topCategory?.id).toBe("food");
+    expect(r.topCategory?.id).toBe("transport"); // by money: 3,000 beats 1,500
   });
 });
 
