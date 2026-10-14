@@ -29,6 +29,7 @@ model Group {
 model Member {
   id        String   @id @default(cuid())
   name      String
+  phone     String   @default("") // from the phone's contacts, if they were added that way
   groupId   String
   group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())

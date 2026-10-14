@@ -5,7 +5,8 @@ import { addExpense, lookupRate } from "@/app/actions";
 import { CATEGORIES, getCategory, guessCategory } from "@/lib/categories";
 import { computeTotals, PAYMENT_METHODS, type PaymentMethod } from "@/lib/conversion";
 import { buildExpense, chosenMarkupBp, type ExpenseDraft } from "@/lib/expense";
-import { CURRENCIES, currencyInfo, formatMoney, formatPercent, parseAmount, parsePercent } from "@/lib/money";
+import { currencyInfo, formatMoney, formatPercent, isSupportedCurrency, parseAmount, parsePercent } from "@/lib/money";
+import { CurrencyPicker } from "./CurrencyPicker";
 import { participantsFor, type ForMode, type SplitType } from "@/lib/split";
 import { niceDate, rateText } from "@/lib/format";
 import { inputClass, primaryButtonClass } from "./ui";
@@ -44,6 +45,7 @@ export function AddExpenseForm({
   const [pickedCategory, setPickedCategory] = useState<string | null>(null); // null = smart guess
   const [currency, setCurrency] = useState(baseCurrency);
   const [showCurrencies, setShowCurrencies] = useState(false);
+  const [showCategories, setShowCategories] = useState(false);
 
   // Conversion (only when currency ≠ group currency)
   const [rateState, setRateState] = useState<RateState>({ status: "none" });
@@ -72,7 +74,7 @@ export function AddExpenseForm({
   useEffect(() => {
     try {
       const saved = localStorage.getItem(storageKey);
-      if (saved && CURRENCIES.some((c) => c.code === saved)) setCurrency(saved);
+      if (saved && isSupportedCurrency(saved)) setCurrency(saved);
     } catch {
       /* storage unavailable — keep the default */
     }
@@ -174,19 +176,61 @@ export function AddExpenseForm({
 
   return (
     <form onSubmit={save} className="space-y-7">
-      {/* 1. Expense name */}
-      <label className="block">
-        <span className={labelClass}>Expense name</span>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Dinner at the night market"
-          autoComplete="off"
-          maxLength={80}
-          autoFocus
-          className={inputClass}
-        />
-      </label>
+      {/* 1. Expense name, with its category as a small tag (used for group reports) */}
+      <div>
+        <label htmlFor="expense-name" className={labelClass}>
+          Expense name
+        </label>
+        <div className="flex gap-2">
+          <input
+            id="expense-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Dinner at the night market"
+            autoComplete="off"
+            maxLength={80}
+            autoFocus
+            className={inputClass}
+          />
+          <button
+            type="button"
+            onClick={() => setShowCategories((v) => !v)}
+            aria-label={`Category: ${category.label}${pickedCategory ? "" : " (picked automatically)"}. Tap to change`}
+            title={category.label}
+            className="flex w-14 shrink-0 flex-col items-center justify-center rounded-xl border border-gray-200 text-xl active:bg-gray-50"
+          >
+            {category.emoji}
+            <span className="text-[10px] leading-none text-gray-400">{pickedCategory ? "▾" : "auto"}</span>
+          </button>
+        </div>
+        {showCategories && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {CATEGORIES.map((c) => (
+              <Chip
+                key={c.id}
+                on={c.id === category.id}
+                onClick={() => {
+                  setPickedCategory(c.id);
+                  setShowCategories(false);
+                }}
+              >
+                {c.emoji} {c.label}
+              </Chip>
+            ))}
+            {pickedCategory && (
+              <Chip
+                on={false}
+                onClick={() => {
+                  setPickedCategory(null);
+                  setShowCategories(false);
+                }}
+              >
+                ✨ Auto
+              </Chip>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* 2 + 4. Amount and currency */}
       <div>
@@ -212,52 +256,7 @@ export function AddExpenseForm({
             className={`${inputClass} text-2xl font-semibold`}
           />
         </div>
-        {showCurrencies && (
-          <ul className="mt-2 grid grid-cols-2 gap-2">
-            {CURRENCIES.map((c) => (
-              <li key={c.code}>
-                <button
-                  type="button"
-                  onClick={() => chooseCurrency(c.code)}
-                  className={`flex w-full items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm ${
-                    c.code === currency ? "border-accent bg-accent-soft" : "border-gray-200 active:bg-gray-50"
-                  }`}
-                >
-                  <span className="text-lg">{c.flag}</span>
-                  <span>
-                    <span className="block font-medium">{c.code}</span>
-                    <span className="block text-xs text-gray-500">{c.name}</span>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      {/* 3. Category */}
-      <div>
-        <span className={labelClass}>
-          Category
-          {!pickedCategory && name.trim() && <span className="font-normal text-gray-400"> · picked from the name</span>}
-        </span>
-        <div className="grid grid-cols-4 gap-2">
-          {CATEGORIES.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => setPickedCategory(c.id)}
-              aria-label={c.label}
-              aria-pressed={c.id === category.id}
-              className={`flex flex-col items-center gap-1 rounded-xl border px-1 py-2.5 text-xs ${
-                c.id === category.id ? "border-accent bg-accent-soft font-medium text-accent-dark" : "border-gray-200 text-gray-600 active:bg-gray-50"
-              }`}
-            >
-              <span className="text-xl">{c.emoji}</span>
-              {c.short}
-            </button>
-          ))}
-        </div>
+        {showCurrencies && <CurrencyPicker value={currency} recent={[baseCurrency, currency]} onPick={chooseCurrency} />}
       </div>
 
       {/* Currency conversion — only shown for foreign currencies */}

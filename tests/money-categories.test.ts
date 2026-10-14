@@ -98,3 +98,35 @@ describe("categories", () => {
     expect(getCategory("nonsense").id).toBe("other");
   });
 });
+
+describe("world currencies", () => {
+  it("lists every active currency once, including all the travel ones", async () => {
+    const { CURRENCIES, isSupportedCurrency } = await import("@/lib/money");
+    expect(CURRENCIES.length).toBeGreaterThan(150);
+    expect(new Set(CURRENCIES.map((c) => c.code)).size).toBe(CURRENCIES.length);
+    for (const code of ["INR", "THB", "VND", "JPY", "USD", "EUR", "SGD", "IDR", "MYR", "GBP", "AED", "AUD", "LKR", "NPR", "KRW"]) {
+      expect(isSupportedCurrency(code)).toBe(true);
+    }
+  });
+
+  it("knows how many decimals each currency uses", async () => {
+    const { decimalsOf } = await import("@/lib/money");
+    expect([decimalsOf("KWD"), decimalsOf("KRW"), decimalsOf("AUD"), decimalsOf("VND")]).toEqual([3, 0, 2, 0]);
+    expect(parseAmount("12.345", "KWD")).toBe(12345);
+    expect(formatMoney(12345, "KWD")).toBe("KWD 12.345");
+  });
+
+  it("finds currencies by name or code", async () => {
+    const { searchCurrencies } = await import("@/lib/money");
+    expect(searchCurrencies("baht").map((c) => c.code)).toEqual(["THB"]);
+    expect(searchCurrencies("lkr")[0].code).toBe("LKR");
+    expect(searchCurrencies("dollar").length).toBeGreaterThan(10);
+  });
+
+  it("shows flags", async () => {
+    const { flagOf } = await import("@/lib/money");
+    expect(flagOf("THB")).toBe("🇹🇭");
+    expect(flagOf("EUR")).toBe("🇪🇺");
+    expect(flagOf("XOF")).toBe("🌍");
+  });
+});

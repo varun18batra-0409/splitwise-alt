@@ -4,8 +4,8 @@ import { randomBytes } from "node:crypto";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getMyMemberId, setMyMemberId } from "@/lib/identity";
-import { cleanNames, sameName } from "@/lib/names";
-import { BASE_CURRENCIES, isSupportedCurrency, parsePercent } from "@/lib/money";
+import { cleanNames, cleanPeople, sameName } from "@/lib/names";
+import { isSupportedCurrency, parsePercent } from "@/lib/money";
 import { getRate, type RateAnswer } from "@/lib/rate-cache";
 import { saveExpense, type SaveExpenseInput } from "@/lib/save-expense";
 
@@ -18,8 +18,11 @@ export async function createGroup(formData: FormData) {
   const yourName = cleanNames([String(formData.get("yourName") ?? "")])[0];
   if (!groupName || !yourName) redirect("/groups/new?error=missing");
 
-  const others = cleanNames(formData.getAll("member").map(String)).filter(
-    (n) => !sameName(n, yourName),
+  // Other people, typed or picked from contacts (names + phones in the same order).
+  const { people: others } = cleanPeople(
+    formData.getAll("member").map(String),
+    formData.getAll("memberPhone").map(String),
+    [yourName],
   );
 
   const baseCurrency = String(formData.get("currency") ?? "INR");
@@ -27,9 +30,9 @@ export async function createGroup(formData: FormData) {
   const group = await db.group.create({
     data: {
       name: groupName,
-      currency: BASE_CURRENCIES.includes(baseCurrency) ? baseCurrency : "INR",
+      currency: isSupportedCurrency(baseCurrency) ? baseCurrency : "INR",
       inviteCode: newInviteCode(),
-      members: { create: [{ name: yourName }, ...others.map((name) => ({ name }))] },
+      members: { create: [{ name: yourName }, ...others] },
     },
     include: { members: true },
   });
@@ -37,6 +40,27 @@ export async function createGroup(formData: FormData) {
   const me = group.members.find((m) => m.name === yourName)!;
   await setMyMemberId(group.id, me.id);
   redirect(`/groups/${group.id}`);
+}
+
+// Add more people to an existing group (typed or from contacts).
+export async function addMembers(formData: FormData) {
+  const groupId = String(formData.get("groupId") ?? "");
+  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: true } });
+  if (!group) redirect("/");
+  const myId = await getMyMemberId(group.id);
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect(`/join/${group.inviteCode}`);
+
+  const { people, skipped } = cleanPeople(
+    formData.getAll("member").map(String),
+    formData.getAll("memberPhone").map(String),
+    group.members.map((m) => m.name),
+  );
+  if (people.length > 0) {
+    await db.member.createMany({ data: people.map((p) => ({ ...p, groupId: group.id })) });
+  }
+  const q = new URLSearchParams({ added: String(people.length) });
+  if (skipped.length) q.set("skipped", skipped.join(", "));
+  redirect(`/groups/${group.id}?${q}#people`);
 }
 
 // "I'm already in this group" — pick your name from the list.
@@ -109,7 +133,7 @@ export async function updateGroupSettings(formData: FormData) {
   // so saved amounts never silently change meaning.
   const currency = String(formData.get("currency") ?? group.currency);
   if (currency !== group.currency) {
-    if (!BASE_CURRENCIES.includes(currency)) redirect(`${back}?error=currency`);
+    if (!isSupportedCurrency(currency)) redirect(`${back}?error=currency`);
     if (group._count.expenses > 0) redirect(`${back}?error=locked`);
   }
 

@@ -5,8 +5,10 @@ import { getMyMemberId } from "@/lib/identity";
 import { formatMoney, formatPercent } from "@/lib/money";
 import { niceDate, rateText } from "@/lib/format";
 import { getCategory } from "@/lib/categories";
-import { Avatar, PageHeader } from "@/components/ui";
+import { Avatar, PageHeader, primaryButtonClass } from "@/components/ui";
 import { ShareInvite } from "@/components/ShareInvite";
+import { MemberInputs } from "@/components/MemberInputs";
+import { addMembers } from "@/app/actions";
 
 const PAID_WITH: Record<string, string> = { card: "Card", cash: "Cash", bank: "Bank / UPI" };
 const FOR_MODE: Record<string, string> = { everyone: "Everyone", selected: "Selected people", one: "One person" };
@@ -16,10 +18,10 @@ export default async function GroupPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ saved?: string }>;
+  searchParams: Promise<{ saved?: string; added?: string; skipped?: string }>;
 }) {
   const { id } = await params;
-  const { saved } = await searchParams;
+  const { saved, added, skipped } = await searchParams;
   const group = await db.group.findUnique({
     where: { id },
     include: {
@@ -164,19 +166,43 @@ export default async function GroupPage({
       )}
 
       {/* People + invite */}
-      <section className="mt-10">
+      <section id="people" className="mt-10 scroll-mt-6">
         <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-gray-400">
           People · {group.members.length}
         </h2>
+        {added !== undefined && (
+          <p className="mb-3 rounded-xl bg-accent-soft px-4 py-3 text-sm text-accent-dark">
+            {Number(added) === 1 ? "1 person added." : `${Number(added) || 0} people added.`}
+            {skipped && <span className="text-gray-600"> Already in the group: {skipped}.</span>}
+          </p>
+        )}
         <ul className="mb-4 divide-y divide-gray-100">
           {group.members.map((m) => (
             <li key={m.id} className="flex items-center gap-3 py-3">
               <Avatar name={m.name} />
-              <span className="font-medium">{m.name}</span>
-              {m.id === myId && <span className="text-sm text-gray-400">(you)</span>}
+              <span className="min-w-0">
+                <span className="font-medium">{m.name}</span>
+                {m.id === myId && <span className="text-sm text-gray-400"> (you)</span>}
+                {m.phone && <span className="block text-xs text-gray-400">{m.phone}</span>}
+              </span>
             </li>
           ))}
         </ul>
+
+        {/* Add people by typing names or picking from the phone's contacts */}
+        <details className="mb-4 rounded-2xl border border-gray-100">
+          <summary className="cursor-pointer list-none px-4 py-3.5 text-sm font-medium text-accent [&::-webkit-details-marker]:hidden">
+            + Add people
+          </summary>
+          <form action={addMembers} className="space-y-4 border-t border-gray-100 p-4">
+            <input type="hidden" name="groupId" value={group.id} />
+            <MemberInputs firstPlaceholderNumber={group.members.length + 1} />
+            <button type="submit" className={primaryButtonClass}>
+              Add to group
+            </button>
+          </form>
+        </details>
+
         <ShareInvite code={group.inviteCode} groupName={group.name} />
         <Link href={`/join/${group.inviteCode}`} className="mt-2 inline-block py-2 text-sm text-gray-400">
           Not you? Switch person

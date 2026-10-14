@@ -1,6 +1,6 @@
 import { createGroup } from "@/app/actions";
 import { MemberInputs } from "@/components/MemberInputs";
-import { BASE_CURRENCIES, currencyInfo } from "@/lib/money";
+import { CurrencySelect } from "@/components/CurrencySelect";
 import { ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/components/ui";
 
 export default async function NewGroup({
@@ -30,16 +30,7 @@ export default async function NewGroup({
           <span className="mb-2 block text-sm font-medium text-gray-600">
             Group currency <span className="font-normal text-gray-400">(balances are shown in this)</span>
           </span>
-          <select name="currency" defaultValue="INR" className={inputClass}>
-            {BASE_CURRENCIES.map((code) => {
-              const c = currencyInfo(code);
-              return (
-                <option key={code} value={code}>
-                  {c.flag} {code} — {c.name}
-                </option>
-              );
-            })}
-          </select>
+          <CurrencySelect name="currency" defaultValue="INR" />
         </label>
 
         <div>

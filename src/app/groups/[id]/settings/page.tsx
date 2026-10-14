@@ -2,7 +2,8 @@ import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
 import { updateGroupSettings } from "@/app/actions";
-import { BASE_CURRENCIES, currencyInfo, formatPercent } from "@/lib/money";
+import { formatPercent } from "@/lib/money";
+import { CurrencySelect } from "@/components/CurrencySelect";
 import { ErrorNote, PageHeader, primaryButtonClass } from "@/components/ui";
 
 const PRESETS = [0, 200, 300, 400];
@@ -47,31 +48,9 @@ export default async function GroupSettings({
           <p className="mb-4 text-sm text-gray-500">
             Balances and settle-up amounts are shown in this currency. Expenses in other currencies are converted into it.
           </p>
-          <div className="space-y-2">
-            {BASE_CURRENCIES.map((code) => {
-              const c = currencyInfo(code);
-              return (
-                <label
-                  key={code}
-                  className={`flex items-center gap-3 rounded-xl border border-gray-200 px-4 py-3 has-[:checked]:border-accent has-[:checked]:bg-accent-soft ${
-                    locked && code !== group.currency ? "opacity-40" : ""
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="currency"
-                    value={code}
-                    defaultChecked={code === group.currency}
-                    disabled={locked && code !== group.currency}
-                    className="h-5 w-5 accent-[var(--color-accent)]"
-                  />
-                  <span className="text-lg">{c.flag}</span>
-                  <span className="font-medium">{code}</span>
-                  <span className="text-sm text-gray-500">{c.name}</span>
-                </label>
-              );
-            })}
-          </div>
+          <CurrencySelect name="currency" defaultValue={group.currency} disabled={locked} />
+          {/* A disabled dropdown isn't sent with the form, so send the current value. */}
+          {locked && <input type="hidden" name="currency" value={group.currency} />}
           {locked && (
             <p className="mt-2 text-sm text-gray-500">
               Locked because this group already has expenses, so saved amounts keep their meaning.
