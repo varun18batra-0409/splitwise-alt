@@ -26,7 +26,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 export async function saveExpense(input: SaveExpenseInput, actingMemberId: string | undefined, lookupRate: RateLookupFn): Promise<Result> {
   const group = await db.group.findUnique({
     where: { id: input.groupId },
-    include: { members: { orderBy: { createdAt: "asc" }, select: { id: true, name: true } } },
+    include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true } } },
   });
   if (!group) return { ok: false, error: "This group no longer exists." };
   if (group.closed) return { ok: false, error: "This group is closed. Reopen it to add or change expenses." };

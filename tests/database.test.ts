@@ -44,10 +44,11 @@ beforeAll(async () => {
       inviteCode: `test-${Date.now()}`,
       members: { create: [{ name: "Me" }, { name: "A" }, { name: "B" }] },
     },
-    include: { members: { orderBy: { createdAt: "asc" } } },
+    include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
   });
   groupId = g.id;
-  [me, a, b] = g.members.map((m) => m.id);
+  const idOf = (name: string) => g.members.find((m) => m.name === name)!.id;
+  [me, a, b] = [idOf("Me"), idOf("A"), idOf("B")];
 });
 
 afterAll(async () => {

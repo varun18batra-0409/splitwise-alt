@@ -15,7 +15,7 @@ export default async function JoinPage({
   const { error } = await searchParams;
   const group = await db.group.findUnique({
     where: { inviteCode: code },
-    include: { members: { orderBy: { createdAt: "asc" } } },
+    include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
   });
   if (!group) notFound();
 

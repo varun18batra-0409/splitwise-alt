@@ -10,7 +10,7 @@ export async function loadGroup(id: string) {
   const group = await db.group.findUnique({
     where: { id },
     include: {
-      members: { orderBy: { createdAt: "asc" } },
+      members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
       expenses: { orderBy: { createdAt: "desc" }, include: { shares: true } },
       payments: { orderBy: { createdAt: "desc" } },
       events: { orderBy: { createdAt: "desc" } },

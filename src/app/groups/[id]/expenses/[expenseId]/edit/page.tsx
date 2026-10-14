@@ -16,7 +16,7 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
   const { id, expenseId } = await params;
   const group = await db.group.findUnique({
     where: { id },
-    include: { members: { orderBy: { createdAt: "asc" }, select: { id: true, name: true } } },
+    include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true } } },
   });
   if (!group) notFound();
   const myId = await getMyMemberId(group.id);
