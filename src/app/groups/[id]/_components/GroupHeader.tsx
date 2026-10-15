@@ -1,17 +1,20 @@
 import Link from "next/link";
 import { formatMoney } from "@/lib/money";
-import { ChevronDown, GearIcon, InviteIcon, iconButtonClass } from "@/components/icons";
+import { BackIcon, ChevronDown, GearIcon, InviteIcon, iconButtonClass } from "@/components/icons";
 import type { GroupView } from "./view";
 
 type SwitchItem = { id: string; name: string; currency: string; myBalance: number };
 
-// Group name (tap to switch group) · Invite · Settings. Home, Search and
-// Settle live in the bottom bar.
+// Back to all groups · group name (tap to switch group) · Invite · Settings.
+// Home, Search and Settle also live in the bottom bar.
 export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchItem[] }) {
   const { group, myId } = v;
   const me = group.members.find((m) => m.id === myId);
   return (
     <header className="mb-8 flex items-center gap-2">
+      <Link href="/" aria-label="Back to all groups" className={iconButtonClass}>
+        <BackIcon size={20} />
+      </Link>
       <details className="group/switch relative min-w-0 flex-1">
         <summary className="flex cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden">
           <h1 className="truncate font-display text-[22px] font-semibold tracking-tight">{group.name}</h1>

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { GetAppButton } from "./GetApp";
 import { useEffect, useRef, useState } from "react";
 
 // The intro tour: six swipeable slides that show what Loopin does, each with
@@ -197,9 +198,12 @@ export function IntroTour({
     <div className="intro-tour -mb-24 flex min-h-[calc(100dvh-3rem)] flex-col">
       <header className="flex items-center justify-between">
         <p className="font-display text-[26px] font-semibold leading-none tracking-tight">loopin</p>
-        <Link href={startHref} className="py-1 text-sm text-gray-500">
-          Skip
-        </Link>
+        <span className="flex items-center gap-3">
+          <GetAppButton variant="icon" className="h-9" />
+          <Link href={startHref} className="py-1 text-sm text-gray-500">
+            Skip
+          </Link>
+        </span>
       </header>
 
       <div className="mt-6 flex gap-1.5" role="tablist" aria-label="Tour">
@@ -236,6 +240,7 @@ export function IntroTour({
       </div>
 
       <div className="mt-6 space-y-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        {last && <GetAppButton variant="card" />}
         <Link href={startHref} className="pop block w-full bg-fg px-4 py-4 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63]">
           {cta}
         </Link>

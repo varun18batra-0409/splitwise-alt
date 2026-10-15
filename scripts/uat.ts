@@ -716,6 +716,19 @@ async function main() {
     const ok = await V.evaluate(async () => Boolean(await navigator.serviceWorker.getRegistration("/")));
     assert(ok, "no service worker registered");
   });
+  await step(null, "Get the app", "First-time tour (iPhone) has the “App” button on every slide", async () => {
+    const { ctx, page } = await phone("Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1");
+    await go(page, "/");
+    await page.getByText("Create your first group").first().waitFor();
+    await page.getByRole("button", { name: "Get the app" }).click();
+    await page.getByText("Add to Home Screen").first().waitFor();
+    await ctx.close();
+  });
+  await step(V, "Navigation", "Inside a group there's a back button to all groups", async () => {
+    await go(V, g);
+    await V.getByRole("link", { name: "Back to all groups" }).click();
+    await V.waitForURL(base + "/");
+  });
   await step(V, "Help", "“?” on home opens How it works", async () => {
     await go(V, "/");
     await V.getByRole("link", { name: "How Loopin works" }).click();
