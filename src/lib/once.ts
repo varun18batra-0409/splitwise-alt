@@ -35,7 +35,7 @@ export function isDuplicateKey(err: unknown): boolean {
 // moment and try again (the retry then sees what the other change did).
 export function isBusy(err: unknown): boolean {
   const e = err as { code?: string; message?: string };
-  return e?.code === "P2034" || /database is locked|SQLITE_BUSY|write conflict|deadlock/i.test(String(e?.message ?? ""));
+  return e?.code === "P2034" || e?.code === "P2028" || /database is locked|SQLITE_BUSY|write conflict|deadlock|Unable to start a transaction/i.test(String(e?.message ?? ""));
 }
 export async function withRetry<T>(fn: () => Promise<T>, tries = 5): Promise<T> {
   for (let i = 0; ; i++) {

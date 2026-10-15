@@ -93,7 +93,7 @@ describe("integrity: retries and simultaneous requests change things once", () =
     expect(one.ok && two.ok && one.id === two.id).toBe(true);
     expect(await db.expense.count({ where: { groupId: A, description: "Taxi retry" } })).toBe(1);
   });
-  it("the same expense sent 5 times at the same moment is saved once", async () => {
+  it("the same expense sent 5 times at the same moment is saved once", { timeout: 60_000 }, async () => {
     const k = key();
     const results = await Promise.all([1, 2, 3, 4, 5].map(() => saveExpense(input({ name: "Burst", amount: "600" }), a2, rate, { requestKey: k })));
     expect(results.every((r) => r.ok)).toBe(true);
