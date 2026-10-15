@@ -82,7 +82,7 @@ await shot("22-settle-everything", `${g}?tab=balances`, async (p) => {
   await p.locator("details.group\\/kill").scrollIntoViewIfNeeded();
 }, false);
 await shot("23-add-expense-differently", `${g}/add`, async (p) => {
-  await p.getByRole("button", { name: /Differently/ }).click();
+  await p.getByRole("button", { name: /Custom/ }).click();
   await p.getByRole("button", { name: /Add notes/ }).click();
   await p.getByRole("button", { name: /Change/ }).first().click();
   await p.waitForTimeout(300);

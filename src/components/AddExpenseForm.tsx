@@ -613,7 +613,7 @@ export function AddExpenseForm({
             on={!showPeople && !showOnly && forMode === "everyone" && splitType === "equal"}
             onClick={resetSplit}
           >
-            Equally, everyone
+            Everyone equally
           </Chip>
           {members.length > 2 && (
             <Chip
@@ -638,7 +638,7 @@ export function AddExpenseForm({
               setShowPeople(true);
             }}
           >
-            Differently ⚙
+            Custom ⚙
           </Chip>
         </div>
         {showOnly && !showPeople && (
