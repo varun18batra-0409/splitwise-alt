@@ -750,6 +750,11 @@ async function main() {
   });
 
   // ===== 10. Everything else people do in a group =====
+  const clickAndWait = async (page: Page, target: ReturnType<Page["locator"]>) => {
+    const before = page.url();
+    await target.click();
+    await page.waitForURL((u) => u.href !== before, { timeout: 20_000 });
+  };
   const groupNameShown = async (page: Page, path: string) => (await (await page.goto(base + path, { waitUntil: "networkidle" }), page.locator("header h1").first()).innerText());
   await step(V, "Group settings", "Rename a group, then Undo puts the old name back", async () => {
     await go(V, `${g2}/settings`);
@@ -793,33 +798,28 @@ async function main() {
     await go(V, `${g2}/people`);
     await V.locator("details summary").filter({ hasText: "Asha" }).first().click();
     await V.getByLabel("New name for Asha").fill("Asha K");
-    await V.getByRole("button", { name: "Rename" }).first().click();
-    await V.waitForLoadState("networkidle");
+    await clickAndWait(V, V.getByRole("button", { name: "Rename" }).first());
     await go(V, `${g2}/people`);
     await V.getByText("Asha K").first().waitFor();
     await V.locator("details summary").filter({ hasText: "Asha K" }).first().click();
     await V.getByLabel("New name for Asha K").fill("Asha");
-    await V.getByRole("button", { name: "Rename" }).first().click();
-    await V.waitForLoadState("networkidle");
+    await clickAndWait(V, V.getByRole("button", { name: "Rename" }).first());
   });
   await step(V, "People", "Mark someone settled as left, then bring them back", async () => {
     await go(V, `${g2}/people`);
     await V.locator("details summary").filter({ hasText: "Asha" }).first().click();
-    await V.getByRole("button", { name: "Mark Asha as left" }).click();
-    await V.waitForLoadState("networkidle");
+    await clickAndWait(V, V.getByRole("button", { name: "Mark Asha as left" }));
     await go(V, `${g2}/people`);
     await V.getByText("Left the group").first().waitFor();
     await V.locator("details summary").filter({ hasText: "Asha" }).first().click();
-    await V.getByRole("button", { name: "Bring Asha back" }).click();
-    await V.waitForLoadState("networkidle");
+    await clickAndWait(V, V.getByRole("button", { name: "Bring Asha back" }));
     await go(V, `${g2}/people`);
     assert((await V.getByText("Left the group").count()) === 0, "Asha still shows as left");
   });
   await step(V, "People", "Remove someone who isn't in any expense (Sheldon)", async () => {
     await go(V, `${g3}/people`);
     await V.locator("details summary").filter({ hasText: "Sheldon" }).first().click();
-    await V.getByRole("button", { name: "Remove from group" }).click();
-    await V.waitForLoadState("networkidle");
+    await clickAndWait(V, V.getByRole("button", { name: "Remove from group" }));
     await go(V, `${g3}/people`);
     assert((await V.getByText("Sheldon").count()) === 0, "Sheldon still listed");
   });
@@ -851,14 +851,12 @@ async function main() {
     await go(V, `${g}?tab=activity`);
     const row = V.locator("details summary").filter({ hasText: /paid (Asha|Varun|you)/ }).first();
     await row.click();
-    await V.getByRole("button", { name: "Delete payment" }).first().click();
-    await V.waitForURL(/tab=activity/);
+    await clickAndWait(V, V.getByRole("button", { name: "Delete payment" }).first());
     const mid = await shownBalances(V, g);
     assert(JSON.stringify(mid) !== JSON.stringify(before), "balances didn't change after deleting the payment");
     await go(V, `${g}?tab=activity`);
     await V.locator("details summary").filter({ hasText: /paid (Asha|Varun|you)/ }).first().click();
-    await V.getByRole("button", { name: "Restore payment" }).first().click();
-    await V.waitForURL(/tab=activity/);
+    await clickAndWait(V, V.getByRole("button", { name: "Restore payment" }).first());
     const after = await shownBalances(V, g);
     assert(JSON.stringify(after) === JSON.stringify(before), `restore didn't put balances back: ${JSON.stringify(after)} vs ${JSON.stringify(before)}`);
   });
