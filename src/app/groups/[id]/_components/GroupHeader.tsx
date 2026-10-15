@@ -49,15 +49,15 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
           )}
           {/* Who this phone is in this group — and a way to fix a wrong pick. */}
           <div className="mt-1 flex items-center justify-between gap-3 border-t border-line px-3 pb-1 pt-2.5 text-xs text-gray-400">
-            <span className="truncate">On this phone you’re {me?.name ?? "—"}</span>
-            <Link href={`/join/${group.inviteCode}`} className="shrink-0 font-semibold text-fg">
-              Switch person
+            <span className="truncate">You’re {me?.name ?? "—"} in this group</span>
+            <Link href={`/groups/${group.id}/invite`} className="shrink-0 font-semibold text-fg">
+              Add people
             </Link>
           </div>
         </div>
       </details>
 
-      <Link href={`/groups/${group.id}/invite`} aria-label="Invite people" className={iconButtonClass}>
+      <Link href={`/groups/${group.id}/invite`} aria-label="Add people" className={iconButtonClass}>
         <InviteIcon size={20} />
       </Link>
       <Link href={`/groups/${group.id}/settings`} aria-label="Group settings" className={iconButtonClass}>

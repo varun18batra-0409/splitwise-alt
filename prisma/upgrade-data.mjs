@@ -97,6 +97,7 @@ for (const g of gone) {
 const dayAgo = new Date(Date.now() - 86_400_000);
 await db.loginCode.deleteMany({ where: { expiresAt: { lt: dayAgo } } });
 await db.rateLimit.deleteMany({ where: { resetAt: { lt: dayAgo } } });
+await db.outbox.deleteMany({ where: { createdAt: { lt: dayAgo } } });
 await db.errorLog.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 30 * 86_400_000) } } });
 
 if (redated || gone.length) console.log(`Data upgrade: ${redated} expense days moved to noon UTC, ${gone.length} deleted groups erased.`);

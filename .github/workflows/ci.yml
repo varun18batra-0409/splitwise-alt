@@ -33,6 +33,7 @@ jobs:
       contents: write
     env:
       TURSO_DATABASE_URL: file:/tmp/online-stand-in.db
+      MAIL_OUTBOX: "1" # emails are kept in the database for the tests, never sent
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

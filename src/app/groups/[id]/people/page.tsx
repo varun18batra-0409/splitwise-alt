@@ -123,7 +123,7 @@ export default async function PeoplePage({
         <p className="text-sm text-gray-500">
           {active.length} {active.length === 1 ? "person" : "people"} in {group.name}
         </p>
-        <Link href={`/groups/${group.id}/invite`} aria-label="Invite people" className={iconButtonClass}>
+        <Link href={`/groups/${group.id}/invite`} aria-label="Add people" className={iconButtonClass}>
           <InviteIcon size={20} />
         </Link>
       </div>

@@ -10,6 +10,7 @@
 // report says what passed and what didn't.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
+import { db } from "../src/lib/db";
 
 const base = process.env.APP_URL ?? "http://localhost:3000";
 const out = "screenshots/uat";
@@ -65,6 +66,29 @@ async function step(page: Page | null, area: string, name: string, fn: () => Pro
 }
 function assert(cond: unknown, msg: string): asserts cond {
   if (!cond) throw new Error(msg);
+}
+
+const stamp = Date.now();
+const email = (n: string) => `${n}-${stamp}@uat.loopin.test`;
+
+// Sign up / sign in on the email screen; the code is read from the test outbox.
+async function signup(page: Page, name: string, address: string, emailFilled = false) {
+  const nameBox = page.locator('input[name="name"]');
+  if (await nameBox.count()) await nameBox.fill(name);
+  if (!emailFilled) await page.locator('input[name="email"]').fill(address);
+  const since = new Date(Date.now() - 1000);
+  await page.getByRole("button", { name: "Email me a code" }).click();
+  await page.waitForURL(/sent=1/);
+  let code = "";
+  for (let i = 0; i < 20 && !code; i++) {
+    const row = await db.outbox.findFirst({ where: { to: address, subject: { contains: "Loopin code" }, createdAt: { gte: since } }, orderBy: { createdAt: "desc" } });
+    code = row ? (/\b(\d{6})\b/.exec(row.subject)?.[1] ?? "") : "";
+    if (!code) await page.waitForTimeout(250);
+  }
+  assert(code, `no sign-in code emailed to ${address}`);
+  await page.locator('input[name="code"]').fill(code);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL(/signedin=1/);
 }
 
 async function person(browser: Browser): Promise<{ ctx: BrowserContext; page: Page }> {
@@ -198,63 +222,92 @@ async function main() {
   let g = ""; // "/groups/<id>"
   let invite = ""; // "/join/<code>"
 
-  // ===== 1. First visit, creating a group, inviting =====
+  // ===== 1. First visit, signing up, creating a group, adding people =====
   await step(V, "Start", "First visit shows the intro tour with “Create your first group”", async () => {
     await go(V, "/");
     await V.getByText("Create your first group").first().waitFor();
   });
-  await step(V, "Start", "Create a group (INR) with two people added by name", async () => {
+  await step(V, "Start", "Creating a group asks you to sign up first (verified email)", async () => {
     await go(V, "/groups/new");
-    await V.locator('input[name="groupName"]').fill("UAT Goa trip");
-    await V.locator('input[name="yourName"]').fill("Varun");
-    await V.locator('select[name="currency"]').selectOption("INR");
-    const inputs = V.locator('input[name="member"]');
-    await inputs.nth(0).fill("Asha");
-    await V.getByRole("button", { name: "+ Add another person" }).click();
-    await inputs.nth(1).fill("Ravi");
-    await V.getByRole("button", { name: "Create group" }).click();
-    await V.waitForURL(/\/groups\/(?!new)[^/?]+(\?|$)/);
-    g = new URL(V.url()).pathname;
-    await V.getByRole("heading", { name: "UAT Goa trip" }).waitFor();
+    await V.getByRole("link", { name: "Sign up with email" }).click();
+    await signup(V, "Varun", email("varun"));
+    await V.waitForURL(/\/groups\/new/);
+    assert((await V.locator('input[name="yourName"]').inputValue()) === "Varun", "your name isn't filled in from sign-up");
   });
-  await step(V, "Start", "Invite page shows a join link and QR option", async () => {
-    await go(V, `${g}/invite`);
-    const html = await V.content();
-    const m = /\/join\/([A-Za-z0-9_-]+)/.exec(html);
-    assert(m, "no join link on the invite page");
+  await step(V, "Start", "There is no way to add people by typing a name", async () => {
+    assert((await V.locator('input[name="member"]').count()) === 0, "the new-group form still has name boxes");
+    assert((await V.getByText("Add another person").count()) === 0, "“Add another person” is still there");
+  });
+  await step(V, "Start", "Create a group (INR) → lands on Add people", async () => {
+    await V.locator('input[name="groupName"]').fill("UAT Goa trip");
+    await V.locator('select[name="currency"]').selectOption("INR");
+    await V.getByRole("button", { name: /Create group/ }).click();
+    await V.waitForURL(/\/invite\?new=1/);
+    g = new URL(V.url()).pathname.replace(/\/invite$/, "");
+    await V.getByText("is ready. Now bring your people in").waitFor();
+    for (const t of ["People on Loopin", "From your contacts", "By email"]) await V.getByText(t, { exact: true }).waitFor();
+    assert((await V.getByText("Add members yourself").count()) === 0, "old “Add members yourself” still there");
+    const m = /\/join\/([A-Za-z0-9_-]+)/.exec(await V.content());
+    assert(m, "no join link on the page");
     invite = `/join/${m[1]}`;
     return invite;
   });
-  await step(A, "Joining", "Asha opens the link and taps her name", async () => {
-    await go(A, invite);
-    await A.getByRole("button", { name: "Asha" }).click();
-    await A.waitForURL(new RegExp(`${g}`));
-  });
-  await step(R, "Joining", "Ravi opens the link and taps his name", async () => {
-    await go(R, invite);
-    await R.getByRole("button", { name: "Ravi" }).click();
-    await R.waitForURL(new RegExp(`${g}`));
-  });
-  await step(Z, "Joining", "Zoe (not added yet) joins by typing her name", async () => {
-    await go(Z, invite);
-    await Z.locator('input[name="name"]').fill("Zoe");
-    await Z.getByRole("button", { name: "Join group" }).click();
-    await Z.waitForURL(new RegExp(`${g}`));
-  });
-  await step(null, "Joining", "Someone typing a name that's already taken (“asha”) is stopped", async () => {
+  await step(null, "Joining", "Someone opening the link without signing up can't join (no name box)", async () => {
     const x = await person(browser);
     await go(x.page, invite);
-    await x.page.locator('input[name="name"]').fill("asha");
-    await x.page.getByRole("button", { name: "Join group" }).click();
-    await x.page.getByText(/already in the group/).waitFor();
+    await x.page.getByRole("link", { name: "Sign up to join" }).waitFor();
+    assert((await x.page.locator('input[name="name"]').count()) === 0, "a name box is offered before sign-up");
     await x.ctx.close();
   });
-  await step(V, "Joining", "Invite page shows everyone as joined", async () => {
+  await step(A, "Joining", "Asha opens the link, signs up with her email, and joins", async () => {
+    await go(A, invite);
+    await A.getByRole("link", { name: "Sign up to join" }).click();
+    await signup(A, "Asha", email("asha"));
+    await A.waitForURL(new RegExp(invite));
+    await A.getByRole("button", { name: /^Join / }).click();
+    await A.waitForURL(new RegExp(`${g}$`));
+  });
+  await step(R, "Joining", "Ravi does the same from a WhatsApp message", async () => {
+    await go(R, invite);
+    await R.getByRole("link", { name: "Sign up to join" }).click();
+    await signup(R, "Ravi", email("ravi"));
+    await R.waitForURL(new RegExp(invite));
+    await R.getByRole("button", { name: /^Join / }).click();
+    await R.waitForURL(new RegExp(`${g}$`));
+  });
+  await step(V, "Joining", "Invite by email: Zoe gets an email, is listed as “Invited”, and is NOT a member yet", async () => {
+    await go(V, `${g}/invite`);
+    await V.getByLabel("Email addresses to invite").fill(email("zoe"));
+    await V.getByRole("button", { name: "Invite", exact: true }).click();
+    await V.waitForURL(/invited=/);
+    await V.getByText("Invited · waiting to join").waitFor();
+    const members = (await V.locator("main ul").last().innerText()).replace(/\s+/g, " ");
+    assert(!/Zoe/.test(members), `Zoe is already a member: ${members}`);
+  });
+  await step(Z, "Joining", "Zoe taps the link in her email, verifies, and joins", async () => {
+    const mailRow = await db.outbox.findFirst({ where: { to: email("zoe"), subject: { contains: "invited you" } }, orderBy: { createdAt: "desc" } });
+    assert(mailRow, "no invite email for Zoe");
+    const link = /https?:\/\/\S+\/join\/\S+/.exec(mailRow.text)?.[0];
+    assert(link, "no link in the email");
+    await Z.goto(base + new URL(link).pathname + new URL(link).search, { waitUntil: "networkidle" });
+    await Z.getByRole("link", { name: "Sign up to join" }).click();
+    assert((await Z.locator('input[name="email"]').inputValue()) === email("zoe"), "email not filled in from the invite");
+    await signup(Z, "Zoe", email("zoe"), true);
+    await Z.waitForURL(/\/join\//);
+    await Z.getByRole("button", { name: /^Join / }).click();
+    await Z.waitForURL(new RegExp(`${g}$`));
+  });
+  await step(V, "Joining", "Add people shows everyone as “On Loopin ✓” and no pending invites", async () => {
     await go(V, `${g}/invite`);
     const t = (await V.locator("main ul").last().innerText()).replace(/\s+/g, " ");
-    const joined = (t.match(/Joined/g) ?? []).length;
-    assert(!/Not joined yet/.test(t) && joined >= 4, `statuses: ${t}`);
-    return `${joined} joined`;
+    const n = (t.match(/On Loopin ✓/g) ?? []).length;
+    assert(n === 4, `statuses: ${t}`);
+    assert((await V.getByText("Invited · waiting to join").count()) === 0, "Zoe's invite still pending");
+    return `${n} verified members`;
+  });
+  await step(V, "Joining", "Contacts option is there (share sheet when the phone can't pick contacts)", async () => {
+    await go(V, `${g}/invite`);
+    await V.getByRole("button", { name: /from contacts/ }).waitFor();
   });
 
   // ===== 2. Adding expenses =====
@@ -581,17 +634,14 @@ async function main() {
   const quickGroup = async (name: string) => {
     await go(V, "/groups/new");
     await V.locator('input[name="groupName"]').fill(name);
-    await V.locator('input[name="yourName"]').fill("Varun");
     await V.locator('select[name="currency"]').selectOption("INR");
-    await V.locator('input[name="member"]').nth(0).fill("Asha");
-    await V.getByRole("button", { name: "Create group" }).click();
-    await V.waitForURL(/\/groups\/(?!new)[^/?]+(\?|$)/);
-    const path = new URL(V.url()).pathname;
-    await go(V, `${path}/invite`);
-    const code = /\/join\/([A-Za-z0-9_-]+)/.exec(await V.content())![1];
-    await go(A, `/join/${code}`);
-    await A.getByRole("button", { name: "Asha" }).click();
-    await A.waitForURL(new RegExp(path));
+    await V.getByRole("button", { name: /Create group/ }).click();
+    await V.waitForURL(/\/invite\?new=1/);
+    const path = new URL(V.url()).pathname.replace(/\/invite$/, "");
+    // Asha is a friend from the first group: search by name and add.
+    await V.getByLabel("Search people on Loopin").fill("Asha");
+    await V.getByRole("button", { name: "Add", exact: true }).first().click();
+    await V.waitForURL(/added=/);
     return path;
   };
   await step(V, "Across groups", "Two more groups with Asha: she owes ₹500 in one, Varun owes ₹300 in the other", async () => {
@@ -618,6 +668,19 @@ async function main() {
   });
 
   // ===== 8. Everything else people do =====
+  await step(V, "Add people", "Search by name only finds friends; a stranger is found only by exact email, then added", async () => {
+    const x = await person(browser);
+    await go(x.page, "/signin?mode=signup");
+    await signup(x.page, "Sheldon", email("sheldon"));
+    await x.ctx.close();
+    await go(V, `${g3}/invite`);
+    await V.getByLabel("Search people on Loopin").fill("Sheldon");
+    await V.getByText(/No one you know on Loopin/).waitFor();
+    await V.getByLabel("Search people on Loopin").fill(email("sheldon"));
+    await V.getByText("On Loopin ✓").first().waitFor();
+    await V.getByRole("button", { name: "Add", exact: true }).first().click();
+    await V.waitForURL(/added=Sheldon/);
+  });
   await step(A, "Alerts", "Asha sees an unread alert badge and Varun's changes in Alerts", async () => {
     await go(A, "/");
     const nav = A.getByRole("navigation", { name: "Main" });
@@ -625,6 +688,10 @@ async function main() {
     assert(/new/.test(label ?? ""), `Alerts label: ${label}`);
     await go(A, "/notifications");
     await A.getByText(/Varun/).first().waitFor();
+  });
+  await step(A, "Alerts", "Asha was told she was added to the new groups", async () => {
+    await go(A, "/notifications");
+    await A.getByText(/added Asha to the group/).first().waitFor();
   });
   await step(V, "Home", "Home shows net balance, Needs attention or Groups, and the bottom bar", async () => {
     await go(V, "/");
@@ -792,7 +859,7 @@ async function main() {
   writeFileSync(`${out}/summary.txt`, `${passed} passed, ${failed} failed\n${results.filter((r) => !r.ok).map((r) => `✗ ${r.area} — ${r.name}: ${r.detail}`).join("\n")}`);
 }
 
-main().catch((e) => {
+main().then(() => process.exit(0)).catch((e) => {
   console.error(e);
   writeFileSync(`${out}/summary.txt`, `crashed: ${String(e)}`);
   process.exit(0);

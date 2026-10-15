@@ -16,3 +16,10 @@ describe("phone notification text", () => {
     expect(p.body.endsWith("…")).toBe(true);
   });
 });
+
+describe("notification shows what kind of change it was", () => {
+  it("adds a sign before the group name", () => {
+    expect(pushPayload({ groupId: "g", groupName: "Euro trip", actorName: "Joey", text: "added Rancho to the group", eventId: "e", kind: "members_added" }).title).toBe("👋 Euro trip");
+    expect(pushPayload({ groupId: "g", groupName: "Euro trip", actorName: "Joey", text: "deleted Pizza", eventId: "e", kind: "expense_deleted" }).title).toBe("🗑️ Euro trip");
+  });
+});

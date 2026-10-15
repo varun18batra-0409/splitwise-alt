@@ -287,8 +287,11 @@ export default async function Home({
           <section className="mt-8">
             <div className="mb-1 flex items-center justify-between">
               <h2 className="font-display text-lg font-semibold tracking-tight">Groups</h2>
-              <Link href="/groups/new" className="rounded-full border border-line px-3 py-1 text-sm font-medium active:bg-mist">
-                + New
+              <Link href="/groups/new" className="pop flex items-center gap-1.5 bg-fg px-4 py-2 text-sm font-semibold text-canvas [--pop-edge:#6e6b63]">
+                <span className="text-base leading-none" aria-hidden>
+                  ＋
+                </span>
+                New group
               </Link>
             </div>
             {open.length === 0 ? (

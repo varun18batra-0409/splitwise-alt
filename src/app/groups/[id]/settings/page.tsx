@@ -192,12 +192,7 @@ export default async function GroupSettings({
       <h2 className={`mt-12 ${sectionTitle}`}>People &amp; data</h2>
       <ul className="mt-6 divide-y divide-line rounded-2xl border border-line">
         <SettingsLink href={`/groups/${group.id}/people`} label="Manage people" hint={`${group.members.filter((m) => !m.leftAt).length} people · rename, remove, leave`} />
-        <SettingsLink href={`/groups/${group.id}/invite`} label="Invite" hint="Link, QR code or WhatsApp" />
-        <SettingsLink
-          href={`/join/${group.inviteCode}`}
-          label="Switch person"
-          hint={`This phone is ${group.members.find((m) => m.id === myId)?.name ?? "—"}`}
-        />
+        <SettingsLink href={`/groups/${group.id}/invite`} label="Add people" hint="Loopin users, contacts or email" />
         <SettingsLink href={`/groups/${group.id}/export`} label="Download spreadsheet" hint="Every expense and payment, as CSV" download />
       </ul>
 

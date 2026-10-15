@@ -10,7 +10,7 @@ import { ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/compone
 export default async function SignIn({
   searchParams,
 }: {
-  searchParams: Promise<{ e?: string; sent?: string; error?: string; back?: string; mode?: string }>;
+  searchParams: Promise<{ e?: string; sent?: string; error?: string; back?: string; mode?: string; n?: string }>;
 }) {
   const sp = await searchParams;
   const back = sp.back && sp.back.startsWith("/") && !sp.back.startsWith("//") ? sp.back.slice(0, 200) : "/";
@@ -19,6 +19,7 @@ export default async function SignIn({
   const sent = sp.sent === "1" && email;
   const error = sp.error?.slice(0, 200);
   const signup = sp.mode === "signup";
+  const name = (sp.n ?? "").slice(0, 40);
 
   return (
     <>
@@ -46,6 +47,13 @@ export default async function SignIn({
           )}
           <form action={requestCode} className="space-y-4">
             <input type="hidden" name="back" value={back} />
+            {signup && <input type="hidden" name="mode" value="signup" />}
+            {signup && (
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-gray-600">Your name</span>
+                <input name="name" required autoComplete="name" defaultValue={name} placeholder="e.g. Joey" maxLength={40} className={inputClass} />
+              </label>
+            )}
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-gray-600">Your email</span>
               <input
@@ -72,6 +80,7 @@ export default async function SignIn({
           </p>
           <form action={verifyCode} className="space-y-4">
             <input type="hidden" name="back" value={back} />
+            <input type="hidden" name="name" value={name} />
             <input type="hidden" name="email" value={email} />
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-gray-600">Code</span>

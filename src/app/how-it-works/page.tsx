@@ -14,6 +14,7 @@ const FALLBACK = {
   market: "from-indigo-950 to-fuchsia-900",
   train: "from-yellow-900 to-stone-800",
   sunset: "from-orange-900 to-purple-950",
+  friends: "from-orange-800 to-rose-950",
   home: "from-emerald-950 to-stone-800",
 };
 const pic = (slot: Slot) => (photos as Record<string, { src: string } | undefined>)[slot]?.src;
@@ -102,7 +103,7 @@ export default function HowItWorks() {
       <Section slot="roadtrip" kicker="1 · Start" title="Make a group, bring everyone in">
         <Steps
           items={[
-            <>Tap <strong>Create a group</strong>: give it a name (“Goa trip”), your name and the currency.</>,
+            <>Tap <strong>Create a group</strong>: give it a name (“Euro trip”), your name and the currency.</>,
             <>Open <strong>Invite</strong> and share the link on WhatsApp, or let friends scan the QR code.</>,
             <>Friends tap their name and they’re in. No sign-up, no password.</>,
           ]}
@@ -128,17 +129,19 @@ export default function HowItWorks() {
       </Section>
 
       <div id="abroad" className="scroll-mt-4" />
-      <Section slot="market" kicker="3 · Abroad" title="Foreign money, honestly">
+      <Section slot="market" kicker="3 · Abroad" title="Spend in yen. Settle in rupees.">
         <p>
-          Paying in baht, dollars or euros? Pick the currency and Loopin converts it at today’s rate, or type your own rate. Card
-          payments abroad usually cost a bank fee, so Loopin can add it fairly to that expense, and only to card payments, never cash.
+          Pay in any of 150+ currencies. Loopin converts at today’s rate and adds your card’s foreign-transaction fee, the hidden
+          cost most split apps ignore. Everyone pays their fair share of what it <strong className="text-fg">really</strong> cost you.
         </p>
         <Example>
-          Card · THB 1,800 ≈ <strong>₹5,257</strong> incl. ₹153 card fee
+          Ramen night in Shinjuku · paid by card
           <br />
-          <span className="text-gray-500">Tap Details to see the rate, the fee and the sum.</span>
+          ¥6,000 → ₹3,390 + 3% card fee ₹102 = <strong>₹3,492</strong>
+          <br />
+          <span className="text-gray-500">Cash? No fee is added. Bank rate different? Type your own.</span>
         </Example>
-        <p>Set your card’s usual fee once in the group’s settings (for example 3.5%). You’ll also see what everyone owes in the foreign currency.</p>
+        <p>Balances show in your home currency and in the local one, so nobody has to do maths at the table.</p>
       </Section>
 
       <Section slot="train" kicker="Getting around" title="Trains, cabs and tickets">
@@ -149,7 +152,7 @@ export default function HowItWorks() {
       </Section>
 
       <div id="balances" className="scroll-mt-4" />
-      <Section slot="roadtrip" kicker="4 · Balances" title="Who owes what, and why">
+      <Section slot="friends" kicker="4 · Balances" title="Who owes what, and why">
         <p>
           Home shows your <strong>net balance</strong> across all groups, and a <strong>Needs attention</strong> list: who owes you,
           who you owe, and what changed.

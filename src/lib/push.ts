@@ -23,10 +23,18 @@ export async function vapidKeys(): Promise<{ publicKey: string; privateKey: stri
 }
 
 // The text of a notification. Pure, so it can be tested.
-export function pushPayload(e: { groupId: string; groupName: string; actorName: string; text: string; eventId: string }) {
+// A small sign for what kind of change it was, so it's clear at a glance.
+const SIGN: Record<string, string> = {
+  expense_added: "🧾", expense_edited: "✏️", expense_deleted: "🗑️", expense_restored: "↩️",
+  payment_recorded: "💸", payment_deleted: "🗑️", payment_restored: "↩️",
+  members_added: "👋", member_invited: "✉️", members_removed: "👤", member_left: "👤", member_rejoined: "👋", member_renamed: "✏️",
+  group_settled_closed: "✅", group_closed: "📦", group_reopened: "📂", group_deleted: "🗑️", group_restored: "↩️",
+};
+export function pushPayload(e: { groupId: string; groupName: string; actorName: string; text: string; eventId: string; kind?: string }) {
   const body = `${e.actorName} ${e.text}`;
+  const sign = e.kind ? SIGN[e.kind] ?? "⚙️" : "";
   return {
-    title: e.groupName,
+    title: sign ? `${sign} ${e.groupName}` : e.groupName,
     body: body.length > 140 ? `${body.slice(0, 139)}…` : body,
     url: `/groups/${e.groupId}?tab=activity`,
     tag: e.eventId,
@@ -44,7 +52,7 @@ export async function sendEventPush(eventId: string): Promise<number> {
     if (subs.length === 0) return 0;
     const actor = await db.member.findUnique({ where: { id: ev.actorId }, select: { name: true } });
     const payload = JSON.stringify(
-      pushPayload({ groupId: ev.group.id, groupName: ev.group.name, actorName: actor?.name ?? "Someone", text: ev.text, eventId }),
+      pushPayload({ groupId: ev.group.id, groupName: ev.group.name, actorName: actor?.name ?? "Someone", text: ev.text, eventId, kind: ev.kind }),
     );
     const keys = await vapidKeys();
     let sent = 0;

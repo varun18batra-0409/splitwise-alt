@@ -34,6 +34,7 @@ export type EventKind =
   | "markup_changed"
   | "display_currency_changed"
   | "members_added"
+  | "member_invited"
   | "members_removed"
   | "member_renamed"
   | "member_left"

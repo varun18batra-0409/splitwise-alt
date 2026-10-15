@@ -25,7 +25,8 @@ export async function requestLoginCode(rawEmail: string, ip: string, origin: str
   const email = cleanEmail(rawEmail);
   if (!email) return { ok: false, error: "Enter a valid email address." };
   if (!mailConfigured()) return { ok: false, error: "Email sign-in isn't switched on yet. Try again later." };
-  if (!(await allow(`code-ip:${ip}`, 8, 15 * 60, now)) || !(await allow(`code-email:${email}`, 4, 15 * 60, now))) {
+  const testing = process.env.MAIL_OUTBOX === "1" && !process.env.VERCEL; // automated tests only
+  if (!testing && (!(await allow(`code-ip:${ip}`, 8, 15 * 60, now)) || !(await allow(`code-email:${email}`, 4, 15 * 60, now)))) {
     return { ok: false, error: "Too many codes asked for. Wait 15 minutes and try again." };
   }
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");

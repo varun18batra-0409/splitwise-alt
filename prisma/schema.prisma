@@ -176,6 +176,30 @@ model AppSetting {
 model Account {
   id        String   @id @default(cuid())
   email     String   @unique
+  name      String   @default("") // shown to friends when they search for you
+  createdAt DateTime @default(now())
+}
+
+// An email invitation to a group. The person becomes a member only after they
+// verify that email (sign up / sign in) and accept.
+model Invite {
+  id          String    @id @default(cuid())
+  groupId     String
+  email       String
+  invitedById String
+  createdAt   DateTime  @default(now())
+  acceptedAt  DateTime?
+
+  @@unique([groupId, email])
+}
+
+// Emails that would have been sent, kept instead of sending when MAIL_OUTBOX=1
+// (only in automated tests).
+model Outbox {
+  id        String   @id @default(cuid())
+  to        String
+  subject   String
+  text      String
   createdAt DateTime @default(now())
 }
 
