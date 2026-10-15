@@ -22,7 +22,7 @@ function Photo({ slot, children, tall }: { slot: Slot; children?: React.ReactNod
   const src = pic(slot);
   return (
     <div className={`relative -mx-5 overflow-hidden bg-gradient-to-br ${FALLBACK[slot]} ${tall ? "h-[340px]" : "h-[200px]"}`}>
-      {src && <img src={src} alt="" loading={tall ? "eager" : "lazy"} className="absolute inset-0 h-full w-full object-cover" />}
+      {src && <img src={src} alt="" loading="eager" decoding="async" className="absolute inset-0 h-full w-full object-cover" />}
       <div className="absolute inset-0 bg-gradient-to-t from-canvas via-canvas/30 to-transparent" />
       {children && <div className="absolute inset-x-5 bottom-5">{children}</div>}
     </div>
