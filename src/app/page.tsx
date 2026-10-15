@@ -131,7 +131,12 @@ export default async function Home({
       <header className="mb-8 flex items-center justify-between">
         <div>
           <p className="font-display text-[26px] font-semibold leading-none tracking-tight">loopin</p>
-          <p className="mt-1.5 text-xs text-gray-400">{dayLabel(new Date())}</p>
+          <p className="mt-1.5 text-xs text-gray-400">
+            {dayLabel(new Date())} ·{" "}
+            <Link href="/welcome" className="font-medium text-fg underline decoration-gray-400 underline-offset-4">
+              How it works
+            </Link>
+          </p>
         </div>
         {all.length > 0 && (
           <div className="flex items-center gap-2">
@@ -353,13 +358,7 @@ export default async function Home({
         </>
       )}
       <InstallButton />
-      {all.length > 0 && (
-        <p className="mt-6 text-center">
-          <Link href="/welcome" className="text-sm text-gray-500 underline underline-offset-4">
-            How Loopin works
-          </Link>
-        </p>
-      )}
+
     </>
   );
 }

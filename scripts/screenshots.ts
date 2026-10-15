@@ -91,7 +91,7 @@ await shot("15-new-group", "/groups/new");
 await context.clearCookies();
 await shot("16-join", `/join/${demo.trip.invite}`);
 await shot("24-tour-1", "/", undefined, false);
-for (const n of [2, 3, 4, 5, 6]) {
+for (const n of [2, 3, 4, 5]) {
   await shot(`24-tour-${n}`, "/", async (p) => {
     for (let k = 1; k < n; k++) {
       await p.getByRole("button", { name: /Next/ }).click();

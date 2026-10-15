@@ -165,25 +165,6 @@ const slides: Slide[] = [
       </Card>
     ),
   },
-  {
-    id: "free",
-    title: ["Free. No limits.", "No ads. Ever."],
-    caption: "Unlimited expenses and groups, every currency, every feature. Install it from your browser in two taps.",
-    art: (
-      <div className="flex flex-col items-center">
-        <span className="glow font-display text-[120px] leading-none text-owed" aria-hidden>
-          ∞
-        </span>
-        <ul className="mt-4 space-y-1.5 text-sm">
-          {["Unlimited expenses", "No daily caps, no ads", "Works on any phone"].map((t, i) => (
-            <li key={t} className={`rise rise-${i + 2} flex items-center gap-2`}>
-              <span className={owed}>✓</span> {t}
-            </li>
-          ))}
-        </ul>
-      </div>
-    ),
-  },
 ];
 
 export function IntroTour({ startHref = "/groups/new", cta = "Create your first group" }: { startHref?: string; cta?: string }) {
