@@ -27,9 +27,9 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
       <section>
         <div className="flex items-center justify-between gap-3">
           <h2 className="font-display text-lg font-semibold tracking-tight">Smart Settle</h2>
-          {!group.closed && (
-            <Link href={payHref()} className="shrink-0 border border-line px-3 py-1.5 text-sm font-medium text-fg active:bg-mist">
-              + Record payment
+          {!group.closed && transfers.length > 0 && (
+            <Link href={`/groups/${group.id}/settle`} className="pop shrink-0 bg-fg px-4 py-1.5 text-sm font-semibold text-canvas [--pop-edge:#6e6b63]">
+              Settle up
             </Link>
           )}
         </div>

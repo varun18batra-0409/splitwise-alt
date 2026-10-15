@@ -16,7 +16,7 @@ export function UndoBar({
   text: string;
   groupId: string;
   eventId: string;
-  back: "group" | "balances" | "home" | "people";
+  back: "group" | "balances" | "home" | "people" | "settle";
   redo?: boolean;
 }) {
   const [visible, setVisible] = useState(true);

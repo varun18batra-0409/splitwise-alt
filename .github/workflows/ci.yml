@@ -57,6 +57,13 @@ jobs:
           (npm run start > server.log 2>&1 &)
           npx --yes wait-on@8.0.1 -t 60000 http://localhost:3000
           npx tsx scripts/screenshots.ts 2>&1 | tee shots.log || { echo "::error title=Screenshots failed::$(tail -40 shots.log | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')%0A--- server ---%0A$(tail -20 server.log | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"; exit 1; }
+      - name: UAT (a person tapping through every feature)
+        run: |
+          npx tsx scripts/uat.ts 2>&1 | tee uat.log || true
+          echo "::notice title=UAT::$(head -1 screenshots/uat/summary.txt)"
+          if grep -q "✗\|crashed" screenshots/uat/summary.txt; then
+            echo "::warning title=UAT failures::$(tail -n +1 screenshots/uat/summary.txt | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"
+          fi
       - name: Save to the screenshots branch
         run: |
           cd screenshots

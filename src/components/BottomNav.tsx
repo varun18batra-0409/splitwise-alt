@@ -31,7 +31,7 @@ export function BottomNav() {
   const items = [
     { href: "/", label: "Home", icon: <HomeIcon size={22} />, on: path === "/" },
     { href: g ? `/search?g=${g}` : "/search", label: "Search", icon: <SearchIcon size={22} />, on: path === "/search" },
-    { href: g ? `/groups/${g}?tab=balances` : "/settle", label: "Settle", icon: <SettleIcon size={22} />, on: path === "/settle" },
+    { href: g ? `/groups/${g}/settle` : "/settle", label: "Settle", icon: <SettleIcon size={22} />, on: path === "/settle" || path.endsWith("/settle") },
     { href: "/notifications", label: "Alerts", icon: <BellIcon size={22} />, on: path === "/notifications", badge: unread },
   ];
   const cell = (it: (typeof items)[number]) => (

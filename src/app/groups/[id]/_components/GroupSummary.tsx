@@ -39,9 +39,16 @@ export function GroupSummary({ v, sp }: { v: GroupView; sp: Notices }) {
           {mine > 0 ? `You’re owed ${money(mine)}` : mine < 0 ? `You owe ${money(-mine)}` : "All square"}
         </p>
         {(expenses.length > 0 || v.payments.length > 0) && (
-          <Link href={`/groups/${group.id}?tab=balances&why=${myId}#why-${myId}`} className="mt-1 inline-block text-sm font-medium text-fg underline underline-offset-4">
-            Why?
-          </Link>
+          <div className="mt-3 flex items-center gap-3">
+            {v.transfers.length > 0 && !group.closed && (
+              <Link href={`/groups/${group.id}/settle`} className="pop bg-fg px-5 py-2.5 text-sm font-semibold text-canvas [--pop-edge:#6e6b63]">
+                Settle up
+              </Link>
+            )}
+            <Link href={`/groups/${group.id}?tab=balances&why=${myId}#why-${myId}`} className="text-sm font-medium text-fg underline underline-offset-4">
+              Why?
+            </Link>
+          </div>
         )}
         {mine !== 0 && eq(mine) && <p className="font-display text-lg tabular-nums text-gray-500">{eq(mine)}</p>}
         {hasMarkup && <p className="mt-0.5 text-xs text-gray-400">In {group.currency}, including card markup.</p>}

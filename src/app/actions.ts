@@ -176,6 +176,7 @@ export async function undoChange(formData: FormData) {
   const q = r.ok ? `undone=1${r.eventId ? `&did=${r.eventId}` : ""}` : `error=${encodeURIComponent(r.error)}`;
   if (back === "home") redirect(`/?${q}&g=${groupId}`);
   if (back === "people") redirect(`/groups/${groupId}/people?${q}`);
+  if (back === "settle") redirect(`/groups/${groupId}/settle?${q}`);
   redirect(`/groups/${groupId}?tab=${back === "balances" ? "balances" : "activity"}&${q}`);
 }
 
@@ -345,20 +346,27 @@ export async function recordCustomPayment(formData: FormData) {
   const fromId = String(formData.get("fromId") ?? "");
   const toId = String(formData.get("toId") ?? "");
   const amountText = String(formData.get("amount") ?? "");
+  const fromSettle = formData.get("back") === "settle";
 
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true, name: true } } } });
-  if (!group) redirect("/");
+  if (!group || group.deletedAt) redirect("/");
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect(`/join/${group.inviteCode}`);
+  if (group.closed) redirect(`/groups/${group.id}`);
 
   const back = (error: string) =>
-    redirect(`/groups/${group.id}/pay?${new URLSearchParams({ from: fromId, to: toId, amount: amountText, error })}`);
+    redirect(
+      fromSettle
+        ? `/groups/${group.id}/settle?${new URLSearchParams({ error })}`
+        : `/groups/${group.id}/pay?${new URLSearchParams({ from: fromId, to: toId, amount: amountText, error })}`,
+    );
   const nameOf = (id: string) => group.members.find((m) => m.id === id)?.name;
   if (!nameOf(fromId) || !nameOf(toId)) back("Pick who paid and who they paid.");
   if (fromId === toId) back("Pick two different people.");
   const amount = parseAmount(amountText, group.currency);
-  if (amount === null) back("Enter a valid amount, like 500 or 99.50.");
-  if (await isDoubleTap(group.id, fromId, toId, amount!, myId)) redirect(`/groups/${group.id}?tab=balances&paid=1`);
+  if (amount === null || amount <= 0) back("Enter a valid amount, like 500 or 99.50.");
+  const done = fromSettle ? `/groups/${group.id}/settle?paid=1` : `/groups/${group.id}?tab=balances&paid=1`;
+  if (await isDoubleTap(group.id, fromId, toId, amount!, myId)) redirect(done);
 
   const did = await db.$transaction(async (tx) => {
     const p = await tx.payment.create({ data: { groupId: group.id, fromId, toId, amount: amount!, createdById: myId } });
@@ -371,7 +379,7 @@ export async function recordCustomPayment(formData: FormData) {
       undo: { type: "payment_delete", paymentId: p.id },
     });
   });
-  redirect(`/groups/${group.id}?tab=balances&paid=1&did=${did}`);
+  redirect(`${done}&did=${did}`);
 }
 
 // People screen: rename, remove (never used), leave / rejoin.
