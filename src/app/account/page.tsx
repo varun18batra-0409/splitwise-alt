@@ -77,7 +77,7 @@ export default async function AccountPage() {
       )}
 
       <p className="mt-10 text-center text-sm">
-        <Link href="/welcome" className="mr-4 text-gray-500 underline underline-offset-4">
+        <Link href="/how-it-works" className="mr-4 text-gray-500 underline underline-offset-4">
           How Loopin works
         </Link>
         <Link href="/privacy" className="text-gray-500 underline underline-offset-4">

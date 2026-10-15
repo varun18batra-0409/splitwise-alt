@@ -88,6 +88,7 @@ await shot("23-add-expense-differently", `${g}/add`, async (p) => {
   await p.waitForTimeout(300);
 });
 await shot("28-settle", "/settle");
+await shot("35-how-it-works", "/how-it-works");
 await shot("32-group-settle", `${g}/settle`);
 await shot("29-why", `${g}?tab=balances&why=${demo.trip.me}#why-${demo.trip.me}`);
 await shot("30-add-only-some", `${g}/add`, async (p) => {

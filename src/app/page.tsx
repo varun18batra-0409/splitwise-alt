@@ -118,7 +118,7 @@ export default async function Home({
         </div>
         <div className="flex items-center gap-2">
           <GetAppButton variant="icon" />
-          <Link href="/welcome" aria-label="How Loopin works" className={`${iconButtonClass} text-[17px] font-semibold`}>
+          <Link href="/how-it-works" aria-label="How Loopin works" className={`${iconButtonClass} text-[17px] font-semibold`}>
             ?
           </Link>
           <Link href="/account" aria-label={account ? `Account: ${account.email}` : "Sign in or account"} className={`relative ${iconButtonClass}`}>
@@ -130,7 +130,7 @@ export default async function Home({
 
       {/* New here (one group or none, no expenses yet): a gentle pointer to the 1-minute tour. */}
       {open.length <= 1 && open.every((g) => g.expenses.length === 0) && (
-        <Link href="/welcome" className="mb-6 flex items-center gap-3 rounded-2xl bg-mist px-4 py-3 text-sm active:bg-line">
+        <Link href="/how-it-works" className="mb-6 flex items-center gap-3 rounded-2xl bg-mist px-4 py-3 text-sm active:bg-line">
           <span aria-hidden>👋</span>
           <span className="min-w-0 flex-1">
             New to Loopin? <span className="font-medium text-fg">See how it works</span> <span className="text-gray-400">· 1 min</span>
@@ -159,8 +159,6 @@ export default async function Home({
               {[
                 ["✈️", "Trip", "Goa trip"],
                 ["🏠", "Flatmates", "Flat expenses"],
-                ["💞", "Couple", "Us"],
-                ["🍽️", "Dinner", "Dinner out"],
               ].map(([emoji, label, name]) => (
                 <Link
                   key={label}

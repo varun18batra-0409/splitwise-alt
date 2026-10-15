@@ -7,3 +7,4 @@ prisma/dev.db-journal
 .env*.local
 .demo.json
 screenshots/
+public/photos/

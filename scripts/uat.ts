@@ -751,10 +751,15 @@ async function main() {
     await page.getByRole("heading", { name: "Sign up" }).waitFor();
     await ctx.close();
   });
-  await step(V, "Help", "“?” on home opens How it works", async () => {
+  await step(V, "Help", "“?” on home opens the detailed How Loopin works guide (with photos), which links to the 1-minute tour", async () => {
     await go(V, "/");
     await V.getByRole("link", { name: "How Loopin works" }).click();
+    await V.waitForURL(/\/how-it-works/);
+    await V.getByRole("heading", { name: "Add an expense in seconds" }).waitFor();
+    const imgs = await V.locator("main img").count();
+    await V.getByRole("link", { name: /1-minute tour/ }).click();
     await V.waitForURL(/\/welcome/);
+    return `${imgs} photos on the guide`;
   });
   await step(V, "Tags", "Each expense shows its category tag (Dinner → Food, Taxi → Transport)", async () => {
     await go(V, `${g}?tab=activity`);
