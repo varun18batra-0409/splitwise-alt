@@ -756,10 +756,14 @@ async function main() {
     await V.getByRole("link", { name: "How Loopin works" }).click();
     await V.waitForURL(/\/how-it-works/);
     await V.getByRole("heading", { name: "Add an expense in seconds" }).waitFor();
+    await V.waitForTimeout(2500);
     const imgs = await V.locator("main img").count();
+    const sizes = await V.evaluate(() =>
+      [...document.querySelectorAll("main img")].map((i) => `${(i as HTMLImageElement).src.split("/").pop()}:${(i as HTMLImageElement).naturalWidth}`).join(" "),
+    );
     await V.getByRole("link", { name: /1-minute tour/ }).click();
     await V.waitForURL(/\/welcome/);
-    return `${imgs} photos on the guide`;
+    return `${imgs} photos on the guide (${sizes})`;
   });
   await step(V, "Tags", "Each expense shows its category tag (Dinner → Food, Taxi → Transport)", async () => {
     await go(V, `${g}?tab=activity`);
