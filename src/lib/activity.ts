@@ -23,6 +23,7 @@ type ExpenseRow = {
   originalAmount?: number;
   originalCurrency?: string;
   baseCurrency?: string;
+  notes?: string;
 };
 type PaymentRow = {
   id: string;
@@ -45,6 +46,7 @@ export type ActivityItem =
       id: string;
       date: Date;
       title: string;
+      notes?: string;
       category: string;
       amount: number;
       paidById: string;
@@ -90,6 +92,7 @@ export function buildActivity(expenses: ExpenseRow[], payments: PaymentRow[], my
         id: e.id,
         date: e.spentAt ?? e.createdAt,
         title: e.description,
+        notes: e.notes ?? "",
         category: e.category,
         amount: e.amount,
         paidById: e.paidById,
@@ -180,6 +183,6 @@ export function filterActivity(items: ActivityItem[], f: ActivityFilter, nameOf:
     const cat = getCategory(item.category);
     if (f.cat && cat.id !== f.cat) return false;
     if (f.who && item.paidById !== f.who && !item.people.includes(f.who)) return false;
-    return matches(`${item.title} ${cat.label} ${nameOf(item.paidById)} ${item.people.map(nameOf).join(" ")}`);
+    return matches(`${item.title} ${item.notes ?? ""} ${cat.label} ${nameOf(item.paidById)} ${item.people.map(nameOf).join(" ")}`);
   });
 }

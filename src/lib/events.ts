@@ -2,6 +2,20 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import { getCategory } from "./categories";
 import { formatMoney, formatPercent } from "./money";
 import { niceDate } from "./format";
+import { after } from "next/server";
+
+// Phone notifications go out after the response is sent (so after the change
+// is saved). Outside a request — tests, scripts — nothing is sent.
+function schedulePush(eventId: string) {
+  try {
+    after(async () => {
+      const { sendEventPush } = await import("./push");
+      await sendEventPush(eventId);
+    });
+  } catch {
+    /* not inside a request */
+  }
+}
 
 // The group's change history. Every add / edit / delete / settings change is
 // written here; it powers both the history shown in the group and the
@@ -49,10 +63,11 @@ export type ExpenseState = {
   markupBp: number;
   markupAmount: number;
   spentAt: string | null; // the chosen day, as an ISO time; null = the day it was added
+  notes?: string; // missing in changes saved before notes existed
   shares: { memberId: string; amount: number }[];
 };
 
-export function expenseState(e: Omit<ExpenseState, "spentAt"> & { spentAt?: Date | string | null }): ExpenseState {
+export function expenseState(e: Omit<ExpenseState, "spentAt" | "notes"> & { spentAt?: Date | string | null; notes?: string }): ExpenseState {
   return {
     description: e.description,
     category: e.category,
@@ -71,6 +86,7 @@ export function expenseState(e: Omit<ExpenseState, "spentAt"> & { spentAt?: Date
     markupBp: e.markupBp,
     markupAmount: e.markupAmount,
     spentAt: e.spentAt instanceof Date ? e.spentAt.toISOString() : (e.spentAt ?? null),
+    notes: e.notes ?? "",
     shares: e.shares.map((s) => ({ memberId: s.memberId, amount: s.amount })),
   };
 }
@@ -130,6 +146,7 @@ export async function logEvent(
       undo: e.undo ? JSON.stringify(e.undo) : "",
     },
   });
+  schedulePush(created.id);
   return created.id;
 }
 
@@ -157,6 +174,7 @@ export type ExpenseSnapshot = {
   forMode: string;
   splitType: string;
   day?: string; // "2026-10-14"
+  notes?: string;
   shares: { memberId: string; amount: number }[];
 };
 
@@ -185,6 +203,10 @@ export function diffExpense(before: ExpenseSnapshot, after: ExpenseSnapshot, nam
   add("Paid by", nameOf(before.paidById), nameOf(after.paidById));
   add("For", FOR[before.forMode] ?? before.forMode, FOR[after.forMode] ?? after.forMode);
   add("Split", SPLIT[before.splitType] ?? before.splitType, SPLIT[after.splitType] ?? after.splitType);
+  if ((before.notes ?? "") !== (after.notes ?? "")) {
+    const short = (t: string) => (t ? `“${t.length > 40 ? `${t.slice(0, 40)}…` : t}”` : "none");
+    out.push(`Notes: ${short(before.notes ?? "")} → ${short(after.notes ?? "")}`);
+  }
 
   // Each person's share.
   const ids = [...new Set([...before.shares, ...after.shares].map((s) => s.memberId))];

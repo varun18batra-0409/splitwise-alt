@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { InstallButton } from "@/components/InstallButton";
+import { IntroTour } from "@/components/IntroTour";
 import { getMemberships } from "@/lib/identity";
 import { loadMyGroups, loadNotifications } from "@/lib/group-data";
 import { buildActivity, dayLabel } from "@/lib/activity";
@@ -114,6 +115,9 @@ export default async function Home({
     })
     .sort((a, b) => b.item.date.getTime() - a.item.date.getTime())
     .slice(0, 8);
+
+  // First visit: show what Loopin does instead of an empty screen.
+  if (all.length === 0 && !error) return <IntroTour />;
 
   return (
     <>
@@ -349,6 +353,13 @@ export default async function Home({
         </>
       )}
       <InstallButton />
+      {all.length > 0 && (
+        <p className="mt-6 text-center">
+          <Link href="/welcome" className="text-sm text-gray-500 underline underline-offset-4">
+            How Loopin works
+          </Link>
+        </p>
+      )}
     </>
   );
 }

@@ -51,7 +51,7 @@ const V = trip.id("Varun"), A = trip.id("Asha"), R = trip.id("Ravi"), M = trip.i
 await db.member.update({ where: { id: trip.id("Dev") }, data: { leftAt: new Date("2026-10-07T10:00:00Z") } });
 await add(trip.g.id, V, { name: "Flights to Bangkok", amount: "48000", date: "2026-10-08" });
 await add(trip.g.id, A, { name: "Hotel in Sukhumvit", amount: "12000", currency: "THB", paymentMethod: "card", date: "2026-10-09" });
-await add(trip.g.id, R, { name: "Dinner at Jay Fai", amount: "3000", currency: "THB", paymentMethod: "cash", date: "2026-10-10" });
+await add(trip.g.id, R, { name: "Dinner at Jay Fai", amount: "3000", currency: "THB", paymentMethod: "cash", date: "2026-10-10", notes: "Crab omelette for everyone. Ravi paid the tip separately." });
 await add(trip.g.id, V, { name: "Grab to the airport", amount: "450", currency: "THB", paymentMethod: "card", date: "2026-10-11" });
 await add(trip.g.id, M, { name: "Grand Palace tickets", amount: "2000", currency: "THB", paymentMethod: "cash", forMode: "selected", selected: [V, A, M], date: "2026-10-11" });
 await add(trip.g.id, V, { name: "Beers at Khao San", amount: "1200", currency: "THB", paymentMethod: "card", splitType: "exact", exact: { [V]: "300", [A]: "300", [R]: "600", [M]: "" }, forMode: "everyone", date: "2026-10-12" });

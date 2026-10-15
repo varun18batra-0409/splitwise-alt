@@ -9,6 +9,7 @@ import { dayKey } from "./dates";
 type Member = { id: string; name: string };
 type Expense = {
   description: string;
+  notes?: string;
   category: string;
   amount: number;
   paidById: string;
@@ -40,7 +41,7 @@ export function groupCsv(group: { name: string; currency: string }, members: Mem
   const cur = group.currency;
   const name = (id: string) => members.find((m) => m.id === id)?.name ?? "Someone";
   const header = [
-    "Date", "Type", "Description", "Category", "Paid by", `Amount (${cur})`,
+    "Date", "Type", "Description", "Notes", "Category", "Paid by", `Amount (${cur})`,
     "Original amount", "Original currency", "Exchange rate", `Card markup (${cur})`, "Paid with", "Status",
     ...members.map((m) => `${m.name}'s share (${cur})`),
   ];
@@ -52,7 +53,7 @@ export function groupCsv(group: { name: string; currency: string }, members: Mem
     rows.push({
       date,
       cells: [
-        dayKey(date), "Expense", e.description, getCategory(e.category).label, name(e.paidById), plain(e.amount, cur),
+        dayKey(date), "Expense", e.description, e.notes ?? "", getCategory(e.category).label, name(e.paidById), plain(e.amount, cur),
         foreign ? plain(e.originalAmount, e.originalCurrency) : "", foreign ? e.originalCurrency : "", foreign ? e.exchangeRate : "",
         e.markupAmount ? plain(e.markupAmount, cur) : "", e.paymentMethod, e.deletedAt ? "Deleted" : "",
         ...members.map((m) => {
@@ -66,7 +67,7 @@ export function groupCsv(group: { name: string; currency: string }, members: Mem
     rows.push({
       date: p.createdAt,
       cells: [
-        dayKey(p.createdAt), "Payment", `${name(p.fromId)} paid ${name(p.toId)}`, "", name(p.fromId), plain(p.amount, cur),
+        dayKey(p.createdAt), "Payment", `${name(p.fromId)} paid ${name(p.toId)}`, "", "", name(p.fromId), plain(p.amount, cur),
         "", "", "", "", "", p.deletedAt ? "Deleted" : "", ...members.map(() => ""),
       ],
     });

@@ -17,6 +17,8 @@ export function AddExpenseButton() {
     path.endsWith("/settings") ||
     path.endsWith("/pay") ||
     path.endsWith("/people") ||
+    path.endsWith("/invite") ||
+    path === "/welcome" ||
     path === "/notifications";
   if (hidden) return null;
 
@@ -24,7 +26,7 @@ export function AddExpenseButton() {
   const href = inGroup ? `/groups/${inGroup[1]}/add` : "/add";
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-20 flex justify-center bg-gradient-to-t from-canvas via-canvas/80 to-transparent px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-10">
+    <div className="add-bar pointer-events-none fixed inset-x-0 bottom-0 z-20 flex justify-center bg-gradient-to-t from-canvas via-canvas/80 to-transparent px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-10">
       <Link
         href={href}
         className="pop pointer-events-auto flex w-full max-w-[22rem] items-center justify-center gap-2 bg-fg py-3.5 text-[15px] font-semibold tracking-wide text-canvas"

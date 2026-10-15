@@ -73,6 +73,7 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
     rate: e.exchangeRate,
     rateDate: e.rateDate,
     date: dayKey(e.spentAt ?? e.createdAt),
+    notes: e.notes,
   };
 
   return (

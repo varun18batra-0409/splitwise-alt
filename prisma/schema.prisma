@@ -37,6 +37,7 @@ model Member {
   phone     String   @default("") // from the phone's contacts, if they were added that way
   seenEventsAt DateTime? // notifications newer than this are unread for this person (empty = since they joined)
   leftAt    DateTime? // set when they left the group: kept in history, not offered for new expenses
+  claimedAt DateTime? // when someone on a phone picked this name (null = added by name, not joined yet)
   groupId   String
   group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
@@ -45,6 +46,7 @@ model Member {
   shares       ExpenseShare[]
   paymentsSent Payment[]      @relation("PaymentFrom")
   paymentsRecv Payment[]      @relation("PaymentTo")
+  pushSubscriptions PushSubscription[]
 
   @@unique([groupId, name])
 }
@@ -54,6 +56,7 @@ model Expense {
   groupId     String
   group       Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
   description String
+  notes       String    @default("") // optional free text, e.g. "Rahul paid the tip separately"
   amount      Int // FINAL total in the group's currency (converted + markup). Shares add up to this.
   splitType   String // "equal" | "exact" | "percent"
   forMode     String         @default("everyone") // who it was for: "everyone" | "selected" | "one"
@@ -140,4 +143,24 @@ model ExchangeRate {
   fetchedAt DateTime @default(now())
 
   @@index([base, quote, fetchedAt])
+}
+
+// A phone that turned on notifications, for one of the people it's signed in as.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  memberId  String
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  endpoint  String
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  @@unique([memberId, endpoint])
+  @@index([memberId])
+}
+
+// Small app-wide settings (e.g. the keys used to sign push notifications).
+model AppSetting {
+  key   String @id
+  value String
 }

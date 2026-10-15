@@ -88,6 +88,7 @@ export function ActivityRow({
         <p className="flex items-center gap-1.5">
           <span className={`truncate font-medium ${deleted ? "line-through decoration-gray-400" : ""}`}>{item.title}</span>
           {item.edited && !deleted && <span className="shrink-0 rounded-full bg-mist px-1.5 py-0.5 text-[10px] text-gray-500">edited</span>}
+          {item.notes && <span className="shrink-0 text-[11px] leading-none" title="Has notes" aria-label="Has notes">📝</span>}
         </p>
         <p className="truncate text-sm text-gray-400">
           {deleted

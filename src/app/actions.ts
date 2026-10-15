@@ -11,6 +11,7 @@ import { deletePayment, saveExpense, setExpenseDeleted, setPaymentDeleted, type 
 import { removeMembers, undoEvent } from "@/lib/undo";
 import { isMemberUsed, renameMember, setMemberLeft } from "@/lib/people";
 import { settleAllAndClose } from "@/lib/settle-all";
+import { vapidKeys } from "@/lib/push";
 import { changeGroupCurrency, updateGroupBasics } from "@/lib/group-changes";
 import { logEvent } from "@/lib/events";
 import { formatMoney } from "@/lib/money";
@@ -38,7 +39,7 @@ export async function createGroup(formData: FormData) {
       name: groupName,
       currency: isSupportedCurrency(baseCurrency) ? baseCurrency : "INR",
       inviteCode: newInviteCode(),
-      members: { create: [{ name: yourName }, ...others] },
+      members: { create: [{ name: yourName, claimedAt: new Date() }, ...others] },
     },
     include: { members: true },
   });
@@ -90,6 +91,7 @@ export async function joinAsExisting(formData: FormData) {
     where: { id: memberId, group: { inviteCode: code } },
   });
   if (!member) redirect(`/join/${code}`);
+  if (!member.claimedAt) await db.member.update({ where: { id: member.id }, data: { claimedAt: new Date() } });
   await setMyMemberId(member.groupId, member.id);
   redirect(`/groups/${member.groupId}`);
 }
@@ -108,7 +110,7 @@ export async function joinAsNew(formData: FormData) {
     redirect(`/join/${code}?error=taken`);
   }
 
-  const member = await db.member.create({ data: { name, groupId: group.id } });
+  const member = await db.member.create({ data: { name, groupId: group.id, claimedAt: new Date() } });
   await logEvent(db, {
     groupId: group.id,
     actorId: member.id,
@@ -405,4 +407,37 @@ export async function settleEverything(formData: FormData) {
   const r = await settleAllAndClose(group.id, myId, String(formData.get("plan") ?? ""));
   if (!r.ok) redirect(`/groups/${group.id}?tab=balances&error=${encodeURIComponent(r.error)}`);
   redirect(`/?closed=1&did=${r.eventId}&g=${group.id}`);
+}
+
+// Phone notifications: this phone's subscription is saved for every person
+// it's signed in as, so changes in any of its groups reach it.
+type PushSub = { endpoint: string; keys: { p256dh: string; auth: string } };
+
+export async function pushPublicKey(): Promise<string> {
+  return (await vapidKeys()).publicKey;
+}
+
+export async function savePushSubscription(sub: PushSub): Promise<{ ok: boolean; groups: number }> {
+  const endpoint = String(sub?.endpoint ?? "");
+  const p256dh = String(sub?.keys?.p256dh ?? "");
+  const auth = String(sub?.keys?.auth ?? "");
+  if (!/^https:\/\//.test(endpoint) || endpoint.length > 2000 || !p256dh || !auth || p256dh.length > 200 || auth.length > 100) {
+    return { ok: false, groups: 0 };
+  }
+  const memberships = await getMemberships();
+  const members = await db.member.findMany({ where: { id: { in: Object.values(memberships) } }, select: { id: true, groupId: true } });
+  const mine = members.filter((m) => memberships[m.groupId] === m.id);
+  for (const m of mine) {
+    await db.pushSubscription.upsert({
+      where: { memberId_endpoint: { memberId: m.id, endpoint } },
+      create: { memberId: m.id, endpoint, p256dh, auth },
+      update: { p256dh, auth },
+    });
+  }
+  return { ok: true, groups: mine.length };
+}
+
+export async function removePushSubscription(endpoint: string): Promise<void> {
+  const memberships = await getMemberships();
+  await db.pushSubscription.deleteMany({ where: { endpoint: String(endpoint), memberId: { in: Object.values(memberships) } } });
 }

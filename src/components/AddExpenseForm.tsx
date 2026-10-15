@@ -9,7 +9,7 @@ import { currencyInfo, formatMoney, formatPercent, isSupportedCurrency, parseAmo
 import { CurrencyPicker } from "./CurrencyPicker";
 import { participantsFor, type ForMode, type SplitType } from "@/lib/split";
 import { niceDate, rateText } from "@/lib/format";
-import { todayKey } from "@/lib/dates";
+import { dayKey, todayKey } from "@/lib/dates";
 import { inputClass, primaryButtonClass } from "./ui";
 
 type Member = { id: string; name: string };
@@ -40,6 +40,7 @@ export type ExpenseInitial = {
   rate: string; // the rate saved with the expense
   rateDate: string;
   date: string; // "2026-10-14"
+  notes: string;
 };
 
 // Fast path (3 taps): + Add expense → type name & amount → Save.
@@ -69,7 +70,12 @@ export function AddExpenseForm({
   const [name, setName] = useState(initial?.name ?? "");
   const [amount, setAmount] = useState(initial?.amount ?? "");
   const today = todayKey();
+  const yesterday = dayKey(new Date(Date.now() - 86_400_000));
   const [date, setDate] = useState(initial?.date ?? today);
+  const [pickingDate, setPickingDate] = useState(Boolean(initial && initial.date !== today && initial.date !== yesterday));
+  const [showDate, setShowDate] = useState(false);
+  const [notes, setNotes] = useState(initial?.notes ?? "");
+  const [showNotes, setShowNotes] = useState(Boolean(initial?.notes));
   const [pickedCategory, setPickedCategory] = useState<string | null>(initial?.category ?? null); // null = smart guess
   const [currency, setCurrency] = useState(initial?.currency ?? baseCurrency);
   const [showCurrencies, setShowCurrencies] = useState(false);
@@ -208,13 +214,28 @@ export function AddExpenseForm({
       return;
     }
     startSaving(async () => {
-      const res = await addExpense({ ...draft, groupId, name, category: category.id, expenseId, date, rateMode: usingManualRate ? "manual" : keepSavedRate ? "keep" : "auto", manualRate });
+      const res = await addExpense({ ...draft, groupId, name, notes, category: category.id, expenseId, date, rateMode: usingManualRate ? "manual" : keepSavedRate ? "keep" : "auto", manualRate });
       if (res?.error) setError(res.error);
     });
   }
 
   return (
     <form onSubmit={save} className="space-y-7">
+      {/* Who paid — visible at the top, one tap to change */}
+      {members.length > 1 && (
+        <div>
+          <span className={labelClass}>Who paid?</span>
+          <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none]">
+            {[...members].sort((a, b) => (a.id === myId ? -1 : b.id === myId ? 1 : 0)).map((m) => (
+              <Chip key={m.id} on={m.id === paidById} onClick={() => setPaidById(m.id)}>
+                {m.id === paidById && "✓ "}
+                {who(m.id)}
+              </Chip>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 1. Expense name, with its category as a small tag (used for group reports) */}
       <div>
         <label htmlFor="expense-name" className={labelClass}>
@@ -317,27 +338,35 @@ export function AddExpenseForm({
         </div>
         {showCurrencies && <CurrencyPicker value={currency} recent={[baseCurrency, currency]} onPick={chooseCurrency} />}
 
-        {/* When it was spent — today unless changed. */}
-        <label className="mt-2 flex items-center gap-2 text-sm text-gray-500">
-          <span className="shrink-0">Date</span>
-          <span className="relative">
-            <input
-              type="date"
-              value={date}
-              max={today}
-              onChange={(e) => setDate(e.target.value || today)}
-              aria-label="Date of the expense"
-              className="border border-line bg-transparent px-2.5 py-1.5 text-sm text-fg outline-none focus:border-accent [color-scheme:dark]"
-            />
-          </span>
-          {date === today ? (
-            <span className="text-gray-400">· today</span>
-          ) : (
-            <button type="button" onClick={() => setDate(today)} className="text-xs font-semibold text-fg">
-              Use today
-            </button>
-          )}
-        </label>
+        {/* When it was spent — optional: today unless changed. */}
+        {!showDate ? (
+          <button type="button" onClick={() => setShowDate(true)} className="mt-2 py-1 text-sm text-gray-500">
+            📅 {date === today ? "Today" : date === yesterday ? "Yesterday" : niceDate(date)} · <span className="font-medium text-fg">Change</span>
+          </button>
+        ) : (
+          <div className="mt-3 flex flex-wrap items-center gap-2" role="group" aria-label="When">
+            <Chip on={!pickingDate && date === today} onClick={() => { setPickingDate(false); setDate(today); }}>
+              Today
+            </Chip>
+            <Chip on={!pickingDate && date === yesterday} onClick={() => { setPickingDate(false); setDate(yesterday); }}>
+              Yesterday
+            </Chip>
+            {pickingDate ? (
+              <input
+                type="date"
+                value={date}
+                max={today}
+                onChange={(e) => setDate(e.target.value || today)}
+                aria-label="Date of the expense"
+                className="rounded-full border border-fg bg-transparent px-3 py-1.5 text-sm text-fg outline-none [color-scheme:dark]"
+              />
+            ) : (
+              <Chip on={false} onClick={() => setPickingDate(true)}>
+                📅 Pick date
+              </Chip>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Currency conversion — only shown for foreign currencies */}
@@ -490,33 +519,31 @@ export function AddExpenseForm({
         </section>
       )}
 
-      {/* 5–7. Who paid, who it was for, how to split — summarised, tap to change */}
-      <section className="rounded-2xl border border-gray-100">
-        <button
-          type="button"
-          onClick={() => setShowPeople((s) => !s)}
-          className="flex w-full items-start justify-between gap-3 px-4 py-3.5 text-left text-sm"
-        >
-          <span className="text-gray-600">
-            Paid by <strong className="text-gray-900">{who(paidById)}</strong> · for{" "}
-            <strong className="text-gray-900">{forSummary}</strong> · <strong className="text-gray-900">{splitSummary}</strong>
-          </span>
-          <span className="shrink-0 font-medium text-accent">{showPeople ? "Done" : "Change"}</span>
-        </button>
-
+      {/* How to split: equal for everyone (default), or differently */}
+      <section>
+        <span className={labelClass}>How to split?</span>
+        <div className="flex flex-wrap gap-2">
+          <Chip
+            on={!showPeople && forMode === "everyone" && splitType === "equal"}
+            onClick={() => {
+              setForMode("everyone");
+              setSplitType("equal");
+              setShowPeople(false);
+            }}
+          >
+            Equally between everyone
+          </Chip>
+          <Chip on={showPeople || forMode !== "everyone" || splitType !== "equal"} onClick={() => setShowPeople(true)}>
+            Differently ⚙
+          </Chip>
+        </div>
+        {!showPeople && (forMode !== "everyone" || splitType !== "equal") && (
+          <p className="mt-2 text-sm text-gray-500">
+            For <strong className="text-fg">{forSummary}</strong> · {splitSummary}
+          </p>
+        )}
         {showPeople && (
-          <div className="space-y-6 border-t border-gray-100 px-4 pb-4 pt-4">
-            <div>
-              <span className={labelClass}>Who paid?</span>
-              <div className="flex flex-wrap gap-2">
-                {members.map((m) => (
-                  <Chip key={m.id} on={m.id === paidById} onClick={() => setPaidById(m.id)}>
-                    {who(m.id)}
-                  </Chip>
-                ))}
-              </div>
-            </div>
-
+          <div className="mt-3 space-y-6 rounded-2xl border border-line px-4 pb-4 pt-4">
             <div>
               <span className={labelClass}>Who was it for?</span>
               <Segmented
@@ -608,6 +635,27 @@ export function AddExpenseForm({
         )}
       </section>
 
+      {/* Notes (optional) */}
+      <div>
+        {showNotes ? (
+          <label className="block">
+            <span className={labelClass}>Notes</span>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              maxLength={500}
+              rows={3}
+              placeholder="e.g. Rahul paid the tip separately"
+              className={`${inputClass} resize-none`}
+            />
+          </label>
+        ) : (
+          <button type="button" onClick={() => setShowNotes(true)} className="flex items-center gap-2 py-1 text-sm font-medium text-fg">
+            <span className="text-lg leading-none">＋</span> Add notes
+          </button>
+        )}
+      </div>
+
       {/* Result: who owes whom for this expense */}
       {preview.ok && (
         <section className="border border-line bg-white p-4 text-sm">
@@ -681,7 +729,7 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
       type="button"
       onClick={onClick}
       aria-pressed={on}
-      className={`rounded-full border px-4 py-2 text-sm ${
+      className={`shrink-0 whitespace-nowrap rounded-full border px-4 py-2 text-sm ${
         on ? "border-fg bg-fg font-medium text-canvas" : "border-line bg-white text-gray-700"
       }`}
     >

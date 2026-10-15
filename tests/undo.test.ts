@@ -105,6 +105,24 @@ describe("undo and redo", () => {
     expect(bad.ok).toBe(false);
   });
 
+  it("notes are saved, logged when changed, kept when not sent, and undone", async () => {
+    const r = await saveExpense(input({ name: "Cab", amount: "300", notes: "  Rahul paid the toll  " }), me, rate);
+    if (!r.ok) throw new Error(r.error);
+    expect((await db.expense.findUniqueOrThrow({ where: { id: r.id } })).notes).toBe("Rahul paid the toll");
+
+    const edit = await saveExpense(input({ expenseId: r.id, name: "Cab", amount: "300", notes: "Toll split too" }), me, rate);
+    if (!edit.ok) throw new Error(edit.error);
+    const ev = await db.groupEvent.findUniqueOrThrow({ where: { id: edit.eventId! } });
+    expect(JSON.parse(ev.details)).toContain("Notes: “Rahul paid the toll” → “Toll split too”");
+
+    await undo(edit.eventId);
+    expect((await db.expense.findUniqueOrThrow({ where: { id: r.id } })).notes).toBe("Rahul paid the toll");
+
+    // An edit that doesn't send notes leaves them alone.
+    await saveExpense(input({ expenseId: r.id, name: "Cab ride", amount: "300" }), me, rate);
+    expect((await db.expense.findUniqueOrThrow({ where: { id: r.id } })).notes).toBe("Rahul paid the toll");
+  });
+
   it("refuses to undo an older change once the expense was changed again", async () => {
     const r = await saveExpense(input({ name: "Lunch", amount: "300" }), me, rate);
     const id = r.ok ? r.id : "";

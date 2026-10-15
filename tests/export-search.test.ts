@@ -16,7 +16,7 @@ describe("spreadsheet export", () => {
       members,
       [
         {
-          description: "Dinner, drinks", category: "food", amount: 120050, paidById: "me", originalAmount: 120050, originalCurrency: "INR",
+          description: "Dinner, drinks", notes: "Tip paid by Asha", category: "food", amount: 120050, paidById: "me", originalAmount: 120050, originalCurrency: "INR",
           exchangeRate: "1", markupAmount: 0, paymentMethod: "cash", createdAt: new Date("2026-10-02T10:00:00Z"), spentAt: new Date("2026-10-01T06:30:00Z"),
           deletedAt: null, shares: [{ memberId: "me", amount: 60025 }, { memberId: "a", amount: 60025 }],
         },
@@ -31,11 +31,11 @@ describe("spreadsheet export", () => {
     expect(csv.startsWith("﻿")).toBe(true);
     const lines = csv.slice(1).trim().split("\r\n");
     expect(lines[0]).toBe(
-      "Date,Type,Description,Category,Paid by,Amount (INR),Original amount,Original currency,Exchange rate,Card markup (INR),Paid with,Status,Varun's share (INR),Asha's share (INR)",
+      "Date,Type,Description,Notes,Category,Paid by,Amount (INR),Original amount,Original currency,Exchange rate,Card markup (INR),Paid with,Status,Varun's share (INR),Asha's share (INR)",
     );
-    expect(lines[1]).toBe('2026-10-01,Expense,"Dinner, drinks",Food & Drinks,Varun,1200.50,,,,,cash,,600.25,600.25');
-    expect(lines[2]).toBe("2026-10-03,Expense,Hotel,Accommodation,Asha,5150.00,2000.00,THB,2.5,150.00,card,Deleted,,5150.00");
-    expect(lines[3]).toBe("2026-10-04,Payment,Asha paid Varun,,Asha,600.25,,,,,,,,");
+    expect(lines[1]).toBe('2026-10-01,Expense,"Dinner, drinks",Tip paid by Asha,Food & Drinks,Varun,1200.50,,,,,cash,,600.25,600.25');
+    expect(lines[2]).toBe("2026-10-03,Expense,Hotel,,Accommodation,Asha,5150.00,2000.00,THB,2.5,150.00,card,Deleted,,5150.00");
+    expect(lines[3]).toBe("2026-10-04,Payment,Asha paid Varun,,,Asha,600.25,,,,,,,,");
   });
 
   it("quotes awkward text and blocks spreadsheet formulas", () => {

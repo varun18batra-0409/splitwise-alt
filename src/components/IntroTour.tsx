@@ -1,0 +1,261 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
+
+// The intro tour: six swipeable slides that show what Loopin does, each with
+// a small animated picture. Shown to first-time visitors on the home screen,
+// and any time at /welcome.
+
+type Slide = { id: string; title: [string, string]; caption: string; art: React.ReactNode };
+
+const owed = "text-owed";
+const owe = "text-owe";
+
+function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return <div className={`w-full rounded-[22px] border border-line bg-white p-5 ${className}`}>{children}</div>;
+}
+
+function Dot({ name, tone = "bg-mist" }: { name: string; tone?: string }) {
+  return (
+    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${tone} font-display text-sm font-semibold text-fg`}>
+      {name.charAt(0)}
+    </span>
+  );
+}
+
+// Two beer glasses that swing in and clink, with bubbles and a spark.
+function Cheers() {
+  const Mug = ({ flip }: { flip?: boolean }) => (
+    <svg viewBox="0 0 90 110" className={`h-32 w-24 ${flip ? "mug-right" : "mug-left"}`} aria-hidden>
+      <g transform={flip ? "translate(90 0) scale(-1 1)" : undefined}>
+        <path d="M66 38h8a12 12 0 0 1 12 12v18a12 12 0 0 1-12 12h-8" fill="none" stroke="#f4f2ec" strokeWidth="6" />
+        <rect x="8" y="28" width="60" height="76" rx="8" fill="#e8a33a" />
+        <rect x="8" y="28" width="60" height="76" rx="8" fill="url(#shine)" />
+        <path d="M6 30c0-12 10-18 18-14 4-8 18-10 24-2 8-6 22-2 22 10 6 2 6 10 0 12H6z" fill="#f4f2ec" />
+        <circle className="bubble" cx="24" cy="86" r="3" fill="#fbe7b0" />
+        <circle className="bubble" style={{ animationDelay: "0.7s" }} cx="44" cy="92" r="2.5" fill="#fbe7b0" />
+        <circle className="bubble" style={{ animationDelay: "1.3s" }} cx="34" cy="78" r="2" fill="#fbe7b0" />
+      </g>
+    </svg>
+  );
+  return (
+    <div className="relative flex h-56 items-end justify-center">
+      <svg width="0" height="0" aria-hidden>
+        <defs>
+          <linearGradient id="shine" x1="0" x2="1">
+            <stop offset="0.1" stopColor="#fff" stopOpacity="0.25" />
+            <stop offset="0.35" stopColor="#fff" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+      </svg>
+      <span className="clink absolute left-1/2 top-6 -translate-x-1/2 text-4xl text-[#fbe7b0]" aria-hidden>
+        ✦
+      </span>
+      <div className="flex items-end gap-1">
+        <Mug />
+        <Mug flip />
+      </div>
+      <div className="absolute -bottom-2 flex gap-2">
+        {["✈️ Trip", "🏠 Flat", "🍕 Dinner"].map((t, i) => (
+          <span key={t} className={`rise rise-${i + 2} rounded-full border border-line bg-canvas px-3 py-1 text-xs text-gray-600`}>
+            {t}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const slides: Slide[] = [
+  {
+    id: "cheers",
+    title: ["Split it.", "Cheers. 🍻"],
+    caption: "Make a group for a trip, a flat or a dinner. Friends join from a link or a QR code — no sign-up.",
+    art: <Cheers />,
+  },
+  {
+    id: "owes",
+    title: ["See who owes who.", "At a glance."],
+    caption: "Every expense shows what it means for you. Balances update the moment anyone adds something.",
+    art: (
+      <Card>
+        <p className="rise text-xs text-gray-400">Goa weekend</p>
+        <div className="rise rise-2 mt-3 flex items-center gap-3">
+          <Dot name="Asha" />
+          <span className="flex-1 text-sm">You owe Asha</span>
+          <span className={`font-display text-lg ${owe}`}>₹240</span>
+        </div>
+        <div className="rise rise-3 mt-3 flex items-center gap-3">
+          <Dot name="Ravi" />
+          <span className="flex-1 text-sm">Ravi owes you</span>
+          <span className={`font-display text-lg ${owed}`}>₹1,180</span>
+        </div>
+        <div className="rise rise-4 mt-4 h-1.5 overflow-hidden rounded-full bg-mist">
+          <div className="meter-bar h-full w-3/4 origin-left rounded-full bg-[#25a96f]" />
+        </div>
+        <p className="rise rise-5 mt-2 text-right text-xs text-gray-400">You’re owed ₹940 overall</p>
+      </Card>
+    ),
+  },
+  {
+    id: "currency",
+    title: ["Any currency.", "The real cost."],
+    caption: "Live exchange rates, plus your card’s foreign-transaction fee — something most split apps ignore. Balances show in both currencies.",
+    art: (
+      <Card>
+        <div className="rise flex items-center justify-between">
+          <span className="rounded-full bg-mist px-3 py-1 text-sm">🇹🇭 THB</span>
+          <span className="text-gray-400">→</span>
+          <span className="rounded-full bg-mist px-3 py-1 text-sm">🇮🇳 INR</span>
+        </div>
+        <dl className="mt-4 space-y-2 text-sm">
+          <div className="rise rise-2 flex justify-between"><dt className="text-gray-500">Dinner, paid by card</dt><dd>THB 1,800</dd></div>
+          <div className="rise rise-3 flex justify-between"><dt className="text-gray-500">At today’s rate</dt><dd>₹5,104</dd></div>
+          <div className="rise rise-4 flex justify-between"><dt className="text-gray-500">Card fee 3%</dt><dd className={owe}>+ ₹153</dd></div>
+          <div className="rise rise-5 flex justify-between border-t border-line pt-2 font-semibold"><dt>Real cost to split</dt><dd className="font-display text-lg">₹5,257</dd></div>
+        </dl>
+      </Card>
+    ),
+  },
+  {
+    id: "settle",
+    title: ["Fewest payments.", "One tap."],
+    caption: "Smart Settle works out the shortest way to square up — inside a group or across all your groups — and nudges friends on WhatsApp.",
+    art: (
+      <Card>
+        <svg viewBox="0 0 240 110" className="h-28 w-full" aria-hidden>
+          <g className="tangle" stroke="#8a877f" strokeWidth="1.6" fill="none">
+            <path d="M30 20 L210 90" /><path d="M30 90 L210 20" /><path d="M30 20 L120 95" /><path d="M120 15 L210 90" /><path d="M30 90 L120 15" /><path d="M120 95 L210 20" />
+          </g>
+          <g className="clean" stroke="#6fe3a8" strokeWidth="3" fill="none" strokeLinecap="round">
+            <path d="M34 22 C 90 22, 150 22, 206 22" /><path d="M34 88 C 90 88, 150 88, 206 88" />
+          </g>
+          {[[30, 20, "M"], [30, 90, "R"], [120, 15, ""], [120, 95, ""], [210, 20, "Y"], [210, 90, "A"]].map(([x, y, t], i) =>
+            t ? (
+              <g key={i}>
+                <circle cx={x as number} cy={y as number} r="12" fill="#1f1f24" stroke="#2b2b31" />
+                <text x={x as number} y={(y as number) + 4} textAnchor="middle" fontSize="11" fill="#f4f2ec">{t}</text>
+              </g>
+            ) : null,
+          )}
+        </svg>
+        <p className="rise rise-3 text-center text-sm text-gray-500">
+          6 payments → <strong className="text-fg">2</strong>
+        </p>
+      </Card>
+    ),
+  },
+  {
+    id: "undo",
+    title: ["Oops?", "Undo anything."],
+    caption: "Anyone can fix a mistake. Every change is kept in the history and everyone in the group is told.",
+    art: (
+      <Card className="relative">
+        <div className="flex items-center gap-3">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-mist text-lg">🍽️</span>
+          <span className="relative flex-1">
+            <span className="block text-sm font-medium">Dinner at Toit</span>
+            <span className="block text-xs text-gray-400">You paid ₹3,600</span>
+            <span className="strike absolute left-0 top-2.5 h-px w-full bg-gray-400" />
+          </span>
+          <span className="text-sm text-owed">you lent ₹2,700</span>
+        </div>
+        <div className="undo-pill mx-auto mt-5 flex w-fit items-center gap-3 border border-line bg-canvas px-4 py-2 text-sm">
+          Deleted · <span className="font-semibold">Undo ↺</span>
+        </div>
+      </Card>
+    ),
+  },
+  {
+    id: "free",
+    title: ["Free. No limits.", "No ads. Ever."],
+    caption: "Unlimited expenses and groups, every currency, every feature. Install it from your browser in two taps.",
+    art: (
+      <div className="flex flex-col items-center">
+        <span className="glow font-display text-[120px] leading-none text-owed" aria-hidden>
+          ∞
+        </span>
+        <ul className="mt-4 space-y-1.5 text-sm">
+          {["Unlimited expenses", "No daily caps, no ads", "Works on any phone"].map((t, i) => (
+            <li key={t} className={`rise rise-${i + 2} flex items-center gap-2`}>
+              <span className={owed}>✓</span> {t}
+            </li>
+          ))}
+        </ul>
+      </div>
+    ),
+  },
+];
+
+export function IntroTour({ startHref = "/groups/new", cta = "Create your first group" }: { startHref?: string; cta?: string }) {
+  const track = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState(0);
+  const last = active === slides.length - 1;
+
+  useEffect(() => {
+    const el = track.current;
+    if (!el) return;
+    const onScroll = () => setActive(Math.round(el.scrollLeft / el.clientWidth));
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const go = (i: number) => {
+    const el = track.current;
+    if (el) el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
+  };
+
+  return (
+    <div className="intro-tour -mb-24 flex min-h-[calc(100dvh-3rem)] flex-col">
+      <header className="flex items-center justify-between">
+        <p className="font-display text-[26px] font-semibold leading-none tracking-tight">loopin</p>
+        <Link href={startHref} className="py-1 text-sm text-gray-500">
+          Skip
+        </Link>
+      </header>
+
+      <div className="mt-6 flex gap-1.5" role="tablist" aria-label="Tour">
+        {slides.map((s, i) => (
+          <button
+            key={s.id}
+            type="button"
+            role="tab"
+            aria-selected={i === active}
+            aria-label={`Slide ${i + 1}`}
+            onClick={() => go(i)}
+            className={`h-1 flex-1 rounded-full transition-colors ${i <= active ? "bg-fg" : "bg-gray-300"}`}
+          />
+        ))}
+      </div>
+
+      <div ref={track} className="no-scrollbar -mx-5 mt-8 flex flex-1 snap-x snap-mandatory overflow-x-auto">
+        {slides.map((s, i) => (
+          <section
+            key={s.id}
+            className="tour-slide flex w-full shrink-0 snap-center flex-col px-5"
+            data-active={i === active}
+            aria-hidden={i !== active}
+          >
+            <h1 className="font-display text-[40px] font-semibold leading-[1.05] tracking-tight">
+              {s.title[0]}
+              <br />
+              <span className="text-gray-500">{s.title[1]}</span>
+            </h1>
+            <div className="flex flex-1 items-center justify-center py-8">{s.art}</div>
+            <p className="min-h-[3.5rem] text-center text-sm text-gray-500">{s.caption}</p>
+          </section>
+        ))}
+      </div>
+
+      <div className="mt-6 space-y-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <Link href={startHref} className="pop block w-full bg-fg px-4 py-4 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63]">
+          {cta}
+        </Link>
+        <button type="button" onClick={() => go(last ? 0 : active + 1)} className="block w-full py-2 text-center text-sm font-medium text-gray-600">
+          {last ? "↺ See it again" : "Next →"}
+        </button>
+      </div>
+    </div>
+  );
+}

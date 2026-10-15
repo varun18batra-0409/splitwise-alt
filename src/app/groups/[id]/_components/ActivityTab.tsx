@@ -167,6 +167,7 @@ export function ActivityTab({ v, filter = {} }: { v: GroupView; filter?: Activit
                     <div className="mb-3 ml-[3.25rem] space-y-1.5 rounded-xl bg-mist p-3 text-sm text-gray-600">
                       <Line label="Date" value={niceDate(dayKey(expenseDate(e)))} />
                       <Line label="Category" value={`${cat.emoji} ${cat.label}`} />
+                      {e.notes && <p className="whitespace-pre-line rounded-lg bg-white/[0.03] px-3 py-2 text-gray-600">📝 {e.notes}</p>}
                       {foreign && (
                         <>
                           <Line label="Original expense" value={formatMoney(e.originalAmount, e.originalCurrency)} />

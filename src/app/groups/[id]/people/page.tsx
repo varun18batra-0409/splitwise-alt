@@ -6,7 +6,8 @@ import { formatMoney } from "@/lib/money";
 import { removePerson, renamePerson, setPersonLeft } from "@/app/actions";
 import { Avatar, ErrorNote, PageHeader, inputClass } from "@/components/ui";
 import { ConfirmButton } from "@/components/ConfirmButton";
-import { InviteSheet } from "@/components/InviteSheet";
+import Link from "next/link";
+import { InviteIcon, iconButtonClass } from "@/components/icons";
 import { UndoBar } from "@/components/UndoBar";
 
 // Everyone in the group: fix a name, remove someone added by mistake, or
@@ -122,7 +123,9 @@ export default async function PeoplePage({
         <p className="text-sm text-gray-500">
           {active.length} {active.length === 1 ? "person" : "people"} in {group.name}
         </p>
-        <InviteSheet groupId={group.id} groupName={group.name} inviteCode={group.inviteCode} memberCount={group.members.length} />
+        <Link href={`/groups/${group.id}/invite`} aria-label="Invite people" className={iconButtonClass}>
+          <InviteIcon size={20} />
+        </Link>
       </div>
       <ul className="border-t border-line">
         {active.map((m) => (

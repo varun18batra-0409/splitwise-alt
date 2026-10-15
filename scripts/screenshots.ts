@@ -51,10 +51,10 @@ await shot("07-group-switcher", g, async (p) => {
   await p.locator("details.group\\/switch summary").click();
   await p.waitForTimeout(300);
 }, false);
-await shot("08-invite-sheet", g, async (p) => {
-  await p.getByRole("button", { name: "Invite people" }).click();
-  await p.waitForTimeout(400);
-}, false);
+await shot("08-invite", `${g}/invite`, async (p) => {
+  await p.locator("details.group\\/qr summary").click();
+  await p.waitForTimeout(300);
+});
 await shot("09-add-expense", `${g}/add`, undefined, false);
 await shot("10-add-expense-typo-foreign", `${g}/add`, async (p) => {
   await p.locator("#expense-name").fill("Dinnr at the night market");
@@ -81,9 +81,25 @@ await shot("22-settle-everything", `${g}?tab=balances`, async (p) => {
   await p.waitForTimeout(300);
   await p.locator("details.group\\/kill").scrollIntoViewIfNeeded();
 }, false);
+await shot("23-add-expense-differently", `${g}/add`, async (p) => {
+  await p.getByRole("button", { name: /Differently/ }).click();
+  await p.getByRole("button", { name: /Add notes/ }).click();
+  await p.getByRole("button", { name: /Change/ }).first().click();
+  await p.waitForTimeout(300);
+});
 await shot("15-new-group", "/groups/new");
 await context.clearCookies();
 await shot("16-join", `/join/${demo.trip.invite}`);
+await shot("24-tour-1", "/", undefined, false);
+for (const n of [2, 3, 4, 5, 6]) {
+  await shot(`24-tour-${n}`, "/", async (p) => {
+    for (let k = 1; k < n; k++) {
+      await p.getByRole("button", { name: /Next/ }).click();
+      await p.waitForTimeout(450);
+    }
+    await p.waitForTimeout(900);
+  }, false);
+}
 
 await browser.close();
 }

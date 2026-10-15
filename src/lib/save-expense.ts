@@ -12,6 +12,7 @@ export type SaveExpenseInput = ExpenseDraft & {
   expenseId?: string; // set when editing an existing expense
   name: string;
   date?: string; // "2026-10-14"; empty = today (new) or unchanged (edit)
+  notes?: string; // undefined = leave as it is (edit) / none (new)
   category: string; // "" = guess from the name
   rateMode: "auto" | "manual" | "keep"; // "keep" = editing, keep the rate saved with the expense
   manualRate: string; // used when rateMode = "manual"
@@ -94,8 +95,10 @@ export async function saveExpense(input: SaveExpenseInput, actingMemberId: strin
 
   const name = input.name.trim().replace(/\s+/g, " ").slice(0, 80) || "Expense";
   const category = isCategory(input.category) ? input.category : guessCategory(name);
+  const notes = input.notes === undefined ? (existing?.notes ?? "") : input.notes.trim().replace(/\r\n/g, "\n").slice(0, 500);
   const fields = {
     description: name,
+    notes,
     category,
     amount: e.amount,
     splitType: e.splitType,

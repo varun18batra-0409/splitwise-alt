@@ -8,8 +8,15 @@ type InstallPrompt = Event & { prompt: () => Promise<void>; userChoice: Promise<
 // Android), and disappears once installed or when already opened as the app.
 export function InstallButton() {
   const [prompt, setPrompt] = useState<InstallPrompt | null>(null);
+  const [iosHint, setIosHint] = useState(false);
 
   useEffect(() => {
+    // iPhone/iPad have no install prompt: show how to add it by hand.
+    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const installed =
+      window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+    setIosHint(ios && !installed);
+
     const onPrompt = (e: Event) => {
       e.preventDefault();
       setPrompt(e as InstallPrompt);
@@ -23,6 +30,21 @@ export function InstallButton() {
     };
   }, []);
 
+  if (!prompt && iosHint) {
+    return (
+      <div className="mt-10 flex items-center gap-3 border border-line px-4 py-3 text-sm">
+        <span className="text-xl" aria-hidden>
+          ⬆︎
+        </span>
+        <span>
+          <span className="block font-medium text-fg">Put Loopin on your Home Screen</span>
+          <span className="block text-xs text-gray-400">
+            In Safari tap <strong>Share</strong>, then <strong>Add to Home Screen</strong>. It opens like an app.
+          </span>
+        </span>
+      </div>
+    );
+  }
   if (!prompt) return null;
   return (
     <button

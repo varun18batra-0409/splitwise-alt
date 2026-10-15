@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { formatMoney } from "@/lib/money";
-import { ChevronDown, GearIcon, HomeIcon, SearchIcon, iconButtonClass } from "@/components/icons";
-import { InviteSheet } from "@/components/InviteSheet";
+import { ChevronDown, GearIcon, HomeIcon, InviteIcon, SearchIcon, iconButtonClass } from "@/components/icons";
 import type { GroupView } from "./view";
 
 type SwitchItem = { id: string; name: string; currency: string; myBalance: number };
@@ -61,7 +60,9 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
       <Link href={`/search?g=${group.id}`} aria-label="Search this group by words, month or year" className={iconButtonClass}>
         <SearchIcon size={19} />
       </Link>
-      <InviteSheet groupId={group.id} groupName={group.name} inviteCode={group.inviteCode} memberCount={group.members.filter((m) => !m.leftAt).length} />
+      <Link href={`/groups/${group.id}/invite`} aria-label="Invite people" className={iconButtonClass}>
+        <InviteIcon size={20} />
+      </Link>
       <Link href={`/groups/${group.id}/settings`} aria-label="Group settings" className={iconButtonClass}>
         <GearIcon size={20} />
       </Link>

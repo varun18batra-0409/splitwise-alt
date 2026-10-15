@@ -4,6 +4,7 @@ import { loadNotifications, markNotificationsSeen } from "@/lib/group-data";
 import { byDay } from "@/lib/activity";
 import { parseDetails } from "@/lib/events";
 import { PageHeader } from "@/components/ui";
+import { PushToggle } from "@/components/PushControls";
 
 const ICON: Record<string, string> = {
   expense_added: "＋",
@@ -21,6 +22,10 @@ const ICON: Record<string, string> = {
   members_added: "👤",
   group_closed: "⏸",
   group_reopened: "▶",
+  group_settled_closed: "🎉",
+  member_renamed: "✎",
+  member_left: "👋",
+  member_rejoined: "👤",
 };
 
 // Everything other people added, changed or deleted in your groups, newest first.
@@ -35,6 +40,7 @@ export default async function Notifications() {
   return (
     <>
       <PageHeader title="Notifications" back="/" />
+      <PushToggle />
       {rows.length === 0 ? (
         <p className="rounded-2xl bg-mist px-4 py-10 text-center text-sm text-gray-600">
           Nothing yet. When someone adds, changes or deletes something in your groups, it shows up here.
