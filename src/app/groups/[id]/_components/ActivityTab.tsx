@@ -2,7 +2,7 @@ import Link from "next/link";
 import { buildActivity, byDay, filterActivity, hasFilter, type ActivityFilter } from "@/lib/activity";
 import { CATEGORIES, getCategory } from "@/lib/categories";
 import { originalShares } from "@/lib/currency-ledgers";
-import { dayKey, expenseDate } from "@/lib/dates";
+import { dayKey, expenseDate, formatter } from "@/lib/dates";
 import { parseDetails } from "@/lib/events";
 import { niceDate, rateText } from "@/lib/format";
 import { formatMoney, formatPercent } from "@/lib/money";
@@ -16,12 +16,17 @@ import type { GroupEvent, GroupView } from "./view";
 const PAID_WITH: Record<string, string> = { card: "Card", cash: "Cash", bank: "Bank / UPI" };
 const FOR_MODE: Record<string, string> = { everyone: "Everyone", selected: "Selected people", one: "One person" };
 
-const whenIn = (tz: string) => (d: Date) =>
-  d.toLocaleString("en-IN", { timeZone: tz, day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+const whenIn = (tz: string) => {
+  const f = formatter("en-IN", { timeZone: tz, day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+  return (d: Date) => f.format(d);
+};
 
 // Every expense, payment and group change, by day — tap one for its details,
 // its history, and Edit / Delete / Restore / Undo.
-export function ActivityTab({ v, filter = {} }: { v: GroupView; filter?: ActivityFilter }) {
+// Busy groups show the latest PAGE items first, with "Show more".
+const PAGE = 60;
+
+export function ActivityTab({ v, filter = {}, shown = PAGE }: { v: GroupView; filter?: ActivityFilter; shown?: number }) {
   const { group, myId, nameOf, money, expenseById, eventById, tz } = v;
   const when = whenIn(tz);
   const all = buildActivity(group.expenses, group.payments, myId, group.events);
@@ -31,8 +36,20 @@ export function ActivityTab({ v, filter = {} }: { v: GroupView; filter?: Activit
   };
   const items = filterActivity(all, filter, searchName);
   const filtering = hasFilter(filter);
-  const historyOf = (key: "expenseId" | "paymentId", id: string) =>
-    group.events.filter((ev) => ev[key] === id).sort((x, y) => x.createdAt.getTime() - y.createdAt.getTime());
+  // Each item's history, worked out once for the whole list.
+  const byItem = new Map<string, GroupEvent[]>();
+  for (const ev of group.events) {
+    for (const id of [ev.expenseId, ev.paymentId]) {
+      if (!id) continue;
+      const list = byItem.get(id) ?? [];
+      list.push(ev);
+      byItem.set(id, list);
+    }
+  }
+  for (const list of byItem.values()) list.sort((x, y) => x.createdAt.getTime() - y.createdAt.getTime());
+  const historyOf = (_key: "expenseId" | "paymentId", id: string) => byItem.get(id) ?? [];
+  const limit = Math.max(PAGE, Math.min(5000, shown));
+  const page = items.slice(0, limit);
 
   if (all.length === 0) {
     return (
@@ -93,7 +110,7 @@ export function ActivityTab({ v, filter = {} }: { v: GroupView; filter?: Activit
 
       {items.length === 0 && <p className="rounded-2xl bg-mist px-4 py-8 text-center text-sm text-gray-500">Nothing matches. Try other words.</p>}
 
-      {byDay(items, new Date(), tz).map((day) => (
+      {byDay(page, new Date(), tz).map((day) => (
         <section key={day.day}>
           <h2 className="sticky top-0 z-10 -mx-5 bg-canvas/95 px-5 py-1.5 text-sm font-medium text-gray-500 backdrop-blur">{day.day}</h2>
           <ul className="divide-y divide-line">
@@ -231,6 +248,14 @@ export function ActivityTab({ v, filter = {} }: { v: GroupView; filter?: Activit
           </ul>
         </section>
       ))}
+      {items.length > page.length && (
+        <Link
+          href={`/groups/${group.id}?${new URLSearchParams({ tab: "activity", n: String(limit + PAGE * 2), ...(filter.q ? { q: filter.q } : {}), ...(filter.cat ? { cat: filter.cat } : {}), ...(filter.who ? { who: filter.who } : {}) })}`}
+          className="block border border-line py-3 text-center text-sm font-medium text-fg active:bg-mist"
+        >
+          Show more ({items.length - page.length} older)
+        </Link>
+      )}
     </div>
   );
 }
@@ -255,6 +280,7 @@ function UndoControl({ v, ev }: { v: GroupView; ev?: GroupEvent }) {
 
 // Who did what to one item, oldest first.
 function History({ v, events, fallback }: { v: GroupView; events: GroupEvent[]; fallback: string }) {
+  const when = whenIn(v.tz);
   if (events.length === 0) return <p className="text-xs text-gray-400">{fallback}</p>;
   return (
     <ol className="space-y-1.5 text-xs text-gray-500">
@@ -264,7 +290,7 @@ function History({ v, events, fallback }: { v: GroupView; events: GroupEvent[]; 
             <span className="font-medium text-gray-700">{v.nameOf(ev.actorId)}</span>{" "}
             {ev.text.replace(/^(added|changed|deleted|restored|recorded) .*/, (m) => m.split(" ")[0])}
           </span>
-          <span className="text-gray-400"> · {whenIn(v.tz)(ev.createdAt)}</span>
+          <span className="text-gray-400"> · {when(ev.createdAt)}</span>
           <span className="ml-2 inline-block">
             <UndoControl v={v} ev={ev} />
           </span>

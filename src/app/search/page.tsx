@@ -157,7 +157,7 @@ export default async function SearchPage({
         </p>
       ) : (
         <div className="space-y-6">
-          {byDay(shown.map((r) => ({ ...r, date: r.item.date })), new Date(), tz).map((day) => (
+          {byDay(shown.slice(0, 100).map((r) => ({ ...r, date: r.item.date })), new Date(), tz).map((day) => (
             <section key={day.day}>
               <h2 className="mb-1 text-sm font-medium text-gray-500">{day.day}</h2>
               <ul className="divide-y divide-line">
@@ -171,6 +171,9 @@ export default async function SearchPage({
               </ul>
             </section>
           ))}
+          {shown.length > 100 && (
+            <p className="text-center text-xs text-gray-400">Showing the latest 100 of {shown.length}. Add words or pick a month to narrow it down.</p>
+          )}
         </div>
       )}
     </>

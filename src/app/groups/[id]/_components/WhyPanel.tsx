@@ -3,6 +3,8 @@ import { getCategory } from "@/lib/categories";
 import { dayLabel } from "@/lib/activity";
 import type { GroupView } from "./view";
 
+const LINES = 60;
+
 // "Why?" under a person's balance: the totals that make it up, then every
 // expense and payment behind it. Always adds up to the balance shown.
 export function WhyPanel({ v, memberId, open }: { v: GroupView; memberId: string; open?: boolean }) {
@@ -45,9 +47,15 @@ export function WhyPanel({ v, memberId, open }: { v: GroupView; memberId: string
           </li>
         </ul>
 
-        <p className="mb-1 mt-4 text-xs text-gray-400">Item by item</p>
+        {!open ? (
+          <a href={`/groups/${v.group.id}?tab=balances&why=${memberId}#why-${memberId}`} className="mt-3 inline-block text-xs font-medium text-fg underline underline-offset-4">
+            See it item by item ({w.lines.length})
+          </a>
+        ) : (
+        <>
+        <p className="mb-1 mt-4 text-xs text-gray-400">Item by item{w.lines.length > LINES ? `, latest ${LINES} of ${w.lines.length}` : ""}</p>
         <ul className="divide-y divide-line">
-          {w.lines.map((l) => (
+          {w.lines.slice(0, LINES).map((l) => (
             <li key={l.id} className="flex items-center justify-between gap-3 py-1.5">
               <span className="min-w-0">
                 <span className="block truncate">
@@ -64,6 +72,13 @@ export function WhyPanel({ v, memberId, open }: { v: GroupView; memberId: string
             </li>
           ))}
         </ul>
+        {w.lines.length > LINES && (
+          <a href={`/groups/${v.group.id}?tab=activity&who=${memberId}`} className="mt-2 inline-block text-xs font-medium text-fg underline underline-offset-4">
+            Older items: see the full history
+          </a>
+        )}
+        </>
+        )}
       </div>
     </details>
   );

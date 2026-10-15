@@ -1,5 +1,5 @@
 import { getCategory } from "./categories";
-import { DEFAULT_TIME_ZONE, dayKey, isDayMarker, isTimeZone } from "./dates";
+import { DEFAULT_TIME_ZONE, dayKey, formatter, isDayMarker, isTimeZone } from "./dates";
 import { originalShares } from "./currency-ledgers";
 
 // One history list for a group: expenses, settle-up payments and group changes
@@ -136,13 +136,12 @@ export function dayLabel(date: Date, now = new Date(), timeZone: string = DEFAUL
   if (k === today) return "Today";
   if (k === yesterday) return "Yesterday";
   const sameYear = k.slice(0, 4) === today.slice(0, 4);
-  return date.toLocaleDateString("en-GB", {
+  return formatter("en-GB", {
     timeZone: isDayMarker(date) ? "UTC" : timeZone,
-    weekday: sameYear ? "short" : undefined,
+    ...(sameYear ? { weekday: "short" } : { year: "numeric" }),
     day: "numeric",
     month: "short",
-    year: sameYear ? undefined : "numeric",
-  });
+  }).format(date);
 }
 
 // Groups items under day headings, keeping order.

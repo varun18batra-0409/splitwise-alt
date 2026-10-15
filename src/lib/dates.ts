@@ -10,14 +10,20 @@ export const DEFAULT_TIME_ZONE = "Asia/Kolkata";
 /** @deprecated use DEFAULT_TIME_ZONE */
 export const TIME_ZONE = DEFAULT_TIME_ZONE;
 
+const zoneOk = new Map<string, boolean>();
 export function isTimeZone(tz: unknown): tz is string {
   if (typeof tz !== "string" || !tz || tz.length > 64) return false;
+  const known = zoneOk.get(tz);
+  if (known !== undefined) return known;
+  let ok = false;
   try {
     new Intl.DateTimeFormat("en-US", { timeZone: tz });
-    return true;
+    ok = true;
   } catch {
-    return false;
+    ok = false;
   }
+  if (zoneOk.size < 500) zoneOk.set(tz, ok);
+  return ok;
 }
 
 // A chosen expense day is stored as exactly 12:00:00.000 UTC.
@@ -25,11 +31,23 @@ export function isDayMarker(d: Date): boolean {
   return d.getUTCHours() === 12 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0 && d.getUTCMilliseconds() === 0;
 }
 
+// Date formatters are slow to create, so each one is made once and reused.
+const formatters = new Map<string, Intl.DateTimeFormat>();
+export function formatter(locale: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  const key = `${locale}|${JSON.stringify(options)}`;
+  let f = formatters.get(key);
+  if (!f) {
+    f = new Intl.DateTimeFormat(locale, options);
+    formatters.set(key, f);
+  }
+  return f;
+}
+
 // "2026-10-14" for a moment, in the given time zone. A chosen expense day is
 // that same day everywhere (even in New Zealand or Samoa).
 export function dayKey(d: Date, tz: string = DEFAULT_TIME_ZONE): string {
   if (isDayMarker(d)) return d.toISOString().slice(0, 10);
-  return d.toLocaleDateString("en-CA", { timeZone: isTimeZone(tz) ? tz : DEFAULT_TIME_ZONE });
+  return formatter("en-CA", { timeZone: isTimeZone(tz) ? tz : DEFAULT_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
 }
 
 export function todayKey(now = new Date(), tz: string = DEFAULT_TIME_ZONE): string {
