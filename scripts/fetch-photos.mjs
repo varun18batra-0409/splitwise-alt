@@ -5,14 +5,15 @@
 // the build — that section just shows a plain colour instead.
 import { mkdirSync, writeFileSync } from "node:fs";
 
+// "photo-…" = a direct Unsplash image; anything else = an Unsplash photo page id.
 const SLOTS = {
-  hero: ["V8oiNMhkLiw", "ka14QMQlS1U", "F6RLqhPPhDQ", "4IhrJtopGpc"], // beach / Goa
-  roadtrip: ["cktp9-mCH4Y", "Gtno2Ua6aW4", "mSaYUDtC46M", "OiClXJ7jIU4"], // car, mountains
-  dinner: ["F9wJ5TqWbjA", "hNijinANAFY", "NI9RN6S-Z20"], // friends at a restaurant
-  market: ["URUoUgQdN1o", "zgP8AbxBO8c"], // street food abroad
-  train: ["gv6RlH_8Plo", "JtbiKg_iVdA", "WNtOIZuk8pw", "5w2D_dB1hKQ"], // trains
-  sunset: ["ka14QMQlS1U", "F6RLqhPPhDQ", "4IhrJtopGpc"], // settle up
-  home: ["8czSAbHp5qI"], // flatmates at home
+  hero: ["photo-1507525428034-b723cf961d3e", "V8oiNMhkLiw", "ka14QMQlS1U", "F6RLqhPPhDQ"], // beach
+  roadtrip: ["photo-1469854523086-cc02fe5d8800", "photo-1506905925346-21bda4d32df4", "cktp9-mCH4Y", "Gtno2Ua6aW4"], // road trip, mountains
+  dinner: ["photo-1414235077428-338989a2e8c0", "photo-1555396273-367ea4eb4db5", "F9wJ5TqWbjA", "hNijinANAFY"], // restaurant
+  market: ["photo-1504674900247-0877df9cc836", "URUoUgQdN1o", "zgP8AbxBO8c"], // food
+  train: ["photo-1474487548417-781cb71495f3", "gv6RlH_8Plo", "JtbiKg_iVdA", "WNtOIZuk8pw"], // trains
+  sunset: ["photo-1502602898657-3e91760cbb34", "ka14QMQlS1U", "F6RLqhPPhDQ"], // a beautiful place
+  home: ["photo-1522708323590-d24dbb6b0267", "8czSAbHp5qI"], // a flat
 };
 
 const out = "public/photos";
@@ -21,7 +22,10 @@ const got = {};
 for (const [slot, ids] of Object.entries(SLOTS)) {
   for (const id of ids) {
     try {
-      const r = await fetch(`https://unsplash.com/photos/${id}/download?force=true&w=1280`, {
+      const url = id.startsWith("photo-")
+        ? `https://images.unsplash.com/${id}?w=1280&q=75&fm=jpg&fit=crop`
+        : `https://unsplash.com/photos/${id}/download?force=true&w=1280`;
+      const r = await fetch(url, {
         redirect: "follow",
         headers: { "User-Agent": "Mozilla/5.0 (Loopin build)" },
         signal: AbortSignal.timeout(20_000),
@@ -33,7 +37,7 @@ for (const [slot, ids] of Object.entries(SLOTS)) {
         continue;
       }
       writeFileSync(`${out}/${slot}.jpg`, buf);
-      got[slot] = { id, src: `/photos/${slot}.jpg`, page: `https://unsplash.com/photos/${id}` };
+      got[slot] = { id, src: `/photos/${slot}.jpg` };
       console.log(`photos: ${slot} ✓ ${id} (${Math.round(buf.length / 1024)} KB)`);
       break;
     } catch (e) {
