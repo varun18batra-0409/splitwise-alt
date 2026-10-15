@@ -89,6 +89,10 @@ await shot("23-add-expense-differently", `${g}/add`, async (p) => {
 });
 await shot("28-settle", "/settle");
 await shot("35-how-it-works", "/how-it-works", async (p) => { await p.waitForTimeout(3000); });
+await shot("36-guide-flatmates", "/how-it-works#home", async (p) => {
+  await p.locator("#home").scrollIntoViewIfNeeded();
+  await p.waitForTimeout(2500);
+}, false);
 await shot("32-group-settle", `${g}/settle`);
 await shot("29-why", `${g}?tab=balances&why=${demo.trip.me}#why-${demo.trip.me}`);
 await shot("30-add-only-some", `${g}/add`, async (p) => {
