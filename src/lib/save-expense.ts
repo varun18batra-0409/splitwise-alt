@@ -13,6 +13,7 @@ export type SaveExpenseInput = ExpenseDraft & {
   name: string;
   date?: string; // "2026-10-14"; empty = today (new) or unchanged (edit)
   notes?: string; // undefined = leave as it is (edit) / none (new)
+  baseVersion?: string; // editing: when the expense was last changed as the person saw it
   category: string; // "" = guess from the name
   rateMode: "auto" | "manual" | "keep"; // "keep" = editing, keep the rate saved with the expense
   manualRate: string; // used when rateMode = "manual"
@@ -26,12 +27,18 @@ const today = () => new Date().toISOString().slice(0, 10);
 // Checks and saves one expense — new, or an edit of an existing one. Used by the
 // Add/Edit expense screen (via a server action) and by the tests. Everything is
 // re-checked here, so the phone can never store numbers that don't add up.
-export async function saveExpense(input: SaveExpenseInput, actingMemberId: string | undefined, lookupRate: RateLookupFn): Promise<Result> {
+export async function saveExpense(
+  input: SaveExpenseInput,
+  actingMemberId: string | undefined,
+  lookupRate: RateLookupFn,
+  opts: { ignoreDoubleTap?: boolean } = {},
+): Promise<Result> {
   const group = await db.group.findUnique({
     where: { id: input.groupId },
     include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true } } },
   });
   if (!group) return { ok: false, error: "This group no longer exists." };
+  if (group.deletedAt) return { ok: false, error: "This group was deleted." };
   if (group.closed) return { ok: false, error: "This group is closed. Reopen it to add or change expenses." };
 
   const memberIds = group.members.map((m) => m.id);
@@ -49,6 +56,12 @@ export async function saveExpense(input: SaveExpenseInput, actingMemberId: strin
   if (input.expenseId) {
     if (!existing) return { ok: false, error: "That expense no longer exists." };
     if (existing.deletedAt) return { ok: false, error: "This expense was deleted. Restore it before changing it." };
+    // Someone else saved a change while this person was editing: don't overwrite it silently.
+    if (input.baseVersion && (existing.editedAt ?? existing.createdAt).toISOString() !== input.baseVersion) {
+      const last = await db.groupEvent.findFirst({ where: { expenseId: existing.id }, orderBy: { createdAt: "desc" } });
+      const who = last?.actorId === actingMemberId ? "You" : (group.members.find((m) => m.id === last?.actorId)?.name ?? "Someone");
+      return { ok: false, error: `${who} changed this expense a moment ago. Go back and open it again to see the latest version.` };
+    }
   }
 
   // Which exchange rate to use.
@@ -120,6 +133,11 @@ export async function saveExpense(input: SaveExpenseInput, actingMemberId: strin
   const money = formatMoney(e.amount, group.currency);
 
   if (!existing) {
+    // The same expense from the same person seconds ago = a double tap: keep one.
+    const twin = opts.ignoreDoubleTap && await db.expense.findFirst({
+      where: { groupId: group.id, createdById: actingMemberId, description: name, amount: e.amount, deletedAt: null, createdAt: { gt: new Date(Date.now() - 20_000) } },
+    });
+    if (twin) return { ok: true, id: twin.id };
     const saved = await db.$transaction(async (tx) => {
       const created = await tx.expense.create({ data: { ...fields, groupId: group.id, createdById: actingMemberId, shares: { create: e.shares } } });
       const eventId = await logEvent(tx, {

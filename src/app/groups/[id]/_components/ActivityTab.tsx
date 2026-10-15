@@ -16,13 +16,14 @@ import type { GroupEvent, GroupView } from "./view";
 const PAID_WITH: Record<string, string> = { card: "Card", cash: "Cash", bank: "Bank / UPI" };
 const FOR_MODE: Record<string, string> = { everyone: "Everyone", selected: "Selected people", one: "One person" };
 
-const when = (d: Date) =>
-  d.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+const whenIn = (tz: string) => (d: Date) =>
+  d.toLocaleString("en-IN", { timeZone: tz, day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 
 // Every expense, payment and group change, by day — tap one for its details,
 // its history, and Edit / Delete / Restore / Undo.
 export function ActivityTab({ v, filter = {} }: { v: GroupView; filter?: ActivityFilter }) {
-  const { group, myId, nameOf, money, expenseById, eventById } = v;
+  const { group, myId, nameOf, money, expenseById, eventById, tz } = v;
+  const when = whenIn(tz);
   const all = buildActivity(group.expenses, group.payments, myId, group.events);
   const searchName = (id: string) => {
     const name = group.members.find((m) => m.id === id)?.name ?? "";
@@ -92,7 +93,7 @@ export function ActivityTab({ v, filter = {} }: { v: GroupView; filter?: Activit
 
       {items.length === 0 && <p className="rounded-2xl bg-mist px-4 py-8 text-center text-sm text-gray-500">Nothing matches. Try other words.</p>}
 
-      {byDay(items).map((day) => (
+      {byDay(items, new Date(), tz).map((day) => (
         <section key={day.day}>
           <h2 className="sticky top-0 z-10 -mx-5 bg-canvas/95 px-5 py-1.5 text-sm font-medium text-gray-500 backdrop-blur">{day.day}</h2>
           <ul className="divide-y divide-line">
@@ -165,7 +166,7 @@ export function ActivityTab({ v, filter = {} }: { v: GroupView; filter?: Activit
                       <ActivityRow item={item} currency={group.currency} nameOf={nameOf} />
                     </summary>
                     <div className="mb-3 ml-[3.25rem] space-y-1.5 rounded-xl bg-mist p-3 text-sm text-gray-600">
-                      <Line label="Date" value={niceDate(dayKey(expenseDate(e)))} />
+                      <Line label="Date" value={niceDate(dayKey(expenseDate(e), tz))} />
                       <Line label="Category" value={`${cat.emoji} ${cat.label}`} />
                       {e.notes && <p className="whitespace-pre-line rounded-lg bg-white/[0.03] px-3 py-2 text-gray-600">📝 {e.notes}</p>}
                       {foreign && (
@@ -263,7 +264,7 @@ function History({ v, events, fallback }: { v: GroupView; events: GroupEvent[]; 
             <span className="font-medium text-gray-700">{v.nameOf(ev.actorId)}</span>{" "}
             {ev.text.replace(/^(added|changed|deleted|restored|recorded) .*/, (m) => m.split(" ")[0])}
           </span>
-          <span className="text-gray-400"> · {when(ev.createdAt)}</span>
+          <span className="text-gray-400"> · {whenIn(v.tz)(ev.createdAt)}</span>
           <span className="ml-2 inline-block">
             <UndoControl v={v} ev={ev} />
           </span>

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getMemberships } from "@/lib/identity";
 import { loadNotifications, markNotificationsSeen } from "@/lib/group-data";
 import { byDay } from "@/lib/activity";
+import { getTimeZone } from "@/lib/tz";
 import { parseDetails } from "@/lib/events";
 import { PageHeader } from "@/components/ui";
 import { PushToggle } from "@/components/PushControls";
@@ -32,6 +33,7 @@ const ICON: Record<string, string> = {
 // Opening this page marks them as read.
 export default async function Notifications() {
   const memberships = await getMemberships();
+  const tz = await getTimeZone();
   const { items } = await loadNotifications(memberships, 100);
   await markNotificationsSeen(memberships);
 
@@ -47,7 +49,7 @@ export default async function Notifications() {
         </p>
       ) : (
         <div className="space-y-6">
-          {byDay(rows).map((day) => (
+          {byDay(rows, new Date(), tz).map((day) => (
             <section key={day.day}>
               <h2 className="py-1.5 text-sm font-medium text-gray-500">{day.day}</h2>
               <ul className="divide-y divide-gray-100">
@@ -74,7 +76,7 @@ export default async function Notifications() {
                           )}
                           <span className="mt-0.5 block text-xs text-gray-400">
                             {n.groupName} ·{" "}
-                            {n.event.createdAt.toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit" })}
+                            {n.event.createdAt.toLocaleTimeString("en-IN", { timeZone: tz, hour: "numeric", minute: "2-digit" })}
                           </span>
                         </span>
                         {n.unread && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-owe" aria-label="New" />}

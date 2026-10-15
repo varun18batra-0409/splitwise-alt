@@ -1,0 +1,56 @@
+# Daily backup of the online database. The file is ENCRYPTED before it is
+# stored, because this repository is public. Kept for 14 days.
+# Needs three repository secrets: TURSO_DATABASE_URL, TURSO_AUTH_TOKEN and
+# BACKUP_PASSPHRASE. Without them it skips quietly.
+#
+# To restore: download the "db-backup" file from the run, then
+#   openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in backup.json.enc -out backup.json
+# and type the passphrase.
+name: Backup
+on:
+  schedule:
+    - cron: "17 21 * * *" # every day, 02:47 India time
+  workflow_dispatch:
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    env:
+      TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+    steps:
+      - name: Check the secrets are set
+        id: ready
+        run: |
+          if [ -n "$TURSO_DATABASE_URL" ] && [ -n "$TURSO_AUTH_TOKEN" ] && [ -n "$BACKUP_PASSPHRASE" ]; then
+            echo "ok=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning title=Backup skipped::Add TURSO_DATABASE_URL, TURSO_AUTH_TOKEN and BACKUP_PASSPHRASE in Settings → Secrets → Actions."
+          fi
+      - uses: actions/checkout@v4
+        if: steps.ready.outputs.ok == '1'
+      - uses: actions/setup-node@v4
+        if: steps.ready.outputs.ok == '1'
+        with:
+          node-version: 22
+      - name: Dump and encrypt
+        if: steps.ready.outputs.ok == '1'
+        run: |
+          set -euo pipefail
+          npm install --no-save --ignore-scripts @libsql/client@0.15.0
+          node scripts/backup.mjs "$RUNNER_TEMP/backup.json"
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass env:BACKUP_PASSPHRASE \
+            -in "$RUNNER_TEMP/backup.json" -out "$RUNNER_TEMP/backup.json.enc"
+          rm -f "$RUNNER_TEMP/backup.json"
+          # Prove the encrypted copy opens with the passphrase.
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:BACKUP_PASSPHRASE \
+            -in "$RUNNER_TEMP/backup.json.enc" -out "$RUNNER_TEMP/check.json"
+          grep -q '"takenAt"' "$RUNNER_TEMP/check.json"
+          rm -f "$RUNNER_TEMP/check.json"
+          echo "::notice title=Backup::Encrypted backup saved ($(du -h "$RUNNER_TEMP/backup.json.enc" | cut -f1))."
+      - uses: actions/upload-artifact@v4
+        if: steps.ready.outputs.ok == '1'
+        with:
+          name: db-backup
+          path: ${{ runner.temp }}/backup.json.enc
+          retention-days: 14

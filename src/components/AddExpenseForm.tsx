@@ -41,6 +41,7 @@ export type ExpenseInitial = {
   rateDate: string;
   date: string; // "2026-10-14"
   notes: string;
+  version: string; // when it was last changed, to catch someone else's edit
 };
 
 // Fast path (3 taps): + Add expense → type name & amount → Save.
@@ -53,6 +54,7 @@ export function AddExpenseForm({
   myId,
   expenseId,
   initial,
+  tz,
 }: {
   groupId: string;
   baseCurrency: string;
@@ -61,6 +63,7 @@ export function AddExpenseForm({
   myId: string;
   expenseId?: string; // editing this expense
   initial?: ExpenseInitial;
+  tz?: string; // the person's time zone, for "today"
 }) {
   const memberIds = useMemo(() => members.map((m) => m.id), [members]);
   const nameOf = (id: string) => members.find((m) => m.id === id)?.name ?? "?";
@@ -69,8 +72,8 @@ export function AddExpenseForm({
   // 1–4: what, how much, category, currency
   const [name, setName] = useState(initial?.name ?? "");
   const [amount, setAmount] = useState(initial?.amount ?? "");
-  const today = todayKey();
-  const yesterday = dayKey(new Date(Date.now() - 86_400_000));
+  const today = todayKey(new Date(), tz);
+  const yesterday = dayKey(new Date(Date.now() - 86_400_000), tz);
   const [date, setDate] = useState(initial?.date ?? today);
   const [pickingDate, setPickingDate] = useState(Boolean(initial && initial.date !== today && initial.date !== yesterday));
   const [showDate, setShowDate] = useState(false);
@@ -214,7 +217,7 @@ export function AddExpenseForm({
       return;
     }
     startSaving(async () => {
-      const res = await addExpense({ ...draft, groupId, name, notes, category: category.id, expenseId, date, rateMode: usingManualRate ? "manual" : keepSavedRate ? "keep" : "auto", manualRate });
+      const res = await addExpense({ ...draft, groupId, name, notes, baseVersion: initial?.version, category: category.id, expenseId, date, rateMode: usingManualRate ? "manual" : keepSavedRate ? "keep" : "auto", manualRate });
       if (res?.error) setError(res.error);
     });
   }

@@ -4,6 +4,7 @@ import { getMyMemberId } from "@/lib/identity";
 import { PageHeader, primaryButtonClass } from "@/components/ui";
 import { setGroupClosed } from "@/app/actions";
 import { AddExpenseForm } from "@/components/AddExpenseForm";
+import { getTimeZone } from "@/lib/tz";
 
 export default async function AddExpensePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -11,7 +12,7 @@ export default async function AddExpensePage({ params }: { params: Promise<{ id:
     where: { id },
     include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true } } },
   });
-  if (!group) notFound();
+  if (!group || group.deletedAt) notFound();
 
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect(`/join/${group.inviteCode}`);
@@ -53,6 +54,7 @@ export default async function AddExpensePage({ params }: { params: Promise<{ id:
         groupMarkupBp={group.cardMarkupBp}
         members={group.members.filter((m) => !m.leftAt).map(({ id, name }) => ({ id, name }))}
         myId={myId}
+        tz={await getTimeZone()}
       />
     </>
   );

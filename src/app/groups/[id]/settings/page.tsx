@@ -1,7 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
-import { convertGroupCurrency, setGroupClosed, updateGroupSettings } from "@/app/actions";
+import { convertGroupCurrency, deleteGroup, setGroupClosed, updateGroupSettings } from "@/app/actions";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { CURRENCIES, currencyInfo, formatMoney, formatPercent, isSupportedCurrency, POPULAR_CURRENCIES } from "@/lib/money";
 import { getRate } from "@/lib/rate-cache";
 import { niceDate } from "@/lib/format";
@@ -36,7 +37,7 @@ export default async function GroupSettings({
       _count: { select: { expenses: true, payments: true } },
     },
   });
-  if (!group) notFound();
+  if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect(`/join/${group.inviteCode}`);
 
@@ -236,6 +237,23 @@ export default async function GroupSettings({
         </form>
       </section>
 
+      {/* Delete (restorable for 30 days) */}
+      <section className="mt-12 border-t border-line pt-8">
+        <h2 className="mb-1 text-base font-semibold">Delete this group</h2>
+        <p className="mb-4 text-sm text-gray-500">
+          Removes the group for everyone in it. Anyone in the group can restore it from their home screen for 30 days.
+          After that it’s gone for good.
+        </p>
+        <form action={deleteGroup}>
+          <input type="hidden" name="groupId" value={group.id} />
+          <ConfirmButton
+            message={`Delete “${group.name}” for everyone? It can be restored for 30 days.`}
+            className="w-full rounded-full border border-red-500/40 px-5 py-3.5 text-center text-base font-medium text-red-400 active:bg-red-500/10"
+          >
+            Delete group
+          </ConfirmButton>
+        </form>
+      </section>
     </>
   );
 }

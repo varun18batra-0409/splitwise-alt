@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
 import { toInputAmount } from "@/lib/money";
 import { dayKey } from "@/lib/dates";
+import { getTimeZone } from "@/lib/tz";
 import { allocateByWeights, type ForMode, type SplitType } from "@/lib/split";
 import type { PaymentMethod } from "@/lib/conversion";
 import { deleteExpense } from "@/app/actions";
@@ -20,8 +21,9 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
     where: { id },
     include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true } } },
   });
-  if (!group) notFound();
+  if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
+  const tz = await getTimeZone();
   if (!myId || !group.members.some((m) => m.id === myId)) redirect(`/join/${group.inviteCode}`);
 
   const e = await db.expense.findFirst({ where: { id: expenseId, groupId: group.id }, include: { shares: true } });
@@ -72,8 +74,9 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
     markupCustom: foreignCard && e.markupBp !== group.cardMarkupBp ? String(e.markupBp / 100) : "",
     rate: e.exchangeRate,
     rateDate: e.rateDate,
-    date: dayKey(e.spentAt ?? e.createdAt),
+    date: dayKey(e.spentAt ?? e.createdAt, tz),
     notes: e.notes,
+    version: (e.editedAt ?? e.createdAt).toISOString(),
   };
 
   return (
@@ -87,6 +90,7 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
           .filter((m) => !m.leftAt || m.id === e.paidById || e.shares.some((s) => s.memberId === m.id))
           .map(({ id, name }) => ({ id, name }))}
         myId={myId}
+        tz={tz}
         expenseId={e.id}
         initial={initial}
       />

@@ -21,7 +21,8 @@
     "@prisma/adapter-libsql": "^6.8.0",
     "@libsql/client": "^0.15.0",
     "qrcode": "^1.5.4",
-    "web-push": "^3.6.7"
+    "web-push": "^3.6.7",
+    "nodemailer": "^6.9.16"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.0",
@@ -33,6 +34,7 @@
     "typescript": "^5.8.0",
     "vitest": "^3.1.0",
     "@types/qrcode": "^1.5.5",
-    "@types/web-push": "^3.6.4"
+    "@types/web-push": "^3.6.4",
+    "@types/nodemailer": "^6.4.17"
   }
 }

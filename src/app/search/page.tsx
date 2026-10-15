@@ -3,6 +3,7 @@ import { getMemberships } from "@/lib/identity";
 import { loadMyGroups } from "@/lib/group-data";
 import { buildActivity, byDay, filterActivity } from "@/lib/activity";
 import { cleanPeriod, inPeriod, monthLabel, periodsOf, recap } from "@/lib/search";
+import { getTimeZone } from "@/lib/tz";
 import { formatMoney } from "@/lib/money";
 import { ActivityRow } from "@/components/ActivityRow";
 import { PageHeader } from "@/components/ui";
@@ -16,6 +17,7 @@ export default async function SearchPage({
   searchParams: Promise<{ q?: string; g?: string; y?: string; m?: string }>;
 }) {
   const sp = await searchParams;
+  const tz = await getTimeZone();
   const q = (sp.q ?? "").slice(0, 80);
   const period = cleanPeriod(sp.y, sp.m);
   const all = await loadMyGroups(await getMemberships());
@@ -29,8 +31,8 @@ export default async function SearchPage({
     const items = filterActivity(buildActivity(g.expenses, g.payments, g.myId), { q }, searchName);
     return items.map((item) => ({ item, g, nameOf }));
   });
-  const { months, years } = periodsOf(rows.map((r) => r.item.date));
-  const shown = rows.filter((r) => inPeriod(r.item.date, period)).sort((a, b) => b.item.date.getTime() - a.item.date.getTime());
+  const { months, years } = periodsOf(rows.map((r) => r.item.date), tz);
+  const shown = rows.filter((r) => inPeriod(r.item.date, period, tz)).sort((a, b) => b.item.date.getTime() - a.item.date.getTime());
 
   const sum = recap(
     shown.flatMap(({ item, g }) =>
@@ -61,7 +63,7 @@ export default async function SearchPage({
     <>
       <PageHeader title="Search" back={back} />
 
-      <form method="get" action="/search" role="search" className="relative mb-4">
+      <form method="get" action="/search" role="search" data-allow-repeat="1" className="relative mb-4">
         {groupId && <input type="hidden" name="g" value={groupId} />}
         {period.month && <input type="hidden" name="m" value={period.month} />}
         {period.year && <input type="hidden" name="y" value={period.year} />}
@@ -155,7 +157,7 @@ export default async function SearchPage({
         </p>
       ) : (
         <div className="space-y-6">
-          {byDay(shown.map((r) => ({ ...r, date: r.item.date }))).map((day) => (
+          {byDay(shown.map((r) => ({ ...r, date: r.item.date })), new Date(), tz).map((day) => (
             <section key={day.day}>
               <h2 className="mb-1 text-sm font-medium text-gray-500">{day.day}</h2>
               <ul className="divide-y divide-line">

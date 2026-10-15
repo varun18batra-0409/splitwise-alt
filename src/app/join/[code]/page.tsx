@@ -17,7 +17,7 @@ export default async function JoinPage({
     where: { inviteCode: code },
     include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
   });
-  if (!group) notFound();
+  if (!group || group.deletedAt) notFound();
 
   return (
     <>
@@ -27,6 +27,7 @@ export default async function JoinPage({
         <ErrorNote>That name is already in the group. Tap it in the list instead, or use a different name.</ErrorNote>
       )}
       {error === "missing" && <ErrorNote>Please type your name.</ErrorNote>}
+      {error === "busy" && <ErrorNote>Too many joins from here in the last hour. Wait a bit and try again.</ErrorNote>}
 
       {group.members.length > 0 && (
         <section className="mb-10">

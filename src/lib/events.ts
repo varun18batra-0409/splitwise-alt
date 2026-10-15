@@ -39,6 +39,8 @@ export type EventKind =
   | "member_left"
   | "member_rejoined"
   | "group_settled_closed"
+  | "group_deleted"
+  | "group_restored"
   | "group_closed"
   | "group_reopened";
 

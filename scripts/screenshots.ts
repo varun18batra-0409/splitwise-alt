@@ -88,6 +88,9 @@ await shot("23-add-expense-differently", `${g}/add`, async (p) => {
   await p.waitForTimeout(300);
 });
 await shot("15-new-group", "/groups/new");
+await shot("25-account", "/account");
+await shot("26-signin", "/signin", undefined, false);
+await shot("27-privacy", "/privacy");
 await context.clearCookies();
 await shot("16-join", `/join/${demo.trip.invite}`);
 await shot("24-tour-1", "/", undefined, false);

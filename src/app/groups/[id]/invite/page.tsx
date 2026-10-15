@@ -17,7 +17,7 @@ export default async function InvitePage({ params }: { params: Promise<{ id: str
     where: { id },
     include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
   });
-  if (!group) notFound();
+  if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect(`/join/${group.inviteCode}`);
 

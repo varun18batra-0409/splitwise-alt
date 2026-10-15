@@ -224,3 +224,9 @@ body:has(.intro-tour) .add-bar { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .tour-slide * { animation: none !important; }
 }
+
+/* A form that's being sent: its buttons look pressed and can't be tapped again. */
+form[aria-busy="true"] button[type="submit"] {
+  opacity: 0.6;
+  pointer-events: none;
+}

@@ -29,6 +29,13 @@ export const HomeIcon = (p: P) => (
   </Svg>
 );
 
+export const PersonIcon = (p: P) => (
+  <Svg {...p}>
+    <circle cx="12" cy="8.5" r="3.75" />
+    <path d="M4.5 20c1.2-3.6 4.1-5.5 7.5-5.5s6.3 1.9 7.5 5.5" />
+  </Svg>
+);
+
 export const BellIcon = (p: P) => (
   <Svg {...p}>
     <path d="M6 16.5V11a6 6 0 1 1 12 0v5.5l1.5 1.5h-15L6 16.5Z" />

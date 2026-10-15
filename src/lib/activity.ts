@@ -1,4 +1,5 @@
 import { getCategory } from "./categories";
+import { DEFAULT_TIME_ZONE, dayKey, isDayMarker, isTimeZone } from "./dates";
 import { originalShares } from "./currency-ledgers";
 
 // One history list for a group: expenses, settle-up payments and group changes
@@ -125,8 +126,10 @@ export function buildActivity(expenses: ExpenseRow[], payments: PaymentRow[], my
 }
 
 // "Today", "Yesterday", "Mon 12 Oct", or "12 Oct 2025" for older years.
-export function dayLabel(date: Date, now = new Date(), timeZone = "Asia/Kolkata"): string {
-  const key = (d: Date) => d.toLocaleDateString("en-CA", { timeZone }); // YYYY-MM-DD
+export function dayLabel(date: Date, now = new Date(), timeZone: string = DEFAULT_TIME_ZONE): string {
+  if (!isTimeZone(timeZone)) timeZone = DEFAULT_TIME_ZONE;
+  const tz = timeZone;
+  const key = (d: Date) => dayKey(d, tz); // YYYY-MM-DD
   const today = key(now);
   const yesterday = key(new Date(now.getTime() - 86_400_000));
   const k = key(date);
@@ -134,7 +137,7 @@ export function dayLabel(date: Date, now = new Date(), timeZone = "Asia/Kolkata"
   if (k === yesterday) return "Yesterday";
   const sameYear = k.slice(0, 4) === today.slice(0, 4);
   return date.toLocaleDateString("en-GB", {
-    timeZone,
+    timeZone: isDayMarker(date) ? "UTC" : timeZone,
     weekday: sameYear ? "short" : undefined,
     day: "numeric",
     month: "short",
@@ -143,10 +146,10 @@ export function dayLabel(date: Date, now = new Date(), timeZone = "Asia/Kolkata"
 }
 
 // Groups items under day headings, keeping order.
-export function byDay<T extends { date: Date }>(items: T[], now = new Date()): { day: string; items: T[] }[] {
+export function byDay<T extends { date: Date }>(items: T[], now = new Date(), timeZone?: string): { day: string; items: T[] }[] {
   const out: { day: string; items: T[] }[] = [];
   for (const item of items) {
-    const day = dayLabel(item.date, now);
+    const day = dayLabel(item.date, now, timeZone);
     const last = out[out.length - 1];
     if (last && last.day === day) last.items.push(item);
     else out.push({ day, items: [item] });

@@ -3,6 +3,8 @@ import { Fraunces } from "next/font/google";
 import "./globals.css";
 import { AddExpenseButton } from "@/components/AddExpenseButton";
 import { PushSync } from "@/components/PushControls";
+import { TimeZoneSync } from "@/components/TimeZoneSync";
+import { DoubleTapGuard } from "@/components/DoubleTapGuard";
 
 // Fraunces: a sharp, high-contrast serif for headings and big amounts.
 // Body text stays in the phone's own font.
@@ -29,6 +31,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <main className="mx-auto min-h-dvh max-w-md px-5 pb-32 pt-[max(1.5rem,env(safe-area-inset-top))]">{children}</main>
         <AddExpenseButton />
         <PushSync />
+        <TimeZoneSync />
+        <DoubleTapGuard />
       </body>
     </html>
   );

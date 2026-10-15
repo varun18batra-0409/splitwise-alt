@@ -15,6 +15,7 @@ export type GroupEvent = Group["events"][number];
 
 export type GroupView = Loaded & {
   myId: string;
+  tz: string; // the viewer's time zone
   spent: number; // group currency, incl. markup
   ledgers: Ledger[]; // per foreign currency, without markup
   hasMarkup: boolean;
@@ -28,7 +29,7 @@ export type GroupView = Loaded & {
   eventById: Map<string, GroupEvent>;
 };
 
-export async function buildGroupView(data: Loaded, myId: string): Promise<GroupView> {
+export async function buildGroupView(data: Loaded, myId: string, tz: string): Promise<GroupView> {
   const { group, expenses } = data;
   const money = (p: number) => formatMoney(p, group.currency);
   const nameOf = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");
@@ -48,6 +49,7 @@ export async function buildGroupView(data: Loaded, myId: string): Promise<GroupV
 
   return {
     ...data,
+    tz,
     myId,
     spent: expenses.reduce((s, e) => s + e.amount, 0),
     ledgers,

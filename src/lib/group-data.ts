@@ -16,7 +16,7 @@ export async function loadGroup(id: string) {
       events: { orderBy: { createdAt: "desc" } },
     },
   });
-  if (!group) return null;
+  if (!group || group.deletedAt) return null;
   const memberIds = group.members.map((m) => m.id);
   const expenses = active(group.expenses);
   const payments = active(group.payments);
@@ -27,7 +27,7 @@ export async function loadGroup(id: string) {
 // For the home screen: every group this phone belongs to, with my balance in each.
 export async function loadMyGroups(memberships: Record<string, string>) {
   const groups = await db.group.findMany({
-    where: { id: { in: Object.keys(memberships) } },
+    where: { id: { in: Object.keys(memberships) }, deletedAt: null },
     include: {
       members: { select: { id: true, name: true, phone: true, leftAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
       expenses: { include: { shares: true }, orderBy: { createdAt: "desc" } },
@@ -88,4 +88,23 @@ export async function loadNotifications(memberships: Record<string, string>, lim
 export async function markNotificationsSeen(memberships: Record<string, string>) {
   const ids = Object.values(memberships);
   if (ids.length) await db.member.updateMany({ where: { id: { in: ids } }, data: { seenEventsAt: new Date() } });
+}
+
+// Groups I'm in that someone deleted in the last 30 days (they can be restored).
+export const RESTORE_DAYS = 30;
+export async function loadDeletedGroups(memberships: Record<string, string>, now = new Date()) {
+  const since = new Date(now.getTime() - RESTORE_DAYS * 86_400_000);
+  const groups = await db.group.findMany({
+    where: { id: { in: Object.keys(memberships) }, deletedAt: { gt: since } },
+    include: { members: { select: { id: true, name: true } } },
+    orderBy: { deletedAt: "desc" },
+  });
+  return groups
+    .filter((g) => g.members.some((m) => m.id === memberships[g.id]))
+    .map((g) => ({
+      id: g.id,
+      name: g.name,
+      deletedBy: g.deletedById === memberships[g.id] ? "You" : g.members.find((m) => m.id === g.deletedById)?.name ?? "Someone",
+      daysLeft: Math.max(1, Math.ceil((g.deletedAt!.getTime() + RESTORE_DAYS * 86_400_000 - now.getTime()) / 86_400_000)),
+    }));
 }

@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { InstallButton } from "@/components/InstallButton";
 import { IntroTour } from "@/components/IntroTour";
-import { getMemberships } from "@/lib/identity";
-import { loadMyGroups, loadNotifications } from "@/lib/group-data";
+import { getTimeZone } from "@/lib/tz";
+import { getAccount, getMemberships } from "@/lib/identity";
+import { loadDeletedGroups, loadMyGroups, loadNotifications } from "@/lib/group-data";
 import { buildActivity, dayLabel } from "@/lib/activity";
 import { formatMoney } from "@/lib/money";
 import { BalanceMeter } from "@/components/BalanceMeter";
@@ -11,21 +12,33 @@ import { primaryButtonClass } from "@/components/ui";
 import { crossSettle } from "@/lib/cross-settle";
 import { convertAmount } from "@/lib/conversion";
 import { getRate } from "@/lib/rate-cache";
-import { settleAcrossGroups } from "@/app/actions";
+import { restoreGroup, settleAcrossGroups } from "@/app/actions";
 import { db } from "@/lib/db";
 import { canUndo } from "@/lib/undo";
 import { UndoBar } from "@/components/UndoBar";
-import { BellIcon, GroupIcon, SearchIcon, SettleIcon, iconButtonClass } from "@/components/icons";
+import { BellIcon, GroupIcon, PersonIcon, SearchIcon, SettleIcon, iconButtonClass } from "@/components/icons";
 
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ closed?: string; settle?: string; did?: string; g?: string; undone?: string; error?: string }>;
+  searchParams: Promise<{
+    closed?: string;
+    settle?: string;
+    did?: string;
+    g?: string;
+    undone?: string;
+    error?: string;
+    deleted?: string;
+    signedin?: string;
+  }>;
 }) {
-  const { closed: justClosed, settle: settleNotice, did, g: didGroup, undone, error } = await searchParams;
+  const { closed: justClosed, settle: settleNotice, did, g: didGroup, undone, error, deleted, signedin } = await searchParams;
+  const tz = await getTimeZone();
   const memberships = await getMemberships();
   const all = await loadMyGroups(memberships);
   const { unread } = await loadNotifications(memberships, 1);
+  const deletedGroups = await loadDeletedGroups(memberships);
+  const account = await getAccount();
   const open = all.filter((g) => !g.group.closed);
   const closed = all.filter((g) => g.group.closed);
 
@@ -117,12 +130,25 @@ export default async function Home({
     .slice(0, 8);
 
   // First visit: show what Loopin does instead of an empty screen.
-  if (all.length === 0 && !error) return <IntroTour />;
+  const notice =
+    deleted === "account"
+      ? "Your sign-in and email were deleted. Your groups on this phone are still here."
+      : deleted === "group"
+        ? "Group deleted. Anyone in it can restore it below for 30 days."
+        : signedin === "1"
+          ? `Signed in${account ? ` as ${account.email}` : ""}. Your groups are saved to your email.`
+          : null;
+  if (all.length === 0 && deletedGroups.length === 0 && !error && !notice) return <IntroTour signInHref="/signin" />;
 
   return (
     <>
       {undoBar && <UndoBar key={undoBar.eventId} {...undoBar} back="home" redo={undone === "1"} />}
       {error && <p className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+      {notice && (
+        <p className="mb-4 rounded-xl bg-mist px-4 py-3 text-sm text-fg" role="status">
+          {notice}
+        </p>
+      )}
       {justClosed === "1" && !undone && (
         <p className="mb-4 flex items-center gap-2 rounded-xl bg-mist px-4 py-3 text-sm text-fg">
           <span aria-hidden>🎉</span> Group closed. It’s under “Show closed groups” whenever you need it.
@@ -132,14 +158,19 @@ export default async function Home({
         <div>
           <p className="font-display text-[26px] font-semibold leading-none tracking-tight">loopin</p>
           <p className="mt-1.5 text-xs text-gray-400">
-            {dayLabel(new Date())} ·{" "}
+            {dayLabel(new Date(), new Date(), tz)} ·{" "}
             <Link href="/welcome" className="font-medium text-fg underline decoration-gray-400 underline-offset-4">
               How it works
             </Link>
           </p>
         </div>
-        {all.length > 0 && (
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
+          <Link href="/account" aria-label={account ? `Account: ${account.email}` : "Sign in or account"} className={`relative ${iconButtonClass}`}>
+            <PersonIcon size={20} />
+            {account && <span className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-owed" aria-hidden />}
+          </Link>
+          {all.length > 0 && (
+          <>
           <Link href="/search" aria-label="Search by words, month or year" className={iconButtonClass}>
             <SearchIcon size={19} />
           </Link>
@@ -151,8 +182,9 @@ export default async function Home({
               </span>
             )}
           </Link>
-          </div>
-        )}
+          </>
+          )}
+        </div>
       </header>
 
       {all.length === 0 ? (
@@ -162,6 +194,11 @@ export default async function Home({
           <Link href="/groups/new" className="pop mt-8 block bg-fg px-4 py-3.5 text-center font-semibold text-canvas [--pop-edge:#6e6b63]">
             Create your first group
           </Link>
+          {!account && (
+            <Link href="/signin" className="mt-4 block text-center text-sm text-fg/60">
+              Used Loopin on another phone? <span className="font-medium text-fg underline underline-offset-4">Sign in</span>
+            </Link>
+          )}
         </section>
       ) : (
         <>
@@ -322,7 +359,7 @@ export default async function Home({
             ) : (
               <ul className="divide-y divide-gray-100">
                 {open.map((g) => (
-                  <GroupRow key={g.group.id} g={g} />
+                  <GroupRow key={g.group.id} g={g} tz={tz} />
                 ))}
               </ul>
             )}
@@ -335,7 +372,7 @@ export default async function Home({
                 </summary>
                 <ul className="mt-2 divide-y divide-gray-100">
                   {closed.map((g) => (
-                    <GroupRow key={g.group.id} g={g} closed />
+                    <GroupRow key={g.group.id} g={g} closed tz={tz} />
                   ))}
                 </ul>
               </details>
@@ -349,7 +386,7 @@ export default async function Home({
               <ul className="divide-y divide-gray-100">
                 {recent.map((r) => (
                   <li key={r.item.id}>
-                    <ActivityRow item={r.item} currency={r.currency} nameOf={r.nameOf} groupName={`${r.groupName}, ${dayLabel(r.item.date)}`} />
+                    <ActivityRow item={r.item} currency={r.currency} nameOf={r.nameOf} groupName={`${r.groupName}, ${dayLabel(r.item.date, new Date(), tz)}`} />
                   </li>
                 ))}
               </ul>
@@ -357,8 +394,48 @@ export default async function Home({
           )}
         </>
       )}
-      <InstallButton />
 
+      {/* Recently deleted groups: anyone in them can bring them back for 30 days. */}
+      {deletedGroups.length > 0 && (
+        <section className="mt-10">
+          <h2 className="mb-1 font-display text-lg font-semibold tracking-tight">Recently deleted</h2>
+          <ul className="divide-y divide-line">
+            {deletedGroups.map((d) => (
+              <li key={d.id} className="flex items-center gap-3 py-3">
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-medium text-gray-500">{d.name}</span>
+                  <span className="block truncate text-xs text-gray-400">
+                    Deleted by {d.deletedBy} · gone for good in {d.daysLeft} {d.daysLeft === 1 ? "day" : "days"}
+                  </span>
+                </span>
+                <form action={restoreGroup}>
+                  <input type="hidden" name="groupId" value={d.id} />
+                  <button type="submit" className="rounded-full border border-line px-3.5 py-1.5 text-sm font-medium text-fg active:bg-mist">
+                    Restore
+                  </button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* Save groups to an email, so a new phone or the installed app can get them back. */}
+      {!account && all.length > 0 && (
+        <Link href="/signin" className="mt-10 flex items-center gap-3 rounded-2xl border border-line px-4 py-3.5 active:bg-mist">
+          <PersonIcon size={20} />
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-medium">Save your groups to your email</span>
+            <span className="block text-xs text-gray-400">Optional. Get them back on a new phone or the installed app.</span>
+          </span>
+          <span className="text-gray-400" aria-hidden>›</span>
+        </Link>
+      )}
+
+      <InstallButton />
+      <p className="mt-8 text-center text-xs text-gray-400">
+        <Link href="/privacy" className="underline underline-offset-4">Privacy</Link>
+      </p>
     </>
   );
 }
@@ -388,9 +465,11 @@ function Shortcut({ href, icon, label, hint }: { href?: string; icon: React.Reac
 function GroupRow({
   g,
   closed,
+  tz,
 }: {
   g: Awaited<ReturnType<typeof loadMyGroups>>[number];
   closed?: boolean;
+  tz: string;
 }) {
   const b = g.myBalance;
   return (
@@ -407,7 +486,7 @@ function GroupRow({
         <span className="min-w-0 flex-1">
           <span className={`block truncate font-medium ${closed ? "text-gray-500" : ""}`}>{g.group.name}</span>
           <span className="block truncate text-sm text-gray-400">
-            {g.group.members.filter((m) => !m.leftAt).length} people, {closed ? "closed" : activeText(g.lastActivity)}
+            {g.group.members.filter((m) => !m.leftAt).length} people, {closed ? "closed" : activeText(g.lastActivity, tz)}
           </span>
         </span>
         <span className={`shrink-0 text-right text-sm tabular-nums ${b > 0 ? "text-owed" : b < 0 ? "text-owe" : "text-gray-400"}`}>
@@ -418,7 +497,7 @@ function GroupRow({
   );
 }
 
-function activeText(d: Date): string {
-  const day = dayLabel(d);
+function activeText(d: Date, tz: string): string {
+  const day = dayLabel(d, new Date(), tz);
   return day === "Today" || day === "Yesterday" ? `active ${day.toLowerCase()}` : `active ${day}`;
 }

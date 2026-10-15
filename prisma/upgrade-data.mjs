@@ -1,6 +1,8 @@
 // Brings data saved by older versions of the app up to date.
-// Safe to run any number of times: it only touches rows that still need it,
-// and it never deletes anything. Runs automatically before `npm run dev`.
+// Safe to run any number of times: it only touches rows that still need it.
+// The only things it deletes: groups deleted more than 30 days ago (they can
+// be restored until then) and expired housekeeping rows (old sign-in codes,
+// rate-limit counters, old error logs). Runs before `npm run dev` and on deploy.
 import { PrismaClient } from "@prisma/client";
 
 // Hosted app: Turso (online SQLite). Otherwise: the local file.
@@ -59,6 +61,45 @@ const joined = await db.member.updateMany({
   data: { claimedAt: new Date() },
 });
 
+// 5. Expense days used to be stored as noon Indian time (06:30 UTC). Days are
+//    now stored as noon UTC, which is the same calendar day everywhere.
+const dated = await db.expense.findMany({ where: { spentAt: { not: null } }, select: { id: true, spentAt: true } });
+let redated = 0;
+for (const e of dated) {
+  const d = e.spentAt;
+  if (d.getUTCHours() === 6 && d.getUTCMinutes() === 30 && d.getUTCSeconds() === 0 && d.getUTCMilliseconds() === 0) {
+    await db.expense.update({
+      where: { id: e.id },
+      data: { spentAt: new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 12)) },
+    });
+    redated++;
+  }
+}
+
+// 6. Groups deleted more than 30 days ago are erased for good.
+const cutoff = new Date(Date.now() - 30 * 86_400_000);
+const gone = await db.group.findMany({ where: { deletedAt: { lt: cutoff } }, select: { id: true } });
+for (const g of gone) {
+  const members = await db.member.findMany({ where: { groupId: g.id }, select: { id: true } });
+  const expenses = await db.expense.findMany({ where: { groupId: g.id }, select: { id: true } });
+  await db.$transaction([
+    db.expenseShare.deleteMany({ where: { expenseId: { in: expenses.map((e) => e.id) } } }),
+    db.expense.deleteMany({ where: { groupId: g.id } }),
+    db.payment.deleteMany({ where: { groupId: g.id } }),
+    db.groupEvent.deleteMany({ where: { groupId: g.id } }),
+    db.pushSubscription.deleteMany({ where: { memberId: { in: members.map((m) => m.id) } } }),
+    db.member.deleteMany({ where: { groupId: g.id } }),
+    db.group.delete({ where: { id: g.id } }),
+  ]);
+}
+
+// 7. Housekeeping.
+const dayAgo = new Date(Date.now() - 86_400_000);
+await db.loginCode.deleteMany({ where: { expiresAt: { lt: dayAgo } } });
+await db.rateLimit.deleteMany({ where: { resetAt: { lt: dayAgo } } });
+await db.errorLog.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 30 * 86_400_000) } } });
+
+if (redated || gone.length) console.log(`Data upgrade: ${redated} expense days moved to noon UTC, ${gone.length} deleted groups erased.`);
 if (joined.count || moved || old.length || noCreator.length || noRecorder.length) {
   console.log(
     `Data upgrade: ${moved} categories updated, ${old.length} expenses given currency details, ` +

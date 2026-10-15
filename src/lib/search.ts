@@ -6,7 +6,7 @@ import { getCategory } from "./categories";
 
 export type Period = { year?: string; month?: string }; // month = "2026-10"
 
-export const monthKey = (d: Date) => dayKey(d).slice(0, 7);
+export const monthKey = (d: Date, tz?: string) => dayKey(d, tz).slice(0, 7);
 
 export function monthLabel(key: string): string {
   const [y, m] = key.split("-").map(Number);
@@ -19,16 +19,16 @@ export function cleanPeriod(year?: string, month?: string): Period {
   return { year: y, month: m };
 }
 
-export function inPeriod(d: Date, p: Period): boolean {
-  const k = monthKey(d);
+export function inPeriod(d: Date, p: Period, tz?: string): boolean {
+  const k = monthKey(d, tz);
   if (p.month) return k === p.month;
   if (p.year) return k.startsWith(p.year);
   return true;
 }
 
 // Months (newest first) and years that have something in them.
-export function periodsOf(dates: Date[]): { months: string[]; years: string[] } {
-  const months = [...new Set(dates.map(monthKey))].sort().reverse();
+export function periodsOf(dates: Date[], tz?: string): { months: string[]; years: string[] } {
+  const months = [...new Set(dates.map((d) => monthKey(d, tz)))].sort().reverse();
   const years = [...new Set(months.map((m) => m.slice(0, 4)))];
   return { months, years };
 }

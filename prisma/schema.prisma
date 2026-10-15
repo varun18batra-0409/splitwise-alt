@@ -23,6 +23,8 @@ model Group {
   secondaryCurrency String @default("") // also show amounts in this: "" = the foreign currency used most, "none" = off
   closed       Boolean   @default(false) // closed groups are hidden from the main list and read-only for new expenses
   closedAt     DateTime?
+  deletedAt    DateTime? // "Delete group": hidden for everyone, restorable for 30 days, then removed for good
+  deletedById  String    @default("")
   inviteCode   String    @unique
   createdAt  DateTime  @default(now())
   members    Member[]
@@ -38,6 +40,10 @@ model Member {
   seenEventsAt DateTime? // notifications newer than this are unread for this person (empty = since they joined)
   leftAt    DateTime? // set when they left the group: kept in history, not offered for new expenses
   claimedAt DateTime? // when someone on a phone picked this name (null = added by name, not joined yet)
+  // Set when the person signed in with email, so their groups follow them to any
+  // phone. A plain id (no database link) so the hosted database can add it as a
+  // simple new column; deleting an account clears it in code.
+  accountId String?
   groupId   String
   group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
@@ -49,6 +55,7 @@ model Member {
   pushSubscriptions PushSubscription[]
 
   @@unique([groupId, name])
+  @@index([accountId])
 }
 
 model Expense {
@@ -163,4 +170,40 @@ model PushSubscription {
 model AppSetting {
   key   String @id
   value String
+}
+
+// Optional sign-in: an email address, so your groups follow you to any phone.
+model Account {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+}
+
+// One-time sign-in codes sent by email (stored hashed, valid 15 minutes).
+model LoginCode {
+  id        String    @id @default(cuid())
+  email     String
+  codeHash  String
+  expiresAt DateTime
+  attempts  Int       @default(0)
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([email, createdAt])
+}
+
+// Simple request counters to stop spam (fixed time windows).
+model RateLimit {
+  key     String   @id
+  count   Int
+  resetAt DateTime
+}
+
+// Server errors, kept so problems are visible on the private stats page.
+model ErrorLog {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  path      String   @default("")
+  message   String
+  digest    String   @default("")
 }

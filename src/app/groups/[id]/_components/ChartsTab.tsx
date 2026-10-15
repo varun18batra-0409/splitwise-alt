@@ -8,7 +8,7 @@ import type { GroupExpense, GroupView } from "./view";
 
 // Category, currency, day-by-day, who paid, and each person's share.
 export function ChartsTab({ v }: { v: GroupView }) {
-  const { group, myId, expenses, money, spent } = v;
+  const { group, myId, expenses, money, spent, tz } = v;
   if (expenses.length === 0) {
     return <p className="rounded-2xl bg-mist px-4 py-8 text-center text-sm text-gray-600">Charts appear once the group has expenses.</p>;
   }
@@ -38,7 +38,7 @@ export function ChartsTab({ v }: { v: GroupView }) {
       .sort((a, b) => b.value - a.value);
 
   // Spending per day (the day each expense was spent), from the first to the last, up to 21 days.
-  const perDay = sumBy((e) => [dayKey(expenseDate(e))], (e) => e.amount);
+  const perDay = sumBy((e) => [dayKey(expenseDate(e), tz)], (e) => e.amount);
   const keys = [...perDay.keys()].sort();
   const days: string[] = [];
   for (let d = new Date(`${keys[0]}T00:00:00Z`); d <= new Date(`${keys[keys.length - 1]}T00:00:00Z`); d = new Date(d.getTime() + 86_400_000)) {

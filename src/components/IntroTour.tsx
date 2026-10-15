@@ -167,7 +167,15 @@ const slides: Slide[] = [
   },
 ];
 
-export function IntroTour({ startHref = "/groups/new", cta = "Create your first group" }: { startHref?: string; cta?: string }) {
+export function IntroTour({
+  startHref = "/groups/new",
+  cta = "Create your first group",
+  signInHref,
+}: {
+  startHref?: string;
+  cta?: string;
+  signInHref?: string;
+}) {
   const track = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
   const last = active === slides.length - 1;
@@ -234,6 +242,11 @@ export function IntroTour({ startHref = "/groups/new", cta = "Create your first 
         <button type="button" onClick={() => go(last ? 0 : active + 1)} className="block w-full py-2 text-center text-sm font-medium text-gray-600">
           {last ? "↺ See it again" : "Next →"}
         </button>
+        {signInHref && (
+          <Link href={signInHref} className="block text-center text-xs text-gray-500">
+            Used Loopin on another phone? <span className="font-medium text-fg underline underline-offset-4">Sign in</span>
+          </Link>
+        )}
       </div>
     </div>
   );

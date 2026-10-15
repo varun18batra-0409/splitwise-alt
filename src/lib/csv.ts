@@ -37,7 +37,13 @@ export function plain(minor: number, currency: string): string {
   return (minor / 10 ** d).toFixed(d);
 }
 
-export function groupCsv(group: { name: string; currency: string }, members: Member[], expenses: Expense[], payments: Payment[]): string {
+export function groupCsv(
+  group: { name: string; currency: string },
+  members: Member[],
+  expenses: Expense[],
+  payments: Payment[],
+  tz?: string,
+): string {
   const cur = group.currency;
   const name = (id: string) => members.find((m) => m.id === id)?.name ?? "Someone";
   const header = [
@@ -53,7 +59,7 @@ export function groupCsv(group: { name: string; currency: string }, members: Mem
     rows.push({
       date,
       cells: [
-        dayKey(date), "Expense", e.description, e.notes ?? "", getCategory(e.category).label, name(e.paidById), plain(e.amount, cur),
+        dayKey(date, tz), "Expense", e.description, e.notes ?? "", getCategory(e.category).label, name(e.paidById), plain(e.amount, cur),
         foreign ? plain(e.originalAmount, e.originalCurrency) : "", foreign ? e.originalCurrency : "", foreign ? e.exchangeRate : "",
         e.markupAmount ? plain(e.markupAmount, cur) : "", e.paymentMethod, e.deletedAt ? "Deleted" : "",
         ...members.map((m) => {
@@ -67,7 +73,7 @@ export function groupCsv(group: { name: string; currency: string }, members: Mem
     rows.push({
       date: p.createdAt,
       cells: [
-        dayKey(p.createdAt), "Payment", `${name(p.fromId)} paid ${name(p.toId)}`, "", "", name(p.fromId), plain(p.amount, cur),
+        dayKey(p.createdAt, tz), "Payment", `${name(p.fromId)} paid ${name(p.toId)}`, "", "", name(p.fromId), plain(p.amount, cur),
         "", "", "", "", "", p.deletedAt ? "Deleted" : "", ...members.map(() => ""),
       ],
     });

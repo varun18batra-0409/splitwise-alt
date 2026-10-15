@@ -5,6 +5,7 @@ import { loadGroup, loadMyGroups } from "@/lib/group-data";
 import { canUndo } from "@/lib/undo";
 import { UndoBar } from "@/components/UndoBar";
 import { buildGroupView } from "./_components/view";
+import { getTimeZone } from "@/lib/tz";
 import { GroupHeader } from "./_components/GroupHeader";
 import { GroupSummary } from "./_components/GroupSummary";
 import { ActivityTab } from "./_components/ActivityTab";
@@ -49,7 +50,7 @@ export default async function GroupPage({
   const myId = await getMyMemberId(data.group.id);
   if (!myId || !data.group.members.some((m) => m.id === myId)) redirect(`/join/${data.group.inviteCode}`);
 
-  const v = await buildGroupView(data, myId);
+  const v = await buildGroupView(data, myId, await getTimeZone());
   const { group } = v;
 
   // Group switcher: up to 5 of my other open groups, most recently active first.

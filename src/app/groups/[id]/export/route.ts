@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
 import { csvFileName, groupCsv } from "@/lib/csv";
+import { getTimeZone } from "@/lib/tz";
 
 // Download the group's expenses and payments as a CSV file (members only).
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -13,11 +14,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       payments: true,
     },
   });
-  if (!group) return new Response("Not found", { status: 404 });
+  if (!group || group.deletedAt) return new Response("Not found", { status: 404 });
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) return new Response("Join this group first.", { status: 403 });
 
-  const body = groupCsv(group, group.members, group.expenses, group.payments);
+  const body = groupCsv(group, group.members, group.expenses, group.payments, await getTimeZone());
   return new Response(body, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
