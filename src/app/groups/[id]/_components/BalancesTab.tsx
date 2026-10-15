@@ -126,7 +126,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
           {group.members.filter((m) => !m.leftAt || (v.net[m.id] ?? 0) !== 0).map((m) => {
             const b = net[m.id] ?? 0;
             const theirs = transfers.filter((t) => t.from === m.id || t.to === m.id);
-            const foreign = ledgers.map((l) => signed(l.net[m.id] ?? 0, l.currency)).join(" · ");
+            const foreign = b === 0 ? "" : ledgers.map((l) => signed(l.net[m.id] ?? 0, l.currency)).join(" · ");
             return (
               <li key={m.id}>
                 <details className="group/person" open={why === m.id}>

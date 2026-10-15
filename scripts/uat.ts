@@ -251,8 +251,10 @@ async function main() {
   });
   await step(V, "Joining", "Invite page shows everyone as joined", async () => {
     await go(V, `${g}/invite`);
-    const t = await V.locator("body").innerText();
-    assert(!/Not joined yet/.test(t), "someone still shows “Not joined yet”");
+    const t = (await V.locator("main ul").last().innerText()).replace(/\s+/g, " ");
+    const joined = (t.match(/Joined/g) ?? []).length;
+    assert(!/Not joined yet/.test(t) && joined >= 4, `statuses: ${t}`);
+    return `${joined} joined`;
   });
 
   // ===== 2. Adding expenses =====
@@ -387,7 +389,7 @@ async function main() {
   });
   await step(V, "Edit", "Undo bar right after adding an expense removes it again", async () => {
     await add(V, { me: "Varun", name: "Ice cream", amount: "100" });
-    await V.getByRole("button", { name: "Undo", exact: true }).click();
+    await V.getByRole("status").getByRole("button", { name: "Undo", exact: true }).click();
     await V.waitForURL(/undone=1/);
     return checkBalances(V, g);
   });
@@ -405,7 +407,7 @@ async function main() {
     const box = await V.locator("dl").innerText();
     assert(/2,575/.test(box), `calculation box shows: ${box.replace(/\s+/g, " ")}`);
     assert(/75/.test(box), "no ₹75 card fee shown");
-    await V.getByRole("button", { name: "Done" }).click();
+    await V.getByRole("button", { name: "Hide details" }).click();
     const line = await V.getByRole("button", { name: /Details/ }).innerText();
     assert(/2,575/.test(line) && /card fee/.test(line), `one-line summary: ${line}`);
     await save(V, { me: "Varun", name: "", amount: "" });
@@ -530,7 +532,7 @@ async function main() {
     const [from, to, amt] = await cardPeople(V, 0, "Varun");
     await settleCards(V).nth(0).getByRole("button", { name: "Mark paid" }).click();
     await V.waitForURL(/paid=1/);
-    await V.getByRole("button", { name: "Undo", exact: true }).click();
+    await V.getByRole("status").getByRole("button", { name: "Undo", exact: true }).click();
     await V.waitForURL(/undone=1/);
     void from; void to; void amt;
     return checkBalances(V, g);
@@ -654,7 +656,7 @@ async function main() {
     await V.getByRole("button", { name: /Convert to USD/ }).click();
     await V.waitForURL(/saved=settings/);
     await go(V, `${g3}?tab=activity`);
-    await V.getByText(/\$7\.20/).first().waitFor();
+    await V.getByText(/USD 7\.20/).first().waitFor();
   });
   await step(V, "Group settings", "Delete a group, see it under Recently deleted, restore it", async () => {
     await go(V, `${g3}/settings`);

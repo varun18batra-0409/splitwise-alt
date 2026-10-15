@@ -54,7 +54,9 @@ export function GroupSummary({ v, sp }: { v: GroupView; sp: Notices }) {
         {hasMarkup && <p className="mt-0.5 text-xs text-gray-400">In {group.currency}, including card markup.</p>}
 
         {/* The same, in each foreign currency the group spent in, without card markup. */}
-        {ledgers.length > 0 && (
+        {/* Hidden once you're square: these lines count expenses only, so after
+            settling up (payments are in the group currency) they'd look wrong. */}
+        {ledgers.length > 0 && mine !== 0 && (
           <ul className="mt-4 divide-y divide-line border border-line bg-white">
             {ledgers.map((l) => {
               const val = l.net[myId] ?? 0;
@@ -62,7 +64,10 @@ export function GroupSummary({ v, sp }: { v: GroupView; sp: Notices }) {
                 <li key={l.currency} className="flex items-center justify-between gap-3 px-4 py-3">
                   <span className="min-w-0">
                     <span className="block text-sm font-medium">{l.currency} expenses</span>
-                    <span className="block text-xs text-gray-400">{formatMoney(l.spent, l.currency)} spent · no card markup</span>
+                    <span className="block text-xs text-gray-400">
+                      {formatMoney(l.spent, l.currency)} spent · no card markup
+                      {v.payments.some((p) => p.fromId === myId || p.toId === myId) ? " · before payments" : ""}
+                    </span>
                   </span>
                   <span
                     className={`shrink-0 text-right font-display tabular-nums ${val > 0 ? "text-owed" : val < 0 ? "text-owe" : "text-gray-400"}`}

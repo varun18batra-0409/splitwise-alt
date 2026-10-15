@@ -457,7 +457,7 @@ export function AddExpenseForm({
         <section className="space-y-4 rounded-2xl border border-gray-100 bg-gray-50/60 p-4">
           <div className="-mb-2 flex justify-end">
             <button type="button" onClick={() => setShowFx(false)} className="text-sm font-medium text-fg">
-              Done
+              Hide details
             </button>
           </div>
           <div>
