@@ -121,9 +121,9 @@ export default function HowItWorks() {
         />
         <p>Change the date if it wasn’t today, and add a note if it helps (“Rahul paid the tip”). Next time, Loopin starts with the same split you used last.</p>
         <Example>
-          Dinner ₹1,200 · Varun paid · Everyone equally (4)
+          Dinner ₹1,200 · Joey paid · Everyone equally (4)
           <br />
-          <span className="text-gray-500">→ Asha, Ravi and Zoe each owe Varun ₹300.</span>
+          <span className="text-gray-500">→ Rancho, Sheldon and Circuit each owe Joey ₹300.</span>
         </Example>
       </Section>
 

@@ -93,14 +93,19 @@ const slides: Slide[] = [
       <Card>
         <p className="rise text-xs text-gray-400">Goa weekend</p>
         <div className="rise rise-2 mt-3 flex items-center gap-3">
-          <Dot name="Asha" />
-          <span className="flex-1 text-sm">You owe Asha</span>
+          <Dot name="Joey" />
+          <span className="flex-1 text-sm">You owe Joey</span>
           <span className={`font-display text-lg ${owe}`}>₹240</span>
         </div>
         <div className="rise rise-3 mt-3 flex items-center gap-3">
-          <Dot name="Ravi" />
-          <span className="flex-1 text-sm">Ravi owes you</span>
-          <span className={`font-display text-lg ${owed}`}>₹1,180</span>
+          <Dot name="Rancho" />
+          <span className="flex-1 text-sm">Rancho owes you</span>
+          <span className={`font-display text-lg ${owed}`}>₹680</span>
+        </div>
+        <div className="rise rise-4 mt-3 flex items-center gap-3">
+          <Dot name="Sheldon" />
+          <span className="flex-1 text-sm">Sheldon owes you</span>
+          <span className={`font-display text-lg ${owed}`}>₹500</span>
         </div>
         <div className="rise rise-4 mt-4 h-1.5 overflow-hidden rounded-full bg-mist">
           <div className="meter-bar h-full w-3/4 origin-left rounded-full bg-[#25a96f]" />
@@ -135,17 +140,18 @@ const slides: Slide[] = [
     caption: "Smart Settle works out the shortest way to square up — inside a group or across all your groups — and nudges friends on WhatsApp.",
     art: (
       <Card>
-        <svg viewBox="0 0 240 110" className="h-28 w-full" aria-hidden>
+        <svg viewBox="0 -14 240 140" className="h-36 w-full" aria-hidden>
           <g className="tangle" stroke="#8a877f" strokeWidth="1.6" fill="none">
             <path d="M30 20 L210 20" /><path d="M30 20 L210 90" /><path d="M30 90 L210 20" /><path d="M30 90 L210 90" /><path d="M30 20 L30 90" /><path d="M210 20 L210 90" />
           </g>
           <g className="clean" stroke="#6fe3a8" strokeWidth="3" fill="none" strokeLinecap="round">
             <path d="M44 22 C 100 30, 140 30, 196 22" /><path d="M44 88 C 100 80, 140 80, 196 88" />
           </g>
-          {([[30, 20, "M"], [30, 90, "R"], [210, 20, "Y"], [210, 90, "A"]] as const).map(([x, y, t]) => (
+          {([[30, 20, "Jim"], [30, 90, "Circuit"], [210, 20, "Chandler"], [210, 90, "Munna"]] as const).map(([x, y, t]) => (
             <g key={t}>
               <circle cx={x} cy={y} r="13" fill="#1f1f24" stroke="#2b2b31" />
-              <text x={x} y={y + 4} textAnchor="middle" fontSize="11" fill="#f4f2ec">{t}</text>
+              <text x={x} y={y + 4} textAnchor="middle" fontSize="11" fill="#f4f2ec">{t.slice(0, 1)}</text>
+              <text x={x} y={y > 50 ? y + 26 : y - 18} textAnchor="middle" fontSize="9" fill="#8a877f">{t}</text>
             </g>
           ))}
         </svg>
@@ -164,7 +170,7 @@ const slides: Slide[] = [
         <div className="flex items-center gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-mist text-lg">🍽️</span>
           <span className="relative flex-1">
-            <span className="block text-sm font-medium">Dinner at Toit</span>
+            <span className="block text-sm font-medium">Pizza with Michael</span>
             <span className="block text-xs text-gray-400">You paid ₹3,600</span>
             <span className="strike absolute left-0 top-2.5 h-px w-full bg-gray-400" />
           </span>
