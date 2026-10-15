@@ -56,6 +56,13 @@ export default async function RecordPayment({
 
       <form action={recordCustomPayment} className="space-y-8">
         <input type="hidden" name="groupId" value={group.id} />
+        {/* You can't pay yourself: whoever is picked as "Who paid?" is greyed out under "Paid to". */}
+        <style>
+          {people
+            .filter((m) => /^[\w-]+$/.test(m.id))
+            .map((m) => `form:has(input[name="fromId"][value="${m.id}"]:checked) label[data-to="${m.id}"]{opacity:.3;pointer-events:none}`)
+            .join("")}
+        </style>
 
         <fieldset>
           <legend className="mb-2 text-sm font-medium text-gray-600">Who paid?</legend>
@@ -73,7 +80,7 @@ export default async function RecordPayment({
           <legend className="mb-2 text-sm font-medium text-gray-600">Paid to</legend>
           <div className="flex flex-wrap gap-2">
             {people.map((m) => (
-              <label key={m.id} className={chip}>
+              <label key={m.id} className={chip} data-to={m.id}>
                 <input type="radio" name="toId" value={m.id} defaultChecked={m.id === to} className="sr-only" required />
                 {m.id === myId ? "You" : m.name}
                 {net[m.id] > 0 && <span className="text-xs opacity-60">{m.id === myId ? "get" : "gets"} {money(net[m.id])}</span>}

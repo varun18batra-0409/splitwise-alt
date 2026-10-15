@@ -7,13 +7,14 @@ import { planKey } from "@/lib/settle-all";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { Avatar } from "@/components/ui";
 import type { GroupView } from "./view";
+import { WhyPanel } from "./WhyPanel";
 
 // Smart Settle inside a group:
 //  1. your payments (what you pay / get) first,
 //  2. payments between other people,
 //  3. by person — tap anyone to see exactly what's due between them and the others.
 // Every payment can be recorded in full ("Mark as paid") or in part ("Part").
-export function BalancesTab({ v, paid }: { v: GroupView; paid?: boolean }) {
+export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; why?: string }) {
   const { group, myId, net, transfers, nameOf, money, expenses, payments, ledgers, hasMarkup, signed, eq } = v;
   const before = pairwiseDebtCount(expenses, payments);
   const mine = transfers.filter((t) => t.from === myId || t.to === myId);
@@ -119,7 +120,7 @@ export function BalancesTab({ v, paid }: { v: GroupView; paid?: boolean }) {
           In {group.currency}
           {hasMarkup ? ", including card markup" : ""}.
           {ledgers.length > 0 && ` Small figures: ${ledgers.map((l) => l.currency).join(", ")} expenses only, without markup.`} Tap a
-          person to see what’s due between them and the others.
+          person to see why.
         </p>
         <ul className="divide-y divide-line border-y border-line">
           {group.members.filter((m) => !m.leftAt || (v.net[m.id] ?? 0) !== 0).map((m) => {
@@ -128,7 +129,7 @@ export function BalancesTab({ v, paid }: { v: GroupView; paid?: boolean }) {
             const foreign = ledgers.map((l) => signed(l.net[m.id] ?? 0, l.currency)).join(" · ");
             return (
               <li key={m.id}>
-                <details className="group/person">
+                <details className="group/person" open={why === m.id}>
                   <summary className="flex cursor-pointer list-none items-center gap-3 py-3 [&::-webkit-details-marker]:hidden">
                     <Avatar name={m.name} />
                     <span className="min-w-0 flex-1">
@@ -142,6 +143,7 @@ export function BalancesTab({ v, paid }: { v: GroupView; paid?: boolean }) {
                     </span>
                   </summary>
                   <div className="mb-3 ml-12 space-y-2">
+                    <WhyPanel v={v} memberId={m.id} open={why === m.id} />
                     {theirs.length === 0 ? (
                       <p className="text-sm text-gray-500">Nothing due between {m.id === myId ? "you" : m.name} and anyone.</p>
                     ) : (

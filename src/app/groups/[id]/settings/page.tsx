@@ -11,6 +11,7 @@ import { CurrencySelect } from "@/components/CurrencySelect";
 import { ErrorNote, PageHeader, inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
 
 const PRESETS = [0, 200, 300, 400];
+const sectionTitle = "text-xs font-semibold uppercase tracking-wider text-gray-400";
 
 const ERRORS: Record<string, string> = {
   markup: "Enter a markup between 0% and 20%, like 3.5.",
@@ -104,6 +105,7 @@ export default async function GroupSettings({
 
       <form action={updateGroupSettings} className="space-y-10">
         <input type="hidden" name="groupId" value={group.id} />
+        <h2 className={`-mb-6 ${sectionTitle}`}>Basics</h2>
 
         <label className="block">
           <span className="mb-2 block text-base font-semibold">Group name</span>
@@ -113,8 +115,8 @@ export default async function GroupSettings({
         <fieldset>
           <legend className="mb-1 text-base font-semibold">Group currency</legend>
           <p className="mb-4 text-sm text-gray-500">
-            Balances and settle-up amounts are shown in this currency. Expenses in other currencies are converted into it.
-            {group._count.expenses + group._count.payments > 0 && " If you change it, you’ll confirm a rate to convert existing amounts next."}
+            Balances are shown in this.
+            {group._count.expenses + group._count.payments > 0 && " Changing it converts existing amounts (you’ll confirm the rate)."}
           </p>
           <CurrencySelect name="currency" defaultValue={group.currency} />
         </fieldset>
@@ -122,8 +124,7 @@ export default async function GroupSettings({
         <label className="block">
           <span className="mb-1 block text-base font-semibold">Also show amounts in</span>
           <span className="mb-4 block text-sm text-gray-500">
-            Balances are also shown in this currency (≈), converted at today’s rate. Handy on a trip: a {group.currency} group in
-            Thailand can show baht too. Automatic uses the foreign currency your expenses use most.
+            Shown as ≈ next to balances, at today’s rate. Automatic picks your most-used foreign currency.
           </span>
           <select name="secondaryCurrency" defaultValue={group.secondaryCurrency} className={inputClass}>
             <option value="">Automatic</option>
@@ -148,12 +149,11 @@ export default async function GroupSettings({
           </select>
         </label>
 
+        <h2 className={`-mb-6 ${sectionTitle}`}>Card fees abroad</h2>
         <fieldset>
-          <legend className="mb-1 text-base font-semibold">Foreign-currency credit-card markup</legend>
+          <legend className="mb-1 text-base font-semibold">Card markup</legend>
           <p className="mb-4 text-sm text-gray-500">
-            An estimated fee your card adds when you pay in another currency. It’s added only to card payments in a
-            foreign currency — never to cash or bank transfers — and you can change it on any expense. Actual bank
-            charges can differ.
+            Your bank’s fee on foreign card payments (an estimate). Only added to card payments in another currency.
           </p>
           <div className="grid grid-cols-4 gap-2">
             {PRESETS.map((bp) => (
@@ -188,45 +188,25 @@ export default async function GroupSettings({
         </button>
       </form>
 
-      {/* People */}
-      <section className="mt-12 border-t border-line pt-8">
-        <h2 className="mb-1 text-base font-semibold">People</h2>
-        <p className="mb-4 text-sm text-gray-500">Rename someone, remove a person added by mistake, or leave the group.</p>
-        <Link href={`/groups/${group.id}/people`} className={secondaryButtonClass}>
-          Manage people ({group.members.filter((m) => !m.leftAt).length})
-        </Link>
-      </section>
-
-      {/* Export */}
-      <section className="mt-12 border-t border-line pt-8">
-        <h2 className="mb-1 text-base font-semibold">Download as a spreadsheet</h2>
-        <p className="mb-4 text-sm text-gray-500">
-          Every expense and payment, with each person’s share, as a CSV file. Opens in Excel or Google Sheets.
-        </p>
-        <a href={`/groups/${group.id}/export`} download className={secondaryButtonClass}>
-          Download CSV
-        </a>
-      </section>
-
-      {/* Who this phone is in the group */}
-      <section className="mt-12 border-t border-line pt-8">
-        <h2 className="mb-1 text-base font-semibold">You on this phone</h2>
-        <p className="mb-4 text-sm text-gray-500">
-          This phone is set up as <span className="text-fg">{group.members.find((m) => m.id === myId)?.name}</span>. Picked the wrong name
-          when joining? Switch to the right one.
-        </p>
-        <Link href={`/join/${group.inviteCode}`} className={secondaryButtonClass}>
-          Switch person
-        </Link>
-      </section>
+      {/* People & data: one list of links */}
+      <h2 className={`mt-12 ${sectionTitle}`}>People &amp; data</h2>
+      <ul className="mt-6 divide-y divide-line rounded-2xl border border-line">
+        <SettingsLink href={`/groups/${group.id}/people`} label="Manage people" hint={`${group.members.filter((m) => !m.leftAt).length} people · rename, remove, leave`} />
+        <SettingsLink href={`/groups/${group.id}/invite`} label="Invite" hint="Link, QR code or WhatsApp" />
+        <SettingsLink
+          href={`/join/${group.inviteCode}`}
+          label="Switch person"
+          hint={`This phone is ${group.members.find((m) => m.id === myId)?.name ?? "—"}`}
+        />
+        <SettingsLink href={`/groups/${group.id}/export`} label="Download spreadsheet" hint="Every expense and payment, as CSV" download />
+      </ul>
 
       {/* Close / reopen */}
-      <section className="mt-12 border-t border-gray-100 pt-8">
-        <h2 className="mb-1 text-base font-semibold">{group.closed ? "This group is closed" : "Close this group"}</h2>
+      <h2 className={`mt-12 ${sectionTitle}`}>Finish</h2>
+      <section id="close" className="mt-6 scroll-mt-6">
+        <h3 className="mb-1 text-base font-semibold">{group.closed ? "This group is closed" : "Close this group"}</h3>
         <p className="mb-4 text-sm text-gray-500">
-          {group.closed
-            ? "It’s hidden from your main list and new expenses are paused. Its full history is kept."
-            : "When a trip or plan is over, close the group. It moves under “Show closed groups” on the home screen, keeps its full history, and can be reopened any time."}
+          {group.closed ? "New expenses are paused. History is kept." : "Trip over? Close it. History is kept and you can reopen it any time."}
         </p>
         <form action={setGroupClosed}>
           <input type="hidden" name="groupId" value={group.id} />
@@ -238,12 +218,9 @@ export default async function GroupSettings({
       </section>
 
       {/* Delete (restorable for 30 days) */}
-      <section className="mt-12 border-t border-line pt-8">
-        <h2 className="mb-1 text-base font-semibold">Delete this group</h2>
-        <p className="mb-4 text-sm text-gray-500">
-          Removes the group for everyone in it. Anyone in the group can restore it from their home screen for 30 days.
-          After that it’s gone for good.
-        </p>
+      <section className="mt-8">
+        <h3 className="mb-1 text-base font-semibold">Delete this group</h3>
+        <p className="mb-4 text-sm text-gray-500">For everyone. Anyone in it can restore it for 30 days.</p>
         <form action={deleteGroup}>
           <input type="hidden" name="groupId" value={group.id} />
           <ConfirmButton
@@ -255,5 +232,33 @@ export default async function GroupSettings({
         </form>
       </section>
     </>
+  );
+}
+
+function SettingsLink({ href, label, hint, download }: { href: string; label: string; hint: string; download?: boolean }) {
+  const inner = (
+    <>
+      <span className="min-w-0 flex-1">
+        <span className="block font-medium">{label}</span>
+        <span className="block truncate text-xs text-gray-400">{hint}</span>
+      </span>
+      <span className="text-gray-400" aria-hidden>
+        ›
+      </span>
+    </>
+  );
+  const cls = "flex items-center gap-3 px-4 py-3.5 active:bg-mist";
+  return (
+    <li>
+      {download ? (
+        <a href={href} download className={cls}>
+          {inner}
+        </a>
+      ) : (
+        <Link href={href} className={cls}>
+          {inner}
+        </Link>
+      )}
+    </li>
   );
 }

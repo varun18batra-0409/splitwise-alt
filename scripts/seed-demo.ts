@@ -81,7 +81,7 @@ writeFileSync(
   JSON.stringify(
     {
       memberships: { [trip.g.id]: V, [flat.g.id]: FV, [goa.g.id]: goa.id("Varun") },
-      trip: { id: trip.g.id, invite: trip.g.inviteCode, expenseId: snacks.id, ravi: R },
+      trip: { id: trip.g.id, invite: trip.g.inviteCode, expenseId: snacks.id, ravi: R, me: V },
       flat: { id: flat.g.id },
     },
     null,

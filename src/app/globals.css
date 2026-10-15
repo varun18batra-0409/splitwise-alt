@@ -217,7 +217,7 @@ body {
 }
 
 /* Hide the floating Add expense bar while the tour is open. */
-body:has(.intro-tour) .add-bar { display: none; }
+body:has(.intro-tour) .bottom-nav { display: none; }
 .no-scrollbar { scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 

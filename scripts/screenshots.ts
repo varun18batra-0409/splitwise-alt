@@ -87,6 +87,23 @@ await shot("23-add-expense-differently", `${g}/add`, async (p) => {
   await p.getByRole("button", { name: /Change/ }).first().click();
   await p.waitForTimeout(300);
 });
+await shot("28-settle", "/settle");
+await shot("29-why", `${g}?tab=balances&why=${demo.trip.me}#why-${demo.trip.me}`);
+await shot("30-add-only-some", `${g}/add`, async (p) => {
+  await p.getByRole("button", { name: /Only some/ }).click();
+  await p.getByRole("button", { name: /Ravi/ }).last().click();
+  await p.waitForTimeout(300);
+}, false);
+await shot("31-currency-details", `${g}/add`, async (p) => {
+  await p.locator("#expense-name").fill("Night market dinner");
+  await p.getByLabel("Amount", { exact: true }).fill("1800");
+  await p.getByRole("button", { name: /Currency:/ }).click();
+  await p.getByLabel("Search currencies").fill("baht");
+  await p.getByRole("button", { name: /THB/ }).first().click();
+  await p.waitForTimeout(2500);
+  await p.getByRole("button", { name: /Details/ }).click();
+  await p.waitForTimeout(300);
+});
 await shot("15-new-group", "/groups/new");
 await shot("25-account", "/account");
 await shot("26-signin", "/signin", undefined, false);

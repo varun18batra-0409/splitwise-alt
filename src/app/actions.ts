@@ -17,6 +17,7 @@ import { settleAllAndClose } from "@/lib/settle-all";
 import { vapidKeys } from "@/lib/push";
 import { changeGroupCurrency, updateGroupBasics } from "@/lib/group-changes";
 import { logEvent } from "@/lib/events";
+import { loadNotifications } from "@/lib/group-data";
 import { formatMoney } from "@/lib/money";
 
 function newInviteCode() {
@@ -306,7 +307,7 @@ export async function settleAcrossGroups(formData: FormData) {
     const raw = JSON.parse(String(formData.get("parts") ?? "[]"));
     if (Array.isArray(raw)) parts = raw;
   } catch {
-    redirect("/?settle=error#settle");
+    redirect("/settle?settle=error");
   }
   const { loadGroup } = await import("@/lib/group-data");
   const memberships = await getMemberships();
@@ -315,9 +316,9 @@ export async function settleAcrossGroups(formData: FormData) {
   for (const p of parts) {
     const myId = memberships[String(p.groupId)];
     const data = myId ? await loadGroup(String(p.groupId)) : null;
-    if (!data || !myId) redirect("/?settle=error#settle");
+    if (!data || !myId) redirect("/settle?settle=error");
     const ok = data.transfers.some((t) => t.from === p.fromId && t.to === p.toId && t.amount === p.amount) && (p.fromId === myId || p.toId === myId);
-    if (!ok) redirect("/?settle=changed#settle"); // balances moved since the page loaded
+    if (!ok) redirect("/settle?settle=changed"); // balances moved since the page loaded
     checked.push({ ...p, currency: data.group.currency, names: new Map(data.group.members.map((m) => [m.id, m.name])) });
   }
 
@@ -335,7 +336,7 @@ export async function settleAcrossGroups(formData: FormData) {
       });
     }
   });
-  redirect("/?settle=done#settle");
+  redirect("/settle?settle=done");
 }
 
 // "Record a payment": any amount (full or part) between any two people in the group.
@@ -530,4 +531,13 @@ async function isDoubleTap(groupId: string, fromId: string, toId: string, amount
     where: { groupId, fromId, toId, amount, createdById, deletedAt: null, createdAt: { gt: new Date(Date.now() - 20_000) } },
   });
   return Boolean(recent);
+}
+
+// Number of unread alerts, for the badge on the bottom bar.
+export async function unreadCount(): Promise<number> {
+  try {
+    return (await loadNotifications(await getMemberships(), 1)).unread;
+  } catch {
+    return 0;
+  }
 }

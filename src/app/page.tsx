@@ -3,27 +3,25 @@ import { InstallButton } from "@/components/InstallButton";
 import { IntroTour } from "@/components/IntroTour";
 import { getTimeZone } from "@/lib/tz";
 import { getAccount, getMemberships } from "@/lib/identity";
-import { loadDeletedGroups, loadMyGroups, loadNotifications } from "@/lib/group-data";
+import { loadDeletedGroups, loadNotifications } from "@/lib/group-data";
+import { loadOverview } from "@/lib/overview";
 import { buildActivity, dayLabel } from "@/lib/activity";
 import { formatMoney } from "@/lib/money";
 import { BalanceMeter } from "@/components/BalanceMeter";
 import { ActivityRow } from "@/components/ActivityRow";
-import { primaryButtonClass } from "@/components/ui";
-import { crossSettle } from "@/lib/cross-settle";
-import { convertAmount } from "@/lib/conversion";
-import { getRate } from "@/lib/rate-cache";
-import { restoreGroup, settleAcrossGroups } from "@/app/actions";
+import { restoreGroup } from "@/app/actions";
 import { db } from "@/lib/db";
 import { canUndo } from "@/lib/undo";
 import { UndoBar } from "@/components/UndoBar";
-import { BellIcon, GroupIcon, PersonIcon, SearchIcon, SettleIcon, iconButtonClass } from "@/components/icons";
+import { PersonIcon, iconButtonClass } from "@/components/icons";
 
+// Home: your net balance, what needs your attention, your groups, and the
+// latest changes. Search, Settle and Alerts live in the bottom bar.
 export default async function Home({
   searchParams,
 }: {
   searchParams: Promise<{
     closed?: string;
-    settle?: string;
     did?: string;
     g?: string;
     undone?: string;
@@ -32,74 +30,14 @@ export default async function Home({
     signedin?: string;
   }>;
 }) {
-  const { closed: justClosed, settle: settleNotice, did, g: didGroup, undone, error, deleted, signedin } = await searchParams;
+  const { closed: justClosed, did, g: didGroup, undone, error, deleted, signedin } = await searchParams;
   const tz = await getTimeZone();
   const memberships = await getMemberships();
-  const all = await loadMyGroups(memberships);
+  const { all, open, closed, owedLines, oweLines, common, netCommon, netLines, netValue, settleItems } = await loadOverview(memberships);
   const { unread } = await loadNotifications(memberships, 1);
   const deletedGroups = await loadDeletedGroups(memberships);
   const account = await getAccount();
-  const open = all.filter((g) => !g.group.closed);
-  const closed = all.filter((g) => g.group.closed);
 
-  // Totals per currency across open groups (groups can use different currencies).
-  const totals = new Map<string, { owed: number; owe: number }>();
-  for (const g of open) {
-    const t = totals.get(g.group.currency) ?? { owed: 0, owe: 0 };
-    if (g.myBalance > 0) t.owed += g.myBalance;
-    if (g.myBalance < 0) t.owe += -g.myBalance;
-    totals.set(g.group.currency, t);
-  }
-  const owedLines = [...totals].filter(([, t]) => t.owed > 0).map(([c, t]) => formatMoney(t.owed, c));
-  const oweLines = [...totals].filter(([, t]) => t.owe > 0).map(([c, t]) => formatMoney(t.owe, c));
-
-  // Smart Settle across groups, shown in the most used group currency.
-  const currencyCount = new Map<string, number>();
-  for (const g of open) currencyCount.set(g.group.currency, (currencyCount.get(g.group.currency) ?? 0) + 1);
-  const common = [...currencyCount].sort((a, b) => b[1] - a[1])[0]?.[0] ?? all[0]?.group.currency ?? "INR";
-  const rates = new Map<string, string | null>();
-  for (const cur of new Set(all.map((g) => g.group.currency))) {
-    if (cur === common) continue;
-    const r = await getRate(cur, common);
-    rates.set(cur, r.ok ? r.rate : null);
-  }
-  // Net = everything you're owed minus everything you owe, in one currency
-  // when rates are known (≈ when converted); otherwise one figure per currency.
-  const netCommon = ((): { value: number; converted: boolean } | null => {
-    let value = 0;
-    let converted = false;
-    for (const g of open) {
-      const b = g.myBalance;
-      if (g.group.currency === common || b === 0) {
-        value += g.group.currency === common ? b : 0;
-        continue;
-      }
-      const rate = rates.get(g.group.currency);
-      const c = rate ? convertAmount(Math.abs(b), g.group.currency, common, rate) : null;
-      if (c === null) return null;
-      value += Math.sign(b) * c;
-      converted = true;
-    }
-    return { value, converted };
-  })();
-  const netLines = [...totals].map(([c, t]) => `${t.owed - t.owe >= 0 ? "+" : "−"}${formatMoney(Math.abs(t.owed - t.owe), c)}`);
-  const netValue = netCommon ? netCommon.value : [...totals].reduce((a, [, t]) => a + Math.sign(t.owed - t.owe), 0);
-
-  const { items: settleItems, skippedGroups } = crossSettle(
-    all.map((g) => ({
-      groupId: g.group.id,
-      groupName: g.group.name,
-      currency: g.group.currency,
-      myId: g.myId,
-      members: g.group.members,
-      transfers: g.transfers,
-    })),
-    common,
-    (amount, cur) => {
-      const rate = rates.get(cur);
-      return rate ? convertAmount(amount, cur, common, rate) : null;
-    },
-  );
   // Undo bar after a change made from the home screen (e.g. closing a group).
   let undoBar: { text: string; groupId: string; eventId: string } | null = null;
   if (did && didGroup && memberships[didGroup]) {
@@ -112,10 +50,24 @@ export default async function Home({
     }
   }
 
-  // Groups where other people still need to settle with each other.
-  const othersPending = all.filter((g) => g.transfers.some((t) => t.from !== g.myId && t.to !== g.myId));
+  // Needs attention: money waiting on you or for you, new changes, and groups
+  // that are all square and quiet (ready to close). At most four lines.
+  const amt = (n: number, converted: boolean) => `${converted ? "≈ " : ""}${formatMoney(Math.abs(n), common)}`;
+  const quietSince = Date.now() - 7 * 86_400_000;
+  const attention: { key: string; text: React.ReactNode; href: string; tone?: "owed" | "owe" }[] = [
+    ...settleItems
+      .filter((it) => it.net < 0)
+      .map((it) => ({ key: `owe-${it.key}`, text: <>You owe <strong className="font-medium">{it.name}</strong> {amt(it.net, it.converted)}</>, href: "/settle", tone: "owe" as const })),
+    ...settleItems
+      .filter((it) => it.net > 0)
+      .map((it) => ({ key: `owed-${it.key}`, text: <><strong className="font-medium">{it.name}</strong> owes you {amt(it.net, it.converted)}</>, href: "/settle", tone: "owed" as const })),
+    ...(unread > 0 ? [{ key: "unread", text: <>{unread > 9 ? "9+" : unread} new {unread === 1 ? "change" : "changes"} in your groups</>, href: "/notifications" }] : []),
+    ...open
+      .filter((g) => g.expenses.length > 0 && g.transfers.length === 0 && g.lastActivity.getTime() < quietSince)
+      .map((g) => ({ key: `close-${g.group.id}`, text: <>Everyone’s square in <strong className="font-medium">{g.group.name}</strong>. Close it?</>, href: `/groups/${g.group.id}/settings#close` })),
+  ].slice(0, 4);
 
-  // Recent activity across open groups.
+  // The latest changes across open groups.
   const recent = open
     .flatMap((g) => {
       const names = new Map(g.group.members.map((m) => [m.id, m.id === g.myId ? "You" : m.name]));
@@ -127,17 +79,18 @@ export default async function Home({
       }));
     })
     .sort((a, b) => b.item.date.getTime() - a.item.date.getTime())
-    .slice(0, 8);
+    .slice(0, 5);
 
-  // First visit: show what Loopin does instead of an empty screen.
   const notice =
     deleted === "account"
-      ? "Your sign-in and email were deleted. Your groups on this phone are still here."
+      ? "Your email and sign-in were deleted. Your groups on this phone are still here."
       : deleted === "group"
         ? "Group deleted. Anyone in it can restore it below for 30 days."
         : signedin === "1"
           ? `Signed in${account ? ` as ${account.email}` : ""}. Your groups are saved to your email.`
           : null;
+
+  // First visit: show what Loopin does instead of an empty screen.
   if (all.length === 0 && deletedGroups.length === 0 && !error && !notice) return <IntroTour signInHref="/signin" />;
 
   return (
@@ -151,9 +104,10 @@ export default async function Home({
       )}
       {justClosed === "1" && !undone && (
         <p className="mb-4 flex items-center gap-2 rounded-xl bg-mist px-4 py-3 text-sm text-fg">
-          <span aria-hidden>🎉</span> Group closed. It’s under “Show closed groups” whenever you need it.
+          <span aria-hidden>🎉</span> Group closed. Find it under “Closed groups”.
         </p>
       )}
+
       <header className="mb-8 flex items-center justify-between">
         <div>
           <p className="font-display text-[26px] font-semibold leading-none tracking-tight">loopin</p>
@@ -164,33 +118,16 @@ export default async function Home({
             </Link>
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link href="/account" aria-label={account ? `Account: ${account.email}` : "Sign in or account"} className={`relative ${iconButtonClass}`}>
-            <PersonIcon size={20} />
-            {account && <span className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-owed" aria-hidden />}
-          </Link>
-          {all.length > 0 && (
-          <>
-          <Link href="/search" aria-label="Search by words, month or year" className={iconButtonClass}>
-            <SearchIcon size={19} />
-          </Link>
-          <Link href="/notifications" aria-label={unread ? `Notifications, ${unread} new` : "Notifications"} className={`relative ${iconButtonClass}`}>
-            <BellIcon size={20} />
-            {unread > 0 && (
-              <span className="absolute -right-1 -top-1 min-w-[18px] rounded-full bg-fg px-1 text-center text-[10px] font-semibold leading-[18px] text-canvas tabular-nums">
-                {unread > 9 ? "9+" : unread}
-              </span>
-            )}
-          </Link>
-          </>
-          )}
-        </div>
+        <Link href="/account" aria-label={account ? `Account: ${account.email}` : "Sign in or account"} className={`relative ${iconButtonClass}`}>
+          <PersonIcon size={20} />
+          {account && <span className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-owed" aria-hidden />}
+        </Link>
       </header>
 
       {all.length === 0 ? (
         <section className="vault rounded-[24px] px-6 py-10 text-fg">
           <h1 className="font-display text-3xl font-semibold leading-tight tracking-tight">Everyone’s in. Everything adds up.</h1>
-          <p className="mt-3 text-fg/60">Make a group for a trip, a flat or a dinner, then add what everyone spent.</p>
+          <p className="mt-3 text-fg/60">Make a group for a trip, a flat or a dinner.</p>
           <Link href="/groups/new" className="pop mt-8 block bg-fg px-4 py-3.5 text-center font-semibold text-canvas [--pop-edge:#6e6b63]">
             Create your first group
           </Link>
@@ -211,9 +148,7 @@ export default async function Home({
               </>
             ) : (
               <>
-                <p className="text-sm text-fg/55">
-                  Net balance{netCommon && netCommon.converted ? ` · in ${common}` : ""}
-                </p>
+                <p className="text-sm text-fg/55">Net balance{netCommon && netCommon.converted ? ` · in ${common}` : ""}</p>
                 <h1
                   className={`mt-1.5 font-display text-[44px] font-semibold leading-none tracking-tight tabular-nums ${
                     netValue > 0 ? "text-owed" : netValue < 0 ? "text-owe" : ""
@@ -245,7 +180,7 @@ export default async function Home({
               </>
             )}
 
-            {open.length > 0 && (
+            {open.length > 1 && (
               <div className="mt-7 border-t border-fg/10 pt-6">
                 <BalanceMeter
                   tone="dark"
@@ -261,103 +196,41 @@ export default async function Home({
             )}
           </section>
 
-          {/* Shortcuts */}
-          <nav className="mt-3 grid grid-cols-2 gap-2" aria-label="Shortcuts">
-            <Shortcut href="/groups/new" icon={<GroupIcon />} label="New group" />
-            <Shortcut
-              href="#settle"
-              icon={<SettleIcon />}
-              label="Smart Settle"
-              hint={settleItems.length ? `${settleItems.length} ${settleItems.length === 1 ? "person" : "people"}` : "All settled"}
-            />
-          </nav>
-
-          {/* Smart Settle across groups */}
-          <section id="settle" className="mt-10 scroll-mt-6">
-            <h2 className="font-display text-lg font-semibold tracking-tight">Smart Settle</h2>
-            <p className="mb-4 text-sm text-gray-500">
-              One payment per person, combining everything you owe each other across your groups.
-            </p>
-            {settleNotice === "done" && <p className="mb-3 rounded-xl bg-accent-soft px-4 py-3 text-sm text-accent-dark">Recorded in each group. Balances updated and everyone notified.</p>}
-            {settleNotice === "changed" && <p className="mb-3 rounded-xl bg-owe-soft px-4 py-3 text-sm text-owe">Balances changed since you opened this page. Here’s the updated version.</p>}
-            {settleNotice === "error" && <p className="mb-3 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">Couldn’t record that. Try again.</p>}
-
-            {settleItems.length === 0 ? (
-              <p className="rounded-2xl bg-mist px-4 py-6 text-center text-sm text-gray-600">You’re settled up with everyone.</p>
-            ) : (
-              <ul className="space-y-2">
-                {settleItems.map((it) => {
-                  const amt = (n: number) => `${it.converted ? "≈ " : ""}${formatMoney(Math.abs(n), common)}`;
-                  return (
-                    <li key={it.key} className="rounded-2xl border border-gray-100 px-4 py-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="min-w-0 text-sm">
-                          {it.net < 0 ? (
-                            <>You pay <strong className="font-medium">{it.name}</strong></>
-                          ) : it.net > 0 ? (
-                            <><strong className="font-medium">{it.name}</strong> pays you</>
-                          ) : (
-                            <>You and <strong className="font-medium">{it.name}</strong> are even</>
-                          )}
-                        </p>
-                        <p className={`shrink-0 font-display font-semibold tabular-nums ${it.net < 0 ? "text-owe" : it.net > 0 ? "text-owed" : "text-gray-400"}`}>
-                          {it.net === 0 ? "—" : amt(it.net)}
-                        </p>
-                      </div>
-                      <ul className="mt-1.5 space-y-0.5 text-xs text-gray-500">
-                        {it.parts.map((p) => (
-                          <li key={`${p.groupId}-${p.fromId}-${p.toId}`}>
-                            {p.groupName}: {p.iPay ? `you pay ${formatMoney(p.amount, p.currency)}` : `${it.name} pays you ${formatMoney(p.amount, p.currency)}`}
-                          </li>
-                        ))}
-                      </ul>
-                      <div className="mt-2 flex items-center justify-between gap-3">
-                        <span className="text-xs text-gray-400">
-                          {it.parts.length > 1 ? `1 payment instead of ${it.parts.length}` : ""}
-                        </span>
-                        <form action={settleAcrossGroups}>
-                          <input
-                            type="hidden"
-                            name="parts"
-                            value={JSON.stringify(it.parts.map((p) => ({ groupId: p.groupId, fromId: p.fromId, toId: p.toId, amount: p.amount })))}
-                          />
-                          <button type="submit" className="border border-line px-3 py-1.5 text-sm font-medium text-fg active:bg-mist">
-                            Mark as paid
-                          </button>
-                        </form>
-                      </div>
-                    </li>
-                  );
-                })}
+          {/* Needs attention */}
+          {attention.length > 0 && (
+            <section className="mt-8">
+              <h2 className="mb-2 font-display text-lg font-semibold tracking-tight">Needs attention</h2>
+              <ul className="divide-y divide-line rounded-2xl border border-line">
+                {attention.map((a) => (
+                  <li key={a.key}>
+                    <Link href={a.href} className="flex items-center gap-3 px-4 py-3 text-sm active:bg-mist">
+                      <span
+                        aria-hidden
+                        className={`h-2 w-2 shrink-0 rounded-full ${a.tone === "owe" ? "bg-owe" : a.tone === "owed" ? "bg-owed" : "bg-gray-400"}`}
+                      />
+                      <span className="min-w-0 flex-1">{a.text}</span>
+                      <span className="text-gray-400" aria-hidden>
+                        ›
+                      </span>
+                    </Link>
+                  </li>
+                ))}
               </ul>
-            )}
-            {skippedGroups.length > 0 && (
-              <p className="mt-2 text-xs text-gray-400">No exchange rate right now for {skippedGroups.join(", ")}, so settle those inside the group.</p>
-            )}
-            {othersPending.length > 0 && (
-              <div className="mt-4">
-                <p className="mb-1 text-sm text-gray-500">Others still settling up between themselves:</p>
-                <ul className="flex flex-wrap gap-2">
-                  {othersPending.map((g) => (
-                    <li key={g.group.id}>
-                      <Link href={`/groups/${g.group.id}?tab=balances`} className="inline-block rounded-full border border-gray-200 px-3 py-1.5 text-sm active:bg-gray-50">
-                        {g.group.name} · {g.transfers.length} {g.transfers.length === 1 ? "payment" : "payments"}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            <p className="mt-2 text-xs text-gray-400">“Mark as paid” only records it. The app never moves real money.</p>
-          </section>
+            </section>
+          )}
 
-          {/* Open groups */}
-          <section className="mt-10">
-            <h2 className="mb-2 font-display text-lg font-semibold tracking-tight">Open groups</h2>
+          {/* Groups */}
+          <section className="mt-8">
+            <div className="mb-1 flex items-center justify-between">
+              <h2 className="font-display text-lg font-semibold tracking-tight">Groups</h2>
+              <Link href="/groups/new" className="rounded-full border border-line px-3 py-1 text-sm font-medium active:bg-mist">
+                + New
+              </Link>
+            </div>
             {open.length === 0 ? (
-              <p className="py-6 text-sm text-gray-500">No open groups. Create one, or reopen a closed group below.</p>
+              <p className="py-6 text-sm text-gray-500">No open groups. Create one, or reopen a closed one.</p>
             ) : (
-              <ul className="divide-y divide-gray-100">
+              <ul className="divide-y divide-line">
                 {open.map((g) => (
                   <GroupRow key={g.group.id} g={g} tz={tz} />
                 ))}
@@ -365,12 +238,12 @@ export default async function Home({
             )}
 
             {closed.length > 0 && (
-              <details className="mt-3 group/closed" open={justClosed === "1"}>
-                <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm text-gray-600 active:bg-gray-50 [&::-webkit-details-marker]:hidden">
-                  <span className="group-open/closed:hidden">Show closed groups ({closed.length})</span>
+              <details className="group/closed mt-3" open={justClosed === "1"}>
+                <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-full border border-line px-4 py-2 text-sm text-gray-600 active:bg-mist [&::-webkit-details-marker]:hidden">
+                  <span className="group-open/closed:hidden">Closed groups ({closed.length})</span>
                   <span className="hidden group-open/closed:inline">Hide closed groups</span>
                 </summary>
-                <ul className="mt-2 divide-y divide-gray-100">
+                <ul className="mt-2 divide-y divide-line">
                   {closed.map((g) => (
                     <GroupRow key={g.group.id} g={g} closed tz={tz} />
                   ))}
@@ -379,11 +252,16 @@ export default async function Home({
             )}
           </section>
 
-          {/* Recent activity */}
+          {/* Latest */}
           {recent.length > 0 && (
-            <section className="mt-10">
-              <h2 className="mb-1 font-display text-lg font-semibold tracking-tight">Recent activity</h2>
-              <ul className="divide-y divide-gray-100">
+            <section className="mt-8">
+              <div className="mb-1 flex items-center justify-between">
+                <h2 className="font-display text-lg font-semibold tracking-tight">Latest</h2>
+                <Link href="/search" className="text-sm text-gray-500">
+                  See all ›
+                </Link>
+              </div>
+              <ul className="divide-y divide-line">
                 {recent.map((r) => (
                   <li key={r.item.id}>
                     <ActivityRow item={r.item} currency={r.currency} nameOf={r.nameOf} groupName={`${r.groupName}, ${dayLabel(r.item.date, new Date(), tz)}`} />
@@ -397,7 +275,7 @@ export default async function Home({
 
       {/* Recently deleted groups: anyone in them can bring them back for 30 days. */}
       {deletedGroups.length > 0 && (
-        <section className="mt-10">
+        <section className="mt-8">
           <h2 className="mb-1 font-display text-lg font-semibold tracking-tight">Recently deleted</h2>
           <ul className="divide-y divide-line">
             {deletedGroups.map((d) => (
@@ -405,7 +283,7 @@ export default async function Home({
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-medium text-gray-500">{d.name}</span>
                   <span className="block truncate text-xs text-gray-400">
-                    Deleted by {d.deletedBy} · gone for good in {d.daysLeft} {d.daysLeft === 1 ? "day" : "days"}
+                    Deleted by {d.deletedBy} · gone in {d.daysLeft} {d.daysLeft === 1 ? "day" : "days"}
                   </span>
                 </span>
                 <form action={restoreGroup}>
@@ -422,59 +300,33 @@ export default async function Home({
 
       {/* Save groups to an email, so a new phone or the installed app can get them back. */}
       {!account && all.length > 0 && (
-        <Link href="/signin" className="mt-10 flex items-center gap-3 rounded-2xl border border-line px-4 py-3.5 active:bg-mist">
+        <Link href="/signin" className="mt-8 flex items-center gap-3 rounded-2xl border border-line px-4 py-3.5 active:bg-mist">
           <PersonIcon size={20} />
           <span className="min-w-0 flex-1">
             <span className="block text-sm font-medium">Save your groups to your email</span>
-            <span className="block text-xs text-gray-400">Optional. Get them back on a new phone or the installed app.</span>
+            <span className="block text-xs text-gray-400">Get them back on a new phone.</span>
           </span>
-          <span className="text-gray-400" aria-hidden>›</span>
+          <span className="text-gray-400" aria-hidden>
+            ›
+          </span>
         </Link>
       )}
 
       <InstallButton />
       <p className="mt-8 text-center text-xs text-gray-400">
-        <Link href="/privacy" className="underline underline-offset-4">Privacy</Link>
+        <Link href="/privacy" className="underline underline-offset-4">
+          Privacy
+        </Link>
       </p>
     </>
   );
 }
 
-function Shortcut({ href, icon, label, hint }: { href?: string; icon: React.ReactNode; label: string; hint?: string }) {
-  const inner = (
-    <>
-      <span className="text-gray-700">{icon}</span>
-      <span className="min-w-0">
-        <span className="block text-sm font-medium">{label}</span>
-        {hint && <span className="block truncate text-xs text-gray-400">{hint}</span>}
-      </span>
-    </>
-  );
-  const cls = "flex items-center gap-3 rounded-2xl border border-line bg-white px-4 py-3.5";
-  return href ? (
-    <Link href={href} className={`${cls} active:bg-mist`}>
-      {inner}
-    </Link>
-  ) : (
-    <span className={`${cls} opacity-60`} aria-disabled>
-      {inner}
-    </span>
-  );
-}
-
-function GroupRow({
-  g,
-  closed,
-  tz,
-}: {
-  g: Awaited<ReturnType<typeof loadMyGroups>>[number];
-  closed?: boolean;
-  tz: string;
-}) {
+function GroupRow({ g, closed, tz }: { g: Awaited<ReturnType<typeof loadOverview>>["all"][number]; closed?: boolean; tz: string }) {
   const b = g.myBalance;
   return (
     <li>
-      <Link href={`/groups/${g.group.id}`} className="flex items-center gap-3 py-3.5 active:bg-gray-50">
+      <Link href={`/groups/${g.group.id}`} className="flex items-center gap-3 py-3.5 active:bg-mist">
         <span
           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl font-display text-base font-semibold ${
             closed ? "bg-gray-50 text-gray-400" : "bg-mist text-fg"

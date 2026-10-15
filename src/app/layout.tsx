@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Fraunces } from "next/font/google";
 import "./globals.css";
-import { AddExpenseButton } from "@/components/AddExpenseButton";
+import { BottomNav } from "@/components/BottomNav";
 import { PushSync } from "@/components/PushControls";
 import { TimeZoneSync } from "@/components/TimeZoneSync";
 import { DoubleTapGuard } from "@/components/DoubleTapGuard";
@@ -29,7 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={fraunces.variable}>
       <body className="antialiased">
         <main className="mx-auto min-h-dvh max-w-md px-5 pb-32 pt-[max(1.5rem,env(safe-area-inset-top))]">{children}</main>
-        <AddExpenseButton />
+        <BottomNav />
         <PushSync />
         <TimeZoneSync />
         <DoubleTapGuard />

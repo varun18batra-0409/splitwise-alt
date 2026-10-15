@@ -105,8 +105,61 @@ export function AddExpenseForm({
   const [exact, setExact] = useState<Record<string, string>>(initial?.exact ?? {});
   const [percent, setPercent] = useState<Record<string, string>>(initial?.percent ?? {});
 
+  const [showOnly, setShowOnly] = useState(false);
+  const [showFx, setShowFx] = useState(false); // currency details (rate, card fee, calculation)
+  const [usingLast, setUsingLast] = useState(false); // the last split in this group was filled in
+
   const [error, setError] = useState("");
   const [saving, startSaving] = useTransition();
+
+  // Remember how the last expense in this group was split (who it was for,
+  // how, and how it was paid) and start the next one the same way.
+  const splitKey = `split-defaults-${groupId}`;
+  useEffect(() => {
+    if (initial) return; // editing: keep the expense's own split
+    try {
+      const raw = localStorage.getItem(splitKey);
+      if (!raw) return;
+      const d = JSON.parse(raw) as Partial<{ forMode: ForMode; selected: string[]; onePersonId: string; splitType: SplitType; percent: Record<string, string>; paymentMethod: PaymentMethod }>;
+      const known = (id: unknown) => typeof id === "string" && memberIds.includes(id);
+      if (d.paymentMethod && PAYMENT_METHODS.some((p) => p.id === d.paymentMethod)) setPaymentMethod(d.paymentMethod);
+      if (d.forMode === "selected" && Array.isArray(d.selected) && d.selected.filter(known).length > 0) {
+        setForMode("selected");
+        setSelected(d.selected.filter(known));
+      } else if (d.forMode === "one" && known(d.onePersonId)) {
+        setForMode("one");
+        setOnePersonId(d.onePersonId as string);
+      }
+      if (d.splitType === "percent" && d.percent && typeof d.percent === "object") {
+        setSplitType("percent");
+        setPercent(d.percent);
+      }
+      if (d.forMode === "selected" || d.forMode === "one" || d.splitType === "percent") setUsingLast(true);
+    } catch {
+      /* storage unavailable or old data: keep the defaults */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [splitKey]);
+
+  function rememberSplit() {
+    try {
+      localStorage.setItem(
+        splitKey,
+        JSON.stringify({ forMode, selected, onePersonId, splitType: splitType === "exact" ? "equal" : splitType, percent, paymentMethod }),
+      );
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function resetSplit() {
+    setForMode("everyone");
+    setSplitType("equal");
+    setSelected(memberIds);
+    setShowPeople(false);
+    setShowOnly(false);
+    setUsingLast(false);
+  }
 
   // Remember the last currency used in this group (handy on a trip).
   const storageKey = `split-currency-${groupId}`;
@@ -216,6 +269,7 @@ export function AddExpenseForm({
       if (/person|amounts|percent/i.test(preview.error)) setShowPeople(true);
       return;
     }
+    if (!expenseId) rememberSplit();
     startSaving(async () => {
       const res = await addExpense({ ...draft, groupId, name, notes, baseVersion: initial?.version, category: category.id, expenseId, date, rateMode: usingManualRate ? "manual" : keepSavedRate ? "keep" : "auto", manualRate });
       if (res?.error) setError(res.error);
@@ -372,9 +426,38 @@ export function AddExpenseForm({
         )}
       </div>
 
-      {/* Currency conversion — only shown for foreign currencies */}
-      {foreign && (
+      {/* Foreign currency: one summary line; details (rate, card fee, how it adds up) on tap */}
+      {foreign && !(showFx || usingManualRate) && (
+        <button
+          type="button"
+          onClick={() => setShowFx(true)}
+          className="-mt-4 flex w-full items-center justify-between gap-3 rounded-xl border border-line px-4 py-3 text-left text-sm active:bg-mist"
+        >
+          <span className="min-w-0 text-gray-600">
+            {rateState.status === "loading" ? (
+              "Getting today’s rate…"
+            ) : totals.ok ? (
+              <>
+                {PAYMENT_METHODS.find((p) => p.id === paymentMethod)?.label} · {orig(totals.originalAmount)} ≈{" "}
+                <strong className="font-medium text-fg">{base(totals.total)}</strong>
+                {totals.markupAmount > 0 && ` incl. ${base(totals.markupAmount)} card fee`}
+              </>
+            ) : rateState.status === "ok" ? (
+              <>1 {currency} = {rateText(rateState.rate, baseCurrency)} · {PAYMENT_METHODS.find((p) => p.id === paymentMethod)?.label}</>
+            ) : (
+              "Set the exchange rate"
+            )}
+          </span>
+          <span className="shrink-0 font-medium text-fg">Details</span>
+        </button>
+      )}
+      {foreign && (showFx || usingManualRate) && (
         <section className="space-y-4 rounded-2xl border border-gray-100 bg-gray-50/60 p-4">
+          <div className="-mb-2 flex justify-end">
+            <button type="button" onClick={() => setShowFx(false)} className="text-sm font-medium text-fg">
+              Done
+            </button>
+          </div>
           <div>
             <span className={labelClass}>Paid with</span>
             <Segmented
@@ -527,22 +610,72 @@ export function AddExpenseForm({
         <span className={labelClass}>How to split?</span>
         <div className="flex flex-wrap gap-2">
           <Chip
-            on={!showPeople && forMode === "everyone" && splitType === "equal"}
+            on={!showPeople && !showOnly && forMode === "everyone" && splitType === "equal"}
+            onClick={resetSplit}
+          >
+            Equally, everyone
+          </Chip>
+          {members.length > 2 && (
+            <Chip
+              on={showOnly || (!showPeople && forMode === "selected" && splitType === "equal")}
+              onClick={() => {
+                setShowPeople(false);
+                setShowOnly(true);
+                setSplitType("equal");
+                if (forMode !== "selected") {
+                  setForMode("selected");
+                  setSelected([]);
+                }
+              }}
+            >
+              Only some
+            </Chip>
+          )}
+          <Chip
+            on={showPeople || (!showOnly && (forMode === "one" || splitType !== "equal"))}
             onClick={() => {
-              setForMode("everyone");
-              setSplitType("equal");
-              setShowPeople(false);
+              setShowOnly(false);
+              setShowPeople(true);
             }}
           >
-            Equally between everyone
-          </Chip>
-          <Chip on={showPeople || forMode !== "everyone" || splitType !== "equal"} onClick={() => setShowPeople(true)}>
             Differently ⚙
           </Chip>
         </div>
-        {!showPeople && (forMode !== "everyone" || splitType !== "equal") && (
+        {showOnly && !showPeople && (
+          <div className="mt-3">
+            <p className="mb-2 text-sm text-gray-500">Tap who it was for · split equally</p>
+            <div className="flex flex-wrap gap-2">
+              {members.map((m) => {
+                const on = forMode === "selected" && selected.includes(m.id);
+                return (
+                  <Chip
+                    key={m.id}
+                    on={on}
+                    onClick={() => {
+                      setForMode("selected");
+                      setSelected((s) => (s.includes(m.id) ? s.filter((x) => x !== m.id) : [...s, m.id]));
+                    }}
+                  >
+                    {on && "✓ "}
+                    {who(m.id)}
+                  </Chip>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        {!showPeople && !showOnly && (forMode !== "everyone" || splitType !== "equal") && (
           <p className="mt-2 text-sm text-gray-500">
             For <strong className="text-fg">{forSummary}</strong> · {splitSummary}
+            {usingLast && (
+              <>
+                {" "}
+                · <span className="text-gray-400">same as last time</span>{" "}
+                <button type="button" onClick={resetSplit} className="font-medium text-fg underline underline-offset-4">
+                  Reset
+                </button>
+              </>
+            )}
           </p>
         )}
         {showPeople && (

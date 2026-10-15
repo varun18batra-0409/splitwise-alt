@@ -37,6 +37,7 @@ export default async function GroupPage({
     q?: string;
     cat?: string;
     who?: string;
+    why?: string;
   }>;
 }) {
   const { id } = await params;
@@ -83,7 +84,7 @@ export default async function GroupPage({
       </nav>
 
       {tab === "activity" && <ActivityTab v={v} filter={{ q: sp.q?.slice(0, 80), cat: sp.cat, who: sp.who }} />}
-      {tab === "balances" && <BalancesTab v={v} paid={sp.paid === "1"} />}
+      {tab === "balances" && <BalancesTab v={v} paid={sp.paid === "1"} why={sp.why} />}
       {tab === "charts" && <ChartsTab v={v} />}
 
       {showUndo && (
