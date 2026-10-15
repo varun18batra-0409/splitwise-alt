@@ -60,6 +60,7 @@ jobs:
       - name: Save to the screenshots branch
         run: |
           cd screenshots
+          echo '{ "git": { "deploymentEnabled": false } }' > vercel.json
           git init -q -b screenshots
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"

@@ -1,5 +1,12 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "npm run vercel-build",
-  "regions": ["bom1"]
+  "regions": [
+    "bom1"
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "screenshots": false
+    }
+  }
 }
