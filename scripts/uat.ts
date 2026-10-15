@@ -210,6 +210,7 @@ async function main() {
     await V.locator('select[name="currency"]').selectOption("INR");
     const inputs = V.locator('input[name="member"]');
     await inputs.nth(0).fill("Asha");
+    await V.getByRole("button", { name: "+ Add another person" }).click();
     await inputs.nth(1).fill("Ravi");
     await V.getByRole("button", { name: "Create group" }).click();
     await V.waitForURL(/\/groups\/[^/]+(\?|$)/);
