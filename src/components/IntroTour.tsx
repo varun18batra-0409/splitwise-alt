@@ -210,9 +210,19 @@ export function IntroTour({
         <p className="font-display text-[26px] font-semibold leading-none tracking-tight">loopin</p>
         <span className="flex items-center gap-3">
           <GetAppButton variant="icon" className="h-9" />
-          <Link href="/" onClick={seen} aria-label="Home" className="flex h-9 w-9 items-center justify-center rounded-full border border-line text-gray-700 active:bg-mist">
+          {/* A full page load (not an in-app hop), so Home re-reads "tour seen" and shows the start screen. */}
+          <a
+            href="/"
+            onClick={(e) => {
+              e.preventDefault();
+              seen();
+              window.location.assign("/");
+            }}
+            aria-label="Home"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-line text-gray-700 active:bg-mist"
+          >
             <HomeIcon size={18} />
-          </Link>
+          </a>
           <Link href={startHref} onClick={seen} className="py-1 text-sm text-gray-500">
             Skip
           </Link>
