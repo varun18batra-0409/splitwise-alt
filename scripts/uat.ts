@@ -789,8 +789,7 @@ async function main() {
   });
   await step(V, "Close & reopen", "Reopen it from the add screen", async () => {
     await go(V, `${g2}/add`);
-    await V.getByRole("button", { name: "Reopen group" }).click();
-    await V.waitForURL(new RegExp(`${g2}`));
+    await clickAndWait(V, V.getByRole("button", { name: "Reopen group" }));
     await go(V, `${g2}/add`);
     await V.locator("#expense-name").waitFor();
   });
@@ -988,7 +987,7 @@ async function main() {
     await page.getByRole("link", { name: /Trip/ }).click();
     await page.getByRole("link", { name: "Sign up with email" }).waitFor(); // not signed in yet: sign up first
     const href = (await page.getByRole("link", { name: "Sign up with email" }).getAttribute("href")) ?? "";
-    assert(decodeURIComponent(href).includes("name=Goa trip"), `the trip name isn't kept for after sign-up: ${href}`);
+    assert(decodeURIComponent(decodeURIComponent(href)).includes("name=Goa trip"), `the trip name isn't kept for after sign-up: ${href}`);
     // Sign up screen
     await go(page, "/signin?mode=signup");
     await page.getByRole("heading", { name: "Sign up" }).waitFor();
