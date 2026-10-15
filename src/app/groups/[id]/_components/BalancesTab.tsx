@@ -5,6 +5,7 @@ import { recordPayment, settleEverything } from "@/app/actions";
 import { nudgeLink } from "@/lib/nudge";
 import { planKey } from "@/lib/settle-all";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { newRequestKey } from "@/lib/once";
 import { Avatar } from "@/components/ui";
 import type { GroupView } from "./view";
 import { WhyPanel } from "./WhyPanel";
@@ -212,6 +213,7 @@ function TransferList({
                 <input type="hidden" name="fromId" value={t.from} />
                 <input type="hidden" name="toId" value={t.to} />
                 <input type="hidden" name="amount" value={t.amount} />
+                <input type="hidden" name="rid" value={newRequestKey()} />
                 <button type="submit" className="border border-line px-3 py-1.5 text-sm font-medium text-fg active:bg-mist">
                   Mark as paid
                 </button>

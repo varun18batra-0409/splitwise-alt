@@ -6,10 +6,12 @@ import { parseRate, PAYMENT_METHODS } from "./conversion";
 import { diffExpense, expenseState, logEvent, type ExpenseSnapshot } from "./events";
 import type { RateAnswer } from "./rate-cache";
 import { dayKey, parseDay } from "./dates";
+import { claimKey, isDuplicateKey, previousResult, withRetry } from "./once";
 
 export type SaveExpenseInput = ExpenseDraft & {
   groupId: string;
   expenseId?: string; // set when editing an existing expense
+  requestKey?: string; // one per opened form, makes retries safe
   name: string;
   date?: string; // "2026-10-14"; empty = today (new) or unchanged (edit)
   notes?: string; // undefined = leave as it is (edit) / none (new)
@@ -31,7 +33,28 @@ export async function saveExpense(
   input: SaveExpenseInput,
   actingMemberId: string | undefined,
   lookupRate: RateLookupFn,
-  opts: { ignoreDoubleTap?: boolean } = {},
+  opts: { ignoreDoubleTap?: boolean; requestKey?: string } = {},
+): Promise<Result> {
+  return withRetry(async () => {
+    // The same request again (retry / double tap): it already happened.
+    const done = await previousResult(opts.requestKey);
+    if (done !== null) return { ok: true, id: done };
+    try {
+      return await saveExpenseOnce(input, actingMemberId, lookupRate, opts);
+    } catch (err) {
+      if (!isDuplicateKey(err)) throw err;
+      return { ok: true, id: (await previousResult(opts.requestKey)) ?? "" };
+    }
+  });
+}
+
+class Clash extends Error {}
+
+async function saveExpenseOnce(
+  input: SaveExpenseInput,
+  actingMemberId: string | undefined,
+  lookupRate: RateLookupFn,
+  opts: { ignoreDoubleTap?: boolean; requestKey?: string },
 ): Promise<Result> {
   const group = await db.group.findUnique({
     where: { id: input.groupId },
@@ -43,6 +66,7 @@ export async function saveExpense(
 
   const memberIds = group.members.map((m) => m.id);
   if (!actingMemberId || !memberIds.includes(actingMemberId)) return { ok: false, error: "Please join this group first." };
+  if (group.members.find((m) => m.id === actingMemberId)?.leftAt) return { ok: false, error: "You left this group. Rejoin it to make changes." };
   if (!isSupportedCurrency(input.currency)) return { ok: false, error: "Pick a currency from the list." };
   if (!["equal", "exact", "percent"].includes(input.splitType)) return { ok: false, error: "Pick how to split." };
   if (!["everyone", "selected", "one"].includes(input.forMode)) return { ok: false, error: "Pick who it was for." };
@@ -140,6 +164,7 @@ export async function saveExpense(
     if (twin) return { ok: true, id: twin.id };
     const saved = await db.$transaction(async (tx) => {
       const created = await tx.expense.create({ data: { ...fields, groupId: group.id, createdById: actingMemberId, shares: { create: e.shares } } });
+      await claimKey(tx, opts.requestKey, created.id);
       const eventId = await logEvent(tx, {
         groupId: group.id,
         actorId: actingMemberId,
@@ -161,7 +186,13 @@ export async function saveExpense(
   );
   if (changes.length === 0) return { ok: true, id: existing.id }; // nothing changed
 
-  const eventId = await db.$transaction(async (tx) => {
+  let eventId: string;
+  try {
+   eventId = await db.$transaction(async (tx) => {
+    // Only if nobody else saved a change in the meantime (checked and written in one step).
+    const lock = await tx.expense.updateMany({ where: { id: existing.id, editedAt: existing.editedAt, deletedAt: null }, data: { editedAt: new Date() } });
+    if (lock.count !== 1) throw new Clash();
+    await claimKey(tx, opts.requestKey, existing.id);
     await tx.expenseShare.deleteMany({ where: { expenseId: existing.id } });
     await tx.expense.update({
       where: { id: existing.id },
@@ -176,7 +207,11 @@ export async function saveExpense(
       expenseId: existing.id,
       undo: { type: "expense_revert", expenseId: existing.id, before: expenseState(existing) },
     });
-  });
+   });
+  } catch (err) {
+    if (err instanceof Clash) return { ok: false, error: "Someone changed this expense a moment ago. Go back and open it again to see the latest version." };
+    throw err;
+  }
   return { ok: true, id: existing.id, eventId };
 }
 
@@ -187,19 +222,25 @@ function snapshot(x: Omit<ExpenseSnapshot, "shares"> & { shares: { memberId: str
 // Delete or restore an expense. Deleted expenses stay in history (crossed out)
 // but stop counting towards balances, Smart Settle and charts.
 export async function setExpenseDeleted(expenseId: string, actingMemberId: string | undefined, deleted: boolean): Promise<Result> {
+  return withRetry(() => setExpenseDeletedOnce(expenseId, actingMemberId, deleted));
+}
+async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string | undefined, deleted: boolean): Promise<Result> {
   const expense = await db.expense.findUnique({ where: { id: expenseId }, include: { group: { include: { members: { select: { id: true } } } } } });
   if (!expense) return { ok: false, error: "That expense no longer exists." };
   if (!actingMemberId || !expense.group.members.some((m) => m.id === actingMemberId)) {
     return { ok: false, error: "Only people in this group can delete or restore its expenses." };
   }
+  if (expense.group.deletedAt) return { ok: false, error: "This group was deleted." };
   if (expense.group.closed) return { ok: false, error: "This group is closed. Reopen it to change expenses." };
   if (Boolean(expense.deletedAt) === deleted) return { ok: true, id: expense.id };
 
   const eventId = await db.$transaction(async (tx) => {
-    await tx.expense.update({
-      where: { id: expense.id },
+    // Only if it's still in the state we saw (two taps at once change it once).
+    const changed = await tx.expense.updateMany({
+      where: { id: expense.id, deletedAt: deleted ? null : { not: null } },
       data: deleted ? { deletedAt: new Date(), deletedById: actingMemberId } : { deletedAt: null, deletedById: null },
     });
+    if (changed.count !== 1) return "";
     return logEvent(tx, {
       groupId: expense.groupId,
       actorId: actingMemberId,
@@ -209,7 +250,7 @@ export async function setExpenseDeleted(expenseId: string, actingMemberId: strin
       undo: { type: deleted ? "expense_restore" : "expense_delete", expenseId: expense.id },
     });
   });
-  return { ok: true, id: expense.id, eventId };
+  return { ok: true, id: expense.id, eventId: eventId || undefined };
 }
 
 // Delete a recorded settle-up payment (anyone in the group). It stays in history.
@@ -227,12 +268,15 @@ export async function setPaymentDeleted(paymentId: string, actingMemberId: strin
   if (!actingMemberId || !payment.group.members.some((m) => m.id === actingMemberId)) {
     return { ok: false, error: "Only people in this group can delete its payments." };
   }
+  if (payment.group.deletedAt) return { ok: false, error: "This group was deleted." };
+  if (payment.group.closed) return { ok: false, error: "This group is closed. Reopen it to change payments." };
   if (Boolean(payment.deletedAt) === deleted) return { ok: true, id: payment.id };
   const eventId = await db.$transaction(async (tx) => {
-    await tx.payment.update({
-      where: { id: payment.id },
+    const changed = await tx.payment.updateMany({
+      where: { id: payment.id, deletedAt: deleted ? null : { not: null } },
       data: deleted ? { deletedAt: new Date(), deletedById: actingMemberId } : { deletedAt: null, deletedById: null },
     });
+    if (changed.count !== 1) return "";
     return logEvent(tx, {
       groupId: payment.groupId,
       actorId: actingMemberId,
@@ -242,5 +286,5 @@ export async function setPaymentDeleted(paymentId: string, actingMemberId: strin
       undo: { type: deleted ? "payment_restore" : "payment_delete", paymentId: payment.id },
     });
   });
-  return { ok: true, id: payment.id, eventId };
+  return { ok: true, id: payment.id, eventId: eventId || undefined };
 }

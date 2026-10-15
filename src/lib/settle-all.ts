@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { withRetry } from "./once";
 import { loadGroup } from "./group-data";
 import { logEvent } from "./events";
 import { formatMoney } from "./money";
@@ -16,6 +17,10 @@ export function planKey(transfers: Transfer[]): string {
 }
 
 export async function settleAllAndClose(groupId: string, actorId: string, expectedPlan: string): Promise<Result> {
+  return withRetry(() => settleAllOnce(groupId, actorId, expectedPlan));
+}
+
+async function settleAllOnce(groupId: string, actorId: string, expectedPlan: string): Promise<Result> {
   const data = await loadGroup(groupId);
   if (!data) return { ok: false, error: "This group no longer exists." };
   const { group, transfers } = data;
@@ -25,13 +30,17 @@ export async function settleAllAndClose(groupId: string, actorId: string, expect
 
   const nameOf = (id: string) => group.members.find((m) => m.id === id)?.name ?? "Someone";
   const money = (n: number) => formatMoney(n, group.currency);
-  const eventId = await db.$transaction(async (tx) => {
+  let eventId: string;
+  try {
+   eventId = await db.$transaction(async (tx) => {
+    // Close first, only if still open: a second (retried) request stops here.
+    const lock = await tx.group.updateMany({ where: { id: groupId, closed: false }, data: { closed: true, closedAt: new Date() } });
+    if (lock.count !== 1) throw new Error("already-closed");
     const ids: string[] = [];
     for (const t of transfers) {
       const p = await tx.payment.create({ data: { groupId, fromId: t.from, toId: t.to, amount: t.amount, createdById: actorId } });
       ids.push(p.id);
     }
-    await tx.group.update({ where: { id: groupId }, data: { closed: true, closedAt: new Date() } });
     return logEvent(tx, {
       groupId,
       actorId,
@@ -43,15 +52,20 @@ export async function settleAllAndClose(groupId: string, actorId: string, expect
       details: transfers.map((t) => `${nameOf(t.from)} paid ${nameOf(t.to)} ${money(t.amount)}`),
       undo: { type: "settle_all", paymentIds: ids, apply: false },
     });
-  });
+   });
+  } catch (err) {
+    if (String((err as Error)?.message) === "already-closed") return { ok: false, error: "This group is already closed." };
+    throw err;
+  }
   return { ok: true, eventId };
 }
 
 // Undo (apply = false): take the payments back out and reopen.
 // Redo (apply = true): put them back and close again.
 export async function applySettleAll(groupId: string, actorId: string, paymentIds: string[], apply: boolean): Promise<Result> {
-  const group = await db.group.findUnique({ where: { id: groupId } });
-  if (!group) return { ok: false, error: "This group no longer exists." };
+  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
+  if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
+  if (!group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can do this." };
   if (!apply && !group.closed) return { ok: false, error: "The group was reopened since, so this can’t be undone. Delete the payments one by one instead." };
   if (apply && group.closed) return { ok: false, error: "The group is already closed." };
   const eventId = await db.$transaction(async (tx) => {

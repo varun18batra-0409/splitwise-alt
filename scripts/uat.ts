@@ -740,11 +740,11 @@ async function main() {
     const t = await V.locator("body").innerText();
     assert(/Zoe/.test(t), "Zoe not listed");
   });
-  await step(V, "Account", "Sign-in, account and privacy screens open", async () => {
-    await go(V, "/signin");
-    await V.getByRole("button", { name: "Email me a code" }).waitFor();
+  await step(V, "Account", "Signed in: You page shows the email; Sign in goes to it; privacy page opens", async () => {
     await go(V, "/account");
-    await V.getByText(/Not signed in|Signed in as/).first().waitFor();
+    await V.getByText(email("varun")).first().waitFor();
+    await go(V, "/signin");
+    await V.waitForURL(/\/account/);
     await go(V, "/privacy");
     await V.getByText("What we store").waitFor();
   });
@@ -813,8 +813,9 @@ async function main() {
     // Quick start fills the group name
     await go(page, "/");
     await page.getByRole("link", { name: /Trip/ }).click();
-    const v = await page.locator('input[name="groupName"]').inputValue();
-    assert(v === "Goa trip", `group name prefilled as “${v}”`);
+    await page.getByRole("link", { name: "Sign up with email" }).waitFor(); // not signed in yet: sign up first
+    const href = (await page.getByRole("link", { name: "Sign up with email" }).getAttribute("href")) ?? "";
+    assert(decodeURIComponent(href).includes("name=Goa trip"), `the trip name isn't kept for after sign-up: ${href}`);
     // Sign up screen
     await go(page, "/signin?mode=signup");
     await page.getByRole("heading", { name: "Sign up" }).waitFor();

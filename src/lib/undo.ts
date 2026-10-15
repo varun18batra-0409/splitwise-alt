@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { withRetry } from "./once";
 import { diffExpense, expenseState, logEvent, parseUndo, type UndoPayload } from "./events";
 import { setExpenseDeleted, setPaymentDeleted } from "./save-expense";
 import { formatPercent } from "./money";
@@ -77,6 +78,10 @@ export function canUndo(ev: EventLike, all: EventLike[]): { ok: true } | { ok: f
 type UndoResult = { ok: true; eventId?: string } | { ok: false; error: string };
 
 export async function undoEvent(eventId: string, actorId: string | undefined): Promise<UndoResult> {
+  return withRetry(() => undoOnce(eventId, actorId));
+}
+
+async function undoOnce(eventId: string, actorId: string | undefined): Promise<UndoResult> {
   const ev = await db.groupEvent.findUnique({ where: { id: eventId } });
   if (!ev) return { ok: false, error: "That change no longer exists." };
   const group = await db.group.findUnique({
@@ -90,9 +95,12 @@ export async function undoEvent(eventId: string, actorId: string | undefined): P
   if (!check.ok) return { ok: false, error: check.reason };
   const payload = parseUndo(ev.undo)!;
 
+  // Claim the undo first (only if nobody did it yet), so a repeated tap or
+  // two people at once can never undo the same change twice.
+  const claim = await db.groupEvent.updateMany({ where: { id: ev.id, undoneAt: null }, data: { undoneAt: new Date(), undoneById: actorId } });
+  if (claim.count !== 1) return { ok: false, error: "That change was already undone." };
   const result = await apply(payload, ev.groupId, actorId, ev.text);
-  if (!result.ok) return result;
-  await db.groupEvent.update({ where: { id: ev.id }, data: { undoneAt: new Date(), undoneById: actorId } });
+  if (!result.ok) await db.groupEvent.update({ where: { id: ev.id }, data: { undoneAt: null, undoneById: null } });
   return result;
 }
 

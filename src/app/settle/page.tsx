@@ -3,6 +3,7 @@ import { getMemberships } from "@/lib/identity";
 import { loadOverview } from "@/lib/overview";
 import { formatMoney } from "@/lib/money";
 import { settleAcrossGroups } from "@/app/actions";
+import { newRequestKey } from "@/lib/once";
 import { PageHeader } from "@/components/ui";
 
 // Smart Settle across all your groups: one payment per person.
@@ -55,6 +56,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
                 <div className="mt-2 flex items-center justify-between gap-3">
                   <span className="text-xs text-gray-400">{it.parts.length > 1 ? `1 payment instead of ${it.parts.length}` : ""}</span>
                   <form action={settleAcrossGroups}>
+                    <input type="hidden" name="rid" value={newRequestKey()} />
                     <input
                       type="hidden"
                       name="parts"

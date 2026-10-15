@@ -17,6 +17,7 @@ import { settleAllAndClose } from "@/lib/settle-all";
 import { vapidKeys } from "@/lib/push";
 import { changeGroupCurrency, updateGroupBasics } from "@/lib/group-changes";
 import { logEvent } from "@/lib/events";
+import { claimKey, cleanKey, isDuplicateKey, previousResult } from "@/lib/once";
 import { addRegistered, copyPushTo, freeName, inviteByEmail, searchPeople } from "@/lib/invites";
 import { loadNotifications } from "@/lib/group-data";
 import { formatMoney } from "@/lib/money";
@@ -150,7 +151,10 @@ export async function joinAsNew(formData: FormData) {
 // Saves a new expense — or changes an existing one — then goes back to the group page.
 export async function addExpense(input: SaveExpenseInput): Promise<{ error: string }> {
   if (!(await allow(`expense:${(await originAndIp()).ip}`, 300, 3600))) return { error: "Too many changes in a short time. Wait a few minutes." };
-  const result = await saveExpense(input, await getMyMemberId(input.groupId), getRate, { ignoreDoubleTap: true });
+  const result = await saveExpense(input, await getMyMemberId(input.groupId), getRate, {
+    ignoreDoubleTap: true,
+    requestKey: cleanKey(input.requestKey),
+  });
   if (!result.ok) return { error: result.error };
   redirect(`/groups/${input.groupId}?tab=activity${result.eventId ? `&did=${result.eventId}` : ""}`);
 }
@@ -275,13 +279,18 @@ export async function recordPayment(formData: FormData) {
   const myId = await getMyMemberId(group.id);
   if (!myId || !ids.includes(myId)) redirect(`/join/${group.inviteCode}`);
   if (!ids.includes(fromId) || !ids.includes(toId) || fromId === toId) redirect(`/groups/${group.id}?tab=balances`);
+  if (group.closed || group.deletedAt) redirect(`/groups/${group.id}`);
   if (!Number.isSafeInteger(amount) || amount <= 0 || amount > 2_000_000_000) redirect(`/groups/${group.id}?tab=balances`);
 
-  if (await isDoubleTap(group.id, fromId, toId, amount, myId)) redirect(`/groups/${group.id}?tab=balances&paid=1`);
+  const key = cleanKey(formData.get("rid"));
+  if ((await previousResult(key)) !== null || (await isDoubleTap(group.id, fromId, toId, amount, myId))) redirect(`/groups/${group.id}?tab=balances&paid=1`);
   const names = await db.member.findMany({ where: { id: { in: [fromId, toId] } }, select: { id: true, name: true } });
   const nameOf = (id: string) => names.find((n) => n.id === id)?.name ?? "Someone";
-  const did = await db.$transaction(async (tx) => {
+  let did = "";
+  try {
+   did = await db.$transaction(async (tx) => {
     const p = await tx.payment.create({ data: { groupId: group.id, fromId, toId, amount, createdById: myId } });
+    await claimKey(tx, key, p.id);
     return logEvent(tx, {
       groupId: group.id,
       actorId: myId,
@@ -290,8 +299,11 @@ export async function recordPayment(formData: FormData) {
       paymentId: p.id,
       undo: { type: "payment_delete", paymentId: p.id },
     });
-  });
-  redirect(`/groups/${group.id}?tab=balances&paid=1&did=${did}`);
+   });
+  } catch (err) {
+    if (!isDuplicateKey(err)) throw err;
+  }
+  redirect(`/groups/${group.id}?tab=balances&paid=1${did ? `&did=${did}` : ""}`);
 }
 
 // Close a group (hide it from the main list, stop new expenses) or reopen it.
@@ -329,6 +341,8 @@ export async function settleAcrossGroups(formData: FormData) {
   } catch {
     redirect("/settle?settle=error");
   }
+  const key = cleanKey(formData.get("rid"));
+  if ((await previousResult(key)) !== null) redirect("/settle?settle=done");
   const { loadGroup } = await import("@/lib/group-data");
   const memberships = await getMemberships();
   const checked: { groupId: string; fromId: string; toId: string; amount: number; currency: string; names: Map<string, string> }[] = [];
@@ -342,7 +356,9 @@ export async function settleAcrossGroups(formData: FormData) {
     checked.push({ ...p, currency: data.group.currency, names: new Map(data.group.members.map((m) => [m.id, m.name])) });
   }
 
-  await db.$transaction(async (tx) => {
+  try {
+   await db.$transaction(async (tx) => {
+    await claimKey(tx, key, "settled");
     for (const c of checked) {
       const myId = memberships[c.groupId];
       const pay = await tx.payment.create({ data: { groupId: c.groupId, fromId: c.fromId, toId: c.toId, amount: c.amount, createdById: myId } });
@@ -355,7 +371,10 @@ export async function settleAcrossGroups(formData: FormData) {
         paymentId: pay.id,
       });
     }
-  });
+   });
+  } catch (err) {
+    if (!isDuplicateKey(err)) throw err;
+  }
   redirect("/settle?settle=done");
 }
 
@@ -385,10 +404,14 @@ export async function recordCustomPayment(formData: FormData) {
   const amount = parseAmount(amountText, group.currency);
   if (amount === null || amount <= 0) back("Enter a valid amount, like 500 or 99.50.");
   const done = fromSettle ? `/groups/${group.id}/settle?paid=1` : `/groups/${group.id}?tab=balances&paid=1`;
-  if (await isDoubleTap(group.id, fromId, toId, amount!, myId)) redirect(done);
+  const key = cleanKey(formData.get("rid"));
+  if ((await previousResult(key)) !== null || (await isDoubleTap(group.id, fromId, toId, amount!, myId))) redirect(done);
 
-  const did = await db.$transaction(async (tx) => {
+  let did = "";
+  try {
+   did = await db.$transaction(async (tx) => {
     const p = await tx.payment.create({ data: { groupId: group.id, fromId, toId, amount: amount!, createdById: myId } });
+    await claimKey(tx, key, p.id);
     return logEvent(tx, {
       groupId: group.id,
       actorId: myId,
@@ -397,8 +420,11 @@ export async function recordCustomPayment(formData: FormData) {
       paymentId: p.id,
       undo: { type: "payment_delete", paymentId: p.id },
     });
-  });
-  redirect(`${done}&did=${did}`);
+   });
+  } catch (err) {
+    if (!isDuplicateKey(err)) throw err;
+  }
+  redirect(did ? `${done}&did=${did}` : done);
 }
 
 // People screen: rename, remove (never used), leave / rejoin.

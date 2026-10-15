@@ -9,6 +9,7 @@ import { nudgeLink } from "@/lib/nudge";
 import { canUndo } from "@/lib/undo";
 import { recordCustomPayment, settleEverything } from "@/app/actions";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { newRequestKey } from "@/lib/once";
 import { UndoBar } from "@/components/UndoBar";
 import { ErrorNote, PageHeader } from "@/components/ui";
 
@@ -83,6 +84,7 @@ export default async function GroupSettle({
                     <input type="hidden" name="fromId" value={t.from} />
                     <input type="hidden" name="toId" value={t.to} />
                     <input type="hidden" name="back" value="settle" />
+                    <input type="hidden" name="rid" value={newRequestKey()} />
                     <label className="flex min-w-0 flex-1 items-center rounded-xl border border-line bg-mist px-3 focus-within:border-accent">
                       <span className="shrink-0 text-xs text-gray-400">{group.currency}</span>
                       <input

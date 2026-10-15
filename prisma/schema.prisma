@@ -231,3 +231,12 @@ model ErrorLog {
   message   String
   digest    String   @default("")
 }
+
+// Makes saving safe to retry: each form carries a one-time key, saved in the
+// same transaction as the change. A repeat of the same request (double tap,
+// slow network, browser retry) finds the key and does nothing new.
+model RequestKey {
+  key       String   @id
+  result    String   @default("")
+  createdAt DateTime @default(now())
+}

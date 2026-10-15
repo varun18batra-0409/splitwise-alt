@@ -111,6 +111,8 @@ export function AddExpenseForm({
 
   const [error, setError] = useState("");
   const [saving, startSaving] = useTransition();
+  // One key per opened form: if the save is sent twice, it's saved once.
+  const [requestKey] = useState(() => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`));
 
   // Remember how the last expense in this group was split (who it was for,
   // how, and how it was paid) and start the next one the same way.
@@ -273,7 +275,7 @@ export function AddExpenseForm({
     }
     if (!expenseId) rememberSplit();
     startSaving(async () => {
-      const res = await addExpense({ ...draft, groupId, name, notes, baseVersion: initial?.version, category: category.id, expenseId, date, rateMode: usingManualRate ? "manual" : keepSavedRate ? "keep" : "auto", manualRate });
+      const res = await addExpense({ ...draft, requestKey, groupId, name, notes, baseVersion: initial?.version, category: category.id, expenseId, date, rateMode: usingManualRate ? "manual" : keepSavedRate ? "keep" : "auto", manualRate });
       if (res?.error) setError(res.error);
     });
   }
