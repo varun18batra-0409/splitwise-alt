@@ -749,6 +749,181 @@ async function main() {
     await V.getByText("What we store").waitFor();
   });
 
+  // ===== 10. Everything else people do in a group =====
+  const groupNameShown = async (page: Page, path: string) => (await (await page.goto(base + path, { waitUntil: "networkidle" }), page.locator("header h1").first()).innerText());
+  await step(V, "Group settings", "Rename a group, then Undo puts the old name back", async () => {
+    await go(V, `${g2}/settings`);
+    await V.locator('input[name="name"]').fill("UAT Flat renamed");
+    await V.getByRole("button", { name: "Save settings" }).click();
+    await V.waitForURL(/saved=settings/);
+    assert((await groupNameShown(V, g2)).includes("UAT Flat renamed"), "new name not shown");
+    await go(V, `${g2}/settings`);
+    await V.locator('input[name="name"]').fill("UAT Flat");
+    await V.getByRole("button", { name: "Save settings" }).click();
+    await V.waitForURL(/did=/);
+    await V.getByRole("status").getByRole("button", { name: "Undo", exact: true }).click();
+    await V.waitForURL(/undone=1/);
+    assert((await groupNameShown(V, g2)).includes("UAT Flat renamed"), "undo didn't restore the name");
+  });
+  await step(V, "Group settings", "Show amounts in a second currency (USD) next to balances", async () => {
+    await go(V, `${g2}/settings`);
+    await V.locator('select[name="secondaryCurrency"]').selectOption("USD");
+    await V.getByRole("button", { name: "Save settings" }).click();
+    await V.waitForURL(/saved=settings/);
+    await go(V, g2);
+    const t = await V.locator("main").innerText();
+    assert(/USD/.test(t), "no USD shown on the group page");
+  });
+  await step(V, "Close & reopen", "Close a group from settings: it moves to Closed groups and new expenses are paused", async () => {
+    await go(V, `${g2}/settings`);
+    await V.locator("#close").getByRole("button", { name: "Close group" }).click();
+    await V.waitForURL(/closed=1/);
+    await V.getByText("Closed groups").first().waitFor();
+    await go(V, `${g2}/add`);
+    await V.getByText(/This group is closed/).waitFor();
+  });
+  await step(V, "Close & reopen", "Reopen it from the add screen", async () => {
+    await go(V, `${g2}/add`);
+    await V.getByRole("button", { name: "Reopen group" }).click();
+    await V.waitForURL(new RegExp(`${g2}`));
+    await go(V, `${g2}/add`);
+    await V.locator("#expense-name").waitFor();
+  });
+  await step(V, "People", "Rename a person, then rename back", async () => {
+    await go(V, `${g2}/people`);
+    await V.locator("details summary").filter({ hasText: "Asha" }).first().click();
+    await V.getByLabel("New name for Asha").fill("Asha K");
+    await V.getByRole("button", { name: "Rename" }).first().click();
+    await V.waitForLoadState("networkidle");
+    await go(V, `${g2}/people`);
+    await V.getByText("Asha K").first().waitFor();
+    await V.locator("details summary").filter({ hasText: "Asha K" }).first().click();
+    await V.getByLabel("New name for Asha K").fill("Asha");
+    await V.getByRole("button", { name: "Rename" }).first().click();
+    await V.waitForLoadState("networkidle");
+  });
+  await step(V, "People", "Mark someone settled as left, then bring them back", async () => {
+    await go(V, `${g2}/people`);
+    await V.locator("details summary").filter({ hasText: "Asha" }).first().click();
+    await V.getByRole("button", { name: "Mark Asha as left" }).click();
+    await V.waitForLoadState("networkidle");
+    await go(V, `${g2}/people`);
+    await V.getByText("Left the group").first().waitFor();
+    await V.locator("details summary").filter({ hasText: "Asha" }).first().click();
+    await V.getByRole("button", { name: "Bring Asha back" }).click();
+    await V.waitForLoadState("networkidle");
+    await go(V, `${g2}/people`);
+    assert((await V.getByText("Left the group").count()) === 0, "Asha still shows as left");
+  });
+  await step(V, "People", "Remove someone who isn't in any expense (Sheldon)", async () => {
+    await go(V, `${g3}/people`);
+    await V.locator("details summary").filter({ hasText: "Sheldon" }).first().click();
+    await V.getByRole("button", { name: "Remove from group" }).click();
+    await V.waitForLoadState("networkidle");
+    await go(V, `${g3}/people`);
+    assert((await V.getByText("Sheldon").count()) === 0, "Sheldon still listed");
+  });
+  await step(V, "People", "Someone owing money can't be marked as left until settled", async () => {
+    await go(V, `${g}/people`);
+    const before = await shownBalances(V, g);
+    const debtor = PEOPLE.find((p) => p !== "Varun" && (before[p] ?? 0) !== 0);
+    if (!debtor) return "everyone settled (skipped)";
+    await go(V, `${g}/people`);
+    await V.locator("details summary").filter({ hasText: debtor }).first().click();
+    assert(await V.getByRole("button", { name: `Mark ${debtor} as left` }).isDisabled(), "leave button isn't disabled");
+    return `${debtor} can't leave while owing`;
+  });
+  await step(V, "Edit", "Change who paid on an expense: balances move by exactly that amount", async () => {
+    const before = await shownBalances(V, g);
+    await go(V, `${g}?tab=activity&q=Water`);
+    await V.locator("details summary").filter({ hasText: "Water" }).first().click();
+    const href = await V.getByRole("link", { name: "Edit or delete" }).first().getAttribute("href");
+    await go(V, href!);
+    await V.getByRole("button", { name: /^(✓ )?Asha$/ }).first().click();
+    await V.getByRole("button", { name: "Save changes" }).click();
+    await V.waitForURL(/tab=activity/);
+    const after = await shownBalances(V, g);
+    const dv = (after.Varun ?? 0) - (before.Varun ?? 0), da = (after.Asha ?? 0) - (before.Asha ?? 0);
+    assert(dv === -24000 && da === 24000, `Varun moved ${dv}, Asha moved ${da} (expected −24000 / +24000)`);
+  });
+  await step(V, "Payments", "Delete a payment from the history, then restore it", async () => {
+    const before = await shownBalances(V, g);
+    await go(V, `${g}?tab=activity`);
+    const row = V.locator("details summary").filter({ hasText: /paid (Asha|Varun|you)/ }).first();
+    await row.click();
+    await V.getByRole("button", { name: "Delete payment" }).first().click();
+    await V.waitForURL(/tab=activity/);
+    const mid = await shownBalances(V, g);
+    assert(JSON.stringify(mid) !== JSON.stringify(before), "balances didn't change after deleting the payment");
+    await go(V, `${g}?tab=activity`);
+    await V.locator("details summary").filter({ hasText: /paid (Asha|Varun|you)/ }).first().click();
+    await V.getByRole("button", { name: "Restore payment" }).first().click();
+    await V.waitForURL(/tab=activity/);
+    const after = await shownBalances(V, g);
+    assert(JSON.stringify(after) === JSON.stringify(before), `restore didn't put balances back: ${JSON.stringify(after)} vs ${JSON.stringify(before)}`);
+  });
+  await step(V, "Browse", "Filter a group's history by category and person", async () => {
+    await go(V, `${g}?tab=activity&cat=food`);
+    const t = await V.locator("main").innerText();
+    assert(/Dinner/.test(t) && !/\bTaxi\b/.test(t), "category filter wrong");
+  });
+  await step(V, "Browse", "Search by month: the recap shows totals", async () => {
+    await go(V, "/search");
+    const chip = V.locator("main a").filter({ hasText: /^[A-Z][a-z]{2} 20\d\d$/ }).first();
+    await chip.click();
+    await V.waitForURL(/m=/);
+    await V.getByText("spent").first().waitFor();
+  });
+  await step(V, "Browse", "Charts tab opens with the group's spending", async () => {
+    await go(V, `${g}?tab=charts`);
+    assert((await V.locator("main svg, main [role=img]").count()) > 0 || /Food|food/.test(await V.locator("main").innerText()), "no chart content");
+  });
+  await step(V, "Alerts", "Alerts screen offers phone notifications on/off", async () => {
+    await go(V, "/notifications");
+    await V.getByText("Notifications on this phone").first().waitFor();
+  });
+  await step(V, "Add people", "Inviting the email of someone already on Loopin adds them straight away", async () => {
+    await go(V, `${g2}/invite`);
+    await V.getByLabel("Email addresses to invite").fill(email("ravi"));
+    await V.getByRole("button", { name: "Invite", exact: true }).click();
+    await V.waitForURL(/added=Ravi/);
+  });
+  await step(null, "Privacy", "A stranger opening a group's address can't see it (sent to join)", async () => {
+    const x = await person(browser);
+    await go(x.page, g);
+    await x.page.waitForURL(/\/join\//);
+    const r = await x.page.request.get(`${base}${g}/export`);
+    assert(r.status() === 403, `export gave ${r.status()} to a stranger`);
+    await x.ctx.close();
+  });
+  await step(null, "Privacy", "A forged “who you are” cookie is ignored", async () => {
+    const x = await person(browser);
+    const memberId = (await db.member.findFirst({ where: { groupId: g.split("/").pop()!, name: "Varun" } }))!.id;
+    await x.ctx.addCookies([{ name: "sw_me", value: `${Buffer.from(JSON.stringify({ m: { [g.split("/").pop()!]: memberId } })).toString("base64url")}.fakesignature`, url: base }]);
+    await go(x.page, g);
+    await x.page.waitForURL(/\/join\//);
+    await x.ctx.close();
+  });
+  await step(A, "Account", "Sign out of this phone, sign back in: all groups come back", async () => {
+    await go(A, "/account");
+    await A.getByRole("button", { name: "Sign out" }).click();
+    await A.waitForURL(base + "/");
+    await go(A, "/signin");
+    await signup(A, "Asha", email("asha"));
+    await go(A, "/");
+    for (const name of ["UAT Goa trip", "UAT Flat"]) await A.getByText(name).first().waitFor();
+  });
+  await step(null, "Account", "Delete my email & sign-in", async () => {
+    const x = await person(browser);
+    await go(x.page, "/signin?mode=signup");
+    await signup(x.page, "Throwaway", email("throwaway"));
+    await go(x.page, "/account");
+    await x.page.getByRole("button", { name: /Delete my email/ }).click();
+    await x.page.waitForURL(/deleted=account/);
+    assert((await db.account.count({ where: { email: email("throwaway") } })) === 0, "account still exists");
+    await x.ctx.close();
+  });
+
   // ===== 9. Getting the app, help, category tags =====
   const phone = async (ua: string) => {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, userAgent: ua, locale: "en-IN" });
