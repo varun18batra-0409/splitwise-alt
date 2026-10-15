@@ -680,6 +680,55 @@ async function main() {
     await V.getByText("What we store").waitFor();
   });
 
+  // ===== 9. Getting the app, help, category tags =====
+  const phone = async (ua: string) => {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, userAgent: ua, locale: "en-IN" });
+    const page = await ctx.newPage();
+    page.setDefaultTimeout(15_000);
+    return { ctx, page };
+  };
+  await step(null, "Get the app", "iPhone (Safari): invite link shows “Get the Loopin app” with Share → Add to Home Screen steps", async () => {
+    const { ctx, page } = await phone("Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1");
+    await go(page, invite);
+    await page.getByText("Get the Loopin app").waitFor();
+    await page.getByRole("button", { name: "Get it" }).click();
+    await page.getByText("Add to Home Screen").first().waitFor();
+    await ctx.close();
+  });
+  await step(null, "Get the app", "iPhone (Chrome): steps use the Share button by the address bar", async () => {
+    const { ctx, page } = await phone("Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/126.0 Mobile/15E148 Safari/604.1");
+    await go(page, invite);
+    await page.getByRole("button", { name: "Get it" }).click();
+    await page.getByText(/next to the address bar/).waitFor();
+    await ctx.close();
+  });
+  await step(null, "Get the app", "Android (Chrome): invite link offers the app; steps mention “Install app”", async () => {
+    const { ctx, page } = await phone("Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36");
+    await go(page, invite);
+    await page.getByText("Get the Loopin app").waitFor();
+    await page.getByRole("button", { name: /Get it|Install/ }).click();
+    await page.getByText(/Install app/).first().waitFor();
+    await ctx.close();
+  });
+  await step(V, "Get the app", "Home has an “App” button and the service worker is registered (needed to install)", async () => {
+    await go(V, "/");
+    await V.getByRole("button", { name: "Get the app" }).waitFor();
+    const ok = await V.evaluate(async () => Boolean(await navigator.serviceWorker.getRegistration("/")));
+    assert(ok, "no service worker registered");
+  });
+  await step(V, "Help", "“?” on home opens How it works", async () => {
+    await go(V, "/");
+    await V.getByRole("link", { name: "How Loopin works" }).click();
+    await V.waitForURL(/\/welcome/);
+  });
+  await step(V, "Tags", "Each expense shows its category tag (Dinner → Food, Taxi → Transport)", async () => {
+    await go(V, `${g}?tab=activity`);
+    const row = V.locator("details summary").filter({ hasText: "Dinner" }).first();
+    assert(/Food/.test(await row.innerText()), "no Food tag on Dinner");
+    const taxi = V.locator("details summary").filter({ hasText: "Taxi" }).first();
+    assert(/Transport/.test(await taxi.innerText()), "no Transport tag on Taxi");
+  });
+
   await browser.close();
 
   // ---------- report ----------

@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { GetAppButton } from "@/components/GetApp";
 import { db } from "@/lib/db";
 import { joinAsExisting, joinAsNew } from "@/app/actions";
 import { Avatar, ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/components/ui";
@@ -64,6 +65,9 @@ export default async function JoinPage({
           Join group
         </button>
       </form>
+
+      {/* Opened from an invite: offer the app straight away. */}
+      <GetAppButton variant="card" className="mt-10" />
     </>
   );
 }

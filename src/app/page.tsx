@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { InstallButton } from "@/components/InstallButton";
+import { GetAppButton } from "@/components/GetApp";
 import { IntroTour } from "@/components/IntroTour";
 import { getTimeZone } from "@/lib/tz";
 import { getAccount, getMemberships } from "@/lib/identity";
@@ -111,18 +111,30 @@ export default async function Home({
       <header className="mb-8 flex items-center justify-between">
         <div>
           <p className="font-display text-[26px] font-semibold leading-none tracking-tight">loopin</p>
-          <p className="mt-1.5 text-xs text-gray-400">
-            {dayLabel(new Date(), new Date(), tz)} ·{" "}
-            <Link href="/welcome" className="font-medium text-fg underline decoration-gray-400 underline-offset-4">
-              How it works
-            </Link>
-          </p>
+          <p className="mt-1.5 text-xs text-gray-400">Everyone’s in. Everything adds up.</p>
         </div>
-        <Link href="/account" aria-label={account ? `Account: ${account.email}` : "Sign in or account"} className={`relative ${iconButtonClass}`}>
+        <div className="flex items-center gap-2">
+          <GetAppButton variant="icon" />
+          <Link href="/welcome" aria-label="How Loopin works" className={`${iconButtonClass} text-[17px] font-semibold`}>
+            ?
+          </Link>
+          <Link href="/account" aria-label={account ? `Account: ${account.email}` : "Sign in or account"} className={`relative ${iconButtonClass}`}>
           <PersonIcon size={20} />
           {account && <span className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-owed" aria-hidden />}
-        </Link>
+          </Link>
+        </div>
       </header>
+
+      {/* New here (one group or none, no expenses yet): a gentle pointer to the 1-minute tour. */}
+      {open.length <= 1 && open.every((g) => g.expenses.length === 0) && (
+        <Link href="/welcome" className="mb-6 flex items-center gap-3 rounded-2xl bg-mist px-4 py-3 text-sm active:bg-line">
+          <span aria-hidden>👋</span>
+          <span className="min-w-0 flex-1">
+            New to Loopin? <span className="font-medium text-fg">See how it works</span> <span className="text-gray-400">· 1 min</span>
+          </span>
+          <span className="text-gray-400" aria-hidden>›</span>
+        </Link>
+      )}
 
       {all.length === 0 ? (
         <section className="vault rounded-[24px] px-6 py-10 text-fg">
@@ -312,7 +324,7 @@ export default async function Home({
         </Link>
       )}
 
-      <InstallButton />
+      <GetAppButton variant="card" className="mt-8" />
       <p className="mt-8 text-center text-xs text-gray-400">
         <Link href="/privacy" className="underline underline-offset-4">
           Privacy

@@ -5,6 +5,7 @@ import { BottomNav } from "@/components/BottomNav";
 import { PushSync } from "@/components/PushControls";
 import { TimeZoneSync } from "@/components/TimeZoneSync";
 import { DoubleTapGuard } from "@/components/DoubleTapGuard";
+import { InstallCapture } from "@/components/GetApp";
 
 // Fraunces: a sharp, high-contrast serif for headings and big amounts.
 // Body text stays in the phone's own font.
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <PushSync />
         <TimeZoneSync />
         <DoubleTapGuard />
+        <InstallCapture />
       </body>
     </html>
   );
