@@ -19,6 +19,10 @@ export function AddExpenseButton() {
     path.endsWith("/people") ||
     path.endsWith("/invite") ||
     path === "/welcome" ||
+    path.startsWith("/signin") ||
+    path === "/account" ||
+    path === "/privacy" ||
+    path === "/stats" ||
     path === "/notifications";
   if (hidden) return null;
 
