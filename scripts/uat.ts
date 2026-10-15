@@ -383,7 +383,7 @@ async function main() {
     await go(V, `${g}?tab=activity&q=Tickets`);
     await V.locator("details summary").filter({ hasText: "Tickets" }).first().click();
     await V.getByRole("button", { name: "Restore" }).first().click();
-    await V.waitForURL(/tab=activity/);
+    await V.waitForURL(/did=/);
     ledger.find((x) => x.key === "Tickets")!.active = true;
     return `after delete: ${after}; restored: ${await checkBalances(V, g)}`;
   });
