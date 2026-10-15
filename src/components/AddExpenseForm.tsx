@@ -223,6 +223,8 @@ export function AddExpenseForm({
   }
 
   const usingManualRate = foreign && (rateMode === "manual" || rateState.status === "missing");
+  // Currency details open by themselves only when there's no rate yet to work with.
+  const fxOpen = showFx || (rateState.status === "missing" && !manualRate);
   const effectiveRate = !foreign ? "1" : usingManualRate ? manualRate : rateState.status === "ok" ? rateState.rate : "";
 
   const nameCheck = analyzeName(name);
@@ -427,7 +429,7 @@ export function AddExpenseForm({
       </div>
 
       {/* Foreign currency: one summary line; details (rate, card fee, how it adds up) on tap */}
-      {foreign && !(showFx || usingManualRate) && (
+      {foreign && !fxOpen && (
         <button
           type="button"
           onClick={() => setShowFx(true)}
@@ -451,7 +453,7 @@ export function AddExpenseForm({
           <span className="shrink-0 font-medium text-fg">Details</span>
         </button>
       )}
-      {foreign && (showFx || usingManualRate) && (
+      {foreign && fxOpen && (
         <section className="space-y-4 rounded-2xl border border-gray-100 bg-gray-50/60 p-4">
           <div className="-mb-2 flex justify-end">
             <button type="button" onClick={() => setShowFx(false)} className="text-sm font-medium text-fg">

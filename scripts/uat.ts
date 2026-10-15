@@ -213,7 +213,7 @@ async function main() {
     await V.getByRole("button", { name: "+ Add another person" }).click();
     await inputs.nth(1).fill("Ravi");
     await V.getByRole("button", { name: "Create group" }).click();
-    await V.waitForURL(/\/groups\/[^/]+(\?|$)/);
+    await V.waitForURL(/\/groups\/(?!new)[^/?]+(\?|$)/);
     g = new URL(V.url()).pathname;
     await V.getByRole("heading", { name: "UAT Goa trip" }).waitFor();
   });
@@ -583,7 +583,7 @@ async function main() {
     await V.locator('select[name="currency"]').selectOption("INR");
     await V.locator('input[name="member"]').nth(0).fill("Asha");
     await V.getByRole("button", { name: "Create group" }).click();
-    await V.waitForURL(/\/groups\/[^/]+(\?|$)/);
+    await V.waitForURL(/\/groups\/(?!new)[^/?]+(\?|$)/);
     const path = new URL(V.url()).pathname;
     await go(V, `${path}/invite`);
     const code = /\/join\/([A-Za-z0-9_-]+)/.exec(await V.content())![1];
