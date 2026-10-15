@@ -3,9 +3,14 @@
 # Needs three repository secrets: TURSO_DATABASE_URL, TURSO_AUTH_TOKEN and
 # BACKUP_PASSPHRASE. Without them it skips quietly.
 #
-# To restore: download the "db-backup" file from the run, then
+# Every run also does a restore drill: the backup is rebuilt into a scratch
+# database and every table is checked.
+#
+# To restore for real: download the "db-backup" file from the run, then
 #   openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in backup.json.enc -out backup.json
-# and type the passphrase.
+# (type the passphrase), create a NEW empty Turso database, and run
+#   TURSO_AUTH_TOKEN=<its token> node scripts/restore.mjs backup.json libsql://<new-db-url>
+# then point the app's TURSO_DATABASE_URL / TURSO_AUTH_TOKEN at it and redeploy.
 name: Backup
 on:
   schedule:
@@ -46,7 +51,11 @@ jobs:
           openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:BACKUP_PASSPHRASE \
             -in "$RUNNER_TEMP/backup.json.enc" -out "$RUNNER_TEMP/check.json"
           grep -q '"takenAt"' "$RUNNER_TEMP/check.json"
-          rm -f "$RUNNER_TEMP/check.json"
+          # Restore drill: rebuild the whole database from the backup in a
+          # scratch file and check every table's row count matches.
+          node scripts/restore.mjs "$RUNNER_TEMP/check.json" "file:$RUNNER_TEMP/drill.db" | tee "$RUNNER_TEMP/drill.log"
+          echo "::notice title=Restore drill::$(tail -1 "$RUNNER_TEMP/drill.log") $(grep -c '✓' "$RUNNER_TEMP/drill.log") tables OK."
+          rm -f "$RUNNER_TEMP/check.json" "$RUNNER_TEMP/drill.db"
           echo "::notice title=Backup::Encrypted backup saved ($(du -h "$RUNNER_TEMP/backup.json.enc" | cut -f1))."
       - uses: actions/upload-artifact@v4
         if: steps.ready.outputs.ok == '1'

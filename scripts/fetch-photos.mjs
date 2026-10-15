@@ -9,8 +9,8 @@ import { mkdirSync, writeFileSync } from "node:fs";
 const SLOTS = {
   hero: ["photo-1507525428034-b723cf961d3e", "V8oiNMhkLiw", "ka14QMQlS1U", "F6RLqhPPhDQ"], // beach
   roadtrip: ["photo-1469854523086-cc02fe5d8800", "photo-1506905925346-21bda4d32df4", "cktp9-mCH4Y", "Gtno2Ua6aW4"], // road trip, mountains
-  dinner: ["photo-1687648431656-da99da578d50", "photo-1562050344-f7ad946cee35", "photo-1414235077428-338989a2e8c0"], // high-end restaurant
-  market: ["photo-1745508823954-f478efc8b731", "photo-1701338462908-6022ef7cb466"], // Tokyo at night: spending abroad
+  dinner: ["photo-1775513153018-0c7ac7899751", "photo-1777897352830-3355142a33d2", "photo-1687648431656-da99da578d50"], // chef plating, Michelin style
+  market: ["photo-1758272133719-959319bc2364", "photo-1758272134003-0f032d92849b", "photo-1745508823954-f478efc8b731"], // friends abroad, rooftop selfie
   train: ["photo-1777026050794-a5e4ef7cd254", "photo-1618153231956-df23dcb21c07", "photo-1474487548417-781cb71495f3"], // Japanese bullet train
   friends: ["photo-1511632765486-a01980e01a18", "photo-1529333166437-7750a6dd5a70"], // friends at sunset
   sunset: ["photo-1502602898657-3e91760cbb34", "ka14QMQlS1U", "F6RLqhPPhDQ"], // a beautiful place

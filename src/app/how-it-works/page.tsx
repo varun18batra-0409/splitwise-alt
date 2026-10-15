@@ -128,19 +128,17 @@ export default function HowItWorks() {
       </Section>
 
       <div id="abroad" className="scroll-mt-4" />
-      <Section slot="market" kicker="3 · Abroad" title="Spend in yen. Settle in rupees.">
+      <Section slot="market" title="Abroad? Zero mental maths.">
         <p>
-          Pay in any of 150+ currencies. Loopin converts at today’s rate and adds your card’s foreign-transaction fee, the hidden
-          cost most split apps ignore. Everyone pays their fair share of what it <strong className="text-fg">really</strong> cost you.
+          Paid in yen, euros or baht? Pick the currency and Loopin turns it into your money at today’s rate. Paid by card? Your bank’s
+          foreign fee goes in too, so the person who paid isn’t quietly out of pocket.
         </p>
         <Example>
-          Ramen night in Shinjuku · paid by card
+          Ramen in Tokyo · ¥6,000 on card
           <br />
-          ¥6,000 → ₹3,390 + 3% card fee ₹102 = <strong>₹3,492</strong>
-          <br />
-          <span className="text-gray-500">Cash? No fee is added. Bank rate different? Type your own.</span>
+          ₹3,390 + ₹102 card fee = <strong>₹3,492</strong>, split four ways: <strong>₹873 each</strong>
         </Example>
-        <p>Balances show in your home currency and in the local one, so nobody has to do maths at the table.</p>
+        <p>Cash? No fee. Got a better rate? Type your own. Balances show in your money and the local one.</p>
       </Section>
 
       <Section slot="train" kicker="Getting around" title="Trains, cabs and tickets">
