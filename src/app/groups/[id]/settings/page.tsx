@@ -11,7 +11,7 @@ import { CurrencySelect } from "@/components/CurrencySelect";
 import { ErrorNote, PageHeader, inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
 
 const PRESETS = [0, 200, 300, 400];
-const sectionTitle = "text-xs font-semibold uppercase tracking-wider text-gray-400";
+const sectionTitle = "text-sm font-semibold text-gray-500";
 
 const ERRORS: Record<string, string> = {
   markup: "Enter a markup between 0% and 20%, like 3.5.",

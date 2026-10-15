@@ -45,7 +45,7 @@ export function WhyPanel({ v, memberId, open }: { v: GroupView; memberId: string
           </li>
         </ul>
 
-        <p className="mb-1 mt-4 text-xs uppercase tracking-wider text-gray-400">Item by item</p>
+        <p className="mb-1 mt-4 text-xs text-gray-400">Item by item</p>
         <ul className="divide-y divide-line">
           {w.lines.map((l) => (
             <li key={l.id} className="flex items-center justify-between gap-3 py-1.5">

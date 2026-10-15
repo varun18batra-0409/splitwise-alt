@@ -40,7 +40,7 @@ export function CurrencyPicker({
       <div className="max-h-72 overflow-y-auto overscroll-contain px-1 pb-2">
         {sections.map((s) => (
           <div key={s.title}>
-            <p className="px-3 pb-1 pt-3 text-xs font-medium uppercase tracking-wide text-gray-400">{s.title}</p>
+            <p className="px-3 pb-1 pt-3 text-xs font-medium text-gray-400">{s.title}</p>
             {s.items.length === 0 && <p className="px-3 py-2 text-sm text-gray-500">No currency matches “{query}”.</p>}
             <ul>
               {s.items.map((c) => (

@@ -133,15 +133,15 @@ export default async function SearchPage({
             ))}
             <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
               <div>
-                <p className="text-[11px] uppercase tracking-wider text-fg/45">Your share</p>
+                <p className="text-[11px] text-fg/45">Your share</p>
                 <p className="mt-0.5 tabular-nums">{sum.totals.map((t) => formatMoney(t.mine, t.currency)).join(" + ")}</p>
               </div>
               <div>
-                <p className="text-[11px] uppercase tracking-wider text-fg/45">Expenses</p>
+                <p className="text-[11px] text-fg/45">Expenses</p>
                 <p className="mt-0.5 tabular-nums">{sum.count}</p>
               </div>
               <div>
-                <p className="text-[11px] uppercase tracking-wider text-fg/45">Top</p>
+                <p className="text-[11px] text-fg/45">Top</p>
                 <p className="mt-0.5 truncate">
                   {sum.topCategory ? `${sum.topCategory.emoji} ${sum.topCategory.short}` : "—"}
                 </p>

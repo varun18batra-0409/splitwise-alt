@@ -30,11 +30,10 @@ function Photo({ slot, children, tall }: { slot: Slot; children?: React.ReactNod
   );
 }
 
-function Section({ slot, kicker, title, children }: { slot: Slot; kicker: string; title: string; children: React.ReactNode }) {
+function Section({ slot, title, children }: { slot: Slot; kicker?: string; title: string; children: React.ReactNode }) {
   return (
     <section className="mt-12">
       <Photo slot={slot}>
-        <p className="text-xs font-semibold uppercase tracking-wider text-fg/70">{kicker}</p>
         <h2 className="mt-1 font-display text-[26px] font-semibold leading-tight tracking-tight text-fg">{title}</h2>
       </Photo>
       <div className="mt-4 space-y-3 text-[15px] leading-relaxed text-gray-600">{children}</div>

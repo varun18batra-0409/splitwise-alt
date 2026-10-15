@@ -53,7 +53,7 @@ export default async function Stats() {
       <div className="grid grid-cols-2 gap-2">
         {tiles.map(([label, value, hint]) => (
           <div key={label} className="rounded-2xl border border-line px-4 py-3">
-            <p className="text-[11px] uppercase tracking-wider text-gray-500">{label}</p>
+            <p className="text-[11px] text-gray-500">{label}</p>
             <p className="mt-1 font-display text-2xl font-semibold tabular-nums">{value}</p>
             <p className="mt-0.5 text-xs text-gray-400">{hint}</p>
           </div>

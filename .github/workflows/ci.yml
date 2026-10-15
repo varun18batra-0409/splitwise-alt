@@ -66,6 +66,11 @@ jobs:
           if grep -q "✗\|crashed" screenshots/uat/summary.txt; then
             echo "::warning title=UAT failures::$(tail -n +1 screenshots/uat/summary.txt | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"
           fi
+      - name: Load test (realistic data, many people at once)
+        run: |
+          npx tsx scripts/load.ts 2>&1 | tee load.log || true
+          echo "::notice title=Load test::$(grep -E '^\|' screenshots/uat/load.md | tail -n +3 | tr '\n' ' ' | cut -c1-900)"
+          echo "::notice title=Load test saves::$(grep -E 'expenses from|zero' screenshots/uat/load.md | tr '\n' ' ')"
       - name: Save to the screenshots branch
         run: |
           cd screenshots

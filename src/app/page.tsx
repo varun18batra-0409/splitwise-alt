@@ -233,11 +233,11 @@ export default async function Home({
                 </p>
                 <div className="mt-5 grid grid-cols-2 gap-3">
                   <div className="rounded-xl bg-fg/[0.04] px-3 py-2.5">
-                    <p className="text-[11px] uppercase tracking-wider text-fg/45">You’re owed</p>
+                    <p className="text-[11px] text-fg/45">You’re owed</p>
                     <p className="mt-0.5 font-display text-lg leading-tight text-owed tabular-nums">{owedLines.length ? owedLines.join(" + ") : "—"}</p>
                   </div>
                   <div className="rounded-xl bg-fg/[0.04] px-3 py-2.5">
-                    <p className="text-[11px] uppercase tracking-wider text-fg/45">You owe</p>
+                    <p className="text-[11px] text-fg/45">You owe</p>
                     <p className="mt-0.5 font-display text-lg leading-tight text-owe tabular-nums">{oweLines.length ? oweLines.join(" + ") : "—"}</p>
                   </div>
                 </div>
