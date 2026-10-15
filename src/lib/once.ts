@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
 import type { Prisma } from "@prisma/client";
 import { db } from "./db";
 
@@ -35,12 +36,25 @@ export function isDuplicateKey(err: unknown): boolean {
 // moment and try again (the retry then sees what the other change did).
 export function isBusy(err: unknown): boolean {
   const e = err as { code?: string; message?: string };
-  return e?.code === "P2034" || e?.code === "P2028" || /database is locked|SQLITE_BUSY|write conflict|deadlock|Unable to start a transaction/i.test(String(e?.message ?? ""));
+  return e?.code === "P2034" || e?.code === "P2028" || e?.code === "P1008" || /database is locked|SQLITE_BUSY|write conflict|deadlock|Unable to start a transaction|Socket timeout/i.test(String(e?.message ?? ""));
 }
+// Within one server, money changes are written one after another (SQLite
+// allows one writer at a time; queueing them here avoids two transactions
+// waiting on each other). Across servers, busy errors are retried.
+let queue: Promise<unknown> = Promise.resolve();
+const inside = new AsyncLocalStorage<boolean>();
+export function serial<T>(fn: () => Promise<T>): Promise<T> {
+  if (inside.getStore()) return fn(); // already in the queue (e.g. undo → delete): run now
+  const job = () => inside.run(true, fn);
+  const run = queue.then(job, job);
+  queue = run.catch(() => undefined);
+  return run;
+}
+
 export async function withRetry<T>(fn: () => Promise<T>, tries = 5): Promise<T> {
   for (let i = 0; ; i++) {
     try {
-      return await fn();
+      return await serial(fn);
     } catch (err) {
       if (!isBusy(err) || i >= tries - 1) throw err;
       await new Promise((r) => setTimeout(r, 30 + Math.random() * 120 * (i + 1)));
