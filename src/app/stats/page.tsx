@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getAccount } from "@/lib/identity";
 import { netBalances } from "@/lib/balances";
 import { computeStats } from "@/lib/stats";
+import { LIMITS, appUsage, pct, tursoUsage } from "@/lib/usage";
 import { PageHeader } from "@/components/ui";
 
 export const metadata = { title: "Stats · Loopin", robots: { index: false } };
@@ -32,6 +33,22 @@ export default async function Stats() {
     balancesSettled[g.id] = Object.values(net).every((v) => v === 0);
   }
   const s = computeStats({ groups, members, expenses, events, balancesSettled, accounts });
+  const [usage, turso] = await Promise.all([appUsage(), tursoUsage()]);
+  const gb = (b: number) => `${(b / 1024 ** 3).toFixed(2)} GB`;
+  const m = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)} M` : n.toLocaleString("en-IN"));
+  const storage = turso?.storage ?? usage.bytes;
+  const usageRows = [
+    { label: "Database size (Turso, 5 GB)", value: storage === null ? "—" : `${gb(storage)} · ${pct(storage, LIMITS.tursoStorageBytes)}%`, p: pct(storage, LIMITS.tursoStorageBytes) },
+    turso?.rowsRead != null
+      ? { label: "Rows read this month (500 M)", value: `${m(turso.rowsRead)} · ${pct(turso.rowsRead, LIMITS.tursoRowsRead)}%`, p: pct(turso.rowsRead, LIMITS.tursoRowsRead) }
+      : { label: "Rows read this month (500 M)", value: "needs Turso token", p: null },
+    turso?.rowsWritten != null
+      ? { label: "Rows written this month (10 M)", value: `${m(turso.rowsWritten)} · ${pct(turso.rowsWritten, LIMITS.tursoRowsWritten)}%`, p: pct(turso.rowsWritten, LIMITS.tursoRowsWritten) }
+      : { label: "Rows written, last 30 days (est., 10 M)", value: `~${m(usage.writes30)} · ${pct(usage.writes30, LIMITS.tursoRowsWritten)}%`, p: pct(usage.writes30, LIMITS.tursoRowsWritten) },
+    { label: "Changes in the last 30 days", value: m(usage.events30), p: null },
+    { label: "Stored rows", value: `${m(usage.rows.expenses)} expenses · ${m(usage.rows.payments)} payments · ${m(usage.rows.groups)} groups`, p: null },
+    { label: "Server errors, last 30 days", value: String(usage.errors30), p: null },
+  ];
   const v = (x: number | null, suffix = "") => (x === null ? "—" : `${x}${suffix}`);
   const mins = s.medianMinutesToFirstExpense;
   const wait = mins === null ? "—" : mins < 60 ? `${Math.round(mins)} min` : mins < 2880 ? `${Math.round(mins / 60)} h` : `${Math.round(mins / 1440)} days`;
@@ -59,6 +76,28 @@ export default async function Stats() {
           </div>
         ))}
       </div>
+
+      <h2 className="mb-1 mt-10 font-display text-lg font-semibold tracking-tight">Usage and free limits</h2>
+      <p className="mb-3 text-sm text-gray-500">Both free plans pause the app if a limit is reached (no surprise bill). Act at 70%.</p>
+      <ul className="divide-y divide-line rounded-2xl border border-line text-sm">
+        {usageRows.map((u) => (
+          <li key={u.label} className="px-4 py-3">
+            <div className="flex justify-between gap-3">
+              <span>{u.label}</span>
+              <span className={`tabular-nums ${u.p !== null && u.p >= 70 ? "text-owe" : "text-gray-500"}`}>{u.value}</span>
+            </div>
+            {u.p !== null && (
+              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-mist">
+                <div className={`h-full rounded-full ${u.p >= 70 ? "bg-owe" : "bg-owed"}`} style={{ width: `${Math.min(100, Math.max(1, u.p))}%` }} />
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 text-xs text-gray-400">
+        {turso ? "Turso figures are live from Turso." : "Add TURSO_PLATFORM_TOKEN and TURSO_ORG in Vercel for live Turso figures; until then reads/writes are estimates."}{" "}
+        Vercel data transfer and function calls: Vercel dashboard → Usage.
+      </p>
 
       <h2 className="mb-2 mt-10 font-display text-lg font-semibold tracking-tight">Recent errors</h2>
       {errors.length === 0 ? (

@@ -1,0 +1,21 @@
+# Weekly: how close are we to the Turso free-plan limits? Fails (and GitHub
+# emails you) above 70%. Needs repository secrets TURSO_PLATFORM_TOKEN (a
+# read-only Turso platform API token) and TURSO_ORG (your Turso organisation
+# name); skips quietly without them.
+name: Usage check
+on:
+  schedule:
+    - cron: "33 3 * * 1" # Mondays, 09:03 India time
+  workflow_dispatch:
+jobs:
+  usage:
+    runs-on: ubuntu-latest
+    env:
+      TURSO_PLATFORM_TOKEN: ${{ secrets.TURSO_PLATFORM_TOKEN }}
+      TURSO_ORG: ${{ secrets.TURSO_ORG }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/usage-check.mjs
