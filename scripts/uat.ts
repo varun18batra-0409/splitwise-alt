@@ -73,6 +73,8 @@ const email = (n: string) => `${n}-${stamp}@uat.loopin.test`;
 
 // Sign up / sign in on the email screen; the code is read from the test outbox.
 async function signup(page: Page, name: string, address: string, emailFilled = false) {
+  await page.waitForURL(/\/signin/);
+  await page.locator('input[name="email"]').waitFor();
   const nameBox = page.locator('input[name="name"]');
   if (await nameBox.count()) await nameBox.fill(name);
   if (!emailFilled) await page.locator('input[name="email"]').fill(address);
