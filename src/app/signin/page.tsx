@@ -10,7 +10,7 @@ import { ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/compone
 export default async function SignIn({
   searchParams,
 }: {
-  searchParams: Promise<{ e?: string; sent?: string; error?: string; back?: string }>;
+  searchParams: Promise<{ e?: string; sent?: string; error?: string; back?: string; mode?: string }>;
 }) {
   const sp = await searchParams;
   const back = sp.back && sp.back.startsWith("/") && !sp.back.startsWith("//") ? sp.back.slice(0, 200) : "/";
@@ -18,18 +18,29 @@ export default async function SignIn({
   const email = (sp.e ?? "").slice(0, 254);
   const sent = sp.sent === "1" && email;
   const error = sp.error?.slice(0, 200);
+  const signup = sp.mode === "signup";
 
   return (
     <>
-      <PageHeader title={sent ? "Check your email" : "Sign in"} back={back} />
+      <PageHeader title={sent ? "Check your email" : signup ? "Sign up" : "Sign in"} back={back} />
       {error && <ErrorNote>{error}</ErrorNote>}
 
       {!sent ? (
         <>
           <p className="mb-6 text-gray-600">
-            Optional. Save your groups to your email so you can get them back on a new phone, or in the installed app.
-            No password — we email you a code.
+            {signup
+              ? "Create your Loopin account with just your email. Your groups get saved to it, so you can open them on any phone or in the installed app."
+              : "Welcome back. Enter the email you used before and we’ll send you a code. Your groups come back on this phone."}{" "}
+            No password needed.
           </p>
+          <div className="mb-6 grid grid-cols-2 gap-1 rounded-xl bg-mist p-1 text-sm">
+            <Link href={`/signin?${new URLSearchParams({ mode: "signup", back, ...(email ? { e: email } : {}) })}`} className={`rounded-lg py-2 text-center ${signup ? "bg-fg font-semibold text-canvas" : "text-gray-500"}`}>
+              Sign up
+            </Link>
+            <Link href={`/signin?${new URLSearchParams({ back, ...(email ? { e: email } : {}) })}`} className={`rounded-lg py-2 text-center ${!signup ? "bg-fg font-semibold text-canvas" : "text-gray-500"}`}>
+              Sign in
+            </Link>
+          </div>
           {!mailConfigured() && (
             <p className="mb-6 rounded-xl bg-mist px-4 py-3 text-sm text-gray-500">Email sign-in isn’t switched on yet. Check back soon.</p>
           )}

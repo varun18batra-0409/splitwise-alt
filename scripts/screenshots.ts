@@ -122,6 +122,9 @@ for (const n of [2, 3, 4, 5]) {
   }, false);
 }
 
+await context.addCookies([{ name: "lp_tour", value: "1", url: base }]);
+await shot("33-start", "/");
+await shot("34-signup", "/signin?mode=signup", undefined, false);
 await browser.close();
 }
 

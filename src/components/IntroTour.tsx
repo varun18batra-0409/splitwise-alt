@@ -2,6 +2,16 @@
 
 import Link from "next/link";
 import { GetAppButton } from "./GetApp";
+import { HomeIcon } from "./icons";
+
+// Remember the tour was seen, so Home shows the start screen next time.
+const seen = () => {
+  try {
+    document.cookie = "lp_tour=1; path=/; max-age=31536000; samesite=lax";
+  } catch {
+    /* ignore */
+  }
+};
 import { useEffect, useRef, useState } from "react";
 
 // The intro tour: six swipeable slides that show what Loopin does, each with
@@ -200,7 +210,10 @@ export function IntroTour({
         <p className="font-display text-[26px] font-semibold leading-none tracking-tight">loopin</p>
         <span className="flex items-center gap-3">
           <GetAppButton variant="icon" className="h-9" />
-          <Link href={startHref} className="py-1 text-sm text-gray-500">
+          <Link href="/" onClick={seen} aria-label="Home" className="flex h-9 w-9 items-center justify-center rounded-full border border-line text-gray-700 active:bg-mist">
+            <HomeIcon size={18} />
+          </Link>
+          <Link href={startHref} onClick={seen} className="py-1 text-sm text-gray-500">
             Skip
           </Link>
         </span>
@@ -241,7 +254,7 @@ export function IntroTour({
 
       <div className="mt-6 space-y-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
         {last && <GetAppButton variant="card" />}
-        <Link href={startHref} className="pop block w-full bg-fg px-4 py-4 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63]">
+        <Link href={startHref} onClick={seen} className="pop block w-full bg-fg px-4 py-4 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63]">
           {cta}
         </Link>
         <button type="button" onClick={() => go(last ? 0 : active + 1)} className="block w-full py-2 text-center text-sm font-medium text-gray-600">
@@ -249,7 +262,7 @@ export function IntroTour({
         </button>
         {signInHref && (
           <Link href={signInHref} className="block text-center text-xs text-gray-500">
-            Used Loopin on another phone? <span className="font-medium text-fg underline underline-offset-4">Sign in</span>
+            Save your groups to your email · <span className="font-medium text-fg underline underline-offset-4">Sign up or sign in</span>
           </Link>
         )}
       </div>

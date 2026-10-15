@@ -8,9 +8,9 @@ import { ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/compone
 export default async function NewGroup({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; name?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, name } = await searchParams;
   const currency = defaultCurrency(await headers());
 
   return (
@@ -25,7 +25,7 @@ export default async function NewGroup({
       <form action={createGroup} className="space-y-8">
         <label className="block">
           <span className="mb-2 block text-sm font-medium text-gray-600">Group name</span>
-          <input name="groupName" required placeholder="Goa trip" autoComplete="off" className={inputClass} />
+          <input name="groupName" required placeholder="Goa trip" defaultValue={(name ?? "").slice(0, 60)} autoComplete="off" className={inputClass} />
         </label>
 
         <label className="block">

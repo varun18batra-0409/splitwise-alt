@@ -30,9 +30,14 @@ export default async function AccountPage() {
           <p className="mt-2 text-sm text-fg/60">
             Your groups live on this phone. Optionally save them to your email so a new phone — or the installed app — can get them back.
           </p>
-          <Link href="/signin?back=/account" className={`mt-5 ${primaryButtonClass}`}>
-            Save my groups to my email
-          </Link>
+          <div className="mt-5 grid grid-cols-2 gap-2">
+            <Link href="/signin?mode=signup&back=/account" className={primaryButtonClass}>
+              Sign up
+            </Link>
+            <Link href="/signin?back=/account" className="block border border-fg/25 px-4 py-3.5 text-center text-base font-semibold text-fg active:bg-fg/5">
+              Sign in
+            </Link>
+          </div>
         </section>
       )}
 

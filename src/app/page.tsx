@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { GetAppButton } from "@/components/GetApp";
 import { IntroTour } from "@/components/IntroTour";
+import { JoinByLink } from "@/components/JoinByLink";
+import { cookies } from "next/headers";
 import { getTimeZone } from "@/lib/tz";
 import { getAccount, getMemberships } from "@/lib/identity";
 import { loadDeletedGroups, loadNotifications } from "@/lib/group-data";
@@ -91,7 +93,8 @@ export default async function Home({
           : null;
 
   // First visit: show what Loopin does instead of an empty screen.
-  if (all.length === 0 && deletedGroups.length === 0 && !error && !notice) return <IntroTour signInHref="/signin" />;
+  const tourSeen = (await cookies()).get("lp_tour")?.value === "1";
+  if (all.length === 0 && deletedGroups.length === 0 && !error && !notice && !tourSeen) return <IntroTour signInHref="/signin" />;
 
   return (
     <>
@@ -137,18 +140,69 @@ export default async function Home({
       )}
 
       {all.length === 0 ? (
-        <section className="vault rounded-[24px] px-6 py-10 text-fg">
-          <h1 className="font-display text-3xl font-semibold leading-tight tracking-tight">Everyone’s in. Everything adds up.</h1>
-          <p className="mt-3 text-fg/60">Make a group for a trip, a flat or a dinner.</p>
-          <Link href="/groups/new" className="pop mt-8 block bg-fg px-4 py-3.5 text-center font-semibold text-canvas [--pop-edge:#6e6b63]">
-            Create your first group
-          </Link>
-          {!account && (
-            <Link href="/signin" className="mt-4 block text-center text-sm text-fg/60">
-              Used Loopin on another phone? <span className="font-medium text-fg underline underline-offset-4">Sign in</span>
+        <>
+          {/* Start screen: nothing here yet. */}
+          <section className="vault rounded-[24px] px-6 pb-6 pt-8 text-fg">
+            <h1 className="font-display text-[30px] font-semibold leading-tight tracking-tight">Let’s get you started</h1>
+            <p className="mt-2 text-fg/60">Split costs with friends, flatmates or your partner. No ads, no limits.</p>
+            <div className="mt-7 space-y-3">
+              <Link href="/groups/new" className="pop block bg-fg px-4 py-3.5 text-center font-semibold text-canvas [--pop-edge:#6e6b63]">
+                Create a group
+              </Link>
+              <JoinByLink />
+            </div>
+          </section>
+
+          <section className="mt-8">
+            <h2 className="mb-2 font-display text-lg font-semibold tracking-tight">Quick start</h2>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                ["✈️", "Trip", "Goa trip"],
+                ["🏠", "Flatmates", "Flat expenses"],
+                ["💞", "Couple", "Us"],
+                ["🍽️", "Dinner", "Dinner out"],
+              ].map(([emoji, label, name]) => (
+                <Link
+                  key={label}
+                  href={`/groups/new?name=${encodeURIComponent(name)}`}
+                  className="flex items-center gap-3 rounded-2xl border border-line px-4 py-3.5 active:bg-mist"
+                >
+                  <span className="text-xl" aria-hidden>
+                    {emoji}
+                  </span>
+                  <span className="text-sm font-medium">{label}</span>
+                </Link>
+              ))}
+            </div>
+            <Link href="/add" className="mt-2 flex items-center gap-3 rounded-2xl border border-line px-4 py-3.5 active:bg-mist">
+              <span className="text-xl" aria-hidden>
+                ＋
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">Add an expense</span>
+                <span className="block text-xs text-gray-400">We’ll make a group for it first</span>
+              </span>
+              <span className="text-gray-400" aria-hidden>
+                ›
+              </span>
             </Link>
+          </section>
+
+          {!account && (
+            <section className="mt-8 rounded-2xl border border-line px-4 py-4">
+              <p className="text-sm font-medium">Already use Loopin, or want your groups on every phone?</p>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <Link href="/signin?mode=signup" className="border border-line py-2.5 text-center text-sm font-semibold text-fg active:bg-mist">
+                  Sign up
+                </Link>
+                <Link href="/signin" className="border border-line py-2.5 text-center text-sm font-semibold text-fg active:bg-mist">
+                  Sign in
+                </Link>
+              </div>
+              <p className="mt-2 text-xs text-gray-400">Optional. Just your email, no password.</p>
+            </section>
           )}
-        </section>
+        </>
       ) : (
         <>
           {/* The balance panel */}
@@ -315,7 +369,7 @@ export default async function Home({
         <Link href="/signin" className="mt-8 flex items-center gap-3 rounded-2xl border border-line px-4 py-3.5 active:bg-mist">
           <PersonIcon size={20} />
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-medium">Save your groups to your email</span>
+            <span className="block text-sm font-medium">Sign up to save your groups</span>
             <span className="block text-xs text-gray-400">Get them back on a new phone.</span>
           </span>
           <span className="text-gray-400" aria-hidden>

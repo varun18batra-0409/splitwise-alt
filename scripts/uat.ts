@@ -729,6 +729,28 @@ async function main() {
     await V.getByRole("link", { name: "Back to all groups" }).click();
     await V.waitForURL(base + "/");
   });
+  await step(null, "Start screen", "Tour → Home shows a start screen: create, join with a link, quick start, sign up / sign in", async () => {
+    const { ctx, page } = await phone("Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36");
+    await go(page, "/");
+    await page.getByRole("link", { name: "Home", exact: true }).first().click();
+    await page.getByText("Let’s get you started").waitFor();
+    await page.getByRole("link", { name: "Sign up" }).first().waitFor();
+    await page.getByRole("link", { name: "Sign in" }).first().waitFor();
+    // Join with a pasted link
+    await page.getByRole("button", { name: "Join with an invite link" }).click();
+    await page.getByLabel("Invite link").fill(`https://getloopin.vercel.app${invite}`);
+    await page.getByRole("button", { name: "Join", exact: true }).click();
+    await page.waitForURL(new RegExp(invite));
+    // Quick start fills the group name
+    await go(page, "/");
+    await page.getByRole("link", { name: /Trip/ }).click();
+    const v = await page.locator('input[name="groupName"]').inputValue();
+    assert(v === "Goa trip", `group name prefilled as “${v}”`);
+    // Sign up screen
+    await go(page, "/signin?mode=signup");
+    await page.getByRole("heading", { name: "Sign up" }).waitFor();
+    await ctx.close();
+  });
   await step(V, "Help", "“?” on home opens How it works", async () => {
     await go(V, "/");
     await V.getByRole("link", { name: "How Loopin works" }).click();
