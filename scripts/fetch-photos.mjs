@@ -13,7 +13,7 @@ const SLOTS = {
   market: ["photo-1547595429-da06b6a5080a", "photo-1750124933194-e021f47b5f8b", "photo-1504674900247-0877df9cc836"], // cocktails
   train: ["photo-1777026050794-a5e4ef7cd254", "photo-1618153231956-df23dcb21c07", "photo-1474487548417-781cb71495f3"], // Japanese bullet train
   sunset: ["photo-1502602898657-3e91760cbb34", "ka14QMQlS1U", "F6RLqhPPhDQ"], // a beautiful place
-  home: ["photo-1768488314310-3742b3c75579", "photo-1746517757473-7c88850e539b", "photo-1522708323590-d24dbb6b0267"], // a cosy flat
+  home: ["photo-1746517757473-7c88850e539b", "photo-1768488314310-3742b3c75579", "photo-1522708323590-d24dbb6b0267"], // a cosy flat
 };
 
 const out = "public/photos";
