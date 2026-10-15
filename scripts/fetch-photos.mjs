@@ -9,11 +9,11 @@ import { mkdirSync, writeFileSync } from "node:fs";
 const SLOTS = {
   hero: ["photo-1507525428034-b723cf961d3e", "V8oiNMhkLiw", "ka14QMQlS1U", "F6RLqhPPhDQ"], // beach
   roadtrip: ["photo-1469854523086-cc02fe5d8800", "photo-1506905925346-21bda4d32df4", "cktp9-mCH4Y", "Gtno2Ua6aW4"], // road trip, mountains
-  dinner: ["photo-1414235077428-338989a2e8c0", "photo-1555396273-367ea4eb4db5", "F9wJ5TqWbjA", "hNijinANAFY"], // restaurant
-  market: ["photo-1504674900247-0877df9cc836", "URUoUgQdN1o", "zgP8AbxBO8c"], // food
-  train: ["photo-1474487548417-781cb71495f3", "gv6RlH_8Plo", "JtbiKg_iVdA", "WNtOIZuk8pw"], // trains
+  dinner: ["photo-1760982192590-de2b005bb4d5", "photo-1750124933194-e021f47b5f8b", "photo-1414235077428-338989a2e8c0"], // a good bar
+  market: ["photo-1547595429-da06b6a5080a", "photo-1750124933194-e021f47b5f8b", "photo-1504674900247-0877df9cc836"], // cocktails
+  train: ["photo-1777026050794-a5e4ef7cd254", "photo-1618153231956-df23dcb21c07", "photo-1474487548417-781cb71495f3"], // Japanese bullet train
   sunset: ["photo-1502602898657-3e91760cbb34", "ka14QMQlS1U", "F6RLqhPPhDQ"], // a beautiful place
-  home: ["photo-1522708323590-d24dbb6b0267", "8czSAbHp5qI"], // a flat
+  home: ["photo-1768488314310-3742b3c75579", "photo-1746517757473-7c88850e539b", "photo-1522708323590-d24dbb6b0267"], // a cosy flat
 };
 
 const out = "public/photos";

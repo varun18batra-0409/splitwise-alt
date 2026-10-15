@@ -134,9 +134,7 @@ export function GetAppButton({ variant = "icon", className = "" }: { variant?: "
   return (
     <>
       <div className={`flex items-center gap-3 rounded-2xl border border-line px-4 py-3.5 ${className}`}>
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-fg font-display text-lg font-semibold text-canvas" aria-hidden>
-          L
-        </span>
+        <img src="/icon-192.png" alt="" className="h-10 w-10 shrink-0 rounded-xl border border-line" />
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-medium">Get the Loopin app</span>
           <span className="block text-xs text-gray-400">Free · on your home screen in seconds</span>
