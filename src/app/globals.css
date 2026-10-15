@@ -165,12 +165,12 @@ body {
 .tour-slide[data-active="true"] .clink { animation: clink 1.8s ease-out infinite; }
 .tour-slide[data-active="true"] .bubble { animation: bubble 2.4s ease-in infinite; }
 @keyframes mug-left {
-  0%, 100% { transform: translateX(-18px) rotate(-8deg); }
-  40%, 52% { transform: translateX(6px) rotate(14deg); }
+  0%, 100% { transform: translateX(-8px) rotate(-8deg); }
+  40%, 52% { transform: translateX(12px) rotate(12deg); }
 }
 @keyframes mug-right {
-  0%, 100% { transform: translateX(18px) rotate(8deg); }
-  40%, 52% { transform: translateX(-6px) rotate(-14deg); }
+  0%, 100% { transform: translateX(8px) rotate(8deg); }
+  40%, 52% { transform: translateX(-12px) rotate(-12deg); }
 }
 @keyframes clink {
   0%, 38% { opacity: 0; transform: scale(0.4); }

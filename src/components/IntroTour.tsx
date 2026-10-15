@@ -40,7 +40,7 @@ function Cheers() {
     </svg>
   );
   return (
-    <div className="relative flex h-56 items-end justify-center">
+    <div className="relative flex flex-col items-center">
       <svg width="0" height="0" aria-hidden>
         <defs>
           <linearGradient id="shine" x1="0" x2="1">
@@ -49,14 +49,14 @@ function Cheers() {
           </linearGradient>
         </defs>
       </svg>
-      <span className="clink absolute left-1/2 top-6 -translate-x-1/2 text-4xl text-[#fbe7b0]" aria-hidden>
+      <span className="clink absolute left-1/2 top-0 -translate-x-1/2 text-4xl text-[#fbe7b0]" aria-hidden>
         ✦
       </span>
-      <div className="flex items-end gap-1">
+      <div className="mt-6 flex items-end">
         <Mug />
         <Mug flip />
       </div>
-      <div className="absolute -bottom-2 flex gap-2">
+      <div className="mt-6 flex gap-2">
         {["✈️ Trip", "🏠 Flat", "🍕 Dinner"].map((t, i) => (
           <span key={t} className={`rise rise-${i + 2} rounded-full border border-line bg-canvas px-3 py-1 text-xs text-gray-600`}>
             {t}
@@ -126,19 +126,17 @@ const slides: Slide[] = [
       <Card>
         <svg viewBox="0 0 240 110" className="h-28 w-full" aria-hidden>
           <g className="tangle" stroke="#8a877f" strokeWidth="1.6" fill="none">
-            <path d="M30 20 L210 90" /><path d="M30 90 L210 20" /><path d="M30 20 L120 95" /><path d="M120 15 L210 90" /><path d="M30 90 L120 15" /><path d="M120 95 L210 20" />
+            <path d="M30 20 L210 20" /><path d="M30 20 L210 90" /><path d="M30 90 L210 20" /><path d="M30 90 L210 90" /><path d="M30 20 L30 90" /><path d="M210 20 L210 90" />
           </g>
           <g className="clean" stroke="#6fe3a8" strokeWidth="3" fill="none" strokeLinecap="round">
-            <path d="M34 22 C 90 22, 150 22, 206 22" /><path d="M34 88 C 90 88, 150 88, 206 88" />
+            <path d="M44 22 C 100 30, 140 30, 196 22" /><path d="M44 88 C 100 80, 140 80, 196 88" />
           </g>
-          {[[30, 20, "M"], [30, 90, "R"], [120, 15, ""], [120, 95, ""], [210, 20, "Y"], [210, 90, "A"]].map(([x, y, t], i) =>
-            t ? (
-              <g key={i}>
-                <circle cx={x as number} cy={y as number} r="12" fill="#1f1f24" stroke="#2b2b31" />
-                <text x={x as number} y={(y as number) + 4} textAnchor="middle" fontSize="11" fill="#f4f2ec">{t}</text>
-              </g>
-            ) : null,
-          )}
+          {([[30, 20, "M"], [30, 90, "R"], [210, 20, "Y"], [210, 90, "A"]] as const).map(([x, y, t]) => (
+            <g key={t}>
+              <circle cx={x} cy={y} r="13" fill="#1f1f24" stroke="#2b2b31" />
+              <text x={x} y={y + 4} textAnchor="middle" fontSize="11" fill="#f4f2ec">{t}</text>
+            </g>
+          ))}
         </svg>
         <p className="rise rise-3 text-center text-sm text-gray-500">
           6 payments → <strong className="text-fg">2</strong>
