@@ -18,7 +18,8 @@ import { changeGroupCurrency, updateGroupBasics } from "@/lib/group-changes";
 import { logEvent } from "@/lib/events";
 import { claimKey, cleanKey, isDuplicateKey, previousResult } from "@/lib/once";
 import { safePath } from "@/lib/paths";
-import { addRegistered, copyPushTo, freeName, inviteByEmail, searchPeople } from "@/lib/invites";
+import { addRegistered, copyPushTo, freeName, inviteByEmail } from "@/lib/invites";
+import { savePushFor, validSub } from "@/lib/push-subs";
 import { formatMoney } from "@/lib/money";
 import { createGroupFor, updateSharing } from "@/lib/group-setup";
 import { addWaitingBill } from "@/lib/home/bills-db";
@@ -61,21 +62,12 @@ async function memberContext(groupId: string) {
 }
 
 // Live suggestions while typing in "Add people".
-export async function findPeople(groupId: string, query: string) {
-  const memberships = await getMemberships();
-  const myId = memberships[String(groupId)];
-  // Only real members of this group can search from it.
-  if (!myId || !(await db.member.findFirst({ where: { id: myId, groupId: String(groupId) }, select: { id: true } }))) return [];
-  if (!(await allow(`find:${(await originAndIp()).ip}`, 240, 3600))) return [];
-  return searchPeople(memberships, groupId, String(query));
-}
-
 // Add someone who's already on Loopin.
 export async function addPerson(formData: FormData) {
   const { group, me } = await memberContext(String(formData.get("groupId") ?? ""));
   const { origin, ip } = await originAndIp();
   if (!(await allow(`add-person:${ip}`, 60, 3600))) redirect(`/groups/${group.id}/invite?error=${encodeURIComponent("Too many adds from here. Wait a bit.")}`);
-  const r = await addRegistered(group.id, me.id, String(formData.get("accountId") ?? ""), origin);
+  const r = await addRegistered(group.id, me.id, String(formData.get("accountId") ?? ""), origin, { later: (job) => after(job) });
   const q = r.ok ? new URLSearchParams({ added: r.name, did: r.eventId }) : new URLSearchParams({ error: r.error });
   redirect(`/groups/${group.id}/invite?${q}`);
 }
@@ -534,23 +526,10 @@ export async function pushPublicKey(): Promise<string> {
 
 export async function savePushSubscription(sub: PushSub): Promise<{ ok: boolean; groups: number }> {
   if (!(await allow(`push:${(await originAndIp()).ip}`, 60, 3600))) return { ok: false, groups: 0 };
-  const endpoint = String(sub?.endpoint ?? "");
-  const p256dh = String(sub?.keys?.p256dh ?? "");
-  const auth = String(sub?.keys?.auth ?? "");
-  if (!/^https:\/\//.test(endpoint) || endpoint.length > 2000 || !p256dh || !auth || p256dh.length > 200 || auth.length > 100) {
-    return { ok: false, groups: 0 };
-  }
-  const memberships = await getMemberships();
-  const members = await db.member.findMany({ where: { id: { in: Object.values(memberships) } }, select: { id: true, groupId: true } });
-  const mine = members.filter((m) => memberships[m.groupId] === m.id);
-  for (const m of mine) {
-    await db.pushSubscription.upsert({
-      where: { memberId_endpoint: { memberId: m.id, endpoint } },
-      create: { memberId: m.id, endpoint, p256dh, auth },
-      update: { p256dh, auth },
-    });
-  }
-  return { ok: true, groups: mine.length };
+  const clean = validSub(sub);
+  if (!clean) return { ok: false, groups: 0 };
+  const r = await savePushFor(await getMemberships(), clean);
+  return { ok: r.ok, groups: r.groups };
 }
 
 export async function removePushSubscription(endpoint: string): Promise<void> {

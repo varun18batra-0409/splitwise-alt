@@ -69,6 +69,8 @@ function assert(cond: unknown, msg: string): asserts cond {
 }
 
 const stamp = Date.now();
+// The daily job's key, when the test server has one (like the live app).
+const cronAuth = (): Record<string, string> => (process.env.CRON_SECRET ? { authorization: `Bearer ${process.env.CRON_SECRET}` } : {});
 const email = (n: string) => `${n}-${stamp}@uat.loopin.test`;
 
 // Sign up / sign in on the email screen; the code is read from the test outbox.
@@ -1202,7 +1204,7 @@ async function main() {
   });
   await step(V, "Flat", "The daily job runs twice: Rent is added once, Electricity waits for its amount", async () => {
     for (let i = 0; i < 2; i++) {
-      const r = await fetch(`${base}/api/cron/daily`);
+      const r = await fetch(`${base}/api/cron/daily`, { headers: cronAuth() });
       assert(r.ok, `daily job answered ${r.status}`);
     }
     const rents = await db.expense.count({ where: { groupId: homeId(), description: "Rent", deletedAt: null } });
@@ -1289,6 +1291,86 @@ async function main() {
     assert(asha.leftAt, "Asha isn't marked as moved out");
     const sum = Object.values(data.net).reduce((a, b) => a + b, 0);
     assert(sum === 0 && data.net[asha.id] === 0, `net ${JSON.stringify(data.net)}`);
+  });
+
+  // ===== 10. More checks: the daily job's key, joining when signed in, bills, deposit, speed =====
+  await step(null, "Daily job", "Without the key the daily job is refused; with it, it runs", async () => {
+    if (!process.env.CRON_SECRET) return "no key set on this test server (skipped)";
+    const no = await fetch(`${base}/api/cron/daily`);
+    assert(no.status === 401, `without the key it answered ${no.status}`);
+    const wrong = await fetch(`${base}/api/cron/daily`, { headers: { authorization: "Bearer wrong" } });
+    assert(wrong.status === 401, `with a wrong key it answered ${wrong.status}`);
+    const yes = await fetch(`${base}/api/cron/daily`, { headers: cronAuth() });
+    assert(yes.ok, `with the key it answered ${yes.status}`);
+  });
+  await step(Z, "Joining", "Zoe, already signed in, opens the flat's invite link, taps Join, and shows on People", async () => {
+    await go(V, `${gh}/invite`);
+    const m = /\/join\/([A-Za-z0-9_-]+)/.exec(await V.content());
+    assert(m, "no join link on the flat's Add people screen");
+    await go(Z, `/join/${m[1]}`);
+    await Z.getByRole("button", { name: /^Join / }).click();
+    await Z.waitForURL(new RegExp(`${gh}(\\?|$)`));
+    await go(V, `${gh}/people`);
+    assert(await V.locator("details summary").filter({ hasText: "Zoe" }).count(), "Zoe isn't listed on People");
+    const zoe = await db.member.findFirst({ where: { groupId: homeId(), name: { startsWith: "Zoe" }, leftAt: null } });
+    assert(zoe?.accountId, "Zoe's member row isn't linked to her account");
+  });
+  await step(V, "Flat", "Delete the automatic Rent from its edit screen: the daily job doesn't add it back", async () => {
+    const rent = await db.expense.findFirst({ where: { groupId: homeId(), description: "Rent", deletedAt: null } });
+    assert(rent, "no Rent expense");
+    await go(V, `${gh}/expenses/${rent.id}/edit`);
+    await V.getByRole("button", { name: "Delete expense" }).click();
+    await V.waitForURL(/tab=activity/);
+    await fetch(`${base}/api/cron/daily`, { headers: cronAuth() });
+    const live = await db.expense.count({ where: { groupId: homeId(), description: "Rent", deletedAt: null } });
+    assert(live === 0, `Rent came back (${live})`);
+  });
+  await step(V, "Flat", "Pause a bill and start it again from its page", async () => {
+    const bill = await db.bill.findFirst({ where: { groupId: homeId(), name: "Electricity" } });
+    assert(bill, "no Electricity bill");
+    await go(V, `${gh}/bills/${bill.id}`);
+    await V.getByRole("button", { name: "Pause", exact: true }).click();
+    await V.getByRole("button", { name: "Start again" }).waitFor();
+    assert((await db.bill.findUnique({ where: { id: bill.id } }))?.paused, "not paused");
+    await V.getByRole("button", { name: "Start again" }).click();
+    await V.getByRole("button", { name: "Pause", exact: true }).waitFor();
+    assert(!(await db.bill.findUnique({ where: { id: bill.id } }))?.paused, "still paused");
+  });
+  await step(V, "Flat", "Deposit: you put in ₹40,000; lease over with ₹2,000 kept back → ₹38,000 back to you", async () => {
+    await go(V, `${gh}/deposit`);
+    const mine = V.locator('input[name^="d_"]').first();
+    await mine.fill("40000");
+    await V.getByRole("button", { name: "Save deposit" }).click();
+    await V.waitForURL(/saved=1/);
+    await V.getByLabel("Deductions").fill("2000");
+    await V.getByRole("button", { name: "Mark deposit returned" }).click();
+    await V.waitForURL(/returned=1/);
+    const rows = await db.depositShare.findMany({ where: { deposit: { groupId: homeId() } } });
+    assert(rows.length >= 1 && rows.every((r) => r.status === "returned"), `deposit rows ${JSON.stringify(rows.map((r) => r.status))}`);
+    const t = (await V.locator("main").innerText()).replace(/\s+/g, " ");
+    assert(/₹38,000/.test(t), `deposit page says: ${t.slice(0, 200)}`);
+  });
+  await step(V, "Export", "The flat's spreadsheet has the bills and the shopping", async () => {
+    const r = await V.request.get(`${base}${gh}/export`);
+    assert(r.ok(), `status ${r.status()}`);
+    const body = await r.text();
+    assert(/Electricity/.test(body) && /Groceries/i.test(body), "CSV is missing the flat's expenses");
+  });
+  await step(V, "Speed", "People search answers fast (5 searches, each timed)", async () => {
+    await go(V, `${g}/invite`);
+    const box = V.getByLabel("Search people on Loopin");
+    const times: number[] = [];
+    for (const term of ["As", "Ash", "Ra", "Zo", "Rav"]) {
+      await box.fill("");
+      const t0 = Date.now();
+      const resp = V.waitForResponse((r) => r.url().includes("/api/people"));
+      await box.fill(term);
+      await resp;
+      times.push(Date.now() - t0 - 200); // minus the typing pause
+    }
+    times.sort((a, b) => a - b);
+    assert(times[2] < 1500, `median ${times[2]} ms`);
+    return `median ${times[2]} ms, slowest ${times[4]} ms`;
   });
 
   await browser.close();

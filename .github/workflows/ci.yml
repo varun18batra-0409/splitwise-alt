@@ -36,6 +36,7 @@ jobs:
     env:
       TURSO_DATABASE_URL: file:/tmp/online-stand-in.db
       MAIL_OUTBOX: "1" # emails are kept in the database for the tests, never sent
+      CRON_SECRET: uat-only-not-a-real-secret # the test server's daily-job key (the live one is set in Vercel)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

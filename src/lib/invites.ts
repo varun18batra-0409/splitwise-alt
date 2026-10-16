@@ -26,27 +26,21 @@ export function freeName(taken: string[], wanted: string): string {
 export async function searchPeople(memberships: Record<string, string>, groupId: string, rawQuery: string): Promise<Found[]> {
   const q = rawQuery.trim().toLowerCase().slice(0, 80);
   if (q.length < 2) return [];
-  const inGroup = new Set(
-    (await db.member.findMany({ where: { groupId, accountId: { not: null }, leftAt: null }, select: { accountId: true } })).map((m) => m.accountId!),
-  );
-  const myGroupIds = Object.keys(memberships);
-  const knownRows = await db.member.findMany({
-    where: { groupId: { in: myGroupIds }, accountId: { not: null } },
-    select: { accountId: true },
-    distinct: ["accountId"],
-  });
-  const knownIds = knownRows.map((r) => r.accountId!);
-  const known = await db.account.findMany({ where: { id: { in: knownIds } } });
+  const email = cleanEmail(q);
+  // Everything at once (each is a trip to the database).
+  const [groupRows, knownRows, exact, me] = await Promise.all([
+    db.member.findMany({ where: { groupId, accountId: { not: null }, leftAt: null }, select: { accountId: true } }),
+    db.member.findMany({ where: { groupId: { in: Object.keys(memberships) }, accountId: { not: null } }, select: { accountId: true }, distinct: ["accountId"] }),
+    email ? db.account.findUnique({ where: { email } }) : Promise.resolve(null),
+    db.member.findUnique({ where: { id: memberships[groupId] ?? "" }, select: { accountId: true } }),
+  ]);
+  const inGroup = new Set(groupRows.map((m) => m.accountId!));
+  const known = await db.account.findMany({ where: { id: { in: knownRows.map((r) => r.accountId!) } } });
   const out: Found[] = known
     .filter((a) => a.email.includes(q) || nameOfAccount(a).toLowerCase().includes(q))
     .map((a) => ({ accountId: a.id, name: nameOfAccount(a), email: a.email, inGroup: inGroup.has(a.id), known: true }));
-  const email = cleanEmail(q);
-  if (email && !out.some((f) => f.email === email)) {
-    const a = await db.account.findUnique({ where: { email } });
-    if (a) out.push({ accountId: a.id, name: nameOfAccount(a), email: a.email, inGroup: inGroup.has(a.id), known: false });
-  }
+  if (exact && !out.some((f) => f.email === exact.email)) out.push({ accountId: exact.id, name: nameOfAccount(exact), email: exact.email, inGroup: inGroup.has(exact.id), known: false });
   // Don't offer the person searching (they're already in the group).
-  const me = await db.member.findUnique({ where: { id: memberships[groupId] ?? "" }, select: { accountId: true } });
   return out.filter((f) => f.accountId !== me?.accountId).slice(0, 8);
 }
 
@@ -67,7 +61,8 @@ type Result = { ok: true; memberId: string; eventId: string; name: string } | { 
 
 // Add someone who's already on Loopin. They're told by email (and by phone
 // notification if they turned those on).
-export async function addRegistered(groupId: string, actorId: string, accountId: string, origin: string): Promise<Result> {
+// `later`: send the "you were added" email after the reply (so adding is instant).
+export async function addRegistered(groupId: string, actorId: string, accountId: string, origin: string, opts: { later?: (job: () => Promise<unknown>) => void } = {}): Promise<Result> {
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: true } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
   const actor = group.members.find((m) => m.id === actorId);
@@ -93,12 +88,14 @@ export async function addRegistered(groupId: string, actorId: string, accountId:
     return { memberId: m.id, eventId };
   });
   await copyPushTo(accountId, memberId);
-  await sendMail(
+  const email = () => sendMail(
     account.email,
     `${actor.name} added you to ${group.name} on Loopin`,
     `${actor.name} added you to “${group.name}” on Loopin.\n\nOpen it: ${origin}/groups/${groupId}`,
     `<div style="font-family:system-ui,sans-serif;max-width:440px"><p style="font-size:16px"><strong>${esc(actor.name)}</strong> added you to <strong>${esc(group.name)}</strong> on Loopin.</p><p><a href="${origin}/groups/${groupId}" style="display:inline-block;background:#0d0d0f;color:#f4f2ec;padding:12px 18px;text-decoration:none;font-weight:600">Open ${esc(group.name)}</a></p></div>`,
   );
+  if (opts.later) opts.later(email);
+  else await email();
   return { ok: true, memberId, eventId, name };
 }
 
@@ -129,13 +126,14 @@ export async function inviteByEmail(groupId: string, actorId: string, rawEmails:
       update: { invitedById: actorId, acceptedAt: null, createdAt: new Date() },
     });
     const link = `${origin}/join/${group.inviteCode}?e=${encodeURIComponent(email)}`;
-    await sendMail(
+    const sent = await sendMail(
       email,
       `${actor.name} invited you to ${group.name} on Loopin`,
       `${actor.name} invited you to split expenses in “${group.name}” on Loopin.\n\nJoin here: ${link}\n\nLoopin is free, with no ads.`,
       `<div style="font-family:system-ui,sans-serif;max-width:440px"><p style="font-size:16px"><strong>${esc(actor.name)}</strong> invited you to split expenses in <strong>${esc(group.name)}</strong> on Loopin.</p><p><a href="${link}" style="display:inline-block;background:#0d0d0f;color:#f4f2ec;padding:12px 18px;text-decoration:none;font-weight:600">Join ${esc(group.name)}</a></p><p style="font-size:13px;color:#777">Loopin is free, with no ads.</p></div>`,
     );
-    invited.push(email);
+    if (sent) invited.push(email);
+    else bad.push(`${email} (the email couldn’t be sent; share the invite link instead)`);
   }
   if (invited.length) {
     await logEvent(db, { groupId, actorId, kind: "member_invited", text: `invited ${invited.join(", ")} by email` });

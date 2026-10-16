@@ -127,16 +127,30 @@ export function PushToggle() {
   );
 }
 
-// Each time the app opens: if notifications are on, make sure groups joined
-// since then are included.
+// When the app opens (at most every 6 hours): if notifications are on, make
+// sure groups joined since then are included. A plain request, a few seconds
+// after opening, so it never holds up the first taps.
 export function PushSync() {
   useEffect(() => {
     if (!supported() || Notification.permission !== "granted") return;
-    currentSubscription()
-      .then(async ({ sub }) => {
-        if (sub) await savePushSubscription(sub.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } });
-      })
-      .catch(() => {});
+    let last = 0;
+    try {
+      last = Number(localStorage.getItem("lp_push_sync") ?? 0);
+    } catch {}
+    if (Date.now() - last < 6 * 3600_000) return;
+    const t = window.setTimeout(() => {
+      currentSubscription()
+        .then(async ({ sub }) => {
+          if (!sub) return;
+          const r = await fetch("/api/push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sub.toJSON()) });
+          if (r.ok)
+            try {
+              localStorage.setItem("lp_push_sync", String(Date.now()));
+            } catch {}
+        })
+        .catch(() => {});
+    }, 4000);
+    return () => window.clearTimeout(t);
   }, []);
   return null;
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { addPerson, findPeople, invitePeople } from "@/app/actions";
+import { addPerson, invitePeople } from "@/app/actions";
 import { InviteIcon, SearchIcon } from "./icons";
 import { reportSpeed } from "./speedReport";
 
@@ -15,25 +15,43 @@ export function PeopleSearch({ groupId }: { groupId: string }) {
   const [found, setFound] = useState<Found[]>([]);
   const [busy, setBusy] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cache = useRef(new Map<string, Found[]>());
 
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
-    if (q.trim().length < 2) {
+    const term = q.trim();
+    if (term.length < 2) {
       setFound([]);
+      setBusy(false);
+      return;
+    }
+    // Seen this search already: show it straight away.
+    const hit = cache.current.get(term.toLowerCase());
+    if (hit) {
+      setFound(hit);
+      setBusy(false);
       return;
     }
     setBusy(true);
+    const ctl = new AbortController();
     timer.current = setTimeout(async () => {
       const t0 = performance.now();
       try {
-        setFound(await findPeople(groupId, q));
+        const r = await fetch(`/api/people?g=${encodeURIComponent(groupId)}&q=${encodeURIComponent(term)}`, { signal: ctl.signal, cache: "no-store" });
+        const list: Found[] = r.ok ? await r.json() : [];
+        cache.current.set(term.toLowerCase(), list);
+        setFound(list);
+        setBusy(false);
         reportSpeed("search", location.pathname, performance.now() - t0);
       } catch {
-        setFound([]);
-      } finally {
-        setBusy(false);
+        // Cancelled because another letter was typed: the newer search takes over.
+        if (!ctl.signal.aborted) {
+          setFound([]);
+          setBusy(false);
+        }
       }
-    }, 250);
+    }, 200);
+    return () => ctl.abort();
   }, [q, groupId]);
 
   const showInvite = isEmail(q) && !busy && !found.some((f) => f.email === q.trim().toLowerCase());
@@ -71,7 +89,7 @@ export function PeopleSearch({ groupId }: { groupId: string }) {
               {f.inGroup ? (
                 <span className="shrink-0 text-xs text-gray-400">In group</span>
               ) : (
-                <form action={addPerson}>
+                <form action={addPerson} onSubmit={() => cache.current.clear()}>
                   <input type="hidden" name="groupId" value={groupId} />
                   <input type="hidden" name="accountId" value={f.accountId} />
                   <button type="submit" className="pop shrink-0 bg-fg px-3 py-1.5 text-sm font-semibold text-canvas [--pop-edge:#6e6b63]">

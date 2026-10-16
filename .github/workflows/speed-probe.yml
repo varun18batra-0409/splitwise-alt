@@ -1,0 +1,20 @@
+# Cold vs warm: how long each part of the live app takes the first time
+# (after it has been idle) and right after. Numbers only. Run by hand.
+name: Speed probe
+on: workflow_dispatch
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cold then warm
+        run: |
+          base=https://getloopin.vercel.app
+          probe() { curl -s -o /dev/null -D /tmp/h -w "%{http_code} conn=%{time_appconnect} ttfb=%{time_starttransfer}" "$base$1"; echo " via=$(grep -i '^x-vercel-id' /tmp/h | tr -d '\r' | cut -d' ' -f2 | cut -d: -f1-3) cache=$(grep -i '^x-vercel-cache' /tmp/h | tr -d '\r' | cut -d' ' -f2)"; }
+          paths="/icon-192.png /api/people?g=x&q=ab /api/health / /signin /how-it-works /welcome /groups/new"
+          out=""
+          for round in 1 2 3; do
+            for p in $paths; do out="$out
+          r$round $p $(probe "$p")"; done
+          done
+          echo "$out"
+          echo "::notice title=Cold (r1) then warm (r2, r3) from a US server::$(echo "$out" | tr '\n' ';' | cut -c1-3800)"

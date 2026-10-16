@@ -9,6 +9,24 @@ export function mailConfigured(): boolean {
   return outbox() || Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
 }
 
+// One connection, reused while the server is warm (a new secure connection to
+// the mail server for every email took a second or more).
+let pooled: ReturnType<typeof nodemailer.createTransport> | null = null;
+function transport() {
+  if (!pooled) {
+    const port = Number(process.env.SMTP_PORT ?? 465);
+    pooled = nodemailer.createTransport({
+      pool: true,
+      maxConnections: 2,
+      host: process.env.SMTP_HOST ?? "smtp.gmail.com",
+      port,
+      secure: port === 465,
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    });
+  }
+  return pooled;
+}
+
 export async function sendMail(to: string, subject: string, text: string, html: string): Promise<boolean> {
   if (!mailConfigured()) return false;
   if (outbox()) {
@@ -25,18 +43,17 @@ export async function sendMail(to: string, subject: string, text: string, html: 
     return false;
   }
   if (!(await allow(`mail:to:${to.toLowerCase()}`, 10, 86_400))) return false; // one address can't be flooded
-  const port = Number(process.env.SMTP_PORT ?? 465);
-  const transport = nodemailer.createTransport({
-    host: process.env.SMTP_HOST ?? "smtp.gmail.com",
-    port,
-    secure: port === 465,
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-  });
-  try {
-    await transport.sendMail({ from: process.env.MAIL_FROM ?? `Loopin <${process.env.SMTP_USER}>`, to, subject, text, html });
-    return true;
-  } catch (err) {
-    console.error("sendMail failed", err);
-    return false;
+  const message = { from: process.env.MAIL_FROM ?? `Loopin <${process.env.SMTP_USER}>`, to, subject, text, html };
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      await transport().sendMail(message);
+      return true;
+    } catch (err) {
+      // A kept connection the mail server dropped while idle: start a fresh one once.
+      pooled?.close();
+      pooled = null;
+      if (attempt === 1) console.error("sendMail failed", err);
+    }
   }
+  return false;
 }

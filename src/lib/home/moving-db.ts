@@ -251,7 +251,10 @@ export async function returnDepositFor(groupId: string, actorId: string, deducti
   const weights = Object.fromEntries(flat.members.map((m) => [m.id, m.splitWeight]));
   const refunds = depositRefunds(held, deductions, weights);
   await db.$transaction(async (tx) => {
-    await tx.depositShare.updateMany({ where: { id: { in: held.map((h) => h.id) } }, data: { status: "returned", updatedAt: new Date() } });
+    for (const h of held) {
+      const back = refunds.find((r) => r.memberId === h.memberId)?.refund ?? 0;
+      await tx.depositShare.update({ where: { id: h.id }, data: { status: "returned", returnedAmount: back, updatedAt: new Date() } });
+    }
     await logEvent(tx, {
       groupId,
       actorId,

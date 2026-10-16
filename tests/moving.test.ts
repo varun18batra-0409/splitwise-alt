@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { depositRefunds, leaverPayments, proRataShares, joinWeights } from "@/lib/home/moving";
-import { moveOutPreview, moveOut, saveDepositFor } from "@/lib/home/moving-db";
+import { moveOutPreview, moveOut, returnDepositFor, saveDepositFor } from "@/lib/home/moving-db";
 import { loadGroup } from "@/lib/group-data";
 
 // Moving in and out of a flat, and the deposit.
@@ -118,6 +118,15 @@ describe("moving out, for real", () => {
     const dep = await db.depositShare.findMany({ where: { deposit: { groupId } } });
     expect(dep.find((d) => d.memberId === rohan)?.status).toBe("transferred");
     expect(dep.find((d) => d.memberId === meera)?.amount).toBe(3600000);
+  });
+
+  it("the lease ends with ₹8,000 kept back: each person sees what they actually got back", async () => {
+    expect((await returnDepositFor(groupId, you, "8000")).ok).toBe(true);
+    const dep = await db.depositShare.findMany({ where: { deposit: { groupId }, status: "returned" } });
+    // Held: you, Asha and Meera (who took over Rohan's) ₹36,000 each. ₹8,000 kept back, shared equally.
+    expect(dep.find((d) => d.memberId === you)?.returnedAmount).toBe(3333333);
+    expect(dep.find((d) => d.memberId === meera)?.returnedAmount).toBe(3333334);
+    expect(dep.reduce((s, d) => s + d.returnedAmount, 0)).toBe(10800000 - 800000);
   });
 });
 

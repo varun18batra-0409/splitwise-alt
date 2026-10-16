@@ -82,6 +82,19 @@ describe("adding people", () => {
     expect(sent?.text).toContain(`/join/euro-${stamp}?e=`);
   });
 
+  it("says so when an invitation email couldn't be sent (instead of claiming it went)", async () => {
+    const before = process.env.MAIL_OUTBOX;
+    process.env.MAIL_OUTBOX = "0"; // no mail set up in tests → sending fails
+    try {
+      const r = await inviteByEmail(g2, meG2, mail("nomail"), "https://loopin.test");
+      expect(r.invited).toEqual([]);
+      expect(r.bad[0]).toContain(mail("nomail"));
+      expect(r.bad[0]).toContain("share the invite link");
+    } finally {
+      process.env.MAIL_OUTBOX = before;
+    }
+  });
+
   it("refuses people who aren't in the group", async () => {
     const r = await addRegistered(g2, "not-a-member", stranger, "https://loopin.test");
     expect(r.ok).toBe(false);

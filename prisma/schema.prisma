@@ -384,6 +384,7 @@ model DepositShare {
   status     String   @default("held") // "held" | "returned" | "transferred"
   toMemberId String   @default("") // transferred: who took it over
   updatedAt  DateTime @default(now())
+  returnedAmount Int  @default(0) // returned: what they actually got back (after deductions)
   @@unique([depositId, memberId])
 }
 

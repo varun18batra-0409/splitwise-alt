@@ -85,9 +85,14 @@ export default async function DepositPage({
               .map((s) => (
                 <li key={s.id} className="flex justify-between py-2.5">
                   <span>
-                    {name(s.memberId)} · {s.status === "transferred" ? `taken over by ${name(s.toMemberId)}` : "returned"}
+                    {name(s.memberId)} · {s.status === "transferred" ? `taken over by ${name(s.toMemberId)}` : "got back"}
+                    {s.status === "returned" && s.returnedAmount < s.amount && (
+                      <span className="block text-xs text-gray-500">
+                        {money(s.amount - s.returnedAmount)} kept back of {money(s.amount)}
+                      </span>
+                    )}
                   </span>
-                  <span className="font-display tabular-nums">{money(s.amount)}</span>
+                  <span className="font-display tabular-nums">{money(s.status === "returned" ? s.returnedAmount : s.amount)}</span>
                 </li>
               ))}
           </ul>
