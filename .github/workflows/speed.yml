@@ -1,0 +1,22 @@
+# One-off check of how fast the live app responds. Runs when this file or the
+# script changes, or by hand from the Actions tab. Read-only.
+name: Live speed check
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [".github/workflows/speed.yml", "scripts/prod-speed.mjs"]
+jobs:
+  speed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-save playwright@1.48.2 && npx playwright install --with-deps chromium
+      - name: Where the database lives
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+        run: echo "Database region: $(echo "$TURSO_DATABASE_URL" | sed -E 's#^[a-z]+://[^.]+\.##; s#\.turso\.io.*##')"
+      - run: node scripts/prod-speed.mjs
