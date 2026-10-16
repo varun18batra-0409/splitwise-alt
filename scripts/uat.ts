@@ -1165,6 +1165,132 @@ async function main() {
     assert(/Transport/.test(await taxi.innerText()), "no Transport tag on Taxi");
   });
 
+  // ===== 9. Home & Couple: bills, list, budgets, reminders, moving out, goals =====
+  let gh = "";
+  const homeId = () => gh.split("/").pop()!;
+  await step(V, "Flat", "Create a Home group: it opens on This month, with Bills · List · Activity tabs", async () => {
+    await go(V, "/groups/new");
+    await V.getByRole("button", { name: /^Home/ }).click();
+    await V.locator('input[name="groupName"]').fill("UAT Flat 402");
+    await V.locator('select[name="currency"]').selectOption("INR");
+    await V.getByRole("button", { name: /Create group/ }).click();
+    await V.waitForURL(/\/invite\?new=1/);
+    gh = new URL(V.url()).pathname.replace(/\/invite$/, "");
+    await V.getByLabel("Search people on Loopin").fill("Asha");
+    await V.getByRole("button", { name: "Add", exact: true }).first().click();
+    await V.waitForURL(/added=/);
+    await go(V, gh);
+    const current = await V.locator('a[aria-current="page"]').filter({ hasText: /This month|Bills|List|Activity|Balances/ }).first().innerText();
+    assert(current.trim() === "This month", `opened on “${current}”`);
+    for (const t of ["Bills", "List", "Activity"]) assert(await V.getByRole("link", { name: t, exact: true }).count(), `no ${t} tab`);
+  });
+  await step(V, "Flat", "Add Rent (₹30,000 on the 1st, you pay) and Electricity (changes each month, Asha pays)", async () => {
+    await go(V, `${gh}/bills/new`);
+    await V.getByLabel("Amount", { exact: true }).fill("30000");
+    await V.getByRole("button", { name: "Add bill" }).click();
+    await V.waitForURL(/tab=bills&saved=bill/);
+    await go(V, `${gh}/bills/new`);
+    await V.getByRole("button", { name: "Electricity" }).click();
+    await V.getByRole("button", { name: "Asha", exact: true }).click();
+    await V.getByRole("button", { name: "Add bill" }).click();
+    await V.waitForURL(/tab=bills&saved=bill/);
+    const t = (await V.locator("main").innerText()).replace(/\s+/g, " ");
+    assert(/Adds itself on the day/.test(t) && /Rent/.test(t) && /Electricity/.test(t), `Bills tab says: ${t.slice(0, 200)}`);
+    // Both start next month when their day has passed; for the test, make them due already.
+    const thisMonth = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit" }).format(new Date()).slice(0, 7);
+    await db.bill.updateMany({ where: { groupId: homeId() }, data: { startMonth: thisMonth, day: 1 } });
+  });
+  await step(V, "Flat", "The daily job runs twice: Rent is added once, Electricity waits for its amount", async () => {
+    for (let i = 0; i < 2; i++) {
+      const r = await fetch(`${base}/api/cron/daily`);
+      assert(r.ok, `daily job answered ${r.status}`);
+    }
+    const rents = await db.expense.count({ where: { groupId: homeId(), description: "Rent", deletedAt: null } });
+    assert(rents === 1, `Rent was added ${rents} times`);
+    const elec = await db.expense.count({ where: { groupId: homeId(), description: "Electricity", deletedAt: null } });
+    assert(elec === 0, "Electricity was added without an amount");
+    await go(A, `${gh}?tab=bills`);
+    assert(await A.getByRole("link", { name: "Enter amount" }).count(), "Asha sees no “Enter amount”");
+  });
+  await step(A, "Flat", "Asha taps “Enter amount”, types ₹2,840 and saves: Asha owes ₹13,580 in all", async () => {
+    await go(A, `${gh}?tab=bills`);
+    await A.getByRole("link", { name: "Enter amount" }).click();
+    await A.waitForURL(/bill=/);
+    await A.getByLabel("Amount", { exact: true }).fill("2840");
+    await save(A, { me: "Asha", name: "Electricity", amount: "2840" });
+    const b = await shownBalances(V, gh);
+    assert(b.Varun === 1358000 && b.Asha === -1358000, `balances ${JSON.stringify(b)}`);
+    await go(V, `${gh}?tab=bills`);
+    assert((await V.getByRole("link", { name: "Enter amount" }).count()) === 0, "Electricity still waiting");
+  });
+  await step(V, "Flat", "Shopping list: add Bread and Milk, tick both, enter ₹1,240 → one Groceries expense", async () => {
+    await go(V, `${gh}?tab=list`);
+    for (const item of ["Bread", "Milk"]) {
+      await V.getByLabel("Add an item").fill(item);
+      await V.getByRole("button", { name: "Add", exact: true }).click();
+      await V.locator("button[aria-pressed]").filter({ hasText: item }).waitFor();
+    }
+    for (const [i, item] of ["Bread", "Milk"].entries()) {
+      await V.locator('button[aria-pressed="false"]').filter({ hasText: item }).click();
+      await V.getByText(`You bought ${i + 1} thing`).waitFor();
+    }
+    await V.getByLabel("What it cost").fill("1240");
+    await V.getByRole("button", { name: "Add expense" }).click();
+    await V.waitForURL(/bought=1/);
+    const g = await db.expense.findMany({ where: { groupId: homeId(), category: "groceries", deletedAt: null } });
+    assert(g.length === 1 && g[0].amount === 124000, `groceries: ${JSON.stringify(g.map((e) => e.amount))}`);
+    assert(/Bread/.test(g[0].notes ?? "") && /Milk/.test(g[0].notes ?? ""), `note: ${g[0].notes}`);
+  });
+  await step(V, "Flat", "A ₹1,500 Groceries budget with ₹1,240 spent shows “₹260 left” (nearly there)", async () => {
+    await go(V, `${gh}/budgets`);
+    await V.getByLabel("Groceries budget").fill("1500");
+    await V.getByRole("button", { name: "Save budgets" }).click();
+    await V.waitForURL(new RegExp(`${gh}$`));
+    const t = (await V.locator("main").innerText()).replace(/\s+/g, " ");
+    assert(/Budgets/.test(t) && /₹260(\.00)? left for the month/.test(t), `This month says: ${t.slice(0, 300)}`);
+  });
+  await step(V, "Flat", "Reminders switch: on the flat's settings (off to start), not on the couple's", async () => {
+    await go(V, `${gh}/settings`);
+    const box = V.locator('input[name="reminders"]');
+    assert((await box.count()) === 1, "no Reminders switch for the flat");
+    assert(!(await box.isChecked()), "Reminders are on by default");
+    await go(V, `${gc}/settings`);
+    assert((await V.locator('input[name="reminders"]').count()) === 0, "the couple has a Reminders switch");
+  });
+  await step(V, "Couples", "The couple's This month says if you're ahead, behind or even", async () => {
+    await go(V, gc);
+    const t = (await V.locator("main").innerText()).replace(/\s+/g, " ");
+    assert(/You’re ₹[\d,.]+ (ahead|behind)|You’re even/.test(t), `This month says: ${t.slice(0, 200)}`);
+  });
+  await step(V, "Couples", "Start a savings goal (₹1,00,000) and tap “I set money aside” (₹5,000)", async () => {
+    await go(V, `${gc}/goals/new`);
+    await V.locator('input[name="name"]').fill("UAT Bali");
+    await V.locator('input[name="target"]').fill("100000");
+    await V.getByRole("button", { name: "Start goal" }).click();
+    await V.waitForURL(/\/goals\/(?!new)[^/?]+$/);
+    await V.getByLabel("Amount set aside").fill("5000");
+    await V.getByRole("button", { name: "I set money aside" }).click();
+    await V.waitForURL(/added=1/);
+    await V.getByText(/₹95,000(\.00)? to go/).waitFor();
+    assert(await V.getByText("You’ve set aside").count(), "no “You’ve set aside” card");
+  });
+  await step(V, "Flat", "Asha moves out: final payment shown, she's marked moved out, balances still add up to zero", async () => {
+    await go(V, `${gh}/people`);
+    await V.locator("details summary").filter({ hasText: "Asha" }).first().click();
+    await V.getByRole("link", { name: "Asha is moving out" }).click();
+    await V.waitForURL(/\/move/);
+    const t = (await V.locator("main").innerText()).replace(/\s+/g, " ");
+    assert(/Final payments/.test(t) && /Asha pays you/.test(t), `move-out screen says: ${t.slice(0, 300)}`);
+    await V.getByRole("button", { name: /mark as moved out/ }).click();
+    await V.waitForURL(/tab=activity/);
+    const { loadGroup } = await import("../src/lib/group-data");
+    const data = (await loadGroup(homeId()))!;
+    const asha = data.group.members.find((m) => m.name === "Asha")!;
+    assert(asha.leftAt, "Asha isn't marked as moved out");
+    const sum = Object.values(data.net).reduce((a, b) => a + b, 0);
+    assert(sum === 0 && data.net[asha.id] === 0, `net ${JSON.stringify(data.net)}`);
+  });
+
   await browser.close();
 
   // ---------- report ----------

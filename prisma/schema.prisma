@@ -35,6 +35,15 @@ model Group {
   // Added later: kept at the end so the online database can simply add the columns.
   type         String    @default("other") // "trip" | "home" | "couple" | "other": sets defaults only
   joinWeight   Int       @default(100) // split weight given to people who join (a couple's 55/45 → 45)
+  reminders    Boolean   @default(false) // Home groups: bill and settle-up reminders (off until switched on)
+  settleDay    Int       @default(0) // monthly settle-up day: 0 = none, 1–28, 31 = last day
+  settleMin    Int       @default(0) // Smart Settle leaves out payments smaller than this (minor units)
+
+  bills      Bill[]
+  listItems  ListItem[]
+  budgets    Budget[]
+  goals      Goal[]
+  deposit    Deposit?
 }
 
 model Member {
@@ -62,6 +71,7 @@ model Member {
   // Added later: kept at the end so the online database can simply add the columns.
   notify    String   @default("") // phone notifications for this group: JSON {off, expenses, edits, payments, people}; "" = all on
   splitWeight Int    @default(100) // the group's own split: hundredths of a share (1.2 shares = 120; a couple's 55/45 = 55)
+  joinedFrom  DateTime? // moved in mid-month: their first month's bills are shared from this day
   @@unique([groupId, name])
   @@index([accountId])
 }
@@ -258,4 +268,128 @@ model RequestKey {
   result    String   @default("")
   createdAt DateTime @default(now())
   @@index([createdAt])
+}
+
+// ---------- Home & Couple groups ----------
+
+// A bill that repeats: added automatically (fixed), or the payer is asked
+// for the amount (varies), or tallied daily and added at month end (daily).
+model Bill {
+  id          String    @id @default(cuid())
+  groupId     String
+  group       Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  name        String
+  category    String    @default("bills")
+  icon        String    @default("other") // which tile it came from
+  nature      String    @default("fixed") // "fixed" | "varies" | "daily"
+  amount      Int       @default(0) // fixed: the amount; daily: per day; varies: the last amount (for "usually")
+  day         Int       @default(1) // day of the month it's due: 1–28, or 31 = the last day
+  every       Int       @default(1) // every N months
+  payer       String    @default("") // memberId, or "" = take turns (rotation)
+  rotation    String    @default("[]") // JSON memberIds, when taking turns
+  split       String    @default("{\"mode\":\"group\"}") // JSON: {"mode":"group"|"equal"|"some","ids":[...]}
+  startMonth  String // "2026-10"
+  endMonth    String    @default("") // "" = no end
+  paused      Boolean   @default(false)
+  missed      String    @default("{}") // daily bills: JSON {"2026-10":[4,12]} days it didn't come
+  tz          String    @default("Asia/Kolkata")
+  createdById String    @default("")
+  createdAt   DateTime  @default(now())
+  deletedAt   DateTime?
+  runs        BillRun[]
+  pausedAt    DateTime? // when it was paused (resuming skips what came round since)
+  @@index([groupId])
+}
+
+// One bill in one period: added, waiting for its amount, or skipped. The
+// unique (bill, period) pair is what makes adding it twice impossible.
+model BillRun {
+  id        String   @id @default(cuid())
+  billId    String
+  bill      Bill     @relation(fields: [billId], references: [id], onDelete: Cascade)
+  period    String // "2026-11"
+  status     String // "added" | "waiting" | "skipped" | "adding" (being added right now)
+  expenseId  String    @default("")
+  reason     String    @default("")
+  createdAt  DateTime  @default(now())
+  claimedAt  DateTime? // when it was last set to "adding" (a stale claim is taken over)
+  requestKey String    @default("") // "Enter amount": the key of the form that's adding it
+  @@unique([billId, period])
+}
+
+model ListItem {
+  id         String    @id @default(cuid())
+  groupId    String
+  group      Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  text       String
+  addedById  String    @default("")
+  boughtById String    @default("")
+  boughtAt   DateTime?
+  expenseId  String    @default("") // set once it's been added as an expense (then it's archived)
+  createdAt  DateTime  @default(now())
+  @@index([groupId])
+}
+
+model Budget {
+  id       String @id @default(cuid())
+  groupId  String
+  group    Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  category String
+  amount   Int // per month, minor units
+  @@unique([groupId, category])
+}
+
+// A savings goal: kept count of only — the money stays in people's own accounts.
+model Goal {
+  id          String      @id @default(cuid())
+  groupId     String
+  group       Group       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  name        String
+  target      Int
+  byDate      String      @default("") // "2027-03-15"
+  createdById String      @default("")
+  createdAt   DateTime    @default(now())
+  reachedAt   DateTime?
+  deletedAt   DateTime?
+  entries     GoalEntry[]
+  @@index([groupId])
+}
+
+model GoalEntry {
+  id        String   @id @default(cuid())
+  goalId    String
+  goal      Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  memberId  String
+  amount    Int
+  createdAt DateTime @default(now())
+  @@index([goalId])
+}
+
+// The flat's security deposit: who put in what. Never part of balances.
+model Deposit {
+  id        String         @id @default(cuid())
+  groupId   String         @unique
+  group     Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  heldBy    String         @default("Landlord")
+  createdAt DateTime       @default(now())
+  shares    DepositShare[]
+}
+
+model DepositShare {
+  id         String   @id @default(cuid())
+  depositId  String
+  deposit    Deposit  @relation(fields: [depositId], references: [id], onDelete: Cascade)
+  memberId   String
+  amount     Int
+  status     String   @default("held") // "held" | "returned" | "transferred"
+  toMemberId String   @default("") // transferred: who took it over
+  updatedAt  DateTime @default(now())
+  @@unique([depositId, memberId])
+}
+
+// Things sent automatically at most once (reminders, budget alerts, the
+// monthly summary, "going shopping"): the key says what, for whom and when.
+model NotifyLog {
+  key       String   @id
+  createdAt DateTime @default(now())
 }

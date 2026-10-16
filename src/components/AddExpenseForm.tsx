@@ -38,6 +38,7 @@ export function AddExpenseForm({
   tz,
   weights,
   splitName = "Group split",
+  billRun,
 }: {
   groupId: string;
   baseCurrency: string;
@@ -49,6 +50,7 @@ export function AddExpenseForm({
   tz?: string; // the person's time zone, for "today"
   weights?: Record<string, number>; // the group's own split (hundredths of a share); all equal = none
   splitName?: string; // "Our split" (couple), "Flat split" (home)…
+  billRun?: { billId: string; period: string }; // "Enter amount" for a waiting bill
 }) {
   const memberIds = useMemo(() => members.map((m) => m.id), [members]);
   const nameOf = (id: string) => members.find((m) => m.id === id)?.name ?? "?";
@@ -311,7 +313,7 @@ export function AddExpenseForm({
     }
     if (!expenseId) rememberSplit();
     startSaving(async () => {
-      const res = await addExpense({ ...draft, again: againRef.current, allowDuplicate: allowDupRef.current, requestKey, groupId, name, notes, baseVersion: initial?.version, category: category.id, expenseId, date, rateMode: usingManualRate ? "manual" : keepSavedRate ? "keep" : "auto", manualRate });
+      const res = await addExpense({ ...draft, billRun, again: againRef.current, allowDuplicate: allowDupRef.current, requestKey, groupId, name, notes, baseVersion: initial?.version, category: category.id, expenseId, date, rateMode: usingManualRate ? "manual" : keepSavedRate ? "keep" : "auto", manualRate });
       if (res?.duplicateOf) setDup(res.duplicateOf);
       else if (res?.error) setError(res.error);
     });

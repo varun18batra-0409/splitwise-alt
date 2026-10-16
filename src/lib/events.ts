@@ -45,7 +45,9 @@ export type EventKind =
   | "group_restored"
   | "group_closed"
   | "group_reopened"
-  | "split_changed";
+  | "split_changed"
+  | "bill_added"
+  | "bill_changed";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 

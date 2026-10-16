@@ -68,3 +68,11 @@ export function pairwiseDebtCount(
   for (const p of payments) add(p.toId, p.fromId, p.amount); // a payment reduces what `from` owes `to`
   return [...pair.values()].filter((v) => v !== 0).length;
 }
+
+// Settle-up rule "leave out small amounts": payments under the minimum aren't
+// suggested (they stay in the balances, and come back once they grow).
+export function applySettleMin(transfers: Transfer[], min: number): { shown: Transfer[]; hidden: number } {
+  if (!(min > 0)) return { shown: transfers, hidden: 0 };
+  const shown = transfers.filter((t) => t.amount >= min);
+  return { shown, hidden: transfers.length - shown.length };
+}

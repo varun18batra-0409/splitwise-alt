@@ -69,8 +69,11 @@ try {
     if (adds.length) {
       for (const a of adds) await check.execute(a);
       check.close();
+      // What's left after the in-place columns (new tables, indexes, other
+      // added columns) is used as is — as long as it rebuilds or drops nothing.
       const left = diff();
       if (isEmpty(left)) sql = adds.join("\n");
+      else if (!/\bDROP\b|RedefineTables|new_/i.test(left)) sql = [...adds, left].join("\n");
     } else {
       check.close();
     }

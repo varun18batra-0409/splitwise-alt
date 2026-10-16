@@ -139,6 +139,24 @@ await shot("42-filters", `${g}?tab=activity`, async (p) => {
   await p.getByText("Filter", { exact: true }).click();
 });
 await shot("43-settings-sharing", `${g}/settings#sharing`);
+// Home & Couple (Phase 4)
+const f = `/groups/${demo.flat.id}`;
+const c = `/groups/${demo.couple.id}`;
+await shot("50-flat-month", f);
+await shot("51-flat-bills", `${f}?tab=bills`);
+await shot("52-add-bill", `${f}/bills/new`);
+await shot("53-add-bill-electricity", `${f}/bills/new`, async (p) => {
+  await p.getByRole("button", { name: "Electricity" }).click();
+  await p.waitForTimeout(200);
+});
+await shot("54-flat-list", `${f}?tab=list`);
+await shot("55-flat-budgets", `${f}/budgets`);
+await shot("56-flat-deposit", `${f}/deposit`);
+await shot("57-move-out", `${f}/people/${demo.flat.kabir}/move`);
+await shot("58-flat-settings-reminders", `${f}/settings#settling`);
+await shot("59-couple-month", c);
+if (demo.couple.goal) await shot("60-couple-goal", `${c}/goals/${demo.couple.goal}`);
+await shot("61-new-goal", `${c}/goals/new`);
 await shot("15-new-group", "/groups/new");
 await shot("25-account", "/account");
 await shot("26-signin", "/signin", undefined, false);

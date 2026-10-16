@@ -38,7 +38,7 @@ export async function saveExpense(
   input: SaveExpenseInput,
   actingMemberId: string | undefined,
   lookupRate: RateLookupFn,
-  opts: { ignoreDoubleTap?: boolean; requestKey?: string; checkDuplicate?: boolean } = {},
+  opts: { ignoreDoubleTap?: boolean; requestKey?: string; checkDuplicate?: boolean; eventText?: string; now?: Date } = {},
 ): Promise<Result> {
   return withRetry(async () => {
     // The same request again (retry / double tap): it already happened.
@@ -59,7 +59,7 @@ async function saveExpenseOnce(
   input: SaveExpenseInput,
   actingMemberId: string | undefined,
   lookupRate: RateLookupFn,
-  opts: { ignoreDoubleTap?: boolean; requestKey?: string; checkDuplicate?: boolean },
+  opts: { ignoreDoubleTap?: boolean; requestKey?: string; checkDuplicate?: boolean; eventText?: string; now?: Date },
 ): Promise<Result> {
   const group = await db.group.findUnique({
     where: { id: input.groupId },
@@ -129,7 +129,7 @@ async function saveExpenseOnce(
   // The day it was spent.
   let spentAt: Date | null = existing ? existing.spentAt : null;
   if (input.date && input.date.trim()) {
-    const d = parseDay(input.date);
+    const d = parseDay(input.date, opts.now);
     if (!d) return { ok: false, error: "Pick a real date, not more than a day ahead." };
     spentAt = d;
   } else if (!existing) {
@@ -191,7 +191,7 @@ async function saveExpenseOnce(
         groupId: group.id,
         actorId: actingMemberId,
         kind: "expense_added",
-        text: e.kind === "refund" ? `added money back: ${name} (${money})` : `added ${name} (${money})`,
+        text: opts.eventText ?? (e.kind === "refund" ? `added money back: ${name} (${money})` : `added ${name} (${money})`),
         details: [
           `${getCategory(category).emoji} ${getCategory(category).label}`,
           `${e.kind === "refund" ? "Received by" : "Paid by"} ${e.payers.length ? payersLabel(e.payers, nameOf) : nameOf(e.paidById)}`,
