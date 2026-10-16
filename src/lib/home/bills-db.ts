@@ -57,7 +57,7 @@ const sameCurrencyRate = async (from: string, to: string) =>
   from === to ? { ok: true as const, rate: "1", date: new Date().toISOString().slice(0, 10) } : getRate(from, to);
 
 // Turn one due (bill, month) into an expense, once.
-async function runOne(bill: BillRow, group: { id: string; currency: string; closed: boolean; members: Member[] }, period: string) {
+async function runOne(bill: BillRow, group: { id: string; currency: string; closed: boolean; members: Member[] }, period: string, now: Date) {
   // Claim the month first. If someone else already did, there's nothing to do.
   let run;
   try {
@@ -90,7 +90,7 @@ async function runOne(bill: BillRow, group: { id: string; currency: string; clos
 
   const input = billExpenseInput(bill, group.id, group.currency, period, amount, payer, group.members);
   if (note) input.notes = note;
-  const r = await saveExpense(input, payer, sameCurrencyRate, { requestKey: `bill-${run.id}`, eventText: `added ${bill.name} automatically (${formatMoney(amount, group.currency)})` });
+  const r = await saveExpense(input, payer, sameCurrencyRate, { now, requestKey: `bill-${run.id}`, eventText: `added ${bill.name} automatically (${formatMoney(amount, group.currency)})` });
   if (!r.ok) return wait(r.error.slice(0, 120));
   await db.billRun.update({ where: { id: run.id }, data: { status: "added", expenseId: r.id } });
   return "added";
@@ -107,7 +107,7 @@ export async function runBillsForGroup(groupId: string, now = new Date()) {
   const bills = await db.bill.findMany({ where: { groupId, deletedAt: null, paused: false } });
   for (const bill of bills) {
     for (const period of periodsDue(bill, now)) {
-      const r = await runOne(bill, group, period);
+      const r = await runOne(bill, group, period, now);
       if (r === "added") counts.added++;
       else if (r === "waiting") counts.waiting++;
       else if (r === "skipped") counts.skipped++;
