@@ -31,7 +31,8 @@ type Payment = { fromId: string; toId: string; amount: number; createdAt: Date; 
 export function cell(v: string | number): string {
   const s = String(v);
   // Quote anything with commas, quotes or line breaks; stop spreadsheet formulas.
-  const safe = /^[=+\-@\t\r]/.test(s) && typeof v === "string" ? `'${s}` : s;
+  // (A plain negative number like -1500.00 is safe and stays a number.)
+  const safe = /^[=+\-@\t\r]/.test(s) && typeof v === "string" && !/^-\d+(\.\d+)?$/.test(s) ? `'${s}` : s;
   return /[",\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 
