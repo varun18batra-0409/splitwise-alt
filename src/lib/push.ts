@@ -1,3 +1,4 @@
+import { parseNotify, wantsPush } from "./notify-prefs";
 import webpush from "web-push";
 import { db } from "./db";
 
@@ -47,9 +48,13 @@ export async function sendEventPush(eventId: string): Promise<number> {
   try {
     const ev = await db.groupEvent.findUnique({ where: { id: eventId }, include: { group: { select: { id: true, name: true } } } });
     if (!ev) return 0;
-    const subs = await db.pushSubscription.findMany({
-      where: { member: { groupId: ev.groupId }, memberId: { not: ev.actorId } },
-    });
+    // Everyone else in the group whose settings want this kind of change.
+    const subs = (
+      await db.pushSubscription.findMany({
+        where: { member: { groupId: ev.groupId }, memberId: { not: ev.actorId } },
+        include: { member: { select: { notify: true } } },
+      })
+    ).filter((s) => wantsPush(parseNotify(s.member.notify), ev.kind));
     if (subs.length === 0) return 0;
     const actor = await db.member.findUnique({ where: { id: ev.actorId }, select: { name: true } });
     const payload = JSON.stringify(

@@ -1,7 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
-import { convertGroupCurrency, deleteGroup, setGroupClosed, updateGroupSettings, updateSharingSettings } from "@/app/actions";
+import { convertGroupCurrency, deleteGroup, saveNotifyPrefs, setGroupClosed, updateGroupSettings, updateSharingSettings } from "@/app/actions";
+import { NOTIFY_KINDS, parseNotify } from "@/lib/notify-prefs";
 import { GROUP_TYPES } from "@/lib/group-types";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { CURRENCIES, currencyInfo, formatMoney, formatPercent, isSupportedCurrency, POPULAR_CURRENCIES } from "@/lib/money";
@@ -27,10 +28,10 @@ export default async function GroupSettings({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; convert?: string }>;
+  searchParams: Promise<{ error?: string; convert?: string; saved?: string }>;
 }) {
   const { id } = await params;
-  const { error, convert } = await searchParams;
+  const { error, convert, saved } = await searchParams;
   const group = await db.group.findUnique({
     where: { id },
     include: {
@@ -45,6 +46,7 @@ export default async function GroupSettings({
 
   const isPreset = PRESETS.includes(group.cardMarkupBp);
   const active = group.members.filter((m) => !m.leftAt);
+  const prefs = parseNotify((await db.member.findUnique({ where: { id: myId }, select: { notify: true } }))?.notify);
 
   // Step 2 of changing the currency: confirm the conversion rate.
   if (convert && isSupportedCurrency(convert) && convert !== group.currency) {
@@ -232,6 +234,33 @@ export default async function GroupSettings({
         </fieldset>
         <button type="submit" className={secondaryButtonClass}>
           Save how you share
+        </button>
+      </form>
+
+      {/* Phone notifications for this group, just for me */}
+      <h2 id="notify" className={`mt-12 ${sectionTitle}`}>Phone notifications for this group</h2>
+      {saved === "notify" && <p className="mt-2 text-sm text-owed">Saved.</p>}
+      <form action={saveNotifyPrefs} className="mt-3 space-y-3">
+        <input type="hidden" name="groupId" value={group.id} />
+        <ul className="divide-y divide-line rounded-2xl border border-line">
+          <li>
+            <label className="flex items-center gap-3 px-4 py-3">
+              <span className="flex-1 font-medium">All notifications</span>
+              <input type="checkbox" name="all" defaultChecked={!prefs.off} className="h-5 w-5 accent-[var(--color-accent)]" />
+            </label>
+          </li>
+          {NOTIFY_KINDS.map((k) => (
+            <li key={k.id}>
+              <label className="flex items-center gap-3 px-4 py-3">
+                <span className="flex-1">{k.label}</span>
+                <input type="checkbox" name={k.id} defaultChecked={prefs[k.id]} className="h-5 w-5 accent-[var(--color-accent)]" />
+              </label>
+            </li>
+          ))}
+        </ul>
+        <p className="text-xs text-gray-400">Only for you, on phones where notifications are on. The Alerts list still shows everything.</p>
+        <button type="submit" className={secondaryButtonClass}>
+          Save notifications
         </button>
       </form>
 

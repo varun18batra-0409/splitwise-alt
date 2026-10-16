@@ -46,6 +46,7 @@ model Member {
   // phone. A plain id (no database link) so the hosted database can add it as a
   // simple new column; deleting an account clears it in code.
   accountId String?
+  notify    String   @default("") // phone notifications for this group: JSON {off, expenses, edits, payments, people}; "" = all on
   splitWeight Int    @default(100) // the group's own split: hundredths of a share (1.2 shares = 120; a couple's 55/45 = 55)
   groupId   String
   group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)

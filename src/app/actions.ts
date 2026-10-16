@@ -225,6 +225,18 @@ export async function lookupRate(from: string, to: string): Promise<RateAnswer> 
 }
 
 // Group settings: name, currency and foreign card markup. Every change is logged for everyone.
+// Settings → "Phone notifications for this group" (just for me).
+export async function saveNotifyPrefs(formData: FormData) {
+  const groupId = String(formData.get("groupId") ?? "");
+  const myId = await getMyMemberId(groupId);
+  const me = myId ? await db.member.findFirst({ where: { id: myId, groupId } }) : null;
+  if (!me) redirect("/private");
+  const on = (k: string) => formData.get(k) === "on";
+  const prefs = { off: !on("all"), expenses: on("expenses"), edits: on("edits"), payments: on("payments"), people: on("people") };
+  await db.member.update({ where: { id: me.id }, data: { notify: JSON.stringify(prefs) } });
+  redirect(`/groups/${groupId}/settings?saved=notify#notify`);
+}
+
 // Settings → "How you share costs".
 export async function updateSharingSettings(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
