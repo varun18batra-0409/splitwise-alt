@@ -35,16 +35,19 @@ page.on("request", (r) => {
 page.on("requestfinished", (r) => { const x = reqs.get(r); if (x) x.end = Math.round(performance.now() - t0); });
 await page.goto(base + "/how-it-works", { waitUntil: "networkidle" });
 await page.waitForTimeout(1500);
-for (const label of ["Search", "Settle", "Alerts", "Home", "Search", "Alerts"]) {
+const loaded = () => page.waitForFunction(() => !document.querySelector('[aria-label="Loading"]'), null, { timeout: 20000 }).catch(() => {});
+for (const label of ["Search", "Settle", "Alerts", "Search", "Settle", "Alerts"]) {
   reqs.clear();
   t0 = performance.now();
   const before = page.url();
   await page.locator("nav").getByRole("link", { name: label }).last().click();
   await page.waitForURL((u) => u.toString() !== before, { timeout: 20000 }).catch(() => {});
   const urlAt = Math.round(performance.now() - t0);
+  await loaded();
+  const shownAt = Math.round(performance.now() - t0);
   await page.waitForLoadState("networkidle");
   await page.waitForTimeout(300);
-  log(`tap ${label}: screen changed after ${urlAt} ms`);
+  log(`tap ${label}: screen changed after ${urlAt} ms, content shown after ${shownAt} ms`);
   for (const x of reqs.values()) log(`   ${x.kind.padEnd(9)} ${String(x.start).padStart(5)} → ${String(x.end ?? "?").padStart(5)} ms  ${x.url.slice(0, 60)}`);
 }
 // 3. Two quick taps in a row (the second straight after the first screen appears).

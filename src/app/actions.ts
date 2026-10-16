@@ -620,10 +620,4 @@ async function isDoubleTap(groupId: string, fromId: string, toId: string, amount
 }
 
 // Number of unread alerts, for the badge on the bottom bar.
-export async function unreadCount(): Promise<number> {
-  try {
-    return (await loadNotifications(await getMemberships(), 1)).unread;
-  } catch {
-    return 0;
-  }
 }

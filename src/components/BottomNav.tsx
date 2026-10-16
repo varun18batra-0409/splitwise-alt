@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { unreadCount } from "@/app/actions";
 import { BellIcon, HomeIcon, PlusIcon, SearchIcon, SettleIcon } from "./icons";
 
 // The bar at the bottom of every main screen: Home · Search · ＋ · Settle · Alerts.
@@ -16,13 +15,13 @@ export function BottomNav() {
   const [unread, setUnread] = useState(0);
 
   useEffect(() => {
-    let live = true;
-    unreadCount()
-      .then((n) => live && setUnread(n))
+    // A plain fetch, not a server action, so it never delays the next tap.
+    const ctl = new AbortController();
+    fetch("/api/unread", { signal: ctl.signal, cache: "no-store" })
+      .then((r) => r.json())
+      .then((d: { n?: number }) => setUnread(Number(d.n) || 0))
       .catch(() => {});
-    return () => {
-      live = false;
-    };
+    return () => ctl.abort();
   }, [path]);
 
   if (HIDE.some((re) => re.test(path))) return null;
