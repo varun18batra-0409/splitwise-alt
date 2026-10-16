@@ -21,6 +21,7 @@ import { safePath } from "@/lib/paths";
 import { addRegistered, copyPushTo, freeName, inviteByEmail, searchPeople } from "@/lib/invites";
 import { formatMoney } from "@/lib/money";
 import { createGroupFor, updateSharing } from "@/lib/group-setup";
+import { markRunAdded } from "@/lib/home/bills-db";
 
 
 export async function createGroup(formData: FormData) {
@@ -155,7 +156,7 @@ export async function joinAsNew(formData: FormData) {
 
 // Saves a new expense — or changes an existing one — then goes back to the group page.
 export async function addExpense(
-  input: SaveExpenseInput & { again?: boolean },
+  input: SaveExpenseInput & { again?: boolean; billRun?: { billId: string; period: string } },
 ): Promise<{ error: string; duplicateOf?: { id: string; description: string; amount: number; by: string; when: string } }> {
   if (!(await allow(`expense:${(await originAndIp()).ip}`, 300, 3600))) return { error: "Too many changes in a short time. Wait a few minutes." };
   // Fetch (and cache) today's rate before saving, so the save itself never waits on the internet.
@@ -164,9 +165,13 @@ export async function addExpense(
   const result = await saveExpense(input, await getMyMemberId(input.groupId), getRate, {
     ignoreDoubleTap: true,
     requestKey: cleanKey(input.requestKey),
-    checkDuplicate: true,
+    checkDuplicate: !input.billRun,
   });
   if (!result.ok) return { error: result.error, duplicateOf: result.duplicateOf };
+  // "Enter amount" for a waiting bill: that month is now added.
+  if (input.billRun && !input.expenseId && (await db.bill.findFirst({ where: { id: String(input.billRun.billId), groupId: input.groupId } }))) {
+    await markRunAdded(String(input.billRun.billId), String(input.billRun.period), result.id);
+  }
   // "Save & add another": straight back to a fresh form with the same people and split.
   if (input.again && !input.expenseId) redirect(`/groups/${input.groupId}/add?again=${result.id}`);
   redirect(`/groups/${input.groupId}?tab=activity${result.eventId ? `&did=${result.eventId}` : ""}`);

@@ -13,8 +13,8 @@ const base = { day: 1, every: 1, startMonth: "2026-09", endMonth: "", paused: fa
 
 describe("which periods are due", () => {
   it("a bill due on the 1st is due from the 1st in India time", () => {
-    expect(periodsDue(base, new Date("2026-10-31T17:00:00Z"))).toEqual(["2026-10"]); // 31 Oct 22:30 IST
-    expect(periodsDue(base, new Date("2026-10-31T19:00:00Z"))).toEqual(["2026-10", "2026-11"]); // 1 Nov 00:30 IST
+    expect(periodsDue({ ...base, startMonth: "2026-10" }, new Date("2026-10-31T17:00:00Z"))).toEqual(["2026-10"]); // 31 Oct 22:30 IST
+    expect(periodsDue({ ...base, startMonth: "2026-10" }, new Date("2026-10-31T19:00:00Z"))).toEqual(["2026-10", "2026-11"]); // 1 Nov 00:30 IST
   });
   it("only this month and last (a job that was down catches up one month)", () => {
     expect(periodsDue({ ...base, startMonth: "2026-01" }, new Date("2026-10-16T06:00:00Z"))).toEqual(["2026-09", "2026-10"]);

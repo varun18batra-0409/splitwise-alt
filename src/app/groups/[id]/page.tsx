@@ -13,6 +13,9 @@ import { ActivityTab } from "./_components/ActivityTab";
 import { BalancesTab } from "./_components/BalancesTab";
 import { ChartsTab } from "./_components/ChartsTab";
 import { ThisMonthTab } from "./_components/ThisMonthTab";
+import { BillsTab } from "./_components/BillsTab";
+import { billStatuses } from "@/lib/home/bills-db";
+import { niceDate } from "@/lib/format";
 
 const TABS = [
   { id: "activity", label: "Activity" },
@@ -77,6 +80,23 @@ export default async function GroupPage({
   const allowed: readonly string[] = home ? ["month", "bills", "list", "activity", "balances", "charts"] : ["activity", "balances", "charts"];
   const tab: Tab = allowed.includes(sp.tab ?? "") ? (sp.tab as Tab) : home ? "month" : "activity";
 
+  // Home & Couple: bills for the Bills tab and "Coming up" on This month.
+  const bills = home && (tab === "month" || tab === "bills") ? await billStatuses(group.id) : [];
+  const comingUp = bills
+    .filter((b) => b.status === "waiting" || b.status === "upcoming")
+    .sort((a, b) => (a.status === "waiting" ? -1 : b.status === "waiting" ? 1 : a.due.localeCompare(b.due)))
+    .slice(0, 5)
+    .map((b) => ({
+      id: b.bill.id,
+      name: b.bill.name,
+      icon: b.bill.icon,
+      when: b.status === "waiting" ? `Due ${niceDate(b.due)}` : b.bill.nature === "varies" ? `Due ${niceDate(b.due)}` : `Adds itself ${niceDate(b.due)}`,
+      who: b.payerId ? (b.payerId === myId ? "you pay" : `${v.nameOf(b.payerId)} pays`) : "taking turns",
+      amount: b.bill.nature === "varies" ? (b.usual ? `~${v.money(b.usual)}` : "") : b.bill.nature === "daily" ? `${v.money(b.bill.amount)}/day` : v.money(b.bill.amount),
+      status: (b.status === "waiting" ? "enter" : "due") as "enter" | "due",
+      href: b.status === "waiting" ? `/groups/${group.id}/add?bill=${b.bill.id}&period=${b.period}` : undefined,
+    }));
+
   // Group switcher: up to 5 of my other open groups, most recently active first.
   const switchTo = await loadSwitchList(await getMemberships(), group.id);
 
@@ -126,7 +146,8 @@ export default async function GroupPage({
           ‹ This month
         </Link>
       )}
-      {tab === "month" && <ThisMonthTab v={v} />}
+      {tab === "month" && <ThisMonthTab v={v} extras={{ upcoming: comingUp }} />}
+      {tab === "bills" && <BillsTab v={v} bills={bills} saved={sp.saved === "bill"} />}
       {tab === "balances" && <BalancesTab v={v} paid={sp.paid === "1"} why={sp.why} />}
       {tab === "charts" && <ChartsTab v={v} />}
 
