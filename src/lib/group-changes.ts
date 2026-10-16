@@ -97,6 +97,7 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
       convertedAmount: e.convertedAmount,
       markupAmount: e.markupAmount,
       amount: e.amount,
+      payers: e.payers,
       shares: e.shares.map((s) => ({ id: s.id, amount: s.amount })),
     })),
     payments: group.payments.map((p) => ({ id: p.id, amount: p.amount })),
@@ -113,6 +114,7 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
           convertedAmount: r!.convertedAmount,
           markupAmount: r!.markupAmount,
           amount: r!.amount,
+          payers: r!.payers,
         },
       });
       for (const s of r!.shares) await tx.expenseShare.update({ where: { id: s.id }, data: { amount: s.amount } });

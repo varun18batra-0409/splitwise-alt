@@ -49,6 +49,13 @@ export function groupCsv(
 ): string {
   const cur = group.currency;
   const name = (id: string) => members.find((m) => m.id === id)?.name ?? "Someone";
+  // Money back is written as negative amounts, so a column adds up to what was really spent.
+  const sign = (e: Expense) => (e.kind === "refund" ? -1 : 1);
+  // One payer: their name. Several: each with their part ("You 2000.00 + Asha 1000.00").
+  const paidByCell = (e: Expense) => {
+    const list = payersOf(e);
+    return list.length > 1 ? list.map((p) => `${name(p.memberId)} ${plain(p.amount, cur)}`).join(" + ") : name(list[0].memberId);
+  };
   const header = [
     "Date", "Type", "Description", "Notes", "Category", "Paid by", `Amount (${cur})`,
     "Original amount", "Original currency", "Exchange rate", `Card markup (${cur})`, "Paid with", "Status",
@@ -62,12 +69,12 @@ export function groupCsv(
     rows.push({
       date,
       cells: [
-        dayKey(date, tz), e.kind === "refund" ? "Money back" : "Expense", e.description, e.notes ?? "", getCategory(e.category).label, payersOf(e).map((p) => name(p.memberId)).join(" + "), plain(e.amount, cur),
+        dayKey(date, tz), e.kind === "refund" ? "Money back" : "Expense", e.description, e.notes ?? "", getCategory(e.category).label, paidByCell(e), plain(sign(e) * e.amount, cur),
         foreign ? plain(e.originalAmount, e.originalCurrency) : "", foreign ? e.originalCurrency : "", foreign ? e.exchangeRate : "",
         e.markupAmount ? plain(e.markupAmount, cur) : "", e.paymentMethod, e.deletedAt ? "Deleted" : "",
         ...members.map((m) => {
           const s = e.shares.find((x) => x.memberId === m.id);
-          return s ? plain(s.amount, cur) : "";
+          return s ? plain(sign(e) * s.amount, cur) : "";
         }),
       ],
     });

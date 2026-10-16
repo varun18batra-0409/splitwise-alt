@@ -1,5 +1,6 @@
 import { convertAmount, markupAmountOf, parseRate } from "./conversion";
 import { allocateByWeights } from "./split";
+import { parsePayers, payersJson } from "./payers";
 
 // Changing a group's currency after expenses exist: every amount is converted
 // at one rate (old group currency → new), keeping each expense's ORIGINAL
@@ -28,6 +29,7 @@ type ExpenseIn = {
   exchangeRate: string;
   markupBp: number;
   markupAmount: number;
+  payers?: string | null;
   shares: { id: string; memberId: string; amount: number }[];
 };
 
@@ -38,6 +40,7 @@ export type RebasedExpense = {
   convertedAmount: number;
   markupAmount: number;
   amount: number;
+  payers: string; // "" for a single payer
   shares: { id: string; amount: number }[];
 };
 
@@ -68,7 +71,10 @@ export function rebaseExpense(e: ExpenseIn, oldBase: string, newBase: string, ra
   const allocated = allocateByWeights(amount, weights);
   // Keep every share row (some may round to 0 for tiny shares).
   const shares = e.shares.map((s) => ({ id: s.id, amount: allocated.find((a) => a.memberId === s.id)?.amount ?? 0 }));
-  return { baseCurrency: newBase, exchangeRate, rateSource: "converted", convertedAmount, markupAmount, amount, shares };
+  // Several payers: their parts are converted the same way, so they still add up to the total.
+  const list = parsePayers(e.payers);
+  const payers = list.length ? payersJson(allocateByWeights(amount, list.map((p) => ({ memberId: p.memberId, weight: p.amount })))) : "";
+  return { baseCurrency: newBase, exchangeRate, rateSource: "converted", convertedAmount, markupAmount, amount, payers, shares };
 }
 
 export function rebasePayment(amount: number, oldBase: string, newBase: string, rate: string): number | null {

@@ -41,3 +41,17 @@ export function parseWeight(text: string): number | null {
 export function splitNameFor(type: string): string {
   return type === "couple" ? "Our split" : type === "home" ? "Flat split" : "Group split";
 }
+
+// What the "How you share costs" boxes show: a couple's split as percents
+// (two people at 100 / 100 → 50 / 50), everyone else's as shares (120 → 1.2).
+export function sharingInputs(type: string, weights: number[]): string[] {
+  if (type === "couple") {
+    const total = weights.reduce((s, w) => s + w, 0);
+    if (total <= 0) return weights.map(() => "0");
+    const pct = weights.map((w) => Math.round((w * 100) / total));
+    const drift = 100 - pct.reduce((s, x) => s + x, 0);
+    if (pct.length) pct[0] += drift;
+    return pct.map(String);
+  }
+  return weights.map((w) => String(Number((w / 100).toFixed(2))));
+}

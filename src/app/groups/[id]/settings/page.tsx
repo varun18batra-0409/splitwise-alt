@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
 import { convertGroupCurrency, deleteGroup, saveNotifyPrefs, setGroupClosed, updateGroupSettings, updateSharingSettings } from "@/app/actions";
 import { NOTIFY_KINDS, parseNotify } from "@/lib/notify-prefs";
-import { GROUP_TYPES } from "@/lib/group-types";
+import { GROUP_TYPES, sharingInputs } from "@/lib/group-types";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { CURRENCIES, currencyInfo, formatMoney, formatPercent, isSupportedCurrency, POPULAR_CURRENCIES } from "@/lib/money";
 import { getRate } from "@/lib/rate-cache";
@@ -225,7 +225,7 @@ export default async function GroupSettings({
                   name={`w_${m.id}`}
                   inputMode="decimal"
                   aria-label={`${m.name}’s ${group.type === "couple" ? "percent" : "shares"}`}
-                  defaultValue={group.type === "couple" ? String(m.splitWeight) : String(Number((m.splitWeight / 100).toFixed(2)))}
+                  defaultValue={sharingInputs(group.type, active.map((x) => x.splitWeight))[active.indexOf(m)]}
                   className="w-20 rounded-lg border border-line bg-mist px-2 py-1.5 text-right text-fg outline-none focus:border-accent"
                 />
               </li>

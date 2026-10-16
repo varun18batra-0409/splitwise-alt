@@ -19,12 +19,13 @@ export function resolveSecondary(
 }
 
 // Totals spent per original currency, with the group-currency equivalent that was actually used.
-export function spentByCurrency(expenses: { originalCurrency: string; originalAmount: number; amount: number }[]) {
+export function spentByCurrency(expenses: { originalCurrency: string; originalAmount: number; amount: number; kind?: string | null }[]) {
   const m = new Map<string, { original: number; group: number; count: number }>();
   for (const e of expenses) {
     const row = m.get(e.originalCurrency) ?? { original: 0, group: 0, count: 0 };
-    row.original += e.originalAmount;
-    row.group += e.amount;
+    const sign = e.kind === "refund" ? -1 : 1; // money back reduces what was spent
+    row.original += sign * e.originalAmount;
+    row.group += sign * e.amount;
     row.count += 1;
     m.set(e.originalCurrency, row);
   }

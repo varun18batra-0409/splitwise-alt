@@ -240,7 +240,7 @@ async function restoreCurrency(groupId: string, actorId: string, p: Extract<Undo
     currency: g.currency,
     expenses: g.expenses.map((e) => ({
       id: e.id, baseCurrency: e.baseCurrency, exchangeRate: e.exchangeRate, rateSource: e.rateSource,
-      convertedAmount: e.convertedAmount, markupAmount: e.markupAmount, amount: e.amount,
+      convertedAmount: e.convertedAmount, markupAmount: e.markupAmount, amount: e.amount, payers: e.payers,
       shares: e.shares.map((s) => ({ id: s.id, amount: s.amount })),
     })),
     payments: g.payments.map((x) => ({ id: x.id, amount: x.amount })),
@@ -272,7 +272,7 @@ export async function removeMembers(groupId: string, actorId: string, memberIds:
   for (const m of members) {
     const used =
       (await db.expenseShare.count({ where: { memberId: m.id } })) +
-      (await db.expense.count({ where: { OR: [{ paidById: m.id }, { createdById: m.id }, { payers: { contains: m.id } }] } })) +
+      (await db.expense.count({ where: { groupId, OR: [{ paidById: m.id }, { createdById: m.id }, { payers: { contains: m.id } }] } })) +
       (await db.payment.count({ where: { OR: [{ fromId: m.id }, { toId: m.id }] } }));
     if (used > 0) return { ok: false, error: `${m.name} is already part of expenses or payments, so they can’t be removed.` };
   }

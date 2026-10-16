@@ -7,6 +7,7 @@ import { computeTotals, PAYMENT_METHODS, type PaymentMethod } from "@/lib/conver
 import { buildExpense, chosenMarkupBp, type ExpenseDraft } from "@/lib/expense";
 import { currencyInfo, formatMoney, formatPercent, isSupportedCurrency, parseAmount, parsePercent } from "@/lib/money";
 import { CurrencyPicker } from "./CurrencyPicker";
+import { expensePairs, payersJson } from "@/lib/payers";
 import { participantsFor, type ForMode, type SplitType } from "@/lib/split";
 import { niceDate, rateText } from "@/lib/format";
 import { dayKey, todayKey } from "@/lib/dates";
@@ -945,37 +946,36 @@ export function AddExpenseForm({
         )}
       </div>
 
-      {/* Result: who owes whom for this expense */}
-      {preview.ok && (
-        <section className="border border-line bg-white p-4 text-sm">
-          <p className="mb-2 font-medium text-accent-dark">
-            {who(paidById)} paid {base(preview.expense.amount)}
-            {foreign && <span className="font-normal text-gray-500"> ({orig(preview.expense.originalAmount)})</span>}
-          </p>
-          <ul className="space-y-1 text-gray-700">
-            {preview.expense.shares.map((s) =>
-              s.memberId === paidById ? (
-                <li key={s.memberId}>
-                  {s.memberId === myId ? "Your" : `${nameOf(s.memberId)}’s`} own share: {base(s.amount)}
+      {/* Result: who owes whom for this expense (exactly what will be saved) */}
+      {preview.ok && (() => {
+        const x = preview.expense;
+        const paid = x.payers.length ? x.payers : [{ memberId: x.paidById, amount: x.amount }];
+        const pairs = expensePairs({ ...x, payers: payersJson(x.payers) });
+        const refund = x.kind === "refund";
+        return (
+          <section className="border border-line bg-white p-4 text-sm">
+            <p className="mb-2 font-medium text-accent-dark">
+              {paid.map((p, i) => (
+                <span key={p.memberId}>
+                  {i > 0 && " + "}
+                  {who(p.memberId)}
+                  {paid.length > 1 && ` ${base(p.amount)}`}
+                </span>
+              ))}{" "}
+              {refund ? "got back" : "paid"} {paid.length > 1 ? `(${base(x.amount)})` : base(x.amount)}
+              {foreign && <span className="font-normal text-gray-500"> ({orig(x.originalAmount)})</span>}
+            </p>
+            <ul className="space-y-1 text-gray-700">
+              {pairs.map((p) => (
+                <li key={`${p.from}-${p.to}`}>
+                  <strong>{who(p.from)}</strong> {p.from === myId ? "owe" : "owes"} {p.to === myId ? "you" : nameOf(p.to)} <strong>{base(p.amount)}</strong>
                 </li>
-              ) : (
-                <li key={s.memberId}>
-                  {s.memberId === myId ? (
-                    <>
-                      <strong>You</strong> owe {who(paidById)} <strong>{base(s.amount)}</strong>
-                    </>
-                  ) : (
-                    <>
-                      <strong>{nameOf(s.memberId)}</strong> owes {paidById === myId ? "you" : nameOf(paidById)}{" "}
-                      <strong>{base(s.amount)}</strong>
-                    </>
-                  )}
-                </li>
-              ),
-            )}
-          </ul>
-        </section>
-      )}
+              ))}
+              {pairs.length === 0 && <li>Nobody owes anyone for this one.</li>}
+            </ul>
+          </section>
+        );
+      })()}
 
       {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
       {dup && (

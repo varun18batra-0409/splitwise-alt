@@ -114,7 +114,17 @@ export type UndoPayload =
   | {
       type: "currency_restore";
       currency: string;
-      expenses: { id: string; baseCurrency: string; exchangeRate: string; rateSource: string; convertedAmount: number; markupAmount: number; amount: number; shares: { id: string; amount: number }[] }[];
+      expenses: {
+        id: string;
+        baseCurrency: string;
+        exchangeRate: string;
+        rateSource: string;
+        convertedAmount: number;
+        markupAmount: number;
+        amount: number;
+        payers?: string; // missing in changes made before several payers existed
+        shares: { id: string; amount: number }[];
+      }[];
       payments: { id: string; amount: number }[];
     }
   | { type: "members_remove"; memberIds: string[] }

@@ -32,7 +32,10 @@ export function payersJson(payers: Payer[]): string {
 
 export function payersOf(e: PaidLike): Payer[] {
   const list = parsePayers(e.payers);
-  return list.length ? list : [{ memberId: e.paidById, amount: e.amount ?? 0 }];
+  if (!list.length) return [{ memberId: e.paidById, amount: e.amount ?? 0 }];
+  // Never trust a list that doesn't add up to the total: keep the proportions.
+  const sum = list.reduce((s, p) => s + p.amount, 0);
+  return e.amount === undefined || sum === e.amount ? list : allocateByWeights(e.amount, list.map((p) => ({ memberId: p.memberId, weight: p.amount })));
 }
 
 export function payerIds(e: PaidLike): string[] {
@@ -63,4 +66,34 @@ export function payersLabel(payers: Payer[], who: (id: string) => string): strin
 // How much an expense adds to "spent": money back takes it away again.
 export function spentAmount(e: { amount: number; kind?: string | null }): number {
   return e.kind === "refund" ? -e.amount : e.amount;
+}
+
+// "Who owes whom" for one expense: each person's share is owed to the payers in
+// proportion to what they paid; then netted per pair. (Money back: whoever got
+// it owes the others.) Pairs are listed in the order people appear in the shares.
+export function expensePairs(e: LinesLike): { from: string; to: string; amount: number }[] {
+  const { credits, debits } = moneyLines(e);
+  const net = new Map<string, number>(); // "a|b": a owes b
+  const order: string[] = [];
+  const add = (from: string, to: string, amount: number) => {
+    if (from === to || amount === 0) return;
+    const key = `${from}|${to}`;
+    const back = `${to}|${from}`;
+    if (net.has(back)) net.set(back, net.get(back)! - amount);
+    else {
+      if (!net.has(key)) order.push(key);
+      net.set(key, (net.get(key) ?? 0) + amount);
+    }
+  };
+  for (const d of debits) {
+    const parts = credits.length === 1 ? [{ memberId: credits[0].memberId, amount: d.amount }] : allocateByWeights(d.amount, credits.map((c) => ({ memberId: c.memberId, weight: c.amount })));
+    for (const p of parts) add(d.memberId, p.memberId, p.amount);
+  }
+  return order
+    .map((k) => {
+      const [a, b] = k.split("|");
+      const v = net.get(k) ?? 0;
+      return v >= 0 ? { from: a, to: b, amount: v } : { from: b, to: a, amount: -v };
+    })
+    .filter((p) => p.amount > 0);
 }

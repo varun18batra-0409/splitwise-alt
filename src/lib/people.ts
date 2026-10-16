@@ -92,9 +92,11 @@ export async function setMember(
 
 // True once someone is part of any expense or payment (so they can only leave, not be removed).
 export async function isMemberUsed(memberId: string): Promise<boolean> {
+  const groupId = (await db.member.findUnique({ where: { id: memberId }, select: { groupId: true } }))?.groupId;
+  if (!groupId) return false;
   const used =
     (await db.expenseShare.count({ where: { memberId } })) +
-    (await db.expense.count({ where: { OR: [{ paidById: memberId }, { createdById: memberId }, { payers: { contains: memberId } }] } })) +
+    (await db.expense.count({ where: { groupId, OR: [{ paidById: memberId }, { createdById: memberId }, { payers: { contains: memberId } }] } })) +
     (await db.payment.count({ where: { OR: [{ fromId: memberId }, { toId: memberId }] } }));
   return used > 0;
 }
