@@ -156,7 +156,7 @@ export default async function GroupPage({
             key={t.id}
             href={`/groups/${group.id}?tab=${t.id}`}
             aria-current={t.id === tab ? "page" : undefined}
-            className={`rounded-lg py-2 text-center text-sm ${t.id === tab ? "bg-fg font-semibold text-canvas" : "text-gray-500"}`}
+            className={`whitespace-nowrap rounded-lg px-1 py-2 text-center text-sm ${t.id === tab ? "bg-fg font-semibold text-canvas" : "text-gray-500"}`}
           >
             {t.label}
           </Link>

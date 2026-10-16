@@ -74,7 +74,7 @@ export function BillsTab({ v, bills, saved }: { v: GroupView; bills: BillStatus[
         <div>
           <p className="text-sm text-gray-500">Regular bills, every month</p>
           <p className="font-display text-[30px] font-semibold tabular-nums">{money(total)}</p>
-          {total > 0 && <p className="text-sm text-gray-500">Your share about {money(mine)}</p>}
+          {total > 0 && <p className="text-sm text-gray-500">Your share about {money(Math.round(mine / 100) * 100)}</p>}
         </div>
         {!group.closed && (
           <Link href={`/groups/${group.id}/bills/new`} className="pop shrink-0 bg-fg px-4 py-2.5 text-sm font-semibold text-canvas [--pop-edge:#6e6b63]">

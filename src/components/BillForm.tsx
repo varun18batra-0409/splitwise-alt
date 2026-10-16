@@ -143,7 +143,7 @@ export function BillForm({
         <div className="grid grid-cols-3 gap-1 rounded-xl bg-mist p-1" role="radiogroup" aria-label="The amount">
           {(
             [
-              ["fixed", "Same each month"],
+              ["fixed", "Fixed"],
               ["varies", "Changes"],
               ["daily", "Per day"],
             ] as const
