@@ -64,6 +64,8 @@ describe("deposit back at the end", () => {
   });
 });
 
+const today = new Date("2026-10-16T06:00:00Z");
+
 describe("moving out, for real", () => {
   let groupId = "", you = "", asha = "", rohan = "", meera = "";
   beforeAll(async () => {
@@ -97,14 +99,14 @@ describe("moving out, for real", () => {
   });
 
   it("previews what Rohan owes for his days", async () => {
-    const p = await moveOutPreview(groupId, rohan, "2026-10-15");
+    const p = await moveOutPreview(groupId, rohan, "2026-10-15", today);
     expect(p.ok && p.rentCredit).toBe(619355); // 16 of October's 31 days of his ₹12,000 go back to the others
     expect(p.ok && p.balanceToday).toBe(-1200000);
     expect(p.ok && p.payments).toEqual([{ from: rohan, to: you, amount: 580645 }]);
   });
 
   it("re-splits this month's rent, settles him up, hands his deposit to Meera, and marks him left — balances still add up", async () => {
-    const r = await moveOut(groupId, you, { leaverId: rohan, lastDay: "2026-10-15", depositTo: meera, requestKey: `move-${Date.now()}-abcdefgh` });
+    const r = await moveOut(groupId, you, { leaverId: rohan, lastDay: "2026-10-15", depositTo: meera, requestKey: `move-${Date.now()}-abcdefgh` }, today);
     expect(r.ok).toBe(true);
     const data = (await loadGroup(groupId))!;
     expect(Object.values(data.net).reduce((a, b) => a + b, 0)).toBe(0);
@@ -116,5 +118,57 @@ describe("moving out, for real", () => {
     const dep = await db.depositShare.findMany({ where: { deposit: { groupId } } });
     expect(dep.find((d) => d.memberId === rohan)?.status).toBe("transferred");
     expect(dep.find((d) => d.memberId === meera)?.amount).toBe(3600000);
+  });
+});
+
+// Found in review: the last day and the months around it.
+describe("moving out: which months are re-split", () => {
+  let groupId = "", you = "", rohan = "";
+  const rentFor = async (period: string, billId: string) => {
+    const e = await db.expense.create({
+      data: {
+        groupId, description: "Rent", category: "bills", amount: 2000000, paidById: you, createdById: you, splitType: "equal", forMode: "everyone",
+        originalAmount: 2000000, originalCurrency: "INR", baseCurrency: "INR", exchangeRate: "1", rateDate: `${period}-01`, rateSource: "same",
+        convertedAmount: 2000000, paymentMethod: "cash", markupBp: 0, markupAmount: 0, spentAt: new Date(`${period}-01T12:00:00Z`),
+        shares: { create: [{ memberId: you, amount: 1000000 }, { memberId: rohan, amount: 1000000 }] },
+      },
+    });
+    await db.billRun.create({ data: { billId, period, status: "added", expenseId: e.id } });
+  };
+  beforeAll(async () => {
+    const g = await db.group.create({
+      data: { name: "Flat 7", type: "home", currency: "INR", inviteCode: `move2-${Date.now()}`, members: { create: [{ name: "You" }, { name: "Rohan" }] } },
+      include: { members: true },
+    });
+    groupId = g.id;
+    [you, rohan] = [g.members.find((m) => m.name === "You")!.id, g.members.find((m) => m.name === "Rohan")!.id];
+    const bill = await db.bill.create({ data: { groupId, name: "Rent", nature: "fixed", amount: 2000000, day: 1, startMonth: "2026-09", payer: you } });
+    await rentFor("2026-09", bill.id);
+    await rentFor("2026-10", bill.id);
+  });
+  afterAll(async () => {
+    await db.group.delete({ where: { id: groupId } }).catch(() => {});
+  });
+
+  it("a last day in the future, or more than a month back, is refused", async () => {
+    const p1 = await moveOutPreview(groupId, rohan, "2026-10-31", new Date("2026-10-05T06:00:00Z"));
+    expect(p1.ok).toBe(false);
+    const p2 = await moveOutPreview(groupId, rohan, "2026-08-20", new Date("2026-10-05T06:00:00Z"));
+    expect(p2.ok).toBe(false);
+  });
+
+  it("left on 20 September, done on 5 October: September is pro-rata, October's rent is all the others'", async () => {
+    const now = new Date("2026-10-05T06:00:00Z");
+    const p = await moveOutPreview(groupId, rohan, "2026-09-20", now);
+    expect(p.ok && p.bills.map((b) => [b.name, b.after])).toEqual([
+      ["Rent", 666666], // 20 of 30 days of ₹10,000
+      ["Rent", 0],
+    ]);
+    const r = await moveOut(groupId, you, { leaverId: rohan, lastDay: "2026-09-20", requestKey: `move2-${Date.now()}-abcdefgh` }, now);
+    expect(r.ok).toBe(true);
+    const data = (await loadGroup(groupId))!;
+    expect(data.net[rohan]).toBe(0);
+    expect(Object.values(data.net).reduce((a, b) => a + b, 0)).toBe(0);
+    expect(data.payments.reduce((s, x) => s + x.amount, 0)).toBe(666666);
   });
 });

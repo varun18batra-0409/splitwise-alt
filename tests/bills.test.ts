@@ -1,7 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { BILL_TEMPLATES, dailyTotal, payerFor, periodsDue } from "@/lib/home/bills";
-import { runBillsForGroup } from "@/lib/home/bills-db";
+import { addWaitingBill, runBillsForGroup } from "@/lib/home/bills-db";
+import { billCommand, saveBillFor } from "@/lib/home/bill-setup";
+import type { SaveExpenseInput } from "@/lib/save-expense";
 import { loadGroup } from "@/lib/group-data";
 import { undoEvent } from "@/lib/undo";
 
@@ -119,5 +121,86 @@ describe("the daily job", () => {
     const e = await db.expense.findUniqueOrThrow({ where: { id: run.expenseId } });
     expect(e.amount).toBe(174000);
     expect(e.spentAt?.toISOString()).toBe("2026-10-31T12:00:00.000Z");
+  });
+});
+
+// Found in review: these must hold too.
+describe("bills: edge cases from review", () => {
+  let groupId = "", you = "", asha = "";
+  beforeAll(async () => {
+    const g = await db.group.create({
+      data: { name: "Flat 9", type: "home", currency: "INR", inviteCode: `bills2-${Date.now()}`, members: { create: [{ name: "You" }, { name: "Asha" }] } },
+      include: { members: true },
+    });
+    groupId = g.id;
+    [you, asha] = [g.members.find((m) => m.name === "You")!.id, g.members.find((m) => m.name === "Asha")!.id];
+  });
+  afterAll(async () => {
+    await db.group.delete({ where: { id: groupId } }).catch(() => {});
+  });
+  const bill = (over: object) =>
+    db.bill.create({ data: { groupId, name: "Rent", category: "bills", nature: "fixed", amount: 2000000, day: 1, startMonth: "2026-10", payer: you, tz, ...over } });
+  const rate = async () => ({ ok: true as const, rate: "1", date: "2026-10-16" });
+  const entry = (name: string, amount: string, payer: string): SaveExpenseInput => ({
+    groupId, name, category: "bills", amount, currency: "INR", paidById: payer, forMode: "everyone", selected: [], onePersonId: "", splitType: "equal",
+    exact: {}, percent: {}, paymentMethod: "cash", markupChoice: "group", markupCustom: "", rateMode: "auto", manualRate: "", date: "2026-10-05",
+  });
+
+  it("“Enter amount” from two phones at once adds the bill once", async () => {
+    const b = await bill({ name: "Electricity", nature: "varies", amount: 0, day: 5, payer: asha });
+    await runBillsForGroup(groupId, new Date("2026-10-16T06:00:00Z"));
+    const run = { billId: b.id, period: "2026-10" };
+    const [r1, r2] = await Promise.all([
+      addWaitingBill(entry("Electricity", "2400", asha), asha, rate, run, "enter-amount-key-aaaa1"),
+      addWaitingBill(entry("Electricity", "2400", asha), you, rate, run, "enter-amount-key-bbbb2"),
+    ]);
+    expect([r1.ok, r2.ok].sort()).toEqual([false, true]);
+    expect(await db.expense.count({ where: { groupId, description: "Electricity", deletedAt: null } })).toBe(1);
+    const after = await db.billRun.findUniqueOrThrow({ where: { billId_period: { billId: b.id, period: "2026-10" } } });
+    expect(after.status).toBe("added");
+    // The same phone sending it again (a retry) is fine and adds nothing.
+    const ok = r1.ok ? r1 : r2;
+    const again = await addWaitingBill(entry("Electricity", "2400", asha), asha, rate, run, r1.ok ? "enter-amount-key-aaaa1" : "enter-amount-key-bbbb2");
+    expect(again).toEqual({ ok: true, id: ok.ok ? ok.id : "" });
+    expect((await db.bill.findUniqueOrThrow({ where: { id: b.id } })).amount).toBe(240000);
+  });
+
+  it("resuming a paused bill doesn't charge the months it was paused", async () => {
+    const b = await bill({ name: "Cook", amount: 500000, startMonth: "2026-08" });
+    await runBillsForGroup(groupId, new Date("2026-08-02T06:00:00Z"));
+    expect((await billCommand(groupId, you, b.id, "pause", new Date("2026-08-20T06:00:00Z"))).ok).toBe(true);
+    expect((await billCommand(groupId, you, b.id, "resume", new Date("2026-10-16T06:00:00Z"))).ok).toBe(true);
+    await runBillsForGroup(groupId, new Date("2026-10-16T07:00:00Z"));
+    expect(await db.expense.count({ where: { groupId, description: "Cook" } })).toBe(1); // August only
+    await runBillsForGroup(groupId, new Date("2026-11-01T07:00:00Z"));
+    expect(await db.expense.count({ where: { groupId, description: "Cook" } })).toBe(2); // and November again
+  });
+
+  it("a run that crashed part-way is finished later; one still in progress is left alone", async () => {
+    const b = await bill({ name: "Wi-Fi", amount: 99900 });
+    const now = new Date("2026-10-16T06:00:00Z");
+    await db.billRun.create({ data: { billId: b.id, period: "2026-10", status: "adding", claimedAt: new Date(now.getTime() - 60 * 60_000) } });
+    const b2 = await bill({ name: "Gas", amount: 90000 });
+    await db.billRun.create({ data: { billId: b2.id, period: "2026-10", status: "adding", claimedAt: new Date(now.getTime() - 60_000) } });
+    await runBillsForGroup(groupId, now);
+    const run = await db.billRun.findUniqueOrThrow({ where: { billId_period: { billId: b.id, period: "2026-10" } } });
+    expect(run.status).toBe("added");
+    expect(await db.expense.count({ where: { groupId, description: "Wi-Fi" } })).toBe(1);
+    expect((await db.billRun.findUniqueOrThrow({ where: { billId_period: { billId: b2.id, period: "2026-10" } } })).status).toBe("adding");
+  });
+
+  it("milk set up on the 20th is charged from the 20th, not the whole month", async () => {
+    const r = await saveBillFor(groupId, you, { template: "milk", name: "Milk", nature: "daily", amount: "60", day: "31", payer: you, split: "group", ids: [] }, new Date("2026-10-20T06:00:00Z"));
+    expect(r.ok).toBe(true);
+    await runBillsForGroup(groupId, new Date("2026-11-01T06:00:00Z"));
+    const e = await db.expense.findFirstOrThrow({ where: { groupId, description: "Milk" } });
+    expect(e.amount).toBe(12 * 6000); // 20th–31st
+  });
+
+  it("a bill shared by only some people waits when they've all left", async () => {
+    const b = await bill({ name: "Netflix", amount: 64900, split: JSON.stringify({ mode: "some", ids: [] }) });
+    await runBillsForGroup(groupId, new Date("2026-10-16T06:00:00Z"));
+    const run = await db.billRun.findUniqueOrThrow({ where: { billId_period: { billId: b.id, period: "2026-10" } } });
+    expect(run.status).toBe("waiting");
   });
 });
