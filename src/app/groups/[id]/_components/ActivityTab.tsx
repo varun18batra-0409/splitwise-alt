@@ -62,50 +62,55 @@ export function ActivityTab({ v, filter = {}, shown = PAGE }: { v: GroupView; fi
   const field = "min-w-0 rounded-lg border border-line bg-mist px-3 py-2 text-sm text-fg outline-none focus:border-accent";
   return (
     <div className="space-y-6">
+      {/* One "Filter" button instead of a row of boxes; opens search, category and person. */}
       {(all.length >= 6 || filtering) && (
-      <form method="get" action={`/groups/${group.id}`} role="search" className="space-y-2">
-        <input type="hidden" name="tab" value="activity" />
-        <input
-          type="search"
-          name="q"
-          defaultValue={filter.q ?? ""}
-          placeholder="Search expenses, people…"
-          aria-label="Search"
-          enterKeyHint="search"
-          className={`${field} w-full`}
-        />
-        <div className="flex gap-2">
-          <select name="cat" defaultValue={filter.cat ?? ""} aria-label="Category" className={`${field} flex-1`}>
-            <option value="">All categories</option>
-            {CATEGORIES.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.emoji} {c.short}
-              </option>
-            ))}
-          </select>
-          <select name="who" defaultValue={filter.who ?? ""} aria-label="Person" className={`${field} flex-1`}>
-            <option value="">Everyone</option>
-            {group.members.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.id === myId ? "You" : m.name}
-              </option>
-            ))}
-          </select>
-          <button type="submit" className="shrink-0 border border-line px-3 py-2 text-sm font-medium text-fg active:bg-mist">
-            Go
-          </button>
+        <div>
+          <details className="group/filter">
+            <summary className="flex cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
+              <span className="rounded-full border border-line px-4 py-1.5 text-sm font-medium text-fg group-open/filter:bg-mist">
+                {filtering ? `Filtered · ${items.length} ${items.length === 1 ? "match" : "matches"}` : "Filter"}
+              </span>
+              {filtering && (
+                <Link href={`/groups/${group.id}?tab=activity`} className="text-sm font-medium text-gray-500 underline underline-offset-4">
+                  Clear
+                </Link>
+              )}
+            </summary>
+            <form method="get" action={`/groups/${group.id}`} role="search" className="mt-3 space-y-2">
+              <input type="hidden" name="tab" value="activity" />
+              <input
+                type="search"
+                name="q"
+                defaultValue={filter.q ?? ""}
+                placeholder="Search expenses, people…"
+                aria-label="Search"
+                enterKeyHint="search"
+                className={`${field} w-full`}
+              />
+              <div className="flex gap-2">
+                <select name="cat" defaultValue={filter.cat ?? ""} aria-label="Category" className={`${field} flex-1`}>
+                  <option value="">All categories</option>
+                  {CATEGORIES.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.emoji} {c.short}
+                    </option>
+                  ))}
+                </select>
+                <select name="who" defaultValue={filter.who ?? ""} aria-label="Person" className={`${field} flex-1`}>
+                  <option value="">Everyone</option>
+                  {group.members.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.id === myId ? "You" : m.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button type="submit" className="w-full border border-line py-2 text-sm font-medium text-fg active:bg-mist">
+                Show results
+              </button>
+            </form>
+          </details>
         </div>
-        {filtering && (
-          <p className="flex items-center justify-between text-sm text-gray-500">
-            <span>
-              {items.length} {items.length === 1 ? "match" : "matches"}
-            </span>
-            <Link href={`/groups/${group.id}?tab=activity`} className="font-medium text-fg underline underline-offset-4">
-              Clear
-            </Link>
-          </p>
-        )}
-      </form>
       )}
 
       {items.length === 0 && <p className="rounded-2xl bg-mist px-4 py-8 text-center text-sm text-gray-500">Nothing matches. Try other words.</p>}

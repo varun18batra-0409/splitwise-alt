@@ -9,7 +9,6 @@ import { buildGroupView } from "./_components/view";
 import { getTimeZone } from "@/lib/tz";
 import { GroupHeader } from "./_components/GroupHeader";
 import { GroupSummary } from "./_components/GroupSummary";
-import { GetAppButton } from "@/components/GetApp";
 import { ActivityTab } from "./_components/ActivityTab";
 import { BalancesTab } from "./_components/BalancesTab";
 import { ChartsTab } from "./_components/ChartsTab";
@@ -72,7 +71,6 @@ export default async function GroupPage({
     <>
       <GroupHeader v={v} switchTo={switchTo} />
       <GroupSummary v={v} sp={sp} />
-      <GetAppButton variant="banner" className="mb-6" />
 
       <nav className="mb-6 grid grid-cols-3 gap-1 rounded-xl bg-mist p-1" aria-label="Group sections">
         {TABS.map((t) => (

@@ -1,130 +1,55 @@
 import Link from "next/link";
-import { pairwiseDebtCount, type Transfer } from "@/lib/settle";
-import { toInputAmount } from "@/lib/money";
-import { recordPayment, settleEverything } from "@/app/actions";
-import { nudgeLink } from "@/lib/nudge";
-import { planKey } from "@/lib/settle-all";
-import { ConfirmButton } from "@/components/ConfirmButton";
-import { newRequestKey } from "@/lib/once";
+import { pairwiseDebtCount } from "@/lib/settle";
+import { formatMoney, formatPercent } from "@/lib/money";
+import { niceDate } from "@/lib/format";
 import { Avatar } from "@/components/ui";
 import type { GroupView } from "./view";
 import { WhyPanel } from "./WhyPanel";
 
-// Smart Settle inside a group:
-//  1. your payments (what you pay / get) first,
-//  2. payments between other people,
-//  3. by person — tap anyone to see exactly what's due between them and the others.
-// Every payment can be recorded in full ("Mark as paid") or in part ("Part").
+// Balances answers one question: who owes what, and why.
+// Paying (Mark as paid, Part, Remind, Settle everything) lives on Settle up,
+// so it's in one place only. The group's details (other currencies, totals,
+// card fee) sit here rather than crowding the top of the group.
 export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; why?: string }) {
-  const { group, myId, net, transfers, nameOf, money, expenses, payments, ledgers, hasMarkup, signed, eq } = v;
+  const { group, myId, net, transfers, nameOf, money, expenses, payments, ledgers, hasMarkup, signed, eq, spent } = v;
   const before = pairwiseDebtCount(expenses, payments);
-  const mine = transfers.filter((t) => t.from === myId || t.to === myId);
-  const others = transfers.filter((t) => t.from !== myId && t.to !== myId);
-  const payHref = (from = "", to = "", amount?: number) =>
-    `/groups/${group.id}/pay?${new URLSearchParams({ from, to, ...(amount ? { amount: toInputAmount(amount, group.currency) } : {}) })}`;
+  const mine = net[myId] ?? 0;
+  const people = group.members.filter((m) => !m.leftAt);
 
   return (
     <div className="space-y-10">
-      <section>
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="font-display text-lg font-semibold tracking-tight">Smart Settle</h2>
-          {!group.closed && transfers.length > 0 && (
-            <Link href={`/groups/${group.id}/settle`} className="pop shrink-0 bg-fg px-4 py-1.5 text-sm font-semibold text-canvas [--pop-edge:#6e6b63]">
+      {paid && <p className="rounded-xl bg-mist px-4 py-3 text-sm text-fg">Payment recorded. Balances updated.</p>}
+
+      {transfers.length === 0 ? (
+        <div className="rounded-2xl bg-mist px-4 py-8 text-center">
+          <p className="text-3xl" aria-hidden>
+            🎉
+          </p>
+          <p className="mt-2 font-display text-xl font-semibold">All square</p>
+          <p className="mt-1 text-sm text-gray-500">Nobody owes anybody in this group.</p>
+        </div>
+      ) : (
+        <section className="flex items-center justify-between gap-4 rounded-2xl border border-line px-4 py-4">
+          <p className="min-w-0 text-sm text-gray-500">
+            <span className="block font-display text-lg font-semibold text-fg">
+              {transfers.length} {transfers.length === 1 ? "payment clears" : "payments clear"} everything
+            </span>
+            {before > transfers.length ? `Instead of ${before}, thanks to Smart Settle.` : "The fewest payments possible."}
+          </p>
+          {!group.closed && (
+            <Link href={`/groups/${group.id}/settle`} className="pop shrink-0 bg-fg px-4 py-2 text-sm font-semibold text-canvas [--pop-edge:#6e6b63]">
               Settle up
             </Link>
           )}
-        </div>
-        <p className="mt-1 text-sm text-gray-500">
-          The fewest payments that clear every debt.
-          {transfers.length > 0 && before > transfers.length && ` ${transfers.length} instead of ${before}.`}
-        </p>
+        </section>
+      )}
 
-        {paid && <p className="mt-3 rounded-xl bg-mist px-4 py-3 text-sm text-fg">Payment recorded. Balances updated.</p>}
-
-        {transfers.length === 0 ? (
-          <div className="mt-4 rounded-2xl bg-mist px-4 py-8 text-center">
-            <p className="text-3xl" aria-hidden>
-              🎉
-            </p>
-            <p className="mt-2 font-display text-xl font-semibold">All square</p>
-            <p className="mt-1 text-sm text-gray-500">Nobody owes anybody in this group.</p>
-          </div>
-        ) : (
-          <>
-            {mine.length > 0 && (
-              <>
-                <h3 className="mb-2 mt-5 text-sm font-medium text-gray-600">Your payments</h3>
-                <TransferList v={v} list={mine} payHref={payHref} />
-              </>
-            )}
-            {others.length > 0 && (
-              <>
-                <h3 className="mb-2 mt-5 text-sm font-medium text-gray-600">Between others</h3>
-                <TransferList v={v} list={others} payHref={payHref} />
-              </>
-            )}
-          </>
-        )}
-        <p className="mt-3 text-xs text-gray-400">Recording a payment only notes it here. The app never moves real money.</p>
-
-        {!group.closed && (
-          <details className="group/kill mt-6 border border-line">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3.5 [&::-webkit-details-marker]:hidden">
-              <span>
-                <span className="block text-sm font-medium text-fg">
-                  {transfers.length > 0 ? "Settled outside the app?" : "Done with this group?"}
-                </span>
-                <span className="block text-xs text-gray-400">
-                  {transfers.length > 0 ? "Mark everything as paid and close the group in one go" : "Everyone’s square, so you can close it"}
-                </span>
-              </span>
-              <span className="shrink-0 text-sm text-gray-400 group-open/kill:rotate-180">⌄</span>
-            </summary>
-            <form action={settleEverything} className="border-t border-line px-4 pb-4 pt-3">
-              <input type="hidden" name="groupId" value={group.id} />
-              <input type="hidden" name="plan" value={planKey(transfers)} />
-              {transfers.length > 0 && (
-                <>
-                  <p className="mb-2 text-sm text-gray-500">This records these payments, then closes the group:</p>
-                  <ul className="mb-4 space-y-1 text-sm">
-                    {transfers.map((t) => (
-                      <li key={`${t.from}-${t.to}`} className="flex justify-between gap-3">
-                        <span>
-                          {nameOf(t.from)} → {t.to === myId ? "you" : nameOf(t.to)}
-                        </span>
-                        <span className="tabular-nums">{money(t.amount)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-              <ConfirmButton
-                message={
-                  transfers.length > 0
-                    ? `Mark all ${transfers.length} payments as paid and close ${group.name}? Everyone will be notified. You can undo this.`
-                    : `Close ${group.name}? You can reopen it any time.`
-                }
-                className="pop block w-full bg-fg px-4 py-3 text-center text-sm font-semibold text-canvas [--pop-edge:#6e6b63]"
-              >
-                {transfers.length > 0 ? "Settle everything & close" : "Close group"}
-              </ConfirmButton>
-              <p className="mt-2 text-xs text-gray-400">One Undo puts everything back.</p>
-            </form>
-          </details>
-        )}
-      </section>
-
-      {/* Between people: each person's balance and exactly who they pay / get paid by. */}
+      {/* Each person: their balance; tap for exactly why, and who they pay. */}
       <section>
         <h2 className="font-display text-lg font-semibold tracking-tight">By person</h2>
-        <p className="mb-3 text-sm text-gray-500">
-          In {group.currency}
-          {hasMarkup ? ", including card markup" : ""}.
-          {ledgers.length > 0 && ` Small figures: ${ledgers.map((l) => l.currency).join(", ")} expenses only, without markup.`} Tap a
-          person to see why.
-        </p>
+        <p className="mb-3 text-sm text-gray-500">Tap anyone to see why.</p>
         <ul className="divide-y divide-line border-y border-line">
-          {group.members.filter((m) => !m.leftAt || (v.net[m.id] ?? 0) !== 0).map((m) => {
+          {group.members.filter((m) => !m.leftAt || (net[m.id] ?? 0) !== 0).map((m) => {
             const b = net[m.id] ?? 0;
             const theirs = transfers.filter((t) => t.from === m.id || t.to === m.id);
             const foreign = b === 0 ? "" : ledgers.map((l) => signed(l.net[m.id] ?? 0, l.currency)).join(" · ");
@@ -148,12 +73,16 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
                     {theirs.length === 0 ? (
                       <p className="text-sm text-gray-500">Nothing due between {m.id === myId ? "you" : m.name} and anyone.</p>
                     ) : (
-                      <TransferList v={v} list={theirs} payHref={payHref} compact />
-                    )}
-                    {!group.closed && (
-                      <Link href={payHref(m.id)} className="inline-block py-1 text-xs font-semibold text-fg">
-                        Record another payment from {m.id === myId ? "you" : m.name}
-                      </Link>
+                      <ul className="space-y-1 text-sm">
+                        {theirs.map((t) => (
+                          <li key={`${t.from}-${t.to}`} className="flex justify-between gap-3">
+                            <span className="min-w-0 text-gray-600">
+                              {t.from === myId ? "You pay" : `${nameOf(t.from)} pays`} {t.to === myId ? "you" : nameOf(t.to)}
+                            </span>
+                            <span className="shrink-0 font-display tabular-nums">{money(t.amount)}</span>
+                          </li>
+                        ))}
+                      </ul>
                     )}
                   </div>
                 </details>
@@ -162,67 +91,56 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
           })}
         </ul>
       </section>
+
+      {/* Your balance in each foreign currency the group spent in, without card markup.
+          Hidden once you're square: payments are in the group currency, so these would look wrong. */}
+      {ledgers.length > 0 && mine !== 0 && (
+        <section>
+          <h2 className="font-display text-lg font-semibold tracking-tight">Spent in other currencies</h2>
+          <p className="mb-3 text-sm text-gray-500">Your share of those expenses in their own currency, without card fees.</p>
+          <ul className="divide-y divide-line rounded-2xl border border-line">
+            {ledgers.map((l) => {
+              const val = l.net[myId] ?? 0;
+              return (
+                <li key={l.currency} className="flex items-center justify-between gap-3 px-4 py-3">
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium">{l.currency} expenses</span>
+                    <span className="block text-xs text-gray-400">
+                      {formatMoney(l.spent, l.currency)} spent
+                      {payments.some((p) => p.fromId === myId || p.toId === myId) ? ", before payments" : ""}
+                    </span>
+                  </span>
+                  <span className={`shrink-0 text-right font-display tabular-nums ${val > 0 ? "text-owed" : val < 0 ? "text-owe" : "text-gray-400"}`}>
+                    {val > 0 ? `owed ${formatMoney(val, l.currency)}` : val < 0 ? `owe ${formatMoney(-val, l.currency)}` : "even"}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
+      <section className="space-y-1 text-sm text-gray-500">
+        <p>
+          {money(spent)}
+          {eq(spent) && ` (${eq(spent)})`} spent across {expenses.length} {expenses.length === 1 ? "expense" : "expenses"} by {people.length}{" "}
+          {people.length === 1 ? "person" : "people"}.
+        </p>
+        <p className="text-xs text-gray-400">
+          Amounts in {group.currency}
+          {hasMarkup ? `, including card fees (${formatPercent(group.cardMarkupBp)} on card payments abroad)` : ""}.{" "}
+          <Link href={`/groups/${group.id}/settings`} className="underline underline-offset-4">
+            Change
+          </Link>
+        </p>
+        {v.secondary && (
+          <p className="text-xs text-gray-400">
+            {v.secondaryRate
+              ? `≈ amounts in ${v.secondary}: 1 ${group.currency} = ${v.secondaryRate.rate} ${v.secondary}, rate for ${niceDate(v.secondaryRate.date)}.`
+              : `No live ${group.currency} → ${v.secondary} rate right now, so ${v.secondary} amounts are hidden.`}
+          </p>
+        )}
+      </section>
     </div>
   );
 }
-
-function TransferList({
-  v,
-  list,
-  payHref,
-  compact,
-}: {
-  v: GroupView;
-  list: Transfer[];
-  payHref: (from?: string, to?: string, amount?: number) => string;
-  compact?: boolean;
-}) {
-  const { group, myId, nameOf, money, eq } = v;
-  return (
-    <ul className={compact ? "space-y-1.5" : "space-y-2"}>
-      {list.map((t) => (
-        <li key={`${t.from}-${t.to}`} className={`border px-4 py-3 ${t.from === myId || t.to === myId ? "border-gray-300 bg-white" : "border-line"}`}>
-          <div className="flex items-center justify-between gap-3">
-            <p className="min-w-0 text-sm">
-              <strong className="font-medium">{nameOf(t.from)}</strong>
-              <span className="text-gray-500"> {t.from === myId ? "pay" : "pays"} </span>
-              <strong className="font-medium">{t.to === myId ? "you" : nameOf(t.to)}</strong>
-            </p>
-            <p className="shrink-0 text-right font-display font-semibold tabular-nums">
-              {money(t.amount)}
-              {eq(t.amount) && <span className="block font-sans text-xs font-normal text-gray-400">{eq(t.amount)}</span>}
-            </p>
-          </div>
-          {!group.closed && (
-            <div className="mt-2 flex justify-end gap-2">
-              {t.to === myId && (
-                <a
-                  href={nudgeLink(group.members.find((m) => m.id === t.from)?.phone ?? "", nameOf(t.from), money(t.amount), group.name)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mr-auto border border-line px-3 py-1.5 text-sm text-gray-600 active:bg-mist"
-                >
-                  Remind
-                </a>
-              )}
-              <Link href={payHref(t.from, t.to, t.amount)} className="border border-line px-3 py-1.5 text-sm text-gray-600 active:bg-mist">
-                Part
-              </Link>
-              <form action={recordPayment}>
-                <input type="hidden" name="groupId" value={group.id} />
-                <input type="hidden" name="fromId" value={t.from} />
-                <input type="hidden" name="toId" value={t.to} />
-                <input type="hidden" name="amount" value={t.amount} />
-                <input type="hidden" name="rid" value={newRequestKey()} />
-                <button type="submit" className="border border-line px-3 py-1.5 text-sm font-medium text-fg active:bg-mist">
-                  Mark as paid
-                </button>
-              </form>
-            </div>
-          )}
-        </li>
-      ))}
-    </ul>
-  );
-}
-

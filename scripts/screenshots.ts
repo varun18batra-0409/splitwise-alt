@@ -77,10 +77,8 @@ await shot("18-search", `${g}?tab=activity&q=dinner`);
 await shot("19-filter-person", `${g}?tab=activity&cat=food&who=${demo.trip.ravi}`);
 await shot("20-search", "/search?m=2026-10");
 await shot("21-search-group", `/search?g=${demo.trip.id}&q=dinner`);
-await shot("22-settle-everything", `${g}?tab=balances`, async (p) => {
-  await p.locator("details.group\\/kill summary").click();
-  await p.waitForTimeout(300);
-  await p.locator("details.group\\/kill").scrollIntoViewIfNeeded();
+await shot("22-settle-everything", `${g}/settle`, async (p) => {
+  await p.getByRole("button", { name: /Settle everything/ }).scrollIntoViewIfNeeded();
 }, false);
 await shot("23-add-expense-differently", `${g}/add`, async (p) => {
   await p.getByRole("button", { name: /Custom/ }).click();

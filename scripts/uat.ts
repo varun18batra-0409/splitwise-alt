@@ -505,9 +505,31 @@ async function main() {
     assert(/≈|=/.test(t), `no converted amount: ${t}`);
     return t.replace(/\s+/g, " ");
   });
-  await step(V, "Currency", "Group page shows the THB balance separately (without card fees)", async () => {
-    await go(V, g);
+  await step(V, "Currency", "Balances shows the THB balance separately (without card fees)", async () => {
+    await go(V, `${g}?tab=balances`);
     await V.getByText("THB expenses").first().waitFor();
+  });
+  await step(V, "Simple screens", "Group top is short: balance, Settle up and Why? only (details moved to Balances)", async () => {
+    await go(V, g);
+    const top = await V.locator("main section").first().innerText(); // everything above the tabs
+    for (const gone of ["THB expenses", "spent across", "card markup"]) assert(!top.includes(gone), `group top still shows “${gone}”`);
+    await V.getByRole("link", { name: "Settle up" }).first().waitFor();
+    await V.getByRole("link", { name: "Why?" }).first().waitFor();
+  });
+  await step(V, "Simple screens", "Balances only explains; paying happens on Settle up (no duplicate buttons)", async () => {
+    await go(V, `${g}?tab=balances`);
+    assert((await V.getByRole("button", { name: "Mark as paid" }).count()) === 0, "Balances still has Mark as paid");
+    await V.getByText(/payments? clears? everything/).first().waitFor();
+    await V.getByText("spent across").first().waitFor();
+  });
+  await step(V, "Simple screens", "Activity has one Filter button that opens search, category and person", async () => {
+    await go(V, `${g}?tab=activity`);
+    assert(!(await V.getByLabel("Category").isVisible()), "filters showing before tapping Filter");
+    await V.getByText("Filter", { exact: true }).click();
+    await V.getByLabel("Category").selectOption("food");
+    await V.getByRole("button", { name: "Show results" }).click();
+    await V.waitForURL(/cat=food/);
+    await V.getByText(/Filtered · \d+ match/).waitFor();
   });
 
   // ===== 5. Why? =====

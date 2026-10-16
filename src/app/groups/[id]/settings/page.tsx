@@ -105,7 +105,8 @@ export default async function GroupSettings({
 
       <form action={updateGroupSettings} className="space-y-10">
         <input type="hidden" name="groupId" value={group.id} />
-        <h2 className={`-mb-6 ${sectionTitle}`}>Basics</h2>
+        <section className="space-y-8">
+        <h2 className={`!mb-3 ${sectionTitle}`}>Basics</h2>
 
         <label className="block">
           <span className="mb-2 block text-base font-semibold">Group name</span>
@@ -148,8 +149,10 @@ export default async function GroupSettings({
             </optgroup>
           </select>
         </label>
+        </section>
 
-        <h2 className={`-mb-6 ${sectionTitle}`}>Card fees abroad</h2>
+        <section className="space-y-8">
+        <h2 className={`!mb-3 ${sectionTitle}`}>Card fees abroad</h2>
         <fieldset>
           <legend className="mb-1 text-base font-semibold">Card markup</legend>
           <p className="mb-4 text-sm text-gray-500">
@@ -182,6 +185,7 @@ export default async function GroupSettings({
             </span>
           </label>
         </fieldset>
+        </section>
 
         <button type="submit" className={primaryButtonClass}>
           Save settings
