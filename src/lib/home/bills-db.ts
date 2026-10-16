@@ -6,6 +6,7 @@ import { toInputAmount, formatMoney } from "../money";
 import { dailyTotal, payerFor, periodsDue, nextDueDay, ordinalDay } from "./bills";
 import { addMonths, daysInMonth, dueKey } from "./month";
 import { joinWeights } from "./moving";
+import { previousResult } from "../once";
 
 // Recurring bills, database side. The daily job calls runAllBills(); each
 // (bill, month) gets one BillRun row — its unique key is what makes adding a
@@ -77,23 +78,47 @@ export function billExpenseInput(bill: BillRow, groupId: string, currency: strin
 const sameCurrencyRate = async (from: string, to: string) =>
   from === to ? { ok: true as const, rate: "1", date: new Date().toISOString().slice(0, 10) } : getRate(from, to);
 
+// A claim older than this is from a run that crashed part-way; it's taken over.
+const STALE_MS = 10 * 60_000;
+
+// Claim (bill, month) for adding. The unique (bill, month) row means only one
+// caller ever gets it — unless it's a stale "adding" left by a crash.
+async function claimRun(billId: string, period: string, now: Date) {
+  try {
+    return await db.billRun.create({ data: { billId, period, status: "adding", claimedAt: now } });
+  } catch {
+    const old = await db.billRun.findUnique({ where: { billId_period: { billId, period } } });
+    if (!old || old.status !== "adding") return null;
+    if (old.claimedAt && now.getTime() - old.claimedAt.getTime() < STALE_MS) return null;
+    const took = await db.billRun.updateMany({ where: { id: old.id, status: "adding", claimedAt: old.claimedAt }, data: { claimedAt: now } });
+    return took.count === 1 ? { ...old, claimedAt: now } : null;
+  }
+}
+
 // Turn one due (bill, month) into an expense, once.
 async function runOne(bill: BillRow, group: { id: string; currency: string; closed: boolean; members: Member[] }, period: string, now: Date) {
   // Claim the month first. If someone else already did, there's nothing to do.
-  let run;
-  try {
-    run = await db.billRun.create({ data: { billId: bill.id, period, status: "adding" } });
-  } catch {
-    return "already";
+  const run = await claimRun(bill.id, period, now);
+  if (!run) return "already";
+  const key = run.requestKey || `bill-${run.id}`;
+  // Taking over a crashed run: if its expense was saved after all, just finish.
+  const saved = await previousResult(key);
+  if (saved) {
+    await db.billRun.update({ where: { id: run.id }, data: { status: "added", expenseId: saved, reason: "" } });
+    return "added";
   }
   const active = group.members.filter((m) => !m.leftAt).map((m) => m.id);
   const payer = payerFor(bill, period, active);
   const wait = async (reason: string) => {
-    await db.billRun.update({ where: { id: run.id }, data: { status: "waiting", reason } });
+    await db.billRun.update({ where: { id: run.id }, data: { status: "waiting", reason, requestKey: "" } });
     return "waiting";
   };
+  // An "Enter amount" that never finished: ask for it again.
+  if (run.requestKey) return wait("");
   if (group.closed) return wait("group closed");
   if (!payer) return wait("payer left");
+  const split = parseSplit(bill.split);
+  if (split.mode === "some" && !split.ids.some((id) => active.includes(id))) return wait("nobody left to share it");
   if (bill.nature === "varies") {
     // Ask whoever pays for this month's amount.
     await sendPushTo([payer], {
@@ -120,7 +145,7 @@ async function runOne(bill: BillRow, group: { id: string; currency: string; clos
 
   const input = billExpenseInput(bill, group.id, group.currency, period, amount, payer, group.members);
   if (note) input.notes = note;
-  const r = await saveExpense(input, payer, sameCurrencyRate, { now, requestKey: `bill-${run.id}`, eventText: `added ${bill.name} automatically (${formatMoney(amount, group.currency)})` });
+  const r = await saveExpense(input, payer, sameCurrencyRate, { now, requestKey: key, eventText: `added ${bill.name} automatically (${formatMoney(amount, group.currency)})` });
   if (!r.ok) return wait(r.error.slice(0, 120));
   await db.billRun.update({ where: { id: run.id }, data: { status: "added", expenseId: r.id } });
   return "added";
@@ -132,13 +157,19 @@ export async function runBillsForGroup(groupId: string, now = new Date()) {
     where: { id: groupId },
     include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true, splitWeight: true, joinedFrom: true } } },
   });
-  const counts = { added: 0, waiting: 0, skipped: 0 };
+  const counts = { added: 0, waiting: 0, skipped: 0, failed: 0 };
   if (!group || group.deletedAt) return counts;
   const bills = await db.bill.findMany({ where: { groupId, deletedAt: null, paused: false } });
   for (const bill of bills) {
     for (const period of periodsDue(bill, now)) {
-      const r = await runOne(bill, group, period, now);
-      if (r === "added") counts.added++;
+      // One bill failing (a dropped connection) mustn't stop the others; its
+      // claim goes stale and the next run finishes it.
+      const r = await runOne(bill, group, period, now).catch((err) => {
+        console.error("bill run failed", bill.id, period, String(err).slice(0, 200));
+        return "failed" as const;
+      });
+      if (r === "failed") counts.failed++;
+      else if (r === "added") counts.added++;
       else if (r === "waiting") counts.waiting++;
       else if (r === "skipped") counts.skipped++;
     }
@@ -149,12 +180,13 @@ export async function runBillsForGroup(groupId: string, now = new Date()) {
 // The daily job: every group that has bills.
 export async function runAllBills(now = new Date()) {
   const groups = await db.bill.findMany({ where: { deletedAt: null, paused: false, group: { deletedAt: null } }, select: { groupId: true }, distinct: ["groupId"] });
-  const total = { groups: groups.length, added: 0, waiting: 0, skipped: 0 };
+  const total = { groups: groups.length, added: 0, waiting: 0, skipped: 0, failed: 0 };
   for (const g of groups) {
     const c = await runBillsForGroup(g.groupId, now);
     total.added += c.added;
     total.waiting += c.waiting;
     total.skipped += c.skipped;
+    total.failed += c.failed;
   }
   return total;
 }
@@ -192,7 +224,7 @@ export async function billStatuses(groupId: string, now = new Date()): Promise<B
     const next = nextDueDay(bill, now);
     if (bill.paused || !next) return { bill: b as BillRow, status: "paused", period: "", due: "", usual, payerId: null, reason: "" };
     const period = next.slice(0, 7);
-    const done = runs.find((r) => r.period === period && r.status === "added");
+    const done = runs.find((r) => r.period === period && (r.status === "added" || r.status === "skipped"));
     // This month's already added → show the next one.
     if (done) {
       const after = nextDueDay({ ...bill, startMonth: bill.startMonth > addMonths(period, 1) ? bill.startMonth : addMonths(period, 1) }, now);
@@ -202,10 +234,45 @@ export async function billStatuses(groupId: string, now = new Date()): Promise<B
   });
 }
 
-// "Enter amount" saved: the waiting month becomes added.
-export async function markRunAdded(billId: string, period: string, expenseId: string) {
-  await db.billRun.updateMany({ where: { billId, period, status: "waiting" }, data: { status: "added", expenseId, reason: "" } });
-  await db.bill.updateMany({ where: { id: billId, nature: "varies" }, data: { amount: (await db.expense.findUnique({ where: { id: expenseId }, select: { amount: true } }))?.amount ?? 0 } });
+// "Enter amount" for a waiting bill month. The month is claimed before the
+// expense is saved, so two people entering it at once (or an old tab) can't
+// add it twice. A retry of the same form returns what it saved the first time.
+export async function addWaitingBill(
+  input: SaveExpenseInput,
+  actorId: string | undefined,
+  lookupRate: Parameters<typeof saveExpense>[2],
+  billRun: { billId: string; period: string },
+  requestKey: string | undefined,
+): Promise<Awaited<ReturnType<typeof saveExpense>>> {
+  const done = await previousResult(requestKey);
+  if (done !== null) return { ok: true, id: done };
+  const bill = await db.bill.findFirst({ where: { id: String(billRun.billId), groupId: input.groupId } });
+  if (!bill) return { ok: false, error: "That bill no longer exists." };
+  const where = { billId: bill.id, period: String(billRun.period) };
+  const claimed = await db.billRun.updateMany({ where: { ...where, status: "waiting" }, data: { status: "adding", claimedAt: new Date(), requestKey: requestKey ?? "" } });
+  if (claimed.count !== 1) {
+    const again = await previousResult(requestKey);
+    if (again !== null) return { ok: true, id: again };
+    return { ok: false, error: `${bill.name} for this month has already been added. You’ll find it in Activity.` };
+  }
+  const release = () => db.billRun.updateMany({ where: { ...where, status: "adding" }, data: { status: "waiting", requestKey: "" } });
+  let r: Awaited<ReturnType<typeof saveExpense>>;
+  try {
+    r = await saveExpense(input, actorId, lookupRate, { ignoreDoubleTap: true, requestKey, checkDuplicate: true });
+  } catch (err) {
+    await release().catch(() => undefined);
+    throw err;
+  }
+  if (!r.ok) {
+    await release();
+    return r;
+  }
+  await db.billRun.updateMany({ where: { ...where, status: "adding" }, data: { status: "added", expenseId: r.id, reason: "", requestKey: "" } });
+  if (bill.nature === "varies") {
+    const e = await db.expense.findUnique({ where: { id: r.id }, select: { amount: true } });
+    if (e) await db.bill.update({ where: { id: bill.id }, data: { amount: e.amount } });
+  }
+  return r;
 }
 
 export { ordinalDay };

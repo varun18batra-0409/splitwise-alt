@@ -4,7 +4,8 @@ import { netBalances } from "../balances";
 import { formatMoney, parseAmount } from "../money";
 import { claimKey, isDuplicateKey, previousResult } from "../once";
 import { niceDate } from "../format";
-import { daysInMonth } from "./month";
+import { addMonths, daysInMonth } from "./month";
+import { DEFAULT_TIME_ZONE, dayKey } from "../dates";
 import { depositRefunds, leaverPayments, proRataShares } from "./moving";
 import type { Transfer } from "../settle";
 
@@ -25,19 +26,28 @@ async function loadFlat(groupId: string) {
 }
 type Flat = NonNullable<Awaited<ReturnType<typeof loadFlat>>>;
 
-// This month's bill expenses that the leaver shares in (rent, Wi-Fi…).
-async function billExpensesFor(flat: Flat, leaverId: string, month: string) {
-  const runs = await db.billRun.findMany({ where: { period: month, status: "added", bill: { groupId: flat.id } }, select: { expenseId: true } });
-  const ids = new Set(runs.map((r) => r.expenseId));
-  return flat.expenses.filter((e) => ids.has(e.id) && e.shares.some((s) => s.memberId === leaverId && s.amount > 0));
+// Bill expenses (rent, Wi-Fi…) the leaver shares in, from the month of their
+// last day onwards: that month is pro-rata, any later month isn't theirs at all.
+async function billExpensesFor(flat: Flat, leaverId: string, fromMonth: string) {
+  const runs = await db.billRun.findMany({ where: { period: { gte: fromMonth }, status: "added", bill: { groupId: flat.id } }, select: { expenseId: true, period: true } });
+  const periodOf = new Map(runs.map((r) => [r.expenseId, r.period]));
+  return flat.expenses
+    .filter((e) => periodOf.has(e.id) && e.shares.some((s) => s.memberId === leaverId && s.amount > 0))
+    .map((e) => ({ e, period: periodOf.get(e.id)! }))
+    .sort((a, b) => a.period.localeCompare(b.period) || a.e.description.localeCompare(b.e.description));
 }
+type BillExpense = Awaited<ReturnType<typeof billExpensesFor>>[number];
 
-function plan(flat: Flat, leaverId: string, lastDay: string, bills: Flat["expenses"]) {
+function plan(flat: Flat, leaverId: string, lastDay: string, bills: BillExpense[]) {
   const month = lastDay.slice(0, 7);
   const monthDays = daysInMonth(month);
   const daysStayed = Number(lastDay.slice(8, 10));
-  const weights = Object.fromEntries(flat.members.map((m) => [m.id, m.splitWeight]));
-  const resplit = bills.map((e) => ({ e, shares: proRataShares(e.shares, leaverId, daysStayed, monthDays, weights) }));
+  const resplit = bills.map(({ e, period }) => {
+    const days = period === month ? daysStayed : 0;
+    // What's freed goes to the others the way this expense was already shared.
+    const weights = Object.fromEntries(e.shares.map((x) => [x.memberId, x.amount]));
+    return { e, period, days, monthDays: daysInMonth(period), shares: proRataShares(e.shares, leaverId, days, daysInMonth(period), weights) };
+  });
   const credit = resplit.reduce(
     (s, r) => s + (r.e.shares.find((x) => x.memberId === leaverId)?.amount ?? 0) - (r.shares.find((x) => x.memberId === leaverId)?.amount ?? 0),
     0,
@@ -52,15 +62,21 @@ function plan(flat: Flat, leaverId: string, lastDay: string, bills: Flat["expens
   return { resplit, credit, before, after, payments: leaverPayments(after, leaverId), daysStayed, monthDays };
 }
 
-function checkDay(lastDay: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(lastDay) && !Number.isNaN(new Date(`${lastDay}T12:00:00Z`).getTime());
+// The last day: a real date, not in the future, and this month or last.
+function checkDay(lastDay: string, now: Date): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(lastDay) || Number.isNaN(new Date(`${lastDay}T12:00:00Z`).getTime())) return "Pick the last day in the flat.";
+  const today = dayKey(now, DEFAULT_TIME_ZONE);
+  if (lastDay > today) return "The last day can’t be in the future. Do this on the day they move out (or after).";
+  if (lastDay.slice(0, 7) < addMonths(today.slice(0, 7), -1)) return "Pick a last day this month or last month.";
+  return null;
 }
 
-export async function moveOutPreview(groupId: string, leaverId: string, lastDay: string) {
+export async function moveOutPreview(groupId: string, leaverId: string, lastDay: string, now = new Date()) {
   const flat = await loadFlat(groupId);
   if (!flat || flat.deletedAt) return { ok: false, error: "This group no longer exists." } as Fail;
   if (!flat.members.some((m) => m.id === leaverId && !m.leftAt)) return { ok: false, error: "That person isn’t in the flat." } as Fail;
-  if (!checkDay(lastDay)) return { ok: false, error: "Pick the last day in the flat." } as Fail;
+  const bad = checkDay(lastDay, now);
+  if (bad) return { ok: false, error: bad } as Fail;
   const bills = await billExpensesFor(flat, leaverId, lastDay.slice(0, 7));
   const p = plan(flat, leaverId, lastDay, bills);
   const dep = flat.deposit?.shares.find((s) => s.memberId === leaverId && s.status === "held") ?? null;
@@ -68,7 +84,14 @@ export async function moveOutPreview(groupId: string, leaverId: string, lastDay:
     ok: true as const,
     balanceToday: p.before[leaverId] ?? 0,
     rentCredit: p.credit,
-    bills: p.resplit.map((r) => ({ name: r.e.description, before: r.e.shares.find((x) => x.memberId === leaverId)?.amount ?? 0, after: r.shares.find((x) => x.memberId === leaverId)?.amount ?? 0 })),
+    bills: p.resplit.map((r) => ({
+      name: r.e.description,
+      period: r.period,
+      days: r.days,
+      monthDays: r.monthDays,
+      before: r.e.shares.find((x) => x.memberId === leaverId)?.amount ?? 0,
+      after: r.shares.find((x) => x.memberId === leaverId)?.amount ?? 0,
+    })),
     payments: p.payments,
     daysStayed: p.daysStayed,
     monthDays: p.monthDays,
@@ -80,6 +103,7 @@ export async function moveOut(
   groupId: string,
   actorId: string,
   input: { leaverId: string; lastDay: string; depositTo?: string; requestKey: string },
+  now = new Date(),
 ): Promise<{ ok: true; payments: Transfer[] } | Fail> {
   if ((await previousResult(input.requestKey)) !== null) return { ok: true, payments: [] };
   const flat = await loadFlat(groupId);
@@ -87,7 +111,8 @@ export async function moveOut(
   if (!flat.members.some((m) => m.id === actorId && !m.leftAt)) return { ok: false, error: "Only people in this group can do this." };
   const leaver = flat.members.find((m) => m.id === input.leaverId && !m.leftAt);
   if (!leaver) return { ok: false, error: "That person isn’t in the flat." };
-  if (!checkDay(input.lastDay)) return { ok: false, error: "Pick the last day in the flat." };
+  const bad = checkDay(input.lastDay, now);
+  if (bad) return { ok: false, error: bad };
   const others = flat.members.filter((m) => !m.leftAt && m.id !== leaver.id);
   if (!others.length) return { ok: false, error: "Someone has to stay in the flat." };
   const depositTo = input.depositTo && others.some((m) => m.id === input.depositTo) ? input.depositTo : "";
@@ -101,7 +126,7 @@ export async function moveOut(
   try {
     await db.$transaction(async (tx) => {
       await claimKey(tx, input.requestKey, "moved");
-      // 1. This month's bills: their share only for the days they stayed.
+      // 1. Bills: their share only for the days they stayed (none for later months).
       for (const r of p.resplit) {
         await tx.expenseShare.deleteMany({ where: { expenseId: r.e.id } });
         await tx.expense.update({ where: { id: r.e.id }, data: { splitType: "exact", forMode: "selected", editedAt: new Date(), shares: { create: r.shares } } });
@@ -164,7 +189,7 @@ export async function moveOut(
         kind: "member_left",
         text: actorId === leaver.id ? `moved out (last day ${niceDate(input.lastDay)})` : `marked ${leaver.name} as moved out (last day ${niceDate(input.lastDay)})`,
         details: [
-          ...(p.credit ? [`${money(p.credit)} of this month’s bills moved to the others`] : []),
+          ...(p.credit ? [`${money(p.credit)} of bills after they left moved to the others`] : []),
           ...p.payments.map((t) => `${name(t.from)} paid ${name(t.to)} ${money(t.amount)}`),
           ...(dep && depositTo ? [`Deposit ${money(dep.amount)} taken over by ${name(depositTo)}`] : []),
         ],

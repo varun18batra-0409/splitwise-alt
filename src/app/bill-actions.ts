@@ -14,13 +14,15 @@ import { getAccount, getMyMemberId, setMyMemberId } from "@/lib/identity";
 import { createGroupFor } from "@/lib/group-setup";
 import { addRegistered } from "@/lib/invites";
 import { headers } from "next/headers";
+import { claimOnce } from "@/lib/push";
 
 // Home & Couple groups: bills (set up, change, skip / pause / stop, the daily
 // calendar), settle-up rules, and the shopping list.
 
+// Who's acting: must still be in the group (not just carry its cookie).
 async function me(groupId: string) {
   const id = await getMyMemberId(groupId);
-  if (!id) redirect("/private");
+  if (!id || !(await db.member.findFirst({ where: { id, groupId, leftAt: null }, select: { id: true } }))) redirect("/private");
   return id;
 }
 
@@ -206,9 +208,11 @@ export async function tripFromGoal(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const actor = await me(groupId);
   const account = await getAccount();
-  const goal = await db.goal.findFirst({ where: { id: String(formData.get("goalId") ?? ""), groupId }, include: { group: { include: { members: true } } } });
-  if (!goal || !account) redirect(`/groups/${groupId}`);
-  const meMember = goal.group.members.find((m) => m.id === actor)!;
+  const goal = await db.goal.findFirst({ where: { id: String(formData.get("goalId") ?? ""), groupId, deletedAt: null, reachedAt: { not: null } }, include: { group: { include: { members: true } } } });
+  const meMember = goal?.group.members.find((m) => m.id === actor);
+  if (!goal || !account || !meMember) redirect(`/groups/${groupId}`);
+  // Once per goal: a second tap (or a retry) doesn't make a second trip.
+  if (!(await claimOnce(`trip-from-goal:${goal.id}`))) redirect("/");
   const trip = await createGroupFor(account, { type: "trip", name: goal.name, yourName: meMember.name, currency: goal.group.currency });
   await setMyMemberId(trip.id, trip.members[0].id);
   const { origin } = await originOf();

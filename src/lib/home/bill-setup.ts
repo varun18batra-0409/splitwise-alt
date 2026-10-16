@@ -1,7 +1,8 @@
 import { db } from "../db";
 import { logEvent } from "../events";
 import { formatMoney, parseAmount } from "../money";
-import { BILL_TEMPLATES, firstMonth, ordinalDay, toggleMissed } from "./bills";
+import { BILL_TEMPLATES, addMissed, daysBefore, daysInRange, firstMonth, monthsBetween, ordinalDay, periodsDue, toggleMissed } from "./bills";
+import { addMonths, dueKey } from "./month";
 import { DEFAULT_TIME_ZONE, dayKey } from "../dates";
 
 // Setting bills up and changing them (database side, checked here).
@@ -70,7 +71,9 @@ export async function saveBillFor(groupId: string, actorId: string, input: BillI
   const tz = DEFAULT_TIME_ZONE;
   const startMonth = firstMonth(data.day, nature, now, tz);
   const bill = await db.$transaction(async (tx) => {
-    const b = await tx.bill.create({ data: { ...data, groupId, startMonth, tz, createdById: actorId } });
+    // A daily bill set up mid-month counts only from today: earlier days are marked as not come.
+    const missed = nature === "daily" ? daysBefore(startMonth, dayKey(now, tz)) : "{}";
+    const b = await tx.bill.create({ data: { ...data, groupId, startMonth, tz, createdById: actorId, missed } });
     await logEvent(tx, { groupId, actorId, kind: "bill_added", text: `set up ${name} (${what}, ${when})` });
     return b;
   });
@@ -82,18 +85,41 @@ export async function billCommand(groupId: string, actorId: string, billId: stri
   const bill = await db.bill.findFirst({ where: { id: billId, groupId, deletedAt: null }, include: { group: { include: { members: true } } } });
   if (!bill) return { ok: false, error: "That bill no longer exists." };
   if (!bill.group.members.some((m) => m.id === actorId && !m.leftAt)) return { ok: false, error: "Only people in this group can change bills." };
-  const month = dayKey(now, bill.tz).slice(0, 7);
   if (command === "skip") {
     // Skip the month that's waiting, or else this month (if not added yet), or next month.
     const waiting = await db.billRun.findFirst({ where: { billId, status: "waiting" }, orderBy: { period: "asc" } });
     if (waiting) await db.billRun.update({ where: { id: waiting.id }, data: { status: "skipped", reason: "skipped" } });
     else {
-      const thisRun = await db.billRun.findUnique({ where: { billId_period: { billId, period: month } } });
-      const period = thisRun ? (await import("./month")).addMonths(month, 1) : month;
+      // The first month from this one that the bill comes round in and isn't added yet
+      // (a bill every 2 months skips its next real month).
+      const comesIn = (p: string) => p >= bill.startMonth && monthsBetween(bill.startMonth, p) % Math.max(1, bill.every) === 0 && (!bill.endMonth || p <= bill.endMonth);
+      let next: string | null = null;
+      for (let i = 0, p = dayKey(now, bill.tz).slice(0, 7); i < 36 && !next; i++, p = addMonths(p, 1)) {
+        if (comesIn(p) && !(await db.billRun.findUnique({ where: { billId_period: { billId, period: p } } }))) next = p;
+      }
+      if (!next) return { ok: false, error: "There’s no coming month to skip." };
+      const period = next;
       await db.billRun.upsert({ where: { billId_period: { billId, period } }, create: { billId, period, status: "skipped", reason: "skipped" }, update: {} });
     }
-  } else if (command === "pause" || command === "resume") {
-    await db.bill.update({ where: { id: billId }, data: { paused: command === "pause" } });
+  } else if (command === "pause") {
+    if (!bill.paused) await db.bill.update({ where: { id: billId }, data: { paused: true, pausedAt: now } });
+  } else if (command === "resume") {
+    // What came round while it was paused isn't charged afterwards: a monthly
+    // bill skips the months it fell due in; a daily one counts those days as not come.
+    const today = dayKey(now, bill.tz);
+    const from = bill.pausedAt ? dayKey(bill.pausedAt, bill.tz) : "";
+    await db.$transaction(async (tx) => {
+      let missed = bill.missed;
+      if (bill.nature === "daily") {
+        if (from) for (const p of [addMonths(today.slice(0, 7), -1), today.slice(0, 7)]) missed = addMissed(missed, p, daysInRange(p, from, today));
+      } else {
+        for (const period of periodsDue({ ...bill, paused: false }, now)) {
+          if (from && dueKey(period, bill.day >= 31 ? "last" : bill.day) < from) continue;
+          await tx.billRun.upsert({ where: { billId_period: { billId, period } }, create: { billId, period, status: "skipped", reason: "paused" }, update: {} });
+        }
+      }
+      await tx.bill.update({ where: { id: billId }, data: { paused: false, pausedAt: null, missed } });
+    });
   } else if (command === "stop") {
     await db.bill.update({ where: { id: billId }, data: { deletedAt: new Date() } });
   } else return { ok: false, error: "Unknown action." };

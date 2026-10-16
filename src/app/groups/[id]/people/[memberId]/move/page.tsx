@@ -9,6 +9,9 @@ import { niceDate } from "@/lib/format";
 import { dayKey } from "@/lib/dates";
 import { getTimeZone } from "@/lib/tz";
 import { newRequestKey } from "@/lib/once";
+import { addMonths } from "@/lib/home/month";
+
+const monthLabel = (period: string) => new Date(`${period}-15T12:00:00Z`).toLocaleDateString("en-IN", { month: "short", timeZone: "UTC" });
 
 // Someone moving out of the flat: their share for the days they stayed, their
 // deposit, and the exact final payments — then they're marked as moved out.
@@ -47,7 +50,7 @@ export default async function MoveOutPage({
       <form method="get" className="mb-7 flex items-end gap-2 border-y border-line py-3.5" data-allow-repeat="1">
         <label className="flex-1">
           <span className="block text-sm text-gray-500">Last day in the flat</span>
-          <input type="date" name="day" defaultValue={lastDay} className={`${inputClass} mt-1 py-2`} />
+          <input type="date" name="day" defaultValue={lastDay} max={today} min={`${addMonths(today.slice(0, 7), -1)}-01`} className={`${inputClass} mt-1 py-2`} />
         </label>
         <button type="submit" className="border border-line px-4 py-2.5 text-sm font-medium active:bg-mist">
           Update
@@ -71,11 +74,11 @@ export default async function MoveOutPage({
                 <dd className="font-display tabular-nums">{p.balanceToday > 0 ? `gets ${money(p.balanceToday)}` : p.balanceToday < 0 ? `owes ${money(-p.balanceToday)}` : "square"}</dd>
               </div>
               {p.bills.map((b) => (
-                <div key={b.name} className="flex justify-between">
+                <div key={`${b.name}-${b.period}`} className="flex justify-between">
                   <dt>
                     {b.name}{" "}
                     <span className="text-gray-500">
-                      · {p.daysStayed} of {p.monthDays} days
+                      · {monthLabel(b.period)}, {b.days} of {b.monthDays} days
                     </span>
                   </dt>
                   <dd className="font-display tabular-nums text-owed">− {money(b.before - b.after)}</dd>
@@ -83,7 +86,7 @@ export default async function MoveOutPage({
               ))}
             </dl>
             {p.bills.length > 0 && (
-              <p className="mt-2 text-xs text-gray-500">This month’s bills are re-split: {name(leaver.id)} keep{leaver.id === myId ? "" : "s"} a share only for the days there; the rest goes to the others.</p>
+              <p className="mt-2 text-xs text-gray-500">Bills are re-split: {name(leaver.id)} keep{leaver.id === myId ? "" : "s"} a share only for the days there; the rest goes to the others.</p>
             )}
           </section>
 

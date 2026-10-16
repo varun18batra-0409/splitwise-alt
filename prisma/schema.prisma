@@ -297,6 +297,7 @@ model Bill {
   createdAt   DateTime  @default(now())
   deletedAt   DateTime?
   runs        BillRun[]
+  pausedAt    DateTime? // when it was paused (resuming skips what came round since)
   @@index([groupId])
 }
 
@@ -307,10 +308,12 @@ model BillRun {
   billId    String
   bill      Bill     @relation(fields: [billId], references: [id], onDelete: Cascade)
   period    String // "2026-11"
-  status    String // "added" | "waiting" | "skipped"
-  expenseId String   @default("")
-  reason    String   @default("")
-  createdAt DateTime @default(now())
+  status     String // "added" | "waiting" | "skipped" | "adding" (being added right now)
+  expenseId  String    @default("")
+  reason     String    @default("")
+  createdAt  DateTime  @default(now())
+  claimedAt  DateTime? // when it was last set to "adding" (a stale claim is taken over)
+  requestKey String    @default("") // "Enter amount": the key of the form that's adding it
   @@unique([billId, period])
 }
 

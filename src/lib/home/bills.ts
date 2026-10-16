@@ -118,6 +118,32 @@ export function toggleMissed(missed: string, period: string, day: number): strin
   return JSON.stringify(Object.fromEntries(keep.map((k) => [k, v[k]])));
 }
 
+// A daily bill set up part-way through a month: the days before it started,
+// as "missed" ({"2026-10":[1,…,19]}), so it's charged only from the start.
+export function daysBefore(period: string, today: string): string {
+  if (today.slice(0, 7) !== period) return "{}";
+  const n = Number(today.slice(8, 10)) - 1;
+  return n > 0 ? JSON.stringify({ [period]: Array.from({ length: n }, (_, i) => i + 1) }) : "{}";
+}
+
+// The days of a month from one date up to (not including) another:
+// ("2026-10", "2026-10-20", "2026-11-03") → 20…31.
+export function daysInRange(period: string, from: string, until: string): number[] {
+  const out: number[] = [];
+  for (let d = 1; d <= daysInMonth(period); d++) {
+    const key = `${period}-${String(d).padStart(2, "0")}`;
+    if (key >= from && key < until) out.push(d);
+  }
+  return out;
+}
+
+// Add days to a daily bill's "didn't come" list for a month.
+export function addMissed(missed: string, period: string, days: number[]): string {
+  let out = missed;
+  for (const d of days) if (!missedDays(out, period).includes(d)) out = toggleMissed(out, period, d);
+  return out;
+}
+
 // The first month a new bill is added: this month if its day hasn't passed, else next month.
 export function firstMonth(day: number, nature: string, now: Date, tz: string = DEFAULT_TIME_ZONE): string {
   const today = dayKey(now, tz);

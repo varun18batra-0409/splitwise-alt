@@ -197,6 +197,15 @@ describe("bills: edge cases from review", () => {
     expect(e.amount).toBe(12 * 6000); // 20th–31st
   });
 
+  it("milk paused on the 20th and back on the 25th isn't charged for those 5 days", async () => {
+    const b = await bill({ name: "Water cans", nature: "daily", amount: 5000, day: 31, startMonth: "2026-10" });
+    await billCommand(groupId, you, b.id, "pause", new Date("2026-10-20T06:00:00Z"));
+    await billCommand(groupId, you, b.id, "resume", new Date("2026-10-25T06:00:00Z"));
+    await runBillsForGroup(groupId, new Date("2026-11-01T06:00:00Z"));
+    const e = await db.expense.findFirstOrThrow({ where: { groupId, description: "Water cans" } });
+    expect(e.amount).toBe(26 * 5000);
+  });
+
   it("a bill shared by only some people waits when they've all left", async () => {
     const b = await bill({ name: "Netflix", amount: 64900, split: JSON.stringify({ mode: "some", ids: [] }) });
     await runBillsForGroup(groupId, new Date("2026-10-16T06:00:00Z"));
