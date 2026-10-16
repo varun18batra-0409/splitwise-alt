@@ -4,8 +4,6 @@
 
 export const SESSION_COOKIE = "sw_me";
 export const SESSION_MAX_AGE = 60 * 60 * 24 * 365 * 5; // five years
-// Phones that still have the old unsigned cookie get it upgraded until then.
-export const LEGACY_UNTIL = Date.UTC(2026, 11, 31);
 
 export type Session = { m: Record<string, string>; a?: string };
 
@@ -69,27 +67,5 @@ export async function decodeSession(raw: string | undefined | null): Promise<Ses
     return clean(JSON.parse(new TextDecoder().decode(fromB64url(payload))));
   } catch {
     return null;
-  }
-}
-
-// The old cookie was plain JSON { groupId: memberId }.
-export function parseLegacy(raw: string | undefined | null): Session | null {
-  if (!raw) return null;
-  for (const text of [raw, safeDecode(raw)]) {
-    try {
-      const v = JSON.parse(text);
-      if (v && typeof v === "object" && !Array.isArray(v) && !("m" in v)) return clean({ m: v });
-    } catch {
-      /* try the next form */
-    }
-  }
-  return null;
-}
-
-function safeDecode(s: string): string {
-  try {
-    return decodeURIComponent(s);
-  } catch {
-    return s;
   }
 }

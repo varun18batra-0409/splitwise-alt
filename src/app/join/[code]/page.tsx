@@ -31,7 +31,7 @@ export default async function JoinPage({
 
   const active = group.members.filter((m) => !m.leftAt);
   const verified = active.filter((m) => m.accountId);
-  const unclaimed = active.filter((m) => !m.accountId);
+  const unclaimed = active.filter((m) => !m.accountId && !m.claimedAt);
   const back = `/join/${code}${invitedEmail ? `?e=${encodeURIComponent(invitedEmail)}` : ""}`;
 
   return (

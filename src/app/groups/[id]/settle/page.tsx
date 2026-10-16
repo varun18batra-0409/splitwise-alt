@@ -29,7 +29,7 @@ export default async function GroupSettle({
   if (!data) notFound();
   const { group, transfers, expenses, payments } = data;
   const myId = await getMyMemberId(group.id);
-  if (!myId || !group.members.some((m) => m.id === myId)) redirect(`/join/${group.inviteCode}`);
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
 
   const nameOf = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");
   const money = (n: number) => formatMoney(n, group.currency);

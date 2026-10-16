@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getMemberships, getMyMemberId } from "@/lib/identity";
-import { loadGroup, loadMyGroups } from "@/lib/group-data";
+import { loadGroup, loadSwitchList } from "@/lib/group-data";
+import { db } from "@/lib/db";
 import { canUndo } from "@/lib/undo";
 import { UndoBar } from "@/components/UndoBar";
 import { buildGroupView } from "./_components/view";
@@ -46,22 +47,22 @@ export default async function GroupPage({
   const sp = await searchParams;
   const tab: Tab = TABS.some((t) => t.id === sp.tab) ? (sp.tab as Tab) : "activity";
 
+  // Check membership with one small query before loading the whole ledger.
+  const myId = await getMyMemberId(id);
+  const me = myId ? await db.member.findFirst({ where: { id: myId, groupId: id }, select: { id: true } }) : null;
+  if (!me || !myId) {
+    const exists = await db.group.findFirst({ where: { id, deletedAt: null }, select: { id: true } });
+    if (!exists) notFound();
+    redirect("/private");
+  }
   const data = await loadGroup(id);
   if (!data) notFound();
-
-  // If this phone hasn't said who it is in this group yet, ask first.
-  const myId = await getMyMemberId(data.group.id);
-  if (!myId || !data.group.members.some((m) => m.id === myId)) redirect(`/join/${data.group.inviteCode}`);
 
   const v = await buildGroupView(data, myId, await getTimeZone());
   const { group } = v;
 
   // Group switcher: up to 5 of my other open groups, most recently active first.
-  const switchTo = (await loadMyGroups(await getMemberships()))
-    .filter((g) => !g.group.closed && g.group.id !== group.id)
-    .sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime())
-    .slice(0, 5)
-    .map((g) => ({ id: g.group.id, name: g.group.name, currency: g.group.currency, myBalance: g.myBalance }));
+  const switchTo = await loadSwitchList(await getMemberships(), group.id);
 
   // Right after a change: offer Undo (or Redo after an undo).
   const justDid = sp.did ? group.events.find((x) => x.id === sp.did) : undefined;

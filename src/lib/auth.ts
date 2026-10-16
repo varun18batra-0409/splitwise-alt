@@ -58,14 +58,20 @@ export async function verifyLoginCode(rawEmail: string, rawCode: string, now = n
     orderBy: { createdAt: "desc" },
   });
   if (!row) return { ok: false, error: "That code has expired. Ask for a new one." };
-  if (row.attempts >= MAX_TRIES) return { ok: false, error: "Too many wrong tries. Ask for a new code." };
+  // Use up one try BEFORE comparing, in one step, so many guesses sent at the
+  // same moment can't get more than 5 tries between them.
+  const tried = await db.loginCode.updateMany({
+    where: { id: row.id, usedAt: null, attempts: { lt: MAX_TRIES } },
+    data: { attempts: { increment: 1 } },
+  });
+  if (tried.count !== 1) return { ok: false, error: "Too many wrong tries. Ask for a new code." };
   const a = Buffer.from(row.codeHash, "hex");
   const b = Buffer.from(hashLoginCode(email, code), "hex");
   if (a.length !== b.length || !timingSafeEqual(a, b)) {
-    await db.loginCode.update({ where: { id: row.id }, data: { attempts: { increment: 1 } } });
     return { ok: false, error: "That code isn't right. Check the email and try again." };
   }
-  await db.loginCode.update({ where: { id: row.id }, data: { usedAt: now } });
+  const used = await db.loginCode.updateMany({ where: { id: row.id, usedAt: null }, data: { usedAt: now } });
+  if (used.count !== 1) return { ok: false, error: "That code was already used. Ask for a new one." };
   const account = await db.account.upsert({ where: { email }, create: { email }, update: {} });
   return { ok: true, accountId: account.id };
 }

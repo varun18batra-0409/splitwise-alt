@@ -91,6 +91,7 @@ model Expense {
   editedAt    DateTime? // last time it was changed
   deletedAt   DateTime? // deleted expenses stay in history but no longer count
   deletedById String?
+  @@index([groupId])
 }
 
 model ExpenseShare {
@@ -100,6 +101,8 @@ model ExpenseShare {
   memberId  String
   member    Member  @relation(fields: [memberId], references: [id])
   amount    Int // this person's share, in paise
+  @@index([expenseId])
+  @@index([memberId])
 }
 
 // A record that one person paid another back. The app never moves real money.
@@ -117,6 +120,7 @@ model Payment {
   createdById String    @default("") // who recorded it
   deletedAt   DateTime? // deleted payments stay in history but no longer count
   deletedById String?
+  @@index([groupId])
 }
 
 // Everything that happens in a group: the change history and the source of
@@ -137,6 +141,8 @@ model GroupEvent {
   createdAt DateTime @default(now())
 
   @@index([groupId, createdAt])
+  @@index([expenseId])
+  @@index([paymentId])
 }
 
 // Cache of exchange rates fetched from frankfurter.dev, so we call it rarely.
@@ -239,4 +245,5 @@ model RequestKey {
   key       String   @id
   result    String   @default("")
   createdAt DateTime @default(now())
+  @@index([createdAt])
 }

@@ -40,5 +40,7 @@ for (const [name, t] of Object.entries(backup.tables)) {
   ok &&= match;
   console.log(`${match ? "✓" : "✗"} ${name}: ${n} rows${match ? "" : ` (backup has ${t.rows.length})`}`);
 }
+for (const sql of backup.indexes ?? []) await client.execute(sql);
+if (backup.indexes?.length) console.log(`✓ ${backup.indexes.length} indexes`);
 console.log(ok ? `Restore complete and verified (backup taken ${backup.takenAt}).` : "Restore finished with differences — check above.");
 process.exit(ok ? 0 : 2);

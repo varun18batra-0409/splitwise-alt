@@ -22,7 +22,7 @@ export default async function RecordPayment({
   if (!data) notFound();
   const { group, transfers, net } = data;
   const myId = await getMyMemberId(group.id);
-  if (!myId || !group.members.some((m) => m.id === myId)) redirect(`/join/${group.inviteCode}`);
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
 
   const people = group.members.filter((m) => !m.leftAt); // people who left aren't offered
   const isMember = (x?: string) => Boolean(x && people.some((m) => m.id === x));

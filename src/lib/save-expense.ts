@@ -260,6 +260,9 @@ export async function deletePayment(paymentId: string, actingMemberId: string | 
 
 // Delete or restore a settle-up payment. Deleted payments stay in history.
 export async function setPaymentDeleted(paymentId: string, actingMemberId: string | undefined, deleted: boolean): Promise<Result> {
+  return withRetry(() => setPaymentDeletedOnce(paymentId, actingMemberId, deleted));
+}
+async function setPaymentDeletedOnce(paymentId: string, actingMemberId: string | undefined, deleted: boolean): Promise<Result> {
   const payment = await db.payment.findUnique({
     where: { id: paymentId },
     include: { group: { include: { members: { select: { id: true } } } }, from: true, to: true },

@@ -5,6 +5,12 @@
 // rate-limit counters, old error logs). Runs before `npm run dev` and on deploy.
 import { PrismaClient } from "@prisma/client";
 
+// Preview builds of unfinished branches must never change live data.
+if (process.env.VERCEL && process.env.VERCEL_ENV !== "production") {
+  console.log(`upgrade-data: ${process.env.VERCEL_ENV} build, leaving the data alone.`);
+  process.exit(0);
+}
+
 // Hosted app: Turso (online SQLite). Otherwise: the local file.
 const db = process.env.TURSO_DATABASE_URL
   ? new PrismaClient({
@@ -98,6 +104,7 @@ const dayAgo = new Date(Date.now() - 86_400_000);
 await db.loginCode.deleteMany({ where: { expiresAt: { lt: dayAgo } } });
 await db.rateLimit.deleteMany({ where: { resetAt: { lt: dayAgo } } });
 await db.outbox.deleteMany({ where: { createdAt: { lt: dayAgo } } });
+await db.requestKey.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 7 * 86_400_000) } } });
 await db.errorLog.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 30 * 86_400_000) } } });
 
 if (redated || gone.length) console.log(`Data upgrade: ${redated} expense days moved to noon UTC, ${gone.length} deleted groups erased.`);

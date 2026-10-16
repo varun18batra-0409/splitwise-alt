@@ -24,7 +24,7 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
   if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
   const tz = await getTimeZone();
-  if (!myId || !group.members.some((m) => m.id === myId)) redirect(`/join/${group.inviteCode}`);
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
 
   const e = await db.expense.findFirst({ where: { id: expenseId, groupId: group.id }, include: { shares: true } });
   if (!e) notFound();

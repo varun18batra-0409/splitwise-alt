@@ -17,6 +17,12 @@ if (!url) {
   console.log("turso-sync: no TURSO_DATABASE_URL set, nothing to do.");
   process.exit(0);
 }
+// Only the live (production) deployment may change the live database.
+// Preview builds of unfinished branches must never touch it.
+if (process.env.VERCEL && process.env.VERCEL_ENV !== "production") {
+  console.log(`turso-sync: ${process.env.VERCEL_ENV} build, leaving the database alone.`);
+  process.exit(0);
+}
 
 const remote = createClient({ url, authToken: process.env.TURSO_AUTH_TOKEN });
 const { rows } = await remote.execute(
@@ -40,6 +46,12 @@ try {
 
   if (!sql || /^-- This is an empty migration\.?$/.test(sql)) {
     console.log("turso-sync: online database already matches the schema.");
+  } else if (/\bDROP\b|RedefineTables|new_/i.test(sql) && process.env.ALLOW_DESTRUCTIVE_MIGRATION !== "1") {
+    // Dropping or rebuilding a table can lose saved data. Stop the deploy
+    // instead; a person must take a backup and allow it on purpose.
+    console.error("turso-sync: REFUSING a change that drops or rebuilds tables:\n" + sql);
+    console.error("Take a backup, then set ALLOW_DESTRUCTIVE_MIGRATION=1 for one deploy if this is intended.");
+    process.exit(1);
   } else {
     console.log("turso-sync: applying\n" + sql);
     await remote.executeMultiple(sql);

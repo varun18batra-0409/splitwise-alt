@@ -25,7 +25,7 @@ export default async function PeoplePage({
   if (!data) notFound();
   const { group, net } = data;
   const myId = await getMyMemberId(group.id);
-  if (!myId || !group.members.some((m) => m.id === myId)) redirect(`/join/${group.inviteCode}`);
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
 
   const used = new Set<string>();
   for (const e of group.expenses) {

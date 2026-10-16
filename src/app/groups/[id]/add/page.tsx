@@ -15,7 +15,7 @@ export default async function AddExpensePage({ params }: { params: Promise<{ id:
   if (!group || group.deletedAt) notFound();
 
   const myId = await getMyMemberId(group.id);
-  if (!myId || !group.members.some((m) => m.id === myId)) redirect(`/join/${group.inviteCode}`);
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
 
   if (group.closed) {
     return (

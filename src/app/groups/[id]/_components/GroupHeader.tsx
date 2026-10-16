@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { formatMoney } from "@/lib/money";
 import { BackIcon, ChevronDown, GearIcon, InviteIcon, iconButtonClass } from "@/components/icons";
 import type { GroupView } from "./view";
 
-type SwitchItem = { id: string; name: string; currency: string; myBalance: number };
+type SwitchItem = { id: string; name: string };
 
 // Back to all groups · group name (tap to switch group) · Invite · Settings.
 // Home, Search and Settle also live in the bottom bar.
@@ -34,13 +33,6 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
                   <li key={g.id}>
                     <Link href={`/groups/${g.id}`} className="flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 active:bg-mist">
                       <span className="truncate font-medium">{g.name}</span>
-                      <span className={`shrink-0 text-xs tabular-nums ${g.myBalance > 0 ? "text-owed" : g.myBalance < 0 ? "text-owe" : "text-gray-400"}`}>
-                        {g.myBalance > 0
-                          ? `+${formatMoney(g.myBalance, g.currency)}`
-                          : g.myBalance < 0
-                            ? `−${formatMoney(-g.myBalance, g.currency)}`
-                            : "settled"}
-                      </span>
                     </Link>
                   </li>
                 ))}

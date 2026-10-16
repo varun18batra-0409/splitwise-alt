@@ -885,10 +885,14 @@ async function main() {
     await V.getByRole("button", { name: "Invite", exact: true }).click();
     await V.waitForURL(/added=Ravi/);
   });
-  await step(null, "Privacy", "A stranger opening a group's address can't see it (sent to join)", async () => {
+  await step(null, "Privacy", "A stranger opening a group's address sees “Private group”: no name, no join link", async () => {
     const x = await person(browser);
-    await go(x.page, g);
-    await x.page.waitForURL(/\/join\//);
+    for (const sub of ["", "/settle", "/add", "/settings", "/invite", "/people"]) {
+      await go(x.page, g + sub);
+      await x.page.waitForURL(/\/private/);
+    }
+    const body = await x.page.locator("main").innerText();
+    assert(!body.includes("UAT Goa trip") && !body.includes(invite.split("/").pop()!), "private page leaks the group's name or invite code");
     const r = await x.page.request.get(`${base}${g}/export`);
     assert(r.status() === 403, `export gave ${r.status()} to a stranger`);
     await x.ctx.close();
@@ -898,7 +902,25 @@ async function main() {
     const memberId = (await db.member.findFirst({ where: { groupId: g.split("/").pop()!, name: "Varun" } }))!.id;
     await x.ctx.addCookies([{ name: "sw_me", value: `${Buffer.from(JSON.stringify({ m: { [g.split("/").pop()!]: memberId } })).toString("base64url")}.fakesignature`, url: base }]);
     await go(x.page, g);
-    await x.page.waitForURL(/\/join\//);
+    await x.page.waitForURL(/\/private/);
+    await x.ctx.close();
+  });
+  await step(null, "Privacy", "An unsigned, plain “who you are” cookie (the old format) is ignored too", async () => {
+    const x = await person(browser);
+    const gid = g.split("/").pop()!;
+    const memberId = (await db.member.findFirst({ where: { groupId: gid, name: "Varun" } }))!.id;
+    await x.ctx.addCookies([{ name: "sw_me", value: encodeURIComponent(JSON.stringify({ m: { [gid]: memberId } })), url: base }]);
+    await go(x.page, g);
+    await x.page.waitForURL(/\/private/);
+    await go(x.page, "/");
+    assert(!(await x.page.locator("main").innerText()).includes("UAT Goa trip"), "home page showed Varun's group");
+    await x.ctx.close();
+  });
+  await step(null, "Privacy", "Sign-in can't send you to another website afterwards (back=/\\evil.com)", async () => {
+    const x = await person(browser);
+    await go(x.page, `/signin?back=${encodeURIComponent("/\\evil.com")}`);
+    const back = await x.page.locator('input[name="back"]').first().inputValue().catch(() => "/");
+    assert(back === "/", `back became ${back}`);
     await x.ctx.close();
   });
   await step(A, "Account", "Sign out of this phone, sign back in: all groups come back", async () => {

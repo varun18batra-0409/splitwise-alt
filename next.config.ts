@@ -7,7 +7,7 @@ const nextConfig: NextConfig = {
   experimental: {
     serverActions: {
       // Lets forms work when the app is opened through GitHub Codespaces.
-      allowedOrigins: ["localhost:3000", "*.app.github.dev"],
+      allowedOrigins: process.env.NODE_ENV === "production" && !process.env.CODESPACES ? [] : ["localhost:3000", "*.app.github.dev"],
     },
   },
 };

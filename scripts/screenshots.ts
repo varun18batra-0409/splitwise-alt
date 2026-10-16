@@ -2,6 +2,7 @@
 // the design can be reviewed). Needs the app running on :3000 and .demo.json.
 import { mkdirSync, readFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
+import { SESSION_COOKIE, encodeSession } from "../src/lib/session";
 
 const base = process.env.APP_URL ?? "http://localhost:3000";
 const demo = JSON.parse(readFileSync(".demo.json", "utf8"));
@@ -18,7 +19,7 @@ const context = await browser.newContext({
   timezoneId: "Asia/Kolkata",
 });
 await context.addCookies([
-  { name: "sw_me", value: encodeURIComponent(JSON.stringify(demo.memberships)), url: base },
+  { name: SESSION_COOKIE, value: await encodeSession({ m: demo.memberships }), url: base },
 ]);
 const page = await context.newPage();
 

@@ -31,7 +31,7 @@ export default async function AddPeoplePage({
   });
   if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
-  if (!myId || !group.members.some((m) => m.id === myId)) redirect(`/join/${group.inviteCode}`);
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
   const invites = await db.invite.findMany({ where: { groupId: group.id, acceptedAt: null }, orderBy: { createdAt: "desc" } });
 
   const h = await headers();

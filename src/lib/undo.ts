@@ -99,8 +99,15 @@ async function undoOnce(eventId: string, actorId: string | undefined): Promise<U
   // two people at once can never undo the same change twice.
   const claim = await db.groupEvent.updateMany({ where: { id: ev.id, undoneAt: null }, data: { undoneAt: new Date(), undoneById: actorId } });
   if (claim.count !== 1) return { ok: false, error: "That change was already undone." };
-  const result = await apply(payload, ev.groupId, actorId, ev.text);
-  if (!result.ok) await db.groupEvent.update({ where: { id: ev.id }, data: { undoneAt: null, undoneById: null } });
+  const release = () => db.groupEvent.update({ where: { id: ev.id }, data: { undoneAt: null, undoneById: null } });
+  let result: UndoResult;
+  try {
+    result = await apply(payload, ev.groupId, actorId, ev.text);
+  } catch (err) {
+    await release(); // nothing was undone: let it be tried again
+    throw err;
+  }
+  if (!result.ok) await release();
   return result;
 }
 

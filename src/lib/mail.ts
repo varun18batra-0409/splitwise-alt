@@ -17,6 +17,14 @@ export async function sendMail(to: string, subject: string, text: string, html: 
     await db.outbox.create({ data: { to, subject, text } });
     return true;
   }
+  // A daily ceiling for the whole app (Gmail allows ~500 a day), so nobody can
+  // use up the quota and stop sign-in codes reaching everyone else.
+  const { allow } = await import("./rate-limit");
+  if (!(await allow("mail:all", Number(process.env.MAIL_DAILY_CAP ?? 400), 86_400))) {
+    console.error("sendMail: daily email cap reached");
+    return false;
+  }
+  if (!(await allow(`mail:to:${to.toLowerCase()}`, 10, 86_400))) return false; // one address can't be flooded
   const port = Number(process.env.SMTP_PORT ?? 465);
   const transport = nodemailer.createTransport({
     host: process.env.SMTP_HOST ?? "smtp.gmail.com",

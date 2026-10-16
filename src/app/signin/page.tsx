@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { safePath } from "@/lib/paths";
 import { redirect } from "next/navigation";
 import { requestCode, verifyCode } from "@/app/actions";
 import { getAccount } from "@/lib/identity";
@@ -13,7 +14,7 @@ export default async function SignIn({
   searchParams: Promise<{ e?: string; sent?: string; error?: string; back?: string; mode?: string; n?: string }>;
 }) {
   const sp = await searchParams;
-  const back = sp.back && sp.back.startsWith("/") && !sp.back.startsWith("//") ? sp.back.slice(0, 200) : "/";
+  const back = safePath(sp.back);
   if (await getAccount()) redirect("/account");
   const email = (sp.e ?? "").slice(0, 254);
   const sent = sp.sent === "1" && email;

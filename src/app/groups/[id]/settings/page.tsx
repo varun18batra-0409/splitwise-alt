@@ -40,7 +40,7 @@ export default async function GroupSettings({
   });
   if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
-  if (!myId || !group.members.some((m) => m.id === myId)) redirect(`/join/${group.inviteCode}`);
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
 
   const isPreset = PRESETS.includes(group.cardMarkupBp);
 

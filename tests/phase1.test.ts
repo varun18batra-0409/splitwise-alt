@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
-import { decodeSession, encodeSession, parseLegacy } from "@/lib/session";
+import { decodeSession, encodeSession } from "@/lib/session";
 import { cleanEmail, deleteAccount, hashLoginCode, verifyLoginCode } from "@/lib/auth";
 import { allow } from "@/lib/rate-limit";
 import { dayKey, parseDay, todayKey, isTimeZone } from "@/lib/dates";
@@ -27,12 +27,6 @@ describe("signed identity cookie", () => {
     expect(await decodeSession(undefined)).toBeNull();
   });
 
-  it("reads the old unsigned cookie so nobody loses their groups", () => {
-    const old = JSON.stringify({ g1: "m1", g2: "m2" });
-    expect(parseLegacy(old)).toEqual({ m: { g1: "m1", g2: "m2" } });
-    expect(parseLegacy(encodeURIComponent(old))).toEqual({ m: { g1: "m1", g2: "m2" } });
-    expect(parseLegacy("nope")).toBeNull();
-  });
 });
 
 describe("email sign-in codes", () => {

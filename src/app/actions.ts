@@ -18,6 +18,7 @@ import { vapidKeys } from "@/lib/push";
 import { changeGroupCurrency, updateGroupBasics } from "@/lib/group-changes";
 import { logEvent } from "@/lib/events";
 import { claimKey, cleanKey, isDuplicateKey, previousResult } from "@/lib/once";
+import { safePath } from "@/lib/paths";
 import { addRegistered, copyPushTo, freeName, inviteByEmail, searchPeople } from "@/lib/invites";
 import { loadNotifications } from "@/lib/group-data";
 import { formatMoney } from "@/lib/money";
@@ -59,14 +60,16 @@ async function memberContext(groupId: string) {
   if (!group || group.deletedAt) redirect("/");
   const myId = await getMyMemberId(group.id);
   const me = myId ? await db.member.findFirst({ where: { id: myId, groupId: group.id } }) : null;
-  if (!me) redirect(`/join/${group.inviteCode}`);
+  if (!me) redirect("/private");
   return { group, me };
 }
 
 // Live suggestions while typing in "Add people".
 export async function findPeople(groupId: string, query: string) {
   const memberships = await getMemberships();
-  if (!memberships[groupId]) return [];
+  const myId = memberships[String(groupId)];
+  // Only real members of this group can search from it.
+  if (!myId || !(await db.member.findFirst({ where: { id: myId, groupId: String(groupId) }, select: { id: true } }))) return [];
   if (!(await allow(`find:${(await originAndIp()).ip}`, 240, 3600))) return [];
   return searchPeople(memberships, groupId, String(query));
 }
@@ -74,7 +77,8 @@ export async function findPeople(groupId: string, query: string) {
 // Add someone who's already on Loopin.
 export async function addPerson(formData: FormData) {
   const { group, me } = await memberContext(String(formData.get("groupId") ?? ""));
-  const { origin } = await originAndIp();
+  const { origin, ip } = await originAndIp();
+  if (!(await allow(`add-person:${ip}`, 60, 3600))) redirect(`/groups/${group.id}/invite?error=${encodeURIComponent("Too many adds from here. Wait a bit.")}`);
   const r = await addRegistered(group.id, me.id, String(formData.get("accountId") ?? ""), origin);
   const q = r.ok ? new URLSearchParams({ added: r.name, did: r.eventId }) : new URLSearchParams({ error: r.error });
   redirect(`/groups/${group.id}/invite?${q}`);
@@ -117,8 +121,10 @@ export async function joinAsExisting(formData: FormData) {
   const mine = group.members.find((m) => m.accountId === account.id);
   if (mine) await finishJoin(group.id, mine.id, account.id, account.email);
   const member = group.members.find((m) => m.id === String(formData.get("memberId") ?? ""));
-  if (!member || member.accountId) redirect(`/join/${code}?error=claimed`);
-  await db.member.update({ where: { id: member.id }, data: { accountId: account.id, claimedAt: member.claimedAt ?? new Date() } });
+  // Only names nobody has claimed yet, and only one person can win the claim.
+  if (!member || member.accountId || member.claimedAt) redirect(`/join/${code}?error=claimed`);
+  const won = await db.member.updateMany({ where: { id: member.id, accountId: null, claimedAt: null }, data: { accountId: account.id, claimedAt: new Date() } });
+  if (won.count !== 1) redirect(`/join/${code}?error=claimed`);
   if (!account.name) await db.account.update({ where: { id: account.id }, data: { name: member.name } });
   await logEvent(db, { groupId: group.id, actorId: member.id, kind: "members_added", text: "joined the group" });
   await finishJoin(group.id, member.id, account.id, account.email);
@@ -137,7 +143,13 @@ export async function joinAsNew(formData: FormData) {
   const typed = cleanNames([String(formData.get("name") ?? "")])[0] ?? account.name;
   const name = freeName(group.members.map((m) => m.name), typed || account.email.split("@")[0]);
   if (!account.name) await db.account.update({ where: { id: account.id }, data: { name: typed || name } });
-  const member = await db.member.create({ data: { name, groupId: group.id, claimedAt: new Date(), accountId: account.id } });
+  let member;
+  try {
+    member = await db.member.create({ data: { name, groupId: group.id, claimedAt: new Date(), accountId: account.id } });
+  } catch {
+    // Pressed twice, or someone took the same name at the same moment: try again.
+    redirect(`/join/${code}`);
+  }
   await logEvent(db, {
     groupId: group.id,
     actorId: member.id,
@@ -223,7 +235,7 @@ export async function updateGroupSettings(formData: FormData) {
   });
   if (!group) redirect("/");
   const myId = await getMyMemberId(group.id);
-  if (!myId || !group.members.some((m) => m.id === myId)) redirect(`/join/${group.inviteCode}`);
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
 
   const back = `/groups/${group.id}/settings`;
 
@@ -262,7 +274,7 @@ export async function convertGroupCurrency(formData: FormData) {
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
   if (!group) redirect("/");
   const myId = await getMyMemberId(group.id);
-  if (!myId || !group.members.some((m) => m.id === myId)) redirect(`/join/${group.inviteCode}`);
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
   const r = await changeGroupCurrency(group.id, myId, currency, rate);
   if (!r.ok) redirect(`/groups/${group.id}/settings?convert=${currency}&error=${encodeURIComponent(r.error)}`);
   redirect(`/groups/${group.id}?saved=settings${r.eventId ? `&did=${r.eventId}` : ""}`);
@@ -280,7 +292,7 @@ export async function recordPayment(formData: FormData) {
   if (!group) redirect("/");
   const ids = group.members.map((m) => m.id);
   const myId = await getMyMemberId(group.id);
-  if (!myId || !ids.includes(myId)) redirect(`/join/${group.inviteCode}`);
+  if (!myId || !ids.includes(myId)) redirect("/private");
   if (!ids.includes(fromId) || !ids.includes(toId) || fromId === toId) redirect(`/groups/${group.id}?tab=balances`);
   if (group.closed || group.deletedAt) redirect(`/groups/${group.id}`);
   if (!Number.isSafeInteger(amount) || amount <= 0 || amount > 2_000_000_000) redirect(`/groups/${group.id}?tab=balances`);
@@ -316,7 +328,7 @@ export async function setGroupClosed(formData: FormData) {
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
   if (!group) redirect("/");
   const myId = await getMyMemberId(group.id);
-  if (!myId || !group.members.some((m) => m.id === myId)) redirect(`/join/${group.inviteCode}`);
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
 
   let did = "";
   if (group.closed !== closed) {
@@ -340,7 +352,16 @@ export async function settleAcrossGroups(formData: FormData) {
   let parts: { groupId: string; fromId: string; toId: string; amount: number }[] = [];
   try {
     const raw = JSON.parse(String(formData.get("parts") ?? "[]"));
-    if (Array.isArray(raw)) parts = raw;
+    if (Array.isArray(raw)) {
+      // The same part twice would record the same payment twice.
+      const seen = new Set<string>();
+      parts = raw.filter((p) => {
+        const k = `${p?.groupId}|${p?.fromId}|${p?.toId}`;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+    }
   } catch {
     redirect("/settle?settle=error");
   }
@@ -392,7 +413,7 @@ export async function recordCustomPayment(formData: FormData) {
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true, name: true } } } });
   if (!group || group.deletedAt) redirect("/");
   const myId = await getMyMemberId(group.id);
-  if (!myId || !group.members.some((m) => m.id === myId)) redirect(`/join/${group.inviteCode}`);
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
   if (group.closed) redirect(`/groups/${group.id}`);
 
   const back = (error: string) =>
@@ -437,7 +458,7 @@ async function peopleContext(formData: FormData) {
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
   if (!group) redirect("/");
   const myId = await getMyMemberId(group.id);
-  if (!myId || !group.members.some((m) => m.id === myId)) redirect(`/join/${group.inviteCode}`);
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
   return { groupId, memberId, myId };
 }
 
@@ -468,7 +489,7 @@ export async function settleEverything(formData: FormData) {
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
   if (!group) redirect("/");
   const myId = await getMyMemberId(group.id);
-  if (!myId || !group.members.some((m) => m.id === myId)) redirect(`/join/${group.inviteCode}`);
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
   const r = await settleAllAndClose(group.id, myId, String(formData.get("plan") ?? ""));
   if (!r.ok) redirect(`/groups/${group.id}?tab=balances&error=${encodeURIComponent(r.error)}`);
   redirect(`/?closed=1&did=${r.eventId}&g=${group.id}`);
@@ -535,6 +556,11 @@ export async function requestCode(formData: FormData) {
 export async function verifyCode(formData: FormData) {
   const email = String(formData.get("email") ?? "");
   const back = safeBack(String(formData.get("back") ?? "/"));
+  const testing = process.env.MAIL_OUTBOX === "1" && !process.env.VERCEL;
+  const { ip } = await originAndIp();
+  if (!testing && (!(await allow(`verify-ip:${ip}`, 30, 900)) || !(await allow(`verify-email:${email.trim().toLowerCase()}`, 10, 900)))) {
+    redirect(`/signin?${new URLSearchParams({ e: email, back, sent: "1", error: "Too many tries. Wait 15 minutes and ask for a new code." })}`);
+  }
   const r = await verifyLoginCode(email, String(formData.get("code") ?? ""));
   if (!r.ok) redirect(`/signin?${new URLSearchParams({ e: email, back, sent: "1", error: r.error, n: String(formData.get("name") ?? "") })}`);
   const name = cleanNames([String(formData.get("name") ?? "")])[0];
@@ -555,9 +581,7 @@ export async function deleteMyAccount() {
   redirect("/?deleted=account");
 }
 
-function safeBack(p: string): string {
-  return p.startsWith("/") && !p.startsWith("//") ? p.slice(0, 200) : "/";
-}
+const safeBack = safePath;
 
 // ---------- Delete / restore a whole group ----------
 
@@ -566,7 +590,7 @@ export async function deleteGroup(formData: FormData) {
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
   if (!group || group.deletedAt) redirect("/");
   const myId = await getMyMemberId(group.id);
-  if (!myId || !group.members.some((m) => m.id === myId)) redirect(`/join/${group.inviteCode}`);
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
   await db.$transaction(async (tx) => {
     await tx.group.update({ where: { id: group.id }, data: { deletedAt: new Date(), deletedById: myId } });
     await logEvent(tx, { groupId: group.id, actorId: myId, kind: "group_deleted", text: "deleted the group (it can be restored for 30 days)" });

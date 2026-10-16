@@ -13,7 +13,7 @@ export async function loadGroup(id: string) {
       members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
       expenses: { orderBy: { createdAt: "desc" }, include: { shares: true } },
       payments: { orderBy: { createdAt: "desc" } },
-      events: { orderBy: { createdAt: "desc" } },
+      events: { orderBy: { createdAt: "desc" }, take: 500 },
     },
   });
   if (!group || group.deletedAt) return null;
@@ -107,4 +107,21 @@ export async function loadDeletedGroups(memberships: Record<string, string>, now
       deletedBy: g.deletedById === memberships[g.id] ? "You" : g.members.find((m) => m.id === g.deletedById)?.name ?? "Someone",
       daysLeft: Math.max(1, Math.ceil((g.deletedAt!.getTime() + RESTORE_DAYS * 86_400_000 - now.getTime()) / 86_400_000)),
     }));
+}
+
+// The group switcher: up to 5 of my other open groups, most recently active
+// first. Names only, so it doesn't load every group's whole ledger.
+export async function loadSwitchList(memberships: Record<string, string>, currentId: string) {
+  const ids = Object.keys(memberships).filter((id) => id !== currentId);
+  if (ids.length === 0) return [];
+  const groups = await db.group.findMany({
+    where: { id: { in: ids }, closed: false, deletedAt: null, members: { some: { id: { in: Object.values(memberships) } } } },
+    select: { id: true, name: true, createdAt: true },
+  });
+  const latest = await db.groupEvent.groupBy({ by: ["groupId"], where: { groupId: { in: groups.map((g) => g.id) } }, _max: { createdAt: true } });
+  const last = new Map(latest.map((l) => [l.groupId, l._max.createdAt?.getTime() ?? 0]));
+  return groups
+    .sort((a, b) => (last.get(b.id) ?? b.createdAt.getTime()) - (last.get(a.id) ?? a.createdAt.getTime()))
+    .slice(0, 5)
+    .map((g) => ({ id: g.id, name: g.name }));
 }
