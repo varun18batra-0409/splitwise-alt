@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { runAllBills } from "@/lib/home/bills-db";
+import { sendReminders } from "@/lib/home/reminders-db";
 import { allow, clientIp } from "@/lib/rate-limit";
 
 // The daily job (Vercel Cron, 06:00 India time): adds the bills that are due.
@@ -17,6 +18,8 @@ export async function GET(req: Request) {
   if (!secret && !(await allow(`cron:${clientIp(await headers())}`, 12, 3600))) {
     return Response.json({ error: "Too many runs" }, { status: 429 });
   }
-  const bills = await runAllBills(new Date());
-  return Response.json({ ok: true, bills });
+  const now = new Date();
+  const bills = await runAllBills(now);
+  const reminders = await sendReminders(now);
+  return Response.json({ ok: true, bills, reminders });
 }

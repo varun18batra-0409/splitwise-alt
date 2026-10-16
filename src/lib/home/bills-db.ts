@@ -1,6 +1,7 @@
 import { db } from "../db";
 import { getRate } from "../rate-cache";
 import { saveExpense, type SaveExpenseInput } from "../save-expense";
+import { sendPushTo } from "../push";
 import { toInputAmount, formatMoney } from "../money";
 import { dailyTotal, payerFor, periodsDue, nextDueDay, ordinalDay } from "./bills";
 import { addMonths, dueKey } from "./month";
@@ -73,7 +74,16 @@ async function runOne(bill: BillRow, group: { id: string; currency: string; clos
   };
   if (group.closed) return wait("group closed");
   if (!payer) return wait("payer left");
-  if (bill.nature === "varies") return wait("");
+  if (bill.nature === "varies") {
+    // Ask whoever pays for this month's amount.
+    await sendPushTo([payer], {
+      title: `🧾 ${bill.name}`,
+      body: `${bill.name} is due. Enter the amount when you have the bill.`,
+      url: `/groups/${group.id}/add?bill=${bill.id}&period=${period}`,
+      tag: `bill-${bill.id}-${period}`,
+    });
+    return wait("");
+  }
 
   let amount = bill.amount;
   let note = "";

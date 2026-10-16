@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
 import { convertGroupCurrency, deleteGroup, saveNotifyPrefs, setGroupClosed, updateGroupSettings, updateSharingSettings } from "@/app/actions";
 import { NOTIFY_KINDS, parseNotify } from "@/lib/notify-prefs";
+import { saveSettleRules } from "@/app/bill-actions";
 import { GROUP_TYPES, sharingInputs } from "@/lib/group-types";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { CURRENCIES, currencyInfo, formatMoney, formatPercent, isSupportedCurrency, POPULAR_CURRENCIES } from "@/lib/money";
@@ -236,6 +237,46 @@ export default async function GroupSettings({
           Save how you share
         </button>
       </form>
+
+      {/* Reminders (flats) and settle-up rules (homes and couples) */}
+      {(group.type === "home" || group.type === "couple") && (
+        <>
+          <h2 id="settling" className={`mt-12 ${sectionTitle}`}>Reminders and settling up</h2>
+          {saved === "settling" && <p className="mt-2 text-sm text-owed">Saved.</p>}
+          <form action={saveSettleRules} className="mt-3 space-y-4">
+            <input type="hidden" name="groupId" value={group.id} />
+            {group.type === "home" && (
+              <label className="flex items-start gap-3 rounded-2xl border border-line px-4 py-3">
+                <span className="flex-1">
+                  <span className="block font-medium">Reminders</span>
+                  <span className="block text-sm text-gray-500">A nudge the day before a bill is due, a Monday note to whoever owes, and the payments on settle-up day.</span>
+                </span>
+                <input type="checkbox" name="reminders" defaultChecked={group.reminders} className="mt-1 h-5 w-5 accent-[var(--color-accent)]" />
+              </label>
+            )}
+            <label className="block">
+              <span className="mb-2 block text-base font-semibold">Settle-up day</span>
+              <select name="settleDay" defaultValue={String(group.settleDay)} className={inputClass}>
+                <option value="0">None</option>
+                {[1, 5, 10, 15, 20, 25].map((d) => (
+                  <option key={d} value={d}>
+                    Every month on the {d === 1 ? "1st" : `${d}th`}
+                  </option>
+                ))}
+                <option value="31">Every month on the last day</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-base font-semibold">Leave out payments under</span>
+              <input name="settleMin" inputMode="decimal" defaultValue={group.settleMin ? String(group.settleMin / 100) : ""} placeholder="0 (show every payment)" className={inputClass} />
+              <span className="mt-1 block text-sm text-gray-500">Small amounts stay in the balances; they’re just not suggested as payments.</span>
+            </label>
+            <button type="submit" className={secondaryButtonClass}>
+              Save
+            </button>
+          </form>
+        </>
+      )}
 
       {/* Phone notifications for this group, just for me */}
       <h2 id="notify" className={`mt-12 ${sectionTitle}`}>Phone notifications for this group</h2>

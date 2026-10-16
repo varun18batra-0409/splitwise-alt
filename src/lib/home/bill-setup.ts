@@ -113,3 +113,28 @@ export async function toggleMissedDayFor(groupId: string, actorId: string, billI
   await db.bill.update({ where: { id: billId }, data: { missed: toggleMissed(bill.missed, period, day) } });
   return { ok: true, id: billId };
 }
+
+// Settings → "Reminders and settling up".
+export async function saveSettleRulesFor(
+  groupId: string,
+  actorId: string,
+  input: { reminders: boolean; settleDay: number; settleMin: string },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: true } });
+  if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
+  if (!group.members.some((m) => m.id === actorId && !m.leftAt)) return { ok: false, error: "Only people in this group can change this." };
+  const day = Number.isInteger(input.settleDay) && ((input.settleDay >= 1 && input.settleDay <= 28) || input.settleDay === 31) ? input.settleDay : 0;
+  const min = input.settleMin.trim() ? parseAmount(input.settleMin, group.currency) : 0;
+  if (min === null || min < 0) return { ok: false, error: "Enter the smallest amount as a number, like 50." };
+  const reminders = group.type === "home" ? input.reminders : false;
+  const changes: string[] = [];
+  if (reminders !== group.reminders) changes.push(reminders ? "Reminders on" : "Reminders off");
+  if (day !== group.settleDay) changes.push(day ? `Settle-up day: the ${ordinalDay(day)}` : "No settle-up day");
+  if (min !== group.settleMin) changes.push(min ? `Leave out payments under ${formatMoney(min, group.currency)}` : "Show every payment");
+  if (!changes.length) return { ok: true };
+  await db.$transaction(async (tx) => {
+    await tx.group.update({ where: { id: groupId }, data: { reminders, settleDay: day, settleMin: min } });
+    await logEvent(tx, { groupId, actorId, kind: "bill_changed", text: "changed how the group settles up", details: changes });
+  });
+  return { ok: true };
+}

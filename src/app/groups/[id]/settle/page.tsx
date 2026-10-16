@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { getMyMemberId } from "@/lib/identity";
 import { loadGroup } from "@/lib/group-data";
 import { formatMoney, toInputAmount } from "@/lib/money";
-import { pairwiseDebtCount } from "@/lib/settle";
+import { applySettleMin, pairwiseDebtCount } from "@/lib/settle";
 import { planKey } from "@/lib/settle-all";
 import { nudgeLink } from "@/lib/nudge";
 import { canUndo } from "@/lib/undo";
@@ -34,9 +34,11 @@ export default async function GroupSettle({
   const nameOf = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");
   const money = (n: number) => formatMoney(n, group.currency);
   const before = pairwiseDebtCount(expenses, payments);
+  // The group's rule "leave out small amounts" hides tiny payments here (they stay in the balances).
+  const { shown, hidden } = applySettleMin(transfers, group.settleMin);
   const ordered = [
-    ...transfers.filter((t) => t.from === myId || t.to === myId),
-    ...transfers.filter((t) => t.from !== myId && t.to !== myId),
+    ...shown.filter((t) => t.from === myId || t.to === myId),
+    ...shown.filter((t) => t.from !== myId && t.to !== myId),
   ];
   const justDid = sp.did ? group.events.find((e) => e.id === sp.did) : undefined;
   const showUndo = justDid && canUndo(justDid, group.events).ok;
@@ -53,6 +55,12 @@ export default async function GroupSettle({
       {sp.error && <ErrorNote>{sp.error}</ErrorNote>}
       {sp.paid === "1" && !sp.undone && <p className="mb-4 rounded-xl bg-mist px-4 py-3 text-sm text-fg">Payment recorded. Balances updated.</p>}
       {group.closed && <p className="mb-4 rounded-xl bg-mist px-4 py-3 text-sm text-gray-600">This group is closed. Reopen it to record payments.</p>}
+
+      {hidden > 0 && (
+        <p className="mb-4 rounded-xl bg-mist px-4 py-3 text-sm text-gray-600">
+          {hidden} small {hidden === 1 ? "amount" : "amounts"} under {money(group.settleMin)} left out. {hidden === 1 ? "It stays" : "They stay"} in the balances.
+        </p>
+      )}
 
       {transfers.length === 0 ? (
         <div className="rounded-2xl bg-mist px-4 py-10 text-center">

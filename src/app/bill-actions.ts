@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { getMyMemberId } from "@/lib/identity";
-import { billCommand, saveBillFor, toggleMissedDayFor } from "@/lib/home/bill-setup";
+import { billCommand, saveBillFor, saveSettleRulesFor, toggleMissedDayFor } from "@/lib/home/bill-setup";
 
 // Bills: set up, change, skip / pause / stop, and the daily calendar.
 
@@ -46,4 +46,15 @@ export async function toggleMissedDay(formData: FormData) {
   const r = await toggleMissedDayFor(groupId, await me(groupId), billId, String(formData.get("period") ?? ""), Number(formData.get("day")));
   if (!r.ok) redirect(`/groups/${groupId}/bills/${billId}?error=${encodeURIComponent(r.error)}`);
   redirect(`/groups/${groupId}/bills/${billId}#calendar`);
+}
+
+export async function saveSettleRules(formData: FormData) {
+  const groupId = String(formData.get("groupId") ?? "");
+  const r = await saveSettleRulesFor(groupId, await me(groupId), {
+    reminders: formData.get("reminders") === "on",
+    settleDay: Number(formData.get("settleDay") ?? 0),
+    settleMin: String(formData.get("settleMin") ?? ""),
+  });
+  if (!r.ok) redirect(`/groups/${groupId}/settings?error=${encodeURIComponent(r.error)}#settling`);
+  redirect(`/groups/${groupId}/settings?saved=settling#settling`);
 }

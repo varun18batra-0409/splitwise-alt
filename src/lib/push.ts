@@ -84,3 +84,45 @@ export async function sendEventPush(eventId: string): Promise<number> {
     return 0;
   }
 }
+
+// Send a message to particular people (reminders, budget alerts…), on every
+// phone they turned notifications on for in that group. Never throws.
+export async function sendPushTo(memberIds: string[], p: { title: string; body: string; url: string; tag: string }): Promise<number> {
+  try {
+    if (memberIds.length === 0) return 0;
+    const subs = await db.pushSubscription.findMany({ where: { memberId: { in: memberIds } }, include: { member: { select: { notify: true } } } });
+    const wanted = subs.filter((s) => !parseNotify(s.member.notify).off);
+    if (wanted.length === 0) return 0;
+    const keys = await vapidKeys();
+    const payload = JSON.stringify({ title: p.title, body: p.body.length > 140 ? `${p.body.slice(0, 139)}…` : p.body, url: p.url, tag: p.tag });
+    let sent = 0;
+    const seen = new Set<string>();
+    for (const s of wanted) {
+      if (seen.has(s.endpoint)) continue;
+      seen.add(s.endpoint);
+      try {
+        await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, {
+          vapidDetails: { subject: SUBJECT, publicKey: keys.publicKey, privateKey: keys.privateKey },
+          TTL: 60 * 60 * 24,
+        });
+        sent++;
+      } catch (err) {
+        const status = (err as { statusCode?: number }).statusCode;
+        if (status === 404 || status === 410) await db.pushSubscription.deleteMany({ where: { endpoint: s.endpoint } });
+      }
+    }
+    return sent;
+  } catch {
+    return 0;
+  }
+}
+
+// Once only: true the first time a key is claimed (e.g. "reminders:2026-10-19").
+export async function claimOnce(key: string): Promise<boolean> {
+  try {
+    await db.notifyLog.create({ data: { key } });
+    return true;
+  } catch {
+    return false;
+  }
+}
