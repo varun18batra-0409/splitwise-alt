@@ -2,7 +2,8 @@ import { spentAmount } from "@/lib/payers";
 import { loadGroup } from "@/lib/group-data";
 import { foreignLedgers, type Ledger } from "@/lib/currency-ledgers";
 import { resolveSecondary } from "@/lib/secondary";
-import { getRate } from "@/lib/rate-cache";
+import { after } from "next/server";
+import { displayRate } from "@/lib/rate-cache";
 import { convertAmount } from "@/lib/conversion";
 import { formatMoney } from "@/lib/money";
 
@@ -40,7 +41,8 @@ export async function buildGroupView(data: Loaded, myId: string, tz: string): Pr
   const ledgers = foreignLedgers(expenses, group.currency, group.members.map((m) => m.id));
   const secondaryRaw = resolveSecondary(group.secondaryCurrency, group.currency, expenses);
   const secondary = secondaryRaw && !ledgers.some((l) => l.currency === secondaryRaw) ? secondaryRaw : null;
-  const rate = secondary ? await getRate(group.currency, secondary) : null;
+  // Saved rate only: the screen never waits for the internet (a stale rate refreshes after it's sent).
+  const rate = secondary ? await displayRate(group.currency, secondary, after) : null;
   const secondaryRate = rate?.ok ? { rate: rate.rate, date: rate.date } : null;
   const eq = (minor: number): string | null => {
     if (!secondary || !secondaryRate) return null;

@@ -1,0 +1,21 @@
+# Keeps the live app awake during Indian waking hours (07:00–24:00 IST), so the
+# first tap after a quiet spell doesn't wait ~1 s for a server to start.
+# A few tiny requests every 10 minutes; reads nothing private. Turn it off by
+# disabling this workflow in the Actions tab.
+name: Keep warm
+on:
+  schedule:
+    - cron: "*/10 1-18 * * *" # UTC; 01:30–18:59 UTC ≈ 07:00–00:30 IST
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping the main parts of the app
+        run: |
+          base=https://getloopin.vercel.app
+          for p in "/" "/api/people?g=x&q=ab" "/api/unread" "/api/health"; do
+            curl -s -o /dev/null --max-time 20 -w "$p %{http_code} %{time_starttransfer}s\n" "$base$p" || true
+          done
+          curl -s -o /dev/null --max-time 20 -X POST -H "Content-Type: application/json" -d '[]' -w "/api/speed %{http_code} %{time_starttransfer}s\n" "$base/api/speed" || true

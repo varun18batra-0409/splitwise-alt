@@ -101,7 +101,7 @@ export async function addRegistered(groupId: string, actorId: string, accountId:
 
 // Invite people by email. Someone already on Loopin is added straight away;
 // everyone else gets a link and joins after verifying their email.
-export async function inviteByEmail(groupId: string, actorId: string, rawEmails: string, origin: string) {
+export async function inviteByEmail(groupId: string, actorId: string, rawEmails: string, origin: string, opts: { later?: (job: () => Promise<unknown>) => void } = {}) {
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true, name: true } } } });
   const actor = group?.members.find((m) => m.id === actorId);
   if (!group || !actor) return { added: [] as string[], invited: [] as string[], bad: [] as string[] };
@@ -115,7 +115,7 @@ export async function inviteByEmail(groupId: string, actorId: string, rawEmails:
     }
     const account = await db.account.findUnique({ where: { email } });
     if (account) {
-      const r = await addRegistered(groupId, actorId, account.id, origin);
+      const r = await addRegistered(groupId, actorId, account.id, origin, opts);
       if (r.ok) added.push(r.name);
       else bad.push(`${email} (${r.error})`);
       continue;

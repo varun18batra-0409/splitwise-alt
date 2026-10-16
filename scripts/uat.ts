@@ -1159,6 +1159,36 @@ async function main() {
     await V.waitForURL(/\/welcome/);
     return `${imgs} photos on the guide (${sizes})`;
   });
+  await step(null, "Help", "The 1-minute tour has 6 slides, one for flats & couples, and none says “no sign-up”", async () => {
+    const { ctx, page } = await person(browser);
+    await go(page, "/welcome");
+    const seen: string[] = [];
+    for (let i = 0; i < 6; i++) {
+      seen.push((await page.locator("main").innerText()).replace(/\s+/g, " "));
+      const next = page.getByRole("button", { name: /Next/ });
+      if (i < 5) {
+        await next.click();
+        await page.waitForTimeout(500);
+      }
+    }
+    const all = seen.join(" ");
+    assert(/Bills add themselves/.test(all), "no flats & couples slide");
+    assert(!/no sign-up/i.test(all), "a slide still says “no sign-up”");
+    await ctx.close();
+  });
+  await step(V, "Help", "The guide has Flatmates and Couples, with real app screens that load", async () => {
+    await go(V, "/how-it-works");
+    for (const h of ["Flatmates: the flat runs itself", "Couples: your split, not 50/50"]) await V.getByRole("heading", { name: h }).waitFor();
+    assert(!(await V.getByText("Recurring bills are coming soon").count()), "still says recurring bills are coming soon");
+    for (const id of ["home", "couples"]) {
+      await V.locator(`#${id}`).scrollIntoViewIfNeeded();
+      await V.waitForTimeout(400);
+    }
+    await V.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await V.waitForTimeout(1500);
+    const shots = await V.evaluate(() => [...document.querySelectorAll('main img[src*="/guide/"]')].map((i) => (i as HTMLImageElement).naturalWidth));
+    assert(shots.length === 2 && shots.every((w) => w > 0), `guide screens: ${JSON.stringify(shots)}`);
+  });
   await step(V, "Tags", "Each expense shows its category tag (Dinner → Food, Taxi → Transport)", async () => {
     await go(V, `${g}?tab=activity`);
     const row = V.locator("details summary").filter({ hasText: "Dinner" }).first();
@@ -1185,6 +1215,11 @@ async function main() {
     const current = await V.locator('a[aria-current="page"]').filter({ hasText: /This month|Bills|List|Activity|Balances/ }).first().innerText();
     assert(current.trim() === "This month", `opened on “${current}”`);
     for (const t of ["Bills", "List", "Activity"]) assert(await V.getByRole("link", { name: t, exact: true }).count(), `no ${t} tab`);
+    // Every tab's label fits on its tab (nothing cut off or spilling over).
+    const spill = await V.evaluate(() =>
+      [...document.querySelectorAll('nav[aria-label="Group sections"] a')].filter((a) => a.scrollWidth > a.clientWidth + 1).map((a) => a.textContent),
+    );
+    assert(spill.length === 0, `labels that don't fit: ${spill.join(", ")}`);
   });
   await step(V, "Flat", "Add Rent (₹30,000 on the 1st, you pay) and Electricity (changes each month, Asha pays)", async () => {
     await go(V, `${gh}/bills/new`);
@@ -1262,7 +1297,7 @@ async function main() {
   await step(V, "Couples", "The couple's This month says if you're ahead, behind or even", async () => {
     await go(V, gc);
     const t = (await V.locator("main").innerText()).replace(/\s+/g, " ");
-    assert(/You’re ₹[\d,.]+ (ahead|behind)|You’re even/.test(t), `This month says: ${t.slice(0, 200)}`);
+    assert(/Overall you’re ₹[\d,.]+ (ahead|behind)|You’re even/.test(t), `This month says: ${t.slice(0, 200)}`);
   });
   await step(V, "Couples", "Start a savings goal (₹1,00,000) and tap “I set money aside” (₹5,000)", async () => {
     await go(V, `${gc}/goals/new`);
@@ -1371,6 +1406,153 @@ async function main() {
     times.sort((a, b) => a - b);
     assert(times[2] < 1500, `median ${times[2]} ms`);
     return `median ${times[2]} ms, slowest ${times[4]} ms`;
+  });
+
+  // ===== 11. Gaps found in the full review: split edits, evening out, small payments, the milk calendar, small screens =====
+  await step(V, "Edit", "Change the split on an existing expense (Coffee ₹800: everyone → only You + Asha): balances move exactly", async () => {
+    const before = await shownBalances(V, g);
+    const href = await editPath(V, "Coffee");
+    await go(V, href);
+    await V.getByRole("button", { name: "Only some" }).click();
+    for (const [who, want] of [["You", true], ["Asha", true], ["Ravi", false], ["Zoe", false]] as const) {
+      const b = V.getByRole("button", { name: new RegExp(`^(✓ )?${who}$`) }).last();
+      const on = (await b.innerText()).startsWith("✓") || (await b.getAttribute("aria-pressed")) === "true";
+      if (on !== want) await b.click();
+    }
+    await V.getByRole("button", { name: "Save changes" }).click();
+    await V.waitForURL(/tab=activity/);
+    const after = await shownBalances(V, g);
+    const d = (p: string) => (after[p] ?? 0) - (before[p] ?? 0);
+    // ₹800 was ₹200 each; now ₹400 for Varun and Asha, nothing for Ravi and Zoe.
+    assert(d("Varun") === -20000 && d("Asha") === -20000 && d("Ravi") === 20000 && d("Zoe") === 20000, `moved: ${JSON.stringify({ V: d("Varun"), A: d("Asha"), R: d("Ravi"), Z: d("Zoe") })}`);
+  });
+  await step(V, "Couples", "“Even out” on This month opens Settle; marking it paid makes you even", async () => {
+    await go(V, gc);
+    await V.getByRole("link", { name: "Even out" }).click();
+    await V.waitForURL(/\/settle/);
+    await V.getByRole("button", { name: "Mark paid" }).first().click();
+    await V.waitForURL(/paid=1/);
+    await go(V, gc);
+    await V.getByText("You’re even").waitFor();
+  });
+  await step(V, "Couples", "Settle-up minimum ₹50: a ₹45 balance isn't suggested as a payment, but stays in the balances", async () => {
+    await go(V, `${gc}/add`);
+    await V.locator("#expense-name").fill("Chai");
+    await V.getByLabel("Amount", { exact: true }).fill("100");
+    await save(V, { me: "Varun", name: "Chai", amount: "100" });
+    await go(V, `${gc}/settings`);
+    const form = V.locator('form:has(input[name="settleMin"])');
+    await form.locator('input[name="settleMin"]').fill("50");
+    await form.locator('button[type="submit"]').click();
+    await V.waitForURL(/saved=settling/);
+    await go(V, `${gc}/settle`);
+    await V.getByText(/1 small amount under ₹50(\.00)? left out/).waitFor();
+    const b = await shownBalances(V, gc);
+    assert(b.Asha === -4500, `balances ${JSON.stringify(b)}`);
+    await go(V, `${gc}/settings`);
+    await form.locator('input[name="settleMin"]').fill("");
+    await form.locator('button[type="submit"]').click();
+    await V.waitForURL(/saved=settling/);
+  });
+  await step(V, "Flat", "Milk (₹60 a day): tap today as “didn’t come” on its calendar and the month's total drops by ₹60", async () => {
+    await go(V, `${gh}/bills/new`);
+    await V.getByRole("button", { name: "Milk" }).click();
+    await V.getByLabel("Amount", { exact: true }).fill("60");
+    await V.getByRole("button", { name: "Add bill" }).click();
+    await V.waitForURL(/tab=bills&saved=bill/);
+    const bill = await db.bill.findFirst({ where: { groupId: homeId(), name: "Milk", deletedAt: null } });
+    assert(bill, "no Milk bill");
+    await go(V, `${gh}/bills/${bill.id}`);
+    const today = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", day: "numeric" }).format(new Date()));
+    const days = () => V.locator("#calendar").innerText().then((t) => Number(/(\d+) of \d+ days/.exec(t)?.[1] ?? -1));
+    const before = await days();
+    await V.getByRole("button", { name: `${today}: came` }).click();
+    await V.getByRole("button", { name: `${today}: didn’t come` }).waitFor();
+    const after = await days();
+    assert(after === before - 1, `days came: ${before} → ${after}`);
+  });
+  await step(null, "Layout", "Small Android phone (320 px), light mode: no screen scrolls sideways", async () => {
+    const ctx = await browser.newContext({ viewport: { width: 320, height: 640 }, locale: "en-IN", timezoneId: "Asia/Kolkata", colorScheme: "light" });
+    await ctx.addCookies(await varun.ctx.cookies());
+    const page = await ctx.newPage();
+    page.setDefaultTimeout(15_000);
+    const pages = [
+      "/", g, `${g}?tab=balances`, `${g}?tab=charts`, `${g}/settle`, `${g}/add`, `${g}/settings`, `${g}/people`, `${g}/invite`,
+      gh, `${gh}?tab=bills`, `${gh}?tab=list`, `${gh}/bills/new`, `${gh}/budgets`, `${gh}/deposit`, gc, `${gc}/goals/new`,
+      "/settle", "/notifications", "/search", "/account", "/how-it-works", "/welcome",
+    ];
+    const wide: string[] = [];
+    for (const p of pages) {
+      await go(page, p);
+      const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      if (over > 1) {
+        wide.push(`${p.replace(/[a-z0-9]{20,}/g, ":id")} (+${over}px)`);
+        await page.screenshot({ path: `${out}/wide-${wide.length}.png` });
+      }
+    }
+    await ctx.close();
+    assert(wide.length === 0, `scrolls sideways: ${wide.join(", ")}`);
+    return `${pages.length} screens checked`;
+  });
+
+  // ===== 10. More of everyday use =====
+  await step(V, "Edit", "Rename an expense (Taxi → Airport taxi): the history says exactly what changed", async () => {
+    const href = await editPath(V, "Taxi");
+    await go(V, href);
+    await V.locator("#expense-name").fill("Airport taxi");
+    await V.getByRole("button", { name: "Save changes" }).click();
+    await V.waitForURL(/tab=activity/);
+    const ev = await db.groupEvent.findFirst({ where: { groupId: g.split("/").pop()!, kind: "expense_edited" }, orderBy: { createdAt: "desc" } });
+    assert(ev && /Name: Taxi → Airport taxi/.test(ev.details ?? ""), `history says: ${ev?.text} ${ev?.details}`);
+    await go(V, `${g}?tab=activity&q=${encodeURIComponent("Airport taxi")}`);
+    await V.locator("details summary").filter({ hasText: "Airport taxi" }).first().waitFor();
+  });
+  await step(V, "Flat", "Skip a bill this time: next month's Rent is marked skipped and won't be added", async () => {
+    const rent = await db.bill.findFirst({ where: { groupId: homeId(), name: "Rent", deletedAt: null } });
+    assert(rent, "no Rent bill");
+    await go(V, `${gh}/bills/${rent.id}`);
+    await V.getByRole("button", { name: "Skip this time" }).click();
+    await V.waitForURL(/saved=1/);
+    const skipped = await db.billRun.findMany({ where: { billId: rent.id, status: "skipped" } });
+    assert(skipped.length === 1, `skipped runs: ${skipped.map((r) => r.period).join(", ")}`);
+  });
+  await step(V, "Flat", "A ₹1,000 Groceries budget with ₹1,240 spent shows “₹240 over”", async () => {
+    await go(V, `${gh}/budgets`);
+    await V.getByLabel("Groceries budget").fill("1000");
+    await V.getByRole("button", { name: "Save budgets" }).click();
+    await V.waitForURL(new RegExp(`${gh}$`));
+    await V.getByText(/₹240(\.00)? over/).first().waitFor();
+  });
+  await step(V, "Flat", "Note when someone moved in (Zoe, on the 10th): it's recorded on People and in the history", async () => {
+    await go(V, `${gh}/people`);
+    const zoe = await db.member.findFirst({ where: { groupId: homeId(), name: { startsWith: "Zoe" } } });
+    assert(zoe, "Zoe isn't in the flat");
+    await V.locator("details summary").filter({ hasText: zoe.name }).first().click();
+    const day = `${new Date().toISOString().slice(0, 8)}10`;
+    await V.locator(`#in-${zoe.id}`).fill(day);
+    await V.locator(`#in-${zoe.id}`).locator("xpath=..").getByRole("button", { name: "Save" }).click();
+    // Already on /people, so wait for the save itself (not the address).
+    let after = await db.member.findUnique({ where: { id: zoe.id } });
+    for (let i = 0; i < 40 && after?.joinedFrom?.toISOString().slice(0, 10) !== day; i++) {
+      await V.waitForTimeout(250);
+      after = await db.member.findUnique({ where: { id: zoe.id } });
+    }
+    assert(after?.joinedFrom?.toISOString().slice(0, 10) === day, `moved-in date is ${after?.joinedFrom?.toISOString()}`);
+    const ev = await db.groupEvent.findFirst({ where: { groupId: homeId(), text: { contains: "moved in on" } } });
+    assert(ev, "no “moved in” line in the history");
+  });
+  await step(V, "Couples", "Change the goal (target ₹80,000), then remove it", async () => {
+    const goal = await db.goal.findFirst({ where: { groupId: gc.split("/").pop()!, deletedAt: null }, orderBy: { createdAt: "desc" } });
+    assert(goal, "no goal");
+    await go(V, `${gc}/goals/${goal.id}`);
+    await V.getByText("Change or remove this goal").click();
+    await V.getByLabel("Target").fill("80000");
+    await V.getByRole("button", { name: "Save changes" }).click();
+    await V.getByText(/of ₹80,000/).first().waitFor();
+    await V.getByText("Change or remove this goal").click();
+    await V.getByRole("button", { name: "Remove goal" }).click();
+    await V.waitForURL(new RegExp(`${gc}$`));
+    assert((await db.goal.findUnique({ where: { id: goal.id } }))?.deletedAt, "goal not removed");
   });
 
   await browser.close();

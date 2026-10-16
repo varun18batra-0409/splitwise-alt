@@ -2,7 +2,8 @@ import { loadMyGroups } from "./group-data";
 import { formatMoney } from "./money";
 import { crossSettle } from "./cross-settle";
 import { convertAmount } from "./conversion";
-import { getRate } from "./rate-cache";
+import { after } from "next/server";
+import { displayRate } from "./rate-cache";
 
 // Everything the home screen and the Settle screen need about all my groups:
 // totals, net balance (in one currency when rates are known) and Smart Settle
@@ -27,12 +28,17 @@ export async function loadOverview(memberships: Record<string, string>) {
   const currencyCount = new Map<string, number>();
   for (const g of open) currencyCount.set(g.group.currency, (currencyCount.get(g.group.currency) ?? 0) + 1);
   const common = [...currencyCount].sort((a, b) => b[1] - a[1])[0]?.[0] ?? all[0]?.group.currency ?? "INR";
-  const rates = new Map<string, string | null>();
-  for (const cur of new Set(all.map((g) => g.group.currency))) {
-    if (cur === common) continue;
-    const r = await getRate(cur, common);
-    rates.set(cur, r.ok ? r.rate : null);
-  }
+  // Saved rates only (never waits for the internet); stale ones refresh after the screen is sent.
+  const rates = new Map<string, string | null>(
+    await Promise.all(
+      [...new Set(all.map((g) => g.group.currency))]
+        .filter((cur) => cur !== common)
+        .map(async (cur) => {
+          const r = await displayRate(cur, common, after);
+          return [cur, r.ok ? r.rate : null] as const;
+        }),
+    ),
+  );
 
   // Net = everything you're owed minus everything you owe.
   const netCommon = ((): { value: number; converted: boolean } | null => {

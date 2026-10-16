@@ -52,12 +52,13 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
             )}
             <div className="my-4 h-px bg-line" />
             <p className={`font-display text-[22px] font-semibold tabular-nums ${mine > 0 ? "text-owed" : mine < 0 ? "text-owe" : ""}`}>
-              {aheadBehind(mine) === "ahead" ? `You’re ${money(mine)} ahead` : aheadBehind(mine) === "behind" ? `You’re ${money(-mine)} behind` : "You’re even"}
+              {aheadBehind(mine) === "ahead" ? `Overall you’re ${money(mine)} ahead` : aheadBehind(mine) === "behind" ? `Overall you’re ${money(-mine)} behind` : "You’re even"}
             </p>
             {s.total > 0 && (
               <>
                 <p className="mt-1 text-xs text-gray-500">
-                  You put in {money(s.paidByMe)} this month. Your {agreed}% share is {money(s.mine)}.
+                  This month you put in {money(s.paidByMe)}; your {agreed}% share is {money(s.mine)}
+                  {s.paidByMe !== s.mine ? ` (${money(Math.abs(s.paidByMe - s.mine))} ${s.paidByMe > s.mine ? "ahead" : "behind"})` : ""}.
                 </p>
                 <div className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-mist" aria-hidden>
                   <div className="bg-fg" style={{ width: `${myPart}%` }} />
