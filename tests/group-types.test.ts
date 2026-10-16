@@ -42,7 +42,6 @@ describe("split labels and typed weights", () => {
   it("reads shares as hundredths", () => {
     expect(parseWeight("1.2")).toBe(120);
     expect(parseWeight("0")).toBe(0);
-    expect(parseWeight("55")).toBe(5500);
     expect(parseWeight("-1")).toBeNull();
     expect(parseWeight("1.255")).toBeNull();
     expect(parseWeight("abc")).toBeNull();

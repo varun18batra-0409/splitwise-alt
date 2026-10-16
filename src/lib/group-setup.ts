@@ -39,7 +39,7 @@ export async function updateSharing(
   actorId: string,
   input: { type: string; weights: Record<string, string> },
 ): Promise<Result> {
-  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: true } });
+  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (!group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can change this." };
   const type: GroupType = isGroupType(input.type) ? input.type : (group.type as GroupType);
