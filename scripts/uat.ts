@@ -1531,9 +1531,15 @@ async function main() {
     const day = `${new Date().toISOString().slice(0, 8)}10`;
     await V.locator(`#in-${zoe.id}`).fill(day);
     await V.locator(`#in-${zoe.id}`).locator("xpath=..").getByRole("button", { name: "Save" }).click();
-    await V.waitForURL(/\/people$/);
-    const after = await db.member.findUnique({ where: { id: zoe.id } });
+    // Already on /people, so wait for the save itself (not the address).
+    let after = await db.member.findUnique({ where: { id: zoe.id } });
+    for (let i = 0; i < 40 && after?.joinedFrom?.toISOString().slice(0, 10) !== day; i++) {
+      await V.waitForTimeout(250);
+      after = await db.member.findUnique({ where: { id: zoe.id } });
+    }
     assert(after?.joinedFrom?.toISOString().slice(0, 10) === day, `moved-in date is ${after?.joinedFrom?.toISOString()}`);
+    const ev = await db.groupEvent.findFirst({ where: { groupId: homeId(), text: { contains: "moved in on" } } });
+    assert(ev, "no “moved in” line in the history");
   });
   await step(V, "Couples", "Change the goal (target ₹80,000), then remove it", async () => {
     const goal = await db.goal.findFirst({ where: { groupId: gc.split("/").pop()!, deletedAt: null }, orderBy: { createdAt: "desc" } });
