@@ -98,9 +98,9 @@ describe("moving out, for real", () => {
 
   it("previews what Rohan owes for his days", async () => {
     const p = await moveOutPreview(groupId, rohan, "2026-10-15");
-    expect(p.ok && p.rentCredit).toBe(600000); // half of ₹12,000 back to the others
+    expect(p.ok && p.rentCredit).toBe(619355); // 16 of October's 31 days of his ₹12,000 go back to the others
     expect(p.ok && p.balanceToday).toBe(-1200000);
-    expect(p.ok && p.payments).toEqual([{ from: rohan, to: you, amount: 600000 }]);
+    expect(p.ok && p.payments).toEqual([{ from: rohan, to: you, amount: 580645 }]);
   });
 
   it("re-splits this month's rent, settles him up, hands his deposit to Meera, and marks him left — balances still add up", async () => {
@@ -112,7 +112,7 @@ describe("moving out, for real", () => {
     expect(data.group.members.find((m) => m.id === rohan)?.leftAt).not.toBeNull();
     const rent = data.expenses.find((e) => e.description === "Rent")!;
     expect(rent.amount).toBe(3600000);
-    expect(rent.shares.find((s) => s.memberId === rohan)?.amount).toBe(600000);
+    expect(rent.shares.find((s) => s.memberId === rohan)?.amount).toBe(580645); // 15 of 31 days
     const dep = await db.depositShare.findMany({ where: { deposit: { groupId } } });
     expect(dep.find((d) => d.memberId === rohan)?.status).toBe("transferred");
     expect(dep.find((d) => d.memberId === meera)?.amount).toBe(3600000);
