@@ -7,6 +7,8 @@ import { saveExpense, type SaveExpenseInput } from "@/lib/save-expense";
 import { undoEvent } from "@/lib/undo";
 import { isMemberUsed } from "@/lib/people";
 import { loadGroup } from "@/lib/group-data";
+import { changeGroupCurrency } from "@/lib/group-changes";
+import { removeMembers } from "@/lib/undo";
 import type { RateAnswer } from "@/lib/rate-cache";
 
 // More than one person paying for one expense.
@@ -104,10 +106,14 @@ describe("saved with more than one payer", () => {
     expect(net[rohan]).toBe(-100000);
   });
 
-  it("someone who only paid (no share) still counts as used, so can't be removed", async () => {
+  it("someone who only paid a smaller part (no share) still counts as used, so can't be removed", async () => {
     const g = await db.member.create({ data: { name: "Guest", groupId } });
-    await saveExpense(input({ name: "Cab", forMode: "selected", selected: [you, asha], multiPay: true, payers: { [you]: "1000", [g.id]: "2000" } }), you, rate);
+    await saveExpense(input({ name: "Cab", forMode: "selected", selected: [you, asha], multiPay: true, payers: { [you]: "2000", [g.id]: "1000" } }), you, rate);
+    const cab = await db.expense.findFirstOrThrow({ where: { groupId, description: "Cab" } });
+    expect(cab.paidById).toBe(you); // so only the payer list mentions the guest
     expect(await isMemberUsed(g.id)).toBe(true);
+    const r = await removeMembers(groupId, you, [g.id], false);
+    expect(r.ok).toBe(false);
   });
 
   it("undoing an edit that changed the payers puts the old payers back", async () => {
@@ -125,5 +131,47 @@ describe("saved with more than one payer", () => {
     expect(u.ok).toBe(true);
     const back = await db.expense.findUniqueOrThrow({ where: { id: r.id } });
     expect(parsePayers(back.payers)).toEqual([{ memberId: you, amount: 150000 }, { memberId: asha, amount: 150000 }]);
+  });
+});
+
+describe("changing the group currency with more than one payer", () => {
+  it("converts every payer's part too, and undo puts them back exactly", async () => {
+    const rate1 = async (): Promise<RateAnswer> => ({ ok: true, rate: "1", date: "2026-10-16" });
+    const g = await db.group.create({
+      data: { name: "Fx", currency: "INR", inviteCode: `fx-${Date.now()}`, members: { create: [{ name: "You" }, { name: "Asha" }, { name: "Rohan" }] } },
+      include: { members: true },
+    });
+    const [you, asha] = [g.members.find((m) => m.name === "You")!.id, g.members.find((m) => m.name === "Asha")!.id];
+    const r = await saveExpense(
+      {
+        groupId: g.id, name: "Dinner", category: "", amount: "3000", currency: "INR", paidById: you, forMode: "everyone", selected: [], onePersonId: "",
+        splitType: "equal", exact: {}, percent: {}, paymentMethod: "cash", markupChoice: "group", markupCustom: "", rateMode: "auto", manualRate: "",
+        multiPay: true, payers: { [you]: "2000", [asha]: "1000" },
+      },
+      you,
+      rate1,
+    );
+    if (!r.ok) throw new Error(r.error);
+    const changed = await changeGroupCurrency(g.id, you, "USD", "0.012");
+    expect(changed.ok).toBe(true);
+    const e = await db.expense.findUniqueOrThrow({ where: { id: r.id } });
+    const payers = parsePayers(e.payers);
+    expect(payers.reduce((s, p) => s + p.amount, 0)).toBe(e.amount);
+    expect(payers).toEqual([{ memberId: you, amount: 2400 }, { memberId: asha, amount: 1200 }]);
+    const net = (await loadGroup(g.id))!.net;
+    expect(Object.values(net).reduce((a, b) => a + b, 0)).toBe(0);
+    expect(net[you]).toBe(1200);
+    if (!changed.ok || !changed.eventId) throw new Error("no event");
+    const u = await undoEvent(changed.eventId, you);
+    expect(u.ok).toBe(true);
+    const back = await db.expense.findUniqueOrThrow({ where: { id: r.id } });
+    expect(parsePayers(back.payers)).toEqual([{ memberId: you, amount: 200000 }, { memberId: asha, amount: 100000 }]);
+    await db.group.delete({ where: { id: g.id } });
+  });
+  it("payersOf never trusts a list that doesn't add up (scales it to the total)", () => {
+    expect(payersOf({ paidById: "a", amount: 3600, payers: JSON.stringify([{ m: "a", a: 200000 }, { m: "b", a: 100000 }]) })).toEqual([
+      { memberId: "a", amount: 2400 },
+      { memberId: "b", amount: 1200 },
+    ]);
   });
 });
