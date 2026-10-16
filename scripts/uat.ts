@@ -746,8 +746,9 @@ async function main() {
     await V.locator('input[name="rate"]').fill("0.012");
     await V.getByRole("button", { name: /Convert to USD/ }).click();
     await V.waitForURL(/saved=settings/);
-    await go(V, `${g3}?tab=activity`);
-    await V.getByText(/USD 7\.20/).first().waitFor();
+    // The group total moved from the top of the group to Balances.
+    await go(V, `${g3}?tab=balances`);
+    await V.getByText(/USD\s7\.20 spent across/).first().waitFor();
   });
   await step(V, "Group settings", "Delete a group, see it under Recently deleted, restore it", async () => {
     await go(V, `${g3}/settings`);
