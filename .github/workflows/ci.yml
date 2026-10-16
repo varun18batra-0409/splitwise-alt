@@ -25,9 +25,11 @@ jobs:
   # Builds the app the way the hosting does (online-database mode, here with a
   # local stand-in file), fills it with demo data, opens every screen in a
   # phone-sized browser and saves the pictures to the "screenshots" branch.
+  # Also runs on phase branches (with its own stand-in database), so a whole
+  # phase is tapped through before it's merged.
   screens:
     needs: check
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/phase')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -79,4 +81,6 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
           git add . && git commit -qm "Screens for ${GITHUB_SHA::7}"
-          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" screenshots
+          # main → "screenshots"; a phase branch → "screenshots-phase4" etc.
+          dest=screenshots; [ "$GITHUB_REF_NAME" = main ] || dest="screenshots-$GITHUB_REF_NAME"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "screenshots:$dest"
