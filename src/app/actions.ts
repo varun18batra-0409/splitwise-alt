@@ -1,6 +1,5 @@
 "use server";
 
-import { randomBytes } from "node:crypto";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { forgetThisPhone, getAccount, getMemberships, getMyMemberId, keepGroupsDropAccount, setMyMemberId, signInAs } from "@/lib/identity";
@@ -21,10 +20,8 @@ import { claimKey, cleanKey, isDuplicateKey, previousResult } from "@/lib/once";
 import { safePath } from "@/lib/paths";
 import { addRegistered, copyPushTo, freeName, inviteByEmail, searchPeople } from "@/lib/invites";
 import { formatMoney } from "@/lib/money";
+import { createGroupFor, updateSharing } from "@/lib/group-setup";
 
-function newInviteCode() {
-  return randomBytes(6).toString("base64url"); // 8 characters, hard to guess
-}
 
 export async function createGroup(formData: FormData) {
   // Everyone in Loopin has a verified email, so making a group needs an account.
@@ -36,15 +33,12 @@ export async function createGroup(formData: FormData) {
   if (!groupName || !yourName) redirect("/groups/new?error=missing");
   if (!account.name) await db.account.update({ where: { id: account.id }, data: { name: yourName } });
 
-  const baseCurrency = String(formData.get("currency") ?? "INR");
-  const group = await db.group.create({
-    data: {
-      name: groupName,
-      currency: isSupportedCurrency(baseCurrency) ? baseCurrency : "INR",
-      inviteCode: newInviteCode(),
-      members: { create: [{ name: yourName, claimedAt: new Date(), accountId: account.id }] },
-    },
-    include: { members: true },
+  const group = await createGroupFor(account, {
+    type: String(formData.get("type") ?? "other"),
+    name: groupName,
+    yourName,
+    currency: String(formData.get("currency") ?? "INR"),
+    ratio: Number(formData.get("ratio") ?? 50),
   });
   const me = group.members[0];
   await setMyMemberId(group.id, me.id);
@@ -144,7 +138,7 @@ export async function joinAsNew(formData: FormData) {
   if (!account.name) await db.account.update({ where: { id: account.id }, data: { name: typed || name } });
   let member;
   try {
-    member = await db.member.create({ data: { name, groupId: group.id, claimedAt: new Date(), accountId: account.id } });
+    member = await db.member.create({ data: { name, groupId: group.id, claimedAt: new Date(), accountId: account.id, splitWeight: group.joinWeight } });
   } catch {
     // Pressed twice, or someone took the same name at the same moment: try again.
     redirect(`/join/${code}`);
@@ -226,6 +220,18 @@ export async function lookupRate(from: string, to: string): Promise<RateAnswer> 
 }
 
 // Group settings: name, currency and foreign card markup. Every change is logged for everyone.
+// Settings → "How you share costs".
+export async function updateSharingSettings(formData: FormData) {
+  const groupId = String(formData.get("groupId") ?? "");
+  const myId = await getMyMemberId(groupId);
+  if (!myId) redirect("/private");
+  const weights: Record<string, string> = {};
+  for (const [k, v] of formData.entries()) if (k.startsWith("w_")) weights[k.slice(2)] = String(v);
+  const r = await updateSharing(groupId, myId, { type: String(formData.get("type") ?? ""), weights });
+  if (!r.ok) redirect(`/groups/${groupId}/settings?error=${encodeURIComponent(r.error)}#sharing`);
+  redirect(`/groups/${groupId}?saved=settings${r.eventId ? `&did=${r.eventId}` : ""}`);
+}
+
 export async function updateGroupSettings(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const group = await db.group.findUnique({

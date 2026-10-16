@@ -29,6 +29,7 @@ const SIGN: Record<string, string> = {
   payment_recorded: "💸", payment_deleted: "🗑️", payment_restored: "↩️",
   members_added: "👋", member_invited: "✉️", members_removed: "👤", member_left: "👤", member_rejoined: "👋", member_renamed: "✏️",
   group_settled_closed: "✅", group_closed: "📦", group_reopened: "📂", group_deleted: "🗑️", group_restored: "↩️",
+  split_changed: "⚖️",
 };
 export function pushPayload(e: { groupId: string; groupName: string; actorName: string; text: string; eventId: string; kind?: string }) {
   const body = `${e.actorName} ${e.text}`;

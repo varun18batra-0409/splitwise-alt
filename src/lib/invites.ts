@@ -81,7 +81,7 @@ export async function addRegistered(groupId: string, actorId: string, accountId:
   const { memberId, eventId } = await db.$transaction(async (tx) => {
     const m = existing
       ? await tx.member.update({ where: { id: existing.id }, data: { leftAt: null } })
-      : await tx.member.create({ data: { name, groupId, accountId, claimedAt: new Date() } });
+      : await tx.member.create({ data: { name, groupId, accountId, claimedAt: new Date(), splitWeight: group.joinWeight } });
     const eventId = await logEvent(tx, {
       groupId,
       actorId,

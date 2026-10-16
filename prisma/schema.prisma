@@ -26,6 +26,8 @@ model Group {
   deletedAt    DateTime? // "Delete group": hidden for everyone, restorable for 30 days, then removed for good
   deletedById  String    @default("")
   inviteCode   String    @unique
+  type         String    @default("other") // "trip" | "home" | "couple" | "other": sets defaults only
+  joinWeight   Int       @default(100) // split weight given to people who join (a couple's 55/45 → 45)
   createdAt  DateTime  @default(now())
   members    Member[]
   expenses   Expense[]
@@ -44,6 +46,7 @@ model Member {
   // phone. A plain id (no database link) so the hosted database can add it as a
   // simple new column; deleting an account clears it in code.
   accountId String?
+  splitWeight Int    @default(100) // the group's own split: hundredths of a share (1.2 shares = 120; a couple's 55/45 = 55)
   groupId   String
   group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())

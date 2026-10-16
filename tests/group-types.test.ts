@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
-import { GROUP_TYPES, isGroupType, ratioFromIncomes, weightsLabel, createGroupFor, parseWeight } from "@/lib/group-types";
+import { GROUP_TYPES, isGroupType, ratioFromIncomes, weightsLabel, parseWeight } from "@/lib/group-types";
+import { createGroupFor, updateSharing } from "@/lib/group-setup";
 import { addRegistered } from "@/lib/invites";
 
 // Group types (Trip · Home · Couple · Other) and the group's own split.
@@ -73,5 +74,36 @@ describe("creating a group of each type", () => {
     expect(home.members[0].splitWeight).toBe(100);
     expect(home.joinWeight).toBe(100);
     expect(odd.type).toBe("other");
+  });
+});
+
+describe("changing how costs are shared", () => {
+  it("saves new weights and the type, and tells the group", async () => {
+    const me = await db.account.findFirstOrThrow({ where: { email: `me-gt-${stamp}@example.com` } });
+    const g = await createGroupFor(me, { type: "other", name: "Flat", yourName: "Varun", currency: "INR" });
+    made.push(g.id);
+    const other = await db.member.create({ data: { name: "Asha", groupId: g.id } });
+    const meId = g.members[0].id;
+    const r = await updateSharing(g.id, meId, { type: "home", weights: { [meId]: "1.2", [other.id]: "1" } });
+    expect(r.ok).toBe(true);
+    const after = await db.group.findUniqueOrThrow({ where: { id: g.id }, include: { members: true } });
+    expect(after.type).toBe("home");
+    expect(after.members.find((m) => m.id === meId)?.splitWeight).toBe(120);
+    const ev = await db.groupEvent.findFirst({ where: { groupId: g.id, kind: "split_changed" } });
+    expect(ev?.text).toContain("1.2 / 1");
+  });
+  it("refuses a split where nobody pays anything", async () => {
+    const me = await db.account.findFirstOrThrow({ where: { email: `me-gt-${stamp}@example.com` } });
+    const g = await createGroupFor(me, { type: "home", name: "Flat B", yourName: "Varun", currency: "INR" });
+    made.push(g.id);
+    const r = await updateSharing(g.id, g.members[0].id, { type: "home", weights: { [g.members[0].id]: "0" } });
+    expect(r.ok).toBe(false);
+  });
+  it("only people in the group can change it", async () => {
+    const me = await db.account.findFirstOrThrow({ where: { email: `me-gt-${stamp}@example.com` } });
+    const g = await createGroupFor(me, { type: "home", name: "Flat C", yourName: "Varun", currency: "INR" });
+    made.push(g.id);
+    const r = await updateSharing(g.id, "someone-else", { type: "home", weights: {} });
+    expect(r.ok).toBe(false);
   });
 });

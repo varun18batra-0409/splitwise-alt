@@ -1,12 +1,12 @@
 import { headers } from "next/headers";
 import Link from "@/components/Link";
-import { createGroup } from "@/app/actions";
+import { NewGroupForm } from "@/components/NewGroupForm";
 import { defaultCurrency } from "@/lib/region";
 import { getAccount } from "@/lib/identity";
-import { CurrencySelect } from "@/components/CurrencySelect";
-import { ErrorNote, PageHeader, inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
+import { ErrorNote, PageHeader, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
 
-// New group: a name, your name and the currency. People are added next, on
+// New group: what it's for (Trip · Home · Couple · Other), a name, your name and
+// the currency; couples also choose their split. People are added next, on
 // the "Add people" screen (Loopin users, contacts or email) — never by typing
 // a name, so everyone in a group is a real, verified person.
 export default async function NewGroup({
@@ -49,32 +49,7 @@ export default async function NewGroup({
         error && <ErrorNote>Please fill in the group name and your name.</ErrorNote>
       )}
 
-      <form action={createGroup} className="space-y-8">
-        <label className="block">
-          <span className="mb-2 block text-sm font-medium text-gray-600">Group name</span>
-          <input name="groupName" required placeholder="Euro trip" defaultValue={(name ?? "").slice(0, 60)} autoComplete="off" className={inputClass} />
-        </label>
-
-        <label className="block">
-          <span className="mb-2 block text-sm font-medium text-gray-600">Your name in this group</span>
-          <input name="yourName" required defaultValue={account.name} placeholder="Your name" autoComplete="given-name" className={inputClass} />
-        </label>
-
-        <label className="block">
-          <span className="mb-2 block text-sm font-medium text-gray-600">
-            Group currency <span className="font-normal text-gray-400">(balances are shown in this)</span>
-          </span>
-          <CurrencySelect name="currency" defaultValue={currency} />
-        </label>
-
-        <p className="rounded-xl bg-mist px-4 py-3 text-sm text-gray-500">
-          Next: add people. Pick friends already on Loopin, choose from your contacts, or invite by email.
-        </p>
-
-        <button type="submit" className={primaryButtonClass}>
-          Create group &amp; add people
-        </button>
-      </form>
+      <NewGroupForm defaultCurrency={currency} yourName={account.name} initialName={(name ?? "").slice(0, 60)} />
     </>
   );
 }

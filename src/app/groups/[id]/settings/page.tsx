@@ -1,7 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
-import { convertGroupCurrency, deleteGroup, setGroupClosed, updateGroupSettings } from "@/app/actions";
+import { convertGroupCurrency, deleteGroup, setGroupClosed, updateGroupSettings, updateSharingSettings } from "@/app/actions";
+import { GROUP_TYPES } from "@/lib/group-types";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { CURRENCIES, currencyInfo, formatMoney, formatPercent, isSupportedCurrency, POPULAR_CURRENCIES } from "@/lib/money";
 import { getRate } from "@/lib/rate-cache";
@@ -33,7 +34,7 @@ export default async function GroupSettings({
   const group = await db.group.findUnique({
     where: { id },
     include: {
-      members: { select: { id: true, name: true, leftAt: true } },
+      members: { select: { id: true, name: true, leftAt: true, splitWeight: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
       expenses: { where: { deletedAt: null }, select: { amount: true } },
       _count: { select: { expenses: true, payments: true } },
     },
@@ -43,6 +44,7 @@ export default async function GroupSettings({
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
 
   const isPreset = PRESETS.includes(group.cardMarkupBp);
+  const active = group.members.filter((m) => !m.leftAt);
 
   // Step 2 of changing the currency: confirm the conversion rate.
   if (convert && isSupportedCurrency(convert) && convert !== group.currency) {
@@ -101,7 +103,7 @@ export default async function GroupSettings({
   return (
     <>
       <PageHeader title="Group settings" back={`/groups/${group.id}`} />
-      {error && ERRORS[error] && <ErrorNote>{ERRORS[error]}</ErrorNote>}
+      {error && <ErrorNote>{ERRORS[error] ?? error.slice(0, 120)}</ErrorNote>}
 
       <form action={updateGroupSettings} className="space-y-10">
         <input type="hidden" name="groupId" value={group.id} />
@@ -189,6 +191,47 @@ export default async function GroupSettings({
 
         <button type="submit" className={primaryButtonClass}>
           Save settings
+        </button>
+      </form>
+
+      {/* How you share costs: the group type and each person's part */}
+      <h2 id="sharing" className={`mt-12 ${sectionTitle}`}>How you share costs</h2>
+      <form action={updateSharingSettings} className="mt-3 space-y-5">
+        <input type="hidden" name="groupId" value={group.id} />
+        <label className="block">
+          <span className="mb-2 block text-base font-semibold">Group type</span>
+          <select name="type" defaultValue={group.type} className={inputClass}>
+            {GROUP_TYPES.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.label} · {t.hint}
+              </option>
+            ))}
+          </select>
+        </label>
+        <fieldset>
+          <legend className="mb-1 text-base font-semibold">{group.type === "couple" ? "Each person’s %" : "Shares"}</legend>
+          <p className="mb-3 text-sm text-gray-500">
+            {group.type === "couple"
+              ? "Your split for every expense, e.g. 55 and 45."
+              : "Everyone pays 1 share unless you change it, e.g. 1.5 for a bigger room."}
+          </p>
+          <ul className="divide-y divide-line rounded-2xl border border-line">
+            {active.map((m) => (
+              <li key={m.id} className="flex items-center gap-3 px-4 py-2.5">
+                <span className="min-w-0 flex-1 truncate">{m.id === myId ? `${m.name} (you)` : m.name}</span>
+                <input
+                  name={`w_${m.id}`}
+                  inputMode="decimal"
+                  aria-label={`${m.name}’s ${group.type === "couple" ? "percent" : "shares"}`}
+                  defaultValue={group.type === "couple" ? String(m.splitWeight) : String(Number((m.splitWeight / 100).toFixed(2)))}
+                  className="w-20 rounded-lg border border-line bg-mist px-2 py-1.5 text-right text-fg outline-none focus:border-accent"
+                />
+              </li>
+            ))}
+          </ul>
+        </fieldset>
+        <button type="submit" className={secondaryButtonClass}>
+          Save how you share
         </button>
       </form>
 
