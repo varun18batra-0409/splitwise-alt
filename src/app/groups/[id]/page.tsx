@@ -14,6 +14,8 @@ import { BalancesTab } from "./_components/BalancesTab";
 import { ChartsTab } from "./_components/ChartsTab";
 import { ThisMonthTab } from "./_components/ThisMonthTab";
 import { BillsTab } from "./_components/BillsTab";
+import { ListTab } from "./_components/ListTab";
+import { usualItems } from "@/lib/home/list";
 import { billStatuses } from "@/lib/home/bills-db";
 import { niceDate } from "@/lib/format";
 
@@ -40,6 +42,8 @@ export default async function GroupPage({
   searchParams: Promise<{
     tab?: string;
     saved?: string;
+    bought?: string;
+    told?: string;
     added?: string;
     skipped?: string;
     paid?: string;
@@ -97,6 +101,16 @@ export default async function GroupPage({
       href: b.status === "waiting" ? `/groups/${group.id}/add?bill=${b.bill.id}&period=${b.period}` : undefined,
     }));
 
+  // The shopping list: what's open now, and the usual things for quick adding.
+  const list =
+    home && tab === "list"
+      ? await (async () => {
+          const items = await db.listItem.findMany({ where: { groupId: group.id, expenseId: "" }, orderBy: { createdAt: "asc" } });
+          const history = await db.listItem.findMany({ where: { groupId: group.id }, orderBy: { createdAt: "desc" }, take: 200, select: { text: true } });
+          return { items, usual: usualItems(history.map((h) => h.text), items.map((i) => i.text)) };
+        })()
+      : null;
+
   // Group switcher: up to 5 of my other open groups, most recently active first.
   const switchTo = await loadSwitchList(await getMemberships(), group.id);
 
@@ -148,6 +162,9 @@ export default async function GroupPage({
       )}
       {tab === "month" && <ThisMonthTab v={v} extras={{ upcoming: comingUp }} />}
       {tab === "bills" && <BillsTab v={v} bills={bills} saved={sp.saved === "bill"} />}
+      {tab === "list" && list && (
+        <ListTab v={v} items={list.items} usual={list.usual} notice={sp.bought ? "Added as an expense. Everyone has been told." : sp.told ? "Told everyone you’re going shopping." : undefined} />
+      )}
       {tab === "balances" && <BalancesTab v={v} paid={sp.paid === "1"} why={sp.why} />}
       {tab === "charts" && <ChartsTab v={v} />}
 

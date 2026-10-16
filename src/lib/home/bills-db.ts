@@ -23,12 +23,22 @@ export function parseSplit(json: string): { mode: "group" | "equal" | "some"; id
   }
 }
 
-// The expense a bill becomes (also used to prefill "Enter amount").
-export function billExpenseInput(bill: BillRow, groupId: string, currency: string, period: string, amount: number, payerId: string, members: Member[]): SaveExpenseInput {
+// How an automatic expense is shared: the group's own split, equally, or only some.
+export function splitFields(splitJson: string, members: Member[]): Pick<SaveExpenseInput, "forMode" | "selected" | "splitType" | "shares"> {
   const active = members.filter((m) => !m.leftAt);
-  const split = parseSplit(bill.split);
+  const split = parseSplit(splitJson);
   const some = split.mode === "some" ? active.filter((m) => split.ids.includes(m.id)).map((m) => m.id) : [];
   const groupSplit = split.mode === "group" && active.some((m) => m.splitWeight !== active[0].splitWeight);
+  return {
+    forMode: some.length ? "selected" : "everyone",
+    selected: some,
+    splitType: groupSplit ? "shares" : "equal",
+    shares: groupSplit ? Object.fromEntries(active.map((m) => [m.id, String(m.splitWeight / 100)])) : undefined,
+  };
+}
+
+// The expense a bill becomes (also used to prefill "Enter amount").
+export function billExpenseInput(bill: BillRow, groupId: string, currency: string, period: string, amount: number, payerId: string, members: Member[]): SaveExpenseInput {
   const day = bill.nature === "daily" ? dueKey(period, "last") : dueKey(period, bill.day >= 31 ? "last" : bill.day);
   return {
     groupId,
@@ -37,11 +47,8 @@ export function billExpenseInput(bill: BillRow, groupId: string, currency: strin
     amount: toInputAmount(amount, currency),
     currency,
     paidById: payerId,
-    forMode: some.length ? "selected" : "everyone",
-    selected: some,
+    ...splitFields(bill.split, members),
     onePersonId: "",
-    splitType: groupSplit ? "shares" : "equal",
-    shares: groupSplit ? Object.fromEntries(active.map((m) => [m.id, String(m.splitWeight / 100)])) : undefined,
     exact: {},
     percent: {},
     paymentMethod: "cash",

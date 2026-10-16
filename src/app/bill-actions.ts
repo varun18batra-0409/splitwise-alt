@@ -3,8 +3,11 @@
 import { redirect } from "next/navigation";
 import { getMyMemberId } from "@/lib/identity";
 import { billCommand, saveBillFor, saveSettleRulesFor, toggleMissedDayFor } from "@/lib/home/bill-setup";
+import { addListItem, buyListItems, goingShopping, removeListItem, toggleListItem } from "@/lib/home/list-db";
+import { cleanKey } from "@/lib/once";
 
-// Bills: set up, change, skip / pause / stop, and the daily calendar.
+// Home & Couple groups: bills (set up, change, skip / pause / stop, the daily
+// calendar), settle-up rules, and the shopping list.
 
 async function me(groupId: string) {
   const id = await getMyMemberId(groupId);
@@ -57,4 +60,38 @@ export async function saveSettleRules(formData: FormData) {
   });
   if (!r.ok) redirect(`/groups/${groupId}/settings?error=${encodeURIComponent(r.error)}#settling`);
   redirect(`/groups/${groupId}/settings?saved=settling#settling`);
+}
+
+// ---------- Shopping list ----------
+
+export async function listAdd(formData: FormData) {
+  const groupId = String(formData.get("groupId") ?? "");
+  const r = await addListItem(groupId, await me(groupId), String(formData.get("text") ?? ""));
+  redirect(`/groups/${groupId}?tab=list${r.ok ? "" : `&error=${encodeURIComponent(r.error)}`}`);
+}
+
+export async function listToggle(formData: FormData) {
+  const groupId = String(formData.get("groupId") ?? "");
+  await toggleListItem(groupId, await me(groupId), String(formData.get("itemId") ?? ""));
+  redirect(`/groups/${groupId}?tab=list`);
+}
+
+export async function listRemove(formData: FormData) {
+  const groupId = String(formData.get("groupId") ?? "");
+  await removeListItem(groupId, await me(groupId), String(formData.get("itemId") ?? ""));
+  redirect(`/groups/${groupId}?tab=list`);
+}
+
+export async function listBuy(formData: FormData) {
+  const groupId = String(formData.get("groupId") ?? "");
+  const key = cleanKey(formData.get("rid")) ?? `buy-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const r = await buyListItems(groupId, await me(groupId), String(formData.get("amount") ?? ""), key);
+  if (!r.ok) redirect(`/groups/${groupId}?tab=list&error=${encodeURIComponent(r.error)}`);
+  redirect(`/groups/${groupId}?tab=list&bought=1`);
+}
+
+export async function listGoingShopping(formData: FormData) {
+  const groupId = String(formData.get("groupId") ?? "");
+  await goingShopping(groupId, await me(groupId));
+  redirect(`/groups/${groupId}?tab=list&told=1`);
 }
