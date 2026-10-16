@@ -102,12 +102,11 @@ export default function HowItWorks() {
       <Section slot="roadtrip" kicker="1 · Start" title="Make a group, bring everyone in">
         <Steps
           items={[
-            <>Tap <strong>Create a group</strong>: give it a name (“Euro trip”), your name and the currency.</>,
-            <>Open <strong>Invite</strong> and share the link on WhatsApp, or let friends scan the QR code.</>,
-            <>Friends tap their name and they’re in. No sign-up, no password.</>,
+            <>Tap <strong>New group</strong>: give it a name (“Euro trip”) and pick the currency. First time? You sign up with your email (no password).</>,
+            <>Add people: friends already on Loopin, people from your contacts, or anyone by email.</>,
+            <>They confirm their email and they’re in. From then on everyone is told about every change.</>,
           ]}
         />
-        <p>Added someone who hasn’t joined yet? You can still add expenses for them; they’ll see everything when they open the link.</p>
       </Section>
 
       <div id="add" className="scroll-mt-4" />

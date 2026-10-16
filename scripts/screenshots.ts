@@ -93,6 +93,14 @@ await shot("36-guide-flatmates", "/how-it-works#home", async (p) => {
   await p.locator("#home").scrollIntoViewIfNeeded();
   await p.waitForTimeout(2500);
 }, false);
+await shot("37-guide-restaurant", "/how-it-works#add", async (p) => {
+  await p.locator("#add").scrollIntoViewIfNeeded();
+  await p.waitForTimeout(2500);
+}, false);
+await shot("38-guide-abroad", "/how-it-works#abroad", async (p) => {
+  await p.locator("#abroad").scrollIntoViewIfNeeded();
+  await p.waitForTimeout(2500);
+}, false);
 await shot("32-group-settle", `${g}/settle`);
 await shot("29-why", `${g}?tab=balances&why=${demo.trip.me}#why-${demo.trip.me}`);
 await shot("30-add-only-some", `${g}/add`, async (p) => {
