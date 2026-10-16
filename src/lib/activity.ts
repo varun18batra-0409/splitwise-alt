@@ -1,6 +1,7 @@
 import { getCategory } from "./categories";
 import { DEFAULT_TIME_ZONE, dayKey, formatter, isDayMarker, isTimeZone } from "./dates";
 import { moneyLines, payerIds, scalePayers } from "./payers";
+import { parseAmount } from "./money";
 
 // One history list for a group: expenses, settle-up payments and group changes
 // (renamed, currency changed, people added, closed…), newest first, each with
@@ -168,11 +169,24 @@ export function byDay<T extends { date: Date }>(items: T[], now = new Date(), ti
 }
 
 // Search and filter for a group's history. Any mix of: words (matched against
-// the expense name, category and people), one category, one person.
-export type ActivityFilter = { q?: string; cat?: string; who?: string };
+// the expense name, category and people), category, person, type, dates,
+// who paid and amount.
+export type ActivityFilter = {
+  q?: string; // words
+  cat?: string; // category id
+  who?: string; // anyone involved (paid or shared)
+  type?: "expense" | "payment" | "refund" | "change";
+  from?: string; // "2026-10-01", inclusive
+  to?: string; // inclusive
+  by?: string; // who paid (any payer); for money back, who got it
+  min?: string; // amount as typed, in the group currency
+  max?: string;
+  tz?: string; // for which day something happened
+  currency?: string; // the group currency, to read min / max
+};
 
 export function hasFilter(f: ActivityFilter): boolean {
-  return Boolean(f.q?.trim() || f.cat || f.who);
+  return Boolean(f.q?.trim() || f.cat || f.who || f.type || f.from || f.to || f.by || f.min?.trim() || f.max?.trim());
 }
 
 export function filterActivity(items: ActivityItem[], f: ActivityFilter, nameOf: (id: string) => string): ActivityItem[] {
@@ -182,20 +196,36 @@ export function filterActivity(items: ActivityItem[], f: ActivityFilter, nameOf:
     const t = text.toLowerCase();
     return words.every((w) => t.includes(w));
   };
+  const min = f.min?.trim() ? parseAmount(f.min, f.currency ?? "INR") : null;
+  const max = f.max?.trim() ? parseAmount(f.max, f.currency ?? "INR") : null;
+  const amountOk = (a: number) => (min === null || a >= min) && (max === null || a <= max);
+  const dayOk = (d: Date) => {
+    const k = dayKey(d, f.tz);
+    return (!f.from || k >= f.from) && (!f.to || k <= f.to);
+  };
   return items.filter((item) => {
+    if (!dayOk(item.date)) return false;
     if (item.kind === "event") {
-      // Group changes only show up for a plain word search.
-      if (f.cat || f.who) return false;
+      // Group changes only show up for a plain word search, or "changes".
+      if (f.type && f.type !== "change") return false;
+      if (f.cat || f.who || f.by || min !== null || max !== null) return false;
       return matches(`${nameOf(item.actorId)} ${item.text}`);
     }
+    if (f.type === "change") return false;
     if (item.kind === "payment") {
+      if (f.type && f.type !== "payment") return false;
       if (f.cat) return false;
       if (f.who && item.fromId !== f.who && item.toId !== f.who) return false;
+      if (f.by && item.fromId !== f.by) return false;
+      if (!amountOk(item.amount)) return false;
       return matches(`${nameOf(item.fromId)} paid ${nameOf(item.toId)} payment settle-up`);
     }
+    if (f.type === "payment" || (f.type === "refund" && !item.refund) || (f.type === "expense" && item.refund)) return false;
+    if (!amountOk(item.amount)) return false;
+    const paidBy = item.payerIds ?? [item.paidById];
+    if (f.by && !paidBy.includes(f.by)) return false;
     const cat = getCategory(item.category);
     if (f.cat && cat.id !== f.cat) return false;
-    const paidBy = item.payerIds ?? [item.paidById];
     if (f.who && !paidBy.includes(f.who) && !item.people.includes(f.who)) return false;
     return matches(`${item.title} ${item.notes ?? ""} ${cat.label} ${paidBy.map(nameOf).join(" ")} ${item.people.map(nameOf).join(" ")}`);
   });

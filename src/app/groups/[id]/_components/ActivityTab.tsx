@@ -61,6 +61,16 @@ export function ActivityTab({ v, filter = {}, shown = PAGE }: { v: GroupView; fi
   }
 
   const field = "min-w-0 rounded-lg border border-line bg-mist px-3 py-2 text-sm text-fg outline-none focus:border-accent";
+  // Quick date ranges, in the person's own time zone.
+  const today = dayKey(new Date(), tz);
+  const monthRange = (y: number, m: number, label: string) => {
+    const last = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+    const mm = String(m + 1).padStart(2, "0");
+    return { label, from: `${y}-${mm}-01`, to: `${y}-${mm}-${String(last).padStart(2, "0")}` };
+  };
+  const [ty, tm] = [Number(today.slice(0, 4)), Number(today.slice(5, 7)) - 1];
+  const thisMonth = monthRange(ty, tm, "This month");
+  const lastMonth = tm === 0 ? monthRange(ty - 1, 11, "Last month") : monthRange(ty, tm - 1, "Last month");
   return (
     <div className="space-y-6">
       {/* One "Filter" button instead of a row of boxes; opens search, category and person. */}
@@ -88,6 +98,24 @@ export function ActivityTab({ v, filter = {}, shown = PAGE }: { v: GroupView; fi
                 enterKeyHint="search"
                 className={`${field} w-full`}
               />
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Type">
+                {(
+                  [
+                    ["", "All"],
+                    ["expense", "Expenses"],
+                    ["payment", "Payments"],
+                    ["refund", "Money back"],
+                    ["change", "Changes"],
+                  ] as const
+                ).map(([id, label]) => (
+                  <label key={id || "all"} className="cursor-pointer">
+                    <input type="radio" name="type" value={id} defaultChecked={(filter.type ?? "") === id} className="peer sr-only" />
+                    <span className="block rounded-full border border-line px-3 py-1.5 text-sm text-gray-500 peer-checked:border-fg peer-checked:bg-accent-soft peer-checked:text-fg">
+                      {label}
+                    </span>
+                  </label>
+                ))}
+              </div>
               <div className="flex gap-2">
                 <select name="cat" defaultValue={filter.cat ?? ""} aria-label="Category" className={`${field} flex-1`}>
                   <option value="">All categories</option>
@@ -105,6 +133,35 @@ export function ActivityTab({ v, filter = {}, shown = PAGE }: { v: GroupView; fi
                     </option>
                   ))}
                 </select>
+              </div>
+              <div className="flex gap-2">
+                <select name="by" defaultValue={filter.by ?? ""} aria-label="Paid by" className={`${field} flex-1`}>
+                  <option value="">Paid by anyone</option>
+                  {group.members.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      Paid by {m.id === myId ? "you" : m.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <span className="w-14 shrink-0">Dates</span>
+                <input type="date" name="from" defaultValue={filter.from ?? ""} aria-label="From date" className={`${field} flex-1`} />
+                <span>–</span>
+                <input type="date" name="to" defaultValue={filter.to ?? ""} aria-label="To date" className={`${field} flex-1`} />
+              </div>
+              <div className="flex flex-wrap gap-3 pl-16 text-sm">
+                {[thisMonth, lastMonth].map((m) => (
+                  <Link key={m.label} href={`/groups/${group.id}?tab=activity&from=${m.from}&to=${m.to}`} className="font-medium text-fg underline underline-offset-4">
+                    {m.label}
+                  </Link>
+                ))}
+              </div>
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <span className="w-14 shrink-0">Amount</span>
+                <input name="min" inputMode="decimal" defaultValue={filter.min ?? ""} placeholder="from" aria-label="Amount from" className={`${field} flex-1`} />
+                <span>–</span>
+                <input name="max" inputMode="decimal" defaultValue={filter.max ?? ""} placeholder="to" aria-label="Amount to" className={`${field} flex-1`} />
               </div>
               <button type="submit" className="w-full border border-line py-2 text-sm font-medium text-fg active:bg-mist">
                 Show results

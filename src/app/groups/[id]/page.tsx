@@ -38,6 +38,12 @@ export default async function GroupPage({
     q?: string;
     cat?: string;
     who?: string;
+    type?: string;
+    from?: string;
+    to?: string;
+    by?: string;
+    min?: string;
+    max?: string;
     why?: string;
     n?: string;
   }>;
@@ -85,7 +91,25 @@ export default async function GroupPage({
         ))}
       </nav>
 
-      {tab === "activity" && <ActivityTab v={v} filter={{ q: sp.q?.slice(0, 80), cat: sp.cat, who: sp.who }} shown={Number(sp.n) || undefined} />}
+      {tab === "activity" && (
+        <ActivityTab
+          v={v}
+          filter={{
+            q: sp.q?.slice(0, 80),
+            cat: sp.cat,
+            who: sp.who,
+            type: (["expense", "payment", "refund", "change"] as const).find((t) => t === sp.type),
+            from: /^\d{4}-\d{2}-\d{2}$/.test(sp.from ?? "") ? sp.from : undefined,
+            to: /^\d{4}-\d{2}-\d{2}$/.test(sp.to ?? "") ? sp.to : undefined,
+            by: sp.by,
+            min: sp.min?.slice(0, 15),
+            max: sp.max?.slice(0, 15),
+            tz: v.tz,
+            currency: group.currency,
+          }}
+          shown={Number(sp.n) || undefined}
+        />
+      )}
       {tab === "balances" && <BalancesTab v={v} paid={sp.paid === "1"} why={sp.why} />}
       {tab === "charts" && <ChartsTab v={v} />}
 
