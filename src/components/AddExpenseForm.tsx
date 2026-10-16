@@ -35,6 +35,8 @@ export type ExpenseInitial = {
   exact: Record<string, string>;
   percent: Record<string, string>;
   shares?: Record<string, string>;
+  multiPay?: boolean;
+  payers?: Record<string, string>; // each payer's amount, in the expense's currency
   paymentMethod: PaymentMethod;
   markupChoice: ExpenseDraft["markupChoice"];
   markupCustom: string;
@@ -103,6 +105,8 @@ export function AddExpenseForm({
   // 5–7: who paid, who it was for, how to split
   const [showPeople, setShowPeople] = useState(false);
   const [paidById, setPaidById] = useState(initial?.paidById ?? myId);
+  const [multiPay, setMultiPay] = useState(Boolean(initial?.multiPay));
+  const [payers, setPayers] = useState<Record<string, string>>(initial?.payers ?? {});
   const [forMode, setForMode] = useState<ForMode>(initial?.forMode ?? "everyone");
   const [selected, setSelected] = useState<string[]>(initial?.selected ?? memberIds);
   const [onePersonId, setOnePersonId] = useState(initial?.onePersonId || (memberIds.find((id) => id !== myId) ?? myId));
@@ -254,7 +258,7 @@ export function AddExpenseForm({
   const typo = nameCheck.suggestion && nameCheck.suggestion.wrong !== dismissedTypo ? nameCheck.suggestion : null;
   const draft: ExpenseDraft = {
     amount, currency, paidById, forMode, selected, onePersonId, splitType, exact, percent, shares,
-    paymentMethod, markupChoice, markupCustom,
+    multiPay, payers, paymentMethod, markupChoice, markupCustom,
   };
   const ctx = { memberIds, baseCurrency, groupMarkupBp, rate: effectiveRate };
   const markupBp = chosenMarkupBp(draft, groupMarkupBp);
@@ -265,6 +269,14 @@ export function AddExpenseForm({
   const base = (minor: number) => formatMoney(minor, baseCurrency);
   const orig = (minor: number) => formatMoney(minor, currency);
   const cur = currencyInfo(currency);
+
+  // Running total for the payers' amounts.
+  const payersLeft = (() => {
+    if (!multiPay || !totals.originalAmount) return null;
+    const typed = memberIds.reduce((s, id) => s + (parseAmount(payers[id] ?? "", currency) ?? 0), 0);
+    const left = totals.originalAmount - typed;
+    return { text: left === 0 ? `✓ Adds up to ${orig(totals.originalAmount)}` : left > 0 ? `${orig(left)} still to assign` : `${orig(-left)} too much`, state: left === 0 ? "done" : left > 0 ? "left" : "over" };
+  })();
 
   // Running total for custom amounts / percentages.
   const remaining = (() => {
@@ -326,12 +338,56 @@ export function AddExpenseForm({
           <span className={labelClass}>Who paid?</span>
           <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none]">
             {[...members].sort((a, b) => (a.id === myId ? -1 : b.id === myId ? 1 : 0)).map((m) => (
-              <Chip key={m.id} on={m.id === paidById} onClick={() => setPaidById(m.id)}>
-                {m.id === paidById && "✓ "}
+              <Chip
+                key={m.id}
+                on={!multiPay && m.id === paidById}
+                onClick={() => {
+                  setMultiPay(false);
+                  setPaidById(m.id);
+                }}
+              >
+                {!multiPay && m.id === paidById && "✓ "}
                 {who(m.id)}
               </Chip>
             ))}
+            <Chip
+              on={multiPay}
+              onClick={() => {
+                setMultiPay(true);
+                // Start from the current payer paying everything, so it already adds up.
+                if (!Object.values(payers).some((v) => v.trim())) setPayers({ [paidById]: amount });
+              }}
+            >
+              More than one
+            </Chip>
           </div>
+          {multiPay && (
+            <div className="mt-3 rounded-2xl border border-line px-4 py-1">
+              <ul className="divide-y divide-line">
+                {members.map((m) => (
+                  <li key={m.id} className="flex items-center gap-3 py-2">
+                    <span className="flex-1">{who(m.id)}</span>
+                    <span className="flex w-36 items-center rounded-xl border border-line px-3 focus-within:border-accent">
+                      <span className="text-xs text-gray-400">{currency}</span>
+                      <input
+                        inputMode="decimal"
+                        placeholder="0"
+                        aria-label={`${who(m.id)} paid`}
+                        value={payers[m.id] ?? ""}
+                        onChange={(e) => setPayers((prev) => ({ ...prev, [m.id]: e.target.value }))}
+                        className="w-full bg-transparent py-2 text-right outline-none"
+                      />
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {payersLeft && (
+                <p className={`pb-2 text-sm ${payersLeft.state === "done" ? "text-accent-dark" : payersLeft.state === "over" ? "text-red-600" : "text-gray-500"}`}>
+                  {payersLeft.text}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
 

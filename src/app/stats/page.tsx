@@ -19,7 +19,7 @@ export default async function Stats() {
   const [groups, members, expenses, payments, events, accounts, errors] = await Promise.all([
     db.group.findMany({ select: { id: true, createdAt: true, deletedAt: true, closed: true } }),
     db.member.findMany({ select: { id: true, groupId: true, claimedAt: true } }),
-    db.expense.findMany({ where: { deletedAt: null }, select: { groupId: true, createdAt: true, paidById: true, amount: true, shares: { select: { memberId: true, amount: true } } } }),
+    db.expense.findMany({ where: { deletedAt: null }, select: { groupId: true, createdAt: true, paidById: true, payers: true, kind: true, amount: true, shares: { select: { memberId: true, amount: true } } } }),
     db.payment.findMany({ where: { deletedAt: null }, select: { groupId: true, fromId: true, toId: true, amount: true } }),
     db.groupEvent.findMany({ where: { createdAt: { gte: new Date(Date.now() - 60 * 86_400_000) } }, select: { groupId: true, createdAt: true, kind: true } }),
     db.account.count(),

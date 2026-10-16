@@ -1,3 +1,4 @@
+import { payerIds, payersOf } from "@/lib/payers";
 import { CATEGORIES, getCategory } from "@/lib/categories";
 import { dayKey, expenseDate } from "@/lib/dates";
 import { niceDate } from "@/lib/format";
@@ -27,7 +28,7 @@ export function ChartsTab({ v }: { v: GroupView }) {
     })
     .sort((a, b) => b.value - a.value);
 
-  const paid = sumBy((e) => [e.paidById], (e) => e.amount);
+  const paid = sumBy((e) => payerIds(e), (e, k) => payersOf(e).find((p) => p.memberId === k)?.amount ?? 0);
   const shares = sumBy(
     (e) => e.shares.map((s) => s.memberId),
     (e, k) => e.shares.find((s) => s.memberId === k)?.amount ?? 0,

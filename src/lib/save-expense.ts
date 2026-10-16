@@ -7,6 +7,7 @@ import { diffExpense, expenseState, logEvent, type ExpenseSnapshot } from "./eve
 import type { RateAnswer } from "./rate-cache";
 import { dayKey, parseDay } from "./dates";
 import { claimKey, isDuplicateKey, previousResult, withRetry } from "./once";
+import { parsePayers, payersJson, payersLabel } from "./payers";
 
 export type SaveExpenseInput = ExpenseDraft & {
   groupId: string;
@@ -114,7 +115,8 @@ async function saveExpenseOnce(
 
   // People who left aren't part of new expenses ("everyone" means everyone still
   // in the group); an edit keeps anyone who was already in that expense.
-  const inExisting = (id: string) => Boolean(existing && (existing.paidById === id || existing.shares.some((s) => s.memberId === id)));
+  const inExisting = (id: string) =>
+    Boolean(existing && (existing.paidById === id || existing.shares.some((s) => s.memberId === id) || parsePayers(existing.payers).some((p) => p.memberId === id)));
   const pool = group.members.filter((m) => !m.leftAt || inExisting(m.id)).map((m) => m.id);
   const built = buildExpense(input, { memberIds: pool, baseCurrency: group.currency, groupMarkupBp: group.cardMarkupBp, rate });
   if (!built.ok) return built;
@@ -141,6 +143,7 @@ async function saveExpenseOnce(
     splitType: e.splitType,
     forMode: e.forMode,
     paidById: e.paidById,
+    payers: payersJson(e.payers),
     originalAmount: e.originalAmount,
     originalCurrency: e.originalCurrency,
     baseCurrency: e.baseCurrency,
@@ -170,7 +173,7 @@ async function saveExpenseOnce(
         actorId: actingMemberId,
         kind: "expense_added",
         text: `added ${name} (${money})`,
-        details: [`${getCategory(category).emoji} ${getCategory(category).label}`, `Paid by ${nameOf(e.paidById)}`],
+        details: [`${getCategory(category).emoji} ${getCategory(category).label}`, `Paid by ${e.payers.length ? payersLabel(e.payers, nameOf) : nameOf(e.paidById)}`],
         expenseId: created.id,
         undo: { type: "expense_delete", expenseId: created.id },
       });

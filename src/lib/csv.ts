@@ -1,3 +1,4 @@
+import { payersOf } from "./payers";
 import { getCategory } from "./categories";
 import { decimalsOf } from "./money";
 import { dayKey } from "./dates";
@@ -13,6 +14,7 @@ type Expense = {
   category: string;
   amount: number;
   paidById: string;
+  payers?: string | null;
   originalAmount: number;
   originalCurrency: string;
   exchangeRate: string;
@@ -59,7 +61,7 @@ export function groupCsv(
     rows.push({
       date,
       cells: [
-        dayKey(date, tz), "Expense", e.description, e.notes ?? "", getCategory(e.category).label, name(e.paidById), plain(e.amount, cur),
+        dayKey(date, tz), "Expense", e.description, e.notes ?? "", getCategory(e.category).label, payersOf(e).map((p) => name(p.memberId)).join(" + "), plain(e.amount, cur),
         foreign ? plain(e.originalAmount, e.originalCurrency) : "", foreign ? e.originalCurrency : "", foreign ? e.exchangeRate : "",
         e.markupAmount ? plain(e.markupAmount, cur) : "", e.paymentMethod, e.deletedAt ? "Deleted" : "",
         ...members.map((m) => {

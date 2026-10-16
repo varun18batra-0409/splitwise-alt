@@ -4,7 +4,9 @@
 // Each expense counts ONCE: the payer is credited the final total (including any
 // card markup) and each responsible person is debited their share of that same total.
 
-type ExpenseLike = { paidById: string; amount: number; shares: { memberId: string; amount: number }[] };
+import { moneyLines } from "./payers";
+
+type ExpenseLike = { paidById: string; amount: number; payers?: string | null; kind?: string | null; shares: { memberId: string; amount: number }[] };
 type PaymentLike = { fromId: string; toId: string; amount: number };
 
 export function netBalances(
@@ -14,8 +16,9 @@ export function netBalances(
 ): Record<string, number> {
   const net: Record<string, number> = Object.fromEntries(memberIds.map((id) => [id, 0]));
   for (const e of expenses) {
-    net[e.paidById] = (net[e.paidById] ?? 0) + e.amount;
-    for (const s of e.shares) net[s.memberId] = (net[s.memberId] ?? 0) - s.amount;
+    const { credits, debits } = moneyLines(e);
+    for (const c of credits) net[c.memberId] = (net[c.memberId] ?? 0) + c.amount;
+    for (const d of debits) net[d.memberId] = (net[d.memberId] ?? 0) - d.amount;
   }
   for (const p of payments) {
     net[p.fromId] = (net[p.fromId] ?? 0) + p.amount;

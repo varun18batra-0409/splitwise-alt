@@ -1,3 +1,4 @@
+import { parsePayers } from "./payers";
 import { db } from "./db";
 import { withRetry } from "./once";
 import { diffExpense, expenseState, logEvent, parseUndo, type UndoPayload } from "./events";
@@ -150,7 +151,7 @@ async function revertExpense(expenseId: string, before: Parameters<typeof expens
   if (e.deletedAt) return { ok: false, error: "This expense is deleted. Restore it first." };
   if (before.baseCurrency !== e.group.currency) return { ok: false, error: "The group currency changed since, so this edit can’t be undone." };
   const memberIds = new Set(e.group.members.map((m) => m.id));
-  if (!memberIds.has(before.paidById) || before.shares.some((s) => !memberIds.has(s.memberId))) {
+  if (!memberIds.has(before.paidById) || before.shares.some((s) => !memberIds.has(s.memberId)) || parsePayers(before.payers).some((p) => !memberIds.has(p.memberId))) {
     return { ok: false, error: "Someone in that version is no longer in the group." };
   }
 
@@ -163,7 +164,7 @@ async function revertExpense(expenseId: string, before: Parameters<typeof expens
     await tx.expenseShare.deleteMany({ where: { expenseId } });
     await tx.expense.update({
       where: { id: expenseId },
-      data: { ...fields, spentAt: fields.spentAt ? new Date(fields.spentAt) : null, editedAt: new Date(), shares: { create: shares } },
+      data: { ...fields, payers: fields.payers ?? "", spentAt: fields.spentAt ? new Date(fields.spentAt) : null, editedAt: new Date(), shares: { create: shares } },
     });
     return logEvent(tx, {
       groupId: e.groupId,
@@ -271,7 +272,7 @@ export async function removeMembers(groupId: string, actorId: string, memberIds:
   for (const m of members) {
     const used =
       (await db.expenseShare.count({ where: { memberId: m.id } })) +
-      (await db.expense.count({ where: { OR: [{ paidById: m.id }, { createdById: m.id }] } })) +
+      (await db.expense.count({ where: { OR: [{ paidById: m.id }, { createdById: m.id }, { payers: { contains: m.id } }] } })) +
       (await db.payment.count({ where: { OR: [{ fromId: m.id }, { toId: m.id }] } }));
     if (used > 0) return { ok: false, error: `${m.name} is already part of expenses or payments, so they can’t be removed.` };
   }

@@ -94,7 +94,7 @@ export function ActivityRow({
         <p className="truncate text-sm text-gray-400">
           {deleted
             ? `${deletedNote} · ${shown(o?.amount ?? 0, item.amount)}`
-            : `${nameOf(item.paidById)} paid ${shown(o?.amount ?? 0, item.amount)}`}
+            : `${(item.payerIds ?? [item.paidById]).map(nameOf).join(" + ")} paid ${shown(o?.amount ?? 0, item.amount)}`}
           {groupName && ` · ${groupName}`}
         </p>
       </div>

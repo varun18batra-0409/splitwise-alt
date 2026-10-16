@@ -1,3 +1,4 @@
+import { payerIds } from "@/lib/payers";
 import { notFound, redirect } from "next/navigation";
 import { getMyMemberId } from "@/lib/identity";
 import { loadGroup } from "@/lib/group-data";
@@ -29,7 +30,7 @@ export default async function PeoplePage({
 
   const used = new Set<string>();
   for (const e of group.expenses) {
-    used.add(e.paidById);
+    for (const id of payerIds(e)) used.add(id);
     if (e.createdById) used.add(e.createdById);
     for (const s of e.shares) used.add(s.memberId);
   }

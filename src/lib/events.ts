@@ -2,6 +2,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import { getCategory } from "./categories";
 import { formatMoney, formatPercent } from "./money";
 import { niceDate } from "./format";
+import { parsePayers } from "./payers";
 import { after } from "next/server";
 
 // Phone notifications go out after the response is sent (so after the change
@@ -56,6 +57,7 @@ export type ExpenseState = {
   splitType: string;
   forMode: string;
   paidById: string;
+  payers?: string; // more than one payer (JSON); missing/"" = just paidById
   originalAmount: number;
   originalCurrency: string;
   baseCurrency: string;
@@ -71,7 +73,7 @@ export type ExpenseState = {
   shares: { memberId: string; amount: number }[];
 };
 
-export function expenseState(e: Omit<ExpenseState, "spentAt" | "notes"> & { spentAt?: Date | string | null; notes?: string }): ExpenseState {
+export function expenseState(e: Omit<ExpenseState, "spentAt" | "notes" | "payers"> & { spentAt?: Date | string | null; notes?: string; payers?: string | null }): ExpenseState {
   return {
     description: e.description,
     category: e.category,
@@ -79,6 +81,7 @@ export function expenseState(e: Omit<ExpenseState, "spentAt" | "notes"> & { spen
     splitType: e.splitType,
     forMode: e.forMode,
     paidById: e.paidById,
+    payers: e.payers ?? "",
     originalAmount: e.originalAmount,
     originalCurrency: e.originalCurrency,
     baseCurrency: e.baseCurrency,
@@ -175,6 +178,7 @@ export type ExpenseSnapshot = {
   paymentMethod: string;
   markupBp: number;
   paidById: string;
+  payers?: string | null;
   forMode: string;
   splitType: string;
   day?: string; // "2026-10-14"
@@ -204,7 +208,11 @@ export function diffExpense(before: ExpenseSnapshot, after: ExpenseSnapshot, nam
     add("Group total", formatMoney(before.amount, before.baseCurrency), formatMoney(after.amount, after.baseCurrency));
   }
   add("Category", getCategory(before.category).label, getCategory(after.category).label);
-  add("Paid by", nameOf(before.paidById), nameOf(after.paidById));
+  const paidBy = (x: ExpenseSnapshot) => {
+    const list = parsePayers(x.payers);
+    return list.length ? list.map((p) => `${nameOf(p.memberId)} ${formatMoney(p.amount, x.baseCurrency)}`).join(" + ") : nameOf(x.paidById);
+  };
+  add("Paid by", paidBy(before), paidBy(after));
   add("For", FOR[before.forMode] ?? before.forMode, FOR[after.forMode] ?? after.forMode);
   add("Split", SPLIT[before.splitType] ?? before.splitType, SPLIT[after.splitType] ?? after.splitType);
   if ((before.notes ?? "") !== (after.notes ?? "")) {

@@ -1,6 +1,6 @@
 import { getCategory } from "./categories";
 import { DEFAULT_TIME_ZONE, dayKey, formatter, isDayMarker, isTimeZone } from "./dates";
-import { originalShares } from "./currency-ledgers";
+import { moneyLines, payerIds, scalePayers } from "./payers";
 
 // One history list for a group: expenses, settle-up payments and group changes
 // (renamed, currency changed, people added, closed…), newest first, each with
@@ -14,6 +14,8 @@ type ExpenseRow = {
   category: string;
   amount: number;
   paidById: string;
+  payers?: string | null;
+  kind?: string | null;
   createdAt: Date;
   shares: { memberId: string; amount: number }[];
   createdById?: string;
@@ -51,6 +53,7 @@ export type ActivityItem =
       category: string;
       amount: number;
       paidById: string;
+      payerIds: string[]; // everyone who paid (usually just paidById)
       people: string[]; // who it was for
       effect: number; // + you're owed this much more, − you owe this much more, 0 not involved
       createdById: string;
@@ -72,21 +75,26 @@ export type ActivityItem =
     }
   | { kind: "event"; id: string; date: Date; actorId: string; text: string; details: string; effect: 0 };
 
+// What this expense did to my balance: + I'm owed more, − I owe more.
+function effectFor(e: ExpenseRow, myId: string, total?: number): number {
+  const { credits, debits } = moneyLines(e);
+  const scale = (l: { memberId: string; amount: number }[]) => (total === undefined ? l : scalePayers(l, total));
+  const mine = (l: { memberId: string; amount: number }[]) => scale(l).find((x) => x.memberId === myId)?.amount ?? 0;
+  return mine(credits) - mine(debits);
+}
+
 function originalOf(e: ExpenseRow, myId: string, deleted: boolean) {
   if (e.originalAmount === undefined || !e.originalCurrency || !e.baseCurrency || e.originalCurrency === e.baseCurrency) return null;
-  const mine = originalShares({ amount: e.amount, originalAmount: e.originalAmount, originalCurrency: e.originalCurrency, paidById: e.paidById, shares: e.shares })
-    .find((s) => s.memberId === myId)?.amount ?? 0;
   return {
     currency: e.originalCurrency,
     amount: e.originalAmount,
-    effect: deleted ? 0 : (e.paidById === myId ? e.originalAmount : 0) - mine,
+    effect: deleted ? 0 : effectFor(e, myId, e.originalAmount),
   };
 }
 
 export function buildActivity(expenses: ExpenseRow[], payments: PaymentRow[], myId: string, events: EventRow[] = []): ActivityItem[] {
   const items: ActivityItem[] = [
     ...expenses.map((e): ActivityItem => {
-      const myShare = e.shares.find((s) => s.memberId === myId)?.amount ?? 0;
       const deleted = Boolean(e.deletedAt);
       return {
         kind: "expense",
@@ -97,8 +105,9 @@ export function buildActivity(expenses: ExpenseRow[], payments: PaymentRow[], my
         category: e.category,
         amount: e.amount,
         paidById: e.paidById,
+        payerIds: payerIds(e),
         people: e.shares.map((s) => s.memberId),
-        effect: deleted ? 0 : (e.paidById === myId ? e.amount : 0) - myShare,
+        effect: deleted ? 0 : effectFor(e, myId),
         createdById: e.createdById ?? e.paidById,
         edited: Boolean(e.editedAt),
         deletedById: deleted ? (e.deletedById ?? "") : null,
@@ -184,7 +193,7 @@ export function filterActivity(items: ActivityItem[], f: ActivityFilter, nameOf:
     }
     const cat = getCategory(item.category);
     if (f.cat && cat.id !== f.cat) return false;
-    if (f.who && item.paidById !== f.who && !item.people.includes(f.who)) return false;
-    return matches(`${item.title} ${item.notes ?? ""} ${cat.label} ${nameOf(item.paidById)} ${item.people.map(nameOf).join(" ")}`);
+    if (f.who && !item.payerIds.includes(f.who) && !item.people.includes(f.who)) return false;
+    return matches(`${item.title} ${item.notes ?? ""} ${cat.label} ${item.payerIds.map(nameOf).join(" ")} ${item.people.map(nameOf).join(" ")}`);
   });
 }

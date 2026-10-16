@@ -94,7 +94,7 @@ export async function setMember(
 export async function isMemberUsed(memberId: string): Promise<boolean> {
   const used =
     (await db.expenseShare.count({ where: { memberId } })) +
-    (await db.expense.count({ where: { OR: [{ paidById: memberId }, { createdById: memberId }] } })) +
+    (await db.expense.count({ where: { OR: [{ paidById: memberId }, { createdById: memberId }, { payers: { contains: memberId } }] } })) +
     (await db.payment.count({ where: { OR: [{ fromId: memberId }, { toId: memberId }] } }));
   return used > 0;
 }

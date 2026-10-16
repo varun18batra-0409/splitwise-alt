@@ -84,8 +84,10 @@ model Expense {
   markupBp         Int    @default(0) // card markup applied, hundredths of a % (300 = 3%)
   markupAmount     Int    @default(0) // markup in base currency
 
-  paidById    String
+  paidById    String // the payer (with several, the one who paid most)
   paidBy      Member         @relation("PaidBy", fields: [paidById], references: [id])
+  payers      String         @default("") // more than one payer: JSON [{"m": memberId, "a": paise}] adding up to amount; "" = just paidById
+  kind        String         @default("expense") // "expense" | "refund" (money back: whoever got it owes the people it's shared with)
   createdAt   DateTime       @default(now())
   shares      ExpenseShare[] // one line per person; receipt items can hang off this later
 

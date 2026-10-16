@@ -11,6 +11,7 @@ import { removePayment, restoreExpense, restorePayment, undoChange } from "@/app
 import { ActivityRow } from "@/components/ActivityRow";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { Line } from "./Line";
+import { payersOf } from "@/lib/payers";
 import type { GroupEvent, GroupView } from "./view";
 
 const PAID_WITH: Record<string, string> = { card: "Card", cash: "Cash", bank: "Bank / UPI" };
@@ -212,7 +213,11 @@ export function ActivityTab({ v, filter = {}, shown = PAGE }: { v: GroupView; fi
                       )}
                       <Line label="Total group expense" value={money(e.amount)} strong />
                       <div className="border-t border-line pt-1.5">
-                        <Line label="Paid by" value={nameOf(e.paidById)} />
+                        {payersOf(e).length > 1 ? (
+                          payersOf(e).map((p) => <Line key={`p-${p.memberId}`} label={`Paid by ${nameOf(p.memberId)}`} value={money(p.amount)} />)
+                        ) : (
+                          <Line label="Paid by" value={nameOf(e.paidById)} />
+                        )}
                         <Line label="For" value={FOR_MODE[e.forMode] ?? "Everyone"} />
                         {e.shares.map((sh) => {
                           const o = orig.find((x) => x.memberId === sh.memberId);

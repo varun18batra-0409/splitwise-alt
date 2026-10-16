@@ -1,4 +1,5 @@
 import { allocateByWeights, type Share } from "./split";
+import { moneyLines, scalePayers } from "./payers";
 
 // Amounts in the currency an expense was actually paid in — WITHOUT any card
 // markup. The markup is only the cost of converting to the group's currency,
@@ -13,6 +14,8 @@ type ExpenseLike = {
   originalAmount: number;
   originalCurrency: string;
   paidById: string;
+  payers?: string | null;
+  kind?: string | null;
   shares: { memberId: string; amount: number }[];
 };
 
@@ -47,8 +50,10 @@ export function foreignLedgers(expenses: ExpenseLike[], groupCurrency: string, m
     };
     l.spent += e.originalAmount;
     l.count += 1;
-    l.net[e.paidById] = (l.net[e.paidById] ?? 0) + e.originalAmount;
-    for (const s of originalShares(e)) l.net[s.memberId] = (l.net[s.memberId] ?? 0) - s.amount;
+    // The same lines as in the group currency, in the expense's own currency.
+    const { credits, debits } = moneyLines(e);
+    for (const c of scalePayers(credits, e.originalAmount)) l.net[c.memberId] = (l.net[c.memberId] ?? 0) + c.amount;
+    for (const d of scalePayers(debits, e.originalAmount)) l.net[d.memberId] = (l.net[d.memberId] ?? 0) - d.amount;
     ledgers.set(e.originalCurrency, l);
   }
   return [...ledgers.values()].sort((a, b) => b.count - a.count || a.currency.localeCompare(b.currency));

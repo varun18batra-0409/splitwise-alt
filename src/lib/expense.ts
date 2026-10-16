@@ -1,6 +1,6 @@
 import { computeTotals, type PaymentMethod } from "./conversion";
-import { parsePercent } from "./money";
-import { computeSplit, participantsFor, type ForMode, type Share, type SplitType } from "./split";
+import { formatMoney, parseAmount, parsePercent } from "./money";
+import { allocateByWeights, computeSplit, participantsFor, type ForMode, type Share, type SplitType } from "./split";
 
 // Everything the Add expense screen collects (amounts as typed).
 export type ExpenseDraft = {
@@ -14,6 +14,8 @@ export type ExpenseDraft = {
   exact: Record<string, string>;
   percent: Record<string, string>;
   shares?: Record<string, string>; // "1.2" per person, when splitType = "shares"
+  multiPay?: boolean; // more than one person paid
+  payers?: Record<string, string>; // each payer's amount as typed (expense's own currency), when multiPay
   paymentMethod: PaymentMethod;
   markupChoice: "group" | "none" | "custom";
   markupCustom: string; // e.g. "3.5"
@@ -32,6 +34,7 @@ export type BuiltExpense = {
   forMode: ForMode;
   splitType: SplitType;
   paidById: string;
+  payers: Share[]; // more than one payer, in the group currency (adds up to amount); [] = just paidById
   shares: Share[];
 };
 
@@ -46,7 +49,7 @@ export function buildExpense(
   draft: ExpenseDraft,
   ctx: { memberIds: string[]; baseCurrency: string; groupMarkupBp: number; rate: string },
 ): { ok: true; expense: BuiltExpense } | { ok: false; error: string } {
-  if (!ctx.memberIds.includes(draft.paidById)) return { ok: false, error: "Pick who paid." };
+  if (!draft.multiPay && !ctx.memberIds.includes(draft.paidById)) return { ok: false, error: "Pick who paid." };
 
   const foreign = draft.currency !== ctx.baseCurrency;
   const markupBp = chosenMarkupBp(draft, ctx.groupMarkupBp);
@@ -75,6 +78,29 @@ export function buildExpense(
   });
   if (!split.ok) return { ok: false, error: split.error };
 
+  // More than one payer: their amounts (typed in the expense's currency) must
+  // add up to it; then they're converted with the same rounding as the shares.
+  let paidById = draft.paidById;
+  let payers: Share[] = [];
+  if (draft.multiPay) {
+    const typed: Share[] = [];
+    for (const id of ctx.memberIds) {
+      const raw = (draft.payers?.[id] ?? "").trim();
+      if (!raw || /^0*(\.0*)?$/.test(raw)) continue;
+      const amt = parseAmount(raw, draft.currency);
+      if (amt === null) return { ok: false, error: "One of the payers' amounts isn't a valid number." };
+      typed.push({ memberId: id, amount: amt });
+    }
+    if (typed.length === 0) return { ok: false, error: "Pick who paid." };
+    const sum = typed.reduce((s, p) => s + p.amount, 0);
+    if (sum !== totals.originalAmount) {
+      return { ok: false, error: `The payers add up to ${formatMoney(sum, draft.currency)}, but the total is ${formatMoney(totals.originalAmount, draft.currency)}.` };
+    }
+    const converted = sum === totals.total ? typed : allocateByWeights(totals.total, typed.map((p) => ({ memberId: p.memberId, weight: p.amount })));
+    paidById = converted.reduce((best, p) => (p.amount > best.amount ? p : best), converted[0]).memberId;
+    payers = converted.length > 1 ? converted : [];
+  }
+
   return {
     ok: true,
     expense: {
@@ -89,7 +115,8 @@ export function buildExpense(
       amount: totals.total,
       forMode: draft.forMode,
       splitType: participants.length === 1 ? "equal" : draft.splitType,
-      paidById: draft.paidById,
+      paidById,
+      payers,
       shares: split.shares,
     },
   };

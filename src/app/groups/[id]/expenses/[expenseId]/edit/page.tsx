@@ -7,6 +7,7 @@ import { dayKey } from "@/lib/dates";
 import { getTimeZone } from "@/lib/tz";
 import { allocateByWeights, sharesBack, type ForMode, type SplitType } from "@/lib/split";
 import { splitNameFor } from "@/lib/group-types";
+import { parsePayers, scalePayers } from "@/lib/payers";
 import type { PaymentMethod } from "@/lib/conversion";
 import { deleteExpense } from "@/app/actions";
 import { AddExpenseForm, type ExpenseInitial } from "@/components/AddExpenseForm";
@@ -58,6 +59,7 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
   const percent = Object.fromEntries(allocateByWeights(10000, weights).map((s) => [s.memberId, String(s.amount / 100)]));
   const groupWeights = Object.fromEntries(group.members.map((m) => [m.id, m.splitWeight]));
   const sharesText = e.splitType === "shares" ? sharesBack(e.amount, shares, groupWeights) : null;
+  const savedPayers = parsePayers(e.payers);
   const foreignCard = e.originalCurrency !== e.baseCurrency && e.paymentMethod === "card";
 
   const initial: ExpenseInitial = {
@@ -74,6 +76,8 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
     exact,
     percent,
     shares: sharesText ?? undefined,
+    multiPay: savedPayers.length > 1,
+    payers: Object.fromEntries(scalePayers(savedPayers, e.originalAmount).map((p) => [p.memberId, toInputAmount(p.amount, e.originalCurrency)])),
     paymentMethod: (["card", "cash", "bank"].includes(e.paymentMethod) ? e.paymentMethod : "card") as PaymentMethod,
     markupChoice: !foreignCard || e.markupBp === group.cardMarkupBp ? "group" : e.markupBp === 0 ? "none" : "custom",
     markupCustom: foreignCard && e.markupBp !== group.cardMarkupBp ? String(e.markupBp / 100) : "",
@@ -92,7 +96,7 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
         baseCurrency={group.currency}
         groupMarkupBp={group.cardMarkupBp}
         members={group.members
-          .filter((m) => !m.leftAt || m.id === e.paidById || e.shares.some((s) => s.memberId === m.id))
+          .filter((m) => !m.leftAt || m.id === e.paidById || e.shares.some((s) => s.memberId === m.id) || savedPayers.some((p) => p.memberId === m.id))
           .map(({ id, name }) => ({ id, name }))}
         myId={myId}
         tz={tz}
