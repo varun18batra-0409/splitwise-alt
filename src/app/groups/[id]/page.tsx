@@ -17,6 +17,7 @@ import { BillsTab } from "./_components/BillsTab";
 import { ListTab } from "./_components/ListTab";
 import { usualItems } from "@/lib/home/list";
 import { budgetsNow } from "@/lib/home/budgets-db";
+import { monthInsights } from "@/lib/home/insights-db";
 import { billStatuses } from "@/lib/home/bills-db";
 import { niceDate } from "@/lib/format";
 
@@ -110,6 +111,12 @@ export default async function GroupPage({
     ? { total: depositShares.reduce((s, d) => s + d.amount, 0), mine: depositShares.find((d) => d.memberId === myId)?.amount ?? 0 }
     : null;
 
+  // Heads up and next month's estimate.
+  const heads =
+    home && tab === "month"
+      ? await monthInsights(group.id, group.expenses.filter((e) => !e.deletedAt), myId, Object.fromEntries(group.members.filter((m) => !m.leftAt).map((m) => [m.id, m.splitWeight])), group.currency, v.tz)
+      : null;
+
   // Savings goals (kept count of only).
   const goals =
     home && tab === "month"
@@ -180,7 +187,7 @@ export default async function GroupPage({
           ‹ This month
         </Link>
       )}
-      {tab === "month" && <ThisMonthTab v={v} extras={{ upcoming: comingUp, budgets, deposit, goals }} />}
+      {tab === "month" && <ThisMonthTab v={v} extras={{ upcoming: comingUp, budgets, deposit, goals, insights: heads?.insights, forecast: heads?.forecast }} />}
       {tab === "bills" && <BillsTab v={v} bills={bills} saved={sp.saved === "bill"} />}
       {tab === "list" && list && (
         <ListTab v={v} items={list.items} usual={list.usual} notice={sp.bought ? "Added as an expense. Everyone has been told." : sp.told ? "Told everyone you’re going shopping." : undefined} />

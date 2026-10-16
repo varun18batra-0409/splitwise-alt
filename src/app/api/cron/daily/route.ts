@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { runAllBills } from "@/lib/home/bills-db";
 import { sendReminders } from "@/lib/home/reminders-db";
 import { checkBudgets } from "@/lib/home/budgets-db";
+import { sendMonthlySummaries } from "@/lib/home/insights-db";
 import { db } from "@/lib/db";
 import { allow, clientIp } from "@/lib/rate-limit";
 
@@ -27,5 +28,6 @@ export async function GET(req: Request) {
   const budgetGroups = await db.budget.findMany({ select: { groupId: true }, distinct: ["groupId"] });
   let budgetAlerts = 0;
   for (const b of budgetGroups) budgetAlerts += (await checkBudgets(b.groupId, now)).length;
-  return Response.json({ ok: true, bills, reminders, budgetAlerts });
+  const summaries = await sendMonthlySummaries(now);
+  return Response.json({ ok: true, bills, reminders, budgetAlerts, summaries });
 }
