@@ -35,7 +35,7 @@ page.on("request", (r) => {
 page.on("requestfinished", (r) => { const x = reqs.get(r); if (x) x.end = Math.round(performance.now() - t0); });
 await page.goto(base + "/how-it-works", { waitUntil: "networkidle" });
 await page.waitForTimeout(1500);
-const loaded = () => page.waitForFunction(() => !document.querySelector('[aria-label="Loading"]'), null, { timeout: 20000 }).catch(() => {});
+const loaded = () => page.waitForFunction(() => !document.querySelector('[role="progressbar"]'), null, { timeout: 20000 }).catch(() => {});
 for (const label of ["Search", "Settle", "Alerts", "Search", "Settle", "Alerts"]) {
   reqs.clear();
   t0 = performance.now();
