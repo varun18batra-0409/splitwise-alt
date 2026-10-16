@@ -20,7 +20,6 @@ import { logEvent } from "@/lib/events";
 import { claimKey, cleanKey, isDuplicateKey, previousResult } from "@/lib/once";
 import { safePath } from "@/lib/paths";
 import { addRegistered, copyPushTo, freeName, inviteByEmail, searchPeople } from "@/lib/invites";
-import { loadNotifications } from "@/lib/group-data";
 import { formatMoney } from "@/lib/money";
 
 function newInviteCode() {
