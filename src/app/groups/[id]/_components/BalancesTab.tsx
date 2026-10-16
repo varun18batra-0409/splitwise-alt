@@ -29,18 +29,13 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
           <p className="mt-1 text-sm text-gray-500">Nobody owes anybody in this group.</p>
         </div>
       ) : (
-        <section className="flex items-center justify-between gap-4 rounded-2xl border border-line px-4 py-4">
+        <section className="rounded-2xl border border-line px-4 py-4">
           <p className="min-w-0 text-sm text-gray-500">
             <span className="block font-display text-lg font-semibold text-fg">
               {transfers.length} {transfers.length === 1 ? "payment clears" : "payments clear"} everything
             </span>
             {before > transfers.length ? `Instead of ${before}, thanks to Smart Settle.` : "The fewest payments possible."}
           </p>
-          {!group.closed && (
-            <Link href={`/groups/${group.id}/settle`} className="pop shrink-0 bg-fg px-4 py-2 text-sm font-semibold text-canvas [--pop-edge:#6e6b63]">
-              Settle up
-            </Link>
-          )}
         </section>
       )}
 
