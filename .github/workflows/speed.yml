@@ -9,6 +9,8 @@ on:
 jobs:
   speed:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -19,5 +21,12 @@ jobs:
         env:
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
         run: |
-          echo "Database region: $(echo "$TURSO_DATABASE_URL" | sed -E 's#^[a-z]+://[^.]+\.##; s#\.turso\.io.*##')"
-      - run: node scripts/prod-speed.mjs
+          echo "Database region: $(echo "$TURSO_DATABASE_URL" | sed -E 's#^[a-z]+://[^.]+\.##; s#\.turso\.io.*##')" > speed.log
+      - name: Measure
+        run: node scripts/prod-speed.mjs >> speed.log 2>&1 || true
+      - name: Save the report to the "speed-report" branch
+        run: |
+          mkdir /tmp/r && cp speed.log /tmp/r/ && cd /tmp/r
+          git init -q -b speed-report && git add speed.log
+          git -c user.name=ci -c user.email=ci@loopin.invalid commit -qm "Speed report for ${GITHUB_SHA::7}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" speed-report
