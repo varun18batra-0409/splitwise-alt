@@ -79,7 +79,7 @@ describe("spreadsheet export", () => {
       [],
     );
     expect(csv).toContain("You 2000.00 + Asha 1000.00");
-    expect(csv).toMatch(/Money back,Refund,,Food,Asha,-1500\.00/);
+    expect(csv).toMatch(/Money back,Refund,,Food & Drinks,Asha,-1500\.00/);
     expect(csv).toContain("-750.00");
   });
 });
