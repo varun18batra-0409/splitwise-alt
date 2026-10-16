@@ -26,13 +26,15 @@ model Group {
   deletedAt    DateTime? // "Delete group": hidden for everyone, restorable for 30 days, then removed for good
   deletedById  String    @default("")
   inviteCode   String    @unique
-  type         String    @default("other") // "trip" | "home" | "couple" | "other": sets defaults only
-  joinWeight   Int       @default(100) // split weight given to people who join (a couple's 55/45 → 45)
   createdAt  DateTime  @default(now())
   members    Member[]
   expenses   Expense[]
   payments   Payment[]
   events     GroupEvent[]
+
+  // Added later: kept at the end so the online database can simply add the columns.
+  type         String    @default("other") // "trip" | "home" | "couple" | "other": sets defaults only
+  joinWeight   Int       @default(100) // split weight given to people who join (a couple's 55/45 → 45)
 }
 
 model Member {
@@ -46,8 +48,6 @@ model Member {
   // phone. A plain id (no database link) so the hosted database can add it as a
   // simple new column; deleting an account clears it in code.
   accountId String?
-  notify    String   @default("") // phone notifications for this group: JSON {off, expenses, edits, payments, people}; "" = all on
-  splitWeight Int    @default(100) // the group's own split: hundredths of a share (1.2 shares = 120; a couple's 55/45 = 55)
   groupId   String
   group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
@@ -58,6 +58,10 @@ model Member {
   paymentsRecv Payment[]      @relation("PaymentTo")
   pushSubscriptions PushSubscription[]
 
+
+  // Added later: kept at the end so the online database can simply add the columns.
+  notify    String   @default("") // phone notifications for this group: JSON {off, expenses, edits, payments, people}; "" = all on
+  splitWeight Int    @default(100) // the group's own split: hundredths of a share (1.2 shares = 120; a couple's 55/45 = 55)
   @@unique([groupId, name])
   @@index([accountId])
 }
@@ -87,8 +91,6 @@ model Expense {
 
   paidById    String // the payer (with several, the one who paid most)
   paidBy      Member         @relation("PaidBy", fields: [paidById], references: [id])
-  payers      String         @default("") // more than one payer: JSON [{"m": memberId, "a": paise}] adding up to amount; "" = just paidById
-  kind        String         @default("expense") // "expense" | "refund" (money back: whoever got it owes the people it's shared with)
   createdAt   DateTime       @default(now())
   shares      ExpenseShare[] // one line per person; receipt items can hang off this later
 
@@ -97,6 +99,10 @@ model Expense {
   editedAt    DateTime? // last time it was changed
   deletedAt   DateTime? // deleted expenses stay in history but no longer count
   deletedById String?
+
+  // Added later: kept at the end so the online database can simply add the columns.
+  payers      String         @default("") // more than one payer: JSON [{"m": memberId, "a": paise}] adding up to amount; "" = just paidById
+  kind        String         @default("expense") // "expense" | "refund" (money back: whoever got it owes the people it's shared with)
   @@index([groupId])
 }
 
