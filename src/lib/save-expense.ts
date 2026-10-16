@@ -8,6 +8,7 @@ import type { RateAnswer } from "./rate-cache";
 import { dayKey, parseDay } from "./dates";
 import { claimKey, isDuplicateKey, previousResult, withRetry } from "./once";
 import { parsePayers, payersJson, payersLabel } from "./payers";
+import { findLikelyDuplicate } from "./duplicates";
 
 export type SaveExpenseInput = ExpenseDraft & {
   groupId: string;
@@ -20,10 +21,13 @@ export type SaveExpenseInput = ExpenseDraft & {
   category: string; // "" = guess from the name
   rateMode: "auto" | "manual" | "keep"; // "keep" = editing, keep the rate saved with the expense
   manualRate: string; // used when rateMode = "manual"
+  allowDuplicate?: boolean; // "It's a different one": skip the duplicate warning
 };
 
 type RateLookupFn = (from: string, to: string) => Promise<RateAnswer>;
-export type Result = { ok: true; id: string; eventId?: string } | { ok: false; error: string };
+export type Result =
+  | { ok: true; id: string; eventId?: string }
+  | { ok: false; error: string; duplicateOf?: { id: string; description: string; amount: number; by: string; when: string } };
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -34,7 +38,7 @@ export async function saveExpense(
   input: SaveExpenseInput,
   actingMemberId: string | undefined,
   lookupRate: RateLookupFn,
-  opts: { ignoreDoubleTap?: boolean; requestKey?: string } = {},
+  opts: { ignoreDoubleTap?: boolean; requestKey?: string; checkDuplicate?: boolean } = {},
 ): Promise<Result> {
   return withRetry(async () => {
     // The same request again (retry / double tap): it already happened.
@@ -55,7 +59,7 @@ async function saveExpenseOnce(
   input: SaveExpenseInput,
   actingMemberId: string | undefined,
   lookupRate: RateLookupFn,
-  opts: { ignoreDoubleTap?: boolean; requestKey?: string },
+  opts: { ignoreDoubleTap?: boolean; requestKey?: string; checkDuplicate?: boolean },
 ): Promise<Result> {
   const group = await db.group.findUnique({
     where: { id: input.groupId },
@@ -166,6 +170,17 @@ async function saveExpenseOnce(
       where: { groupId: group.id, createdById: actingMemberId, description: name, amount: e.amount, deletedAt: null, createdAt: { gt: new Date(Date.now() - 20_000) } },
     });
     if (twin) return { ok: true, id: twin.id };
+    // Looks like something already added? Ask first (the Add screen offers "It's a different one").
+    if (opts.checkDuplicate && !input.allowDuplicate) {
+      const hit = await findLikelyDuplicate(group.id, { amount: e.amount, name, category, spentAt: spentAt ?? new Date(), kind: e.kind });
+      if (hit) {
+        return {
+          ok: false,
+          error: `Looks like “${hit.description} ${formatMoney(hit.amount, group.currency)}”, already added by ${hit.by}.`,
+          duplicateOf: { ...hit, when: hit.when.toISOString() },
+        };
+      }
+    }
     const saved = await db.$transaction(async (tx) => {
       const created = await tx.expense.create({ data: { ...fields, groupId: group.id, createdById: actingMemberId, shares: { create: e.shares } } });
       await claimKey(tx, opts.requestKey, created.id);

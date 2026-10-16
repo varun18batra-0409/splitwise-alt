@@ -295,9 +295,14 @@ export function AddExpenseForm({
 
   const [again, setAgain] = useState(false); // "Save & add another" was tapped (for the label)
   const againRef = useRef(false); // read when saving (state isn't updated yet inside the same tap)
+  // "Looks like a duplicate": what it matched, and whether the person said it's a different one.
+  const [dup, setDup] = useState<{ id: string; description: string; amount: number; by: string; when: string } | null>(null);
+  const allowDupRef = useRef(false);
+  const formRef = useRef<HTMLFormElement>(null);
   function save(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setDup(null);
     if (!preview.ok) {
       setError(preview.error);
       if (/person|amounts|percent/i.test(preview.error)) setShowPeople(true);
@@ -305,13 +310,16 @@ export function AddExpenseForm({
     }
     if (!expenseId) rememberSplit();
     startSaving(async () => {
-      const res = await addExpense({ ...draft, again: againRef.current, requestKey, groupId, name, notes, baseVersion: initial?.version, category: category.id, expenseId, date, rateMode: usingManualRate ? "manual" : keepSavedRate ? "keep" : "auto", manualRate });
-      if (res?.error) setError(res.error);
+      const res = await addExpense({ ...draft, again: againRef.current, allowDuplicate: allowDupRef.current, requestKey, groupId, name, notes, baseVersion: initial?.version, category: category.id, expenseId, date, rateMode: usingManualRate ? "manual" : keepSavedRate ? "keep" : "auto", manualRate });
+      if (res?.duplicateOf) setDup(res.duplicateOf);
+      else if (res?.error) setError(res.error);
     });
   }
 
   return (
-    <form onSubmit={save} className="space-y-7">
+    // Saving is already safe to repeat (one request key per form, and the
+    // buttons are off while saving), so the page-wide double-tap lock isn't needed here.
+    <form ref={formRef} onSubmit={save} data-allow-repeat="1" className="space-y-7">
       {/* Money spent (normal) or money back (a refund, a deposit returned) */}
       <div className="grid grid-cols-2 gap-1 rounded-xl bg-mist p-1" role="radiogroup" aria-label="Money spent or money back">
         {(
@@ -970,6 +978,29 @@ export function AddExpenseForm({
       )}
 
       {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+      {dup && (
+        <div role="status" className="rounded-2xl border border-[#5a3a20] bg-owe-soft px-4 py-3 text-sm">
+          <p>
+            Looks like “{dup.description} {base(dup.amount)}”, added {niceDate(dayKey(new Date(dup.when), tz))} by {dup.by}.
+          </p>
+          <div className="mt-2 flex gap-5">
+            <a href={`/groups/${groupId}?tab=activity&q=${encodeURIComponent(dup.description)}`} className="font-semibold text-fg underline underline-offset-4">
+              See it
+            </a>
+            <button
+              type="button"
+              onClick={() => {
+                allowDupRef.current = true;
+                setDup(null);
+                formRef.current?.requestSubmit();
+              }}
+              className="font-medium text-gray-500 underline underline-offset-4"
+            >
+              It’s a different one
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className={expenseId ? "" : "flex gap-2.5"}>
         <button

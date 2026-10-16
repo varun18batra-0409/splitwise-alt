@@ -59,10 +59,10 @@ describe("findLikelyDuplicate", () => {
 
 describe("saving a likely duplicate", () => {
   it("pauses with the match, and saves when told it's a different one", async () => {
-    const first = await saveExpense(input({}), you, rate);
+    const first = await saveExpense(input({}), you, rate, { checkDuplicate: true });
     expect(first.ok).toBe(false);
     expect(!first.ok && first.duplicateOf?.description).toBe("Dinner");
-    const second = await saveExpense(input({ allowDuplicate: true }), you, rate);
+    const second = await saveExpense(input({ allowDuplicate: true }), you, rate, { checkDuplicate: true });
     expect(second.ok).toBe(true);
   });
 });

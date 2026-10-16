@@ -154,7 +154,9 @@ export async function joinAsNew(formData: FormData) {
 }
 
 // Saves a new expense — or changes an existing one — then goes back to the group page.
-export async function addExpense(input: SaveExpenseInput & { again?: boolean }): Promise<{ error: string }> {
+export async function addExpense(
+  input: SaveExpenseInput & { again?: boolean },
+): Promise<{ error: string; duplicateOf?: { id: string; description: string; amount: number; by: string; when: string } }> {
   if (!(await allow(`expense:${(await originAndIp()).ip}`, 300, 3600))) return { error: "Too many changes in a short time. Wait a few minutes." };
   // Fetch (and cache) today's rate before saving, so the save itself never waits on the internet.
   const g = await db.group.findUnique({ where: { id: input.groupId }, select: { currency: true } });
@@ -162,8 +164,9 @@ export async function addExpense(input: SaveExpenseInput & { again?: boolean }):
   const result = await saveExpense(input, await getMyMemberId(input.groupId), getRate, {
     ignoreDoubleTap: true,
     requestKey: cleanKey(input.requestKey),
+    checkDuplicate: true,
   });
-  if (!result.ok) return { error: result.error };
+  if (!result.ok) return { error: result.error, duplicateOf: result.duplicateOf };
   // "Save & add another": straight back to a fresh form with the same people and split.
   if (input.again && !input.expenseId) redirect(`/groups/${input.groupId}/add?again=${result.id}`);
   redirect(`/groups/${input.groupId}?tab=activity${result.eventId ? `&did=${result.eventId}` : ""}`);
