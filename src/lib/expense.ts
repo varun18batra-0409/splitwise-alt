@@ -13,6 +13,7 @@ export type ExpenseDraft = {
   splitType: SplitType;
   exact: Record<string, string>;
   percent: Record<string, string>;
+  shares?: Record<string, string>; // "1.2" per person, when splitType = "shares"
   paymentMethod: PaymentMethod;
   markupChoice: "group" | "none" | "custom";
   markupCustom: string; // e.g. "3.5"
@@ -70,6 +71,7 @@ export function buildExpense(
     participants,
     exact: draft.exact,
     percent: draft.percent,
+    shares: draft.shares,
   });
   if (!split.ok) return { ok: false, error: split.error };
 

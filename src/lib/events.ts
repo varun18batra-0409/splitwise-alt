@@ -182,7 +182,7 @@ export type ExpenseSnapshot = {
   shares: { memberId: string; amount: number }[];
 };
 
-const SPLIT: Record<string, string> = { equal: "equally", exact: "by amounts", percent: "by percentage" };
+const SPLIT: Record<string, string> = { equal: "equally", exact: "by amounts", percent: "by percentage", shares: "by shares" };
 const FOR: Record<string, string> = { everyone: "everyone", selected: "selected people", one: "one person" };
 const PAID_WITH: Record<string, string> = { card: "card", cash: "cash", bank: "bank / UPI", "": "—" };
 

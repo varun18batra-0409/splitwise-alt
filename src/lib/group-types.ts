@@ -36,3 +36,8 @@ export function parseWeight(text: string): number | null {
   const v = Math.round(Number(t) * 100);
   return v > 2000 ? null : v;
 }
+
+// What the group's own split is called on the Add expense screen.
+export function splitNameFor(type: string): string {
+  return type === "couple" ? "Our split" : type === "home" ? "Flat split" : "Group split";
+}

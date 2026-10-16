@@ -5,12 +5,13 @@ import { PageHeader, primaryButtonClass } from "@/components/ui";
 import { setGroupClosed } from "@/app/actions";
 import { AddExpenseForm } from "@/components/AddExpenseForm";
 import { getTimeZone } from "@/lib/tz";
+import { splitNameFor } from "@/lib/group-types";
 
 export default async function AddExpensePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const group = await db.group.findUnique({
     where: { id },
-    include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true } } },
+    include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true, splitWeight: true } } },
   });
   if (!group || group.deletedAt) notFound();
 
@@ -55,6 +56,8 @@ export default async function AddExpensePage({ params }: { params: Promise<{ id:
         members={group.members.filter((m) => !m.leftAt).map(({ id, name }) => ({ id, name }))}
         myId={myId}
         tz={await getTimeZone()}
+        weights={Object.fromEntries(group.members.filter((m) => !m.leftAt).map((m) => [m.id, m.splitWeight]))}
+        splitName={splitNameFor(group.type)}
       />
     </>
   );

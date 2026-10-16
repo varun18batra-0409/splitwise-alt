@@ -68,7 +68,7 @@ async function saveExpenseOnce(
   if (!actingMemberId || !memberIds.includes(actingMemberId)) return { ok: false, error: "Please join this group first." };
   if (group.members.find((m) => m.id === actingMemberId)?.leftAt) return { ok: false, error: "You left this group. Rejoin it to make changes." };
   if (!isSupportedCurrency(input.currency)) return { ok: false, error: "Pick a currency from the list." };
-  if (!["equal", "exact", "percent"].includes(input.splitType)) return { ok: false, error: "Pick how to split." };
+  if (!["equal", "exact", "percent", "shares"].includes(input.splitType)) return { ok: false, error: "Pick how to split." };
   if (!["everyone", "selected", "one"].includes(input.forMode)) return { ok: false, error: "Pick who it was for." };
   if (!PAYMENT_METHODS.some((p) => p.id === input.paymentMethod)) return { ok: false, error: "Pick how it was paid." };
 

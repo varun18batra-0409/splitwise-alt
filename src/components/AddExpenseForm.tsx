@@ -34,6 +34,7 @@ export type ExpenseInitial = {
   splitType: SplitType;
   exact: Record<string, string>;
   percent: Record<string, string>;
+  shares?: Record<string, string>;
   paymentMethod: PaymentMethod;
   markupChoice: ExpenseDraft["markupChoice"];
   markupCustom: string;
@@ -55,6 +56,8 @@ export function AddExpenseForm({
   expenseId,
   initial,
   tz,
+  weights,
+  splitName = "Group split",
 }: {
   groupId: string;
   baseCurrency: string;
@@ -64,6 +67,8 @@ export function AddExpenseForm({
   expenseId?: string; // editing this expense
   initial?: ExpenseInitial;
   tz?: string; // the person's time zone, for "today"
+  weights?: Record<string, number>; // the group's own split (hundredths of a share); all equal = none
+  splitName?: string; // "Our split" (couple), "Flat split" (home)…
 }) {
   const memberIds = useMemo(() => members.map((m) => m.id), [members]);
   const nameOf = (id: string) => members.find((m) => m.id === id)?.name ?? "?";
@@ -101,7 +106,21 @@ export function AddExpenseForm({
   const [forMode, setForMode] = useState<ForMode>(initial?.forMode ?? "everyone");
   const [selected, setSelected] = useState<string[]>(initial?.selected ?? memberIds);
   const [onePersonId, setOnePersonId] = useState(initial?.onePersonId || (memberIds.find((id) => id !== myId) ?? myId));
-  const [splitType, setSplitType] = useState<SplitType>(initial?.splitType ?? "equal");
+  // The group's own split (e.g. 1.2 / 1 / 1, or a couple's 55 / 45), if it isn't equal.
+  const groupShares = useMemo(() => {
+    const w = memberIds.map((id) => weights?.[id] ?? 100);
+    if (w.every((x) => x === w[0])) return null;
+    return Object.fromEntries(memberIds.map((id, i) => [id, String(Number((w[i] / 100).toFixed(2)))]));
+  }, [memberIds, weights]);
+  const groupSplitLabel = groupShares
+    ? (() => {
+        const w = memberIds.map((id) => weights?.[id] ?? 100);
+        const pct = w.length === 2 && w[0] + w[1] === 100;
+        return w.map((x) => (pct ? String(x) : String(Number((x / 100).toFixed(2))))).join(" / ");
+      })()
+    : "";
+  const [splitType, setSplitType] = useState<SplitType>(initial?.splitType ?? (groupShares ? "shares" : "equal"));
+  const [shares, setShares] = useState<Record<string, string>>(initial?.shares ?? groupShares ?? {});
   const [exact, setExact] = useState<Record<string, string>>(initial?.exact ?? {});
   const [percent, setPercent] = useState<Record<string, string>>(initial?.percent ?? {});
 
@@ -234,7 +253,7 @@ export function AddExpenseForm({
   const [dismissedTypo, setDismissedTypo] = useState("");
   const typo = nameCheck.suggestion && nameCheck.suggestion.wrong !== dismissedTypo ? nameCheck.suggestion : null;
   const draft: ExpenseDraft = {
-    amount, currency, paidById, forMode, selected, onePersonId, splitType, exact, percent,
+    amount, currency, paidById, forMode, selected, onePersonId, splitType, exact, percent, shares,
     paymentMethod, markupChoice, markupCustom,
   };
   const ctx = { memberIds, baseCurrency, groupMarkupBp, rate: effectiveRate };
@@ -249,7 +268,7 @@ export function AddExpenseForm({
 
   // Running total for custom amounts / percentages.
   const remaining = (() => {
-    if (participants.length < 2 || splitType === "equal" || !totals.originalAmount) return null;
+    if (participants.length < 2 || splitType === "equal" || splitType === "shares" || !totals.originalAmount) return null;
     if (splitType === "exact") {
       const typed = participants.reduce((s, id) => s + (parseAmount(exact[id] ?? "", currency) ?? 0), 0);
       const left = totals.originalAmount - typed;
@@ -263,7 +282,26 @@ export function AddExpenseForm({
   const forSummary =
     forMode === "everyone" ? "everyone" : forMode === "one" ? who(onePersonId) : `${participants.length} ${participants.length === 1 ? "person" : "people"}`;
   const splitSummary =
-    participants.length <= 1 ? "100% to them" : splitType === "equal" ? "split equally" : splitType === "exact" ? "custom amounts" : "by percentage";
+    participants.length <= 1
+      ? "100% to them"
+      : splitType === "equal"
+        ? "split equally"
+        : splitType === "exact"
+          ? "custom amounts"
+          : splitType === "shares"
+            ? "by shares"
+            : "by percentage";
+  // "Our split" is on: everyone, by the group's own shares, unchanged.
+  const groupSplitOn =
+    Boolean(groupShares) && forMode === "everyone" && splitType === "shares" && memberIds.every((id) => (shares[id] ?? "1") === groupShares?.[id]);
+  const shareOf = (id: string) => (preview.ok ? preview.expense.shares.find((s) => s.memberId === id)?.amount ?? 0 : null);
+  function stepShare(id: string, delta: number) {
+    setShares((prev) => {
+      const now = Number((prev[id] ?? "1").replace(",", ".")) || 0;
+      const next = Math.min(20, Math.max(0, Math.round((now + delta) * 100) / 100));
+      return { ...prev, [id]: String(next) };
+    });
+  }
 
   function save(e: React.FormEvent) {
     e.preventDefault();
@@ -613,6 +651,20 @@ export function AddExpenseForm({
       <section>
         <span className={labelClass}>How to split?</span>
         <div className="flex flex-wrap gap-2">
+          {groupShares && (
+            <Chip
+              on={!showPeople && !showOnly && groupSplitOn}
+              onClick={() => {
+                setShowPeople(false);
+                setShowOnly(false);
+                setForMode("everyone");
+                setSplitType("shares");
+                setShares(groupShares);
+              }}
+            >
+              {splitName} <span className="opacity-60">{groupSplitLabel}</span>
+            </Chip>
+          )}
           <Chip
             on={!showPeople && !showOnly && forMode === "everyone" && splitType === "equal"}
             onClick={resetSplit}
@@ -636,7 +688,7 @@ export function AddExpenseForm({
             </Chip>
           )}
           <Chip
-            on={showPeople || (!showOnly && (forMode === "one" || splitType !== "equal"))}
+            on={showPeople || (!showOnly && !groupSplitOn && (forMode === "one" || splitType !== "equal"))}
             onClick={() => {
               setShowOnly(false);
               setShowPeople(true);
@@ -668,7 +720,7 @@ export function AddExpenseForm({
             </div>
           </div>
         )}
-        {!showPeople && !showOnly && (forMode !== "everyone" || splitType !== "equal") && (
+        {!showPeople && !showOnly && !groupSplitOn && (forMode !== "everyone" || splitType !== "equal") && (
           <p className="mt-2 text-sm text-gray-500">
             For <strong className="text-fg">{forSummary}</strong> · {splitSummary}
             {usingLast && (
@@ -733,11 +785,40 @@ export function AddExpenseForm({
                     { id: "equal", label: "Equally" },
                     { id: "exact", label: "Amounts" },
                     { id: "percent", label: "%" },
+                    { id: "shares", label: "Shares" },
                   ]}
                   value={splitType}
                   onChange={(v) => setSplitType(v as SplitType)}
                 />
-                {splitType !== "equal" && (
+                {splitType === "shares" && (
+                  <ul className="mt-3 divide-y divide-line">
+                    {participants.map((id) => {
+                      const amt = shareOf(id);
+                      return (
+                        <li key={id} className="flex items-center gap-2 py-2">
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate">{who(id)}</span>
+                            {amt !== null && <span className="block text-xs text-gray-400">{base(amt)}</span>}
+                          </span>
+                          <button type="button" aria-label={`Fewer shares for ${who(id)}`} onClick={() => stepShare(id, -0.5)} className="h-10 w-10 border border-line text-lg active:bg-mist">
+                            −
+                          </button>
+                          <input
+                            inputMode="decimal"
+                            aria-label={`${who(id)} shares`}
+                            value={shares[id] ?? "1"}
+                            onChange={(e) => setShares((prev) => ({ ...prev, [id]: e.target.value }))}
+                            className="w-14 bg-transparent py-2 text-center font-display text-lg outline-none"
+                          />
+                          <button type="button" aria-label={`More shares for ${who(id)}`} onClick={() => stepShare(id, 0.5)} className="h-10 w-10 border border-line text-lg active:bg-mist">
+                            +
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                {(splitType === "exact" || splitType === "percent") && (
                   <ul className="mt-3 divide-y divide-gray-100">
                     {participants.map((id) => (
                       <li key={id} className="flex items-center gap-3 py-2">

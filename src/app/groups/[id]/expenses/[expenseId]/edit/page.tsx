@@ -5,7 +5,8 @@ import { getMyMemberId } from "@/lib/identity";
 import { toInputAmount } from "@/lib/money";
 import { dayKey } from "@/lib/dates";
 import { getTimeZone } from "@/lib/tz";
-import { allocateByWeights, type ForMode, type SplitType } from "@/lib/split";
+import { allocateByWeights, sharesBack, type ForMode, type SplitType } from "@/lib/split";
+import { splitNameFor } from "@/lib/group-types";
 import type { PaymentMethod } from "@/lib/conversion";
 import { deleteExpense } from "@/app/actions";
 import { AddExpenseForm, type ExpenseInitial } from "@/components/AddExpenseForm";
@@ -19,7 +20,7 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
   const { id, expenseId } = await params;
   const group = await db.group.findUnique({
     where: { id },
-    include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true } } },
+    include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true, splitWeight: true } } },
   });
   if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
@@ -55,6 +56,8 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
     allocateByWeights(e.originalAmount, weights).map((s) => [s.memberId, toInputAmount(s.amount, e.originalCurrency)]),
   );
   const percent = Object.fromEntries(allocateByWeights(10000, weights).map((s) => [s.memberId, String(s.amount / 100)]));
+  const groupWeights = Object.fromEntries(group.members.map((m) => [m.id, m.splitWeight]));
+  const sharesText = e.splitType === "shares" ? sharesBack(e.amount, shares, groupWeights) : null;
   const foreignCard = e.originalCurrency !== e.baseCurrency && e.paymentMethod === "card";
 
   const initial: ExpenseInitial = {
@@ -66,9 +69,11 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
     forMode: (["everyone", "selected", "one"].includes(e.forMode) ? e.forMode : "everyone") as ForMode,
     selected: shares.map((s) => s.memberId),
     onePersonId: shares.length === 1 ? shares[0].memberId : "",
-    splitType: (["equal", "exact", "percent"].includes(e.splitType) ? e.splitType : "equal") as SplitType,
+    // Shares that can't be rebuilt exactly are edited as amounts instead.
+    splitType: (e.splitType === "shares" ? (sharesText ? "shares" : "exact") : ["equal", "exact", "percent"].includes(e.splitType) ? e.splitType : "equal") as SplitType,
     exact,
     percent,
+    shares: sharesText ?? undefined,
     paymentMethod: (["card", "cash", "bank"].includes(e.paymentMethod) ? e.paymentMethod : "card") as PaymentMethod,
     markupChoice: !foreignCard || e.markupBp === group.cardMarkupBp ? "group" : e.markupBp === 0 ? "none" : "custom",
     markupCustom: foreignCard && e.markupBp !== group.cardMarkupBp ? String(e.markupBp / 100) : "",
@@ -93,6 +98,8 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
         tz={tz}
         expenseId={e.id}
         initial={initial}
+        weights={groupWeights}
+        splitName={splitNameFor(group.type)}
       />
 
       <form action={deleteExpense} className="mt-10 border-t border-gray-100 pt-6">

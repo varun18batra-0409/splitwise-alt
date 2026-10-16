@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeSplit, parseShares, splitShares } from "@/lib/split";
+import { computeSplit, parseShares, sharesBack, splitShares } from "@/lib/split";
 import { buildExpense } from "@/lib/expense";
 
 // Shares: "1.2 / 1 / 1" (a bigger room pays a bit more), exact to the paisa.
@@ -67,5 +67,18 @@ describe("shares through computeSplit and buildExpense", () => {
     );
     expect(r.ok && r.expense.shares).toEqual([{ memberId: "a", amount: 55000 }, { memberId: "b", amount: 45000 }]);
     expect(r.ok && r.expense.splitType).toBe("shares");
+  });
+});
+
+describe("sharesBack (editing an expense split by shares)", () => {
+  const saved = [{ memberId: "a", amount: 112500 }, { memberId: "b", amount: 93750 }, { memberId: "c", amount: 93750 }];
+  it("uses the group's shares when they give the same amounts", () => {
+    expect(sharesBack(300000, saved, { a: 120, b: 100, c: 100 })).toEqual({ a: "1.2", b: "1", c: "1" });
+  });
+  it("works shares out from the amounts otherwise", () => {
+    expect(sharesBack(300000, saved, {})).toEqual({ a: "1.2", b: "1", c: "1" });
+  });
+  it("gives up (null) when it would need more than 20 shares", () => {
+    expect(sharesBack(3000, [{ memberId: "a", amount: 1 }, { memberId: "b", amount: 1000 }, { memberId: "c", amount: 1999 }], {})).toBeNull();
   });
 });

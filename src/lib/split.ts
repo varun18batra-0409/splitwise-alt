@@ -5,7 +5,7 @@ import { formatMoney, formatPercent, parseAmount, parsePercent } from "./money";
 
 export type Share = { memberId: string; amount: number };
 export type SplitResult = { ok: true; shares: Share[] } | { ok: false; error: string };
-export type SplitType = "equal" | "exact" | "percent";
+export type SplitType = "equal" | "exact" | "percent" | "shares";
 export type ForMode = "everyone" | "selected" | "one";
 
 const ok = (shares: Share[]): SplitResult => ({ ok: true, shares });
@@ -70,6 +70,38 @@ export function splitPercent(total: number, entries: { memberId: string; basisPo
   return ok(allocateByWeights(total, entries.map((e) => ({ memberId: e.memberId, weight: e.basisPoints }))));
 }
 
+// "1.2" shares → 120 (hundredths). 0 to 20 shares, up to 2 decimals.
+export function parseShares(text: string): number | null {
+  const t = String(text ?? "").trim().replace(",", ".");
+  if (!/^\d{1,2}(\.\d{1,2})?$/.test(t)) return null;
+  const v = Math.round(Number(t) * 100);
+  return v > 2000 ? null : v;
+}
+
+// Shares in proportion to each person's shares (weights in hundredths).
+export function splitShares(total: number, entries: { memberId: string; weight: number }[]): SplitResult {
+  if (!validTotal(total)) return fail("Enter an amount greater than zero.");
+  if (entries.some((e) => !Number.isInteger(e.weight) || e.weight < 0)) return fail("Shares must be zero or more.");
+  if (!entries.some((e) => e.weight > 0)) return fail("Give at least one person a share.");
+  return ok(allocateByWeights(total, entries));
+}
+
+// Editing an expense split by shares: the shares that give exactly the saved
+// amounts — the group's own shares if they fit, else worked out from the
+// amounts (smallest = 1). null if nothing simple fits (then edit as amounts).
+export function sharesBack(total: number, saved: Share[], groupWeights: Record<string, number>): Record<string, string> | null {
+  const fits = (w: Record<string, number>) => {
+    const r = splitShares(total, saved.map((s) => ({ memberId: s.memberId, weight: w[s.memberId] ?? 0 })));
+    return r.ok && saved.every((s) => r.shares.find((x) => x.memberId === s.memberId)?.amount === s.amount);
+  };
+  const text = (w: Record<string, number>) => Object.fromEntries(saved.map((s) => [s.memberId, String(Number((w[s.memberId] / 100).toFixed(2)))]));
+  if (saved.every((s) => groupWeights[s.memberId] !== undefined) && fits(groupWeights)) return text(groupWeights);
+  const min = Math.min(...saved.map((s) => s.amount).filter((a) => a > 0));
+  if (!Number.isFinite(min)) return null;
+  const guess = Object.fromEntries(saved.map((s) => [s.memberId, Math.round((s.amount / min) * 100)]));
+  return Object.values(guess).every((w) => w <= 2000) && fits(guess) ? text(guess) : null;
+}
+
 // Who the expense was for, in group order.
 export function participantsFor(args: {
   forMode: ForMode;
@@ -94,6 +126,7 @@ export function computeSplit(args: {
   participants: string[];
   exact: Record<string, string>;
   percent: Record<string, string>;
+  shares?: Record<string, string>; // "1.2" per person, when splitType = "shares"
 }): SplitResult {
   const { total, participants } = args;
   if (participants.length === 0) return fail("Pick at least one person this expense was for.");
@@ -114,6 +147,16 @@ export function computeSplit(args: {
     if (!check.ok) return check;
     if (total === args.originalAmount) return check; // same currency, no markup
     return ok(allocateByWeights(total, check.shares.map((s) => ({ memberId: s.memberId, weight: s.amount }))));
+  }
+
+  if (args.splitType === "shares") {
+    const weights: { memberId: string; weight: number }[] = [];
+    for (const id of participants) {
+      const w = parseShares(args.shares?.[id] ?? "1");
+      if (w === null) return fail("Shares must be a number from 0 to 20, like 1 or 1.5.");
+      weights.push({ memberId: id, weight: w });
+    }
+    return splitShares(total, weights);
   }
 
   const entries: { memberId: string; basisPoints: number }[] = [];
