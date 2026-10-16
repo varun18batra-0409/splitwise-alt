@@ -44,11 +44,19 @@ jobs:
       - run: npm install
       - run: npm install --no-save tsx@4.19.2 playwright@1.48.2
       - run: npx playwright install --with-deps chromium
+      - name: Start from the live version's tables (so the upgrade itself is tested)
+        run: |
+          git fetch -q --depth=1 origin main
+          mkdir -p /tmp/live-schema
+          git show origin/main:prisma/schema.prisma > /tmp/live-schema/schema.prisma
+          npx prisma db push --skip-generate --schema /tmp/live-schema/schema.prisma
+          cp /tmp/live-schema/dev.db /tmp/online-stand-in.db
       - name: Hosting build (schema sync, data upgrade, build)
         run: |
           set -o pipefail
           npm run vercel-build 2>&1 | tee vb.log || { echo "::error title=Hosting build failed::$(tail -60 vb.log | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"; exit 1; }
           echo "::notice title=Photos::$(grep 'photos:' vb.log | tr '\n' ' ')"
+          echo "::notice title=Schema upgrade from live::$(grep -E '^(ALTER|CREATE TABLE|DROP)|already matches|REFUSING' vb.log | tr '\n' ' ' | cut -c1-900)"
           node scripts/turso-sync.mjs | tee sync2.log
           grep -q "already matches" sync2.log || { echo "::error title=Schema sync not idempotent::$(cat sync2.log | tr '\n' ' ')"; exit 1; }
       - name: Demo data
