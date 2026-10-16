@@ -1,0 +1,22 @@
+Database region: aws-ap-south-1
+server /how-it-works: 567, 75, 20, 19, 67 ms  (cle1)
+server /search: 1339, 319, 278, 320, 279 ms  (cle1 → bom1)
+server /settle: 304, 262, 252, 264, 282 ms  (cle1 → bom1)
+server /notifications: 279, 322, 240, 262, 253 ms  (cle1 → bom1)
+server /join/does-not-exist: 276, 240, 263, 267, 353 ms  (cle1 → bom1)
+static file (network only, no server work): 65, 54, 20, 16, 18 ms
+tap Search: screen changed after 416 ms, content shown after 434 ms
+   PAGE-DATA    55 →     ? ms  /search?_rsc=FRaV8X8-lhhRe4jw
+tap Settle: screen changed after 256 ms, content shown after 263 ms
+   PAGE-DATA    16 →     ? ms  /settle?_rsc=WZ9N0LoTy4fL1Cee
+tap Alerts: screen changed after 346 ms, content shown after 356 ms
+   PAGE-DATA    19 →     ? ms  /notifications?_rsc=K7LED_i-aYNIwL-J
+tap Search: screen changed after 273 ms, content shown after 278 ms
+   PAGE-DATA    12 →     ? ms  /search?_rsc=4N3weKMF3K4ab-1t
+tap Settle: screen changed after 271 ms, content shown after 276 ms
+   PAGE-DATA    17 →     ? ms  /settle?_rsc=WZ9N0LoTy4fL1Cee
+tap Alerts: screen changed after 286 ms, content shown after 291 ms
+   PAGE-DATA    22 →     ? ms  /notifications?_rsc=K7LED_i-aYNIwL-J
+quick taps: Settle after 270 ms, then Search after 569 ms
+   PAGE-DATA    12 →     ? ms  /settle?_rsc=4N3weKMF3K4ab-1t
+   PAGE-DATA   313 →   564 ms  /search?_rsc=K7LED_i-aYNIwL-J
