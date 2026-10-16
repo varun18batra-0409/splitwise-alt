@@ -185,7 +185,7 @@ const slides: Slide[] = [
         </div>
         <div className="rise rise-5 mt-4 border-t border-line pt-3">
           <p className="text-xs text-gray-400">Us · October together</p>
-          <p className={`mt-1 font-display text-lg font-semibold ${owed}`}>You’re ₹2,670 ahead</p>
+          <p className={`mt-1 font-display text-lg font-semibold ${owed}`}>Overall you’re ₹2,670 ahead</p>
         </div>
       </Card>
     ),

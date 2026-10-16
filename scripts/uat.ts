@@ -1297,7 +1297,7 @@ async function main() {
   await step(V, "Couples", "The couple's This month says if you're ahead, behind or even", async () => {
     await go(V, gc);
     const t = (await V.locator("main").innerText()).replace(/\s+/g, " ");
-    assert(/You’re ₹[\d,.]+ (ahead|behind)|You’re even/.test(t), `This month says: ${t.slice(0, 200)}`);
+    assert(/Overall you’re ₹[\d,.]+ (ahead|behind)|You’re even/.test(t), `This month says: ${t.slice(0, 200)}`);
   });
   await step(V, "Couples", "Start a savings goal (₹1,00,000) and tap “I set money aside” (₹5,000)", async () => {
     await go(V, `${gc}/goals/new`);
@@ -1406,6 +1406,93 @@ async function main() {
     times.sort((a, b) => a - b);
     assert(times[2] < 1500, `median ${times[2]} ms`);
     return `median ${times[2]} ms, slowest ${times[4]} ms`;
+  });
+
+  // ===== 11. Gaps found in the full review: split edits, evening out, small payments, the milk calendar, small screens =====
+  await step(V, "Edit", "Change the split on an existing expense (Coffee ₹800: everyone → only You + Asha): balances move exactly", async () => {
+    const before = await shownBalances(V, g);
+    const href = await editPath(V, "Coffee");
+    await go(V, href);
+    await V.getByRole("button", { name: "Only some" }).click();
+    for (const [who, want] of [["You", true], ["Asha", true], ["Ravi", false], ["Zoe", false]] as const) {
+      const b = V.getByRole("button", { name: new RegExp(`^(✓ )?${who}$`) }).last();
+      const on = (await b.innerText()).startsWith("✓") || (await b.getAttribute("aria-pressed")) === "true";
+      if (on !== want) await b.click();
+    }
+    await V.getByRole("button", { name: "Save changes" }).click();
+    await V.waitForURL(/tab=activity/);
+    const after = await shownBalances(V, g);
+    const d = (p: string) => (after[p] ?? 0) - (before[p] ?? 0);
+    // ₹800 was ₹200 each; now ₹400 for Varun and Asha, nothing for Ravi and Zoe.
+    assert(d("Varun") === -20000 && d("Asha") === -20000 && d("Ravi") === 20000 && d("Zoe") === 20000, `moved: ${JSON.stringify({ V: d("Varun"), A: d("Asha"), R: d("Ravi"), Z: d("Zoe") })}`);
+  });
+  await step(V, "Couples", "“Even out” on This month opens Settle; marking it paid makes you even", async () => {
+    await go(V, gc);
+    await V.getByRole("link", { name: "Even out" }).click();
+    await V.waitForURL(/\/settle/);
+    await V.getByRole("button", { name: "Mark paid" }).first().click();
+    await V.waitForURL(/paid=1/);
+    await go(V, gc);
+    await V.getByText("You’re even").waitFor();
+  });
+  await step(V, "Couples", "Settle-up minimum ₹50: a ₹45 balance isn't suggested as a payment, but stays in the balances", async () => {
+    await go(V, `${gc}/add`);
+    await V.locator("#expense-name").fill("Chai");
+    await V.getByLabel("Amount", { exact: true }).fill("100");
+    await save(V, { me: "Varun", name: "Chai", amount: "100" });
+    await go(V, `${gc}/settings`);
+    const form = V.locator('form:has(input[name="settleMin"])');
+    await form.locator('input[name="settleMin"]').fill("50");
+    await form.locator('button[type="submit"]').click();
+    await V.waitForURL(/saved=settling/);
+    await go(V, `${gc}/settle`);
+    await V.getByText(/1 small amount under ₹50(\.00)? left out/).waitFor();
+    const b = await shownBalances(V, gc);
+    assert(b.Asha === -4500, `balances ${JSON.stringify(b)}`);
+    await go(V, `${gc}/settings`);
+    await form.locator('input[name="settleMin"]').fill("");
+    await form.locator('button[type="submit"]').click();
+    await V.waitForURL(/saved=settling/);
+  });
+  await step(V, "Flat", "Milk (₹60 a day): tap today as “didn’t come” on its calendar and the month's total drops by ₹60", async () => {
+    await go(V, `${gh}/bills/new`);
+    await V.getByRole("button", { name: "Milk" }).click();
+    await V.getByLabel("Amount", { exact: true }).fill("60");
+    await V.getByRole("button", { name: "Add bill" }).click();
+    await V.waitForURL(/tab=bills&saved=bill/);
+    const bill = await db.bill.findFirst({ where: { groupId: homeId(), name: "Milk", deletedAt: null } });
+    assert(bill, "no Milk bill");
+    await go(V, `${gh}/bills/${bill.id}`);
+    const today = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", day: "numeric" }).format(new Date()));
+    const days = () => V.locator("#calendar").innerText().then((t) => Number(/(\d+) of \d+ days/.exec(t)?.[1] ?? -1));
+    const before = await days();
+    await V.getByRole("button", { name: `${today}: came` }).click();
+    await V.getByRole("button", { name: `${today}: didn’t come` }).waitFor();
+    const after = await days();
+    assert(after === before - 1, `days came: ${before} → ${after}`);
+  });
+  await step(null, "Layout", "Small Android phone (320 px), light mode: no screen scrolls sideways", async () => {
+    const ctx = await browser.newContext({ viewport: { width: 320, height: 640 }, locale: "en-IN", timezoneId: "Asia/Kolkata", colorScheme: "light" });
+    await ctx.addCookies(await varun.ctx.cookies());
+    const page = await ctx.newPage();
+    page.setDefaultTimeout(15_000);
+    const pages = [
+      "/", g, `${g}?tab=balances`, `${g}?tab=charts`, `${g}/settle`, `${g}/add`, `${g}/settings`, `${g}/people`, `${g}/invite`,
+      gh, `${gh}?tab=bills`, `${gh}?tab=list`, `${gh}/bills/new`, `${gh}/budgets`, `${gh}/deposit`, gc, `${gc}/goals/new`,
+      "/settle", "/notifications", "/search", "/account", "/how-it-works", "/welcome",
+    ];
+    const wide: string[] = [];
+    for (const p of pages) {
+      await go(page, p);
+      const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      if (over > 1) {
+        wide.push(`${p.replace(/[a-z0-9]{20,}/g, ":id")} (+${over}px)`);
+        await page.screenshot({ path: `${out}/wide-${wide.length}.png` });
+      }
+    }
+    await ctx.close();
+    assert(wide.length === 0, `scrolls sideways: ${wide.join(", ")}`);
+    return `${pages.length} screens checked`;
   });
 
   await browser.close();
