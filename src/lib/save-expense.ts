@@ -166,7 +166,10 @@ async function saveExpenseOnce(
 
   if (!existing) {
     // The same expense from the same person seconds ago = a double tap: keep one.
-    const twin = opts.ignoreDoubleTap && await db.expense.findFirst({
+    // With a request key (every Add screen sends one) a resend is already caught
+    // above, so a second form saving the same thing is a real second expense
+    // (the duplicate warning asks about it instead).
+    const twin = opts.ignoreDoubleTap && !opts.requestKey && await db.expense.findFirst({
       where: { groupId: group.id, createdById: actingMemberId, description: name, amount: e.amount, deletedAt: null, createdAt: { gt: new Date(Date.now() - 20_000) } },
     });
     if (twin) return { ok: true, id: twin.id };

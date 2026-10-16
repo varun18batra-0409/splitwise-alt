@@ -1,0 +1,30 @@
+# Shows what the next deploy would change in the online database, without
+# changing anything. Run by hand, or when this file changes.
+name: Schema plan
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, phase3]
+    paths: [".github/workflows/schema-plan.yml"]
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Plan
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+        run: node scripts/turso-sync.mjs --plan > plan.log 2>&1 || true
+      - name: Save the plan to the "schema-plan" branch
+        run: |
+          mkdir /tmp/r && cp plan.log /tmp/r/ && cd /tmp/r
+          git init -q -b schema-plan && git add plan.log
+          git -c user.name=ci -c user.email=ci@loopin.invalid commit -qm "Schema plan for ${GITHUB_SHA::7}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" schema-plan

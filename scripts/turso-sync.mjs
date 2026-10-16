@@ -44,7 +44,10 @@ try {
     { encoding: "utf8" },
   ).trim();
 
-  if (!sql || /^-- This is an empty migration\.?$/.test(sql)) {
+  if (process.argv.includes("--plan")) {
+    // Just show what would change (used to check a deploy before it runs).
+    console.log(sql || "(nothing to change)");
+  } else if (!sql || /^-- This is an empty migration\.?$/.test(sql)) {
     console.log("turso-sync: online database already matches the schema.");
   } else if (/\bDROP\b|RedefineTables|new_/i.test(sql) && process.env.ALLOW_DESTRUCTIVE_MIGRATION !== "1") {
     // Dropping or rebuilding a table can lose saved data. Stop the deploy
