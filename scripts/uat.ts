@@ -203,6 +203,15 @@ async function fillExpense(page: Page, o: AddOpts) {
 async function save(page: Page, o: AddOpts, button = "Save expense") {
   const before = page.url();
   await page.getByRole("button", { name: button }).click();
+  // A "Looks like a duplicate" pause (same amount nearby) isn't what most steps test: say it's a different one.
+  if (!o.expectError) {
+    const dup = page.getByRole("button", { name: "It’s a different one" });
+    const done = await Promise.race([
+      page.waitForURL(/tab=activity/, { timeout: 20_000 }).then(() => "saved"),
+      dup.waitFor({ timeout: 20_000 }).then(() => "dup"),
+    ]).catch(() => "timeout");
+    if (done === "dup") await dup.click();
+  }
   if (o.expectError) {
     await page.locator("p.bg-red-50").first().waitFor();
     const t = await page.locator("p.bg-red-50").first().innerText();
@@ -689,6 +698,102 @@ async function main() {
     const b2 = await shownBalances(V, g2);
     const b3 = await shownBalances(V, g3);
     assert(Object.values(b2).every((x) => x === 0) && Object.values(b3).every((x) => x === 0), `not square: ${JSON.stringify({ b2, b3 })}`);
+  });
+
+  // ===== 7b. Couples, shares, several payers, money back, filters, add another, repeat, duplicates =====
+  let gc = "";
+  const coupleBalances = async () => shownBalances(V, gc);
+  await step(V, "Couples", "Create a Couple group with the split worked out from incomes (55 / 45), add Asha", async () => {
+    await go(V, "/groups/new");
+    await V.getByRole("button", { name: /^Couple/ }).click();
+    await V.locator('input[name="groupName"]').fill("UAT Us");
+    await V.getByRole("button", { name: "Next" }).click();
+    await V.getByRole("radio", { name: "By income" }).click();
+    await V.getByLabel("You earn a month").fill("110000");
+    await V.getByLabel("Your partner earns").fill("90000");
+    await V.getByText("55 / 45").first().waitFor();
+    await V.getByRole("button", { name: /Use 55 \/ 45/ }).click();
+    await V.waitForURL(/\/invite\?new=1/);
+    gc = new URL(V.url()).pathname.replace(/\/invite$/, "");
+    await V.getByLabel("Search people on Loopin").fill("Asha");
+    await V.getByRole("button", { name: "Add", exact: true }).first().click();
+    await V.waitForURL(/added=/);
+    const ws = await db.member.findMany({ where: { groupId: gc.split("/").pop()! }, orderBy: { createdAt: "asc" } });
+    assert(ws.map((m) => m.splitWeight).join("/") === "55/45", `weights are ${ws.map((m) => m.splitWeight).join("/")}`);
+  });
+  await step(V, "Couples", "“Our split 55 / 45” is chosen by default: ₹1,000 lunch → Asha owes ₹450", async () => {
+    await go(V, `${gc}/add`);
+    const chip = V.getByRole("button", { name: /Our split/ });
+    assert((await chip.getAttribute("aria-pressed")) === "true", "Our split isn't selected by default");
+    await V.locator("#expense-name").fill("Lunch");
+    await V.getByLabel("Amount", { exact: true }).fill("1000");
+    await save(V, { me: "Varun", name: "Lunch", amount: "1000" });
+    const b = await coupleBalances();
+    assert(b.Varun === 45000 && b.Asha === -45000, `balances ${JSON.stringify(b)}`);
+  });
+  await step(V, "Couples", "Two payers: ₹2,000 dinner, you ₹1,500 + Asha ₹500 → Asha owes ₹850 in all", async () => {
+    await go(V, `${gc}/add`);
+    await V.locator("#expense-name").fill("Dinner date");
+    await V.getByLabel("Amount", { exact: true }).fill("2000");
+    await V.getByRole("button", { name: "More than one" }).click();
+    await V.getByLabel("You paid").fill("1500");
+    await V.getByLabel("Asha paid").fill("500");
+    await V.getByText(/Adds up to/).first().waitFor();
+    await save(V, { me: "Varun", name: "Dinner date", amount: "2000" });
+    const b = await coupleBalances();
+    assert(b.Varun === 85000, `balances ${JSON.stringify(b)}`);
+    const row = (await V.locator("main").innerText()).replace(/\s+/g, " ");
+    await go(V, `${gc}?tab=activity`);
+    assert(/You \+ Asha paid/.test((await V.locator("main").innerText()).replace(/\s+/g, " ")), `history doesn't say “You + Asha paid” (${row.slice(0, 80)})`);
+  });
+  await step(V, "Couples", "Money back: Asha got ₹200 back, shared 55 / 45 → Asha owes ₹960", async () => {
+    await go(V, `${gc}/add`);
+    await V.getByRole("radio", { name: "Money back" }).click();
+    await V.getByRole("button", { name: /^(✓ )?Asha$/ }).first().click();
+    await V.locator("#expense-name").fill("Refund");
+    await V.getByLabel("Amount", { exact: true }).fill("200");
+    await save(V, { me: "Varun", name: "Refund", amount: "200" }, "Save money back");
+    const b = await coupleBalances();
+    assert(b.Varun === 96000, `balances ${JSON.stringify(b)}`);
+  });
+  await step(V, "Browse", "History filters by type and amount (money back only; ₹1,500 and more)", async () => {
+    await go(V, `${gc}?tab=activity&type=refund`);
+    let t = await V.locator("main").innerText();
+    assert(/Refund/.test(t) && !/Dinner date/.test(t), "type filter wrong");
+    await go(V, `${gc}?tab=activity&min=1500`);
+    t = await V.locator("main").innerText();
+    assert(/Dinner date/.test(t) && !/Lunch/.test(t), "amount filter wrong");
+  });
+  await step(V, "Add", "Save & add another keeps the split and opens a fresh form", async () => {
+    await go(V, `${gc}/add`);
+    await V.locator("#expense-name").fill("Groceries");
+    await V.getByLabel("Amount", { exact: true }).fill("1000");
+    await V.getByRole("button", { name: "Save & add another" }).click();
+    await V.waitForURL(/\/add\?again=/);
+    await V.getByText(/Saved Groceries/).waitFor();
+    assert((await V.locator("#expense-name").inputValue()) === "", "name not cleared");
+    assert((await V.getByRole("button", { name: /Our split/ }).getAttribute("aria-pressed")) === "true", "split not kept");
+  });
+  await step(V, "Add", "Repeat an expense, see the duplicate warning, then add it anyway", async () => {
+    await go(V, `${gc}?tab=activity`);
+    await V.locator("details summary").filter({ hasText: "Groceries" }).first().click();
+    await V.getByRole("link", { name: "Repeat" }).first().click();
+    await V.waitForURL(/\/add\?from=/);
+    assert((await V.locator("#expense-name").inputValue()) === "Groceries", "repeat didn't copy the name");
+    await V.getByRole("button", { name: "Save expense" }).click();
+    await V.getByText(/Looks like “Groceries/).waitFor();
+    await V.getByRole("button", { name: "It’s a different one" }).click();
+    await V.waitForURL(/tab=activity/);
+    const b = await coupleBalances();
+    assert(b.Varun === 186000, `balances ${JSON.stringify(b)}`);
+  });
+  await step(V, "Group settings", "Turn off payment notifications for one group", async () => {
+    await go(V, `${gc}/settings`);
+    await V.locator('input[name="payments"]').uncheck();
+    await V.getByRole("button", { name: "Save notifications" }).click();
+    await V.waitForURL(/saved=notify/);
+    const me = await db.member.findFirst({ where: { groupId: gc.split("/").pop()!, name: "Varun" } });
+    assert(JSON.parse(me!.notify).payments === false, "not saved");
   });
 
   // ===== 8. Everything else people do =====

@@ -117,6 +117,28 @@ await shot("31-currency-details", `${g}/add`, async (p) => {
   await p.getByRole("button", { name: /Details/ }).click();
   await p.waitForTimeout(300);
 });
+await shot("39-new-group-types", "/groups/new", async (p) => {
+  await p.getByRole("button", { name: /^Home/ }).click();
+}, false);
+await shot("40-couple-split", "/groups/new", async (p) => {
+  await p.getByRole("button", { name: /^Couple/ }).click();
+  await p.locator('input[name="groupName"]').fill("Us");
+  await p.getByRole("button", { name: "Next" }).click();
+  await p.getByRole("radio", { name: "By income" }).click();
+  await p.getByLabel("You earn a month").fill("110000");
+  await p.getByLabel("Your partner earns").fill("90000");
+}, false);
+await shot("41-add-payers-shares", `${g}/add`, async (p) => {
+  await p.locator("#expense-name").fill("Dinner at Bastian");
+  await p.getByLabel("Amount", { exact: true }).fill("3000");
+  await p.getByRole("button", { name: "More than one" }).click();
+  await p.getByRole("button", { name: /Custom/ }).click();
+  await p.getByRole("button", { name: "Shares", exact: true }).click();
+});
+await shot("42-filters", `${g}?tab=activity`, async (p) => {
+  await p.getByText("Filter", { exact: true }).click();
+});
+await shot("43-settings-sharing", `${g}/settings#sharing`);
 await shot("15-new-group", "/groups/new");
 await shot("25-account", "/account");
 await shot("26-signin", "/signin", undefined, false);
