@@ -1,4 +1,4 @@
-import nodemailer from "nodemailer";
+import nodemailer, { type Transporter } from "nodemailer";
 
 // Sends email through an SMTP account (for now: a Gmail address with an
 // "app password"). Set SMTP_USER and SMTP_PASS in the hosting settings.
@@ -11,7 +11,7 @@ export function mailConfigured(): boolean {
 
 // One connection, reused while the server is warm (a new secure connection to
 // the mail server for every email took a second or more).
-let pooled: ReturnType<typeof nodemailer.createTransport> | null = null;
+let pooled: Transporter | null = null;
 function transport() {
   if (!pooled) {
     const port = Number(process.env.SMTP_PORT ?? 465);
