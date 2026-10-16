@@ -150,7 +150,7 @@ export default async function GroupPage({
       <GroupHeader v={v} switchTo={switchTo} />
       <GroupSummary v={v} sp={sp} compact={home} />
 
-      <nav className={`mb-6 grid gap-1 rounded-xl bg-mist p-1 ${tabs.length === 4 ? "grid-cols-4" : "grid-cols-3"}`} aria-label="Group sections">
+      <nav className={`mb-6 grid gap-1 rounded-xl bg-mist p-1 ${tabs.length === 4 ? "grid-cols-[1.4fr_1fr_1fr_1fr]" : "grid-cols-3"}`} aria-label="Group sections">
         {tabs.map((t) => (
           <Link
             key={t.id}

@@ -14,7 +14,7 @@ const seen = () => {
 };
 import { useEffect, useRef, useState } from "react";
 
-// The intro tour: six swipeable slides that show what Loopin does, each with
+// The intro tour: six swipeable slides (start, balances, currencies, settling, home & couples, undo) that show what Loopin does, each with
 // a small animated picture. Shown to first-time visitors on the home screen,
 // and any time at /welcome.
 
@@ -82,7 +82,7 @@ const slides: Slide[] = [
   {
     id: "cheers",
     title: ["Split it.", "Cheers. 🍻"],
-    caption: "Make a group for a trip, a flat or a dinner. Friends join from a link or a QR code — no sign-up.",
+    caption: "Make a group for a trip, a flat or the two of you. Friends join from a link, a QR code or an email: a 30-second sign-up, no password.",
     art: <Cheers />,
   },
   {
@@ -158,6 +158,35 @@ const slides: Slide[] = [
         <p className="rise rise-3 text-center text-sm text-gray-500">
           6 payments → <strong className="text-fg">2</strong>
         </p>
+      </Card>
+    ),
+  },
+  {
+    id: "home",
+    title: ["Flats & couples.", "Bills add themselves."],
+    caption: "Rent and Wi-Fi add themselves each month, electricity asks whoever pays, and couples see who’s ahead of their split.",
+    art: (
+      <Card>
+        <p className="rise text-xs text-gray-400">Flat 402 · This month</p>
+        <div className="rise rise-2 mt-3 flex items-center justify-between text-sm">
+          <span>Rent</span>
+          <span className="flex items-center gap-2">
+            <span className="font-display">₹42,000</span>
+            <span className={`text-xs ${owed}`}>added ✓</span>
+          </span>
+        </div>
+        <div className="rise rise-3 mt-2.5 flex items-center justify-between text-sm">
+          <span>Electricity</span>
+          <span className="border border-gray-300 px-2.5 py-1 text-xs font-semibold">Enter amount</span>
+        </div>
+        <div className="rise rise-4 mt-2.5 flex items-center justify-between text-sm">
+          <span>Milk</span>
+          <span className="font-display">₹68/day</span>
+        </div>
+        <div className="rise rise-5 mt-4 border-t border-line pt-3">
+          <p className="text-xs text-gray-400">Us · October together</p>
+          <p className={`mt-1 font-display text-lg font-semibold ${owed}`}>You’re ₹2,670 ahead</p>
+        </div>
       </Card>
     ),
   },

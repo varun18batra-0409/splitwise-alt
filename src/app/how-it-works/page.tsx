@@ -30,12 +30,11 @@ function Photo({ slot, children, tall }: { slot: Slot; children?: React.ReactNod
   );
 }
 
-function Section({ slot, title, children }: { slot: Slot; kicker?: string; title: string; children: React.ReactNode }) {
+function Section({ slot, title, children }: { slot?: Slot; kicker?: string; title: string; children: React.ReactNode }) {
+  const heading = <h2 className="mt-1 font-display text-[26px] font-semibold leading-tight tracking-tight text-fg">{title}</h2>;
   return (
     <section className="mt-12">
-      <Photo slot={slot}>
-        <h2 className="mt-1 font-display text-[26px] font-semibold leading-tight tracking-tight text-fg">{title}</h2>
-      </Photo>
+      {slot ? <Photo slot={slot}>{heading}</Photo> : heading}
       <div className="mt-4 space-y-3 text-[15px] leading-relaxed text-gray-600">{children}</div>
     </section>
   );
@@ -51,6 +50,18 @@ function Steps({ items }: { items: React.ReactNode[] }) {
         </li>
       ))}
     </ol>
+  );
+}
+
+// A real screen from the app, in a phone-shaped frame.
+function Screen({ src, alt, caption }: { src: string; alt: string; caption: string }) {
+  return (
+    <figure className="mx-auto w-[78%] max-w-[300px]">
+      <div className="overflow-hidden rounded-[26px] border-[5px] border-[#2b2b31] bg-canvas shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
+        <img src={src} alt={alt} loading="lazy" decoding="async" width={600} height={900} className="block h-auto w-full" />
+      </div>
+      <figcaption className="mt-2 text-center text-xs text-gray-500">{caption}</figcaption>
+    </figure>
   );
 }
 
@@ -71,7 +82,7 @@ export default function HowItWorks() {
           <br />
           Everything adds up.
         </p>
-        <p className="mt-2 text-sm text-fg/75">Split trips, flats and dinners with friends. Free, no ads, no limits.</p>
+        <p className="mt-2 text-sm text-fg/75">Split trips, flats and life as a couple. Free, no ads, no limits.</p>
       </Photo>
       <div className="mt-5 grid grid-cols-2 gap-2">
         <Link href="/welcome" className="border border-line px-3 py-3 text-center text-sm font-medium text-fg active:bg-mist">
@@ -90,6 +101,7 @@ export default function HowItWorks() {
           ["#balances", "Who owes what"],
           ["#settle", "Settle up"],
           ["#home", "Flatmates"],
+          ["#couples", "Couples"],
           ["#safe", "Undo & privacy"],
         ].map(([href, label]) => (
           <a key={href} href={href} className="rounded-full border border-line px-3 py-1.5 text-gray-600 active:bg-mist">
@@ -102,9 +114,9 @@ export default function HowItWorks() {
       <Section slot="roadtrip" kicker="1 · Start" title="Make a group, bring everyone in">
         <Steps
           items={[
-            <>Tap <strong>New group</strong>: give it a name (“Euro trip”) and pick the currency. First time? You sign up with your email (no password).</>,
+            <>Tap <strong>New group</strong> and pick what it’s for: <strong>Trip</strong>, <strong>Home</strong>, <strong>Couple</strong> or <strong>Other</strong>. Give it a name (“Euro trip”) and a currency. First time? You sign up with your email in 30 seconds (no password).</>,
             <>Add people: friends already on Loopin, people from your contacts, or anyone by email.</>,
-            <>They confirm their email and they’re in. From then on everyone is told about every change.</>,
+            <>Or share the group’s link or QR code. People confirm their email and they’re in, and show up on the People screen. From then on everyone is told about every change.</>,
           ]}
         />
       </Section>
@@ -119,6 +131,11 @@ export default function HowItWorks() {
           ]}
         />
         <p>Change the date if it wasn’t today, and add a note if it helps (“Rahul paid the tip”). Next time, Loopin starts with the same split you used last.</p>
+        <p>
+          <strong>Two people paid?</strong> Choose <strong>More than one</strong> payer. <strong>Got money back</strong> (a refund, a returned
+          item)? Switch to <strong>Money back</strong> and it’s shared the same way. Adding a few in a row? <strong>Save &amp; add another</strong>.
+          The same thing again? Open it and tap <strong>Repeat</strong>. Loopin warns you if something looks like a duplicate.
+        </p>
         <Example>
           Dinner ₹1,200 · Joey paid · Everyone equally (4)
           <br />
@@ -174,20 +191,43 @@ export default function HowItWorks() {
       </Section>
 
       <div id="home" className="scroll-mt-4" />
-      <Section slot="home" kicker="Living together" title="Flatmates and home bills">
+      <Section slot="home" kicker="Living together" title="Flatmates: the flat runs itself">
         <p>
-          Make a group for your flat and add rent, electricity, Wi-Fi, groceries and house help as they come. Everyone sees the same
-          numbers, and you settle up whenever you like. Recurring bills are coming soon.
+          Make a <strong>Home</strong> group. It opens on <strong>This month</strong>: your share, the flat’s total, who owes whom and what’s coming up.
         </p>
+        <Steps
+          items={[
+            <><strong>Bills, set up once.</strong> Rent, Wi-Fi, the cook: they add themselves on the day (anyone can undo). Electricity changes? Whoever pays gets a nudge to enter the amount. Milk and water cans are added up at month end; tap the days they didn’t come.</>,
+            <><strong>Shopping list.</strong> Add what’s running low, tick what you bought, type what it cost: one Groceries expense, items in the note.</>,
+            <><strong>Budgets and the deposit.</strong> A nudge when groceries reach 80%. The deposit is kept on record, never mixed into balances.</>,
+            <><strong>Moving out or in.</strong> Loopin works out their share for the days they stayed, who takes over their deposit, and the final payments.</>,
+          ]}
+        />
+        <Screen src="/guide/flat-month.webp" alt="A flat's This month screen: your share, what you're owed, and the bills coming up" caption="A flat’s “This month”: bills coming up, one tap to enter electricity" />
+        <p>Reminders (the day before a bill, and on your settle-up day) are off until you switch them on in the group’s settings.</p>
+      </Section>
+
+      <div id="couples" className="scroll-mt-4" />
+      <Section title="Couples: your split, not 50/50">
+        <p>
+          Make a <strong>Couple</strong> group and set your split once: equal, a ratio, or worked out from your incomes (say 55 / 45). Every
+          expense uses it unless you change that one.
+        </p>
+        <p>
+          <strong>This month</strong> shows what you spent together and whether you’re <strong>ahead</strong> or <strong>behind</strong> your
+          share, with one tap to even out. Saving for something? Start a <strong>goal</strong> and each tap “I set money aside”. The money stays
+          in your own accounts.
+        </p>
+        <Screen src="/guide/couple-month.webp" alt="A couple's This month screen: spent together, you're ahead, and a savings goal" caption="A couple’s month: who’s ahead, where it went, the Bali fund" />
       </Section>
 
       <div id="safe" className="scroll-mt-4" />
       <section className="mt-12 space-y-3 text-[15px] leading-relaxed text-gray-600">
         <h2 className="font-display text-[26px] font-semibold tracking-tight text-fg">Mistakes happen. Fix them.</h2>
-        <p>Every change can be undone, and the history shows who changed what. Everyone in the group gets an alert.</p>
+        <p>Every change can be undone, and the history shows who changed what. Everyone in the group gets an alert; you choose which alerts per group in its settings.</p>
         <p>
-          Your groups live on your phone. Optionally <Link href="/signin?mode=signup" className="font-medium text-fg underline underline-offset-4">sign up with your email</Link> to
-          get them back on any phone. No ads, and your data isn’t sold. <Link href="/privacy" className="underline underline-offset-4">Privacy</Link>
+          You sign in with your email (a code, no password), so your groups come back on any phone. Only people in a group can see it.
+          No ads, and your data isn’t sold. <Link href="/privacy" className="underline underline-offset-4">Privacy</Link>
         </p>
       </section>
 
