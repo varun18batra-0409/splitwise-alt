@@ -1,0 +1,24 @@
+# Checks the live app's speed (run by hand from the Actions tab). Prints the
+# health numbers (app and database regions, database round trips) and how
+# long a few public pages take. No secrets, no data.
+name: Speed check
+on: workflow_dispatch
+jobs:
+  speed:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Health and page timings
+        run: |
+          base=https://getloopin.vercel.app
+          h=$(curl -s "$base/api/health")
+          echo "$h"
+          echo "::notice title=Health::$h"
+          out=""
+          for p in / /signin /how-it-works /api/health; do
+            for i in 1 2 3; do
+              t=$(curl -s -o /dev/null -w "%{http_code} ttfb=%{time_starttransfer}s total=%{time_total}s" "$base$p")
+              out="$out $p#$i:$t;"
+            done
+          done
+          echo "$out"
+          echo "::notice title=Pages (from a US server)::$out"
