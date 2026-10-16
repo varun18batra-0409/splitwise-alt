@@ -1,4 +1,4 @@
-import { payerIds, payersOf } from "@/lib/payers";
+import { payerIds, payersOf, spentAmount } from "@/lib/payers";
 import { CATEGORIES, getCategory } from "@/lib/categories";
 import { dayKey, expenseDate } from "@/lib/dates";
 import { niceDate } from "@/lib/format";
@@ -20,7 +20,7 @@ export function ChartsTab({ v }: { v: GroupView }) {
     return m;
   };
 
-  const byCat = sumBy((e) => [getCategory(e.category).id], (e) => e.amount);
+  const byCat = sumBy((e) => [getCategory(e.category).id], (e) => spentAmount(e));
   const catData = CATEGORIES.filter((c) => byCat.has(c.id))
     .map((c) => {
       const value = byCat.get(c.id)!;
@@ -28,10 +28,11 @@ export function ChartsTab({ v }: { v: GroupView }) {
     })
     .sort((a, b) => b.value - a.value);
 
-  const paid = sumBy((e) => payerIds(e), (e, k) => payersOf(e).find((p) => p.memberId === k)?.amount ?? 0);
+  const sign = (e: GroupExpense) => (e.kind === "refund" ? -1 : 1);
+  const paid = sumBy((e) => payerIds(e), (e, k) => sign(e) * (payersOf(e).find((p) => p.memberId === k)?.amount ?? 0));
   const shares = sumBy(
     (e) => e.shares.map((s) => s.memberId),
-    (e, k) => e.shares.find((s) => s.memberId === k)?.amount ?? 0,
+    (e, k) => sign(e) * (e.shares.find((s) => s.memberId === k)?.amount ?? 0),
   );
   const people = (m: Map<string, number>) =>
     group.members
@@ -39,7 +40,7 @@ export function ChartsTab({ v }: { v: GroupView }) {
       .sort((a, b) => b.value - a.value);
 
   // Spending per day (the day each expense was spent), from the first to the last, up to 21 days.
-  const perDay = sumBy((e) => [dayKey(expenseDate(e), tz)], (e) => e.amount);
+  const perDay = sumBy((e) => [dayKey(expenseDate(e), tz)], (e) => spentAmount(e));
   const keys = [...perDay.keys()].sort();
   const days: string[] = [];
   for (let d = new Date(`${keys[0]}T00:00:00Z`); d <= new Date(`${keys[keys.length - 1]}T00:00:00Z`); d = new Date(d.getTime() + 86_400_000)) {

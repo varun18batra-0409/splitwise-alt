@@ -76,6 +76,7 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
     exact,
     percent,
     shares: sharesText ?? undefined,
+    kind: e.kind === "refund" ? "refund" : "expense",
     multiPay: savedPayers.length > 1,
     payers: Object.fromEntries(scalePayers(savedPayers, e.originalAmount).map((p) => [p.memberId, toInputAmount(p.amount, e.originalCurrency)])),
     paymentMethod: (["card", "cash", "bank"].includes(e.paymentMethod) ? e.paymentMethod : "card") as PaymentMethod,

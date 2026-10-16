@@ -1,6 +1,7 @@
 import { db } from "./db";
 import { netBalances } from "./balances";
 import { smartSettle } from "./settle";
+import { spentAmount } from "./payers";
 
 // Deleted expenses and payments stay in the database (and in history) but never count.
 const active = <T extends { deletedAt: Date | null }>(rows: T[]) => rows.filter((r) => !r.deletedAt);
@@ -45,7 +46,7 @@ export async function loadMyGroups(memberships: Record<string, string>) {
       const lastActivity = [g.expenses[0]?.createdAt, g.payments[0]?.createdAt, g.createdAt]
         .filter((d): d is Date => Boolean(d))
         .sort((a, b) => b.getTime() - a.getTime())[0];
-      const spent = expenses.reduce((s, e) => s + e.amount, 0);
+      const spent = expenses.reduce((s, e) => s + spentAmount(e), 0);
       return { group: g, expenses, payments, myId, net, transfers: smartSettle(net), myBalance: net[myId] ?? 0, lastActivity, spent };
     });
 }

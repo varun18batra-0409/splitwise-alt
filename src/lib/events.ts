@@ -58,6 +58,7 @@ export type ExpenseState = {
   forMode: string;
   paidById: string;
   payers?: string; // more than one payer (JSON); missing/"" = just paidById
+  kind?: string; // "expense" | "refund"; missing = expense
   originalAmount: number;
   originalCurrency: string;
   baseCurrency: string;
@@ -73,7 +74,9 @@ export type ExpenseState = {
   shares: { memberId: string; amount: number }[];
 };
 
-export function expenseState(e: Omit<ExpenseState, "spentAt" | "notes" | "payers"> & { spentAt?: Date | string | null; notes?: string; payers?: string | null }): ExpenseState {
+export function expenseState(
+  e: Omit<ExpenseState, "spentAt" | "notes" | "payers" | "kind"> & { spentAt?: Date | string | null; notes?: string; payers?: string | null; kind?: string | null },
+): ExpenseState {
   return {
     description: e.description,
     category: e.category,
@@ -82,6 +85,7 @@ export function expenseState(e: Omit<ExpenseState, "spentAt" | "notes" | "payers
     forMode: e.forMode,
     paidById: e.paidById,
     payers: e.payers ?? "",
+    kind: e.kind ?? "expense",
     originalAmount: e.originalAmount,
     originalCurrency: e.originalCurrency,
     baseCurrency: e.baseCurrency,
@@ -179,6 +183,7 @@ export type ExpenseSnapshot = {
   markupBp: number;
   paidById: string;
   payers?: string | null;
+  kind?: string | null;
   forMode: string;
   splitType: string;
   day?: string; // "2026-10-14"
@@ -197,6 +202,8 @@ export function diffExpense(before: ExpenseSnapshot, after: ExpenseSnapshot, nam
     if (a !== b) out.push(`${label}: ${a} → ${b}`);
   };
   add("Name", before.description, after.description);
+  const kindText = (k?: string | null) => (k === "refund" ? "Money back" : "Money spent");
+  add("Type", kindText(before.kind), kindText(after.kind));
   if (before.day && after.day) add("Date", niceDate(before.day), niceDate(after.day));
   add("Amount", formatMoney(before.originalAmount, before.originalCurrency), formatMoney(after.originalAmount, after.originalCurrency));
   if (before.originalCurrency !== before.baseCurrency || after.originalCurrency !== after.baseCurrency) {

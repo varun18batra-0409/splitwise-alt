@@ -14,6 +14,7 @@ export type ExpenseDraft = {
   exact: Record<string, string>;
   percent: Record<string, string>;
   shares?: Record<string, string>; // "1.2" per person, when splitType = "shares"
+  kind?: "expense" | "refund"; // refund = money back (whoever got it owes the people it's shared with)
   multiPay?: boolean; // more than one person paid
   payers?: Record<string, string>; // each payer's amount as typed (expense's own currency), when multiPay
   paymentMethod: PaymentMethod;
@@ -35,6 +36,7 @@ export type BuiltExpense = {
   splitType: SplitType;
   paidById: string;
   payers: Share[]; // more than one payer, in the group currency (adds up to amount); [] = just paidById
+  kind: "expense" | "refund";
   shares: Share[];
 };
 
@@ -117,6 +119,7 @@ export function buildExpense(
       splitType: participants.length === 1 ? "equal" : draft.splitType,
       paidById,
       payers,
+      kind: draft.kind === "refund" ? "refund" : "expense",
       shares: split.shares,
     },
   };

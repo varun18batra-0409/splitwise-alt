@@ -53,7 +53,8 @@ export type ActivityItem =
       category: string;
       amount: number;
       paidById: string;
-      payerIds: string[]; // everyone who paid (usually just paidById)
+      payerIds: string[]; // everyone who paid (usually just paidById); for money back, who got it
+      refund: boolean; // money back
       people: string[]; // who it was for
       effect: number; // + you're owed this much more, − you owe this much more, 0 not involved
       createdById: string;
@@ -106,6 +107,7 @@ export function buildActivity(expenses: ExpenseRow[], payments: PaymentRow[], my
         amount: e.amount,
         paidById: e.paidById,
         payerIds: payerIds(e),
+        refund: e.kind === "refund",
         people: e.shares.map((s) => s.memberId),
         effect: deleted ? 0 : effectFor(e, myId),
         createdById: e.createdById ?? e.paidById,

@@ -59,3 +59,8 @@ export function scalePayers(payers: Payer[], total: number): Payer[] {
 export function payersLabel(payers: Payer[], who: (id: string) => string): string {
   return payers.map((p) => who(p.memberId)).join(" + ");
 }
+
+// How much an expense adds to "spent": money back takes it away again.
+export function spentAmount(e: { amount: number; kind?: string | null }): number {
+  return e.kind === "refund" ? -e.amount : e.amount;
+}

@@ -37,7 +37,12 @@ export default async function SearchPage({
   const sum = recap(
     shown.flatMap(({ item, g }) =>
       item.kind === "expense"
-        ? [{ amount: item.amount, category: item.category, currency: g.group.currency, mine: g.expenses.find((e) => e.id === item.id)?.shares.find((s) => s.memberId === g.myId)?.amount ?? 0 }]
+        ? [{
+            amount: item.refund ? -item.amount : item.amount,
+            category: item.category,
+            currency: g.group.currency,
+            mine: (item.refund ? -1 : 1) * (g.expenses.find((e) => e.id === item.id)?.shares.find((s) => s.memberId === g.myId)?.amount ?? 0),
+          }]
         : [],
     ),
   );

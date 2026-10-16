@@ -144,6 +144,7 @@ async function saveExpenseOnce(
     forMode: e.forMode,
     paidById: e.paidById,
     payers: payersJson(e.payers),
+    kind: e.kind,
     originalAmount: e.originalAmount,
     originalCurrency: e.originalCurrency,
     baseCurrency: e.baseCurrency,
@@ -172,8 +173,11 @@ async function saveExpenseOnce(
         groupId: group.id,
         actorId: actingMemberId,
         kind: "expense_added",
-        text: `added ${name} (${money})`,
-        details: [`${getCategory(category).emoji} ${getCategory(category).label}`, `Paid by ${e.payers.length ? payersLabel(e.payers, nameOf) : nameOf(e.paidById)}`],
+        text: e.kind === "refund" ? `added money back: ${name} (${money})` : `added ${name} (${money})`,
+        details: [
+          `${getCategory(category).emoji} ${getCategory(category).label}`,
+          `${e.kind === "refund" ? "Received by" : "Paid by"} ${e.payers.length ? payersLabel(e.payers, nameOf) : nameOf(e.paidById)}`,
+        ],
         expenseId: created.id,
         undo: { type: "expense_delete", expenseId: created.id },
       });

@@ -48,7 +48,7 @@ export function foreignLedgers(expenses: ExpenseLike[], groupCurrency: string, m
       count: 0,
       net: Object.fromEntries(memberIds.map((id) => [id, 0])),
     };
-    l.spent += e.originalAmount;
+    l.spent += e.kind === "refund" ? -e.originalAmount : e.originalAmount;
     l.count += 1;
     // The same lines as in the group currency, in the expense's own currency.
     const { credits, debits } = moneyLines(e);

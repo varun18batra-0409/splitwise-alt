@@ -164,7 +164,7 @@ async function revertExpense(expenseId: string, before: Parameters<typeof expens
     await tx.expenseShare.deleteMany({ where: { expenseId } });
     await tx.expense.update({
       where: { id: expenseId },
-      data: { ...fields, payers: fields.payers ?? "", spentAt: fields.spentAt ? new Date(fields.spentAt) : null, editedAt: new Date(), shares: { create: shares } },
+      data: { ...fields, payers: fields.payers ?? "", kind: fields.kind ?? "expense", spentAt: fields.spentAt ? new Date(fields.spentAt) : null, editedAt: new Date(), shares: { create: shares } },
     });
     return logEvent(tx, {
       groupId: e.groupId,

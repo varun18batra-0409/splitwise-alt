@@ -35,6 +35,7 @@ export type ExpenseInitial = {
   exact: Record<string, string>;
   percent: Record<string, string>;
   shares?: Record<string, string>;
+  kind?: "expense" | "refund";
   multiPay?: boolean;
   payers?: Record<string, string>; // each payer's amount, in the expense's currency
   paymentMethod: PaymentMethod;
@@ -106,6 +107,7 @@ export function AddExpenseForm({
   const [showPeople, setShowPeople] = useState(false);
   const [paidById, setPaidById] = useState(initial?.paidById ?? myId);
   const [multiPay, setMultiPay] = useState(Boolean(initial?.multiPay));
+  const [kind, setKind] = useState<"expense" | "refund">(initial?.kind ?? "expense");
   const [payers, setPayers] = useState<Record<string, string>>(initial?.payers ?? {});
   const [forMode, setForMode] = useState<ForMode>(initial?.forMode ?? "everyone");
   const [selected, setSelected] = useState<string[]>(initial?.selected ?? memberIds);
@@ -258,7 +260,7 @@ export function AddExpenseForm({
   const typo = nameCheck.suggestion && nameCheck.suggestion.wrong !== dismissedTypo ? nameCheck.suggestion : null;
   const draft: ExpenseDraft = {
     amount, currency, paidById, forMode, selected, onePersonId, splitType, exact, percent, shares,
-    multiPay, payers, paymentMethod, markupChoice, markupCustom,
+    kind, multiPay, payers, paymentMethod, markupChoice, markupCustom,
   };
   const ctx = { memberIds, baseCurrency, groupMarkupBp, rate: effectiveRate };
   const markupBp = chosenMarkupBp(draft, groupMarkupBp);
@@ -332,10 +334,34 @@ export function AddExpenseForm({
 
   return (
     <form onSubmit={save} className="space-y-7">
+      {/* Money spent (normal) or money back (a refund, a deposit returned) */}
+      <div className="grid grid-cols-2 gap-1 rounded-xl bg-mist p-1" role="radiogroup" aria-label="Money spent or money back">
+        {(
+          [
+            ["expense", "Money spent"],
+            ["refund", "Money back"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            role="radio"
+            aria-checked={kind === id}
+            onClick={() => setKind(id)}
+            className={`rounded-lg py-2.5 text-sm ${kind === id ? "bg-fg font-semibold text-canvas" : "text-gray-500"}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {kind === "refund" && (
+        <p className="-mt-4 text-sm text-gray-500">A refund, a returned item or a deposit coming back. Whoever got it owes the people it’s shared with.</p>
+      )}
+
       {/* Who paid — visible at the top, one tap to change */}
       {members.length > 1 && (
         <div>
-          <span className={labelClass}>Who paid?</span>
+          <span className={labelClass}>{kind === "refund" ? "Who got the money?" : "Who paid?"}</span>
           <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none]">
             {[...members].sort((a, b) => (a.id === myId ? -1 : b.id === myId ? 1 : 0)).map((m) => (
               <Chip
@@ -968,7 +994,7 @@ export function AddExpenseForm({
       {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
       <button type="submit" disabled={saving || rateState.status === "loading"} className={primaryButtonClass}>
-        {saving ? "Saving…" : expenseId ? "Save changes" : "Save expense"}
+        {saving ? "Saving…" : expenseId ? "Save changes" : kind === "refund" ? "Save money back" : "Save expense"}
       </button>
     </form>
   );

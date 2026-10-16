@@ -1,3 +1,4 @@
+import { spentAmount } from "@/lib/payers";
 import { loadGroup } from "@/lib/group-data";
 import { foreignLedgers, type Ledger } from "@/lib/currency-ledgers";
 import { resolveSecondary } from "@/lib/secondary";
@@ -51,7 +52,7 @@ export async function buildGroupView(data: Loaded, myId: string, tz: string): Pr
     ...data,
     tz,
     myId,
-    spent: expenses.reduce((s, e) => s + e.amount, 0),
+    spent: expenses.reduce((s, e) => s + spentAmount(e), 0),
     ledgers,
     hasMarkup: expenses.some((e) => e.markupAmount > 0),
     secondary,
