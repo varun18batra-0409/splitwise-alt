@@ -18,5 +18,6 @@ jobs:
       - name: Where the database lives
         env:
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
-        run: echo "Database region: $(echo "$TURSO_DATABASE_URL" | sed -E 's#^[a-z]+://[^.]+\.##; s#\.turso\.io.*##')"
+        run: |
+          echo "Database region: $(echo "$TURSO_DATABASE_URL" | sed -E 's#^[a-z]+://[^.]+\.##; s#\.turso\.io.*##')"
       - run: node scripts/prod-speed.mjs
