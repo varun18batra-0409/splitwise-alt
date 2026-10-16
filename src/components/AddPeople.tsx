@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { addPerson, findPeople, invitePeople } from "@/app/actions";
 import { InviteIcon, SearchIcon } from "./icons";
+import { reportSpeed } from "./speedReport";
 
 type Found = { accountId: string; name: string; email: string; inGroup: boolean; known: boolean };
 const isEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(s.trim());
@@ -23,8 +24,10 @@ export function PeopleSearch({ groupId }: { groupId: string }) {
     }
     setBusy(true);
     timer.current = setTimeout(async () => {
+      const t0 = performance.now();
       try {
         setFound(await findPeople(groupId, q));
+        reportSpeed("search", location.pathname, performance.now() - t0);
       } catch {
         setFound([]);
       } finally {

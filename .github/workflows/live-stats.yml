@@ -1,0 +1,24 @@
+# Numbers about the live app (run by hand): speed on people's phones, and
+# whether invites become members. Counts and timings only, never names,
+# emails or amounts. The result is shown on the run's summary page.
+name: Live stats
+on:
+  workflow_dispatch:
+    inputs:
+      hours:
+        description: "How many hours back"
+        default: "24"
+jobs:
+  stats:
+    runs-on: ubuntu-latest
+    env:
+      TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+      HOURS: ${{ github.event.inputs.hours }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-save --ignore-scripts @libsql/client@0.15.0
+      - run: node scripts/live-stats.mjs && cat live-stats.md >> "$GITHUB_STEP_SUMMARY"

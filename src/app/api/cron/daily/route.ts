@@ -53,5 +53,7 @@ export async function GET(req: Request) {
     return n;
   });
   const summaries = daytime ? await part("summaries", () => sendMonthlySummaries(now)) : { sent: 0, skipped: "night" };
-  return Response.json({ ok: true, bills, reminders, budgetAlerts, summaries });
+  // Speed numbers are kept two weeks.
+  const speedLogsRemoved = await part("cleanup", async () => (await db.speedLog.deleteMany({ where: { at: { lt: new Date(now.getTime() - 14 * 86_400_000) } } })).count);
+  return Response.json({ ok: true, bills, reminders, budgetAlerts, summaries, speedLogsRemoved });
 }

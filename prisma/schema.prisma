@@ -393,3 +393,14 @@ model NotifyLog {
   key       String   @id
   createdAt DateTime @default(now())
 }
+
+// How long things take on people's phones (numbers only: the kind of step,
+// the screen's shape with ids removed, and milliseconds). Kept 14 days.
+model SpeedLog {
+  id    String   @id @default(cuid())
+  at    DateTime @default(now())
+  kind  String // "nav" (tap → next screen) | "submit" (form → next screen) | "search" | "load" (opening the app)
+  route String // "/groups/:id/invite"
+  ms    Int
+  @@index([at])
+}
