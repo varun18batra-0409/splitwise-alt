@@ -66,3 +66,18 @@ describe("saving a likely duplicate", () => {
     expect(second.ok).toBe(true);
   });
 });
+
+describe("a quick repeat is not a double tap", () => {
+  it("two separate forms saving the same thing seconds apart make two expenses (the duplicate warning asks first)", async () => {
+    const a = await saveExpense(input({ name: "Milk", amount: "60" }), you, rate, { ignoreDoubleTap: true, requestKey: `k1-${Date.now()}` });
+    const b = await saveExpense(input({ name: "Milk", amount: "60", allowDuplicate: true }), you, rate, { ignoreDoubleTap: true, requestKey: `k2-${Date.now()}`, checkDuplicate: true });
+    expect(a.ok && b.ok).toBe(true);
+    expect(a.ok && b.ok && a.id !== b.id).toBe(true);
+  });
+  it("the same form sent twice is still saved once", async () => {
+    const key = `k3-${Date.now()}`;
+    const a = await saveExpense(input({ name: "Bread", amount: "45" }), you, rate, { ignoreDoubleTap: true, requestKey: key });
+    const b = await saveExpense(input({ name: "Bread", amount: "45" }), you, rate, { ignoreDoubleTap: true, requestKey: key });
+    expect(a.ok && b.ok && a.id === b.id).toBe(true);
+  });
+});
