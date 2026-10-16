@@ -47,7 +47,7 @@ export function smartSettle(net: Record<string, number>): Transfer[] {
 // How many separate "X owes Y" debts there would be without Smart Settle:
 // every expense makes each sharer owe the payer, netted per pair of people.
 export function pairwiseDebtCount(
-  expenses: { paidById: string; amount: number; payers?: string | null; kind?: string | null; shares: { memberId: string; amount: number }[] }[],
+  expenses: { paidById: string; amount?: number; payers?: string | null; kind?: string | null; shares: { memberId: string; amount: number }[] }[],
   payments: { fromId: string; toId: string; amount: number }[] = [],
 ): number {
   const pair = new Map<string, number>(); // key "a|b" with a < b; positive = a owes b
@@ -61,7 +61,8 @@ export function pairwiseDebtCount(
     // Each debit is owed to the credits in proportion (one payer: all to them).
     const { credits, debits } = moneyLines(e);
     for (const d of debits) {
-      for (const part of allocateByWeights(d.amount, credits.map((c) => ({ memberId: c.memberId, weight: c.amount })))) add(d.memberId, part.memberId, part.amount);
+      if (credits.length === 1) add(d.memberId, credits[0].memberId, d.amount);
+      else for (const part of allocateByWeights(d.amount, credits.map((c) => ({ memberId: c.memberId, weight: c.amount })))) add(d.memberId, part.memberId, part.amount);
     }
   }
   for (const p of payments) add(p.toId, p.fromId, p.amount); // a payment reduces what `from` owes `to`

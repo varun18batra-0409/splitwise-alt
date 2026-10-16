@@ -193,7 +193,8 @@ export function filterActivity(items: ActivityItem[], f: ActivityFilter, nameOf:
     }
     const cat = getCategory(item.category);
     if (f.cat && cat.id !== f.cat) return false;
-    if (f.who && !item.payerIds.includes(f.who) && !item.people.includes(f.who)) return false;
-    return matches(`${item.title} ${item.notes ?? ""} ${cat.label} ${item.payerIds.map(nameOf).join(" ")} ${item.people.map(nameOf).join(" ")}`);
+    const paidBy = item.payerIds ?? [item.paidById];
+    if (f.who && !paidBy.includes(f.who) && !item.people.includes(f.who)) return false;
+    return matches(`${item.title} ${item.notes ?? ""} ${cat.label} ${paidBy.map(nameOf).join(" ")} ${item.people.map(nameOf).join(" ")}`);
   });
 }

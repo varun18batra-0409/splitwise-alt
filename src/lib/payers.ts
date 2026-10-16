@@ -8,7 +8,7 @@ import { allocateByWeights } from "./split";
 // payer — and money back (refunds), where the signs flip — is right everywhere.
 
 export type Payer = { memberId: string; amount: number };
-type PaidLike = { paidById: string; amount: number; payers?: string | null };
+type PaidLike = { paidById: string; amount?: number; payers?: string | null };
 type LinesLike = PaidLike & { kind?: string | null; shares: { memberId: string; amount: number }[] };
 
 export function parsePayers(json?: string | null): Payer[] {
@@ -32,7 +32,7 @@ export function payersJson(payers: Payer[]): string {
 
 export function payersOf(e: PaidLike): Payer[] {
   const list = parsePayers(e.payers);
-  return list.length ? list : [{ memberId: e.paidById, amount: e.amount }];
+  return list.length ? list : [{ memberId: e.paidById, amount: e.amount ?? 0 }];
 }
 
 export function payerIds(e: PaidLike): string[] {
