@@ -618,5 +618,3 @@ async function isDoubleTap(groupId: string, fromId: string, toId: string, amount
   return Boolean(recent);
 }
 
-// Number of unread alerts, for the badge on the bottom bar.
-}
