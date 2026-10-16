@@ -71,8 +71,6 @@ jobs:
           npx tsx scripts/load.ts 2>&1 | tee load.log || true
           echo "::notice title=Load test::$(grep -E '^\|' screenshots/uat/load.md | tail -n +3 | tr '\n' ' ' | cut -c1-900)"
           echo "::notice title=Load test saves::$(grep -E 'expenses from|zero' screenshots/uat/load.md | tr '\n' ' ')"
-      - name: Photo candidates (previews to choose from)
-        run: node scripts/photo-candidates.mjs || true
       - name: Save to the screenshots branch
         run: |
           cd screenshots

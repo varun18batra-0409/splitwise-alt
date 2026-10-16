@@ -128,17 +128,20 @@ export default function HowItWorks() {
       </Section>
 
       <div id="abroad" className="scroll-mt-4" />
-      <Section slot="market" title="Abroad? Zero mental maths.">
+      <Section slot="market" title="Trip mode on. Maths mode off.">
         <p>
-          Paid in yen, euros or baht? Pick the currency and Loopin turns it into your money at today’s rate. Paid by card? Your bank’s
-          foreign fee goes in too, so the person who paid isn’t quietly out of pocket.
+          Ramen in Shibuya, paid on your card in yen? Loopin converts it at today’s rate, adds the fee your bank quietly charges, and
+          splits it. Nobody does maths at the table, and the person who paid isn’t secretly out of pocket.
         </p>
-        <Example>
-          Ramen in Tokyo · ¥6,000 on card
-          <br />
-          ₹3,390 + ₹102 card fee = <strong>₹3,492</strong>, split four ways: <strong>₹873 each</strong>
-        </Example>
-        <p>Cash? No fee. Got a better rate? Type your own. Balances show in your money and the local one.</p>
+        <div className="rounded-2xl border border-line bg-mist px-4 py-3 text-sm text-fg">
+          <p className="mb-2 font-medium">🍜 Ramen in Shibuya · paid by card</p>
+          <dl className="space-y-1 tabular-nums">
+            <div className="flex justify-between"><dt className="text-gray-500">¥6,000 at today’s rate</dt><dd>₹3,390</dd></div>
+            <div className="flex justify-between"><dt className="text-gray-500">Your bank’s 3% card fee</dt><dd>+ ₹102</dd></div>
+            <div className="flex justify-between border-t border-line pt-1 font-semibold"><dt>Split four ways</dt><dd>₹873 each</dd></div>
+          </dl>
+        </div>
+        <p>150+ currencies. Cash? No fee added. Better rate from the exchange booth? Type it in.</p>
       </Section>
 
       <Section slot="train" kicker="Getting around" title="Trains, cabs and tickets">
