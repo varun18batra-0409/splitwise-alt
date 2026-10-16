@@ -1495,6 +1495,60 @@ async function main() {
     return `${pages.length} screens checked`;
   });
 
+  // ===== 10. More of everyday use =====
+  await step(V, "Edit", "Rename an expense (Taxi → Airport taxi): the history says exactly what changed", async () => {
+    const href = await editPath(V, "Taxi");
+    await go(V, href);
+    await V.locator("#expense-name").fill("Airport taxi");
+    await V.getByRole("button", { name: "Save changes" }).click();
+    await V.waitForURL(/tab=activity/);
+    const ev = await db.groupEvent.findFirst({ where: { groupId: g.split("/").pop()!, kind: "expense_edited" }, orderBy: { createdAt: "desc" } });
+    assert(ev && /Name: Taxi → Airport taxi/.test(ev.details ?? ""), `history says: ${ev?.text} ${ev?.details}`);
+    await go(V, `${g}?tab=activity&q=${encodeURIComponent("Airport taxi")}`);
+    await V.locator("details summary").filter({ hasText: "Airport taxi" }).first().waitFor();
+  });
+  await step(V, "Flat", "Skip a bill this time: next month's Rent is marked skipped and won't be added", async () => {
+    const rent = await db.bill.findFirst({ where: { groupId: homeId(), name: "Rent", deletedAt: null } });
+    assert(rent, "no Rent bill");
+    await go(V, `${gh}/bills/${rent.id}`);
+    await V.getByRole("button", { name: "Skip this time" }).click();
+    await V.waitForURL(/saved=1/);
+    const skipped = await db.billRun.findMany({ where: { billId: rent.id, status: "skipped" } });
+    assert(skipped.length === 1, `skipped runs: ${skipped.map((r) => r.period).join(", ")}`);
+  });
+  await step(V, "Flat", "A ₹1,000 Groceries budget with ₹1,240 spent shows “₹240 over”", async () => {
+    await go(V, `${gh}/budgets`);
+    await V.getByLabel("Groceries budget").fill("1000");
+    await V.getByRole("button", { name: "Save budgets" }).click();
+    await V.waitForURL(new RegExp(`${gh}$`));
+    await V.getByText(/₹240(\.00)? over/).first().waitFor();
+  });
+  await step(V, "Flat", "Note when someone moved in (Zoe, on the 10th): it's recorded on People and in the history", async () => {
+    await go(V, `${gh}/people`);
+    const zoe = await db.member.findFirst({ where: { groupId: homeId(), name: { startsWith: "Zoe" } } });
+    assert(zoe, "Zoe isn't in the flat");
+    await V.locator("details summary").filter({ hasText: zoe.name }).first().click();
+    const day = `${new Date().toISOString().slice(0, 8)}10`;
+    await V.locator(`#in-${zoe.id}`).fill(day);
+    await V.locator(`#in-${zoe.id}`).locator("xpath=..").getByRole("button", { name: "Save" }).click();
+    await V.waitForURL(/\/people$/);
+    const after = await db.member.findUnique({ where: { id: zoe.id } });
+    assert(after?.joinedFrom?.toISOString().slice(0, 10) === day, `moved-in date is ${after?.joinedFrom?.toISOString()}`);
+  });
+  await step(V, "Couples", "Change the goal (target ₹80,000), then remove it", async () => {
+    const goal = await db.goal.findFirst({ where: { groupId: gc.split("/").pop()!, deletedAt: null }, orderBy: { createdAt: "desc" } });
+    assert(goal, "no goal");
+    await go(V, `${gc}/goals/${goal.id}`);
+    await V.getByText("Change or remove this goal").click();
+    await V.getByLabel("Target").fill("80000");
+    await V.getByRole("button", { name: "Save changes" }).click();
+    await V.getByText(/of ₹80,000/).first().waitFor();
+    await V.getByText("Change or remove this goal").click();
+    await V.getByRole("button", { name: "Remove goal" }).click();
+    await V.waitForURL(new RegExp(`${gc}$`));
+    assert((await db.goal.findUnique({ where: { id: goal.id } }))?.deletedAt, "goal not removed");
+  });
+
   await browser.close();
 
   // ---------- report ----------

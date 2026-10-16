@@ -87,7 +87,16 @@ await shot("23-add-expense-differently", `${g}/add`, async (p) => {
   await p.waitForTimeout(300);
 });
 await shot("28-settle", "/settle");
-await shot("35-how-it-works", "/how-it-works", async (p) => { await p.waitForTimeout(3000); });
+await shot("35-how-it-works", "/how-it-works", async (p) => {
+  // Scroll through once so every photo and app screen has loaded, as it would for a reader.
+  const h = await p.evaluate(() => document.body.scrollHeight);
+  for (let y = 0; y < h; y += 500) {
+    await p.evaluate((top) => window.scrollTo(0, top), y);
+    await p.waitForTimeout(120);
+  }
+  await p.evaluate(() => window.scrollTo(0, 0));
+  await p.waitForTimeout(1500);
+});
 await shot("36-guide-flatmates", "/how-it-works#home", async (p) => {
   await p.locator("#home").scrollIntoViewIfNeeded();
   await p.waitForTimeout(2500);

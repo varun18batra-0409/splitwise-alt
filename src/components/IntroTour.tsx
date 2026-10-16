@@ -68,7 +68,7 @@ function Cheers() {
         <Mug flip />
       </div>
       <div className="mt-6 flex gap-2">
-        {["✈️ Trip", "🏠 Flat", "🍕 Dinner"].map((t, i) => (
+        {["✈️ Trip", "🏠 Flat", "💞 Couple"].map((t, i) => (
           <span key={t} className={`rise rise-${i + 2} rounded-full border border-line bg-canvas px-3 py-1 text-xs text-gray-600`}>
             {t}
           </span>

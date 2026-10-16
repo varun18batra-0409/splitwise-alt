@@ -176,6 +176,10 @@ export default function HowItWorks() {
         <p>
           Not sure about a number? Tap <strong>Why?</strong> under any balance. You’ll see every expense and payment behind it, including card fees, and it always adds up exactly.
         </p>
+        <p className="mt-4">
+          Looking for something? <strong>Search</strong> finds any expense across your groups, or one month’s spending. <strong>Charts</strong> show where the money went, and{" "}
+          <strong>Download</strong> (in a group’s settings) gives you every expense as a spreadsheet.
+        </p>
       </Section>
 
       <div id="settle" className="scroll-mt-4" />
