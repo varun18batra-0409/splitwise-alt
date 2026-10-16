@@ -110,6 +110,17 @@ export default async function GroupPage({
     ? { total: depositShares.reduce((s, d) => s + d.amount, 0), mine: depositShares.find((d) => d.memberId === myId)?.amount ?? 0 }
     : null;
 
+  // Savings goals (kept count of only).
+  const goals =
+    home && tab === "month"
+      ? (await db.goal.findMany({ where: { groupId: group.id, deletedAt: null }, include: { entries: { select: { amount: true } } }, orderBy: { createdAt: "asc" } })).map((g) => ({
+          id: g.id,
+          name: g.name,
+          target: g.target,
+          saved: g.entries.reduce((s, e) => s + e.amount, 0),
+        }))
+      : [];
+
   // The shopping list: what's open now, and the usual things for quick adding.
   const list =
     home && tab === "list"
@@ -169,7 +180,7 @@ export default async function GroupPage({
           ‹ This month
         </Link>
       )}
-      {tab === "month" && <ThisMonthTab v={v} extras={{ upcoming: comingUp, budgets, deposit }} />}
+      {tab === "month" && <ThisMonthTab v={v} extras={{ upcoming: comingUp, budgets, deposit, goals }} />}
       {tab === "bills" && <BillsTab v={v} bills={bills} saved={sp.saved === "bill"} />}
       {tab === "list" && list && (
         <ListTab v={v} items={list.items} usual={list.usual} notice={sp.bought ? "Added as an expense. Everyone has been told." : sp.told ? "Told everyone you’re going shopping." : undefined} />

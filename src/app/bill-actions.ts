@@ -1,7 +1,6 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { getMyMemberId } from "@/lib/identity";
 import { billCommand, saveBillFor, saveSettleRulesFor, toggleMissedDayFor } from "@/lib/home/bill-setup";
 import { addListItem, buyListItems, goingShopping, removeListItem, toggleListItem } from "@/lib/home/list-db";
 import { cleanKey } from "@/lib/once";
@@ -10,6 +9,11 @@ import { moveOut, returnDepositFor, saveDepositFor } from "@/lib/home/moving-db"
 import { db } from "@/lib/db";
 import { logEvent } from "@/lib/events";
 import { niceDate } from "@/lib/format";
+import { addGoalEntryFor, deleteGoalFor, saveGoalFor } from "@/lib/home/goals-db";
+import { getAccount, getMyMemberId, setMyMemberId } from "@/lib/identity";
+import { createGroupFor } from "@/lib/group-setup";
+import { addRegistered } from "@/lib/invites";
+import { headers } from "next/headers";
 
 // Home & Couple groups: bills (set up, change, skip / pause / stop, the daily
 // calendar), settle-up rules, and the shopping list.
@@ -161,4 +165,59 @@ export async function returnDeposit(formData: FormData) {
   const r = await returnDepositFor(groupId, await me(groupId), String(formData.get("deductions") ?? ""));
   if (!r.ok) redirect(`/groups/${groupId}/deposit?error=${encodeURIComponent(r.error)}`);
   redirect(`/groups/${groupId}/deposit?returned=1`);
+}
+
+// ---------- Savings goals ----------
+
+export async function saveGoal(formData: FormData) {
+  const groupId = String(formData.get("groupId") ?? "");
+  const goalId = String(formData.get("goalId") ?? "") || undefined;
+  const r = await saveGoalFor(groupId, await me(groupId), {
+    goalId,
+    name: String(formData.get("name") ?? ""),
+    target: String(formData.get("target") ?? ""),
+    byDate: String(formData.get("byDate") ?? ""),
+  });
+  if (!r.ok) redirect(`/groups/${groupId}/goals/${goalId ?? "new"}?error=${encodeURIComponent(r.error)}`);
+  redirect(`/groups/${groupId}/goals/${r.id}`);
+}
+
+export async function addGoalEntry(formData: FormData) {
+  const groupId = String(formData.get("groupId") ?? "");
+  const goalId = String(formData.get("goalId") ?? "");
+  const r = await addGoalEntryFor(
+    groupId,
+    await me(groupId),
+    goalId,
+    String(formData.get("amount") ?? ""),
+    cleanKey(formData.get("rid")) ?? `goal-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+  );
+  redirect(`/groups/${groupId}/goals/${goalId}${r.ok ? "?added=1" : `?error=${encodeURIComponent(r.error)}`}`);
+}
+
+export async function deleteGoal(formData: FormData) {
+  const groupId = String(formData.get("groupId") ?? "");
+  await deleteGoalFor(groupId, await me(groupId), String(formData.get("goalId") ?? ""));
+  redirect(`/groups/${groupId}`);
+}
+
+// Goal reached: start a trip group with the same people (signed in only).
+export async function tripFromGoal(formData: FormData) {
+  const groupId = String(formData.get("groupId") ?? "");
+  const actor = await me(groupId);
+  const account = await getAccount();
+  const goal = await db.goal.findFirst({ where: { id: String(formData.get("goalId") ?? ""), groupId }, include: { group: { include: { members: true } } } });
+  if (!goal || !account) redirect(`/groups/${groupId}`);
+  const meMember = goal.group.members.find((m) => m.id === actor)!;
+  const trip = await createGroupFor(account, { type: "trip", name: goal.name, yourName: meMember.name, currency: goal.group.currency });
+  await setMyMemberId(trip.id, trip.members[0].id);
+  const { origin } = await originOf();
+  for (const m of goal.group.members) if (!m.leftAt && m.accountId && m.id !== actor) await addRegistered(trip.id, trip.members[0].id, m.accountId, origin);
+  redirect(`/groups/${trip.id}`);
+}
+
+async function originOf() {
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
+  return { origin: `${h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https")}://${host}` };
 }
