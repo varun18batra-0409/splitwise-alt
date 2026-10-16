@@ -1271,11 +1271,12 @@ async function main() {
     await V.getByLabel("Amount set aside").fill("5000");
     await V.getByRole("button", { name: "I set money aside" }).click();
     await V.waitForURL(/added=1/);
-    const t = (await V.locator("main").innerText()).replace(/\s+/g, " ");
-    assert(/₹5,000/.test(t) && /₹95,000(\.00)? to go/.test(t), `goal says: ${t.slice(0, 200)}`);
+    await V.getByText(/₹95,000(\.00)? to go/).waitFor();
+    assert(await V.getByText("You’ve set aside").count(), "no “You’ve set aside” card");
   });
   await step(V, "Flat", "Asha moves out: final payment shown, she's marked moved out, balances still add up to zero", async () => {
     await go(V, `${gh}/people`);
+    await V.locator("details summary").filter({ hasText: "Asha" }).first().click();
     await V.getByRole("link", { name: "Asha is moving out" }).click();
     await V.waitForURL(/\/move/);
     const t = (await V.locator("main").innerText()).replace(/\s+/g, " ");
