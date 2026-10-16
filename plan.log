@@ -1,0 +1,142 @@
+ALTER TABLE "Group" ADD COLUMN "reminders" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Group" ADD COLUMN "settleDay" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "Group" ADD COLUMN "settleMin" INTEGER NOT NULL DEFAULT 0;
+-- AlterTable
+ALTER TABLE "Member" ADD COLUMN "joinedFrom" DATETIME;
+
+-- CreateTable
+CREATE TABLE "Bill" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "groupId" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "category" TEXT NOT NULL DEFAULT 'bills',
+    "icon" TEXT NOT NULL DEFAULT 'other',
+    "nature" TEXT NOT NULL DEFAULT 'fixed',
+    "amount" INTEGER NOT NULL DEFAULT 0,
+    "day" INTEGER NOT NULL DEFAULT 1,
+    "every" INTEGER NOT NULL DEFAULT 1,
+    "payer" TEXT NOT NULL DEFAULT '',
+    "rotation" TEXT NOT NULL DEFAULT '[]',
+    "split" TEXT NOT NULL DEFAULT '{"mode":"group"}',
+    "startMonth" TEXT NOT NULL,
+    "endMonth" TEXT NOT NULL DEFAULT '',
+    "paused" BOOLEAN NOT NULL DEFAULT false,
+    "missed" TEXT NOT NULL DEFAULT '{}',
+    "tz" TEXT NOT NULL DEFAULT 'Asia/Kolkata',
+    "createdById" TEXT NOT NULL DEFAULT '',
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deletedAt" DATETIME,
+    "pausedAt" DATETIME,
+    CONSTRAINT "Bill_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "Group" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "BillRun" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "billId" TEXT NOT NULL,
+    "period" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+    "expenseId" TEXT NOT NULL DEFAULT '',
+    "reason" TEXT NOT NULL DEFAULT '',
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "claimedAt" DATETIME,
+    "requestKey" TEXT NOT NULL DEFAULT '',
+    CONSTRAINT "BillRun_billId_fkey" FOREIGN KEY ("billId") REFERENCES "Bill" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "ListItem" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "groupId" TEXT NOT NULL,
+    "text" TEXT NOT NULL,
+    "addedById" TEXT NOT NULL DEFAULT '',
+    "boughtById" TEXT NOT NULL DEFAULT '',
+    "boughtAt" DATETIME,
+    "expenseId" TEXT NOT NULL DEFAULT '',
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "ListItem_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "Group" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "Budget" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "groupId" TEXT NOT NULL,
+    "category" TEXT NOT NULL,
+    "amount" INTEGER NOT NULL,
+    CONSTRAINT "Budget_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "Group" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "Goal" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "groupId" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "target" INTEGER NOT NULL,
+    "byDate" TEXT NOT NULL DEFAULT '',
+    "createdById" TEXT NOT NULL DEFAULT '',
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "reachedAt" DATETIME,
+    "deletedAt" DATETIME,
+    CONSTRAINT "Goal_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "Group" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "GoalEntry" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "goalId" TEXT NOT NULL,
+    "memberId" TEXT NOT NULL,
+    "amount" INTEGER NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "GoalEntry_goalId_fkey" FOREIGN KEY ("goalId") REFERENCES "Goal" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "Deposit" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "groupId" TEXT NOT NULL,
+    "heldBy" TEXT NOT NULL DEFAULT 'Landlord',
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "Deposit_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "Group" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "DepositShare" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "depositId" TEXT NOT NULL,
+    "memberId" TEXT NOT NULL,
+    "amount" INTEGER NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'held',
+    "toMemberId" TEXT NOT NULL DEFAULT '',
+    "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "DepositShare_depositId_fkey" FOREIGN KEY ("depositId") REFERENCES "Deposit" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "NotifyLog" (
+    "key" TEXT NOT NULL PRIMARY KEY,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateIndex
+CREATE INDEX "Bill_groupId_idx" ON "Bill"("groupId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "BillRun_billId_period_key" ON "BillRun"("billId", "period");
+
+-- CreateIndex
+CREATE INDEX "ListItem_groupId_idx" ON "ListItem"("groupId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Budget_groupId_category_key" ON "Budget"("groupId", "category");
+
+-- CreateIndex
+CREATE INDEX "Goal_groupId_idx" ON "Goal"("groupId");
+
+-- CreateIndex
+CREATE INDEX "GoalEntry_goalId_idx" ON "GoalEntry"("goalId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Deposit_groupId_key" ON "Deposit"("groupId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "DepositShare_depositId_memberId_key" ON "DepositShare"("depositId", "memberId");
