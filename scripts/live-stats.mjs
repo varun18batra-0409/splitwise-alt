@@ -62,5 +62,18 @@ log("");
 log("## Table sizes");
 for (const t of ["Expense", "ExpenseShare", "GroupEvent", "RateLimit", "RequestKey", "NotifyLog", "LoginCode"]) log(`- ${t}: ${await one(`SELECT COUNT(*) FROM "${t}"`)}`);
 
+// Also as notes on the run (readable without opening the log), one per section.
+const esc = (t) => t.replace(/%/g, "%25").replace(/\r/g, "").replace(/\n/g, "%0A");
+let title = "", body = [];
+const emit = () => title && console.log(`::notice title=${title}::${esc(body.join("\n")).slice(0, 3800)}`);
+for (const line of out) {
+  if (line.startsWith("## ")) {
+    emit();
+    title = line.slice(3);
+    body = [];
+  } else if (line) body.push(line);
+}
+emit();
+
 const { writeFileSync } = await import("node:fs");
 writeFileSync("live-stats.md", out.join("\n"));
