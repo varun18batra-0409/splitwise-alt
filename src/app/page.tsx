@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/Link";
 import { GetAppButton } from "@/components/GetApp";
 import { IntroTour } from "@/components/IntroTour";
 import { JoinByLink } from "@/components/JoinByLink";

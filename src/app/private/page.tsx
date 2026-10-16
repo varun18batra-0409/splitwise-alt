@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/Link";
 import { PageHeader, primaryButtonClass } from "@/components/ui";
 
 export const metadata = { title: "Private group · Loopin" };

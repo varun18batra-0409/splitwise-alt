@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/Link";
 import { safePath } from "@/lib/paths";
 import { redirect } from "next/navigation";
 import { requestCode, verifyCode } from "@/app/actions";

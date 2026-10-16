@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/Link";
 import { BackIcon, HomeIcon, iconButtonClass } from "./icons";
 
 // Small shared building blocks so every screen looks the same.

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/Link";
 import photos from "@/generated/photos.json";
 import { PageHeader } from "@/components/ui";
 import { GetAppButton } from "@/components/GetApp";

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/Link";
 import { notFound, redirect } from "next/navigation";
 import { getMemberships, getMyMemberId } from "@/lib/identity";
 import { loadGroup, loadSwitchList } from "@/lib/group-data";

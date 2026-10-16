@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/Link";
 import { niceDate } from "@/lib/format";
 import { setGroupClosed } from "@/app/actions";
 import type { GroupView } from "./view";

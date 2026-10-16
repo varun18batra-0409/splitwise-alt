@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/Link";
 import { pairwiseDebtCount } from "@/lib/settle";
 import { formatMoney, formatPercent } from "@/lib/money";
 import { niceDate } from "@/lib/format";

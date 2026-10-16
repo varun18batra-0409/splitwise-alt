@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/Link";
 import { notFound, redirect } from "next/navigation";
 import { GetAppButton } from "@/components/GetApp";
 import { db } from "@/lib/db";

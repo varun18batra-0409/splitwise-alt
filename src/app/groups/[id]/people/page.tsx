@@ -6,7 +6,7 @@ import { formatMoney } from "@/lib/money";
 import { removePerson, renamePerson, setPersonLeft } from "@/app/actions";
 import { Avatar, ErrorNote, PageHeader, inputClass } from "@/components/ui";
 import { ConfirmButton } from "@/components/ConfirmButton";
-import Link from "next/link";
+import Link from "@/components/Link";
 import { InviteIcon, iconButtonClass } from "@/components/icons";
 import { UndoBar } from "@/components/UndoBar";
 

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/Link";
 import { formatMoney } from "@/lib/money";
 
 // A balance meter: one track per row with zero in the middle.

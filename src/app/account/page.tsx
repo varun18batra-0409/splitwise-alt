@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/Link";
 import { deleteMyAccount, signOutThisPhone } from "@/app/actions";
 import { getAccount, getMemberships } from "@/lib/identity";
 import { loadMyGroups } from "@/lib/group-data";

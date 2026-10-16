@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import Link from "next/link";
+import Link from "@/components/Link";
 import { createGroup } from "@/app/actions";
 import { defaultCurrency } from "@/lib/region";
 import { getAccount } from "@/lib/identity";

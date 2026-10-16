@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/Link";
 import { verifyCode } from "@/app/actions";
 import { PageHeader, primaryButtonClass } from "@/components/ui";
 

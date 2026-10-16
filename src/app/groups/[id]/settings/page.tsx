@@ -6,7 +6,7 @@ import { ConfirmButton } from "@/components/ConfirmButton";
 import { CURRENCIES, currencyInfo, formatMoney, formatPercent, isSupportedCurrency, POPULAR_CURRENCIES } from "@/lib/money";
 import { getRate } from "@/lib/rate-cache";
 import { niceDate } from "@/lib/format";
-import Link from "next/link";
+import Link from "@/components/Link";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { ErrorNote, PageHeader, inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
 

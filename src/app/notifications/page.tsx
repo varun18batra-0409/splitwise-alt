@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/Link";
 import { getMemberships } from "@/lib/identity";
 import { loadNotifications, markNotificationsSeen } from "@/lib/group-data";
 import { byDay } from "@/lib/activity";

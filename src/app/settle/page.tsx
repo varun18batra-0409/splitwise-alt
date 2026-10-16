@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/Link";
 import { getMemberships } from "@/lib/identity";
 import { loadOverview } from "@/lib/overview";
 import { formatMoney } from "@/lib/money";

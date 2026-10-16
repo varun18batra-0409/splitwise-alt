@@ -7,6 +7,7 @@ import { TimeZoneSync } from "@/components/TimeZoneSync";
 import { DoubleTapGuard } from "@/components/DoubleTapGuard";
 import { InstallCapture } from "@/components/GetApp";
 import { AppRefresh } from "@/components/AppRefresh";
+import { NavProgress } from "@/components/NavProgress";
 
 // Fraunces: a sharp, high-contrast serif for headings and big amounts.
 // Body text stays in the phone's own font.
@@ -37,6 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <DoubleTapGuard />
         <InstallCapture />
         <AppRefresh />
+        <NavProgress />
       </body>
     </html>
   );
