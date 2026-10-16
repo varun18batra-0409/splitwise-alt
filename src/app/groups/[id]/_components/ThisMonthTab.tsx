@@ -85,7 +85,7 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
           <>
             <div className="flex items-baseline justify-between">
               <p className="text-sm text-gray-500">{monthName} · your share</p>
-              <p className="text-xs text-gray-500">{left === 1 ? "Last day" : `${left} days left`}</p>
+              <p className="text-xs text-gray-500">{left === 0 ? "Last day" : left === 1 ? "1 day left" : `${left} days left`}</p>
             </div>
             <p className="mt-1 font-display text-[40px] font-semibold leading-none tracking-tight tabular-nums">{money(s.mine)}</p>
             <p className="mt-1.5 text-sm text-gray-500">of {money(s.total)} for the {group.type === "home" ? "home" : "group"} so far</p>

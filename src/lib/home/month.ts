@@ -31,10 +31,10 @@ export function dueDate(key: string, day: number | "last"): Date {
   return new Date(`${dueKey(key, day)}T12:00:00.000Z`);
 }
 
-// Days left in this month, counting today.
+// Days left in this month after today (0 on the last day).
 export function daysLeft(now: Date, tz: string = DEFAULT_TIME_ZONE): number {
   const today = dayKey(now, tz);
-  return daysInMonth(today.slice(0, 7)) - Number(today.slice(8, 10)) + 1;
+  return daysInMonth(today.slice(0, 7)) - Number(today.slice(8, 10));
 }
 
 // Rent for part of a month (rounded down; the caller hands the rest to others).
