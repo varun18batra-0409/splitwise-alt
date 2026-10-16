@@ -1,0 +1,29 @@
+# Applies the schema sync to the online database by hand (the same step every
+# production deploy runs first), and saves the output to the "schema-plan"
+# branch. Only adds; refuses anything that would drop or rebuild a table.
+name: Schema apply
+on:
+  workflow_dispatch:
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Apply
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+        run: |
+          { node scripts/turso-sync.mjs; echo "exit: $?"; node scripts/turso-sync.mjs --plan; } > plan.log 2>&1 || true
+      - name: Save the output to the "schema-plan" branch
+        run: |
+          mkdir /tmp/r && cp plan.log /tmp/r/ && cd /tmp/r
+          git init -q -b schema-plan && git add plan.log
+          git -c user.name=ci -c user.email=ci@loopin.invalid commit -qm "Schema apply for ${GITHUB_SHA::7}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" schema-plan
