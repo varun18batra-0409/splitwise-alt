@@ -2,15 +2,13 @@ import Link from "@/components/Link";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
-import { toInputAmount } from "@/lib/money";
 import { dayKey } from "@/lib/dates";
 import { getTimeZone } from "@/lib/tz";
-import { allocateByWeights, sharesBack, type ForMode, type SplitType } from "@/lib/split";
 import { splitNameFor } from "@/lib/group-types";
-import { parsePayers, scalePayers } from "@/lib/payers";
-import type { PaymentMethod } from "@/lib/conversion";
+import { parsePayers } from "@/lib/payers";
+import { initialFromExpense } from "@/lib/expense-initial";
 import { deleteExpense } from "@/app/actions";
-import { AddExpenseForm, type ExpenseInitial } from "@/components/AddExpenseForm";
+import { AddExpenseForm } from "@/components/AddExpenseForm";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { PageHeader } from "@/components/ui";
 
@@ -50,44 +48,9 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
     );
   }
 
-  // Rebuild what was typed, from what was saved.
-  const shares = e.shares.filter((s) => s.amount > 0);
-  const weights = shares.map((s) => ({ memberId: s.memberId, weight: s.amount }));
-  const exact = Object.fromEntries(
-    allocateByWeights(e.originalAmount, weights).map((s) => [s.memberId, toInputAmount(s.amount, e.originalCurrency)]),
-  );
-  const percent = Object.fromEntries(allocateByWeights(10000, weights).map((s) => [s.memberId, String(s.amount / 100)]));
   const groupWeights = Object.fromEntries(group.members.map((m) => [m.id, m.splitWeight]));
-  const sharesText = e.splitType === "shares" ? sharesBack(e.amount, shares, groupWeights) : null;
   const savedPayers = parsePayers(e.payers);
-  const foreignCard = e.originalCurrency !== e.baseCurrency && e.paymentMethod === "card";
-
-  const initial: ExpenseInitial = {
-    name: e.description,
-    amount: toInputAmount(e.originalAmount, e.originalCurrency),
-    currency: e.originalCurrency,
-    category: e.category,
-    paidById: e.paidById,
-    forMode: (["everyone", "selected", "one"].includes(e.forMode) ? e.forMode : "everyone") as ForMode,
-    selected: shares.map((s) => s.memberId),
-    onePersonId: shares.length === 1 ? shares[0].memberId : "",
-    // Shares that can't be rebuilt exactly are edited as amounts instead.
-    splitType: (e.splitType === "shares" ? (sharesText ? "shares" : "exact") : ["equal", "exact", "percent"].includes(e.splitType) ? e.splitType : "equal") as SplitType,
-    exact,
-    percent,
-    shares: sharesText ?? undefined,
-    kind: e.kind === "refund" ? "refund" : "expense",
-    multiPay: savedPayers.length > 1,
-    payers: Object.fromEntries(scalePayers(savedPayers, e.originalAmount).map((p) => [p.memberId, toInputAmount(p.amount, e.originalCurrency)])),
-    paymentMethod: (["card", "cash", "bank"].includes(e.paymentMethod) ? e.paymentMethod : "card") as PaymentMethod,
-    markupChoice: !foreignCard || e.markupBp === group.cardMarkupBp ? "group" : e.markupBp === 0 ? "none" : "custom",
-    markupCustom: foreignCard && e.markupBp !== group.cardMarkupBp ? String(e.markupBp / 100) : "",
-    rate: e.exchangeRate,
-    rateDate: e.rateDate,
-    date: dayKey(e.spentAt ?? e.createdAt, tz),
-    notes: e.notes,
-    version: (e.editedAt ?? e.createdAt).toISOString(),
-  };
+  const initial = initialFromExpense(e, { groupMarkupBp: group.cardMarkupBp, groupWeights, tz, today: dayKey(new Date(), tz) }, "edit");
 
   return (
     <>

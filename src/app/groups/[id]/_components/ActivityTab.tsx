@@ -301,9 +301,14 @@ export function ActivityTab({ v, filter = {}, shown = PAGE }: { v: GroupView; fi
                               </button>
                             </form>
                           ) : (
-                            <Link href={`/groups/${group.id}/expenses/${e.id}/edit`} className="text-sm font-medium text-accent">
-                              Edit or delete
-                            </Link>
+                            <span className="flex gap-5">
+                              <Link href={`/groups/${group.id}/expenses/${e.id}/edit`} className="text-sm font-medium text-accent">
+                                Edit or delete
+                              </Link>
+                              <Link href={`/groups/${group.id}/add?from=${e.id}`} className="text-sm font-medium text-accent">
+                                Repeat
+                              </Link>
+                            </span>
                           )}
                         </div>
                       )}

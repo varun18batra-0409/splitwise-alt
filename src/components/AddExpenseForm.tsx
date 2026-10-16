@@ -21,32 +21,8 @@ type RateState =
 
 const labelClass = "mb-2 block text-sm font-medium text-gray-600";
 
-// Values to start from when editing an existing expense.
-export type ExpenseInitial = {
-  name: string;
-  amount: string;
-  currency: string;
-  category: string;
-  paidById: string;
-  forMode: ForMode;
-  selected: string[];
-  onePersonId: string;
-  splitType: SplitType;
-  exact: Record<string, string>;
-  percent: Record<string, string>;
-  shares?: Record<string, string>;
-  kind?: "expense" | "refund";
-  multiPay?: boolean;
-  payers?: Record<string, string>; // each payer's amount, in the expense's currency
-  paymentMethod: PaymentMethod;
-  markupChoice: ExpenseDraft["markupChoice"];
-  markupCustom: string;
-  rate: string; // the rate saved with the expense
-  rateDate: string;
-  date: string; // "2026-10-14"
-  notes: string;
-  version: string; // when it was last changed, to catch someone else's edit
-};
+export type { ExpenseInitial } from "@/lib/expense-initial";
+import type { ExpenseInitial } from "@/lib/expense-initial";
 
 // Fast path (3 taps): + Add expense → type name & amount → Save.
 // Defaults: paid by you, for everyone, split equally, in the last currency used.
@@ -317,6 +293,8 @@ export function AddExpenseForm({
     });
   }
 
+  const [again, setAgain] = useState(false); // "Save & add another" was tapped (for the label)
+  const againRef = useRef(false); // read when saving (state isn't updated yet inside the same tap)
   function save(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -327,7 +305,7 @@ export function AddExpenseForm({
     }
     if (!expenseId) rememberSplit();
     startSaving(async () => {
-      const res = await addExpense({ ...draft, requestKey, groupId, name, notes, baseVersion: initial?.version, category: category.id, expenseId, date, rateMode: usingManualRate ? "manual" : keepSavedRate ? "keep" : "auto", manualRate });
+      const res = await addExpense({ ...draft, again: againRef.current, requestKey, groupId, name, notes, baseVersion: initial?.version, category: category.id, expenseId, date, rateMode: usingManualRate ? "manual" : keepSavedRate ? "keep" : "auto", manualRate });
       if (res?.error) setError(res.error);
     });
   }
@@ -993,9 +971,32 @@ export function AddExpenseForm({
 
       {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
-      <button type="submit" disabled={saving || rateState.status === "loading"} className={primaryButtonClass}>
-        {saving ? "Saving…" : expenseId ? "Save changes" : kind === "refund" ? "Save money back" : "Save expense"}
-      </button>
+      <div className={expenseId ? "" : "flex gap-2.5"}>
+        <button
+          type="submit"
+          onClick={() => {
+            againRef.current = false;
+            setAgain(false);
+          }}
+          disabled={saving || rateState.status === "loading"}
+          className={`${primaryButtonClass} ${expenseId ? "" : "flex-1"}`}
+        >
+          {saving && !again ? "Saving…" : expenseId ? "Save changes" : kind === "refund" ? "Save money back" : "Save expense"}
+        </button>
+        {!expenseId && (
+          <button
+            type="submit"
+            onClick={() => {
+              againRef.current = true;
+              setAgain(true);
+            }}
+            disabled={saving || rateState.status === "loading"}
+            className="flex-1 border border-gray-300 px-3 py-3.5 text-center text-sm font-semibold text-fg active:bg-mist disabled:opacity-50"
+          >
+            {saving && again ? "Saving…" : "Save & add another"}
+          </button>
+        )}
+      </div>
     </form>
   );
 }
