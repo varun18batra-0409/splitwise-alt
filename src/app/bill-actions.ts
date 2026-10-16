@@ -5,6 +5,7 @@ import { getMyMemberId } from "@/lib/identity";
 import { billCommand, saveBillFor, saveSettleRulesFor, toggleMissedDayFor } from "@/lib/home/bill-setup";
 import { addListItem, buyListItems, goingShopping, removeListItem, toggleListItem } from "@/lib/home/list-db";
 import { cleanKey } from "@/lib/once";
+import { saveBudgetsFor } from "@/lib/home/budgets-db";
 
 // Home & Couple groups: bills (set up, change, skip / pause / stop, the daily
 // calendar), settle-up rules, and the shopping list.
@@ -94,4 +95,15 @@ export async function listGoingShopping(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   await goingShopping(groupId, await me(groupId));
   redirect(`/groups/${groupId}?tab=list&told=1`);
+}
+
+// ---------- Budgets ----------
+
+export async function saveBudgets(formData: FormData) {
+  const groupId = String(formData.get("groupId") ?? "");
+  const amounts: Record<string, string> = {};
+  for (const [k, v] of formData.entries()) if (k.startsWith("b_")) amounts[k.slice(2)] = String(v);
+  const r = await saveBudgetsFor(groupId, await me(groupId), amounts);
+  if (!r.ok) redirect(`/groups/${groupId}/budgets?error=${encodeURIComponent(r.error)}`);
+  redirect(`/groups/${groupId}`);
 }

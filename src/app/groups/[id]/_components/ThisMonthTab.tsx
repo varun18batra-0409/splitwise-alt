@@ -194,11 +194,16 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
                 </div>
                 <div className="mt-2 h-2 overflow-hidden rounded-full bg-mist">
                   <div
-                    className={`h-full rounded-full ${b.level === "over" ? "bg-meter-down" : "bg-meter-up"}`}
+                    className={`h-full rounded-full ${b.level === "over" ? "bg-meter-down" : b.level === "near" ? "bg-[#d9a441]" : "bg-meter-up"}`}
                     style={{ width: `${Math.min(100, Math.round((Math.max(0, b.spent) * 100) / Math.max(1, b.amount)))}%` }}
                   />
                 </div>
-                {b.level === "over" && <p className="mt-1.5 text-xs text-owe">{money(b.spent - b.amount)} over</p>}
+                {b.level === "over" && (
+                  <p className="mt-1.5 text-xs text-owe">
+                    {money(b.spent - b.amount)} over{left > 0 ? `, with ${left} ${left === 1 ? "day" : "days"} to go` : ""}
+                  </p>
+                )}
+                {b.level === "near" && <p className="mt-1.5 text-xs text-gray-500">{money(b.amount - b.spent)} left for the month</p>}
               </li>
             ))}
           </ul>

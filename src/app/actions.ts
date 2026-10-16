@@ -22,6 +22,8 @@ import { addRegistered, copyPushTo, freeName, inviteByEmail, searchPeople } from
 import { formatMoney } from "@/lib/money";
 import { createGroupFor, updateSharing } from "@/lib/group-setup";
 import { markRunAdded } from "@/lib/home/bills-db";
+import { checkBudgets } from "@/lib/home/budgets-db";
+import { after } from "next/server";
 
 
 export async function createGroup(formData: FormData) {
@@ -168,6 +170,8 @@ export async function addExpense(
     checkDuplicate: !input.billRun,
   });
   if (!result.ok) return { error: result.error, duplicateOf: result.duplicateOf };
+  // Budgets: a nudge at 80% and when one goes over (after the reply is sent).
+  after(() => checkBudgets(input.groupId).catch(() => []));
   // "Enter amount" for a waiting bill: that month is now added.
   if (input.billRun && !input.expenseId && (await db.bill.findFirst({ where: { id: String(input.billRun.billId), groupId: input.groupId } }))) {
     await markRunAdded(String(input.billRun.billId), String(input.billRun.period), result.id);

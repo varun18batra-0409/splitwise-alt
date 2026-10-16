@@ -16,6 +16,7 @@ import { ThisMonthTab } from "./_components/ThisMonthTab";
 import { BillsTab } from "./_components/BillsTab";
 import { ListTab } from "./_components/ListTab";
 import { usualItems } from "@/lib/home/list";
+import { budgetsNow } from "@/lib/home/budgets-db";
 import { billStatuses } from "@/lib/home/bills-db";
 import { niceDate } from "@/lib/format";
 
@@ -101,6 +102,8 @@ export default async function GroupPage({
       href: b.status === "waiting" ? `/groups/${group.id}/add?bill=${b.bill.id}&period=${b.period}` : undefined,
     }));
 
+  const budgets = home && tab === "month" ? await budgetsNow(group.id, group.expenses.filter((e) => !e.deletedAt), myId, v.tz) : [];
+
   // The shopping list: what's open now, and the usual things for quick adding.
   const list =
     home && tab === "list"
@@ -160,7 +163,7 @@ export default async function GroupPage({
           ‹ This month
         </Link>
       )}
-      {tab === "month" && <ThisMonthTab v={v} extras={{ upcoming: comingUp }} />}
+      {tab === "month" && <ThisMonthTab v={v} extras={{ upcoming: comingUp, budgets }} />}
       {tab === "bills" && <BillsTab v={v} bills={bills} saved={sp.saved === "bill"} />}
       {tab === "list" && list && (
         <ListTab v={v} items={list.items} usual={list.usual} notice={sp.bought ? "Added as an expense. Everyone has been told." : sp.told ? "Told everyone you’re going shopping." : undefined} />

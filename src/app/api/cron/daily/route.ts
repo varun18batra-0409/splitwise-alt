@@ -1,6 +1,8 @@
 import { headers } from "next/headers";
 import { runAllBills } from "@/lib/home/bills-db";
 import { sendReminders } from "@/lib/home/reminders-db";
+import { checkBudgets } from "@/lib/home/budgets-db";
+import { db } from "@/lib/db";
 import { allow, clientIp } from "@/lib/rate-limit";
 
 // The daily job (Vercel Cron, 06:00 India time): adds the bills that are due.
@@ -21,5 +23,9 @@ export async function GET(req: Request) {
   const now = new Date();
   const bills = await runAllBills(now);
   const reminders = await sendReminders(now);
-  return Response.json({ ok: true, bills, reminders });
+  // Budgets reached by bills added just now.
+  const budgetGroups = await db.budget.findMany({ select: { groupId: true }, distinct: ["groupId"] });
+  let budgetAlerts = 0;
+  for (const b of budgetGroups) budgetAlerts += (await checkBudgets(b.groupId, now)).length;
+  return Response.json({ ok: true, bills, reminders, budgetAlerts });
 }
