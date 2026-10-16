@@ -7,7 +7,9 @@
   ],
   "git": {
     "deploymentEnabled": {
-      "screenshots": false
+      "screenshots": false,
+      "screenshots-*": false,
+      "schema-plan": false
     }
   },
   "crons": [

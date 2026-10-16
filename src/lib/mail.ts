@@ -40,6 +40,7 @@ export async function sendMail(to: string, subject: string, text: string, html: 
   const { allow } = await import("./rate-limit");
   if (!(await allow("mail:all", Number(process.env.MAIL_DAILY_CAP ?? 400), 86_400))) {
     console.error("sendMail: daily email cap reached");
+    await noteFailure("cap");
     return false;
   }
   if (!(await allow(`mail:to:${to.toLowerCase()}`, 10, 86_400))) return false; // one address can't be flooded
@@ -55,5 +56,17 @@ export async function sendMail(to: string, subject: string, text: string, html: 
       if (attempt === 1) console.error("sendMail failed", err);
     }
   }
+  await noteFailure("send");
   return false;
+}
+
+// A failed email is counted (when and why, never to whom), so the live stats
+// can show whether sign-in codes and invites are getting out.
+async function noteFailure(why: "send" | "cap") {
+  try {
+    const { db } = await import("./db");
+    await db.notifyLog.create({ data: { key: `mail-failed:${why}:${new Date().toISOString()}:${Math.random().toString(36).slice(2, 8)}` } });
+  } catch {
+    // counting must never get in the way
+  }
 }
