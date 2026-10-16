@@ -38,16 +38,48 @@ try {
   }
   local.close();
 
-  const sql = execFileSync(
-    "npx",
-    ["prisma", "migrate", "diff", "--from-url", `file:${snapshot}`, "--to-schema-datamodel", "prisma/schema.prisma", "--script"],
-    { encoding: "utf8" },
-  ).trim();
+  const diff = () =>
+    execFileSync(
+      "npx",
+      ["prisma", "migrate", "diff", "--from-url", `file:${snapshot}`, "--to-schema-datamodel", "prisma/schema.prisma", "--script"],
+      { encoding: "utf8" },
+    ).trim();
+  const isEmpty = (x) => !x || /^-- This is an empty migration\.?$/.test(x);
+  let sql = diff();
+
+  // Prisma rebuilds a SQLite table even when the only change is new columns.
+  // When that's all it is, add the columns in place instead (no copy, no drop)
+  // — and prove it by applying them to the local copy and checking that
+  // nothing is left to change.
+  if (/RedefineTables/.test(sql)) {
+    const adds = [];
+    const check = createClient({ url: `file:${snapshot}` });
+    for (const m of sql.matchAll(/CREATE TABLE "new_(\w+)" \(\n([\s\S]*?)\n\);/g)) {
+      const [, table, body] = m;
+      const old = new Set((await check.execute(`PRAGMA table_info("${table}")`)).rows.map((r) => String(r.name)));
+      for (const raw of body.split("\n")) {
+        const line = raw.trim().replace(/,$/, "");
+        const col = /^"(\w+)"\s/.exec(line)?.[1];
+        if (!col || old.has(col)) continue;
+        // SQLite can add a column in place if it may be empty or has a default.
+        if (/NOT NULL/.test(line) && !/DEFAULT/.test(line)) continue;
+        adds.push(`ALTER TABLE "${table}" ADD COLUMN ${line};`);
+      }
+    }
+    if (adds.length) {
+      for (const a of adds) await check.execute(a);
+      check.close();
+      const left = diff();
+      if (isEmpty(left)) sql = adds.join("\n");
+    } else {
+      check.close();
+    }
+  }
 
   if (process.argv.includes("--plan")) {
     // Just show what would change (used to check a deploy before it runs).
     console.log(sql || "(nothing to change)");
-  } else if (!sql || /^-- This is an empty migration\.?$/.test(sql)) {
+  } else if (isEmpty(sql)) {
     console.log("turso-sync: online database already matches the schema.");
   } else if (/\bDROP\b|RedefineTables|new_/i.test(sql) && process.env.ALLOW_DESTRUCTIVE_MIGRATION !== "1") {
     // Dropping or rebuilding a table can lose saved data. Stop the deploy
