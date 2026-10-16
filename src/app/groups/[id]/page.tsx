@@ -12,13 +12,21 @@ import { GroupSummary } from "./_components/GroupSummary";
 import { ActivityTab } from "./_components/ActivityTab";
 import { BalancesTab } from "./_components/BalancesTab";
 import { ChartsTab } from "./_components/ChartsTab";
+import { ThisMonthTab } from "./_components/ThisMonthTab";
 
 const TABS = [
   { id: "activity", label: "Activity" },
   { id: "balances", label: "Balances" },
   { id: "charts", label: "Charts" },
 ] as const;
-type Tab = (typeof TABS)[number]["id"];
+// Home and Couple groups open on This month, with their bills and shopping list.
+const HOME_TABS = [
+  { id: "month", label: "This month" },
+  { id: "bills", label: "Bills" },
+  { id: "list", label: "List" },
+  { id: "activity", label: "Activity" },
+] as const;
+type Tab = "activity" | "balances" | "charts" | "month" | "bills" | "list";
 
 // A group: header, your balance, and three tabs (Activity · Balances · Charts).
 export default async function GroupPage({
@@ -50,7 +58,6 @@ export default async function GroupPage({
 }) {
   const { id } = await params;
   const sp = await searchParams;
-  const tab: Tab = TABS.some((t) => t.id === sp.tab) ? (sp.tab as Tab) : "activity";
 
   // Check membership with one small query before loading the whole ledger.
   const myId = await getMyMemberId(id);
@@ -65,6 +72,10 @@ export default async function GroupPage({
 
   const v = await buildGroupView(data, myId, await getTimeZone());
   const { group } = v;
+  const home = group.type === "home" || group.type === "couple";
+  const tabs = home ? HOME_TABS : TABS;
+  const allowed: readonly string[] = home ? ["month", "bills", "list", "activity", "balances", "charts"] : ["activity", "balances", "charts"];
+  const tab: Tab = allowed.includes(sp.tab ?? "") ? (sp.tab as Tab) : home ? "month" : "activity";
 
   // Group switcher: up to 5 of my other open groups, most recently active first.
   const switchTo = await loadSwitchList(await getMemberships(), group.id);
@@ -76,10 +87,10 @@ export default async function GroupPage({
   return (
     <>
       <GroupHeader v={v} switchTo={switchTo} />
-      <GroupSummary v={v} sp={sp} />
+      <GroupSummary v={v} sp={sp} compact={home} />
 
-      <nav className="mb-6 grid grid-cols-3 gap-1 rounded-xl bg-mist p-1" aria-label="Group sections">
-        {TABS.map((t) => (
+      <nav className={`mb-6 grid gap-1 rounded-xl bg-mist p-1 ${tabs.length === 4 ? "grid-cols-4" : "grid-cols-3"}`} aria-label="Group sections">
+        {tabs.map((t) => (
           <Link
             key={t.id}
             href={`/groups/${group.id}?tab=${t.id}`}
@@ -110,6 +121,12 @@ export default async function GroupPage({
           shown={Number(sp.n) || undefined}
         />
       )}
+      {home && (tab === "balances" || tab === "charts") && (
+        <Link href={`/groups/${group.id}`} className="-mt-2 mb-5 inline-block text-sm text-gray-500">
+          ‹ This month
+        </Link>
+      )}
+      {tab === "month" && <ThisMonthTab v={v} />}
       {tab === "balances" && <BalancesTab v={v} paid={sp.paid === "1"} why={sp.why} />}
       {tab === "charts" && <ChartsTab v={v} />}
 

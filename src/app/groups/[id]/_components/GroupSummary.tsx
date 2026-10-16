@@ -7,7 +7,7 @@ type Notices = { saved?: string; error?: string; added?: string; skipped?: strin
 
 // The top of a group, kept short: closed banner, your balance, Settle up and
 // Why?, and notices. Details (other currencies, totals, card fee) live in Balances.
-export function GroupSummary({ v, sp }: { v: GroupView; sp: Notices }) {
+export function GroupSummary({ v, sp, compact }: { v: GroupView; sp: Notices; compact?: boolean }) {
   const { group, myId, net, money, eq, expenses } = v;
   const mine = net[myId] ?? 0;
 
@@ -30,6 +30,9 @@ export function GroupSummary({ v, sp }: { v: GroupView; sp: Notices }) {
       )}
 
       <section className="mb-6">
+        {/* Home and Couple groups show the balance on This month instead. */}
+        {!compact && (
+        <>
         <p className="text-sm text-gray-500">Your balance</p>
         <p
           className={`font-display text-[32px] font-semibold leading-tight tracking-tight tabular-nums ${
@@ -51,6 +54,8 @@ export function GroupSummary({ v, sp }: { v: GroupView; sp: Notices }) {
           </div>
         )}
         {mine !== 0 && eq(mine) && <p className="font-display text-lg tabular-nums text-gray-500">{eq(mine)}</p>}
+        </>
+        )}
         {sp.saved === "settings" && <p className="mt-2 text-sm text-accent-dark">Settings saved. Everyone in the group has been notified.</p>}
         {sp.error && <p className="mt-2 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{sp.error}</p>}
         {sp.added !== undefined && (
