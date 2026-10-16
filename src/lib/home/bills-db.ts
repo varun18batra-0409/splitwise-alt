@@ -4,14 +4,15 @@ import { saveExpense, type SaveExpenseInput } from "../save-expense";
 import { sendPushTo } from "../push";
 import { toInputAmount, formatMoney } from "../money";
 import { dailyTotal, payerFor, periodsDue, nextDueDay, ordinalDay } from "./bills";
-import { addMonths, dueKey } from "./month";
+import { addMonths, daysInMonth, dueKey } from "./month";
+import { joinWeights } from "./moving";
 
 // Recurring bills, database side. The daily job calls runAllBills(); each
 // (bill, month) gets one BillRun row — its unique key is what makes adding a
 // bill twice impossible, even if the job runs twice at the same moment.
 
 type BillRow = Awaited<ReturnType<typeof db.bill.findMany>>[number];
-type Member = { id: string; name: string; leftAt: Date | null; splitWeight: number };
+type Member = { id: string; name: string; leftAt: Date | null; splitWeight: number; joinedFrom?: Date | null };
 
 export function parseSplit(json: string): { mode: "group" | "equal" | "some"; ids: string[] } {
   try {
@@ -24,10 +25,22 @@ export function parseSplit(json: string): { mode: "group" | "equal" | "some"; id
 }
 
 // How an automatic expense is shared: the group's own split, equally, or only some.
-export function splitFields(splitJson: string, members: Member[]): Pick<SaveExpenseInput, "forMode" | "selected" | "splitType" | "shares"> {
+export function splitFields(splitJson: string, members: Member[], period?: string): Pick<SaveExpenseInput, "forMode" | "selected" | "splitType" | "shares"> {
   const active = members.filter((m) => !m.leftAt);
   const split = parseSplit(splitJson);
   const some = split.mode === "some" ? active.filter((m) => split.ids.includes(m.id)).map((m) => m.id) : [];
+  // Someone moved in this month: they share only for the days they're there.
+  if (period && split.mode !== "some" && active.some((m) => m.joinedFrom && m.joinedFrom.toISOString().slice(0, 7) >= period)) {
+    const days = daysInMonth(period);
+    const base = (m: Member) => (split.mode === "group" ? m.splitWeight : 100);
+    const w = joinWeights(active.map((m) => ({ id: m.id, splitWeight: base(m), joinedFrom: m.joinedFrom ?? null })), period);
+    return {
+      forMode: "everyone",
+      selected: [],
+      splitType: "shares",
+      shares: Object.fromEntries(active.map((m) => [m.id, String(Math.round(w[m.id] / days) / 100)])),
+    };
+  }
   const groupSplit = split.mode === "group" && active.some((m) => m.splitWeight !== active[0].splitWeight);
   return {
     forMode: some.length ? "selected" : "everyone",
@@ -47,7 +60,7 @@ export function billExpenseInput(bill: BillRow, groupId: string, currency: strin
     amount: toInputAmount(amount, currency),
     currency,
     paidById: payerId,
-    ...splitFields(bill.split, members),
+    ...splitFields(bill.split, members, period),
     onePersonId: "",
     exact: {},
     percent: {},
@@ -117,7 +130,7 @@ async function runOne(bill: BillRow, group: { id: string; currency: string; clos
 export async function runBillsForGroup(groupId: string, now = new Date()) {
   const group = await db.group.findUnique({
     where: { id: groupId },
-    include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true, splitWeight: true } } },
+    include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true, splitWeight: true, joinedFrom: true } } },
   });
   const counts = { added: 0, waiting: 0, skipped: 0 };
   if (!group || group.deletedAt) return counts;

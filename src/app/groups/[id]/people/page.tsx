@@ -1,3 +1,4 @@
+import { setMoveIn } from "@/app/bill-actions";
 import { payerIds } from "@/lib/payers";
 import { notFound, redirect } from "next/navigation";
 import { getMyMemberId } from "@/lib/identity";
@@ -71,6 +72,23 @@ export default async function PeoplePage({
           </summary>
 
           <div className="space-y-4 pb-5 pl-12">
+            {group.type === "home" && !m.leftAt && (
+              <Link href={`/groups/${group.id}/people/${m.id}/move`} className={`${small} inline-block`}>
+                {me ? "I’m moving out" : `${m.name} is moving out`}
+              </Link>
+            )}
+            {group.type === "home" && !m.leftAt && (
+              <form action={setMoveIn} className="flex items-center gap-2 text-sm">
+                {hidden}
+                <label className="text-gray-500" htmlFor={`in-${m.id}`}>
+                  Moved in on
+                </label>
+                <input id={`in-${m.id}`} type="date" name="day" defaultValue={m.joinedFrom ? m.joinedFrom.toISOString().slice(0, 10) : ""} className={`${inputClass} w-auto py-1.5`} />
+                <button type="submit" className={`${small} shrink-0`}>
+                  Save
+                </button>
+              </form>
+            )}
             <form action={renamePerson} className="flex gap-2">
               {hidden}
               <input name="name" defaultValue={m.name} aria-label={`New name for ${m.name}`} maxLength={40} required className={`${inputClass} py-2`} />

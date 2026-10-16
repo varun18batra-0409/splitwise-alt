@@ -104,6 +104,12 @@ export default async function GroupPage({
 
   const budgets = home && tab === "month" ? await budgetsNow(group.id, group.expenses.filter((e) => !e.deletedAt), myId, v.tz) : [];
 
+  // The deposit tile (held shares only).
+  const depositShares = home && tab === "month" ? await db.depositShare.findMany({ where: { deposit: { groupId: group.id }, status: "held" } }) : [];
+  const deposit = depositShares.length
+    ? { total: depositShares.reduce((s, d) => s + d.amount, 0), mine: depositShares.find((d) => d.memberId === myId)?.amount ?? 0 }
+    : null;
+
   // The shopping list: what's open now, and the usual things for quick adding.
   const list =
     home && tab === "list"
@@ -163,7 +169,7 @@ export default async function GroupPage({
           ‹ This month
         </Link>
       )}
-      {tab === "month" && <ThisMonthTab v={v} extras={{ upcoming: comingUp, budgets }} />}
+      {tab === "month" && <ThisMonthTab v={v} extras={{ upcoming: comingUp, budgets, deposit }} />}
       {tab === "bills" && <BillsTab v={v} bills={bills} saved={sp.saved === "bill"} />}
       {tab === "list" && list && (
         <ListTab v={v} items={list.items} usual={list.usual} notice={sp.bought ? "Added as an expense. Everyone has been told." : sp.told ? "Told everyone you’re going shopping." : undefined} />
