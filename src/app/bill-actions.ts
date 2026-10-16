@@ -14,6 +14,7 @@ import { getAccount, getMyMemberId, setMyMemberId } from "@/lib/identity";
 import { createGroupFor } from "@/lib/group-setup";
 import { addRegistered } from "@/lib/invites";
 import { headers } from "next/headers";
+import { after } from "next/server";
 import { claimOnce } from "@/lib/push";
 
 // Home & Couple groups: bills (set up, change, skip / pause / stop, the daily
@@ -216,7 +217,7 @@ export async function tripFromGoal(formData: FormData) {
   const trip = await createGroupFor(account, { type: "trip", name: goal.name, yourName: meMember.name, currency: goal.group.currency });
   await setMyMemberId(trip.id, trip.members[0].id);
   const { origin } = await originOf();
-  for (const m of goal.group.members) if (!m.leftAt && m.accountId && m.id !== actor) await addRegistered(trip.id, trip.members[0].id, m.accountId, origin);
+  for (const m of goal.group.members) if (!m.leftAt && m.accountId && m.id !== actor) await addRegistered(trip.id, trip.members[0].id, m.accountId, origin, { later: (job) => after(job) });
   redirect(`/groups/${trip.id}`);
 }
 

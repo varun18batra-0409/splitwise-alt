@@ -77,7 +77,7 @@ export async function invitePeople(formData: FormData) {
   const { group, me } = await memberContext(String(formData.get("groupId") ?? ""));
   const { origin, ip } = await originAndIp();
   if (!(await allow(`invite:${ip}`, 40, 3600))) redirect(`/groups/${group.id}/invite?error=${encodeURIComponent("Too many invites from here. Wait a bit.")}`);
-  const r = await inviteByEmail(group.id, me.id, String(formData.get("emails") ?? ""), origin);
+  const r = await inviteByEmail(group.id, me.id, String(formData.get("emails") ?? ""), origin, { later: (job) => after(job) });
   const q = new URLSearchParams();
   if (r.added.length) q.set("added", r.added.join(", "));
   if (r.invited.length) q.set("invited", r.invited.join(", "));

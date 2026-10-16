@@ -59,3 +59,23 @@ export async function getRate(from: string, to: string): Promise<RateAnswer> {
   memory.set(key, { at: now, answer: live });
   return live;
 }
+
+// For screens (Home's overall balance, a group's second currency): never waits
+// for the internet. Shows the last saved rate straight away — marked stale if
+// it's old — and asks for a fresh one in the background (`later`, usually
+// Next.js's after()). With nothing saved yet, the screen simply leaves the
+// converted amount out this once.
+export async function displayRate(from: string, to: string, later: (job: () => Promise<unknown>) => void): Promise<RateAnswer> {
+  if (from === to) return { ok: true, rate: "1", date: new Date().toISOString().slice(0, 10) };
+  const key = `${from}-${to}`;
+  const now = Date.now();
+  const hit = memory.get(key);
+  if (hit && hit.answer.ok && now - hit.at < FRESH_MS) return hit.answer;
+  const saved = await db.exchangeRate.findFirst({ where: { base: from, quote: to }, orderBy: { fetchedAt: "desc" } });
+  const fresh = Boolean(saved && now - saved.fetchedAt.getTime() < FRESH_MS);
+  if (!fresh) later(() => getRate(from, to).catch(() => null));
+  if (!saved) return { ok: false, reason: "unavailable", message: "The rate isn’t loaded yet." };
+  const answer: RateAnswer = fresh ? { ok: true, rate: saved.rate, date: saved.date } : { ok: true, rate: saved.rate, date: saved.date, stale: true };
+  if (fresh) memory.set(key, { at: saved.fetchedAt.getTime(), answer });
+  return answer;
+}
