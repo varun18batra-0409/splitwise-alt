@@ -1,3 +1,4 @@
+# (re-run)
 # Shows what the next deploy would change in the online database, without
 # changing anything. Run by hand, or when this file changes.
 name: Schema plan
