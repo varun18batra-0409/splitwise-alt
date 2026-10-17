@@ -27,6 +27,13 @@ async function me(groupId: string) {
   return id;
 }
 
+// "p_<memberId>" → { memberId: value } for the percentage / amount boxes.
+function perPerson(formData: FormData, prefix: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of formData.entries()) if (k.startsWith(prefix)) out[k.slice(prefix.length)] = String(v).slice(0, 20);
+  return out;
+}
+
 export async function saveBill(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const actor = await me(groupId);
@@ -41,6 +48,8 @@ export async function saveBill(formData: FormData) {
     payer: String(formData.get("payer") ?? ""),
     split: String(formData.get("split") ?? "group"),
     ids: formData.getAll("ids").map(String),
+    pct: perPerson(formData, "p_"),
+    amt: perPerson(formData, "a_"),
   });
   const back = billId ? `/groups/${groupId}/bills/${billId}` : `/groups/${groupId}/bills/new`;
   if (!r.ok) redirect(`${back}?error=${encodeURIComponent(r.error)}`);

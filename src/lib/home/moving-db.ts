@@ -169,7 +169,7 @@ export async function moveOut(
         } catch {
           rotation = [];
         }
-        let split: { mode: string; ids?: string[] } = { mode: "group" };
+        let split: { mode: string; ids?: string[]; pct?: Record<string, number>; amt?: Record<string, number> } = { mode: "group" };
         try {
           split = JSON.parse(b.split);
         } catch {
@@ -179,6 +179,8 @@ export async function moveOut(
         if (b.payer === leaver.id) data.payer = heir;
         if (rotation.includes(leaver.id)) data.rotation = JSON.stringify(rotation.filter((x) => x !== leaver.id));
         if (split.ids?.includes(leaver.id)) data.split = JSON.stringify({ ...split, ids: split.ids.filter((x) => x !== leaver.id) });
+        // Their percentage or fixed amount can't just vanish: back to the flat's own split.
+        if ((split.mode === "percent" && split.pct?.[leaver.id]) || (split.mode === "amounts" && split.amt?.[leaver.id])) data.split = JSON.stringify({ mode: "group" });
         if (Object.keys(data).length) await tx.bill.update({ where: { id: b.id }, data });
       }
       // 5. Moved out.

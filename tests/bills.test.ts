@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { BILL_TEMPLATES, dailyTotal, payerFor, periodsDue } from "@/lib/home/bills";
 import { addWaitingBill, runBillsForGroup } from "@/lib/home/bills-db";
-import { billCommand, saveBillFor } from "@/lib/home/bill-setup";
+import { billCommand, saveBillFor, type BillInput } from "@/lib/home/bill-setup";
 import type { SaveExpenseInput } from "@/lib/save-expense";
 import { loadGroup } from "@/lib/group-data";
 import { undoEvent } from "@/lib/undo";
@@ -211,5 +211,68 @@ describe("bills: edge cases from review", () => {
     await runBillsForGroup(groupId, new Date("2026-10-16T06:00:00Z"));
     const run = await db.billRun.findUniqueOrThrow({ where: { billId_period: { billId: b.id, period: "2026-10" } } });
     expect(run.status).toBe("waiting");
+  });
+});
+
+// Rent isn't always equal: bills can be shared by percentage or by fixed amounts.
+describe("bills shared unequally", () => {
+  let groupId = "", a = "", b = "", c = "";
+  const now = new Date("2026-10-16T06:00:00Z");
+  beforeAll(async () => {
+    const g = await db.group.create({
+      data: { name: "Flat 12", type: "home", currency: "INR", inviteCode: `bills3-${Date.now()}`, members: { create: [{ name: "A" }, { name: "B" }, { name: "C" }] } },
+      include: { members: true },
+    });
+    groupId = g.id;
+    [a, b, c] = ["A", "B", "C"].map((n) => g.members.find((m) => m.name === n)!.id);
+  });
+  afterAll(async () => {
+    await db.group.delete({ where: { id: groupId } }).catch(() => {});
+  });
+  const input = (over: Partial<BillInput>): BillInput => ({ template: "rent", name: "Rent", nature: "fixed", amount: "30000", day: "1", payer: a, split: "equal", ids: [], pct: {}, amt: {}, ...over });
+  const shares = async (billId: string) => {
+    const run = await db.billRun.findFirstOrThrow({ where: { billId } });
+    expect(run.status).toBe("added");
+    const e = await db.expense.findUniqueOrThrow({ where: { id: run.expenseId }, include: { shares: true } });
+    return Object.fromEntries(e.shares.map((s) => [s.memberId, s.amount]));
+  };
+
+  it("has a Groceries tile (amount entered each time)", () => {
+    expect(BILL_TEMPLATES.find((t) => t.id === "groceries")).toMatchObject({ name: "Groceries", category: "groceries", nature: "varies" });
+  });
+
+  it("rent by percentage: 50 / 30 / 20", async () => {
+    const r = await saveBillFor(groupId, a, input({ split: "percent", pct: { [a]: "50", [b]: "30", [c]: "20" } }), new Date("2026-09-20T06:00:00Z"));
+    expect(r.ok).toBe(true);
+    await runBillsForGroup(groupId, now);
+    expect(await shares(r.ok ? r.id : "")).toEqual({ [a]: 1500000, [b]: 900000, [c]: 600000 });
+  });
+
+  it("percentages must add up to 100%", async () => {
+    const r = await saveBillFor(groupId, a, input({ split: "percent", pct: { [a]: "50", [b]: "30", [c]: "10" } }));
+    expect(r).toEqual({ ok: false, error: expect.stringMatching(/add up to 90%.*100%/) });
+  });
+
+  it("rent by amount: ₹18,000 + ₹12,000, C pays nothing", async () => {
+    const r = await saveBillFor(groupId, a, input({ name: "Rent 2", split: "amounts", amt: { [a]: "18000", [b]: "12000", [c]: "" } }), new Date("2026-09-20T06:00:00Z"));
+    expect(r.ok).toBe(true);
+    await runBillsForGroup(groupId, now);
+    expect(await shares(r.ok ? r.id : "")).toEqual({ [a]: 1800000, [b]: 1200000 });
+  });
+
+  it("amounts must add up to the bill, and only fit a bill that's the same each month", async () => {
+    const r1 = await saveBillFor(groupId, a, input({ split: "amounts", amt: { [a]: "18000", [b]: "10000" } }));
+    expect(r1).toEqual({ ok: false, error: expect.stringMatching(/₹28,000.*₹30,000/) });
+    const r2 = await saveBillFor(groupId, a, input({ template: "electricity", name: "Electricity", nature: "varies", amount: "", split: "amounts", amt: { [a]: "1000" } }));
+    expect(r2.ok).toBe(false);
+  });
+
+  it("a percentage bill waits if someone in it has left", async () => {
+    const r = await saveBillFor(groupId, a, input({ name: "Cook", template: "cook", split: "percent", pct: { [a]: "50", [b]: "50" } }), new Date("2026-09-20T06:00:00Z"));
+    await db.member.update({ where: { id: b }, data: { leftAt: new Date() } });
+    await runBillsForGroup(groupId, now);
+    const run = await db.billRun.findFirstOrThrow({ where: { billId: r.ok ? r.id : "" } });
+    expect(run.status).toBe("waiting");
+    await db.member.update({ where: { id: b }, data: { leftAt: null } });
   });
 });

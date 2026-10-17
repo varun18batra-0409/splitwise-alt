@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { logEvent } from "../events";
-import { formatMoney, parseAmount } from "../money";
+import { formatMoney, formatPercent, parseAmount, parsePercent } from "../money";
 import { BILL_TEMPLATES, addMissed, daysBefore, daysInRange, firstMonth, monthsBetween, ordinalDay, periodsDue, toggleMissed } from "./bills";
 import { addMonths, dueKey } from "./month";
 import { DEFAULT_TIME_ZONE, dayKey } from "../dates";
@@ -17,8 +17,10 @@ export type BillInput = {
   amount: string; // typed; for varies, optional ("usually")
   day: string; // 1–28, or 31 = last day
   payer: string; // memberId, or "turns"
-  split: string; // group | equal | some
+  split: string; // group | equal | some | percent | amounts
   ids: string[]; // when split = some
+  pct?: Record<string, string>; // when split = percent: "50" per person
+  amt?: Record<string, string>; // when split = amounts: "18000" per person
 };
 
 export async function saveBillFor(groupId: string, actorId: string, input: BillInput, now = new Date()): Promise<Result> {
@@ -38,9 +40,33 @@ export async function saveBillFor(groupId: string, actorId: string, input: BillI
   if (nature !== "daily" && !(Number.isInteger(day) && ((day >= 1 && day <= 28) || day === 31))) return { ok: false, error: "Pick the day it’s due." };
   const turns = input.payer === "turns";
   if (!turns && !active.some((m) => m.id === input.payer)) return { ok: false, error: "Pick who pays." };
-  const split = (["group", "equal", "some"] as const).find((s) => s === input.split) ?? "group";
+  const split = (["group", "equal", "some", "percent", "amounts"] as const).find((s) => s === input.split) ?? "group";
   const ids = split === "some" ? active.filter((m) => input.ids.includes(m.id)).map((m) => m.id) : [];
   if (split === "some" && ids.length === 0) return { ok: false, error: "Pick who shares it." };
+  // Unequal: a percentage or a fixed amount for each person (blank = nothing).
+  const pct: Record<string, number> = {};
+  const amt: Record<string, number> = {};
+  if (split === "percent") {
+    for (const m of active) {
+      const bp = parsePercent(input.pct?.[m.id] ?? "");
+      if (bp === null) return { ok: false, error: `${m.name}’s percentage isn’t a number.` };
+      if (bp > 0) pct[m.id] = bp;
+    }
+    const sum = Object.values(pct).reduce((x, y) => x + y, 0);
+    if (sum !== 10000) return { ok: false, error: `The percentages add up to ${formatPercent(sum)}. They need to add up to 100%.` };
+  }
+  if (split === "amounts") {
+    if (nature !== "fixed") return { ok: false, error: "Fixed amounts only work for a bill that’s the same each month. Use percentages instead." };
+    for (const m of active) {
+      const raw = (input.amt?.[m.id] ?? "").trim();
+      if (!raw) continue;
+      const v = parseAmount(raw, group.currency);
+      if (v === null || v < 0) return { ok: false, error: `${m.name}’s amount isn’t a number.` };
+      if (v > 0) amt[m.id] = v;
+    }
+    const sum = Object.values(amt).reduce((x, y) => x + y, 0);
+    if (sum !== (amount ?? 0)) return { ok: false, error: `The amounts add up to ${formatMoney(sum, group.currency)}. They need to add up to ${formatMoney(amount ?? 0, group.currency)}.` };
+  }
 
   const data = {
     name,
@@ -52,7 +78,7 @@ export async function saveBillFor(groupId: string, actorId: string, input: BillI
     every: tpl.every ?? 1,
     payer: turns ? "" : input.payer,
     rotation: turns ? JSON.stringify(active.map((m) => m.id)) : "[]",
-    split: JSON.stringify({ mode: split, ids }),
+    split: JSON.stringify(split === "percent" ? { mode: split, pct } : split === "amounts" ? { mode: split, amt } : { mode: split, ids }),
   };
   const money = (n: number) => formatMoney(n, group.currency);
   const when = nature === "daily" ? "added up at month end" : `on the ${ordinalDay(data.day)}`;

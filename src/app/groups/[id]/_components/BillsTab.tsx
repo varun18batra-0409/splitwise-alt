@@ -19,6 +19,8 @@ export function BillsTab({ v, bills, saved }: { v: GroupView; bills: BillStatus[
   };
   const myPart = (b: BillStatus) => {
     const split = parseSplit(b.bill.split);
+    if (split.mode === "percent") return Math.round((monthly(b) * (split.pct[myId] ?? 0)) / 10000);
+    if (split.mode === "amounts") return Math.round((split.amt[myId] ?? 0) / Math.max(1, b.bill.every));
     const people = split.mode === "some" ? active.filter((m) => split.ids.includes(m.id)) : active;
     if (!people.some((m) => m.id === myId)) return 0;
     const w = (id: string) => (split.mode === "group" ? (people.find((m) => m.id === id)?.splitWeight ?? 100) : 100);

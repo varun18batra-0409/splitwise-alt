@@ -1541,6 +1541,28 @@ async function main() {
     const ev = await db.groupEvent.findFirst({ where: { groupId: homeId(), text: { contains: "moved in on" } } });
     assert(ev, "no “moved in” line in the history");
   });
+  await step(V, "Flat", "Set up Maintenance shared by % (you 70, the other 30); Groceries is one of the tiles", async () => {
+    await go(V, `${gh}/bills/new`);
+    assert(await V.getByRole("button", { name: "Groceries" }).count(), "no Groceries tile");
+    await V.getByRole("button", { name: "Society" }).click();
+    await V.locator('input[name="name"]').fill("Maintenance");
+    await V.getByLabel("Amount", { exact: true }).fill("3000");
+    await V.getByRole("button", { name: "By %" }).click();
+    const boxes = V.locator('input[name^="p_"]');
+    const n = await boxes.count();
+    assert(n >= 2, `only ${n} percentage boxes`);
+    await V.getByLabel("Your percentage").fill("70");
+    for (let i = 0; i < n; i++) {
+      const box = boxes.nth(i);
+      if ((await box.getAttribute("aria-label")) !== "Your percentage") await box.fill(i === n - 1 || n === 2 ? "30" : "0");
+    }
+    await V.getByText("Adds up to 100% ✓").waitFor();
+    await V.getByRole("button", { name: "Add bill" }).click();
+    await V.waitForURL(/tab=bills&saved=bill/);
+    const bill = await db.bill.findFirst({ where: { groupId: homeId(), name: "Maintenance", deletedAt: null } });
+    const split = JSON.parse(bill?.split ?? "{}");
+    assert(split.mode === "percent" && Object.values(split.pct as Record<string, number>).sort((x, y) => y - x).join("/") === "7000/3000", `split saved as ${bill?.split}`);
+  });
   await step(V, "Couples", "Change the goal (target ₹80,000), then remove it", async () => {
     const goal = await db.goal.findFirst({ where: { groupId: gc.split("/").pop()!, deletedAt: null }, orderBy: { createdAt: "desc" } });
     assert(goal, "no goal");
