@@ -850,7 +850,7 @@ async function main() {
     await V.waitForURL(/tab=activity&open=/);
     const id = new URL(V.url()).searchParams.get("open")!;
     assert(await V.locator(`#item-${id} details[open]`).count(), "the expense isn't opened");
-    await V.locator(`#item-${id}`).getByText(/Edit or delete|Restore/).first().waitFor();
+    await V.locator(`#item-${id}`).getByText(/Edit or delete|Restore|Delete payment/).first().waitFor();
   });
   await step(V, "Home", "Bottom bar is hidden while adding an expense", async () => {
     await go(V, `${g}/add`);
