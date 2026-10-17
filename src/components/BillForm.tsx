@@ -14,13 +14,16 @@ export type BillFormInitial = {
   amount: string;
   day: number;
   payer: string; // memberId or "turns"
-  split: "group" | "equal" | "some";
+  split: "group" | "equal" | "some" | "percent" | "amounts";
   ids: string[];
+  pct?: Record<string, string>; // "50" per person
+  amt?: Record<string, string>; // "18000" per person
 };
 
 // Simple line icons for the bill tiles.
 const ICON: Record<string, React.ReactNode> = {
   rent: <path d="M3 11l9-7 9 7M5 10v10h14V10" />,
+  groceries: <path d="M3 4h2l2.4 11h10.2L20 7H6.3M9 20h.01M17 20h.01" />,
   society: <path d="M4 3h16v18H4zM9 7h6M9 11h6M9 15h4" />,
   electricity: <path d="M13 2L4 14h7l-1 8 9-12h-7z" />,
   wifi: <path d="M2 8.5a15 15 0 0 1 20 0M5 12a10 10 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0M12 19h.01" />,
@@ -70,7 +73,17 @@ export function BillForm({
   const [amount, setAmount] = useState(initial?.amount ?? "");
   const [day, setDay] = useState<number>(initial?.day ?? tpl.day);
   const [payer, setPayer] = useState(initial?.payer ?? myId);
-  const [split, setSplit] = useState<"group" | "equal" | "some">(initial?.split ?? (splitLabel ? "group" : "equal"));
+  const [split, setSplit] = useState<"group" | "equal" | "some" | "percent" | "amounts">(initial?.split ?? (splitLabel ? "group" : "equal"));
+  // Unequal shares: equal percentages to start with (the last person takes the rounding).
+  const evenPct = () => {
+    const each = Math.floor(10000 / Math.max(1, members.length));
+    return Object.fromEntries(members.map((m, i) => [m.id, String((i === members.length - 1 ? 10000 - each * (members.length - 1) : each) / 100)]));
+  };
+  const [pct, setPct] = useState<Record<string, string>>(initial?.pct && Object.keys(initial.pct).length ? initial.pct : evenPct);
+  const [amt, setAmt] = useState<Record<string, string>>(initial?.amt ?? {});
+  const num = (v: string | undefined) => Number((v ?? "").replace(/[^\d.]/g, "")) || 0;
+  const pctTotal = Math.round(members.reduce((t, m) => t + num(pct[m.id]) * 100, 0)) / 100;
+  const amtTotal = members.reduce((t, m) => t + num(amt[m.id]), 0);
   const [ids, setIds] = useState<string[]>(initial?.ids ?? members.map((m) => m.id));
   const who = (id: string) => (id === myId ? "you" : members.find((m) => m.id === id)?.name ?? "someone");
   const editing = Boolean(initial?.billId);
@@ -81,6 +94,7 @@ export function BillForm({
     setName(t.name);
     setNature(t.nature);
     setDay(t.day);
+    if (t.nature !== "fixed" && split === "amounts") setSplit("percent");
   }
 
   const chip = (on: boolean) =>
@@ -94,7 +108,7 @@ export function BillForm({
       ? `${payer === "turns" ? "Whoever’s turn it is gets" : payer === myId ? "You get" : `${who(payer)} gets`} a nudge to enter the amount ${dayText}.`
       : nature === "daily"
         ? `${amount ? `${currency} ${amount} a day` : "The price per day"} is added up at month end, ${payerText}.`
-        : `${amount ? `${currency} ${amount}` : "The amount"} is added ${dayText}, ${payerText}${amountNum && split !== "group" && people ? `, ${currency} ${(amountNum / people).toFixed(0)} each` : ""}.`;
+        : `${amount ? `${currency} ${amount}` : "The amount"} is added ${dayText}, ${payerText}${amountNum && (split === "equal" || split === "some") && people ? `, ${currency} ${(amountNum / people).toFixed(0)} each` : ""}.`;
 
   return (
     <form action={saveBill} className="space-y-7">
@@ -153,7 +167,10 @@ export function BillForm({
               type="button"
               role="radio"
               aria-checked={nature === id}
-              onClick={() => setNature(id)}
+              onClick={() => {
+                setNature(id);
+                if (id !== "fixed" && split === "amounts") setSplit("percent");
+              }}
               className={`rounded-lg py-2.5 text-[13px] ${nature === id ? "bg-fg font-semibold text-canvas" : "text-gray-500"}`}
             >
               {label}
@@ -235,12 +252,53 @@ export function BillForm({
           <button type="button" aria-pressed={split === "equal"} onClick={() => setSplit("equal")} className={chip(split === "equal")}>
             Equally
           </button>
+          {members.length > 1 && (
+            <button type="button" aria-pressed={split === "percent"} onClick={() => setSplit("percent")} className={chip(split === "percent")}>
+              By %
+            </button>
+          )}
+          {members.length > 1 && nature === "fixed" && (
+            <button type="button" aria-pressed={split === "amounts"} onClick={() => setSplit("amounts")} className={chip(split === "amounts")}>
+              By amount
+            </button>
+          )}
           {members.length > 2 && (
             <button type="button" aria-pressed={split === "some"} onClick={() => setSplit("some")} className={chip(split === "some")}>
               Only some
             </button>
           )}
         </div>
+        {(split === "percent" || split === "amounts") && (
+          <div className="mt-3 rounded-2xl border border-line">
+            {members.map((m) => (
+              <label key={m.id} className="flex items-center gap-3 border-b border-line px-4 py-2.5 last:border-b-0">
+                <span className="flex-1">{m.id === myId ? "You" : m.name}</span>
+                <span className="flex w-32 items-center gap-1 rounded-xl border border-line bg-mist px-3 focus-within:border-accent">
+                  {split === "amounts" && <span className="text-xs text-gray-400">{currency}</span>}
+                  <input
+                    name={split === "percent" ? `p_${m.id}` : `a_${m.id}`}
+                    inputMode="decimal"
+                    aria-label={`${m.id === myId ? "Your" : `${m.name}’s`} ${split === "percent" ? "percentage" : "amount"}`}
+                    value={(split === "percent" ? pct : amt)[m.id] ?? ""}
+                    onChange={(e) => (split === "percent" ? setPct : setAmt)((prev) => ({ ...prev, [m.id]: e.target.value }))}
+                    placeholder="0"
+                    className="w-full bg-transparent py-2 text-right outline-none"
+                  />
+                  {split === "percent" && <span className="text-xs text-gray-400">%</span>}
+                </span>
+              </label>
+            ))}
+            <p className={`px-4 py-2.5 text-xs ${(split === "percent" ? pctTotal === 100 : amtTotal === amountNum && amountNum > 0) ? "text-owed" : "text-gray-500"}`}>
+              {split === "percent"
+                ? pctTotal === 100
+                  ? "Adds up to 100% ✓"
+                  : `Adds up to ${pctTotal}%, needs to be 100%`
+                : amtTotal === amountNum && amountNum > 0
+                  ? `Adds up to ${currency} ${amount} ✓`
+                  : `Adds up to ${currency} ${amtTotal.toLocaleString("en-IN")}, needs to be ${currency} ${amountNum ? amountNum.toLocaleString("en-IN") : "the amount above"}`}
+            </p>
+          </div>
+        )}
         {split === "some" && (
           <div className="mt-3 flex flex-wrap gap-2">
             {members.map((m) => {

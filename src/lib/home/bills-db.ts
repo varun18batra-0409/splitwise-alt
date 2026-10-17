@@ -15,20 +15,50 @@ import { previousResult } from "../once";
 type BillRow = Awaited<ReturnType<typeof db.bill.findMany>>[number];
 type Member = { id: string; name: string; leftAt: Date | null; splitWeight: number; joinedFrom?: Date | null };
 
-export function parseSplit(json: string): { mode: "group" | "equal" | "some"; ids: string[] } {
+export type BillSplit = {
+  mode: "group" | "equal" | "some" | "percent" | "amounts";
+  ids: string[]; // "some": who shares it
+  pct: Record<string, number>; // "percent": basis points per person (5000 = 50%)
+  amt: Record<string, number>; // "amounts": minor units per person
+};
+
+const numbers = (v: unknown): Record<string, number> =>
+  v && typeof v === "object"
+    ? Object.fromEntries(Object.entries(v as Record<string, unknown>).filter(([, n]) => Number.isInteger(n) && (n as number) > 0) as [string, number][])
+    : {};
+
+export function parseSplit(json: string): BillSplit {
   try {
     const v = JSON.parse(json);
-    const mode = v?.mode === "equal" || v?.mode === "some" ? v.mode : "group";
-    return { mode, ids: Array.isArray(v?.ids) ? v.ids.filter((x: unknown) => typeof x === "string") : [] };
+    const mode = ["equal", "some", "percent", "amounts"].includes(v?.mode) ? v.mode : "group";
+    return { mode, ids: Array.isArray(v?.ids) ? v.ids.filter((x: unknown) => typeof x === "string") : [], pct: numbers(v?.pct), amt: numbers(v?.amt) };
   } catch {
-    return { mode: "group", ids: [] };
+    return { mode: "group", ids: [], pct: {}, amt: {} };
   }
 }
 
-// How an automatic expense is shared: the group's own split, equally, or only some.
-export function splitFields(splitJson: string, members: Member[], period?: string): Pick<SaveExpenseInput, "forMode" | "selected" | "splitType" | "shares"> {
+// Why a bill can't be added as it's set up (someone in a fixed split has left), or "".
+export function splitProblem(splitJson: string, activeIds: string[]): string {
+  const split = parseSplit(splitJson);
+  if (split.mode === "some" && !split.ids.some((id) => activeIds.includes(id))) return "nobody left to share it";
+  const fixed = split.mode === "percent" ? split.pct : split.mode === "amounts" ? split.amt : null;
+  if (fixed && (!Object.keys(fixed).length || Object.keys(fixed).some((id) => !activeIds.includes(id)))) return "someone in the split has left";
+  return "";
+}
+
+// How an automatic expense is shared: the group's own split, equally, only
+// some, by percentage or by fixed amounts.
+export function splitFields(splitJson: string, members: Member[], period?: string, currency = "INR"): Pick<SaveExpenseInput, "forMode" | "selected" | "splitType" | "shares"> & Partial<Pick<SaveExpenseInput, "percent" | "exact">> {
   const active = members.filter((m) => !m.leftAt);
   const split = parseSplit(splitJson);
+  if (split.mode === "percent") {
+    const ids = Object.keys(split.pct);
+    return { forMode: "selected", selected: ids, splitType: "percent", percent: Object.fromEntries(ids.map((id) => [id, String(split.pct[id] / 100)])), exact: {} };
+  }
+  if (split.mode === "amounts") {
+    const ids = Object.keys(split.amt);
+    return { forMode: "selected", selected: ids, splitType: "exact", exact: Object.fromEntries(ids.map((id) => [id, toInputAmount(split.amt[id], currency)])), percent: {} };
+  }
   const some = split.mode === "some" ? active.filter((m) => split.ids.includes(m.id)).map((m) => m.id) : [];
   // Someone moved in this month: they share only for the days they're there.
   if (period && split.mode !== "some" && active.some((m) => m.joinedFrom && m.joinedFrom.toISOString().slice(0, 7) >= period)) {
@@ -61,10 +91,10 @@ export function billExpenseInput(bill: BillRow, groupId: string, currency: strin
     amount: toInputAmount(amount, currency),
     currency,
     paidById: payerId,
-    ...splitFields(bill.split, members, period),
     onePersonId: "",
     exact: {},
     percent: {},
+    ...splitFields(bill.split, members, period, currency),
     paymentMethod: "cash",
     markupChoice: "group",
     markupCustom: "",
@@ -117,8 +147,8 @@ async function runOne(bill: BillRow, group: { id: string; currency: string; clos
   if (run.requestKey) return wait("");
   if (group.closed) return wait("group closed");
   if (!payer) return wait("payer left");
-  const split = parseSplit(bill.split);
-  if (split.mode === "some" && !split.ids.some((id) => active.includes(id))) return wait("nobody left to share it");
+  const problem = splitProblem(bill.split, active);
+  if (problem) return wait(problem);
   if (bill.nature === "varies") {
     // Ask whoever pays for this month's amount.
     await sendPushTo([payer], {

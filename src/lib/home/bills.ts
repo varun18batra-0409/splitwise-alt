@@ -16,6 +16,7 @@ export const BILL_TEMPLATES: { id: string; name: string; category: string; natur
   { id: "cook", name: "Cook", category: "bills", nature: "fixed", day: 31 },
   { id: "milk", name: "Milk", category: "groceries", nature: "daily", day: 31 },
   { id: "water", name: "Water cans", category: "groceries", nature: "daily", day: 31 },
+  { id: "groceries", name: "Groceries", category: "groceries", nature: "varies", day: 31 },
   { id: "gas", name: "Gas", category: "bills", nature: "varies", day: 1, every: 2 },
   { id: "streaming", name: "Streaming", category: "entertainment", nature: "fixed", day: 8 },
   { id: "mobile", name: "Mobile", category: "bills", nature: "fixed", day: 10 },

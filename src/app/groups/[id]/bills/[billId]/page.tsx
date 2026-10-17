@@ -147,6 +147,8 @@ export default async function BillPage({
           payer: bill.payer || "turns",
           split: split.mode,
           ids: split.ids,
+          pct: Object.fromEntries(Object.entries(split.pct).map(([k, v]) => [k, String(v / 100)])),
+          amt: Object.fromEntries(Object.entries(split.amt).map(([k, v]) => [k, toInputAmount(v, group.currency)])),
         }}
       />
 
