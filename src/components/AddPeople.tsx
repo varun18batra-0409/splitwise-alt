@@ -73,6 +73,11 @@ export function PeopleSearch({ groupId }: { groupId: string }) {
           className="w-full rounded-xl border border-line bg-mist py-3 pl-11 pr-4 text-base text-fg outline-none placeholder:text-gray-400 focus:border-accent"
         />
       </label>
+      {q.trim().length < 2 && (
+        <p className="mt-2 text-xs leading-relaxed text-gray-500">
+          People you share a group with show up by name. Anyone else on Loopin: type their <strong className="font-semibold text-fg">full email</strong>. For privacy, nobody can browse Loopin’s members.
+        </p>
+      )}
       {q.trim().length >= 2 && (
         <ul className="mt-2 divide-y divide-line rounded-xl border border-line">
           {found.map((f) => (
@@ -102,7 +107,7 @@ export function PeopleSearch({ groupId }: { groupId: string }) {
           {busy && found.length === 0 && <li className="px-3 py-3 text-sm text-gray-400">Searching…</li>}
           {!busy && found.length === 0 && !showInvite && (
             <li className="px-3 py-3 text-sm text-gray-500">
-              No one you know on Loopin by that name. Type their full email to find anyone, or invite them below.
+              Not someone you share a group with. To find anyone else on Loopin, type their full email (like name@gmail.com), or send your invite link below.
             </li>
           )}
           {showInvite && (
