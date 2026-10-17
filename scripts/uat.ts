@@ -843,6 +843,15 @@ async function main() {
     await V.getByRole("heading", { name: "Groups" }).waitFor();
     await V.getByRole("navigation", { name: "Main" }).waitFor();
   });
+  await step(V, "Home", "Tapping an expense in Latest opens it in its group, expanded, with Edit or delete", async () => {
+    await go(V, "/");
+    const latest = V.locator("section").filter({ has: V.getByRole("heading", { name: "Latest" }) });
+    await latest.locator("li a").first().click();
+    await V.waitForURL(/tab=activity&open=/);
+    const id = new URL(V.url()).searchParams.get("open")!;
+    assert(await V.locator(`#item-${id} details[open]`).count(), "the expense isn't opened");
+    await V.locator(`#item-${id}`).getByText(/Edit or delete|Restore/).first().waitFor();
+  });
   await step(V, "Home", "Bottom bar is hidden while adding an expense", async () => {
     await go(V, `${g}/add`);
     assert((await V.getByRole("navigation", { name: "Main" }).count()) === 0, "bottom bar shows on the add screen");

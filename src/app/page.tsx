@@ -11,6 +11,7 @@ import { buildActivity, dayLabel } from "@/lib/activity";
 import { formatMoney } from "@/lib/money";
 import { BalanceMeter } from "@/components/BalanceMeter";
 import { ActivityRow } from "@/components/ActivityRow";
+import { itemHref } from "@/lib/paths";
 import { restoreGroup } from "@/app/actions";
 import { db } from "@/lib/db";
 import { canUndo } from "@/lib/undo";
@@ -75,6 +76,7 @@ export default async function Home({
       const names = new Map(g.group.members.map((m) => [m.id, m.id === g.myId ? "You" : m.name]));
       return buildActivity(g.expenses, g.payments, g.myId).map((item) => ({
         item,
+        groupId: g.group.id,
         currency: g.group.currency,
         groupName: g.group.name,
         nameOf: (id: string) => names.get(id) ?? "Someone",
@@ -331,7 +333,10 @@ export default async function Home({
               <ul className="divide-y divide-line">
                 {recent.map((r) => (
                   <li key={r.item.id}>
-                    <ActivityRow item={r.item} currency={r.currency} nameOf={r.nameOf} groupName={`${r.groupName}, ${dayLabel(r.item.date, new Date(), tz)}`} />
+                    {/* Tap: opens it in its group, already expanded (details, Edit, Delete). */}
+                    <Link href={itemHref(r.groupId, r.item)} className="block active:bg-mist">
+                      <ActivityRow item={r.item} currency={r.currency} nameOf={r.nameOf} groupName={`${r.groupName}, ${dayLabel(r.item.date, new Date(), tz)}`} />
+                    </Link>
                   </li>
                 ))}
               </ul>

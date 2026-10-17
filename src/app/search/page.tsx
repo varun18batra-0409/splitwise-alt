@@ -6,6 +6,7 @@ import { cleanPeriod, inPeriod, monthLabel, periodsOf, recap } from "@/lib/searc
 import { getTimeZone } from "@/lib/tz";
 import { formatMoney } from "@/lib/money";
 import { ActivityRow } from "@/components/ActivityRow";
+import { itemHref } from "@/lib/paths";
 import { PageHeader } from "@/components/ui";
 import { SearchIcon } from "@/components/icons";
 
@@ -168,7 +169,7 @@ export default async function SearchPage({
               <ul className="divide-y divide-line">
                 {day.items.map(({ item, g, nameOf }) => (
                   <li key={item.id}>
-                    <Link href={`/groups/${g.group.id}?tab=activity`} className="block active:bg-mist">
+                    <Link href={itemHref(g.group.id, item)} className="block active:bg-mist">
                       <ActivityRow item={item} currency={g.group.currency} nameOf={nameOf} groupName={groupId ? undefined : g.group.name} />
                     </Link>
                   </li>

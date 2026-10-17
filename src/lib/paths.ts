@@ -12,3 +12,9 @@ export function safePath(raw: string | null | undefined): string {
     return "/";
   }
 }
+
+// One expense or payment, opened in its group's history (scrolled to and expanded).
+export function itemHref(groupId: string, item: { kind: string; id: string }): string {
+  if (item.kind !== "expense" && item.kind !== "payment") return `/groups/${groupId}?tab=activity`;
+  return `/groups/${groupId}?tab=activity&open=${encodeURIComponent(item.id)}#item-${item.id}`;
+}
