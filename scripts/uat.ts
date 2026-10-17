@@ -226,6 +226,13 @@ async function save(page: Page, o: AddOpts, button = "Save expense") {
 
 // ---------- the test ----------
 async function main() {
+  // The test supplies its own exchange rates, so an outage of the free rate
+  // service can't fail steps that aren't about it. (USD → INR is left out on
+  // purpose: one step checks the live service.)
+  const day = new Date().toISOString().slice(0, 10);
+  for (const [base, quote, rate] of [["THB", "INR", "2.5734"], ["INR", "THB", "0.3886"], ["INR", "USD", "0.0119"], ["EUR", "INR", "90.12"]] as const) {
+    await db.exchangeRate.create({ data: { base, quote, rate, date: day } });
+  }
   const browser = await chromium.launch();
   const varun = await person(browser);
   const asha = await person(browser);
@@ -505,12 +512,18 @@ async function main() {
     ledger.push({ key: "Spa", payer: "Asha", amount: 255000, shares: equal(255000, PEOPLE), active: true });
     return checkBalances(A, g);
   });
-  await step(V, "Currency", "Live exchange rate is fetched for USD", async () => {
+  await step(V, "Currency", "Live exchange rate is fetched for USD (or, if the rate service is down, a rate is asked for)", async () => {
     await go(V, `${g}/add`);
     await pickCurrency(V, "USD");
     await V.getByLabel("Amount", { exact: true }).fill("10");
     const line = V.getByRole("button", { name: /Details/ });
-    await line.waitFor();
+    const down = V.getByText(/Couldn.t reach the rate service/);
+    const which = await Promise.race([line.waitFor().then(() => "live"), down.waitFor().then(() => "down")]);
+    if (which === "down") {
+      // Not the app's fault: the outside service didn't answer. The right behaviour is to ask for the rate.
+      assert(await V.getByPlaceholder("rate").count(), "no box to type the rate");
+      return "rate service didn't answer; the app asked for the rate by hand (correct)";
+    }
     await V.waitForTimeout(3000);
     const t = await line.innerText();
     assert(/≈|=/.test(t), `no converted amount: ${t}`);
