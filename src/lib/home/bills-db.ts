@@ -48,7 +48,7 @@ export function splitProblem(splitJson: string, activeIds: string[]): string {
 
 // How an automatic expense is shared: the group's own split, equally, only
 // some, by percentage or by fixed amounts.
-export function splitFields(splitJson: string, members: Member[], period?: string, currency = "INR"): Pick<SaveExpenseInput, "forMode" | "selected" | "splitType" | "shares" | "percent" | "exact"> {
+export function splitFields(splitJson: string, members: Member[], period?: string, currency = "INR"): Pick<SaveExpenseInput, "forMode" | "selected" | "splitType" | "shares"> & Partial<Pick<SaveExpenseInput, "percent" | "exact">> {
   const active = members.filter((m) => !m.leftAt);
   const split = parseSplit(splitJson);
   if (split.mode === "percent") {
