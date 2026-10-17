@@ -806,7 +806,7 @@ async function main() {
     await x.ctx.close();
     await go(V, `${g3}/invite`);
     await V.getByLabel("Search people on Loopin").fill("Sheldon");
-    await V.getByText(/No one you know on Loopin/).waitFor();
+    await V.getByText(/Not someone you share a group with/).waitFor();
     await V.getByLabel("Search people on Loopin").fill(email("sheldon"));
     await V.getByText("On Loopin ✓").first().waitFor();
     await V.getByRole("button", { name: "Add", exact: true }).first().click();
