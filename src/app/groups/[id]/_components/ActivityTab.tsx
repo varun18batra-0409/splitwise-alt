@@ -27,7 +27,7 @@ const whenIn = (tz: string) => {
 // Busy groups show the latest PAGE items first, with "Show more".
 const PAGE = 60;
 
-export function ActivityTab({ v, filter = {}, shown = PAGE }: { v: GroupView; filter?: ActivityFilter; shown?: number }) {
+export function ActivityTab({ v, filter = {}, shown = PAGE, openId }: { v: GroupView; filter?: ActivityFilter; shown?: number; openId?: string }) {
   const { group, myId, nameOf, money, expenseById, eventById, tz } = v;
   const when = whenIn(tz);
   const all = buildActivity(group.expenses, group.payments, myId, group.events);
@@ -200,8 +200,8 @@ export function ActivityTab({ v, filter = {}, shown = PAGE }: { v: GroupView; fi
               if (item.kind === "payment") {
                 const live = item.deletedById === null;
                 return (
-                  <li key={item.id}>
-                    <details>
+                  <li key={item.id} id={`item-${item.id}`} className="scroll-mt-20">
+                    <details open={openId === item.id}>
                       <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
                         <ActivityRow item={item} currency={group.currency} nameOf={nameOf} />
                       </summary>
@@ -240,8 +240,8 @@ export function ActivityTab({ v, filter = {}, shown = PAGE }: { v: GroupView; fi
               const deleted = Boolean(e.deletedAt);
               const orig = foreign ? originalShares(e) : [];
               return (
-                <li key={item.id}>
-                  <details>
+                <li key={item.id} id={`item-${item.id}`} className="scroll-mt-20">
+                  <details open={openId === item.id}>
                     <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
                       <ActivityRow item={item} currency={group.currency} nameOf={nameOf} />
                     </summary>

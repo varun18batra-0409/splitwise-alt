@@ -43,6 +43,7 @@ export default async function GroupPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{
     tab?: string;
+    open?: string;
     saved?: string;
     bought?: string;
     told?: string;
@@ -180,6 +181,7 @@ export default async function GroupPage({
             currency: group.currency,
           }}
           shown={Number(sp.n) || undefined}
+          openId={sp.open?.slice(0, 40)}
         />
       )}
       {home && (tab === "balances" || tab === "charts") && (
