@@ -49,8 +49,8 @@ describe("who pays and how much", () => {
   it("milk: ₹60 a day, minus the days it didn't come", () => {
     expect(dailyTotal({ amount: 6000, missed: JSON.stringify({ "2026-10": [4, 12, 12, 40] }) }, "2026-10")).toEqual({ days: 29, amount: 174000 });
   });
-  it("has the 12 tiles from the design", () => {
-    expect(BILL_TEMPLATES.map((t) => t.name)).toEqual(["Rent", "Society", "Electricity", "Wi-Fi", "House help", "Cook", "Milk", "Water cans", "Gas", "Streaming", "Mobile", "Other"]);
+  it("has the 13 tiles (the design's 12 plus Groceries)", () => {
+    expect(BILL_TEMPLATES.map((t) => t.name)).toEqual(["Rent", "Society", "Electricity", "Wi-Fi", "House help", "Cook", "Milk", "Water cans", "Groceries", "Gas", "Streaming", "Mobile", "Other"]);
   });
 });
 
