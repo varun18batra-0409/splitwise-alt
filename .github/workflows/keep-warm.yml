@@ -14,7 +14,7 @@ jobs:
     steps:
       - name: Ping the main parts of the app
         run: |
-          base=https://getloopin.vercel.app
+          base=https://loopinapps.com
           for p in "/" "/api/people?g=x&q=ab" "/api/unread" "/api/health"; do
             curl -s -o /dev/null --max-time 20 -w "$p %{http_code} %{time_starttransfer}s\n" "$base$p" || true
           done
