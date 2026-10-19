@@ -1,7 +1,7 @@
 // Measures how the LIVE app feels when tapping around (signed out), and what
 // the phone waits for on each tap. Read-only: it only opens pages.
 import { chromium } from "playwright";
-const base = process.env.APP_URL ?? "https://getloopin.vercel.app";
+const base = process.env.APP_URL ?? "https://loopinapps.com";
 const out = [];
 const log = (s) => { console.log(s); out.push(s); };
 

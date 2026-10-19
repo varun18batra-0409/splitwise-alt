@@ -8,7 +8,7 @@ jobs:
     steps:
       - name: Cold then warm
         run: |
-          base=https://getloopin.vercel.app
+          base=https://loopinapps.com
           probe() { curl -s -o /dev/null -D /tmp/h -w "%{http_code} conn=%{time_appconnect} ttfb=%{time_starttransfer}" "$base$1"; echo " via=$(grep -i '^x-vercel-id' /tmp/h | tr -d '\r' | cut -d' ' -f2 | cut -d: -f1-3) cache=$(grep -i '^x-vercel-cache' /tmp/h | tr -d '\r' | cut -d' ' -f2)"; }
           paths="/icon-192.png /api/people?g=x&q=ab /api/health / /signin /how-it-works /welcome /groups/new"
           out=""
