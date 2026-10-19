@@ -31,9 +31,10 @@ export default async function Home({
     error?: string;
     deleted?: string;
     signedin?: string;
+    moved?: string;
   }>;
 }) {
-  const { closed: justClosed, did, g: didGroup, undone, error, deleted, signedin } = await searchParams;
+  const { closed: justClosed, did, g: didGroup, undone, error, deleted, signedin, moved } = await searchParams;
   const tz = await getTimeZone();
   const memberships = await getMemberships();
   const { all, open, closed, owedLines, oweLines, common, netCommon, netLines, netValue, settleItems } = await loadOverview(memberships);
@@ -90,7 +91,9 @@ export default async function Home({
       ? "Your email and sign-in were deleted. Your groups on this phone are still here."
       : deleted === "group"
         ? "Group deleted. Anyone in it can restore it below for 30 days."
-        : signedin === "1"
+        : moved === "1"
+          ? "Loopin has a new address: loopinapps.com. Everything came with you. Using the app icon on your home screen? It keeps working; to update it, add Loopin to your home screen again from this page."
+          : signedin === "1"
           ? `Signed in${account ? ` as ${account.email}` : ""}. Your groups are saved to your email.`
           : null;
 

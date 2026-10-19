@@ -9,6 +9,7 @@
 // failure) into the screenshots folder. Never fails the build by itself: the
 // report says what passed and what didn't.
 import { mkdirSync, writeFileSync } from "node:fs";
+import { request as httpRequest } from "node:http";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import { db } from "../src/lib/db";
 
@@ -1597,6 +1598,38 @@ async function main() {
     await V.getByRole("button", { name: "Remove goal" }).click();
     await V.waitForURL(new RegExp(`${gc}$`));
     assert((await db.goal.findUnique({ where: { id: goal.id } }))?.deletedAt, "goal not removed");
+  });
+
+  // ===== 11. The new address (loopinapps.com) =====
+  // Raw requests with the old address as the Host, against the running app.
+  const raw = (path: string, host: string, cookie = "") =>
+    new Promise<{ status: number; location: string; setCookie: string[] }>((resolve, reject) => {
+      const u = new URL(base);
+      const req = httpRequest({ hostname: u.hostname, port: u.port || 80, path, method: "GET", headers: { host, ...(cookie ? { cookie } : {}) } }, (res) => {
+        res.resume();
+        resolve({ status: res.statusCode ?? 0, location: String(res.headers.location ?? ""), setCookie: (res.headers["set-cookie"] as string[]) ?? [] });
+      });
+      req.on("error", reject);
+      req.end();
+    });
+  await step(null, "New address", "The old address forwards to loopinapps.com, and a signed-in person arrives still signed in (once)", async () => {
+    const plain = await raw("/how-it-works", "getloopin.vercel.app");
+    assert(plain.status === 307 && plain.location === "https://loopinapps.com/how-it-works", `not signed in: ${plain.status} ${plain.location}`);
+    const me = (await varun.ctx.cookies()).find((c) => c.name === "sw_me");
+    assert(me, "Varun has no sign-in cookie");
+    const cookie = `sw_me=${me.value}; lp_tour=1`;
+    const first = await raw("/settle", "getloopin.vercel.app", cookie);
+    assert(first.status === 307 && /\/api\/move\?to=%2Fsettle$/.test(first.location), `signed in: ${first.status} ${first.location}`);
+    const move = await raw("/api/move?to=%2Fsettle", "getloopin.vercel.app", cookie);
+    const m = /^https:\/\/loopinapps\.com\/api\/arrive\?t=([A-Za-z0-9_-]+)&to=%2Fsettle$/.exec(move.location);
+    assert(move.status === 307 && m, `move: ${move.status} ${move.location}`);
+    const arrive = await raw(`/api/arrive?t=${m[1]}&to=%2Fsettle`, "loopinapps.com");
+    assert(arrive.status === 303 && /\/settle\?moved=1$/.test(arrive.location), `arrive: ${arrive.status} ${arrive.location}`);
+    assert(arrive.setCookie.some((c) => c.startsWith(`sw_me=${me.value};`)), "sign-in not carried over");
+    const again = await raw(`/api/arrive?t=${m[1]}&to=%2Fsettle`, "loopinapps.com");
+    assert(!again.setCookie.some((c) => c.startsWith("sw_me=")), "the pass worked twice");
+    const stays = await raw("/api/health", "getloopin.vercel.app");
+    assert(stays.status === 200 || stays.status === 429, `the daily job / health stopped working on the old address (${stays.status})`);
   });
 
   await browser.close();
