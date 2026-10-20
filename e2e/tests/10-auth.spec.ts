@@ -63,7 +63,11 @@ test("fingerprint / face: turn it on, sign out, sign back in with one touch, rem
   await settled(page);
   await page.getByRole("button", { name: /Turn on fingerprint \/ face sign-in/ }).click();
   // The phone appears in the list (named from the browser: a Pixel → "Android phone").
-  await expect(page.getByText("Android phone").first()).toBeVisible();
+  // (It saves, then the page reloads; on the hosted copy that can take a while.)
+  const added = page.getByText("Android phone").first();
+  const problem = page.locator('p[role="alert"]');
+  await expect(added.or(problem).first()).toBeVisible({ timeout: 45_000 });
+  if (await problem.count()) throw new Error(`Turning it on said: ${await problem.first().innerText()}`);
   await page.reload();
   await expect(page.getByRole("button", { name: "Remove" })).toHaveCount(1);
 
