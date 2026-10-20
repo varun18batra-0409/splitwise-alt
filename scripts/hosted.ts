@@ -9,7 +9,8 @@ export const base = process.env.APP_URL ?? "http://localhost:3000";
 export const hosted = /^https:/.test(base);
 const appHost = new URL(base).host;
 const secret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET ?? "";
-export const bypass: Record<string, string> = hosted && secret ? { "x-vercel-protection-bypass": secret } : {};
+// (and skip Vercel's preview toolbar, which keeps a connection open)
+export const bypass: Record<string, string> = hosted && secret ? { "x-vercel-protection-bypass": secret, "x-vercel-skip-toolbar": "1" } : {};
 
 if (hosted && /loopinapps\.com$|getloopin\.vercel\.app$|splitwise-alt-bovz\.vercel\.app$/.test(appHost)) {
   console.error(`Refusing to run tests against the live app (${appHost}).`);

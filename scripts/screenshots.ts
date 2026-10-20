@@ -27,7 +27,7 @@ const page = await context.newPage();
 
 async function shot(name: string, path: string, prepare?: (p: Page) => Promise<void>, fullPage = true) {
   try {
-    await page.goto(base + path, { waitUntil: "networkidle" });
+    await page.goto(base + path, { waitUntil: hosted ? "load" : "networkidle", timeout: 30_000 });
     await page.waitForTimeout(900); // let the bar animation finish
     if (prepare) await prepare(page).catch((e) => console.log("  (could not prepare", name, String(e).split("\n")[0], ")"));
     await page.screenshot({ path: `${out}/${name}.png`, fullPage });
