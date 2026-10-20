@@ -17,8 +17,8 @@ const walk = (suite, path = []) => {
     for (const t of spec.tests ?? []) {
       const r = t.results?.[t.results.length - 1];
       const status = t.status === "expected" ? (r?.status === "skipped" ? "blocked/skipped" : t.expectedStatus === "failed" ? "passed (failed as expected)" : "passed") : t.status === "skipped" ? "blocked/skipped" : t.status === "flaky" ? "flaky" : "FAILED";
-      const why = r?.status === "skipped" ? (t.annotations ?? []).map((a) => a.description).filter(Boolean).join("; ") : r?.error?.message?.split("\n")[0] ?? "";
-      rows.push({ file: path[0] ?? "", title: spec.title, status, why: status === "passed" || status.startsWith("passed (") ? "" : why.replace(/\u001b\[[0-9;]*m/g, "").slice(0, 200) });
+      const why = r?.status === "skipped" ? (t.annotations ?? []).map((a) => a.description).filter(Boolean).join("; ") : (r?.error?.message ?? "").split("\n").map((l) => l.trim()).filter((l) => l && !/^Call log|^\s*-/.test(l)).slice(0, 4).join(" · ");
+      rows.push({ file: path[0] ?? "", title: spec.title, status, why: status === "passed" || status.startsWith("passed (") ? "" : why.replace(/\u001b\[[0-9;]*m/g, "").slice(0, 400) });
     }
   }
 };

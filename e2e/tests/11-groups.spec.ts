@@ -67,7 +67,9 @@ test("close a group: it moves to Closed groups and adding is paused; reopen it",
   await settled(page);
   await page.locator("#close").getByRole("button", { name: "Close group" }).click();
   await page.waitForURL(/closed=1/);
-  await expect(page.getByText(/Closed groups \(\d+\)|Hide closed groups/).first()).toBeVisible();
+  // Right after closing, the Closed groups list is open (its button reads "Hide closed groups").
+  await expect(page.getByText("Hide closed groups")).toBeVisible();
+  await expect(page.locator("li").filter({ hasText: name }).first()).toBeVisible();
   await page.goto(`${g.path}/add`);
   await settled(page);
   await expect(page.getByText(/This group is closed/)).toBeVisible();

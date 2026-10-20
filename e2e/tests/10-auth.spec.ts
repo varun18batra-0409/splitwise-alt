@@ -62,7 +62,8 @@ test("fingerprint / face: turn it on, sign out, sign back in with one touch, rem
   await page.goto("/account");
   await settled(page);
   await page.getByRole("button", { name: /Turn on fingerprint \/ face sign-in/ }).click();
-  await expect(page.getByText(/✓ Done/)).toBeVisible();
+  // The phone appears in the list (named from the browser: a Pixel → "Android phone").
+  await expect(page.getByText("Android phone").first()).toBeVisible();
   await page.reload();
   await expect(page.getByRole("button", { name: "Remove" })).toHaveCount(1);
 
