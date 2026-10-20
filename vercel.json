@@ -9,7 +9,9 @@
     "deploymentEnabled": {
       "screenshots": false,
       "screenshots-*": false,
-      "schema-plan": false
+      "schema-plan": false,
+      "phase*": false,
+      "speed-report": false
     }
   },
   "crons": [

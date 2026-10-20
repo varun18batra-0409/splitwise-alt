@@ -103,7 +103,7 @@ async function person(browser: Browser): Promise<{ ctx: BrowserContext; page: Pa
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "en-IN", timezoneId: "Asia/Kolkata", colorScheme: "dark" });
   const page = await ctx.newPage();
   page.on("dialog", (d) => d.accept());
-  page.setDefaultTimeout(15_000);
+  page.setDefaultTimeout(hosted ? 30_000 : 15_000); // the test copy can be slow to wake up
   return { ctx, page };
 }
 
