@@ -172,6 +172,12 @@ await shot("15-new-group", "/groups/new");
 await shot("25-account", "/account");
 await shot("26-signin", "/signin", undefined, false);
 await shot("27-privacy", "/privacy");
+// Phase 5
+await shot("62-trip-report", `${g}/report`);
+await shot("63-charts-insights", `${g}?tab=charts`, undefined, false);
+await shot("64-switching", "/switching");
+await shot("65-import", "/import");
+await shot("66-people-not-on-loopin", `${g}/people`);
 await context.clearCookies();
 await shot("16-join", `/join/${demo.trip.invite}`);
 await shot("24-tour-1", "/", undefined, false);

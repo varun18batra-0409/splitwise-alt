@@ -511,7 +511,7 @@ export function AddExpenseForm({
         {/* When it was spent — optional: today unless changed. */}
         {!showDate ? (
           <button type="button" onClick={() => setShowDate(true)} className="mt-2 py-1 text-sm text-gray-500">
-            📅 {date === today ? "Today" : date === yesterday ? "Yesterday" : niceDate(date)} · <span className="font-medium text-fg">Change</span>
+            <CalIcon /> {date === today ? "Today" : date === yesterday ? "Yesterday" : niceDate(date)} · <span className="font-medium text-fg">Change</span>
           </button>
         ) : (
           <div className="mt-3 flex flex-wrap items-center gap-2" role="group" aria-label="When">
@@ -532,7 +532,7 @@ export function AddExpenseForm({
               />
             ) : (
               <Chip on={false} onClick={() => setPickingDate(true)}>
-                📅 Pick date
+                <CalIcon /> Pick date
               </Chip>
             )}
           </div>
@@ -1081,5 +1081,15 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
       <dt>{label}</dt>
       <dd>{value}</dd>
     </div>
+  );
+}
+
+// A plain calendar outline (the calendar emoji shows "July 17" on many phones, which reads like a wrong date).
+function CalIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" aria-hidden className="mr-1 inline-block align-[-2px]">
+      <rect x="3.5" y="5" width="17" height="15" rx="2" />
+      <path d="M3.5 10h17M8 3v4M16 3v4" />
+    </svg>
   );
 }
