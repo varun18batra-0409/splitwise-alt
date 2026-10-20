@@ -71,6 +71,13 @@ describe("trip report", () => {
     expect(insightLines(small, "v")).toEqual([]);
   });
 
+  it("rounds 'about … each / a day' to whole rupees, and words other groups as a group", () => {
+    const odd = tripReport({ name: "Friday dinners", type: "other", currency: "INR", members, expenses: expenses.slice(0, 3).map((e) => ({ ...e, amount: e.amount + 7 })), transfers: [], tz: "Asia/Kolkata" });
+    expect(odd.perPerson % 100).toBe(0);
+    expect(odd.perDay % 100).toBe(0);
+    expect(reportText(odd)).toContain("📊 Friday dinners: in numbers");
+  });
+
   it("handles an empty group", () => {
     const empty = tripReport({ name: "x", currency: "INR", members, expenses: [], transfers: [], tz: "Asia/Kolkata" });
     expect(empty).toMatchObject({ total: 0, days: 0, biggest: null, topPayer: null, from: "" });
