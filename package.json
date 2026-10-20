@@ -10,8 +10,10 @@
     "test": "vitest run",
     "db:setup": "prisma db push && node prisma/upgrade-data.mjs",
     "postinstall": "prisma generate",
-    "share": "gh codespace ports visibility 3000:public -c \"$CODESPACE_NAME\" && echo \"\u2713 The app address is public: invite links now work for friends.\" || echo \"Could not make the address public automatically. In the Ports tab, long-press port 3000 \u2192 Port Visibility \u2192 Public.\"",
-    "vercel-build": "node scripts/turso-sync.mjs && node prisma/upgrade-data.mjs && node scripts/fetch-photos.mjs && next build"
+    "share": "gh codespace ports visibility 3000:public -c \"$CODESPACE_NAME\" && echo \"✓ The app address is public: invite links now work for friends.\" || echo \"Could not make the address public automatically. In the Ports tab, long-press port 3000 → Port Visibility → Public.\"",
+    "vercel-build": "node scripts/turso-sync.mjs && node prisma/upgrade-data.mjs && node scripts/fetch-photos.mjs && next build",
+    "test:e2e": "playwright test",
+    "test:e2e:report": "playwright show-report e2e-report"
   },
   "dependencies": {
     "@prisma/client": "^6.8.0",
@@ -37,6 +39,7 @@
     "vitest": "^3.1.0",
     "@types/qrcode": "^1.5.5",
     "@types/web-push": "^3.6.4",
-    "@types/nodemailer": "^6.4.17"
+    "@types/nodemailer": "^6.4.17",
+    "@playwright/test": "1.48.2"
   }
 }
