@@ -1722,7 +1722,7 @@ async function main() {
   await step(V, "Switching", "“Coming from Splitwise?” → pick the exported file → balances checked → Bring it over: a new group with the same expenses, payments and balances", async () => {
     await go(V, "/switching");
     await V.getByRole("heading", { name: /Bring your groups/ }).waitFor();
-    await V.getByRole("link", { name: "Bring a group over" }).click();
+    await V.getByRole("link", { name: "Bring a group over" }).first().click();
     await V.waitForURL(/\/import/);
     const csv = [
       "Date,Description,Category,Cost,Currency,Varun,Asha S,Kabir",
