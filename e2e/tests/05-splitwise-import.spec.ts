@@ -45,9 +45,9 @@ test("import the supplied Splitwise CSV: 4 expenses, ₹10,810, Nupur MDI gets �
   const page = await ctx.newPage();
   await page.goto("/import");
   await settled(page);
-  await page.getByLabel("Splitwise export file").setInputFiles({ name: "splitwise-export.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+  await page.getByLabel("Spreadsheet to import").setInputFiles({ name: "splitwise-export.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
   await expect(page.getByText(new RegExp(`Found ${EXPECTED.expenses} expenses? and \\d+ payments? in INR`))).toBeVisible();
-  await expect(page.getByText("✓ Matches Splitwise’s balances")).toBeVisible();
+  await expect(page.getByText("✓ Matches the file’s own balances")).toBeVisible();
   await expect(page.getByRole("radio", { name: "Varun Batra", exact: true })).toHaveAttribute("aria-checked", "true");
   await page.locator('input[name="groupName"]').fill(`E2E import ${Date.now()}`);
   await page.getByRole("button", { name: "Bring it over" }).click();
@@ -91,9 +91,9 @@ test("import a sample Splitwise export (fictional people): 2 expenses + 1 paymen
   const page = await ctx.newPage();
   await page.goto("/import");
   await settled(page);
-  await page.getByLabel("Splitwise export file").setInputFiles("e2e/data/splitwise-sample.csv");
+  await page.getByLabel("Spreadsheet to import").setInputFiles("e2e/data/splitwise-sample.csv");
   await expect(page.getByText("Found 2 expenses and 1 payment in INR")).toBeVisible();
-  await expect(page.getByText("✓ Matches Splitwise’s balances")).toBeVisible();
+  await expect(page.getByText("✓ Matches the file’s own balances")).toBeVisible();
   await page.locator('input[name="groupName"]').fill(`E2E sample import ${Date.now()}`);
   await page.getByRole("button", { name: "Bring it over" }).click();
   await page.waitForURL(/imported=2\.1\.ok/);
@@ -105,17 +105,61 @@ test("import a sample Splitwise export (fictional people): 2 expenses + 1 paymen
   await ctx.close();
 });
 
-// A Loopin spreadsheet download (not a Splitwise export) is refused clearly.
-test("a Loopin spreadsheet instead of a Splitwise export gets a clear message", async ({ browser }) => {
-  const user = await signUp("Wrong File", testEmail("wrongfile"));
+// A Loopin group spreadsheet (Settings → Download spreadsheet) comes back in as it was.
+// By hand: Ann paid a ₹1,000 flight shared equally with Ben → Ann +₹500, Ben −₹500.
+test("a Loopin group spreadsheet is brought over as it was: Ann +₹500 / Ben −₹500", async ({ browser }) => {
+  const user = await signUp("Ann", testEmail("loopin-file"));
   const ctx = await contextFor(browser, user);
   const page = await ctx.newPage();
   await page.goto("/import");
   await settled(page);
-  const loopinStyle = "Date,Type,Description,Notes,Category,Paid by,Amount (INR),Original amount,Original currency,Exchange rate,Card markup (INR),Paid with,Status,Ann's share (INR),Ben's share (INR)\r\n2026-10-18,Expense,Flight,,Transport,Ann,1000.00,,,,,,,500.00,500.00\r\n";
-  await page.getByLabel("Splitwise export file").setInputFiles({ name: "loopin-download.csv", mimeType: "text/csv", buffer: Buffer.from(loopinStyle) });
-  // (The message is the importer's own alert; Next.js has a hidden one of its own, so it's picked by tag.)
-  await expect(page.locator('p[role="alert"]')).toContainText("doesn’t look like a Splitwise export");
+  const loopinStyle =
+    "Date,Type,Description,Notes,Category,Paid by,Amount (INR),Original amount,Original currency,Exchange rate,Card markup (INR),Paid with,Status,Ann's share (INR),Ben's share (INR)\r\n" +
+    "2026-10-18,Expense,Flight,,Transport,Ann,1000.00,,,,,,,500.00,500.00\r\n";
+  await page.getByLabel("Spreadsheet to import").setInputFiles({ name: "goa-expenses.csv", mimeType: "text/csv", buffer: Buffer.from(loopinStyle) });
+  await expect(page.getByText("Read as: Loopin spreadsheet")).toBeVisible();
+  await expect(page.getByText("Found 1 expense and 0 payments in INR")).toBeVisible();
+  await page.getByRole("button", { name: "Bring it over" }).click();
+  await page.waitForURL(/imported=1\.0\.na/);
+  expect(await readBalances(page, new URL(page.url()).pathname)).toEqual({ Ann: 50000, Ben: -50000 });
+  await ctx.close();
+});
+
+// Any other app's file (here, a Tricount-style one in euros): Loopin guesses
+// which column is which, the person can change it, and it comes across.
+// By hand: Lea paid €90 dinner for Lea, Max, Tom (€30 each); Max paid €30 taxi
+// for Max, Tom (€15 each) → Lea +€60, Max −€15, Tom −€45.
+test("another app's spreadsheet: columns guessed, people found, balances right (Lea +€60 / Max −€15 / Tom −€45)", async ({ browser }) => {
+  const user = await signUp("Lea", testEmail("other-app"));
+  const ctx = await contextFor(browser, user);
+  const page = await ctx.newPage();
+  await page.goto("/import");
+  await settled(page);
+  const other = 'Title,Amount,Currency,Date,Paid by,Paid for\r\nDinner,90,EUR,18/10/2026,Lea,"Lea, Max, Tom"\r\nTaxi,30,EUR,19/10/2026,Max,"Max, Tom"\r\n';
+  await page.getByLabel("Spreadsheet to import").setInputFiles({ name: "lisbon.csv", mimeType: "text/csv", buffer: Buffer.from(other) });
+  await expect(page.getByText("Read as: spreadsheet from another app")).toBeVisible();
+  const cols = page.getByRole("region", { name: "Which column is which?" });
+  await expect(cols.getByLabel("Paid by column")).toHaveValue("4");
+  await expect(cols.getByLabel("Amount column")).toHaveValue("1");
+  await expect(cols.getByLabel("How each one was shared")).toHaveValue("column");
+  await expect(cols.getByLabel("Currency of the amounts")).toHaveValue("EUR");
+  await expect(page.getByText("Found 2 expenses and 0 payments in EUR")).toBeVisible();
+  await page.getByRole("button", { name: "Bring it over" }).click();
+  await page.waitForURL(/imported=2\.0\.na/);
+  expect(await readBalances(page, new URL(page.url()).pathname)).toEqual({ Lea: 6000, Max: -1500, Tom: -4500 });
+  await ctx.close();
+});
+
+// A file with no "who paid" column can't be guessed: it asks, rather than guessing wrong.
+test("a file without a “paid by” column asks which column is which instead of guessing", async ({ browser }) => {
+  const user = await signUp("Nia", testEmail("no-payer"));
+  const ctx = await contextFor(browser, user);
+  const page = await ctx.newPage();
+  await page.goto("/import");
+  await settled(page);
+  await page.getByLabel("Spreadsheet to import").setInputFiles({ name: "notes.csv", mimeType: "text/csv", buffer: Buffer.from("Name,Amount\r\nTea,20\r\n") });
+  await expect(page.getByRole("region", { name: "Which column is which?" })).toBeVisible();
+  await expect(page.locator('p[role="alert"]')).toContainText("Pick the column that says who paid.");
   await expect(page.getByRole("button", { name: "Bring it over" })).toHaveCount(0);
   await ctx.close();
 });

@@ -61,11 +61,37 @@ export async function importFromSplitwise(formData: FormData) {
     groupName: String(formData.get("groupName") ?? ""),
     type: String(formData.get("type") ?? "other"),
     me: Number(formData.get("me") ?? -1),
+    map: readColumnMap(String(formData.get("map") ?? "")),
+    currency: String(formData.get("currency") ?? "") || undefined,
   });
   if (!r.ok) redirect(`/import?error=${encodeURIComponent(r.error)}`);
   await setMyMemberId(r.groupId, r.meMemberId);
   await copyPushTo(account.id, r.meMemberId);
-  redirect(`/groups/${r.groupId}?${new URLSearchParams({ imported: `${r.expenses}.${r.payments}.${r.matches === false ? "off" : "ok"}` })}`);
+  redirect(`/groups/${r.groupId}?${new URLSearchParams({ imported: `${r.expenses}.${r.payments}.${r.matches === false ? "off" : r.matches ? "ok" : "na"}` })}`);
+}
+
+// The column choices sent from the import screen (other apps' files), checked.
+function readColumnMap(json: string): import("@/lib/import-formats").ColumnMap | undefined {
+  if (!json) return undefined;
+  try {
+    const m = JSON.parse(json);
+    const col = (x: unknown) => (Number.isInteger(x) && (x as number) >= -1 && (x as number) < 200 ? (x as number) : undefined);
+    const split = ["everyone", "column", "shares"].includes(m?.split) ? m.split : "everyone";
+    const description = col(m?.description), amount = col(m?.amount), paidBy = col(m?.paidBy);
+    if (description === undefined || amount === undefined || paidBy === undefined) return undefined;
+    return {
+      date: col(m?.date) ?? -1,
+      description,
+      amount,
+      paidBy,
+      split,
+      forCol: col(m?.forCol),
+      shareCols: Array.isArray(m?.shareCols) ? (m.shareCols as unknown[]).map(col).filter((x): x is number => x !== undefined && x >= 0).slice(0, 50) : undefined,
+      type: col(m?.type),
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 // ---------- Adding people (never by just typing a name) ----------

@@ -48,7 +48,7 @@ export default async function NewGroup({
 
       <NewGroupForm defaultCurrency={currency} yourName={account.name} initialName={(name ?? "").slice(0, 60)} />
       <p className="mt-6 text-center text-sm text-gray-500">
-        Moving from Splitwise?{" "}
+        Moving from another app?{" "}
         <Link href="/import" className="font-medium text-fg underline">
           Bring a group over
         </Link>

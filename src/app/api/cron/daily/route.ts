@@ -7,6 +7,7 @@ import { sendMonthlySummaries } from "@/lib/home/insights-db";
 import { db } from "@/lib/db";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { DEFAULT_TIME_ZONE } from "@/lib/dates";
+import { eraseExpiredGroups } from "@/lib/purge";
 
 // The daily job (Vercel Cron, 06:00 India time): adds the bills that are due.
 // Safe to run more than once — every bill month is added at most once.
@@ -57,5 +58,7 @@ export async function GET(req: Request) {
   const speedLogsRemoved = await part("cleanup", async () => (await db.speedLog.deleteMany({ where: { at: { lt: new Date(now.getTime() - 14 * 86_400_000) } } })).count);
   await part("cleanup-move", async () => (await db.requestKey.deleteMany({ where: { key: { startsWith: "move:" }, createdAt: { lt: new Date(now.getTime() - 86_400_000) } } })).count);
   await part("cleanup-mail", async () => (await db.notifyLog.deleteMany({ where: { key: { startsWith: "mail-failed:" }, createdAt: { lt: new Date(now.getTime() - 30 * 86_400_000) } } })).count);
-  return Response.json({ ok: true, bills, reminders, budgetAlerts, summaries, speedLogsRemoved });
+  // Groups deleted more than 30 days ago (past their restore window) are erased for good.
+  const groupsErased = await part("erase-deleted-groups", () => eraseExpiredGroups(now));
+  return Response.json({ ok: true, bills, reminders, budgetAlerts, summaries, speedLogsRemoved, groupsErased });
 }
