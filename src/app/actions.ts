@@ -655,3 +655,12 @@ export async function invitePersonByEmail(formData: FormData) {
   const r = await inviteToClaim(group.id, me.id, String(formData.get("memberId") ?? ""), String(formData.get("email") ?? ""), origin);
   redirect(`/groups/${group.id}/people?${r.ok ? new URLSearchParams({ invited: r.email }) : new URLSearchParams({ error: r.error })}`);
 }
+
+// You → Fingerprint / face sign-in → Remove (only your own passkeys).
+export async function removeMyPasskey(formData: FormData) {
+  const account = await getAccount();
+  if (!account) redirect("/signin?back=/account");
+  const { removePasskey } = await import("@/lib/passkeys");
+  await removePasskey(account.id, String(formData.get("id") ?? ""));
+  redirect("/account?removed=passkey");
+}

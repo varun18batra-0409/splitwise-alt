@@ -1,5 +1,8 @@
 import Link from "@/components/Link";
-import { deleteMyAccount, signOutThisPhone } from "@/app/actions";
+import { deleteMyAccount, removeMyPasskey, signOutThisPhone } from "@/app/actions";
+import { listPasskeys } from "@/lib/passkeys";
+import { PasskeyAdd } from "@/components/Passkeys";
+import { niceDate } from "@/lib/format";
 import { getAccount, getMemberships } from "@/lib/identity";
 import { loadMyGroups } from "@/lib/group-data";
 import { ConfirmButton } from "@/components/ConfirmButton";
@@ -11,6 +14,7 @@ export default async function AccountPage() {
   const groups = await loadMyGroups(await getMemberships());
   const admins = (process.env.ADMIN_EMAIL ?? "").split(",").map((s) => s.trim().toLowerCase());
   const isAdmin = Boolean(account && admins.includes(account.email));
+  const passkeys = account ? await listPasskeys(account.id) : [];
 
   return (
     <>
@@ -33,6 +37,35 @@ export default async function AccountPage() {
           <Link href="/signin?back=/account" className={`mt-5 ${primaryButtonClass}`}>
             Sign in or sign up
           </Link>
+        </section>
+      )}
+
+      {account && (
+        <section className="mt-10 border-t border-line pt-8">
+          <h2 className="mb-1 text-base font-semibold">Fingerprint / face sign-in</h2>
+          <p className="mb-4 text-sm text-gray-500">Sign in with one touch instead of a code. Your fingerprint never leaves your phone; Loopin only gets a key that proves it’s you.</p>
+          {passkeys.length > 0 && (
+            <ul className="mb-4 divide-y divide-line border-y border-line">
+              {passkeys.map((p) => (
+                <li key={p.id} className="flex items-center gap-3 py-3">
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-medium">{p.label || "Passkey"}</span>
+                    <span className="block text-xs text-gray-500">
+                      Added {niceDate(p.createdAt.toISOString().slice(0, 10))}
+                      {p.lastUsedAt ? ` · last used ${niceDate(p.lastUsedAt.toISOString().slice(0, 10))}` : ""}
+                    </span>
+                  </span>
+                  <form action={removeMyPasskey}>
+                    <input type="hidden" name="id" value={p.id} />
+                    <ConfirmButton message="Remove this fingerprint / face sign-in?" className="rounded-full border border-line px-3.5 py-1.5 text-sm text-fg active:bg-mist">
+                      Remove
+                    </ConfirmButton>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          )}
+          <PasskeyAdd className={secondaryButtonClass} label={passkeys.length ? "Add this phone too" : "Turn on fingerprint / face sign-in"} />
         </section>
       )}
 

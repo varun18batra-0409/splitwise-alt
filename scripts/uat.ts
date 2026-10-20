@@ -1753,6 +1753,35 @@ async function main() {
     assert(body.includes("Your balance change"), "no balance column");
   });
 
+  await step(null, "Sign in", "Fingerprint / face: turn it on, sign out, sign back in with one touch, then remove it", async () => {
+    const { ctx, page } = await person(browser);
+    // A virtual fingerprint reader (Chrome's test authenticator).
+    const cdp = await ctx.newCDPSession(page);
+    await cdp.send("WebAuthn.enable");
+    await cdp.send("WebAuthn.addVirtualAuthenticator", {
+      options: { protocol: "ctap2", transport: "internal", hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true },
+    });
+    await go(page, "/signin");
+    await signup(page, "Pia", email("pia"));
+    await go(page, "/account");
+    await page.getByRole("button", { name: /Turn on fingerprint \/ face sign-in/ }).click();
+    await page.getByText(/Android phone|This device|Mac|Windows computer/).first().waitFor();
+    const keys = await db.passkey.count({ where: { accountId: (await db.account.findUniqueOrThrow({ where: { email: email("pia") } })).id } });
+    assert(keys === 1, `passkeys saved: ${keys}`);
+    await page.getByRole("button", { name: "Sign out" }).click();
+    await page.waitForURL(base + "/");
+    await go(page, "/signin");
+    await page.getByRole("button", { name: /Sign in with fingerprint or face/ }).click();
+    await page.waitForURL(/signedin=1/);
+    await go(page, "/account");
+    await page.getByText(email("pia")).first().waitFor();
+    await page.getByRole("button", { name: "Remove" }).click();
+    await page.waitForURL(/removed=passkey/);
+    const left = await db.passkey.count({ where: { accountId: (await db.account.findUniqueOrThrow({ where: { email: email("pia") } })).id } });
+    assert(left === 0, `passkeys left after Remove: ${left}`);
+    await ctx.close();
+  });
+
   await browser.close();
 
   // ---------- report ----------

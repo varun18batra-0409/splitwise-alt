@@ -10,7 +10,7 @@
     "test": "vitest run",
     "db:setup": "prisma db push && node prisma/upgrade-data.mjs",
     "postinstall": "prisma generate",
-    "share": "gh codespace ports visibility 3000:public -c \"$CODESPACE_NAME\" && echo \"✓ The app address is public: invite links now work for friends.\" || echo \"Could not make the address public automatically. In the Ports tab, long-press port 3000 → Port Visibility → Public.\"",
+    "share": "gh codespace ports visibility 3000:public -c \"$CODESPACE_NAME\" && echo \"\u2713 The app address is public: invite links now work for friends.\" || echo \"Could not make the address public automatically. In the Ports tab, long-press port 3000 \u2192 Port Visibility \u2192 Public.\"",
     "vercel-build": "node scripts/turso-sync.mjs && node prisma/upgrade-data.mjs && node scripts/fetch-photos.mjs && next build"
   },
   "dependencies": {
@@ -22,7 +22,9 @@
     "@libsql/client": "^0.15.0",
     "qrcode": "^1.5.4",
     "web-push": "^3.6.7",
-    "nodemailer": "^6.9.16"
+    "nodemailer": "^6.9.16",
+    "@simplewebauthn/server": "^13.1.1",
+    "@simplewebauthn/browser": "^13.1.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.0",
