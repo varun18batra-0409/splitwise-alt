@@ -1170,6 +1170,7 @@ async function main() {
     // Quick start fills the group name
     await go(page, "/");
     await page.getByRole("link", { name: /Trip/ }).click();
+    await page.waitForURL(/\/groups\/new/); // (Home has its own "Sign in or sign up" link)
     await page.getByRole("link", { name: "Sign in or sign up" }).waitFor(); // not signed in yet: sign up first
     const href = (await page.getByRole("link", { name: "Sign in or sign up" }).getAttribute("href")) ?? "";
     assert(decodeURIComponent(decodeURIComponent(href)).includes("name=Goa trip"), `the trip name isn't kept for after sign-up: ${href}`);
