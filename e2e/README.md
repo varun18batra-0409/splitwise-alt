@@ -19,7 +19,7 @@ If the tests are pointed at loopinapps.com, or the staging database turns out to
 | `02-auth-group.spec.ts` | Sign up with an email code and create a group; a wrong code is refused |
 | `03-expenses.spec.ts` | Three people: a ₹900 equal split (Alice +₹600, Bob and Cara −₹300 each, seen from two phones); then the dinner is edited to ₹1,200 and the balances become +₹800 / −₹400 / −₹400 |
 | `03-expenses.spec.ts` | **Must-fail check**: a deliberately wrong balance (₹1 off) must be caught. It's marked "expected to fail". If it ever passes, the suite fails, because that would mean the checks can't see mistakes |
-| `05-splitwise-import.spec.ts` | Your real Splitwise file (4 expenses, ₹10,810, Varun Batra +₹105 / Nupur MDI −₹105). Shows as **blocked** until the file is supplied (see below) |
+| `05-splitwise-import.spec.ts` | Your Splitwise export (4 expenses, ₹10,810; Nupur MDI gets ₹105, Varun Batra owes ₹105, as in the file's own Total balance row). Shows as **blocked** until the file is supplied as a secret (see below) |
 | `05-splitwise-import.spec.ts` | A made-up Splitwise file (fictional people), and a wrong file (a Loopin spreadsheet) that is refused with a clear message |
 
 The older 150-step check (`scripts/uat.ts`) still runs as before. These Playwright tests are the new standard set and will grow stage by stage.

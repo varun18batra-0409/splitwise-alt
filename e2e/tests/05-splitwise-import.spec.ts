@@ -10,14 +10,17 @@ import { contextFor, readBalances, settled, toPaise } from "../helpers/app";
 // repository. The workflow writes it from the GitHub secret
 // E2E_SPLITWISE_CSV_B64 and points E2E_SPLITWISE_CSV at it.
 //
-// Expected (from the founder's brief; checked against the file itself below
-// before the app is tested): 4 expenses totalling ₹10,810, not counting the
-// "Total balance" summary row; Nupur MDI −₹105, Varun Batra +₹105.
-const EXPECTED = { expenses: 4, total: 1_081_000, balances: { "Varun Batra": 10_500, "Nupur MDI": -10_500 } };
+// Expected, checked by hand against the supplied file (export.csv, 20 Oct 2026):
+// 4 expenses (Test ₹5,000, Test 2 ₹300, Test 5 ₹3,000, Test 6 ₹2,510) totalling
+// ₹10,810, not counting the "Total balance" row. That row says Nupur MDI
+// +105.00 and Varun Batra −105.00, and the four rows add up to the same.
+// In Splitwise a plus means "gets money back", so Nupur gets ₹105 and Varun
+// owes ₹105. (The brief had the signs the other way round; the file wins.)
+const EXPECTED = { expenses: 4, total: 1_081_000, balances: { "Nupur MDI": 10_500, "Varun Batra": -10_500 } };
 
 const file = process.env.E2E_SPLITWISE_CSV ?? "";
 
-test("import the supplied Splitwise CSV: 4 expenses, ₹10,810, Varun Batra +₹105 / Nupur MDI −₹105", async ({ browser }) => {
+test("import the supplied Splitwise CSV: 4 expenses, ₹10,810, Nupur MDI gets ₹105 / Varun Batra owes ₹105", async ({ browser }) => {
   test.skip(!file || !existsSync(file), "BLOCKED: the Splitwise CSV wasn't supplied (secret E2E_SPLITWISE_CSV_B64 / E2E_SPLITWISE_CSV).");
   const csv = readFileSync(file, "utf8");
 
