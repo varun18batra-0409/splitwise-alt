@@ -16,7 +16,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --no-save playwright@1.48.2 && npx --yes playwright@1.48.2 install --with-deps chromium
+      - run: npm install && npx playwright install --with-deps chromium
       - name: Where the database lives
         env:
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
