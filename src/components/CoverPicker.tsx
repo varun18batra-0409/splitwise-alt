@@ -23,11 +23,12 @@ export function CoverPicker({
     // min-w-0: a fieldset otherwise grows to fit the whole row, making the page wider than the phone.
     <fieldset className="min-w-0">
       <legend className={legendClassName}>Picture</legend>
-      <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <p className="text-xs text-gray-500">Swipe for more</p>
+      <div className="-mx-1 grid snap-x auto-cols-[70px] grid-flow-col grid-rows-2 gap-3 overflow-x-auto px-1 pb-2 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {COVERS.map((c) => (
           <label
             key={c.id}
-            className="relative h-[92px] w-[70px] shrink-0 cursor-pointer overflow-hidden rounded-[14px] border border-line ring-offset-2 ring-offset-canvas has-[:checked]:ring-2 has-[:checked]:ring-fg has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent"
+            className="relative h-[92px] w-[70px] shrink-0 snap-start cursor-pointer overflow-hidden rounded-[14px] border border-line ring-offset-2 ring-offset-canvas has-[:checked]:ring-2 has-[:checked]:ring-fg has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent"
           >
             <input
               type="radio"
@@ -36,7 +37,7 @@ export function CoverPicker({
               className="sr-only"
               {...(onChange ? { checked: value === c.id, onChange: () => onChange(c.id) } : { defaultChecked: defaultValue === c.id })}
             />
-            <GroupCover kind={c.id} uid={`pick-${uid}`} letter={letter || "A"} small />
+            <GroupCover kind={c.id} uid={`pick-${uid}`} letter={letter || "A"} small sizes="70px" />
             <span className="sr-only">{c.label}</span>
           </label>
         ))}

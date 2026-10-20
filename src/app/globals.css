@@ -280,3 +280,60 @@ form[aria-busy="true"] button[type="submit"] {
     animation: none;
   }
 }
+
+/* ---------- Motion ---------- */
+/* Each screen fades in as it arrives (opacity only, so nothing "fixed" jumps). */
+@keyframes lp-in {
+  from {
+    opacity: 0;
+  }
+}
+.lp-page {
+  animation: lp-in 240ms ease-out both;
+}
+/* Lists rise in one after another. */
+@keyframes lp-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+.lp-rise > * {
+  animation: lp-rise 420ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.lp-rise > *:nth-child(2) { animation-delay: 50ms; }
+.lp-rise > *:nth-child(3) { animation-delay: 100ms; }
+.lp-rise > *:nth-child(4) { animation-delay: 150ms; }
+.lp-rise > *:nth-child(5) { animation-delay: 200ms; }
+.lp-rise > *:nth-child(6) { animation-delay: 250ms; }
+.lp-rise > *:nth-child(n + 7) { animation-delay: 300ms; }
+/* A group's big picture slowly drifts, like a photo in a slideshow. */
+@keyframes lp-drift {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.08) translate(-1%, -1%);
+  }
+}
+.lp-drift {
+  animation: lp-drift 14s ease-in-out infinite alternate;
+  transform-origin: 60% 40%;
+}
+/* Cards give a little when pressed. */
+.lp-press {
+  transition: transform 120ms ease-out;
+}
+.lp-press:active {
+  transform: scale(0.97);
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-page,
+  .lp-rise > *,
+  .lp-drift {
+    animation: none;
+  }
+  .lp-press:active {
+    transform: none;
+  }
+}

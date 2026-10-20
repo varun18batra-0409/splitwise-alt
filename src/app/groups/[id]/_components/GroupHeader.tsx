@@ -1,10 +1,10 @@
 import Link from "@/components/Link";
 import { BackIcon, ChevronDown, GearIcon, InviteIcon, iconButtonClass } from "@/components/icons";
 import { GroupCover } from "@/components/GroupCover";
-import { coverOf } from "@/lib/covers";
+import { coverOf, type CoverChoice } from "@/lib/covers";
 import type { GroupView } from "./view";
 
-type SwitchItem = { id: string; name: string };
+type SwitchItem = { id: string; name: string; cover?: CoverChoice };
 
 // Back to all groups · group name (tap to switch group) · Invite · Settings.
 // Home, Search and Settle also live in the bottom bar.
@@ -31,7 +31,12 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
             <ul>
               {switchTo.map((g) => (
                 <li key={g.id}>
-                  <Link href={`/groups/${g.id}`} className="flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 active:bg-mist">
+                  <Link href={`/groups/${g.id}`} className="flex items-center gap-3 rounded-xl px-3 py-2 active:bg-mist">
+                    {g.cover && (
+                      <span className="relative h-8 w-8 shrink-0 overflow-hidden rounded-lg" aria-hidden>
+                        <GroupCover kind={g.cover} uid={`sw-${g.id}`} letter={g.name} letterClass="text-sm" sizes="32px" />
+                      </span>
+                    )}
                     <span className="truncate font-medium">{g.name}</span>
                   </Link>
                 </li>
@@ -75,7 +80,7 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
   return (
     <header className="relative -mx-5 -mt-[max(1.5rem,env(safe-area-inset-top))] mb-6 h-[232px] px-5 pt-[max(1.5rem,env(safe-area-inset-top))]">
       <div aria-hidden className="absolute inset-0 overflow-hidden">
-        <GroupCover kind={cover} uid={`head-${group.id}`} letter={group.name} />
+        <GroupCover kind={cover} uid={`head-${group.id}`} letter={group.name} sizes="(max-width: 448px) 100vw, 448px" priority drift />
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(13,13,15,0.45)_0%,rgba(13,13,15,0)_30%,rgba(13,13,15,0)_42%,#0d0d0f_100%)]" />
       </div>
       <div className="relative flex items-center gap-2">

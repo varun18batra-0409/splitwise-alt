@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 import { getAccount, getMemberships } from "@/lib/identity";
 import { joinAsExisting, joinAsNew } from "@/app/actions";
 import { Avatar, ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/components/ui";
+import { GroupCover } from "@/components/GroupCover";
+import { coverOf } from "@/lib/covers";
 
 // Where invitations land (group link, QR, contact message or email).
 // Joining needs a verified email, so new people sign up first (30 seconds,
@@ -44,7 +46,14 @@ export default async function JoinPage({
       {error === "busy" && <ErrorNote>Too many joins from here in the last hour. Wait a bit and try again.</ErrorNote>}
       {error === "claimed" && <ErrorNote>That name is already taken by someone else. Join as yourself instead.</ErrorNote>}
 
-      <section className="vault mb-8 rounded-[24px] px-5 py-6 text-fg">
+      <section className="vault mb-8 overflow-hidden rounded-[24px] text-fg">
+        {coverOf(group) !== "plain" && (
+          <div className="relative h-[180px] overflow-hidden" aria-hidden>
+            <GroupCover kind={coverOf(group)} uid={`join-${group.id}`} sizes="(max-width: 448px) 100vw, 448px" priority drift />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(17,17,20,0)_35%,#141418_100%)]" />
+          </div>
+        )}
+        <div className={`relative px-5 pb-6 ${coverOf(group) !== "plain" ? "-mt-6" : "pt-6"}`}>
         <p className="text-sm text-fg/55">You’re invited to</p>
         <p className="mt-1 font-display text-[28px] font-semibold leading-tight">{group.name}</p>
         <p className="mt-2 text-sm text-fg/60">
@@ -52,6 +61,7 @@ export default async function JoinPage({
           {verified.length > 0 && ` · ${verified.map((m) => m.name).slice(0, 4).join(", ")}`}
           {verified.length > 4 ? "…" : ""}
         </p>
+        </div>
       </section>
 
       {!account ? (

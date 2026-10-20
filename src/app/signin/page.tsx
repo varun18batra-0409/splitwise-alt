@@ -7,6 +7,8 @@ import { mailConfigured } from "@/lib/mail";
 import { googleConfigured } from "@/lib/google";
 import { PasskeySignIn } from "@/components/Passkeys";
 import { ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/components/ui";
+import { GroupCover } from "@/components/GroupCover";
+import { coverOf } from "@/lib/covers";
 
 // Optional sign-in: type your email, get a 6-digit code, type it here.
 // Your groups then follow you to a new phone or the installed app.
@@ -30,6 +32,11 @@ export default async function SignIn({
 
       {!sent ? (
         <>
+          <div className="relative mb-6 h-[150px] overflow-hidden rounded-[22px] border border-line" aria-hidden>
+            <GroupCover kind={coverOf({ cover: "photo-friends", type: "other" })} uid="signin" sizes="(max-width: 448px) 100vw, 448px" priority drift />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(13,13,15,0)_40%,rgba(13,13,15,0.7)_100%)]" />
+            <p className="absolute bottom-3 left-4 font-display text-[22px] font-semibold">Everyone’s in.</p>
+          </div>
           <p className="mb-6 text-gray-600">
             New here or coming back, it’s the same: we’ll get your groups on this phone, and on any other. No password needed.
           </p>

@@ -1,4 +1,5 @@
 import Link from "@/components/Link";
+import { GroupCover } from "@/components/GroupCover";
 import { getMemberships } from "@/lib/identity";
 import { loadNotifications, markNotificationsSeen } from "@/lib/group-data";
 import { byDay } from "@/lib/activity";
@@ -53,19 +54,20 @@ export default async function Notifications() {
           {byDay(rows, new Date(), tz).map((day) => (
             <section key={day.day}>
               <h2 className="py-1.5 text-sm font-medium text-gray-500">{day.day}</h2>
-              <ul className="divide-y divide-gray-100">
+              <ul className="lp-rise divide-y divide-gray-100">
                 {day.items.map((n) => {
                   const details = parseDetails(n.event.details).slice(0, 4);
                   return (
                     <li key={n.event.id}>
                       <Link href={`/groups/${n.event.groupId}?tab=activity`} className="flex gap-3 py-3 active:bg-gray-50">
-                        <span
-                          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-base ${
-                            n.unread ? "bg-accent-soft text-accent-dark" : "bg-mist text-gray-500"
-                          }`}
-                          aria-hidden
-                        >
-                          {ICON[n.event.kind] ?? "•"}
+                        {/* The group's picture, with what happened as a small badge. */}
+                        <span className="relative h-11 w-11 shrink-0" aria-hidden>
+                          <span className={`absolute inset-0 overflow-hidden rounded-xl ${n.unread ? "" : "opacity-70"}`}>
+                            <GroupCover kind={n.groupCover} uid={`nt-${n.event.id}`} letter={n.groupName} letterClass="text-lg" sizes="44px" />
+                          </span>
+                          <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-canvas bg-mist text-[11px]">
+                            {ICON[n.event.kind] ?? "•"}
+                          </span>
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block text-sm">

@@ -1,13 +1,52 @@
-import type { CoverChoice } from "@/lib/covers";
+import Image from "next/image";
+import { isPhoto, photoSrc, type CoverChoice } from "@/lib/covers";
 
 // A group's picture, drawn (see lib/covers.ts). Fills its box (give the parent
 // a size and `relative`). `uid` keeps each copy's colour gradients separate,
 // so several on one screen never borrow from a hidden one. "plain" shows the
 // first letter of the name instead.
-export function GroupCover({ kind, uid, letter = "", small, className = "" }: { kind: CoverChoice; uid: string; letter?: string; small?: boolean; className?: string }) {
+// Photos: `sizes` says how wide it shows (so the phone gets a small file),
+// `priority` for the big picture at the top of a screen, `drift` for a slow zoom.
+export function GroupCover({
+  kind,
+  uid,
+  letter = "",
+  small,
+  className = "",
+  sizes = "(max-width: 448px) 50vw, 224px",
+  priority,
+  drift,
+  letterClass,
+}: {
+  kind: CoverChoice;
+  uid: string;
+  letter?: string;
+  small?: boolean;
+  className?: string;
+  sizes?: string;
+  priority?: boolean;
+  drift?: boolean;
+  letterClass?: string;
+}) {
+  if (isPhoto(kind)) {
+    const src = photoSrc(kind);
+    if (src)
+      return (
+        <Image
+          src={src}
+          alt=""
+          aria-hidden
+          fill
+          sizes={sizes}
+          priority={priority}
+          className={`object-cover ${drift ? "lp-drift" : ""} ${className}`}
+        />
+      );
+    return null;
+  }
   const id = (s: string) => `cv-${kind}-${s}-${uid.replace(/[^A-Za-z0-9_-]/g, "")}`;
   const svg = (children: React.ReactNode) => (
-    <svg viewBox="0 0 300 400" preserveAspectRatio="xMidYMid slice" className={`absolute inset-0 block h-full w-full ${className}`} aria-hidden>
+    <svg viewBox="0 0 300 400" preserveAspectRatio="xMidYMid slice" className={`absolute inset-0 block h-full w-full ${drift ? "lp-drift" : ""} ${className}`} aria-hidden>
       {children}
     </svg>
   );
@@ -15,7 +54,7 @@ export function GroupCover({ kind, uid, letter = "", small, className = "" }: { 
   switch (kind) {
     case "plain":
       return (
-        <span aria-hidden className={`absolute inset-0 flex bg-[radial-gradient(120%_80%_at_100%_0%,rgb(244_242_236/0.09),transparent_55%),linear-gradient(165deg,#1b1b20_0%,#111114_70%)] items-center justify-center font-display ${small ? "text-[32px]" : "text-[56px]"} font-semibold text-fg/80 ${className}`}>
+        <span aria-hidden className={`absolute inset-0 flex bg-[radial-gradient(120%_80%_at_100%_0%,rgb(244_242_236/0.09),transparent_55%),linear-gradient(165deg,#1b1b20_0%,#111114_70%)] items-center justify-center font-display ${letterClass ?? (small ? "text-[32px]" : "text-[56px]")} font-semibold text-fg/80 ${className}`}>
           {letter.trim().charAt(0).toUpperCase()}
         </span>
       );

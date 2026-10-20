@@ -7,6 +7,8 @@ import { formatMoney } from "@/lib/money";
 import { dateRange, tripReport } from "@/lib/trip-report";
 import { PageHeader } from "@/components/ui";
 import { TripShare } from "@/components/TripShare";
+import { GroupCover } from "@/components/GroupCover";
+import { coverOf } from "@/lib/covers";
 
 export const metadata = { title: "Trip report" };
 
@@ -29,7 +31,14 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
         <p className="rounded-2xl bg-mist px-4 py-8 text-center text-sm text-gray-600">The report appears once the group has expenses.</p>
       ) : (
         <>
-          <section className="vault rounded-[24px] px-6 py-7 text-fg" aria-label="The trip in numbers">
+          <section className="vault overflow-hidden rounded-[24px] text-fg" aria-label="The trip in numbers">
+            {coverOf(group) !== "plain" && (
+              <div className="relative h-[170px] overflow-hidden" aria-hidden>
+                <GroupCover kind={coverOf(group)} uid={`report-${group.id}`} sizes="(max-width: 448px) 100vw, 448px" priority drift />
+                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(17,17,20,0)_30%,#141418_100%)]" />
+              </div>
+            )}
+            <div className={`relative px-6 pb-7 ${coverOf(group) !== "plain" ? "-mt-8" : "pt-7"}`}>
             <p className="text-sm text-fg/60">{[dateRange(r), r.days > 1 ? `${r.days} days` : "", `${r.count} expenses`].filter(Boolean).join(" · ")}</p>
             <h1 className="mt-1 font-display text-[28px] font-semibold leading-tight">{group.name}</h1>
             <p className="mt-4 font-display text-[40px] font-semibold leading-none tabular-nums">{m(r.total)}</p>
@@ -49,7 +58,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
                     </span>
                   </div>
                   <div className="mt-1 h-1.5 rounded-full bg-line">
-                    <div className="h-1.5 rounded-full bg-owed" style={{ width: `${Math.max(2, c.pct)}%` }} />
+                    <div className="meter-bar h-1.5 origin-left rounded-full bg-owed" style={{ width: `${Math.max(2, c.pct)}%` }} />
                   </div>
                 </li>
               ))}
@@ -95,6 +104,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
                 ))}
               </ul>
             )}
+            </div>
           </section>
 
           <div className="mt-6">

@@ -28,7 +28,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
       ) : settleItems.length === 0 ? (
         <p className="rounded-2xl bg-mist px-4 py-8 text-center text-sm text-gray-600">You’re settled up with everyone. 🎉</p>
       ) : (
-        <ul className="space-y-2">
+        <ul className="lp-rise space-y-2">
           {settleItems.map((it) => {
             const amt = (n: number) => `${it.converted ? "≈ " : ""}${formatMoney(Math.abs(n), common)}`;
             return (

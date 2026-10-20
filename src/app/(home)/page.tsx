@@ -174,7 +174,12 @@ export default async function Home({
       {all.length === 0 ? (
         <>
           {/* Start screen: nothing here yet. */}
-          <section className="vault rounded-[24px] px-6 pb-6 pt-8 text-fg">
+          <section className="overflow-hidden rounded-[24px] border border-line bg-white text-fg">
+            <div className="relative h-[210px] overflow-hidden">
+              <GroupCover kind={coverOf({ cover: "photo-friends", type: "other" })} uid="start" sizes="(max-width: 448px) 100vw, 448px" priority drift />
+              <div aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgba(22,22,26,0)_35%,#16161a_100%)]" />
+            </div>
+            <div className="relative -mt-12 px-6 pb-6">
             <h1 className="font-display text-[30px] font-semibold leading-tight tracking-tight">Let’s get you started</h1>
             <p className="mt-2 text-fg/60">Split costs with friends, flatmates or your partner. No ads, no limits.</p>
             <div className="mt-7 space-y-3">
@@ -183,24 +188,24 @@ export default async function Home({
               </Link>
               <JoinByLink />
             </div>
+            </div>
           </section>
 
           <section className="mt-8">
             <h2 className="mb-2 font-display text-lg font-semibold tracking-tight">Quick start</h2>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="lp-rise grid grid-cols-2 gap-3">
               {[
-                ["✈️", "Trip", "Goa trip"],
-                ["🏠", "Flatmates", "Flat expenses"],
-              ].map(([emoji, label, name]) => (
+                ["trip", "Trip", "Goa trip"],
+                ["home", "Flatmates", "Flat expenses"],
+              ].map(([type, label, name]) => (
                 <Link
                   key={label}
-                  href={`/groups/new?name=${encodeURIComponent(name)}`}
-                  className="flex items-center gap-3 rounded-2xl border border-line px-4 py-3.5 active:bg-mist"
+                  href={`/groups/new?name=${encodeURIComponent(name)}&type=${type}`}
+                  className="lp-press relative block h-[124px] overflow-hidden rounded-[20px] border border-line"
                 >
-                  <span className="text-xl" aria-hidden>
-                    {emoji}
-                  </span>
-                  <span className="text-sm font-medium">{label}</span>
+                  <GroupCover kind={coverOf({ type })} uid={`quick-${type}`} />
+                  <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgba(13,13,15,0)_30%,rgba(13,13,15,0.85)_100%)]" />
+                  <span className="absolute bottom-3 left-3.5 text-[15px] font-semibold">{label}</span>
                 </Link>
               ))}
             </div>
@@ -386,7 +391,7 @@ export default async function Home({
             {open.length === 0 ? (
               <p className="py-6 text-sm text-gray-500">No open groups. Create one, or reopen a closed one.</p>
             ) : (
-              <ul className="mt-3 grid grid-cols-2 gap-x-3 gap-y-5">
+              <ul className="lp-rise mt-3 grid grid-cols-2 gap-x-3 gap-y-5">
                 {open.map((g) => (
                   <GroupCard key={g.group.id} g={g} tz={tz} />
                 ))}
@@ -423,7 +428,7 @@ export default async function Home({
           {attention.length > 0 && (
             <section className="mt-8">
               <h2 className="mb-2 font-display text-lg font-semibold tracking-tight">Needs attention</h2>
-              <ul className="divide-y divide-line rounded-2xl border border-line">
+              <ul className="lp-rise divide-y divide-line rounded-2xl border border-line">
                 {attention.map((a) => (
                   <li key={a.key}>
                     <Link href={a.href} className="flex items-center gap-3 px-4 py-3 text-sm active:bg-mist">
@@ -529,13 +534,8 @@ function GroupRow({ g, closed, tz }: { g: Awaited<ReturnType<typeof loadOverview
   return (
     <li>
       <Link href={`/groups/${g.group.id}`} className="flex items-center gap-3 py-3.5 active:bg-mist">
-        <span
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl font-display text-base font-semibold ${
-            closed ? "bg-gray-50 text-gray-400" : "bg-mist text-fg"
-          }`}
-          aria-hidden
-        >
-          {g.group.name.trim().charAt(0).toUpperCase()}
+        <span className={`relative h-11 w-11 shrink-0 overflow-hidden rounded-xl ${closed ? "opacity-50 grayscale" : ""}`} aria-hidden>
+          <GroupCover kind={coverOf(g.group)} uid={`row-${g.group.id}`} letter={g.group.name} letterClass="text-lg" sizes="44px" />
         </span>
         <span className="min-w-0 flex-1">
           <span className={`block truncate font-medium ${closed ? "text-gray-500" : ""}`}>{g.group.name}</span>
@@ -558,7 +558,7 @@ function GroupCard({ g, tz }: { g: Awaited<ReturnType<typeof loadOverview>>["all
   const type = TYPE_LABEL[g.group.type];
   return (
     <li className="min-w-0">
-      <Link href={`/groups/${g.group.id}`} className="block active:opacity-80">
+      <Link href={`/groups/${g.group.id}`} className="lp-press block">
         <span className="relative block h-[188px] overflow-hidden rounded-[20px] border border-line">
           <GroupCover kind={coverOf(g.group)} uid={g.group.id} letter={g.group.name} />
           {type && (
