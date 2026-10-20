@@ -1150,8 +1150,7 @@ async function main() {
     await go(page, "/");
     await page.getByRole("link", { name: "Home", exact: true }).first().click();
     await page.getByText("Let’s get you started").waitFor();
-    await page.getByRole("link", { name: "Sign up" }).first().waitFor();
-    await page.getByRole("link", { name: "Sign in" }).first().waitFor();
+    await page.getByRole("link", { name: "Sign in or sign up" }).first().waitFor();
     // Join with a pasted link
     await page.getByRole("button", { name: "Join with an invite link" }).click();
     await page.getByLabel("Invite link").fill(`https://getloopin.vercel.app${invite}`);
@@ -1163,9 +1162,9 @@ async function main() {
     await page.getByRole("link", { name: "Sign up with email" }).waitFor(); // not signed in yet: sign up first
     const href = (await page.getByRole("link", { name: "Sign up with email" }).getAttribute("href")) ?? "";
     assert(decodeURIComponent(decodeURIComponent(href)).includes("name=Goa trip"), `the trip name isn't kept for after sign-up: ${href}`);
-    // Sign up screen
+    // One screen for signing up and signing in
     await go(page, "/signin?mode=signup");
-    await page.getByRole("heading", { name: "Sign up" }).waitFor();
+    await page.getByRole("heading", { name: "Continue to Loopin" }).waitFor();
     await ctx.close();
   });
   await step(V, "Help", "“?” on home opens the detailed How Loopin works guide (with photos), which links to the 1-minute tour", async () => {
@@ -1630,6 +1629,24 @@ async function main() {
     assert(!again.setCookie.some((c) => c.startsWith("sw_me=")), "the pass worked twice");
     const stays = await raw("/api/health", "getloopin.vercel.app");
     assert(stays.status === 200 || stays.status === 429, `the daily job / health stopped working on the old address (${stays.status})`);
+  });
+
+  await step(null, "Sign in", "One screen for new and returning people; Continue with Google goes to Google with our app and PKCE; a forged return is refused", async () => {
+    const { ctx, page } = await person(browser);
+    await go(page, "/signin");
+    await page.getByRole("heading", { name: "Continue to Loopin" }).waitFor();
+    assert((await page.getByRole("link", { name: "Sign up", exact: true }).count()) === 0, "separate Sign up / Sign in tabs still shown");
+    const href = (await page.getByRole("link", { name: "Continue with Google" }).getAttribute("href")) ?? "";
+    assert(href.startsWith("/api/auth/google/start"), `Google button links to ${href}`);
+    await ctx.close();
+    const start = await raw("/api/auth/google/start?back=%2Fsettle", new URL(base).host);
+    const g = new URL(start.location);
+    assert(start.status === 307 && g.origin === "https://accounts.google.com", `start: ${start.status} ${start.location}`);
+    assert(g.searchParams.get("client_id") === "uat-test.apps.googleusercontent.com" && g.searchParams.get("code_challenge_method") === "S256", `params: ${g.search}`);
+    assert(g.searchParams.get("redirect_uri") === `${base}/api/auth/google/callback`, `redirect_uri: ${g.searchParams.get("redirect_uri")}`);
+    assert(start.setCookie.some((c) => c.startsWith("lp_g=")), "no sign-in attempt cookie");
+    const forged = await raw("/api/auth/google/callback?state=forged&code=x", new URL(base).host, start.setCookie.map((c) => c.split(";")[0]).join("; "));
+    assert(forged.status === 303 && /\/signin\?/.test(forged.location) && !forged.setCookie.some((c) => c.startsWith("sw_me=")), `forged return: ${forged.status} ${forged.location}`);
   });
 
   await browser.close();

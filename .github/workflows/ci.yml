@@ -37,6 +37,10 @@ jobs:
     env:
       TURSO_DATABASE_URL: file:/tmp/online-stand-in.db
       MAIL_OUTBOX: "1" # emails are kept in the database for the tests, never sent
+      # A made-up Google app, so the "Continue with Google" button shows and its
+      # first step (off to Google) can be checked. Nothing is sent to Google.
+      GOOGLE_CLIENT_ID: uat-test.apps.googleusercontent.com
+      GOOGLE_CLIENT_SECRET: uat-not-a-secret
       CRON_SECRET: uat-only-not-a-real-secret # the test server's daily-job key (the live one is set in Vercel)
     steps:
       - uses: actions/checkout@v4

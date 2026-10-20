@@ -194,15 +194,10 @@ export default async function Home({
           {!account && (
             <section className="mt-8 rounded-2xl border border-line px-4 py-4">
               <p className="text-sm font-medium">Already use Loopin, or want your groups on every phone?</p>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <Link href="/signin?mode=signup" className="border border-line py-2.5 text-center text-sm font-semibold text-fg active:bg-mist">
-                  Sign up
-                </Link>
-                <Link href="/signin" className="border border-line py-2.5 text-center text-sm font-semibold text-fg active:bg-mist">
-                  Sign in
-                </Link>
-              </div>
-              <p className="mt-2 text-xs text-gray-400">Optional. Just your email, no password.</p>
+              <Link href="/signin" className="mt-3 block border border-line py-2.5 text-center text-sm font-semibold text-fg active:bg-mist">
+                Sign in or sign up
+              </Link>
+              <p className="mt-2 text-xs text-gray-400">Optional. One step for both: Google or your email, no password.</p>
             </section>
           )}
         </>
