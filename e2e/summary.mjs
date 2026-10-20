@@ -17,8 +17,8 @@ const walk = (suite, path = []) => {
     for (const t of spec.tests ?? []) {
       const r = t.results?.[t.results.length - 1];
       const status = t.status === "expected" ? (r?.status === "skipped" ? "blocked/skipped" : t.expectedStatus === "failed" ? "passed (failed as expected)" : "passed") : t.status === "skipped" ? "blocked/skipped" : t.status === "flaky" ? "flaky" : "FAILED";
-      const why = r?.status === "skipped" ? (t.annotations ?? []).map((a) => a.description).filter(Boolean).join("; ") : (r?.error?.message ?? "").split("\n").map((l) => l.trim()).filter((l) => l && !/^Call log|^\s*-/.test(l)).slice(0, 4).join(" · ");
-      rows.push({ file: path[0] ?? "", title: spec.title, status, why: status === "passed" || status.startsWith("passed (") ? "" : why.replace(/\u001b\[[0-9;]*m/g, "").slice(0, 400) });
+      const why = r?.status === "skipped" ? (t.annotations ?? []).map((a) => a.description).filter(Boolean).join("; ") : (r?.error?.message ?? "").split("\n").map((l) => l.trim()).filter((l) => l && (!/^Call log|^\s*-/.test(l) || /intercepts|not stable|not visible|outside of the viewport|not enabled|detached|navigat|scroll|perform|retrying/.test(l))).filter((l, i, all) => all.indexOf(l) === i).filter((l, i, all) => i < 3 || /intercepts|not stable|outside|detached|navigat/.test(l) || i >= all.length - 3).slice(0, 9).join(" · ");
+      rows.push({ file: path[0] ?? "", title: spec.title, status, why: status === "passed" || status.startsWith("passed (") ? "" : why.replace(/\u001b\[[0-9;]*m/g, "").slice(0, 700) });
     }
   }
 };

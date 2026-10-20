@@ -178,6 +178,15 @@ await shot("63-charts-insights", `${g}?tab=charts`, undefined, false);
 await shot("64-switching", "/switching");
 await shot("65-import", "/import");
 await shot("66-people-not-on-loopin", `${g}/people`);
+await shot("67-splash", "/splash", undefined, false);
+await shot("68-home-first-screen", "/", undefined, false);
+for (const n of [2, 3, 4]) {
+  await shot(`69-home-card-${n}`, "/", async (p) => {
+    await p.getByRole("button", { name: /Pause the highlights/ }).click();
+    await p.getByRole("button", { name: new RegExp(`^Show ${n} of`) }).click();
+    await p.waitForTimeout(900);
+  }, false);
+}
 await context.clearCookies();
 await shot("16-join", `/join/${demo.trip.invite}`);
 await shot("24-tour-1", "/", undefined, false);

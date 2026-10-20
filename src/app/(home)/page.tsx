@@ -12,7 +12,10 @@ import { loadDeletedGroups, loadNotifications } from "@/lib/group-data";
 import { loadOverview } from "@/lib/overview";
 import { buildActivity, dayLabel } from "@/lib/activity";
 import { formatMoney } from "@/lib/money";
-import { BalanceMeter } from "@/components/BalanceMeter";
+import { HomeBanner } from "@/components/HomeBanner";
+import { GroupCover } from "@/components/GroupCover";
+import { coverOf } from "@/lib/covers";
+import { monthNumbers, seasonNow } from "@/lib/home/banner";
 import { ActivityRow } from "@/components/ActivityRow";
 import { itemHref } from "@/lib/paths";
 import { restoreGroup } from "@/app/actions";
@@ -42,7 +45,7 @@ export default async function Home({
   const { closed: justClosed, did, g: didGroup, undone, error, deleted, signedin, moved } = await searchParams;
   const tz = await getTimeZone();
   const memberships = await getMemberships();
-  const { all, open, closed, owedLines, oweLines, common, netCommon, netLines, netValue, settleItems } = await loadOverview(memberships);
+  const { all, open, closed, owedLines, oweLines, common, netCommon, netLines, netValue, settleItems, toCommon } = await loadOverview(memberships);
   const { unread } = await loadNotifications(memberships, 1);
   const deletedGroups = await loadDeletedGroups(memberships);
   const account = await getAccount();
@@ -101,6 +104,16 @@ export default async function Home({
           : signedin === "1"
           ? `Signed in${account ? ` as ${account.email}` : ""}. Your groups are saved to your email.`
           : null;
+
+  // The sliding cards at the top: your month so far, and a seasonal nudge.
+  const month = monthNumbers(
+    open.map((g) => ({ currency: g.group.currency, myId: g.myId, expenses: g.expenses })),
+    toCommon,
+    common,
+    new Date(),
+    tz,
+  );
+  const season = seasonNow(new Date(), tz);
 
   // First visit: show what Loopin does instead of an empty screen.
   const tourSeen = (await cookies()).get("lp_tour")?.value === "1";
@@ -229,60 +242,180 @@ export default async function Home({
         </>
       ) : (
         <>
-          {/* The balance panel */}
-          <section className="vault rounded-[24px] px-5 pb-6 pt-6 text-fg">
-            {owedLines.length === 0 && oweLines.length === 0 ? (
-              <>
-                <p className="text-sm text-fg/55">Across your groups</p>
-                <h1 className="mt-1 font-display text-[40px] font-semibold leading-none tracking-tight">All square 🎉</h1>
-              </>
-            ) : (
-              <>
-                <p className="text-sm text-fg/55">Net balance{netCommon && netCommon.converted ? ` · in ${common}` : ""}</p>
-                <h1
-                  className={`mt-1.5 font-display text-[44px] font-semibold leading-none tracking-tight tabular-nums ${
-                    netValue > 0 ? "text-owed" : netValue < 0 ? "text-owe" : ""
-                  }`}
-                >
-                  {netCommon ? (
-                    <>
-                      {netCommon.converted ? "≈ " : ""}
-                      {netCommon.value > 0 ? "+" : netCommon.value < 0 ? "−" : ""}
-                      {formatMoney(Math.abs(netCommon.value), common)}
-                    </>
-                  ) : (
-                    netLines.join(" · ")
-                  )}
-                </h1>
-                <p className="mt-1.5 text-sm text-fg/55">
-                  {netValue > 0 ? "Overall, you get money back." : netValue < 0 ? "Overall, you need to pay." : "It all evens out."}
+          {/* The sliding cards: your balance, your month, a seasonal idea, bringing a group over. */}
+          <HomeBanner>
+            <div className="vault flex h-[268px] flex-col px-5 pb-12 pt-5 text-fg">
+              <div aria-hidden className="absolute right-3 top-3 h-[64px] w-[96px]">
+                {open.slice(0, 3).map((g, i) => (
+                  <span
+                    key={g.group.id}
+                    className={`absolute h-[52px] w-[40px] overflow-hidden rounded-[3px] border-[2.5px] border-fg shadow-lg shadow-black/60 ${
+                      ["right-[46px] top-1.5 -rotate-[9deg]", "right-[23px] top-0 rotate-[4deg]", "right-0 top-2 rotate-[13deg]"][i]
+                    }`}
+                  >
+                    <GroupCover kind={coverOf(g.group)} uid={`stack-${g.group.id}`} letter={g.group.name} small />
+                  </span>
+                ))}
+              </div>
+              {owedLines.length === 0 && oweLines.length === 0 ? (
+                <>
+                  <p className="text-sm text-fg/55">Across your groups</p>
+                  <h1 className="mt-auto font-display text-[40px] font-semibold leading-none tracking-tight">All square 🎉</h1>
+                  <p className="mt-2 text-sm text-fg/55">Nobody owes anybody. Nice.</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-fg/55">Net balance{netCommon && netCommon.converted ? ` · in ${common}` : ""}</p>
+                  <h1
+                    className={`mt-auto break-words font-display text-[clamp(26px,9vw,36px)] font-semibold leading-none tracking-tight tabular-nums ${
+                      netValue > 0 ? "text-owed" : netValue < 0 ? "text-owe" : ""
+                    }`}
+                  >
+                    {netCommon ? (
+                      <>
+                        {netCommon.converted ? "≈ " : ""}
+                        {netCommon.value > 0 ? "+" : netCommon.value < 0 ? "−" : ""}
+                        {formatMoney(Math.abs(netCommon.value), common)}
+                      </>
+                    ) : (
+                      netLines.join(" · ")
+                    )}
+                  </h1>
+                  <p className="mt-1.5 text-sm text-fg/60">
+                    {netValue > 0 ? "Overall, you get money back." : netValue < 0 ? "Overall, you need to pay." : "It all evens out."}
+                  </p>
+                  <p className="mt-0.5 truncate text-xs text-fg/45">
+                    You’re owed <span className="text-owed">{owedLines.length ? owedLines.join(" + ") : "—"}</span> · You owe{" "}
+                    <span className="text-owe">{oweLines.length ? oweLines.join(" + ") : "—"}</span>
+                  </p>
+                </>
+              )}
+              {settleItems.length > 0 && (
+                <Link href="/settle" className={`mt-3 ${bannerButton}`}>
+                  Settle up
+                </Link>
+              )}
+            </div>
+
+            {month && (
+              <div className="relative flex h-[268px] flex-col overflow-hidden bg-[radial-gradient(90%_90%_at_90%_10%,#4a2c16_0%,transparent_60%),linear-gradient(160deg,#24170f_0%,#121014_75%)] px-5 pb-12 pt-5">
+                <p aria-hidden className="absolute -right-3 -top-6 font-display text-[150px] font-semibold leading-none text-fg/[0.06]">
+                  {month.name.slice(0, 3)}
                 </p>
-                <div className="mt-5 grid grid-cols-2 gap-3">
-                  <div className="rounded-xl bg-fg/[0.04] px-3 py-2.5">
-                    <p className="text-[11px] text-fg/45">You’re owed</p>
-                    <p className="mt-0.5 font-display text-lg leading-tight text-owed tabular-nums">{owedLines.length ? owedLines.join(" + ") : "—"}</p>
-                  </div>
-                  <div className="rounded-xl bg-fg/[0.04] px-3 py-2.5">
-                    <p className="text-[11px] text-fg/45">You owe</p>
-                    <p className="mt-0.5 font-display text-lg leading-tight text-owe tabular-nums">{oweLines.length ? oweLines.join(" + ") : "—"}</p>
-                  </div>
+                <p className="relative text-sm text-[#d9b38c]">{month.wrapped ? "Your month, wrapped" : "Your month so far"}</p>
+                <p className="relative mt-1 font-display text-[27px] font-semibold leading-[1.1]">{month.name} in numbers</p>
+                <div className="relative mt-auto flex gap-5">
+                  <p>
+                    <span className="block font-display text-[19px] font-semibold tabular-nums">
+                      {month.converted ? "≈ " : ""}
+                      {formatMoney(month.share, month.currency)}
+                    </span>
+                    <span className="block text-xs text-gray-600">your share</span>
+                  </p>
+                  <p>
+                    <span className="block font-display text-[19px] font-semibold tabular-nums">{month.count}</span>
+                    <span className="block text-xs text-gray-600">{month.count === 1 ? "expense" : "expenses"}</span>
+                  </p>
+                  {month.top && (
+                    <p className="min-w-0">
+                      <span className="block truncate font-display text-[19px] font-semibold">{month.top}</span>
+                      <span className="block text-xs text-gray-600">most spent on</span>
+                    </p>
+                  )}
                 </div>
-              </>
+                <Link href={`/search?m=${month.month}`} className={`relative mt-3 ${bannerButton}`}>
+                  See {month.name}
+                </Link>
+              </div>
             )}
 
-            {open.length > 1 && (
-              <div className="mt-7 border-t border-fg/10 pt-6">
-                <BalanceMeter
-                  tone="dark"
-                  rows={open.map((g) => ({
-                    key: g.group.id,
-                    label: g.group.name,
-                    value: g.myBalance,
-                    currency: g.group.currency,
-                    href: `/groups/${g.group.id}?tab=balances`,
-                  }))}
-                />
+            {season && (
+              <div className="relative flex h-[268px] flex-col overflow-hidden bg-[#120a10] px-5 pb-12 pt-5">
+                <div className="absolute inset-y-0 left-[38%] w-[75%]">
+                  <GroupCover kind={season.cover} uid={`season-${season.id}`} />
+                </div>
+                <div aria-hidden className="absolute inset-0 bg-[linear-gradient(90deg,#120a10_32%,rgba(18,10,16,0)_78%)]" />
+                <p className="relative text-sm text-[#ffc93c]">{season.eyebrow}</p>
+                <p className="relative mt-1 max-w-[62%] font-display text-[26px] font-semibold leading-[1.1]">{season.title}</p>
+                <p className="relative mt-auto max-w-[58%] text-[13px] leading-snug text-gray-700">{season.text}</p>
+                <Link href={season.href} className={`relative mt-3 ${bannerButton}`}>
+                  {season.button}
+                </Link>
               </div>
+            )}
+
+            {open.length <= 3 && (
+              <div className="relative flex h-[268px] flex-col overflow-hidden bg-[radial-gradient(80%_90%_at_100%_100%,#17403a_0%,transparent_65%),linear-gradient(160deg,#10201f_0%,#0e1213_75%)] px-5 pb-12 pt-5">
+                <div aria-hidden className="absolute right-7 top-7 flex h-[92px] w-[72px] -rotate-[10deg] flex-col gap-[7px] rounded-md bg-[#e9e5da] px-2.5 py-3 shadow-xl shadow-black/50">
+                  <span className="h-1 rounded bg-[#b9b3a5]" />
+                  <span className="h-1 w-2/3 rounded bg-[#b9b3a5]" />
+                  <span className="h-1 rounded bg-[#b9b3a5]" />
+                  <span className="h-1 w-1/2 rounded bg-[#b9b3a5]" />
+                </div>
+                <div aria-hidden className="absolute right-3 top-12 flex h-[92px] w-[72px] rotate-[8deg] flex-col gap-[7px] rounded-md bg-fg px-2.5 py-3 shadow-xl shadow-black/50">
+                  <span className="h-1 rounded bg-[#c9c3b5]" />
+                  <span className="h-1 w-3/5 rounded bg-[#c9c3b5]" />
+                  <span className="h-1 rounded bg-[#c9c3b5]" />
+                  <span className="mt-auto flex h-5 w-5 items-center justify-center self-end rounded-full bg-meter-up">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M5 12.5l4.5 4.5L19 7.5" />
+                    </svg>
+                  </span>
+                </div>
+                <p className="relative text-sm text-[#8fd9c4]">Switching to Loopin?</p>
+                <p className="relative mt-1 max-w-[62%] font-display text-[26px] font-semibold leading-[1.1]">Coming from another app?</p>
+                <p className="relative mt-auto max-w-[60%] text-[13px] leading-snug text-gray-700">Bring a group over in about a minute. Same balances.</p>
+                <Link href="/switching" className={`relative mt-3 ${bannerButton}`}>
+                  Bring a group over
+                </Link>
+              </div>
+            )}
+          </HomeBanner>
+
+          {/* Groups */}
+          <section className="mt-8">
+            <div className="mb-1 flex items-center justify-between">
+              <h2 className="font-display text-lg font-semibold tracking-tight">Groups</h2>
+              <Link href="/groups/new" className="pop flex items-center gap-1.5 bg-fg px-4 py-2 text-sm font-semibold text-canvas [--pop-edge:#6e6b63]">
+                <span className="text-base leading-none" aria-hidden>
+                  ＋
+                </span>
+                New group
+              </Link>
+            </div>
+            {open.length === 0 ? (
+              <p className="py-6 text-sm text-gray-500">No open groups. Create one, or reopen a closed one.</p>
+            ) : (
+              <ul className="mt-3 grid grid-cols-2 gap-x-3 gap-y-5">
+                {open.map((g) => (
+                  <GroupCard key={g.group.id} g={g} tz={tz} />
+                ))}
+                <li>
+                  <Link
+                    href="/groups/new"
+                    className="flex h-[188px] flex-col items-center justify-center gap-2 rounded-[20px] border-[1.5px] border-dashed border-gray-300 text-sm font-medium text-gray-600 active:bg-mist"
+                  >
+                    <span className="text-2xl leading-none" aria-hidden>
+                      ＋
+                    </span>
+                    Start a group
+                  </Link>
+                </li>
+              </ul>
+            )}
+
+            {closed.length > 0 && (
+              <details className="group/closed mt-3" open={justClosed === "1"}>
+                <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-full border border-line px-4 py-2 text-sm text-gray-600 active:bg-mist [&::-webkit-details-marker]:hidden">
+                  <span className="group-open/closed:hidden">Closed groups ({closed.length})</span>
+                  <span className="hidden group-open/closed:inline">Hide closed groups</span>
+                </summary>
+                <ul className="mt-2 divide-y divide-line">
+                  {closed.map((g) => (
+                    <GroupRow key={g.group.id} g={g} closed tz={tz} />
+                  ))}
+                </ul>
+              </details>
             )}
           </section>
 
@@ -308,42 +441,6 @@ export default async function Home({
               </ul>
             </section>
           )}
-
-          {/* Groups */}
-          <section className="mt-8">
-            <div className="mb-1 flex items-center justify-between">
-              <h2 className="font-display text-lg font-semibold tracking-tight">Groups</h2>
-              <Link href="/groups/new" className="pop flex items-center gap-1.5 bg-fg px-4 py-2 text-sm font-semibold text-canvas [--pop-edge:#6e6b63]">
-                <span className="text-base leading-none" aria-hidden>
-                  ＋
-                </span>
-                New group
-              </Link>
-            </div>
-            {open.length === 0 ? (
-              <p className="py-6 text-sm text-gray-500">No open groups. Create one, or reopen a closed one.</p>
-            ) : (
-              <ul className="divide-y divide-line">
-                {open.map((g) => (
-                  <GroupRow key={g.group.id} g={g} tz={tz} />
-                ))}
-              </ul>
-            )}
-
-            {closed.length > 0 && (
-              <details className="group/closed mt-3" open={justClosed === "1"}>
-                <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-full border border-line px-4 py-2 text-sm text-gray-600 active:bg-mist [&::-webkit-details-marker]:hidden">
-                  <span className="group-open/closed:hidden">Closed groups ({closed.length})</span>
-                  <span className="hidden group-open/closed:inline">Hide closed groups</span>
-                </summary>
-                <ul className="mt-2 divide-y divide-line">
-                  {closed.map((g) => (
-                    <GroupRow key={g.group.id} g={g} closed tz={tz} />
-                  ))}
-                </ul>
-              </details>
-            )}
-          </section>
 
           {/* Latest */}
           {recent.length > 0 && (
@@ -453,6 +550,50 @@ function GroupRow({ g, closed, tz }: { g: Awaited<ReturnType<typeof loadOverview
     </li>
   );
 }
+
+// An open group on Home: its picture (with who's in it), name and your balance.
+function GroupCard({ g, tz }: { g: Awaited<ReturnType<typeof loadOverview>>["all"][number]; tz: string }) {
+  const b = g.myBalance;
+  const people = g.group.members.filter((m) => !m.leftAt);
+  const type = TYPE_LABEL[g.group.type];
+  return (
+    <li className="min-w-0">
+      <Link href={`/groups/${g.group.id}`} className="block active:opacity-80">
+        <span className="relative block h-[188px] overflow-hidden rounded-[20px] border border-line">
+          <GroupCover kind={coverOf(g.group)} uid={g.group.id} letter={g.group.name} />
+          {type && (
+            <span className="absolute left-2.5 top-2.5 rounded-full bg-canvas/55 px-2.5 py-1 text-[11px] font-semibold backdrop-blur" aria-hidden>
+              {type}
+            </span>
+          )}
+          <span className="absolute bottom-2.5 left-2.5 flex" aria-hidden>
+            {people.slice(0, 4).map((m) => (
+              <span key={m.id} className="-mr-[7px] flex h-[26px] w-[26px] items-center justify-center rounded-full border-2 border-canvas bg-gray-100 text-[11px] font-bold text-fg">
+                {m.name.trim().charAt(0).toUpperCase()}
+              </span>
+            ))}
+            {people.length > 4 && (
+              <span className="flex h-[26px] items-center rounded-full border-2 border-canvas bg-gray-100 px-1.5 text-[10px] font-bold text-fg">+{people.length - 4}</span>
+            )}
+          </span>
+        </span>
+        <span className="mt-2.5 block truncate font-medium">{g.group.name}</span>
+        <span className={`mt-0.5 block truncate text-sm tabular-nums ${b > 0 ? "text-owed" : b < 0 ? "text-owe" : "text-gray-400"}`}>
+          {b > 0 ? `owed ${formatMoney(b, g.group.currency)}` : b < 0 ? `owe ${formatMoney(-b, g.group.currency)}` : "settled"}
+        </span>
+        <span className="block truncate text-xs text-gray-400">
+          {people.length} people, {activeText(g.lastActivity, tz)}
+        </span>
+      </Link>
+    </li>
+  );
+}
+
+const TYPE_LABEL: Record<string, string | undefined> = { trip: "Trip", home: "Home", couple: "Couple" };
+
+// The pill-shaped buttons on the sliding cards.
+const bannerButton =
+  "inline-flex h-10 items-center self-start rounded-full border border-fg/25 bg-fg/[0.12] px-[18px] text-sm font-semibold text-fg backdrop-blur active:bg-fg/20";
 
 function activeText(d: Date, tz: string): string {
   const day = dayLabel(d, new Date(), tz);

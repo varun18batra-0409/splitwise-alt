@@ -11,6 +11,8 @@ import { getRate } from "@/lib/rate-cache";
 import { niceDate } from "@/lib/format";
 import Link from "@/components/Link";
 import { CurrencySelect } from "@/components/CurrencySelect";
+import { CoverPicker } from "@/components/CoverPicker";
+import { coverOf } from "@/lib/covers";
 import { ErrorNote, PageHeader, inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
 
 const PRESETS = [0, 200, 300, 400];
@@ -117,6 +119,8 @@ export default async function GroupSettings({
           <span className="mb-2 block text-base font-semibold">Group name</span>
           <input name="name" required defaultValue={group.name} maxLength={60} autoComplete="off" className={inputClass} />
         </label>
+
+        <CoverPicker defaultValue={coverOf(group)} letter={group.name} uid={group.id} legendClassName="mb-1 text-base font-semibold" />
 
         <fieldset>
           <legend className="mb-1 text-base font-semibold">Group currency</legend>

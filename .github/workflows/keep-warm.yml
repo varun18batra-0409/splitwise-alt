@@ -14,8 +14,8 @@ jobs:
     steps:
       - name: Ping the main parts of the app
         run: |
-          base=https://loopinapps.com
+          base=https://www.loopinapps.com # the app itself (the address without www only redirects here)
           for p in "/" "/api/people?g=x&q=ab" "/api/unread" "/api/health"; do
-            curl -s -o /dev/null --max-time 20 -w "$p %{http_code} %{time_starttransfer}s\n" "$base$p" || true
+            curl -sL -o /dev/null --max-time 20 -w "$p %{http_code} %{time_starttransfer}s\n" "$base$p" || true
           done
-          curl -s -o /dev/null --max-time 20 -X POST -H "Content-Type: application/json" -d '[]' -w "/api/speed %{http_code} %{time_starttransfer}s\n" "$base/api/speed" || true
+          curl -sL -o /dev/null --max-time 20 -X POST -H "Content-Type: application/json" -d '[]' -w "/api/speed %{http_code} %{time_starttransfer}s\n" "$base/api/speed" || true

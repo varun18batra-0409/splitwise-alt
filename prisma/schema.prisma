@@ -38,6 +38,7 @@ model Group {
   reminders    Boolean   @default(false) // Home groups: bill and settle-up reminders (off until switched on)
   settleDay    Int       @default(0) // monthly settle-up day: 0 = none, 1–28, 31 = last day
   settleMin    Int       @default(0) // Smart Settle leaves out payments smaller than this (minor units)
+  cover        String    @default("") // the group's picture: "" = picked from the type, "plain" = none (see covers.ts)
 
   bills      Bill[]
   listItems  ListItem[]

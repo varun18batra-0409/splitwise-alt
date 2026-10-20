@@ -240,3 +240,43 @@ form[aria-busy="true"] button[type="submit"] {
 @media (prefers-reduced-motion: reduce) {
   .nav-progress { animation: none; width: 100%; opacity: 0.6; }
 }
+
+/* ---------- Opening screen and loading outlines ---------- */
+/* The dot goes round the ring, easing in and out, for as long as opening takes. */
+@keyframes lp-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.lp-orbit {
+  animation: lp-orbit 1.4s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
+/* "Slow connection" only appears if opening takes more than a few seconds. */
+@keyframes lp-late {
+  to {
+    opacity: 1;
+  }
+}
+.lp-late {
+  opacity: 0;
+  animation: lp-late 400ms ease-out 5s forwards;
+}
+@keyframes lp-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+.lp-skel {
+  background: linear-gradient(90deg, #16161a 0%, #222228 50%, #16161a 100%);
+  background-size: 200% 100%;
+  animation: lp-shimmer 1.3s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-orbit {
+    animation-duration: 4s;
+    animation-timing-function: linear;
+  }
+  .lp-skel {
+    animation: none;
+  }
+}

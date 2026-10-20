@@ -14,6 +14,8 @@ export function AppRefresh() {
   const hiddenAt = useRef<number | null>(null);
 
   useEffect(() => {
+    // The app is open: from now on, coming back to Home shows a quick outline, not the opening screen.
+    (window as { __lpBooted?: boolean }).__lpBooted = true;
     const onVis = () => {
       if (document.visibilityState === "hidden") hiddenAt.current = Date.now();
       else if (hiddenAt.current && Date.now() - hiddenAt.current > 20_000) router.refresh();

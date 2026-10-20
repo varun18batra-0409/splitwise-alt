@@ -3,6 +3,7 @@ import Link from "@/components/Link";
 import { NewGroupForm } from "@/components/NewGroupForm";
 import { defaultCurrency } from "@/lib/region";
 import { getAccount } from "@/lib/identity";
+import { isGroupType } from "@/lib/group-types";
 import { ErrorNote, PageHeader, primaryButtonClass } from "@/components/ui";
 
 // New group: what it's for (Trip · Home · Couple · Other), a name, your name and
@@ -12,14 +13,18 @@ import { ErrorNote, PageHeader, primaryButtonClass } from "@/components/ui";
 export default async function NewGroup({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; name?: string }>;
+  searchParams: Promise<{ error?: string; name?: string; type?: string; cover?: string }>;
 }) {
-  const { error, name } = await searchParams;
+  const { error, name, type, cover } = await searchParams;
   const currency = defaultCurrency(await headers());
   const account = await getAccount();
 
   if (!account) {
-    const back = `/groups/new${name ? `?name=${encodeURIComponent(name)}` : ""}`;
+    const q = Object.entries({ name, type, cover })
+      .filter((e): e is [string, string] => Boolean(e[1]))
+      .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+      .join("&");
+    const back = `/groups/new${q ? `?${q}` : ""}`;
     return (
       <>
         <PageHeader title="New group" back="/" />
@@ -46,7 +51,13 @@ export default async function NewGroup({
         error && <ErrorNote>Please fill in the group name and your name.</ErrorNote>
       )}
 
-      <NewGroupForm defaultCurrency={currency} yourName={account.name} initialName={(name ?? "").slice(0, 60)} />
+      <NewGroupForm
+        defaultCurrency={currency}
+        yourName={account.name}
+        initialName={(name ?? "").slice(0, 60)}
+        initialType={type && isGroupType(type) ? type : undefined}
+        initialCover={cover}
+      />
       <p className="mt-6 text-center text-sm text-gray-500">
         Moving from another app?{" "}
         <Link href="/import" className="font-medium text-fg underline">

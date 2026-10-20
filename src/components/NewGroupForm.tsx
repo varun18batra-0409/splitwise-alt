@@ -4,6 +4,9 @@ import { useState } from "react";
 import { createGroup } from "@/app/actions";
 import { GROUP_TYPES, ratioFromIncomes, type GroupType } from "@/lib/group-types";
 import { CurrencySelect } from "./CurrencySelect";
+import { CoverPicker } from "./CoverPicker";
+import { GroupCover } from "./GroupCover";
+import { coverOf, isCoverChoice, type CoverChoice } from "@/lib/covers";
 import { inputClass, primaryButtonClass, secondaryButtonClass } from "./ui";
 
 const ICONS: Record<GroupType, React.ReactNode> = {
@@ -16,8 +19,23 @@ const ICONS: Record<GroupType, React.ReactNode> = {
 // New group in two short steps: what it's for + name, then (couples only)
 // how the two of you share costs. Incomes never leave the phone: only the
 // resulting split is sent.
-export function NewGroupForm({ defaultCurrency, yourName, initialName }: { defaultCurrency: string; yourName: string; initialName: string }) {
-  const [type, setType] = useState<GroupType>("trip");
+export function NewGroupForm({
+  defaultCurrency,
+  yourName,
+  initialName,
+  initialType = "trip",
+  initialCover = "",
+}: {
+  defaultCurrency: string;
+  yourName: string;
+  initialName: string;
+  initialType?: GroupType;
+  initialCover?: string;
+}) {
+  const [type, setType] = useState<GroupType>(initialType);
+  // The picture follows the type until you pick one yourself.
+  const [picked, setPicked] = useState<CoverChoice | null>(isCoverChoice(initialCover) ? initialCover : null);
+  const cover = picked ?? coverOf({ type });
   const [step, setStep] = useState<1 | 2>(1);
   const [name, setName] = useState(initialName);
   const [mode, setMode] = useState<"equal" | "income" | "custom">("equal");
@@ -44,8 +62,11 @@ export function NewGroupForm({ defaultCurrency, yourName, initialName }: { defau
                 type="button"
                 aria-pressed={type === t.id}
                 onClick={() => setType(t.id)}
-                className={`flex h-[140px] flex-col justify-between rounded-[18px] border p-4 text-left ${type === t.id ? "border-fg bg-accent-soft" : "border-line bg-white"}`}
+                className={`relative flex h-[140px] flex-col justify-between overflow-hidden rounded-[18px] border p-4 text-left ${type === t.id ? "border-fg bg-accent-soft" : "border-line bg-white"}`}
               >
+                <span aria-hidden className="absolute -right-1.5 top-3 h-[68px] w-[52px] rotate-[9deg] overflow-hidden rounded-[4px] border-[3px] border-fg shadow-lg shadow-black/50">
+                  <GroupCover kind={coverOf({ type: t.id })} uid={`type-${t.id}`} />
+                </span>
                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                   {ICONS[t.id]}
                 </svg>
@@ -57,6 +78,8 @@ export function NewGroupForm({ defaultCurrency, yourName, initialName }: { defau
             ))}
           </div>
         </fieldset>
+
+        <CoverPicker value={cover} onChange={setPicked} letter={name || placeholder} uid="new" />
 
         <label className="block">
           <span className="mb-2 block text-sm font-medium text-gray-600">Group name</span>

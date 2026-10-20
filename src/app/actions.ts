@@ -1,5 +1,6 @@
 "use server";
 
+import { cleanCover } from "@/lib/covers";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { forgetThisPhone, getAccount, getMemberships, getMyMemberId, keepGroupsDropAccount, setMyMemberId, signInAs } from "@/lib/identity";
@@ -44,6 +45,7 @@ export async function createGroup(formData: FormData) {
     yourName,
     currency: String(formData.get("currency") ?? "INR"),
     ratio: Number(formData.get("ratio") ?? 50),
+    cover: String(formData.get("cover") ?? ""),
   });
   const me = group.members[0];
   await setMyMemberId(group.id, me.id);
@@ -318,6 +320,11 @@ export async function updateGroupSettings(formData: FormData) {
   const secondaryCurrency = String(formData.get("secondaryCurrency") ?? group.secondaryCurrency);
   const basics = await updateGroupBasics(group.id, myId, { name, markupBp, secondaryCurrency });
   if (!basics.ok) redirect(`${back}?error=name`);
+  // The picture is just for looks: saved as it is, no history entry.
+  if (formData.has("cover")) {
+    const cover = cleanCover(String(formData.get("cover")), group.type);
+    if (cover !== group.cover) await db.group.update({ where: { id: group.id }, data: { cover } });
+  }
   const did = basics.eventId ? `&did=${basics.eventId}` : "";
 
   const currency = String(formData.get("currency") ?? group.currency);

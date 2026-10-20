@@ -40,6 +40,13 @@ export async function loadOverview(memberships: Record<string, string>) {
     ),
   );
 
+  // An amount in the common currency, at the saved rate (null: no rate yet).
+  const toCommon = (amount: number, cur: string): number | null => {
+    if (cur === common) return amount;
+    const rate = rates.get(cur);
+    return rate ? convertAmount(amount, cur, common, rate) : null;
+  };
+
   // Net = everything you're owed minus everything you owe.
   const netCommon = ((): { value: number; converted: boolean } | null => {
     let value = 0;
@@ -71,14 +78,11 @@ export async function loadOverview(memberships: Record<string, string>) {
       transfers: g.transfers,
     })),
     common,
-    (amount, cur) => {
-      const rate = rates.get(cur);
-      return rate ? convertAmount(amount, cur, common, rate) : null;
-    },
+    toCommon,
   );
 
   // Groups where other people still need to settle with each other.
   const othersPending = all.filter((g) => g.transfers.some((t) => t.from !== g.myId && t.to !== g.myId));
 
-  return { all, open, closed, owedLines, oweLines, common, netCommon, netLines, netValue, settleItems, skippedGroups, othersPending };
+  return { all, open, closed, owedLines, oweLines, common, netCommon, netLines, netValue, settleItems, skippedGroups, othersPending, toCommon };
 }

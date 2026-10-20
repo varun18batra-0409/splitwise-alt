@@ -9,7 +9,7 @@ jobs:
     steps:
       - name: Health and page timings
         run: |
-          base=https://loopinapps.com
+          base=https://www.loopinapps.com
           h=$(curl -s "$base/api/health")
           echo "$h"
           echo "::notice title=Health::$h"

@@ -2,11 +2,12 @@ import { randomBytes } from "node:crypto";
 import { db } from "./db";
 import { isSupportedCurrency } from "./money";
 import { logEvent } from "./events";
+import { cleanCover } from "./covers";
 import { isGroupType, parseWeight, sharingInputs, weightsLabel, type GroupType } from "./group-types";
 
 // Creating groups and changing how a group shares costs (database side).
 
-export type NewGroupInput = { type: string; name: string; yourName: string; currency: string; ratio?: number };
+export type NewGroupInput = { type: string; name: string; yourName: string; currency: string; ratio?: number; cover?: string };
 
 // Makes a group with its creator as the first member.
 export async function createGroupFor(account: { id: string }, input: NewGroupInput) {
@@ -20,6 +21,7 @@ export async function createGroupFor(account: { id: string }, input: NewGroupInp
       currency: isSupportedCurrency(input.currency) ? input.currency : "INR",
       inviteCode: newInviteCode(),
       joinWeight: couple ? 100 - ratio : 100,
+      cover: cleanCover(input.cover ?? "", type),
       members: { create: [{ name: input.yourName, claimedAt: new Date(), accountId: account.id, splitWeight: couple ? ratio : 100 }] },
     },
     include: { members: true },
