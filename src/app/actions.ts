@@ -627,3 +627,12 @@ async function isDoubleTap(groupId: string, fromId: string, toId: string, amount
   return Boolean(recent);
 }
 
+
+// You → Fingerprint / face sign-in → Remove (only your own passkeys).
+export async function removeMyPasskey(formData: FormData) {
+  const account = await getAccount();
+  if (!account) redirect("/signin?back=/account");
+  const { removePasskey } = await import("@/lib/passkeys");
+  await removePasskey(account.id, String(formData.get("id") ?? ""));
+  redirect("/account?removed=passkey");
+}

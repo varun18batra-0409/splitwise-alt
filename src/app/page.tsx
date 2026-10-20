@@ -6,6 +6,8 @@ import { JoinByLink } from "@/components/JoinByLink";
 import { cookies } from "next/headers";
 import { getTimeZone } from "@/lib/tz";
 import { getAccount, getMemberships } from "@/lib/identity";
+import { PasskeyOffer } from "@/components/Passkeys";
+
 import { loadDeletedGroups, loadNotifications } from "@/lib/group-data";
 import { loadOverview } from "@/lib/overview";
 import { buildActivity, dayLabel } from "@/lib/activity";
@@ -18,6 +20,8 @@ import { db } from "@/lib/db";
 import { canUndo } from "@/lib/undo";
 import { UndoBar } from "@/components/UndoBar";
 import { PersonIcon, iconButtonClass } from "@/components/icons";
+
+const countPasskeys = (accountId: string) => db.passkey.count({ where: { accountId } });
 
 // Home: your net balance, what needs your attention, your groups, and the
 // latest changes. Search, Settle and Alerts live in the bottom bar.
@@ -111,6 +115,7 @@ export default async function Home({
           {notice}
         </Notice>
       )}
+      {account && signedin === "1" && (await countPasskeys(account.id)) === 0 && <PasskeyOffer />}
       {justClosed === "1" && !undone && (
         <Notice params={["closed"]} className="mb-4">
           <span aria-hidden>🎉</span> Group closed. Find it under “Closed groups”.
