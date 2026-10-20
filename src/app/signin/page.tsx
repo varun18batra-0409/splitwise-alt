@@ -5,6 +5,7 @@ import { requestCode, verifyCode } from "@/app/actions";
 import { getAccount } from "@/lib/identity";
 import { mailConfigured } from "@/lib/mail";
 import { googleConfigured } from "@/lib/google";
+import { PasskeySignIn } from "@/components/Passkeys";
 import { ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/components/ui";
 
 // Optional sign-in: type your email, get a 6-digit code, type it here.
@@ -32,6 +33,7 @@ export default async function SignIn({
           <p className="mb-6 text-gray-600">
             New here or coming back, it’s the same: we’ll get your groups on this phone, and on any other. No password needed.
           </p>
+          <PasskeySignIn back={back} className="mb-3 flex w-full items-center justify-center border border-line px-4 py-3.5 text-base font-semibold text-fg active:bg-mist" />
           {googleConfigured() && (
             <>
               {/* A plain link: it leaves the app for Google's account picker. */}

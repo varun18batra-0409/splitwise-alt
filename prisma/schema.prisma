@@ -405,3 +405,17 @@ model SpeedLog {
   ms    Int
   @@index([at])
 }
+
+// Fingerprint / face sign-in (passkeys). The private key never leaves the
+// person's phone; we keep only the public key to check signatures.
+model Passkey {
+  id         String    @id // the credential id (base64url)
+  accountId  String
+  publicKey  String // base64url
+  counter    Int       @default(0)
+  transports String    @default("") // comma-separated hints, e.g. "internal,hybrid"
+  label      String    @default("") // "Android phone", "iPhone"…
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  @@index([accountId])
+}
