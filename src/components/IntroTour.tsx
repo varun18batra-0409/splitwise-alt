@@ -82,7 +82,7 @@ const slides: Slide[] = [
   {
     id: "cheers",
     title: ["Split it.", "Cheers. 🍻"],
-    caption: "Make a group for a trip, a flat or the two of you. Friends join from a link, a QR code or an email: a 30-second sign-up, no password.",
+    caption: "Make a group for a trip, a flat or the two of you. Friends join from a link, a QR code or an email, with Google or email in 30 seconds. No password.",
     art: <Cheers />,
   },
   {
@@ -137,7 +137,7 @@ const slides: Slide[] = [
   {
     id: "settle",
     title: ["Fewest payments.", "One tap."],
-    caption: "Smart Settle works out the shortest way to square up — inside a group or across all your groups — and nudges friends on WhatsApp.",
+    caption: "Smart Settle works out the shortest way to square up, inside a group or across all your groups. Trip over? Share the trip report on WhatsApp.",
     art: (
       <Card>
         <svg viewBox="0 -14 240 140" className="h-36 w-full" aria-hidden>

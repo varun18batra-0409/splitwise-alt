@@ -100,9 +100,11 @@ export default function HowItWorks() {
           ["#abroad", "Abroad & card fees"],
           ["#balances", "Who owes what"],
           ["#settle", "Settle up"],
+          ["#trips", "Trip report"],
           ["#home", "Flatmates"],
           ["#couples", "Couples"],
           ["#safe", "Undo & privacy"],
+          ["#splitwise", "From Splitwise"],
         ].map(([href, label]) => (
           <a key={href} href={href} className="rounded-full border border-line px-3 py-1.5 text-gray-600 active:bg-mist">
             {label}
@@ -114,11 +116,15 @@ export default function HowItWorks() {
       <Section slot="roadtrip" kicker="1 · Start" title="Make a group, bring everyone in">
         <Steps
           items={[
-            <>Tap <strong>New group</strong> and pick what it’s for: <strong>Trip</strong>, <strong>Home</strong>, <strong>Couple</strong> or <strong>Other</strong>. Give it a name (“Euro trip”) and a currency. First time? You sign up with your email in 30 seconds (no password).</>,
+            <>Tap <strong>New group</strong> and pick what it’s for: <strong>Trip</strong>, <strong>Home</strong>, <strong>Couple</strong> or <strong>Other</strong>. Give it a name (“Euro trip”) and a currency. First time? Sign in with Google or your email in 30 seconds (no password). Next time, one touch with your fingerprint or face.</>,
             <>Add people: friends already on Loopin, people from your contacts, or anyone by email.</>,
             <>Or share the group’s link or QR code. People confirm their email and they’re in, and show up on the People screen. From then on everyone is told about every change.</>,
           ]}
         />
+        <p>
+          Someone shows as <strong>not on Loopin yet</strong> (brought over from Splitwise, say)? Tap their name on People and invite them by
+          email. They sign up and take over that name, with all its expenses.
+        </p>
       </Section>
 
       <div id="add" className="scroll-mt-4" />
@@ -127,7 +133,7 @@ export default function HowItWorks() {
           items={[
             <>Tap the <strong>＋</strong> at the bottom.</>,
             <>Pick <strong>who paid</strong>, type what it was and how much. Loopin tags it for you (🍽️ Food, 🚕 Transport, 🏨 Stay…).</>,
-            <>Choose how to split: <strong>Everyone equally</strong>, <strong>Only some</strong> people, or <strong>Custom</strong> (exact amounts or %).</>,
+            <>Choose how to split: <strong>Everyone equally</strong>, <strong>Only some</strong> people, or <strong>Custom</strong> (exact amounts, % or shares, like 2 : 1 for a bigger room).</>,
           ]}
         />
         <p>Change the date if it wasn’t today, and add a note if it helps (“Rahul paid the tip”). Next time, Loopin starts with the same split you used last.</p>
@@ -177,8 +183,9 @@ export default function HowItWorks() {
           Not sure about a number? Tap <strong>Why?</strong> under any balance. You’ll see every expense and payment behind it, including card fees, and it always adds up exactly.
         </p>
         <p className="mt-4">
-          Looking for something? <strong>Search</strong> finds any expense across your groups, or one month’s spending. <strong>Charts</strong> show where the money went, and{" "}
-          <strong>Download</strong> (in a group’s settings) gives you every expense as a spreadsheet.
+          Looking for something? <strong>Search</strong> finds any expense across your groups, or one month’s spending. <strong>Charts</strong> show where the money went, with a
+          few plain lines on top (“Food is 42% of all spending”). <strong>Download</strong> in a group’s settings gives you its expenses as a
+          spreadsheet; <strong>Download all my data</strong> on the You page gives you every group in one file.
         </p>
       </Section>
 
@@ -191,7 +198,18 @@ export default function HowItWorks() {
             <>Owe the same friend in two groups? The <strong>Settle</strong> tab combines them into one payment.</>,
           ]}
         />
-        <p>Loopin only records payments. It never moves money and never asks for bank details. Trip over? Close the group; its history stays.</p>
+        <p>Loopin only records payments. It never moves money and never asks for bank details.</p>
+      </Section>
+
+      <div id="trips" className="scroll-mt-4" />
+      <Section title="Trip over? The trip in numbers">
+        <p>
+          Open <strong>Charts → Trip report</strong>: the total, per person and per day, where it went, the biggest expense, who paid most and
+          what’s left to settle. <strong>Share to WhatsApp</strong> sends it as a picture with a short message. There’s no link to the group,
+          so only what’s in the picture leaves your phone.
+        </p>
+        <Screen src="/guide/trip-report.webp" alt="A trip report: total, per person, per day, top categories and each person's part" caption="The trip report, ready to share" />
+        <p>Then settle up and close the group. It stays in your history, and so does the report.</p>
       </Section>
 
       <div id="home" className="scroll-mt-4" />
@@ -230,8 +248,18 @@ export default function HowItWorks() {
         <h2 className="font-display text-[26px] font-semibold tracking-tight text-fg">Mistakes happen. Fix them.</h2>
         <p>Every change can be undone, and the history shows who changed what. Everyone in the group gets an alert; you choose which alerts per group in its settings.</p>
         <p>
-          You sign in with your email (a code, no password), so your groups come back on any phone. Only people in a group can see it.
+          You sign in with Google, your email (a code, no password) or your fingerprint or face, so your groups come back on any phone. Only people in a group can see it.
           No ads, and your data isn’t sold. <Link href="/privacy" className="underline underline-offset-4">Privacy</Link>
+        </p>
+      </section>
+
+      <div id="splitwise" className="scroll-mt-4" />
+      <section className="mt-12 space-y-3 text-[15px] leading-relaxed text-gray-600">
+        <h2 className="font-display text-[26px] font-semibold tracking-tight text-fg">Coming from Splitwise?</h2>
+        <p>
+          In Splitwise, open a group → gear → <strong>Export as spreadsheet</strong>. In Loopin, tap <strong>Bring a group over</strong> and pick
+          that file: every expense and payment comes across, and the balances are checked against Splitwise’s own.{" "}
+          <Link href="/switching" className="underline underline-offset-4">What’s different</Link>
         </p>
       </section>
 

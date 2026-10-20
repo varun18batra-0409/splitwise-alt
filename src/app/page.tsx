@@ -369,10 +369,15 @@ export default async function Home({
         </>
       )}
 
-      {/* Recently deleted groups: anyone in them can bring them back for 30 days. */}
+      {/* Recently deleted groups: tucked away (like Closed groups) and opened with a tap;
+          open on its own right after a delete. Anyone in them can bring them back for 30 days. */}
       {deletedGroups.length > 0 && (
-        <Notice tone="plain" remember={`deleted:${deletedGroups.map((d) => d.id).join(",")}`} className="mt-8">
-          <h2 className="mb-1 font-display text-lg font-semibold tracking-tight">Recently deleted</h2>
+        <details className="group/deleted mt-4" open={deleted === "group"}>
+          <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-full border border-line px-4 py-2 text-sm text-gray-600 active:bg-mist [&::-webkit-details-marker]:hidden">
+            <span className="group-open/deleted:hidden">Recently deleted ({deletedGroups.length})</span>
+            <span className="hidden group-open/deleted:inline">Hide recently deleted</span>
+          </summary>
+          <p className="mt-2 text-xs text-gray-400">Anyone in these groups can bring them back for 30 days.</p>
           <ul className="divide-y divide-line">
             {deletedGroups.map((d) => (
               <li key={d.id} className="flex items-center gap-3 py-3">
@@ -391,7 +396,7 @@ export default async function Home({
               </li>
             ))}
           </ul>
-        </Notice>
+        </details>
       )}
 
       {/* Save groups to an email, so a new phone or the installed app can get them back. */}
