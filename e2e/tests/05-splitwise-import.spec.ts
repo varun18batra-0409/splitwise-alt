@@ -88,7 +88,7 @@ test("import a sample Splitwise export (fictional people): 2 expenses + 1 paymen
   const page = await ctx.newPage();
   await page.goto("/import");
   await settled(page);
-  await page.getByLabel("Splitwise export file").setInputFiles("e2e/fixtures/splitwise-sample.csv");
+  await page.getByLabel("Splitwise export file").setInputFiles("e2e/data/splitwise-sample.csv");
   await expect(page.getByText("Found 2 expenses and 1 payment in INR")).toBeVisible();
   await expect(page.getByText("✓ Matches Splitwise’s balances")).toBeVisible();
   await page.locator('input[name="groupName"]').fill(`E2E sample import ${Date.now()}`);
