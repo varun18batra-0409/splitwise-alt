@@ -112,6 +112,7 @@ async function go(page: Page, path: string) {
   if (hosted) {
     await page.goto(base + path, { waitUntil: "load", timeout: 30_000 });
     await page.waitForLoadState("networkidle", { timeout: 3_000 }).catch(() => undefined);
+    await page.waitForTimeout(600); // let buttons come alive before tapping them
   } else await page.goto(base + path, { waitUntil: "networkidle" });
 }
 
@@ -737,6 +738,7 @@ async function main() {
     await go(V, "/groups/new");
     await V.getByRole("button", { name: /^Couple/ }).click();
     await V.locator('input[name="groupName"]').fill("UAT Us");
+    await V.locator('select[name="currency"]').selectOption("INR"); // the default follows where you are (USD from a US test machine)
     await V.getByRole("button", { name: "Next" }).click();
     await V.getByRole("radio", { name: "By income" }).click();
     await V.getByLabel("You earn a month").fill("110000");
@@ -1812,11 +1814,11 @@ async function main() {
   });
 
   // ===== 12. More of what a person would try (from the human checklist) =====
-  await step(V, "Add", "Shares: ₹1,000 split 2 : 1 : 1 : 1 → Varun ₹400, the others ₹200 each", async () => {
-    await add(V, { me: "Varun", name: "Boat ride", amount: "1000", split: { kind: "shares", values: { Varun: "2", Asha: "1", Ravi: "1", Zoe: "1" } } });
+  await step(V, "Add", "Shares: ₹1,200 split 2 : 1 : 1 : 1 : 1 → Varun ₹400, the others ₹200 each", async () => {
+    await add(V, { me: "Varun", name: "Boat ride", amount: "1200", split: { kind: "shares", values: { Varun: "2", Asha: "1", Ravi: "1", Zoe: "1" } } }); // Rohit (joined later) keeps 1 share
     const e = await db.expense.findFirstOrThrow({ where: { groupId: g.split("/").pop()!, description: "Boat ride" }, include: { shares: { include: { member: true } } } });
     const got = Object.fromEntries(e.shares.map((x) => [x.member.name, x.amount]));
-    assert(got.Varun === 40000 && got.Asha === 20000 && got.Ravi === 20000 && got.Zoe === 20000, `shares saved as ${JSON.stringify(got)}`);
+    assert(got.Varun === 40000 && got.Asha === 20000 && got.Ravi === 20000 && got.Zoe === 20000 && got.Rohit === 20000, `shares saved as ${JSON.stringify(got)}`);
   });
 
   await step(null, "Sign in", "A wrong code is refused with a clear message, and the right one still works", async () => {

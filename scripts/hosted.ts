@@ -36,6 +36,8 @@ export function withBypass(browser: Browser): Browser {
       (u) => u.host === appHost,
       (route) => route.continue({ headers: { ...route.request().headers(), ...bypass } }),
     );
+    // Also Vercel's pass cookie, for what routes don't catch (the app's service worker, downloads).
+    await ctx.request.get(`${base}/api/health`, { headers: { ...bypass, "x-vercel-set-bypass-cookie": "true" } }).catch(() => undefined);
     return ctx;
   }) as Browser["newContext"];
   return browser;
