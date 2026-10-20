@@ -114,7 +114,8 @@ test("a Loopin spreadsheet instead of a Splitwise export gets a clear message", 
   await settled(page);
   const loopinStyle = "Date,Type,Description,Notes,Category,Paid by,Amount (INR),Original amount,Original currency,Exchange rate,Card markup (INR),Paid with,Status,Ann's share (INR),Ben's share (INR)\r\n2026-10-18,Expense,Flight,,Transport,Ann,1000.00,,,,,,,500.00,500.00\r\n";
   await page.getByLabel("Splitwise export file").setInputFiles({ name: "loopin-download.csv", mimeType: "text/csv", buffer: Buffer.from(loopinStyle) });
-  await expect(page.getByRole("alert")).toContainText("doesn’t look like a Splitwise export");
+  // (The message is the importer's own alert; Next.js has a hidden one of its own, so it's picked by tag.)
+  await expect(page.locator('p[role="alert"]')).toContainText("doesn’t look like a Splitwise export");
   await expect(page.getByRole("button", { name: "Bring it over" })).toHaveCount(0);
   await ctx.close();
 });

@@ -35,7 +35,7 @@ jobs:
           echo "::notice title=Staging::settings present; staging database is not the live one"
       - run: npm install
       - run: npm install --no-save tsx@4.19.2 playwright@1.48.2
-      - run: npx playwright install --with-deps chromium
+      - run: npx --yes playwright@1.48.2 install --with-deps chromium # the version scripts/*.ts use
       - name: Tables on the staging database
         run: |
           set -o pipefail

@@ -41,7 +41,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Empty database and app build
         run: |
-          npm run db:setup
+          npx prisma db push --skip-generate
           cp prisma/dev.db /tmp/e2e.db
           npm run build
       - name: Supplied Splitwise file (if the secret is set)
