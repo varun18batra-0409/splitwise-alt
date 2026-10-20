@@ -100,3 +100,24 @@ describe("adding people", () => {
     expect(r.ok).toBe(false);
   });
 });
+
+describe("inviting someone who was added by name only", () => {
+  it("emails a link that opens on their name, and refuses people already on Loopin", async () => {
+    const { inviteToClaim } = await import("@/lib/invites");
+    const g = await db.group.create({
+      data: { name: "Old flat", currency: "INR", inviteCode: `claim-${stamp}`, members: { create: [{ name: "Chandler", accountId: (await db.account.findUniqueOrThrow({ where: { email: mail("me") } })).id }, { name: "Rohit" }] } },
+      include: { members: true },
+    });
+    const me = g.members.find((m) => m.name === "Chandler")!;
+    const rohit = g.members.find((m) => m.name === "Rohit")!;
+    const r = await inviteToClaim(g.id, me.id, rohit.id, mail("rohit"), "https://loopinapps.com");
+    expect(r).toEqual({ ok: true, email: mail("rohit") });
+    const sent = await db.outbox.findFirstOrThrow({ where: { to: mail("rohit") }, orderBy: { createdAt: "desc" } });
+    expect(sent.text).toContain(`/join/claim-${stamp}?e=`);
+    expect(sent.text).toContain(`as=${rohit.id}`);
+    expect(sent.subject).toContain("Old flat");
+    expect(await inviteToClaim(g.id, me.id, me.id, mail("x"), "https://loopinapps.com")).toEqual({ ok: false, error: "That person is already on Loopin." });
+    expect((await inviteToClaim(g.id, me.id, rohit.id, "not-an-email", "https://loopinapps.com")).ok).toBe(false);
+    await db.group.delete({ where: { id: g.id } });
+  });
+});

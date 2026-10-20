@@ -12,6 +12,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import { db } from "../src/lib/db";
+import { netBalances } from "../src/lib/balances";
 
 const base = process.env.APP_URL ?? "http://localhost:3000";
 const out = "screenshots/uat";
@@ -250,7 +251,7 @@ async function main() {
   });
   await step(V, "Start", "Creating a group asks you to sign up first (verified email)", async () => {
     await go(V, "/groups/new");
-    await V.getByRole("link", { name: "Sign up with email" }).click();
+    await V.getByRole("link", { name: "Sign in or sign up" }).click();
     await signup(V, "Varun", email("varun"));
     await V.waitForURL(/\/groups\/new/);
     assert((await V.locator('input[name="yourName"]').inputValue()) === "Varun", "your name isn't filled in from sign-up");
@@ -1169,8 +1170,9 @@ async function main() {
     // Quick start fills the group name
     await go(page, "/");
     await page.getByRole("link", { name: /Trip/ }).click();
-    await page.getByRole("link", { name: "Sign up with email" }).waitFor(); // not signed in yet: sign up first
-    const href = (await page.getByRole("link", { name: "Sign up with email" }).getAttribute("href")) ?? "";
+    await page.waitForURL(/\/groups\/new/); // (Home has its own "Sign in or sign up" link)
+    await page.getByRole("link", { name: "Sign in or sign up" }).waitFor(); // not signed in yet: sign up first
+    const href = (await page.getByRole("link", { name: "Sign in or sign up" }).getAttribute("href")) ?? "";
     assert(decodeURIComponent(decodeURIComponent(href)).includes("name=Goa trip"), `the trip name isn't kept for after sign-up: ${href}`);
     // One screen for signing up and signing in
     await go(page, "/signin?mode=signup");
@@ -1657,6 +1659,99 @@ async function main() {
     assert(start.setCookie.some((c) => c.startsWith("lp_g=")), "no sign-in attempt cookie");
     const forged = await raw("/api/auth/google/callback?state=forged&code=x", new URL(base).host, start.setCookie.map((c) => c.split(";")[0]).join("; "));
     assert(forged.status === 303 && /\/signin\?/.test(forged.location) && !forged.setCookie.some((c) => c.startsWith("sw_me=")), `forged return: ${forged.status} ${forged.location}`);
+  });
+
+  await step(V, "Joining", "Someone added by name only: “not on Loopin yet” → Invite by email → they open it, sign up, “Continue as Rohit”, and take over the name", async () => {
+    const gid = g.split("/").pop()!;
+    const rohit = await db.member.create({ data: { groupId: gid, name: "Rohit" } });
+    await go(V, `${g}/people`);
+    const row = V.locator("details").filter({ hasText: "Rohit" }).first();
+    await row.getByText("not on Loopin yet").waitFor();
+    await row.locator("summary").click();
+    await row.getByLabel("Rohit’s email").fill(email("rohit"));
+    await row.getByRole("button", { name: "Invite", exact: true }).click();
+    await V.waitForURL(/invited=/);
+    let mail = null as null | { text: string };
+    for (let i = 0; i < 20 && !mail; i++) {
+      mail = await db.outbox.findFirst({ where: { to: email("rohit") }, orderBy: { createdAt: "desc" } });
+      if (!mail) await V.waitForTimeout(250);
+    }
+    assert(mail, "no invite email");
+    const link = /https?:\/\/\S+\/join\/\S+/.exec(mail.text)?.[0] ?? "";
+    assert(link.includes(`as=${rohit.id}`), `link: ${link}`);
+    const { ctx, page } = await person(browser);
+    await page.goto(link.replace(/^https?:\/\/[^/]+/, base), { waitUntil: "networkidle" });
+    await page.getByText(/You were added as/).waitFor();
+    await page.getByRole("link", { name: /sign up to join/i }).click();
+    await signup(page, "Rohit", email("rohit"), true);
+    await page.getByRole("button", { name: "Continue as Rohit" }).click();
+    await page.waitForURL(new RegExp(`/groups/${gid}`));
+    const after = await db.member.findUniqueOrThrow({ where: { id: rohit.id } });
+    assert(after.accountId, "Rohit's place wasn't taken over");
+    await ctx.close();
+  });
+
+  await step(V, "Switching", "“Coming from Splitwise?” → pick the exported file → balances checked → Bring it over: a new group with the same expenses, payments and balances", async () => {
+    await go(V, "/switching");
+    await V.getByRole("heading", { name: /Bring your groups/ }).waitFor();
+    await V.getByRole("link", { name: "Bring a group over" }).click();
+    await V.waitForURL(/\/import/);
+    const csv = [
+      "Date,Description,Category,Cost,Currency,Varun,Asha S,Kabir",
+      "2026-09-01,Dinner,Dining out,900.00,INR,600.00,-300.00,-300.00",
+      '2026-09-03,"Hotel, 2 nights",Hotel,3000.00,INR,1000.00,1000.00,-2000.00',
+      "2026-09-04,Kabir paid Varun,Payment,500.00,INR,-500.00,0.00,500.00",
+      "",
+      "2026-10-20,Total balance, , ,INR,1100.00,700.00,-1800.00",
+    ].join("\n");
+    await V.getByLabel("Splitwise export file").setInputFiles({ name: "manali-trip_2026-10-20_export.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+    await V.getByText("Found 2 expenses and 1 payment in INR").waitFor();
+    await V.getByText("✓ Matches Splitwise’s balances").waitFor();
+    assert((await V.getByRole("radio", { name: "Varun", exact: true }).getAttribute("aria-checked")) === "true", "you weren't picked from your name");
+    assert((await V.locator('input[name="groupName"]').inputValue()) === "Manali trip", "group name not taken from the file name");
+    await V.getByRole("radio", { name: "Trip" }).click();
+    await V.getByRole("button", { name: "Bring it over" }).click();
+    await V.waitForURL(/imported=2\.1\.ok/);
+    await V.getByText(/Brought over 2 expenses and 1 payment from Splitwise/).waitFor();
+    const gid = new URL(V.url()).pathname.split("/")[2];
+    const grp = await db.group.findUniqueOrThrow({ where: { id: gid }, include: { members: true, expenses: { include: { shares: true } }, payments: true } });
+    const net = netBalances(grp.members.map((m) => m.id), grp.expenses, grp.payments);
+    const by = (n: string) => net[grp.members.find((m) => m.name === n)!.id];
+    assert(by("Varun") === 110000 && by("Asha S") === 70000 && by("Kabir") === -180000, `balances: ${JSON.stringify(net)}`);
+    assert(grp.type === "trip", "not a trip");
+    // Everyone else is "not on Loopin yet", ready to be invited.
+    await go(V, `/groups/${gid}/people`);
+    await V.getByText("not on Loopin yet").first().waitFor();
+  });
+
+  await step(V, "Trips", "Charts shows a few plain-English lines and “Trip report”; the report shares as a picture plus text (no link to the group)", async () => {
+    await go(V, `${g}?tab=charts`);
+    await V.getByRole("region", { name: "At a glance" }).waitFor();
+    await V.getByRole("link", { name: /Trip report, to share/ }).click();
+    await V.waitForURL(/\/report$/);
+    await V.getByRole("region", { name: "The trip in numbers" }).waitFor();
+    const text = await V.getByLabel("Report as text").innerText();
+    assert(text.includes("UAT Goa trip") && /Total ₹/.test(text), `report text: ${text.slice(0, 200)}`);
+    assert(!/https?:|\/groups\/|\/join\//.test(text), "the shared text has a link in it");
+    const popup = V.waitForEvent("popup", { timeout: 5000 }).catch(() => null);
+    const [file] = await Promise.all([V.waitForEvent("download"), V.getByRole("button", { name: "Share to WhatsApp" }).click()]);
+    assert(/-report\.png$/.test(file.suggestedFilename()), `picture: ${file.suggestedFilename()}`);
+    const wa = await popup;
+    assert(!wa || wa.url().includes("wa.me") || wa.url().includes("whatsapp"), `opened ${wa?.url()}`);
+    await wa?.close();
+    const path = await file.path();
+    const { statSync } = await import("node:fs");
+    assert(path && statSync(path).size > 10_000, "the picture is empty");
+  });
+
+  await step(V, "Account", "You → Download all my data: one spreadsheet with every group, my share and my balance change", async () => {
+    await go(V, "/account");
+    const [file] = await Promise.all([V.waitForEvent("download"), V.getByRole("link", { name: "Download all my data" }).click()]);
+    const { readFileSync } = await import("node:fs");
+    const body = readFileSync((await file.path())!, "utf8");
+    assert(body.includes("Loopin: all your data") && body.includes(email("varun")), "account lines missing");
+    assert(body.includes("UAT Goa trip") && body.includes("Manali trip"), "a group is missing");
+    assert(body.includes("Your balance change"), "no balance column");
   });
 
   await step(null, "Sign in", "Fingerprint / face: turn it on, sign out, sign back in with one touch, then remove it", async () => {

@@ -146,7 +146,16 @@ async function runOne(bill: BillRow, group: { id: string; currency: string; clos
   // An "Enter amount" that never finished: ask for it again.
   if (run.requestKey) return wait("");
   if (group.closed) return wait("group closed");
-  if (!payer) return wait("payer left");
+  if (!payer) {
+    // Tell the flat once (this month is claimed just this once): someone needs to pick a payer.
+    await sendPushTo(active, {
+      title: `🧾 ${bill.name} needs a payer`,
+      body: `${bill.name} is due, but whoever paid it has left. Tap to pick who pays.`,
+      url: `/groups/${group.id}/bills/${bill.id}`,
+      tag: `bill-${bill.id}-${period}`,
+    }).catch(() => 0);
+    return wait("payer left");
+  }
   const problem = splitProblem(bill.split, active);
   if (problem) return wait(problem);
   if (bill.nature === "varies") {

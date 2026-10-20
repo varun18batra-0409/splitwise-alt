@@ -5,7 +5,8 @@ import { getMyMemberId } from "@/lib/identity";
 import { loadGroup } from "@/lib/group-data";
 import { canUndo } from "@/lib/undo";
 import { formatMoney } from "@/lib/money";
-import { removePerson, renamePerson, setPersonLeft } from "@/app/actions";
+import { invitePersonByEmail, removePerson, renamePerson, setPersonLeft } from "@/app/actions";
+import { Notice } from "@/components/Notice";
 import { Avatar, ErrorNote, PageHeader, inputClass } from "@/components/ui";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import Link from "@/components/Link";
@@ -19,7 +20,7 @@ export default async function PeoplePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; did?: string; undone?: string }>;
+  searchParams: Promise<{ error?: string; did?: string; undone?: string; invited?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -62,6 +63,9 @@ export default async function PeoplePage({
               <span className="block truncate font-medium">
                 {m.name}
                 {me && <span className="text-gray-400"> (you)</span>}
+                {!m.accountId && !m.claimedAt && !m.leftAt && (
+                  <span className="ml-2 rounded-full border border-line px-2 py-0.5 align-middle text-[10px] font-normal text-gray-500">not on Loopin yet</span>
+                )}
               </span>
               <span className="block text-xs text-gray-400">
                 {m.leftAt ? "Left the group" : bal > 0 ? `gets ${money(bal)}` : bal < 0 ? `owes ${money(bal)}` : "settled up"}
@@ -72,6 +76,19 @@ export default async function PeoplePage({
           </summary>
 
           <div className="space-y-4 pb-5 pl-12">
+            {!m.accountId && !m.claimedAt && !m.leftAt && (
+              <form action={invitePersonByEmail} className="space-y-2">
+                <input type="hidden" name="groupId" value={group.id} />
+                <input type="hidden" name="memberId" value={m.id} />
+                <p className="text-sm text-gray-500">{m.name} was added by name. Invite them by email: they join as {m.name}, with their expenses and balance.</p>
+                <div className="flex gap-2">
+                  <input name="email" type="email" required inputMode="email" placeholder="their@email.com" aria-label={`${m.name}’s email`} className={`${inputClass} py-2`} />
+                  <button type="submit" className={`${small} shrink-0`}>
+                    Invite
+                  </button>
+                </div>
+              </form>
+            )}
             {group.type === "home" && !m.leftAt && (
               <Link href={`/groups/${group.id}/people/${m.id}/move`} className={`${small} inline-block`}>
                 {me ? "I’m moving out" : `${m.name} is moving out`}
@@ -137,6 +154,11 @@ export default async function PeoplePage({
     <>
       <PageHeader title="People" back={`/groups/${group.id}/settings`} />
       {sp.error && <ErrorNote>{sp.error}</ErrorNote>}
+      {sp.invited && (
+        <Notice tone="success" params={["invited"]} className="mb-4">
+          Invite sent to {sp.invited.slice(0, 80)}. When they join, they take over their name with its expenses.
+        </Notice>
+      )}
 
       <div className="mb-3 flex items-center justify-between">
         <p className="text-sm text-gray-500">

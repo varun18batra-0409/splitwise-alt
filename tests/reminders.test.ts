@@ -51,6 +51,12 @@ describe("what reminders go out today", () => {
     const p = reminderPlan("2026-10-20", [{ ...flat, billsTomorrow: [{ payerId: "asha", name: "Electricity" }] }]);
     expect(p.map((x) => [x.memberIds, x.body])).toEqual([[["asha"], "Electricity is due tomorrow."]]);
   });
+  it("settle-up day: each payment is its own notification (one never replaces another)", () => {
+    const two = { ...flat, settleDay: 31, settleMin: 0, transfers: [{ from: "rohan", to: "you", amount: 120000 }, { from: "asha", to: "you", amount: 3000 }] };
+    const tags = reminderPlan("2026-10-31", [two]).map((x) => x.tag);
+    expect(tags.length).toBe(4);
+    expect(new Set(tags).size).toBe(4);
+  });
   it("settle-up day: everyone in a payment is told exactly what to pay or get", () => {
     const p = reminderPlan("2026-10-31", [{ ...flat, settleDay: 31 }]);
     expect(p.map((x) => [x.memberIds, x.body])).toEqual([

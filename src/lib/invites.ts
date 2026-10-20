@@ -144,3 +144,31 @@ export async function inviteByEmail(groupId: string, actorId: string, rawEmails:
 function esc(s: string) {
   return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 }
+
+// "Invite by email" for someone added by name only (before email sign-up):
+// the link opens the group's join page on "Continue as <name>", so their
+// expenses and balance stay theirs.
+export async function inviteToClaim(groupId: string, actorId: string, memberId: string, rawEmail: string, origin: string): Promise<{ ok: true; email: string } | { ok: false; error: string }> {
+  const email = cleanEmail(rawEmail);
+  if (!email) return { ok: false, error: "Enter an email address, like name@gmail.com." };
+  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: true } });
+  const actor = group?.members.find((m) => m.id === actorId && !m.leftAt);
+  const member = group?.members.find((m) => m.id === memberId && !m.leftAt);
+  if (!group || group.deletedAt || !actor) return { ok: false, error: "Only people in this group can invite." };
+  if (!member || member.accountId || member.claimedAt) return { ok: false, error: "That person is already on Loopin." };
+  await db.invite.upsert({
+    where: { groupId_email: { groupId, email } },
+    create: { groupId, email, invitedById: actorId },
+    update: { invitedById: actorId, acceptedAt: null, createdAt: new Date() },
+  });
+  const link = `${origin}/join/${group.inviteCode}?${new URLSearchParams({ e: email, as: member.id })}`;
+  const sent = await sendMail(
+    email,
+    `${actor.name} added you to ${group.name} on Loopin`,
+    `${actor.name} added you as “${member.name}” in “${group.name}” on Loopin. Tap to join and see your share:\n\n${link}\n\nLoopin is free, with no ads.`,
+    `<div style="font-family:system-ui,sans-serif;max-width:440px"><p style="font-size:16px"><strong>${esc(actor.name)}</strong> added you as <strong>${esc(member.name)}</strong> in <strong>${esc(group.name)}</strong> on Loopin.</p><p><a href="${link}" style="display:inline-block;background:#0d0d0f;color:#f4f2ec;padding:12px 18px;text-decoration:none;font-weight:600">Join as ${esc(member.name)}</a></p><p style="font-size:13px;color:#777">Loopin is free, with no ads.</p></div>`,
+  );
+  if (!sent) return { ok: false, error: "The email couldn’t be sent. Share the group’s invite link instead." };
+  await logEvent(db, { groupId, actorId, kind: "member_invited", text: `invited ${member.name} (${email}) to join` });
+  return { ok: true, email };
+}

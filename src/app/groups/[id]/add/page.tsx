@@ -9,9 +9,9 @@ import { getTimeZone } from "@/lib/tz";
 import { splitNameFor } from "@/lib/group-types";
 import { initialFromExpense } from "@/lib/expense-initial";
 import { todayKey } from "@/lib/dates";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, toInputAmount } from "@/lib/money";
 import { billExpenseInput } from "@/lib/home/bills-db";
-import { payerFor } from "@/lib/home/bills";
+import { dailyTotal, payerFor } from "@/lib/home/bills";
 import type { ExpenseInitial } from "@/lib/expense-initial";
 
 export default async function AddExpensePage({
@@ -115,9 +115,11 @@ function billToInitial(
   const active = group.members.filter((m) => !m.leftAt).map((m) => m.id);
   const payer = payerFor(bill, period, active) ?? myId;
   const x = billExpenseInput(bill, group.id, group.currency, period, 0, payer, group.members);
+  // A fixed bill waiting only because its payer left: fill in the usual amount (daily: the month's total).
+  const known = bill.nature === "fixed" ? bill.amount : bill.nature === "daily" ? dailyTotal(bill, period).amount : 0;
   return {
     name: x.name,
-    amount: "",
+    amount: known > 0 ? toInputAmount(known, group.currency) : "",
     currency: x.currency,
     category: x.category,
     paidById: payer,

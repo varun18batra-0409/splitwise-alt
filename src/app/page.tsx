@@ -119,6 +119,14 @@ export default async function Home({
       {justClosed === "1" && !undone && (
         <Notice params={["closed"]} className="mb-4">
           <span aria-hidden>🎉</span> Group closed. Find it under “Closed groups”.
+          {closed.some((c) => c.group.id === didGroup && c.group.type === "trip") && (
+            <>
+              {" "}
+              <Link href={`/groups/${didGroup}/report`} className="font-medium underline underline-offset-4">
+                See the trip report
+              </Link>
+            </>
+          )}
         </Notice>
       )}
 
@@ -190,6 +198,18 @@ export default async function Home({
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium">Add an expense</span>
                 <span className="block text-xs text-gray-400">We’ll make a group for it first</span>
+              </span>
+              <span className="text-gray-400" aria-hidden>
+                ›
+              </span>
+            </Link>
+            <Link href="/switching" className="mt-2 flex items-center gap-3 rounded-2xl border border-line px-4 py-3.5 active:bg-mist">
+              <span className="text-xl" aria-hidden>
+                📥
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">Coming from Splitwise?</span>
+                <span className="block text-xs text-gray-400">Bring your groups over, balances and all</span>
               </span>
               <span className="text-gray-400" aria-hidden>
                 ›

@@ -4,7 +4,7 @@ import { GetAppButton } from "@/components/GetApp";
 import { db } from "@/lib/db";
 import { getAccount, getMemberships } from "@/lib/identity";
 import { joinAsExisting, joinAsNew } from "@/app/actions";
-import { Avatar, ErrorNote, PageHeader, inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
+import { Avatar, ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/components/ui";
 
 // Where invitations land (group link, QR, contact message or email).
 // Joining needs a verified email, so new people sign up first (30 seconds,
@@ -14,10 +14,10 @@ export default async function JoinPage({
   searchParams,
 }: {
   params: Promise<{ code: string }>;
-  searchParams: Promise<{ error?: string; e?: string }>;
+  searchParams: Promise<{ error?: string; e?: string; as?: string }>;
 }) {
   const { code } = await params;
-  const { error, e: invitedEmail } = await searchParams;
+  const { error, e: invitedEmail, as: asId } = await searchParams;
   const group = await db.group.findUnique({
     where: { inviteCode: code },
     include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
@@ -32,7 +32,10 @@ export default async function JoinPage({
   const active = group.members.filter((m) => !m.leftAt);
   const verified = active.filter((m) => m.accountId);
   const unclaimed = active.filter((m) => !m.accountId && !m.claimedAt);
-  const back = `/join/${code}${invitedEmail ? `?e=${encodeURIComponent(invitedEmail)}` : ""}`;
+  // Invited by email to take over a name: offer that name first.
+  const asMember = unclaimed.find((m) => m.id === asId) ?? null;
+  const backQ = new URLSearchParams({ ...(invitedEmail ? { e: invitedEmail } : {}), ...(asMember ? { as: asMember.id } : {}) }).toString();
+  const back = `/join/${code}${backQ ? `?${backQ}` : ""}`;
 
   return (
     <>
@@ -56,15 +59,26 @@ export default async function JoinPage({
             To join, sign up with your email. It takes 30 seconds, there’s no password, and it means notifications reach you and friends can
             find you.
           </p>
-          <Link href={`/signin?${new URLSearchParams({ mode: "signup", back, ...(invitedEmail ? { e: invitedEmail } : {}) })}`} className={primaryButtonClass}>
-            Sign up to join
-          </Link>
-          <Link href={`/signin?${new URLSearchParams({ back, ...(invitedEmail ? { e: invitedEmail } : {}) })}`} className={`mt-3 ${secondaryButtonClass}`}>
-            I already have an account
+          {asMember && <p className="mb-4 rounded-xl bg-mist px-4 py-3 text-sm">You were added as <strong>{asMember.name}</strong>. Join to see your share.</p>}
+          <Link href={`/signin?${new URLSearchParams({ back, ...(invitedEmail ? { e: invitedEmail } : {}) })}`} className={primaryButtonClass}>
+            Sign in or sign up to join
           </Link>
         </>
       ) : (
         <>
+          {asMember && (
+            <form action={joinAsExisting} className="mb-8 space-y-3">
+              <input type="hidden" name="code" value={code} />
+              <input type="hidden" name="memberId" value={asMember.id} />
+              <p className="text-gray-600">
+                You were added as <strong className="text-fg">{asMember.name}</strong>. Continue as {asMember.name} to keep their expenses and balance.
+              </p>
+              <button type="submit" className={primaryButtonClass}>
+                Continue as {asMember.name}
+              </button>
+              <p className="pt-2 text-center text-xs text-gray-400">Not {asMember.name}? Join as yourself below.</p>
+            </form>
+          )}
           <form action={joinAsNew} className="space-y-4">
             <input type="hidden" name="code" value={code} />
             <label className="block">

@@ -42,8 +42,8 @@ export function reminderPlan(today: string, groups: ReminderGroup[]): Reminder[]
     }
     if (isSettleDay(g.settleDay, today)) {
       for (const t of shown) {
-        out.push({ memberIds: [t.from], title, body: `It’s settle-up day in ${g.name}: pay ${name(t.to)} ${money(t.amount)}.`, url: `/groups/${g.id}/settle`, tag: `settle-${g.id}-${today}` });
-        out.push({ memberIds: [t.to], title, body: `It’s settle-up day in ${g.name}: ${name(t.from)} pays you ${money(t.amount)}.`, url: `/groups/${g.id}/settle`, tag: `settle-${g.id}-${today}-in` });
+        out.push({ memberIds: [t.from], title, body: `It’s settle-up day in ${g.name}: pay ${name(t.to)} ${money(t.amount)}.`, url: `/groups/${g.id}/settle`, tag: `settle-${g.id}-${today}-${t.from}-${t.to}` });
+        out.push({ memberIds: [t.to], title, body: `It’s settle-up day in ${g.name}: ${name(t.from)} pays you ${money(t.amount)}.`, url: `/groups/${g.id}/settle`, tag: `settle-${g.id}-${today}-${t.from}-${t.to}-in` });
       }
     } else if (monday) {
       const owes = new Map<string, number>();

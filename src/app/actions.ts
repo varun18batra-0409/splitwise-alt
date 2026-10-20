@@ -25,6 +25,7 @@ import { createGroupFor, updateSharing } from "@/lib/group-setup";
 import { addWaitingBill } from "@/lib/home/bills-db";
 import { checkBudgets } from "@/lib/home/budgets-db";
 import { after } from "next/server";
+import { importSplitwise } from "@/lib/splitwise-import";
 
 
 export async function createGroup(formData: FormData) {
@@ -48,6 +49,23 @@ export async function createGroup(formData: FormData) {
   await setMyMemberId(group.id, me.id);
   await copyPushTo(account.id, me.id);
   redirect(`/groups/${group.id}/invite?new=1`);
+}
+
+// "Bring a group over from Splitwise": a new group from Splitwise's exported spreadsheet.
+export async function importFromSplitwise(formData: FormData) {
+  const account = await getAccount();
+  if (!account) redirect(`/signin?${new URLSearchParams({ back: "/import" })}`);
+  if (!(await allow(`import:${(await originAndIp()).ip}`, 10, 3600))) redirect(`/import?error=${encodeURIComponent("Lots of imports from here in the last hour. Wait a bit and try again.")}`);
+  const r = await importSplitwise(account, {
+    text: String(formData.get("csv") ?? ""),
+    groupName: String(formData.get("groupName") ?? ""),
+    type: String(formData.get("type") ?? "other"),
+    me: Number(formData.get("me") ?? -1),
+  });
+  if (!r.ok) redirect(`/import?error=${encodeURIComponent(r.error)}`);
+  await setMyMemberId(r.groupId, r.meMemberId);
+  await copyPushTo(account.id, r.meMemberId);
+  redirect(`/groups/${r.groupId}?${new URLSearchParams({ imported: `${r.expenses}.${r.payments}.${r.matches === false ? "off" : "ok"}` })}`);
 }
 
 // ---------- Adding people (never by just typing a name) ----------
@@ -627,6 +645,16 @@ async function isDoubleTap(groupId: string, fromId: string, toId: string, amount
   return Boolean(recent);
 }
 
+
+// People → "not on Loopin yet" → Invite by email.
+export async function invitePersonByEmail(formData: FormData) {
+  const { group, me } = await memberContext(String(formData.get("groupId") ?? ""));
+  const { origin, ip } = await originAndIp();
+  if (!(await allow(`invite:${ip}`, 40, 3600))) redirect(`/groups/${group.id}/people?error=${encodeURIComponent("Too many invites from here. Wait a bit.")}`);
+  const { inviteToClaim } = await import("@/lib/invites");
+  const r = await inviteToClaim(group.id, me.id, String(formData.get("memberId") ?? ""), String(formData.get("email") ?? ""), origin);
+  redirect(`/groups/${group.id}/people?${r.ok ? new URLSearchParams({ invited: r.email }) : new URLSearchParams({ error: r.error })}`);
+}
 
 // You → Fingerprint / face sign-in → Remove (only your own passkeys).
 export async function removeMyPasskey(formData: FormData) {
