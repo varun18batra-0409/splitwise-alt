@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
+import { Notice } from "@/components/Notice";
 import { getMyMemberId } from "@/lib/identity";
 import { PageHeader, primaryButtonClass } from "@/components/ui";
 import { setGroupClosed } from "@/app/actions";
@@ -78,9 +79,9 @@ export default async function AddExpensePage({
     <>
       <PageHeader title={`Add to ${group.name}`} back={`/groups/${group.id}`} />
       {sp.again && source && (
-        <p className="-mt-2 mb-5 rounded-xl bg-owed/10 px-4 py-3 text-sm text-owed" role="status">
+        <Notice tone="success" className="-mt-2 mb-5">
           Saved {source.description} ({formatMoney(source.amount, group.currency)}). Add the next one.
-        </p>
+        </Notice>
       )}
       {waitingRun && (
         <p className="-mt-2 mb-5 rounded-xl bg-mist px-4 py-3 text-sm" role="status">

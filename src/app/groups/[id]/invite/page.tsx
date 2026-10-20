@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
+import { Notice } from "@/components/Notice";
 import QRCode from "qrcode";
 import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
@@ -59,11 +60,11 @@ export default async function AddPeoplePage({
     <>
       <PageHeader title="Add people" back={`/groups/${group.id}`} />
       {sp.new === "1" && (
-        <p className="-mt-2 mb-5 rounded-xl bg-mist px-4 py-3 text-sm text-fg">🎉 {group.name} is ready. Now bring your people in.</p>
+        <Notice params={["new"]} className="-mt-2 mb-5">🎉 {group.name} is ready. Now bring your people in.</Notice>
       )}
       {sp.error && <ErrorNote>{sp.error}</ErrorNote>}
-      {sp.added && !sp.undone && <p className="mb-4 rounded-xl bg-owed/10 px-4 py-3 text-sm text-owed">Added {sp.added}. They’ve been notified.</p>}
-      {sp.invited && <p className="mb-4 rounded-xl bg-mist px-4 py-3 text-sm text-fg">Invite sent to {sp.invited}. They’ll join once they accept.</p>}
+      {sp.added && !sp.undone && <Notice tone="success" params={["added"]} className="mb-4">Added {sp.added}. They’ve been notified.</Notice>}
+      {sp.invited && <Notice params={["invited"]} className="mb-4">Invite sent to {sp.invited}. They’ll join once they accept.</Notice>}
 
       <section className={box}>
         {step(1, "People on Loopin", "Search friends by name, or anyone by their email")}

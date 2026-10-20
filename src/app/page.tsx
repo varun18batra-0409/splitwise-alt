@@ -1,5 +1,6 @@
 import Link from "@/components/Link";
 import { GetAppButton } from "@/components/GetApp";
+import { Notice } from "@/components/Notice";
 import { IntroTour } from "@/components/IntroTour";
 import { JoinByLink } from "@/components/JoinByLink";
 import { cookies } from "next/headers";
@@ -104,16 +105,16 @@ export default async function Home({
   return (
     <>
       {undoBar && <UndoBar key={undoBar.eventId} {...undoBar} back="home" redo={undone === "1"} />}
-      {error && <p className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+      {error && <Notice tone="error" params={["error"]} className="mb-4">{error}</Notice>}
       {notice && (
-        <p className="mb-4 rounded-xl bg-mist px-4 py-3 text-sm text-fg" role="status">
+        <Notice params={["signedin", "moved", "deleted"]} className="mb-4">
           {notice}
-        </p>
+        </Notice>
       )}
       {justClosed === "1" && !undone && (
-        <p className="mb-4 flex items-center gap-2 rounded-xl bg-mist px-4 py-3 text-sm text-fg">
+        <Notice params={["closed"]} className="mb-4">
           <span aria-hidden>🎉</span> Group closed. Find it under “Closed groups”.
-        </p>
+        </Notice>
       )}
 
       <header className="mb-8 flex items-center justify-between">
@@ -350,7 +351,7 @@ export default async function Home({
 
       {/* Recently deleted groups: anyone in them can bring them back for 30 days. */}
       {deletedGroups.length > 0 && (
-        <section className="mt-8">
+        <Notice tone="plain" remember={`deleted:${deletedGroups.map((d) => d.id).join(",")}`} className="mt-8">
           <h2 className="mb-1 font-display text-lg font-semibold tracking-tight">Recently deleted</h2>
           <ul className="divide-y divide-line">
             {deletedGroups.map((d) => (
@@ -370,7 +371,7 @@ export default async function Home({
               </li>
             ))}
           </ul>
-        </section>
+        </Notice>
       )}
 
       {/* Save groups to an email, so a new phone or the installed app can get them back. */}

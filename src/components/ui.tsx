@@ -1,5 +1,6 @@
 import Link from "@/components/Link";
 import { BackIcon, HomeIcon, iconButtonClass } from "./icons";
+import { Notice } from "@/components/Notice";
 
 // Small shared building blocks so every screen looks the same.
 
@@ -48,7 +49,9 @@ export const secondaryButtonClass =
 
 export function ErrorNote({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{children}</p>
+    <Notice tone="error" params={["error"]} className="mb-4">
+      {children}
+    </Notice>
   );
 }
 

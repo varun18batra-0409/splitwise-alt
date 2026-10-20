@@ -853,6 +853,16 @@ async function main() {
     assert(await V.locator(`#item-${id} details[open]`).count(), "the expense isn't opened");
     await V.locator(`#item-${id}`).getByText(/Edit or delete|Restore|Delete payment/).first().waitFor();
   });
+  await step(V, "Home", "Messages at the top have a ✕: closing one hides it, and a refresh doesn't bring it back", async () => {
+    await go(V, "/?signedin=1");
+    const msg = V.getByRole("status").filter({ hasText: /Signed in/ });
+    await msg.waitFor();
+    await msg.getByRole("button", { name: "Close message" }).click();
+    await msg.waitFor({ state: "detached" });
+    assert(!/signedin=1/.test(V.url()), `address still has the marker: ${V.url()}`);
+    await V.reload({ waitUntil: "networkidle" });
+    assert((await V.getByRole("status").filter({ hasText: /Signed in/ }).count()) === 0, "the message came back after a refresh");
+  });
   await step(V, "Home", "Bottom bar is hidden while adding an expense", async () => {
     await go(V, `${g}/add`);
     assert((await V.getByRole("navigation", { name: "Main" }).count()) === 0, "bottom bar shows on the add screen");

@@ -1,5 +1,6 @@
 import { listAdd, listBuy, listGoingShopping, listRemove, listToggle } from "@/app/bill-actions";
 import { newRequestKey } from "@/lib/once";
+import { Notice } from "@/components/Notice";
 import type { GroupView } from "./view";
 
 type Item = { id: string; text: string; addedById: string; boughtById: string; boughtAt: Date | null };
@@ -51,7 +52,7 @@ export function ListTab({ v, items, usual, notice }: { v: GroupView; items: Item
 
   return (
     <div>
-      {notice && <p className="mb-4 rounded-xl bg-owed/10 px-4 py-3 text-sm text-owed">{notice}</p>}
+      {notice && <Notice tone="success" params={["bought", "told", "error"]} className="mb-4">{notice}</Notice>}
 
       <form action={listAdd} className="flex gap-2">
         {hidden("groupId", group.id)}
