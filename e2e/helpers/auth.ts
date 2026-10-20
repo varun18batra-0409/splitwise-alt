@@ -10,6 +10,17 @@ import { latestCode } from "./db";
 export type TestUser = { name: string; email: string; storageState: BrowserContextOptions["storageState"] };
 
 export async function signUp(name: string, email: string): Promise<TestUser> {
+  // One more go if the first attempt times out: the hosted test copy can be
+  // slow to wake up. A real error (wrong page, no code) fails both times.
+  try {
+    return await signUpOnce(name, email);
+  } catch (first) {
+    if (!/Timeout/i.test(String((first as Error).message))) throw first;
+    return signUpOnce(name, email);
+  }
+}
+
+async function signUpOnce(name: string, email: string): Promise<TestUser> {
   const browser = await chromium.launch();
   try {
     const ctx = await browser.newContext({ ...devices["Pixel 7"], locale: "en-IN", timezoneId: "Asia/Kolkata" });
