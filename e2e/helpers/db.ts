@@ -1,6 +1,7 @@
 // The test database (staging, or the throwaway copy on GitHub). Used only to
 // read sign-in codes for ".test" addresses and to tidy up test data.
 import { db } from "../../src/lib/db";
+import { eraseGroups } from "../../src/lib/purge";
 import { TEST_DOMAIN } from "../env";
 
 export { db };
@@ -34,7 +35,7 @@ export async function cleanUp(match: { runId?: string } = {}): Promise<{ groups:
     select: { id: true, members: { select: { accountId: true } } },
   });
   const safe = touched.filter((g) => g.members.every((m) => !m.accountId || ids.includes(m.accountId)));
-  if (safe.length) await deleteGroups(safe.map((g) => g.id));
+  if (safe.length) await eraseGroups(safe.map((g) => g.id));
   const emails = accounts.map((a) => a.email);
   await db.outbox.deleteMany({ where: { to: { in: emails } } });
   await db.loginCode.deleteMany({ where: { email: { in: emails } } });
@@ -42,28 +43,4 @@ export async function cleanUp(match: { runId?: string } = {}): Promise<{ groups:
   await db.passkey.deleteMany({ where: { accountId: { in: ids } } });
   await db.account.deleteMany({ where: { id: { in: ids } } });
   return { groups: safe.length, accounts: accounts.length };
-}
-
-// Everything that belongs to these groups, children first (doesn't rely on the
-// database cascading deletes for us).
-async function deleteGroups(G: string[]) {
-  const inG = { groupId: { in: G } };
-  await db.$transaction([
-    db.expenseShare.deleteMany({ where: { expense: inG } }),
-    db.expense.deleteMany({ where: inG }),
-    db.payment.deleteMany({ where: inG }),
-    db.groupEvent.deleteMany({ where: inG }),
-    db.pushSubscription.deleteMany({ where: { member: inG } }),
-    db.invite.deleteMany({ where: inG }),
-    db.billRun.deleteMany({ where: { bill: inG } }),
-    db.bill.deleteMany({ where: inG }),
-    db.listItem.deleteMany({ where: inG }),
-    db.budget.deleteMany({ where: inG }),
-    db.goalEntry.deleteMany({ where: { goal: inG } }),
-    db.goal.deleteMany({ where: inG }),
-    db.depositShare.deleteMany({ where: { deposit: inG } }),
-    db.deposit.deleteMany({ where: inG }),
-    db.member.deleteMany({ where: inG }),
-    db.group.deleteMany({ where: { id: { in: G } } }),
-  ]);
 }

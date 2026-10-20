@@ -37,7 +37,7 @@ export default function Privacy() {
       <h2 className={h}>Deleting things</h2>
       <ul className={`list-disc space-y-1 pl-5 ${p}`}>
         <li>Expenses and payments can be deleted and restored; the history notes it.</li>
-        <li>A whole group can be deleted from its settings. Anyone in it can restore it for 30 days, then it’s erased for good.</li>
+        <li>A whole group can be deleted from its settings. Anyone in it can restore it for 30 days; after that it’s erased for good, with everything in it.</li>
         <li>“You → Delete my email &amp; sign-in” removes your email and sign-in from Loopin. Your groups keep the name you used in them.</li>
         <li>“You → Download all my data” gives you everything about you in one spreadsheet.</li>
       </ul>

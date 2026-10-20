@@ -131,7 +131,7 @@ const SECTIONS: { title: string; items: QA[] }[] = [
       },
       {
         q: "How do I delete a group, or my account?",
-        a: "A group can be deleted from its settings; anyone in it can restore it from Home → Recently deleted for 30 days. To remove your email and sign-in, go to You → Delete my email & sign-in. Your groups stay, under the name you used in them.",
+        a: "A group can be deleted from its settings; anyone in it can restore it from Home → Recently deleted for 30 days, and after that it’s erased for good. To remove your email and sign-in, go to You → Delete my email & sign-in. Your groups stay, under the name you used in them.",
       },
       {
         q: "What does fingerprint / face sign-in share with Loopin?",
