@@ -1,0 +1,147 @@
+# End-to-end tests with Playwright (see e2e/README.md). Testing only: this
+# workflow never deploys anything.
+#
+# - Pull requests and pushes: a throwaway copy of the app is built and started
+#   right here on GitHub's machine, with its own empty database.
+# - The "staging" branch, or "Run workflow" by hand: the private test copy on
+#   Vercel, with the staging database. Never the live app.
+name: E2E tests
+on:
+  pull_request:
+  push:
+    branches: [main, "phase*", staging]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Where to test"
+        type: choice
+        options: [staging, local]
+        default: staging
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  local:
+    name: E2E (throwaway copy on GitHub)
+    if: github.event_name != 'workflow_dispatch' || inputs.target == 'local'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      TURSO_DATABASE_URL: file:/tmp/e2e.db
+      MAIL_OUTBOX: "1" # emails are kept in the database for the tests, never sent
+      CRON_SECRET: e2e-only-not-a-real-secret
+      E2E_BASE_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npx playwright install --with-deps chromium
+      - name: Empty database and app build
+        run: |
+          npx prisma db push --skip-generate
+          cp prisma/dev.db /tmp/e2e.db
+          npm run build
+      - name: Supplied Splitwise file (if the secret is set)
+        env:
+          CSV_B64: ${{ secrets.E2E_SPLITWISE_CSV_B64 }}
+        run: |
+          if [ -n "$CSV_B64" ]; then mkdir -p e2e-private && echo "$CSV_B64" | base64 -d > e2e-private/splitwise.csv && echo "E2E_SPLITWISE_CSV=$PWD/e2e-private/splitwise.csv" >> "$GITHUB_ENV"; else echo "::notice title=Splitwise file::Not supplied: the real-file import test will show as blocked."; fi
+      - name: Start the app
+        run: |
+          (npm run start > server.log 2>&1 &)
+          npx --yes wait-on@8.0.1 -t 90000 http://localhost:3000/api/health
+      - name: Run the tests
+        run: npx playwright test
+      - name: Summary
+        if: always()
+        run: node e2e/summary.mjs
+      - name: Keep the HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report-local
+          path: e2e-report/
+          retention-days: 14
+      - name: Keep failure details (screenshots, traces, browser logs, server log)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failures-local
+          path: |
+            e2e-results/
+            server.log
+          retention-days: 14
+
+  staging:
+    name: E2E (private test copy on Vercel)
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/staging') || (github.event_name == 'workflow_dispatch' && inputs.target == 'staging')
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    permissions:
+      contents: read
+      deployments: read
+    env:
+      TURSO_DATABASE_URL: ${{ secrets.STAGING_TURSO_DATABASE_URL }}
+      TURSO_AUTH_TOKEN: ${{ secrets.STAGING_TURSO_AUTH_TOKEN }}
+      LIVE_TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Safety check (staging settings present, and not the live database)
+        run: |
+          missing=""
+          [ -n "$TURSO_DATABASE_URL" ] || missing="$missing STAGING_TURSO_DATABASE_URL"
+          [ -n "$TURSO_AUTH_TOKEN" ] || missing="$missing STAGING_TURSO_AUTH_TOKEN"
+          [ -n "$VERCEL_AUTOMATION_BYPASS_SECRET" ] || missing="$missing VERCEL_AUTOMATION_BYPASS_SECRET"
+          [ -z "$missing" ] || { echo "::error title=Missing GitHub secrets::$missing"; exit 1; }
+          [ "$TURSO_DATABASE_URL" != "$LIVE_TURSO_DATABASE_URL" ] || { echo "::error title=Stopped::The staging database is the LIVE database."; exit 1; }
+      - run: npm install
+      - run: npx playwright install --with-deps chromium
+      - name: Tables on the staging database (adds only)
+        run: node scripts/turso-sync.mjs
+      - name: Find the test copy (the staging branch's latest Vercel build)
+        run: |
+          sha=$(git rev-parse origin/staging 2>/dev/null || true)
+          [ -n "$sha" ] || { git fetch -q --depth=1 origin staging && sha=$(git rev-parse FETCH_HEAD); }
+          url=""
+          for i in $(seq 1 60); do
+            for id in $(gh api "repos/${{ github.repository }}/deployments?sha=$sha" --jq '.[].id'); do
+              s=$(gh api "repos/${{ github.repository }}/deployments/$id/statuses" --jq '.[0] | "\(.state) \(.environment_url)"')
+              case "$s" in success\ https*) url=${s#success }; break 2;; failure*|error*) echo "::error title=Vercel::the test copy failed to build"; exit 1;; esac
+            done
+            sleep 20
+          done
+          [ -n "$url" ] || { echo "::error title=Test copy not found::No Vercel build of the staging branch ($sha) within 20 minutes."; exit 1; }
+          echo "E2E_BASE_URL=$url" >> "$GITHUB_ENV"
+          echo "::notice title=Testing::$url"
+      - name: Supplied Splitwise file (if the secret is set)
+        env:
+          CSV_B64: ${{ secrets.E2E_SPLITWISE_CSV_B64 }}
+        run: |
+          if [ -n "$CSV_B64" ]; then mkdir -p e2e-private && echo "$CSV_B64" | base64 -d > e2e-private/splitwise.csv && echo "E2E_SPLITWISE_CSV=$PWD/e2e-private/splitwise.csv" >> "$GITHUB_ENV"; else echo "::notice title=Splitwise file::Not supplied: the real-file import test will show as blocked."; fi
+      - name: Run the tests
+        run: npx playwright test
+      - name: Summary
+        if: always()
+        run: node e2e/summary.mjs
+      - name: Keep the HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report-staging
+          path: e2e-report/
+          retention-days: 14
+      - name: Keep failure details (screenshots, traces, browser logs)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failures-staging
+          path: e2e-results/
+          retention-days: 14

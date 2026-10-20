@@ -48,7 +48,7 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - run: npm install --no-save tsx@4.19.2 playwright@1.48.2
+      - run: npm install --no-save tsx@4.19.2 # Playwright itself comes with @playwright/test (one version for everything)
       - run: npx playwright install --with-deps chromium
       - name: Start from the live version's tables (so the upgrade itself is tested)
         run: |
