@@ -32,6 +32,10 @@ jobs:
       MAIL_OUTBOX: "1" # emails are kept in the database for the tests, never sent
       CRON_SECRET: e2e-only-not-a-real-secret
       E2E_BASE_URL: http://localhost:3000
+      # A made-up Google app, so the "Continue with Google" button shows and its
+      # first step (off to Google) can be checked. Nothing is sent to Google.
+      GOOGLE_CLIENT_ID: e2e-test.apps.googleusercontent.com
+      GOOGLE_CLIENT_SECRET: e2e-not-a-secret
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

@@ -22,6 +22,10 @@ If the tests are pointed at loopinapps.com, or the staging database turns out to
 | `05-splitwise-import.spec.ts` | Your Splitwise export (4 expenses, ₹10,810; Nupur MDI gets ₹105, Varun Batra owes ₹105, as in the file's own Total balance row). Shows as **blocked** until the file is supplied as a secret (see below) |
 | `05-splitwise-import.spec.ts` | A made-up Splitwise file (fictional people), and a wrong file (a Loopin spreadsheet) that is refused with a clear message |
 
+| `10-auth.spec.ts` | Stage 1: sign out and back in (groups come back); a stranger sees "Private group" and can't download it; fingerprint/face on → sign in with one touch → remove; Google starts safely (skipped where Google isn't set up); delete a test account |
+| `11-groups.spec.ts` | Stage 1: Home group opens on This month; Couple split from incomes (55/45); rename + Undo; close + reopen; delete → Recently deleted (behind a tap) → Restore |
+| `12-invites.spec.ts` | Stage 1: invite link (no joining without signing in); invite by email ("Invited" until they join); add someone you share a group with by name, a stranger only by email; someone added by name takes over their name |
+
 The older 150-step check (`scripts/uat.ts`) still runs as before. These Playwright tests are the new standard set and will grow stage by stage.
 
 ## Sign-in, codes and secrets

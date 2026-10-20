@@ -11,6 +11,8 @@ export function watchConsole(ctx: BrowserContext) {
   watched.add(ctx);
   ctx.on("console", (m) => lines.push(`[${new Date().toISOString()}] ${m.type()}: ${m.text()}`));
   ctx.on("weberror", (e) => lines.push(`[${new Date().toISOString()}] page error: ${e.error().message}`));
+  // "Are you sure?" boxes (ConfirmButton) are answered Yes, as a person would.
+  ctx.on("dialog", (d) => void d.accept().catch(() => undefined));
 }
 
 export const test = base.extend<{ browserLogs: void }>({

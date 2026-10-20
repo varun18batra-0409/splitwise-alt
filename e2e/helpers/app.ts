@@ -27,10 +27,10 @@ export async function settled(page: Page) {
 
 // New group (src/components/NewGroupForm.tsx) → lands on "Add people".
 // Returns the group's address and its invite link.
-export async function createGroup(page: Page, name: string): Promise<{ path: string; invite: string }> {
+export async function createGroup(page: Page, name: string, type: "Trip" | "Home" | "Other" = "Trip"): Promise<{ path: string; invite: string }> {
   await page.goto("/groups/new");
   await settled(page);
-  await page.getByRole("button", { name: /^Trip/ }).click();
+  await page.getByRole("button", { name: new RegExp(`^${type}`) }).click();
   await page.locator('input[name="groupName"]').fill(name);
   await page.locator('select[name="currency"]').selectOption("INR");
   await page.getByRole("button", { name: /Create group/ }).click();
@@ -105,4 +105,28 @@ export async function readBalances(page: Page, groupPath: string): Promise<Recor
 export function toPaise(rupees: string): number {
   const n = rupees.replace(/[^\d.]/g, "");
   return Math.round(parseFloat(n || "0") * 100);
+}
+
+// The newest email to a test address (invites). Its link is returned without
+// the site part, so it opens on whichever copy is being tested.
+export async function emailedLink(to: string, since: Date): Promise<string> {
+  const { db } = await import("./db");
+  const end = Date.now() + 20_000;
+  while (Date.now() < end) {
+    const row = await db.outbox.findFirst({ where: { to, createdAt: { gte: since } }, orderBy: { createdAt: "desc" } });
+    const link = row ? /https?:\/\/\S+\/join\/\S+/.exec(row.text)?.[0] : undefined;
+    if (link) {
+      const u = new URL(link);
+      return u.pathname + u.search;
+    }
+    await new Promise((r) => setTimeout(r, 300));
+  }
+  throw new Error(`No invite email with a join link reached ${to}.`);
+}
+
+// The group's name as shown at the top of its screen (GroupHeader's h1).
+export async function shownGroupName(page: Page, groupPath: string): Promise<string> {
+  await page.goto(groupPath);
+  await settled(page);
+  return (await page.getByRole("heading", { level: 1 }).first().innerText()).trim();
 }
