@@ -1,5 +1,6 @@
 import Link from "@/components/Link";
 import type { BillStatus } from "@/lib/home/bills-db";
+import { Notice } from "@/components/Notice";
 import { parseSplit } from "@/lib/home/bills-db";
 import { ordinalDay } from "@/lib/home/bills";
 import { niceDate } from "@/lib/format";
@@ -71,7 +72,7 @@ export function BillsTab({ v, bills, saved }: { v: GroupView; bills: BillStatus[
 
   return (
     <div>
-      {saved && <p className="mb-4 rounded-xl bg-owed/10 px-4 py-3 text-sm text-owed">Bill saved. Everyone in the group has been told.</p>}
+      {saved && <Notice tone="success" params={["saved"]} className="mb-4">Bill saved. Everyone in the group has been told.</Notice>}
       <div className="flex items-end justify-between gap-3">
         <div>
           <p className="text-sm text-gray-500">Regular bills, every month</p>

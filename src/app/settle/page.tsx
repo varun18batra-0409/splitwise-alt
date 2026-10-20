@@ -1,5 +1,6 @@
 import Link from "@/components/Link";
 import { getMemberships } from "@/lib/identity";
+import { Notice } from "@/components/Notice";
 import { loadOverview } from "@/lib/overview";
 import { formatMoney } from "@/lib/money";
 import { settleAcrossGroups } from "@/app/actions";
@@ -16,9 +17,9 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
       <PageHeader title="Settle up" back="/" />
       <p className="-mt-4 mb-6 text-sm text-gray-500">One payment per person, across all your groups.</p>
 
-      {notice === "done" && <p className="mb-3 rounded-xl bg-accent-soft px-4 py-3 text-sm text-accent-dark">Recorded in each group. Everyone’s notified.</p>}
-      {notice === "changed" && <p className="mb-3 rounded-xl bg-owe-soft px-4 py-3 text-sm text-owe">Balances just changed. Here’s the latest.</p>}
-      {notice === "error" && <p className="mb-3 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">Couldn’t record that. Try again.</p>}
+      {notice === "done" && <Notice params={["settle"]} className="mb-3">Recorded in each group. Everyone’s notified.</Notice>}
+      {notice === "changed" && <Notice params={["settle"]} className="mb-3">Balances just changed. Here’s the latest.</Notice>}
+      {notice === "error" && <Notice tone="error" params={["settle"]} className="mb-3">Couldn’t record that. Try again.</Notice>}
 
       {all.length === 0 ? (
         <p className="rounded-2xl bg-mist px-4 py-8 text-center text-sm text-gray-500">

@@ -1,5 +1,6 @@
 import Link from "@/components/Link";
 import { pairwiseDebtCount } from "@/lib/settle";
+import { Notice } from "@/components/Notice";
 import { formatMoney, formatPercent } from "@/lib/money";
 import { niceDate } from "@/lib/format";
 import { Avatar } from "@/components/ui";
@@ -18,7 +19,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
 
   return (
     <div className="space-y-10">
-      {paid && <p className="rounded-xl bg-mist px-4 py-3 text-sm text-fg">Payment recorded. Balances updated.</p>}
+      {paid && <Notice params={["paid"]}>Payment recorded. Balances updated.</Notice>}
 
       {transfers.length === 0 ? (
         <div className="rounded-2xl bg-mist px-4 py-8 text-center">

@@ -1,5 +1,6 @@
 import Link from "@/components/Link";
 import { niceDate } from "@/lib/format";
+import { Notice } from "@/components/Notice";
 import { setGroupClosed } from "@/app/actions";
 import type { GroupView } from "./view";
 
@@ -57,7 +58,7 @@ export function GroupSummary({ v, sp, compact }: { v: GroupView; sp: Notices; co
         </>
         )}
         {sp.saved === "settings" && <p className="mt-2 text-sm text-accent-dark">Settings saved. Everyone in the group has been notified.</p>}
-        {sp.error && <p className="mt-2 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{sp.error}</p>}
+        {sp.error && <Notice tone="error" params={["error"]} className="mt-2">{sp.error}</Notice>}
         {sp.added !== undefined && (
           <p className="mt-2 text-sm text-accent-dark">
             {Number(sp.added) === 1 ? "1 person added." : `${Number(sp.added) || 0} people added.`}

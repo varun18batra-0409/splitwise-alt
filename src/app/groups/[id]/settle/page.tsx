@@ -1,5 +1,6 @@
 import Link from "@/components/Link";
 import { notFound, redirect } from "next/navigation";
+import { Notice } from "@/components/Notice";
 import { getMyMemberId } from "@/lib/identity";
 import { loadGroup } from "@/lib/group-data";
 import { formatMoney, toInputAmount } from "@/lib/money";
@@ -53,7 +54,7 @@ export default async function GroupSettle({
       </p>
 
       {sp.error && <ErrorNote>{sp.error}</ErrorNote>}
-      {sp.paid === "1" && !sp.undone && <p className="mb-4 rounded-xl bg-mist px-4 py-3 text-sm text-fg">Payment recorded. Balances updated.</p>}
+      {sp.paid === "1" && !sp.undone && <Notice params={["paid"]} className="mb-4">Payment recorded. Balances updated.</Notice>}
       {group.closed && <p className="mb-4 rounded-xl bg-mist px-4 py-3 text-sm text-gray-600">This group is closed. Reopen it to record payments.</p>}
 
       {hidden > 0 && (

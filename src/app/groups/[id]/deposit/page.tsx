@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
+import { Notice } from "@/components/Notice";
 import { getMyMemberId } from "@/lib/identity";
 import { ErrorNote, PageHeader, inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
 import { ConfirmButton } from "@/components/ConfirmButton";
@@ -38,8 +39,8 @@ export default async function DepositPage({
     <>
       <PageHeader title="Deposit" back={`/groups/${group.id}`} />
       {sp.error && <ErrorNote>{sp.error.slice(0, 160)}</ErrorNote>}
-      {sp.saved && <p className="mb-4 rounded-xl bg-owed/10 px-4 py-3 text-sm text-owed">Saved.</p>}
-      {sp.returned && <p className="mb-4 rounded-xl bg-owed/10 px-4 py-3 text-sm text-owed">Marked as returned. The amounts are in Activity.</p>}
+      {sp.saved && <Notice tone="success" params={["saved"]} className="mb-4">Saved.</Notice>}
+      {sp.returned && <Notice tone="success" params={["returned"]} className="mb-4">Marked as returned. The amounts are in Activity.</Notice>}
 
       <section className="vault mb-8 rounded-[24px] px-5 py-5">
         <p className="text-sm text-gray-500">With {group.deposit?.heldBy ?? "the landlord"}</p>
