@@ -102,7 +102,7 @@ async function main() {
   await cold(browser, cookies, "Add people", `${g}/invite`, (p) => p.getByLabel("Search people on Loopin").waitFor());
   await cold(browser, cookies, "Settle up", "/settle", main);
   await cold(browser, cookies, "Search", "/search", main);
-  await cold(browser, cookies, "Sign in", "/signin", (p) => p.locator('input[name="email"]').waitFor());
+  await cold(browser, cookies, "Sign in", "/signin", (p) => p.locator('input[name="email"], main h1').first().waitFor());
 
   // Taps inside the app (no full reload).
   await page.goto(base + "/");

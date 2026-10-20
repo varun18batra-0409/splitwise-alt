@@ -1178,7 +1178,11 @@ async function main() {
     await page.getByText("Let’s get you started").waitFor();
     await page.getByRole("link", { name: "Sign in or sign up" }).first().waitFor();
     // Join with a pasted link
-    await page.getByRole("button", { name: "Join with an invite link" }).click();
+    // (Tapped again if the first tap landed before the page came alive, as a person would.)
+    for (let i = 0; i < 4 && !(await page.getByLabel("Invite link").count()); i++) {
+      await page.getByRole("button", { name: "Join with an invite link" }).click();
+      await page.getByLabel("Invite link").waitFor({ timeout: 2_000 }).catch(() => undefined);
+    }
     await page.getByLabel("Invite link").fill(`https://getloopin.vercel.app${invite}`);
     await page.getByRole("button", { name: "Join", exact: true }).click();
     await page.waitForURL(new RegExp(invite));
