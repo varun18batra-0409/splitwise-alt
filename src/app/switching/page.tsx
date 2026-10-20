@@ -20,6 +20,9 @@ export default function Switching() {
       <PageHeader title="Switching from Splitwise?" back="/" />
       <h1 className="font-display text-[30px] font-semibold leading-tight tracking-tight">Bring your groups. Keep your balances.</h1>
       <p className="mt-2 text-[15px] text-gray-500">It takes about a minute per group, and your friends can join when they’re ready.</p>
+      <Link href="/import" className={`mt-5 ${primaryButtonClass}`}>
+        Bring a group over
+      </Link>
 
       <ul className="mt-6 space-y-4">
         {POINTS.map(([title, text]) => (

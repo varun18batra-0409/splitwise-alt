@@ -10,11 +10,12 @@
 // report says what passed and what didn't.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
+import { base, bypass, hosted, withBypass } from "./hosted";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import { db } from "../src/lib/db";
 import { netBalances } from "../src/lib/balances";
 
-const base = process.env.APP_URL ?? "http://localhost:3000";
 const out = "screenshots/uat";
 mkdirSync(out, { recursive: true });
 
@@ -72,6 +73,7 @@ function assert(cond: unknown, msg: string): asserts cond {
 
 const stamp = Date.now();
 // The daily job's key, when the test server has one (like the live app).
+const noCronKey = hosted && !process.env.CRON_SECRET;
 const cronAuth = (): Record<string, string> => (process.env.CRON_SECRET ? { authorization: `Bearer ${process.env.CRON_SECRET}` } : {});
 const email = (n: string) => `${n}-${stamp}@uat.loopin.test`;
 
@@ -101,12 +103,17 @@ async function person(browser: Browser): Promise<{ ctx: BrowserContext; page: Pa
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "en-IN", timezoneId: "Asia/Kolkata", colorScheme: "dark" });
   const page = await ctx.newPage();
   page.on("dialog", (d) => d.accept());
-  page.setDefaultTimeout(15_000);
+  page.setDefaultTimeout(hosted ? 30_000 : 15_000); // the test copy can be slow to wake up
   return { ctx, page };
 }
 
 async function go(page: Page, path: string) {
-  await page.goto(base + path, { waitUntil: "networkidle" });
+  // The hosted test copy keeps a connection open (Vercel's preview tools), so the network never goes quiet there.
+  if (hosted) {
+    await page.goto(base + path, { waitUntil: "load", timeout: 30_000 });
+    await page.waitForLoadState("networkidle", { timeout: 3_000 }).catch(() => undefined);
+    await page.waitForTimeout(600); // let buttons come alive before tapping them
+  } else await page.goto(base + path, { waitUntil: "networkidle" });
 }
 
 // Everyone's balance as the app shows it (Balances tab → By person).
@@ -141,7 +148,7 @@ type AddOpts = {
   payer?: Person; // as seen by the person adding (their own name shows as "You")
   me: Person;
   currency?: string;
-  split?: { kind: "everyone" } | { kind: "only"; who: Person[] } | { kind: "one"; who: Person } | { kind: "amounts"; values: Partial<Record<Person, string>> } | { kind: "percent"; values: Partial<Record<Person, string>> };
+  split?: { kind: "everyone" } | { kind: "only"; who: Person[] } | { kind: "one"; who: Person } | { kind: "amounts"; values: Partial<Record<Person, string>> } | { kind: "percent"; values: Partial<Record<Person, string>> } | { kind: "shares"; values: Partial<Record<Person, string>> };
   method?: "Card" | "Cash" | "Bank / UPI";
   rate?: string;
   markup?: "None" | "2" | "group";
@@ -199,6 +206,11 @@ async function fillExpense(page: Page, o: AddOpts) {
       await page.getByLabel(`${label(p as Person)} ${s.kind === "amounts" ? "amount" : "percentage"}`).fill(v!);
     }
   }
+  if (s.kind === "shares") {
+    await page.getByRole("button", { name: /Custom/ }).click();
+    await page.getByRole("button", { name: "Shares", exact: true }).click();
+    for (const [p, v] of Object.entries(s.values)) await page.getByLabel(`${label(p as Person)} shares`).fill(v!);
+  }
   if (o.notes) {
     await page.getByRole("button", { name: /Add notes/ }).click();
     await page.getByPlaceholder(/Rahul paid the tip/).fill(o.notes);
@@ -235,7 +247,9 @@ async function main() {
   for (const [base, quote, rate] of [["THB", "INR", "2.5734"], ["INR", "THB", "0.3886"], ["INR", "USD", "0.0119"], ["EUR", "INR", "90.12"]] as const) {
     await db.exchangeRate.create({ data: { base, quote, rate, date: day } });
   }
-  const browser = await chromium.launch();
+  // On the private test copy: start with fresh limits (many sign-ups come from this one machine).
+  if (hosted) await db.rateLimit.deleteMany({});
+  const browser = withBypass(await chromium.launch());
   const varun = await person(browser);
   const asha = await person(browser);
   const ravi = await person(browser);
@@ -724,6 +738,7 @@ async function main() {
     await go(V, "/groups/new");
     await V.getByRole("button", { name: /^Couple/ }).click();
     await V.locator('input[name="groupName"]').fill("UAT Us");
+    await V.locator('select[name="currency"]').selectOption("INR"); // the default follows where you are (USD from a US test machine)
     await V.getByRole("button", { name: "Next" }).click();
     await V.getByRole("radio", { name: "By income" }).click();
     await V.getByLabel("You earn a month").fill("110000");
@@ -873,7 +888,7 @@ async function main() {
     await V.getByText("Dinner").first().waitFor();
   });
   await step(V, "Export", "Spreadsheet download contains the expenses", async () => {
-    const r = await V.request.get(`${base}${g}/export`);
+    const r = await V.request.get(`${base}${g}/export`, { headers: bypass });
     assert(r.ok(), `status ${r.status()}`);
     assert(/text\/csv/.test(r.headers()["content-type"] ?? ""), "not a CSV");
     const body = await r.text();
@@ -1057,7 +1072,7 @@ async function main() {
     }
     const body = await x.page.locator("main").innerText();
     assert(!body.includes("UAT Goa trip") && !body.includes(invite.split("/").pop()!), "private page leaks the group's name or invite code");
-    const r = await x.page.request.get(`${base}${g}/export`);
+    const r = await x.page.request.get(`${base}${g}/export`, { headers: bypass });
     assert(r.status() === 403, `export gave ${r.status()} to a stranger`);
     await x.ctx.close();
   });
@@ -1163,7 +1178,11 @@ async function main() {
     await page.getByText("Let’s get you started").waitFor();
     await page.getByRole("link", { name: "Sign in or sign up" }).first().waitFor();
     // Join with a pasted link
-    await page.getByRole("button", { name: "Join with an invite link" }).click();
+    // (Tapped again if the first tap landed before the page came alive, as a person would.)
+    for (let i = 0; i < 4 && !(await page.getByLabel("Invite link").count()); i++) {
+      await page.getByRole("button", { name: "Join with an invite link" }).click();
+      await page.getByLabel("Invite link").waitFor({ timeout: 2_000 }).catch(() => undefined);
+    }
     await page.getByLabel("Invite link").fill(`https://getloopin.vercel.app${invite}`);
     await page.getByRole("button", { name: "Join", exact: true }).click();
     await page.waitForURL(new RegExp(invite));
@@ -1272,7 +1291,12 @@ async function main() {
     await db.bill.updateMany({ where: { groupId: homeId() }, data: { startMonth: thisMonth, day: 1 } });
   });
   await step(V, "Flat", "The daily job runs twice: Rent is added once, Electricity waits for its amount", async () => {
-    for (let i = 0; i < 2; i++) {
+    if (noCronKey) {
+      // No key for the test copy's daily job: run the same job directly instead.
+      const { runBillsForGroup } = await import("../src/lib/home/bills-db");
+      await runBillsForGroup(homeId());
+      await runBillsForGroup(homeId());
+    } else for (let i = 0; i < 2; i++) {
       const r = await fetch(`${base}/api/cron/daily`, { headers: cronAuth() });
       assert(r.ok, `daily job answered ${r.status}`);
     }
@@ -1390,7 +1414,8 @@ async function main() {
     await go(V, `${gh}/expenses/${rent.id}/edit`);
     await V.getByRole("button", { name: "Delete expense" }).click();
     await V.waitForURL(/tab=activity/);
-    await fetch(`${base}/api/cron/daily`, { headers: cronAuth() });
+    if (noCronKey) await (await import("../src/lib/home/bills-db")).runBillsForGroup(homeId());
+    else await fetch(`${base}/api/cron/daily`, { headers: cronAuth() });
     const live = await db.expense.count({ where: { groupId: homeId(), description: "Rent", deletedAt: null } });
     assert(live === 0, `Rent came back (${live})`);
   });
@@ -1420,7 +1445,7 @@ async function main() {
     assert(/₹38,000/.test(t), `deposit page says: ${t.slice(0, 200)}`);
   });
   await step(V, "Export", "The flat's spreadsheet has the bills and the shopping", async () => {
-    const r = await V.request.get(`${base}${gh}/export`);
+    const r = await V.request.get(`${base}${gh}/export`, { headers: bypass });
     assert(r.ok(), `status ${r.status()}`);
     const body = await r.text();
     assert(/Electricity/.test(body) && /Groceries/i.test(body), "CSV is missing the flat's expenses");
@@ -1616,7 +1641,8 @@ async function main() {
   const raw = (path: string, host: string, cookie = "") =>
     new Promise<{ status: number; location: string; setCookie: string[] }>((resolve, reject) => {
       const u = new URL(base);
-      const req = httpRequest({ hostname: u.hostname, port: u.port || 80, path, method: "GET", headers: { host, ...(cookie ? { cookie } : {}) } }, (res) => {
+      const send = u.protocol === "https:" ? httpsRequest : httpRequest;
+      const req = send({ hostname: u.hostname, port: u.port || (u.protocol === "https:" ? 443 : 80), path, method: "GET", headers: { host, ...bypass, ...(cookie ? { cookie } : {}) } }, (res) => {
         res.resume();
         resolve({ status: res.statusCode ?? 0, location: String(res.headers.location ?? ""), setCookie: (res.headers["set-cookie"] as string[]) ?? [] });
       });
@@ -1624,6 +1650,8 @@ async function main() {
       req.end();
     });
   await step(null, "New address", "The old address forwards to loopinapps.com, and a signed-in person arrives still signed in (once)", async () => {
+    // Pretending to be the old address only works on a server of our own; on Vercel it would reach the live app.
+    if (hosted) return "checked on the GitHub test server only (on Vercel this would reach the live app)";
     const plain = await raw("/how-it-works", "getloopin.vercel.app");
     assert(plain.status === 307 && plain.location === "https://loopinapps.com/how-it-works", `not signed in: ${plain.status} ${plain.location}`);
     const me = (await varun.ctx.cookies()).find((c) => c.name === "sw_me");
@@ -1648,13 +1676,19 @@ async function main() {
     await go(page, "/signin");
     await page.getByRole("heading", { name: "Continue to Loopin" }).waitFor();
     assert((await page.getByRole("link", { name: "Sign up", exact: true }).count()) === 0, "separate Sign up / Sign in tabs still shown");
+    const googleShown = (await page.getByRole("link", { name: "Continue with Google" }).count()) > 0;
+    if (hosted && !googleShown) {
+      await ctx.close();
+      return "Google isn't switched on for the test copy (it is on the live app)";
+    }
     const href = (await page.getByRole("link", { name: "Continue with Google" }).getAttribute("href")) ?? "";
     assert(href.startsWith("/api/auth/google/start"), `Google button links to ${href}`);
     await ctx.close();
     const start = await raw("/api/auth/google/start?back=%2Fsettle", new URL(base).host);
     const g = new URL(start.location);
     assert(start.status === 307 && g.origin === "https://accounts.google.com", `start: ${start.status} ${start.location}`);
-    assert(g.searchParams.get("client_id") === "uat-test.apps.googleusercontent.com" && g.searchParams.get("code_challenge_method") === "S256", `params: ${g.search}`);
+    const client = g.searchParams.get("client_id") ?? "";
+    assert((hosted ? client.endsWith(".apps.googleusercontent.com") : client === "uat-test.apps.googleusercontent.com") && g.searchParams.get("code_challenge_method") === "S256", `params: ${g.search}`);
     assert(g.searchParams.get("redirect_uri") === `${base}/api/auth/google/callback`, `redirect_uri: ${g.searchParams.get("redirect_uri")}`);
     assert(start.setCookie.some((c) => c.startsWith("lp_g=")), "no sign-in attempt cookie");
     const forged = await raw("/api/auth/google/callback?state=forged&code=x", new URL(base).host, start.setCookie.map((c) => c.split(";")[0]).join("; "));
@@ -1694,7 +1728,7 @@ async function main() {
   await step(V, "Switching", "“Coming from Splitwise?” → pick the exported file → balances checked → Bring it over: a new group with the same expenses, payments and balances", async () => {
     await go(V, "/switching");
     await V.getByRole("heading", { name: /Bring your groups/ }).waitFor();
-    await V.getByRole("link", { name: "Bring a group over" }).click();
+    await V.getByRole("link", { name: "Bring a group over" }).first().click();
     await V.waitForURL(/\/import/);
     const csv = [
       "Date,Description,Category,Cost,Currency,Varun,Asha S,Kabir",
@@ -1780,6 +1814,160 @@ async function main() {
     await page.waitForURL(/removed=passkey/);
     const left = await db.passkey.count({ where: { accountId: (await db.account.findUniqueOrThrow({ where: { email: email("pia") } })).id } });
     assert(left === 0, `passkeys left after Remove: ${left}`);
+    await ctx.close();
+  });
+
+  // ===== 12. More of what a person would try (from the human checklist) =====
+  await step(V, "Add", "Shares: ₹1,200 split 2 : 1 : 1 : 1 : 1 → Varun ₹400, the others ₹200 each", async () => {
+    await add(V, { me: "Varun", name: "Boat ride", amount: "1200", split: { kind: "shares", values: { Varun: "2", Asha: "1", Ravi: "1", Zoe: "1" } } }); // Rohit (joined later) keeps 1 share
+    const e = await db.expense.findFirstOrThrow({ where: { groupId: g.split("/").pop()!, description: "Boat ride" }, include: { shares: { include: { member: true } } } });
+    const got = Object.fromEntries(e.shares.map((x) => [x.member.name, x.amount]));
+    assert(got.Varun === 40000 && got.Asha === 20000 && got.Ravi === 20000 && got.Zoe === 20000 && got.Rohit === 20000, `shares saved as ${JSON.stringify(got)}`);
+  });
+
+  await step(null, "Sign in", "A wrong code is refused with a clear message, and the right one still works", async () => {
+    const { ctx, page } = await person(browser);
+    const who = email("wrongcode");
+    await go(page, "/signin");
+    await page.locator('input[name="email"]').fill(who);
+    await page.getByRole("button", { name: "Email me a code" }).click();
+    await page.waitForURL(/sent=1/);
+    let code = "";
+    for (let i = 0; i < 40 && !code; i++) {
+      const row = await db.outbox.findFirst({ where: { to: who }, orderBy: { createdAt: "desc" } });
+      code = row ? (/\b(\d{6})\b/.exec(row.subject)?.[1] ?? "") : "";
+      if (!code) await page.waitForTimeout(250);
+    }
+    assert(code, "no code arrived");
+    const wrong = code === "000000" ? "111111" : "000000";
+    await page.locator('input[name="code"]').fill(wrong);
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await page.getByText("That code isn't right").first().waitFor();
+    assert(!/signedin=1/.test(page.url()), "signed in with a wrong code");
+    await page.locator('input[name="code"]').fill(code);
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await page.waitForURL(/signedin=1/);
+    await ctx.close();
+  });
+
+  await step(null, "Sign in", "Right after signing in, “Sign in faster next time?” can be closed with ✕ and stays closed", async () => {
+    const { ctx, page } = await person(browser);
+    const cdp = await ctx.newCDPSession(page);
+    await cdp.send("WebAuthn.enable");
+    await cdp.send("WebAuthn.addVirtualAuthenticator", {
+      options: { protocol: "ctap2", transport: "internal", hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true },
+    });
+    await go(page, "/signin");
+    await signup(page, "Omar", email("omar"));
+    await page.getByText("Sign in faster next time?").waitFor();
+    await page.getByRole("button", { name: "Not now" }).click();
+    await go(page, "/?signedin=1");
+    await page.waitForTimeout(800);
+    assert((await page.getByText("Sign in faster next time?").count()) === 0, "the offer came back after closing it");
+    await ctx.close();
+  });
+
+  await step(V, "Settle", "Remind opens WhatsApp with the amount and who owes it", async () => {
+    await go(V, `${g}/settle`);
+    const link = V.getByRole("link", { name: /Remind/ }).first();
+    if (!(await link.count())) return "nobody owes Varun right now (nothing to remind)";
+    const href = (await link.getAttribute("href")) ?? "";
+    assert(/^https:\/\/(wa\.me|api\.whatsapp\.com)\//.test(href) && /%E2%82%B9|₹/.test(href), `Remind link: ${href.slice(0, 120)}`);
+  });
+
+  await step(V, "Settle", "When every payment is under the group's minimum, Settle says “Nearly square”", async () => {
+    const cid = gc.split("/").pop()!;
+    await db.group.update({ where: { id: cid }, data: { settleMin: 100000 } }); // ₹1,000: more than anything owed
+    try {
+      await go(V, `${gc}/settle`);
+      await V.getByText("Nearly square").first().waitFor();
+    } finally {
+      await db.group.update({ where: { id: cid }, data: { settleMin: 0 } });
+    }
+  });
+
+  await step(V, "Add people", "The invite screen shows the group's link and a QR code", async () => {
+    await go(V, `${g}/invite`);
+    await V.getByText("Share the group link or QR code").click();
+    await V.waitForTimeout(500);
+    assert((await V.locator("svg").filter({ has: V.locator("path") }).count()) > 0, "no QR code");
+    assert(/\/join\//.test(await V.locator("main").innerText()) || (await V.locator('a[href*="/join/"], input[value*="/join/"]').count()) > 0, "no invite link shown");
+  });
+
+  await step(V, "Navigation", "The group name at the top switches to another group", async () => {
+    await go(V, g);
+    const switcher = V.locator("header details, details").first();
+    await switcher.locator("summary").click();
+    await switcher.locator("ul a").first().click();
+    await V.waitForURL((u) => /\/groups\//.test(u.pathname) && !u.pathname.endsWith(g.split("/").pop()!));
+  });
+
+  await step(V, "Currency", "A yen group shows no decimals anywhere, and its settle-up minimum reads in whole yen", async () => {
+    const acc = await db.account.findUniqueOrThrow({ where: { email: email("varun") } });
+    const grp = await db.group.create({
+      data: {
+        name: "UAT Tokyo", currency: "JPY", type: "home", inviteCode: `tokyo-${stamp}`, settleMin: 100,
+        members: { create: [{ name: "Varun", accountId: acc.id, claimedAt: new Date() }, { name: "Kenji" }] },
+      },
+    });
+    await go(V, `/groups/${grp.id}/add`);
+    await V.locator("#expense-name").fill("Ramen");
+    await V.getByLabel("Amount", { exact: true }).fill("1000");
+    await V.getByRole("button", { name: "Everyone equally" }).click();
+    await save(V, { me: "Varun", name: "Ramen", amount: "1000" });
+    const t = await V.locator("main").innerText();
+    assert(/JPY 500/.test(t), `balance not JPY 500: ${t.slice(0, 200)}`);
+    assert(!/JPY [\d,]+\.\d/.test(t), "yen shown with decimals");
+    await go(V, `/groups/${grp.id}/settings`);
+    assert((await V.locator('input[name="settleMin"]').inputValue()) === "100", "minimum not shown as 100 yen");
+  });
+
+  await step(V, "Flat", "A bill whose payer has moved out waits with “Add it”, and Add it comes pre-filled", async () => {
+    const data = await db.group.findUniqueOrThrow({ where: { id: homeId() }, include: { members: true } });
+    const gone = data.members.find((m) => m.leftAt);
+    assert(gone, "nobody has moved out of the flat");
+    const thisMonth = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit" }).format(new Date()).slice(0, 7);
+    await db.bill.create({ data: { groupId: homeId(), name: "Internet", icon: "internet", nature: "fixed", amount: 99900, day: 1, payer: gone.id, startMonth: thisMonth } });
+    await (await import("../src/lib/home/bills-db")).runBillsForGroup(homeId());
+    assert((await db.expense.count({ where: { groupId: homeId(), description: "Internet" } })) === 0, "added even though its payer left");
+    await go(V, `${gh}?tab=bills`);
+    const row = V.locator("li, div").filter({ hasText: "Internet" }).filter({ has: V.getByRole("link", { name: "Add it" }) }).last();
+    await row.getByRole("link", { name: "Add it" }).click();
+    await V.waitForURL(/\/add\?/);
+    assert((await V.getByLabel("Amount", { exact: true }).inputValue()).replace(/,/g, "") === "999", "Add it isn't pre-filled with ₹999");
+  });
+
+  await step(V, "Switching", "A file that isn't a Splitwise export gets a clear message; a second currency is flagged", async () => {
+    await go(V, "/import");
+    await V.getByLabel("Splitwise export file").setInputFiles({ name: "notes.csv", mimeType: "text/csv", buffer: Buffer.from("Name,Amount\nTea,20\n") });
+    await V.getByText(/doesn’t look like a Splitwise export/).waitFor();
+    const two = ["Date,Description,Category,Cost,Currency,Varun,Mia", "2026-09-01,Dinner,Dining out,900.00,INR,450.00,-450.00", "2026-09-02,Gelato,Dining out,10.00,EUR,5.00,-5.00"].join("\n");
+    await V.getByLabel("Splitwise export file").setInputFiles({ name: "rome_export.csv", mimeType: "text/csv", buffer: Buffer.from(two) });
+    await V.getByText(/Lines in EUR are left out/).waitFor();
+  });
+
+  await step(V, "Trips", "Close the imported trip: Home links to the trip report, which says All settled; Copy as text works", async () => {
+    const vacc = await db.account.findUniqueOrThrow({ where: { email: email("varun") } });
+    const trip = await db.group.findFirstOrThrow({ where: { name: "Manali trip", members: { some: { accountId: vacc.id } } }, orderBy: { createdAt: "desc" } });
+    await go(V, `/groups/${trip.id}/settle`);
+    await V.getByRole("button", { name: /Settle everything & close|Close group/ }).click();
+    await V.waitForURL(/closed=1/);
+    await V.getByRole("link", { name: "See the trip report" }).click();
+    await V.waitForURL(/\/report$/);
+    await V.getByRole("heading", { name: "All settled ✅" }).waitFor();
+    await V.context().grantPermissions(["clipboard-read", "clipboard-write"]).catch(() => undefined);
+    await V.getByRole("button", { name: "Copy as text" }).click();
+    await V.getByRole("status").filter({ hasText: /Copied|Couldn’t copy/ }).waitFor();
+  });
+
+  await step(null, "Privacy", "A stranger can't open a group's report, its spreadsheet or someone else's data download", async () => {
+    const { ctx, page } = await person(browser);
+    await go(page, `${g}/report`);
+    await page.getByText(/Private group/).first().waitFor();
+    const csv = await page.request.get(`${base}${g}/export`, { headers: bypass });
+    assert(csv.status() === 403 || csv.status() === 401, `group spreadsheet answered ${csv.status()}`);
+    const mine = await page.request.get(`${base}/api/my-data`, { headers: bypass });
+    assert(mine.status() === 401, `my-data answered ${mine.status()} with no sign-in`);
     await ctx.close();
   });
 

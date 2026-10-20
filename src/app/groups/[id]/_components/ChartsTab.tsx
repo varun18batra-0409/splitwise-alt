@@ -58,7 +58,7 @@ export function ChartsTab({ v }: { v: GroupView }) {
 
   // A few plain-English lines on top (trips and other groups; flats have their own on This month).
   const home = group.type === "home" || group.type === "couple";
-  const report = tripReport({ name: group.name, currency: group.currency, members: group.members, expenses, transfers: v.transfers, tz });
+  const report = tripReport({ name: group.name, type: group.type, currency: group.currency, members: group.members, expenses, transfers: v.transfers, tz });
   const lines = home ? [] : insightLines(report, myId);
 
   return (

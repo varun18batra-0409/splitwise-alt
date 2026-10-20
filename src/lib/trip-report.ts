@@ -2,7 +2,7 @@ import { payersOf, spentAmount } from "./payers";
 import { CATEGORIES, getCategory } from "./categories";
 import { dayKey, expenseDate } from "./dates";
 import { niceDate } from "./format";
-import { formatMoney } from "./money";
+import { decimalsOf, formatMoney } from "./money";
 import type { Transfer } from "./settle";
 
 // The trip report (and the short "insight" lines shown on a trip's Charts tab):
@@ -25,6 +25,7 @@ type Expense = {
 
 export type TripReport = {
   name: string;
+  trip: boolean; // a trip (else another kind of group: the wording changes)
   currency: string;
   total: number;
   count: number;
@@ -42,7 +43,7 @@ export type TripReport = {
   settle: { from: string; to: string; amount: number }[]; // names
 };
 
-export function tripReport(input: { name: string; currency: string; members: Member[]; expenses: Expense[]; transfers: Transfer[]; tz: string }): TripReport {
+export function tripReport(input: { name: string; type?: string; currency: string; members: Member[]; expenses: Expense[]; transfers: Transfer[]; tz: string }): TripReport {
   const { members, expenses, tz } = input;
   const nameOf = (id: string) => members.find((m) => m.id === id)?.name ?? "Someone";
   const total = expenses.reduce((s, e) => s + spentAmount(e), 0);
@@ -74,17 +75,21 @@ export function tripReport(input: { name: string; currency: string; members: Mem
   const involved = members.filter((m) => (share.get(m.id) ?? 0) !== 0 || (paid.get(m.id) ?? 0) !== 0);
   const people = Math.max(1, involved.length);
 
+  // "About ₹3,450 a day" reads better without paise.
+  const unit = 10 ** decimalsOf(input.currency);
+  const whole = (x: number) => Math.round(x / unit) * unit;
   return {
     name: input.name,
+    trip: (input.type ?? "trip") === "trip",
     currency: input.currency,
     total,
     count: expenses.length,
     from,
     to,
     days,
-    perDay: days ? Math.round(total / days) : 0,
+    perDay: days ? whole(total / days) : 0,
     people: involved.length,
-    perPerson: Math.round(total / people),
+    perPerson: whole(total / people),
     categories,
     biggest: big ? { description: big.description, amount: big.amount } : null,
     topPayer: top ? { id: top[0], name: nameOf(top[0]), amount: top[1] } : null,
@@ -105,7 +110,7 @@ export function dateRange(r: Pick<TripReport, "from" | "to">): string {
 export function reportText(r: TripReport): string {
   const m = (x: number) => formatMoney(x, r.currency);
   const lines = [
-    `🧳 ${r.name}: the trip in numbers`,
+    r.trip ? `🧳 ${r.name}: the trip in numbers` : `📊 ${r.name}: in numbers`,
     [dateRange(r), r.days > 1 ? `${r.days} days` : "", `${r.count} ${r.count === 1 ? "expense" : "expenses"}`].filter(Boolean).join(" · "),
     `Total ${m(r.total)}${r.people > 1 ? ` · about ${m(r.perPerson)} each` : ""}${r.days > 1 ? ` · ${m(r.perDay)} a day` : ""}`,
   ];

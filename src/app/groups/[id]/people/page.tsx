@@ -63,7 +63,7 @@ export default async function PeoplePage({
               <span className="block truncate font-medium">
                 {m.name}
                 {me && <span className="text-gray-400"> (you)</span>}
-                {!m.accountId && !m.claimedAt && !m.leftAt && (
+                {!me && !m.accountId && !m.claimedAt && !m.leftAt && (
                   <span className="ml-2 rounded-full border border-line px-2 py-0.5 align-middle text-[10px] font-normal text-gray-500">not on Loopin yet</span>
                 )}
               </span>

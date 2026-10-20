@@ -4,13 +4,13 @@ import { mkdirSync, readFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { SESSION_COOKIE, encodeSession } from "../src/lib/session";
 
-const base = process.env.APP_URL ?? "http://localhost:3000";
+import { base, hosted, signInOnTestCopy, withBypass } from "./hosted";
 const demo = JSON.parse(readFileSync(".demo.json", "utf8"));
 const out = "screenshots";
 mkdirSync(out, { recursive: true });
 
 async function main() {
-const browser = await chromium.launch();
+const browser = withBypass(await chromium.launch());
 const context = await browser.newContext({
   viewport: { width: 390, height: 844 },
   deviceScaleFactor: 2,
@@ -18,14 +18,16 @@ const context = await browser.newContext({
   locale: "en-IN",
   timezoneId: "Asia/Kolkata",
 });
-await context.addCookies([
-  { name: SESSION_COOKIE, value: await encodeSession({ m: demo.memberships }), url: base },
-]);
+if (hosted) await signInOnTestCopy(context, Object.values(demo.memberships) as string[]);
+else
+  await context.addCookies([
+    { name: SESSION_COOKIE, value: await encodeSession({ m: demo.memberships }), url: base },
+  ]);
 const page = await context.newPage();
 
 async function shot(name: string, path: string, prepare?: (p: Page) => Promise<void>, fullPage = true) {
   try {
-    await page.goto(base + path, { waitUntil: "networkidle" });
+    await page.goto(base + path, { waitUntil: hosted ? "load" : "networkidle", timeout: 30_000 });
     await page.waitForTimeout(900); // let the bar animation finish
     if (prepare) await prepare(page).catch((e) => console.log("  (could not prepare", name, String(e).split("\n")[0], ")"));
     await page.screenshot({ path: `${out}/${name}.png`, fullPage });
@@ -170,6 +172,12 @@ await shot("15-new-group", "/groups/new");
 await shot("25-account", "/account");
 await shot("26-signin", "/signin", undefined, false);
 await shot("27-privacy", "/privacy");
+// Phase 5
+await shot("62-trip-report", `${g}/report`);
+await shot("63-charts-insights", `${g}?tab=charts`, undefined, false);
+await shot("64-switching", "/switching");
+await shot("65-import", "/import");
+await shot("66-people-not-on-loopin", `${g}/people`);
 await context.clearCookies();
 await shot("16-join", `/join/${demo.trip.invite}`);
 await shot("24-tour-1", "/", undefined, false);

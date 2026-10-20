@@ -18,7 +18,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
   if (!data) notFound();
   if (!myId || !data.group.members.some((m) => m.id === myId)) redirect("/private");
   const { group, expenses, transfers } = data;
-  const r = tripReport({ name: group.name, currency: group.currency, members: group.members, expenses, transfers, tz: await getTimeZone() });
+  const r = tripReport({ name: group.name, type: group.type, currency: group.currency, members: group.members, expenses, transfers, tz: await getTimeZone() });
   const m = (x: number) => formatMoney(x, group.currency);
   const title = group.type === "trip" ? "Trip report" : "Group report";
 

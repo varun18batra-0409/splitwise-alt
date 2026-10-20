@@ -26,10 +26,30 @@ export function usePasskeySupport() {
   return ok;
 }
 
+// This phone has used fingerprint / face sign-in before (then the button is
+// shown big; otherwise it's a small line, so new people aren't sent down a
+// path that can't work for them yet).
+const USED_KEY = "lp_pk";
+function rememberUsed() {
+  try {
+    localStorage.setItem(USED_KEY, "1");
+  } catch {
+    // fine
+  }
+}
+
 export function PasskeySignIn({ back, className }: { back: string; className: string }) {
   const supported = usePasskeySupport();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [used, setUsed] = useState(false);
+  useEffect(() => {
+    try {
+      setUsed(localStorage.getItem(USED_KEY) === "1");
+    } catch {
+      // fine
+    }
+  }, []);
   if (!supported) return null;
   async function go() {
     setBusy(true);
@@ -40,6 +60,7 @@ export function PasskeySignIn({ back, className }: { back: string; className: st
       const response = await startAuthentication({ optionsJSON: o.json });
       const v = await post("/api/passkey/login/verify", { response });
       if (!v.ok) throw new Error(v.json.error ?? "That didn’t work.");
+      rememberUsed();
       window.location.assign(`${back}${back.includes("?") ? "&" : "?"}signedin=1`);
     } catch (e) {
       const msg = (e as Error).name === "NotAllowedError" ? "Cancelled. Try again, or use Google or your email." : (e as Error).message;
@@ -49,8 +70,13 @@ export function PasskeySignIn({ back, className }: { back: string; className: st
   }
   return (
     <div>
-      <button type="button" onClick={go} disabled={busy} className={className}>
-        <FingerprintIcon /> {busy ? "Waiting for your phone…" : "Sign in with fingerprint or face"}
+      <button
+        type="button"
+        onClick={go}
+        disabled={busy}
+        className={used ? className : "mx-auto block py-2 text-center text-sm text-gray-500 underline underline-offset-4"}
+      >
+        {used && <FingerprintIcon />} {busy ? "Waiting for your phone…" : "Sign in with fingerprint or face"}
       </button>
       {error && <p className="mt-2 text-sm text-red-600" role="alert">{error}</p>}
     </div>
@@ -72,6 +98,7 @@ export function PasskeyAdd({ className, label = "Turn on fingerprint / face sign
       const v = await post("/api/passkey/register/verify", { response, label: deviceLabel() });
       if (!v.ok) throw new Error("That didn’t work. Try again.");
       setState("done");
+      rememberUsed();
       if (onDone) onDone();
       else window.location.reload();
     } catch (e) {

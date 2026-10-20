@@ -7,7 +7,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { SESSION_COOKIE, encodeSession } from "../src/lib/session";
 
-const base = process.env.APP_URL ?? "http://localhost:3000";
+import { base, hosted, signInOnTestCopy, withBypass } from "./hosted";
 const demo = JSON.parse(readFileSync(".demo.json", "utf8"));
 const out = "screenshots/uat";
 mkdirSync(out, { recursive: true });
@@ -74,10 +74,14 @@ async function timed(what: string, fn: () => Promise<unknown>, note = "") {
 }
 
 async function main() {
-  const browser = await chromium.launch();
+  const browser = withBypass(await chromium.launch());
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "en-IN", timezoneId: "Asia/Kolkata", colorScheme: "dark" });
+  if (hosted) await signInOnTestCopy(ctx, Object.values(demo.memberships) as string[]);
+  const session = hosted
+    ? (await ctx.cookies()).find((c) => c.name === SESSION_COOKIE)?.value ?? ""
+    : await encodeSession({ m: demo.memberships });
   const cookies = [
-    { name: SESSION_COOKIE, value: await encodeSession({ m: demo.memberships }), url: base },
+    { name: SESSION_COOKIE, value: session, url: base },
     { name: "lp_tour", value: "1", url: base },
   ];
   await ctx.addCookies(cookies);
@@ -98,7 +102,7 @@ async function main() {
   await cold(browser, cookies, "Add people", `${g}/invite`, (p) => p.getByLabel("Search people on Loopin").waitFor());
   await cold(browser, cookies, "Settle up", "/settle", main);
   await cold(browser, cookies, "Search", "/search", main);
-  await cold(browser, cookies, "Sign in", "/signin", (p) => p.locator('input[name="email"]').waitFor());
+  await cold(browser, cookies, "Sign in", "/signin", (p) => p.locator('input[name="email"], main h1').first().waitFor());
 
   // Taps inside the app (no full reload).
   await page.goto(base + "/");

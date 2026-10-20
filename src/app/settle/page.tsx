@@ -48,11 +48,15 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
                   </p>
                 </div>
                 <ul className="mt-1.5 space-y-0.5 text-xs text-gray-500">
-                  {it.parts.map((p) => (
-                    <li key={`${p.groupId}-${p.fromId}-${p.toId}`}>
-                      {p.groupName}: {p.iPay ? `you pay ${formatMoney(p.amount, p.currency)}` : `${it.name} pays you ${formatMoney(p.amount, p.currency)}`}
-                    </li>
-                  ))}
+                  {it.parts.length === 1 ? (
+                    <li>In {it.parts[0].groupName}</li>
+                  ) : (
+                    it.parts.map((p) => (
+                      <li key={`${p.groupId}-${p.fromId}-${p.toId}`}>
+                        {p.groupName}: {p.iPay ? `you pay ${formatMoney(p.amount, p.currency)}` : `${it.name} pays you ${formatMoney(p.amount, p.currency)}`}
+                      </li>
+                    ))
+                  )}
                 </ul>
                 <div className="mt-2 flex items-center justify-between gap-3">
                   <span className="text-xs text-gray-400">{it.parts.length > 1 ? `1 payment instead of ${it.parts.length}` : ""}</span>

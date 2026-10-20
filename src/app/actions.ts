@@ -582,7 +582,7 @@ export async function requestCode(formData: FormData) {
 export async function verifyCode(formData: FormData) {
   const email = String(formData.get("email") ?? "");
   const back = safeBack(String(formData.get("back") ?? "/"));
-  const testing = process.env.MAIL_OUTBOX === "1" && !process.env.VERCEL;
+  const testing = (process.env.MAIL_OUTBOX === "1" && !process.env.VERCEL) || (process.env.VERCEL_ENV === "preview" && /\.test$/i.test(email.trim()));
   const { ip } = await originAndIp();
   if (!testing && (!(await allow(`verify-ip:${ip}`, 30, 900)) || !(await allow(`verify-email:${email.trim().toLowerCase()}`, 10, 900)))) {
     redirect(`/signin?${new URLSearchParams({ e: email, back, sent: "1", error: "Too many tries. Wait 15 minutes and ask for a new code." })}`);

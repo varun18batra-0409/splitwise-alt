@@ -48,7 +48,8 @@ export default async function JoinPage({
         <p className="text-sm text-fg/55">You’re invited to</p>
         <p className="mt-1 font-display text-[28px] font-semibold leading-tight">{group.name}</p>
         <p className="mt-2 text-sm text-fg/60">
-          {active.length} {active.length === 1 ? "person" : "people"} · {verified.map((m) => m.name).slice(0, 4).join(", ")}
+          {active.length} {active.length === 1 ? "person" : "people"}
+          {verified.length > 0 && ` · ${verified.map((m) => m.name).slice(0, 4).join(", ")}`}
           {verified.length > 4 ? "…" : ""}
         </p>
       </section>
@@ -56,8 +57,8 @@ export default async function JoinPage({
       {!account ? (
         <>
           <p className="mb-5 text-gray-600">
-            To join, sign up with your email. It takes 30 seconds, there’s no password, and it means notifications reach you and friends can
-            find you.
+            To join, sign in or sign up with Google or your email. It takes 30 seconds, there’s no password, and it means notifications reach
+            you and friends can find you.
           </p>
           {asMember && <p className="mb-4 rounded-xl bg-mist px-4 py-3 text-sm">You were added as <strong>{asMember.name}</strong>. Join to see your share.</p>}
           <Link href={`/signin?${new URLSearchParams({ back, ...(invitedEmail ? { e: invitedEmail } : {}) })}`} className={primaryButtonClass}>
