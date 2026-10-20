@@ -120,8 +120,10 @@ export function PasskeyAdd({ className, label = "Turn on fingerprint / face sign
 
 function FingerprintIcon() {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" aria-hidden className="mr-2 inline-block align-[-4px]">
-      <path d="M12 11v3a8 8 0 0 0 1 4M8.5 13.5c0-2 1.6-3.5 3.5-3.5s3.5 1.5 3.5 3.5V15M5 12a7 7 0 0 1 14 0v2M7.5 19.5A10 10 0 0 1 6 14M16.5 20c.4-1.3.5-2.6.5-4M4 7.5A9.5 9.5 0 0 1 12 3.5a9.5 9.5 0 0 1 8 4" />
+    // A scan frame with a fingerprint inside: reads as "your phone's fingerprint or face".
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden className="mr-2 inline-block align-[-4px]">
+      <path d="M3 8V5.5A2.5 2.5 0 0 1 5.5 3H8M16 3h2.5A2.5 2.5 0 0 1 21 5.5V8M21 16v2.5a2.5 2.5 0 0 1-2.5 2.5H16M8 21H5.5A2.5 2.5 0 0 1 3 18.5V16" />
+      <path d="M7.5 13a4.5 4.5 0 0 1 9 0M9.5 16.5V13a2.5 2.5 0 0 1 5 0v3.5M12 13v4.5M7.5 13v2M16.5 13v1" />
     </svg>
   );
 }

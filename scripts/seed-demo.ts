@@ -52,7 +52,7 @@ async function main() {
 const trip = await group(
   "Thailand trip",
   [{ name: "Varun" }, { name: "Asha", phone: "+91 98765 43210" }, { name: "Ravi" }, { name: "Meera" }, { name: "Dev" }],
-  { cardMarkupBp: 300 },
+  { cardMarkupBp: 300, type: "trip" },
 );
 const V = trip.id("Varun"), A = trip.id("Asha"), R = trip.id("Ravi"), M = trip.id("Meera");
 // Dev couldn't come: left before any expense, so he's in the "Left the group" list.
