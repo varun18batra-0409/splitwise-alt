@@ -1659,6 +1659,36 @@ async function main() {
     assert(forged.status === 303 && /\/signin\?/.test(forged.location) && !forged.setCookie.some((c) => c.startsWith("sw_me=")), `forged return: ${forged.status} ${forged.location}`);
   });
 
+  await step(V, "Joining", "Someone added by name only: “not on Loopin yet” → Invite by email → they open it, sign up, “Continue as Rohit”, and take over the name", async () => {
+    const gid = g.split("/").pop()!;
+    const rohit = await db.member.create({ data: { groupId: gid, name: "Rohit" } });
+    await go(V, `${g}/people`);
+    const row = V.locator("details").filter({ hasText: "Rohit" }).first();
+    await row.getByText("not on Loopin yet").waitFor();
+    await row.locator("summary").click();
+    await row.getByLabel("Rohit’s email").fill(email("rohit"));
+    await row.getByRole("button", { name: "Invite", exact: true }).click();
+    await V.waitForURL(/invited=/);
+    let mail = null as null | { text: string };
+    for (let i = 0; i < 20 && !mail; i++) {
+      mail = await db.outbox.findFirst({ where: { to: email("rohit") }, orderBy: { createdAt: "desc" } });
+      if (!mail) await V.waitForTimeout(250);
+    }
+    assert(mail, "no invite email");
+    const link = /https?:\/\/\S+\/join\/\S+/.exec(mail.text)?.[0] ?? "";
+    assert(link.includes(`as=${rohit.id}`), `link: ${link}`);
+    const { ctx, page } = await person(browser);
+    await page.goto(link.replace(/^https?:\/\/[^/]+/, base), { waitUntil: "networkidle" });
+    await page.getByText(/You were added as/).waitFor();
+    await page.getByRole("link", { name: /sign up to join/i }).click();
+    await signup(page, "Rohit", email("rohit"), true);
+    await page.getByRole("button", { name: "Continue as Rohit" }).click();
+    await page.waitForURL(new RegExp(`/groups/${gid}`));
+    const after = await db.member.findUniqueOrThrow({ where: { id: rohit.id } });
+    assert(after.accountId, "Rohit's place wasn't taken over");
+    await ctx.close();
+  });
+
   await browser.close();
 
   // ---------- report ----------

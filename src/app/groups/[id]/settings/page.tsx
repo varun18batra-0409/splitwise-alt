@@ -6,7 +6,7 @@ import { NOTIFY_KINDS, parseNotify } from "@/lib/notify-prefs";
 import { saveSettleRules } from "@/app/bill-actions";
 import { GROUP_TYPES, sharingInputs } from "@/lib/group-types";
 import { ConfirmButton } from "@/components/ConfirmButton";
-import { CURRENCIES, currencyInfo, formatMoney, formatPercent, isSupportedCurrency, POPULAR_CURRENCIES } from "@/lib/money";
+import { CURRENCIES, currencyInfo, formatMoney, formatPercent, isSupportedCurrency, POPULAR_CURRENCIES, toInputAmount } from "@/lib/money";
 import { getRate } from "@/lib/rate-cache";
 import { niceDate } from "@/lib/format";
 import Link from "@/components/Link";
@@ -268,7 +268,7 @@ export default async function GroupSettings({
             </label>
             <label className="block">
               <span className="mb-2 block text-base font-semibold">Leave out payments under</span>
-              <input name="settleMin" inputMode="decimal" defaultValue={group.settleMin ? String(group.settleMin / 100) : ""} placeholder="0 (show every payment)" className={inputClass} />
+              <input name="settleMin" inputMode="decimal" defaultValue={group.settleMin ? toInputAmount(group.settleMin, group.currency) : ""} placeholder="0 (show every payment)" className={inputClass} />
               <span className="mt-1 block text-sm text-gray-500">Small amounts stay in the balances; they’re just not suggested as payments.</span>
             </label>
             <button type="submit" className={secondaryButtonClass}>

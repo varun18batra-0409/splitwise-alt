@@ -627,3 +627,13 @@ async function isDoubleTap(groupId: string, fromId: string, toId: string, amount
   return Boolean(recent);
 }
 
+
+// People → "not on Loopin yet" → Invite by email.
+export async function invitePersonByEmail(formData: FormData) {
+  const { group, me } = await memberContext(String(formData.get("groupId") ?? ""));
+  const { origin, ip } = await originAndIp();
+  if (!(await allow(`invite:${ip}`, 40, 3600))) redirect(`/groups/${group.id}/people?error=${encodeURIComponent("Too many invites from here. Wait a bit.")}`);
+  const { inviteToClaim } = await import("@/lib/invites");
+  const r = await inviteToClaim(group.id, me.id, String(formData.get("memberId") ?? ""), String(formData.get("email") ?? ""), origin);
+  redirect(`/groups/${group.id}/people?${r.ok ? new URLSearchParams({ invited: r.email }) : new URLSearchParams({ error: r.error })}`);
+}

@@ -71,6 +71,14 @@ export default async function GroupSettle({
           <p className="mt-2 font-display text-xl font-semibold">All square</p>
           <p className="mt-1 text-sm text-gray-500">Nobody owes anybody here.</p>
         </div>
+      ) : ordered.length === 0 ? (
+        <div className="rounded-2xl bg-mist px-4 py-10 text-center">
+          <p className="font-display text-xl font-semibold">Nearly square</p>
+          <p className="mt-1 text-sm text-gray-500">
+            Only small amounts are left, all under {money(group.settleMin)}, so no payments are suggested. They stay in the balances; change the minimum in
+            settings to see them.
+          </p>
+        </div>
       ) : (
         <ul className="space-y-3">
           {ordered.map((t) => {
