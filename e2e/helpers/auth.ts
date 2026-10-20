@@ -38,3 +38,12 @@ export async function signUp(name: string, email: string): Promise<TestUser> {
     await browser.close();
   }
 }
+
+// Sign an existing test person back in on a browser profile that's already
+// open (e.g. after "Sign out"): the code is entered in a separate, unrecorded
+// browser and only the resulting cookies are copied over.
+export async function signInto(ctx: import("@playwright/test").BrowserContext, name: string, email: string) {
+  const u = await signUp(name, email);
+  const state = u.storageState as { cookies: Parameters<typeof ctx.addCookies>[0] };
+  await ctx.addCookies(state.cookies);
+}
