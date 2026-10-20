@@ -1723,6 +1723,36 @@ async function main() {
     await V.getByText("not on Loopin yet").first().waitFor();
   });
 
+  await step(V, "Trips", "Charts shows a few plain-English lines and “Trip report”; the report shares as a picture plus text (no link to the group)", async () => {
+    await go(V, `${g}?tab=charts`);
+    await V.getByRole("region", { name: "At a glance" }).waitFor();
+    await V.getByRole("link", { name: /Trip report, to share/ }).click();
+    await V.waitForURL(/\/report$/);
+    await V.getByRole("region", { name: "The trip in numbers" }).waitFor();
+    const text = await V.getByLabel("Report as text").innerText();
+    assert(text.includes("UAT Goa trip") && /Total ₹/.test(text), `report text: ${text.slice(0, 200)}`);
+    assert(!/https?:|\/groups\/|\/join\//.test(text), "the shared text has a link in it");
+    const popup = V.waitForEvent("popup", { timeout: 5000 }).catch(() => null);
+    const [file] = await Promise.all([V.waitForEvent("download"), V.getByRole("button", { name: "Share to WhatsApp" }).click()]);
+    assert(/-report\.png$/.test(file.suggestedFilename()), `picture: ${file.suggestedFilename()}`);
+    const wa = await popup;
+    assert(!wa || wa.url().includes("wa.me") || wa.url().includes("whatsapp"), `opened ${wa?.url()}`);
+    await wa?.close();
+    const path = await file.path();
+    const { statSync } = await import("node:fs");
+    assert(path && statSync(path).size > 10_000, "the picture is empty");
+  });
+
+  await step(V, "Account", "You → Download all my data: one spreadsheet with every group, my share and my balance change", async () => {
+    await go(V, "/account");
+    const [file] = await Promise.all([V.waitForEvent("download"), V.getByRole("link", { name: "Download all my data" }).click()]);
+    const { readFileSync } = await import("node:fs");
+    const body = readFileSync((await file.path())!, "utf8");
+    assert(body.includes("Loopin: all your data") && body.includes(email("varun")), "account lines missing");
+    assert(body.includes("UAT Goa trip") && body.includes("Manali trip"), "a group is missing");
+    assert(body.includes("Your balance change"), "no balance column");
+  });
+
   await browser.close();
 
   // ---------- report ----------

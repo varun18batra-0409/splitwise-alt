@@ -144,7 +144,7 @@ export default async function GroupSettle({
       )}
 
       {!group.closed && (
-        <section className="mt-10 border-t border-line pt-6">
+        <section id="close" className="mt-10 scroll-mt-4 border-t border-line pt-6">
           <h2 className="text-base font-semibold">{transfers.length > 0 ? "Settled outside the app?" : "Done with this group?"}</h2>
           <p className="mb-4 mt-1 text-sm text-gray-500">
             {transfers.length > 0 ? "Mark every payment above as paid and close the group in one go." : "Everyone’s square, so you can close it."}
@@ -164,6 +164,11 @@ export default async function GroupSettle({
             </ConfirmButton>
           </form>
         </section>
+      )}
+      {group.type === "trip" && (
+        <Link href={`/groups/${group.id}/report`} className="mt-6 block text-center text-sm font-medium text-fg underline underline-offset-4">
+          See the trip report
+        </Link>
       )}
       <p className="mt-6 text-xs text-gray-400">Loopin only records payments. It never moves money.</p>
 

@@ -6,6 +6,8 @@ import { formatMoney } from "@/lib/money";
 import { spentByCurrency } from "@/lib/secondary";
 import { ColumnChart, HBarChart } from "@/components/Charts";
 import type { GroupExpense, GroupView } from "./view";
+import Link from "@/components/Link";
+import { insightLines, tripReport } from "@/lib/trip-report";
 
 // Category, currency, day-by-day, who paid, and each person's share.
 export function ChartsTab({ v }: { v: GroupView }) {
@@ -54,8 +56,27 @@ export function ChartsTab({ v }: { v: GroupView }) {
     valueText: money(perDay.get(k) ?? 0),
   }));
 
+  // A few plain-English lines on top (trips and other groups; flats have their own on This month).
+  const home = group.type === "home" || group.type === "couple";
+  const report = tripReport({ name: group.name, currency: group.currency, members: group.members, expenses, transfers: v.transfers, tz });
+  const lines = home ? [] : insightLines(report, myId);
+
   return (
     <div className="space-y-10">
+      {!home && (
+        <section aria-label="At a glance" className="rounded-2xl bg-mist px-4 py-4">
+          {lines.length > 0 && (
+            <ul className="mb-3 space-y-1.5 text-sm text-fg/85">
+              {lines.map((l) => (
+                <li key={l}>{l}</li>
+              ))}
+            </ul>
+          )}
+          <Link href={`/groups/${group.id}/report`} className="text-sm font-semibold text-fg underline underline-offset-4">
+            {group.type === "trip" ? "Trip report, to share" : "Group report, to share"} ›
+          </Link>
+        </section>
+      )}
       <HBarChart title="Spending by category" data={catData} total={money(spent)} />
       <HBarChart
         title="Spent by currency"

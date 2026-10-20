@@ -114,6 +114,14 @@ export default async function Home({
       {justClosed === "1" && !undone && (
         <Notice params={["closed"]} className="mb-4">
           <span aria-hidden>🎉</span> Group closed. Find it under “Closed groups”.
+          {closed.some((c) => c.group.id === didGroup && c.group.type === "trip") && (
+            <>
+              {" "}
+              <Link href={`/groups/${didGroup}/report`} className="font-medium underline underline-offset-4">
+                See the trip report
+              </Link>
+            </>
+          )}
         </Notice>
       )}
 

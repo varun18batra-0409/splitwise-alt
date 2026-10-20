@@ -51,8 +51,14 @@ export default async function AccountPage() {
       <section className="mt-10 border-t border-line pt-8">
         <h2 className="mb-1 text-base font-semibold">Your data</h2>
         <p className="mb-4 text-sm text-gray-500">
-          Download any group as a spreadsheet from its settings. To remove a whole group for everyone, use “Delete group” in its settings.
+          One spreadsheet with every expense and payment in all your groups, your share of each, and your account details. To remove a whole group
+          for everyone, use “Delete group” in its settings.
         </p>
+        {groups.length > 0 && (
+          <a href="/api/my-data" download className={`mb-4 ${secondaryButtonClass}`}>
+            Download all my data
+          </a>
+        )}
         {account && (
           <form action={deleteMyAccount}>
             <ConfirmButton
