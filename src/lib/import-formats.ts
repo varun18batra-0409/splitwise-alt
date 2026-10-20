@@ -96,8 +96,7 @@ export function guessColumns(head: string[]): ColumnMap {
 export function parseImport(text: string, opts: { map?: ColumnMap; currency?: string } = {}): SwParsed & { format?: ImportFormat } {
   const d = detectFormat(text);
   if (!d.ok) return d;
-  if (d.format === "splitwise") return { ...parseSplitwiseCsv(text), format: "splitwise" };
-  if (d.format === "loopin") return { ...parseLoopinCsv(text), format: "loopin" };
+  if (d.format !== "generic") return d.format === "splitwise" ? { ...parseSplitwiseCsv(text), format: "splitwise" } : { ...parseLoopinCsv(text), format: "loopin" };
   const map = opts.map ?? d.guess;
   return { ...parseGenericCsv(text, map, opts.currency ?? d.currency), format: "generic" };
 }
