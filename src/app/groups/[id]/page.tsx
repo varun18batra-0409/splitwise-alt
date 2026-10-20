@@ -214,14 +214,14 @@ export default async function GroupPage({
   );
 }
 
-// Right after bringing a group over from Splitwise.
+// Right after bringing a group over from another app.
 function ImportedNote({ code, groupId }: { code: string; groupId: string }) {
   const [e, p, check] = code.split(".");
   const n = (x: string | undefined) => Math.max(0, Math.min(99999, Number(x) || 0));
   return (
     <Notice tone={check === "off" ? "info" : "success"} params={["imported"]} className="mb-5 text-sm">
-      Brought over {n(e)} {n(e) === 1 ? "expense" : "expenses"} and {n(p)} {n(p) === 1 ? "payment" : "payments"} from Splitwise.{" "}
-      {check === "off" ? "Balances differ slightly from Splitwise’s total, so have a look. " : "Balances match Splitwise. "}
+      Brought over {n(e)} {n(e) === 1 ? "expense" : "expenses"} and {n(p)} {n(p) === 1 ? "payment" : "payments"}.{" "}
+      {check === "off" ? "Balances differ slightly from the file’s own total, so have a look. " : check === "ok" ? "Balances match the file. " : ""}
       <Link href={`/groups/${groupId}/people`} className="underline">
         Invite everyone
       </Link>{" "}

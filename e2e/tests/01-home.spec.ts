@@ -24,10 +24,10 @@ test("key pages open from Home: guide, sign in, Splitwise, privacy", async ({ pa
 
   await page.getByRole("link", { name: "How Loopin works" }).first().click();
   await expect(page).toHaveURL(/\/how-it-works$/);
-  await expect(page.getByRole("heading", { name: "Coming from Splitwise?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Coming from another app?" })).toBeVisible();
 
   await page.goto("/");
-  await page.getByRole("link", { name: /Coming from Splitwise\?/ }).click();
+  await page.getByRole("link", { name: /Coming from another app\?/ }).click();
   await expect(page).toHaveURL(/\/switching$/);
   await expect(page.getByRole("heading", { name: "Bring your groups. Keep your balances." })).toBeVisible();
 
@@ -39,4 +39,18 @@ test("key pages open from Home: guide, sign in, Splitwise, privacy", async ({ pa
 
   await page.goto("/privacy");
   await expect(page.locator("main")).toContainText(/data/i);
+});
+
+test("FAQ: opens from the You page; questions open on tap; the data answer links to the privacy details", async ({ page }) => {
+  await page.goto("/account");
+  await settled(page);
+  await page.getByRole("link", { name: "FAQ" }).click();
+  await expect(page).toHaveURL(/\/faq$/);
+  await expect(page.getByRole("heading", { name: "Questions, answered" })).toBeVisible();
+  expect(await page.locator("details").count()).toBeGreaterThanOrEqual(15);
+  const data = page.locator("details").filter({ hasText: "How do you handle my data?" });
+  await data.locator("summary").click();
+  await data.getByRole("link", { name: "Full privacy details" }).click();
+  await expect(page).toHaveURL(/\/privacy$/);
+  await expect(page.getByText("What we store")).toBeVisible();
 });

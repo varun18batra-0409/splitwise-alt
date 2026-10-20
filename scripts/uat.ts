@@ -1231,7 +1231,7 @@ async function main() {
   });
   await step(V, "Help", "The guide has Flatmates, Couples, the trip report and Splitwise, with real app screens that load", async () => {
     await go(V, "/how-it-works");
-    for (const h of ["Flatmates: the flat runs itself", "Couples: your split, not 50/50", "Trip over? The trip in numbers", "Coming from Splitwise?"]) await V.getByRole("heading", { name: h }).waitFor();
+    for (const h of ["Flatmates: the flat runs itself", "Couples: your split, not 50/50", "Trip over? The trip in numbers", "Coming from another app?"]) await V.getByRole("heading", { name: h }).waitFor();
     assert(!(await V.getByText("Recurring bills are coming soon").count()), "still says recurring bills are coming soon");
     for (const id of ["trips", "home", "couples"]) {
       await V.locator(`#${id}`).scrollIntoViewIfNeeded();
@@ -1738,15 +1738,15 @@ async function main() {
       "",
       "2026-10-20,Total balance, , ,INR,1100.00,700.00,-1800.00",
     ].join("\n");
-    await V.getByLabel("Splitwise export file").setInputFiles({ name: "manali-trip_2026-10-20_export.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+    await V.getByLabel("Spreadsheet to import").setInputFiles({ name: "manali-trip_2026-10-20_export.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
     await V.getByText("Found 2 expenses and 1 payment in INR").waitFor();
-    await V.getByText("✓ Matches Splitwise’s balances").waitFor();
+    await V.getByText("✓ Matches the file’s own balances").waitFor();
     assert((await V.getByRole("radio", { name: "Varun", exact: true }).getAttribute("aria-checked")) === "true", "you weren't picked from your name");
     assert((await V.locator('input[name="groupName"]').inputValue()) === "Manali trip", "group name not taken from the file name");
     await V.getByRole("radio", { name: "Trip" }).click();
     await V.getByRole("button", { name: "Bring it over" }).click();
     await V.waitForURL(/imported=2\.1\.ok/);
-    await V.getByText(/Brought over 2 expenses and 1 payment from Splitwise/).waitFor();
+    await V.getByText(/Brought over 2 expenses and 1 payment/).waitFor();
     const gid = new URL(V.url()).pathname.split("/")[2];
     const grp = await db.group.findUniqueOrThrow({ where: { id: gid }, include: { members: true, expenses: { include: { shares: true } }, payments: true } });
     const net = netBalances(grp.members.map((m) => m.id), grp.expenses, grp.payments);
@@ -1939,10 +1939,11 @@ async function main() {
 
   await step(V, "Switching", "A file that isn't a Splitwise export gets a clear message; a second currency is flagged", async () => {
     await go(V, "/import");
-    await V.getByLabel("Splitwise export file").setInputFiles({ name: "notes.csv", mimeType: "text/csv", buffer: Buffer.from("Name,Amount\nTea,20\n") });
-    await V.getByText(/doesn’t look like a Splitwise export/).waitFor();
+    await V.getByLabel("Spreadsheet to import").setInputFiles({ name: "notes.csv", mimeType: "text/csv", buffer: Buffer.from("Name,Amount\nTea,20\n") });
+    await V.getByRole("region", { name: "Which column is which?" }).waitFor(); // an unknown file: asked which column is which
+    await V.getByText("Pick the column that says who paid.").waitFor();
     const two = ["Date,Description,Category,Cost,Currency,Varun,Mia", "2026-09-01,Dinner,Dining out,900.00,INR,450.00,-450.00", "2026-09-02,Gelato,Dining out,10.00,EUR,5.00,-5.00"].join("\n");
-    await V.getByLabel("Splitwise export file").setInputFiles({ name: "rome_export.csv", mimeType: "text/csv", buffer: Buffer.from(two) });
+    await V.getByLabel("Spreadsheet to import").setInputFiles({ name: "rome_export.csv", mimeType: "text/csv", buffer: Buffer.from(two) });
     await V.getByText(/Lines in EUR are left out/).waitFor();
   });
 

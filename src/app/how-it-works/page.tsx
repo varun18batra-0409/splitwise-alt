@@ -104,7 +104,7 @@ export default function HowItWorks() {
           ["#home", "Flatmates"],
           ["#couples", "Couples"],
           ["#safe", "Undo & privacy"],
-          ["#splitwise", "From Splitwise"],
+          ["#splitwise", "From another app"],
         ].map(([href, label]) => (
           <a key={href} href={href} className="rounded-full border border-line px-3 py-1.5 text-gray-600 active:bg-mist">
             {label}
@@ -122,7 +122,7 @@ export default function HowItWorks() {
           ]}
         />
         <p>
-          Someone shows as <strong>not on Loopin yet</strong> (brought over from Splitwise, say)? Tap their name on People and invite them by
+          Someone shows as <strong>not on Loopin yet</strong> (brought over from another app, say)? Tap their name on People and invite them by
           email. They sign up and take over that name, with all its expenses.
         </p>
       </Section>
@@ -255,10 +255,11 @@ export default function HowItWorks() {
 
       <div id="splitwise" className="scroll-mt-4" />
       <section className="mt-12 space-y-3 text-[15px] leading-relaxed text-gray-600">
-        <h2 className="font-display text-[26px] font-semibold tracking-tight text-fg">Coming from Splitwise?</h2>
+        <h2 className="font-display text-[26px] font-semibold tracking-tight text-fg">Coming from another app?</h2>
         <p>
-          In Splitwise, open a group → gear → <strong>Export as spreadsheet</strong>. In Loopin, tap <strong>Bring a group over</strong> and pick
-          that file: every expense and payment comes across, and the balances are checked against Splitwise’s own.{" "}
+          Export the group as a spreadsheet (CSV) from the other app (in Splitwise: the group → gear → <strong>Export as spreadsheet</strong>).
+          In Loopin, tap <strong>Bring a group over</strong> and pick that file: every expense and payment comes across. Splitwise files are
+          checked against their own totals; for other apps, you say which column is which.{" "}
           <Link href="/switching" className="underline underline-offset-4">What’s different</Link>
         </p>
       </section>

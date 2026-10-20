@@ -217,7 +217,7 @@ const CATEGORY_MAP: [RegExp, string][] = [
   [/groceries/i, "groceries"],
   [/dining|food|liquor|restaurant/i, "food"],
   [/taxi|car|bus|train|plane|flight|fuel|gas\/fuel|parking|bicycle|transport/i, "transport"],
-  [/hotel|rent|mortgage|lodging/i, "accommodation"],
+  [/hotel|rent|mortgage|lodging|accommodation|stay/i, "accommodation"],
   [/electric|water|heat|tv|phone|internet|utilities|trash|cleaning|insurance|bill/i, "bills"],
   [/movies|music|games|sports|entertainment|activities/i, "activities"],
   [/clothing|gifts|household|furniture|electronics|shopping|supplies/i, "shopping"],

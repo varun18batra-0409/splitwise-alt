@@ -5,7 +5,8 @@ import { cleanNames } from "./names";
 import { newInviteCode } from "./group-setup";
 import { logEvent } from "./events";
 import { isGroupType } from "./group-types";
-import { balancesOf, mapCategory, parseSplitwiseCsv, planRow } from "./splitwise-csv";
+import { balancesOf, mapCategory, planRow } from "./splitwise-csv";
+import { parseImport, type ColumnMap } from "./import-formats";
 
 // Saving a Splitwise export as a new Loopin group (the reading is in splitwise-csv.ts).
 
@@ -15,15 +16,16 @@ export type ImportResult =
   | { ok: true; groupId: string; meMemberId: string; expenses: number; payments: number; matches: boolean | null }
   | { ok: false; error: string };
 
-// Makes a new Loopin group from a Splitwise export. `me` is which person in
+// Makes a new Loopin group from another app's spreadsheet (Splitwise, a Loopin
+// download, or any file with its columns picked; see import-formats.ts). `me` is which person in
 // the file is the one importing (their column is linked to their account);
 // everyone else is added by name, and can be invited by email later to take
 // over their name.
 export async function importSplitwise(
   account: { id: string; name?: string | null },
-  input: { text: string; groupName: string; type: string; me: number },
+  input: { text: string; groupName: string; type: string; me: number; map?: ColumnMap; currency?: string },
 ): Promise<ImportResult> {
-  const parsed = parseSplitwiseCsv(input.text);
+  const parsed = parseImport(input.text, { map: input.map, currency: input.currency });
   if (!parsed.ok) return parsed;
   const { people, currency, rows } = parsed;
   if (!Number.isInteger(input.me) || input.me < 0 || input.me >= people.length) return { ok: false, error: "Pick which person is you." };
@@ -35,7 +37,7 @@ export async function importSplitwise(
   const net = balancesOf(plans, people.length);
   const matches = parsed.expected ? parsed.expected.every((x, i) => x === net[i]) : null;
   const names = cleanNames(people);
-  if (names.length !== people.length) return { ok: false, error: "Some names in this file couldn’t be used. Rename them in Splitwise and export again." };
+  if (names.length !== people.length) return { ok: false, error: "Some names in this file couldn’t be used (two people with the same name?). Rename them in the other app and export again." };
 
   const memberIds = people.map(() => newId());
   const groupId = newId();
@@ -59,7 +61,7 @@ export async function importSplitwise(
       id,
       groupId,
       description: p.row.description,
-      notes: "Brought over from Splitwise",
+      notes: parsed.format === "splitwise" ? "Brought over from Splitwise" : "Brought over from another app",
       amount: p.amount,
       splitType: "exact",
       forMode: "selected",
@@ -105,8 +107,8 @@ export async function importSplitwise(
         groupId,
         actorId: memberIds[input.me],
         kind: "group_imported",
-        text: `brought this group over from Splitwise (${expenses.length} expenses, ${payments.length} payments)`,
-        details: matches === false ? ["Balances differ slightly from Splitwise’s total"] : [],
+        text: `brought this group over from ${parsed.format === "splitwise" ? "Splitwise" : parsed.format === "loopin" ? "a Loopin spreadsheet" : "another app"} (${expenses.length} expenses, ${payments.length} payments)`,
+        details: matches === false ? ["Balances differ slightly from the file’s own total"] : [],
       });
     },
     { timeout: 60_000, maxWait: 10_000 },

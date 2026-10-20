@@ -26,6 +26,10 @@ If the tests are pointed at loopinapps.com, or the staging database turns out to
 | `11-groups.spec.ts` | Stage 1: Home group opens on This month; Couple split from incomes (55/45); rename + Undo; close + reopen; delete → Recently deleted (behind a tap) → Restore |
 | `12-invites.spec.ts` | Stage 1: invite link (no joining without signing in); invite by email ("Invited" until they join); add someone you share a group with by name, a stranger only by email; someone added by name takes over their name |
 
+| `20-splits.spec.ts` | Stage 2: every split (equally, only some, one person, exact amounts, %, shares), two payers, money back; wrong amounts and % refused; double tap saves once; edit amount, payer, split and name; delete + Restore; Undo after adding and after deleting; a must-fail check. Balances are compared with a separate hand-written tally after every step |
+| `05-splitwise-import.spec.ts` (more) | A Loopin group spreadsheet comes back as it was; another app's file (columns guessed, people found, euros); a file with no "paid by" column asks instead of guessing |
+| `01-home.spec.ts` (more) | The FAQ opens from You, its questions open on tap, and the data answer leads to the privacy details |
+
 The older 150-step check (`scripts/uat.ts`) still runs as before. These Playwright tests are the new standard set and will grow stage by stage.
 
 ## Sign-in, codes and secrets

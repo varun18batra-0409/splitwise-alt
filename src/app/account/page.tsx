@@ -114,8 +114,8 @@ export default async function AccountPage() {
         <Link href="/how-it-works" className="mr-4 text-gray-500 underline underline-offset-4">
           How Loopin works
         </Link>
-        <Link href="/privacy" className="text-gray-500 underline underline-offset-4">
-          How we handle your data
+        <Link href="/faq" className="text-gray-500 underline underline-offset-4">
+          FAQ
         </Link>
       </p>
     </>

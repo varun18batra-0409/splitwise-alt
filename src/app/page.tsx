@@ -208,7 +208,7 @@ export default async function Home({
                 📥
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-sm font-medium">Coming from Splitwise?</span>
+                <span className="block text-sm font-medium">Coming from another app?</span>
                 <span className="block text-xs text-gray-400">Bring your groups over, balances and all</span>
               </span>
               <span className="text-gray-400" aria-hidden>
@@ -415,6 +415,10 @@ export default async function Home({
 
       <GetAppButton variant="card" className="mt-8" />
       <p className="mt-8 text-center text-xs text-gray-400">
+        <Link href="/faq" className="underline underline-offset-4">
+          FAQ
+        </Link>
+        <span aria-hidden> · </span>
         <Link href="/privacy" className="underline underline-offset-4">
           Privacy
         </Link>

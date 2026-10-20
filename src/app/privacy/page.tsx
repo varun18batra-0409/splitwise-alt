@@ -15,7 +15,8 @@ export default function Privacy() {
       <ul className={`list-disc space-y-1 pl-5 ${p}`}>
         <li>Group names, people’s names (as typed in the group), expenses, notes, payments and the change history.</li>
         <li>Phone numbers only if someone adds them when inviting from contacts.</li>
-        <li>Your email, only if you choose to sign in. We use it to send sign-in codes. Nothing else.</li>
+        <li>Your email and name, from signing up (or from Google, if you use Continue with Google). We use the email to sign you in and to tell you about your groups. Nothing else.</li>
+        <li>If you turn on fingerprint / face sign-in, a key your phone made for Loopin. Your fingerprint or face never leaves your phone.</li>
         <li>A small cookie on your phone that remembers which person you are in each group.</li>
         <li>If you switch on notifications, a browser address to send them to.</li>
       </ul>
@@ -28,13 +29,17 @@ export default function Privacy() {
       </ul>
 
       <h2 className={h}>Who can see a group</h2>
-      <p className={p}>Anyone with the group’s invite link or QR code can join it and see it. Only share it with the people in the group.</p>
+      <p className={p}>
+        Only the people in a group can see it. Anyone with its invite link or QR code can ask to join after signing up, so share it only with
+        the people who should be in it.
+      </p>
 
       <h2 className={h}>Deleting things</h2>
       <ul className={`list-disc space-y-1 pl-5 ${p}`}>
         <li>Expenses and payments can be deleted and restored; the history notes it.</li>
         <li>A whole group can be deleted from its settings. Anyone in it can restore it for 30 days, then it’s erased for good.</li>
-        <li>If you signed in, “You → Delete my email &amp; sign-in” removes your email from Loopin.</li>
+        <li>“You → Delete my email &amp; sign-in” removes your email and sign-in from Loopin. Your groups keep the name you used in them.</li>
+        <li>“You → Download all my data” gives you everything about you in one spreadsheet.</li>
       </ul>
 
       <h2 className={h}>Where it’s kept</h2>
@@ -43,7 +48,9 @@ export default function Privacy() {
       </p>
 
       <h2 className={h}>Questions</h2>
-      <p className={p}>Ask the person who shared Loopin with you, or reply to any sign-in email.</p>
+      <p className={p}>
+        See the <a href="/faq" className="underline underline-offset-4">FAQ</a>, or ask the person who shared Loopin with you.
+      </p>
       <p className="mt-10 text-xs text-gray-400">Last updated October 2026.</p>
     </>
   );
