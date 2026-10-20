@@ -40,6 +40,6 @@
     "@types/qrcode": "^1.5.5",
     "@types/web-push": "^3.6.4",
     "@types/nodemailer": "^6.4.17",
-    "@playwright/test": "1.48.2"
+    "@playwright/test": "^1.51.1"
   }
 }
