@@ -12,6 +12,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import { db } from "../src/lib/db";
+import { netBalances } from "../src/lib/balances";
 
 const base = process.env.APP_URL ?? "http://localhost:3000";
 const out = "screenshots/uat";
@@ -250,7 +251,7 @@ async function main() {
   });
   await step(V, "Start", "Creating a group asks you to sign up first (verified email)", async () => {
     await go(V, "/groups/new");
-    await V.getByRole("link", { name: "Sign up with email" }).click();
+    await V.getByRole("link", { name: "Sign in or sign up" }).click();
     await signup(V, "Varun", email("varun"));
     await V.waitForURL(/\/groups\/new/);
     assert((await V.locator('input[name="yourName"]').inputValue()) === "Varun", "your name isn't filled in from sign-up");
@@ -1169,8 +1170,8 @@ async function main() {
     // Quick start fills the group name
     await go(page, "/");
     await page.getByRole("link", { name: /Trip/ }).click();
-    await page.getByRole("link", { name: "Sign up with email" }).waitFor(); // not signed in yet: sign up first
-    const href = (await page.getByRole("link", { name: "Sign up with email" }).getAttribute("href")) ?? "";
+    await page.getByRole("link", { name: "Sign in or sign up" }).waitFor(); // not signed in yet: sign up first
+    const href = (await page.getByRole("link", { name: "Sign in or sign up" }).getAttribute("href")) ?? "";
     assert(decodeURIComponent(decodeURIComponent(href)).includes("name=Goa trip"), `the trip name isn't kept for after sign-up: ${href}`);
     // One screen for signing up and signing in
     await go(page, "/signin?mode=signup");
@@ -1687,6 +1688,39 @@ async function main() {
     const after = await db.member.findUniqueOrThrow({ where: { id: rohit.id } });
     assert(after.accountId, "Rohit's place wasn't taken over");
     await ctx.close();
+  });
+
+  await step(V, "Switching", "“Coming from Splitwise?” → pick the exported file → balances checked → Bring it over: a new group with the same expenses, payments and balances", async () => {
+    await go(V, "/switching");
+    await V.getByRole("heading", { name: /Bring your groups/ }).waitFor();
+    await V.getByRole("link", { name: "Bring a group over" }).click();
+    await V.waitForURL(/\/import/);
+    const csv = [
+      "Date,Description,Category,Cost,Currency,Varun,Asha S,Kabir",
+      "2026-09-01,Dinner,Dining out,900.00,INR,600.00,-300.00,-300.00",
+      '2026-09-03,"Hotel, 2 nights",Hotel,3000.00,INR,1000.00,1000.00,-2000.00',
+      "2026-09-04,Kabir paid Varun,Payment,500.00,INR,-500.00,0.00,500.00",
+      "",
+      "2026-10-20,Total balance, , ,INR,1100.00,700.00,-1800.00",
+    ].join("\n");
+    await V.getByLabel("Splitwise export file").setInputFiles({ name: "manali-trip_2026-10-20_export.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+    await V.getByText("Found 2 expenses and 1 payment in INR").waitFor();
+    await V.getByText("✓ Matches Splitwise’s balances").waitFor();
+    assert((await V.getByRole("radio", { name: "Varun", exact: true }).getAttribute("aria-checked")) === "true", "you weren't picked from your name");
+    assert((await V.locator('input[name="groupName"]').inputValue()) === "Manali trip", "group name not taken from the file name");
+    await V.getByRole("radio", { name: "Trip" }).click();
+    await V.getByRole("button", { name: "Bring it over" }).click();
+    await V.waitForURL(/imported=2\.1\.ok/);
+    await V.getByText(/Brought over 2 expenses and 1 payment from Splitwise/).waitFor();
+    const gid = new URL(V.url()).pathname.split("/")[2];
+    const grp = await db.group.findUniqueOrThrow({ where: { id: gid }, include: { members: true, expenses: { include: { shares: true } }, payments: true } });
+    const net = netBalances(grp.members.map((m) => m.id), grp.expenses, grp.payments);
+    const by = (n: string) => net[grp.members.find((m) => m.name === n)!.id];
+    assert(by("Varun") === 110000 && by("Asha S") === 70000 && by("Kabir") === -180000, `balances: ${JSON.stringify(net)}`);
+    assert(grp.type === "trip", "not a trip");
+    // Everyone else is "not on Loopin yet", ready to be invited.
+    await go(V, `/groups/${gid}/people`);
+    await V.getByText("not on Loopin yet").first().waitFor();
   });
 
   await browser.close();

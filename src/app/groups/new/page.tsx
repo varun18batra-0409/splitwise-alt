@@ -3,7 +3,7 @@ import Link from "@/components/Link";
 import { NewGroupForm } from "@/components/NewGroupForm";
 import { defaultCurrency } from "@/lib/region";
 import { getAccount } from "@/lib/identity";
-import { ErrorNote, PageHeader, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
+import { ErrorNote, PageHeader, primaryButtonClass } from "@/components/ui";
 
 // New group: what it's for (Trip · Home · Couple · Other), a name, your name and
 // the currency; couples also choose their split. People are added next, on
@@ -29,11 +29,8 @@ export default async function NewGroup({
             Everyone in a Loopin group is a real person with a verified email. That’s how friends can find you and how
             notifications reach the right phone. It takes 30 seconds, and there’s no password.
           </p>
-          <Link href={`/signin?${new URLSearchParams({ mode: "signup", back })}`} className={`mt-6 ${primaryButtonClass}`}>
-            Sign up with email
-          </Link>
-          <Link href={`/signin?${new URLSearchParams({ back })}`} className={`mt-3 ${secondaryButtonClass}`}>
-            I already have an account
+          <Link href={`/signin?${new URLSearchParams({ back })}`} className={`mt-6 ${primaryButtonClass}`}>
+            Sign in or sign up
           </Link>
         </section>
       </>
@@ -50,6 +47,12 @@ export default async function NewGroup({
       )}
 
       <NewGroupForm defaultCurrency={currency} yourName={account.name} initialName={(name ?? "").slice(0, 60)} />
+      <p className="mt-6 text-center text-sm text-gray-500">
+        Moving from Splitwise?{" "}
+        <Link href="/import" className="font-medium text-fg underline">
+          Bring a group over
+        </Link>
+      </p>
     </>
   );
 }

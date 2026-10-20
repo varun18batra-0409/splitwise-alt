@@ -23,6 +23,7 @@ const ICON: Record<string, string> = {
   members_added: "👤",
   group_closed: "⏸",
   group_reopened: "▶",
+  group_imported: "📥",
   group_settled_closed: "🎉",
   member_renamed: "✎",
   member_left: "👋",

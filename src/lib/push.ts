@@ -29,7 +29,7 @@ const SIGN: Record<string, string> = {
   expense_added: "🧾", expense_edited: "✏️", expense_deleted: "🗑️", expense_restored: "↩️",
   payment_recorded: "💸", payment_deleted: "🗑️", payment_restored: "↩️",
   members_added: "👋", member_invited: "✉️", members_removed: "👤", member_left: "👤", member_rejoined: "👋", member_renamed: "✏️",
-  group_settled_closed: "✅", group_closed: "📦", group_reopened: "📂", group_deleted: "🗑️", group_restored: "↩️",
+  group_settled_closed: "✅", group_closed: "📦", group_reopened: "📂", group_imported: "📥", group_deleted: "🗑️", group_restored: "↩️",
   split_changed: "⚖️",
   bill_added: "🧾",
   bill_changed: "🧾",

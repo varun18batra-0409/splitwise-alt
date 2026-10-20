@@ -20,6 +20,7 @@ import { budgetsNow } from "@/lib/home/budgets-db";
 import { monthInsights } from "@/lib/home/insights-db";
 import { billStatuses } from "@/lib/home/bills-db";
 import { niceDate } from "@/lib/format";
+import { Notice } from "@/components/Notice";
 
 const TABS = [
   { id: "activity", label: "Activity" },
@@ -64,6 +65,7 @@ export default async function GroupPage({
     max?: string;
     why?: string;
     n?: string;
+    imported?: string;
   }>;
 }) {
   const { id } = await params;
@@ -150,6 +152,7 @@ export default async function GroupPage({
     <>
       <GroupHeader v={v} switchTo={switchTo} />
       <GroupSummary v={v} sp={sp} compact={home} />
+      {sp.imported && <ImportedNote code={sp.imported} groupId={group.id} />}
 
       <nav className={`mb-6 grid gap-1 rounded-xl bg-mist p-1 ${tabs.length === 4 ? "grid-cols-[1.4fr_1fr_1fr_1fr]" : "grid-cols-3"}`} aria-label="Group sections">
         {tabs.map((t) => (
@@ -208,5 +211,21 @@ export default async function GroupPage({
         />
       )}
     </>
+  );
+}
+
+// Right after bringing a group over from Splitwise.
+function ImportedNote({ code, groupId }: { code: string; groupId: string }) {
+  const [e, p, check] = code.split(".");
+  const n = (x: string | undefined) => Math.max(0, Math.min(99999, Number(x) || 0));
+  return (
+    <Notice tone={check === "off" ? "info" : "success"} params={["imported"]} className="mb-5 text-sm">
+      Brought over {n(e)} {n(e) === 1 ? "expense" : "expenses"} and {n(p)} {n(p) === 1 ? "payment" : "payments"} from Splitwise.{" "}
+      {check === "off" ? "Balances differ slightly from Splitwise’s total, so have a look. " : "Balances match Splitwise. "}
+      <Link href={`/groups/${groupId}/people`} className="underline">
+        Invite everyone
+      </Link>{" "}
+      so they can take over their names.
+    </Notice>
   );
 }
