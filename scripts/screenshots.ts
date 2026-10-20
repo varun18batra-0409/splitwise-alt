@@ -4,13 +4,13 @@ import { mkdirSync, readFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { SESSION_COOKIE, encodeSession } from "../src/lib/session";
 
-const base = process.env.APP_URL ?? "http://localhost:3000";
+import { base, hosted, signInOnTestCopy, withBypass } from "./hosted";
 const demo = JSON.parse(readFileSync(".demo.json", "utf8"));
 const out = "screenshots";
 mkdirSync(out, { recursive: true });
 
 async function main() {
-const browser = await chromium.launch();
+const browser = withBypass(await chromium.launch());
 const context = await browser.newContext({
   viewport: { width: 390, height: 844 },
   deviceScaleFactor: 2,
@@ -18,9 +18,11 @@ const context = await browser.newContext({
   locale: "en-IN",
   timezoneId: "Asia/Kolkata",
 });
-await context.addCookies([
-  { name: SESSION_COOKIE, value: await encodeSession({ m: demo.memberships }), url: base },
-]);
+if (hosted) await signInOnTestCopy(context, Object.values(demo.memberships) as string[]);
+else
+  await context.addCookies([
+    { name: SESSION_COOKIE, value: await encodeSession({ m: demo.memberships }), url: base },
+  ]);
 const page = await context.newPage();
 
 async function shot(name: string, path: string, prepare?: (p: Page) => Promise<void>, fullPage = true) {

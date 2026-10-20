@@ -1,0 +1,80 @@
+# The full tap-through test against the private test copy on Vercel (real
+# hosting, the staging database, real speed), instead of a server on GitHub.
+# Runs when the "staging" branch is pushed (Vercel builds a test copy of it),
+# or by hand. Never touches the live app or its database.
+name: Staging UAT
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+jobs:
+  uat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      deployments: read
+    env:
+      TURSO_DATABASE_URL: ${{ secrets.STAGING_TURSO_DATABASE_URL }}
+      TURSO_AUTH_TOKEN: ${{ secrets.STAGING_TURSO_AUTH_TOKEN }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+      CRON_SECRET: ${{ secrets.STAGING_CRON_SECRET }}
+      LIVE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Safety check (staging settings present, and not the live database)
+        run: |
+          [ -n "$TURSO_DATABASE_URL" ] || { echo "::error title=Staging::STAGING_TURSO_DATABASE_URL is missing"; exit 1; }
+          [ -n "$TURSO_AUTH_TOKEN" ] || { echo "::error title=Staging::STAGING_TURSO_AUTH_TOKEN is missing"; exit 1; }
+          [ -n "$VERCEL_AUTOMATION_BYPASS_SECRET" ] || { echo "::error title=Staging::VERCEL_AUTOMATION_BYPASS_SECRET is missing"; exit 1; }
+          [ "$TURSO_DATABASE_URL" != "$LIVE_URL" ] || { echo "::error title=Staging::The staging database is the LIVE database. Stopping."; exit 1; }
+          echo "::notice title=Staging::settings present; staging database is not the live one"
+      - run: npm install
+      - run: npm install --no-save tsx@4.19.2 playwright@1.48.2
+      - run: npx playwright install --with-deps chromium
+      - name: Tables on the staging database
+        run: |
+          set -o pipefail
+          node scripts/turso-sync.mjs 2>&1 | tee sync.log
+          echo "::notice title=Staging schema::$(grep -E '^(ALTER|CREATE TABLE)|already matches' sync.log | tr '\n' ' ' | cut -c1-600)"
+      - name: Wait for Vercel's test copy of this commit
+        run: |
+          url=""
+          for i in $(seq 1 60); do
+            for id in $(gh api "repos/${{ github.repository }}/deployments?sha=${{ github.sha }}" --jq '.[].id'); do
+              s=$(gh api "repos/${{ github.repository }}/deployments/$id/statuses" --jq '.[0] | "\(.state) \(.environment_url)"')
+              case "$s" in success\ https*) url=${s#success }; break 2;; failure*|error*) echo "::error title=Vercel::the test copy failed to build"; exit 1;; esac
+            done
+            sleep 20
+          done
+          [ -n "$url" ] || { echo "::error title=Vercel::no test copy appeared within 20 minutes"; exit 1; }
+          echo "APP_URL=$url" >> "$GITHUB_ENV"
+          echo "::notice title=Test copy::$url"
+      - name: Demo data
+        run: npx tsx scripts/seed-demo.ts
+      - name: UAT on the test copy
+        run: |
+          npx tsx scripts/uat.ts 2>&1 | tee uat.log || true
+          echo "::notice title=UAT (hosted)::$(head -1 screenshots/uat/summary.txt)"
+          if grep -q "✗\|crashed" screenshots/uat/summary.txt; then
+            echo "::warning title=UAT failures (hosted)::$(sed -e 's/%/%25/g' screenshots/uat/summary.txt | tr '\n' '\r' | sed -e 's/\r/%0A/g')"
+          fi
+          echo "::notice title=UAT notes (hosted)::$(grep -E '^\| ✅ .*\| [^ |]' screenshots/uat/report.md | awk -F'|' '$5 ~ /[a-z]/ {print $4 "→" $5}' | head -15 | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"
+      - name: Screenshots of the test copy
+        run: npx tsx scripts/screenshots.ts > shots.log 2>&1 || true
+      - name: Real-hosting speed (mid-range Android, 4G)
+        run: |
+          npx tsx scripts/perf-audit.ts > perf.log 2>&1 || true
+          echo "::notice title=Phone speed (hosted)::$(grep -E '^\| (Open|Tap|Type|People)' screenshots/uat/perf.md | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"
+      - name: Save to the screenshots-staging branch
+        run: |
+          cd screenshots
+          echo '{ "git": { "deploymentEnabled": false } }' > vercel.json
+          git init -q -b screenshots
+          git -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com add .
+          git -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com commit -qm "Staging screens for ${GITHUB_SHA::7}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "screenshots:screenshots-staging"

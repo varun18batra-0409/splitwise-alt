@@ -5,8 +5,15 @@ import nodemailer, { type Transporter } from "nodemailer";
 
 const outbox = () => process.env.MAIL_OUTBOX === "1" && process.env.NODE_ENV !== "development" && !process.env.VERCEL;
 
+// Addresses ending in ".test" can never receive email (the name is reserved
+// for testing). Automated tests on the private test copy use them: there the
+// email is kept in the database for the test to read; on the live app it is
+// simply not sent (no bounces to hurt the sender's reputation).
+const isTestAddress = (to: string) => /\.test$/i.test(to.trim());
+const testCopy = () => process.env.VERCEL_ENV === "preview";
+
 export function mailConfigured(): boolean {
-  return outbox() || Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
+  return outbox() || testCopy() || Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
 }
 
 // One connection, reused while the server is warm (a new secure connection to
@@ -29,6 +36,12 @@ function transport() {
 
 export async function sendMail(to: string, subject: string, text: string, html: string): Promise<boolean> {
   if (!mailConfigured()) return false;
+  if (isTestAddress(to) && !outbox()) {
+    if (!testCopy()) return true; // live app: never sent, never stored
+    const { db } = await import("./db");
+    await db.outbox.create({ data: { to, subject, text } });
+    return true;
+  }
   if (outbox()) {
     // Automated tests: keep the email instead of sending it.
     const { db } = await import("./db");
