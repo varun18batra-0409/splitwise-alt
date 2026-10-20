@@ -18,6 +18,14 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, max: number): string 
   return `${t.trimEnd()}…`;
 }
 
+// Rounded box (older phones without roundRect get square corners).
+function box(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
+  if (typeof ctx.roundRect === "function") ctx.roundRect(x, y, w, h, r);
+  else ctx.rect(x, y, w, h);
+  ctx.fill();
+}
+
 export function drawReport(canvas: HTMLCanvasElement, r: TripReport) {
   canvas.width = W;
   canvas.height = H;
@@ -29,9 +37,7 @@ export function drawReport(canvas: HTMLCanvasElement, r: TripReport) {
   ctx.fillStyle = "#0d0d0f";
   ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = "#16161a";
-  ctx.beginPath();
-  ctx.roundRect(48, 48, W - 96, H - 96, 48);
-  ctx.fill();
+  box(ctx, 48, 48, W - 96, H - 96, 48);
 
   const x = 110;
   const right = W - 110;
@@ -64,13 +70,9 @@ export function drawReport(canvas: HTMLCanvasElement, r: TripReport) {
     ctx.textAlign = "left";
     y += 22;
     ctx.fillStyle = "#2b2b31";
-    ctx.beginPath();
-    ctx.roundRect(x, y, right - x, 14, 7);
-    ctx.fill();
+    box(ctx, x, y, right - x, 14, 7);
     ctx.fillStyle = "#6fe3a8";
-    ctx.beginPath();
-    ctx.roundRect(x, y, Math.max(14, ((right - x) * c.pct) / 100), 14, 7);
-    ctx.fill();
+    box(ctx, x, y, Math.max(14, ((right - x) * c.pct) / 100), 14, 7);
     y += 70;
   }
 
