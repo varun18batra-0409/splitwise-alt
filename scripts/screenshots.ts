@@ -82,6 +82,9 @@ await shot("18-search", `${g}?tab=activity&q=dinner`);
 await shot("19-filter-person", `${g}?tab=activity&cat=food&who=${demo.trip.ravi}`);
 await shot("20-search", "/search?m=2026-10");
 await shot("21-search-group", `/search?g=${demo.trip.id}&q=dinner`);
+await shot("21b-insights-week", "/search?p=w", undefined, false);
+await shot("21c-insights-spent-year", "/search?v=spent&p=y", undefined, false);
+await shot("21d-insights-flat", `/search?g=${demo.flat.id}`);
 await shot("22-settle-everything", `${g}/settle`, async (p) => {
   await p.getByRole("button", { name: /Settle everything/ }).scrollIntoViewIfNeeded();
 }, false);

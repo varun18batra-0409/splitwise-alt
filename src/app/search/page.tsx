@@ -2,7 +2,14 @@ import Link from "@/components/Link";
 import { getMemberships } from "@/lib/identity";
 import { loadMyGroups } from "@/lib/group-data";
 import { buildActivity, byDay, filterActivity } from "@/lib/activity";
-import { cleanPeriod, inPeriod, monthLabel, periodsOf, recap } from "@/lib/search";
+import { bucketOf, bucketsEnding, cleanPeriod, inPeriod, monthLabel, periodsOf, recap, type Grain } from "@/lib/search";
+import { Insights, type InsightsData } from "./Insights";
+import { db } from "@/lib/db";
+import { displayRate } from "@/lib/rate-cache";
+import { convertAmount } from "@/lib/conversion";
+import { after } from "next/server";
+import { nextDueDay } from "@/lib/home/bills";
+import { niceDate } from "@/lib/format";
 import { getTimeZone } from "@/lib/tz";
 import { formatMoney } from "@/lib/money";
 import { ActivityRow } from "@/components/ActivityRow";
@@ -15,12 +22,12 @@ import { SearchIcon } from "@/components/icons";
 export default async function SearchPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; g?: string; y?: string; m?: string }>;
+  searchParams: Promise<{ q?: string; g?: string; y?: string; m?: string; w?: string; v?: string; p?: string }>;
 }) {
   const sp = await searchParams;
   const tz = await getTimeZone();
   const q = (sp.q ?? "").slice(0, 80);
-  const period = cleanPeriod(sp.y, sp.m);
+  const period = cleanPeriod(sp.y, sp.m, sp.w);
   const all = await loadMyGroups(await getMemberships());
   const groupId = all.some((g) => g.group.id === sp.g) ? sp.g : undefined;
   const groups = groupId ? all.filter((g) => g.group.id === groupId) : all;
@@ -48,31 +55,146 @@ export default async function SearchPage({
     ),
   );
 
-  const href = (over: { g?: string | null; y?: string | null; m?: string | null }) => {
+  // Insights settings: what to show, and by week, month or year.
+  const view: "share" | "spent" = sp.v === "spent" ? "spent" : "share";
+  const grain: Grain = sp.p === "w" || sp.p === "m" || sp.p === "y" ? sp.p : period.week ? "w" : period.year ? "y" : "m";
+
+  const href = (over: { g?: string | null; y?: string | null; m?: string | null; w?: string | null; v?: string; p?: string }) => {
     const p = new URLSearchParams();
     if (q) p.set("q", q);
     const g = over.g === undefined ? groupId : over.g;
     if (g) p.set("g", g);
+    const w = over.w === undefined ? period.week : over.w;
     const m = over.m === undefined ? period.month : over.m;
     const y = over.y === undefined ? period.year : over.y;
-    if (m) p.set("m", m);
+    if (w) p.set("w", w);
+    else if (m) p.set("m", m);
     else if (y) p.set("y", y);
+    const v = over.v ?? view;
+    if (v !== "share") p.set("v", v);
+    const gr = over.p ?? (sp.p === "w" || sp.p === "m" || sp.p === "y" ? sp.p : undefined);
+    if (gr) p.set("p", gr);
     const s = p.toString();
     return `/search${s ? `?${s}` : ""}`;
+  };
+
+  // ---------- Insights (the chart on top) ----------
+  // One currency for the chart: the one most of these groups use; others at the saved rate.
+  const curCount = new Map<string, number>();
+  for (const g of groups) curCount.set(g.group.currency, (curCount.get(g.group.currency) ?? 0) + 1);
+  const chartCurrency = [...curCount].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "INR";
+  const rates = new Map<string, string | null>(
+    await Promise.all(
+      [...curCount.keys()]
+        .filter((c) => c !== chartCurrency)
+        .map(async (c) => {
+          const r = await displayRate(c, chartCurrency, after);
+          return [c, r.ok ? r.rate : null] as const;
+        }),
+    ),
+  );
+  let converted = false;
+  const inChart = (amount: number, cur: string): number | null => {
+    if (cur === chartCurrency) return amount;
+    const rate = rates.get(cur);
+    if (!rate) return null;
+    converted = true;
+    const c = convertAmount(Math.abs(amount), cur, chartCurrency, rate);
+    return c === null ? null : Math.sign(amount) * c;
+  };
+  // Every expense (words and group filters applied, not the period): its value for the chosen view.
+  const points = rows.flatMap(({ item, g }) => {
+    if (item.kind !== "expense") return [];
+    const sign = item.refund ? -1 : 1;
+    const raw = view === "share" ? sign * (g.expenses.find((e) => e.id === item.id)?.shares.find((s) => s.memberId === g.myId)?.amount ?? 0) : sign * item.amount;
+    if (raw === 0) return [];
+    const v = inChart(raw, g.group.currency);
+    return v === null ? [] : [{ date: item.date, value: v, category: item.category }];
+  });
+  const todayKey = bucketOf(new Date(), grain, tz);
+  const periodKey = grain === "w" ? period.week : grain === "m" ? period.month : period.year;
+  const selected = periodKey ?? todayKey;
+  const lastKey = selected > todayKey ? selected : todayKey;
+  const keys = bucketsEnding(lastKey, grain);
+  const sums = new Map<string, number>();
+  const cats = new Map<string, number>();
+  for (const pt of points) {
+    const k = bucketOf(pt.date, grain, tz);
+    sums.set(k, (sums.get(k) ?? 0) + pt.value);
+    if (k === selected) cats.set(pt.category, (cats.get(pt.category) ?? 0) + pt.value);
+  }
+  // Bills that repeat, in these groups (Home and Couple groups have them).
+  const billRows = await db.bill.findMany({
+    where: { groupId: { in: groups.map((g) => g.group.id) }, deletedAt: null, paused: false },
+    orderBy: { createdAt: "asc" },
+    take: 12,
+  });
+  const BILL_EMOJI: Record<string, string> = { rent: "🏠", society: "🏢", electricity: "⚡", wifi: "📶", help: "🧹", cook: "🍳", milk: "🥛", water: "💧", groceries: "🛒", gas: "🔥", streaming: "📺", mobile: "📱" };
+  const insights: InsightsData = {
+    view,
+    grain,
+    currency: chartCurrency,
+    converted,
+    bars: keys.map((k) => ({
+      key: k,
+      value: sums.get(k) ?? 0,
+      href: grain === "w" ? href({ w: k, m: null, y: null, p: "w" }) : grain === "m" ? href({ m: k, w: null, y: null, p: "m" }) : href({ y: k, m: null, w: null, p: "y" }),
+    })),
+    selected,
+    categories: [...cats].map(([id, amount]) => ({ id, amount })).filter((c) => c.amount > 0).sort((a, b) => b.amount - a.amount),
+    bills: billRows.map((b) => {
+      const g = groups.find((x) => x.group.id === b.groupId)!;
+      const money = (n: number) => formatMoney(n, g.group.currency);
+      const next = nextDueDay(b, new Date());
+      return {
+        id: b.id,
+        href: `/groups/${b.groupId}/bills/${b.id}`,
+        name: b.name,
+        group: g.group.name,
+        amount: b.nature === "daily" ? `${money(b.amount)}/day` : b.nature === "varies" ? (b.amount ? `~${money(b.amount)}` : "Changes") : `${money(b.amount)}/mo`,
+        when: next ? niceDate(next).replace(/ \d{4}$/, "") : "—",
+        emoji: BILL_EMOJI[b.icon] ?? "🧾",
+      };
+    }),
+    link: (over) => href({ v: over.v, p: over.p, ...(over.p ? { w: null, m: null, y: null } : {}) }),
   };
   const chip = (on: boolean) =>
     `shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-sm ${on ? "border-fg bg-fg font-medium text-canvas" : "border-line text-gray-600 active:bg-mist"}`;
   const periodName = period.month ? monthLabel(period.month) : period.year ?? "All time";
+  const monthLabelShort = (week: string) => new Date(`${week}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
   const back = groupId ? `/groups/${groupId}` : "/";
 
   return (
     <>
-      <PageHeader title="Search" back={back} />
+      <PageHeader title="Insights" back={back} />
+      {all.length > 0 && <Insights d={insights} />}
+
+      <h2 className="mb-3 mt-2 font-display text-lg font-semibold tracking-tight">
+        Find anything
+        {(period.week || period.month || period.year) && (
+          <span className="ml-2 font-sans text-sm font-normal text-gray-500">
+            in {period.week ? `the week of ${monthLabelShort(period.week)}` : periodName}
+            {" · "}
+            <Link href={href({ w: null, m: null, y: null })} className="underline underline-offset-4">
+              all time
+            </Link>
+          </span>
+        )}
+      </h2>
+      {sum.count > 0 && (
+        <p className="mb-4 text-sm text-gray-500">
+          {sum.count} {sum.count === 1 ? "expense" : "expenses"} · {sum.totals.map((t) => formatMoney(t.spent, t.currency)).join(" + ")} spent · your share{" "}
+          {sum.totals.map((t) => formatMoney(t.mine, t.currency)).join(" + ")}
+        </p>
+      )}
 
       <form method="get" action="/search" role="search" data-allow-repeat="1" className="relative mb-4">
         {groupId && <input type="hidden" name="g" value={groupId} />}
+        {period.week && <input type="hidden" name="w" value={period.week} />}
         {period.month && <input type="hidden" name="m" value={period.month} />}
         {period.year && <input type="hidden" name="y" value={period.year} />}
+        {view !== "share" && <input type="hidden" name="v" value={view} />}
+        {(sp.p === "w" || sp.p === "m" || sp.p === "y") && <input type="hidden" name="p" value={sp.p} />}
         <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
           <SearchIcon size={18} />
         </span>
@@ -102,11 +224,11 @@ export default async function SearchPage({
         </div>
       )}
       <div className="-mx-5 mb-2 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none]">
-        <Link href={href({ m: null, y: null })} className={chip(!period.month && !period.year)}>
+        <Link href={href({ w: null, m: null, y: null })} className={chip(!period.week && !period.month && !period.year)}>
           All time
         </Link>
         {months.map((m) => (
-          <Link key={m} href={href({ m, y: null })} className={chip(period.month === m)}>
+          <Link key={m} href={href({ m, y: null, w: null })} className={chip(period.month === m)}>
             {monthLabel(m)}
           </Link>
         ))}
@@ -114,49 +236,12 @@ export default async function SearchPage({
       {years.length > 1 && (
         <div className="-mx-5 mb-2 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none]">
           {years.map((y) => (
-            <Link key={y} href={href({ y, m: null })} className={chip(period.year === y)}>
+            <Link key={y} href={href({ y, m: null, w: null })} className={chip(period.year === y)}>
               {y}
             </Link>
           ))}
         </div>
       )}
-
-      {/* Recap */}
-      <section className="vault mb-8 mt-4 rounded-[20px] px-5 py-5 text-fg">
-        <p className="text-sm text-fg/55">
-          {periodName}
-          {groupId ? ` · ${groups[0]?.group.name}` : ""}
-          {q ? ` · “${q}”` : ""}
-        </p>
-        {sum.count === 0 ? (
-          <p className="mt-1 font-display text-2xl font-semibold">Nothing here</p>
-        ) : (
-          <>
-            {sum.totals.map((t) => (
-              <p key={t.currency} className="mt-1 font-display text-3xl font-semibold leading-tight tabular-nums">
-                {formatMoney(t.spent, t.currency)}
-                <span className="ml-2 font-sans text-sm font-normal text-fg/55">spent</span>
-              </p>
-            ))}
-            <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
-              <div>
-                <p className="text-[11px] text-fg/45">Your share</p>
-                <p className="mt-0.5 tabular-nums">{sum.totals.map((t) => formatMoney(t.mine, t.currency)).join(" + ")}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-fg/45">Expenses</p>
-                <p className="mt-0.5 tabular-nums">{sum.count}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-fg/45">Top</p>
-                <p className="mt-0.5 truncate">
-                  {sum.topCategory ? `${sum.topCategory.emoji} ${sum.topCategory.short}` : "—"}
-                </p>
-              </div>
-            </div>
-          </>
-        )}
-      </section>
 
       {shown.length === 0 ? (
         <p className="rounded-2xl bg-mist px-4 py-8 text-center text-sm text-gray-500">

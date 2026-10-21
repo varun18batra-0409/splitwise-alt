@@ -3,7 +3,7 @@
 import Link from "@/components/Link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BellIcon, HomeIcon, PlusIcon, SearchIcon, SettleIcon } from "./icons";
+import { BellIcon, ChartIcon, HomeIcon, PlusIcon, SettleIcon } from "./icons";
 
 // The bar at the bottom of every main screen: Home · Search · ＋ · Settle · Alerts.
 // Inside a group, Search / ＋ / Settle work on that group.
@@ -29,7 +29,7 @@ export function BottomNav() {
   const g = /^\/groups\/([^/]+)/.exec(path)?.[1];
   const items = [
     { href: "/", label: "Home", icon: <HomeIcon size={22} />, on: path === "/" },
-    { href: g ? `/search?g=${g}` : "/search", label: "Search", icon: <SearchIcon size={22} />, on: path === "/search" },
+    { href: g ? `/search?g=${g}` : "/search", label: "Insights", icon: <ChartIcon size={22} />, on: path === "/search" },
     { href: g ? `/groups/${g}/settle` : "/settle", label: "Settle", icon: <SettleIcon size={22} />, on: path === "/settle" || path.endsWith("/settle") },
     { href: "/notifications", label: "Alerts", icon: <BellIcon size={22} />, on: path === "/notifications", badge: unread },
   ];

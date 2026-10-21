@@ -260,15 +260,19 @@ export default async function Home({
           {/* The sliding cards: your balance, your month, a seasonal idea, bringing a group over. */}
           <HomeBanner>
             <div className="vault flex h-[268px] flex-col px-5 pb-12 pt-5 text-fg">
-              <div aria-hidden className="absolute right-3 top-3 h-[64px] w-[96px]">
+              {/* Your groups as polaroids, tossed on the table. */}
+              <div aria-hidden className="absolute right-2 top-3 h-[92px] w-[132px]">
                 {open.slice(0, 3).map((g, i) => (
                   <span
                     key={g.group.id}
-                    className={`absolute h-[52px] w-[40px] overflow-hidden rounded-[3px] border-[2.5px] border-fg shadow-lg shadow-black/60 ${
-                      ["right-[46px] top-1.5 -rotate-[9deg]", "right-[23px] top-0 rotate-[4deg]", "right-0 top-2 rotate-[13deg]"][i]
+                    className={`lp-drop absolute block w-[58px] bg-[#f4f2ec] p-[3px] pb-[11px] shadow-[0_10px_22px_-6px_rgba(0,0,0,0.85)] ${
+                      ["right-[68px] top-3 -rotate-[11deg]", "right-[34px] top-0 rotate-[5deg]", "right-1 top-5 rotate-[14deg]"][i]
                     }`}
+                    style={{ animationDelay: `${i * 90}ms` }}
                   >
-                    <GroupCover {...coverFor(g.group)} uid={`stack-${g.group.id}`} letter={g.group.name} small />
+                    <span className="relative block h-[52px] overflow-hidden">
+                      <GroupCover {...coverFor(g.group)} uid={`stack-${g.group.id}`} letter={g.group.name} small sizes="58px" />
+                    </span>
                   </span>
                 ))}
               </div>
@@ -299,10 +303,23 @@ export default async function Home({
                   <p className="mt-1.5 text-sm text-fg/60">
                     {netValue > 0 ? "Overall, you get money back." : netValue < 0 ? "Overall, you need to pay." : "It all evens out."}
                   </p>
-                  <p className="mt-0.5 truncate text-xs text-fg/45">
-                    You’re owed <span className="text-owed">{owedLines.length ? owedLines.join(" + ") : "—"}</span> · You owe{" "}
-                    <span className="text-owe">{oweLines.length ? oweLines.join(" + ") : "—"}</span>
-                  </p>
+                  {/* Where it comes from: the people behind the number. */}
+                  {settleItems.length > 0 && (
+                    <p className="mt-2 flex min-w-0 items-center gap-1.5 overflow-hidden text-xs" aria-label="Where it comes from">
+                      {settleItems.slice(0, 2).map((it) => (
+                        <span key={it.key} className="flex min-w-0 shrink items-center gap-1.5 rounded-full bg-fg/[0.08] py-0.5 pl-0.5 pr-2.5">
+                          <span aria-hidden className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-canvas ${it.net < 0 ? "bg-owe" : "bg-owed"}`}>
+                            {it.name.trim().charAt(0).toUpperCase()}
+                          </span>
+                          <span className="truncate">
+                            {it.net < 0 ? `You → ${it.name}` : `${it.name} → you`}{" "}
+                            <span className={`tabular-nums ${it.net < 0 ? "text-owe" : "text-owed"}`}>{amt(it.net, it.converted)}</span>
+                          </span>
+                        </span>
+                      ))}
+                      {settleItems.length > 2 && <span className="shrink-0 text-fg/45">+{settleItems.length - 2}</span>}
+                    </p>
+                  )}
                 </>
               )}
               {settleItems.length > 0 && (
