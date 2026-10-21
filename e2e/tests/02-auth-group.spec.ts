@@ -23,6 +23,23 @@ test("sign up with an email code, then create a group", async ({ browser }) => {
   await settled(page);
   await expect(page.getByRole("heading", { name })).toBeVisible();
   await expect(page.getByText("All square")).toBeVisible();
+
+  // Your profile: change your name; it changes in the group too (where you had the old one).
+  await page.goto("/account");
+  await settled(page);
+  await expect(page.getByRole("region", { name: "Your profile" }).getByText("Sol", { exact: true })).toBeVisible();
+  await page.getByText("Edit name").click();
+  await page.getByLabel("Your name").fill("Solomon");
+  await expect(page.getByLabel(/Also change it in the 1 group where you’re Sol/)).toBeChecked();
+  await page.screenshot({ path: test.info().outputPath("profile-edit.png") });
+  await page.getByRole("button", { name: "Save" }).click();
+  await page.waitForURL(/name=saved/);
+  await expect(page.getByText("Name saved, and changed in 1 group.")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Your profile" }).getByText("Solomon", { exact: true })).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("profile-saved.png") });
+  await page.goto(`${g.path}/people`);
+  await settled(page);
+  await expect(page.getByText("Solomon").first()).toBeVisible();
   await ctx.close();
 });
 

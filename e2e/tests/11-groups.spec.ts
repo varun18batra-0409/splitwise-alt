@@ -107,9 +107,15 @@ test("a group's own photo: upload it in settings; it shows on the group and Home
   await settled(page);
   // The picture row scrolls sideways and stays where you leave it; the page itself never moves sideways.
   const row = page.locator("fieldset", { has: page.locator("legend", { hasText: "Picture" }) }).locator(":scope > div").first();
-  await row.evaluate((el) => el.scrollTo({ left: 300 }));
+  // Scrolled to a point between two pictures: it must stay there, not spring back.
+  const target = await row.evaluate((el) => {
+    const t = Math.floor((el.scrollWidth - el.clientWidth) / 2);
+    el.scrollTo({ left: t });
+    return t;
+  });
+  expect(target, "the picture row has more pictures than fit (it can scroll)").toBeGreaterThan(5);
   await page.waitForTimeout(800);
-  expect(await row.evaluate((el) => el.scrollLeft), "the picture row stays where it was scrolled").toBeGreaterThan(200);
+  expect(Math.abs((await row.evaluate((el) => el.scrollLeft)) - target), "the picture row stays where it was scrolled").toBeLessThanOrEqual(2);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "the page isn't wider than the phone").toBe(true);
   // A small real picture (a 64×48 PNG drawn here), picked as if from the phone's gallery.
   const png = await page.evaluate(async () => {
