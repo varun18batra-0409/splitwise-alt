@@ -1,4 +1,5 @@
 import { getCategory } from "@/lib/categories";
+import { expenseIcon } from "@/lib/expense-icons";
 import { formatMoney } from "@/lib/money";
 import type { ActivityItem } from "@/lib/activity";
 import { GearIcon, SettleIcon } from "./icons";
@@ -82,7 +83,7 @@ export function ActivityRow({
   return (
     <div className={`flex items-center gap-3 py-3 ${deleted ? "opacity-60" : ""}`}>
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-mist text-xl" title={cat.label}>
-        {cat.emoji}
+        {expenseIcon(item.title, item.category)}
       </span>
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-1.5">
