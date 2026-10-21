@@ -55,7 +55,8 @@ jobs:
           if [ -n "$CSV_B64" ]; then mkdir -p e2e-private && echo "$CSV_B64" | base64 -d > e2e-private/splitwise.csv && echo "E2E_SPLITWISE_CSV=$PWD/e2e-private/splitwise.csv" >> "$GITHUB_ENV"; else echo "::notice title=Splitwise file::Not supplied: the real-file import test will show as blocked."; fi
       - name: Start the app
         run: |
-          (npm run start > server.log 2>&1 &)
+          # Plain http on this machine: let the sign-in cookie work without https (Safari's engine insists otherwise). Never set on the live app.
+          (E2E_PLAIN_HTTP=1 npm run start > server.log 2>&1 &)
           npx --yes wait-on@8.0.1 -t 90000 http://localhost:3000/api/health
       - name: Run the tests (Android phone, Chrome; then iPhone, Safari's engine)
         run: |

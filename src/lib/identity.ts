@@ -16,7 +16,8 @@ async function writeSession(s: Session) {
   (await cookies()).set(SESSION_COOKIE, await encodeSession(s), {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    // Always secure when live. Only the automated browser tests on this machine (plain http) switch it off, so Safari keeps the cookie.
+    secure: process.env.NODE_ENV === "production" && process.env.E2E_PLAIN_HTTP !== "1",
     path: "/",
     maxAge: SESSION_MAX_AGE,
   });
