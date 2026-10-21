@@ -121,7 +121,14 @@ export default async function SignIn({
       )}
 
       <p className="mt-10 text-center text-xs text-gray-400">
-        We only use your email to sign you in. <Link href="/privacy" className="underline underline-offset-4">Privacy</Link>
+        By continuing you agree to the{" "}
+        <Link href="/terms" className="underline underline-offset-4">
+          Terms
+        </Link>
+        . We only use your email to sign you in:{" "}
+        <Link href="/privacy" className="underline underline-offset-4">
+          Privacy
+        </Link>
       </p>
     </>
   );

@@ -18,7 +18,8 @@ export async function GET(req: NextRequest) {
   res.cookies.set(GOOGLE_COOKIE, packAttempt(state, verifier, back), {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    // Always secure when live. Only the automated browser tests on this machine (plain http) switch it off, so Safari keeps the cookie.
+    secure: process.env.NODE_ENV === "production" && process.env.E2E_PLAIN_HTTP !== "1",
     path: "/api/auth/google",
     maxAge: 600,
   });

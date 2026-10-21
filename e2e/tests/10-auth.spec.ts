@@ -36,7 +36,8 @@ test("someone outside a group sees “Private group” (no name, no join code), 
 
   await allowTestCopy(context);
   for (const sub of ["", "/settle", "/people"]) {
-    await page.goto(g.path + sub);
+    // The app sends you on to "Private group"; Safari's engine reports that as the first page being interrupted.
+    await page.goto(g.path + sub, { waitUntil: "commit" }).catch(() => undefined);
     await page.waitForURL(/\/private/);
   }
   await expect(page.getByRole("heading", { name: "Private group" })).toBeVisible();
@@ -47,7 +48,8 @@ test("someone outside a group sees “Private group” (no name, no join code), 
   expect(csv.status()).toBe(403);
 });
 
-test("fingerprint / face: turn it on, sign out, sign back in with one touch, remove it", async ({ browser }) => {
+test("fingerprint / face: turn it on, sign out, sign back in with one touch, remove it", async ({ browser, browserName }) => {
+  test.skip(browserName !== "chromium", "Uses Chrome's built-in test fingerprint reader; Safari's engine has none in tests (checked on Android).");
   const email = testEmail("passkey");
   const user = await signUp("Pia", email);
   const ctx = await contextFor(browser, user);

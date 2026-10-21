@@ -33,7 +33,10 @@ const secret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET ?? "";
 export const bypassHeaders: Record<string, string> = hosted && secret ? { "x-vercel-protection-bypass": secret, "x-vercel-skip-toolbar": "1" } : {};
 
 // One id per run, so this run's people and groups are easy to find and remove.
-export const runId = (process.env.GITHUB_RUN_ID ? `gh${process.env.GITHUB_RUN_ID}` : `local${Date.now().toString(36)}`).slice(0, 20);
+// A second run in the same job (the iPhone pass) gets its own tag, so its test accounts and groups are separate.
+export const runId = (
+  (process.env.GITHUB_RUN_ID ? `gh${process.env.GITHUB_RUN_ID}` : `local${Date.now().toString(36)}`).slice(0, 20) + (process.env.E2E_RUN_TAG ?? "")
+).slice(0, 24);
 export const TEST_DOMAIN = "e2e.loopin.test"; // ".test" never reaches a real inbox
 export const testEmail = (who: string) => `e2e-${runId}-${who}@${TEST_DOMAIN}`.toLowerCase();
 export const groupName = (what: string) => `E2E ${what} ${runId}`;

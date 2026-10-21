@@ -50,7 +50,11 @@ export default function Privacy() {
 
       <h2 className={h}>Questions</h2>
       <p className={p}>
-        See the <a href="/faq" className="underline underline-offset-4">FAQ</a>, or ask the person who shared Loopin with you.
+        See the <a href="/faq" className="underline underline-offset-4">FAQ</a> and the{" "}
+        <a href="/terms" className="underline underline-offset-4">
+          Terms of use
+        </a>
+        , or ask the person who shared Loopin with you.
       </p>
       <p className="mt-10 text-xs text-gray-400">Last updated October 2026.</p>
     </>
