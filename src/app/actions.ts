@@ -382,7 +382,7 @@ export async function recordPayment(formData: FormData) {
       groupId: group.id,
       actorId: myId,
       kind: "payment_recorded",
-      text: `recorded ${nameOf(fromId)} paid ${nameOf(toId)} ${formatMoney(amount, group.currency)}`,
+      text: paymentText(myId, fromId, toId, nameOf(fromId), nameOf(toId), formatMoney(amount, group.currency)),
       paymentId: p.id,
       undo: { type: "payment_delete", paymentId: p.id },
     });
@@ -463,7 +463,7 @@ export async function settleAcrossGroups(formData: FormData) {
         actorId: myId,
         undo: { type: "payment_delete", paymentId: pay.id },
         kind: "payment_recorded",
-        text: `recorded ${c.names.get(c.fromId) ?? "Someone"} paid ${c.names.get(c.toId) ?? "Someone"} ${formatMoney(c.amount, c.currency)} (Smart Settle across groups)`,
+        text: `${paymentText(myId, c.fromId, c.toId, c.names.get(c.fromId) ?? "Someone", c.names.get(c.toId) ?? "Someone", formatMoney(c.amount, c.currency))} (Smart Settle across groups)`,
         paymentId: pay.id,
       });
     }
@@ -626,6 +626,15 @@ export async function verifyCode(formData: FormData) {
   if (name) await db.account.updateMany({ where: { id: r.accountId, name: "" }, data: { name } });
   await signInAs(r.accountId);
   redirect(`${back}${back.includes("?") ? "&" : "?"}signedin=1`);
+}
+
+// How a payment reads in the history and alerts, after the name of whoever
+// recorded it: "Ravi paid Varun ₹5,000", "Varun got ₹5,000 from Ravi", or
+// "Asha recorded Ravi paid Varun ₹5,000".
+function paymentText(actorId: string, fromId: string, toId: string, from: string, to: string, amount: string): string {
+  if (actorId === fromId) return `paid ${to} ${amount}`;
+  if (actorId === toId) return `got ${amount} from ${from}`;
+  return `recorded ${from} paid ${to} ${amount}`;
 }
 
 // You page → "Your name": the name friends see in invites and when they search

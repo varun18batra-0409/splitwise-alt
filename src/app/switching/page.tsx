@@ -17,7 +17,7 @@ const POINTS: [string, string][] = [
 export default function Switching() {
   return (
     <>
-      <PageHeader title="Coming from another app?" back="/" />
+      <PageHeader title="From another app" back="/" />
       <h1 className="font-display text-[30px] font-semibold leading-tight tracking-tight">Bring your groups. Keep your balances.</h1>
       <p className="mt-2 text-[15px] text-gray-500">It takes about a minute per group, and your friends can join when they’re ready.</p>
       <Link href="/import" className={`mt-5 ${primaryButtonClass}`}>
