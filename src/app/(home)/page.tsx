@@ -115,6 +115,8 @@ export default async function Home({
   );
   const season = seasonNow(new Date(), tz);
   const byActivity = [...open].sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
+  // With one or two groups, shorter cards, so "Needs attention" shows without scrolling.
+  const short = byActivity.length <= 2;
 
   // First visit: show what Loopin does instead of an empty screen.
   const tourSeen = (await cookies()).get("lp_tour")?.value === "1";
@@ -396,9 +398,9 @@ export default async function Home({
                 {/* Up to 4 groups (most recently active first); the rest open with a tap, in the same grid. */}
                 <ul className="lp-rise mt-3 grid grid-cols-2 gap-x-3 gap-y-5">
                   {byActivity.slice(0, 4).map((g) => (
-                    <GroupCard key={g.group.id} g={g} tz={tz} />
+                    <GroupCard key={g.group.id} g={g} tz={tz} short={short} />
                   ))}
-                  {byActivity.length < 4 && byActivity.length % 2 === 1 && <StartTile />}
+                  {byActivity.length < 4 && byActivity.length % 2 === 1 && <StartTile short={short} />}
                 </ul>
                 {byActivity.length > 4 && (
                   <details className="group/more mt-5">
@@ -408,9 +410,9 @@ export default async function Home({
                     </summary>
                     <ul className="lp-rise mt-4 grid grid-cols-2 gap-x-3 gap-y-5">
                       {byActivity.slice(4).map((g) => (
-                        <GroupCard key={g.group.id} g={g} tz={tz} />
+                        <GroupCard key={g.group.id} g={g} tz={tz} short={short} />
                       ))}
-                      {byActivity.length % 2 === 1 && <StartTile />}
+                      {byActivity.length % 2 === 1 && <StartTile short={short} />}
                     </ul>
                   </details>
                 )}
@@ -560,14 +562,14 @@ function GroupRow({ g, closed, tz }: { g: Awaited<ReturnType<typeof loadOverview
 }
 
 // An open group on Home: its picture (with who's in it), name and your balance.
-function GroupCard({ g, tz }: { g: Awaited<ReturnType<typeof loadOverview>>["all"][number]; tz: string }) {
+function GroupCard({ g, tz, short }: { g: Awaited<ReturnType<typeof loadOverview>>["all"][number]; tz: string; short?: boolean }) {
   const b = g.myBalance;
   const people = g.group.members.filter((m) => !m.leftAt);
   const type = TYPE_LABEL[g.group.type];
   return (
     <li className="min-w-0">
       <Link href={`/groups/${g.group.id}`} className="lp-press block">
-        <span className="relative block h-[188px] overflow-hidden rounded-[20px] border border-line">
+        <span className={`relative block overflow-hidden rounded-[20px] border border-line ${short ? "h-[140px]" : "h-[188px]"}`}>
           <GroupCover {...coverFor(g.group)} uid={g.group.id} letter={g.group.name} />
           {type && (
             <span className="absolute left-2.5 top-2.5 rounded-full bg-canvas/55 px-2.5 py-1 text-[11px] font-semibold backdrop-blur" aria-hidden>
@@ -600,12 +602,12 @@ function GroupCard({ g, tz }: { g: Awaited<ReturnType<typeof loadOverview>>["all
 const TYPE_LABEL: Record<string, string | undefined> = { trip: "Trip", home: "Home", couple: "Couple" };
 
 // "Start a group": only to fill an empty spot in the grid (New group is always at the top).
-function StartTile() {
+function StartTile({ short }: { short?: boolean }) {
   return (
     <li>
       <Link
         href="/groups/new"
-        className="lp-press flex h-[188px] flex-col items-center justify-center gap-2 rounded-[20px] border-[1.5px] border-dashed border-gray-300 text-sm font-medium text-gray-600 active:bg-mist"
+        className={`lp-press flex ${short ? "h-[140px]" : "h-[188px]"} flex-col items-center justify-center gap-2 rounded-[20px] border-[1.5px] border-dashed border-gray-300 text-sm font-medium text-gray-600 active:bg-mist`}
       >
         <span className="text-2xl leading-none" aria-hidden>
           ＋
