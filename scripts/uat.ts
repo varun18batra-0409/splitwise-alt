@@ -904,7 +904,7 @@ async function main() {
     await V.waitForURL(/saved=settings/);
     // The group total moved from the top of the group to Balances.
     await go(V, `${g3}?tab=balances`);
-    await V.getByText(/USD\s7\.20 spent across/).first().waitFor();
+    await V.getByText(/(USD\s|\$)7\.20 spent across/).first().waitFor();
   });
   await step(V, "Group settings", "Delete a group, see it under Recently deleted, restore it", async () => {
     await go(V, `${g3}/settings`);
