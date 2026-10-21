@@ -2,6 +2,9 @@ import Link from "@/components/Link";
 import photos from "@/generated/photos.json";
 import { PageHeader } from "@/components/ui";
 import { GetAppButton } from "@/components/GetApp";
+import { headers } from "next/headers";
+import { visitorRegion } from "@/lib/region";
+import { decimalsOf, formatMoney } from "@/lib/money";
 
 export const metadata = { title: "How Loopin works" };
 
@@ -71,7 +74,13 @@ function Example({ children }: { children: React.ReactNode }) {
 
 // "How Loopin works": the detailed guide, with real photos. The quick
 // swipe-through tour is still at /welcome (linked at the top).
-export default function HowItWorks() {
+export default async function HowItWorks() {
+  // Examples in the visitor's own currency (₹ in India, dollars and similar elsewhere).
+  const { currency, india } = visitorRegion(await headers());
+  const m = (major: number) => formatMoney(Math.round(major * 10 ** decimalsOf(currency)), currency);
+  const x = india
+    ? { dinner: 1200, each: 300, yen: 3390, fee: 102, four: 873, gift: 100 }
+    : { dinner: 120, each: 30, yen: 40.2, fee: 1.21, four: 10.35, gift: 5 };
   return (
     <>
       <PageHeader title="How Loopin works" back="/" />
@@ -136,16 +145,19 @@ export default function HowItWorks() {
             <>Choose how to split: <strong>Everyone equally</strong>, <strong>Only some</strong> people, or <strong>Custom</strong> (exact amounts, % or shares, like 2 : 1 for a bigger room).</>,
           ]}
         />
-        <p>Change the date if it wasn’t today, and add a note if it helps (“Rahul paid the tip”). Next time, Loopin starts with the same split you used last.</p>
+        <p>Change the date if it wasn’t today, and add a note if it helps (“Sam paid the tip”). Next time, Loopin starts with the same split you used last.</p>
         <p>
           <strong>Two people paid?</strong> Choose <strong>More than one</strong> payer. <strong>Got money back</strong> (a refund, a returned
           item)? Switch to <strong>Money back</strong> and it’s shared the same way. Adding a few in a row? <strong>Save &amp; add another</strong>.
           The same thing again? Open it and tap <strong>Repeat</strong>. Loopin warns you if something looks like a duplicate.
         </p>
         <Example>
-          Dinner ₹1,200 · Joey paid · Everyone equally (4)
+          Dinner {m(x.dinner)} · Maya paid · Everyone equally (4)
           <br />
-          <span className="text-gray-500">→ Rancho, Sheldon and Circuit each owe Joey ₹300.</span>
+          <span className="text-gray-500">→ Sam, Priya and Leo each owe Maya {m(x.each)}.</span>
+        </Example>
+        <Example>
+          Small amounts work too: a class gift at {m(x.gift)} each, pizza after practice, a shared cab.
         </Example>
       </Section>
 
@@ -158,9 +170,9 @@ export default function HowItWorks() {
         <div className="rounded-2xl border border-line bg-mist px-4 py-3 text-sm text-fg">
           <p className="mb-2 font-medium">🍜 Ramen in Shibuya · paid by card</p>
           <dl className="space-y-1 tabular-nums">
-            <div className="flex justify-between"><dt className="text-gray-500">¥6,000 at today’s rate</dt><dd>₹3,390</dd></div>
-            <div className="flex justify-between"><dt className="text-gray-500">Your bank’s 3% card fee</dt><dd>+ ₹102</dd></div>
-            <div className="flex justify-between border-t border-line pt-1 font-semibold"><dt>Split four ways</dt><dd>₹873 each</dd></div>
+            <div className="flex justify-between"><dt className="text-gray-500">¥6,000 at today’s rate</dt><dd>{m(x.yen)}</dd></div>
+            <div className="flex justify-between"><dt className="text-gray-500">Your bank’s 3% card fee</dt><dd>+ {m(x.fee)}</dd></div>
+            <div className="flex justify-between border-t border-line pt-1 font-semibold"><dt>Split four ways</dt><dd>{m(x.four)} each</dd></div>
           </dl>
         </div>
         <p>150+ currencies. Cash? No fee added. Better rate from the exchange booth? Type it in.</p>
@@ -219,7 +231,7 @@ export default function HowItWorks() {
         </p>
         <Steps
           items={[
-            <><strong>Bills, set up once.</strong> Rent, Wi-Fi, the cook: they add themselves on the day (anyone can undo). Electricity changes? Whoever pays gets a nudge to enter the amount. Milk and water cans are added up at month end; tap the days they didn’t come.</>,
+            <><strong>Bills on repeat.</strong> Set rent and Wi-Fi{india ? ", the cook" : ", streaming"} to repeat monthly once, and Loopin adds each one on the day (anyone can undo or skip a month). Nothing is read from your bank or messages. Electricity changes? Whoever pays gets a nudge to enter the amount.{india ? " Milk and water cans are added up at month end; tap the days they didn’t come." : ""}</>,
             <><strong>Shopping list.</strong> Add what’s running low, tick what you bought, type what it cost: one Groceries expense, items in the note.</>,
             <><strong>Budgets and the deposit.</strong> A nudge when groceries reach 80%. The deposit is kept on record, never mixed into balances.</>,
             <><strong>Moving out or in.</strong> Loopin works out their share for the days they stayed, who takes over their deposit, and the final payments.</>,

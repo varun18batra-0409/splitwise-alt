@@ -125,7 +125,7 @@ export function BillForm({
 
       {!editing && (
         <fieldset>
-          <legend className="mb-3 text-sm text-gray-500">Pick one. You set it up once and it adds itself.</legend>
+          <legend className="mb-3 text-sm text-gray-500">Pick one. You set it up once and Loopin adds it on repeat.</legend>
           <div className="grid grid-cols-4 gap-2">
             {BILL_TEMPLATES.map((t) => (
               <button

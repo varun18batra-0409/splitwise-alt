@@ -69,21 +69,35 @@ export type Season = {
 
 // Festivals and holidays worth a group. Dates are inclusive, "YYYY-MM-DD"
 // (one year) or "MM-DD" (every year). Add new ones here.
-const SEASONS: (Omit<Season, "href"> & { from: string; to: string; name: string; type: string })[] = [
+const SEASONS: (Omit<Season, "href"> & { from: string; to: string; name: string; type: string; countries?: string[] })[] = [
   {
     id: "diwali-2026", from: "2026-10-05", to: "2026-11-08", eyebrow: "Diwali is on 8 Nov", title: "Diwali with family?",
-    text: "One group for gifts, sweets and travel, split fairly.", button: "Start a group", cover: "diwali", name: "Diwali", type: "other",
+    text: "One group for gifts, sweets and travel, split fairly.", button: "Start a group", cover: "diwali", name: "Diwali", type: "other", countries: ["IN"],
   },
   {
-    id: "new-year", from: "12-10", to: "12-31", eyebrow: "New Year’s Eve", title: "New Year plans?",
+    id: "thanksgiving-2026", from: "2026-11-01", to: "2026-11-26", eyebrow: "Thanksgiving is on Nov 26", title: "Friendsgiving?",
+    text: "One group for the turkey, the drinks and the trip home.", button: "Start a group", cover: "dinner", name: "Friendsgiving", type: "other", countries: ["US"],
+  },
+  {
+    id: "christmas", from: "12-01", to: "12-24", eyebrow: "Christmas is coming", title: "Holiday plans?",
+    text: "Secret Santa, a trip or a big dinner: one group, split fairly.", button: "Start a group", cover: "photo-snow", name: "Holidays", type: "other",
+  },
+  {
+    id: "new-year", from: "12-26", to: "12-31", eyebrow: "New Year’s Eve", title: "New Year plans?",
     text: "A trip or a party: one group, everyone square by January.", button: "Start a group", cover: "mountain", name: "New Year trip", type: "trip",
   },
 ];
 
-export function seasonNow(now = new Date(), tz: string = DEFAULT_TIME_ZONE): Season | null {
+// `country`: where the visitor is ("IN", "US"…; null when unknown). Festivals
+// tied to a country only show there. Left out (tests), every season counts.
+export function seasonNow(now = new Date(), tz: string = DEFAULT_TIME_ZONE, country?: string | null): Season | null {
   const today = dayKey(now, tz);
   const md = today.slice(5);
-  const s = SEASONS.find((x) => (x.from.length === 5 ? md >= x.from && md <= x.to : today >= x.from && today <= x.to));
+  const s = SEASONS.find(
+    (x) =>
+      (country === undefined || !x.countries || (country !== null && x.countries.includes(country))) &&
+      (x.from.length === 5 ? md >= x.from && md <= x.to : today >= x.from && today <= x.to),
+  );
   if (!s) return null;
   const q = new URLSearchParams({ name: s.name, type: s.type, cover: s.cover });
   return { id: s.id, eyebrow: s.eyebrow, title: s.title, text: s.text, button: s.button, cover: s.cover, href: `/groups/new?${q}` };
