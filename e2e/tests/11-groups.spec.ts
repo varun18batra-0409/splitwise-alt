@@ -117,6 +117,28 @@ test("a group's own photo: upload it in settings; it shows on the group and Home
   await page.waitForTimeout(800);
   expect(Math.abs((await row.evaluate((el) => el.scrollLeft)) - target), "the picture row stays where it was scrolled").toBeLessThanOrEqual(2);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "the page isn't wider than the phone").toBe(true);
+  // A real finger swipe (Android): forward, then all the way back — "Your photo" at the start must be
+  // reachable and stay in view (the old snapping stopped one tile short and hid it).
+  if (test.info().project.name === "phone") {
+    const cdp = await page.context().newCDPSession(page);
+    const box = (await row.boundingBox())!;
+    const y = box.y + box.height / 2;
+    const drag = async (from: number, to: number) => {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: from, y }] });
+      for (let k = 1; k <= 15; k++) {
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: from + ((to - from) * k) / 15, y }] });
+        await page.waitForTimeout(16);
+      }
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      await page.waitForTimeout(1200);
+    };
+    await drag(box.x + box.width - 20, box.x + 20);
+    await drag(box.x + 20, box.x + box.width - 20);
+    await drag(box.x + 20, box.x + box.width - 20);
+    expect(await row.evaluate((el) => el.scrollLeft), "swiping back reaches the start of the picture row").toBe(0);
+    await expect(page.getByRole("button", { name: "Your photo" })).toBeInViewport();
+    await cdp.detach();
+  }
   // A small real picture (a 64×48 PNG drawn here), picked as if from the phone's gallery.
   const png = await page.evaluate(async () => {
     const c = document.createElement("canvas");

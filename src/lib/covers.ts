@@ -135,7 +135,16 @@ export function photoType(b: Uint8Array): "image/jpeg" | "image/png" | "image/we
   if (b.length > 12 && String.fromCharCode(...b.slice(0, 4)) === "RIFF" && String.fromCharCode(...b.slice(8, 12)) === "WEBP") return "image/webp";
   return null;
 }
-export const MAX_PHOTO_BYTES = 700_000;
+export const MAX_PHOTO_BYTES = 700_000; // the most the server takes
+// What the phone aims for before uploading: small enough to load fast and take
+// little room, still sharp on a phone screen (a cover is at most ~1080 px wide there).
+export const TARGET_PHOTO_BYTES = 150_000;
+export const PHOTO_STEPS: readonly (readonly [maxSide: number, quality: number])[] = [
+  [1080, 0.72],
+  [960, 0.66],
+  [840, 0.6],
+  [720, 0.55],
+];
 
 // What a form sent, made safe to store ("" when it matches the type's own picture,
 // so changing the type later still changes the picture).

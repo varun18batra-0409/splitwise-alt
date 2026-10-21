@@ -2,10 +2,10 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { MAX_PHOTO_BYTES } from "@/lib/covers";
+import { MAX_PHOTO_BYTES, PHOTO_STEPS, TARGET_PHOTO_BYTES } from "@/lib/covers";
 
 // "Your photo" in the picture picker: pick a photo from the phone; it's made
-// small here first (about 1200 px, a few hundred KB at most), then saved as the
+// small here first (about 1080 px, usually under 150 KB), then saved as the
 // group's picture for everyone in the group.
 export function OwnPhotoButton({ groupId }: { groupId: string }) {
   const input = useRef<HTMLInputElement>(null);
@@ -51,24 +51,25 @@ export function OwnPhotoButton({ groupId }: { groupId: string }) {
   );
 }
 
-// Made small on the phone: at most 1200 px on the long side, WebP (or JPEG
-// where the phone can't make WebP), under the size limit.
+// Made small on the phone: at most 1080 px on the long side, WebP (or JPEG
+// where the phone can't make WebP). Steps down in size and quality until it's
+// under ~150 KB; the smallest that fits the server's limit is the fallback.
 async function shrink(file: File): Promise<Blob> {
   const img = await load(file);
-  for (const [max, q] of [
-    [1200, 0.8],
-    [1000, 0.7],
-    [800, 0.6],
-  ] as const) {
+  let fallback: Blob | null = null;
+  for (const [max, q] of PHOTO_STEPS) {
     const scale = Math.min(1, max / Math.max(img.width, img.height));
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(img.width * scale);
     canvas.height = Math.round(img.height * scale);
     canvas.getContext("2d")!.drawImage(img.source, 0, 0, canvas.width, canvas.height);
     let blob = await toBlob(canvas, "image/webp", q);
-    if (!blob || blob.type !== "image/webp") blob = await toBlob(canvas, "image/jpeg", q + 0.05);
-    if (blob && blob.size <= MAX_PHOTO_BYTES) return blob;
+    if (!blob || blob.type !== "image/webp") blob = await toBlob(canvas, "image/jpeg", q);
+    if (!blob) continue;
+    if (blob.size <= TARGET_PHOTO_BYTES) return blob;
+    if (blob.size <= MAX_PHOTO_BYTES && (!fallback || blob.size < fallback.size)) fallback = blob;
   }
+  if (fallback) return fallback;
   throw new Error("That photo is too big. Try another one.");
 }
 
