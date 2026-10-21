@@ -1,5 +1,6 @@
 "use client";
 
+import { expenseIcon } from "@/lib/expense-icons";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { addExpense, lookupRate } from "@/app/actions";
 import { CATEGORIES, analyzeName, applySuggestion, getCategory } from "@/lib/categories";
@@ -429,7 +430,7 @@ export function AddExpenseForm({
             title={category.label}
             className="flex shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-line px-2.5 active:bg-mist"
           >
-            <span className="text-lg leading-none">{category.emoji}</span>
+            <span className="text-lg leading-none">{expenseIcon(name, category.id)}</span>
             <span className="text-[11px] leading-none text-gray-500">
               {category.short}
               {!pickedCategory && name.trim() && <span className="text-gray-400"> · auto</span>}
