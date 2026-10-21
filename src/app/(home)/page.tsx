@@ -670,6 +670,6 @@ function roundWhole(minor: number, currency: string): number {
 const POLAROID_SPOTS = [
   "right-[-12px] top-[14px] rotate-[8deg] z-[3]",
   "right-[70px] top-[-22px] -rotate-[9deg] z-[2]",
-  "right-[34px] top-[132px] -rotate-[5deg] z-[1]",
+  "right-[34px] top-[116px] -rotate-[5deg] z-[1]",
   "right-[18px] top-[40px] rotate-[6deg]",
 ];
