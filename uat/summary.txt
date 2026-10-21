@@ -1,0 +1,10 @@
+141 passed, 9 failed
+✗ Add — Double-tapping Save adds the expense only once: Water not in the list (screenshot: fail-01.png)
+✗ Home — Tapping an expense in Latest opens it in its group, expanded, with Edit or delete: the expense isn't opened (screenshot: fail-02.png)
+✗ Flat — Add Rent (₹30,000 on the 1st, you pay) and Electricity (changes each month, Asha pays): Bills tab says:  (screenshot: fail-03.png)
+✗ Flat — The daily job runs twice: Rent is added once, Electricity waits for its amount: Rent was added 0 times (screenshot: fail-04.png)
+✗ Flat — Asha taps “Enter amount”, types ₹2,840 and saves: Asha owes ₹13,580 in all: locator.click: Timeout 15000ms exceeded. Call log:   - waiting for getByRole('link', { name: 'Enter amount' }) (screenshot: fail-05.png)
+✗ Flat — A ₹1,500 Groceries budget with ₹1,240 spent shows “₹260 left” (nearly there): This month says:  (screenshot: fail-06.png)
+✗ Flat — Delete the automatic Rent from its edit screen: the daily job doesn't add it back: no Rent expense (screenshot: fail-07.png)
+✗ Export — The flat's spreadsheet has the bills and the shopping: CSV is missing the flat's expenses (screenshot: fail-08.png)
+✗ Currency — A yen group shows no decimals anywhere, and its settle-up minimum reads in whole yen: balance not JPY 500:  (screenshot: fail-09.png)
