@@ -157,13 +157,23 @@ export default async function SearchPage({
   const monthLabelShort = (week: string) => new Date(`${week}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
   const back = groupId ? `/groups/${groupId}` : "/";
 
-  return (
+  // Search comes first: typing finds any expense, payment, person or place across
+  // your groups. With words typed, the results come straight under the box and
+  // the chart (for those words) after them; otherwise the chart first.
+  const clearHref = (() => {
+    const u = new URL(href({}), "http://x");
+    u.searchParams.delete("q");
+    return `/search${u.search}`;
+  })();
+  const results = (
     <>
-      <PageHeader title="Insights" back={back} />
-      {all.length > 0 && <Insights d={insights} />}
-
       <h2 className="mb-3 mt-2 font-display text-lg font-semibold tracking-tight">
-        Find anything
+        {q ? <>Results for “{q}”</> : "All expenses"}
+        {q && (
+          <Link href={clearHref} className="ml-2 font-sans text-sm font-normal text-gray-500 underline underline-offset-4">
+            clear
+          </Link>
+        )}
         {(period.week || period.month || period.year) && (
           <span className="ml-2 font-sans text-sm font-normal text-gray-500">
             in {period.week ? `the week of ${monthLabelShort(period.week)}` : periodName}
@@ -180,27 +190,6 @@ export default async function SearchPage({
           {sum.totals.map((t) => formatMoney(t.mine, t.currency)).join(" + ")}
         </p>
       )}
-
-      <form method="get" action="/search" role="search" data-allow-repeat="1" className="relative mb-4">
-        {groupId && <input type="hidden" name="g" value={groupId} />}
-        {period.week && <input type="hidden" name="w" value={period.week} />}
-        {period.month && <input type="hidden" name="m" value={period.month} />}
-        {period.year && <input type="hidden" name="y" value={period.year} />}
-        {view !== "share" && <input type="hidden" name="v" value={view} />}
-        {(sp.p === "w" || sp.p === "m" || sp.p === "y") && <input type="hidden" name="p" value={sp.p} />}
-        <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
-          <SearchIcon size={18} />
-        </span>
-        <input
-          type="search"
-          name="q"
-          defaultValue={q}
-          placeholder="Dinner, Goa, Asha, taxi…"
-          aria-label="Search"
-          enterKeyHint="search"
-          className="w-full rounded-full border border-line bg-mist py-3 pl-11 pr-4 text-base text-fg outline-none placeholder:text-gray-400 focus:border-accent"
-        />
-      </form>
 
       {/* Group, month and year chips: one tap each, scroll sideways for more. */}
       {all.length > 1 && (
@@ -260,6 +249,43 @@ export default async function SearchPage({
             <p className="text-center text-xs text-gray-400">Showing the latest 100 of {shown.length}. Add words or pick a month to narrow it down.</p>
           )}
         </div>
+      )}
+    </>
+  );
+  const chart = all.length > 0 && <Insights d={insights} />;
+  return (
+    <>
+      <PageHeader title="Insights" back={back} />
+      <form method="get" action="/search" role="search" data-allow-repeat="1" className="relative mb-6">
+        {groupId && <input type="hidden" name="g" value={groupId} />}
+        {period.week && <input type="hidden" name="w" value={period.week} />}
+        {period.month && <input type="hidden" name="m" value={period.month} />}
+        {period.year && <input type="hidden" name="y" value={period.year} />}
+        {view !== "share" && <input type="hidden" name="v" value={view} />}
+        {(sp.p === "w" || sp.p === "m" || sp.p === "y") && <input type="hidden" name="p" value={sp.p} />}
+        <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+          <SearchIcon size={18} />
+        </span>
+        <input
+          type="search"
+          name="q"
+          defaultValue={q}
+          placeholder="Search expenses, people, places…"
+          aria-label="Search"
+          enterKeyHint="search"
+          className="w-full rounded-full border border-line bg-mist py-3 pl-11 pr-4 text-base text-fg outline-none placeholder:text-gray-400 focus:border-accent"
+        />
+      </form>
+      {q ? (
+        <>
+          <section className="mb-10">{results}</section>
+          {chart}
+        </>
+      ) : (
+        <>
+          {chart}
+          {results}
+        </>
       )}
     </>
   );
