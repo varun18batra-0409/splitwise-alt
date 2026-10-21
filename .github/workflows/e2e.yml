@@ -42,7 +42,7 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium webkit
       - name: Empty database and app build
         run: |
           npx prisma db push --skip-generate
@@ -57,17 +57,26 @@ jobs:
         run: |
           (npm run start > server.log 2>&1 &)
           npx --yes wait-on@8.0.1 -t 90000 http://localhost:3000/api/health
-      - name: Run the tests
-        run: npx playwright test
+      - name: Run the tests (Android phone, Chrome; then iPhone, Safari's engine)
+        run: |
+          set +e
+          npx playwright test --project=phone; a=$?
+          E2E_RUN_TAG=ios npx playwright test --project=iphone; b=$?
+          [ $a -eq 0 ] && [ $b -eq 0 ]
       - name: Summary
         if: always()
-        run: node e2e/summary.mjs
+        run: |
+          node e2e/summary.mjs e2e-results/results.json "Android"; a=$?
+          node e2e/summary.mjs e2e-results-ios/results.json "iPhone"; b=$?
+          [ $a -eq 0 ] && [ $b -eq 0 ]
       - name: Keep the HTML report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: e2e-report-local
-          path: e2e-report/
+          path: |
+            e2e-report/
+            e2e-report-ios/
           retention-days: 14
       - name: Keep failure details (screenshots, traces, browser logs, server log)
         if: failure()
@@ -76,6 +85,7 @@ jobs:
           name: e2e-failures-local
           path: |
             e2e-results/
+            e2e-results-ios/
             server.log
           retention-days: 14
 

@@ -3,6 +3,7 @@
 import { readFileSync, appendFileSync } from "node:fs";
 
 const file = process.argv[2] ?? "e2e-results/results.json";
+const label = process.argv[3] ? `${process.argv[3]}: ` : "";
 let data;
 try {
   data = JSON.parse(readFileSync(file, "utf8"));
@@ -24,13 +25,13 @@ const walk = (suite, path = []) => {
 };
 walk(data);
 const count = (s) => rows.filter((r) => r.status.startsWith(s)).length;
-const head = `E2E: ${count("passed")} passed · ${count("FAILED")} failed · ${count("blocked")} blocked/skipped · ${count("flaky")} flaky`;
+const head = `E2E ${label}${count("passed")} passed · ${count("FAILED")} failed · ${count("blocked")} blocked/skipped · ${count("flaky")} flaky`;
 const table = ["| Result | Test | Note |", "|---|---|---|", ...rows.map((r) => `| ${r.status} | ${r.file} › ${r.title} | ${r.why.replace(/\|/g, "/")} |`)].join("\n");
 console.log(head + "\n" + rows.map((r) => `- ${r.status}: ${r.file} › ${r.title}${r.why ? ` (${r.why})` : ""}`).join("\n"));
 if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## ${head}\n\n${table}\n`);
 // Also as notes on the run (readable without opening the logs).
 if (process.env.GITHUB_ACTIONS) {
   const esc = (t) => t.replace(/%/g, "%25").replace(/\r?\n/g, "%0A");
-  console.log(`::notice title=E2E result::${esc(head + "\n" + rows.map((r) => `${r.status}: ${r.file} › ${r.title}${r.why ? ` (${r.why})` : ""}`).join("\n"))}`);
+  console.log(`::notice title=E2E result ${label.replace(/[:\s]+$/, "")}::${esc(head + "\n" + rows.map((r) => `${r.status}: ${r.file} › ${r.title}${r.why ? ` (${r.why})` : ""}`).join("\n"))}`);
 }
 process.exit(count("FAILED") ? 1 : 0);

@@ -16,7 +16,7 @@ test("first visit shows the tour, then a start screen with the main ways in", as
   await expect(page.getByRole("link", { name: "Sign in or sign up" }).first()).toBeVisible();
 });
 
-test("key pages open from Home: guide, sign in, Splitwise, privacy", async ({ page }) => {
+test("key pages open from Home: guide, sign in, Splitwise, privacy, terms", async ({ page }) => {
   await page.goto("/");
   await settled(page);
   await page.getByRole("link", { name: "Home", exact: true }).first().click();
@@ -39,6 +39,13 @@ test("key pages open from Home: guide, sign in, Splitwise, privacy", async ({ pa
 
   await page.goto("/privacy");
   await expect(page.locator("main")).toContainText(/data/i);
+
+  // Terms of use: linked from sign-in, plain English, and clear that Loopin never moves money.
+  await page.goto("/signin");
+  await page.getByRole("link", { name: "Terms" }).click();
+  await expect(page).toHaveURL(/\/terms$/);
+  await expect(page.getByRole("heading", { name: "What Loopin is (and isn’t)" })).toBeVisible();
+  await expect(page.locator("main")).toContainText("never holds, sends or receives money");
 });
 
 test("FAQ: opens from the You page; questions open on tap; the data answer links to the privacy details", async ({ page }) => {

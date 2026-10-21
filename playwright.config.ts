@@ -6,9 +6,12 @@ import { defineConfig, devices } from "@playwright/test";
 //   are kept and linked from the HTML report.
 // - Where it runs is set by E2E_BASE_URL (default: a server on this machine).
 //   It refuses the live app; see e2e/env.ts.
+// E2E_RUN_TAG ("ios") keeps a second run's results apart from the first.
+const tag = process.env.E2E_RUN_TAG ? `-${process.env.E2E_RUN_TAG}` : "";
+
 export default defineConfig({
   testDir: "e2e/tests",
-  outputDir: "e2e-results",
+  outputDir: `e2e-results${tag}`,
   globalSetup: "./e2e/global-setup.ts",
   globalTeardown: "./e2e/global-teardown.ts",
   fullyParallel: false,
@@ -17,7 +20,7 @@ export default defineConfig({
   timeout: 90_000,
   expect: { timeout: 15_000 },
   forbidOnly: !!process.env.CI,
-  reporter: [["list"], ["html", { outputFolder: "e2e-report", open: "never" }], ["json", { outputFile: "e2e-results/results.json" }]],
+  reporter: [["list"], ["html", { outputFolder: `e2e-report${tag}`, open: "never" }], ["json", { outputFile: `e2e-results${tag}/results.json` }]],
   use: {
     baseURL: process.env.E2E_BASE_URL || "http://localhost:3000",
     ...devices["Pixel 7"], // a phone: most people use Loopin on one
@@ -29,5 +32,8 @@ export default defineConfig({
     actionTimeout: 20_000,
     navigationTimeout: 45_000,
   },
-  projects: [{ name: "phone", use: { browserName: "chromium" } }],
+  projects: [
+    { name: "phone", use: { browserName: "chromium" } }, // Android, Chrome
+    { name: "iphone", use: { ...devices["iPhone 14"], browserName: "webkit" } }, // iPhone, Safari's engine
+  ],
 });

@@ -538,6 +538,10 @@ export default async function Home({
         <Link href="/privacy" className="underline underline-offset-4">
           Privacy
         </Link>
+        <span aria-hidden> · </span>
+        <Link href="/terms" className="underline underline-offset-4">
+          Terms
+        </Link>
       </p>
     </>
   );
