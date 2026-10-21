@@ -29,8 +29,10 @@ function Bar() {
   }, []);
 
   useEffect(() => {
+    // Listening on the way down ("capture"), before the app's own link and form
+    // handling takes the tap over (which used to hide it from this bar).
     const onClick = (e: MouseEvent) => {
-      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       const a = (e.target as Element | null)?.closest?.("a");
       if (!a || a.target === "_blank" || a.hasAttribute("download")) return;
       const url = new URL(a.href, location.href);
@@ -39,16 +41,15 @@ function Bar() {
       pending.current = { kind: "nav", at: performance.now() };
       setOn(true);
     };
-    const onSubmit = (e: SubmitEvent) => {
-      if (e.defaultPrevented) return;
+    const onSubmit = () => {
       pending.current = { kind: "submit", at: performance.now() };
       setOn(true);
     };
-    document.addEventListener("click", onClick);
-    document.addEventListener("submit", onSubmit);
+    document.addEventListener("click", onClick, true);
+    document.addEventListener("submit", onSubmit, true);
     return () => {
-      document.removeEventListener("click", onClick);
-      document.removeEventListener("submit", onSubmit);
+      document.removeEventListener("click", onClick, true);
+      document.removeEventListener("submit", onSubmit, true);
     };
   }, []);
 

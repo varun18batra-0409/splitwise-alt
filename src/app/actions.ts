@@ -1,7 +1,7 @@
 "use server";
 
 import { cleanCover } from "@/lib/covers";
-import { redirect } from "next/navigation";
+import { redirect } from "@/lib/fresh-redirect";
 import { db } from "@/lib/db";
 import { forgetThisPhone, getAccount, getMemberships, getMyMemberId, keepGroupsDropAccount, setMyMemberId, signInAs } from "@/lib/identity";
 import { deleteAccount, requestLoginCode, verifyLoginCode } from "@/lib/auth";

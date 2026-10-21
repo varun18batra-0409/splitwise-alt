@@ -33,8 +33,40 @@ const SECTIONS: { title: string; items: QA[] }[] = [
         ),
       },
       {
+        q: "How do I invite friends to Loopin without making a group?",
+        a: (
+          <>
+            Tap <strong>Invite friends to Loopin</strong> on Home or on the <strong>You</strong> page. It opens WhatsApp (or any app on your phone)
+            with a short note and the link. Once they sign up, they show up in Add people as someone already on Loopin, ready for your next group.
+          </>
+        ),
+      },
+      {
         q: "Can I use it on more than one phone, or install it as an app?",
         a: "Sign in on any phone and your groups are there. To put Loopin on your home screen, tap App on the Home screen and follow the two steps for your phone (no app store needed).",
+      },
+    ],
+  },
+  {
+    title: "Your groups and Home",
+    items: [
+      {
+        q: "Can I give a group a picture, or use my own photo?",
+        a: (
+          <>
+            Yes. In the group’s settings, under <strong>Picture</strong>, swipe through drawn pictures and real photos (beach, mountains, Paris,
+            food, a wedding…), or tap <strong>Your photo</strong> to pick one from your gallery. Your own photo is made small on your phone first and
+            only people in the group can see it. New groups get a drawn picture that suits what they’re for.
+          </>
+        ),
+      },
+      {
+        q: "What are the cards that slide by at the top of Home?",
+        a: "Your overall balance (with Settle up), your month in numbers (your share across groups, how many expenses, what you spent most on), a seasonal idea like Diwali, and a way to bring groups over from another app. Swipe them, tap the dots, or pause them.",
+      },
+      {
+        q: "Why does Home show only four groups?",
+        a: "The four most recently active, so your balances fit on one screen. Tap Show all to see the rest. Closed groups are tucked under Closed groups.",
       },
     ],
   },

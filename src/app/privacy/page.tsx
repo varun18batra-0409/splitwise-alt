@@ -15,6 +15,7 @@ export default function Privacy() {
       <ul className={`list-disc space-y-1 pl-5 ${p}`}>
         <li>Group names, people’s names (as typed in the group), expenses, notes, payments and the change history.</li>
         <li>Phone numbers only if someone adds them when inviting from contacts.</li>
+        <li>A group’s own photo, if someone in the group adds one. It’s made small on the phone first, and only people in that group can see it.</li>
         <li>Your email and name, from signing up (or from Google, if you use Continue with Google). We use the email to sign you in and to tell you about your groups. Nothing else.</li>
         <li>If you turn on fingerprint / face sign-in, a key your phone made for Loopin. Your fingerprint or face never leaves your phone.</li>
         <li>A small cookie on your phone that remembers which person you are in each group.</li>

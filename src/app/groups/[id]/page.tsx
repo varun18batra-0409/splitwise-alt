@@ -159,6 +159,7 @@ export default async function GroupPage({
           <Link
             key={t.id}
             href={`/groups/${group.id}?tab=${t.id}`}
+            prefetch
             aria-current={t.id === tab ? "page" : undefined}
             className={`whitespace-nowrap rounded-lg px-1 py-2 text-center text-sm ${t.id === tab ? "bg-fg font-semibold text-canvas" : "text-gray-500"}`}
           >

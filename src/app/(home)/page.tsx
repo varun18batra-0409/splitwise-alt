@@ -1,4 +1,5 @@
 import Link from "@/components/Link";
+import { InviteFriends } from "@/components/InviteFriends";
 import { GetAppButton } from "@/components/GetApp";
 import { Notice } from "@/components/Notice";
 import { IntroTour } from "@/components/IntroTour";
@@ -525,7 +526,8 @@ export default async function Home({
         </Link>
       )}
 
-      <GetAppButton variant="card" className="mt-8" />
+      {all.length > 0 && <InviteFriends name={account?.name} className="mt-8" />}
+      <GetAppButton variant="card" className="mt-3" />
       <p className="mt-8 text-center text-xs text-gray-400">
         <Link href="/faq" className="underline underline-offset-4">
           FAQ
@@ -568,7 +570,7 @@ function GroupCard({ g, tz, short }: { g: Awaited<ReturnType<typeof loadOverview
   const type = TYPE_LABEL[g.group.type];
   return (
     <li className="min-w-0">
-      <Link href={`/groups/${g.group.id}`} className="lp-press block">
+      <Link href={`/groups/${g.group.id}`} prefetch className="lp-press block">
         <span className={`relative block overflow-hidden rounded-[20px] border border-line ${short ? "h-[140px]" : "h-[188px]"}`}>
           <GroupCover {...coverFor(g.group)} uid={g.group.id} letter={g.group.name} />
           {type && (
