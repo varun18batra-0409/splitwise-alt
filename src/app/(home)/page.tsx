@@ -314,6 +314,32 @@ export default async function Home({
                     {netValue > 0 ? "you get money back" : netValue < 0 ? "you need to pay" : "it all evens out"}
                     {open.filter((g) => g.myBalance !== 0).length > 1 ? `, from ${open.filter((g) => g.myBalance !== 0).length} groups` : ""}
                   </p>
+                  {/* Everyone behind the number: tap to see the full list (Settle). */}
+                  {settleItems.length > 0 && (
+                    <Link
+                      href="/settle"
+                      aria-label={`Who: ${settleItems.map((it) => (it.net < 0 ? `you owe ${it.name} ${amt(it.net, it.converted)}` : `${it.name} owes you ${amt(it.net, it.converted)}`)).join("; ")}`}
+                      className="relative z-10 mt-2.5 flex items-center self-start rounded-full py-0.5 pr-1 active:opacity-80"
+                    >
+                      {settleItems.slice(0, 4).map((it) => (
+                        <span
+                          key={it.key}
+                          aria-hidden
+                          className={`-mr-[6px] flex h-[24px] w-[24px] items-center justify-center rounded-full border-2 border-[#17110e] text-[10px] font-bold text-canvas ${it.net < 0 ? "bg-owe" : "bg-owed"}`}
+                        >
+                          {it.name.trim().charAt(0).toUpperCase()}
+                        </span>
+                      ))}
+                      {settleItems.length > 4 && (
+                        <span aria-hidden className="flex h-[24px] items-center rounded-full border-2 border-[#17110e] bg-fg px-1.5 text-[10px] font-bold text-canvas">
+                          +{settleItems.length - 4}
+                        </span>
+                      )}
+                      <span aria-hidden className="ml-3 text-xs text-fg/60">
+                        {settleItems.length === 1 ? settleItems[0].name : `${settleItems.length} people`} ›
+                      </span>
+                    </Link>
+                  )}
                 </>
               )}
               {settleItems.length > 0 && (
@@ -591,40 +617,51 @@ function GroupCard({ g, tz, short, i = 0 }: { g: Awaited<ReturnType<typeof loadO
   const b = g.myBalance;
   const people = g.group.members.filter((m) => !m.leftAt);
   const type = TYPE_LABEL[g.group.type];
+  const photoH = short ? 118 : 150;
   return (
     <li className="min-w-0">
-      <Link href={`/groups/${g.group.id}`} className={`lp-press block transition-transform duration-200 active:rotate-0 ${i % 2 === 0 ? "-rotate-[1.4deg]" : "rotate-[1.6deg]"}`}>
-        <Polaroid
-          cover={coverFor(g.group)}
-          uid={g.group.id}
-          letter={g.group.name}
-          caption={g.group.name}
-          note={b > 0 ? `owed ${formatMoney(b, g.group.currency)}` : b < 0 ? `owe ${formatMoney(-b, g.group.currency)}` : "settled"}
-          noteTone={b > 0 ? "owed" : b < 0 ? "owe" : undefined}
-          photoClass={short ? "h-[118px]" : "h-[150px]"}
-          captionClass="text-[21px]"
-          sizes="(max-width: 448px) 50vw, 224px"
+      <div className={`relative transition-transform duration-200 has-[a:active]:rotate-0 ${i % 2 === 0 ? "-rotate-[1.4deg]" : "rotate-[1.6deg]"}`}>
+        <Link href={`/groups/${g.group.id}`} className="lp-press block">
+          <Polaroid
+            cover={coverFor(g.group)}
+            uid={g.group.id}
+            letter={g.group.name}
+            caption={g.group.name}
+            note={b > 0 ? `owed ${formatMoney(b, g.group.currency)}` : b < 0 ? `owe ${formatMoney(-b, g.group.currency)}` : "settled"}
+            noteTone={b > 0 ? "owed" : b < 0 ? "owe" : undefined}
+            photoClass={short ? "h-[118px]" : "h-[150px]"}
+            captionClass="text-[21px]"
+            sizes="(max-width: 448px) 50vw, 224px"
+          >
+            {type && (
+              <span className="absolute left-2 top-2 rounded-full bg-canvas/60 px-2.5 py-1 text-[11px] font-semibold text-fg backdrop-blur" aria-hidden>
+                {type}
+              </span>
+            )}
+          </Polaroid>
+          <span className="mt-2 block truncate px-0.5 text-xs text-gray-400">
+            {peopleCount(people.length)}, {activeText(g.lastActivity, tz)}
+          </span>
+        </Link>
+        {/* Who's in it: tap the faces (or "+2") to see everyone and where each one stands. */}
+        <Link
+          href={`/groups/${g.group.id}/people`}
+          aria-label={`Everyone in ${g.group.name}: ${people.map((m) => m.name).join(", ")}`}
+          className="absolute left-[13px] flex rounded-full active:opacity-80"
+          style={{ top: `${photoH - 27}px` }}
         >
-          {type && (
-            <span className="absolute left-2 top-2 rounded-full bg-canvas/60 px-2.5 py-1 text-[11px] font-semibold text-fg backdrop-blur" aria-hidden>
-              {type}
+          {people.slice(0, 4).map((m) => (
+            <span key={m.id} aria-hidden className="-mr-[7px] flex h-[24px] w-[24px] items-center justify-center rounded-full border-2 border-canvas bg-gray-100 text-[10px] font-bold text-fg">
+              {m.name.trim().charAt(0).toUpperCase()}
+            </span>
+          ))}
+          {people.length > 4 && (
+            <span aria-hidden className="flex h-[24px] items-center rounded-full border-2 border-canvas bg-gray-100 px-1.5 text-[10px] font-bold text-fg">
+              +{people.length - 4}
             </span>
           )}
-          <span className="absolute bottom-2 left-2 flex" aria-hidden>
-            {people.slice(0, 4).map((m) => (
-              <span key={m.id} className="-mr-[7px] flex h-[24px] w-[24px] items-center justify-center rounded-full border-2 border-canvas bg-gray-100 text-[10px] font-bold text-fg">
-                {m.name.trim().charAt(0).toUpperCase()}
-              </span>
-            ))}
-            {people.length > 4 && (
-              <span className="flex h-[24px] items-center rounded-full border-2 border-canvas bg-gray-100 px-1.5 text-[10px] font-bold text-fg">+{people.length - 4}</span>
-            )}
-          </span>
-        </Polaroid>
-        <span className="mt-2 block truncate px-0.5 text-xs text-gray-400">
-          {peopleCount(people.length)}, {activeText(g.lastActivity, tz)}
-        </span>
-      </Link>
+        </Link>
+      </div>
     </li>
   );
 }
