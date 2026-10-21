@@ -249,7 +249,7 @@ form[aria-busy="true"] button[type="submit"] {
   }
 }
 .lp-orbit {
-  animation: lp-orbit 1.4s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  animation: lp-orbit 1.2s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
 }
 /* "Slow connection" only appears if opening takes more than a few seconds. */
 @keyframes lp-late {
@@ -336,4 +336,20 @@ form[aria-busy="true"] button[type="submit"] {
   .lp-press:active {
     transform: none;
   }
+}
+
+/* The opening screen over everything while the app opens (see layout.tsx). */
+.lp-open {
+  display: none;
+}
+html.lp-opening .lp-open {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  transition: opacity 350ms ease-out;
+}
+html.lp-opened .lp-open {
+  opacity: 0;
+  pointer-events: none;
 }
