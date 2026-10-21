@@ -1,19 +1,22 @@
 // Takes phone-sized screenshots of every screen (used by the GitHub check so
 // the design can be reviewed). Needs the app running on :3000 and .demo.json.
 import { mkdirSync, readFileSync } from "node:fs";
-import { chromium, type Page } from "playwright";
+import { chromium, webkit, type Page } from "playwright";
 import { SESSION_COOKIE, encodeSession } from "../src/lib/session";
 
 import { base, hosted, signInOnTestCopy, withBypass } from "./hosted";
 const demo = JSON.parse(readFileSync(".demo.json", "utf8"));
-const out = "screenshots";
+// SHOT_ENGINE=webkit: the same screens in Safari's engine (iPhone), saved to screenshots/ios.
+const ios = process.env.SHOT_ENGINE === "webkit";
+const out = ios ? "screenshots/ios" : "screenshots";
 mkdirSync(out, { recursive: true });
 
 async function main() {
-const browser = withBypass(await chromium.launch());
+const browser = withBypass(await (ios ? webkit : chromium).launch());
 const context = await browser.newContext({
   viewport: { width: 390, height: 844 },
   deviceScaleFactor: 2,
+  ...(ios ? { isMobile: true, hasTouch: true, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1" } : {}),
   colorScheme: "dark",
   locale: "en-IN",
   timezoneId: "Asia/Kolkata",
