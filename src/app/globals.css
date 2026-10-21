@@ -51,6 +51,7 @@
 
 @theme inline {
   --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+  --font-hand: var(--font-caveat), "Bradley Hand", "Segoe Print", cursive;
 }
 
 html {
@@ -392,8 +393,7 @@ html.lp-opened .lp-open {
 /* The polaroids on Home's balance card drop onto the table, one after another. */
 @keyframes lp-drop {
   from {
-    opacity: 0;
-    transform: translateY(-14px) scale(1.08);
+    transform: translateY(-16px) scale(1.1);
   }
 }
 .lp-drop {

@@ -54,7 +54,7 @@ export default async function JoinPage({
           </div>
         )}
         <div className={`relative px-5 pb-6 ${coverOf(group) !== "plain" ? "-mt-6" : "pt-6"}`}>
-        <p className="text-sm text-fg/55">You’re invited to</p>
+        <p className="font-hand text-[22px] font-bold leading-none text-[#ffd9a8]">You’re invited to</p>
         <p className="mt-1 font-display text-[28px] font-semibold leading-tight">{group.name}</p>
         <p className="mt-2 text-sm text-fg/60">
           {active.length} {active.length === 1 ? "person" : "people"}

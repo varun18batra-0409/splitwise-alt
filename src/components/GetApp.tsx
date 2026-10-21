@@ -60,9 +60,18 @@ function useInstall() {
 function Steps({ platform, onClose }: { platform: Platform; onClose: () => void }) {
   const steps =
     platform === "ios-safari"
-      ? ["Tap the Share button ⬆︎ at the bottom of Safari.", "Scroll down and tap “Add to Home Screen”.", "Tap “Add”. Loopin is now on your home screen."]
+      ? [
+          // Safari on iOS 26 keeps Share behind "⋯"; older Safari shows it in the bottom bar.
+          "Tap ⋯ at the bottom right, then Share ⬆︎. (Older iPhones: tap Share ⬆︎ in the bottom bar.)",
+          "Scroll down and tap “Add to Home Screen”. Don’t see it? Tap “View More” or “Edit Actions”.",
+          "Keep “Open as Web App” on, then tap “Add”. Loopin is now on your home screen.",
+        ]
       : platform === "ios-other"
-        ? ["Tap the Share button ⬆︎ (next to the address bar).", "Tap “Add to Home Screen”. (On older iPhones, open this page in Safari first.)", "Tap “Add”."]
+        ? [
+            "Tap Share ⬆︎ next to the address bar (in Chrome: ⋯ then Share).",
+            "Tap “Add to Home Screen”. Not there? Open loopinapps.com in Safari and add it from there.",
+            "Tap “Add”.",
+          ]
         : platform === "android"
           ? ["Tap the ⋮ menu at the top right of Chrome.", "Tap “Install app” or “Add to Home screen”.", "Tap “Install”."]
           : ["Open your browser's menu.", "Choose “Install app” or “Add to Home screen”.", "Confirm."];

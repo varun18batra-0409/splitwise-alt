@@ -16,6 +16,7 @@ import { buildActivity, dayLabel } from "@/lib/activity";
 import { decimalsOf, formatMoney } from "@/lib/money";
 import { HomeBanner } from "@/components/HomeBanner";
 import { GroupCover } from "@/components/GroupCover";
+import { Polaroid } from "@/components/Polaroid";
 import { coverFor, coverOf } from "@/lib/covers";
 import { monthNumbers, seasonNow } from "@/lib/home/banner";
 import { ActivityRow } from "@/components/ActivityRow";
@@ -112,8 +113,10 @@ export default async function Home({
           : null;
 
   // The sliding cards at the top: your month so far, and a seasonal nudge.
+  // Your month across every group you're in (closed ones too: it was still your money), the same
+  // way Insights counts it.
   const month = monthNumbers(
-    open.map((g) => ({ currency: g.group.currency, myId: g.myId, expenses: g.expenses })),
+    all.map((g) => ({ currency: g.group.currency, myId: g.myId, expenses: g.expenses })),
     toCommon,
     common,
     new Date(),
@@ -122,6 +125,8 @@ export default async function Home({
   const region = visitorRegion(await headers());
   const season = seasonNow(new Date(), tz, region.country);
   const byActivity = [...open].sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
+  // The balance card's polaroids: the groups that make up most of your balance (then the latest).
+  const byWeight = [...open].sort((a, b) => Math.abs(b.myBalance) - Math.abs(a.myBalance) || b.lastActivity.getTime() - a.lastActivity.getTime());
   // With one or two groups, shorter cards, so "Needs attention" shows without scrolling.
   const short = byActivity.length <= 2;
 
@@ -203,23 +208,21 @@ export default async function Home({
 
           <section className="mt-8">
             <h2 className="mb-2 font-display text-lg font-semibold tracking-tight">Quick start</h2>
-            <div className="lp-rise grid grid-cols-2 gap-3">
+            <div className="lp-rise grid grid-cols-2 gap-4 px-1 pt-1">
               {[
                 ["trip", "Trip", "Goa trip"],
                 ["home", "Flatmates", "Flat expenses"],
-              ].map(([type, label, name]) => (
+              ].map(([type, label, name], i) => (
                 <Link
                   key={label}
                   href={`/groups/new?name=${encodeURIComponent(name)}&type=${type}`}
-                  className="lp-press relative block h-[124px] overflow-hidden rounded-[20px] border border-line"
+                  className={`lp-press block ${i === 0 ? "-rotate-[2deg]" : "rotate-[2deg]"} active:rotate-0`}
                 >
-                  <GroupCover kind={coverOf({ type })} uid={`quick-${type}`} />
-                  <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgba(13,13,15,0)_30%,rgba(13,13,15,0.85)_100%)]" />
-                  <span className="absolute bottom-3 left-3.5 text-[15px] font-semibold">{label}</span>
+                  <Polaroid cover={{ kind: coverOf({ type }) }} uid={`quick-${type}`} letter={label} caption={label} note="Start one ›" photoClass="h-[104px]" captionClass="text-[21px]" sizes="50vw" />
                 </Link>
               ))}
             </div>
-            <Link href="/add" className="mt-2 flex items-center gap-3 rounded-2xl border border-line px-4 py-3.5 active:bg-mist">
+            <Link href="/add" className="mt-4 flex items-center gap-3 rounded-2xl border border-line px-4 py-3.5 active:bg-mist">
               <span className="text-xl" aria-hidden>
                 ＋
               </span>
@@ -259,34 +262,41 @@ export default async function Home({
         <>
           {/* The sliding cards: your balance, your month, a seasonal idea, bringing a group over. */}
           <HomeBanner>
-            <div className="vault flex h-[268px] flex-col px-5 pb-12 pt-5 text-fg">
-              {/* Your groups as polaroids, tossed on the table. */}
-              <div aria-hidden className="absolute right-2 top-2 h-[70px] w-[120px]">
-                {open.slice(0, 3).map((g, i) => (
-                  <span
+            {/* Your balance, told by your groups: each polaroid is a group, with what it adds up to for you
+                written under it — so where the number comes from is right there. */}
+            <div className="relative flex h-[268px] flex-col overflow-hidden px-5 pb-12 pt-5 text-fg [background:radial-gradient(70%_80%_at_85%_30%,#3a2a1e_0%,transparent_70%),repeating-linear-gradient(45deg,rgba(244,241,232,0.035)_0_2px,transparent_2px_9px),repeating-linear-gradient(-45deg,rgba(244,241,232,0.03)_0_2px,transparent_2px_9px),linear-gradient(160deg,#211813_0%,#121014_75%)]">
+              <div aria-hidden className="absolute inset-y-0 right-0 w-[62%]">
+                {byWeight.slice(0, 3).map((g, i) => (
+                  <Polaroid
                     key={g.group.id}
-                    className={`lp-drop absolute block w-[48px] bg-[#f4f2ec] p-[3px] pb-[10px] shadow-[0_10px_22px_-6px_rgba(0,0,0,0.85)] ${
-                      ["right-[62px] top-2.5 -rotate-[11deg]", "right-[31px] top-0 rotate-[5deg]", "right-1 top-3.5 rotate-[14deg]"][i]
-                    }`}
-                    style={{ animationDelay: `${i * 90}ms` }}
+                    cover={coverFor(g.group)}
+                    uid={`pol-${g.group.id}`}
+                    letter={g.group.name}
+                    caption={g.group.name}
+                    note={g.myBalance > 0 ? `+${formatMoney(roundWhole(g.myBalance, g.group.currency), g.group.currency)}` : g.myBalance < 0 ? `−${formatMoney(roundWhole(g.myBalance, g.group.currency), g.group.currency)}` : "settled"}
+                    noteTone={g.myBalance > 0 ? "owed" : g.myBalance < 0 ? "owe" : undefined}
+                    photoClass="h-[74px]"
+                    className={`lp-drop absolute w-[100px] ${POLAROID_SPOTS[byWeight.length === 1 ? 3 : i]}`}
+                    style={{ animationDelay: `${i * 110}ms` }}
+                    sizes="100px"
                   >
-                    <span className="relative block h-[40px] overflow-hidden">
-                      <GroupCover {...coverFor(g.group)} uid={`stack-${g.group.id}`} letter={g.group.name} small sizes="48px" />
-                    </span>
-                  </span>
+                    {i === 0 && <span className="absolute -top-1 left-1/2 h-[14px] w-[46px] -translate-x-1/2 -rotate-[4deg] bg-[#e9d9b0]/75 shadow-sm" />}
+                  </Polaroid>
                 ))}
               </div>
+              {/* Keeps the words readable where the photos slide under them. */}
+              <div aria-hidden className="absolute inset-y-0 left-0 z-[5] w-[75%] bg-[linear-gradient(90deg,#17110e_0%,rgba(23,17,14,0.9)_50%,rgba(23,17,14,0)_100%)]" />
               {owedLines.length === 0 && oweLines.length === 0 ? (
                 <>
-                  <p className="text-sm text-fg/55">Across your groups</p>
-                  <h1 className="mt-auto font-display text-[40px] font-semibold leading-none tracking-tight">All square 🎉</h1>
-                  <p className="mt-2 text-sm text-fg/55">Nobody owes anybody. Nice.</p>
+                  <p className="relative z-10 text-sm text-fg/60">Across your groups</p>
+                  <h1 className="relative z-10 mt-auto font-display text-[40px] font-semibold leading-none tracking-tight [text-shadow:0_2px_12px_rgba(0,0,0,0.6)]">All square</h1>
+                  <p className="relative z-10 mt-2 font-hand text-[22px] font-bold leading-none text-[#ffd9a8]">nobody owes anybody ✌︎</p>
                 </>
               ) : (
                 <>
-                  <p className="text-sm text-fg/55">Net balance{netCommon && netCommon.converted ? ` · in ${common}` : ""}</p>
+                  <p className="relative z-10 text-sm text-fg/60">Net balance{netCommon && netCommon.converted ? ` · in ${common}` : ""}</p>
                   <h1
-                    className={`mt-auto break-words font-display text-[clamp(26px,9vw,36px)] font-semibold leading-none tracking-tight tabular-nums ${
+                    className={`relative z-10 mt-auto max-w-[78%] break-words font-display [text-shadow:0_2px_14px_rgba(0,0,0,0.7)] text-[clamp(26px,9vw,36px)] font-semibold leading-none tracking-tight tabular-nums ${
                       netValue > 0 ? "text-owed" : netValue < 0 ? "text-owe" : ""
                     }`}
                   >
@@ -300,35 +310,40 @@ export default async function Home({
                       netLines.join(" · ")
                     )}
                   </h1>
-                  <p className="mt-1.5 text-sm text-fg/60">
-                    {netValue > 0 ? "Overall, you get money back." : netValue < 0 ? "Overall, you need to pay." : "It all evens out."}
+                  <p className="relative z-10 mt-1.5 max-w-[80%] font-hand text-[21px] font-bold leading-none text-[#ffd9a8] [text-shadow:0_1px_8px_rgba(0,0,0,0.8)]">
+                    {netValue > 0 ? "you get money back" : netValue < 0 ? "you need to pay" : "it all evens out"}
+                    {open.filter((g) => g.myBalance !== 0).length > 1 ? `, from ${open.filter((g) => g.myBalance !== 0).length} groups` : ""}
                   </p>
-                  {/* Where it comes from: the people behind the number. */}
+                  {/* Everyone behind the number: tap to see the full list (Settle). */}
                   {settleItems.length > 0 && (
-                    <p className="mt-2 flex min-w-0 items-center gap-1.5 overflow-hidden text-xs" aria-label="Where it comes from">
-                      {settleItems.slice(0, 2).map((it) => (
+                    <Link
+                      href="/settle"
+                      aria-label={`Who: ${settleItems.map((it) => (it.net < 0 ? `you owe ${it.name} ${amt(it.net, it.converted)}` : `${it.name} owes you ${amt(it.net, it.converted)}`)).join("; ")}`}
+                      className="relative z-10 mt-2.5 flex items-center self-start rounded-full py-0.5 pr-1 active:opacity-80"
+                    >
+                      {settleItems.slice(0, 4).map((it) => (
                         <span
                           key={it.key}
-                          aria-label={it.net < 0 ? `You owe ${it.name} ${amt(it.net, it.converted)}` : `${it.name} owes you ${amt(it.net, it.converted)}`}
-                          className="flex min-w-0 shrink items-center gap-1.5 rounded-full bg-fg/[0.08] py-0.5 pl-0.5 pr-2.5"
+                          aria-hidden
+                          className={`-mr-[6px] flex h-[24px] w-[24px] items-center justify-center rounded-full border-2 border-[#17110e] text-[10px] font-bold text-canvas ${it.net < 0 ? "bg-owe" : "bg-owed"}`}
                         >
-                          <span aria-hidden className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-canvas ${it.net < 0 ? "bg-owe" : "bg-owed"}`}>
-                            {it.name.trim().charAt(0).toUpperCase()}
-                          </span>
-                          <span aria-hidden className="max-w-[64px] truncate">{it.name}</span>
-                          <span aria-hidden className={`shrink-0 tabular-nums ${it.net < 0 ? "text-owe" : "text-owed"}`}>
-                            {it.converted ? "≈ " : ""}
-                            {formatMoney(roundWhole(it.net, common), common)}
-                          </span>
+                          {it.name.trim().charAt(0).toUpperCase()}
                         </span>
                       ))}
-                      {settleItems.length > 2 && <span className="shrink-0 text-fg/45">+{settleItems.length - 2}</span>}
-                    </p>
+                      {settleItems.length > 4 && (
+                        <span aria-hidden className="flex h-[24px] items-center rounded-full border-2 border-[#17110e] bg-fg px-1.5 text-[10px] font-bold text-canvas">
+                          +{settleItems.length - 4}
+                        </span>
+                      )}
+                      <span aria-hidden className="ml-3 text-xs text-fg/60">
+                        {settleItems.length === 1 ? settleItems[0].name : `${settleItems.length} people`} ›
+                      </span>
+                    </Link>
                   )}
                 </>
               )}
               {settleItems.length > 0 && (
-                <Link href="/settle" className={`mt-3 ${bannerButton}`}>
+                <Link href="/settle" className={`relative z-10 mt-3 ${bannerButton}`}>
                   Settle up
                 </Link>
               )}
@@ -343,7 +358,7 @@ export default async function Home({
                 <p className="relative mt-1 font-display text-[27px] font-semibold leading-[1.1]">{month.name} in numbers</p>
                 <div className="relative mt-auto flex gap-5">
                   <p>
-                    <span className="block font-display text-[19px] font-semibold tabular-nums">
+                    <span className="block font-display text-[19px] font-semibold tabular-nums" data-month-share>
                       {month.converted ? "≈ " : ""}
                       {formatMoney(month.share, month.currency)}
                     </span>
@@ -425,9 +440,9 @@ export default async function Home({
             ) : (
               <>
                 {/* Up to 4 groups (most recently active first); the rest open with a tap, in the same grid. */}
-                <ul className="lp-rise mt-3 grid grid-cols-2 gap-x-3 gap-y-5">
-                  {byActivity.slice(0, 4).map((g) => (
-                    <GroupCard key={g.group.id} g={g} tz={tz} short={short} />
+                <ul className="lp-rise mt-4 grid grid-cols-2 gap-x-4 gap-y-6">
+                  {byActivity.slice(0, 4).map((g, i) => (
+                    <GroupCard key={g.group.id} g={g} tz={tz} short={short} i={i} />
                   ))}
                   {byActivity.length < 4 && byActivity.length % 2 === 1 && <StartTile short={short} />}
                 </ul>
@@ -437,9 +452,9 @@ export default async function Home({
                       <span className="group-open/more:hidden">Show all {byActivity.length} groups</span>
                       <span className="hidden group-open/more:inline">Show fewer</span>
                     </summary>
-                    <ul className="lp-rise mt-4 grid grid-cols-2 gap-x-3 gap-y-5">
-                      {byActivity.slice(4).map((g) => (
-                        <GroupCard key={g.group.id} g={g} tz={tz} short={short} />
+                    <ul className="lp-rise mt-5 grid grid-cols-2 gap-x-4 gap-y-6">
+                      {byActivity.slice(4).map((g, i) => (
+                        <GroupCard key={g.group.id} g={g} tz={tz} short={short} i={i} />
                       ))}
                       {byActivity.length % 2 === 1 && <StartTile short={short} />}
                     </ul>
@@ -595,40 +610,58 @@ function GroupRow({ g, closed, tz }: { g: Awaited<ReturnType<typeof loadOverview
   );
 }
 
-// An open group on Home: its picture (with who's in it), name and your balance.
-function GroupCard({ g, tz, short }: { g: Awaited<ReturnType<typeof loadOverview>>["all"][number]; tz: string; short?: boolean }) {
+// An open group on Home, as a polaroid: its picture (with who's in it), the
+// name written underneath and your balance; tilted a little, alternately, like
+// photos laid out on a table. Straightens when pressed.
+function GroupCard({ g, tz, short, i = 0 }: { g: Awaited<ReturnType<typeof loadOverview>>["all"][number]; tz: string; short?: boolean; i?: number }) {
   const b = g.myBalance;
   const people = g.group.members.filter((m) => !m.leftAt);
   const type = TYPE_LABEL[g.group.type];
+  const photoH = short ? 118 : 150;
   return (
     <li className="min-w-0">
-      <Link href={`/groups/${g.group.id}`} className="lp-press block">
-        <span className={`relative block overflow-hidden rounded-[20px] border border-line ${short ? "h-[140px]" : "h-[188px]"}`}>
-          <GroupCover {...coverFor(g.group)} uid={g.group.id} letter={g.group.name} />
-          {type && (
-            <span className="absolute left-2.5 top-2.5 rounded-full bg-canvas/55 px-2.5 py-1 text-[11px] font-semibold backdrop-blur" aria-hidden>
-              {type}
+      <div className={`relative transition-transform duration-200 has-[a:active]:rotate-0 ${i % 2 === 0 ? "-rotate-[1.4deg]" : "rotate-[1.6deg]"}`}>
+        <Link href={`/groups/${g.group.id}`} className="lp-press block">
+          <Polaroid
+            cover={coverFor(g.group)}
+            uid={g.group.id}
+            letter={g.group.name}
+            caption={g.group.name}
+            note={b > 0 ? `owed ${formatMoney(b, g.group.currency)}` : b < 0 ? `owe ${formatMoney(-b, g.group.currency)}` : "settled"}
+            noteTone={b > 0 ? "owed" : b < 0 ? "owe" : undefined}
+            photoClass={short ? "h-[118px]" : "h-[150px]"}
+            captionClass="text-[21px]"
+            sizes="(max-width: 448px) 50vw, 224px"
+          >
+            {type && (
+              <span className="absolute left-2 top-2 rounded-full bg-canvas/60 px-2.5 py-1 text-[11px] font-semibold text-fg backdrop-blur" aria-hidden>
+                {type}
+              </span>
+            )}
+          </Polaroid>
+          <span className="mt-2 block truncate px-0.5 text-xs text-gray-400">
+            {peopleCount(people.length)}, {activeText(g.lastActivity, tz)}
+          </span>
+        </Link>
+        {/* Who's in it: tap the faces (or "+2") to see everyone and where each one stands. */}
+        <Link
+          href={`/groups/${g.group.id}/people`}
+          aria-label={`Everyone in ${g.group.name}: ${people.map((m) => m.name).join(", ")}`}
+          className="absolute left-[13px] flex rounded-full active:opacity-80"
+          style={{ top: `${photoH - 27}px` }}
+        >
+          {people.slice(0, 4).map((m) => (
+            <span key={m.id} aria-hidden className="-mr-[7px] flex h-[24px] w-[24px] items-center justify-center rounded-full border-2 border-canvas bg-gray-100 text-[10px] font-bold text-fg">
+              {m.name.trim().charAt(0).toUpperCase()}
+            </span>
+          ))}
+          {people.length > 4 && (
+            <span aria-hidden className="flex h-[24px] items-center rounded-full border-2 border-canvas bg-gray-100 px-1.5 text-[10px] font-bold text-fg">
+              +{people.length - 4}
             </span>
           )}
-          <span className="absolute bottom-2.5 left-2.5 flex" aria-hidden>
-            {people.slice(0, 4).map((m) => (
-              <span key={m.id} className="-mr-[7px] flex h-[26px] w-[26px] items-center justify-center rounded-full border-2 border-canvas bg-gray-100 text-[11px] font-bold text-fg">
-                {m.name.trim().charAt(0).toUpperCase()}
-              </span>
-            ))}
-            {people.length > 4 && (
-              <span className="flex h-[26px] items-center rounded-full border-2 border-canvas bg-gray-100 px-1.5 text-[10px] font-bold text-fg">+{people.length - 4}</span>
-            )}
-          </span>
-        </span>
-        <span className="mt-2.5 block truncate font-medium">{g.group.name}</span>
-        <span className={`mt-0.5 block truncate text-sm tabular-nums ${b > 0 ? "text-owed" : b < 0 ? "text-owe" : "text-gray-400"}`}>
-          {b > 0 ? `owed ${formatMoney(b, g.group.currency)}` : b < 0 ? `owe ${formatMoney(-b, g.group.currency)}` : "settled"}
-        </span>
-        <span className="block truncate text-xs text-gray-400">
-          {peopleCount(people.length)}, {activeText(g.lastActivity, tz)}
-        </span>
-      </Link>
+        </Link>
+      </div>
     </li>
   );
 }
@@ -641,7 +674,7 @@ function StartTile({ short }: { short?: boolean }) {
     <li>
       <Link
         href="/groups/new"
-        className={`lp-press flex ${short ? "h-[140px]" : "h-[188px]"} flex-col items-center justify-center gap-2 rounded-[20px] border-[1.5px] border-dashed border-gray-300 text-sm font-medium text-gray-600 active:bg-mist`}
+        className={`lp-press flex ${short ? "h-[170px]" : "h-[202px]"} rotate-[1.6deg] flex-col items-center justify-center gap-2 border-[1.5px] border-dashed border-gray-300 text-sm font-medium text-gray-600 active:bg-mist`}
       >
         <span className="text-2xl leading-none" aria-hidden>
           ＋
@@ -668,3 +701,12 @@ function roundWhole(minor: number, currency: string): number {
   const unit = 10 ** decimalsOf(currency);
   return Math.round(Math.abs(minor) / unit) * unit;
 }
+
+// Where the balance card's polaroids land: scattered, a little off the edge, like on a table.
+// The last spot is for when there's only one group.
+const POLAROID_SPOTS = [
+  "right-[-12px] top-[14px] rotate-[8deg] z-[3]",
+  "right-[70px] top-[-22px] -rotate-[9deg] z-[2]",
+  "right-[34px] top-[116px] -rotate-[5deg] z-[1]",
+  "right-[18px] top-[40px] rotate-[6deg]",
+];

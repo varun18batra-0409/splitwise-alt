@@ -72,7 +72,7 @@ export function Insights({ d }: { d: InsightsData }) {
             <p className="text-xs text-fg/55">
               {d.view === "share" ? "Your share" : "Group spend"} · {bucketTitle(d.selected, d.grain)}
             </p>
-            <p className="mt-1 font-display text-[34px] font-semibold leading-none tracking-tight tabular-nums">
+            <p className="mt-1 font-display text-[34px] font-semibold leading-none tracking-tight tabular-nums" data-insights-total>
               {approx}
               {formatMoney(Math.max(0, now), d.currency)}
             </p>

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces } from "next/font/google";
+import { Caveat, Fraunces } from "next/font/google";
 import "./globals.css";
 import { BottomNav } from "@/components/BottomNav";
 import { PushSync } from "@/components/PushControls";
@@ -13,6 +13,8 @@ import { Splash } from "@/components/Splash";
 // Fraunces: a sharp, high-contrast serif for headings and big amounts.
 // Body text stays in the phone's own font.
 const fraunces = Fraunces({ subsets: ["latin"], variable: "--font-fraunces", display: "swap" });
+// Caveat: a handwritten hand for the captions on polaroid photos (names written under a picture).
+const caveat = Caveat({ subsets: ["latin"], weight: ["600", "700"], variable: "--font-caveat", display: "swap" });
 
 export const metadata: Metadata = {
   title: "Loopin",
@@ -30,7 +32,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={fraunces.variable} suppressHydrationWarning>
+    <html lang="en" className={`${fraunces.variable} ${caveat.variable}`} suppressHydrationWarning>
       <head>
         {/* Opening the app: the opening screen stays at least 1.5 seconds (and until the app is ready), once per visit. */}
         <script dangerouslySetInnerHTML={{ __html: OPENING }} />

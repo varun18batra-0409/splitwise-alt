@@ -62,3 +62,26 @@ test("edit the amount (₹900 → ₹1,200): balances recalculate to +₹800 / �
   expect(await readBalances(A, group.path)).toEqual({ Alice: 80000, Bob: -40000, Cara: -40000 });
   expect(await readBalances(B, group.path)).toEqual({ Alice: 80000, Bob: -40000, Cara: -40000 });
 });
+
+test("Insights add up: your share and group spend match what was entered, and Home's month card agrees", async () => {
+  // Bob adds a ₹300 taxi for all three: Alice's part is ₹100. With the ₹1,200 dinner (her part ₹400): ₹500.
+  await addEqualExpense(B, group.path, "Taxi", "300");
+  const gid = group.path.split("/").pop();
+  await A.goto(`/search?g=${gid}`);
+  await settled(A);
+  await expect(A.locator("[data-insights-total]"), "Insights: Alice's share this month").toHaveText("₹500");
+  await A.goto(`/search?g=${gid}&v=spent`);
+  await settled(A);
+  await expect(A.locator("[data-insights-total]"), "Insights: the group's spending this month").toHaveText("₹1,500");
+  // Everything together (no group picked) is the same here: Alice is only in this group.
+  await A.goto("/search");
+  await settled(A);
+  await expect(A.locator("[data-insights-total]")).toHaveText("₹500");
+  // Home's "your month" card (it looks back at last month in a month's first three days).
+  const dayOfMonth = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", day: "numeric" }).format(new Date()));
+  if (dayOfMonth > 3) {
+    await A.goto("/");
+    await settled(A);
+    await expect(A.locator("[data-month-share]")).toHaveText("₹500");
+  }
+});

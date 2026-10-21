@@ -2,8 +2,9 @@ import Link from "@/components/Link";
 import { getMemberships } from "@/lib/identity";
 import { loadMyGroups } from "@/lib/group-data";
 import { buildActivity, byDay, filterActivity } from "@/lib/activity";
-import { bucketOf, bucketsEnding, cleanPeriod, inPeriod, monthLabel, periodsOf, recap, type Grain } from "@/lib/search";
+import { cleanPeriod, inPeriod, monthLabel, periodsOf, recap, type Grain } from "@/lib/search";
 import { Insights, type InsightsData } from "./Insights";
+import { computeInsights } from "@/lib/insights";
 import { db } from "@/lib/db";
 import { displayRate } from "@/lib/rate-cache";
 import { convertAmount } from "@/lib/conversion";
@@ -79,13 +80,14 @@ export default async function SearchPage({
   };
 
   // ---------- Insights (the chart on top) ----------
-  // One currency for the chart: the one most of these groups use; others at the saved rate.
+  // One currency for the chart — the same one Home uses: the currency most of your open groups
+  // use (or the group's own when you're looking at one group). Others at the saved rate.
   const curCount = new Map<string, number>();
-  for (const g of groups) curCount.set(g.group.currency, (curCount.get(g.group.currency) ?? 0) + 1);
-  const chartCurrency = [...curCount].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "INR";
+  for (const g of groups.filter((x) => !x.group.closed)) curCount.set(g.group.currency, (curCount.get(g.group.currency) ?? 0) + 1);
+  const chartCurrency = groupId ? groups[0].group.currency : ([...curCount].sort((a, b) => b[1] - a[1])[0]?.[0] ?? groups[0]?.group.currency ?? "INR");
   const rates = new Map<string, string | null>(
     await Promise.all(
-      [...curCount.keys()]
+      [...new Set(groups.map((g) => g.group.currency))]
         .filter((c) => c !== chartCurrency)
         .map(async (c) => {
           const r = await displayRate(c, chartCurrency, after);
@@ -93,36 +95,24 @@ export default async function SearchPage({
         }),
     ),
   );
-  let converted = false;
-  const inChart = (amount: number, cur: string): number | null => {
-    if (cur === chartCurrency) return amount;
-    const rate = rates.get(cur);
-    if (!rate) return null;
-    converted = true;
-    const c = convertAmount(Math.abs(amount), cur, chartCurrency, rate);
-    return c === null ? null : Math.sign(amount) * c;
-  };
-  // Every expense (words and group filters applied, not the period): its value for the chosen view.
-  const points = rows.flatMap(({ item, g }) => {
-    if (item.kind !== "expense") return [];
-    const sign = item.refund ? -1 : 1;
-    const raw = view === "share" ? sign * (g.expenses.find((e) => e.id === item.id)?.shares.find((s) => s.memberId === g.myId)?.amount ?? 0) : sign * item.amount;
-    if (raw === 0) return [];
-    const v = inChart(raw, g.group.currency);
-    return v === null ? [] : [{ date: item.date, value: v, category: item.category }];
-  });
-  const todayKey = bucketOf(new Date(), grain, tz);
+  const matching = new Set(rows.filter((r) => r.item.kind === "expense").map((r) => r.item.id));
   const periodKey = grain === "w" ? period.week : grain === "m" ? period.month : period.year;
-  const selected = periodKey ?? todayKey;
-  const lastKey = selected > todayKey ? selected : todayKey;
-  const keys = bucketsEnding(lastKey, grain);
-  const sums = new Map<string, number>();
-  const cats = new Map<string, number>();
-  for (const pt of points) {
-    const k = bucketOf(pt.date, grain, tz);
-    sums.set(k, (sums.get(k) ?? 0) + pt.value);
-    if (k === selected) cats.set(pt.category, (cats.get(pt.category) ?? 0) + pt.value);
-  }
+  const ins = computeInsights(
+    groups.map((g) => ({ currency: g.group.currency, myId: g.myId, expenses: g.expenses })),
+    {
+      view,
+      grain,
+      selected: periodKey,
+      now: new Date(),
+      tz,
+      currency: chartCurrency,
+      toChart: (amount, cur) => {
+        const rate = rates.get(cur);
+        return rate ? convertAmount(amount, cur, chartCurrency, rate) : null;
+      },
+      include: (id) => matching.has(id),
+    },
+  );
   // Bills that repeat, in these groups (Home and Couple groups have them).
   const billRows = await db.bill.findMany({
     where: { groupId: { in: groups.map((g) => g.group.id) }, deletedAt: null, paused: false },
@@ -134,14 +124,14 @@ export default async function SearchPage({
     view,
     grain,
     currency: chartCurrency,
-    converted,
-    bars: keys.map((k) => ({
+    converted: ins.converted,
+    bars: ins.bars.map(({ key: k, value }) => ({
       key: k,
-      value: sums.get(k) ?? 0,
+      value,
       href: grain === "w" ? href({ w: k, m: null, y: null, p: "w" }) : grain === "m" ? href({ m: k, w: null, y: null, p: "m" }) : href({ y: k, m: null, w: null, p: "y" }),
     })),
-    selected,
-    categories: [...cats].map(([id, amount]) => ({ id, amount })).filter((c) => c.amount > 0).sort((a, b) => b.amount - a.amount),
+    selected: ins.selected,
+    categories: ins.categories,
     bills: billRows.map((b) => {
       const g = groups.find((x) => x.group.id === b.groupId)!;
       const money = (n: number) => formatMoney(n, g.group.currency);
@@ -151,7 +141,10 @@ export default async function SearchPage({
         href: `/groups/${b.groupId}/bills/${b.id}`,
         name: b.name,
         group: g.group.name,
-        amount: b.nature === "daily" ? `${money(b.amount)}/day` : b.nature === "varies" ? (b.amount ? `~${money(b.amount)}` : "Changes") : `${money(b.amount)}/mo`,
+        amount:
+          b.nature === "daily"
+            ? `${money(b.amount)}/day`
+            : `${b.nature === "varies" ? (b.amount ? `~${money(b.amount)}` : "Changes") : money(b.amount)}${b.nature === "varies" && !b.amount ? "" : b.every > 1 ? ` / ${b.every} mo` : "/mo"}`,
         when: next ? niceDate(next).replace(/ \d{4}$/, "") : "—",
         emoji: BILL_EMOJI[b.icon] ?? "🧾",
       };
@@ -164,13 +157,23 @@ export default async function SearchPage({
   const monthLabelShort = (week: string) => new Date(`${week}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
   const back = groupId ? `/groups/${groupId}` : "/";
 
-  return (
+  // Search comes first: typing finds any expense, payment, person or place across
+  // your groups. With words typed, the results come straight under the box and
+  // the chart (for those words) after them; otherwise the chart first.
+  const clearHref = (() => {
+    const u = new URL(href({}), "http://x");
+    u.searchParams.delete("q");
+    return `/search${u.search}`;
+  })();
+  const results = (
     <>
-      <PageHeader title="Insights" back={back} />
-      {all.length > 0 && <Insights d={insights} />}
-
       <h2 className="mb-3 mt-2 font-display text-lg font-semibold tracking-tight">
-        Find anything
+        {q ? <>Results for “{q}”</> : "All expenses"}
+        {q && (
+          <Link href={clearHref} className="ml-2 font-sans text-sm font-normal text-gray-500 underline underline-offset-4">
+            clear
+          </Link>
+        )}
         {(period.week || period.month || period.year) && (
           <span className="ml-2 font-sans text-sm font-normal text-gray-500">
             in {period.week ? `the week of ${monthLabelShort(period.week)}` : periodName}
@@ -187,27 +190,6 @@ export default async function SearchPage({
           {sum.totals.map((t) => formatMoney(t.mine, t.currency)).join(" + ")}
         </p>
       )}
-
-      <form method="get" action="/search" role="search" data-allow-repeat="1" className="relative mb-4">
-        {groupId && <input type="hidden" name="g" value={groupId} />}
-        {period.week && <input type="hidden" name="w" value={period.week} />}
-        {period.month && <input type="hidden" name="m" value={period.month} />}
-        {period.year && <input type="hidden" name="y" value={period.year} />}
-        {view !== "share" && <input type="hidden" name="v" value={view} />}
-        {(sp.p === "w" || sp.p === "m" || sp.p === "y") && <input type="hidden" name="p" value={sp.p} />}
-        <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
-          <SearchIcon size={18} />
-        </span>
-        <input
-          type="search"
-          name="q"
-          defaultValue={q}
-          placeholder="Dinner, Goa, Asha, taxi…"
-          aria-label="Search"
-          enterKeyHint="search"
-          className="w-full rounded-full border border-line bg-mist py-3 pl-11 pr-4 text-base text-fg outline-none placeholder:text-gray-400 focus:border-accent"
-        />
-      </form>
 
       {/* Group, month and year chips: one tap each, scroll sideways for more. */}
       {all.length > 1 && (
@@ -267,6 +249,43 @@ export default async function SearchPage({
             <p className="text-center text-xs text-gray-400">Showing the latest 100 of {shown.length}. Add words or pick a month to narrow it down.</p>
           )}
         </div>
+      )}
+    </>
+  );
+  const chart = all.length > 0 && <Insights d={insights} />;
+  return (
+    <>
+      <PageHeader title="Insights" back={back} />
+      <form method="get" action="/search" role="search" data-allow-repeat="1" className="relative mb-6">
+        {groupId && <input type="hidden" name="g" value={groupId} />}
+        {period.week && <input type="hidden" name="w" value={period.week} />}
+        {period.month && <input type="hidden" name="m" value={period.month} />}
+        {period.year && <input type="hidden" name="y" value={period.year} />}
+        {view !== "share" && <input type="hidden" name="v" value={view} />}
+        {(sp.p === "w" || sp.p === "m" || sp.p === "y") && <input type="hidden" name="p" value={sp.p} />}
+        <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+          <SearchIcon size={18} />
+        </span>
+        <input
+          type="search"
+          name="q"
+          defaultValue={q}
+          placeholder="Search expenses, people, places…"
+          aria-label="Search"
+          enterKeyHint="search"
+          className="w-full rounded-full border border-line bg-mist py-3 pl-11 pr-4 text-base text-fg outline-none placeholder:text-gray-400 focus:border-accent"
+        />
+      </form>
+      {q ? (
+        <>
+          <section className="mb-10">{results}</section>
+          {chart}
+        </>
+      ) : (
+        <>
+          {chart}
+          {results}
+        </>
       )}
     </>
   );
