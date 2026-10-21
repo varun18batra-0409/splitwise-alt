@@ -1,7 +1,8 @@
 import nodemailer, { type Transporter } from "nodemailer";
 
-// Sends email through an SMTP account (for now: a Gmail address with an
-// "app password"). Set SMTP_USER and SMTP_PASS in the hosting settings.
+// Sends email through an SMTP account: Resend (SMTP_HOST=smtp.resend.com,
+// SMTP_USER=resend, SMTP_PASS=its API key) or a Gmail address with an "app
+// password" (the default host). Set these in the hosting settings.
 
 const outbox = () => process.env.MAIL_OUTBOX === "1" && process.env.NODE_ENV !== "development" && !process.env.VERCEL;
 
@@ -48,10 +49,12 @@ export async function sendMail(to: string, subject: string, text: string, html: 
     await db.outbox.create({ data: { to, subject, text } });
     return true;
   }
-  // A daily ceiling for the whole app (Gmail allows ~500 a day), so nobody can
-  // use up the quota and stop sign-in codes reaching everyone else.
+  // A daily ceiling for the whole app, so nobody can use up the quota and stop
+  // sign-in codes reaching everyone else. Under the sending service's own limit:
+  // Resend's free plan allows 100 a day, Gmail about 500. (MAIL_DAILY_CAP overrides.)
   const { allow } = await import("./rate-limit");
-  if (!(await allow("mail:all", Number(process.env.MAIL_DAILY_CAP ?? 400), 86_400))) {
+  const cap = Number(process.env.MAIL_DAILY_CAP ?? (/resend/i.test(process.env.SMTP_HOST ?? "") ? 95 : 400));
+  if (!(await allow("mail:all", cap, 86_400))) {
     console.error("sendMail: daily email cap reached");
     await noteFailure("cap");
     return false;
