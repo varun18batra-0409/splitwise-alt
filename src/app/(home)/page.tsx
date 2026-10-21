@@ -279,22 +279,24 @@ export default async function Home({
                     className={`lp-drop absolute w-[100px] ${POLAROID_SPOTS[byWeight.length === 1 ? 3 : i]}`}
                     style={{ animationDelay: `${i * 110}ms` }}
                     sizes="100px"
-                  />
+                  >
+                    {i === 0 && <span className="absolute -top-1 left-1/2 h-[14px] w-[46px] -translate-x-1/2 -rotate-[4deg] bg-[#e9d9b0]/75 shadow-sm" />}
+                  </Polaroid>
                 ))}
               </div>
               {/* Keeps the words readable where the photos slide under them. */}
-              <div aria-hidden className="absolute inset-y-0 left-0 w-[70%] bg-[linear-gradient(90deg,#17110e_0%,rgba(23,17,14,0.92)_45%,rgba(23,17,14,0)_100%)]" />
+              <div aria-hidden className="absolute inset-y-0 left-0 z-[5] w-[75%] bg-[linear-gradient(90deg,#17110e_0%,rgba(23,17,14,0.9)_50%,rgba(23,17,14,0)_100%)]" />
               {owedLines.length === 0 && oweLines.length === 0 ? (
                 <>
-                  <p className="relative text-sm text-fg/60">Across your groups</p>
-                  <h1 className="relative mt-auto font-display text-[40px] font-semibold leading-none tracking-tight">All square</h1>
-                  <p className="relative mt-2 font-hand text-[22px] font-bold leading-none text-[#ffd9a8]">nobody owes anybody ✌︎</p>
+                  <p className="relative z-10 text-sm text-fg/60">Across your groups</p>
+                  <h1 className="relative z-10 mt-auto font-display text-[40px] font-semibold leading-none tracking-tight [text-shadow:0_2px_12px_rgba(0,0,0,0.6)]">All square</h1>
+                  <p className="relative z-10 mt-2 font-hand text-[22px] font-bold leading-none text-[#ffd9a8]">nobody owes anybody ✌︎</p>
                 </>
               ) : (
                 <>
-                  <p className="relative text-sm text-fg/60">Net balance{netCommon && netCommon.converted ? ` · in ${common}` : ""}</p>
+                  <p className="relative z-10 text-sm text-fg/60">Net balance{netCommon && netCommon.converted ? ` · in ${common}` : ""}</p>
                   <h1
-                    className={`relative mt-auto max-w-[70%] break-words font-display text-[clamp(26px,9vw,36px)] font-semibold leading-none tracking-tight tabular-nums ${
+                    className={`relative z-10 mt-auto max-w-[78%] break-words font-display [text-shadow:0_2px_14px_rgba(0,0,0,0.7)] text-[clamp(26px,9vw,36px)] font-semibold leading-none tracking-tight tabular-nums ${
                       netValue > 0 ? "text-owed" : netValue < 0 ? "text-owe" : ""
                     }`}
                   >
@@ -308,14 +310,14 @@ export default async function Home({
                       netLines.join(" · ")
                     )}
                   </h1>
-                  <p className="relative mt-1.5 font-hand text-[21px] font-bold leading-none text-[#ffd9a8]">
+                  <p className="relative z-10 mt-1.5 max-w-[80%] font-hand text-[21px] font-bold leading-none text-[#ffd9a8] [text-shadow:0_1px_8px_rgba(0,0,0,0.8)]">
                     {netValue > 0 ? "you get money back" : netValue < 0 ? "you need to pay" : "it all evens out"}
                     {open.filter((g) => g.myBalance !== 0).length > 1 ? `, from ${open.filter((g) => g.myBalance !== 0).length} groups` : ""}
                   </p>
                 </>
               )}
               {settleItems.length > 0 && (
-                <Link href="/settle" className={`relative mt-3 ${bannerButton}`}>
+                <Link href="/settle" className={`relative z-10 mt-3 ${bannerButton}`}>
                   Settle up
                 </Link>
               )}
@@ -666,8 +668,8 @@ function roundWhole(minor: number, currency: string): number {
 // Where the balance card's polaroids land: scattered, a little off the edge, like on a table.
 // The last spot is for when there's only one group.
 const POLAROID_SPOTS = [
-  "right-[-6px] top-[10px] rotate-[8deg] z-[3]",
-  "right-[78px] top-[34px] -rotate-[10deg] z-[2]",
-  "right-[14px] top-[142px] -rotate-[4deg] z-[1]",
-  "right-[26px] top-[48px] rotate-[6deg]",
+  "right-[-12px] top-[14px] rotate-[8deg] z-[3]",
+  "right-[70px] top-[-22px] -rotate-[9deg] z-[2]",
+  "right-[34px] top-[132px] -rotate-[5deg] z-[1]",
+  "right-[18px] top-[40px] rotate-[6deg]",
 ];
