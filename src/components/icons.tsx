@@ -100,5 +100,15 @@ export const SearchIcon = (p: P) => (
   </Svg>
 );
 
+// Insights: a small bar chart.
+export const ChartIcon = (p: P) => (
+  <Svg {...p}>
+    <path d="M5 20V12" />
+    <path d="M10 20V6" />
+    <path d="M15 20v-9" />
+    <path d="M20 20V4" />
+  </Svg>
+);
+
 export const iconButtonClass =
   "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-line text-gray-700 active:bg-mist";

@@ -4,7 +4,7 @@ import { getCategory } from "./categories";
 // Search across your groups by words, month or year — plus a small recap of
 // the period (what was spent, your share, the top category).
 
-export type Period = { year?: string; month?: string }; // month = "2026-10"
+export type Period = { year?: string; month?: string; week?: string }; // month = "2026-10", week = its Monday "2026-10-19"
 
 export const monthKey = (d: Date, tz?: string) => dayKey(d, tz).slice(0, 7);
 
@@ -13,13 +13,24 @@ export function monthLabel(key: string): string {
   return new Date(Date.UTC(y, m - 1, 15)).toLocaleDateString("en-GB", { month: "short", year: "numeric", timeZone: "UTC" });
 }
 
-export function cleanPeriod(year?: string, month?: string): Period {
-  const m = month && /^\d{4}-(0[1-9]|1[0-2])$/.test(month) ? month : undefined;
-  const y = !m && year && /^\d{4}$/.test(year) ? year : undefined;
-  return { year: y, month: m };
+export function cleanPeriod(year?: string, month?: string, week?: string): Period {
+  const w = week && /^\d{4}-\d{2}-\d{2}$/.test(week) && weekKeyOfDay(week) === week ? week : undefined;
+  const m = !w && month && /^\d{4}-(0[1-9]|1[0-2])$/.test(month) ? month : undefined;
+  const y = !w && !m && year && /^\d{4}$/.test(year) ? year : undefined;
+  return { year: y, month: m, week: w };
 }
 
+// The Monday of the week a day falls in ("2026-10-21" → "2026-10-19").
+export function weekKeyOfDay(day: string): string {
+  const d = new Date(`${day}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) return "";
+  const back = (d.getUTCDay() + 6) % 7; // Monday = 0
+  return new Date(d.getTime() - back * 86_400_000).toISOString().slice(0, 10);
+}
+export const weekKey = (d: Date, tz?: string) => weekKeyOfDay(dayKey(d, tz));
+
 export function inPeriod(d: Date, p: Period, tz?: string): boolean {
+  if (p.week) return weekKey(d, tz) === p.week;
   const k = monthKey(d, tz);
   if (p.month) return k === p.month;
   if (p.year) return k.startsWith(p.year);
@@ -56,4 +67,43 @@ export function recap(expenses: RecapExpense[]) {
     totals: [...byCurrency].map(([currency, t]) => ({ currency, ...t })),
     topCategory: top ? getCategory(top[0]) : null,
   };
+}
+
+// ---------- Insights: the chart on top of Search ----------
+
+export type Grain = "w" | "m" | "y";
+
+const shiftMonth = (key: string, n: number) => {
+  const [y, m] = key.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + n, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+};
+const shiftWeek = (key: string, n: number) => new Date(new Date(`${key}T12:00:00Z`).getTime() + n * 7 * 86_400_000).toISOString().slice(0, 10);
+
+// Which bar a moment belongs to.
+export function bucketOf(d: Date, grain: Grain, tz?: string): string {
+  return grain === "w" ? weekKey(d, tz) : grain === "y" ? dayKey(d, tz).slice(0, 4) : monthKey(d, tz);
+}
+
+// The bars, oldest first, ending with `last` (6 weeks, 6 months or 4 years).
+export function bucketsEnding(last: string, grain: Grain): string[] {
+  const n = grain === "w" ? 6 : grain === "m" ? 6 : 4;
+  return Array.from({ length: n }, (_, i) => {
+    const back = n - 1 - i;
+    return grain === "w" ? shiftWeek(last, -back) : grain === "m" ? shiftMonth(last, -back) : String(Number(last) - back);
+  });
+}
+
+export function bucketLabel(key: string, grain: Grain): string {
+  if (grain === "y") return key;
+  if (grain === "m") return new Date(`${key}-15T12:00:00Z`).toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" });
+  // Weeks: "19 Oct" (months shortened to three letters, so six fit side by side).
+  return new Date(`${key}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }).replace("Sept", "Sep");
+}
+
+// "October 2026", "2026", "Week of 19 Oct".
+export function bucketTitle(key: string, grain: Grain): string {
+  if (grain === "y") return key;
+  if (grain === "m") return new Date(`${key}-15T12:00:00Z`).toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
+  return `Week of ${bucketLabel(key, "w")}`;
 }

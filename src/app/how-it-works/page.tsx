@@ -195,7 +195,7 @@ export default async function HowItWorks() {
           Not sure about a number? Tap <strong>Why?</strong> under any balance. You’ll see every expense and payment behind it, including card fees, and it always adds up exactly.
         </p>
         <p className="mt-4">
-          Looking for something? <strong>Search</strong> finds any expense across your groups, or one month’s spending. <strong>Charts</strong> show where the money went, with a
+          Looking for something? <strong>Insights</strong> (in the bottom bar) charts your spending by week, month or year, shows where it went, and finds any expense across your groups. <strong>Charts</strong> show where the money went, with a
           few plain lines on top (“Food is 42% of all spending”). <strong>Download</strong> in a group’s settings gives you its expenses as a
           spreadsheet; <strong>Download all my data</strong> on the You page gives you every group in one file.
         </p>
