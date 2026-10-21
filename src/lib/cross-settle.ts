@@ -7,8 +7,10 @@ import type { Transfer } from "./settle";
 // ONE payment. Example: Goa trip says you pay Asha ₹1,000; Flat says Asha pays
 // you ₹400 → across groups, you pay Asha ₹600.
 //
-// The same person is recognised by phone number (last 10 digits) when both
-// entries have one, otherwise by name (ignoring capitals and extra spaces).
+// The same person is recognised by their Loopin account (signed in with a
+// verified email) — two different people who happen to share a name are never
+// merged. Someone added by name only (not on Loopin yet) is matched by phone
+// number (last 10 digits), else by name (ignoring capitals and extra spaces).
 // Recording it as paid records the underlying payment in each group, so every
 // group's own balances stay right.
 
@@ -17,7 +19,7 @@ export type GroupForSettle = {
   groupName: string;
   currency: string;
   myId: string;
-  members: { id: string; name: string; phone: string }[];
+  members: { id: string; name: string; phone: string; accountId?: string | null }[];
   transfers: Transfer[];
 };
 
@@ -39,7 +41,8 @@ export type CrossItem = {
   converted: boolean; // some parts were converted from another currency
 };
 
-export function personKey(m: { name: string; phone: string }): string {
+export function personKey(m: { name: string; phone: string; accountId?: string | null }): string {
+  if (m.accountId) return `acc:${m.accountId}`;
   const digits = m.phone.replace(/\D/g, "");
   if (digits.length >= 8) return `tel:${digits.slice(-10)}`;
   return `name:${m.name.trim().replace(/\s+/g, " ").toLowerCase()}`;

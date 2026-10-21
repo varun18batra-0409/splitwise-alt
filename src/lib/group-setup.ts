@@ -16,7 +16,7 @@ export async function createGroupFor(account: { id: string }, input: NewGroupInp
   const couple = type === "couple" && ratio !== 50;
   return db.group.create({
     data: {
-      name: input.name.trim().slice(0, 60),
+      name: input.name.trim().replace(/\s+/g, " ").slice(0, 60),
       type,
       currency: isSupportedCurrency(input.currency) ? input.currency : "INR",
       inviteCode: newInviteCode(),

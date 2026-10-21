@@ -184,7 +184,7 @@ async function runOne(bill: BillRow, group: { id: string; currency: string; clos
 
   const input = billExpenseInput(bill, group.id, group.currency, period, amount, payer, group.members);
   if (note) input.notes = note;
-  const r = await saveExpense(input, payer, sameCurrencyRate, { now, requestKey: key, eventText: `added ${bill.name} automatically (${formatMoney(amount, group.currency)})` });
+  const r = await saveExpense(input, payer, sameCurrencyRate, { now, requestKey: key, eventText: `paid ${bill.name} (${formatMoney(amount, group.currency)}) · repeat bill` });
   if (!r.ok) return wait(r.error.slice(0, 120));
   await db.billRun.update({ where: { id: run.id }, data: { status: "added", expenseId: r.id } });
   return "added";

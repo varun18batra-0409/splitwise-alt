@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeTotals, convertAmount, markupAmountOf, markupApplies, parseRate, rateToString } from "@/lib/conversion";
+import { cleanRateText, computeTotals, convertAmount, markupAmountOf, markupApplies, parseRate, rateToString } from "@/lib/conversion";
 
 describe("the example from the brief", () => {
   it("THB 3,000 at ₹2.50 with a 3% card markup = ₹7,725", () => {
@@ -67,6 +67,14 @@ describe("rates as exact text", () => {
     expect(parseRate("0")).toBeNull();
     expect(parseRate("-1")).toBeNull();
     expect(parseRate("abc")).toBeNull();
+  });
+  it("reads a comma typed as the decimal point, and thousands commas", () => {
+    expect(cleanRateText("2,84")).toBe("2.84");
+    expect(cleanRateText("0,012")).toBe("0.012");
+    expect(cleanRateText("16,000")).toBe("16000");
+    expect(cleanRateText("1,234.5")).toBe("1234.5");
+    expect(cleanRateText(" 2.84 ")).toBe("2.84");
+    expect(parseRate("2,84")).toEqual({ n: 284n, scale: 100n });
   });
   it("turns API numbers into clean text", () => {
     expect(rateToString(2.8367)).toBe("2.8367");

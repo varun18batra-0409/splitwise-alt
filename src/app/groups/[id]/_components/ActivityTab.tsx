@@ -60,7 +60,8 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId }: { v: Group
     );
   }
 
-  const field = "min-w-0 rounded-lg border border-line bg-mist px-3 py-2 text-sm text-fg outline-none focus:border-accent";
+  // 16px text: anything smaller makes iPhones zoom the page in when tapped.
+  const field = "min-w-0 rounded-lg border border-line bg-mist px-3 py-2 text-base text-fg outline-none focus:border-accent";
   // Quick date ranges, in the person's own time zone.
   const today = dayKey(new Date(), tz);
   const monthRange = (y: number, m: number, label: string) => {

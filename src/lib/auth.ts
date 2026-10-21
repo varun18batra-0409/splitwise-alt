@@ -45,6 +45,7 @@ export async function requestLoginCode(rawEmail: string, ip: string, origin: str
       <p><a href="${link}" style="display:inline-block;background:#0d0d0f;color:#f4f2ec;padding:12px 18px;text-decoration:none;font-weight:600">Sign in to Loopin</a></p>
       <p style="font-size:13px;color:#777">It works for ${CODE_MINUTES} minutes. If you didn't ask for it, ignore this email.</p>
     </div>`,
+    { signInCode: true },
   );
   return sent ? { ok: true } : { ok: false, error: "Couldn't send the email. Check the address and try again." };
 }

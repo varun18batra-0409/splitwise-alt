@@ -314,9 +314,16 @@ export function AddExpenseForm({
     }
     if (!expenseId) rememberSplit();
     startSaving(async () => {
-      const res = await addExpense({ ...draft, billRun, again: againRef.current, allowDuplicate: allowDupRef.current, requestKey, groupId, name, notes, baseVersion: initial?.version, category: category.id, expenseId, date, rateMode: usingManualRate ? "manual" : keepSavedRate ? "keep" : "auto", manualRate });
-      if (res?.duplicateOf) setDup(res.duplicateOf);
-      else if (res?.error) setError(res.error);
+      try {
+        const res = await addExpense({ ...draft, billRun, again: againRef.current, allowDuplicate: allowDupRef.current, requestKey, groupId, name, notes, baseVersion: initial?.version, category: category.id, expenseId, date, rateMode: usingManualRate ? "manual" : keepSavedRate ? "keep" : "auto", manualRate });
+        if (res?.duplicateOf) setDup(res.duplicateOf);
+        else if (res?.error) setError(res.error);
+      } catch (err) {
+        // Going to the group afterwards is Next.js's own signal: let it through.
+        if (String((err as { digest?: string })?.digest ?? "").startsWith("NEXT_")) throw err;
+        // No signal, or the server hiccuped. Saving again is safe (this form's key means it's only ever added once).
+        setError("Couldn’t reach Loopin. Check your connection and tap Save again.");
+      }
     });
   }
 
@@ -688,7 +695,7 @@ export function AddExpenseForm({
                       inputMode="decimal"
                       placeholder="Custom"
                       aria-label="Custom markup percentage"
-                      className="w-16 bg-transparent py-1.5 text-sm outline-none"
+                      className="w-16 bg-transparent py-1.5 text-base outline-none"
                     />
                     %
                   </span>

@@ -2,7 +2,7 @@ import { db } from "./db";
 import { buildExpense, type ExpenseDraft } from "./expense";
 import { getCategory, guessCategory, isCategory } from "./categories";
 import { formatMoney, isSupportedCurrency } from "./money";
-import { parseRate, PAYMENT_METHODS } from "./conversion";
+import { cleanRateText, parseRate, PAYMENT_METHODS } from "./conversion";
 import { diffExpense, expenseState, logEvent, type ExpenseSnapshot } from "./events";
 import type { RateAnswer } from "./rate-cache";
 import { dayKey, parseDay } from "./dates";
@@ -106,7 +106,7 @@ async function saveExpenseOnce(
       rateSource = existing.rateSource;
     } else if (input.rateMode === "manual") {
       if (!parseRate(input.manualRate)) return { ok: false, error: "Enter a valid exchange rate, like 2.84." };
-      rate = input.manualRate.replace(/[,\s]/g, "");
+      rate = cleanRateText(input.manualRate);
       rateSource = "manual";
     } else {
       const live = await lookupRate(input.currency, group.currency);

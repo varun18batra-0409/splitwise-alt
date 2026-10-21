@@ -87,7 +87,8 @@ async function undoOnce(eventId: string, actorId: string | undefined): Promise<U
   if (!ev) return { ok: false, error: "That change no longer exists." };
   const group = await db.group.findUnique({
     where: { id: ev.groupId },
-    include: { members: true, events: true },
+    // Only changes from this one on matter for whether it can still be undone.
+    include: { members: true, events: { where: { createdAt: { gte: ev.createdAt } } } },
   });
   if (!group) return { ok: false, error: "This group no longer exists." };
   if (!actorId || !group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can undo its changes." };
@@ -284,18 +285,48 @@ export async function removeMembers(groupId: string, actorId: string, memberIds:
       actorId,
       kind: "members_removed",
       text: `removed ${members.map((m) => m.name).join(", ")}${undoing ? " (undo)" : " from the group"}`,
-      undo: { type: "members_restore", members: members.map((m) => ({ id: m.id, name: m.name, phone: m.phone, createdAt: m.createdAt.toISOString() })) },
+      undo: {
+        type: "members_restore",
+        members: members.map((m) => ({
+          id: m.id,
+          name: m.name,
+          phone: m.phone,
+          createdAt: m.createdAt.toISOString(),
+          accountId: m.accountId,
+          claimedAt: m.claimedAt?.toISOString() ?? null,
+          splitWeight: m.splitWeight,
+          notify: m.notify,
+          joinedFrom: m.joinedFrom?.toISOString() ?? null,
+        })),
+      },
     });
   });
   return { ok: true, eventId };
 }
 
-async function restoreMembers(groupId: string, actorId: string, members: { id: string; name: string; phone: string; createdAt: string }[]): Promise<UndoResult> {
+async function restoreMembers(groupId: string, actorId: string, members: Extract<UndoPayload, { type: "members_restore" }>["members"]): Promise<UndoResult> {
   const existing = await db.member.findMany({ where: { groupId } });
   const clash = members.find((m) => existing.some((x) => x.name.toLowerCase() === m.name.toLowerCase()));
   if (clash) return { ok: false, error: `Someone called ${clash.name} is already in the group.` };
   const eventId = await db.$transaction(async (tx) => {
-    for (const m of members) await tx.member.create({ data: { id: m.id, name: m.name, phone: m.phone, groupId, createdAt: new Date(m.createdAt) } });
+    for (const m of members) {
+      // Back as they were: still linked to their sign-in (unless they've joined again since), same share.
+      const accountId = m.accountId && !existing.some((x) => x.accountId === m.accountId) ? m.accountId : null;
+      await tx.member.create({
+        data: {
+          id: m.id,
+          name: m.name,
+          phone: m.phone,
+          groupId,
+          createdAt: new Date(m.createdAt),
+          accountId,
+          claimedAt: accountId && m.claimedAt ? new Date(m.claimedAt) : null,
+          ...(m.splitWeight ? { splitWeight: m.splitWeight } : {}),
+          ...(m.notify ? { notify: m.notify } : {}),
+          ...(m.joinedFrom ? { joinedFrom: new Date(m.joinedFrom) } : {}),
+        },
+      });
+    }
     return logEvent(tx, {
       groupId,
       actorId,

@@ -98,7 +98,11 @@ export const MAX_MINOR = 2_000_000_000;
 // "1,250.5" / "₹ 99" / "3000" → smallest units. Null if it isn't a valid amount.
 export function parseAmount(input: string, currency = "INR"): number | null {
   const d = decimalsOf(currency);
-  const s = input.replace(/[₹,\s]/g, "");
+  let t = input.replace(/[₹$€£¥฿\s]/g, "");
+  // A comma used as the decimal point ("12,50", as some phone keyboards type it):
+  // one comma followed by one or two digits is never a thousands separator.
+  if (/^\d+,\d{1,2}$/.test(t)) t = t.replace(",", ".");
+  const s = t.replace(/,/g, "");
   const m = /^(\d*)(?:\.(\d*))?$/.exec(s);
   if (!m || (m[1] === "" && !m[2])) return null;
   const frac = m[2] ?? "";

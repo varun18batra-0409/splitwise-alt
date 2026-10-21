@@ -65,7 +65,7 @@ export function ListTab({ v, items, usual, notice }: { v: GroupView; items: Item
             autoComplete="off"
             enterKeyHint="done"
             placeholder="Add an item… e.g. bread"
-            className="w-full rounded-xl border border-line bg-mist px-4 py-3 text-[15px] text-fg outline-none placeholder:text-gray-400 focus:border-accent"
+            className="w-full rounded-xl border border-line bg-mist px-4 py-3 text-base text-fg outline-none placeholder:text-gray-400 focus:border-accent"
           />
         </label>
         <button type="submit" className="pop shrink-0 bg-fg px-4 text-sm font-semibold text-canvas [--pop-edge:#6e6b63]">

@@ -35,7 +35,10 @@ function transport() {
   return pooled;
 }
 
-export async function sendMail(to: string, subject: string, text: string, html: string): Promise<boolean> {
+// `signInCode`: sign-in codes always get through first. Everything else
+// (invites, "you were added") stops a little before the daily ceiling, so a
+// burst of invites can never lock people out of signing in.
+export async function sendMail(to: string, subject: string, text: string, html: string, opts: { signInCode?: boolean } = {}): Promise<boolean> {
   if (!mailConfigured()) return false;
   if (isTestAddress(to) && !outbox()) {
     if (!testCopy()) return true; // live app: never sent, never stored
@@ -54,6 +57,11 @@ export async function sendMail(to: string, subject: string, text: string, html: 
   // Resend's free plan allows 100 a day, Gmail about 500. (MAIL_DAILY_CAP overrides.)
   const { allow } = await import("./rate-limit");
   const cap = Number(process.env.MAIL_DAILY_CAP ?? (/resend/i.test(process.env.SMTP_HOST ?? "") ? 95 : 400));
+  if (!opts.signInCode && !(await allow("mail:other", Math.max(1, cap - 30), 86_400))) {
+    console.error("sendMail: daily cap for invites reached (kept for sign-in codes)");
+    await noteFailure("cap");
+    return false;
+  }
   if (!(await allow("mail:all", cap, 86_400))) {
     console.error("sendMail: daily email cap reached");
     await noteFailure("cap");
