@@ -64,7 +64,7 @@ export default async function SignIn({
               <span className="mb-2 block text-sm font-medium text-gray-600">
                 Your name <span className="font-normal text-gray-400">(if you’re new)</span>
               </span>
-              <input name="name" autoComplete="name" defaultValue={name} placeholder="e.g. Joey" maxLength={40} className={inputClass} />
+              <input name="name" autoComplete="name" defaultValue={name} placeholder="e.g. Maya" maxLength={40} className={inputClass} />
             </label>
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-gray-600">Your email</span>

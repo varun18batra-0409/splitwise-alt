@@ -29,10 +29,18 @@ export function countryFromLanguages(acceptLanguage: string | null | undefined):
   return null;
 }
 
-export function defaultCurrency(h: { get(name: string): string | null }, fallback = "INR"): string {
+export function defaultCurrency(h: { get(name: string): string | null }, fallback = "USD"): string {
   return (
     currencyForCountry(h.get("x-vercel-ip-country")) ??
     currencyForCountry(countryFromLanguages(h.get("accept-language"))) ??
     fallback
   );
+}
+
+// Where the visitor seems to be, for examples and seasonal ideas: their
+// currency (dollars when unknown) and whether they're in India.
+export function visitorRegion(h: { get(name: string): string | null }): { country: string | null; currency: string; india: boolean } {
+  const country = (h.get("x-vercel-ip-country") ?? countryFromLanguages(h.get("accept-language")) ?? "").toUpperCase() || null;
+  const currency = defaultCurrency(h, "USD");
+  return { country, currency, india: country === "IN" || currency === "INR" };
 }

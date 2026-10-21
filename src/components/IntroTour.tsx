@@ -12,9 +12,10 @@ const seen = () => {
     /* ignore */
   }
 };
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { currencyInfo, decimalsOf, formatMoney } from "@/lib/money";
 
-// The intro tour: six swipeable slides (start, balances, currencies, settling, home & couples, undo) that show what Loopin does, each with
+// The intro tour, in the visitor's own currency: six swipeable slides (start, balances, currencies, settling, home & couples, undo) that show what Loopin does, each with
 // a small animated picture. Shown to first-time visitors on the home screen,
 // and any time at /welcome.
 
@@ -78,11 +79,31 @@ function Cheers() {
   );
 }
 
-const slides: Slide[] = [
+// Examples in the visitor's own currency, with amounts that make sense there
+// (₹ for India, dollars and similar everywhere else).
+type Local = { m: (major: number) => string; cur: string; foreign: string; india: boolean };
+
+function local(currency: string, india: boolean): Local {
+  const d = decimalsOf(currency);
+  return {
+    m: (major) => formatMoney(Math.round(major * 10 ** d), currency),
+    cur: currency,
+    foreign: india ? "THB" : currency === "EUR" ? "USD" : "EUR",
+    india,
+  };
+}
+
+function makeSlides(L: Local): Slide[] {
+  const v = L.india
+    ? { owe: 240, owed1: 680, owed2: 500, total: 940, foreignAmt: 1800, conv: 5104, fee: 153, real: 5257, rent: 42000, ahead: 2670, paid: 3600, lent: 2700 }
+    : { owe: 24, owed1: 68, owed2: 50, total: 94, foreignAmt: 120, conv: 130.5, fee: 3.92, real: 134.42, rent: 2400, ahead: 267, paid: 48, lent: 36 };
+  const flag = (c: string) => currencyInfo(c).flag;
+  return [
+
   {
     id: "cheers",
     title: ["Split it.", "Cheers. 🍻"],
-    caption: "Make a group for a trip, a flat or the two of you. Friends join from a link, a QR code or an email, with Google or email in 30 seconds. No password.",
+    caption: "Free, no ads. Make a group for a trip, a flat, the two of you, or a class gift. Friends join from a link, a QR code or an email in 30 seconds. No password.",
     art: <Cheers />,
   },
   {
@@ -91,26 +112,26 @@ const slides: Slide[] = [
     caption: "Every expense shows what it means for you. Balances update the moment anyone adds something.",
     art: (
       <Card>
-        <p className="rise text-xs text-gray-400">Goa weekend</p>
+        <p className="rise text-xs text-gray-400">{L.india ? "Goa weekend" : "Lake weekend"}</p>
         <div className="rise rise-2 mt-3 flex items-center gap-3">
-          <Dot name="Joey" />
-          <span className="flex-1 text-sm">You owe Joey</span>
-          <span className={`font-display text-lg ${owe}`}>₹240</span>
+          <Dot name="Maya" />
+          <span className="flex-1 text-sm">You owe Maya</span>
+          <span className={`font-display text-lg ${owe}`}>{L.m(v.owe)}</span>
         </div>
         <div className="rise rise-3 mt-3 flex items-center gap-3">
-          <Dot name="Rancho" />
-          <span className="flex-1 text-sm">Rancho owes you</span>
-          <span className={`font-display text-lg ${owed}`}>₹680</span>
+          <Dot name="Sam" />
+          <span className="flex-1 text-sm">Sam owes you</span>
+          <span className={`font-display text-lg ${owed}`}>{L.m(v.owed1)}</span>
         </div>
         <div className="rise rise-4 mt-3 flex items-center gap-3">
-          <Dot name="Sheldon" />
-          <span className="flex-1 text-sm">Sheldon owes you</span>
-          <span className={`font-display text-lg ${owed}`}>₹500</span>
+          <Dot name="Priya" />
+          <span className="flex-1 text-sm">Priya owes you</span>
+          <span className={`font-display text-lg ${owed}`}>{L.m(v.owed2)}</span>
         </div>
         <div className="rise rise-4 mt-4 h-1.5 overflow-hidden rounded-full bg-mist">
           <div className="meter-bar h-full w-3/4 origin-left rounded-full bg-[#25a96f]" />
         </div>
-        <p className="rise rise-5 mt-2 text-right text-xs text-gray-400">You’re owed ₹940 overall</p>
+        <p className="rise rise-5 mt-2 text-right text-xs text-gray-400">You’re owed {L.m(v.total)} overall</p>
       </Card>
     ),
   },
@@ -121,15 +142,15 @@ const slides: Slide[] = [
     art: (
       <Card>
         <div className="rise flex items-center justify-between">
-          <span className="rounded-full bg-mist px-3 py-1 text-sm">🇹🇭 THB</span>
+          <span className="rounded-full bg-mist px-3 py-1 text-sm">{flag(L.foreign)} {L.foreign}</span>
           <span className="text-gray-400">→</span>
-          <span className="rounded-full bg-mist px-3 py-1 text-sm">🇮🇳 INR</span>
+          <span className="rounded-full bg-mist px-3 py-1 text-sm">{flag(L.cur)} {L.cur}</span>
         </div>
         <dl className="mt-4 space-y-2 text-sm">
-          <div className="rise rise-2 flex justify-between"><dt className="text-gray-500">Dinner, paid by card</dt><dd>THB 1,800</dd></div>
-          <div className="rise rise-3 flex justify-between"><dt className="text-gray-500">At today’s rate</dt><dd>₹5,104</dd></div>
-          <div className="rise rise-4 flex justify-between"><dt className="text-gray-500">Card fee 3%</dt><dd className={owe}>+ ₹153</dd></div>
-          <div className="rise rise-5 flex justify-between border-t border-line pt-2 font-semibold"><dt>Real cost to split</dt><dd className="font-display text-lg">₹5,257</dd></div>
+          <div className="rise rise-2 flex justify-between"><dt className="text-gray-500">Dinner, paid by card</dt><dd>{formatMoney(v.foreignAmt * 100, L.foreign)}</dd></div>
+          <div className="rise rise-3 flex justify-between"><dt className="text-gray-500">At today’s rate</dt><dd>{L.m(v.conv)}</dd></div>
+          <div className="rise rise-4 flex justify-between"><dt className="text-gray-500">Card fee 3%</dt><dd className={owe}>+ {L.m(v.fee)}</dd></div>
+          <div className="rise rise-5 flex justify-between border-t border-line pt-2 font-semibold"><dt>Real cost to split</dt><dd className="font-display text-lg">{L.m(v.real)}</dd></div>
         </dl>
       </Card>
     ),
@@ -147,7 +168,7 @@ const slides: Slide[] = [
           <g className="clean" stroke="#6fe3a8" strokeWidth="3" fill="none" strokeLinecap="round">
             <path d="M44 22 C 100 30, 140 30, 196 22" /><path d="M44 88 C 100 80, 140 80, 196 88" />
           </g>
-          {([[30, 20, "Jim"], [30, 90, "Circuit"], [210, 20, "Chandler"], [210, 90, "Munna"]] as const).map(([x, y, t]) => (
+          {([[30, 20, "Emma"], [30, 90, "Leo"], [210, 20, "Aisha"], [210, 90, "Noah"]] as const).map(([x, y, t]) => (
             <g key={t}>
               <circle cx={x} cy={y} r="13" fill="#1f1f24" stroke="#2b2b31" />
               <text x={x} y={y + 4} textAnchor="middle" fontSize="11" fill="#f4f2ec">{t.slice(0, 1)}</text>
@@ -163,15 +184,15 @@ const slides: Slide[] = [
   },
   {
     id: "home",
-    title: ["Flats & couples.", "Bills add themselves."],
-    caption: "Rent and Wi-Fi add themselves each month, electricity asks whoever pays, and couples see who’s ahead of their split.",
+    title: ["Flats & couples.", "Bills on repeat."],
+    caption: "Set rent and Wi-Fi to repeat monthly and Loopin adds them on the day. Electricity asks whoever pays, and couples see who’s ahead of their split.",
     art: (
       <Card>
-        <p className="rise text-xs text-gray-400">Flat 402 · This month</p>
+        <p className="rise text-xs text-gray-400">{L.india ? "Flat 402" : "Apt 4B"} · This month</p>
         <div className="rise rise-2 mt-3 flex items-center justify-between text-sm">
           <span>Rent</span>
           <span className="flex items-center gap-2">
-            <span className="font-display">₹42,000</span>
+            <span className="font-display">{L.m(v.rent)}</span>
             <span className={`text-xs ${owed}`}>added ✓</span>
           </span>
         </div>
@@ -180,12 +201,12 @@ const slides: Slide[] = [
           <span className="border border-gray-300 px-2.5 py-1 text-xs font-semibold">Enter amount</span>
         </div>
         <div className="rise rise-4 mt-2.5 flex items-center justify-between text-sm">
-          <span>Milk</span>
-          <span className="font-display">₹68/day</span>
+          <span>{L.india ? "Milk" : "Internet"}</span>
+          <span className="font-display">{L.india ? `${L.m(68)}/day` : `${L.m(60)}/mo`}</span>
         </div>
         <div className="rise rise-5 mt-4 border-t border-line pt-3">
           <p className="text-xs text-gray-400">Us · October together</p>
-          <p className={`mt-1 font-display text-lg font-semibold ${owed}`}>Overall you’re ₹2,670 ahead</p>
+          <p className={`mt-1 font-display text-lg font-semibold ${owed}`}>Overall you’re {L.m(v.ahead)} ahead</p>
         </div>
       </Card>
     ),
@@ -199,11 +220,11 @@ const slides: Slide[] = [
         <div className="flex items-center gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-mist text-lg">🍽️</span>
           <span className="relative flex-1">
-            <span className="block text-sm font-medium">Pizza with Michael</span>
-            <span className="block text-xs text-gray-400">You paid ₹3,600</span>
+            <span className="block text-sm font-medium">Pizza night</span>
+            <span className="block text-xs text-gray-400">You paid {L.m(v.paid)}</span>
             <span className="strike absolute left-0 top-2.5 h-px w-full bg-gray-400" />
           </span>
-          <span className="text-sm text-owed">you lent ₹2,700</span>
+          <span className="text-sm text-owed">you lent {L.m(v.lent)}</span>
         </div>
         <div className="undo-pill mx-auto mt-5 flex w-fit items-center gap-3 border border-line bg-canvas px-4 py-2 text-sm">
           Deleted · <span className="font-semibold">Undo ↺</span>
@@ -212,16 +233,22 @@ const slides: Slide[] = [
     ),
   },
 ];
+}
 
 export function IntroTour({
   startHref = "/groups/new",
   cta = "Create your first group",
   signInHref,
+  currency = "USD",
+  india = false,
 }: {
   startHref?: string;
   cta?: string;
   signInHref?: string;
+  currency?: string;
+  india?: boolean;
 }) {
+  const slides = useMemo(() => makeSlides(local(currency, india)), [currency, india]);
   const track = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
   const last = active === slides.length - 1;

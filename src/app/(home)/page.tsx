@@ -4,7 +4,8 @@ import { GetAppButton } from "@/components/GetApp";
 import { Notice } from "@/components/Notice";
 import { IntroTour } from "@/components/IntroTour";
 import { JoinByLink } from "@/components/JoinByLink";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { visitorRegion } from "@/lib/region";
 import { getTimeZone } from "@/lib/tz";
 import { getAccount, getMemberships } from "@/lib/identity";
 import { PasskeyOffer } from "@/components/Passkeys";
@@ -114,14 +115,15 @@ export default async function Home({
     new Date(),
     tz,
   );
-  const season = seasonNow(new Date(), tz);
+  const region = visitorRegion(await headers());
+  const season = seasonNow(new Date(), tz, region.country);
   const byActivity = [...open].sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
   // With one or two groups, shorter cards, so "Needs attention" shows without scrolling.
   const short = byActivity.length <= 2;
 
   // First visit: show what Loopin does instead of an empty screen.
   const tourSeen = (await cookies()).get("lp_tour")?.value === "1";
-  if (all.length === 0 && deletedGroups.length === 0 && !error && !notice && !tourSeen) return <IntroTour signInHref="/signin" />;
+  if (all.length === 0 && deletedGroups.length === 0 && !error && !notice && !tourSeen) return <IntroTour signInHref="/signin" currency={region.currency} india={region.india} />;
 
   return (
     <>
@@ -185,7 +187,7 @@ export default async function Home({
             </div>
             <div className="relative -mt-12 px-6 pb-6">
             <h1 className="font-display text-[30px] font-semibold leading-tight tracking-tight">Let’s get you started</h1>
-            <p className="mt-2 text-fg/60">Split costs with friends, flatmates or your partner. No ads, no limits.</p>
+            <p className="mt-2 text-fg/60">Split costs with friends, flatmates or your partner. Free, no ads.</p>
             <div className="mt-7 space-y-3">
               <Link href="/groups/new" className="pop block bg-fg px-4 py-3.5 text-center font-semibold text-canvas [--pop-edge:#6e6b63]">
                 Create a group
@@ -341,7 +343,7 @@ export default async function Home({
             {season && (
               <div className="relative flex h-[268px] flex-col overflow-hidden bg-[#120a10] px-5 pb-12 pt-5">
                 <div className="absolute inset-y-0 left-[38%] w-[75%]">
-                  <GroupCover kind={season.cover} uid={`season-${season.id}`} />
+                  <GroupCover kind={coverOf({ cover: season.cover })} uid={`season-${season.id}`} />
                 </div>
                 <div aria-hidden className="absolute inset-0 bg-[linear-gradient(90deg,#120a10_32%,rgba(18,10,16,0)_78%)]" />
                 <p className="relative text-sm text-[#ffc93c]">{season.eyebrow}</p>

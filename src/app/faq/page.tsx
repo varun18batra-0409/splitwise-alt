@@ -17,7 +17,7 @@ const SECTIONS: { title: string; items: QA[] }[] = [
       },
       {
         q: "Is it really free? Any limits or ads?",
-        a: "Yes, it’s free: no ads, no daily limit on expenses, and nothing held back for a paid plan.",
+        a: "Yes, Loopin is free to use right now: no ads and no limit on how many expenses you add.",
       },
       {
         q: "Do my friends need to sign up?",
@@ -106,7 +106,7 @@ const SECTIONS: { title: string; items: QA[] }[] = [
     items: [
       {
         q: "How do rent and bills work for flatmates?",
-        a: "Make a Home group and set up each bill once. Fixed ones (rent, Wi-Fi) add themselves on the day; ones that change (electricity) ask whoever pays to enter the amount; daily ones (milk) add up by the month. Anyone can skip or undo a month.",
+        a: "Make a Home group and set each bill to repeat once. Fixed ones (rent, Wi-Fi) are added by Loopin on the day; ones that change (electricity) ask whoever pays to enter the amount; daily ones (like milk) add up by the month. Anyone can skip or undo a month. Nothing is read from your bank, emails or messages: Loopin only adds what you set up.",
       },
       {
         q: "Can a couple split by income instead of 50/50?",

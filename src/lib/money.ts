@@ -118,13 +118,17 @@ export function parsePercent(input: string): number | null {
   return bp > 10000 ? null : bp;
 }
 
-// ₹ amounts the Indian way (₹1,23,456.50); other currencies with their code (THB 3,000).
+// ₹ amounts the Indian way (₹1,23,456.50); dollars the US way ($123,456.50);
+// other currencies with their code (THB 3,000).
 export function formatMoney(minor: number, currency = "INR"): string {
   const d = decimalsOf(currency);
   const whole = minor % 10 ** d === 0;
   const opts = { minimumFractionDigits: whole ? 0 : d, maximumFractionDigits: d };
   if (currency === "INR") {
     return new Intl.NumberFormat("en-IN", { style: "currency", currency, ...opts }).format(minor / 10 ** d);
+  }
+  if (currency === "USD") {
+    return new Intl.NumberFormat("en-US", { style: "currency", currency, ...opts }).format(minor / 10 ** d);
   }
   return `${currency} ${new Intl.NumberFormat("en-US", opts).format(minor / 10 ** d)}`;
 }

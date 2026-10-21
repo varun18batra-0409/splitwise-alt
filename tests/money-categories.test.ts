@@ -51,7 +51,8 @@ describe("formatMoney", () => {
   it("shows other currencies with their code", () => {
     expect(formatMoney(300000, "THB")).toBe("THB 3,000");
     expect(formatMoney(1500, "JPY")).toBe("JPY 1,500");
-    expect(formatMoney(1999, "USD")).toBe("USD 19.99");
+    expect(formatMoney(1999, "USD")).toBe("$19.99");
+    expect(formatMoney(10458262, "USD")).toBe("$104,582.62");
   });
 });
 

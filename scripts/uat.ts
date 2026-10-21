@@ -956,7 +956,7 @@ async function main() {
     await V.waitForURL(/saved=settings/);
     await go(V, g2);
     const t = await V.locator("main").innerText();
-    assert(/USD/.test(t), "no USD shown on the group page");
+    assert(/USD|\$/.test(t), "no USD shown on the group page");
   });
   await step(V, "Close & reopen", "Close a group from settings: it moves to Closed groups and new expenses are paused", async () => {
     await go(V, `${g2}/settings`);
@@ -1228,7 +1228,7 @@ async function main() {
       }
     }
     const all = seen.join(" ");
-    assert(/Bills add themselves/.test(all), "no flats & couples slide");
+    assert(/Bills on repeat/.test(all), "no flats & couples slide");
     assert(!/no sign-up/i.test(all), "a slide still says “no sign-up”");
     await ctx.close();
   });

@@ -89,7 +89,7 @@ export function BillsTab({ v, bills, saved }: { v: GroupView; bills: BillStatus[
       {bills.length === 0 && (
         <div className="mt-8 rounded-2xl bg-mist px-5 py-6 text-sm leading-relaxed text-gray-600">
           <p className="font-semibold text-fg">Rent, Wi-Fi, the cook, milk…</p>
-          <p className="mt-1">Set each one up once. Fixed bills add themselves on the day, ones that change ask whoever pays for the amount, and daily ones are added up at month end.</p>
+          <p className="mt-1">Set each one to repeat once. Loopin adds fixed bills on the day, asks whoever pays for ones that change, and adds up daily ones at month end.</p>
         </div>
       )}
 

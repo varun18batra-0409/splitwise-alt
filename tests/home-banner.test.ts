@@ -56,9 +56,18 @@ describe("seasonal card", () => {
   it("Diwali until the day itself, then nothing until New Year plans", () => {
     expect(seasonNow(new Date("2026-10-20T10:00:00Z"), IST)).toMatchObject({ id: "diwali-2026", cover: "diwali" });
     expect(seasonNow(new Date("2026-10-20T10:00:00Z"), IST)!.href).toBe("/groups/new?name=Diwali&type=other&cover=diwali");
-    expect(seasonNow(new Date("2026-11-08T19:00:00Z"), IST)).toBeNull(); // 12:30 am on 9 Nov in India
-    expect(seasonNow(new Date("2026-11-20T10:00:00Z"), IST)).toBeNull();
-    expect(seasonNow(new Date("2026-12-15T10:00:00Z"), IST)).toMatchObject({ id: "new-year", cover: "mountain" });
-    expect(seasonNow(new Date("2027-12-15T10:00:00Z"), IST)).toMatchObject({ id: "new-year" });
+    expect(seasonNow(new Date("2026-11-08T19:00:00Z"), IST, "IN")).toBeNull(); // 12:30 am on 9 Nov in India
+    expect(seasonNow(new Date("2026-11-20T10:00:00Z"), IST, "IN")).toBeNull();
+    expect(seasonNow(new Date("2026-12-15T10:00:00Z"), IST)).toMatchObject({ id: "christmas" });
+    expect(seasonNow(new Date("2026-12-28T10:00:00Z"), IST)).toMatchObject({ id: "new-year", cover: "mountain" });
+    expect(seasonNow(new Date("2027-12-28T10:00:00Z"), IST)).toMatchObject({ id: "new-year" });
+  });
+  it("festivals show where they're celebrated", () => {
+    const oct20 = new Date("2026-10-20T10:00:00Z");
+    expect(seasonNow(oct20, IST, "IN")).toMatchObject({ id: "diwali-2026" });
+    expect(seasonNow(oct20, "America/New_York", "US")).toBeNull();
+    expect(seasonNow(new Date("2026-11-20T15:00:00Z"), "America/New_York", "US")).toMatchObject({ id: "thanksgiving-2026", cover: "dinner" });
+    expect(seasonNow(new Date("2026-11-20T15:00:00Z"), IST, "IN")).toBeNull();
+    expect(seasonNow(new Date("2026-12-15T15:00:00Z"), "Europe/London", null)).toMatchObject({ id: "christmas" });
   });
 });

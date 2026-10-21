@@ -116,7 +116,7 @@ describe("starting currency from region", () => {
     const h = (o: Record<string, string>) => ({ get: (k: string) => o[k] ?? null });
     expect(defaultCurrency(h({ "x-vercel-ip-country": "US", "accept-language": "en-IN" }))).toBe("USD");
     expect(defaultCurrency(h({ "accept-language": "ja-JP" }))).toBe("JPY");
-    expect(defaultCurrency(h({}))).toBe("INR");
+    expect(defaultCurrency(h({}))).toBe("USD");
   });
 });
 
