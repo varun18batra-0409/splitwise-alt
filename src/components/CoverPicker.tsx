@@ -31,12 +31,14 @@ export function CoverPicker({
     <fieldset className="min-w-0">
       <legend className={legendClassName}>Picture</legend>
       <p className="text-xs text-gray-500">Swipe for more</p>
-      <div className="-mx-1 grid snap-x auto-cols-[70px] grid-flow-col grid-rows-2 gap-3 overflow-x-auto px-1 pb-2 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {/* Free sideways scrolling (no snapping, which pulled the row back to the start), and a sideways
+          swipe here never moves the page or triggers the phone's back gesture. */}
+      <div className="-mx-1 grid auto-cols-[70px] grid-flow-col grid-rows-2 gap-3 overflow-x-auto overscroll-x-contain px-1 pb-2 pt-2 [scrollbar-width:none] [touch-action:pan-x_pan-y] [&::-webkit-scrollbar]:hidden">
         {own && <OwnPhotoButton groupId={own.groupId} />}
         {[...(own?.src ? [{ id: "own" as const, label: "Your own photo" }] : []), ...PICKER_ORDER].map((c) => (
           <label
             key={c.id}
-            className="relative h-[92px] w-[70px] shrink-0 snap-start cursor-pointer overflow-hidden rounded-[14px] border border-line ring-offset-2 ring-offset-canvas has-[:checked]:ring-2 has-[:checked]:ring-fg has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent"
+            className="relative h-[92px] w-[70px] shrink-0 cursor-pointer overflow-hidden rounded-[14px] border border-line ring-offset-2 ring-offset-canvas has-[:checked]:ring-2 has-[:checked]:ring-fg has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent"
           >
             <input
               type="radio"

@@ -7,7 +7,7 @@ import { forgetThisPhone, getAccount, getMemberships, getMyMemberId, keepGroupsD
 import { deleteAccount, requestLoginCode, verifyLoginCode } from "@/lib/auth";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { headers } from "next/headers";
-import { cleanNames } from "@/lib/names";
+import { cleanNames, sameName } from "@/lib/names";
 import { isSupportedCurrency, parseAmount, parsePercent } from "@/lib/money";
 import { getRate, type RateAnswer } from "@/lib/rate-cache";
 import { deletePayment, saveExpense, setExpenseDeleted, setPaymentDeleted, type SaveExpenseInput } from "@/lib/save-expense";
@@ -626,6 +626,28 @@ export async function verifyCode(formData: FormData) {
   if (name) await db.account.updateMany({ where: { id: r.accountId, name: "" }, data: { name } });
   await signInAs(r.accountId);
   redirect(`${back}${back.includes("?") ? "&" : "?"}signedin=1`);
+}
+
+// You page → "Your name": the name friends see in invites and when they search
+// for you. Optionally also renames you in the groups where you still go by the
+// old name (a different name you picked for one group is left alone).
+export async function saveMyName(formData: FormData) {
+  const account = await getAccount();
+  if (!account) redirect("/signin?back=/account");
+  const name = cleanNames([String(formData.get("name") ?? "")])[0];
+  if (!name) redirect("/account?name=empty");
+  const old = account.name ?? "";
+  await db.account.update({ where: { id: account.id }, data: { name } });
+  let changed = 0;
+  if (formData.get("groups") === "on" && old) {
+    const mine = await db.member.findMany({ where: { accountId: account.id, leftAt: null, group: { deletedAt: null } }, select: { id: true, groupId: true, name: true } });
+    for (const m of mine) {
+      if (!sameName(m.name, old) || m.name === name) continue;
+      const r = await renameMember(m.groupId, m.id, m.id, name);
+      if (r.ok) changed++;
+    }
+  }
+  redirect(`/account?name=saved&groups=${changed}`);
 }
 
 export async function signOutThisPhone() {
