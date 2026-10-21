@@ -107,6 +107,7 @@ async function main() {
   // Taps inside the app (no full reload).
   await page.goto(base + "/");
   await page.getByText(/Groups|Needs attention/).first().waitFor();
+  await page.waitForTimeout(600); // a person looks before tapping (and the cards have finished rising in)
   await timed("Tap a group on Home → its screen shows", async () => {
     await page.locator(`a[href^="/groups/${demo.trip.id}"]`).first().click();
     await page.waitForURL(new RegExp(demo.trip.id));
