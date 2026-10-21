@@ -8,7 +8,7 @@ import { dateRange, tripReport } from "@/lib/trip-report";
 import { PageHeader } from "@/components/ui";
 import { TripShare } from "@/components/TripShare";
 import { GroupCover } from "@/components/GroupCover";
-import { coverOf } from "@/lib/covers";
+import { coverFor, coverOf } from "@/lib/covers";
 
 export const metadata = { title: "Trip report" };
 
@@ -34,7 +34,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
           <section className="vault overflow-hidden rounded-[24px] text-fg" aria-label="The trip in numbers">
             {coverOf(group) !== "plain" && (
               <div className="relative h-[170px] overflow-hidden" aria-hidden>
-                <GroupCover kind={coverOf(group)} uid={`report-${group.id}`} sizes="(max-width: 448px) 100vw, 448px" priority drift />
+                <GroupCover {...coverFor(group)} uid={`report-${group.id}`} sizes="(max-width: 448px) 100vw, 448px" priority drift />
                 <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(17,17,20,0)_30%,#141418_100%)]" />
               </div>
             )}

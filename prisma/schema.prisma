@@ -39,6 +39,7 @@ model Group {
   settleDay    Int       @default(0) // monthly settle-up day: 0 = none, 1–28, 31 = last day
   settleMin    Int       @default(0) // Smart Settle leaves out payments smaller than this (minor units)
   cover        String    @default("") // the group's picture: "" = picked from the type, "plain" = none (see covers.ts)
+  coverAt      DateTime? // when the group's own photo was last uploaded (its version); empty = no own photo
 
   bills      Bill[]
   listItems  ListItem[]
@@ -419,4 +420,16 @@ model Passkey {
   createdAt  DateTime  @default(now())
   lastUsedAt DateTime?
   @@index([accountId])
+}
+
+// A group's own photo (picked on a phone, made small there first: about
+// 100–300 KB). Shown only to people in the group. One per group; a new one
+// replaces it. A plain id (no database link) so the online database can
+// simply add the table.
+model GroupPhoto {
+  groupId     String   @id
+  data        Bytes
+  type        String   @default("image/webp")
+  createdById String   @default("")
+  updatedAt   DateTime @default(now())
 }

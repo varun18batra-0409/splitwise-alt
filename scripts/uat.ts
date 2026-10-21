@@ -1109,6 +1109,9 @@ async function main() {
     await go(A, "/signin");
     await signup(A, "Asha", email("asha"));
     await go(A, "/");
+    // Home shows 4 groups; the rest are behind "Show all N groups".
+    const more = A.getByText(/^Show all \d+ groups$/);
+    if (await more.count()) await more.click();
     for (const name of ["UAT Goa trip", "UAT Flat"]) await A.getByText(name).first().waitFor();
   });
   await step(null, "Account", "Delete my email & sign-in", async () => {

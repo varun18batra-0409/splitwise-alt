@@ -6,7 +6,7 @@ import { getAccount, getMemberships } from "@/lib/identity";
 import { joinAsExisting, joinAsNew } from "@/app/actions";
 import { Avatar, ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/components/ui";
 import { GroupCover } from "@/components/GroupCover";
-import { coverOf } from "@/lib/covers";
+import { coverFor, coverOf } from "@/lib/covers";
 
 // Where invitations land (group link, QR, contact message or email).
 // Joining needs a verified email, so new people sign up first (30 seconds,
@@ -49,7 +49,7 @@ export default async function JoinPage({
       <section className="vault mb-8 overflow-hidden rounded-[24px] text-fg">
         {coverOf(group) !== "plain" && (
           <div className="relative h-[180px] overflow-hidden" aria-hidden>
-            <GroupCover kind={coverOf(group)} uid={`join-${group.id}`} sizes="(max-width: 448px) 100vw, 448px" priority drift />
+            <GroupCover {...coverFor(group, true)} uid={`join-${group.id}`} sizes="(max-width: 448px) 100vw, 448px" priority drift />
             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(17,17,20,0)_35%,#141418_100%)]" />
           </div>
         )}

@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { coverOf } from "./covers";
+import { coverFor } from "./covers";
 import { netBalances } from "./balances";
 import { smartSettle } from "./settle";
 import { spentAmount } from "./payers";
@@ -56,7 +56,7 @@ export async function loadMyGroups(memberships: Record<string, string>) {
 export async function loadNotifications(memberships: Record<string, string>, limit = 50) {
   const members = await db.member.findMany({
     where: { id: { in: Object.values(memberships) } },
-    include: { group: { select: { id: true, name: true, currency: true, type: true, cover: true } } },
+    include: { group: { select: { id: true, name: true, currency: true, type: true, cover: true, coverAt: true } } },
   });
   const valid = members.filter((m) => memberships[m.groupId] === m.id);
   if (valid.length === 0) return { items: [], unread: 0 };
@@ -77,7 +77,7 @@ export async function loadNotifications(memberships: Record<string, string>, lim
       event: e,
       actorName: actors.find((a) => a.id === e.actorId)?.name ?? "Someone",
       groupName: me.group.name,
-      groupCover: coverOf(me.group),
+      groupCover: coverFor(me.group),
       unread: e.createdAt > seen,
     };
   });
@@ -119,12 +119,12 @@ export async function loadSwitchList(memberships: Record<string, string>, curren
   if (ids.length === 0) return [];
   const groups = await db.group.findMany({
     where: { id: { in: ids }, closed: false, deletedAt: null, members: { some: { id: { in: Object.values(memberships) } } } },
-    select: { id: true, name: true, createdAt: true, type: true, cover: true },
+    select: { id: true, name: true, createdAt: true, type: true, cover: true, coverAt: true },
   });
   const latest = await db.groupEvent.groupBy({ by: ["groupId"], where: { groupId: { in: groups.map((g) => g.id) } }, _max: { createdAt: true } });
   const last = new Map(latest.map((l) => [l.groupId, l._max.createdAt?.getTime() ?? 0]));
   return groups
     .sort((a, b) => (last.get(b.id) ?? b.createdAt.getTime()) - (last.get(a.id) ?? a.createdAt.getTime()))
     .slice(0, 5)
-    .map((g) => ({ id: g.id, name: g.name, cover: coverOf(g) }));
+    .map((g) => ({ id: g.id, name: g.name, pic: coverFor(g) }));
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COVERS, cleanCover, coverOf, isCoverChoice } from "@/lib/covers";
+import { COVERS, cleanCover, coverFor, coverOf, isCoverChoice, photoType } from "@/lib/covers";
 
 // A group's picture: its own choice, else one that suits its type.
 describe("group pictures", () => {
@@ -26,5 +26,23 @@ describe("group pictures", () => {
     expect(cleanCover("beach", "trip")).toBe("");
     expect(cleanCover("diwali", "other")).toBe("diwali");
     expect(cleanCover("plain", "home")).toBe("plain");
+  });
+});
+
+describe("a group's own photo", () => {
+  const at = new Date("2026-10-21T06:00:00Z");
+  it("shows only when the group really has one, and never to someone not in the group", () => {
+    expect(coverFor({ id: "g1", type: "trip", cover: "own", coverAt: at })).toEqual({ kind: "own", src: `/api/group-photo/g1?v=${at.getTime()}` });
+    expect(coverFor({ id: "g1", type: "trip", cover: "own", coverAt: null })).toEqual({ kind: "beach" });
+    expect(coverFor({ id: "g1", type: "trip", cover: "own", coverAt: at }, true)).toEqual({ kind: "beach" });
+    expect(cleanCover("own", "trip", false)).toBe("");
+    expect(cleanCover("own", "trip", true)).toBe("own");
+  });
+  it("accepts JPEG, PNG and WebP by their bytes, nothing else", () => {
+    expect(photoType(new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0]))).toBe("image/jpeg");
+    expect(photoType(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0]))).toBe("image/png");
+    expect(photoType(new TextEncoder().encode("RIFF\u0000\u0000\u0000\u0000WEBPVP8 "))).toBe("image/webp");
+    expect(photoType(new TextEncoder().encode("<svg onload=alert(1)>"))).toBeNull();
+    expect(photoType(new TextEncoder().encode("GIF89a........"))).toBeNull();
   });
 });

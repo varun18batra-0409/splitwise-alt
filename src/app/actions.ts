@@ -322,7 +322,7 @@ export async function updateGroupSettings(formData: FormData) {
   if (!basics.ok) redirect(`${back}?error=name`);
   // The picture is just for looks: saved as it is, no history entry.
   if (formData.has("cover")) {
-    const cover = cleanCover(String(formData.get("cover")), group.type);
+    const cover = cleanCover(String(formData.get("cover")), group.type, Boolean(group.coverAt));
     if (cover !== group.cover) await db.group.update({ where: { id: group.id }, data: { cover } });
   }
   const did = basics.eventId ? `&did=${basics.eventId}` : "";

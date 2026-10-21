@@ -7,6 +7,7 @@ import { isPhoto, photoSrc, type CoverChoice } from "@/lib/covers";
 // first letter of the name instead.
 // Photos: `sizes` says how wide it shows (so the phone gets a small file),
 // `priority` for the big picture at the top of a screen, `drift` for a slow zoom.
+// For a group, pass {...coverFor(group)} (lib/covers.ts) for `kind` and `src`.
 export function GroupCover({
   kind,
   uid,
@@ -17,6 +18,7 @@ export function GroupCover({
   priority,
   drift,
   letterClass,
+  src,
 }: {
   kind: CoverChoice;
   uid: string;
@@ -27,7 +29,14 @@ export function GroupCover({
   priority?: boolean;
   drift?: boolean;
   letterClass?: string;
+  src?: string;
 }) {
+  // The group's own photo (already made small on the phone that sent it).
+  if (kind === "own") {
+    if (!src) return null;
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={src} alt="" aria-hidden loading={priority ? "eager" : "lazy"} decoding="async" className={`absolute inset-0 h-full w-full object-cover ${drift ? "lp-drift" : ""} ${className}`} />;
+  }
   if (isPhoto(kind)) {
     const src = photoSrc(kind);
     if (src)

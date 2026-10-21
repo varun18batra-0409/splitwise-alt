@@ -14,7 +14,7 @@ import { buildActivity, dayLabel } from "@/lib/activity";
 import { formatMoney } from "@/lib/money";
 import { HomeBanner } from "@/components/HomeBanner";
 import { GroupCover } from "@/components/GroupCover";
-import { coverOf } from "@/lib/covers";
+import { coverFor, coverOf } from "@/lib/covers";
 import { monthNumbers, seasonNow } from "@/lib/home/banner";
 import { ActivityRow } from "@/components/ActivityRow";
 import { itemHref } from "@/lib/paths";
@@ -114,6 +114,7 @@ export default async function Home({
     tz,
   );
   const season = seasonNow(new Date(), tz);
+  const byActivity = [...open].sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
 
   // First visit: show what Loopin does instead of an empty screen.
   const tourSeen = (await cookies()).get("lp_tour")?.value === "1";
@@ -258,7 +259,7 @@ export default async function Home({
                       ["right-[46px] top-1.5 -rotate-[9deg]", "right-[23px] top-0 rotate-[4deg]", "right-0 top-2 rotate-[13deg]"][i]
                     }`}
                   >
-                    <GroupCover kind={coverOf(g.group)} uid={`stack-${g.group.id}`} letter={g.group.name} small />
+                    <GroupCover {...coverFor(g.group)} uid={`stack-${g.group.id}`} letter={g.group.name} small />
                   </span>
                 ))}
               </div>
@@ -391,22 +392,29 @@ export default async function Home({
             {open.length === 0 ? (
               <p className="py-6 text-sm text-gray-500">No open groups. Create one, or reopen a closed one.</p>
             ) : (
-              <ul className="lp-rise mt-3 grid grid-cols-2 gap-x-3 gap-y-5">
-                {open.map((g) => (
-                  <GroupCard key={g.group.id} g={g} tz={tz} />
-                ))}
-                <li>
-                  <Link
-                    href="/groups/new"
-                    className="flex h-[188px] flex-col items-center justify-center gap-2 rounded-[20px] border-[1.5px] border-dashed border-gray-300 text-sm font-medium text-gray-600 active:bg-mist"
-                  >
-                    <span className="text-2xl leading-none" aria-hidden>
-                      ＋
-                    </span>
-                    Start a group
-                  </Link>
-                </li>
-              </ul>
+              <>
+                {/* Up to 4 groups (most recently active first); the rest open with a tap, in the same grid. */}
+                <ul className="lp-rise mt-3 grid grid-cols-2 gap-x-3 gap-y-5">
+                  {byActivity.slice(0, 4).map((g) => (
+                    <GroupCard key={g.group.id} g={g} tz={tz} />
+                  ))}
+                  {byActivity.length < 4 && byActivity.length % 2 === 1 && <StartTile />}
+                </ul>
+                {byActivity.length > 4 && (
+                  <details className="group/more mt-5">
+                    <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-full border border-line px-4 py-2 text-sm text-gray-600 active:bg-mist [&::-webkit-details-marker]:hidden">
+                      <span className="group-open/more:hidden">Show all {byActivity.length} groups</span>
+                      <span className="hidden group-open/more:inline">Show fewer</span>
+                    </summary>
+                    <ul className="lp-rise mt-4 grid grid-cols-2 gap-x-3 gap-y-5">
+                      {byActivity.slice(4).map((g) => (
+                        <GroupCard key={g.group.id} g={g} tz={tz} />
+                      ))}
+                      {byActivity.length % 2 === 1 && <StartTile />}
+                    </ul>
+                  </details>
+                )}
+              </>
             )}
 
             {closed.length > 0 && (
@@ -535,7 +543,7 @@ function GroupRow({ g, closed, tz }: { g: Awaited<ReturnType<typeof loadOverview
     <li>
       <Link href={`/groups/${g.group.id}`} className="flex items-center gap-3 py-3.5 active:bg-mist">
         <span className={`relative h-11 w-11 shrink-0 overflow-hidden rounded-xl ${closed ? "opacity-50 grayscale" : ""}`} aria-hidden>
-          <GroupCover kind={coverOf(g.group)} uid={`row-${g.group.id}`} letter={g.group.name} letterClass="text-lg" sizes="44px" />
+          <GroupCover {...coverFor(g.group)} uid={`row-${g.group.id}`} letter={g.group.name} letterClass="text-lg" sizes="44px" />
         </span>
         <span className="min-w-0 flex-1">
           <span className={`block truncate font-medium ${closed ? "text-gray-500" : ""}`}>{g.group.name}</span>
@@ -560,7 +568,7 @@ function GroupCard({ g, tz }: { g: Awaited<ReturnType<typeof loadOverview>>["all
     <li className="min-w-0">
       <Link href={`/groups/${g.group.id}`} className="lp-press block">
         <span className="relative block h-[188px] overflow-hidden rounded-[20px] border border-line">
-          <GroupCover kind={coverOf(g.group)} uid={g.group.id} letter={g.group.name} />
+          <GroupCover {...coverFor(g.group)} uid={g.group.id} letter={g.group.name} />
           {type && (
             <span className="absolute left-2.5 top-2.5 rounded-full bg-canvas/55 px-2.5 py-1 text-[11px] font-semibold backdrop-blur" aria-hidden>
               {type}
@@ -590,6 +598,23 @@ function GroupCard({ g, tz }: { g: Awaited<ReturnType<typeof loadOverview>>["all
 }
 
 const TYPE_LABEL: Record<string, string | undefined> = { trip: "Trip", home: "Home", couple: "Couple" };
+
+// "Start a group": only to fill an empty spot in the grid (New group is always at the top).
+function StartTile() {
+  return (
+    <li>
+      <Link
+        href="/groups/new"
+        className="lp-press flex h-[188px] flex-col items-center justify-center gap-2 rounded-[20px] border-[1.5px] border-dashed border-gray-300 text-sm font-medium text-gray-600 active:bg-mist"
+      >
+        <span className="text-2xl leading-none" aria-hidden>
+          ＋
+        </span>
+        Start a group
+      </Link>
+    </li>
+  );
+}
 
 // The pill-shaped buttons on the sliding cards.
 const bannerButton =

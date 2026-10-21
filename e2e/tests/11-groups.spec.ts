@@ -1,6 +1,6 @@
 import { test, expect } from "../fixtures";
 import type { BrowserContext, Page } from "@playwright/test";
-import { testEmail, groupName } from "../env";
+import { bypassHeaders, testEmail, groupName } from "../env";
 import { signUp } from "../helpers/auth";
 import { contextFor, createGroup, settled, shownGroupName } from "../helpers/app";
 
@@ -99,4 +99,44 @@ test("delete a group: it's under Recently deleted (opened with a tap) and Restor
   await row.getByRole("button", { name: "Restore" }).click();
   await page.waitForURL(new RegExp(g.path));
   expect(await shownGroupName(page, g.path)).toBe(name);
+});
+
+test("a group's own photo: upload it in settings; it shows on the group and Home, only for people in the group", async ({ browser }) => {
+  const g = await createGroup(page, groupName("Photo"), "Trip");
+  await page.goto(`${g.path}/settings`);
+  await settled(page);
+  // A small real picture (a 64×48 PNG drawn here), picked as if from the phone's gallery.
+  const png = await page.evaluate(async () => {
+    const c = document.createElement("canvas");
+    c.width = 64;
+    c.height = 48;
+    const x = c.getContext("2d")!;
+    x.fillStyle = "#2a7"; x.fillRect(0, 0, 64, 48);
+    x.fillStyle = "#fc3"; x.fillRect(16, 12, 32, 24);
+    const b: Blob = await new Promise((r) => c.toBlob((v) => r(v!), "image/png"));
+    return Array.from(new Uint8Array(await b.arrayBuffer()));
+  });
+  await page.getByLabel("Upload your own photo").setInputFiles({ name: "beach.png", mimeType: "image/png", buffer: Buffer.from(png) });
+  await expect(page.getByText("Saved for the group")).toBeVisible({ timeout: 20_000 });
+
+  await page.goto(g.path);
+  await settled(page);
+  const src = await page.locator('header img[src*="/api/group-photo/"]').first().getAttribute("src");
+  expect(src, "the group's own photo is at the top of the group").toBeTruthy();
+  const own = await page.request.get(src!);
+  expect(own.status()).toBe(200);
+  expect(own.headers()["content-type"]).toMatch(/^image\/(webp|jpeg|png)$/);
+
+  // Someone not in the group can't see it.
+  const stranger = await browser.newContext({ extraHTTPHeaders: bypassHeaders });
+  const r = await stranger.request.get(new URL(src!, page.url()).toString());
+  expect(r.status()).toBe(404);
+  await stranger.close();
+
+  // Not a picture → refused.
+  const bad = await page.request.post(`${g.path.replace("/groups/", "/api/group-photo/")}`, {
+    data: "<svg onload=alert(1)>",
+    headers: { "Content-Type": "image/png", Origin: new URL(page.url()).origin },
+  });
+  expect(bad.status()).toBe(415);
 });
