@@ -570,7 +570,7 @@ function GroupCard({ g, tz, short }: { g: Awaited<ReturnType<typeof loadOverview
   const type = TYPE_LABEL[g.group.type];
   return (
     <li className="min-w-0">
-      <Link href={`/groups/${g.group.id}`} prefetch className="lp-press block">
+      <Link href={`/groups/${g.group.id}`} className="lp-press block">
         <span className={`relative block overflow-hidden rounded-[20px] border border-line ${short ? "h-[140px]" : "h-[188px]"}`}>
           <GroupCover {...coverFor(g.group)} uid={g.group.id} letter={g.group.name} />
           {type && (
