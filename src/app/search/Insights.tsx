@@ -48,15 +48,15 @@ export function Insights({ d }: { d: InsightsData }) {
   const top = niceMax(Math.max(...d.bars.map((b) => Math.max(0, b.value)), 0));
   const approx = d.converted ? "≈ " : "";
   const totalCat = d.categories.reduce((s, c) => s + Math.max(0, c.amount), 0);
-  const pill = (on: boolean) =>
-    `flex-1 rounded-full py-2 text-center text-sm font-semibold transition-colors ${on ? "bg-[linear-gradient(135deg,#ff9b52,#ff6a2b)] text-[#1a0d05] shadow-[0_6px_20px_-6px_rgba(255,110,40,0.7)]" : "text-gray-500"}`;
+  // Same look as the rest of Loopin: the group tabs' switch, off-white for what's chosen, green for money bars.
+  const pill = (on: boolean) => `flex-1 rounded-lg py-2 text-center text-sm ${on ? "bg-fg font-semibold text-canvas" : "text-gray-500"}`;
   const grainChip = (on: boolean) =>
-    `flex h-8 w-11 items-center justify-center rounded-full text-xs font-semibold ${on ? "bg-[linear-gradient(135deg,#ff9b52,#ff6a2b)] text-[#1a0d05]" : "bg-fg/[0.06] text-gray-500"}`;
+    `flex h-8 w-11 items-center justify-center rounded-full border text-xs font-semibold ${on ? "border-fg bg-fg text-canvas" : "border-line text-gray-500 active:bg-mist"}`;
 
   return (
     <section aria-label="Insights" className="mb-8">
       {/* Your share | Group spend */}
-      <div className="flex gap-1 rounded-full border border-line bg-white p-1" role="tablist" aria-label="What to show">
+      <div className="grid grid-cols-2 gap-1 rounded-xl bg-mist p-1" role="tablist" aria-label="What to show">
         <Link href={d.link({ v: "share" })} role="tab" aria-selected={d.view === "share"} className={pill(d.view === "share")}>
           Your share
         </Link>
@@ -66,7 +66,7 @@ export function Insights({ d }: { d: InsightsData }) {
       </div>
 
       {/* The card: total, change, period, bars */}
-      <div className="relative mt-4 overflow-hidden rounded-[26px] border border-line bg-[radial-gradient(120%_70%_at_100%_0%,rgba(255,120,50,0.16),transparent_60%),linear-gradient(170deg,#1b1a1f_0%,#121115_80%)] px-5 pb-4 pt-5">
+      <div className="vault relative mt-4 rounded-[24px] px-5 pb-4 pt-5 text-fg">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs text-fg/55">
@@ -80,7 +80,7 @@ export function Insights({ d }: { d: InsightsData }) {
               {change === null ? (
                 <span className="text-fg/45">Nothing to compare with yet</span>
               ) : (
-                <span className={change > 0 ? "text-[#ff9b52]" : change < 0 ? "text-owed" : "text-fg/55"}>
+                <span className={change > 0 ? "text-owe" : change < 0 ? "text-owed" : "text-fg/55"}>
                   {change > 0 ? "▲" : change < 0 ? "▼" : "•"} {Math.abs(change)}%{" "}
                   <span className="text-fg/45">vs {bucketLabel(d.bars[i - 1].key, d.grain)}</span>
                 </span>
@@ -129,7 +129,7 @@ export function Insights({ d }: { d: InsightsData }) {
               return (
                 <Link key={b.key} href={b.href} aria-label={`${bucketTitle(b.key, d.grain)}: ${formatMoney(Math.max(0, b.value), d.currency)}`} className="group flex h-full flex-1 flex-col items-center justify-end">
                   <span
-                    className={`lp-bar-up w-full max-w-[30px] rounded-full ${on ? "bg-[linear-gradient(180deg,#ffb36b,#ff6a2b)] shadow-[0_0_24px_-2px_rgba(255,110,40,0.65)]" : "bg-fg/[0.13] group-active:bg-fg/25"}`}
+                    className={`lp-bar-up w-full max-w-[30px] rounded-full ${on ? "bg-meter-up shadow-[0_0_22px_-4px_rgba(37,169,111,0.8)]" : "bg-fg/[0.13] group-active:bg-fg/25"}`}
                     style={{ height: `${h}px` }}
                   />
                   <span className={`mt-2 h-3 whitespace-nowrap text-[10px] leading-3 ${on ? "font-semibold text-fg" : "text-fg/40"}`}>{bucketLabel(b.key, d.grain)}</span>
@@ -163,7 +163,7 @@ export function Insights({ d }: { d: InsightsData }) {
                     </span>
                     <span className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-fg/[0.07]">
                       <span
-                        className={`lp-bar-x block h-full rounded-full ${n === 0 ? "bg-[linear-gradient(90deg,#ff6a2b,#ffb36b)]" : "bg-fg/30"}`}
+                        className={`lp-bar-x block h-full rounded-full ${n === 0 ? "bg-meter-up" : "bg-fg/30"}`}
                         style={{ width: `${Math.max(3, pct)}%` }}
                       />
                     </span>
