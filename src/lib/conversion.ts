@@ -18,9 +18,19 @@ export const PAYMENT_METHODS: { id: PaymentMethod; label: string }[] = [
 
 const MAX_RATE_DECIMALS = 12;
 
+// A typed rate as plain digits and a dot: "16,000" → "16000", "2.84" stays.
+// One comma with other than three digits after it (or "0,…") is a decimal
+// comma, as some phone keyboards type it: "2,84" → "2.84", "0,012" → "0.012".
+export function cleanRateText(input: string): string {
+  const t = String(input ?? "").replace(/\s/g, "");
+  const m = /^(\d+),(\d+)$/.exec(t);
+  if (m && (m[2].length !== 3 || /^0+$/.test(m[1]))) return `${m[1]}.${m[2]}`;
+  return t.replace(/,/g, "");
+}
+
 // "2.8367" → { n: 28367n, scale: 10000n }. Null if not a positive number.
 export function parseRate(input: string): { n: bigint; scale: bigint } | null {
-  const s = input.replace(/[,\s]/g, "");
+  const s = cleanRateText(input);
   const m = /^(\d*)(?:\.(\d*))?$/.exec(s);
   if (!m || (m[1] === "" && !m[2])) return null;
   const frac = (m[2] ?? "").slice(0, MAX_RATE_DECIMALS);
@@ -89,7 +99,7 @@ export function computeTotals(args: {
   if (!same && !parseRate(args.rate)) {
     return { ok: false, error: "Enter the exchange rate to convert this amount.", originalAmount };
   }
-  const exchangeRate = same ? "1" : args.rate.replace(/[,\s]/g, "");
+  const exchangeRate = same ? "1" : cleanRateText(args.rate);
   const convertedAmount = convertAmount(originalAmount, args.currency, args.baseCurrency, exchangeRate);
   if (convertedAmount === null || convertedAmount <= 0) {
     return { ok: false, error: "That amount is too small to convert. Check the rate.", originalAmount };

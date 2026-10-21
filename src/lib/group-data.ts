@@ -31,7 +31,7 @@ export async function loadMyGroups(memberships: Record<string, string>) {
   const groups = await db.group.findMany({
     where: { id: { in: Object.keys(memberships) }, deletedAt: null },
     include: {
-      members: { select: { id: true, name: true, phone: true, leftAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
+      members: { select: { id: true, name: true, phone: true, leftAt: true, accountId: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
       expenses: { include: { shares: true }, orderBy: { createdAt: "desc" } },
       payments: { orderBy: { createdAt: "desc" } },
     },
@@ -86,6 +86,19 @@ export async function loadNotifications(memberships: Record<string, string>, lim
     where: { OR: valid.map((m) => ({ groupId: m.groupId, actorId: { not: m.id }, createdAt: { gt: m.seenEventsAt ?? m.createdAt } })) },
   });
   return { items, unread };
+}
+
+// Just the number on the Alerts bell (asked on every screen change): two small
+// queries instead of loading the list.
+export async function countUnread(memberships: Record<string, string>): Promise<number> {
+  const ids = Object.values(memberships);
+  if (!ids.length) return 0;
+  const members = await db.member.findMany({ where: { id: { in: ids } }, select: { id: true, groupId: true, seenEventsAt: true, createdAt: true } });
+  const valid = members.filter((m) => memberships[m.groupId] === m.id);
+  if (!valid.length) return 0;
+  return db.groupEvent.count({
+    where: { OR: valid.map((m) => ({ groupId: m.groupId, actorId: { not: m.id }, createdAt: { gt: m.seenEventsAt ?? m.createdAt } })) },
+  });
 }
 
 export async function markNotificationsSeen(memberships: Record<string, string>) {

@@ -57,6 +57,13 @@ export async function GET(req: Request) {
   // Speed numbers are kept two weeks.
   const speedLogsRemoved = await part("cleanup", async () => (await db.speedLog.deleteMany({ where: { at: { lt: new Date(now.getTime() - 14 * 86_400_000) } } })).count);
   await part("cleanup-move", async () => (await db.requestKey.deleteMany({ where: { key: { startsWith: "move:" }, createdAt: { lt: new Date(now.getTime() - 86_400_000) } } })).count);
+  // Housekeeping, so these small tables never grow without end: used-up sign-in
+  // codes, finished rate-limit windows, unused passkey challenges, and the
+  // one-time keys that make saves retry-safe (a retry comes within minutes).
+  await part("cleanup-codes", async () => (await db.loginCode.deleteMany({ where: { expiresAt: { lt: new Date(now.getTime() - 86_400_000) } } })).count);
+  await part("cleanup-limits", async () => (await db.rateLimit.deleteMany({ where: { resetAt: { lt: new Date(now.getTime() - 86_400_000) } } })).count);
+  await part("cleanup-passkey", async () => (await db.requestKey.deleteMany({ where: { key: { startsWith: "pk:" }, createdAt: { lt: new Date(now.getTime() - 86_400_000) } } })).count);
+  await part("cleanup-keys", async () => (await db.requestKey.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - 30 * 86_400_000) } } })).count);
   await part("cleanup-mail", async () => (await db.notifyLog.deleteMany({ where: { key: { startsWith: "mail-failed:" }, createdAt: { lt: new Date(now.getTime() - 30 * 86_400_000) } } })).count);
   // Groups deleted more than 30 days ago (past their restore window) are erased for good.
   const groupsErased = await part("erase-deleted-groups", () => eraseExpiredGroups(now));

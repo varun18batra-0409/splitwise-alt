@@ -131,7 +131,11 @@ export type UndoPayload =
       payments: { id: string; amount: number }[];
     }
   | { type: "members_remove"; memberIds: string[] }
-  | { type: "members_restore"; members: { id: string; name: string; phone: string; createdAt: string }[] }
+  | {
+      type: "members_restore";
+      // accountId … joinedFrom: missing in changes saved before they were kept.
+      members: { id: string; name: string; phone: string; createdAt: string; accountId?: string | null; claimedAt?: string | null; splitWeight?: number; notify?: string; joinedFrom?: string | null }[];
+    }
   | { type: "member_set"; memberId: string; data: { name?: string; leftAt?: string | null } }
   | { type: "settle_all"; paymentIds: string[]; apply: boolean };
 

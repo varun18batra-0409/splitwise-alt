@@ -7,7 +7,7 @@ import { db } from "./db";
 // The signing keys are created once and kept in the database, so no extra
 // setup is needed when hosting.
 
-const SUBJECT = process.env.PUSH_CONTACT ?? "mailto:hello@loopin.app";
+const SUBJECT = process.env.PUSH_CONTACT ?? "mailto:hello@loopinapps.com";
 
 export async function vapidKeys(): Promise<{ publicKey: string; privateKey: string }> {
   const saved = await db.appSetting.findUnique({ where: { key: "vapid" } });
@@ -50,13 +50,17 @@ export async function sendEventPush(eventId: string): Promise<number> {
   try {
     const ev = await db.groupEvent.findUnique({ where: { id: eventId }, include: { group: { select: { id: true, name: true } } } });
     if (!ev) return 0;
-    // Everyone else in the group whose settings want this kind of change.
-    const subs = (
-      await db.pushSubscription.findMany({
-        where: { member: { groupId: ev.groupId }, memberId: { not: ev.actorId } },
+    // Everyone else still in the group whose settings want this kind of change —
+    // never the phone that made the change (even if it's someone else here too).
+    const [all, own] = await Promise.all([
+      db.pushSubscription.findMany({
+        where: { member: { groupId: ev.groupId, leftAt: null }, memberId: { not: ev.actorId } },
         include: { member: { select: { notify: true } } },
-      })
-    ).filter((s) => wantsPush(parseNotify(s.member.notify), ev.kind));
+      }),
+      db.pushSubscription.findMany({ where: { memberId: ev.actorId }, select: { endpoint: true } }),
+    ]);
+    const actorPhones = new Set(own.map((o) => o.endpoint));
+    const subs = all.filter((s) => !actorPhones.has(s.endpoint) && wantsPush(parseNotify(s.member.notify), ev.kind));
     if (subs.length === 0) return 0;
     const actor = await db.member.findUnique({ where: { id: ev.actorId }, select: { name: true } });
     const payload = JSON.stringify(

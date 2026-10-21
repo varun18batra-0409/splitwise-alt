@@ -10,6 +10,7 @@ import { headers } from "next/headers";
 import { cleanNames, sameName } from "@/lib/names";
 import { isSupportedCurrency, parseAmount, parsePercent } from "@/lib/money";
 import { getRate, type RateAnswer } from "@/lib/rate-cache";
+import { cleanRateText } from "@/lib/conversion";
 import { deletePayment, saveExpense, setExpenseDeleted, setPaymentDeleted, type SaveExpenseInput } from "@/lib/save-expense";
 import { removeMembers, undoEvent } from "@/lib/undo";
 import { isMemberUsed, renameMember, setMemberLeft } from "@/lib/people";
@@ -342,7 +343,7 @@ export async function updateGroupSettings(formData: FormData) {
 export async function convertGroupCurrency(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const currency = String(formData.get("currency") ?? "");
-  const rate = String(formData.get("rate") ?? "").replace(/[,\s]/g, "");
+  const rate = cleanRateText(String(formData.get("rate") ?? ""));
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
   if (!group) redirect("/");
   const myId = await getMyMemberId(group.id);
@@ -512,7 +513,7 @@ export async function recordCustomPayment(formData: FormData) {
       groupId: group.id,
       actorId: myId,
       kind: "payment_recorded",
-      text: `recorded ${nameOf(fromId)} paid ${nameOf(toId)} ${formatMoney(amount!, group.currency)}`,
+      text: paymentText(myId, fromId, toId, nameOf(fromId)!, nameOf(toId)!, formatMoney(amount!, group.currency)),
       paymentId: p.id,
       undo: { type: "payment_delete", paymentId: p.id },
     });

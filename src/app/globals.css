@@ -355,3 +355,10 @@ html.lp-opened .lp-open {
   opacity: 0;
   pointer-events: none;
 }
+
+/* Sideways rows (the Home cards, chip rows, the picture picker): a swipe that
+   reaches the end stays in the row, so it never turns into the phone's
+   "swipe back" (Android Chrome) or moves the whole page. */
+.overflow-x-auto {
+  overscroll-behavior-x: contain;
+}

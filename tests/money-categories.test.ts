@@ -11,6 +11,15 @@ describe("parseAmount (typed amount → smallest units)", () => {
     expect(parseAmount(".5")).toBe(50);
   });
 
+  it("reads dollars and a comma typed as the decimal point", () => {
+    expect(parseAmount("$48.50", "USD")).toBe(4850);
+    expect(parseAmount("€ 12", "EUR")).toBe(1200);
+    expect(parseAmount("12,50", "EUR")).toBe(1250);
+    expect(parseAmount("12,5", "USD")).toBe(1250);
+    expect(parseAmount("1,250", "INR")).toBe(125000); // three digits after a comma: thousands
+    expect(parseAmount("1,25,000", "INR")).toBe(12500000);
+  });
+
   it("rejects things that aren't amounts", () => {
     for (const bad of ["", "abc", "0", "1.234", "-5", "1.2.3", "."]) expect(parseAmount(bad)).toBeNull();
   });

@@ -30,7 +30,7 @@ export async function importSplitwise(
   const { people, currency, rows } = parsed;
   if (!Number.isInteger(input.me) || input.me < 0 || input.me >= people.length) return { ok: false, error: "Pick which person is you." };
   if (!rows.length) return { ok: false, error: "There’s nothing to bring over in this file." };
-  const groupName = input.groupName.trim().slice(0, 60);
+  const groupName = input.groupName.trim().replace(/\s+/g, " ").slice(0, 60);
   if (!groupName) return { ok: false, error: "Give the group a name." };
 
   const plans = rows.map(planRow);

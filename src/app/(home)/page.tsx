@@ -10,7 +10,7 @@ import { getTimeZone } from "@/lib/tz";
 import { getAccount, getMemberships } from "@/lib/identity";
 import { PasskeyOffer } from "@/components/Passkeys";
 
-import { loadDeletedGroups, loadNotifications } from "@/lib/group-data";
+import { countUnread, loadDeletedGroups } from "@/lib/group-data";
 import { loadOverview } from "@/lib/overview";
 import { buildActivity, dayLabel } from "@/lib/activity";
 import { formatMoney } from "@/lib/money";
@@ -45,18 +45,22 @@ export default async function Home({
   }>;
 }) {
   const { closed: justClosed, did, g: didGroup, undone, error, deleted, signedin, moved } = await searchParams;
-  const tz = await getTimeZone();
-  const memberships = await getMemberships();
-  const { all, open, closed, owedLines, oweLines, common, netCommon, netLines, netValue, settleItems, toCommon } = await loadOverview(memberships);
-  const { unread } = await loadNotifications(memberships, 1);
-  const deletedGroups = await loadDeletedGroups(memberships);
-  const account = await getAccount();
+  const [tz, memberships] = await Promise.all([getTimeZone(), getMemberships()]);
+  // Independent reads, all at once.
+  const [overview, unread, deletedGroups, account] = await Promise.all([
+    loadOverview(memberships),
+    countUnread(memberships),
+    loadDeletedGroups(memberships),
+    getAccount(),
+  ]);
+  const { all, open, closed, owedLines, oweLines, common, netCommon, netLines, netValue, settleItems, toCommon } = overview;
 
   // Undo bar after a change made from the home screen (e.g. closing a group).
   let undoBar: { text: string; groupId: string; eventId: string } | null = null;
   if (did && didGroup && memberships[didGroup]) {
-    const events = await db.groupEvent.findMany({ where: { groupId: didGroup } });
-    const ev = events.find((e) => e.id === did);
+    const ev = await db.groupEvent.findFirst({ where: { id: did, groupId: didGroup } });
+    // Only changes from then on matter for whether it can still be undone.
+    const events = ev ? await db.groupEvent.findMany({ where: { groupId: didGroup, createdAt: { gte: ev.createdAt } } }) : [];
     if (ev && canUndo(ev, events).ok) {
       const grp = all.find((x) => x.group.id === didGroup);
       const actor = ev.actorId === memberships[didGroup] ? "You" : grp?.group.members.find((m) => m.id === ev.actorId)?.name ?? "Someone";

@@ -51,6 +51,9 @@ describe("Smart Settle across groups", () => {
     expect(personKey({ name: "Asha", phone: "+91 98765 43210" })).toBe(personKey({ name: "A. Sharma", phone: "098765-43210" }));
     expect(personKey({ name: "Ravi  Kumar", phone: "" })).toBe(personKey({ name: "ravi kumar", phone: "" }));
     expect(personKey({ name: "Ravi", phone: "" })).not.toBe(personKey({ name: "Ravi", phone: "9999999999" }));
+    // On Loopin: the account decides. Two different Rahuls are never merged; one Rahul is, whatever he's called.
+    expect(personKey({ name: "Rahul", phone: "", accountId: "a1" })).not.toBe(personKey({ name: "Rahul", phone: "", accountId: "a2" }));
+    expect(personKey({ name: "Rahul", phone: "", accountId: "a1" })).toBe(personKey({ name: "Rahul K", phone: "", accountId: "a1" }));
   });
 
   it("converts other currencies to the common one, and skips groups without a rate", () => {

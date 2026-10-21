@@ -1,6 +1,6 @@
 import Link from "@/components/Link";
 import { notFound, redirect } from "next/navigation";
-import { getMemberships, getMyMemberId } from "@/lib/identity";
+import { getMemberships } from "@/lib/identity";
 import { loadGroup, loadSwitchList } from "@/lib/group-data";
 import { db } from "@/lib/db";
 import { canUndo } from "@/lib/undo";
@@ -72,26 +72,51 @@ export default async function GroupPage({
   const { id } = await params;
   const sp = await searchParams;
 
-  // Check membership with one small query before loading the whole ledger.
-  const myId = await getMyMemberId(id);
-  const me = myId ? await db.member.findFirst({ where: { id: myId, groupId: id }, select: { id: true } }) : null;
-  if (!me || !myId) {
+  // Who you are here, then the ledger, the time zone and the switcher list all
+  // at once (each is a trip to the database; one after another they add up).
+  const memberships = await getMemberships();
+  const myId = memberships[id];
+  if (!myId) {
     const exists = await db.group.findFirst({ where: { id, deletedAt: null }, select: { id: true } });
     if (!exists) notFound();
     redirect("/private");
   }
-  const data = await loadGroup(id);
+  const [data, tz, switchTo] = await Promise.all([loadGroup(id), getTimeZone(), loadSwitchList(memberships, id)]);
   if (!data) notFound();
+  // Still in it? (A removed person's phone can remember the group.)
+  if (!data.group.members.some((m) => m.id === myId)) redirect("/private");
 
-  const v = await buildGroupView(data, myId, await getTimeZone());
+  const v = await buildGroupView(data, myId, tz);
   const { group } = v;
   const home = group.type === "home" || group.type === "couple";
   const tabs = home ? HOME_TABS : TABS;
   const allowed: readonly string[] = home ? ["month", "bills", "list", "activity", "balances", "charts"] : ["activity", "balances", "charts"];
   const tab: Tab = allowed.includes(sp.tab ?? "") ? (sp.tab as Tab) : home ? "month" : "activity";
 
-  // Home & Couple: bills for the Bills tab and "Coming up" on This month.
-  const bills = home && (tab === "month" || tab === "bills") ? await billStatuses(group.id) : [];
+  // Home & Couple: everything This month / Bills / List need, fetched together.
+  const monthTab = home && tab === "month";
+  const active = group.expenses.filter((e) => !e.deletedAt);
+  const [bills, budgets, depositShares, heads, goalRows, list] = await Promise.all([
+    home && (tab === "month" || tab === "bills") ? billStatuses(group.id) : Promise.resolve<Awaited<ReturnType<typeof billStatuses>>>([]),
+    monthTab ? budgetsNow(group.id, active, myId, v.tz) : Promise.resolve<Awaited<ReturnType<typeof budgetsNow>>>([]),
+    // The deposit tile (held shares only).
+    monthTab ? db.depositShare.findMany({ where: { deposit: { groupId: group.id }, status: "held" } }) : Promise.resolve([] as { amount: number; memberId: string }[]),
+    // Heads up and next month's estimate.
+    monthTab
+      ? monthInsights(group.id, active, myId, Object.fromEntries(group.members.filter((m) => !m.leftAt).map((m) => [m.id, m.splitWeight])), group.currency, v.tz)
+      : Promise.resolve<Awaited<ReturnType<typeof monthInsights>> | null>(null),
+    // Savings goals (kept count of only).
+    monthTab
+      ? db.goal.findMany({ where: { groupId: group.id, deletedAt: null }, include: { entries: { select: { amount: true } } }, orderBy: { createdAt: "asc" } })
+      : Promise.resolve([] as { id: string; name: string; target: number; entries: { amount: number }[] }[]),
+    // The shopping list: what's open now, and the usual things for quick adding.
+    home && tab === "list"
+      ? Promise.all([
+          db.listItem.findMany({ where: { groupId: group.id, expenseId: "" }, orderBy: { createdAt: "asc" } }),
+          db.listItem.findMany({ where: { groupId: group.id }, orderBy: { createdAt: "desc" }, take: 200, select: { text: true } }),
+        ]).then(([items, history]) => ({ items, usual: usualItems(history.map((h) => h.text), items.map((i) => i.text)) }))
+      : Promise.resolve(null),
+  ]);
   const today = dayKey(new Date(), v.tz);
   const comingUp = bills
     .filter((b) => b.status === "waiting" || b.status === "upcoming")
@@ -113,43 +138,11 @@ export default async function GroupPage({
       href: b.status === "waiting" ? `/groups/${group.id}/add?bill=${b.bill.id}&period=${b.period}` : undefined,
     }));
 
-  const budgets = home && tab === "month" ? await budgetsNow(group.id, group.expenses.filter((e) => !e.deletedAt), myId, v.tz) : [];
-
-  // The deposit tile (held shares only).
-  const depositShares = home && tab === "month" ? await db.depositShare.findMany({ where: { deposit: { groupId: group.id }, status: "held" } }) : [];
   const deposit = depositShares.length
     ? { total: depositShares.reduce((s, d) => s + d.amount, 0), mine: depositShares.find((d) => d.memberId === myId)?.amount ?? 0 }
     : null;
 
-  // Heads up and next month's estimate.
-  const heads =
-    home && tab === "month"
-      ? await monthInsights(group.id, group.expenses.filter((e) => !e.deletedAt), myId, Object.fromEntries(group.members.filter((m) => !m.leftAt).map((m) => [m.id, m.splitWeight])), group.currency, v.tz)
-      : null;
-
-  // Savings goals (kept count of only).
-  const goals =
-    home && tab === "month"
-      ? (await db.goal.findMany({ where: { groupId: group.id, deletedAt: null }, include: { entries: { select: { amount: true } } }, orderBy: { createdAt: "asc" } })).map((g) => ({
-          id: g.id,
-          name: g.name,
-          target: g.target,
-          saved: g.entries.reduce((s, e) => s + e.amount, 0),
-        }))
-      : [];
-
-  // The shopping list: what's open now, and the usual things for quick adding.
-  const list =
-    home && tab === "list"
-      ? await (async () => {
-          const items = await db.listItem.findMany({ where: { groupId: group.id, expenseId: "" }, orderBy: { createdAt: "asc" } });
-          const history = await db.listItem.findMany({ where: { groupId: group.id }, orderBy: { createdAt: "desc" }, take: 200, select: { text: true } });
-          return { items, usual: usualItems(history.map((h) => h.text), items.map((i) => i.text)) };
-        })()
-      : null;
-
-  // Group switcher: up to 5 of my other open groups, most recently active first.
-  const switchTo = await loadSwitchList(await getMemberships(), group.id);
+  const goals = goalRows.map((g) => ({ id: g.id, name: g.name, target: g.target, saved: g.entries.reduce((s, e) => s + e.amount, 0) }));
 
   // Right after a change: offer Undo (or Redo after an undo).
   const justDid = sp.did ? group.events.find((x) => x.id === sp.did) : undefined;

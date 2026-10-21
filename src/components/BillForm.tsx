@@ -210,7 +210,7 @@ export function BillForm({
               aria-label="Another day"
               value={DAYS.some((d) => d[0] === day) ? "" : String(day)}
               onChange={(e) => e.target.value && setDay(Number(e.target.value))}
-              className={`${chip(!DAYS.some((d) => d[0] === day))} bg-transparent`}
+              className={`${chip(!DAYS.some((d) => d[0] === day))} bg-transparent !text-base`}
             >
               <option value="">Other…</option>
               {Array.from({ length: 28 }, (_, i) => i + 1)
