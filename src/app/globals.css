@@ -51,6 +51,7 @@
 
 @theme inline {
   --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+  --font-hand: var(--font-caveat), "Bradley Hand", "Segoe Print", cursive;
 }
 
 html {

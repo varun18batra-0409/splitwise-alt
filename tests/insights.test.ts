@@ -1,62 +1,103 @@
 import { describe, expect, it } from "vitest";
-import { categoryJumps, forecast, monthlySummaryText, sameDayDuplicates, utilityJumps } from "@/lib/home/insights";
+import { computeInsights, type InsightGroup } from "@/lib/insights";
+import { monthNumbers } from "@/lib/home/banner";
 
-// "Heads up" on This month, next month's estimate, and the 1st-of-month summary.
+// Insights must add up exactly like everything else: your share of each
+// expense (as in each group's balances and Home's "your month"), or each
+// expense's whole amount once (group spend). Money back takes away.
 
-describe("heads up", () => {
-  it("a bill that changes is flagged when it's over 25% above its usual", () => {
-    const runs = [
-      { name: "Electricity", period: "2026-07", amount: 240000 },
-      { name: "Electricity", period: "2026-08", amount: 250000 },
-      { name: "Electricity", period: "2026-09", amount: 236000 },
-      { name: "Electricity", period: "2026-10", amount: 341000 },
-      { name: "Gas", period: "2026-09", amount: 100000 },
-      { name: "Gas", period: "2026-10", amount: 110000 },
-    ];
-    expect(utilityJumps(runs, "2026-10")).toEqual([{ name: "Electricity", amount: 341000, usual: 242000, pct: 41 }]);
-  });
-  it("a category up 30%+ and over ₹1,000 vs last month", () => {
-    expect(
-      categoryJumps(
-        [{ id: "food", amount: 560000 }, { id: "groceries", amount: 90000 }, { id: "bills", amount: 400000 }],
-        [{ id: "food", amount: 400000 }, { id: "groceries", amount: 50000 }, { id: "bills", amount: 380000 }],
-      ),
-    ).toEqual([{ id: "food", amount: 560000, prev: 400000, pct: 40 }]);
-  });
-  it("the same thing added twice on the same day", () => {
-    const day = new Date("2026-10-12T12:00:00Z");
-    expect(
-      sameDayDuplicates(
-        [
-          { id: "1", description: "Milk", amount: 6000, spentAt: day, createdAt: day },
-          { id: "2", description: "milk ", amount: 6000, spentAt: day, createdAt: day },
-          { id: "3", description: "Milk", amount: 6000, spentAt: new Date("2026-10-13T12:00:00Z"), createdAt: day },
-        ],
-        "Asia/Kolkata",
-      ),
-    ).toEqual([{ name: "Milk", amount: 6000, day: "2026-10-12", ids: ["1", "2"] }]);
-  });
+const day = (d: string) => new Date(`${d}T12:00:00.000Z`); // a chosen expense day
+const exp = (id: string, amount: number, shares: Record<string, number>, d: string, category = "food", kind = "expense") => ({
+  id,
+  amount,
+  kind,
+  category,
+  spentAt: day(d),
+  createdAt: day(d),
+  shares: Object.entries(shares).map(([memberId, a]) => ({ memberId, amount: a })),
 });
 
-describe("next month's estimate", () => {
-  it("fixed bills + the usual for bills that change + daily bills + usual groceries", () => {
-    expect(
-      forecast({
-        fixed: [3600000, 99900, 600000],
-        varies: [[242000, 250000, 236000]],
-        daily: [{ rate: 6000, days: 30 }],
-        groceries: [800000, 900000, 1000000],
-      }),
-    ).toBe(3600000 + 99900 + 600000 + 242667 + 180000 + 900000);
-  });
-});
+// Trip in INR: me = "m1". Flat in INR: me = "f1". A USD group: me = "u1".
+const trip: InsightGroup = {
+  currency: "INR",
+  myId: "m1",
+  expenses: [
+    exp("t1", 90000, { m1: 30000, m2: 30000, m3: 30000 }, "2026-10-03", "food"), // ₹900 dinner, my share ₹300
+    exp("t2", 48000, { m1: 12000, m2: 36000 }, "2026-10-14", "transport"), // my share ₹120
+    exp("t3", 20000, { m1: 10000, m2: 10000 }, "2026-09-28", "food"), // September
+    exp("t4", 6000, { m1: 3000, m2: 3000 }, "2026-10-15", "food", "refund"), // money back: my share −₹30
+  ],
+};
+const flat: InsightGroup = {
+  currency: "INR",
+  myId: "f1",
+  expenses: [
+    exp("f1x", 4200000, { f1: 1400000, f2: 1400000, f3: 1400000 }, "2026-10-01", "bills"), // rent: my share ₹14,000
+    exp("f2x", 99900, { f2: 49950, f3: 49950 }, "2026-10-05", "bills"), // Wi-Fi, not mine
+  ],
+};
+const usd: InsightGroup = {
+  currency: "USD",
+  myId: "u1",
+  expenses: [exp("u1x", 5000, { u1: 2500, u2: 2500 }, "2026-10-10", "activities")], // $50, my share $25
+};
+const toINR = (amount: number, cur: string) => (cur === "USD" ? amount * 84 : null); // $1 = ₹84 (cents → paise)
 
-describe("the monthly summary", () => {
-  it("says the total, your share, the biggest category and anything unusual", () => {
-    const money = (n: number) => `₹${(n / 100).toLocaleString("en-IN")}`;
-    expect(monthlySummaryText({ month: "2026-10", group: "Flat 402", total: 5052000, mine: 1684000, top: "Bills & Utilities", unusual: "Electricity was 41% more than usual" }, money)).toEqual({
-      title: "🏠 Flat 402 · October",
-      body: "₹50,520 spent, your share ₹16,840. Most went on Bills & Utilities. Electricity was 41% more than usual.",
-    });
+const base = { now: day("2026-10-21"), tz: "Asia/Kolkata", currency: "INR", toChart: toINR } as const;
+
+describe("Insights: the numbers", () => {
+  it("your share this month = your shares of every expense, money back taken off, across groups and currencies", () => {
+    const r = computeInsights([trip, flat, usd], { ...base, view: "share", grain: "m" });
+    // ₹300 + ₹120 − ₹30 (trip) + ₹14,000 (flat) + $25 × 84 = ₹2,100 (USD group)
+    expect(r.selected).toBe("2026-10");
+    expect(r.bars.at(-1)).toEqual({ key: "2026-10", value: 30000 + 12000 - 3000 + 1400000 + 2500 * 84 });
+    expect(r.bars.find((b) => b.key === "2026-09")!.value).toBe(10000);
+    expect(r.converted).toBe(true);
+    expect(r.skipped).toBe(0);
+    // Where it went (October, your share): bills ₹14,000, activities ₹2,100, food ₹300 − ₹30, transport ₹120
+    expect(r.categories).toEqual([
+      { id: "bills", amount: 1400000 },
+      { id: "activities", amount: 210000 },
+      { id: "food", amount: 27000 },
+      { id: "transport", amount: 12000 },
+    ]);
+  });
+
+  it("group spend = each expense's whole amount, once (money back takes away)", () => {
+    const r = computeInsights([trip, flat], { ...base, view: "spent", grain: "m" });
+    expect(r.bars.at(-1)!.value).toBe(90000 + 48000 - 6000 + 4200000 + 99900);
+  });
+
+  it("matches Home's 'your month' card exactly", () => {
+    const groups = [trip, flat, usd];
+    const r = computeInsights(groups, { ...base, view: "share", grain: "m" });
+    const home = monthNumbers(groups, (a, cur) => toINR(a, cur), "INR", day("2026-10-21"), "Asia/Kolkata");
+    expect(home!.share).toBe(r.bars.at(-1)!.value);
+  });
+
+  it("weeks start on Monday; years add up every month", () => {
+    const w = computeInsights([trip], { ...base, view: "share", grain: "w" });
+    // 14 Oct (Wed) and 15 Oct (Thu) are in the week of Mon 12 Oct: ₹120 − ₹30
+    expect(w.bars.find((b) => b.key === "2026-10-12")!.value).toBe(12000 - 3000);
+    expect(w.bars.find((b) => b.key === "2026-09-28")!.value).toBe(30000 + 10000); // 28 Sep (Mon) and 3 Oct (Sat)
+    const y = computeInsights([trip, flat], { ...base, view: "share", grain: "y" });
+    expect(y.bars.at(-1)).toEqual({ key: "2026", value: 30000 + 12000 + 10000 - 3000 + 1400000 });
+  });
+
+  it("a tapped month is lit, and its categories shown", () => {
+    const r = computeInsights([trip], { ...base, view: "share", grain: "m", selected: "2026-09" });
+    expect(r.selected).toBe("2026-09");
+    expect(r.categories).toEqual([{ id: "food", amount: 10000 }]);
+  });
+
+  it("words typed in Search narrow the chart too", () => {
+    const r = computeInsights([trip], { ...base, view: "spent", grain: "m", include: (id) => id === "t1" });
+    expect(r.bars.at(-1)!.value).toBe(90000);
+  });
+
+  it("a currency with no saved rate is left out (and counted), never guessed", () => {
+    const r = computeInsights([usd], { ...base, view: "share", grain: "m", toChart: () => null });
+    expect(r.bars.every((b) => b.value === 0)).toBe(true);
+    expect(r.skipped).toBe(1);
   });
 });
