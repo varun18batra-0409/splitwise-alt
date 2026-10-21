@@ -105,6 +105,12 @@ test("a group's own photo: upload it in settings; it shows on the group and Home
   const g = await createGroup(page, groupName("Photo"), "Trip");
   await page.goto(`${g.path}/settings`);
   await settled(page);
+  // The picture row scrolls sideways and stays where you leave it; the page itself never moves sideways.
+  const row = page.locator("fieldset", { has: page.locator("legend", { hasText: "Picture" }) }).locator(":scope > div").first();
+  await row.evaluate((el) => el.scrollTo({ left: 300 }));
+  await page.waitForTimeout(800);
+  expect(await row.evaluate((el) => el.scrollLeft), "the picture row stays where it was scrolled").toBeGreaterThan(200);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "the page isn't wider than the phone").toBe(true);
   // A small real picture (a 64×48 PNG drawn here), picked as if from the phone's gallery.
   const png = await page.evaluate(async () => {
     const c = document.createElement("canvas");

@@ -30,7 +30,7 @@ export function OwnPhotoButton({ groupId }: { groupId: string }) {
   }
 
   return (
-    <div className="row-span-2 flex flex-col">
+    <div className="relative row-span-2 flex flex-col">
       <button
         type="button"
         onClick={() => input.current?.click()}
