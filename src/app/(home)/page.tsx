@@ -13,7 +13,7 @@ import { PasskeyOffer } from "@/components/Passkeys";
 import { countUnread, loadDeletedGroups } from "@/lib/group-data";
 import { loadOverview } from "@/lib/overview";
 import { buildActivity, dayLabel } from "@/lib/activity";
-import { formatMoney } from "@/lib/money";
+import { decimalsOf, formatMoney } from "@/lib/money";
 import { HomeBanner } from "@/components/HomeBanner";
 import { GroupCover } from "@/components/GroupCover";
 import { coverFor, coverOf } from "@/lib/covers";
@@ -261,17 +261,17 @@ export default async function Home({
           <HomeBanner>
             <div className="vault flex h-[268px] flex-col px-5 pb-12 pt-5 text-fg">
               {/* Your groups as polaroids, tossed on the table. */}
-              <div aria-hidden className="absolute right-2 top-3 h-[92px] w-[132px]">
+              <div aria-hidden className="absolute right-2 top-2 h-[70px] w-[120px]">
                 {open.slice(0, 3).map((g, i) => (
                   <span
                     key={g.group.id}
-                    className={`lp-drop absolute block w-[58px] bg-[#f4f2ec] p-[3px] pb-[11px] shadow-[0_10px_22px_-6px_rgba(0,0,0,0.85)] ${
-                      ["right-[68px] top-3 -rotate-[11deg]", "right-[34px] top-0 rotate-[5deg]", "right-1 top-5 rotate-[14deg]"][i]
+                    className={`lp-drop absolute block w-[48px] bg-[#f4f2ec] p-[3px] pb-[10px] shadow-[0_10px_22px_-6px_rgba(0,0,0,0.85)] ${
+                      ["right-[62px] top-2.5 -rotate-[11deg]", "right-[31px] top-0 rotate-[5deg]", "right-1 top-3.5 rotate-[14deg]"][i]
                     }`}
                     style={{ animationDelay: `${i * 90}ms` }}
                   >
-                    <span className="relative block h-[52px] overflow-hidden">
-                      <GroupCover {...coverFor(g.group)} uid={`stack-${g.group.id}`} letter={g.group.name} small sizes="58px" />
+                    <span className="relative block h-[40px] overflow-hidden">
+                      <GroupCover {...coverFor(g.group)} uid={`stack-${g.group.id}`} letter={g.group.name} small sizes="48px" />
                     </span>
                   </span>
                 ))}
@@ -307,13 +307,18 @@ export default async function Home({
                   {settleItems.length > 0 && (
                     <p className="mt-2 flex min-w-0 items-center gap-1.5 overflow-hidden text-xs" aria-label="Where it comes from">
                       {settleItems.slice(0, 2).map((it) => (
-                        <span key={it.key} className="flex min-w-0 shrink items-center gap-1.5 rounded-full bg-fg/[0.08] py-0.5 pl-0.5 pr-2.5">
+                        <span
+                          key={it.key}
+                          aria-label={it.net < 0 ? `You owe ${it.name} ${amt(it.net, it.converted)}` : `${it.name} owes you ${amt(it.net, it.converted)}`}
+                          className="flex min-w-0 shrink items-center gap-1.5 rounded-full bg-fg/[0.08] py-0.5 pl-0.5 pr-2.5"
+                        >
                           <span aria-hidden className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-canvas ${it.net < 0 ? "bg-owe" : "bg-owed"}`}>
                             {it.name.trim().charAt(0).toUpperCase()}
                           </span>
-                          <span className="truncate">
-                            {it.net < 0 ? `You → ${it.name}` : `${it.name} → you`}{" "}
-                            <span className={`tabular-nums ${it.net < 0 ? "text-owe" : "text-owed"}`}>{amt(it.net, it.converted)}</span>
+                          <span aria-hidden className="max-w-[64px] truncate">{it.name}</span>
+                          <span aria-hidden className={`shrink-0 tabular-nums ${it.net < 0 ? "text-owe" : "text-owed"}`}>
+                            {it.converted ? "≈ " : ""}
+                            {formatMoney(roundWhole(it.net, common), common)}
                           </span>
                         </span>
                       ))}
@@ -657,3 +662,9 @@ function activeText(d: Date, tz: string): string {
 }
 
 const peopleCount = (n: number) => (n === 1 ? "1 person" : `${n} people`);
+
+// Whole units for a small label (₹30,703 rather than ₹30,702.19).
+function roundWhole(minor: number, currency: string): number {
+  const unit = 10 ** decimalsOf(currency);
+  return Math.round(Math.abs(minor) / unit) * unit;
+}

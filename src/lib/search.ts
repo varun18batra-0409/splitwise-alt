@@ -85,9 +85,9 @@ export function bucketOf(d: Date, grain: Grain, tz?: string): string {
   return grain === "w" ? weekKey(d, tz) : grain === "y" ? dayKey(d, tz).slice(0, 4) : monthKey(d, tz);
 }
 
-// The bars, oldest first, ending with `last` (8 weeks, 6 months or 4 years).
+// The bars, oldest first, ending with `last` (6 weeks, 6 months or 4 years).
 export function bucketsEnding(last: string, grain: Grain): string[] {
-  const n = grain === "w" ? 8 : grain === "m" ? 6 : 4;
+  const n = grain === "w" ? 6 : grain === "m" ? 6 : 4;
   return Array.from({ length: n }, (_, i) => {
     const back = n - 1 - i;
     return grain === "w" ? shiftWeek(last, -back) : grain === "m" ? shiftMonth(last, -back) : String(Number(last) - back);
@@ -97,7 +97,8 @@ export function bucketsEnding(last: string, grain: Grain): string[] {
 export function bucketLabel(key: string, grain: Grain): string {
   if (grain === "y") return key;
   if (grain === "m") return new Date(`${key}-15T12:00:00Z`).toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" });
-  return new Date(`${key}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+  // Weeks: "19 Oct" (months shortened to three letters, so six fit side by side).
+  return new Date(`${key}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }).replace("Sept", "Sep");
 }
 
 // "October 2026", "2026", "Week of 19 Oct".

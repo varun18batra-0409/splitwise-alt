@@ -26,7 +26,7 @@ function compact(minor: number, currency: string): string {
   const digits = currency === "JPY" || currency === "KRW" || currency === "VND" || currency === "IDR" ? 0 : 2;
   const v = minor / 10 ** digits;
   try {
-    return new Intl.NumberFormat(currency === "INR" ? "en-IN" : "en-US", { style: "currency", currency, notation: "compact", maximumFractionDigits: 1 }).format(v);
+    return new Intl.NumberFormat(currency === "INR" ? "en-IN" : "en-US", { style: "currency", currency, notation: "compact", minimumFractionDigits: 0, maximumFractionDigits: 1 }).format(v);
   } catch {
     return `${currency} ${Math.round(v)}`;
   }
@@ -132,7 +132,7 @@ export function Insights({ d }: { d: InsightsData }) {
                     className={`lp-bar-up w-full max-w-[30px] rounded-full ${on ? "bg-meter-up shadow-[0_0_22px_-4px_rgba(37,169,111,0.8)]" : "bg-fg/[0.13] group-active:bg-fg/25"}`}
                     style={{ height: `${h}px` }}
                   />
-                  <span className={`mt-2 h-3 whitespace-nowrap text-[10px] leading-3 ${on ? "font-semibold text-fg" : "text-fg/40"}`}>{bucketLabel(b.key, d.grain)}</span>
+                  <span className={`mt-2 h-3 whitespace-nowrap text-[10px] leading-3 tracking-tight ${on ? "font-semibold text-fg" : "text-fg/40"}`}>{bucketLabel(b.key, d.grain)}</span>
                 </Link>
               );
             })}
