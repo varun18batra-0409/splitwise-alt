@@ -91,7 +91,7 @@ export default async function HowItWorks() {
           <br />
           Everything adds up.
         </p>
-        <p className="mt-2 text-sm text-fg/75">Split trips, flats and life as a couple. Free, no ads, no limits.</p>
+        <p className="mt-2 text-sm text-fg/75">Split trips, flats and life as a couple. Free, no ads.</p>
       </Photo>
       <div className="mt-5 grid grid-cols-2 gap-2">
         <Link href="/welcome" className="border border-line px-3 py-3 text-center text-sm font-medium text-fg active:bg-mist">

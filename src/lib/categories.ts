@@ -83,6 +83,9 @@ const KEYWORDS = CATEGORIES.flatMap((c) =>
     re: new RegExp(`(?<![a-z0-9])${escape(word)}(?:s|es)?(?![a-z0-9])`, "i"),
   })),
 );
+// Where you were rather than what you bought: these lose to any other word.
+const WEAK = new Set(["market", "mall"]);
+
 // Single words long enough to be worth typo-matching ("dinner", "petrol", "groceries").
 const FUZZY = KEYWORDS.filter((k) => /^[a-z]+$/.test(k.word) && k.word.length >= 4);
 const KNOWN = new Set(KEYWORDS.map((k) => k.word));
@@ -126,8 +129,11 @@ export function analyzeName(name: string): CategoryGuess {
 
   // 1. Exact words. The earliest one wins; at the same spot the longer one
   //    wins ("room rent" → Bills, not "room" → Stay).
+  //    Place words ("market", "mall") only decide when nothing else does:
+  //    "Night market dinner" is Food, "Mall" alone is Shopping.
   let best: { category: string; index: number; length: number } | null = null;
-  for (const k of KEYWORDS) {
+  for (const k of [...KEYWORDS.filter((k) => !WEAK.has(k.word)), ...KEYWORDS.filter((k) => WEAK.has(k.word))]) {
+    if (best && WEAK.has(k.word)) break;
     const m = k.re.exec(text);
     if (!m) continue;
     const better =
@@ -179,7 +185,9 @@ export function analyzeName(name: string): CategoryGuess {
   // A misspelt word that comes before the first exact word decides, as it
   // would have if spelt right ("Dinnr at the market" → Food, not Shopping).
   const typoFirst = typo && best && typo.index < best.index && typo.suggestion.wrong.length >= 5;
-  const category = (typoFirst ? typo!.category : null) ?? best?.category ?? joinedCategory ?? typo?.category ?? "other";
+  const bestIsWeak = best !== null && WEAK.has(text.slice(best.index, best.index + best.length).toLowerCase().replace(/(es|s)$/, ""));
+  const category =
+    (typoFirst ? typo!.category : null) ?? (bestIsWeak ? (joinedCategory ?? typo?.category) : null) ?? best?.category ?? joinedCategory ?? typo?.category ?? "other";
   return typo ? { category, suggestion: typo.suggestion } : { category };
 }
 

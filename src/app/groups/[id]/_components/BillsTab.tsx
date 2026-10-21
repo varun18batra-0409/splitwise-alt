@@ -95,7 +95,7 @@ export function BillsTab({ v, bills, saved }: { v: GroupView; bills: BillStatus[
 
       {fixed.length > 0 && (
         <>
-          <h3 className={h3}>Adds itself on the day</h3>
+          <h3 className={h3}>Same each time · repeats on the day</h3>
           <ul className="divide-y divide-line border-y border-line">{fixed.map(row)}</ul>
         </>
       )}

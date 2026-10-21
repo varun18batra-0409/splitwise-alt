@@ -1,19 +1,22 @@
 // Takes phone-sized screenshots of every screen (used by the GitHub check so
 // the design can be reviewed). Needs the app running on :3000 and .demo.json.
 import { mkdirSync, readFileSync } from "node:fs";
-import { chromium, type Page } from "playwright";
+import { chromium, webkit, type Page } from "playwright";
 import { SESSION_COOKIE, encodeSession } from "../src/lib/session";
 
 import { base, hosted, signInOnTestCopy, withBypass } from "./hosted";
 const demo = JSON.parse(readFileSync(".demo.json", "utf8"));
-const out = "screenshots";
+// SHOT_ENGINE=webkit: the same screens in Safari's engine (iPhone), saved to screenshots/ios.
+const ios = process.env.SHOT_ENGINE === "webkit";
+const out = ios ? "screenshots/ios" : "screenshots";
 mkdirSync(out, { recursive: true });
 
 async function main() {
-const browser = withBypass(await chromium.launch());
+const browser = withBypass(await (ios ? webkit : chromium).launch());
 const context = await browser.newContext({
   viewport: { width: 390, height: 844 },
   deviceScaleFactor: 2,
+  ...(ios ? { isMobile: true, hasTouch: true, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1" } : {}),
   colorScheme: "dark",
   locale: "en-IN",
   timezoneId: "Asia/Kolkata",
@@ -203,6 +206,89 @@ for (const n of [2, 3, 4, 5, 6]) {
 await context.addCookies([{ name: "lp_tour", value: "1", url: base }]);
 await shot("33-start", "/");
 await shot("34-signup", "/signin?mode=signup", undefined, false);
+
+// A visitor from the US, as a person would: the tour, then signed in, a new
+// group in dollars, an expense, the profile and Home. (Local copy only.)
+if (!hosted) {
+  const { db } = await import("@/lib/db");
+  const email = "shots-us@example.com";
+  const old = await db.account.findUnique({ where: { email } });
+  if (old) await db.member.updateMany({ where: { accountId: old.id }, data: { accountId: null } });
+  const acc = await db.account.upsert({ where: { email }, update: { name: "Varu" }, create: { email, name: "Varu" } });
+  const us = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 2,
+    ...(ios ? { isMobile: true, hasTouch: true } : {}),
+    colorScheme: "dark",
+    locale: "en-US",
+    timezoneId: "America/New_York",
+    extraHTTPHeaders: { "accept-language": "en-US,en;q=0.9" },
+  });
+  const p = await us.newPage();
+  const snap = async (name: string, fullPage = true) => {
+    await p.waitForTimeout(700);
+    await p.screenshot({ path: `${out}/${name}.png`, fullPage });
+    console.log("✓", name);
+  };
+  const step = async (name: string, run: () => Promise<void>, fullPage = true) => {
+    try {
+      await run();
+      await snap(name, fullPage);
+    } catch (e) {
+      console.log("✗", name, String(e).split("\n")[0]);
+    }
+  };
+  await step("80-us-tour-2", async () => {
+    await p.goto(base + "/", { waitUntil: "networkidle" });
+    await p.getByRole("button", { name: /Next/ }).click();
+  }, false);
+  await step("81-us-tour-5", async () => {
+    for (let k = 0; k < 3; k++) {
+      await p.getByRole("button", { name: /Next/ }).click();
+      await p.waitForTimeout(450);
+    }
+  }, false);
+  await us.addCookies([
+    { name: SESSION_COOKIE, value: await encodeSession({ m: {}, a: acc.id }), url: base },
+    { name: "lp_tour", value: "1", url: base },
+  ]);
+  await step("82-us-home-new", async () => {
+    await p.goto(base + "/", { waitUntil: "networkidle" });
+  });
+  let groupPath = "";
+  await step("83-us-new-group", async () => {
+    await p.goto(base + "/groups/new", { waitUntil: "networkidle" });
+    await p.getByRole("button", { name: /^Trip/ }).click();
+    await p.locator('input[name="groupName"]').fill("NYC weekend");
+  });
+  await step("84-us-group-created", async () => {
+    await p.getByRole("button", { name: /Create group/ }).click();
+    await p.waitForURL(/\/invite\?new=1/);
+    groupPath = new URL(p.url()).pathname.replace(/\/invite$/, "");
+  });
+  await step("85-us-add-expense", async () => {
+    await p.goto(base + groupPath + "/add", { waitUntil: "networkidle" });
+    await p.locator("#expense-name").fill("Pizza dinner");
+    await p.getByLabel("Amount", { exact: true }).fill("48.50");
+  });
+  await step("86-us-group", async () => {
+    await p.getByRole("button", { name: "Save expense" }).click();
+    await p.waitForURL(/tab=activity/);
+  });
+  await step("87-us-profile", async () => {
+    await p.goto(base + "/account", { waitUntil: "networkidle" });
+  });
+  await step("88-us-profile-edit", async () => {
+    await p.getByText("Edit name").click();
+  }, false);
+  await step("89-us-home", async () => {
+    await p.goto(base + "/", { waitUntil: "networkidle" });
+  });
+  await step("90-us-group-settings", async () => {
+    await p.goto(base + groupPath + "/settings", { waitUntil: "networkidle" });
+  }, false);
+  await us.close();
+}
 await browser.close();
 }
 

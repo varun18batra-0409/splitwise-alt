@@ -150,7 +150,12 @@ describe("categories cope with typos and suggest the right spelling", () => {
     expect(applySuggestion("Dinnr at Toit", r.suggestion!)).toBe("Dinner at Toit");
     // The misspelt word comes first, so it decides — not "market".
     expect(analyzeName("Dinnr at the night market").category).toBe("food");
-    expect(analyzeName("Night market dinnr").category).toBe("shopping");
+    expect(analyzeName("Night market dinnr").category).toBe("food");
+    // "market" / "mall" are places: any other word decides.
+    expect(analyzeName("Night market dinner").category).toBe("food");
+    expect(analyzeName("Lunch at the mall").category).toBe("food");
+    expect(analyzeName("Mall").category).toBe("shopping");
+    expect(analyzeName("Flea market").category).toBe("shopping");
     expect(analyzeName("grocries from DMart").suggestion).toEqual({ wrong: "grocries", right: "groceries" });
   });
 

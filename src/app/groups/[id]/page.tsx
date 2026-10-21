@@ -20,6 +20,7 @@ import { budgetsNow } from "@/lib/home/budgets-db";
 import { monthInsights } from "@/lib/home/insights-db";
 import { billStatuses } from "@/lib/home/bills-db";
 import { niceDate } from "@/lib/format";
+import { dayKey } from "@/lib/dates";
 import { Notice } from "@/components/Notice";
 
 const TABS = [
@@ -91,6 +92,7 @@ export default async function GroupPage({
 
   // Home & Couple: bills for the Bills tab and "Coming up" on This month.
   const bills = home && (tab === "month" || tab === "bills") ? await billStatuses(group.id) : [];
+  const today = dayKey(new Date(), v.tz);
   const comingUp = bills
     .filter((b) => b.status === "waiting" || b.status === "upcoming")
     .sort((a, b) => (a.status === "waiting" ? -1 : b.status === "waiting" ? 1 : a.due.localeCompare(b.due)))
@@ -99,7 +101,12 @@ export default async function GroupPage({
       id: b.bill.id,
       name: b.bill.name,
       icon: b.bill.icon,
-      when: b.status === "waiting" ? `Due ${niceDate(b.due)}` : b.bill.nature === "varies" ? `Due ${niceDate(b.due)}` : `Adds itself ${niceDate(b.due)}`,
+      when:
+        b.status === "waiting" || b.bill.nature === "varies"
+          ? `${b.due < today ? "Was due" : "Due"} ${niceDate(b.due)}`
+          : b.bill.nature === "daily"
+            ? `Added up ${niceDate(b.due)}`
+            : `Repeats · next ${niceDate(b.due)}`,
       who: b.payerId ? (b.payerId === myId ? "you pay" : `${v.nameOf(b.payerId)} pays`) : "taking turns",
       amount: b.bill.nature === "varies" ? (b.usual ? `~${v.money(b.usual)}` : "") : b.bill.nature === "daily" ? `${v.money(b.bill.amount)}/day` : v.money(b.bill.amount),
       status: (b.status === "waiting" ? "enter" : "due") as "enter" | "due",

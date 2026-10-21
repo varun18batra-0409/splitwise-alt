@@ -72,7 +72,7 @@ const extra = await add(trip.g.id, M, { name: "Souvenirs", amount: "500", curren
 const { setExpenseDeleted } = await import("@/lib/save-expense");
 await setExpenseDeleted(extra.id, M, true);
 const pay = await db.payment.create({ data: { groupId: trip.g.id, fromId: R, toId: V, amount: 500000, createdById: R } });
-await logEvent(db, { groupId: trip.g.id, actorId: R, kind: "payment_recorded", text: "recorded Ravi paid Varun ₹5,000", paymentId: pay.id, undo: { type: "payment_delete", paymentId: pay.id } });
+await logEvent(db, { groupId: trip.g.id, actorId: R, kind: "payment_recorded", text: "paid Varun ₹5,000", paymentId: pay.id, undo: { type: "payment_delete", paymentId: pay.id } });
 await db.member.update({ where: { id: V }, data: { seenEventsAt: new Date("2026-10-11T00:00:00Z") } });
 
 // A flat (Home group): bigger room pays 1.2×, regular bills that add

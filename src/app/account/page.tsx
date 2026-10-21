@@ -39,9 +39,8 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             </span>
             <div className="min-w-0">
               <p className="truncate font-display text-2xl font-semibold leading-tight">{shown || "Add your name"}</p>
-              <p className="mt-0.5 break-all text-sm text-fg/55">
-                Signed in as {account.email}
-              </p>
+              <p className="mt-0.5 text-sm text-fg/55">Signed in as</p>
+              <p className="break-all text-sm text-fg/80">{account.email}</p>
             </div>
           </div>
           {nameState === "saved" && (

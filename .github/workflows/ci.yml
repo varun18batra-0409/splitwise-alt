@@ -49,7 +49,7 @@ jobs:
           node-version: 22
       - run: npm install
       - run: npm install --no-save tsx@4.19.2 # Playwright itself comes with @playwright/test (one version for everything)
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium webkit
       - name: Start from the live version's tables (so the upgrade itself is tested)
         run: |
           git fetch -q --depth=1 origin main
@@ -75,6 +75,10 @@ jobs:
           (npm run start > server.log 2>&1 &)
           npx --yes wait-on@8.0.1 -t 60000 http://localhost:3000
           npx tsx scripts/screenshots.ts 2>&1 | tee shots.log || { echo "::error title=Screenshots failed::$(tail -40 shots.log | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')%0A--- server ---%0A$(tail -20 server.log | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"; exit 1; }
+      - name: Screenshots on iPhone (Safari's engine)
+        run: |
+          SHOT_ENGINE=webkit npx tsx scripts/screenshots.ts 2>&1 | tee shots-ios.log || true
+          echo "::notice title=iPhone screens::$(grep -c '^✓' shots-ios.log) taken, $(grep -c '^✗' shots-ios.log) failed $(grep '^✗' shots-ios.log | head -5 | tr '\n' ' ')"
       - name: UAT (a person tapping through every feature)
         run: |
           npx tsx scripts/uat.ts 2>&1 | tee uat.log || true

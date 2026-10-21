@@ -199,7 +199,7 @@ export function BillForm({
 
       {nature !== "daily" && (
         <div>
-          <span className="mb-2 block text-sm text-gray-500">{nature === "varies" ? "Due every month on" : "Adds itself every month on"}</span>
+          <span className="mb-2 block text-sm text-gray-500">{nature === "varies" ? "Due every month on" : "Repeats every month on"}</span>
           <div className="flex flex-wrap gap-2">
             {DAYS.map(([d, label]) => (
               <button key={d} type="button" aria-pressed={day === d} onClick={() => setDay(d)} className={chip(day === d)}>

@@ -107,7 +107,11 @@ export function ActivityRow({
       ) : item.effect < 0 ? (
         <Effect label="you owe" amount={money(-item.effect)} sub={o ? formatMoney(-o.effect, o.currency) : undefined} cls="text-owe" />
       ) : (
-        <Effect label="not involved" cls="" />
+        // Zero for you: either it wasn't yours at all, or you paid exactly your own part.
+        <Effect
+          label={[...(item.payerIds ?? [item.paidById]), ...item.people].some((id) => nameOf(id) === "You") ? "your own" : "not involved"}
+          cls=""
+        />
       )}
     </div>
   );

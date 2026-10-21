@@ -1288,7 +1288,7 @@ async function main() {
     await V.getByRole("button", { name: "Add bill" }).click();
     await V.waitForURL(/tab=bills&saved=bill/);
     const t = (await V.locator("main").innerText()).replace(/\s+/g, " ");
-    assert(/Adds itself on the day/.test(t) && /Rent/.test(t) && /Electricity/.test(t), `Bills tab says: ${t.slice(0, 200)}`);
+    assert(/repeats on the day/.test(t) && /Rent/.test(t) && /Electricity/.test(t), `Bills tab says: ${t.slice(0, 200)}`);
     // Both start next month when their day has passed; for the test, make them due already.
     const thisMonth = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit" }).format(new Date()).slice(0, 7);
     await db.bill.updateMany({ where: { groupId: homeId() }, data: { startMonth: thisMonth, day: 1 } });

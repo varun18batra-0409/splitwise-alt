@@ -93,7 +93,8 @@ export default async function SearchPage({
           <Link href={href({ g: null })} className={chip(!groupId)}>
             All groups
           </Link>
-          {all.map((g) => (
+          {/* The chosen group comes first, so it's in view without scrolling. */}
+          {[...all].sort((a, b) => Number(b.group.id === groupId) - Number(a.group.id === groupId)).map((g) => (
             <Link key={g.group.id} href={href({ g: g.group.id })} className={chip(groupId === g.group.id)}>
               {g.group.name}
             </Link>
