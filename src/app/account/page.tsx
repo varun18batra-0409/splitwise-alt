@@ -1,4 +1,5 @@
 import Link from "@/components/Link";
+import { InviteFriends } from "@/components/InviteFriends";
 import { deleteMyAccount, removeMyPasskey, signOutThisPhone } from "@/app/actions";
 import { listPasskeys } from "@/lib/passkeys";
 import { PasskeyAdd } from "@/components/Passkeys";
@@ -39,6 +40,8 @@ export default async function AccountPage() {
           </Link>
         </section>
       )}
+
+      <InviteFriends name={account?.name} className="mt-6" />
 
       {account && (
         <section className="mt-10 border-t border-line pt-8">

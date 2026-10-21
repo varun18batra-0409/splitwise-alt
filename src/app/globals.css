@@ -285,30 +285,30 @@ form[aria-busy="true"] button[type="submit"] {
 /* Each screen fades in as it arrives (opacity only, so nothing "fixed" jumps). */
 @keyframes lp-in {
   from {
-    opacity: 0;
+    opacity: 0.55;
   }
 }
 /* "backwards": once it has faded in, nothing is left on the screen's wrapper,
    so pop-ups inside a screen still sit above the bottom bar. */
 .lp-page {
-  animation: lp-in 240ms ease-out backwards;
+  animation: lp-in 140ms ease-out backwards;
 }
 /* Lists rise in one after another. */
 @keyframes lp-rise {
   from {
-    opacity: 0;
-    transform: translateY(10px);
+    opacity: 0.3;
+    transform: translateY(6px);
   }
 }
 .lp-rise > * {
-  animation: lp-rise 420ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+  animation: lp-rise 260ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
 }
-.lp-rise > *:nth-child(2) { animation-delay: 50ms; }
-.lp-rise > *:nth-child(3) { animation-delay: 100ms; }
-.lp-rise > *:nth-child(4) { animation-delay: 150ms; }
-.lp-rise > *:nth-child(5) { animation-delay: 200ms; }
-.lp-rise > *:nth-child(6) { animation-delay: 250ms; }
-.lp-rise > *:nth-child(n + 7) { animation-delay: 300ms; }
+.lp-rise > *:nth-child(2) { animation-delay: 25ms; }
+.lp-rise > *:nth-child(3) { animation-delay: 50ms; }
+.lp-rise > *:nth-child(4) { animation-delay: 75ms; }
+.lp-rise > *:nth-child(5) { animation-delay: 100ms; }
+.lp-rise > *:nth-child(6) { animation-delay: 125ms; }
+.lp-rise > *:nth-child(n + 7) { animation-delay: 150ms; }
 /* A group's big picture slowly drifts, like a photo in a slideshow. */
 @keyframes lp-drift {
   from {

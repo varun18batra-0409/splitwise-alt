@@ -37,6 +37,8 @@ export function BottomNav() {
     <Link
       key={it.label}
       href={it.href}
+      // Fetched ahead so the tap is instant (not Alerts: opening it marks changes as seen).
+      prefetch={it.label !== "Alerts"}
       aria-current={it.on ? "page" : undefined}
       aria-label={it.badge ? `${it.label}, ${it.badge} new` : it.label}
       className={`relative flex flex-1 flex-col items-center gap-0.5 py-1.5 text-[11px] ${it.on ? "text-fg" : "text-gray-500"}`}
