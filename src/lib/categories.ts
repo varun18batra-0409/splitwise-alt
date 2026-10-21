@@ -23,7 +23,7 @@ export const CATEGORIES: Category[] = [
     words: ["uber", "ola", "rapido", "grab", "bolt", "taxi", "cab", "auto", "rickshaw", "tuk tuk", "tuktuk",
       "metro", "bts", "mrt", "bus", "redbus", "train", "irctc", "petrol", "diesel", "fuel", "cng", "ev charging",
       "parking", "toll", "fastag", "ride", "scooty", "scooter", "bike rental", "car rental", "flight", "airline",
-      "airport", "air ticket", "indigo", "vistara", "air india", "akasa", "spicejet", "airasia", "ferry", "transfer",
+      "airport", "air ticket", "airfare", "air fare", "plane", "rail", "railway", "boat", "rental car", "car hire", "indigo", "vistara", "air india", "akasa", "spicejet", "airasia", "ferry", "transfer",
       "travel"],
   },
   {
