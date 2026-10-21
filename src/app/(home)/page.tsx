@@ -558,7 +558,7 @@ function GroupRow({ g, closed, tz }: { g: Awaited<ReturnType<typeof loadOverview
         <span className="min-w-0 flex-1">
           <span className={`block truncate font-medium ${closed ? "text-gray-500" : ""}`}>{g.group.name}</span>
           <span className="block truncate text-sm text-gray-400">
-            {g.group.members.filter((m) => !m.leftAt).length} people, {closed ? "closed" : activeText(g.lastActivity, tz)}
+            {peopleCount(g.group.members.filter((m) => !m.leftAt).length)}, {closed ? "closed" : activeText(g.lastActivity, tz)}
           </span>
         </span>
         <span className={`shrink-0 text-right text-sm tabular-nums ${b > 0 ? "text-owed" : b < 0 ? "text-owe" : "text-gray-400"}`}>
@@ -600,7 +600,7 @@ function GroupCard({ g, tz, short }: { g: Awaited<ReturnType<typeof loadOverview
           {b > 0 ? `owed ${formatMoney(b, g.group.currency)}` : b < 0 ? `owe ${formatMoney(-b, g.group.currency)}` : "settled"}
         </span>
         <span className="block truncate text-xs text-gray-400">
-          {people.length} people, {activeText(g.lastActivity, tz)}
+          {peopleCount(people.length)}, {activeText(g.lastActivity, tz)}
         </span>
       </Link>
     </li>
@@ -634,3 +634,5 @@ function activeText(d: Date, tz: string): string {
   const day = dayLabel(d, new Date(), tz);
   return day === "Today" || day === "Yesterday" ? `active ${day.toLowerCase()}` : `active ${day}`;
 }
+
+const peopleCount = (n: number) => (n === 1 ? "1 person" : `${n} people`);

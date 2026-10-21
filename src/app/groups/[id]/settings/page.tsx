@@ -312,7 +312,7 @@ export default async function GroupSettings({
       {/* People & data: one list of links */}
       <h2 className={`mt-12 ${sectionTitle}`}>People &amp; data</h2>
       <ul className="mt-6 divide-y divide-line rounded-2xl border border-line">
-        <SettingsLink href={`/groups/${group.id}/people`} label="Manage people" hint={`${group.members.filter((m) => !m.leftAt).length} people · rename, remove, leave`} />
+        <SettingsLink href={`/groups/${group.id}/people`} label="Manage people" hint={`${group.members.filter((m) => !m.leftAt).length === 1 ? "1 person" : `${group.members.filter((m) => !m.leftAt).length} people`} · rename, remove, leave`} />
         <SettingsLink href={`/groups/${group.id}/invite`} label="Add people" hint="Loopin users, contacts or email" />
         <SettingsLink href={`/groups/${group.id}/export`} label="Download spreadsheet" hint="Every expense and payment, as CSV" download />
       </ul>
