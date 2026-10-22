@@ -5,6 +5,7 @@ import { createGroup } from "@/app/actions";
 import { GROUP_TYPES, ratioFromIncomes, type GroupType } from "@/lib/group-types";
 import { CurrencySelect } from "./CurrencySelect";
 import { CoverPicker } from "./CoverPicker";
+import { TripDates } from "./TripDates";
 import { GroupCover } from "./GroupCover";
 import { coverOf, isCoverChoice, type CoverChoice } from "@/lib/covers";
 import { inputClass, primaryButtonClass, secondaryButtonClass } from "./ui";
@@ -97,23 +98,7 @@ export function NewGroupForm({
           <span className="mb-2 block text-sm font-medium text-gray-600">Group name</span>
           <input name="groupName" required value={name} onChange={(e) => setName(e.target.value)} placeholder={placeholder} autoComplete="off" maxLength={60} className={inputClass} />
         </label>
-        {type === "trip" && (
-          <div>
-          <span className="mb-2 block text-sm font-medium text-gray-600">
-            When’s the trip? <span className="font-normal text-gray-400">(optional: starts a countdown for everyone)</span>
-          </span>
-          <span className="grid grid-cols-2 gap-3">
-            <label className="block">
-              <span className="mb-1 block text-xs text-gray-400">Starts</span>
-              <input name="tripStart" type="date" className={inputClass} />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs text-gray-400">Ends</span>
-              <input name="tripEnd" type="date" className={inputClass} />
-            </label>
-          </span>
-          </div>
-        )}
+        {type === "trip" && <TripDates name={name} />}
         <label className="block">
           <span className="mb-2 block text-sm font-medium text-gray-600">Your name in this group</span>
           <input name="yourName" required defaultValue={yourName} placeholder="Your name" autoComplete="given-name" className={inputClass} />

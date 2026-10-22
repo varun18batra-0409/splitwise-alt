@@ -12,6 +12,7 @@ import { niceDate } from "@/lib/format";
 import Link from "@/components/Link";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { CoverPicker } from "@/components/CoverPicker";
+import { TripDates } from "@/components/TripDates";
 import { coverFor, coverOf } from "@/lib/covers";
 import { ErrorNote, PageHeader, inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
 
@@ -120,23 +121,7 @@ export default async function GroupSettings({
           <input name="name" required defaultValue={group.name} maxLength={60} autoComplete="off" className={inputClass} />
         </label>
 
-        {group.type === "trip" && (
-          <div id="trip" className="scroll-mt-6">
-          <span className="mb-2 block text-base font-semibold">
-            When’s the trip? <span className="font-normal text-gray-400">(optional: starts a countdown for everyone)</span>
-          </span>
-          <span className="grid grid-cols-2 gap-3">
-            <label className="block">
-              <span className="mb-1 block text-xs text-gray-400">Starts</span>
-              <input name="tripStart" type="date" defaultValue={group.tripStart} className={inputClass} />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs text-gray-400">Ends</span>
-              <input name="tripEnd" type="date" defaultValue={group.tripEnd} className={inputClass} />
-            </label>
-          </span>
-          </div>
-        )}
+        {group.type === "trip" && <TripDates name={group.name} start={group.tripStart} end={group.tripEnd} titleClass="text-base font-semibold" />}
 
         <CoverPicker defaultValue={coverOf(group)} letter={group.name} uid={group.id} legendClassName="mb-1 text-base font-semibold" own={{ groupId: group.id, src: coverFor(group).src }} />
 
