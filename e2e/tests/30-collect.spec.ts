@@ -24,8 +24,9 @@ test("the form refuses a bad UPI ID (and keeps what was typed), then makes the l
   await org.goto("/collect/new");
   await settled(org);
   await org.locator('input[name="title"]').fill(title);
-  await org.locator('input[name="amount"]').fill("300");
+  await org.getByText("More options").click(); // who's in, date, note and currency are folded away
   await org.locator('select[name="currency"]').selectOption("INR");
+  await org.locator('input[name="amount"]').fill("300");
   await org.locator('input[name="upiId"]').fill("not-a-upi-id");
   await org.locator('textarea[name="names"]').fill("Ravi\nMeera");
   await org.getByRole("button", { name: "Make the link" }).click();
