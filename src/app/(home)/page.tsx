@@ -30,6 +30,7 @@ import { myCollections, progress } from "@/lib/collect";
 import { tripPhase, type TripPhase } from "@/lib/countdown";
 import { todayKey } from "@/lib/dates";
 import { TripCountdown } from "@/components/TripCountdown";
+import { TripRow } from "@/components/TripRow";
 
 export const metadata = { alternates: { canonical: "/" } };
 
@@ -454,7 +455,7 @@ export default async function Home({
               <TripCountdown group={trips[0].g.group} phase={trips[0].phase} />
             </div>
           )}
-          {/* More than one trip: a row to swipe, soonest first, the next one peeking in. */}
+          {/* More than one trip: one card at a time, swipe for the next (soonest first). */}
           {trips.length > 1 && (
             <section className="mt-6" aria-label="Your trips">
               <div className="mb-2 flex items-baseline justify-between">
@@ -463,13 +464,11 @@ export default async function Home({
                 </h2>
                 <span className="text-xs text-fg/40">Swipe →</span>
               </div>
-              <ul className="no-scrollbar -mx-5 flex snap-x snap-mandatory scroll-px-5 gap-2.5 overflow-x-auto px-5 py-3 -my-3" data-trip-row>
+              <TripRow>
                 {trips.map((t) => (
-                  <li key={t.g.group.id} className="w-[calc(100%-24px)] shrink-0 snap-start">
-                    <TripCountdown group={t.g.group} phase={t.phase} />
-                  </li>
+                  <TripCountdown key={t.g.group.id} group={t.g.group} phase={t.phase} />
                 ))}
-              </ul>
+              </TripRow>
             </section>
           )}
 
