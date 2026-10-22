@@ -279,7 +279,11 @@ export default async function CollectionPage({ params, searchParams }: Props) {
           <ul className="divide-y divide-line">
             {paid.map((e) => (
               <li key={e.id} className="flex items-center gap-3 py-2.5">
-                <span aria-hidden className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-meter-up text-[11px] font-bold text-canvas">
+                {/* Ticked by them: an outlined tick. Checked by the organiser: a filled one. */}
+                <span
+                  aria-hidden
+                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${e.status === "confirmed" ? "bg-meter-up text-canvas" : "border-2 border-meter-up text-owed"}`}
+                >
                   ✓
                 </span>
                 <span className="min-w-0 flex-1">

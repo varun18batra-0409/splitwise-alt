@@ -107,7 +107,7 @@ export function NewCollectionForm({ defaultCurrency, yourName }: { defaultCurren
         <span className={label}>
           A note for everyone <span className={hint}>(optional)</span>
         </span>
-        <input name="note" maxLength={300} placeholder="E.g. we’re getting her a plant and a card" autoComplete="off" className={inputClass} />
+        <input name="note" maxLength={300} placeholder="E.g. a plant and a card for her" autoComplete="off" className={inputClass} />
       </label>
 
       <p className="rounded-xl bg-mist px-4 py-3 text-sm text-gray-500">
