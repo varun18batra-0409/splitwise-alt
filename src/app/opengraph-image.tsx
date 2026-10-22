@@ -26,13 +26,13 @@ export default function OpenGraphImage() {
           <div style={{ fontSize: 44, marginTop: 18, color: "#e8e3d8" }}>Split trips, flats & couple life.</div>
           <div style={{ fontSize: 30, marginTop: 26, color: "#9d9a92", fontFamily: "sans-serif" }}>Free · no ads · any currency · Android & iPhone</div>
         </div>
-        <svg width="300" height="300" viewBox="0 0 120 120">
-          <circle cx="60" cy="60" r="44" fill="none" stroke="#2b2b31" strokeWidth="11" />
-          <circle cx="60" cy="60" r="44" fill="none" stroke="#6fe3a8" strokeWidth="11" strokeLinecap="round" strokeDasharray="70 300" transform="rotate(-30 60 60)" />
-          <text x="60" y="77" textAnchor="middle" fontSize="50" fontWeight="700" fill="#f4f2ec" fontFamily="Georgia, serif">
-            L
-          </text>
-        </svg>
+        <div style={{ position: "relative", width: 300, height: 300, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <svg width="300" height="300" viewBox="0 0 120 120" style={{ position: "absolute", top: 0, left: 0 }}>
+            <circle cx="60" cy="60" r="44" fill="none" stroke="#2b2b31" strokeWidth="11" />
+            <circle cx="60" cy="60" r="44" fill="none" stroke="#6fe3a8" strokeWidth="11" strokeLinecap="round" strokeDasharray="70 300" transform="rotate(-30 60 60)" />
+          </svg>
+          <div style={{ fontSize: 130, fontWeight: 700, color: "#f4f2ec", fontFamily: "Georgia, serif" }}>L</div>
+        </div>
       </div>
     ),
     size,
