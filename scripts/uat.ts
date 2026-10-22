@@ -1976,6 +1976,139 @@ async function main() {
     await ctx.close();
   });
 
+  // ===== Collect: one person gathers money from many =====
+  let collectPath = "";
+  await step(V, "Collect", "Varun makes a Farewell collection (₹500 each, his UPI), lists Zoya and Kabir, and picks Asha from his Loopin friends", async () => {
+    await go(V, "/collect/new");
+    await V.getByRole("button", { name: "Farewell", exact: true }).click();
+    assert((await V.locator('input[name="title"]').inputValue()).includes("Farewell"), "the quick pick didn't fill the name");
+    await V.locator('input[name="amount"]').fill("500");
+    await V.locator('input[name="upiId"]').fill("varun@okicici");
+    await V.getByText("More options").click();
+    await V.locator('textarea[name="names"]').fill("Zoya\nKabir");
+    await V.getByRole("group", { name: "Your Loopin friends" }).getByRole("button", { name: /Asha/ }).click();
+    await V.getByRole("button", { name: "Make the link" }).click();
+    await V.waitForURL(/\/c\/[A-Za-z0-9_-]+\?new=1/);
+    collectPath = new URL(V.url()).pathname;
+    await V.getByText("Varun is collecting").waitFor();
+    await V.getByText("₹500 each").first().waitFor();
+    const due = V.getByRole("region", { name: "Still to pay" });
+    for (const n of ["Zoya", "Kabir", "Asha"]) await due.getByText(n, { exact: true }).waitFor();
+    await due.getByText("on Loopin").waitFor();
+    const p = await V.locator("[data-collection-progress]").innerText();
+    assert(/0 of 3 paid/.test(p) && /₹0/.test(p) && /₹1,500/.test(p), `progress reads “${p.replace(/\s+/g, " ")}”`);
+  });
+
+  // Notifications are written just after the page answers: give them a moment.
+  async function alertSays(page: Page, re: RegExp) {
+    for (let i = 0; i < 6; i++) {
+      await go(page, "/notifications");
+      if (await page.getByText(re).count()) return;
+      await page.waitForTimeout(1500);
+    }
+    throw new Error(`Alerts never showed ${re}`);
+  }
+
+  await step(A, "Collect", "Asha (on Loopin) finds it in Alerts: “Varun added you: ₹500 each”", async () => {
+    assert(collectPath, "no collection made");
+    await alertSays(A, /added you: ₹500 each/);
+  });
+
+  await step(null, "Collect", "Zoya opens the link with no sign-up: the UPI button has Varun's ID and ₹500 filled in; she ticks her name", async () => {
+    assert(collectPath, "no collection made");
+    const { ctx, page } = await person(browser);
+    await go(page, collectPath);
+    const upi = await page.getByRole("link", { name: "Pay ₹500 with UPI" }).getAttribute("href");
+    assert(upi?.startsWith("upi://pay?pa=varun%40okicici&") && upi.includes("am=500.00") && upi.includes("cu=INR"), `UPI link is ${upi}`);
+    await page.locator('select[name="entryId"]').selectOption({ label: "Zoya" });
+    await page.getByRole("button", { name: /I’ve paid/ }).click();
+    await page.waitForURL(/ticked=1/);
+    await page.getByText("You’re on the list.", { exact: false }).waitFor();
+    const p = await page.locator("[data-collection-progress]").innerText();
+    assert(/1 of 3 paid/.test(p) && /₹500/.test(p), `progress reads “${p.replace(/\s+/g, " ")}”`);
+    await ctx.close();
+  });
+
+  await step(V, "Collect", "Varun sees “Zoya says paid” in Alerts, taps Got it, marks Kabir as paid in cash: 2 of 3, ₹1,000 of ₹1,500", async () => {
+    await alertSays(V, /Zoya says they paid ₹500/);
+    await go(V, collectPath);
+    const paid = V.getByRole("region", { name: "Paid" });
+    await paid.getByText("says paid").waitFor();
+    await paid.getByRole("button", { name: "Got it" }).click();
+    await V.waitForLoadState("networkidle").catch(() => undefined);
+    await paid.getByText(/checked by you/).waitFor();
+    await V.getByRole("region", { name: "Still to pay" }).getByRole("listitem").filter({ hasText: "Kabir" }).getByRole("button", { name: "Paid cash" }).click();
+    await V.getByRole("region", { name: "Paid" }).getByText(/cash · checked by you/).waitFor();
+    const p = await V.locator("[data-collection-progress]").innerText();
+    assert(/2 of 3 paid/.test(p) && /₹1,000/.test(p) && /₹1,500/.test(p), `progress reads “${p.replace(/\s+/g, " ")}”`);
+  });
+
+  await step(V, "Collect", "Varun reminds Asha inside Loopin (bell); a second reminder straight away is refused; Asha sees it in Alerts", async () => {
+    await go(V, collectPath);
+    await V.getByRole("button", { name: "Remind Asha in Loopin" }).click();
+    await V.getByText("Reminder sent in Loopin.").waitFor();
+    await V.getByRole("button", { name: "Remind Asha in Loopin" }).click();
+    await V.getByText(/reminded them in the last few hours/).waitFor();
+    await alertSays(A, /Reminder from Varun/);
+  });
+
+  await step(null, "Collect", "Someone else can't change Varun's collection (no organiser buttons; a forged Got it is refused)", async () => {
+    const { ctx, page } = await person(browser);
+    await go(page, collectPath);
+    assert((await page.getByRole("button", { name: "Got it" }).count()) === 0, "a stranger sees Got it");
+    assert((await page.getByRole("button", { name: "Close collection" }).count()) === 0, "a stranger sees Close");
+    await ctx.close();
+  });
+
+  // ===== Trip countdown =====
+  const istDay = (plus: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(Date.now() + plus * 86_400_000));
+  async function newTrip(page: Page, name: string, start: string) {
+    await go(page, "/groups/new");
+    await page.getByRole("button", { name: /^Trip/ }).click();
+    await page.locator('input[name="groupName"]').fill(name);
+    await page.getByText("start the countdown").waitFor(); // the nudge to add dates
+    await page.locator('input[name="tripStart"]').fill(start);
+    await page.locator('select[name="currency"]').selectOption("INR");
+    await page.getByRole("button", { name: /Create group/ }).click();
+    await page.waitForURL(/\/invite\?new=1/);
+    return new URL(page.url()).pathname.replace(/\/invite$/, "");
+  }
+
+  await step(V, "Countdown", "A trip made with a start date in 10 days: the group says “in 10 days”, Home shows the countdown with the plane taking off", async () => {
+    const goa = await newTrip(V, `UAT Goa trip ${stamp % 1000}`, istDay(10));
+    await go(V, goa);
+    await V.locator("[data-countdown-line]").first().filter({ hasText: "in 10 days" }).waitFor();
+    await go(V, "/");
+    const card = V.getByRole("region", { name: "Trip countdown", exact: true }).first();
+    assert((await card.getAttribute("data-countdown")) === "10", `Home countdown says ${await card.getAttribute("data-countdown")}`);
+    assert(await card.locator("[data-takeoff]").count(), "no plane on the countdown");
+  });
+
+  await step(V, "Countdown", "A second trip in 30 days: Home turns it into “Your trips 2”, soonest first, one card at a time", async () => {
+    await newTrip(V, `UAT Manali trip ${stamp % 1000}`, istDay(30));
+    await go(V, "/");
+    const row = V.locator("[data-trip-row]");
+    const days = await row.locator("[data-countdown]").evaluateAll((els) => els.map((e) => e.getAttribute("data-countdown")));
+    assert(JSON.stringify(days.slice(0, 2)) === JSON.stringify(["10", "30"]), `trips in the order ${days.join(", ")}`);
+    await V.getByRole("heading", { name: /Your trips/ }).waitFor();
+    const w = await row.evaluate((el) => [el.clientWidth, (el.firstElementChild as HTMLElement).clientWidth]);
+    assert(w[0] === w[1], `a card is ${w[1]}px in a ${w[0]}px row (should be one per screen)`);
+  });
+
+  await step(V, "Groups", "A photo picked while making a group becomes its picture", async () => {
+    await go(V, "/groups/new");
+    await V.getByRole("button", { name: /^Other/ }).click();
+    await V.locator('input[name="groupName"]').fill(`UAT photo group ${stamp % 1000}`);
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
+    await V.getByLabel("Choose your own photo").setInputFiles({ name: "me.png", mimeType: "image/png", buffer: png });
+    await V.getByRole("status").filter({ hasText: "Added" }).waitFor();
+    await V.getByRole("button", { name: /Create group/ }).click();
+    await V.waitForURL(/\/invite\?new=1/);
+    const id = new URL(V.url()).pathname.split("/")[2];
+    const r = await V.request.get(`${base}/api/group-photo/${id}`, { headers: bypass });
+    assert(r.status() === 200, `group photo answered ${r.status()}`);
+  });
+
   await browser.close();
 
   // ---------- report ----------
