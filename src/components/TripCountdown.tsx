@@ -24,7 +24,8 @@ export function TripCountdown({ group, phase, more = 0 }: { group: Group; phase:
   // The destination's photo (Thailand → Maya Bay), so Home doesn't show the group's photo three times.
   const dest = placePhoto(group.name);
   const names = people.map((m) => m.name.split(" ")[0]);
-  const withWho = names.length <= 1 ? "" : names.length <= 3 ? names.join(", ") : `${names.slice(0, 2).join(", ")} & ${names.length - 2} more`;
+  // Everyone going, by first name ("Varun, Nupur, Ravi & Meera").
+  const withWho = names.length <= 1 ? "" : `${names.slice(0, -1).join(", ")} & ${names[names.length - 1]}`;
 
   return (
     <section aria-label="Trip countdown" data-countdown={phase.kind === "before" ? days : phase.kind} className="lp-rise">
@@ -59,7 +60,7 @@ export function TripCountdown({ group, phase, more = 0 }: { group: Group; phase:
           <p className="mt-1.5 truncate text-sm font-medium" data-countdown-line>
             {w.line}
           </p>
-          {withWho && <p className="mt-0.5 truncate text-xs text-fg/45">with {withWho}</p>}
+          {withWho && <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-fg/45">with {withWho}</p>}
           <div className="mt-3 flex items-center gap-3">
             <ShareCountdown groupId={group.id} text={`${w.line} ✨`} />
             {more > 0 && <span className="text-[11px] text-fg/40">+{more} more trip{more > 1 ? "s" : ""} coming</span>}

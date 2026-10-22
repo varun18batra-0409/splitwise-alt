@@ -51,7 +51,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
   const photo = await photoData(group, new URL(req.url).origin);
   const names = group.members.map((m) => m.name.split(" ")[0]);
-  const who = names.length <= 4 ? names.join(" · ") : `${names.slice(0, 3).join(" · ")} + ${names.length - 3} more`;
+  // Everyone going (a big group wraps onto a few lines; only past 16 people is the rest counted).
+  const who = names.length <= 16 ? names.join(" · ") : `${names.slice(0, 15).join(" · ")} + ${names.length - 15} more`;
   const hot = phase.kind !== "before" || phase.days <= 7;
   const sub = phase.kind === "before" ? `${words.small} · ${placeOf(group.name)}` : words.small;
 
@@ -87,7 +88,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         {/* The count */}
         <div style={{ marginTop: 90, display: "flex", fontSize: words.big.length > 3 ? 190 : 300, fontWeight: 700, lineHeight: 1, color: hot ? "#ffab6b" : "#6fe3a8", letterSpacing: -8 }}>{words.big}</div>
         <div style={{ marginTop: 20, display: "flex", fontSize: 64, color: "#f4f2ec" }}>{sub}</div>
-        <div style={{ marginTop: 26, display: "flex", fontSize: 40, color: "#a9a395" }}>{who}</div>
+        <div style={{ marginTop: 26, display: "flex", flexWrap: "wrap", justifyContent: "center", textAlign: "center", maxWidth: 900, fontSize: names.length > 8 ? 34 : 40, lineHeight: 1.35, color: "#a9a395" }}>{who}</div>
         <div style={{ marginTop: "auto", display: "flex", fontSize: 32, letterSpacing: 4, color: "#77736a" }}>made with loopin</div>
       </div>
     ),
