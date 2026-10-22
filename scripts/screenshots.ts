@@ -225,6 +225,22 @@ if (!hosted) {
       members: { create: [{ name: "Varun", accountId: acc.id, claimedAt: new Date() }, { name: "Nupur" }, { name: "Ravi" }, { name: "Meera" }, { name: "Kabir" }] },
     },
   });
+  // Every destination photo with its name, to check each one shows the right place.
+  {
+    const got = JSON.parse(readFileSync("src/generated/photos.json", "utf8")) as Record<string, { src: string }>;
+    const tiles = Object.entries(got)
+      .filter(([k]) => k.startsWith("place-") || ["cover-paris", "cover-taj", "cover-beach", "cover-mountains", "cover-city", "cover-snow", "cover-road"].includes(k))
+      .map(([k, v]) => `<figure style="margin:0;width:180px"><img src="${base}${v.src}" style="width:180px;height:130px;object-fit:cover;border-radius:8px"><figcaption style="font:12px sans-serif;color:#ddd;margin-top:4px">${k}</figcaption></figure>`)
+      .join("");
+    try {
+      await page.setContent(`<body style="margin:0;padding:12px;background:#111;display:flex;flex-wrap:wrap;gap:10px;width:780px">${tiles}</body>`, { waitUntil: "load", timeout: 30_000 });
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `${out}/82-place-photos.png`, fullPage: true });
+      console.log("✓ 82-place-photos");
+    } catch (e) {
+      console.log("✗ 82-place-photos", String(e).split("\n")[0]);
+    }
+  }
   await shot("72-home-collecting", "/");
   await shot("76-home-countdown", "/", undefined, false);
   await shot("77-group-countdown", `/groups/${goa.id}`, undefined, false);

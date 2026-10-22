@@ -32,6 +32,29 @@ const SLOTS = {
   "cover-party": ["photo-1492684223066-81342ee5ff30", "photo-1514525253161-7a46d19cd819"], // a night out
   "cover-birthday": ["photo-1530103862676-de8c9debad1d", "photo-1558636508-e0db3814bd1d"], // balloons and cake
   "cover-wedding": ["photo-1519741497674-611481863552", "photo-1511285560929-80b456fea0bc"], // a wedding
+  // Destinations for the trip countdown (see src/lib/places.ts).
+  "place-goa": ["eSRtxPd9q1c", "xWFL4KNd_2A", "MzmI2I1GCnU"],
+  "place-thailand": ["TejFa7VW5e4", "BU6lABNbTpA", "s_kwq1J0nX4", "sydwCr54rf0"],
+  "place-bali": ["-2WlTWZLnRc", "7hww7t6NLcg", "rf5R1qXwlDU"],
+  "place-dubai": ["Il8XxCdrikE", "DcyL0IoCY0A", "Fr6zexbmjmc"],
+  "place-manali": ["Xpwj1j1HX34", "Qwo81eAmsQQ", "CMpr5o8CH2E"],
+  "place-ladakh": ["XTroPPNq6JA", "4_vxxkqpY2w", "KwhxKAjhIjQ"],
+  "place-kerala": ["Cu8UUstD-HA", "V2V3id-bD7A", "RPCQYqLBoYE"],
+  "place-singapore": ["VhIyvLkjdio", "i3k4BZcHa7c"],
+  "place-maldives": ["23a7jJ1trDM", "6mzjJDqYU0g", "nfF5-G6cFwY"],
+  "place-vietnam": ["UzgMp17QMAs", "3sR_0NhWMEI"],
+  "place-srilanka": ["jpTT_SAU034", "KYBc1eq0dJo"],
+  "place-japan": ["YbcX7QktfjA", "gd3ysFyrsTQ", "joT0LcIUU8U"],
+  "place-london": ["a3r7BHXZ-d4", "Wc0gUW-k9rY", "HHcId4tYHjs"],
+  "place-jaipur": ["ZN6D_iZOfPk", "RugN1OsUwHM"],
+  "place-nepal": ["aBX7Otg1oh8", "PbCCnvId660", "lNLcL-DdGno"],
+  "place-andaman": ["T4E-oKtEBRU", "4Co7XZfag-8"],
+  "place-rishikesh": ["mxoH7NtRJA8", "w2uhp5VrF8M", "CTdDooABASA"],
+  "place-newyork": ["n6TdKxVxmN4", "1lRJIS8Qxdo"],
+  "place-santorini": ["6N2mSJsKTtA", "yfU0jIj-VQI"],
+  "place-bhutan": ["cnAH8smziZI", "OzAPEQPMcPA"],
+  "place-meghalaya": ["e7IZYGChPD4"],
+  "place-switzerland": ["3ZtlOpjaKr4"],
 };
 
 const out = "public/photos";
@@ -42,7 +65,7 @@ for (const [slot, ids] of Object.entries(SLOTS)) {
     try {
       const url = id.startsWith("photo-")
         ? `https://images.unsplash.com/${id}?w=${slot.startsWith("cover-") ? 900 : 1280}&q=${slot.startsWith("cover-") ? 70 : 75}&fm=jpg&fit=crop`
-        : `https://unsplash.com/photos/${id}/download?force=true&w=1280`;
+        : `https://unsplash.com/photos/${id}/download?force=true&w=${slot.startsWith("place-") ? 800 : 1280}`;
       const r = await fetch(url, {
         redirect: "follow",
         headers: { "User-Agent": "Mozilla/5.0 (Loopin build)" },

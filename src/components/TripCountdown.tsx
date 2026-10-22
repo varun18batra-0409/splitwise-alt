@@ -3,6 +3,7 @@ import { Polaroid } from "./Polaroid";
 import { ShareCountdown } from "./ShareCountdown";
 import { countdownWords, placeOf, tripEmoji, type TripPhase } from "@/lib/countdown";
 import { coverFor } from "@/lib/covers";
+import { placePhoto } from "@/lib/places";
 
 // The trip countdown, as a boarding pass: the trip's polaroid on the left, a
 // torn perforation, and "12 days to go" on the right, with everyone coming.
@@ -20,6 +21,8 @@ export function TripCountdown({ group, phase, more = 0 }: { group: Group; phase:
   const bigColor = tone === "now" || tone === "close" ? "text-owe" : tone === "soon" ? "text-owed" : "text-fg";
   const glow = tone === "close" || tone === "now" ? "shadow-[0_0_44px_-14px_rgba(255,171,107,0.7)]" : "";
   const place = placeOf(group.name);
+  // The destination's photo (Thailand → Maya Bay), so Home doesn't show the group's photo three times.
+  const dest = placePhoto(group.name);
   const names = people.map((m) => m.name.split(" ")[0]);
   const withWho = names.length <= 1 ? "" : names.length <= 3 ? names.join(", ") : `${names.slice(0, 2).join(", ")} & ${names.length - 2} more`;
 
@@ -29,7 +32,7 @@ export function TripCountdown({ group, phase, more = 0 }: { group: Group; phase:
         {/* The trip's photo */}
         <Link href={`/groups/${group.id}`} className="relative z-10 shrink-0 py-4 pl-4 pr-3" aria-label={`Open ${group.name}`}>
           <Polaroid
-            cover={coverFor(group)}
+            cover={dest ? { kind: "own", src: dest.src } : coverFor(group)}
             uid={`cd-${group.id}`}
             letter={group.name}
             caption={place}
