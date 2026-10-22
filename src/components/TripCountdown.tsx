@@ -50,7 +50,10 @@ export function TripCountdown({ group, phase }: { group: Group; phase: TripPhase
         </span>
         {/* The count */}
         <div className="flex min-w-0 flex-1 flex-col justify-center py-4 pl-3.5 pr-3">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-fg/45">{phase.kind === "during" ? "On the trip" : "Boarding in"}</p>
+          <div className="flex items-center gap-2">
+            <p className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-fg/45">{phase.kind === "during" ? "On the trip" : "Boarding in"}</p>
+            {phase.kind !== "during" && <TakeOff className={bigColor} />}
+          </div>
           <p className="mt-1 flex items-baseline gap-2">
             <span className={`font-display font-semibold leading-none tracking-tight tabular-nums ${bigColor} ${w.big.length > 3 ? "text-[38px]" : "text-[54px]"}`} data-countdown-big>
               {w.big}
@@ -70,5 +73,17 @@ export function TripCountdown({ group, phase }: { group: Group; phase: TripPhase
         </span>
       </div>
     </section>
+  );
+}
+
+// A small plane taking off down a dashed runway, next to "Boarding in".
+function TakeOff({ className }: { className: string }) {
+  return (
+    <span aria-hidden data-takeoff className="relative h-[24px] min-w-[34px] flex-1 overflow-hidden">
+      <span className="absolute inset-x-0 bottom-[3px] border-t border-dashed border-fg/20" />
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" className={`lp-takeoff absolute ${className}`}>
+        <path d="M2 16l20-7-4-2-6 2-6-4-2 1 4 5-4 1-2-1-1 1z" />
+      </svg>
+    </span>
   );
 }

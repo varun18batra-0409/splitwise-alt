@@ -404,3 +404,18 @@ html.lp-opened .lp-open {
     animation: none;
   }
 }
+
+/* Trip countdown on Home: a little plane rolls down a dashed runway and takes
+   off, then a pause, then again. Still (already up) when motion is turned off. */
+@keyframes lp-takeoff {
+  0% { left: -4px; bottom: 0; opacity: 0; transform: rotate(14deg); }
+  8% { opacity: 1; }
+  42% { left: 42%; bottom: 0; transform: rotate(14deg); }
+  74% { left: calc(100% - 15px); bottom: calc(100% - 13px); transform: rotate(-4deg); opacity: 1; }
+  84% { left: calc(100% + 4px); bottom: calc(100% - 6px); transform: rotate(-8deg); opacity: 0; }
+  100% { left: calc(100% + 4px); bottom: calc(100% - 6px); opacity: 0; }
+}
+.lp-takeoff { animation: lp-takeoff 4.4s cubic-bezier(0.45, 0, 0.35, 1) infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .lp-takeoff { animation: none; left: calc(100% - 15px); bottom: calc(100% - 13px); transform: rotate(-4deg); }
+}
