@@ -74,10 +74,14 @@ test("search engines: robots.txt, sitemap, title, description, share image; priv
   await expect(page).toHaveTitle("How Loopin works · Loopin");
   // In a browser, Next.js may also stream a copy into the page body for a moment; the head is what counts.
   expect(await page.locator('head meta[name="description"]').first().getAttribute("content")).toMatch(/split/i);
-  // What a search engine gets: one description, in the head.
-  const html = await (await request.get("/how-it-works", { headers: { "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" } })).text();
-  const head = html.slice(0, html.indexOf("</head>"));
-  expect(head.match(/<meta name="description"/g)?.length).toBe(1);
+  // What a link preview (WhatsApp, which doesn't run scripts) gets: the page as sent, read with scripts off.
+  const bot = await page.context().browser()!.newContext({ javaScriptEnabled: false, userAgent: "WhatsApp/2.24.20.80 A" });
+  await allowTestCopy(bot);
+  const bp = await bot.newPage();
+  await bp.goto(new URL("/how-it-works", page.url()).toString());
+  expect(await bp.locator('head meta[name="description"]').count(), "description in the head for WhatsApp").toBe(1);
+  expect(await bp.locator('head meta[property="og:image"]').count(), "share picture in the head for WhatsApp").toBeGreaterThan(0);
+  await bot.close();
   expect(await page.locator('link[rel="canonical"]').first().getAttribute("href")).toBe("https://www.loopinapps.com/how-it-works");
   expect(await page.locator('meta[property="og:image"]').first().getAttribute("content")).toMatch(/opengraph-image/);
   const og = await request.get("/opengraph-image");
