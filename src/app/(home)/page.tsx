@@ -10,7 +10,7 @@ import { getTimeZone } from "@/lib/tz";
 import { getAccount, getMemberships } from "@/lib/identity";
 import { PasskeyOffer } from "@/components/Passkeys";
 
-import { countUnread, loadDeletedGroups } from "@/lib/group-data";
+import { countAllUnread, loadDeletedGroups } from "@/lib/group-data";
 import { loadOverview } from "@/lib/overview";
 import { buildActivity, dayLabel } from "@/lib/activity";
 import { decimalsOf, formatMoney } from "@/lib/money";
@@ -57,7 +57,7 @@ export default async function Home({
   // Independent reads, all at once.
   const [overview, unread, deletedGroups, account, collections] = await Promise.all([
     loadOverview(memberships),
-    countUnread(memberships),
+    getAccount().then((a) => countAllUnread(memberships, a?.id)),
     loadDeletedGroups(memberships),
     getAccount(),
     getAccount().then((a) => (a ? myCollections(a.id) : [])),

@@ -121,6 +121,39 @@ export async function sendPushTo(memberIds: string[], p: { title: string; body: 
   }
 }
 
+// Send to people by account (Collect), on every phone they use Loopin on —
+// unless they turned off collection notifications. Never throws.
+export async function sendPushToAccounts(accountIds: string[], p: { title: string; body: string; url: string; tag: string }): Promise<number> {
+  try {
+    if (!accountIds.length) return 0;
+    const wanted = await db.account.findMany({ where: { id: { in: accountIds }, collectPush: true }, select: { id: true } });
+    if (!wanted.length) return 0;
+    const subs = await db.pushSubscription.findMany({ where: { member: { accountId: { in: wanted.map((a) => a.id) }, leftAt: null } } });
+    if (!subs.length) return 0;
+    const keys = await vapidKeys();
+    const payload = JSON.stringify({ title: p.title, body: p.body.length > 140 ? `${p.body.slice(0, 139)}…` : p.body, url: p.url, tag: p.tag });
+    let sent = 0;
+    const seen = new Set<string>();
+    for (const s of subs) {
+      if (seen.has(s.endpoint)) continue;
+      seen.add(s.endpoint);
+      try {
+        await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, {
+          vapidDetails: { subject: SUBJECT, publicKey: keys.publicKey, privateKey: keys.privateKey },
+          TTL: 60 * 60 * 24,
+        });
+        sent++;
+      } catch (err) {
+        const status = (err as { statusCode?: number }).statusCode;
+        if (status === 404 || status === 410) await db.pushSubscription.deleteMany({ where: { endpoint: s.endpoint } });
+      }
+    }
+    return sent;
+  } catch {
+    return 0;
+  }
+}
+
 // Once only: true the first time a key is claimed (e.g. "reminders:2026-10-19").
 export async function claimOnce(key: string): Promise<boolean> {
   try {

@@ -1,11 +1,11 @@
 import { db } from "./db";
 import { claimOnce, sendPushTo } from "./push";
 import { dayKey, DEFAULT_TIME_ZONE } from "./dates";
-import { NUDGE_DAYS, countdownNudge, daysBetween, placeOf } from "./countdown";
+import { NUDGE_DAYS, afterTripNudge, countdownNudge, daysBetween, placeOf } from "./countdown";
 
-// The daily job (morning, India time): a nudge to everyone in a trip a month,
-// a week and a day before it starts, and on the morning itself. Each trip gets
-// each nudge once, even if the job runs twice.
+// The daily job (morning, India time): nudges to everyone in a trip 60, 45, 30,
+// 14, 7, 3 and 1 days before it starts, on the morning itself, and the day after it
+// ends (settle up). Each trip gets each nudge once, even if the job runs twice.
 export async function sendTripCountdowns(now = new Date()) {
   const today = dayKey(now, DEFAULT_TIME_ZONE);
   const lastDay = dayKey(new Date(now.getTime() + Math.max(...NUDGE_DAYS) * 86_400_000), DEFAULT_TIME_ZONE);
@@ -23,5 +23,18 @@ export async function sendTripCountdowns(now = new Date()) {
       { title: left === 0 ? `${placeOf(g.name)} day!` : g.name, body, url: `/groups/${g.id}`, tag: `countdown:${g.id}` },
     );
   }
-  return { trips: trips.length, sent };
+  // The day after a trip ends: "Back from Goa? Settle up in one tap" (only if there's something to settle is up to them).
+  const yesterday = dayKey(new Date(now.getTime() - 86_400_000), DEFAULT_TIME_ZONE);
+  const ended = await db.group.findMany({
+    where: { type: "trip", deletedAt: null, closed: false, OR: [{ tripEnd: yesterday }, { tripEnd: "", tripStart: yesterday }] },
+    select: { id: true, name: true, members: { where: { leftAt: null }, select: { id: true } } },
+  });
+  for (const g of ended) {
+    if (!(await claimOnce(`countdown-after:${g.id}:${yesterday}`))) continue;
+    sent += await sendPushTo(
+      g.members.map((m) => m.id),
+      { title: g.name, body: afterTripNudge(g), url: `/groups/${g.id}/settle`, tag: `countdown:${g.id}` },
+    );
+  }
+  return { trips: trips.length, ended: ended.length, sent };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkNewCollection, cleanPayLink, cleanUpi, newCollectCode, progress, reminderText, upiLink } from "@/lib/collect-rules";
+import { checkNewCollection, cleanPayLink, cleanUpi, newCollectCode, personalReminder, phonesFor, progress, reminderText, upiLink, whatsappTo } from "@/lib/collect-rules";
 
 const form = (over: Partial<Parameters<typeof checkNewCollection>[0]> = {}) => ({
   title: "Teacher's Day gift",
@@ -92,5 +92,29 @@ describe("Collect: the progress bar and reminder", () => {
   it("the WhatsApp reminder names who's left and links back", () => {
     const t = reminderText({ title: "Gift", organiser: "Asha", amount: 30000, currency: "INR", dueDate: "2026-11-05" }, ["Kabir", "Zoya"], "https://loopinapps.com/c/abc");
     expect(t).toBe("Gift: ₹300 each by 5 Nov.\nStill to pay: Kabir, Zoya\nPay and tick your name here: https://loopinapps.com/c/abc");
+  });
+});
+
+describe("Collect: people from contacts, and WhatsApp", () => {
+  it("keeps each listed person's number; adds +91 to Indian mobiles; ignores junk", () => {
+    const picked = JSON.stringify([
+      { name: "Ravi Kumar", tel: "98765 43210" },
+      { name: "meera", tel: "+44 7700 900123" },
+      { name: "Kabir", tel: "09876543211" },
+      { name: "Not listed", tel: "+919999999999" },
+      { name: "Zoya", tel: "12" },
+      "nonsense",
+    ]);
+    expect(phonesFor(["Ravi Kumar", "Meera", "Kabir", "Zoya"], picked, "INR")).toEqual({ "Ravi Kumar": "+919876543210", Meera: "+447700900123", Kabir: "+919876543211" });
+    expect(phonesFor(["Ravi Kumar"], picked, "USD")).toEqual({ "Ravi Kumar": "9876543210" }); // no guessing a country outside rupees
+    expect(phonesFor(["Ravi"], "not json", "INR")).toEqual({});
+  });
+
+  it("opens a chat with that person, the message typed in", () => {
+    const c = { title: "Diwali fund", amount: 30000, currency: "INR", dueDate: "2026-11-05" };
+    const text = personalReminder(c, "Ravi Kumar", "https://loopinapps.com/c/abc");
+    expect(text).toBe("Hi Ravi! ₹300 for Diwali fund by 5 Nov. Pay and tick your name here: https://loopinapps.com/c/abc");
+    expect(whatsappTo("+919876543210", "hi")).toBe("https://wa.me/919876543210?text=hi");
+    expect(whatsappTo("9876543210", "hi")).toBe("https://wa.me/?text=hi"); // no country code: WhatsApp lets them pick
   });
 });

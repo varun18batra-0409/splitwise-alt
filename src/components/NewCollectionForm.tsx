@@ -4,12 +4,16 @@ import { useActionState, useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { createCollectionAction, type CreateState } from "@/app/collect-actions";
 import { CurrencySelect } from "./CurrencySelect";
+import { PickContacts } from "./PickContacts";
+import { FriendPicker } from "./FriendPicker";
 import { inputClass, primaryButtonClass } from "./ui";
 
 // New collection: what it's for, how much each, where the money goes (UPI for
 // rupees, a PayPal/Venmo/Revolut link otherwise, or neither for cash), by
 // when, and who's expected (optional: people can add themselves).
 const IDEAS = ["Teacher’s Day gift", "Farewell for Priya", "Saturday turf booking", "Society Diwali fund", "Office birthday cake"];
+// One tap fills the name (then add who it's for).
+const QUICK = ["Diwali fund", "Birthday gift", "Farewell", "Teacher’s Day", "Trip booking", "Office party", "Wedding gift", "Turf / match"];
 
 function Submit() {
   const { pending } = useFormStatus();
@@ -20,7 +24,7 @@ function Submit() {
   );
 }
 
-export function NewCollectionForm({ defaultCurrency, yourName }: { defaultCurrency: string; yourName: string }) {
+export function NewCollectionForm({ defaultCurrency, yourName, friends = [] }: { defaultCurrency: string; yourName: string; friends?: { id: string; name: string }[] }) {
   const [state, action] = useActionState<CreateState, FormData>(createCollectionAction, {});
   const [currency, setCurrency] = useState(defaultCurrency);
   const v = state.values ?? {};
@@ -63,27 +67,39 @@ export function NewCollectionForm({ defaultCurrency, yourName }: { defaultCurren
         <span className={label}>What are you collecting for?</span>
         <input name="title" defaultValue={v.title} required maxLength={60} placeholder={idea} autoComplete="off" className={inputClass} />
       </label>
-
-      <div className="grid grid-cols-[1fr_1.25fr] gap-3">
-        <label className="block">
-          <span className={label}>
-            Each pays <span className={hint}>(optional)</span>
-          </span>
-          <input name="amount" defaultValue={v.amount} inputMode="decimal" placeholder="Any amount" autoComplete="off" className={`${inputClass} tabular-nums`} />
-        </label>
-        <label className="block min-w-0">
-          <span className={label}>Currency</span>
-          <CurrencySelect key={v.currency ?? "start"} name="currency" defaultValue={v.currency || defaultCurrency} />
-        </label>
+      <div className="-mt-3 flex flex-wrap gap-2" aria-label="Quick picks">
+        {QUICK.map((q) => (
+          <button
+            key={q}
+            type="button"
+            onClick={(e) => {
+              const t = e.currentTarget.form?.elements.namedItem("title") as HTMLInputElement | null;
+              if (!t) return;
+              t.value = q;
+              t.focus();
+              t.setSelectionRange(q.length, q.length);
+            }}
+            className="h-8 rounded-full border border-line px-3 text-[13px] text-fg/80 active:bg-mist"
+          >
+            {q}
+          </button>
+        ))}
       </div>
+
+      <label className="block">
+        <span className={label}>
+          Each pays <span className={hint}>(leave empty for any amount)</span>
+        </span>
+        <input name="amount" defaultValue={v.amount} inputMode="decimal" placeholder={shownCurrency === "INR" ? "₹ 300" : `${shownCurrency} 20`} autoComplete="off" className={`${inputClass} tabular-nums`} />
+      </label>
 
       {shownCurrency === "INR" ? (
         <label className="block">
           <span className={label}>
-            Your UPI ID <span className={hint}>(so people can pay you in one tap)</span>
+            Your UPI ID <span className={hint}>(so people pay you in one tap)</span>
           </span>
           <input name="upiId" defaultValue={v.upiId} placeholder="name@okicici or 98xxxxxx@ybl" autoComplete="off" autoCapitalize="none" spellCheck={false} className={inputClass} />
-          <span className="mt-1.5 block text-xs text-gray-400">Find it in Google Pay, PhonePe or Paytm under your profile. Leave it empty for cash.</span>
+          <span className="mt-1.5 block text-xs text-gray-400">In Google Pay, PhonePe or Paytm, under your profile. Empty = cash.</span>
         </label>
       ) : (
         <label className="block">
@@ -91,36 +107,47 @@ export function NewCollectionForm({ defaultCurrency, yourName }: { defaultCurren
             Your pay link <span className={hint}>(optional)</span>
           </span>
           <input name="payLink" defaultValue={v.payLink} inputMode="url" placeholder="paypal.me/yourname" autoComplete="off" autoCapitalize="none" spellCheck={false} className={inputClass} />
-          <span className="mt-1.5 block text-xs text-gray-400">PayPal.me, Venmo, Cash App, Revolut or Monzo. Leave it empty for cash or bank transfer.</span>
+          <span className="mt-1.5 block text-xs text-gray-400">PayPal.me, Venmo, Cash App, Revolut or Monzo. Empty = cash or bank transfer.</span>
         </label>
       )}
 
-      <label className="block">
-        <span className={label}>
-          Pay by <span className={hint}>(optional)</span>
-        </span>
-        <input name="dueDate" defaultValue={v.dueDate} type="date" className={inputClass} />
-      </label>
+      {/* Everything else is optional, folded away so making a link takes seconds. */}
+      <details className="group/more rounded-2xl border border-line px-4 py-3" open={Boolean(v.dueDate || v.names || v.note || (v.currency && v.currency !== defaultCurrency))}>
+        <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-medium [&::-webkit-details-marker]:hidden">
+          <span>
+            More options <span className="font-normal text-gray-400">· who’s in, pay-by date, note, currency</span>
+          </span>
+          <span aria-hidden className="text-gray-400 transition-transform group-open/more:rotate-180">⌄</span>
+        </summary>
+        <div className="mt-4 space-y-6">
+          <label className="block">
+            <span className={label}>
+              Who’s chipping in? <span className={hint}>(people can also add themselves)</span>
+            </span>
+            <textarea name="names" defaultValue={v.names} rows={3} placeholder="One name per line, or paste them with commas" className={`${inputClass} resize-y`} />
+          </label>
+          <PickContacts key={v.contacts ?? "start"} initial={v.contacts} className="-mt-3" />
+          <FriendPicker friends={friends} />
 
-      <label className="block">
-        <span className={label}>
-          Who’s chipping in? <span className={hint}>(optional)</span>
-        </span>
-        <textarea name="names" defaultValue={v.names} rows={4} placeholder={"One name per line, or paste them with commas.\nPeople not on the list can add themselves."} className={`${inputClass} resize-y`} />
-      </label>
+          <label className="block">
+            <span className={label}>Pay by</span>
+            <input name="dueDate" defaultValue={v.dueDate} type="date" className={inputClass} />
+          </label>
 
-      <label className="block">
-        <span className={label}>
-          A note for everyone <span className={hint}>(optional)</span>
-        </span>
-        <input name="note" defaultValue={v.note} maxLength={300} placeholder="E.g. a plant and a card for her" autoComplete="off" className={inputClass} />
-      </label>
+          <label className="block">
+            <span className={label}>A note for everyone</span>
+            <input name="note" defaultValue={v.note} maxLength={300} placeholder="E.g. a plant and a card for her" autoComplete="off" className={inputClass} />
+          </label>
 
-      <p className="rounded-xl bg-mist px-4 py-3 text-sm text-gray-500">
-        You’ll get a link to drop in your WhatsApp group. People pay you directly, then tick their name. Loopin never touches the money.
-        Anyone with the link can see the names on the list.
-      </p>
+          <label className="block min-w-0">
+            <span className={label}>Currency</span>
+            <CurrencySelect key={v.currency ?? "start"} name="currency" defaultValue={v.currency || defaultCurrency} />
+          </label>
+        </div>
+      </details>
+
       <Submit />
+      <p className="-mt-3 text-center text-xs text-gray-400">People pay you directly and tick their name. Loopin never touches the money. Anyone with the link sees the names on it.</p>
     </form>
   );
 }

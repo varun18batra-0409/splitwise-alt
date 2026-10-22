@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { cleanNames } from "./names";
+import { cleanNames, cleanPhone, sameName } from "./names";
 import { formatMoney, isSupportedCurrency, parseAmount } from "./money";
 import { parseDay } from "./dates";
 
@@ -67,7 +67,7 @@ export function reminderText(c: { title: string; organiser: string; amount: numb
 type Ok<T> = { ok: true } & T;
 type Fail = { ok: false; error: string };
 
-export type NewCollection = { title: string; note: string; currency: string; amount: string; dueDate: string; upiId: string; payLink: string; names: string };
+export type NewCollection = { title: string; note: string; currency: string; amount: string; dueDate: string; upiId: string; payLink: string; names: string; contacts?: string };
 
 // Checks the form; returns what to save.
 export function checkNewCollection(input: NewCollection, now = new Date()): Ok<{ data: { title: string; note: string; currency: string; amount: number; dueDate: string; upiId: string; payLink: string }; names: string[] }> | Fail {
@@ -93,4 +93,43 @@ export function checkNewCollection(input: NewCollection, now = new Date()): Ok<{
   if (payLink === null) return { ok: false, error: "Use a PayPal.me, Venmo, Cash App, Revolut or Monzo link, or leave it empty." };
   const names = cleanNames(input.names.split(/[\n,]+/)).slice(0, MAX_ENTRIES);
   return { ok: true, data: { title, note: input.note.trim().slice(0, 300), currency, amount, dueDate, upiId, payLink }, names };
+}
+
+// People picked from the organiser's contacts: [{ name, tel }] as sent by the
+// form. Returns each listed name's phone (only for names on the list).
+// A 10-digit Indian mobile without a country code gets +91 for rupee collections.
+export function phonesFor(names: string[], contactsJson: string, currency: string): Record<string, string> {
+  let picked: unknown;
+  try {
+    picked = JSON.parse(contactsJson || "[]");
+  } catch {
+    return {};
+  }
+  if (!Array.isArray(picked)) return {};
+  const out: Record<string, string> = {};
+  for (const c of picked.slice(0, MAX_ENTRIES)) {
+    if (!c || typeof c !== "object") continue;
+    const name = cleanNames([String((c as { name?: unknown }).name ?? "")])[0];
+    let tel = cleanPhone(String((c as { tel?: unknown }).tel ?? ""));
+    if (!name || tel.replace("+", "").length < 8) continue;
+    if (!tel.startsWith("+") && currency === "INR" && /^[6-9]\d{9}$/.test(tel)) tel = `+91${tel}`;
+    if (!tel.startsWith("+") && /^0[6-9]\d{9}$/.test(tel) && currency === "INR") tel = `+91${tel.slice(1)}`;
+    const listed = names.find((n) => sameName(n, name));
+    if (listed && !out[listed]) out[listed] = tel;
+  }
+  return out;
+}
+
+// A WhatsApp chat with one person, message typed in. Numbers without a country code open WhatsApp's own picker.
+export function whatsappTo(phone: string, text: string): string {
+  const digits = phone.replace(/\D/g, "");
+  return phone.startsWith("+") && digits.length >= 8 ? `https://wa.me/${digits}?text=${encodeURIComponent(text)}` : `https://wa.me/?text=${encodeURIComponent(text)}`;
+}
+
+// The personal reminder: "Hi Ravi! ₹300 for Diwali fund by 5 Nov…"
+export function personalReminder(c: { title: string; amount: number; currency: string; dueDate: string }, name: string, link: string): string {
+  const first = name.split(" ")[0];
+  const each = c.amount > 0 ? `${formatMoney(c.amount, c.currency)} for ` : "";
+  const by = c.dueDate ? ` by ${new Date(`${c.dueDate}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}` : "";
+  return `Hi ${first}! ${each}${c.title}${by}. Pay and tick your name here: ${link}`;
 }

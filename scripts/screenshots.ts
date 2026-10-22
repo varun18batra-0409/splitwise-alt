@@ -198,6 +198,7 @@ let collectCode = "";
 if (!hosted) {
   const { db } = await import("../src/lib/db");
   const acc = await db.account.create({ data: { email: `shots-collect-${Date.now()}@uat.loopin.test`, name: "Varun" } });
+  const priya = await db.account.create({ data: { email: `shots-priya-${Date.now()}@uat.loopin.test`, name: "Priya" } });
   const due = new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10);
   const now = Date.now();
   const at = (minsAgo: number) => new Date(now - minsAgo * 60_000);
@@ -209,7 +210,7 @@ if (!hosted) {
         { name: "Ravi", amount: 30000, status: "confirmed", method: "upi", paidAt: at(300), confirmedAt: at(200) },
         { name: "Meera", amount: 30000, status: "paid", method: "upi", payerKey: "shotsPayerKey0000000001", paidAt: at(20) },
         { name: "Kabir", amount: 30000, status: "confirmed", method: "cash", paidAt: at(100), confirmedAt: at(100) },
-        { name: "Zoya" }, { name: "Arjun" }, { name: "Priya" },
+        { name: "Zoya", phone: "+919876500001" }, { name: "Arjun", phone: "+919876500002" }, { name: "Priya", accountId: priya.id },
       ] },
     },
   });
@@ -217,6 +218,13 @@ if (!hosted) {
   await context.addCookies([{ name: SESSION_COOKIE, value: await encodeSession({ m: demo.memberships, a: acc.id }), url: base }]);
   await shot("70-collect-new", "/collect/new");
   await shot("71-collect-organiser", `/c/${collectCode}`);
+  await db.accountNote.createMany({
+    data: [
+      { accountId: acc.id, kind: "collect_ticked", title: "Teacher’s Day gift", body: "Meera says they paid ₹300. Tap to check it off.", url: `/c/${collectCode}` },
+      { accountId: acc.id, kind: "collect_added", title: "Diwali fund", body: "Nupur added you: ₹500 each. Tap to pay and tick your name.", url: `/c/${collectCode}`, seenAt: new Date() },
+    ],
+  });
+  await shot("83-alerts-collect", "/notifications", undefined, false);
   // A trip in 12 days, for the countdown.
   const ist = (plus: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(now + plus * 86_400_000));
   const goa = await db.group.create({
@@ -225,6 +233,22 @@ if (!hosted) {
       members: { create: [{ name: "Varun", accountId: acc.id, claimedAt: new Date() }, { name: "Nupur" }, { name: "Ravi" }, { name: "Meera" }, { name: "Kabir" }] },
     },
   });
+  // Every destination photo with its name, to check each one shows the right place.
+  {
+    const got = JSON.parse(readFileSync("src/generated/photos.json", "utf8")) as Record<string, { src: string }>;
+    const tiles = Object.entries(got)
+      .filter(([k]) => k.startsWith("place-") || ["cover-paris", "cover-taj", "cover-beach", "cover-mountains", "cover-city", "cover-snow", "cover-road"].includes(k))
+      .map(([k, v]) => `<figure style="margin:0;width:180px"><img src="${base}${v.src}" style="width:180px;height:130px;object-fit:cover;border-radius:8px"><figcaption style="font:12px sans-serif;color:#ddd;margin-top:4px">${k}</figcaption></figure>`)
+      .join("");
+    try {
+      await page.setContent(`<body style="margin:0;padding:12px;background:#111;display:flex;flex-wrap:wrap;gap:10px;width:780px">${tiles}</body>`, { waitUntil: "load", timeout: 30_000 });
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `${out}/82-place-photos.png`, fullPage: true });
+      console.log("✓ 82-place-photos");
+    } catch (e) {
+      console.log("✗ 82-place-photos", String(e).split("\n")[0]);
+    }
+  }
   await shot("72-home-collecting", "/");
   await shot("76-home-countdown", "/", undefined, false);
   await shot("77-group-countdown", `/groups/${goa.id}`, undefined, false);
