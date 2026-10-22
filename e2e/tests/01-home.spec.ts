@@ -73,7 +73,7 @@ test("search engines: robots.txt, sitemap, title, description, share image; priv
   await page.goto("/how-it-works");
   await expect(page).toHaveTitle("How Loopin works · Loopin");
   expect(await page.locator('meta[name="description"]').getAttribute("content")).toMatch(/split/i);
-  expect(await page.locator('link[rel="canonical"]').getAttribute("href")).toBe("https://www.loopinapps.com/how-it-works");
+  expect(await page.locator('link[rel="canonical"]').first().getAttribute("href")).toBe("https://www.loopinapps.com/how-it-works");
   expect(await page.locator('meta[property="og:image"]').first().getAttribute("content")).toMatch(/opengraph-image/);
   const og = await request.get("/opengraph-image");
   expect(og.ok()).toBe(true);
