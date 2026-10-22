@@ -9,6 +9,14 @@ jobs:
     steps:
       - run: |
           s=https://www.loopinapps.com
-          for p in collect/new c/zzzzzzzzzzz notifications api/unread photos/place-goa.jpg photos/place-thailand.jpg photos/place-switzerland.jpg; do
-            c=$(curl -s -o /tmp/o -w "%{http_code} %{content_type} %{size_download}" "$s/$p"); echo "::notice title=$p::$c $(grep -o 'Collections on this phone\|More options\|{"n":[0-9]*}' /tmp/o | head -1)"
+          for p in "" groups/new collect/new c/zzzzzzzzzzz notifications api/unread how-it-works robots.txt sitemap.xml photos/place-goa.jpg photos/place-manali.jpg; do
+            c=$(curl -s -o /tmp/o -w "%{http_code} %{content_type} %{size_download}" "$s/$p"); echo "::notice title=/$p::$c"
           done
+          # What WhatsApp sees for a link preview: description and picture in the head.
+          curl -s -A "WhatsApp/2.24.20.80 A" "$s/how-it-works" -o /tmp/h
+          head=$(sed 's#</head>.*##' /tmp/h | tr -d '\n')
+          echo "::notice title=WhatsApp preview::description $(echo "$head" | grep -o '<meta name="description"' | wc -l), og:image $(echo "$head" | grep -o 'property="og:image"' | wc -l)"
+          # The new styles shipped (take-off plane, flying icon).
+          css=$(curl -s "$s/" | grep -o '/_next/static/css/[^"]*\.css' | head -3)
+          for f in $css; do curl -s "$s$f" >> /tmp/all.css; done
+          echo "::notice title=New styles::lp-takeoff $(grep -c 'lp-takeoff' /tmp/all.css) · lp-fly $(grep -c 'lp-fly' /tmp/all.css) · lp-streak $(grep -c 'lp-streak' /tmp/all.css)"
