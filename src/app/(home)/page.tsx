@@ -26,6 +26,7 @@ import { db } from "@/lib/db";
 import { canUndo } from "@/lib/undo";
 import { UndoBar } from "@/components/UndoBar";
 import { PersonIcon, iconButtonClass } from "@/components/icons";
+import { myCollections, progress } from "@/lib/collect";
 
 export const metadata = { alternates: { canonical: "/" } };
 
@@ -45,16 +46,18 @@ export default async function Home({
     deleted?: string;
     signedin?: string;
     moved?: string;
+    collection?: string;
   }>;
 }) {
-  const { closed: justClosed, did, g: didGroup, undone, error, deleted, signedin, moved } = await searchParams;
+  const { closed: justClosed, did, g: didGroup, undone, error, deleted, signedin, moved, collection } = await searchParams;
   const [tz, memberships] = await Promise.all([getTimeZone(), getMemberships()]);
   // Independent reads, all at once.
-  const [overview, unread, deletedGroups, account] = await Promise.all([
+  const [overview, unread, deletedGroups, account, collections] = await Promise.all([
     loadOverview(memberships),
     countUnread(memberships),
     loadDeletedGroups(memberships),
     getAccount(),
+    getAccount().then((a) => (a ? myCollections(a.id) : [])),
   ]);
   const { all, open, closed, owedLines, oweLines, common, netCommon, netLines, netValue, settleItems, toCommon } = overview;
 
@@ -108,7 +111,9 @@ export default async function Home({
       ? "Your email and sign-in were deleted. Your groups on this phone are still here."
       : deleted === "group"
         ? "Group deleted. Anyone in it can restore it below for 30 days."
-        : moved === "1"
+        : collection === "deleted"
+          ? "Collection deleted."
+          : moved === "1"
           ? "Loopin has a new address: loopinapps.com. Everything came with you. Using the app icon on your home screen? It keeps working; to update it, add Loopin to your home screen again from this page."
           : signedin === "1"
           ? `Signed in${account ? ` as ${account.email}` : ""}. Your groups are saved to your email.`
@@ -135,14 +140,14 @@ export default async function Home({
 
   // First visit: show what Loopin does instead of an empty screen.
   const tourSeen = (await cookies()).get("lp_tour")?.value === "1";
-  if (all.length === 0 && deletedGroups.length === 0 && !error && !notice && !tourSeen) return <IntroTour signInHref="/signin" currency={region.currency} india={region.india} />;
+  if (all.length === 0 && deletedGroups.length === 0 && collections.length === 0 && !error && !notice && !tourSeen) return <IntroTour signInHref="/signin" currency={region.currency} india={region.india} />;
 
   return (
     <>
       {undoBar && <UndoBar key={undoBar.eventId} {...undoBar} back="home" redo={undone === "1"} />}
       {error && <Notice tone="error" params={["error"]} className="mb-4">{error}</Notice>}
       {notice && (
-        <Notice params={["signedin", "moved", "deleted"]} className="mb-4">
+        <Notice params={["signedin", "moved", "deleted", "collection"]} className="mb-4">
           {notice}
         </Notice>
       )}
@@ -237,6 +242,7 @@ export default async function Home({
                 ›
               </span>
             </Link>
+            <CollectTeaser className="mt-2" />
             <Link href="/switching" className="mt-2 flex items-center gap-3 rounded-2xl border border-line px-4 py-3.5 active:bg-mist">
               <span className="text-xl" aria-hidden>
                 📥
@@ -250,6 +256,8 @@ export default async function Home({
               </span>
             </Link>
           </section>
+
+          {collections.length > 0 && <CollectionsSection list={collections} />}
 
           {!account && (
             <section className="mt-8 rounded-2xl border border-line px-4 py-4">
@@ -483,6 +491,8 @@ export default async function Home({
             )}
           </section>
 
+          {collections.length > 0 ? <CollectionsSection list={collections} /> : <CollectTeaser className="mt-4" />}
+
           {/* Needs attention */}
           {attention.length > 0 && (
             <section className="mt-8">
@@ -688,6 +698,65 @@ function StartTile({ short }: { short?: boolean }) {
         Start a group
       </Link>
     </li>
+  );
+}
+
+// Collect: the collections you're running (open first), each with how far along it is.
+function CollectionsSection({ list }: { list: Awaited<ReturnType<typeof myCollections>> }) {
+  return (
+    <section className="mt-8" aria-label="Collections">
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="font-display text-lg font-semibold tracking-tight">Collecting</h2>
+        <Link href="/collect/new" className="text-sm text-gray-500">
+          ＋ New
+        </Link>
+      </div>
+      <ul className="lp-rise space-y-2">
+        {list.slice(0, 6).map((c) => {
+          const p = progress(c.entries, c.amount);
+          const pct = p.target > 0 ? Math.min(100, Math.round((p.collected / p.target) * 100)) : p.people > 0 ? Math.round((p.paidCount / p.people) * 100) : 0;
+          const toCheck = p.paidCount - p.checked;
+          return (
+            <li key={c.id}>
+              <Link href={`/c/${c.code}`} className={`block rounded-2xl border border-line px-4 py-3.5 active:bg-mist ${c.closedAt ? "opacity-60" : ""}`}>
+                <span className="flex items-baseline justify-between gap-3">
+                  <span className="truncate text-[15px] font-semibold">{c.title}</span>
+                  <span className="shrink-0 text-sm font-semibold tabular-nums">{formatMoney(p.collected, c.currency)}</span>
+                </span>
+                <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-fg/[0.08]">
+                  <span className="lp-bar-x block h-full rounded-full bg-meter-up" style={{ width: `${Math.max(pct, p.paidCount ? 4 : 0)}%` }} />
+                </span>
+                <span className="mt-1.5 flex justify-between text-xs text-gray-400">
+                  <span>
+                    {c.closedAt ? "Closed · " : ""}
+                    {p.paidCount} of {p.people || p.paidCount} paid
+                  </span>
+                  {toCheck > 0 && !c.closedAt && <span className="font-medium text-owed">{toCheck} to check</span>}
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+// "Collect money": one small row inviting a first collection.
+function CollectTeaser({ className = "" }: { className?: string }) {
+  return (
+    <Link href="/collect/new" className={`flex items-center gap-3 rounded-2xl border border-line px-4 py-3.5 active:bg-mist ${className}`}>
+      <span className="text-xl" aria-hidden>
+        🫙
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium">Collect money</span>
+        <span className="block text-xs text-gray-400">One link for a gift, farewell or booking. See who’s paid.</span>
+      </span>
+      <span className="text-gray-400" aria-hidden>
+        ›
+      </span>
+    </Link>
   );
 }
 

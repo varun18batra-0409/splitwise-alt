@@ -9,7 +9,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: ["/$", "/how-it-works", "/switching", "/faq", "/welcome", "/privacy", "/terms", "/icon", "/apple-icon", "/opengraph-image", "/photos/", "/guide/", "/_next/static/", "/_next/image"],
-        disallow: ["/groups", "/join", "/api", "/account", "/signin", "/search", "/settle", "/notifications", "/add", "/import", "/stats", "/splash", "/private"],
+        disallow: ["/groups", "/join", "/api", "/account", "/signin", "/search", "/settle", "/notifications", "/add", "/import", "/stats", "/splash", "/private", "/c/", "/collect"],
       },
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,

@@ -433,3 +433,42 @@ model GroupPhoto {
   createdById String   @default("")
   updatedAt   DateTime @default(now())
 }
+
+// "Collect": one person gathers money from many (a class gift, a farewell,
+// club fees). Everyone pays the organiser directly (UPI or their usual app);
+// Loopin only keeps the list of who has paid. The link's code is hard to guess.
+model Collection {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  title       String
+  note        String    @default("")
+  currency    String    @default("INR")
+  amount      Int       @default(0) // per person, smallest units; 0 = any amount
+  dueDate     String    @default("") // "2026-11-01" or ""
+  upiId       String    @default("") // where to pay (INR)
+  payLink     String    @default("") // a PayPal.me / Venmo / Revolut link (other currencies)
+  accountId   String // the organiser
+  organiser   String // the organiser's name, as shown to payers
+  closedAt    DateTime?
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  entries     CollectionEntry[]
+  @@index([accountId])
+}
+
+// One person on a collection's list: someone the organiser expects ("due"),
+// someone who says they've paid ("paid"), or paid and checked by the organiser ("confirmed").
+model CollectionEntry {
+  id           String     @id @default(cuid())
+  collectionId String
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  name         String
+  amount       Int        @default(0) // what they paid (smallest units); 0 while due
+  status       String     @default("due") // "due" | "paid" | "confirmed"
+  method       String     @default("") // "upi" | "cash" | "other"
+  payerKey     String     @default("") // the payer's phone, so they can see and undo their own entry
+  paidAt       DateTime?
+  confirmedAt  DateTime?
+  createdAt    DateTime   @default(now())
+  @@index([collectionId])
+}
