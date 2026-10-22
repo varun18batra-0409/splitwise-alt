@@ -52,7 +52,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const photo = await photoData(group, new URL(req.url).origin);
   const names = group.members.map((m) => m.name.split(" ")[0]);
   // Everyone going (a big group wraps onto a few lines; only past 16 people is the rest counted).
-  const who = names.length <= 16 ? names.join(" · ") : `${names.slice(0, 15).join(" · ")} + ${names.length - 15} more`;
+  // Everyone going, each as a little name tag (a very big group wraps onto more rows).
+  const shown = names.slice(0, 18);
+  const small = names.length > 8;
+  const TAG = ["#6fe3a8", "#ffab6b", "#7cc4ff", "#ff8fc7", "#b79cff", "#ffd66b"];
   const hot = phase.kind !== "before" || phase.days <= 7;
   const sub = phase.kind === "before" ? `${words.small} · ${placeOf(group.name)}` : words.small;
 
@@ -88,7 +91,20 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         {/* The count */}
         <div style={{ marginTop: 90, display: "flex", fontSize: words.big.length > 3 ? 190 : 300, fontWeight: 700, lineHeight: 1, color: hot ? "#ffab6b" : "#6fe3a8", letterSpacing: -8 }}>{words.big}</div>
         <div style={{ marginTop: 20, display: "flex", fontSize: 64, color: "#f4f2ec" }}>{sub}</div>
-        <div style={{ marginTop: 26, display: "flex", flexWrap: "wrap", justifyContent: "center", textAlign: "center", maxWidth: 900, fontSize: names.length > 8 ? 34 : 40, lineHeight: 1.35, color: "#a9a395" }}>{who}</div>
+        <div style={{ marginTop: 34, display: "flex", flexWrap: "wrap", justifyContent: "center", maxWidth: 920, gap: small ? 12 : 16 }}>
+          {shown.map((n, i) => (
+            <div
+              key={`${n}-${i}`}
+              style={{ display: "flex", alignItems: "center", gap: 12, padding: small ? "8px 20px 8px 8px" : "10px 26px 10px 10px", borderRadius: 999, background: "rgba(244,242,236,0.08)", border: "2px solid rgba(244,242,236,0.14)" }}
+            >
+              <div style={{ width: small ? 40 : 50, height: small ? 40 : 50, borderRadius: 999, background: TAG[i % TAG.length], color: "#121014", display: "flex", alignItems: "center", justifyContent: "center", fontSize: small ? 22 : 27, fontWeight: 700 }}>
+                {n.charAt(0).toUpperCase()}
+              </div>
+              <div style={{ display: "flex", fontSize: small ? 30 : 36, color: "#f4f2ec" }}>{n}</div>
+            </div>
+          ))}
+          {names.length > shown.length && <div style={{ display: "flex", alignItems: "center", fontSize: 30, color: "#a9a395" }}>& {names.length - shown.length} more</div>}
+        </div>
         <div style={{ marginTop: "auto", display: "flex", fontSize: 32, letterSpacing: 4, color: "#77736a" }}>made with loopin</div>
       </div>
     ),
