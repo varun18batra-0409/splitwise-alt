@@ -1,0 +1,23 @@
+Database region: aws-ap-south-1
+server /how-it-works: 111, 121, 16, 51, 13 ms  (iad1)
+server /search: 16, 10, 11, 14, 13 ms  (iad1)
+server /settle: 15, 13, 9, 20, 10 ms  (iad1)
+server /notifications: 21, 15, 30, 12, 10 ms  (iad1)
+server /join/does-not-exist: 15, 10, 13, 14, 20 ms  (iad1)
+static file (network only, no server work): 1019, 62, 59, 46, 64 ms
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+locator.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator('nav').getByRole('link', { name: 'Search' }).last()
+
+    at /home/runner/work/splitwise-alt/splitwise-alt/scripts/prod-speed.mjs:43:71 {
+  log: [
+    "  - waiting for locator('nav').getByRole('link', { name: 'Search' }).last()"
+  ],
+  name: 'TimeoutError'
+}
+
+Node.js v22.23.3
