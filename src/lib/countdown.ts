@@ -84,31 +84,57 @@ export function countdownWords(name: string, p: TripPhase): { big: string; small
   }
 }
 
-// Phone nudges: a month, a week and a day before, and on the morning. A few
-// lines for each, picked by the trip so friends in two trips don't get the same one.
-const NUDGES: Record<number, ((place: string, e: string) => string)[]> = {
+// Phone nudges as the day gets closer: a month, two weeks, a week, three days,
+// the day before and the morning itself (and, separately, the day after it
+// ends). Several lines for each, picked by trip and step, so it never feels
+// like the same message twice.
+type Line = (place: string, e: string) => string;
+const NUDGES: Record<number, Line[]> = {
   30: [
-    (p, e) => `One month to ${p} ${e} Start the packing list you’ll ignore till the night before.`,
-    (p, e) => `${p} is 30 days away ${e} Time to book the things everyone said “I’ll do it”.`,
-    (p, e) => `A month to go for ${p} ${e} Leave applied? Asking for the group.`,
+    (p, e) => `One month to ${p} ${e} Main character energy starts now.`,
+    (p, e) => `${p} is officially a month away ${e} Leave applied? Asking for the group chat.`,
+    (p, e) => `30 days to ${p} ${e} The countdown is real. The packing list is not (yet).`,
+    (p, e) => `A month to ${p} ${e} Start saving the reels you’ll pretend to recreate.`,
+    (p, e) => `${p} in 30 days ${e} Manifesting good weather and zero delays.`,
+  ],
+  14: [
+    (p, e) => `Two weeks to ${p} ${e} Who’s booking what? Sort it before the group chat explodes.`,
+    (p, e) => `${p} in 14 days ${e} Outfit planning is now mandatory.`,
+    (p, e) => `14 sleeps to ${p} ${e} Start the playlist. The fight for the aux begins.`,
+    (p, e) => `Fortnight to ${p} ${e} Your camera roll is about to get very busy.`,
   ],
   7: [
     (p, e) => `${p} in a week ${e} Sunscreen, chargers, and that one friend’s ID. Check.`,
     (p, e) => `7 days to ${p} ${e} The group chat is about to get very loud.`,
-    (p, e) => `One week to ${p} ${e} Outfit planning has officially begun.`,
+    (p, e) => `One week to ${p} ${e} Vibes: packed. Bag: not yet.`,
+    (p, e) => `${p} next week ${e} Do-not-disturb mode is loading…`,
+  ],
+  3: [
+    (p, e) => `3 days to ${p} ${e} Pack now, thank yourself later.`,
+    (p, e) => `${p} in 72 hours ${e} Plan the outfits, skip the overthinking.`,
+    (p, e) => `3 sleeps to ${p} ${e} Someone check the weather. Not it.`,
   ],
   1: [
     (p, e) => `${p} tomorrow ${e} Charge everything. Find your ID. Sleep (you won’t).`,
-    (p, e) => `Tomorrow: ${p} ${e} Pack now, not at 2 am.`,
-    (p, e) => `One sleep to ${p} ${e} Set three alarms.`,
+    (p, e) => `Tomorrow: ${p} ${e} Set three alarms. Trust none of them.`,
+    (p, e) => `One sleep to ${p} ${e} If you’re reading this, go pack.`,
+    (p, e) => `${p} is tomorrow ${e} Out of office: activated.`,
   ],
   0: [
-    (p, e) => `It’s ${p} day ${e} Add the first expense when the chai arrives.`,
-    (p, e) => `Today’s the day: ${p} ${e} Have the best time. Loopin will keep the maths.`,
-    (p, e) => `${p} starts today ${e} Snap the first photo, log the first bill.`,
+    (p, e) => `It’s ${p} day ${e} Phones up, worries down.`,
+    (p, e) => `Today’s the day: ${p} ${e} Loopin’s got the maths. You’ve got the memories.`,
+    (p, e) => `${p} starts today ${e} First photo, first chai, first expense. In that order.`,
+    (p, e) => `Wheels up for ${p} ${e} Have the best time. We’ll keep score.`,
   ],
 };
-export const NUDGE_DAYS = [30, 7, 1, 0];
+export const NUDGE_DAYS = [30, 14, 7, 3, 1, 0];
+
+// The day after the trip: back home, time to square up.
+const AFTER: Line[] = [
+  (p, e) => `Back from ${p}? ${e} Add the last bills and settle up in one tap.`,
+  (p, e) => `${p}: done ✓ Memories saved. Now settle up so the next plan isn’t awkward.`,
+  (p, e) => `Post-${p} blues? ${e} Clear the balances in a tap and start planning the next one.`,
+];
 
 function pick(seed: string, n: number) {
   let h = 0;
@@ -116,8 +142,12 @@ function pick(seed: string, n: number) {
   return h % n;
 }
 
+export function afterTripNudge(g: { id: string; name: string }): string {
+  return AFTER[pick(`${g.id}:after`, AFTER.length)](placeOf(g.name), tripEmoji(g.name));
+}
+
 export function countdownNudge(g: { id: string; name: string }, daysLeft: number): string | null {
   const lines = NUDGES[daysLeft];
   if (!lines) return null;
-  return lines[pick(g.id, lines.length)](placeOf(g.name), tripEmoji(g.name));
+  return lines[pick(`${g.id}:${daysLeft}`, lines.length)](placeOf(g.name), tripEmoji(g.name));
 }
