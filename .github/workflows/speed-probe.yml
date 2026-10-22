@@ -4,7 +4,7 @@ name: Speed probe
 on: workflow_dispatch
 jobs:
   probe:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Cold then warm
         run: |

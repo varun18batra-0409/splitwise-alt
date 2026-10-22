@@ -25,7 +25,7 @@ jobs:
   local:
     name: E2E (throwaway copy on GitHub)
     if: github.event_name != 'workflow_dispatch' || inputs.target == 'local'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
       TURSO_DATABASE_URL: file:/tmp/e2e.db
@@ -94,7 +94,7 @@ jobs:
   staging:
     name: E2E (private test copy on Vercel)
     if: (github.event_name == 'push' && github.ref == 'refs/heads/staging') || (github.event_name == 'workflow_dispatch' && inputs.target == 'staging')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 50
     permissions:
       contents: read

@@ -5,7 +5,7 @@ name: Speed check
 on: workflow_dispatch
 jobs:
   speed:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Health and page timings
         run: |
