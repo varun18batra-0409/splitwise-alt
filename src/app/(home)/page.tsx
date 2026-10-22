@@ -81,17 +81,18 @@ export default async function Home({
   // that are all square and quiet (ready to close). At most four lines.
   const amt = (n: number, converted: boolean) => `${converted ? "≈ " : ""}${formatMoney(Math.abs(n), common)}`;
   const quietSince = Date.now() - 7 * 86_400_000;
-  const attention: { key: string; text: React.ReactNode; href: string; tone?: "owed" | "owe" }[] = [
+  type Attention = { key: string; text: React.ReactNode; sub?: string; amount?: string; lead: string; href: string; tone?: "owed" | "owe" };
+  const attention: Attention[] = [
     ...settleItems
       .filter((it) => it.net < 0)
-      .map((it) => ({ key: `owe-${it.key}`, text: <>You owe <strong className="font-medium">{it.name}</strong> {amt(it.net, it.converted)}</>, href: "/settle", tone: "owe" as const })),
+      .map((it) => ({ key: `owe-${it.key}`, lead: it.name, text: <>You owe <span className="font-semibold">{it.name}</span></>, sub: "Tap to settle up", amount: amt(it.net, it.converted), href: "/settle", tone: "owe" as const })),
     ...settleItems
       .filter((it) => it.net > 0)
-      .map((it) => ({ key: `owed-${it.key}`, text: <><strong className="font-medium">{it.name}</strong> owes you {amt(it.net, it.converted)}</>, href: "/settle", tone: "owed" as const })),
-    ...(unread > 0 ? [{ key: "unread", text: <>{unread > 9 ? "9+" : unread} new {unread === 1 ? "change" : "changes"} in your groups</>, href: "/notifications" }] : []),
+      .map((it) => ({ key: `owed-${it.key}`, lead: it.name, text: <><span className="font-semibold">{it.name}</span> owes you</>, sub: "Send a nudge or record it", amount: amt(it.net, it.converted), href: "/settle", tone: "owed" as const })),
+    ...(unread > 0 ? [{ key: "unread", lead: "bell", text: <>{unread > 9 ? "9+" : unread} new {unread === 1 ? "change" : "changes"}</>, sub: "In your groups", href: "/notifications" }] : []),
     ...open
       .filter((g) => g.expenses.length > 0 && g.transfers.length === 0 && g.lastActivity.getTime() < quietSince)
-      .map((g) => ({ key: `close-${g.group.id}`, text: <>Everyone’s square in <strong className="font-medium">{g.group.name}</strong>. Close it?</>, href: `/groups/${g.group.id}/settings#close` })),
+      .map((g) => ({ key: `close-${g.group.id}`, lead: "check", text: <>Everyone’s square in <span className="font-semibold">{g.group.name}</span></>, sub: "Close it?", href: `/groups/${g.group.id}/settings#close` })),
   ].slice(0, 4);
 
   // The latest changes across open groups.
@@ -513,18 +514,32 @@ export default async function Home({
           {attention.length > 0 && (
             <section className="mt-8">
               <h2 className="mb-2 font-display text-lg font-semibold tracking-tight">Needs attention</h2>
-              <ul className="lp-rise divide-y divide-line rounded-2xl border border-line">
-                {attention.map((a) => (
-                  <li key={a.key}>
-                    <Link href={a.href} className="flex items-center gap-3 px-4 py-3 text-sm active:bg-mist">
+              <ul className="lp-rise overflow-hidden rounded-[20px] bg-white/[0.035] ring-1 ring-inset ring-line">
+                {attention.map((a, n) => (
+                  <li key={a.key} className={n ? "border-t border-line/70" : ""}>
+                    <Link href={a.href} className="flex items-center gap-3.5 px-4 py-3.5 active:bg-mist">
                       <span
                         aria-hidden
-                        className={`h-2 w-2 shrink-0 rounded-full ${a.tone === "owe" ? "bg-owe" : a.tone === "owed" ? "bg-owed" : "bg-gray-400"}`}
-                      />
-                      <span className="min-w-0 flex-1">{a.text}</span>
-                      <span className="text-gray-400" aria-hidden>
-                        ›
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-display text-[15px] font-semibold ${
+                          a.tone === "owe" ? "bg-owe/[0.14] text-owe" : a.tone === "owed" ? "bg-owed/[0.14] text-owed" : "bg-fg/[0.07] text-fg/70"
+                        }`}
+                      >
+                        {a.lead === "bell" ? (
+                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg>
+                        ) : a.lead === "check" ? (
+                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                        ) : (
+                          a.lead.trim().charAt(0).toUpperCase()
+                        )}
                       </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[15px] tracking-tight">{a.text}</span>
+                        {a.sub && <span className="mt-0.5 block truncate text-[12px] text-fg/40">{a.sub}</span>}
+                      </span>
+                      {a.amount && (
+                        <span className={`shrink-0 text-[15px] font-semibold tabular-nums tracking-tight ${a.tone === "owe" ? "text-owe" : "text-owed"}`}>{a.amount}</span>
+                      )}
+                      <svg aria-hidden width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-fg/25"><path d="m9 18 6-6-6-6" /></svg>
                     </Link>
                   </li>
                 ))}
