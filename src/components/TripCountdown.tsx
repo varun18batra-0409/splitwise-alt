@@ -37,10 +37,10 @@ export function TripCountdown({ group, phase, more = 0 }: { group: Group; phase:
             uid={`cd-${group.id}`}
             letter={group.name}
             caption={place}
-            photoClass="h-[92px]"
-            captionClass="text-[18px]"
-            className="w-[112px] -rotate-[4deg]"
-            sizes="120px"
+            photoClass="h-[114px]"
+            captionClass="text-[19px]"
+            className="w-[134px] -rotate-[4deg]"
+            sizes="150px"
           />
         </Link>
         {/* The perforation, with the two half-circle bites of a ticket */}
