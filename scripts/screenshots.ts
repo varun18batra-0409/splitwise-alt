@@ -193,9 +193,57 @@ for (const n of [2, 3, 4]) {
     await p.waitForTimeout(900);
   }, false);
 }
+// Collect: the organiser's screens, then what someone opening the link sees.
+let collectCode = "";
+if (!hosted) {
+  const { db } = await import("../src/lib/db");
+  const acc = await db.account.create({ data: { email: `shots-collect-${Date.now()}@uat.loopin.test`, name: "Varun" } });
+  const due = new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10);
+  const now = Date.now();
+  const at = (minsAgo: number) => new Date(now - minsAgo * 60_000);
+  const made = await db.collection.create({
+    data: {
+      code: `shots${now.toString(36)}`, title: "Teacher’s Day gift", note: "A plant and a card for Mrs Rao", currency: "INR", amount: 30000, dueDate: due,
+      upiId: "varun@okicici", accountId: acc.id, organiser: "Varun",
+      entries: { create: [
+        { name: "Ravi", amount: 30000, status: "confirmed", method: "upi", paidAt: at(300), confirmedAt: at(200) },
+        { name: "Meera", amount: 30000, status: "paid", method: "upi", payerKey: "shotsPayerKey0000000001", paidAt: at(20) },
+        { name: "Kabir", amount: 30000, status: "confirmed", method: "cash", paidAt: at(100), confirmedAt: at(100) },
+        { name: "Zoya" }, { name: "Arjun" }, { name: "Priya" },
+      ] },
+    },
+  });
+  collectCode = made.code;
+  await context.addCookies([{ name: SESSION_COOKIE, value: await encodeSession({ m: demo.memberships, a: acc.id }), url: base }]);
+  await shot("70-collect-new", "/collect/new");
+  await shot("71-collect-organiser", `/c/${collectCode}`);
+  // A trip in 12 days, for the countdown.
+  const ist = (plus: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(now + plus * 86_400_000));
+  const goa = await db.group.create({
+    data: {
+      name: "Goa trip", type: "trip", currency: "INR", inviteCode: `shotsgoa${now.toString(36)}`, cover: "beach", tripStart: ist(12), tripEnd: ist(16),
+      members: { create: [{ name: "Varun", accountId: acc.id, claimedAt: new Date() }, { name: "Nupur" }, { name: "Ravi" }, { name: "Meera" }, { name: "Kabir" }] },
+    },
+  });
+  await shot("72-home-collecting", "/");
+  await shot("76-home-countdown", "/", undefined, false);
+  await shot("77-group-countdown", `/groups/${goa.id}`, undefined, false);
+  await shot("78-countdown-image", `/groups/${goa.id}/countdown-image`, undefined, false);
+  await shot("79-settings-trip-dates", `/groups/${goa.id}/settings#trip`, undefined, false);
+  await db.group.update({ where: { id: goa.id }, data: { tripStart: ist(3), tripEnd: ist(6) } });
+  await shot("80-home-countdown-close", "/", undefined, false);
+  await db.group.update({ where: { id: goa.id }, data: { tripStart: ist(-1), tripEnd: ist(3) } });
+  await shot("81-group-countdown-during", `/groups/${goa.id}`, undefined, false);
+}
 await context.clearCookies();
 await shot("16-join", `/join/${demo.trip.invite}`);
 await shot("24-tour-1", "/", undefined, false);
+if (collectCode) {
+  await shot("73-collect-payer", `/c/${collectCode}`);
+  await shot("74-collect-signin-first", "/collect/new", undefined, false);
+  await context.addCookies([{ name: "lp_payer", value: "shotsPayerKey0000000001", url: `${base}/c/` }]);
+  await shot("75-collect-payer-ticked", `/c/${collectCode}`);
+}
 for (const n of [2, 3, 4, 5, 6]) {
   await shot(`24-tour-${n}`, "/", async (p) => {
     for (let k = 1; k < n; k++) {

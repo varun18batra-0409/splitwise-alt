@@ -8,7 +8,7 @@ import { BellIcon, ChartIcon, HomeIcon, PlusIcon, SettleIcon } from "./icons";
 // The bar at the bottom of every main screen: Home · Search · ＋ · Settle · Alerts.
 // Inside a group, Search / ＋ / Settle work on that group.
 // Hidden on forms (adding, editing, paying, joining) so it never gets in the way.
-const HIDE = [/^\/join/, /^\/groups\/new$/, /\/add$/, /^\/add$/, /\/edit$/, /\/pay$/, /^\/signin/, /^\/welcome$/];
+const HIDE = [/^\/join/, /^\/groups\/new$/, /\/add$/, /^\/add$/, /\/edit$/, /\/pay$/, /^\/signin/, /^\/welcome$/, /^\/collect\//, /^\/c\//];
 
 export function BottomNav() {
   const path = usePathname();

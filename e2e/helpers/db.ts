@@ -41,6 +41,7 @@ export async function cleanUp(match: { runId?: string } = {}): Promise<{ groups:
   await db.loginCode.deleteMany({ where: { email: { in: emails } } });
   await db.member.updateMany({ where: { accountId: { in: ids } }, data: { accountId: null } }); // any left in a kept group
   await db.passkey.deleteMany({ where: { accountId: { in: ids } } });
+  await db.collection.deleteMany({ where: { accountId: { in: ids } } }); // their Collect links (and the names on them)
   await db.account.deleteMany({ where: { id: { in: ids } } });
   return { groups: safe.length, accounts: accounts.length };
 }

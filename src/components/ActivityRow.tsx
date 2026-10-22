@@ -1,19 +1,25 @@
 import { getCategory } from "@/lib/categories";
-import { expenseIcon } from "@/lib/expense-icons";
+import { ExpenseGlyph } from "./ExpenseGlyph";
 import { formatMoney } from "@/lib/money";
 import type { ActivityItem } from "@/lib/activity";
 import { GearIcon, SettleIcon } from "./icons";
 
-// Right-hand side: a small label over the amount, so names get the room.
+// Right-hand side: what it meant for you. The amount first (bold), what it is
+// underneath; rows that weren't yours stay quiet.
 function Effect({ label, amount, sub, cls }: { label: string; amount?: string; sub?: string; cls: string }) {
+  if (!amount) return <span className="shrink-0 text-right text-[12px] leading-tight text-fg/35">{label}</span>;
   return (
     <span className="shrink-0 text-right leading-tight">
-      <span className="block text-[11px] text-gray-400">{label}</span>
-      {amount && <span className={`block text-sm font-medium tabular-nums ${cls}`}>{amount}</span>}
-      {sub && <span className="block text-[11px] tabular-nums text-gray-400">{sub}</span>}
+      <span className={`block text-[15px] font-semibold tabular-nums tracking-tight ${cls}`}>{amount}</span>
+      <span className="mt-0.5 block text-[11px] text-fg/40">
+        {label}
+        {sub && <span className="tabular-nums"> · {sub}</span>}
+      </span>
     </span>
   );
 }
+
+const meta = "mt-0.5 truncate text-[13px] text-fg/45";
 
 // One line of history: an expense, a settle-up payment or a group change,
 // and what it meant for you. Deleted items stay visible, crossed out.
@@ -50,15 +56,15 @@ export function ActivityRow({
   if (item.kind === "payment") {
     const to = nameOf(item.toId);
     return (
-      <div className={`flex items-center gap-3 py-3 ${deleted ? "opacity-60" : ""}`}>
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-mist text-gray-700">
+      <div className={`flex items-center gap-3.5 py-3.5 ${deleted ? "opacity-60" : ""}`}>
+        <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-owed/[0.12] text-owed ring-1 ring-inset ring-owed/15">
           <SettleIcon size={18} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className={`truncate font-medium ${deleted ? "line-through decoration-gray-400" : ""}`}>
+          <p className={`truncate text-[15px] font-semibold tracking-tight ${deleted ? "line-through decoration-gray-400" : ""}`}>
             {nameOf(item.fromId)} paid {to === "You" ? "you" : to}
           </p>
-          <p className="truncate text-sm text-gray-400">
+          <p className={meta}>
             {deleted ? deletedNote : "Settle-up"} · {money(item.amount)}
             {groupName && ` · ${groupName}`}
           </p>
@@ -66,9 +72,9 @@ export function ActivityRow({
         {deleted ? (
           <Effect label="deleted" cls="" />
         ) : item.effect > 0 ? (
-          <Effect label="you paid" amount={money(item.effect)} cls="text-ink" />
+          <Effect label="you paid" amount={money(item.effect)} cls="text-fg" />
         ) : item.effect < 0 ? (
-          <Effect label="you received" amount={money(-item.effect)} cls="text-ink" />
+          <Effect label="you received" amount={money(-item.effect)} cls="text-fg" />
         ) : (
           <Effect label="not involved" cls="" />
         )}
@@ -81,22 +87,23 @@ export function ActivityRow({
   const o = item.original;
   const shown = (orig: number, base: number) => (o ? formatMoney(orig, o.currency) : money(base));
   return (
-    <div className={`flex items-center gap-3 py-3 ${deleted ? "opacity-60" : ""}`}>
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-mist text-xl" title={cat.label}>
-        {expenseIcon(item.title, item.category)}
-      </span>
+    <div className={`flex items-center gap-3.5 py-3.5 ${deleted ? "opacity-60" : ""}`}>
+      <ExpenseGlyph title={item.title} category={item.category} />
       <div className="min-w-0 flex-1">
-        <p className="flex items-center gap-1.5">
-          <span className={`truncate font-medium ${deleted ? "line-through decoration-gray-400" : ""}`}>{item.title}</span>
-          <span className="shrink-0 rounded-full border border-line px-1.5 py-0.5 text-[10px] leading-none text-gray-500">{cat.short}</span>
-          {item.refund && <span className="shrink-0 rounded-full bg-owed/15 px-1.5 py-0.5 text-[10px] leading-none text-owed">Money back</span>}
-          {item.edited && !deleted && <span className="shrink-0 rounded-full bg-mist px-1.5 py-0.5 text-[10px] text-gray-500">edited</span>}
-          {item.notes && <span className="shrink-0 text-[11px] leading-none" title="Has notes" aria-label="Has notes">📝</span>}
+        <p className="flex min-w-0 items-center gap-1.5" title={cat.label}>
+          <span className={`truncate text-[15px] font-semibold tracking-tight ${deleted ? "line-through decoration-gray-400" : ""}`}>{item.title}</span>
+          {item.refund && <span className="shrink-0 rounded-md bg-owed/[0.14] px-1.5 py-[3px] text-[10px] font-semibold uppercase leading-none tracking-wide text-owed">Back</span>}
+          {item.notes && (
+            <svg aria-label="Has notes" role="img" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-fg/35">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8" />
+            </svg>
+          )}
         </p>
-        <p className="truncate text-sm text-gray-400">
+        <p className={meta}>
           {deleted
             ? `${deletedNote} · ${shown(o?.amount ?? 0, item.amount)}`
             : `${(item.payerIds ?? [item.paidById]).map(nameOf).join(" + ")} ${item.refund ? "got back" : "paid"} ${shown(o?.amount ?? 0, item.amount)}`}
+          {item.edited && !deleted && " · edited"}
           {groupName && ` · ${groupName}`}
         </p>
       </div>

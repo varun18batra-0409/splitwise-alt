@@ -86,6 +86,8 @@ export async function deleteAccount(accountId: string) {
   await db.$transaction([
     db.member.updateMany({ where: { accountId }, data: { accountId: null } }),
     db.loginCode.deleteMany({ where: { email: acc.email } }),
+    // Collections they organised hold other people's names under their account: they go too.
+    db.collection.deleteMany({ where: { accountId } }),
     db.account.delete({ where: { id: accountId } }),
   ]);
 }

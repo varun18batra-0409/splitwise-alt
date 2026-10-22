@@ -3,11 +3,13 @@ import { db } from "./db";
 import { isSupportedCurrency } from "./money";
 import { logEvent } from "./events";
 import { cleanCover } from "./covers";
+import { cleanTripDates } from "./countdown";
+import { dayKey, DEFAULT_TIME_ZONE } from "./dates";
 import { isGroupType, parseWeight, sharingInputs, weightsLabel, type GroupType } from "./group-types";
 
 // Creating groups and changing how a group shares costs (database side).
 
-export type NewGroupInput = { type: string; name: string; yourName: string; currency: string; ratio?: number; cover?: string };
+export type NewGroupInput = { type: string; name: string; yourName: string; currency: string; ratio?: number; cover?: string; tripStart?: string; tripEnd?: string };
 
 // Makes a group with its creator as the first member.
 export async function createGroupFor(account: { id: string }, input: NewGroupInput) {
@@ -22,11 +24,43 @@ export async function createGroupFor(account: { id: string }, input: NewGroupInp
       inviteCode: newInviteCode(),
       joinWeight: couple ? 100 - ratio : 100,
       cover: cleanCover(input.cover ?? "", type),
+      ...(type === "trip" ? tripDatesOrNone(input.tripStart, input.tripEnd) : {}),
       members: { create: [{ name: input.yourName, claimedAt: new Date(), accountId: account.id, splitWeight: couple ? ratio : 100 }] },
     },
     include: { members: true },
   });
 }
+
+// Dates typed when making a trip: kept only if they make sense (otherwise left for settings).
+function tripDatesOrNone(start = "", end = "") {
+  const r = cleanTripDates(start, end, dayKey(new Date(), DEFAULT_TIME_ZONE));
+  return r.ok ? { tripStart: r.start, tripEnd: r.end } : {};
+}
+
+// Settings → trip dates. Logged in the group's history (so everyone sees the new dates).
+export async function setTripDates(groupId: string, actorId: string, start: string, end: string, today: string): Promise<Result> {
+  const g = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
+  if (!g || g.deletedAt) return { ok: false, error: "This group no longer exists." };
+  if (!g.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can change it." };
+  const r = cleanTripDates(start, end, today);
+  if (!r.ok) return r;
+  if (r.start === g.tripStart && r.end === g.tripEnd) return { ok: true };
+  const label = (s: string, e: string) => (!s ? "not set" : e && e !== s ? `${niceDay(s)} – ${niceDay(e)}` : niceDay(s));
+  let eventId: string | undefined;
+  await db.$transaction(async (tx) => {
+    await tx.group.update({ where: { id: g.id }, data: { tripStart: r.start, tripEnd: r.end } });
+    eventId = await logEvent(tx, {
+      groupId,
+      actorId,
+      kind: "trip_dates_set",
+      text: r.start ? `set the trip dates: ${label(r.start, r.end)}` : "cleared the trip dates",
+      details: [`Trip dates: ${label(g.tripStart, g.tripEnd)} → ${label(r.start, r.end)}`],
+    });
+  });
+  return { ok: true, eventId };
+}
+
+const niceDay = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 
 export function newInviteCode() {
   return randomBytes(6).toString("base64url"); // 8 characters, hard to guess
