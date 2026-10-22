@@ -1,0 +1,15 @@
+# One-off: confirm the live site serves the search-engine files.
+name: Live SEO check
+on:
+  push:
+    branches: [check-live-seo]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          for p in robots.txt sitemap.xml opengraph-image; do
+            code=$(curl -s -o /tmp/out -w "%{http_code} %{content_type}" "https://www.loopinapps.com/$p")
+            echo "::notice title=$p::$code $(head -c 600 /tmp/out | tr '\n' ' ' | tr -cd '[:print:] ')"
+          done
+          curl -s https://www.loopinapps.com/how-it-works | grep -o '<link rel="canonical"[^>]*>\|<meta property="og:image"[^>]*>' | head -3 | tr '\n' ' ' | sed 's/^/::notice title=page tags::/'
