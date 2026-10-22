@@ -49,7 +49,8 @@ jobs:
           node-version: 22
       - run: npm install
       - run: npm install --no-save tsx@4.19.2 # Playwright itself comes with @playwright/test (one version for everything)
-      - run: npx playwright install --with-deps chromium webkit
+      - name: Test browsers (retried; the download sometimes hangs)
+        run: for i in 1 2 3; do timeout 420 npx playwright install --with-deps chromium webkit && exit 0; echo "::warning::Browser download attempt $i failed or hung, retrying"; done; exit 1
       - name: Start from the live version's tables (so the upgrade itself is tested)
         run: |
           git fetch -q --depth=1 origin main

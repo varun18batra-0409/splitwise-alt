@@ -1,3 +1,4 @@
+import { ExpenseGlyph } from "@/components/ExpenseGlyph";
 import { payerIds, payersOf, spentAmount } from "@/lib/payers";
 import { CATEGORIES, getCategory } from "@/lib/categories";
 import { dayKey, expenseDate } from "@/lib/dates";
@@ -26,7 +27,7 @@ export function ChartsTab({ v }: { v: GroupView }) {
   const catData = CATEGORIES.filter((c) => byCat.has(c.id))
     .map((c) => {
       const value = byCat.get(c.id)!;
-      return { key: c.id, label: c.label, icon: c.emoji, value, valueText: `${money(value)} · ${Math.round((value / spent) * 100)}%` };
+      return { key: c.id, label: c.label, icon: <ExpenseGlyph title="" category={c.id} size={22} className="rounded-[7px]!" />, value, valueText: `${money(value)} · ${Math.round((value / spent) * 100)}%` };
     })
     .sort((a, b) => b.value - a.value);
 

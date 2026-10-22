@@ -122,7 +122,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId }: { v: Group
                   <option value="">All categories</option>
                   {CATEGORIES.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.emoji} {c.short}
+                      {c.short}
                     </option>
                   ))}
                 </select>
@@ -248,7 +248,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId }: { v: Group
                     </summary>
                     <div className="mb-3 ml-[3.25rem] space-y-1.5 rounded-xl bg-mist p-3 text-sm text-gray-600">
                       <Line label="Date" value={niceDate(dayKey(expenseDate(e), tz))} />
-                      <Line label="Category" value={`${cat.emoji} ${cat.label}`} />
+                      <Line label="Category" value={cat.label} />
                       {e.notes && <p className="whitespace-pre-line rounded-lg bg-white/[0.03] px-3 py-2 text-gray-600">📝 {e.notes}</p>}
                       {foreign && (
                         <>

@@ -42,7 +42,8 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - run: npx playwright install --with-deps chromium webkit
+      - name: Test browsers (retried; the download sometimes hangs)
+        run: for i in 1 2 3; do timeout 420 npx playwright install --with-deps chromium webkit && exit 0; echo "::warning::Browser download attempt $i failed or hung, retrying"; done; exit 1
       - name: Empty database and app build
         run: |
           npx prisma db push --skip-generate
@@ -78,7 +79,7 @@ jobs:
           path: |
             e2e-report/
             e2e-report-ios/
-          retention-days: 14
+          retention-days: 5
       - name: Keep failure details (screenshots, traces, browser logs, server log)
         if: failure()
         uses: actions/upload-artifact@v4
@@ -88,7 +89,7 @@ jobs:
             e2e-results/
             e2e-results-ios/
             server.log
-          retention-days: 14
+          retention-days: 5
 
   staging:
     name: E2E (private test copy on Vercel)
@@ -118,7 +119,8 @@ jobs:
           [ -z "$missing" ] || { echo "::error title=Missing GitHub secrets::$missing"; exit 1; }
           [ "$TURSO_DATABASE_URL" != "$LIVE_TURSO_DATABASE_URL" ] || { echo "::error title=Stopped::The staging database is the LIVE database."; exit 1; }
       - run: npm install
-      - run: npx playwright install --with-deps chromium
+      - name: Test browsers (retried; the download sometimes hangs)
+        run: for i in 1 2 3; do timeout 420 npx playwright install --with-deps chromium && exit 0; echo "::warning::Browser download attempt $i failed or hung, retrying"; done; exit 1
       - name: Tables on the staging database (adds only)
         run: node scripts/turso-sync.mjs
       - name: Find the test copy (the staging branch's latest Vercel build)
@@ -152,11 +154,11 @@ jobs:
         with:
           name: e2e-report-staging
           path: e2e-report/
-          retention-days: 14
+          retention-days: 5
       - name: Keep failure details (screenshots, traces, browser logs)
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: e2e-failures-staging
           path: e2e-results/
-          retention-days: 14
+          retention-days: 5

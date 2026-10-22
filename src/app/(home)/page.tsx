@@ -88,8 +88,8 @@ export default async function Home({
       .map((it) => ({ key: `owe-${it.key}`, lead: it.name, text: <>You owe <span className="font-semibold">{it.name}</span></>, sub: "Tap to settle up", amount: amt(it.net, it.converted), href: "/settle", tone: "owe" as const })),
     ...settleItems
       .filter((it) => it.net > 0)
-      .map((it) => ({ key: `owed-${it.key}`, lead: it.name, text: <><span className="font-semibold">{it.name}</span> owes you</>, sub: "Send a nudge or record it", amount: amt(it.net, it.converted), href: "/settle", tone: "owed" as const })),
-    ...(unread > 0 ? [{ key: "unread", lead: "bell", text: <>{unread > 9 ? "9+" : unread} new {unread === 1 ? "change" : "changes"}</>, sub: "In your groups", href: "/notifications" }] : []),
+      .map((it) => ({ key: `owed-${it.key}`, lead: it.name, text: <><span className="font-semibold">{it.name}</span> owes you</>, sub: "Nudge or record it", amount: amt(it.net, it.converted), href: "/settle", tone: "owed" as const })),
+    ...(unread > 0 ? [{ key: "unread", lead: "bell", text: <>{unread > 9 ? "9+" : unread} new {unread === 1 ? "update" : "updates"}</>, sub: "In your groups and collections", href: "/notifications" }] : []),
     ...open
       .filter((g) => g.expenses.length > 0 && g.transfers.length === 0 && g.lastActivity.getTime() < quietSince)
       .map((g) => ({ key: `close-${g.group.id}`, lead: "check", text: <>Everyone’s square in <span className="font-semibold">{g.group.name}</span></>, sub: "Close it?", href: `/groups/${g.group.id}/settings#close` })),
@@ -138,6 +138,10 @@ export default async function Home({
   const byActivity = [...open].sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
   // The balance card's polaroids: the groups that make up most of your balance (then the latest).
   const single = open.length === 1;
+  // The balance card's big number (all groups together, or per currency).
+  const heroText = netCommon
+    ? `${netCommon.converted ? "≈ " : ""}${netCommon.value > 0 ? "+" : netCommon.value < 0 ? "−" : ""}${formatMoney(Math.abs(netCommon.value), common)}`
+    : netLines.join(" · ");
   // Trip countdowns: trips with a start day, happening now first, then the soonest (up to a year out).
   const today = todayKey(new Date(), tz);
   const trips = open
@@ -319,20 +323,13 @@ export default async function Home({
               ) : (
                 <>
                   <p className="relative z-10 text-sm text-fg/60">Net balance{netCommon && netCommon.converted ? ` · in ${common}` : ""}</p>
+                  {/* The big number shrinks as it gets longer, so it never runs into the photos. */}
                   <h1
-                    className={`relative z-10 mt-auto max-w-[78%] break-words font-display [text-shadow:0_2px_14px_rgba(0,0,0,0.7)] text-[clamp(26px,9vw,36px)] font-semibold leading-none tracking-tight tabular-nums ${
-                      netValue > 0 ? "text-owed" : netValue < 0 ? "text-owe" : ""
-                    }`}
+                    className={`relative z-10 mt-auto max-w-[60%] break-words font-display [text-shadow:0_2px_14px_rgba(0,0,0,0.7)] font-semibold leading-none tracking-tight tabular-nums ${
+                      heroText.length <= 8 ? "text-[clamp(28px,9vw,36px)]" : heroText.length <= 10 ? "text-[clamp(24px,7.6vw,31px)]" : heroText.length <= 12 ? "text-[clamp(22px,6.6vw,27px)]" : "text-[22px]"
+                    } ${netValue > 0 ? "text-owed" : netValue < 0 ? "text-owe" : ""}`}
                   >
-                    {netCommon ? (
-                      <>
-                        {netCommon.converted ? "≈ " : ""}
-                        {netCommon.value > 0 ? "+" : netCommon.value < 0 ? "−" : ""}
-                        {formatMoney(Math.abs(netCommon.value), common)}
-                      </>
-                    ) : (
-                      netLines.join(" · ")
-                    )}
+                    {heroText}
                   </h1>
                   <p className="relative z-10 mt-1.5 max-w-[80%] font-hand text-[21px] font-bold leading-none text-[#ffd9a8] [text-shadow:0_1px_8px_rgba(0,0,0,0.8)]">
                     {netValue > 0 ? "you get money back" : netValue < 0 ? "you need to pay" : "it all evens out"}

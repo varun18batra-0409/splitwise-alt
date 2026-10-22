@@ -35,7 +35,8 @@ jobs:
           echo "::notice title=Staging::settings present; staging database is not the live one"
       - run: npm install
       - run: npm install --no-save tsx@4.19.2 # Playwright itself comes with @playwright/test (one version for everything)
-      - run: npx playwright install --with-deps chromium
+      - name: Test browsers (retried; the download sometimes hangs)
+        run: for i in 1 2 3; do timeout 420 npx playwright install --with-deps chromium && exit 0; echo "::warning::Browser download attempt $i failed or hung, retrying"; done; exit 1
       - name: Tables on the staging database
         run: |
           set -o pipefail

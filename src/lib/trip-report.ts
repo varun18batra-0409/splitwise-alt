@@ -132,7 +132,7 @@ export function insightLines(r: TripReport, myId: string): string[] {
   const out: string[] = [];
   if (r.count < 3 || r.total <= 0) return out;
   const top = r.categories[0];
-  if (top && top.pct >= 30) out.push(`${top.emoji} ${top.label} is ${top.pct}% of all spending (${m(top.amount)}).`);
+  if (top && top.pct >= 30) out.push(`${top.label} is ${top.pct}% of all spending (${m(top.amount)}).`);
   if (r.days > 1) out.push(`About ${m(r.perDay)} a day over ${r.days} days${r.busiestDay ? `; the biggest day was ${shortDate(r.busiestDay.day)} (${m(r.busiestDay.amount)})` : ""}.`);
   if (r.topPayer && r.people > 1) {
     const pct = Math.round((r.topPayer.amount * 100) / r.total);

@@ -1,3 +1,4 @@
+import { ExpenseGlyph } from "@/components/ExpenseGlyph";
 import { explainBalance } from "@/lib/explain";
 import { getCategory } from "@/lib/categories";
 import { dayLabel } from "@/lib/activity";
@@ -58,8 +59,13 @@ export function WhyPanel({ v, memberId, open }: { v: GroupView; memberId: string
           {w.lines.slice(0, LINES).map((l) => (
             <li key={l.id} className="flex items-center justify-between gap-3 py-1.5">
               <span className="min-w-0">
-                <span className="block truncate">
-                  {l.kind === "expense" ? `${getCategory(l.category ?? "").emoji} ${l.label}` : `↔ ${l.label.replace(/ them$/, isMe ? " you" : ` ${v.nameOf(memberId)}`)}`}
+                <span className="flex min-w-0 items-center gap-2">
+                  {l.kind === "expense" ? (
+                    <ExpenseGlyph title={l.label} category={getCategory(l.category ?? "").id} size={18} className="rounded-[6px]!" />
+                  ) : (
+                    <span aria-hidden className="w-[18px] shrink-0 text-center text-owed">↔</span>
+                  )}
+                  <span className="truncate">{l.kind === "expense" ? l.label : l.label.replace(/ them$/, isMe ? " you" : ` ${v.nameOf(memberId)}`)}</span>
                 </span>
                 <span className="block truncate text-xs text-gray-400">
                   {dayLabel(l.date, now, tz)}
