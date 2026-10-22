@@ -3,8 +3,8 @@ import { claimOnce, sendPushTo } from "./push";
 import { dayKey, DEFAULT_TIME_ZONE } from "./dates";
 import { NUDGE_DAYS, afterTripNudge, countdownNudge, daysBetween, placeOf } from "./countdown";
 
-// The daily job (morning, India time): nudges to everyone in a trip 30, 14, 7,
-// 3 and 1 days before it starts, on the morning itself, and the day after it
+// The daily job (morning, India time): nudges to everyone in a trip 60, 45, 30,
+// 14, 7, 3 and 1 days before it starts, on the morning itself, and the day after it
 // ends (settle up). Each trip gets each nudge once, even if the job runs twice.
 export async function sendTripCountdowns(now = new Date()) {
   const today = dayKey(now, DEFAULT_TIME_ZONE);

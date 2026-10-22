@@ -38,10 +38,10 @@ describe("Trip countdown", () => {
     expect(tripEmoji("Weekend away")).toBe("✈️");
   });
 
-  it("nudges build up: 30, 14, 7, 3, 1 days before and on the day; same trip and step, same line", () => {
+  it("nudges build up: 60, 45, 30, 14, 7, 3, 1 days before and on the day; same trip and step, same line", () => {
     const g = { id: "g1", name: "Goa trip" };
-    for (const d of [30, 14, 7, 3, 1, 0]) expect(countdownNudge(g, d)).toContain("Goa");
-    for (const d of [29, 15, 8, 2, -1]) expect(countdownNudge(g, d)).toBeNull();
+    for (const d of [60, 45, 30, 14, 7, 3, 1, 0]) expect(countdownNudge(g, d)).toContain("Goa");
+    for (const d of [61, 59, 44, 29, 15, 8, 2, -1]) expect(countdownNudge(g, d)).toBeNull();
     expect(countdownNudge(g, 7)).toBe(countdownNudge(g, 7));
     // Different trips get different lines (not all the same message).
     const lines = new Set(["a", "b", "c", "d", "e", "f", "g", "h"].map((id) => countdownNudge({ id, name: "Goa trip" }, 30)));

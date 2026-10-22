@@ -84,12 +84,23 @@ export function countdownWords(name: string, p: TripPhase): { big: string; small
   }
 }
 
-// Phone nudges as the day gets closer: a month, two weeks, a week, three days,
-// the day before and the morning itself (and, separately, the day after it
+// Phone nudges as the day gets closer: two months, 45 days, a month (about
+// every two weeks), then two weeks, a week, three days, the day before and the
+// morning itself (and, separately, the day after it
 // ends). Several lines for each, picked by trip and step, so it never feels
 // like the same message twice.
 type Line = (place: string, e: string) => string;
 const NUDGES: Record<number, Line[]> = {
+  60: [
+    (p, e) => `${p} in 60 days ${e} It’s officially happening. Screenshot this.`,
+    (p, e) => `Two months to ${p} ${e} Plenty of time to over-plan. Let’s go.`,
+    (p, e) => `${p}: 60 days out ${e} Start the savings jar and the group playlist.`,
+  ],
+  45: [
+    (p, e) => `45 days to ${p} ${e} Halfway to the halfway mark. Book the fun stuff.`,
+    (p, e) => `${p} in 45 days ${e} Tickets, stays, plans: who’s on what?`,
+    (p, e) => `Six-ish weeks to ${p} ${e} Time to send the group the moodboard.`,
+  ],
   30: [
     (p, e) => `One month to ${p} ${e} Main character energy starts now.`,
     (p, e) => `${p} is officially a month away ${e} Leave applied? Asking for the group chat.`,
@@ -127,7 +138,7 @@ const NUDGES: Record<number, Line[]> = {
     (p, e) => `Wheels up for ${p} ${e} Have the best time. We’ll keep score.`,
   ],
 };
-export const NUDGE_DAYS = [30, 14, 7, 3, 1, 0];
+export const NUDGE_DAYS = [60, 45, 30, 14, 7, 3, 1, 0];
 
 // The day after the trip: back home, time to square up.
 const AFTER: Line[] = [
