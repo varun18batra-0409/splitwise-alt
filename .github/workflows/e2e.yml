@@ -42,8 +42,11 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - name: Test browsers (retried; the download sometimes hangs)
-        run: for i in 1 2 3; do timeout 420 npx playwright install --with-deps chromium webkit && exit 0; echo "::warning::Browser download attempt $i failed or hung, retrying"; done; exit 1
+      - name: Test browsers (system packages, then the browsers with retries)
+        timeout-minutes: 15
+        run: |
+          npx playwright install-deps chromium webkit
+          for i in 1 2 3; do timeout 300 npx playwright install chromium webkit && exit 0; echo "::warning::Browser download attempt $i failed or hung, retrying"; done; exit 1
       - name: Empty database and app build
         run: |
           npx prisma db push --skip-generate
@@ -119,8 +122,11 @@ jobs:
           [ -z "$missing" ] || { echo "::error title=Missing GitHub secrets::$missing"; exit 1; }
           [ "$TURSO_DATABASE_URL" != "$LIVE_TURSO_DATABASE_URL" ] || { echo "::error title=Stopped::The staging database is the LIVE database."; exit 1; }
       - run: npm install
-      - name: Test browsers (retried; the download sometimes hangs)
-        run: for i in 1 2 3; do timeout 420 npx playwright install --with-deps chromium && exit 0; echo "::warning::Browser download attempt $i failed or hung, retrying"; done; exit 1
+      - name: Test browsers (system packages, then the browsers with retries)
+        timeout-minutes: 15
+        run: |
+          npx playwright install-deps chromium
+          for i in 1 2 3; do timeout 300 npx playwright install chromium && exit 0; echo "::warning::Browser download attempt $i failed or hung, retrying"; done; exit 1
       - name: Tables on the staging database (adds only)
         run: node scripts/turso-sync.mjs
       - name: Find the test copy (the staging branch's latest Vercel build)
