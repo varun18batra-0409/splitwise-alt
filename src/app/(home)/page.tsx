@@ -30,6 +30,7 @@ import { myCollections, progress } from "@/lib/collect";
 import { tripPhase, type TripPhase } from "@/lib/countdown";
 import { todayKey } from "@/lib/dates";
 import { TripCountdown } from "@/components/TripCountdown";
+import { TripRow } from "@/components/TripRow";
 
 export const metadata = { alternates: { canonical: "/" } };
 
@@ -148,7 +149,11 @@ export default async function Home({
     .filter((g) => g.group.type === "trip" && g.group.tripStart)
     .map((g) => ({ g, phase: tripPhase(g.group.tripStart, g.group.tripEnd, today) }))
     .filter((t): t is { g: (typeof open)[number]; phase: TripPhase } => Boolean(t.phase) && t.phase!.kind !== "after" && (t.phase!.kind !== "before" || t.phase!.days <= 365))
-    .sort((a, b) => (a.phase.kind === "before" ? a.phase.days : 0) - (b.phase.kind === "before" ? b.phase.days : 0));
+    .sort(
+      (a, b) =>
+        (a.phase.kind === "before" ? a.phase.days : 0) - (b.phase.kind === "before" ? b.phase.days : 0) ||
+        (a.g.group.tripEnd || a.g.group.tripStart).localeCompare(b.g.group.tripEnd || b.g.group.tripStart),
+    );
   const byWeight = [...open].sort((a, b) => Math.abs(b.myBalance) - Math.abs(a.myBalance) || b.lastActivity.getTime() - a.lastActivity.getTime());
   // With one or two groups, shorter cards, so "Needs attention" shows without scrolling.
   const short = byActivity.length <= 2;
@@ -331,7 +336,7 @@ export default async function Home({
                   >
                     {heroText}
                   </h1>
-                  <p className="relative z-10 mt-1.5 max-w-[80%] font-hand text-[21px] font-bold leading-none text-[#ffd9a8] [text-shadow:0_1px_8px_rgba(0,0,0,0.8)]">
+                  <p className="relative z-10 mt-1.5 max-w-[62%] font-hand text-[21px] font-bold leading-none text-[#ffd9a8] [text-shadow:0_1px_8px_rgba(0,0,0,0.8)]">
                     {netValue > 0 ? "you get money back" : netValue < 0 ? "you need to pay" : "it all evens out"}
                     {open.filter((g) => g.myBalance !== 0).length > 1 ? `, from ${open.filter((g) => g.myBalance !== 0).length} groups` : ""}
                   </p>
@@ -445,10 +450,26 @@ export default async function Home({
             )}
           </HomeBanner>
 
-          {trips.length > 0 && (
+          {trips.length === 1 && (
             <div className="mt-6">
-              <TripCountdown group={trips[0].g.group} phase={trips[0].phase} more={trips.length - 1} />
+              <TripCountdown group={trips[0].g.group} phase={trips[0].phase} />
             </div>
+          )}
+          {/* More than one trip: one card at a time, swipe for the next (soonest first). */}
+          {trips.length > 1 && (
+            <section className="mt-6" aria-label="Your trips">
+              <div className="mb-2 flex items-baseline justify-between">
+                <h2 className="font-display text-lg font-semibold tracking-tight">
+                  Your trips <span className="ml-1 text-sm font-normal text-fg/40 tabular-nums">{trips.length}</span>
+                </h2>
+                <span className="text-xs text-fg/40">Swipe →</span>
+              </div>
+              <TripRow>
+                {trips.map((t) => (
+                  <TripCountdown key={t.g.group.id} group={t.g.group} phase={t.phase} />
+                ))}
+              </TripRow>
+            </section>
           )}
 
           {/* Groups */}
@@ -558,7 +579,7 @@ export default async function Home({
                   <li key={r.item.id}>
                     {/* Tap: opens it in its group, already expanded (details, Edit, Delete). */}
                     <Link href={itemHref(r.groupId, r.item)} className="block active:bg-mist">
-                      <ActivityRow item={r.item} currency={r.currency} nameOf={r.nameOf} groupName={`${r.groupName}, ${dayLabel(r.item.date, new Date(), tz)}`} />
+                      <ActivityRow item={r.item} currency={r.currency} nameOf={r.nameOf} groupName={`${r.groupName}, ${dayLabel(r.item.date, new Date(), tz)}`} alive />
                     </Link>
                   </li>
                 ))}

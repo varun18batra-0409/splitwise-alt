@@ -53,8 +53,9 @@ export async function createCollection(account: { id: string; name: string }, in
   for (const f of friends) if (!rows.some((x) => x.accountId === f.id) && rows.length < MAX_ENTRIES) rows.push({ name: f.name, status: "due", phone: "", accountId: f.id });
   const code = newCollectCode();
   await db.collection.create({ data: { ...r.data, code, accountId: account.id, organiser, entries: { create: rows } } });
-  const notify: CollectNote[] = friends.length
-    ? [{ accountIds: friends.map((f) => f.id), kind: "collect_added", title: r.data.title, body: `${organiser} added you: ${each(r.data)}. Tap to pay and tick your name.`, url: `/c/${code}`, tag: `collect:${code}` }]
+  const onList = [...new Set(rows.map((x) => x.accountId).filter(Boolean))];
+  const notify: CollectNote[] = onList.length
+    ? [{ accountIds: onList, kind: "collect_added", title: r.data.title, body: `${organiser} added you: ${each(r.data)}. Tap to pay and tick your name.`, url: `/c/${code}`, tag: `collect:${code}` }]
     : [];
   return { ok: true as const, code, notify };
 }
@@ -159,8 +160,10 @@ export async function organiserAction(
       if (rows.length) await db.collectionEntry.createMany({ data: rows });
       for (const x of fill) await db.collectionEntry.update({ where: { id: x.id }, data: { phone: phones[Object.keys(phones).find((n) => sameName(n, x.name))!] } });
       for (const x of link) await db.collectionEntry.update({ where: { id: x.id }, data: { accountId: friends.find((f) => sameName(f.name, x.name))!.id } });
-      return friends.length
-        ? { ok: true, notify: [{ accountIds: friends.map((f) => f.id), kind: "collect_added", title: c.title, body: `${c.organiser} added you: ${each(c)}. Tap to pay and tick your name.`, url: `/c/${c.code}`, tag: `collect:${c.code}` }] }
+      // Told only if they really landed on the list (added now, or linked to their name).
+      const told = [...new Set([...rows.map((x) => x.accountId), ...link.map((x) => friends.find((f) => sameName(f.name, x.name))!.id)].filter(Boolean))];
+      return told.length
+        ? { ok: true, notify: [{ accountIds: told, kind: "collect_added", title: c.title, body: `${c.organiser} added you: ${each(c)}. Tap to pay and tick your name.`, url: `/c/${c.code}`, tag: `collect:${c.code}` }] }
         : { ok: true };
     }
     case "close":

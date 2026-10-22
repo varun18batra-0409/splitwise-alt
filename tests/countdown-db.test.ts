@@ -9,6 +9,7 @@ import { dayKey, DEFAULT_TIME_ZONE } from "@/lib/dates";
 const ids: string[] = [];
 const keys: string[] = [];
 afterAll(async () => {
+  await db.expense.deleteMany({ where: { groupId: { in: ids } } });
   await db.groupEvent.deleteMany({ where: { groupId: { in: ids } } });
   await db.member.deleteMany({ where: { groupId: { in: ids } } });
   await db.group.deleteMany({ where: { id: { in: ids } } });
@@ -45,5 +46,18 @@ describe("Trip countdown (real database)", () => {
     expect(await db.notifyLog.count({ where: { key: `countdown:${g.id}:${inAWeek}:7` } })).toBe(1);
     await sendTripCountdowns(now);
     expect(await db.notifyLog.count({ where: { key: `countdown:${g.id}:${inAWeek}:7` } })).toBe(1);
+  });
+
+  it("the day after: a settle-up nudge only for trips where something was spent", async () => {
+    const now = new Date();
+    const yesterday = dayKey(new Date(now.getTime() - 86_400_000), DEFAULT_TIME_ZONE);
+    const spent = await trip("Pondi trip");
+    const empty = await trip("Coorg trip");
+    await db.group.updateMany({ where: { id: { in: [spent.id, empty.id] } }, data: { tripStart: yesterday, tripEnd: "" } });
+    await db.expense.create({ data: { groupId: spent.id, description: "Dinner", amount: 120000, splitType: "equal", paidById: spent.members[0].id } });
+    keys.push(`countdown-after:${spent.id}:${yesterday}`, `countdown-after:${empty.id}:${yesterday}`);
+    await sendTripCountdowns(now);
+    expect(await db.notifyLog.count({ where: { key: `countdown-after:${spent.id}:${yesterday}` } })).toBe(1);
+    expect(await db.notifyLog.count({ where: { key: `countdown-after:${empty.id}:${yesterday}` } })).toBe(0);
   });
 });

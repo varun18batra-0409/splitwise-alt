@@ -48,14 +48,15 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
           {group.members.filter((m) => !m.leftAt || (net[m.id] ?? 0) !== 0).map((m) => {
             const b = net[m.id] ?? 0;
             const theirs = transfers.filter((t) => t.from === m.id || t.to === m.id);
-            // Their part of the spending in each foreign currency, said plainly ("THB spends: owes THB 5,099").
+            // Their part of the spending in each foreign currency, said plainly.
             const foreign =
               b === 0
                 ? ""
                 : ledgers
                     .map((l) => {
                       const x = l.net[m.id] ?? 0;
-                      return x === 0 ? "" : `${l.currency} spends: ${x > 0 ? "gets" : "owes"} ${formatMoney(Math.abs(x), l.currency)}`;
+                      // "THB part: owes 5,099.17" (the currency named once).
+                      return x === 0 ? "" : `${l.currency} part: ${x > 0 ? "gets" : "owes"} ${formatMoney(Math.abs(x), l.currency).replace(`${l.currency} `, "")}`;
                     })
                     .filter(Boolean)
                     .join(" · ");

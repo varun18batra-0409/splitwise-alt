@@ -72,17 +72,44 @@ export const CATEGORY_TINT: Record<string, string> = {
   other: "#b9b4a8",
 };
 
-export function ExpenseGlyph({ title, category, emoji, size = 40, className = "" }: { title: string; category: string; emoji?: string; size?: number; className?: string }) {
+export function ExpenseGlyph({
+  title,
+  category,
+  emoji,
+  size = 40,
+  className = "",
+  alive = false,
+  label,
+}: {
+  title: string;
+  category: string;
+  emoji?: string;
+  size?: number;
+  className?: string;
+  alive?: boolean; // Home only: the icon moves (a flight cruises, with wind streaks, and now and then flies off and back)
+  label?: string; // the category's name, said by screen readers (the icon shows it to everyone else)
+}) {
   // `emoji`: a picture already chosen (a bill's type), else worked out from the name.
   const glyph = FROM_EMOJI[emoji ?? expenseIcon(title, category)] ?? FROM_EMOJI[expenseIcon(title, category)] ?? "receipt";
   const tint = CATEGORY_TINT[category] ?? CATEGORY_TINT.other;
+  const moving = alive && glyph === "plane";
   return (
     <span
-      aria-hidden
-      className={`flex shrink-0 items-center justify-center rounded-[14px] ${className}`}
+      {...(label ? { role: "img", "aria-label": label } : { "aria-hidden": true })}
+      data-glyph={glyph}
+      data-category={category}
+      className={`relative flex shrink-0 items-center justify-center rounded-[14px] ${moving ? "overflow-hidden" : ""} ${className}`}
       style={{ width: size, height: size, background: `${tint}1f`, color: tint, boxShadow: `inset 0 0 0 1px ${tint}26` }}
     >
-      <svg width={size * 0.48} height={size * 0.48} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      {moving && (
+        // Wind streaks blowing past, behind the plane (it flies up and to the right).
+        <svg width={size} height={size} viewBox="0 0 40 40" fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" className="absolute inset-0 opacity-50">
+          <path className="lp-streak" d="M11 31l-4 4" />
+          <path className="lp-streak [animation-delay:-0.45s]" d="M16 33l-3 3" />
+          <path className="lp-streak [animation-delay:-0.25s]" d="M8 25l-3 3" />
+        </svg>
+      )}
+      <svg width={size * 0.48} height={size * 0.48} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={moving ? "lp-fly relative" : undefined}>
         <path d={PATHS[glyph]} />
       </svg>
     </span>

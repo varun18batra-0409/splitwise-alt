@@ -49,11 +49,15 @@ jobs:
           node-version: 22
       - run: npm install
       - run: npm install --no-save tsx@4.19.2 # Playwright itself comes with @playwright/test (one version for everything)
+      # The browsers, kept between runs: downloading them sometimes hangs on GitHub's machines.
+      - name: Browser cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ hashFiles('package.json') }}
       - name: Test browsers (system packages, then the browsers with retries)
         timeout-minutes: 15
-        run: |
-          npx playwright install-deps chromium webkit
-          for i in 1 2 3; do timeout 300 npx playwright install chromium webkit && exit 0; echo "::warning::Browser download attempt $i failed or hung, retrying"; done; exit 1
+        run: bash scripts/ci-browsers.sh chromium webkit
       - name: Start from the live version's tables (so the upgrade itself is tested)
         run: |
           git fetch -q --depth=1 origin main

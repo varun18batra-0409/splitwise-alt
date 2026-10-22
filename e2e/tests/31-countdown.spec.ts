@@ -56,6 +56,22 @@ test("a trip with dates counts down on the group and Home; settings change it; t
   await page.locator('input[name="tripEnd"]').fill(day(2));
   await page.getByRole("button", { name: "Save settings" }).click();
   await expect(page.getByText("The trip can’t end before it starts.")).toBeVisible();
+
+  // A second, later trip: Home shows both in a row to swipe, soonest first.
+  await page.goto("/groups/new");
+  await settled(page);
+  await page.getByRole("button", { name: /^Trip/ }).click();
+  await page.locator('input[name="groupName"]').fill(groupName("Manali trip"));
+  await page.locator('input[name="tripStart"]').fill(day(40));
+  await page.locator('select[name="currency"]').selectOption("INR");
+  await page.getByRole("button", { name: /Create group/ }).click();
+  await page.waitForURL(/\/invite\?new=1/);
+  await page.goto("/");
+  await settled(page);
+  const row = page.locator("[data-trip-row]");
+  await expect(row.getByRole("region", { name: "Trip countdown", exact: true })).toHaveCount(2);
+  await expect(row.locator("[data-countdown]").nth(0)).toHaveAttribute("data-countdown", "1");
+  await expect(row.locator("[data-countdown]").nth(1)).toHaveAttribute("data-countdown", "40");
   await ctx.close();
 
   // Someone outside the group can't get the picture.

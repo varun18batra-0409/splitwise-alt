@@ -64,6 +64,15 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
                   </div>
                 </li>
               ))}
+              {/* The rest, so the lines add up to the total. */}
+              {r.categories.length > 4 && (
+                <li className="flex justify-between text-sm text-fg/55">
+                  <span>Everything else ({r.categories.length - 4})</span>
+                  <span className="tabular-nums">
+                    {m(r.categories.slice(4).reduce((t, c) => t + c.amount, 0))} · {Math.max(0, 100 - r.categories.slice(0, 4).reduce((t, c) => t + c.pct, 0))}%
+                  </span>
+                </li>
+              )}
             </ul>
 
             <div className="mt-6 space-y-1 text-sm text-fg/70">
