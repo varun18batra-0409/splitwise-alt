@@ -51,11 +51,18 @@ export async function createGroup(formData: FormData) {
     cover: String(formData.get("cover") ?? ""),
     tripStart: String(formData.get("tripStart") ?? ""),
     tripEnd: String(formData.get("tripEnd") ?? ""),
+    photo: photoFrom(formData.get("photo")),
   });
   const me = group.members[0];
   await setMyMemberId(group.id, me.id);
   await copyPushTo(account.id, me.id);
   redirect(`/groups/${group.id}/invite?new=1`);
+}
+
+// The photo picked on "New group", made small on the phone and sent as text.
+function photoFrom(v: FormDataEntryValue | null): Uint8Array | undefined {
+  if (typeof v !== "string" || !v || v.length > 1_000_000 || !/^[A-Za-z0-9+/=]+$/.test(v)) return undefined;
+  return new Uint8Array(Buffer.from(v, "base64"));
 }
 
 // "Bring a group over from Splitwise": a new group from Splitwise's exported spreadsheet.

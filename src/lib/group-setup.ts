@@ -2,21 +2,24 @@ import { randomBytes } from "node:crypto";
 import { db } from "./db";
 import { isSupportedCurrency } from "./money";
 import { logEvent } from "./events";
-import { cleanCover } from "./covers";
+import { MAX_PHOTO_BYTES, cleanCover, photoType } from "./covers";
 import { cleanTripDates } from "./countdown";
 import { dayKey, DEFAULT_TIME_ZONE } from "./dates";
 import { isGroupType, parseWeight, sharingInputs, weightsLabel, type GroupType } from "./group-types";
 
 // Creating groups and changing how a group shares costs (database side).
 
-export type NewGroupInput = { type: string; name: string; yourName: string; currency: string; ratio?: number; cover?: string; tripStart?: string; tripEnd?: string };
+export type NewGroupInput = { type: string; name: string; yourName: string; currency: string; ratio?: number; cover?: string; tripStart?: string; tripEnd?: string; photo?: Uint8Array };
 
 // Makes a group with its creator as the first member.
 export async function createGroupFor(account: { id: string }, input: NewGroupInput) {
   const type: GroupType = isGroupType(input.type) ? input.type : "other";
   const ratio = type === "couple" && Number.isInteger(input.ratio) && input.ratio! >= 1 && input.ratio! <= 99 ? input.ratio! : 50;
   const couple = type === "couple" && ratio !== 50;
-  return db.group.create({
+  // Your own photo, picked while making it: kept only if it's really a small photo and chosen as the picture.
+  const photo = input.cover === "own" && input.photo && input.photo.length <= MAX_PHOTO_BYTES ? input.photo : undefined;
+  const photoKind = photo ? photoType(photo) : null;
+  const group = await db.group.create({
     data: {
       name: input.name.trim().replace(/\s+/g, " ").slice(0, 60),
       type,
@@ -29,6 +32,14 @@ export async function createGroupFor(account: { id: string }, input: NewGroupInp
     },
     include: { members: true },
   });
+  if (photo && photoKind) {
+    const now = new Date();
+    await db.$transaction([
+      db.groupPhoto.create({ data: { groupId: group.id, data: photo, type: photoKind, createdById: group.members[0].id, updatedAt: now } }),
+      db.group.update({ where: { id: group.id }, data: { cover: "own", coverAt: now } }),
+    ]);
+  }
+  return group;
 }
 
 // Dates typed when making a trip: kept only if they make sense (otherwise left for settings).

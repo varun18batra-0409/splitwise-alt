@@ -51,10 +51,59 @@ export function OwnPhotoButton({ groupId }: { groupId: string }) {
   );
 }
 
+// "Your photo" while making a group (it doesn't exist yet, so nothing can be
+// uploaded): the photo is made small here and goes with the form, saved the
+// moment the group is made. Picking it selects it as the picture.
+export function NewPhotoButton({ onPicked }: { onPicked: (previewSrc: string) => void }) {
+  const input = useRef<HTMLInputElement>(null);
+  const [state, setState] = useState<"idle" | "busy" | "done" | string>("idle");
+  const [data, setData] = useState("");
+
+  async function pick(file: File | undefined) {
+    if (!file) return;
+    setState("busy");
+    try {
+      const blob = await shrink(file);
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      let bin = "";
+      for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+      setData(btoa(bin));
+      onPicked(URL.createObjectURL(blob));
+      setState("done");
+    } catch (e) {
+      setState(e instanceof Error ? e.message : "Couldn’t use that photo. Try another one.");
+    } finally {
+      if (input.current) input.current.value = "";
+    }
+  }
+
+  return (
+    <div className="relative row-span-2 flex flex-col">
+      <button
+        type="button"
+        onClick={() => input.current?.click()}
+        disabled={state === "busy"}
+        className="flex h-[92px] w-[70px] flex-col items-center justify-center gap-1 rounded-[14px] border-[1.5px] border-dashed border-gray-300 text-[11px] font-semibold text-gray-600 active:bg-mist disabled:opacity-60"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M4 8h3l2-3h6l2 3h3v11H4z" />
+          <circle cx="12" cy="13" r="3.5" />
+        </svg>
+        {state === "busy" ? "Shrinking…" : data ? "Change" : "Your photo"}
+      </button>
+      <input ref={input} type="file" accept="image/*" aria-label="Choose your own photo" className="sr-only" onChange={(e) => pick(e.target.files?.[0])} />
+      {data && <input type="hidden" name="photo" value={data} />}
+      <p role="status" className="mt-1 w-[70px] text-[10px] leading-tight text-gray-500">
+        {state === "done" ? "Added" : state !== "idle" && state !== "busy" ? <span className="text-red-600">{state}</span> : ""}
+      </p>
+    </div>
+  );
+}
+
 // Made small on the phone: at most 1080 px on the long side, WebP (or JPEG
 // where the phone can't make WebP). Steps down in size and quality until it's
 // under ~150 KB; the smallest that fits the server's limit is the fallback.
-async function shrink(file: File): Promise<Blob> {
+export async function shrink(file: File): Promise<Blob> {
   const img = await load(file);
   let fallback: Blob | null = null;
   for (const [max, q] of PHOTO_STEPS) {

@@ -106,3 +106,31 @@ describe("changing how costs are shared", () => {
     expect(r.ok).toBe(false);
   });
 });
+
+describe("your own photo while making a group", () => {
+  it("is saved with the group when picked as the picture; junk or an unpicked photo is ignored", async () => {
+    const me = await db.account.findFirstOrThrow({ where: { email: `me-gt-${stamp}@example.com` } });
+    const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, ...new Array(200).fill(7)]);
+    const withPhoto = await createGroupFor(me, { type: "trip", name: "Goa", yourName: "Varun", currency: "INR", cover: "own", photo: jpeg });
+    const junk = await createGroupFor(me, { type: "trip", name: "Goa 2", yourName: "Varun", currency: "INR", cover: "own", photo: new Uint8Array([1, 2, 3, 4, 5]) });
+    const notPicked = await createGroupFor(me, { type: "trip", name: "Goa 3", yourName: "Varun", currency: "INR", cover: "mountain", photo: jpeg });
+    made.push(withPhoto.id, junk.id, notPicked.id);
+
+    const look = async (id: string) => ({ g: await db.group.findUniqueOrThrow({ where: { id } }), photo: await db.groupPhoto.findUnique({ where: { groupId: id } }) });
+    const one = await look(withPhoto.id);
+    expect(one.g.cover).toBe("own");
+    expect(one.g.coverAt).not.toBeNull();
+    expect(one.photo?.type).toBe("image/jpeg");
+    expect(one.photo?.data.length).toBe(jpeg.length);
+    expect(one.photo?.createdById).toBe(withPhoto.members[0].id);
+
+    const two = await look(junk.id);
+    expect(two.g.cover).toBe("");
+    expect(two.photo).toBeNull();
+
+    const three = await look(notPicked.id);
+    expect(three.g.cover).toBe("mountain");
+    expect(three.photo).toBeNull();
+    await db.groupPhoto.deleteMany({ where: { groupId: { in: [withPhoto.id, junk.id, notPicked.id] } } });
+  });
+});

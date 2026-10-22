@@ -36,6 +36,8 @@ export function NewGroupForm({
   // The picture follows the type until you pick one yourself.
   const [picked, setPicked] = useState<CoverChoice | null>(isCoverChoice(initialCover) ? initialCover : null);
   const cover = picked ?? coverOf({ type });
+  // Your own photo, picked before the group exists (shown here; saved with the group).
+  const [ownSrc, setOwnSrc] = useState("");
   const [step, setStep] = useState<1 | 2>(1);
   const [name, setName] = useState(initialName);
   const [mode, setMode] = useState<"equal" | "income" | "custom">("equal");
@@ -79,7 +81,17 @@ export function NewGroupForm({
           </div>
         </fieldset>
 
-        <CoverPicker value={cover} onChange={setPicked} letter={name || placeholder} uid="new" />
+        <CoverPicker
+          value={cover}
+          onChange={setPicked}
+          letter={name || placeholder}
+          uid="new"
+          own={{ src: ownSrc || undefined }}
+          onNewPhoto={(src) => {
+            setOwnSrc(src);
+            setPicked("own");
+          }}
+        />
 
         <label className="block">
           <span className="mb-2 block text-sm font-medium text-gray-600">Group name</span>
