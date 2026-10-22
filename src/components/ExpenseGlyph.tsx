@@ -95,6 +95,7 @@ export function ExpenseGlyph({
     <span
       aria-hidden
       data-glyph={glyph}
+      data-category={category}
       className={`relative flex shrink-0 items-center justify-center rounded-[14px] ${moving ? "overflow-hidden" : ""} ${className}`}
       style={{ width: size, height: size, background: `${tint}1f`, color: tint, boxShadow: `inset 0 0 0 1px ${tint}26` }}
     >

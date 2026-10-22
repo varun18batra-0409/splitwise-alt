@@ -1245,12 +1245,13 @@ async function main() {
     const shots = await V.evaluate(() => [...document.querySelectorAll('main img[src*="/guide/"]')].map((i) => (i as HTMLImageElement).naturalWidth));
     assert(shots.length === 3 && shots.every((w) => w > 0), `guide screens: ${JSON.stringify(shots)}`);
   });
-  await step(V, "Tags", "Each expense shows its category tag (Dinner → Food, Taxi → Transport)", async () => {
+  await step(V, "Tags", "Each expense shows its category: the icon's colour and shape, and the name for screen readers (Dinner → Food, Taxi → Transport)", async () => {
     await go(V, `${g}?tab=activity`);
-    const row = V.locator("details summary").filter({ hasText: "Dinner" }).first();
-    assert(/Food/.test(await row.innerText()), "no Food tag on Dinner");
-    const taxi = V.locator("details summary").filter({ hasText: "Taxi" }).first();
-    assert(/Transport/.test(await taxi.innerText()), "no Transport tag on Taxi");
+    for (const [title, cat, label] of [["Dinner", "food", "Food"], ["Taxi", "transport", "Transport"]] as const) {
+      const row = V.locator("details summary").filter({ hasText: title }).first();
+      assert((await row.locator("[data-category]").first().getAttribute("data-category")) === cat, `${title}: icon isn't ${cat}`);
+      assert(new RegExp(label).test(await row.locator("[data-category-label]").first().textContent() ?? ""), `${title}: no “${label}” for screen readers`);
+    }
   });
 
   // ===== 9. Home & Couple: bills, list, budgets, reminders, moving out, goals =====
