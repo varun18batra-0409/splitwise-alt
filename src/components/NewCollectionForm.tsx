@@ -32,8 +32,8 @@ export function NewCollectionForm({ defaultCurrency, yourName }: { defaultCurren
       action={action}
       className="space-y-6"
       onChange={(e) => {
-        const t = e.target as HTMLSelectElement;
-        if (t.name === "currency") setCurrency(t.value);
+        const t = e.target;
+        if (t instanceof HTMLSelectElement && t.name === "currency") setCurrency(t.value);
       }}
     >
       {state.error && (
