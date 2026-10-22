@@ -42,11 +42,15 @@ jobs:
         with:
           node-version: 22
       - run: npm install
+      # The browsers, kept between runs: downloading them sometimes hangs on GitHub's machines.
+      - name: Browser cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ hashFiles('package.json') }}
       - name: Test browsers (system packages, then the browsers with retries)
         timeout-minutes: 15
-        run: |
-          npx playwright install-deps chromium webkit
-          for i in 1 2 3; do timeout 300 npx playwright install chromium webkit && exit 0; echo "::warning::Browser download attempt $i failed or hung, retrying"; done; exit 1
+        run: bash scripts/ci-browsers.sh chromium webkit
       - name: Empty database and app build
         run: |
           npx prisma db push --skip-generate
@@ -122,11 +126,15 @@ jobs:
           [ -z "$missing" ] || { echo "::error title=Missing GitHub secrets::$missing"; exit 1; }
           [ "$TURSO_DATABASE_URL" != "$LIVE_TURSO_DATABASE_URL" ] || { echo "::error title=Stopped::The staging database is the LIVE database."; exit 1; }
       - run: npm install
+      # The browsers, kept between runs: downloading them sometimes hangs on GitHub's machines.
+      - name: Browser cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ hashFiles('package.json') }}
       - name: Test browsers (system packages, then the browsers with retries)
         timeout-minutes: 15
-        run: |
-          npx playwright install-deps chromium
-          for i in 1 2 3; do timeout 300 npx playwright install chromium && exit 0; echo "::warning::Browser download attempt $i failed or hung, retrying"; done; exit 1
+        run: bash scripts/ci-browsers.sh chromium
       - name: Tables on the staging database (adds only)
         run: node scripts/turso-sync.mjs
       - name: Find the test copy (the staging branch's latest Vercel build)
