@@ -210,6 +210,21 @@ model Account {
   email     String   @unique
   name      String   @default("") // shown to friends when they search for you
   createdAt DateTime @default(now())
+  collectPush Boolean @default(true) // phone notifications about collections (added, reminders, payments checked)
+}
+
+// Notifications for a person rather than a group (Collect: "Asha added you",
+// "Ravi says they paid"). Shown in Alerts; also sent to the phone if wanted.
+model AccountNote {
+  id        String    @id @default(cuid())
+  accountId String
+  kind      String // "collect_added" | "collect_reminder" | "collect_paid" | "collect_ticked"
+  title     String
+  body      String
+  url       String
+  seenAt    DateTime?
+  createdAt DateTime  @default(now())
+  @@index([accountId, createdAt])
 }
 
 // An email invitation to a group. The person becomes a member only after they
@@ -473,5 +488,6 @@ model CollectionEntry {
   confirmedAt  DateTime?
   createdAt    DateTime   @default(now())
   phone        String     @default("") // from the organiser's contacts, for a WhatsApp reminder; only the organiser sees it
+  accountId    String     @default("") // a Loopin user: gets in-app notifications (added, reminded, payment checked)
   @@index([collectionId])
 }

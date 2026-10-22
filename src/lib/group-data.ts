@@ -141,3 +141,12 @@ export async function loadSwitchList(memberships: Record<string, string>, curren
     .slice(0, 5)
     .map((g) => ({ id: g.id, name: g.name, pic: coverFor(g) }));
 }
+
+// The number on the Alerts bell: group changes plus personal notes (Collect).
+export async function countAllUnread(memberships: Record<string, string>, accountId?: string | null): Promise<number> {
+  const [groups, notes] = await Promise.all([
+    countUnread(memberships),
+    accountId ? db.accountNote.count({ where: { accountId, seenAt: null } }) : Promise.resolve(0),
+  ]);
+  return groups + notes;
+}

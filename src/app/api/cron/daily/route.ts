@@ -68,6 +68,7 @@ export async function GET(req: Request) {
   await part("cleanup-keys", async () => (await db.requestKey.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - 30 * 86_400_000) } } })).count);
   // Deleted collections: gone for good after 30 days.
   await part("cleanup-collections", async () => (await db.collection.deleteMany({ where: { deletedAt: { lt: new Date(now.getTime() - 30 * 86_400_000) } } })).count);
+  await part("cleanup-notes", async () => (await db.accountNote.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - 90 * 86_400_000) } } })).count);
   await part("cleanup-mail", async () => (await db.notifyLog.deleteMany({ where: { key: { startsWith: "mail-failed:" }, createdAt: { lt: new Date(now.getTime() - 30 * 86_400_000) } } })).count);
   // Groups deleted more than 30 days ago (past their restore window) are erased for good.
   const groupsErased = await part("erase-deleted-groups", () => eraseExpiredGroups(now));

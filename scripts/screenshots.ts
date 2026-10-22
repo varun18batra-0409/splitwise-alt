@@ -198,6 +198,7 @@ let collectCode = "";
 if (!hosted) {
   const { db } = await import("../src/lib/db");
   const acc = await db.account.create({ data: { email: `shots-collect-${Date.now()}@uat.loopin.test`, name: "Varun" } });
+  const priya = await db.account.create({ data: { email: `shots-priya-${Date.now()}@uat.loopin.test`, name: "Priya" } });
   const due = new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10);
   const now = Date.now();
   const at = (minsAgo: number) => new Date(now - minsAgo * 60_000);
@@ -209,7 +210,7 @@ if (!hosted) {
         { name: "Ravi", amount: 30000, status: "confirmed", method: "upi", paidAt: at(300), confirmedAt: at(200) },
         { name: "Meera", amount: 30000, status: "paid", method: "upi", payerKey: "shotsPayerKey0000000001", paidAt: at(20) },
         { name: "Kabir", amount: 30000, status: "confirmed", method: "cash", paidAt: at(100), confirmedAt: at(100) },
-        { name: "Zoya", phone: "+919876500001" }, { name: "Arjun", phone: "+919876500002" }, { name: "Priya" },
+        { name: "Zoya", phone: "+919876500001" }, { name: "Arjun", phone: "+919876500002" }, { name: "Priya", accountId: priya.id },
       ] },
     },
   });
@@ -217,6 +218,13 @@ if (!hosted) {
   await context.addCookies([{ name: SESSION_COOKIE, value: await encodeSession({ m: demo.memberships, a: acc.id }), url: base }]);
   await shot("70-collect-new", "/collect/new");
   await shot("71-collect-organiser", `/c/${collectCode}`);
+  await db.accountNote.createMany({
+    data: [
+      { accountId: acc.id, kind: "collect_ticked", title: "Teacher’s Day gift", body: "Meera says they paid ₹300. Tap to check it off.", url: `/c/${collectCode}` },
+      { accountId: acc.id, kind: "collect_added", title: "Diwali fund", body: "Nupur added you: ₹500 each. Tap to pay and tick your name.", url: `/c/${collectCode}`, seenAt: new Date() },
+    ],
+  });
+  await shot("83-alerts-collect", "/notifications", undefined, false);
   // A trip in 12 days, for the countdown.
   const ist = (plus: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(now + plus * 86_400_000));
   const goa = await db.group.create({

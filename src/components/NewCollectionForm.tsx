@@ -5,6 +5,7 @@ import { useFormStatus } from "react-dom";
 import { createCollectionAction, type CreateState } from "@/app/collect-actions";
 import { CurrencySelect } from "./CurrencySelect";
 import { PickContacts } from "./PickContacts";
+import { FriendPicker } from "./FriendPicker";
 import { inputClass, primaryButtonClass } from "./ui";
 
 // New collection: what it's for, how much each, where the money goes (UPI for
@@ -23,7 +24,7 @@ function Submit() {
   );
 }
 
-export function NewCollectionForm({ defaultCurrency, yourName }: { defaultCurrency: string; yourName: string }) {
+export function NewCollectionForm({ defaultCurrency, yourName, friends = [] }: { defaultCurrency: string; yourName: string; friends?: { id: string; name: string }[] }) {
   const [state, action] = useActionState<CreateState, FormData>(createCollectionAction, {});
   const [currency, setCurrency] = useState(defaultCurrency);
   const v = state.values ?? {};
@@ -126,6 +127,7 @@ export function NewCollectionForm({ defaultCurrency, yourName }: { defaultCurren
             <textarea name="names" defaultValue={v.names} rows={3} placeholder="One name per line, or paste them with commas" className={`${inputClass} resize-y`} />
           </label>
           <PickContacts key={v.contacts ?? "start"} initial={v.contacts} className="-mt-3" />
+          <FriendPicker friends={friends} />
 
           <label className="block">
             <span className={label}>Pay by</span>

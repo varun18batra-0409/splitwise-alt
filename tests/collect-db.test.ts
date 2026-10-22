@@ -1,7 +1,8 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { deleteAccount } from "@/lib/auth";
-import { createCollection, loadCollection, markPaid, myCollections, organiserAction, undoPaid } from "@/lib/collect";
+import { createCollection, loadCollection, loopinFriends, markPaid, myCollections, organiserAction, undoPaid } from "@/lib/collect";
+import { deliverNotes, loadNotes } from "@/lib/account-notes";
 
 // Collect against a real database: make one, people tick, the organiser
 // checks; nobody else can change it; deleting the account removes it.
@@ -13,8 +14,12 @@ async function organiser(name = "Asha") {
 }
 const form = { title: "Farewell gift", note: "", currency: "INR", amount: "300", dueDate: "", upiId: "asha@okicici", payLink: "", names: "Ravi\nMeera" };
 
+const groups: string[] = [];
 afterAll(async () => {
+  await db.member.deleteMany({ where: { groupId: { in: groups } } });
+  await db.group.deleteMany({ where: { id: { in: groups } } });
   const accs = await db.account.findMany({ where: { email: { in: emails } } });
+  await db.accountNote.deleteMany({ where: { accountId: { in: accs.map((a) => a.id) } } });
   await db.collection.deleteMany({ where: { accountId: { in: accs.map((a) => a.id) } } });
   await db.account.deleteMany({ where: { email: { in: emails } } });
 });
@@ -112,5 +117,38 @@ describe("Collect (real database)", () => {
     expect(r.ok).toBe(true);
     c = (await loadCollection(made.code))!;
     expect(Object.fromEntries(c.entries.map((e) => [e.name, e.phone]))).toEqual({ Ravi: "+919876543210", Meera: "+919876500000", Kabir: "+447700900123" });
+  });
+
+  it("Loopin friends: only people you share a group with; told in the app when added, reminded and paid", async () => {
+    const asha = await organiser("Asha");
+    const ravi = await organiser("Ravi");
+    const stranger = await organiser("Stranger");
+    const g = await db.group.create({ data: { name: "Flat", currency: "INR", inviteCode: `cf-${Date.now()}`, members: { create: [{ name: "Asha", accountId: asha.id }, { name: "Ravi", accountId: ravi.id }] } } });
+    groups.push(g.id);
+    expect((await loopinFriends(asha.id)).map((f) => f.name)).toEqual(["Ravi"]);
+
+    const made = await createCollection(asha, { ...form, names: "Meera", friends: [ravi.id, stranger.id] });
+    if (!made.ok) throw new Error(made.error);
+    let c = (await loadCollection(made.code))!;
+    expect(c.entries.map((e) => [e.name, e.accountId]).sort()).toEqual([["Meera", ""], ["Ravi", ravi.id]]); // never the stranger
+    expect(made.notify.map((n) => [n.kind, n.accountIds])).toEqual([["collect_added", [ravi.id]]]);
+    await deliverNotes(made.notify);
+    expect((await loadNotes(ravi.id)).map((n) => n.body)).toEqual(["Asha added you: ₹300 each. Tap to pay and tick your name."]);
+    expect(await loadNotes(stranger.id)).toEqual([]);
+
+    const raviEntry = c.entries.find((e) => e.name === "Ravi")!;
+    const nudge = await organiserAction(made.code, asha.id, { kind: "nudge", entryId: raviEntry.id });
+    expect(nudge.ok && nudge.notify?.[0].kind).toBe("collect_reminder");
+    // Meera isn't on Loopin: no in-app reminder for her.
+    expect((await organiserAction(made.code, asha.id, { kind: "nudge", entryId: c.entries.find((e) => e.name === "Meera")!.id })).ok).toBe(false);
+
+    // Meera opens the link while signed in to Loopin: linked when she ticks.
+    const meera = await organiser("Meera");
+    await markPaid(made.code, { name: "meera", viewerAccountId: meera.id }, "k-meera");
+    c = (await loadCollection(made.code))!;
+    const m = c.entries.find((e) => e.name === "Meera")!;
+    expect(m.accountId).toBe(meera.id);
+    const ok = await organiserAction(made.code, asha.id, { kind: "confirm", entryId: m.id });
+    expect(ok.ok && ok.notify).toEqual([{ accountIds: [meera.id], kind: "collect_paid", title: "Farewell gift", body: "Asha got your ₹300 ✓ You’re all done.", url: `/c/${made.code}`, tag: `collect:${made.code}` }]);
   });
 });

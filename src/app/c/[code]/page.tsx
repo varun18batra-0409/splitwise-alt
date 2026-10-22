@@ -12,7 +12,8 @@ import { getAccount } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
 import { todayKey } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
-import { loadCollection, personalReminder, progress, reminderText, upiLink, whatsappTo } from "@/lib/collect";
+import { loadCollection, loopinFriends, personalReminder, progress, reminderText, upiLink, whatsappTo } from "@/lib/collect";
+import { FriendPicker } from "@/components/FriendPicker";
 import { PickContacts } from "@/components/PickContacts";
 import { organiserActionForm, undoPaidAction } from "@/app/collect-actions";
 
@@ -20,7 +21,7 @@ import { organiserActionForm, undoPaidAction } from "@/app/collect-actions";
 // Anyone with it can pay the organiser directly and tick their name; the
 // organiser (signed in) also checks payments off, reminds, and closes it.
 
-type Props = { params: Promise<{ code: string }>; searchParams: Promise<{ new?: string; ticked?: string; undone?: string; added?: string; error?: string }> };
+type Props = { params: Promise<{ code: string }>; searchParams: Promise<{ new?: string; ticked?: string; undone?: string; added?: string; reminded?: string; error?: string }> };
 
 const when = (day: string) => new Date(`${day}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 
@@ -40,6 +41,8 @@ export default async function CollectionPage({ params, searchParams }: Props) {
   const [c, account, jar, tz, h] = await Promise.all([loadCollection(code), getAccount(), cookies(), getTimeZone(), headers()]);
   if (!c) notFound();
   const isOrganiser = account?.id === c.accountId;
+  // Loopin friends not on the list yet (to add, for in-app notifications).
+  const friends = isOrganiser ? (await loopinFriends(c.accountId)).filter((f) => !c.entries.some((e) => e.accountId === f.id)) : [];
   const payer = jar.get("lp_payer")?.value ?? "";
   const mine = payer ? c.entries.filter((e) => e.payerKey === payer && e.status !== "due") : [];
   const due = c.entries.filter((e) => e.status === "due");
@@ -60,7 +63,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
   const remind = `https://wa.me/?text=${encodeURIComponent(reminderText(c, due.map((d) => d.name), link))}`;
   const shareText = `${c.title}: ${c.amount ? `${money(c.amount)} each` : "chip in"}. Pay and tick your name here:`;
 
-  const orgForm = (kind: string, entryId: string | undefined, label: string, cls: string, confirm?: string) => (
+  const orgForm = (kind: string, entryId: string | undefined, label: React.ReactNode, cls: string, confirm?: string) => (
     <form action={organiserActionForm}>
       <input type="hidden" name="code" value={c.code} />
       <input type="hidden" name="kind" value={kind} />
@@ -136,6 +139,11 @@ export default async function CollectionPage({ params, searchParams }: Props) {
           Done. Your name is back on “still to pay”.
         </Notice>
       )}
+      {sp.reminded && (
+        <Notice tone="success" params={["reminded"]} className="mb-4">
+          Reminder sent in Loopin.
+        </Notice>
+      )}
       {sp.added && (
         <Notice tone="success" params={["added"]} className="mb-4">
           Added to the list.
@@ -205,6 +213,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
               <input type="hidden" name="kind" value="add" />
               <textarea name="names" rows={3} placeholder="One name per line, or with commas" className={`${inputClass} resize-y`} />
               <PickContacts />
+              <FriendPicker friends={friends} />
               <button type="submit" className={secondaryButtonClass}>
                 Add
               </button>
@@ -262,10 +271,26 @@ export default async function CollectionPage({ params, searchParams }: Props) {
             {due.map((e) => (
               <li key={e.id} className="flex items-center gap-3 py-2.5">
                 <span aria-hidden className="h-5 w-5 shrink-0 rounded-full border-2 border-fg/25" />
-                <span className="min-w-0 flex-1 truncate text-[15px]">{e.name}</span>
+                <span className="min-w-0 flex-1 truncate text-[15px]">
+                  {e.name}
+                  {isOrganiser && e.accountId && <span className="ml-2 rounded-md bg-owed/[0.12] px-1.5 py-[3px] align-middle text-[10px] font-semibold uppercase tracking-wide text-owed">on Loopin</span>}
+                </span>
                 {isOrganiser && (
                   <span className="flex shrink-0 items-center gap-2">
-                    {e.phone && !closed && (
+                    {e.accountId &&
+                      !closed &&
+                      orgForm(
+                        "nudge",
+                        e.id,
+                        <>
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                          </svg>
+                          <span className="sr-only">Remind {e.name} in Loopin</span>
+                        </>,
+                        "flex h-8 w-8 items-center justify-center rounded-full border border-owed/40 text-owed active:bg-mist",
+                      )}
+                    {!e.accountId && e.phone && !closed && (
                       <a
                         href={whatsappTo(e.phone, personalReminder(c, e.name, link))}
                         target="_blank"

@@ -6,10 +6,10 @@ import { after } from "next/server";
 import { redirect } from "@/lib/fresh-redirect";
 import { db } from "@/lib/db";
 import { getAccount } from "@/lib/identity";
+import { deliverNotes } from "@/lib/account-notes";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { formatMoney } from "@/lib/money";
 import { cleanNames } from "@/lib/names";
-import { sendPushTo } from "@/lib/push";
 import { createCollection, loadCollection, markPaid, organiserAction, undoPaid } from "@/lib/collect";
 
 // Collect: making a collection (signed in), ticking "I've paid" (anyone with
@@ -56,8 +56,11 @@ export async function createCollectionAction(_prev: CreateState, f: FormData): P
     payLink: field(f, "payLink"),
     names: field(f, "names"),
     contacts: field(f, "contacts").slice(0, 60_000),
+    friends: f.getAll("friends").map(String).slice(0, 300),
   });
   if (!r.ok) return { error: r.error, values: typed(f) };
+  const notes = r.notify;
+  if (notes.length) after(() => deliverNotes(notes));
   redirect(`/c/${r.code}?new=1`);
 }
 
@@ -69,7 +72,8 @@ export async function markPaidAction(f: FormData) {
   if (!(await allow(`collect-pay:${clientIp(await headers())}`, 30, 3600))) redirect(back({ error: "Lots of ticks from here in the last hour. Wait a bit and try again." }));
   const key = await payerKey(true);
   const entryId = field(f, "entryId");
-  const r = await markPaid(code, { entryId: entryId && entryId !== "new" ? entryId : undefined, name: field(f, "name"), amount: field(f, "amount") }, key);
+  const viewer = await getAccount();
+  const r = await markPaid(code, { entryId: entryId && entryId !== "new" ? entryId : undefined, name: field(f, "name"), amount: field(f, "amount"), viewerAccountId: viewer?.id }, key);
   if (!r.ok) redirect(back({ error: r.error }));
   after(() => tellOrganiser(code, r.entryId));
   redirect(back({ ticked: "1" }));
@@ -82,7 +86,7 @@ export async function undoPaidAction(f: FormData) {
   redirect(`/c/${code}?${new URLSearchParams(r.ok ? { undone: "1" } : { error: r.error })}`);
 }
 
-const KINDS = ["confirm", "unconfirm", "remove", "cash", "add", "close", "reopen", "delete"] as const;
+const KINDS = ["confirm", "unconfirm", "remove", "cash", "add", "nudge", "close", "reopen", "delete"] as const;
 type Kind = (typeof KINDS)[number];
 
 export async function organiserActionForm(f: FormData) {
@@ -92,20 +96,31 @@ export async function organiserActionForm(f: FormData) {
   if (!account) redirect(`/signin?${new URLSearchParams({ back: `/c/${code}` })}`);
   const kind = field(f, "kind") as Kind;
   if (!KINDS.includes(kind)) redirect(`/c/${code}`);
-  const r = await organiserAction(code, account.id, { kind, entryId: field(f, "entryId") || undefined, names: field(f, "names"), contacts: field(f, "contacts").slice(0, 60_000) });
+  const entryId = field(f, "entryId") || undefined;
+  // A reminder inside Loopin: at most one per person every 6 hours.
+  if (kind === "nudge" && !(await allow(`collect-nudge:${entryId}`, 1, 6 * 3600))) redirect(`/c/${code}?${new URLSearchParams({ error: "You reminded them in the last few hours. Give it a little time." })}`);
+  const r = await organiserAction(code, account.id, { kind, entryId, names: field(f, "names"), contacts: field(f, "contacts").slice(0, 60_000), friends: f.getAll("friends").map(String).slice(0, 300) });
   if (!r.ok) redirect(`/c/${code}?${new URLSearchParams({ error: r.error })}`);
+  const notes = r.notify ?? [];
+  if (notes.length) after(() => deliverNotes(notes));
   if (kind === "delete") redirect("/?collection=deleted");
-  redirect(`/c/${code}${kind === "add" ? "?added=1" : ""}`);
+  redirect(`/c/${code}${kind === "add" ? "?added=1" : kind === "nudge" ? "?reminded=1" : ""}`);
 }
 
-// A note on the organiser's phones: "Ravi says they paid ₹300".
+// For the organiser (in Alerts and on their phones): "Ravi says they paid ₹300".
 async function tellOrganiser(code: string, entryId: string) {
   const c = await loadCollection(code);
   const e = c?.entries.find((x) => x.id === entryId);
   if (!c || !e) return;
-  const members = await db.member.findMany({ where: { accountId: c.accountId, leftAt: null }, select: { id: true } });
-  await sendPushTo(
-    members.map((m) => m.id),
-    { title: c.title, body: `${e.name} says they paid ${formatMoney(e.amount, c.currency)}. Tap to check it off.`, url: `/c/${c.code}`, tag: `collect:${c.code}` },
-  );
+  await deliverNotes([
+    { accountIds: [c.accountId], kind: "collect_ticked", title: c.title, body: `${e.name} says they paid ${formatMoney(e.amount, c.currency)}. Tap to check it off.`, url: `/c/${c.code}`, tag: `collect:${c.code}` },
+  ]);
+}
+
+// Alerts → "Collection notifications on this phone" on or off.
+export async function setCollectPush(f: FormData) {
+  const account = await getAccount();
+  if (!account) redirect("/signin?back=/notifications");
+  await db.account.update({ where: { id: account.id }, data: { collectPush: field(f, "on") === "1" } });
+  redirect("/notifications");
 }
