@@ -6,7 +6,7 @@ import { computeStats } from "@/lib/stats";
 import { LIMITS, appUsage, pct, tursoUsage } from "@/lib/usage";
 import { PageHeader } from "@/components/ui";
 
-export const metadata = { title: "Stats · Loopin", robots: { index: false } };
+export const metadata = { title: "Stats", robots: { index: false } };
 export const dynamic = "force-dynamic";
 
 // Private numbers for the owner. Only works when signed in with an email

@@ -6,7 +6,7 @@ import { headers } from "next/headers";
 import { visitorRegion } from "@/lib/region";
 import { decimalsOf, formatMoney } from "@/lib/money";
 
-export const metadata = { title: "How Loopin works" };
+export const metadata = { title: "How Loopin works", description: "How to split trips, flat rent and bills, and couple expenses with Loopin: any currency, repeat bills, one-tap settle up.", alternates: { canonical: "/how-it-works" } };
 
 type Slot = keyof typeof FALLBACK;
 // A colour to show if a photo couldn't be fetched when the app was built.

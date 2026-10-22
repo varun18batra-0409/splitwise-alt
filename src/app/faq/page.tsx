@@ -1,7 +1,7 @@
 import Link from "@/components/Link";
 import { PageHeader } from "@/components/ui";
 
-export const metadata = { title: "FAQ · Loopin" };
+export const metadata = { title: "FAQ", description: "Answers about Loopin: is it free, currencies, repeat bills, inviting friends, your data and privacy.", alternates: { canonical: "/faq" } };
 
 // Frequently asked questions: short, plain answers, grouped. Each opens on tap.
 type QA = { q: string; a: React.ReactNode };

@@ -61,3 +61,21 @@ test("FAQ: opens from the You page; questions open on tap; the data answer links
   await expect(page).toHaveURL(/\/privacy$/);
   await expect(page.getByText("What we store")).toBeVisible();
 });
+
+test("search engines: robots.txt, sitemap, title, description, share image; private screens kept out", async ({ page, request }) => {
+  const robots = await (await request.get("/robots.txt")).text();
+  expect(robots).toContain("Sitemap: https://www.loopinapps.com/sitemap.xml");
+  expect(robots).toMatch(/Disallow: \/groups/);
+  expect(robots).toMatch(/Disallow: \/join/);
+  const sitemap = await (await request.get("/sitemap.xml")).text();
+  expect(sitemap).toContain("https://www.loopinapps.com/how-it-works");
+  expect(sitemap).not.toContain("/groups");
+  await page.goto("/how-it-works");
+  await expect(page).toHaveTitle("How Loopin works · Loopin");
+  expect(await page.locator('meta[name="description"]').getAttribute("content")).toMatch(/split/i);
+  expect(await page.locator('link[rel="canonical"]').first().getAttribute("href")).toBe("https://www.loopinapps.com/how-it-works");
+  expect(await page.locator('meta[property="og:image"]').first().getAttribute("content")).toMatch(/opengraph-image/);
+  const og = await request.get("/opengraph-image");
+  expect(og.ok()).toBe(true);
+  expect(og.headers()["content-type"]).toContain("image/png");
+});

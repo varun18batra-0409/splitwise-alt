@@ -1,7 +1,7 @@
 import Link from "@/components/Link";
 import { PageHeader, primaryButtonClass } from "@/components/ui";
 
-export const metadata = { title: "Coming from another app?" };
+export const metadata = { title: "Coming from another app?", description: "Switching from Splitwise or another app? Bring your groups over in a minute, with every expense and the same balances.", alternates: { canonical: "/switching" } };
 
 const POINTS: [string, string][] = [
   ["Free, no ads", "Add as many expenses as you like, every day."],

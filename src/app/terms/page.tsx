@@ -1,7 +1,7 @@
 import Link from "@/components/Link";
 import { PageHeader } from "@/components/ui";
 
-export const metadata = { title: "Terms of use · Loopin" };
+export const metadata = { title: "Terms of use", description: "The terms for using Loopin, in plain English.", alternates: { canonical: "/terms" } };
 
 // Plain-English terms of use. Keep it honest, short and in step with Privacy and the FAQ.
 export default function Terms() {
