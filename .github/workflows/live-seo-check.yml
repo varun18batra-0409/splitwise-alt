@@ -1,4 +1,4 @@
-# One-off: confirm the live site after a release (Collect + countdown).
+# One-off: confirm the live site after a release.
 name: Live SEO check
 on:
   push:
@@ -9,8 +9,6 @@ jobs:
     steps:
       - run: |
           s=https://www.loopinapps.com
-          c=$(curl -s -o /tmp/a -w "%{http_code}" "$s/collect/new"); echo "::notice title=collect/new::$c $(grep -o 'Chasing[^<]*' /tmp/a | head -1)"
-          c=$(curl -s -o /tmp/b -w "%{http_code}" "$s/c/zzzzzzzzzzz"); echo "::notice title=c/unknown (404 = table ready, 500 = not)::$c"
-          c=$(curl -s -o /tmp/r -w "%{http_code}" "$s/robots.txt"); echo "::notice title=robots::$c $(grep -o '/c/\|/collect' /tmp/r | tr '\n' ' ')"
-          c=$(curl -s -o /tmp/h -w "%{http_code}" "$s/"); echo "::notice title=home::$c"
-          c=$(curl -s -o /tmp/g -w "%{http_code}" "$s/groups/zzzz/countdown-image"); echo "::notice title=countdown image without access (expect 404)::$c"
+          for p in collect/new c/zzzzzzzzzzz notifications api/unread photos/place-goa.jpg photos/place-thailand.jpg photos/place-switzerland.jpg; do
+            c=$(curl -s -o /tmp/o -w "%{http_code} %{content_type} %{size_download}" "$s/$p"); echo "::notice title=$p::$c $(grep -o 'Collections on this phone\|More options\|{"n":[0-9]*}' /tmp/o | head -1)"
+          done
