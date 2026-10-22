@@ -29,7 +29,7 @@ test("the form refuses a bad UPI ID (and keeps what was typed), then makes the l
   await org.locator('input[name="upiId"]').fill("not-a-upi-id");
   await org.locator('textarea[name="names"]').fill("Ravi\nMeera");
   await org.getByRole("button", { name: "Make the link" }).click();
-  await expect(org.getByRole("alert")).toContainText("UPI ID");
+  await expect(org.getByText("That UPI ID doesn’t look right", { exact: false })).toBeVisible();
   await expect(org).toHaveURL(/\/collect\/new/);
 
   await org.locator('input[name="upiId"]').fill("asha@okicici");

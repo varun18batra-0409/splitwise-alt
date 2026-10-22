@@ -32,6 +32,8 @@ if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMM
 // Also as notes on the run (readable without opening the logs).
 if (process.env.GITHUB_ACTIONS) {
   const esc = (t) => t.replace(/%/g, "%25").replace(/\r?\n/g, "%0A");
+  // Each failure on its own note first, so the reason is never cut off by the long list.
+  for (const r of rows.filter((x) => x.status === "FAILED")) console.log(`::error title=${esc(`E2E ${label}failed: ${r.file}`)}::${esc(`${r.title}${r.why ? ` (${r.why})` : ""}`)}`);
   console.log(`::notice title=E2E result ${label.replace(/[:\s]+$/, "")}::${esc(head + "\n" + rows.map((r) => `${r.status}: ${r.file} › ${r.title}${r.why ? ` (${r.why})` : ""}`).join("\n"))}`);
 }
 process.exit(count("FAILED") ? 1 : 0);
