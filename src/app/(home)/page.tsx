@@ -126,6 +126,7 @@ export default async function Home({
   const season = seasonNow(new Date(), tz, region.country);
   const byActivity = [...open].sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
   // The balance card's polaroids: the groups that make up most of your balance (then the latest).
+  const single = open.length === 1;
   const byWeight = [...open].sort((a, b) => Math.abs(b.myBalance) - Math.abs(a.myBalance) || b.lastActivity.getTime() - a.lastActivity.getTime());
   // With one or two groups, shorter cards, so "Needs attention" shows without scrolling.
   const short = byActivity.length <= 2;
@@ -275,12 +276,14 @@ export default async function Home({
                     caption={g.group.name}
                     note={g.myBalance > 0 ? `+${formatMoney(roundWhole(g.myBalance, g.group.currency), g.group.currency)}` : g.myBalance < 0 ? `−${formatMoney(roundWhole(g.myBalance, g.group.currency), g.group.currency)}` : "settled"}
                     noteTone={g.myBalance > 0 ? "owed" : g.myBalance < 0 ? "owe" : undefined}
-                    photoClass="h-[74px]"
-                    className={`lp-drop absolute w-[100px] ${POLAROID_SPOTS[byWeight.length === 1 ? 3 : i]}`}
+                    // One group: a small keepsake, not a second copy of the big card below.
+                    photoClass={single ? "h-[52px]" : "h-[74px]"}
+                    captionClass={single ? "text-[14px]" : "text-[17px]"}
+                    className={`lp-drop absolute ${single ? "w-[74px]" : "w-[100px]"} ${POLAROID_SPOTS[single ? 3 : i]}`}
                     style={{ animationDelay: `${i * 110}ms` }}
                     sizes="100px"
                   >
-                    {i === 0 && <span className="absolute -top-1 left-1/2 h-[14px] w-[46px] -translate-x-1/2 -rotate-[4deg] bg-[#e9d9b0]/75 shadow-sm" />}
+                    {i === 0 && <span className={`absolute -top-1 left-1/2 h-[12px] -translate-x-1/2 -rotate-[4deg] bg-[#e9d9b0]/75 shadow-sm ${single ? "w-[34px]" : "w-[46px]"}`} />}
                   </Polaroid>
                 ))}
               </div>
@@ -442,9 +445,9 @@ export default async function Home({
                 {/* Up to 4 groups (most recently active first); the rest open with a tap, in the same grid. */}
                 <ul className="lp-rise mt-4 grid grid-cols-2 gap-x-4 gap-y-6">
                   {byActivity.slice(0, 4).map((g, i) => (
-                    <GroupCard key={g.group.id} g={g} tz={tz} short={short} i={i} />
+                    <GroupCard key={g.group.id} g={g} tz={tz} short={short} i={i} wide={single} />
                   ))}
-                  {byActivity.length < 4 && byActivity.length % 2 === 1 && <StartTile short={short} />}
+                  {byActivity.length > 1 && byActivity.length < 4 && byActivity.length % 2 === 1 && <StartTile short={short} />}
                 </ul>
                 {byActivity.length > 4 && (
                   <details className="group/more mt-5">
@@ -613,14 +616,15 @@ function GroupRow({ g, closed, tz }: { g: Awaited<ReturnType<typeof loadOverview
 // An open group on Home, as a polaroid: its picture (with who's in it), the
 // name written underneath and your balance; tilted a little, alternately, like
 // photos laid out on a table. Straightens when pressed.
-function GroupCard({ g, tz, short, i = 0 }: { g: Awaited<ReturnType<typeof loadOverview>>["all"][number]; tz: string; short?: boolean; i?: number }) {
+function GroupCard({ g, tz, short, i = 0, wide }: { g: Awaited<ReturnType<typeof loadOverview>>["all"][number]; tz: string; short?: boolean; i?: number; wide?: boolean }) {
   const b = g.myBalance;
   const people = g.group.members.filter((m) => !m.leftAt);
   const type = TYPE_LABEL[g.group.type];
-  const photoH = short ? 118 : 150;
+  // Your only group: one wide photo across the row (no empty "Start a group" box beside it).
+  const photoH = wide ? 168 : short ? 118 : 150;
   return (
-    <li className="min-w-0">
-      <div className={`relative transition-transform duration-200 has-[a:active]:rotate-0 ${i % 2 === 0 ? "-rotate-[1.4deg]" : "rotate-[1.6deg]"}`}>
+    <li className={`min-w-0 ${wide ? "col-span-2" : ""}`}>
+      <div className={`relative transition-transform duration-200 has-[a:active]:rotate-0 ${wide ? "-rotate-[0.8deg]" : i % 2 === 0 ? "-rotate-[1.4deg]" : "rotate-[1.6deg]"}`}>
         <Link href={`/groups/${g.group.id}`} className="lp-press block">
           <Polaroid
             cover={coverFor(g.group)}
@@ -629,9 +633,9 @@ function GroupCard({ g, tz, short, i = 0 }: { g: Awaited<ReturnType<typeof loadO
             caption={g.group.name}
             note={b > 0 ? `owed ${formatMoney(b, g.group.currency)}` : b < 0 ? `owe ${formatMoney(-b, g.group.currency)}` : "settled"}
             noteTone={b > 0 ? "owed" : b < 0 ? "owe" : undefined}
-            photoClass={short ? "h-[118px]" : "h-[150px]"}
-            captionClass="text-[21px]"
-            sizes="(max-width: 448px) 50vw, 224px"
+            photoClass={wide ? "h-[168px]" : short ? "h-[118px]" : "h-[150px]"}
+            captionClass={wide ? "text-[24px]" : "text-[21px]"}
+            sizes={wide ? "(max-width: 448px) 100vw, 448px" : "(max-width: 448px) 50vw, 224px"}
           >
             {type && (
               <span className="absolute left-2 top-2 rounded-full bg-canvas/60 px-2.5 py-1 text-[11px] font-semibold text-fg backdrop-blur" aria-hidden>
@@ -708,5 +712,5 @@ const POLAROID_SPOTS = [
   "right-[-12px] top-[14px] rotate-[8deg] z-[3]",
   "right-[70px] top-[-22px] -rotate-[9deg] z-[2]",
   "right-[34px] top-[116px] -rotate-[5deg] z-[1]",
-  "right-[18px] top-[40px] rotate-[6deg]",
+  "right-[22px] top-[22px] rotate-[9deg]",
 ];
