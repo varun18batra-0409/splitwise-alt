@@ -100,4 +100,24 @@ describe("Insights: the numbers", () => {
     expect(r.bars.every((b) => b.value === 0)).toBe(true);
     expect(r.skipped).toBe(1);
   });
+
+  it("the founder's trip: my cut ₹19,000, I paid ₹11,000, so I owe ₹8,000 (as on Home)", () => {
+    // Nupur paid a ₹25,000 return flight (my share ₹12,500) and ₹6,500 'Adjustment NB' (all mine);
+    // I paid ₹11,000 'Adjustment Ph' for others (my share 0); Nupur's ₹81,000 and ₹40,500 flights aren't mine.
+    const pay = (id: string, amount: number, paidBy: string, shares: Record<string, number>, cat: string) => ({ ...exp(id, amount, shares, "2026-10-18", cat), paidById: paidBy });
+    const g: InsightGroup = {
+      currency: "INR",
+      myId: "v",
+      expenses: [
+        pay("a", 2500000, "n", { v: 1250000, n: 1250000 }, "transport"),
+        pay("b", 650000, "n", { v: 650000 }, "other"),
+        pay("c", 1100000, "v", { n: 1100000 }, "other"),
+        pay("d", 8100000, "n", { n: 4050000, x: 4050000 }, "transport"),
+        pay("e", 4050000, "n", { n: 4050000 }, "transport"),
+      ],
+    };
+    const r = computeInsights([g], { ...base, view: "share", grain: "m" });
+    expect(r.bars.at(-1)!.value).toBe(1900000);
+    expect(r.me).toEqual({ share: 1900000, paid: 1100000, net: -800000 });
+  });
 });

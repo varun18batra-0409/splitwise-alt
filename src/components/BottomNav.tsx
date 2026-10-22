@@ -29,7 +29,7 @@ export function BottomNav() {
   const g = /^\/groups\/([^/]+)/.exec(path)?.[1];
   const items = [
     { href: "/", label: "Home", icon: <HomeIcon size={22} />, on: path === "/" },
-    { href: g ? `/search?g=${g}` : "/search", label: "Insights", icon: <ChartIcon size={22} />, on: path === "/search" },
+    { href: g ? `/search?g=${g}` : "/search", label: "Recap", icon: <ChartIcon size={22} />, on: path === "/search" },
     { href: g ? `/groups/${g}/settle` : "/settle", label: "Settle", icon: <SettleIcon size={22} />, on: path === "/settle" || path.endsWith("/settle") },
     { href: "/notifications", label: "Alerts", icon: <BellIcon size={22} />, on: path === "/notifications", badge: unread },
   ];
