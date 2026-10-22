@@ -23,10 +23,16 @@ export async function sendTripCountdowns(now = new Date()) {
       { title: left === 0 ? `${placeOf(g.name)} day!` : g.name, body, url: `/groups/${g.id}`, tag: `countdown:${g.id}` },
     );
   }
-  // The day after a trip ends: "Back from Goa? Settle up in one tap" (only if there's something to settle is up to them).
+  // The day after a trip ends: "Back from Goa? Settle up in one tap" (only for trips where something was spent).
   const yesterday = dayKey(new Date(now.getTime() - 86_400_000), DEFAULT_TIME_ZONE);
   const ended = await db.group.findMany({
-    where: { type: "trip", deletedAt: null, closed: false, OR: [{ tripEnd: yesterday }, { tripEnd: "", tripStart: yesterday }] },
+    where: {
+      type: "trip",
+      deletedAt: null,
+      closed: false,
+      expenses: { some: { deletedAt: null } },
+      OR: [{ tripEnd: yesterday }, { tripEnd: "", tripStart: yesterday }],
+    },
     select: { id: true, name: true, members: { where: { leftAt: null }, select: { id: true } } },
   });
   for (const g of ended) {

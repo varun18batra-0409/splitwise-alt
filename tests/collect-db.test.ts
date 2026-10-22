@@ -151,4 +151,19 @@ describe("Collect (real database)", () => {
     const ok = await organiserAction(made.code, asha.id, { kind: "confirm", entryId: m.id });
     expect(ok.ok && ok.notify).toEqual([{ accountIds: [meera.id], kind: "collect_paid", title: "Farewell gift", body: "Asha got your ₹300 ✓ You’re all done.", url: `/c/${made.code}`, tag: `collect:${made.code}` }]);
   });
+
+  it("adding a Loopin friend who's already on the list as paid doesn't ask them to pay", async () => {
+    const asha = await organiser("Asha");
+    const kabir = await organiser("Kabir");
+    const g = await db.group.create({ data: { name: "Flat 2", currency: "INR", inviteCode: `cf2-${Date.now()}`, members: { create: [{ name: "Asha", accountId: asha.id }, { name: "Kabir", accountId: kabir.id }] } } });
+    groups.push(g.id);
+    const made = await createCollection(asha, { ...form, names: "Kabir" });
+    if (!made.ok) throw new Error(made.error);
+    await markPaid(made.code, { name: "Kabir" }, "k-kabir");
+    const r = await organiserAction(made.code, asha.id, { kind: "add", names: "Zoya", friends: [kabir.id] });
+    expect(r.ok).toBe(true);
+    expect(r.ok && r.notify).toBeFalsy(); // Zoya isn't on Loopin; Kabir has already paid
+    const c = (await loadCollection(made.code))!;
+    expect(c.entries.map((e) => e.name).sort()).toEqual(["Kabir", "Zoya"]);
+  });
 });

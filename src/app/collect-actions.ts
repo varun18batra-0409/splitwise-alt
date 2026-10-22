@@ -69,7 +69,7 @@ export async function markPaidAction(f: FormData) {
   const code = cleanCode(field(f, "code"));
   if (!code) redirect("/");
   const back = (q: Record<string, string>) => `/c/${code}?${new URLSearchParams(q)}`;
-  if (!(await allow(`collect-pay:${clientIp(await headers())}`, 30, 3600))) redirect(back({ error: "Lots of ticks from here in the last hour. Wait a bit and try again." }));
+  if (!(await allow(`collect-pay:${clientIp(await headers())}`, 150, 3600))) redirect(back({ error: "Lots of ticks from here in the last hour. Wait a bit and try again." }));
   const key = await payerKey(true);
   const entryId = field(f, "entryId");
   const viewer = await getAccount();
@@ -97,10 +97,11 @@ export async function organiserActionForm(f: FormData) {
   const kind = field(f, "kind") as Kind;
   if (!KINDS.includes(kind)) redirect(`/c/${code}`);
   const entryId = field(f, "entryId") || undefined;
-  // A reminder inside Loopin: at most one per person every 6 hours.
-  if (kind === "nudge" && !(await allow(`collect-nudge:${entryId}`, 1, 6 * 3600))) redirect(`/c/${code}?${new URLSearchParams({ error: "You reminded them in the last few hours. Give it a little time." })}`);
   const r = await organiserAction(code, account.id, { kind, entryId, names: field(f, "names"), contacts: field(f, "contacts").slice(0, 60_000), friends: f.getAll("friends").map(String).slice(0, 300) });
   if (!r.ok) redirect(`/c/${code}?${new URLSearchParams({ error: r.error })}`);
+  // A reminder inside Loopin: at most one per person every 6 hours. Counted only
+  // once we know it's the organiser (entry ids are on the public page).
+  if (kind === "nudge" && !(await allow(`collect-nudge:${entryId}`, 1, 6 * 3600))) redirect(`/c/${code}?${new URLSearchParams({ error: "You reminded them in the last few hours. Give it a little time." })}`);
   const notes = r.notify ?? [];
   if (notes.length) after(() => deliverNotes(notes));
   if (kind === "delete") redirect("/?collection=deleted");
