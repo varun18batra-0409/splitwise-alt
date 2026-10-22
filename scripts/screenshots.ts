@@ -259,6 +259,19 @@ if (!hosted) {
     },
   });
   await shot("84-home-trips-row", "/", undefined, false);
+  // The same on a narrow phone (360 wide, many Androids): nothing squeezed or cut off.
+  await page.setViewportSize({ width: 360, height: 780 });
+  await shot("85-home-trips-narrow", "/", async (p) => {
+    await p.locator("[data-trip-row]").scrollIntoViewIfNeeded();
+  }, false);
+  // Swiped to the second trip.
+  await shot("86-home-trips-swiped", "/", async (p) => {
+    const row = p.locator("[data-trip-row]");
+    await row.scrollIntoViewIfNeeded();
+    await row.evaluate((el) => el.scrollTo({ left: el.clientWidth }));
+    await p.waitForTimeout(500);
+  }, false);
+  await page.setViewportSize({ width: 390, height: 844 });
   await shot("77-group-countdown", `/groups/${goa.id}`, undefined, false);
   await shot("78-countdown-image", `/groups/${goa.id}/countdown-image`, undefined, false);
   await shot("79-settings-trip-dates", `/groups/${goa.id}/settings#trip`, undefined, false);

@@ -37,9 +37,9 @@ export function TripCountdown({ group, phase }: { group: Group; phase: TripPhase
             uid={`cd-${group.id}`}
             letter={group.name}
             caption={place}
-            photoClass="h-[114px]"
-            captionClass="text-[19px]"
-            className="w-[134px] -rotate-[4deg]"
+            photoClass="h-[94px] min-[380px]:h-[114px]"
+            captionClass="text-[18px] min-[380px]:text-[19px]"
+            className="w-[112px] -rotate-[4deg] min-[380px]:w-[134px]"
             sizes="150px"
           />
         </Link>
@@ -54,7 +54,7 @@ export function TripCountdown({ group, phase }: { group: Group; phase: TripPhase
             <p className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-fg/45">{phase.kind === "during" ? "On the trip" : "Boarding in"}</p>
             {phase.kind !== "during" && <TakeOff className={bigColor} />}
           </div>
-          <p className="mt-1 flex items-baseline gap-2">
+          <p className="mt-1 flex flex-wrap items-baseline gap-x-2">
             <span className={`font-display font-semibold leading-none tracking-tight tabular-nums ${bigColor} ${w.big.length > 3 ? "text-[38px]" : "text-[54px]"}`} data-countdown-big>
               {w.big}
             </span>
