@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
 import { todayKey } from "@/lib/dates";
-import { countdownWords, placeOf, tripPhase } from "@/lib/countdown";
+import { countdownWords, placeOf, tripEmoji, tripPhase } from "@/lib/countdown";
 import { coverOf, isPhoto, photoSrc } from "@/lib/covers";
 
 // The countdown as a story-sized picture (1080 × 1920) for WhatsApp status or
@@ -35,7 +35,7 @@ async function photoData(group: { id: string; cover: string; type: string; cover
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const myId = await getMyMemberId(id);
-  const group = myId ? await db.group.findUnique({ where: { id }, include: { members: { where: { leftAt: null }, select: { id: true, name: true } } } }) : null;
+  const group = myId ? await db.group.findUnique({ where: { id }, include: { members: { where: { leftAt: null }, select: { id: true, name: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } }) : null;
   if (!group || group.deletedAt || !group.members.some((m) => m.id === myId)) return new Response("Not found", { status: 404, headers: { "Cache-Control": "private, no-store" } });
   const phase = tripPhase(group.tripStart, group.tripEnd, todayKey(new Date(), await getTimeZone()));
   const words = phase ? countdownWords(group.name, phase) : null;
@@ -65,7 +65,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         {/* The polaroid */}
         <div style={{ marginTop: 70, display: "flex", flexDirection: "column", background: "#f4f1e8", padding: "22px 22px 0", transform: "rotate(-3deg)", boxShadow: "0 40px 80px rgba(0,0,0,0.6)" }}>
           <div style={{ width: 720, height: 620, display: "flex", overflow: "hidden", background: "linear-gradient(160deg, #2c4a52 0%, #d9895a 100%)" }}>
-            {photo ? <img src={photo} width={720} height={620} style={{ objectFit: "cover" }} alt="" /> : null}
+            {photo ? (
+              <img src={photo} width={720} height={620} style={{ objectFit: "cover" }} alt="" />
+            ) : (
+              // No photo to use: a sunset sky with the trip's emoji, big.
+              <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 260, background: "linear-gradient(180deg, #2b2340 0%, #8a4b5e 55%, #e9925f 100%)" }}>
+                {tripEmoji(group.name)}
+              </div>
+            )}
           </div>
           <div style={{ display: "flex", padding: "18px 6px 30px", fontSize: 56, color: "#26231d" }}>{group.name.slice(0, 28)}</div>
         </div>
