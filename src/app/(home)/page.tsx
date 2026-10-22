@@ -148,7 +148,11 @@ export default async function Home({
     .filter((g) => g.group.type === "trip" && g.group.tripStart)
     .map((g) => ({ g, phase: tripPhase(g.group.tripStart, g.group.tripEnd, today) }))
     .filter((t): t is { g: (typeof open)[number]; phase: TripPhase } => Boolean(t.phase) && t.phase!.kind !== "after" && (t.phase!.kind !== "before" || t.phase!.days <= 365))
-    .sort((a, b) => (a.phase.kind === "before" ? a.phase.days : 0) - (b.phase.kind === "before" ? b.phase.days : 0));
+    .sort(
+      (a, b) =>
+        (a.phase.kind === "before" ? a.phase.days : 0) - (b.phase.kind === "before" ? b.phase.days : 0) ||
+        (a.g.group.tripEnd || a.g.group.tripStart).localeCompare(b.g.group.tripEnd || b.g.group.tripStart),
+    );
   const byWeight = [...open].sort((a, b) => Math.abs(b.myBalance) - Math.abs(a.myBalance) || b.lastActivity.getTime() - a.lastActivity.getTime());
   // With one or two groups, shorter cards, so "Needs attention" shows without scrolling.
   const short = byActivity.length <= 2;
@@ -445,10 +449,28 @@ export default async function Home({
             )}
           </HomeBanner>
 
-          {trips.length > 0 && (
+          {trips.length === 1 && (
             <div className="mt-6">
-              <TripCountdown group={trips[0].g.group} phase={trips[0].phase} more={trips.length - 1} />
+              <TripCountdown group={trips[0].g.group} phase={trips[0].phase} />
             </div>
+          )}
+          {/* More than one trip: a row to swipe, soonest first, the next one peeking in. */}
+          {trips.length > 1 && (
+            <section className="mt-6" aria-label="Your trips">
+              <div className="mb-2 flex items-baseline justify-between">
+                <h2 className="font-display text-lg font-semibold tracking-tight">
+                  Your trips <span className="ml-1 text-sm font-normal text-fg/40 tabular-nums">{trips.length}</span>
+                </h2>
+                <span className="text-xs text-fg/40">Swipe →</span>
+              </div>
+              <ul className="no-scrollbar -mx-5 flex snap-x snap-mandatory scroll-px-5 gap-2.5 overflow-x-auto px-5 py-3 -my-3" data-trip-row>
+                {trips.map((t) => (
+                  <li key={t.g.group.id} className="w-[calc(100%-24px)] shrink-0 snap-start">
+                    <TripCountdown group={t.g.group} phase={t.phase} />
+                  </li>
+                ))}
+              </ul>
+            </section>
           )}
 
           {/* Groups */}

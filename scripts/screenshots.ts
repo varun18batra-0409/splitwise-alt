@@ -251,6 +251,14 @@ if (!hosted) {
   }
   await shot("72-home-collecting", "/");
   await shot("76-home-countdown", "/", undefined, false);
+  // A second trip further out: Home turns the countdown into a row to swipe.
+  await db.group.create({
+    data: {
+      name: "Manali trip", type: "trip", currency: "INR", inviteCode: `shotsmanali${now.toString(36)}`, cover: "mountains", tripStart: ist(45), tripEnd: ist(50),
+      members: { create: [{ name: "Varun", accountId: acc.id, claimedAt: new Date() }, { name: "Nupur" }, { name: "Kabir" }] },
+    },
+  });
+  await shot("84-home-trips-row", "/", undefined, false);
   await shot("77-group-countdown", `/groups/${goa.id}`, undefined, false);
   await shot("78-countdown-image", `/groups/${goa.id}/countdown-image`, undefined, false);
   await shot("79-settings-trip-dates", `/groups/${goa.id}/settings#trip`, undefined, false);

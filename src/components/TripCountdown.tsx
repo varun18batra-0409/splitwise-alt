@@ -12,7 +12,7 @@ import { placePhoto } from "@/lib/places";
 
 type Group = { id: string; name: string; type: string; cover: string; coverAt: Date | null; members: { id: string; name: string; leftAt: Date | null }[] };
 
-export function TripCountdown({ group, phase, more = 0 }: { group: Group; phase: TripPhase; more?: number }) {
+export function TripCountdown({ group, phase }: { group: Group; phase: TripPhase }) {
   const w = countdownWords(group.name, phase);
   if (!w) return null;
   const people = group.members.filter((m) => !m.leftAt);
@@ -28,10 +28,10 @@ export function TripCountdown({ group, phase, more = 0 }: { group: Group; phase:
   const withWho = names.length <= 1 ? "" : `${names.slice(0, -1).join(", ")} & ${names[names.length - 1]}`;
 
   return (
-    <section aria-label="Trip countdown" data-countdown={phase.kind === "before" ? days : phase.kind} className="lp-rise">
-      <div className={`relative flex overflow-hidden rounded-[22px] text-fg ${glow} [background:radial-gradient(90%_120%_at_100%_0%,#3a2a1e_0%,transparent_60%),linear-gradient(160deg,#1d1a17_0%,#121014_80%)]`}>
+    <section aria-label="Trip countdown" data-countdown={phase.kind === "before" ? days : phase.kind} className="lp-rise h-full">
+      <div className={`relative flex h-full overflow-hidden rounded-[22px] text-fg ${glow} [background:radial-gradient(90%_120%_at_100%_0%,#3a2a1e_0%,transparent_60%),linear-gradient(160deg,#1d1a17_0%,#121014_80%)]`}>
         {/* The trip's photo */}
-        <Link href={`/groups/${group.id}`} className="relative z-10 shrink-0 py-4 pl-4 pr-3" aria-label={`Open ${group.name}`}>
+        <Link href={`/groups/${group.id}`} className="relative z-10 shrink-0 py-4 pl-3.5 pr-3" aria-label={`Open ${group.name}`}>
           <Polaroid
             cover={dest ? { kind: "own", src: dest.src } : coverFor(group)}
             uid={`cd-${group.id}`}
@@ -49,7 +49,7 @@ export function TripCountdown({ group, phase, more = 0 }: { group: Group; phase:
           <span className="absolute -bottom-[23px] -left-[11px] h-5 w-5 rounded-full bg-canvas" />
         </span>
         {/* The count */}
-        <div className="flex min-w-0 flex-1 flex-col justify-center py-4 pl-4 pr-4">
+        <div className="flex min-w-0 flex-1 flex-col justify-center py-4 pl-3.5 pr-3">
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-fg/45">{phase.kind === "during" ? "On the trip" : "Boarding in"}</p>
           <p className="mt-1 flex items-baseline gap-2">
             <span className={`font-display font-semibold leading-none tracking-tight tabular-nums ${bigColor} ${w.big.length > 3 ? "text-[38px]" : "text-[54px]"}`} data-countdown-big>
@@ -57,13 +57,12 @@ export function TripCountdown({ group, phase, more = 0 }: { group: Group; phase:
             </span>
             <span className="font-hand text-[22px] font-bold leading-none text-fg/80">{w.small}</span>
           </p>
-          <p className="mt-1.5 truncate text-sm font-medium" data-countdown-line>
+          <p className="mt-1.5 line-clamp-2 text-sm font-medium leading-snug" data-countdown-line>
             {w.line}
           </p>
           {withWho && <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-fg/45">with {withWho}</p>}
           <div className="mt-3 flex items-center gap-3">
             <ShareCountdown groupId={group.id} text={`${w.line} ✨`} />
-            {more > 0 && <span className="text-[11px] text-fg/40">+{more} more trip{more > 1 ? "s" : ""} coming</span>}
           </div>
         </div>
         <span aria-hidden className="pointer-events-none absolute -right-3 -top-4 select-none text-[64px] opacity-[0.13]">
