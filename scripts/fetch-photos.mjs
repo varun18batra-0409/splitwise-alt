@@ -32,29 +32,30 @@ const SLOTS = {
   "cover-party": ["photo-1492684223066-81342ee5ff30", "photo-1514525253161-7a46d19cd819"], // a night out
   "cover-birthday": ["photo-1530103862676-de8c9debad1d", "photo-1558636508-e0db3814bd1d"], // balloons and cake
   "cover-wedding": ["photo-1519741497674-611481863552", "photo-1511285560929-80b456fea0bc"], // a wedding
-  // Destinations for the trip countdown (see src/lib/places.ts).
-  "place-goa": ["eSRtxPd9q1c", "xWFL4KNd_2A", "MzmI2I1GCnU"],
-  "place-thailand": ["TejFa7VW5e4", "BU6lABNbTpA", "s_kwq1J0nX4", "sydwCr54rf0"],
-  "place-bali": ["-2WlTWZLnRc", "7hww7t6NLcg", "rf5R1qXwlDU"],
-  "place-dubai": ["Il8XxCdrikE", "DcyL0IoCY0A", "Fr6zexbmjmc"],
-  "place-manali": ["Xpwj1j1HX34", "Qwo81eAmsQQ", "CMpr5o8CH2E"],
-  "place-ladakh": ["XTroPPNq6JA", "4_vxxkqpY2w", "KwhxKAjhIjQ"],
-  "place-kerala": ["Cu8UUstD-HA", "V2V3id-bD7A", "RPCQYqLBoYE"],
-  "place-singapore": ["VhIyvLkjdio", "i3k4BZcHa7c"],
-  "place-maldives": ["23a7jJ1trDM", "6mzjJDqYU0g", "nfF5-G6cFwY"],
-  "place-vietnam": ["UzgMp17QMAs", "3sR_0NhWMEI"],
-  "place-srilanka": ["jpTT_SAU034", "KYBc1eq0dJo"],
-  "place-japan": ["YbcX7QktfjA", "gd3ysFyrsTQ", "joT0LcIUU8U"],
-  "place-london": ["a3r7BHXZ-d4", "Wc0gUW-k9rY", "HHcId4tYHjs"],
-  "place-jaipur": ["ZN6D_iZOfPk", "RugN1OsUwHM"],
-  "place-nepal": ["aBX7Otg1oh8", "PbCCnvId660", "lNLcL-DdGno"],
-  "place-andaman": ["T4E-oKtEBRU", "4Co7XZfag-8"],
-  "place-rishikesh": ["mxoH7NtRJA8", "w2uhp5VrF8M", "CTdDooABASA"],
-  "place-newyork": ["n6TdKxVxmN4", "1lRJIS8Qxdo"],
-  "place-santorini": ["6N2mSJsKTtA", "yfU0jIj-VQI"],
-  "place-bhutan": ["cnAH8smziZI", "OzAPEQPMcPA"],
-  "place-meghalaya": ["e7IZYGChPD4"],
-  "place-switzerland": ["3ZtlOpjaKr4"],
+  // Destinations for the trip countdown (see src/lib/places.ts). Direct image
+  // ids only: Unsplash's "download" links now need a sign-in.
+  "place-goa": ["photo-1614082242765-7c98ca0f3df3"],
+  "place-thailand": ["photo-1534008897995-27a23e859048"],
+  "place-bali": ["photo-1555400038-63f5ba517a47"],
+  "place-dubai": ["photo-1782078292081-8fb6de1c54df"],
+  "place-manali": ["photo-1597167231350-d057a45dc868"],
+  "place-ladakh": ["photo-1600438831035-48f5f196d3bf"],
+  "place-kerala": ["photo-1563279036-8ae92c62ca4f"],
+  "place-singapore": ["photo-1544625237-5d2ae46de481"],
+  "place-maldives": ["photo-1691853735541-a8f1bdd2cd16"],
+  "place-vietnam": ["photo-1487548919775-a7a460f3cbe6"],
+  "place-srilanka": ["photo-1566296314736-6eaac1ca0cb9"],
+  "place-japan": ["photo-1578469645742-46cae010e5d4", "photo-1707474893587-a37a9cf1b555"],
+  "place-london": ["photo-1633357441498-7431babe0cc7"],
+  "place-jaipur": ["photo-1524229648276-e66561fe45a9"],
+  "place-nepal": ["photo-1640876522637-9432f175581f"],
+  "place-andaman": ["photo-1721834058855-b9d0570722b4"],
+  "place-rishikesh": ["photo-1712510817140-917938f92e5b"],
+  "place-newyork": ["photo-1764344793554-12da6166d940"],
+  "place-santorini": ["photo-1580502304784-8985b7eb7260", "photo-1677268357140-146d5c15307d"],
+  "place-bhutan": ["photo-1761048172334-6d1475e25e8d"],
+  "place-meghalaya": ["photo-1723731233707-d3eb18c19303"],
+  "place-switzerland": ["photo-1723276300410-113696641bab"],
 };
 
 const out = "public/photos";
@@ -64,7 +65,7 @@ for (const [slot, ids] of Object.entries(SLOTS)) {
   for (const id of ids) {
     try {
       const url = id.startsWith("photo-")
-        ? `https://images.unsplash.com/${id}?w=${slot.startsWith("cover-") ? 900 : 1280}&q=${slot.startsWith("cover-") ? 70 : 75}&fm=jpg&fit=crop`
+        ? `https://images.unsplash.com/${id}?w=${slot.startsWith("cover-") || slot.startsWith("place-") ? 900 : 1280}&q=${slot.startsWith("cover-") || slot.startsWith("place-") ? 70 : 75}&fm=jpg&fit=crop`
         : `https://unsplash.com/photos/${id}/download?force=true&w=${slot.startsWith("place-") ? 800 : 1280}`;
       const r = await fetch(url, {
         redirect: "follow",
