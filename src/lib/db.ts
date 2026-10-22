@@ -7,7 +7,15 @@ import { PrismaLibSQL } from "@prisma/adapter-libsql";
 function create() {
   const url = process.env.TURSO_DATABASE_URL;
   if (!url) return new PrismaClient();
-  return new PrismaClient({ adapter: new PrismaLibSQL({ url, authToken: process.env.TURSO_AUTH_TOKEN }) });
+  const client = new PrismaClient({ adapter: new PrismaLibSQL({ url, authToken: process.env.TURSO_AUTH_TOKEN }) });
+  // A local database file (the automated browser tests): the app and the test
+  // checker share it, so wait for each other's writes instead of timing out,
+  // and let reads carry on during a write. Never used for the live database.
+  if (url.startsWith("file:")) {
+    void client.$queryRawUnsafe("PRAGMA busy_timeout = 20000").catch(() => undefined);
+    void client.$queryRawUnsafe("PRAGMA journal_mode = WAL").catch(() => undefined);
+  }
+  return client;
 }
 
 // Reuse one database connection while the dev server reloads.
