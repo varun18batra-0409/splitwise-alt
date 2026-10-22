@@ -14,6 +14,7 @@ export type InsightsData = {
   grain: Grain;
   currency: string;
   converted: boolean; // some groups were in other currencies (shown with ≈)
+  me: { share: number; paid: number; net: number }; // the lit period: my cut, what I paid, the difference
   bars: { key: string; value: number; href: string }[];
   selected: string; // the lit bar
   categories: { id: string; amount: number }[]; // for the selected bar, biggest first
@@ -58,10 +59,10 @@ export function Insights({ d }: { d: InsightsData }) {
       {/* Your share | Group spend */}
       <div className="grid grid-cols-2 gap-1 rounded-xl bg-mist p-1" role="tablist" aria-label="What to show">
         <Link href={d.link({ v: "share" })} role="tab" aria-selected={d.view === "share"} className={pill(d.view === "share")}>
-          Your share
+          My cut
         </Link>
         <Link href={d.link({ v: "spent" })} role="tab" aria-selected={d.view === "spent"} className={pill(d.view === "spent")}>
-          Group spend
+          Group total
         </Link>
       </div>
 
@@ -70,7 +71,7 @@ export function Insights({ d }: { d: InsightsData }) {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs text-fg/55">
-              {d.view === "share" ? "Your share" : "Group spend"} · {bucketTitle(d.selected, d.grain)}
+              {d.view === "share" ? "My cut" : "Group total"} · {bucketTitle(d.selected, d.grain)}
             </p>
             <p className="mt-1 font-display text-[34px] font-semibold leading-none tracking-tight tabular-nums" data-insights-total>
               {approx}
@@ -94,6 +95,33 @@ export function Insights({ d }: { d: InsightsData }) {
             </svg>
           </span>
         </div>
+
+        {/* Where it leaves you: your cut of the costs vs what you paid. Answers "why isn't this what I owe?" */}
+        {(d.me.share !== 0 || d.me.paid !== 0) && (
+          <div className="mt-4 grid grid-cols-3 divide-x divide-fg/10 rounded-2xl bg-fg/[0.05] py-2.5 text-center" aria-label="My cut, what I paid, and where that leaves me">
+            <p className="px-1">
+              <span className="block text-[11px] text-fg/50">My cut</span>
+              <span className="block text-sm font-semibold tabular-nums">
+                {approx}
+                {formatMoney(Math.abs(d.me.share), d.currency)}
+              </span>
+            </p>
+            <p className="px-1">
+              <span className="block text-[11px] text-fg/50">I paid</span>
+              <span className="block text-sm font-semibold tabular-nums">
+                {approx}
+                {formatMoney(Math.abs(d.me.paid), d.currency)}
+              </span>
+            </p>
+            <p className="px-1">
+              <span className="block text-[11px] text-fg/50">{d.me.net < 0 ? "I owe" : d.me.net > 0 ? "I’m owed" : "Even"}</span>
+              <span className={`block text-sm font-semibold tabular-nums ${d.me.net < 0 ? "text-owe" : d.me.net > 0 ? "text-owed" : ""}`}>
+                {approx}
+                {formatMoney(Math.abs(d.me.net), d.currency)}
+              </span>
+            </p>
+          </div>
+        )}
 
         {/* Week · Month · Year */}
         <div className="mt-4 flex gap-2" aria-label="Group by">

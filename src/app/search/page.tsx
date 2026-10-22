@@ -125,6 +125,7 @@ export default async function SearchPage({
     grain,
     currency: chartCurrency,
     converted: ins.converted,
+    me: ins.me,
     bars: ins.bars.map(({ key: k, value }) => ({
       key: k,
       value,
@@ -186,7 +187,7 @@ export default async function SearchPage({
       </h2>
       {sum.count > 0 && (
         <p className="mb-4 text-sm text-gray-500">
-          {sum.count} {sum.count === 1 ? "expense" : "expenses"} · {sum.totals.map((t) => formatMoney(t.spent, t.currency)).join(" + ")} spent · your share{" "}
+          {sum.count} {sum.count === 1 ? "expense" : "expenses"} · {sum.totals.map((t) => formatMoney(t.spent, t.currency)).join(" + ")} spent · my cut{" "}
           {sum.totals.map((t) => formatMoney(t.mine, t.currency)).join(" + ")}
         </p>
       )}
@@ -255,7 +256,7 @@ export default async function SearchPage({
   const chart = all.length > 0 && <Insights d={insights} />;
   return (
     <>
-      <PageHeader title="Insights" back={back} />
+      <PageHeader title="Recap" back={back} />
       <form method="get" action="/search" role="search" data-allow-repeat="1" className="relative mb-6">
         {groupId && <input type="hidden" name="g" value={groupId} />}
         {period.week && <input type="hidden" name="w" value={period.week} />}
