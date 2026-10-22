@@ -60,7 +60,7 @@ export async function createGroup(formData: FormData) {
 }
 
 // The photo picked on "New group", made small on the phone and sent as text.
-function photoFrom(v: FormDataEntryValue | null): Uint8Array | undefined {
+function photoFrom(v: FormDataEntryValue | null): Uint8Array<ArrayBuffer> | undefined {
   if (typeof v !== "string" || !v || v.length > 1_000_000 || !/^[A-Za-z0-9+/=]+$/.test(v)) return undefined;
   return new Uint8Array(Buffer.from(v, "base64"));
 }

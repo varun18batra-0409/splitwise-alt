@@ -9,7 +9,7 @@ import { isGroupType, parseWeight, sharingInputs, weightsLabel, type GroupType }
 
 // Creating groups and changing how a group shares costs (database side).
 
-export type NewGroupInput = { type: string; name: string; yourName: string; currency: string; ratio?: number; cover?: string; tripStart?: string; tripEnd?: string; photo?: Uint8Array };
+export type NewGroupInput = { type: string; name: string; yourName: string; currency: string; ratio?: number; cover?: string; tripStart?: string; tripEnd?: string; photo?: Uint8Array<ArrayBuffer> };
 
 // Makes a group with its creator as the first member.
 export async function createGroupFor(account: { id: string }, input: NewGroupInput) {
