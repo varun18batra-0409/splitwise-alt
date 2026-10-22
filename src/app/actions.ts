@@ -23,10 +23,12 @@ import { safePath } from "@/lib/paths";
 import { addRegistered, copyPushTo, freeName, inviteByEmail } from "@/lib/invites";
 import { savePushFor, validSub } from "@/lib/push-subs";
 import { formatMoney } from "@/lib/money";
-import { createGroupFor, updateSharing } from "@/lib/group-setup";
+import { createGroupFor, setTripDates, updateSharing } from "@/lib/group-setup";
 import { addWaitingBill } from "@/lib/home/bills-db";
 import { checkBudgets } from "@/lib/home/budgets-db";
 import { after } from "next/server";
+import { getTimeZone } from "@/lib/tz";
+import { dayKey } from "@/lib/dates";
 import { importSplitwise } from "@/lib/splitwise-import";
 
 
@@ -47,6 +49,8 @@ export async function createGroup(formData: FormData) {
     currency: String(formData.get("currency") ?? "INR"),
     ratio: Number(formData.get("ratio") ?? 50),
     cover: String(formData.get("cover") ?? ""),
+    tripStart: String(formData.get("tripStart") ?? ""),
+    tripEnd: String(formData.get("tripEnd") ?? ""),
   });
   const me = group.members[0];
   await setMyMemberId(group.id, me.id);
@@ -321,6 +325,11 @@ export async function updateGroupSettings(formData: FormData) {
   const secondaryCurrency = String(formData.get("secondaryCurrency") ?? group.secondaryCurrency);
   const basics = await updateGroupBasics(group.id, myId, { name, markupBp, secondaryCurrency });
   if (!basics.ok) redirect(`${back}?error=name`);
+  // Trip dates (trip groups only): the countdown on Home and the group.
+  if (group.type === "trip" && formData.has("tripStart")) {
+    const trip = await setTripDates(group.id, myId, String(formData.get("tripStart") ?? ""), String(formData.get("tripEnd") ?? ""), dayKey(new Date(), await getTimeZone()));
+    if (!trip.ok) redirect(`${back}?${new URLSearchParams({ error: trip.error })}`);
+  }
   // The picture is just for looks: saved as it is, no history entry.
   if (formData.has("cover")) {
     const cover = cleanCover(String(formData.get("cover")), group.type, Boolean(group.coverAt));

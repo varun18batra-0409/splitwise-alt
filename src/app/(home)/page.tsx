@@ -27,6 +27,9 @@ import { canUndo } from "@/lib/undo";
 import { UndoBar } from "@/components/UndoBar";
 import { PersonIcon, iconButtonClass } from "@/components/icons";
 import { myCollections, progress } from "@/lib/collect";
+import { tripPhase, type TripPhase } from "@/lib/countdown";
+import { todayKey } from "@/lib/dates";
+import { TripCountdown } from "@/components/TripCountdown";
 
 export const metadata = { alternates: { canonical: "/" } };
 
@@ -134,6 +137,13 @@ export default async function Home({
   const byActivity = [...open].sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
   // The balance card's polaroids: the groups that make up most of your balance (then the latest).
   const single = open.length === 1;
+  // Trip countdowns: trips with a start day, happening now first, then the soonest (up to a year out).
+  const today = todayKey(new Date(), tz);
+  const trips = open
+    .filter((g) => g.group.type === "trip" && g.group.tripStart)
+    .map((g) => ({ g, phase: tripPhase(g.group.tripStart, g.group.tripEnd, today) }))
+    .filter((t): t is { g: (typeof open)[number]; phase: TripPhase } => Boolean(t.phase) && t.phase!.kind !== "after" && (t.phase!.kind !== "before" || t.phase!.days <= 365))
+    .sort((a, b) => (a.phase.kind === "before" ? a.phase.days : 0) - (b.phase.kind === "before" ? b.phase.days : 0));
   const byWeight = [...open].sort((a, b) => Math.abs(b.myBalance) - Math.abs(a.myBalance) || b.lastActivity.getTime() - a.lastActivity.getTime());
   // With one or two groups, shorter cards, so "Needs attention" shows without scrolling.
   const short = byActivity.length <= 2;
@@ -436,6 +446,12 @@ export default async function Home({
               </div>
             )}
           </HomeBanner>
+
+          {trips.length > 0 && (
+            <div className="mt-6">
+              <TripCountdown group={trips[0].g.group} phase={trips[0].phase} more={trips.length - 1} />
+            </div>
+          )}
 
           {/* Groups */}
           <section className="mt-8">

@@ -46,6 +46,7 @@ export type EventKind =
   | "group_closed"
   | "group_reopened"
   | "split_changed"
+  | "trip_dates_set"
   | "bill_added"
   | "bill_changed"
   | "group_imported";

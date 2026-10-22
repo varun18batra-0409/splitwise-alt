@@ -3,6 +3,8 @@ import { BackIcon, ChevronDown, GearIcon, InviteIcon, iconButtonClass } from "@/
 import { GroupCover } from "@/components/GroupCover";
 import { coverFor, coverOf, type CoverChoice } from "@/lib/covers";
 import type { GroupView } from "./view";
+import { countdownWords, tripPhase } from "@/lib/countdown";
+import { todayKey } from "@/lib/dates";
 
 type SwitchItem = { id: string; name: string; pic?: { kind: CoverChoice; src?: string } };
 
@@ -12,6 +14,20 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
   const { group, myId } = v;
   const me = group.members.find((m) => m.id === myId);
   const cover = coverOf(group);
+  // Trip groups: the countdown ("Goa in 12 days 🌴"), or a nudge to add the dates.
+  const phase = group.type === "trip" ? tripPhase(group.tripStart, group.tripEnd, todayKey(new Date(), v.tz)) : null;
+  const words = phase ? countdownWords(group.name, phase) : null;
+  const hot = phase && (phase.kind !== "before" || phase.days <= 7);
+  const tripPill =
+    group.type !== "trip" || group.closed ? null : words ? (
+      <span data-countdown-line className={`inline-block rounded-full px-2.5 py-1 text-xs font-semibold backdrop-blur ${hot ? "bg-owe/25 text-[#ffd2b0]" : "bg-canvas/55"}`}>
+        {words.line}
+      </span>
+    ) : !group.tripStart ? (
+      <Link href={`/groups/${group.id}/settings#trip`} className="inline-block rounded-full bg-canvas/55 px-2.5 py-1 text-xs font-semibold text-fg/80 backdrop-blur active:bg-canvas/80">
+        ＋ Add trip dates ⏳
+      </Link>
+    ) : null;
 
   const switcher = (big: boolean) => (
     <details className="group/switch relative min-w-0 flex-1">
@@ -96,9 +112,12 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
         </Link>
       </div>
       <div className="absolute inset-x-5 bottom-0">
-        <p className="mb-1.5 inline-block rounded-full bg-canvas/55 px-2.5 py-1 text-xs font-semibold backdrop-blur">
-          {type ? `${type} · ` : ""}
-          {people} {people === 1 ? "person" : "people"}
+        <p className="mb-1.5 flex flex-wrap gap-1.5">
+          <span className="inline-block rounded-full bg-canvas/55 px-2.5 py-1 text-xs font-semibold backdrop-blur">
+            {type ? `${type} · ` : ""}
+            {people} {people === 1 ? "person" : "people"}
+          </span>
+          {tripPill}
         </p>
         <div className="flex">{switcher(true)}</div>
       </div>

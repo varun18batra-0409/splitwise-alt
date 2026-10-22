@@ -217,7 +217,23 @@ if (!hosted) {
   await context.addCookies([{ name: SESSION_COOKIE, value: await encodeSession({ m: demo.memberships, a: acc.id }), url: base }]);
   await shot("70-collect-new", "/collect/new");
   await shot("71-collect-organiser", `/c/${collectCode}`);
+  // A trip in 12 days, for the countdown.
+  const ist = (plus: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(now + plus * 86_400_000));
+  const goa = await db.group.create({
+    data: {
+      name: "Goa trip", type: "trip", currency: "INR", inviteCode: `shotsgoa${now.toString(36)}`, cover: "beach", tripStart: ist(12), tripEnd: ist(16),
+      members: { create: [{ name: "Varun", accountId: acc.id, claimedAt: new Date() }, { name: "Nupur" }, { name: "Ravi" }, { name: "Meera" }, { name: "Kabir" }] },
+    },
+  });
   await shot("72-home-collecting", "/");
+  await shot("76-home-countdown", "/", undefined, false);
+  await shot("77-group-countdown", `/groups/${goa.id}`, undefined, false);
+  await shot("78-countdown-image", `/groups/${goa.id}/countdown-image`, undefined, false);
+  await shot("79-settings-trip-dates", `/groups/${goa.id}/settings#trip`, undefined, false);
+  await db.group.update({ where: { id: goa.id }, data: { tripStart: ist(3), tripEnd: ist(6) } });
+  await shot("80-home-countdown-close", "/", undefined, false);
+  await db.group.update({ where: { id: goa.id }, data: { tripStart: ist(-1), tripEnd: ist(3) } });
+  await shot("81-group-countdown-during", `/groups/${goa.id}`, undefined, false);
 }
 await context.clearCookies();
 await shot("16-join", `/join/${demo.trip.invite}`);

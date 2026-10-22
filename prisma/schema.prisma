@@ -40,6 +40,8 @@ model Group {
   settleMin    Int       @default(0) // Smart Settle leaves out payments smaller than this (minor units)
   cover        String    @default("") // the group's picture: "" = picked from the type, "plain" = none (see covers.ts)
   coverAt      DateTime? // when the group's own photo was last uploaded (its version); empty = no own photo
+  tripStart    String    @default("") // trip groups: first day "YYYY-MM-DD" (the countdown); "" = not set
+  tripEnd      String    @default("") // trip groups: last day; "" = same as the start
 
   bills      Bill[]
   listItems  ListItem[]
