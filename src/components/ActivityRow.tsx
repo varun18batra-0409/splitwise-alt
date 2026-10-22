@@ -90,14 +90,10 @@ export function ActivityRow({
   const shown = (orig: number, base: number) => (o ? formatMoney(orig, o.currency) : money(base));
   return (
     <div className={`flex items-center gap-3.5 py-3.5 ${deleted ? "opacity-60" : ""}`}>
-      <ExpenseGlyph title={item.title} category={item.category} alive={alive && !deleted} />
+      <ExpenseGlyph title={item.title} category={item.category} alive={alive && !deleted} label={cat.label} />
       <div className="min-w-0 flex-1">
         <p className="flex min-w-0 items-center gap-1.5" title={cat.label}>
           <span className={`truncate text-[15px] font-semibold tracking-tight ${deleted ? "line-through decoration-gray-400" : ""}`}>{item.title}</span>
-          {/* The icon shows the category; this says it for screen readers. */}
-          <span className="sr-only" data-category-label>
-            , {cat.label}
-          </span>
           {item.refund && <span className="shrink-0 rounded-md bg-owed/[0.14] px-1.5 py-[3px] text-[10px] font-semibold uppercase leading-none tracking-wide text-owed">Back</span>}
           {item.notes && (
             <svg aria-label="Has notes" role="img" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-fg/35">

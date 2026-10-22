@@ -1250,7 +1250,7 @@ async function main() {
     for (const [title, cat, label] of [["Dinner", "food", "Food"], ["Taxi", "transport", "Transport"]] as const) {
       const row = V.locator("details summary").filter({ hasText: title }).first();
       assert((await row.locator("[data-category]").first().getAttribute("data-category")) === cat, `${title}: icon isn't ${cat}`);
-      assert(new RegExp(label).test(await row.locator("[data-category-label]").first().textContent() ?? ""), `${title}: no “${label}” for screen readers`);
+      assert(new RegExp(label).test((await row.locator("[data-category]").first().getAttribute("aria-label")) ?? ""), `${title}: no “${label}” for screen readers`);
     }
   });
 

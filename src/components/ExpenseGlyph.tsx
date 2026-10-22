@@ -79,6 +79,7 @@ export function ExpenseGlyph({
   size = 40,
   className = "",
   alive = false,
+  label,
 }: {
   title: string;
   category: string;
@@ -86,6 +87,7 @@ export function ExpenseGlyph({
   size?: number;
   className?: string;
   alive?: boolean; // Home only: the icon moves (a flight cruises, with wind streaks, and now and then flies off and back)
+  label?: string; // the category's name, said by screen readers (the icon shows it to everyone else)
 }) {
   // `emoji`: a picture already chosen (a bill's type), else worked out from the name.
   const glyph = FROM_EMOJI[emoji ?? expenseIcon(title, category)] ?? FROM_EMOJI[expenseIcon(title, category)] ?? "receipt";
@@ -93,7 +95,7 @@ export function ExpenseGlyph({
   const moving = alive && glyph === "plane";
   return (
     <span
-      aria-hidden
+      {...(label ? { role: "img", "aria-label": label } : { "aria-hidden": true })}
       data-glyph={glyph}
       data-category={category}
       className={`relative flex shrink-0 items-center justify-center rounded-[14px] ${moving ? "overflow-hidden" : ""} ${className}`}
