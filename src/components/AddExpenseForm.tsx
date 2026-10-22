@@ -1,6 +1,6 @@
 "use client";
 
-import { expenseIcon } from "@/lib/expense-icons";
+import { ExpenseGlyph } from "./ExpenseGlyph";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { addExpense, lookupRate } from "@/app/actions";
 import { CATEGORIES, analyzeName, applySuggestion, getCategory } from "@/lib/categories";
@@ -437,7 +437,7 @@ export function AddExpenseForm({
             title={category.label}
             className="flex shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-line px-2.5 active:bg-mist"
           >
-            <span className="text-lg leading-none">{expenseIcon(name, category.id)}</span>
+            <ExpenseGlyph title={name} category={category.id} size={26} className="rounded-[8px]!" />
             <span className="text-[11px] leading-none text-gray-500">
               {category.short}
               {!pickedCategory && name.trim() && <span className="text-gray-400"> · auto</span>}
@@ -472,7 +472,10 @@ export function AddExpenseForm({
                   setShowCategories(false);
                 }}
               >
-                {c.emoji} {c.label}
+                <span className="inline-flex items-center gap-1.5">
+                  <ExpenseGlyph title="" category={c.id} size={18} className="rounded-[6px]!" />
+                  {c.label}
+                </span>
               </Chip>
             ))}
             {pickedCategory && (

@@ -57,7 +57,7 @@ const FROM_EMOJI: Record<string, Glyph> = {
   "🛒": "cart", "🍎": "leaf", "🥛": "cart", "🥦": "leaf",
   "🎟️": "ticket", "🎬": "film", "🎤": "mic", "🥾": "mountain", "🏛️": "landmark", "💆": "spa", "🤿": "wave", "🎢": "ticket",
   "💡": "bolt", "⚡": "bolt", "💧": "drop", "📶": "wifi", "📺": "tv", "🔥": "flame", "🧹": "broom",
-  "📦": "receipt",
+  "📦": "receipt", "🏢": "landmark", "🍳": "food",
 };
 
 // Soft tints per category (tile background at low strength, icon at full).
@@ -72,8 +72,9 @@ export const CATEGORY_TINT: Record<string, string> = {
   other: "#b9b4a8",
 };
 
-export function ExpenseGlyph({ title, category, size = 40, className = "" }: { title: string; category: string; size?: number; className?: string }) {
-  const glyph = FROM_EMOJI[expenseIcon(title, category)] ?? "receipt";
+export function ExpenseGlyph({ title, category, emoji, size = 40, className = "" }: { title: string; category: string; emoji?: string; size?: number; className?: string }) {
+  // `emoji`: a picture already chosen (a bill's type), else worked out from the name.
+  const glyph = FROM_EMOJI[emoji ?? expenseIcon(title, category)] ?? FROM_EMOJI[expenseIcon(title, category)] ?? "receipt";
   const tint = CATEGORY_TINT[category] ?? CATEGORY_TINT.other;
   return (
     <span

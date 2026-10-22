@@ -2,7 +2,7 @@
 // Single-series charts use the one accent colour; every bar carries its value
 // as text, and a table view is one tap away for screen readers and exact numbers.
 
-export type BarDatum = { key: string; label: string; value: number; valueText: string; icon?: string };
+export type BarDatum = { key: string; label: string; value: number; valueText: string; icon?: React.ReactNode };
 
 // Horizontal bars: comparing amounts between categories or people.
 export function HBarChart({ title, data, total }: { title: string; data: BarDatum[]; total?: string }) {
@@ -17,9 +17,9 @@ export function HBarChart({ title, data, total }: { title: string; data: BarDatu
         {data.map((d) => (
           <li key={d.key} title={`${d.label}: ${d.valueText}`}>
             <div className="mb-1 flex justify-between gap-3 text-sm">
-              <span className="min-w-0 truncate">
-                {d.icon && <span className="mr-1.5">{d.icon}</span>}
-                {d.label}
+              <span className="flex min-w-0 items-center gap-2">
+                {d.icon}
+                <span className="truncate">{d.label}</span>
               </span>
               <span className="shrink-0 tabular-nums text-gray-500">{d.valueText}</span>
             </div>

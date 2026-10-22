@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 jobs:
   ping:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 3
     steps:
       - name: Ping the main parts of the app

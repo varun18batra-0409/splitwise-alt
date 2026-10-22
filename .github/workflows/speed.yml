@@ -8,7 +8,7 @@ on:
     paths: [".github/workflows/speed.yml", "scripts/prod-speed.mjs"]
 jobs:
   speed:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:

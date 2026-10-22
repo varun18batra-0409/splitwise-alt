@@ -1,3 +1,4 @@
+import { ExpenseGlyph } from "@/components/ExpenseGlyph";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
@@ -32,9 +33,7 @@ export default async function BudgetsPage({ params, searchParams }: { params: Pr
             return (
               <li key={c}>
                 <label className="flex items-center gap-3 px-4 py-3">
-                  <span className="text-xl" aria-hidden>
-                    {cat.emoji}
-                  </span>
+                  <ExpenseGlyph title="" category={c} size={34} />
                   <span className="flex-1">{cat.label}</span>
                   <span className="flex w-32 items-center rounded-xl border border-line px-3 focus-within:border-accent">
                     <span className="text-xs text-gray-400">{group.currency}</span>

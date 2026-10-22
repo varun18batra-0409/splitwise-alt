@@ -43,7 +43,7 @@ const SLOTS = {
   "place-kerala": ["photo-1563279036-8ae92c62ca4f"],
   "place-singapore": ["photo-1544625237-5d2ae46de481"],
   "place-maldives": ["photo-1691853735541-a8f1bdd2cd16"],
-  "place-vietnam": ["photo-1487548919775-a7a460f3cbe6"],
+  "place-vietnam": ["photo-1431975071466-2c609dac5956", "photo-1487548919775-a7a460f3cbe6"],
   "place-srilanka": ["photo-1566296314736-6eaac1ca0cb9"],
   "place-japan": ["photo-1578469645742-46cae010e5d4", "photo-1707474893587-a37a9cf1b555"],
   "place-london": ["photo-1633357441498-7431babe0cc7"],
@@ -54,7 +54,7 @@ const SLOTS = {
   "place-newyork": ["photo-1764344793554-12da6166d940"],
   "place-santorini": ["photo-1580502304784-8985b7eb7260", "photo-1677268357140-146d5c15307d"],
   "place-bhutan": ["photo-1761048172334-6d1475e25e8d"],
-  "place-meghalaya": ["photo-1723731233707-d3eb18c19303"],
+  "place-meghalaya": ["photo-1609276804051-8c5e906cc430", "photo-1723731233707-d3eb18c19303"],
   "place-switzerland": ["photo-1723276300410-113696641bab"],
 };
 

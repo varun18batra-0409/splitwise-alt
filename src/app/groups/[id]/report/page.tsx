@@ -1,3 +1,4 @@
+import { ExpenseGlyph } from "@/components/ExpenseGlyph";
 import Link from "@/components/Link";
 import { notFound, redirect } from "next/navigation";
 import { getMyMemberId } from "@/lib/identity";
@@ -50,8 +51,9 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
               {r.categories.slice(0, 4).map((c) => (
                 <li key={c.id}>
                   <div className="flex justify-between text-sm">
-                    <span>
-                      {c.emoji} {c.label}
+                    <span className="flex items-center gap-2">
+                      <ExpenseGlyph title="" category={c.id} size={20} className="rounded-[6px]!" />
+                      {c.label}
                     </span>
                     <span className="tabular-nums text-fg/70">
                       {m(c.amount)} · {c.pct}%

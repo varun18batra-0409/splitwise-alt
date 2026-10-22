@@ -1,3 +1,4 @@
+import { ExpenseGlyph } from "@/components/ExpenseGlyph";
 import Link from "@/components/Link";
 import { formatMoney } from "@/lib/money";
 import { getCategory } from "@/lib/categories";
@@ -178,9 +179,7 @@ export function Insights({ d }: { d: InsightsData }) {
               const pct = totalCat > 0 ? Math.round((Math.max(0, c.amount) / totalCat) * 100) : 0;
               return (
                 <li key={c.id} className="flex items-center gap-3">
-                  <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-fg/[0.06] text-lg">
-                    {cat.emoji}
-                  </span>
+                  <ExpenseGlyph title="" category={c.id} />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline justify-between gap-2 text-sm">
                       <span className="truncate font-medium">{cat.label}</span>
@@ -213,9 +212,7 @@ export function Insights({ d }: { d: InsightsData }) {
           <div className="-mx-5 flex gap-3 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {d.bills.map((b) => (
               <Link key={b.id} href={b.href} className="lp-press w-[132px] shrink-0 rounded-[20px] border border-line bg-white px-3.5 py-3.5 active:bg-mist">
-                <span aria-hidden className="flex h-9 w-9 items-center justify-center rounded-full bg-fg/[0.07] text-base">
-                  {b.emoji}
-                </span>
+                <ExpenseGlyph title={b.name} category="bills" emoji={b.emoji} size={36} />
                 <span className="mt-3 block truncate text-sm font-semibold">{b.name}</span>
                 <span className="block truncate text-xs tabular-nums text-fg/60">{b.amount}</span>
                 <span className="mt-1 block truncate text-[11px] text-gray-400">

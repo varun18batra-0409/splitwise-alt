@@ -10,7 +10,7 @@ on:
         default: "24"
 jobs:
   stats:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
       TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}

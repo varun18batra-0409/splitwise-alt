@@ -88,7 +88,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
             {upi ? (
               <div className="space-y-3">
                 <a href={upi} className="pop block w-full bg-fg px-4 py-3.5 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63]">
-                  Pay {c.amount ? money(c.amount) : ""} with UPI
+                  {c.amount ? `Pay ${money(c.amount)} with UPI` : "Pay with UPI"}
                 </a>
                 <div className="flex items-center gap-3 rounded-2xl border border-line px-4 py-3">
                   <span className="min-w-0 flex-1">

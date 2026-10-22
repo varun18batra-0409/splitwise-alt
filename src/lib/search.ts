@@ -10,7 +10,7 @@ export const monthKey = (d: Date, tz?: string) => dayKey(d, tz).slice(0, 7);
 
 export function monthLabel(key: string): string {
   const [y, m] = key.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, 15)).toLocaleDateString("en-GB", { month: "short", year: "numeric", timeZone: "UTC" });
+  return new Date(Date.UTC(y, m - 1, 15)).toLocaleDateString("en-GB", { month: "short", year: "numeric", timeZone: "UTC" }).replace("Sept", "Sep");
 }
 
 export function cleanPeriod(year?: string, month?: string, week?: string): Period {
@@ -96,7 +96,7 @@ export function bucketsEnding(last: string, grain: Grain): string[] {
 
 export function bucketLabel(key: string, grain: Grain): string {
   if (grain === "y") return key;
-  if (grain === "m") return new Date(`${key}-15T12:00:00Z`).toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" });
+  if (grain === "m") return new Date(`${key}-15T12:00:00Z`).toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" }).replace("Sept", "Sep");
   // Weeks: "19 Oct" (months shortened to three letters, so six fit side by side).
   return new Date(`${key}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }).replace("Sept", "Sep");
 }
