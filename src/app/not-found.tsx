@@ -2,7 +2,7 @@ import Link from "@/components/Link";
 import { GoHome } from "@/components/GoHome";
 import { primaryButtonClass } from "@/components/ui";
 
-export const metadata = { title: "Not here any more · Loopin" };
+export const metadata = { title: "Not here any more" };
 
 // A screen that doesn't exist (often a group that was deleted, reached by
 // swiping back): say so kindly and go Home.

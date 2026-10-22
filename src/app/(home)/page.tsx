@@ -27,6 +27,8 @@ import { canUndo } from "@/lib/undo";
 import { UndoBar } from "@/components/UndoBar";
 import { PersonIcon, iconButtonClass } from "@/components/icons";
 
+export const metadata = { alternates: { canonical: "/" } };
+
 const countPasskeys = (accountId: string) => db.passkey.count({ where: { accountId } });
 
 // Home: your net balance, what needs your attention, your groups, and the

@@ -1,6 +1,6 @@
 import { PageHeader } from "@/components/ui";
 
-export const metadata = { title: "Privacy · Loopin" };
+export const metadata = { title: "Privacy", description: "What Loopin keeps, what it never does, and how to download or delete your data.", alternates: { canonical: "/privacy" } };
 
 // Plain-English privacy page. Keep it honest and short.
 export default function Privacy() {

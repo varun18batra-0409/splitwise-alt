@@ -9,6 +9,7 @@ import { InstallCapture } from "@/components/GetApp";
 import { AppRefresh } from "@/components/AppRefresh";
 import { NavProgress } from "@/components/NavProgress";
 import { Splash } from "@/components/Splash";
+import { SITE_DESCRIPTION, SITE_TITLE, SITE_URL } from "@/lib/site";
 
 // Fraunces: a sharp, high-contrast serif for headings and big amounts.
 // Body text stays in the phone's own font.
@@ -17,9 +18,15 @@ const fraunces = Fraunces({ subsets: ["latin"], variable: "--font-fraunces", dis
 const caveat = Caveat({ subsets: ["latin"], weight: ["600", "700"], variable: "--font-caveat", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Loopin",
-  description: "Everyone’s in. Everything adds up.",
+  metadataBase: new URL(SITE_URL),
+  title: { default: SITE_TITLE, template: "%s · Loopin" },
+  description: SITE_DESCRIPTION,
   applicationName: "Loopin",
+  keywords: ["split expenses", "split bills", "Splitwise alternative", "expense sharing app", "trip expenses", "flatmates", "roommates", "couples budget", "group expenses"],
+  openGraph: { type: "website", url: SITE_URL, siteName: "Loopin", title: SITE_TITLE, description: SITE_DESCRIPTION, locale: "en_US" },
+  twitter: { card: "summary_large_image", title: SITE_TITLE, description: SITE_DESCRIPTION },
+  // Google Search Console's "HTML tag" check, if that way is used (set in the hosting settings).
+  verification: process.env.GOOGLE_SITE_VERIFICATION ? { google: process.env.GOOGLE_SITE_VERIFICATION } : undefined,
   appleWebApp: { capable: true, title: "Loopin", statusBarStyle: "black-translucent" },
 };
 
@@ -36,6 +43,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         {/* Opening the app: the opening screen stays at least 1.5 seconds (and until the app is ready), once per visit. */}
         <script dangerouslySetInnerHTML={{ __html: OPENING }} />
+        {/* What Loopin is, for search engines (a free web app on Android and iPhone). */}
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(APP_INFO) }} />
       </head>
       <body className="antialiased">
         <div className="lp-open" aria-hidden>
@@ -65,3 +74,14 @@ function done(){setTimeout(function(){h.classList.add("lp-opened");setTimeout(fu
 if(document.readyState==="complete")done();else addEventListener("load",done);
 setTimeout(done,12000);
 }catch(e){}})();`;
+
+const APP_INFO = {
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  name: "Loopin",
+  url: SITE_URL,
+  description: SITE_DESCRIPTION,
+  applicationCategory: "FinanceApplication",
+  operatingSystem: "Android, iOS, Web",
+  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+};

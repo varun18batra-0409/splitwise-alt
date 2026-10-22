@@ -1,7 +1,7 @@
 import Link from "@/components/Link";
 import { PageHeader, primaryButtonClass } from "@/components/ui";
 
-export const metadata = { title: "Private group · Loopin" };
+export const metadata = { title: "Private group" };
 
 // Shown when someone opens a group they're not in. It never reveals the
 // group's name or its invite link: only people in the group can invite.
