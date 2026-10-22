@@ -579,7 +579,7 @@ export default async function Home({
                   <li key={r.item.id}>
                     {/* Tap: opens it in its group, already expanded (details, Edit, Delete). */}
                     <Link href={itemHref(r.groupId, r.item)} className="block active:bg-mist">
-                      <ActivityRow item={r.item} currency={r.currency} nameOf={r.nameOf} groupName={`${r.groupName}, ${dayLabel(r.item.date, new Date(), tz)}`} />
+                      <ActivityRow item={r.item} currency={r.currency} nameOf={r.nameOf} groupName={`${r.groupName}, ${dayLabel(r.item.date, new Date(), tz)}`} alive />
                     </Link>
                   </li>
                 ))}

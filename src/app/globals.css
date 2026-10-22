@@ -419,3 +419,29 @@ html.lp-opened .lp-open {
 @media (prefers-reduced-motion: reduce) {
   .lp-takeoff { animation: none; left: calc(100% - 15px); bottom: calc(100% - 13px); transform: rotate(-4deg); }
 }
+
+/* Home: a flight expense's plane cruises (a gentle bob, wind streaks going by),
+   and every few seconds flies off the top-right and comes back in from the
+   bottom-left. Still when motion is turned off. */
+@keyframes lp-fly {
+  0%, 100% { transform: translate(0, 0); }
+  14% { transform: translate(1px, -1.5px); }
+  28% { transform: translate(0, 0); }
+  42% { transform: translate(1px, -1.5px); }
+  56% { transform: translate(0, 0); }
+  68% { transform: translate(-2px, 2px); }
+  78% { transform: translate(34px, -34px); }
+  78.1% { transform: translate(-34px, 34px); }
+  90% { transform: translate(0, 0); }
+}
+.lp-fly { animation: lp-fly 5.2s cubic-bezier(0.45, 0, 0.3, 1) infinite; }
+@keyframes lp-streak {
+  0% { transform: translate(6px, -6px); opacity: 0; }
+  30% { opacity: 1; }
+  100% { transform: translate(-6px, 6px); opacity: 0; }
+}
+.lp-streak { animation: lp-streak 0.9s linear infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .lp-fly, .lp-streak { animation: none; }
+  .lp-streak { opacity: 0; }
+}

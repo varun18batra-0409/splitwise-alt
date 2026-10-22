@@ -28,11 +28,13 @@ export function ActivityRow({
   currency,
   nameOf,
   groupName,
+  alive = false,
 }: {
   item: ActivityItem;
   currency: string;
   nameOf: (id: string) => string; // returns "You" for me
   groupName?: string; // shown on the home screen, where groups are mixed
+  alive?: boolean; // Home: the icon moves a little (a flight flies)
 }) {
   const money = (m: number) => formatMoney(m, currency);
 
@@ -88,7 +90,7 @@ export function ActivityRow({
   const shown = (orig: number, base: number) => (o ? formatMoney(orig, o.currency) : money(base));
   return (
     <div className={`flex items-center gap-3.5 py-3.5 ${deleted ? "opacity-60" : ""}`}>
-      <ExpenseGlyph title={item.title} category={item.category} />
+      <ExpenseGlyph title={item.title} category={item.category} alive={alive && !deleted} />
       <div className="min-w-0 flex-1">
         <p className="flex min-w-0 items-center gap-1.5" title={cat.label}>
           <span className={`truncate text-[15px] font-semibold tracking-tight ${deleted ? "line-through decoration-gray-400" : ""}`}>{item.title}</span>
