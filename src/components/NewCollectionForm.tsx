@@ -30,6 +30,8 @@ export function NewCollectionForm({ defaultCurrency, yourName }: { defaultCurren
   return (
     <form
       action={action}
+      // Errors come back on this same screen, so the double-tap lock must not block the next try (the button locks itself while sending).
+      data-allow-repeat="1"
       className="space-y-6"
       onChange={(e) => {
         const t = e.target;
