@@ -336,7 +336,7 @@ export default async function Home({
                   >
                     {heroText}
                   </h1>
-                  <p className="relative z-10 mt-1.5 max-w-[80%] font-hand text-[21px] font-bold leading-none text-[#ffd9a8] [text-shadow:0_1px_8px_rgba(0,0,0,0.8)]">
+                  <p className="relative z-10 mt-1.5 max-w-[62%] font-hand text-[21px] font-bold leading-none text-[#ffd9a8] [text-shadow:0_1px_8px_rgba(0,0,0,0.8)]">
                     {netValue > 0 ? "you get money back" : netValue < 0 ? "you need to pay" : "it all evens out"}
                     {open.filter((g) => g.myBalance !== 0).length > 1 ? `, from ${open.filter((g) => g.myBalance !== 0).length} groups` : ""}
                   </p>

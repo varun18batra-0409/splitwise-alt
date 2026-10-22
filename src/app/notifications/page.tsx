@@ -34,7 +34,7 @@ const ICON: Record<string, string> = {
   trip_dates_set: "⏳",
   split_changed: "÷",
   bill_added: "↻",
-  bill_changed: "↻",
+  bill_changed: "✎",
 };
 
 // Everything other people added, changed or deleted in your groups, newest first.

@@ -46,7 +46,11 @@ export function Insights({ d }: { d: InsightsData }) {
   const i = Math.max(0, d.bars.findIndex((b) => b.key === d.selected));
   const now = d.bars[i]?.value ?? 0;
   const before = i > 0 ? d.bars[i - 1].value : null;
-  const change = before !== null && before > 0 ? Math.round(((now - before) / before) * 100) : null;
+  // The newest bar is the week / month / year still going on: a % against a whole
+  // finished one would always look like a big drop, so show "so far" and the last one instead.
+  const running = i === d.bars.length - 1;
+  const change = !running && before !== null && before > 0 ? Math.round(((now - before) / before) * 100) : null;
+  const lastWord = d.grain === "w" ? "Last week" : d.grain === "m" ? "Last month" : "Last year";
   const top = niceMax(Math.max(...d.bars.map((b) => Math.max(0, b.value)), 0));
   const approx = d.converted ? "≈ " : "";
   const totalCat = d.categories.reduce((s, c) => s + Math.max(0, c.amount), 0);
@@ -79,7 +83,11 @@ export function Insights({ d }: { d: InsightsData }) {
               {formatMoney(Math.max(0, now), d.currency)}
             </p>
             <p className="mt-2 text-xs">
-              {change === null ? (
+              {running ? (
+                <span className="text-fg/45">
+                  So far{before !== null && before > 0 ? ` · ${lastWord.toLowerCase()} ${approx}${formatMoney(before, d.currency)}` : ""}
+                </span>
+              ) : change === null ? (
                 <span className="text-fg/45">Nothing to compare with yet</span>
               ) : (
                 <span className={change > 0 ? "text-owe" : change < 0 ? "text-owed" : "text-fg/55"}>
