@@ -1,0 +1,2 @@
+149 passed, 1 failed
+✗ Tags — Each expense shows its category tag (Dinner → Food, Taxi → Transport): no Food tag on Dinner (screenshot: fail-01.png)
