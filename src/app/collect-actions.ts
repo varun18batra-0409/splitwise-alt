@@ -30,16 +30,20 @@ async function payerKey(make: boolean): Promise<string> {
 const field = (f: FormData, k: string) => String(f.get(k) ?? "");
 const cleanCode = (raw: string) => (/^[A-Za-z0-9_-]{6,40}$/.test(raw) ? raw : "");
 
-export type CreateState = { error?: string };
+// On an error the typed values come back too, so the form shows them again
+// (React clears a form after sending it).
+export type CreateState = { error?: string; values?: Record<string, string> };
+const FORM_FIELDS = ["yourName", "title", "amount", "currency", "upiId", "payLink", "dueDate", "names", "note"] as const;
+const typed = (f: FormData) => Object.fromEntries(FORM_FIELDS.map((k) => [k, field(f, k).slice(0, 4000)]));
 
 export async function createCollectionAction(_prev: CreateState, f: FormData): Promise<CreateState> {
   const account = await getAccount();
   if (!account) redirect(`/signin?${new URLSearchParams({ back: "/collect/new" })}`);
-  if (!(await allow(`collect-new:${clientIp(await headers())}`, 20, 3600))) return { error: "Lots of collections made from here in the last hour. Wait a bit and try again." };
+  if (!(await allow(`collect-new:${clientIp(await headers())}`, 20, 3600))) return { error: "Lots of collections made from here in the last hour. Wait a bit and try again.", values: typed(f) };
   let name = account.name;
   if (!cleanNames([name])[0]) {
     name = cleanNames([field(f, "yourName")])[0] ?? "";
-    if (!name) return { error: "Add your name, so people know who’s collecting." };
+    if (!name) return { error: "Add your name, so people know who’s collecting.", values: typed(f) };
     await db.account.update({ where: { id: account.id }, data: { name } });
   }
   const r = await createCollection({ id: account.id, name }, {
@@ -52,7 +56,7 @@ export async function createCollectionAction(_prev: CreateState, f: FormData): P
     payLink: field(f, "payLink"),
     names: field(f, "names"),
   });
-  if (!r.ok) return { error: r.error };
+  if (!r.ok) return { error: r.error, values: typed(f) };
   redirect(`/c/${r.code}?new=1`);
 }
 
