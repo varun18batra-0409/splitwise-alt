@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { cleanNames, sameName } from "./names";
 import { parseAmount } from "./money";
-import { MAX_ENTRIES, checkNewCollection, newCollectCode, type NewCollection } from "./collect-rules";
+import { MAX_ENTRIES, checkNewCollection, newCollectCode, phonesFor, type NewCollection } from "./collect-rules";
 
 export * from "./collect-rules";
 
@@ -21,8 +21,9 @@ export async function createCollection(account: { id: string; name: string }, in
   if (!r.ok) return r;
   const organiser = cleanNames([account.name])[0];
   if (!organiser) return { ok: false as const, error: "Add your name, so people know who’s collecting." };
+  const phones = phonesFor(r.names, input.contacts ?? "", r.data.currency);
   const c = await db.collection.create({
-    data: { ...r.data, code: newCollectCode(), accountId: account.id, organiser, entries: { create: r.names.map((name) => ({ name, status: "due" })) } },
+    data: { ...r.data, code: newCollectCode(), accountId: account.id, organiser, entries: { create: r.names.map((name) => ({ name, status: "due", phone: phones[name] ?? "" })) } },
   });
   return { ok: true as const, code: c.code };
 }
@@ -76,7 +77,7 @@ export async function undoPaid(code: string, entryId: string, payerKey: string):
 export async function organiserAction(
   code: string,
   accountId: string,
-  action: { kind: "confirm" | "unconfirm" | "remove" | "cash" | "add" | "close" | "reopen" | "delete"; entryId?: string; names?: string },
+  action: { kind: "confirm" | "unconfirm" | "remove" | "cash" | "add" | "close" | "reopen" | "delete"; entryId?: string; names?: string; contacts?: string },
 ): Promise<Ok<object> | Fail> {
   const c = await loadCollection(code);
   if (!c || c.accountId !== accountId) return { ok: false, error: "Only the organiser can change this collection." };
@@ -100,10 +101,15 @@ export async function organiserAction(
       await db.collectionEntry.delete({ where: { id: e.id } });
       return { ok: true };
     case "add": {
-      const names = cleanNames(String(action.names ?? "").split(/[\n,]+/)).filter((n) => !c.entries.some((x) => sameName(x.name, n)));
-      if (!names.length) return { ok: false, error: "Type names that aren’t on the list yet." };
+      const typed = cleanNames(String(action.names ?? "").split(/[\n,]+/));
+      const phones = phonesFor(typed, action.contacts ?? "", c.currency);
+      const names = typed.filter((n) => !c.entries.some((x) => sameName(x.name, n)));
+      // Picked again from contacts: a number for someone already listed without one.
+      const fill = c.entries.filter((x) => !x.phone && Object.keys(phones).some((n) => sameName(n, x.name)));
+      if (!names.length && !fill.length) return { ok: false, error: "Type names that aren’t on the list yet." };
       if (c.entries.length + names.length > MAX_ENTRIES) return { ok: false, error: `A collection can have up to ${MAX_ENTRIES} people.` };
-      await db.collectionEntry.createMany({ data: names.map((name) => ({ collectionId: c.id, name, status: "due" })) });
+      if (names.length) await db.collectionEntry.createMany({ data: names.map((name) => ({ collectionId: c.id, name, status: "due", phone: phones[name] ?? "" })) });
+      for (const x of fill) await db.collectionEntry.update({ where: { id: x.id }, data: { phone: phones[Object.keys(phones).find((n) => sameName(n, x.name))!] } });
       return { ok: true };
     }
     case "close":

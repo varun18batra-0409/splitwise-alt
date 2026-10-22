@@ -4,12 +4,15 @@ import { useActionState, useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { createCollectionAction, type CreateState } from "@/app/collect-actions";
 import { CurrencySelect } from "./CurrencySelect";
+import { PickContacts } from "./PickContacts";
 import { inputClass, primaryButtonClass } from "./ui";
 
 // New collection: what it's for, how much each, where the money goes (UPI for
 // rupees, a PayPal/Venmo/Revolut link otherwise, or neither for cash), by
 // when, and who's expected (optional: people can add themselves).
 const IDEAS = ["Teacher’s Day gift", "Farewell for Priya", "Saturday turf booking", "Society Diwali fund", "Office birthday cake"];
+// One tap fills the name (then add who it's for).
+const QUICK = ["Diwali fund", "Birthday gift", "Farewell", "Teacher’s Day", "Trip booking", "Office party", "Wedding gift", "Turf / match"];
 
 function Submit() {
   const { pending } = useFormStatus();
@@ -63,6 +66,24 @@ export function NewCollectionForm({ defaultCurrency, yourName }: { defaultCurren
         <span className={label}>What are you collecting for?</span>
         <input name="title" defaultValue={v.title} required maxLength={60} placeholder={idea} autoComplete="off" className={inputClass} />
       </label>
+      <div className="-mt-3 flex flex-wrap gap-2" aria-label="Quick picks">
+        {QUICK.map((q) => (
+          <button
+            key={q}
+            type="button"
+            onClick={(e) => {
+              const t = e.currentTarget.form?.elements.namedItem("title") as HTMLInputElement | null;
+              if (!t) return;
+              t.value = q;
+              t.focus();
+              t.setSelectionRange(q.length, q.length);
+            }}
+            className="h-8 rounded-full border border-line px-3 text-[13px] text-fg/80 active:bg-mist"
+          >
+            {q}
+          </button>
+        ))}
+      </div>
 
       <div className="grid grid-cols-[1fr_1.25fr] gap-3">
         <label className="block">
@@ -108,6 +129,7 @@ export function NewCollectionForm({ defaultCurrency, yourName }: { defaultCurren
         </span>
         <textarea name="names" defaultValue={v.names} rows={4} placeholder={"One name per line, or paste them with commas.\nPeople not on the list can add themselves."} className={`${inputClass} resize-y`} />
       </label>
+      <PickContacts key={v.contacts ?? "start"} initial={v.contacts} className="-mt-3" />
 
       <label className="block">
         <span className={label}>

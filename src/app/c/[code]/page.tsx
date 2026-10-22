@@ -12,7 +12,8 @@ import { getAccount } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
 import { todayKey } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
-import { loadCollection, progress, reminderText, upiLink } from "@/lib/collect";
+import { loadCollection, personalReminder, progress, reminderText, upiLink, whatsappTo } from "@/lib/collect";
+import { PickContacts } from "@/components/PickContacts";
 import { organiserActionForm, undoPaidAction } from "@/app/collect-actions";
 
 // One collection's page: the link people open from the WhatsApp group.
@@ -184,7 +185,10 @@ export default async function CollectionPage({ params, searchParams }: Props) {
       {isOrganiser && (
         <section aria-label="Share and remind" className="mt-5 space-y-3">
           {sp.new && (
-            <p className="rounded-xl bg-owed/10 px-4 py-3 text-sm text-owed">Your link is ready. Drop it in the group: people pay you, then tick their name here.</p>
+            <p className="rounded-xl bg-owed/10 px-4 py-3 text-sm text-owed">
+              Your link is ready. Drop it in the group: people pay you, then tick their name here.
+              {due.some((d) => d.phone) && " Or send it to each person with the WhatsApp button next to their name."}
+            </p>
           )}
           <ShareCollection path={path} title={c.title} text={shareText} className="pop block w-full bg-fg px-4 py-3.5 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63]">
             Share the link
@@ -199,7 +203,8 @@ export default async function CollectionPage({ params, searchParams }: Props) {
             <form action={organiserActionForm} className="mt-3 space-y-3">
               <input type="hidden" name="code" value={c.code} />
               <input type="hidden" name="kind" value="add" />
-              <textarea name="names" rows={3} required placeholder="One name per line, or with commas" className={`${inputClass} resize-y`} />
+              <textarea name="names" rows={3} placeholder="One name per line, or with commas" className={`${inputClass} resize-y`} />
+              <PickContacts />
               <button type="submit" className={secondaryButtonClass}>
                 Add
               </button>
@@ -260,6 +265,19 @@ export default async function CollectionPage({ params, searchParams }: Props) {
                 <span className="min-w-0 flex-1 truncate text-[15px]">{e.name}</span>
                 {isOrganiser && (
                   <span className="flex shrink-0 items-center gap-2">
+                    {e.phone && !closed && (
+                      <a
+                        href={whatsappTo(e.phone, personalReminder(c, e.name, link))}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Remind ${e.name} on WhatsApp`}
+                        className="flex h-8 w-8 items-center justify-center rounded-full border border-owed/40 text-owed active:bg-mist"
+                      >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5z" />
+                        </svg>
+                      </a>
+                    )}
                     {c.amount > 0 && orgForm("cash", e.id, "Paid cash", chip)}
                     {orgForm("remove", e.id, "✕", "flex h-8 w-8 items-center justify-center rounded-full text-gray-400 active:bg-mist", `Take ${e.name} off the list?`)}
                   </span>

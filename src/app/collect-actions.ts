@@ -33,8 +33,8 @@ const cleanCode = (raw: string) => (/^[A-Za-z0-9_-]{6,40}$/.test(raw) ? raw : ""
 // On an error the typed values come back too, so the form shows them again
 // (React clears a form after sending it).
 export type CreateState = { error?: string; values?: Record<string, string> };
-const FORM_FIELDS = ["yourName", "title", "amount", "currency", "upiId", "payLink", "dueDate", "names", "note"] as const;
-const typed = (f: FormData) => Object.fromEntries(FORM_FIELDS.map((k) => [k, field(f, k).slice(0, 4000)]));
+const FORM_FIELDS = ["yourName", "title", "amount", "currency", "upiId", "payLink", "dueDate", "names", "note", "contacts"] as const;
+const typed = (f: FormData) => Object.fromEntries(FORM_FIELDS.map((k) => [k, field(f, k).slice(0, k === "contacts" ? 60_000 : 4000)]));
 
 export async function createCollectionAction(_prev: CreateState, f: FormData): Promise<CreateState> {
   const account = await getAccount();
@@ -55,6 +55,7 @@ export async function createCollectionAction(_prev: CreateState, f: FormData): P
     upiId: field(f, "upiId"),
     payLink: field(f, "payLink"),
     names: field(f, "names"),
+    contacts: field(f, "contacts").slice(0, 60_000),
   });
   if (!r.ok) return { error: r.error, values: typed(f) };
   redirect(`/c/${r.code}?new=1`);
@@ -91,7 +92,7 @@ export async function organiserActionForm(f: FormData) {
   if (!account) redirect(`/signin?${new URLSearchParams({ back: `/c/${code}` })}`);
   const kind = field(f, "kind") as Kind;
   if (!KINDS.includes(kind)) redirect(`/c/${code}`);
-  const r = await organiserAction(code, account.id, { kind, entryId: field(f, "entryId") || undefined, names: field(f, "names") });
+  const r = await organiserAction(code, account.id, { kind, entryId: field(f, "entryId") || undefined, names: field(f, "names"), contacts: field(f, "contacts").slice(0, 60_000) });
   if (!r.ok) redirect(`/c/${code}?${new URLSearchParams({ error: r.error })}`);
   if (kind === "delete") redirect("/?collection=deleted");
   redirect(`/c/${code}${kind === "add" ? "?added=1" : ""}`);

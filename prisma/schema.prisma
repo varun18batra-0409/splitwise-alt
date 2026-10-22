@@ -472,5 +472,6 @@ model CollectionEntry {
   paidAt       DateTime?
   confirmedAt  DateTime?
   createdAt    DateTime   @default(now())
+  phone        String     @default("") // from the organiser's contacts, for a WhatsApp reminder; only the organiser sees it
   @@index([collectionId])
 }

@@ -100,4 +100,17 @@ describe("Collect (real database)", () => {
     expect(await db.collection.count({ where: { code: made.code } })).toBe(0);
     expect(await db.collectionEntry.count({ where: { collection: { code: made.code } } })).toBe(0);
   });
+
+  it("numbers picked from contacts are kept for WhatsApp reminders (organiser only), also when adding later", async () => {
+    const asha = await organiser();
+    const made = await createCollection(asha, { ...form, names: "Ravi\nMeera", contacts: JSON.stringify([{ name: "Ravi", tel: "9876543210" }]) });
+    if (!made.ok) throw new Error(made.error);
+    let c = (await loadCollection(made.code))!;
+    expect(Object.fromEntries(c.entries.map((e) => [e.name, e.phone]))).toEqual({ Ravi: "+919876543210", Meera: "" });
+    // Adding: a new person with a number, and Meera's number filled in.
+    const r = await organiserAction(made.code, asha.id, { kind: "add", names: "Kabir\nMeera", contacts: JSON.stringify([{ name: "Kabir", tel: "+447700900123" }, { name: "Meera", tel: "98765 00000" }]) });
+    expect(r.ok).toBe(true);
+    c = (await loadCollection(made.code))!;
+    expect(Object.fromEntries(c.entries.map((e) => [e.name, e.phone]))).toEqual({ Ravi: "+919876543210", Meera: "+919876500000", Kabir: "+447700900123" });
+  });
 });
