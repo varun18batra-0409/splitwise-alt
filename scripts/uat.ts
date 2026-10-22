@@ -1993,7 +1993,7 @@ async function main() {
     await V.getByText("Varun is collecting").waitFor();
     await V.getByText("₹500 each").first().waitFor();
     const due = V.getByRole("region", { name: "Still to pay" });
-    for (const n of ["Zoya", "Kabir", "Asha"]) await due.getByText(n, { exact: true }).waitFor();
+    for (const n of ["Zoya", "Kabir", "Asha"]) await due.getByRole("listitem").filter({ hasText: n }).first().waitFor();
     await due.getByText("on Loopin").waitFor();
     const p = await V.locator("[data-collection-progress]").innerText();
     assert(/0 of 3 paid/.test(p) && /₹0/.test(p) && /₹1,500/.test(p), `progress reads “${p.replace(/\s+/g, " ")}”`);
@@ -2033,7 +2033,7 @@ async function main() {
     await alertSays(V, /Zoya says they paid ₹500/);
     await go(V, collectPath);
     const paid = V.getByRole("region", { name: "Paid" });
-    await paid.getByText("says paid").waitFor();
+    await paid.getByText("₹500 · says paid").waitFor();
     await paid.getByRole("button", { name: "Got it" }).click();
     await V.waitForLoadState("networkidle").catch(() => undefined);
     await paid.getByText(/checked by you/).waitFor();
