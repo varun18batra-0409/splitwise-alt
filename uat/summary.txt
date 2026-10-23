@@ -1,0 +1,3 @@
+157 passed, 2 failed
+✗ Flat — A ₹1,500 Groceries budget with ₹1,240 spent shows “₹260 left” (nearly there): locator.fill: Timeout 15000ms exceeded. Call log:   - waiting for getByLabel('Groceries budget') (screenshot: fail-01.png)
+✗ Flat — A ₹1,000 Groceries budget with ₹1,240 spent shows “₹240 over”: locator.fill: Timeout 15000ms exceeded. Call log:   - waiting for getByLabel('Groceries budget') (screenshot: fail-02.png)
