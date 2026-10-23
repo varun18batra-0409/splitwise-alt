@@ -89,6 +89,15 @@ describe("turning lines into expenses and payments", () => {
     expect(mapCategory("Dining out", "Dinner")).toBe("food");
     expect(mapCategory("Taxi", "x")).toBe("transport");
     expect(mapCategory("Groceries", "x")).toBe("groceries");
+    // Loopin's own spreadsheets: today's fun names and the earlier plain ones.
+    expect(mapCategory("Bites & Sips", "x")).toBe("food");
+    expect(mapCategory("Wheels & Wings", "x")).toBe("transport");
+    expect(mapCategory("Beds & Bunks", "x")).toBe("accommodation");
+    expect(mapCategory("Thrills & Tickets", "x")).toBe("activities");
+    expect(mapCategory("Bills & Bits", "x")).toBe("bills");
+    expect(mapCategory("Food & Drinks", "x")).toBe("food");
+    expect(mapCategory("Accommodation", "x")).toBe("accommodation");
+    expect(mapCategory("Odds & Ends", "Uber to airport")).toBe("transport"); // "other": guessed from the name
     expect(mapCategory("General", "Pizza dinner")).toBe("food");
   });
 });

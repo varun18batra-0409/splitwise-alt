@@ -9,6 +9,7 @@ import { InstallCapture } from "@/components/GetApp";
 import { AppRefresh } from "@/components/AppRefresh";
 import { NavProgress } from "@/components/NavProgress";
 import { Splash } from "@/components/Splash";
+import { MotionWatch } from "@/components/MotionWatch";
 import { SITE_DESCRIPTION, SITE_TITLE, SITE_URL } from "@/lib/site";
 
 // Fraunces: a sharp, high-contrast serif for headings and big amounts.
@@ -58,6 +59,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <InstallCapture />
         <AppRefresh />
         <NavProgress />
+        <MotionWatch />
       </body>
     </html>
   );

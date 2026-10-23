@@ -1,5 +1,5 @@
 // Expense categories. The app guesses one from the expense name
-// ("dinner" → Food & Drinks, "uber" → Transport) and the person can change it.
+// ("dinner" → Bites & Sips, "uber" → Wheels & Wings: cabs, trains, flights…) and the person can change it.
 // It also copes with typos ("dinnr", "petrl", "grocries") and suggests the
 // correct spelling. Runs inside the app — no paid AI service.
 // To teach it more, add words to the lists below.
@@ -8,7 +8,7 @@ export type Category = { id: string; label: string; short: string; emoji: string
 
 export const CATEGORIES: Category[] = [
   {
-    id: "food", label: "Food & Drinks", short: "Food", emoji: "🍽️",
+    id: "food", label: "Bites & Sips", short: "Bites & Sips", emoji: "🍽️",
     words: ["food", "dinner", "lunch", "breakfast", "brunch", "meal", "restaurant", "dhaba", "cafe", "coffee",
       "tea", "chai", "snack", "pizza", "burger", "biryani", "dosa", "idli", "momo", "thali", "paratha", "maggi",
       "noodle", "sandwich", "dessert", "cake", "pastry", "bakery", "sweet", "ice cream", "icecream", "swiggy",
@@ -19,7 +19,7 @@ export const CATEGORIES: Category[] = [
       "alcohol", "liquor", "daru", "booze", "bar", "pub", "brewery", "theka", "juice", "smoothie", "soda"],
   },
   {
-    id: "transport", label: "Transport", short: "Transport", emoji: "🚕",
+    id: "transport", label: "Wheels & Wings", short: "Wheels & Wings", emoji: "🚕",
     words: ["uber", "ola", "rapido", "grab", "bolt", "taxi", "cab", "auto", "rickshaw", "tuk tuk", "tuktuk",
       "metro", "bts", "mrt", "bus", "redbus", "train", "irctc", "petrol", "diesel", "fuel", "cng", "ev charging",
       "parking", "toll", "fastag", "ride", "scooty", "scooter", "bike rental", "car rental", "flight", "airline",
@@ -27,24 +27,24 @@ export const CATEGORIES: Category[] = [
       "travel"],
   },
   {
-    id: "accommodation", label: "Accommodation", short: "Stay", emoji: "🏨",
+    id: "accommodation", label: "Beds & Bunks", short: "Beds & Bunks", emoji: "🏨",
     words: ["hotel", "airbnb", "hostel", "zostel", "resort", "stay", "room", "oyo", "treebo", "fabhotels", "agoda",
       "booking.com", "goibibo", "homestay", "villa", "lodge", "guesthouse", "guest house", "accommodation", "booking"],
   },
   {
-    id: "shopping", label: "Shopping", short: "Shopping", emoji: "🛍️",
+    id: "shopping", label: "Bags & Bling", short: "Bags & Bling", emoji: "🛍️",
     words: ["shopping", "amazon", "flipkart", "myntra", "ajio", "meesho", "nykaa", "decathlon", "ikea", "croma",
       "clothes", "shirt", "tshirt", "jeans", "dress", "shoe", "gift", "souvenir", "mall", "market", "electronics",
       "sim card", "sim"],
   },
   {
-    id: "groceries", label: "Groceries", short: "Groceries", emoji: "🛒",
+    id: "groceries", label: "Pantry Run", short: "Pantry Run", emoji: "🛒",
     words: ["grocery", "groceries", "vegetable", "veggies", "sabzi", "fruit", "milk", "egg", "bread", "atta", "rice",
       "dal", "kirana", "supermarket", "blinkit", "zepto", "bigbasket", "big basket", "jiomart", "amazon fresh",
       "instamart", "dmart", "reliance fresh", "7-eleven", "7 eleven", "seven eleven"],
   },
   {
-    id: "activities", label: "Activities & Tickets", short: "Activities", emoji: "🎟️",
+    id: "activities", label: "Thrills & Tickets", short: "Thrills & Tickets", emoji: "🎟️",
     words: ["ticket", "entry", "entrance", "museum", "temple", "palace", "fort", "park", "zoo", "beach", "tour",
       "trip", "sightseeing", "boat", "cruise", "trek", "snorkel", "snorkeling", "diving", "scuba", "rafting",
       "paragliding", "go karting", "gokarting", "adventure", "spa", "massage", "show", "movie", "cinema", "film",
@@ -52,14 +52,14 @@ export const CATEGORIES: Category[] = [
       "cover charge", "activity", "excursion", "safari"],
   },
   {
-    id: "bills", label: "Bills & Utilities", short: "Bills", emoji: "💡",
+    id: "bills", label: "Bills & Bits", short: "Bills & Bits", emoji: "💡",
     words: ["rent", "room rent", "house rent", "flat rent", "electricity", "electric", "light bill", "water bill",
       "gas bill", "gas", "lpg", "cylinder", "wifi", "internet", "broadband", "recharge", "jio", "airtel", "dth",
       "phone bill", "mobile bill", "maintenance", "society", "maid", "cook", "laundry", "dry clean", "ironing",
       "subscription", "netflix", "prime", "spotify", "hotstar", "youtube premium", "emi", "insurance", "bill",
       "utilities", "visa"],
   },
-  { id: "other", label: "Other", short: "Other", emoji: "📦", words: [] },
+  { id: "other", label: "Odds & Ends", short: "Odds & Ends", emoji: "📦", words: [] },
 ];
 
 // Categories used before this list existed, mapped to their new home.
@@ -207,3 +207,16 @@ export function getCategory(id: string): Category {
 export function isCategory(id: string): boolean {
   return BY_ID.has(id);
 }
+
+// The names before 23 Oct 2026 (in spreadsheets people downloaded), so they still import to the right place.
+export const OLD_LABELS: Record<string, string> = {
+  "food & drinks": "food", food: "food", transport: "transport", accommodation: "accommodation", stay: "accommodation",
+  shopping: "shopping", groceries: "groceries", "activities & tickets": "activities", activities: "activities",
+  "bills & utilities": "bills", bills: "bills", other: "other",
+};
+
+// Plain words for each category, so searching "food" or "transport" still finds them under the fun names.
+export const PLAIN_WORDS: Record<string, string> = {
+  food: "food drinks", transport: "transport travel", accommodation: "accommodation stay hotel", shopping: "shopping",
+  groceries: "groceries", activities: "activities tickets", bills: "bills utilities", other: "other",
+};

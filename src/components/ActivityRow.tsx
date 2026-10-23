@@ -28,13 +28,15 @@ export function ActivityRow({
   currency,
   nameOf,
   groupName,
-  alive = false,
+  motion,
+  delay = 0,
 }: {
   item: ActivityItem;
   currency: string;
   nameOf: (id: string) => string; // returns "You" for me
   groupName?: string; // shown on the home screen, where groups are mixed
-  alive?: boolean; // Home: the icon moves a little (a flight flies)
+  motion?: "loop" | "once"; // the icon moves: now and then (Home), or once when seen (a group's list)
+  delay?: number; // seconds, so a list's icons take turns
 }) {
   const money = (m: number) => formatMoney(m, currency);
 
@@ -90,7 +92,7 @@ export function ActivityRow({
   const shown = (orig: number, base: number) => (o ? formatMoney(orig, o.currency) : money(base));
   return (
     <div className={`flex items-center gap-3.5 py-3.5 ${deleted ? "opacity-60" : ""}`}>
-      <ExpenseGlyph title={item.title} category={item.category} alive={alive && !deleted} label={cat.label} />
+      <ExpenseGlyph title={item.title} category={item.category} motion={deleted ? undefined : motion} delay={delay} label={cat.label} />
       <div className="min-w-0 flex-1">
         <p className="flex min-w-0 items-center gap-1.5" title={cat.label}>
           <span className={`truncate text-[15px] font-semibold tracking-tight ${deleted ? "line-through decoration-gray-400" : ""}`}>{item.title}</span>

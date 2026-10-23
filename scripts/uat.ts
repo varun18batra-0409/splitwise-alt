@@ -1245,9 +1245,9 @@ async function main() {
     const shots = await V.evaluate(() => [...document.querySelectorAll('main img[src*="/guide/"]')].map((i) => (i as HTMLImageElement).naturalWidth));
     assert(shots.length === 3 && shots.every((w) => w > 0), `guide screens: ${JSON.stringify(shots)}`);
   });
-  await step(V, "Tags", "Each expense shows its category: the icon's colour and shape, and the name for screen readers (Dinner → Food, Taxi → Transport)", async () => {
+  await step(V, "Tags", "Each expense shows its category: the icon's colour and shape, and the name for screen readers (Dinner → Bites & Sips, Taxi → Wheels & Wings)", async () => {
     await go(V, `${g}?tab=activity`);
-    for (const [title, cat, label] of [["Dinner", "food", "Food"], ["Taxi", "transport", "Transport"]] as const) {
+    for (const [title, cat, label] of [["Dinner", "food", "Bites & Sips"], ["Taxi", "transport", "Wheels & Wings"]] as const) {
       const row = V.locator("details summary").filter({ hasText: title }).first();
       assert((await row.locator("[data-category]").first().getAttribute("data-category")) === cat, `${title}: icon isn't ${cat}`);
       assert(new RegExp(label).test((await row.locator("[data-category]").first().getAttribute("aria-label")) ?? ""), `${title}: no “${label}” for screen readers`);

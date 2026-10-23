@@ -445,3 +445,106 @@ html.lp-opened .lp-open {
   .lp-fly, .lp-streak { animation: none; }
   .lp-streak { opacity: 0; }
 }
+
+/* ===== Moving expense icons =====
+   Each icon moves its own way for about a second, then rests: on Home now and
+   then (the icons take turns, set by --lp-d), in a group once when it scrolls
+   into view (MotionWatch adds .lp-go). Every motion starts and ends at rest. */
+.lp-mo {
+  animation-duration: 5s;
+  animation-timing-function: ease-in-out;
+  animation-fill-mode: both;
+  animation-delay: var(--lp-d, 0s);
+  animation-play-state: paused;
+}
+.lp-mo-loop .lp-mo { animation-iteration-count: infinite; animation-play-state: running; }
+.lp-mo-once .lp-mo { animation-iteration-count: 1; animation-delay: 0s; }
+.lp-mo-once.lp-go .lp-mo { animation-play-state: running; }
+.lp-mo-part { transform-box: fill-box; }
+
+.lp-m-plane { animation-name: lp-k-plane; }
+.lp-m-train { animation-name: lp-k-train; }
+.lp-m-bus { animation-name: lp-k-bus; }
+.lp-m-car { animation-name: lp-k-car; }
+.lp-m-scooter { animation-name: lp-k-scooter; transform-origin: 20% 85%; }
+.lp-m-boat { animation-name: lp-k-boat; transform-origin: 50% 80%; }
+.lp-m-parking { animation-name: lp-k-blink; }
+.lp-m-food { animation-name: lp-k-clink; transform-origin: 50% 60%; }
+.lp-m-drink { animation-name: lp-k-cheers; transform-origin: 50% 100%; }
+.lp-m-dessert { animation-name: lp-k-wobble; transform-origin: 50% 100%; }
+.lp-m-delivery { animation-name: lp-k-hop; }
+.lp-m-palm { animation-name: lp-k-sway; transform-origin: 50% 100%; }
+.lp-m-bag { animation-name: lp-k-swing; transform-origin: 50% 0%; }
+.lp-m-shirt { animation-name: lp-k-sway; transform-origin: 50% 0%; }
+.lp-m-phone { animation-name: lp-k-buzz; }
+.lp-m-cart { animation-name: lp-k-roll; }
+.lp-m-leaf { animation-name: lp-k-flutter; transform-origin: 20% 90%; }
+.lp-m-ticket { animation-name: lp-k-wiggle; }
+.lp-m-mic { animation-name: lp-k-pulse; }
+.lp-m-landmark { animation-name: lp-k-rise; transform-origin: 50% 100%; }
+.lp-m-spa { animation-name: lp-k-twinkle; }
+.lp-m-wave { animation-name: lp-k-waves; }
+.lp-m-bolt { animation-name: lp-k-flash; }
+.lp-m-drop { animation-name: lp-k-drip; transform-origin: 50% 0%; }
+.lp-m-tv { animation-name: lp-k-flicker; }
+.lp-m-flame { animation-name: lp-k-flame; transform-origin: 50% 100%; }
+.lp-m-broom { animation-name: lp-k-sweep; transform-origin: 80% 10%; }
+.lp-m-receipt { animation-name: lp-k-print; }
+.lp-p-steam { animation-name: lp-k-steam; }
+.lp-p-dash { animation-name: lp-k-dash; }
+.lp-p-lid { animation-name: lp-k-lid; transform-origin: 0% 100%; }
+.lp-p-clap { animation-name: lp-k-clap; transform-origin: 0% 100%; }
+.lp-p-w1 { animation-name: lp-k-w1; }
+.lp-p-w2 { animation-name: lp-k-w2; }
+.lp-p-w3 { animation-name: lp-k-w3; }
+.lp-p-z { animation-name: lp-k-z; opacity: 0; }
+.lp-p-drip { animation-name: lp-k-fueldrip; opacity: 0; }
+.lp-p-light { animation-name: lp-k-light; opacity: 0; }
+.lp-p-flag { animation-name: lp-k-flag; transform-origin: 0% 50%; }
+
+/* Off the top-right and back in from the bottom-left. */
+@keyframes lp-k-plane { 0%, 16%, 100% { transform: translate(0, 0); opacity: 1; } 6% { transform: translate(16px, -16px); opacity: 0; } 6.1% { transform: translate(-16px, 16px); opacity: 0; } }
+/* Along the track, with a little rumble. */
+@keyframes lp-k-train { 0%, 20%, 100% { transform: translate(0, 0); } 5% { transform: translate(3px, 0); } 8% { transform: translate(3px, -0.6px); } 11% { transform: translate(3.4px, 0.4px); } 14% { transform: translate(2.6px, -0.4px); } }
+@keyframes lp-k-bus { 0%, 10%, 18%, 100% { transform: translateY(0); } 5% { transform: translateY(-2.5px); } 14% { transform: translateY(-1px); } }
+/* Drives off to the right and rolls back in from the left. */
+@keyframes lp-k-car { 0%, 16%, 100% { transform: translateX(0); opacity: 1; } 5% { transform: translateX(12px); opacity: 0; } 5.1% { transform: translateX(-12px); opacity: 0; } 12% { transform: translateX(1px); opacity: 1; } }
+@keyframes lp-k-scooter { 0%, 20%, 100% { transform: rotate(0); } 6%, 12% { transform: rotate(-14deg); } 16% { transform: rotate(2deg); } }
+@keyframes lp-k-boat { 0%, 20%, 100% { transform: rotate(0) translateY(0); } 5% { transform: rotate(-7deg) translateY(-1px); } 10% { transform: rotate(6deg) translateY(0.5px); } 15% { transform: rotate(-3deg); } }
+@keyframes lp-k-blink { 0%, 8%, 16%, 100% { opacity: 1; } 4%, 12% { opacity: 0.25; } }
+@keyframes lp-k-clink { 0%, 20%, 100% { transform: rotate(0); } 5% { transform: rotate(-12deg); } 10% { transform: rotate(10deg); } 14% { transform: rotate(-5deg); } }
+@keyframes lp-k-cheers { 0%, 20%, 100% { transform: rotate(0); } 6%, 12% { transform: rotate(-16deg); } 9% { transform: rotate(-10deg); } }
+@keyframes lp-k-wobble { 0%, 20%, 100% { transform: skewX(0); } 5% { transform: skewX(-8deg); } 10% { transform: skewX(6deg); } 15% { transform: skewX(-3deg); } }
+@keyframes lp-k-hop { 0%, 12%, 20%, 100% { transform: translateY(0); } 6% { transform: translateY(-3.5px); } 16% { transform: translateY(-1px); } }
+@keyframes lp-k-sway { 0%, 20%, 100% { transform: rotate(0); } 5% { transform: rotate(-7deg); } 10% { transform: rotate(6deg); } 15% { transform: rotate(-3deg); } }
+@keyframes lp-k-swing { 0%, 20%, 100% { transform: rotate(0); } 5% { transform: rotate(12deg); } 10% { transform: rotate(-9deg); } 15% { transform: rotate(4deg); } }
+@keyframes lp-k-buzz { 0%, 16%, 100% { transform: translateX(0) rotate(0); } 2%, 6%, 10%, 14% { transform: translateX(-1.2px) rotate(-3deg); } 4%, 8%, 12% { transform: translateX(1.2px) rotate(3deg); } }
+@keyframes lp-k-roll { 0%, 20%, 100% { transform: translateX(0); } 8%, 12% { transform: translateX(3px); } 10% { transform: translateX(3px) rotate(-3deg); } }
+@keyframes lp-k-flutter { 0%, 20%, 100% { transform: rotate(0); } 5% { transform: rotate(-14deg); } 10% { transform: rotate(10deg); } 15% { transform: rotate(-6deg); } }
+@keyframes lp-k-wiggle { 0%, 14%, 100% { transform: rotate(0); } 3% { transform: rotate(-9deg); } 6% { transform: rotate(8deg); } 9% { transform: rotate(-6deg); } 12% { transform: rotate(4deg); } }
+@keyframes lp-k-pulse { 0%, 20%, 100% { transform: scale(1); } 5% { transform: scale(1.15); } 10% { transform: scale(1); } 15% { transform: scale(1.1); } }
+@keyframes lp-k-rise { 0%, 16%, 100% { transform: translateY(0) scaleY(1); } 5% { transform: translateY(2.5px) scaleY(0.88); } 11% { transform: translateY(-1px) scaleY(1.04); } }
+@keyframes lp-k-twinkle { 0%, 20%, 100% { transform: scale(1) rotate(0); } 8% { transform: scale(1.25) rotate(20deg); } 14% { transform: scale(0.95) rotate(-5deg); } }
+@keyframes lp-k-waves { 0%, 20%, 100% { transform: translateX(0); } 6% { transform: translateX(-2.5px); } 13% { transform: translateX(2px); } }
+@keyframes lp-k-flash { 0%, 8%, 16%, 100% { opacity: 1; transform: scale(1); } 4%, 12% { opacity: 0.2; transform: scale(1.1); } }
+@keyframes lp-k-drip { 0%, 20%, 100% { transform: translateY(0) scaleY(1); } 8% { transform: translateY(2.5px) scaleY(1.12); } 14% { transform: translateY(-0.5px) scaleY(0.95); } }
+@keyframes lp-k-flicker { 0%, 14%, 100% { opacity: 1; } 3% { opacity: 0.4; } 6% { opacity: 1; } 9% { opacity: 0.6; } }
+@keyframes lp-k-flame { 0%, 20%, 100% { transform: scaleY(1); } 4% { transform: scaleY(1.15) scaleX(0.95); } 9% { transform: scaleY(0.92); } 14% { transform: scaleY(1.1); } }
+@keyframes lp-k-sweep { 0%, 20%, 100% { transform: rotate(0); } 5% { transform: rotate(-14deg); } 10% { transform: rotate(12deg); } 15% { transform: rotate(-6deg); } }
+/* Up out of the printer and printed back down. */
+@keyframes lp-k-print { 0%, 18%, 100% { transform: translateY(0); } 3% { transform: translateY(-22px); } 3.1% { transform: translateY(-22px); } 14% { transform: translateY(1px); } }
+@keyframes lp-k-steam { 0%, 20%, 100% { transform: translateY(0); opacity: 1; } 9% { transform: translateY(-2.5px); opacity: 0; } 9.1% { transform: translateY(1.5px); opacity: 0; } }
+@keyframes lp-k-dash { 0%, 20%, 100% { transform: translateY(0); opacity: 1; } 9% { transform: translateY(3.5px); opacity: 0.3; } 9.1% { transform: translateY(-3.5px); opacity: 0.3; } }
+@keyframes lp-k-lid { 0%, 20%, 100% { transform: translateY(0) rotate(0); } 6%, 11% { transform: translateY(-3.5px) rotate(-10deg); } 16% { transform: translateY(-0.8px) rotate(0); } }
+@keyframes lp-k-clap { 0%, 20%, 100% { transform: rotate(0); } 5%, 9% { transform: rotate(-18deg); } 11% { transform: rotate(1deg); } }
+@keyframes lp-k-w1 { 0%, 8%, 100% { opacity: 1; } 2%, 5% { opacity: 0.15; } }
+@keyframes lp-k-w2 { 0%, 12%, 100% { opacity: 1; } 2%, 9% { opacity: 0.15; } }
+@keyframes lp-k-w3 { 0%, 16%, 100% { opacity: 1; } 2%, 13% { opacity: 0.15; } }
+@keyframes lp-k-z { 0%, 20%, 100% { transform: translate(0, 0) scale(0.6); opacity: 0; } 5% { opacity: 1; } 18% { transform: translate(2px, -3px) scale(1); opacity: 0; } }
+@keyframes lp-k-fueldrip { 0%, 18%, 100% { transform: translateY(-2px); opacity: 0; } 4% { opacity: 1; } 15% { transform: translateY(3px); opacity: 0; } }
+@keyframes lp-k-light { 0%, 20%, 100% { opacity: 0; } 4%, 16% { opacity: 0.55; } }
+@keyframes lp-k-flag { 0%, 20%, 100% { transform: scaleX(1); } 5% { transform: scaleX(0.6); } 10% { transform: scaleX(1); } 15% { transform: scaleX(0.7); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-mo { animation: none !important; }
+}

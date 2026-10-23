@@ -251,6 +251,10 @@ if (!hosted) {
   }
   await shot("72-home-collecting", "/");
   await shot("76-home-countdown", "/", undefined, false);
+  await shot("91-home-share-sheet", "/", async (p) => {
+    await p.getByRole("region", { name: "Trip countdown", exact: true }).first().getByRole("button", { name: "Share" }).click();
+    await p.getByRole("dialog", { name: "Share the countdown" }).waitFor();
+  }, false);
   // A second trip further out: Home turns the countdown into a row to swipe.
   await db.group.create({
     data: {

@@ -68,8 +68,8 @@ describe("formatMoney", () => {
 describe("categories", () => {
   it("has the 8 requested categories with icons", () => {
     expect(CATEGORIES.map((c) => c.label)).toEqual([
-      "Food & Drinks", "Transport", "Accommodation", "Shopping", "Groceries",
-      "Activities & Tickets", "Bills & Utilities", "Other",
+      "Bites & Sips", "Wheels & Wings", "Beds & Bunks", "Bags & Bling", "Pantry Run",
+      "Thrills & Tickets", "Bills & Bits", "Odds & Ends",
     ]);
     for (const c of CATEGORIES) expect(c.emoji.length).toBeGreaterThan(0);
   });

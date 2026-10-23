@@ -63,7 +63,7 @@ describe("trip report", () => {
   it("gives up to three insight lines, and none for a tiny group", () => {
     const lines = insightLines(r, "v");
     expect(lines).toHaveLength(3);
-    expect(lines[0]).toMatch(/Accommodation is 65% of all spending/i);
+    expect(lines[0]).toMatch(/Beds & Bunks is 65% of all spending/i);
     expect(lines[1]).toMatch(/a day over 4 days; the biggest day was 10 Oct/);
     expect(lines[2]).toBe("Asha has paid the most: 65% of everything.");
     expect(insightLines(r, "a")[2]).toBe("You’ve paid 65% of everything so far.");

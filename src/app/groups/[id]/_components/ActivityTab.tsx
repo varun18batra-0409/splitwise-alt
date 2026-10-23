@@ -183,7 +183,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId }: { v: Group
                 const details = parseDetails(item.details);
                 return (
                   <li key={item.id}>
-                    <ActivityRow item={item} currency={group.currency} nameOf={nameOf} />
+                    <ActivityRow item={item} currency={group.currency} nameOf={nameOf} motion="once" />
                     {details.length > 0 && (
                       <ul className="-mt-1 mb-2 ml-[3.25rem] space-y-0.5 text-xs text-gray-400">
                         {details.map((d) => (
@@ -204,7 +204,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId }: { v: Group
                   <li key={item.id} id={`item-${item.id}`} className="scroll-mt-20">
                     <details open={openId === item.id}>
                       <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-                        <ActivityRow item={item} currency={group.currency} nameOf={nameOf} />
+                        <ActivityRow item={item} currency={group.currency} nameOf={nameOf} motion="once" />
                       </summary>
                       <div className="mb-3 ml-[3.25rem] space-y-2 rounded-xl bg-mist p-3 text-sm text-gray-600">
                         <History v={v} events={historyOf("paymentId", item.id)} fallback={`Recorded ${when(item.date)}`} />
@@ -244,7 +244,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId }: { v: Group
                 <li key={item.id} id={`item-${item.id}`} className="scroll-mt-20">
                   <details open={openId === item.id}>
                     <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-                      <ActivityRow item={item} currency={group.currency} nameOf={nameOf} />
+                      <ActivityRow item={item} currency={group.currency} nameOf={nameOf} motion="once" />
                     </summary>
                     <div className="mb-3 ml-[3.25rem] space-y-1.5 rounded-xl bg-mist p-3 text-sm text-gray-600">
                       <Line label="Date" value={niceDate(dayKey(expenseDate(e), tz))} />
