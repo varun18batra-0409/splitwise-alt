@@ -42,6 +42,8 @@ model Group {
   coverAt      DateTime? // when the group's own photo was last uploaded (its version); empty = no own photo
   tripStart    String    @default("") // trip groups: first day "YYYY-MM-DD" (the countdown); "" = not set
   tripEnd      String    @default("") // trip groups: last day; "" = same as the start
+  tripPlace    String    @default("") // trip groups: where to ("Goa", "Bangkok, Phuket"); "" = guessed from the name
+  tripCountry  String    @default("") // trip groups: the country (ISO code, "IN"); "" = guessed
 
   bills      Bill[]
   listItems  ListItem[]
@@ -218,6 +220,10 @@ model Account {
   // How friends pay you back: shown on Settle up to people in your groups who owe you.
   upiId     String   @default("") // e.g. asha@okicici (opens GPay / PhonePe with the amount filled in)
   payLink   String   @default("") // PayPal.me, Venmo, Cash App, Revolut or Monzo link
+  // Trip passport: home country (ISO code; "" = from where you use Loopin) and
+  // places you've been before Loopin, added by hand: JSON [{ c: "TH", city: "Phuket" }].
+  homeCountry String @default("")
+  places      String @default("[]")
 }
 
 // Notifications for a person rather than a group (Collect: "Asha added you",
@@ -533,4 +539,15 @@ model PotMove {
   createdAt   DateTime  @default(now())
   deletedAt   DateTime?
   @@index([gameId])
+}
+
+// Reactions on an expense (😂 🔥 😭 🙄 …): one per person per expense.
+model Reaction {
+  id        String   @id @default(cuid())
+  expenseId String
+  memberId  String
+  emoji     String
+  createdAt DateTime @default(now())
+  @@unique([expenseId, memberId])
+  @@index([expenseId])
 }

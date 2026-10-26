@@ -18,7 +18,9 @@ export async function eraseExpiredGroups(now = new Date(), limit = 100): Promise
 // database to cascade). Only ever called for groups already chosen above.
 export async function eraseGroups(ids: string[]) {
   const inG = { groupId: { in: ids } };
+  const memberIds = (await db.member.findMany({ where: inG, select: { id: true } })).map((m) => m.id);
   await db.$transaction([
+    db.reaction.deleteMany({ where: { memberId: { in: memberIds } } }),
     db.expenseShare.deleteMany({ where: { expense: inG } }),
     db.expense.deleteMany({ where: inG }),
     db.payment.deleteMany({ where: inG }),

@@ -20,6 +20,7 @@ import { settleAllAndClose } from "@/lib/settle-all";
 import { vapidKeys } from "@/lib/push";
 import { changeGroupCurrency, updateGroupBasics } from "@/lib/group-changes";
 import { logEvent } from "@/lib/events";
+import { countryOf } from "@/lib/geo";
 import { needsOkFor } from "@/lib/payment-ok";
 import { claimKey, cleanKey, isDuplicateKey, previousResult } from "@/lib/once";
 import { safePath } from "@/lib/paths";
@@ -341,6 +342,13 @@ export async function updateGroupSettings(formData: FormData) {
   if (group.type === "trip" && formData.has("tripStart")) {
     const trip = await setTripDates(group.id, myId, String(formData.get("tripStart") ?? ""), String(formData.get("tripEnd") ?? ""), dayKey(new Date(), await getTimeZone()));
     if (!trip.ok) redirect(`${back}?${new URLSearchParams({ error: trip.error })}`);
+  }
+  // Where the trip went (for the trip passport): as typed, and a country from the list.
+  if (group.type === "trip" && formData.has("tripPlace")) {
+    const tripPlace = String(formData.get("tripPlace") ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
+    const tc = String(formData.get("tripCountry") ?? "").toUpperCase();
+    const tripCountry = countryOf(tc) ? tc : "";
+    if (tripPlace !== group.tripPlace || tripCountry !== group.tripCountry) await db.group.update({ where: { id: group.id }, data: { tripPlace, tripCountry } });
   }
   // The picture is just for looks: saved as it is, no history entry.
   if (formData.has("cover")) {
