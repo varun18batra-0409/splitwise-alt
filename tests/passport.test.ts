@@ -4,6 +4,7 @@ import { buildPassport, parseHandPlaces } from "@/lib/passport";
 import { buildStories } from "@/lib/home/stories";
 import { squareNumbers } from "@/lib/square";
 import { funTitles, wrapSlides } from "@/lib/wrapped";
+import { reactionSummary } from "@/lib/reactions";
 
 describe("Trip passport: where a trip went", () => {
   it("from the trip's name, or what was typed in Where to?", () => {
@@ -98,5 +99,15 @@ describe("Trip Wrapped and fun titles", () => {
     expect(slides[3].headline).toBe("Saturday 10 Oct was the big one");
     expect(slides[4]).toMatchObject({ headline: "The splurge: Villa", line: "₹18,000, paid by You" });
     expect(slides[6].headline).toBe("All square 🎉");
+  });
+});
+
+describe("Reactions", () => {
+  it("counts in a fixed order, and which one is mine", () => {
+    expect(reactionSummary([{ emoji: "🔥", memberId: "a" }, { emoji: "😂", memberId: "b" }, { emoji: "🔥", memberId: "c" }], "c")).toEqual({
+      counts: [{ emoji: "😂", count: 1 }, { emoji: "🔥", count: 2 }],
+      mine: "🔥",
+    });
+    expect(reactionSummary([], "a")).toEqual({ counts: [], mine: "" });
   });
 });

@@ -128,6 +128,8 @@ export default async function GroupPage({
     pot && tab === "games" ? loadGames(group.id) : Promise.resolve([] as Awaited<ReturnType<typeof loadGames>>),
   ]);
   const toSettle = games.length ? await gamesToSettle(group.id, games) : {};
+  // Reactions on expenses, for the Activity list.
+  const reactions = tab === "activity" && group.expenses.length ? await db.reaction.findMany({ where: { expenseId: { in: group.expenses.map((e) => e.id) } }, select: { expenseId: true, memberId: true, emoji: true } }) : [];
   const today = dayKey(new Date(), v.tz);
   const comingUp = bills
     .filter((b) => b.status === "waiting" || b.status === "upcoming")
@@ -196,6 +198,7 @@ export default async function GroupPage({
           }}
           shown={Number(sp.n) || undefined}
           openId={sp.open?.slice(0, 40)}
+          reactions={reactions}
         />
       )}
       {home && (tab === "balances" || tab === "charts") && (
