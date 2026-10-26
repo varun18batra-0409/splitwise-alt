@@ -147,7 +147,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
             players={players.map((p) => ({ id: p, name: nameOf(p) }))}
             me={myId}
             who={sp.who}
-            kind={sp.kind === "return" ? "return" : "take"}
+            kind={(sp.kind ?? sp.saved) === "return" ? "return" : "take"}
             quick={quick}
             currency={group.currency}
           />

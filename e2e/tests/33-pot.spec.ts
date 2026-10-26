@@ -32,7 +32,7 @@ test("a Teen Patti game from first take to settled", async ({ browser }) => {
 
   const record = async (page: Page, who: string, kind: "take" | "return", amount: string) => {
     const form = page.getByRole("form", { name: "Record money" });
-    await form.getByRole("radio", { name: kind === "take" ? "Take from the pot" : "Put back" }).click();
+    await form.getByRole("radio", { name: kind === "take" ? "Take from the pot" : "Put back" }).check({ force: true });
     await form.locator('select[name="memberId"]').selectOption({ label: who });
     await form.getByLabel("Amount", { exact: true }).fill(amount);
     await form.getByRole("button", { name: kind === "take" ? "Take from the pot" : "Put back" }).last().click();
