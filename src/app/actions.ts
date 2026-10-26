@@ -502,6 +502,8 @@ export async function recordCustomPayment(formData: FormData) {
   const toId = String(formData.get("toId") ?? "");
   const amountText = String(formData.get("amount") ?? "");
   const fromSettle = formData.get("back") === "settle";
+  // From a finished card game's "Who pays whom": stay on the game.
+  const potGame = /^pot:[A-Za-z0-9_-]{6,40}$/.test(String(formData.get("back") ?? "")) ? String(formData.get("back")).slice(4) : "";
 
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true, name: true, accountId: true, claimedAt: true } } } });
   if (!group || group.deletedAt) redirect("/");
@@ -511,7 +513,9 @@ export async function recordCustomPayment(formData: FormData) {
 
   const back = (error: string) =>
     redirect(
-      fromSettle
+      potGame
+        ? `/groups/${group.id}/pot/${potGame}?${new URLSearchParams({ error })}`
+        : fromSettle
         ? `/groups/${group.id}/settle?${new URLSearchParams({ error })}`
         : `/groups/${group.id}/pay?${new URLSearchParams({ from: fromId, to: toId, amount: amountText, error })}`,
     );
@@ -520,7 +524,7 @@ export async function recordCustomPayment(formData: FormData) {
   if (fromId === toId) back("Pick two different people.");
   const amount = parseAmount(amountText, group.currency);
   if (amount === null || amount <= 0) back("Enter a valid amount, like 500 or 99.50.");
-  const done = fromSettle ? `/groups/${group.id}/settle?paid=1` : `/groups/${group.id}?tab=balances&paid=1`;
+  const done = potGame ? `/groups/${group.id}/pot/${potGame}?paid=1` : fromSettle ? `/groups/${group.id}/settle?paid=1` : `/groups/${group.id}?tab=balances&paid=1`;
   const key = cleanKey(formData.get("rid"));
   if ((await previousResult(key)) !== null || (await isDoubleTap(group.id, fromId, toId, amount!, myId))) redirect(done);
 

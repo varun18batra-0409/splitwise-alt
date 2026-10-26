@@ -7,11 +7,14 @@ import { Notice } from "@/components/Notice";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { PotBuyIn } from "@/components/PotBuyIn";
 import { PotCount } from "@/components/PotCount";
+import { PotName } from "@/components/PotName";
 import { addPlayerAction, adjustAction, cashOutAction, deleteGameAction, finishGameAction, removeMoveAction, reopenGameAction } from "@/app/pot-actions";
 import { inPlay, loadGame } from "@/lib/pot-db";
 import { parsePlayers, potGameLabel, potSummary, potTransfers } from "@/lib/pot";
 import { netBalances } from "@/lib/balances";
-import { decimalsOf, formatMoney } from "@/lib/money";
+import { decimalsOf, formatMoney, toInputAmount } from "@/lib/money";
+import { recordCustomPayment } from "@/app/actions";
+import { newRequestKey } from "@/lib/once";
 import { getTimeZone } from "@/lib/tz";
 
 // One game of The Pot: money taken and put back, live; then who won, who
@@ -20,7 +23,7 @@ import { getTimeZone } from "@/lib/tz";
 const CASHED = "cashed out";
 const COUNTED = "counted at the end";
 
-type SP = { error?: string; bought?: string; cashed?: string; seat?: string; counted?: string; gap?: string; joined?: string; started?: string; saved?: string; who?: string; kind?: string; removed?: string; adjusted?: string; finished?: string; reopened?: string };
+type SP = { paid?: string; renamed?: string; error?: string; bought?: string; cashed?: string; seat?: string; counted?: string; gap?: string; joined?: string; started?: string; saved?: string; who?: string; kind?: string; removed?: string; adjusted?: string; finished?: string; reopened?: string };
 
 export default async function GamePage({ params, searchParams }: { params: Promise<{ id: string; gameId: string }>; searchParams: Promise<SP> }) {
   const { id, gameId } = await params;
@@ -55,6 +58,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
   // Once finished: what's still owed in the whole group (all games), and who has paid up since.
   let stillOwed = 0;
   let groupNet: Record<string, number> = {};
+  const paidSince = new Map<string, number>(); // from|to → paid after the game finished
   if (!open) {
     const [expenses, payments] = await Promise.all([
       db.expense.findMany({ where: { groupId: group.id, deletedAt: null }, include: { shares: true } }),
@@ -62,6 +66,8 @@ export default async function GamePage({ params, searchParams }: { params: Promi
     ]);
     groupNet = netBalances(group.members.map((m) => m.id), expenses, payments);
     stillOwed = Object.values(groupNet).reduce((s, v) => s + (v > 0 ? v : 0), 0);
+    const since = game.finishedAt ?? game.createdAt;
+    for (const p of payments) if (p.createdAt >= since) paidSince.set(`${p.fromId}|${p.toId}`, (paidSince.get(`${p.fromId}|${p.toId}`) ?? 0) + p.amount);
   }
 
   const form = (action: (f: FormData) => Promise<void>, label: string, cls: string, confirm?: string, extra?: React.ReactNode) => (
@@ -88,14 +94,31 @@ export default async function GamePage({ params, searchParams }: { params: Promi
           ) : (
             <ul className="space-y-2">
               {transfers.map((t) => {
-                const done = (groupNet[t.from] ?? 0) >= 0;
+                // Paid since the game finished (this pair), or square in the group anyway.
+                const left = Math.max(0, t.amount - (paidSince.get(`${t.from}|${t.to}`) ?? 0));
+                const done = left === 0 || (groupNet[t.from] ?? 0) >= 0;
                 return (
                   <li key={`${t.from}-${t.to}`} className="flex items-center gap-3 rounded-2xl border border-line px-4 py-3" data-transfer={done ? "paid" : "pending"}>
                     <span className="min-w-0 flex-1 text-sm">
                       <strong className="font-semibold">{you(t.from)}</strong> {t.from === myId ? "pay" : "pays"} <strong className="font-semibold">{youLow(t.to)}</strong>
                     </span>
                     <span className="font-semibold tabular-nums">{money(t.amount)}</span>
-                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${done ? "bg-owed/[0.14] text-owed" : "bg-fg/[0.08] text-fg/60"}`}>{done ? "paid ✓" : "pending"}</span>
+                    {done || group.closed ? (
+                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${done ? "bg-owed/[0.14] text-owed" : "bg-fg/[0.08] text-fg/60"}`}>{done ? "paid ✓" : "pending"}</span>
+                    ) : (
+                      // Paid? Mark it right here: you stay on the game.
+                      <form action={recordCustomPayment} className="shrink-0">
+                        <input type="hidden" name="groupId" value={group.id} />
+                        <input type="hidden" name="fromId" value={t.from} />
+                        <input type="hidden" name="toId" value={t.to} />
+                        <input type="hidden" name="amount" value={toInputAmount(left, group.currency)} />
+                        <input type="hidden" name="back" value={`pot:${game.id}`} />
+                        <input type="hidden" name="rid" value={newRequestKey()} />
+                        <button type="submit" className="rounded-full bg-fg px-3 py-1 text-xs font-semibold text-canvas" aria-label={`Mark paid: ${you(t.from)} ${t.from === myId ? "pay" : "pays"} ${youLow(t.to)}`}>
+                          Mark paid
+                        </button>
+                      </form>
+                    )}
                   </li>
                 );
               })}
@@ -141,6 +164,12 @@ export default async function GamePage({ params, searchParams }: { params: Promi
           {sp.gap ? "Count saved, but it doesn’t add up yet. See below." : "Count saved."}
         </Notice>
       )}
+      {sp.paid && (
+        <Notice tone="success" params={["paid", "did"]} className="mb-4">
+          Marked paid ✓ It’s in the group’s balances. If the person paid is on Loopin, they’re asked to confirm.
+        </Notice>
+      )}
+      {sp.renamed && <Notice params={["renamed"]} className="mb-4">Name fixed everywhere in the group.</Notice>}
       {sp.removed && <Notice params={["removed"]} className="mb-4">Taken off the list.</Notice>}
       {sp.joined && <Notice tone="success" params={["joined"]} className="mb-4">Added to the table.</Notice>}
       {sp.adjusted && <Notice params={["adjusted"]} className="mb-4">Difference fixed. It now adds up.</Notice>}
@@ -224,7 +253,16 @@ export default async function GamePage({ params, searchParams }: { params: Promi
                     {nameOf(l.memberId).charAt(0).toUpperCase()}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">{you(l.memberId)}</span>
+                    <PotName
+                      gameId={game.id}
+                      memberId={l.memberId}
+                      name={nameOf(l.memberId)}
+                      shown={you(l.memberId)}
+                      editable={(() => {
+                        const m = group.members.find((x) => x.id === l.memberId);
+                        return Boolean(m && !m.leftAt && (m.id === myId || (!m.accountId && !m.claimedAt)));
+                      })()}
+                    />
                     <span className="block text-xs text-gray-500 tabular-nums">
                       {l.taken === 0
                         ? "not in yet"

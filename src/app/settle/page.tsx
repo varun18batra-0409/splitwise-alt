@@ -57,8 +57,14 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
                     <li>In {it.parts[0].groupName}</li>
                   ) : (
                     it.parts.map((p) => (
-                      <li key={`${p.groupId}-${p.fromId}-${p.toId}`}>
-                        {p.groupName}: {p.iPay ? `you pay ${formatMoney(p.amount, p.currency)}` : `${it.name} pays you ${formatMoney(p.amount, p.currency)}`}
+                      <li key={`${p.groupId}-${p.fromId}-${p.toId}`} className="flex flex-wrap items-baseline justify-between gap-x-3">
+                        <span>
+                          {p.groupName}: {p.iPay ? `you pay ${formatMoney(p.amount, p.currency)}` : `${it.name} pays you ${formatMoney(p.amount, p.currency)}`}
+                        </span>
+                        {/* Just this group for now (the trip today, the flat at month-end). */}
+                        <Link href={`/groups/${p.groupId}/settle`} className="shrink-0 font-medium text-fg underline underline-offset-2">
+                          Settle only here →
+                        </Link>
                       </li>
                     ))
                   )}
