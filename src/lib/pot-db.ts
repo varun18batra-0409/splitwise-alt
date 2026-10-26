@@ -3,6 +3,7 @@ import { logEvent } from "./events";
 import { formatMoney, parseAmount } from "./money";
 import { payersJson } from "./payers";
 import { isPotGame, parsePlayers, potGameLabel, potResult, potSummary, spreadGap } from "./pot";
+import { cleanNames, sameName } from "./names";
 
 // "The Pot": saving and checking. Anyone in the group can record money taken
 // or put back (every line says who recorded it); the person who started the
@@ -16,7 +17,7 @@ const cleanNote = (s: string) => String(s ?? "").trim().replace(/\s+/g, " ").sli
 async function groupFor(groupId: string, actorId: string) {
   const g = await db.group.findUnique({
     where: { id: groupId },
-    select: { id: true, type: true, currency: true, closed: true, deletedAt: true, members: { select: { id: true, name: true, leftAt: true } } },
+    select: { id: true, type: true, currency: true, closed: true, deletedAt: true, joinWeight: true, members: { select: { id: true, name: true, leftAt: true } } },
   });
   if (!g || g.deletedAt) return { error: "This group isn’t there any more." };
   const me = g.members.find((m) => m.id === actorId && !m.leftAt);
@@ -32,15 +33,71 @@ async function gameFor(gameId: string, actorId: string) {
   return { error: "", game, g: r.g };
 }
 
-// Start a game: its name, Poker or Teen Patti, and who's playing (at least two).
-export async function startGame(groupId: string, actorId: string, input: { name: string; game: string; players: string[] }, today = new Date()): Promise<Result<{ id: string }>> {
+// Players who don't need to join: just names, added to the group (they can
+// join with the link any time and take over their name). A name that's
+// already in the group is that person, not a second one.
+export async function addNamedPlayers(groupId: string, actorId: string, raw: string): Promise<Result<{ ids: string[]; added: string[] }>> {
   const r = await groupFor(groupId, actorId);
+  if (!r.g) return { ok: false, error: r.error };
+  if (r.g.type !== "pot") return { ok: false, error: "Players are for Pot groups." };
+  const names = cleanNames(String(raw ?? "").split(/[\n,]+/)).slice(0, 20);
+  if (!names.length) return { ok: true, ids: [], added: [] };
+  const active = r.g.members.filter((m) => !m.leftAt);
+  const ids: string[] = [];
+  const fresh: string[] = [];
+  for (const n of names) {
+    const same = active.find((m) => sameName(m.name, n));
+    if (same) ids.push(same.id);
+    else fresh.push(n);
+  }
+  if (active.length + fresh.length > 100) return { ok: false, error: "A group can have up to 100 people." };
+  if (fresh.length) {
+    const g = r.g;
+    const made = await db.$transaction(async (tx) => {
+      const rows = [];
+      for (const name of fresh) rows.push(await tx.member.create({ data: { name, groupId, splitWeight: g.joinWeight } }));
+      await logEvent(tx, {
+        groupId,
+        actorId,
+        kind: "members_added",
+        text: `added ${fresh.length === 1 ? fresh[0] : `${fresh.slice(0, -1).join(", ")} and ${fresh[fresh.length - 1]}`} by name`,
+        undo: { type: "members_remove", memberIds: rows.map((m) => m.id) },
+      });
+      return rows;
+    });
+    ids.push(...made.map((m) => m.id));
+  }
+  return { ok: true, ids, added: fresh };
+}
+
+// Someone sits down mid-game: add them by name (or pick an existing name) to an open game.
+export async function addPlayerToGame(gameId: string, actorId: string, raw: string): Promise<Result> {
+  const r = await gameFor(gameId, actorId);
+  if (!r.game || !r.g) return { ok: false, error: r.error };
+  if (r.game.status !== "open") return { ok: false, error: "This game is finished. The host can reopen it." };
+  if (!String(raw ?? "").trim()) return { ok: false, error: "Type their name." };
+  const a = await addNamedPlayers(r.g.id, actorId, raw);
+  if (!a.ok) return a;
+  const players = parsePlayers(r.game.players);
+  const next = [...new Set([...players, ...a.ids])];
+  if (next.length !== players.length) await db.potGame.update({ where: { id: gameId }, data: { players: JSON.stringify(next) } });
+  return { ok: true };
+}
+
+// Start a game: its name, Poker or Teen Patti, and who's playing (at least two).
+// `newNames`: players who aren't in the group yet, added by name.
+export async function startGame(groupId: string, actorId: string, input: { name: string; game: string; players: string[]; newNames?: string }, today = new Date()): Promise<Result<{ id: string }>> {
+  let r = await groupFor(groupId, actorId);
   if (!r.g) return { ok: false, error: r.error };
   if (r.g.type !== "pot") return { ok: false, error: "Games are for Pot groups." };
   if (r.g.closed) return { ok: false, error: "This group is closed. Reopen it in settings to play." };
+  const named = input.newNames?.trim() ? await addNamedPlayers(groupId, actorId, input.newNames) : { ok: true as const, ids: [] as string[], added: [] as string[] };
+  if (!named.ok) return named;
+  if (named.ids.length) r = await groupFor(groupId, actorId);
+  if (!r.g) return { ok: false, error: r.error };
   const game = isPotGame(input.game) ? input.game : "teenpatti";
   const active = new Set(r.g.members.filter((m) => !m.leftAt).map((m) => m.id));
-  const players = [...new Set(input.players.filter((p) => active.has(p)))];
+  const players = [...new Set([...input.players, ...named.ids].filter((p) => active.has(p)))];
   if (players.length < 2) return { ok: false, error: "Pick at least two players." };
   const when = today.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
   const name = String(input.name ?? "").trim().replace(/\s+/g, " ").slice(0, 60) || `${potGameLabel(game)} · ${when}`;

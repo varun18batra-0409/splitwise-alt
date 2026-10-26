@@ -152,7 +152,7 @@ export function NewGroupForm({
                   : "Next: add people. Pick friends already on Loopin, choose from your contacts, or invite by email."}
             </p>
             <button type="submit" className={primaryButtonClass}>
-              Create group &amp; add people
+              {type === "pot" ? "Create group & add players" : "Create group & add people"}
             </button>
           </>
         )}

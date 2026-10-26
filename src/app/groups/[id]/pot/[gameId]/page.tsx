@@ -6,7 +6,7 @@ import { ErrorNote, PageHeader, inputClass, secondaryButtonClass } from "@/compo
 import { Notice } from "@/components/Notice";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { PotRecord } from "@/components/PotRecord";
-import { adjustAction, deleteGameAction, finishGameAction, removeMoveAction, reopenGameAction } from "@/app/pot-actions";
+import { addPlayerAction, adjustAction, deleteGameAction, finishGameAction, removeMoveAction, reopenGameAction } from "@/app/pot-actions";
 import { loadGame } from "@/lib/pot-db";
 import { parsePlayers, potGameLabel, potSummary, potTransfers } from "@/lib/pot";
 import { netBalances } from "@/lib/balances";
@@ -16,7 +16,7 @@ import { getTimeZone } from "@/lib/tz";
 // One game of The Pot: money taken and put back, live; then who won, who
 // lost and who pays whom. Settling up happens in the group, as always.
 
-type SP = { error?: string; started?: string; saved?: string; who?: string; kind?: string; removed?: string; adjusted?: string; finished?: string; reopened?: string };
+type SP = { error?: string; joined?: string; started?: string; saved?: string; who?: string; kind?: string; removed?: string; adjusted?: string; finished?: string; reopened?: string };
 
 export default async function GamePage({ params, searchParams }: { params: Promise<{ id: string; gameId: string }>; searchParams: Promise<SP> }) {
   const { id, gameId } = await params;
@@ -90,6 +90,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
         </Notice>
       )}
       {sp.removed && <Notice params={["removed"]} className="mb-4">Taken off the list.</Notice>}
+      {sp.joined && <Notice tone="success" params={["joined"]} className="mb-4">Added to the table.</Notice>}
       {sp.adjusted && <Notice params={["adjusted"]} className="mb-4">Difference fixed. It now adds up.</Notice>}
       {sp.finished && (
         <Notice tone="success" params={["finished"]} className="mb-4">
@@ -146,7 +147,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
             players={players.map((p) => ({ id: p, name: nameOf(p) }))}
             me={myId}
             who={sp.who}
-            kind={sp.kind === "return" ? "return" : "take"}
+            kind={(sp.kind ?? sp.saved) === "return" ? "return" : "take"}
             quick={quick}
             currency={group.currency}
           />
@@ -180,6 +181,16 @@ export default async function GamePage({ params, searchParams }: { params: Promi
           ))}
         </ul>
       </section>
+
+      {open && (
+        <form action={addPlayerAction} className="mt-3 flex gap-2" aria-label="Add a player">
+          <input type="hidden" name="gameId" value={game.id} />
+          <input name="name" maxLength={200} placeholder="Add a player: just a name" aria-label="New player's name" autoComplete="off" className={`${inputClass} flex-1`} />
+          <button type="submit" className="shrink-0 rounded-xl border border-line px-4 text-sm font-semibold active:bg-mist">
+            Add
+          </button>
+        </form>
+      )}
 
       {/* Does it add up? */}
       {open && totals.taken > 0 && (

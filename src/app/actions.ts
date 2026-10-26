@@ -56,7 +56,8 @@ export async function createGroup(formData: FormData) {
   const me = group.members[0];
   await setMyMemberId(group.id, me.id);
   await copyPushTo(account.id, me.id);
-  redirect(`/groups/${group.id}/invite?new=1`);
+  // A Pot (card night) goes straight to its first game, where players can be added by name.
+  redirect(group.type === "pot" ? `/groups/${group.id}/pot/new?first=1` : `/groups/${group.id}/invite?new=1`);
 }
 
 // The photo picked on "New group", made small on the phone and sent as text.
