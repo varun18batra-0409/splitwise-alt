@@ -1,28 +1,18 @@
-# One-off: fetch the app's two fonts from npm (Fontsource), so the app can ship them itself.
+# One-off: confirm the live site after a release.
 name: Live SEO check
 on:
   push:
     branches: [check-live-seo]
-permissions:
-  contents: write
 jobs:
   check:
     runs-on: ubuntu-24.04
     steps:
       - run: |
-          set -e
-          mkdir -p /tmp/f && cd /tmp/f
-          npm pack @fontsource-variable/fraunces@5 @fontsource/caveat@5 >/dev/null
-          for t in *.tgz; do mkdir -p "x-$t" && tar -xzf "$t" -C "x-$t"; done
-          mkdir -p out
-          ls x-*/package/files | head -50
-          cp x-*fraunces*/package/files/fraunces-latin-wght-normal.woff2 out/ || true
-          cp x-*fraunces*/package/files/fraunces-latin-ext-wght-normal.woff2 out/ || true
-          cp x-*caveat*/package/files/caveat-latin-600-normal.woff2 out/ || true
-          cp x-*caveat*/package/files/caveat-latin-700-normal.woff2 out/ || true
-          cp x-*fraunces*/package/LICENSE out/LICENSE-fraunces || true
-          cp x-*caveat*/package/LICENSE out/LICENSE-caveat || true
-          ls -la out
-          echo "::notice title=Fonts::$(ls out | tr '\n' ' ')"
-          cd out && git init -q -b fonts && git add . && git -c user.name=bot -c user.email=bot@x commit -qm fonts
-          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" fonts:fetched-fonts
+          s=https://www.loopinapps.com
+          curl -s "$s/faq" -o /tmp/faq; curl -s "$s/how-it-works" -o /tmp/hiw; curl -s "$s/welcome" -o /tmp/w
+          echo "::notice title=FAQ::What is The Pot $(grep -c 'What is The Pot' /tmp/faq) · Where is Collect $(grep -c 'Where is Collect' /tmp/faq)"
+          echo "::notice title=How it works::Card nights $(grep -c 'The Pot keeps score' /tmp/hiw) · Anything Goes $(grep -c 'Anything Goes' /tmp/hiw)"
+          echo "::notice title=Tour::Pot slide $(grep -c 'The Pot keeps score' /tmp/w)"
+          css=$(curl -s "$s/" | grep -o '/_next/static/media/[^"]*\.woff2' | sort -u | wc -l)
+          echo "::notice title=Fonts::own font files linked on Home: $css"
+          for p in "" groups/new collect/new notifications; do echo "::notice title=/$p::$(curl -s -o /dev/null -w '%{http_code}' "$s/$p")"; done
