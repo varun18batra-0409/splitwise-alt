@@ -133,7 +133,7 @@ test("a Teen Patti game from first take to settled", async ({ browser }) => {
   await R.goto(`${g.path}/settle`);
   await settled(R);
   await R.locator("form").filter({ has: R.getByLabel(/^Amount (You|Ravi) paid Asha$/) }).getByRole("button", { name: "Mark paid" }).click();
-  await R.waitForURL(/settle|tab=/);
+  await R.waitForURL(/paid=1/); // (the settle page is already open: wait for the payment itself)
   await R.goto(game);
   await settled(R);
   await expect(R.getByRole("region", { name: "Who pays whom" }).locator("[data-transfer='paid']")).toContainText("You pay Asha");
