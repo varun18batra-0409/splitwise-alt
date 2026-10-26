@@ -8,10 +8,11 @@ import { ConfirmButton } from "@/components/ConfirmButton";
 import { PotBuyIn } from "@/components/PotBuyIn";
 import { PotCount } from "@/components/PotCount";
 import { PotName } from "@/components/PotName";
-import { addPlayerAction, adjustAction, cashOutAction, deleteGameAction, finishGameAction, removeMoveAction, reopenGameAction } from "@/app/pot-actions";
-import { inPlay, loadGame } from "@/lib/pot-db";
-import { parsePlayers, potGameLabel, potSummary, potTransfers } from "@/lib/pot";
-import { netBalances } from "@/lib/balances";
+import { addPlayerAction, adjustAction, cashOutAction, deleteGameAction, finishGameAction, markGamePaidAction, removeMoveAction, reopenGameAction } from "@/app/pot-actions";
+import { gameSettlement, inPlay, loadGame } from "@/lib/pot-db";
+import { parsePlayers, potGameLabel, potSummary } from "@/lib/pot";
+import { UndoBar } from "@/components/UndoBar";
+import { canUndo } from "@/lib/undo";
 import { decimalsOf, formatMoney, toInputAmount } from "@/lib/money";
 import { recordCustomPayment } from "@/app/actions";
 import { newRequestKey } from "@/lib/once";
@@ -23,7 +24,7 @@ import { getTimeZone } from "@/lib/tz";
 const CASHED = "cashed out";
 const COUNTED = "counted at the end";
 
-type SP = { paid?: string; renamed?: string; error?: string; bought?: string; cashed?: string; seat?: string; counted?: string; gap?: string; joined?: string; started?: string; saved?: string; who?: string; kind?: string; removed?: string; adjusted?: string; finished?: string; reopened?: string };
+type SP = { did?: string; undone?: string; allpaid?: string; paid?: string; renamed?: string; error?: string; bought?: string; cashed?: string; seat?: string; counted?: string; gap?: string; joined?: string; started?: string; saved?: string; who?: string; kind?: string; removed?: string; adjusted?: string; finished?: string; reopened?: string };
 
 export default async function GamePage({ params, searchParams }: { params: Promise<{ id: string; gameId: string }>; searchParams: Promise<SP> }) {
   const { id, gameId } = await params;
@@ -45,7 +46,6 @@ export default async function GamePage({ params, searchParams }: { params: Promi
   const { lines, totals } = potSummary(players, live);
   const open = game.status === "open";
   const host = game.hostId === myId;
-  const transfers = open || !totals.balanced ? [] : potTransfers(lines);
   const ranked = [...lines].sort((a, b) => b.net - a.net);
   const playing = inPlay(players, live);
   const lineOf = (mid: string) => lines.find((l) => l.memberId === mid);
@@ -55,20 +55,14 @@ export default async function GamePage({ params, searchParams }: { params: Promi
   const quick = (group.currency === "INR" ? [500, 1000, 2000, 5000] : [10, 20, 50, 100]).map((n) => ({ value: String(n), label: formatMoney(n * unit, group.currency) }));
   const gapText = formatMoney(Math.abs(totals.gap), group.currency);
 
-  // Once finished: what's still owed in the whole group (all games), and who has paid up since.
-  let stillOwed = 0;
-  let groupNet: Record<string, number> = {};
-  const paidSince = new Map<string, number>(); // from|to → paid after the game finished
-  if (!open) {
-    const [expenses, payments] = await Promise.all([
-      db.expense.findMany({ where: { groupId: group.id, deletedAt: null }, include: { shares: true } }),
-      db.payment.findMany({ where: { groupId: group.id, deletedAt: null } }),
-    ]);
-    groupNet = netBalances(group.members.map((m) => m.id), expenses, payments);
-    stillOwed = Object.values(groupNet).reduce((s, v) => s + (v > 0 ? v : 0), 0);
-    const since = game.finishedAt ?? game.createdAt;
-    for (const p of payments) if (p.createdAt >= since) paidSince.set(`${p.fromId}|${p.toId}`, (paidSince.get(`${p.fromId}|${p.toId}`) ?? 0) + p.amount);
-  }
+  // Once finished: each payment and what's left of it, and what's still owed in the whole group.
+  const settlement = open ? null : await gameSettlement(group.id, game);
+  const stillOwed = settlement?.stillOwed ?? 0;
+  const pending = (settlement?.transfers ?? []).filter((t) => !t.done);
+  // Undo right after Mark paid / Mark all paid.
+  const justDid = sp.did && /^[A-Za-z0-9_-]{6,40}$/.test(sp.did) ? await db.groupEvent.findFirst({ where: { id: sp.did, groupId: group.id } }) : null;
+  const newer = justDid ? await db.groupEvent.findMany({ where: { groupId: group.id, createdAt: { gte: justDid.createdAt } } }) : [];
+  const showUndo = Boolean(justDid && canUndo(justDid, newer).ok);
 
   const form = (action: (f: FormData) => Promise<void>, label: string, cls: string, confirm?: string, extra?: React.ReactNode) => (
     <form action={action}>
@@ -89,14 +83,12 @@ export default async function GamePage({ params, searchParams }: { params: Promi
   const whoPays = (
         <section aria-label="Who pays whom" className="mt-6">
           <h2 className="mb-2 font-display text-lg font-semibold tracking-tight">Who pays whom</h2>
-          {transfers.length === 0 ? (
+          {!settlement || settlement.transfers.length === 0 ? (
             <p className="rounded-xl bg-mist px-4 py-3 text-sm text-gray-500">Nobody owes anybody for this game.</p>
           ) : (
             <ul className="space-y-2">
-              {transfers.map((t) => {
-                // Paid since the game finished (this pair), or square in the group anyway.
-                const left = Math.max(0, t.amount - (paidSince.get(`${t.from}|${t.to}`) ?? 0));
-                const done = left === 0 || (groupNet[t.from] ?? 0) >= 0;
+              {settlement.transfers.map((t) => {
+                const { left, done } = t;
                 return (
                   <li key={`${t.from}-${t.to}`} className="flex items-center gap-3 rounded-2xl border border-line px-4 py-3" data-transfer={done ? "paid" : "pending"}>
                     <span className="min-w-0 flex-1 text-sm">
@@ -123,6 +115,14 @@ export default async function GamePage({ params, searchParams }: { params: Promi
                 );
               })}
             </ul>
+          )}
+          {pending.length > 1 && !group.closed && (
+            <form action={markGamePaidAction} className="mt-3">
+              <input type="hidden" name="gameId" value={game.id} />
+              <ConfirmButton message={`Mark all ${pending.length} payments of this game paid? Everyone is told, and you can undo it.`} className={secondaryButtonClass}>
+                Mark all {pending.length} paid
+              </ConfirmButton>
+            </form>
           )}
           <p className="mt-3 text-sm text-gray-500" data-still-owed={stillOwed}>
             {stillOwed > 0 ? `Still to settle in this group: ${money(stillOwed)}.` : "Everyone in this group is square ✓"}
@@ -169,6 +169,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
           Marked paid ✓ It’s in the group’s balances. If the person paid is on Loopin, they’re asked to confirm.
         </Notice>
       )}
+      {sp.allpaid && !sp.undone && <Notice tone="success" params={["allpaid"]} className="mb-4">All marked paid ✓</Notice>}
       {sp.renamed && <Notice params={["renamed"]} className="mb-4">Name fixed everywhere in the group.</Notice>}
       {sp.removed && <Notice params={["removed"]} className="mb-4">Taken off the list.</Notice>}
       {sp.joined && <Notice tone="success" params={["joined"]} className="mb-4">Added to the table.</Notice>}
@@ -425,6 +426,9 @@ export default async function GamePage({ params, searchParams }: { params: Promi
             : form(reopenGameAction, "Reopen game", "rounded-full border border-line px-3 py-1.5 text-xs font-semibold active:bg-mist", "Reopen it? Its result comes out of the balances until you finish it again.")}
           <p className="text-xs text-gray-400">You’re the host.</p>
         </section>
+      )}
+      {showUndo && justDid && (
+        <UndoBar key={justDid.id} text={sp.undone ? "Undone." : `${you(justDid.actorId)} ${justDid.text}`} groupId={group.id} eventId={justDid.id} back={`pot:${game.id}`} redo={sp.undone === "1"} />
       )}
     </>
   );

@@ -7,7 +7,7 @@ type Game = Awaited<ReturnType<typeof loadGames>>[number];
 
 // A Pot group's games: the one being played first, then the finished ones
 // with how each went for you.
-export function GamesTab({ v, games }: { v: GroupView; games: Game[] }) {
+export function GamesTab({ v, games, toSettle = {} }: { v: GroupView; games: Game[]; toSettle?: Record<string, number> }) {
   const { group, myId, money, nameOf } = v;
   const open = games.filter((g) => g.status === "open");
   const done = games.filter((g) => g.status === "done");
@@ -53,6 +53,18 @@ export function GamesTab({ v, games }: { v: GroupView; games: Game[] }) {
                           {potGameLabel(g.game)} · {g.createdAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: v.tz })} · {players.length} players
                           {g.status === "open" ? ` · ${money(totals.taken)} taken` : top && top.net > 0 ? ` · ${nameOf(top.memberId)} won ${money(top.net)}` : ""}
                         </span>
+                        {/* Which nights still need sorting out. */}
+                        {g.status === "done" && g.id in toSettle && (
+                          toSettle[g.id] > 0 ? (
+                            <span className="mt-1 inline-block rounded-full bg-owe/[0.14] px-2 py-0.5 text-[11px] font-semibold text-owe" data-to-settle={toSettle[g.id]}>
+                              {money(toSettle[g.id])} to settle
+                            </span>
+                          ) : (
+                            <span className="mt-1 inline-block rounded-full bg-owed/[0.14] px-2 py-0.5 text-[11px] font-semibold text-owed" data-to-settle="0">
+                              Settled ✓
+                            </span>
+                          )
+                        )}
                       </span>
                       {g.status === "done" && mine ? (
                         <span className={`shrink-0 text-right text-sm font-semibold tabular-nums ${mine.net > 0 ? "text-owed" : mine.net < 0 ? "text-owe" : "text-gray-500"}`}>

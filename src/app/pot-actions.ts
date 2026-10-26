@@ -125,3 +125,12 @@ export async function renamePlayerAction(f: FormData) {
   const r = await renameMember(groupId, myId, memberId, field(f, "name").slice(0, 60));
   redirect(back(groupId, gameId, r.ok ? { renamed: "1" } : { error: r.error }));
 }
+
+// "Mark all paid" inside a finished game.
+export async function markGamePaidAction(f: FormData) {
+  const gameId = field(f, "gameId");
+  const { groupId, myId } = await me(await gameGroup(gameId));
+  const { markGamePaid } = await import("@/lib/pot-db");
+  const r = await markGamePaid(gameId, myId);
+  redirect(back(groupId, gameId, r.ok ? { allpaid: "1", ...(r.eventId ? { did: r.eventId } : {}) } : { error: r.error }));
+}

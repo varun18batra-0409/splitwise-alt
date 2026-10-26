@@ -46,7 +46,7 @@ test("a Teen Patti game from first take to settled", async ({ browser }) => {
     const form = page.getByRole("form", { name: "Buy in" });
     if (who === "everyone") await form.getByRole("button", { name: "Everyone", exact: true }).click();
     else {
-      await form.getByRole("button", { name: "Nobody", exact: true }).click();
+      await form.getByRole("button", { name: "Clear", exact: true }).click();
       for (const n of who) await form.locator("label").filter({ hasText: new RegExp(`^${n}`) }).click();
     }
     await form.getByLabel("Amount each").fill(amount);

@@ -274,6 +274,7 @@ export async function undoChange(formData: FormData) {
   if (back === "home") redirect(`/?${q}&g=${groupId}`);
   if (back === "people") redirect(`/groups/${groupId}/people?${q}`);
   if (back === "settle") redirect(`/groups/${groupId}/settle?${q}`);
+  if (/^pot:[A-Za-z0-9_-]{6,40}$/.test(back)) redirect(`/groups/${groupId}/pot/${back.slice(4)}?${q}`);
   redirect(`/groups/${groupId}?tab=${back === "balances" ? "balances" : "activity"}&${q}`);
 }
 

@@ -61,7 +61,7 @@ export function PotBuyIn({
             Everyone
           </button>
           <button type="button" onClick={() => tickAll(false)}>
-            Nobody
+            Clear
           </button>
         </span>
       </div>

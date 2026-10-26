@@ -23,7 +23,7 @@ import { niceDate } from "@/lib/format";
 import { dayKey } from "@/lib/dates";
 import { Notice } from "@/components/Notice";
 import { GamesTab } from "./_components/GamesTab";
-import { loadGames } from "@/lib/pot-db";
+import { gamesToSettle, loadGames } from "@/lib/pot-db";
 
 const TABS = [
   { id: "activity", label: "Activity" },
@@ -127,6 +127,7 @@ export default async function GroupPage({
       : Promise.resolve(null),
     pot && tab === "games" ? loadGames(group.id) : Promise.resolve([] as Awaited<ReturnType<typeof loadGames>>),
   ]);
+  const toSettle = games.length ? await gamesToSettle(group.id, games) : {};
   const today = dayKey(new Date(), v.tz);
   const comingUp = bills
     .filter((b) => b.status === "waiting" || b.status === "upcoming")
@@ -207,7 +208,7 @@ export default async function GroupPage({
       {tab === "list" && list && (
         <ListTab v={v} items={list.items} usual={list.usual} notice={sp.bought ? "Added as an expense. Everyone has been told." : sp.told ? "Told everyone you’re going shopping." : undefined} />
       )}
-      {tab === "games" && <GamesTab v={v} games={games} />}
+      {tab === "games" && <GamesTab v={v} games={games} toSettle={toSettle} />}
       {tab === "balances" && <BalancesTab v={v} paid={sp.paid === "1"} why={sp.why} />}
       {tab === "charts" && <ChartsTab v={v} />}
 

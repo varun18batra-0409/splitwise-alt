@@ -38,3 +38,19 @@ export async function rejectPaymentAction(f: FormData) {
   const r = await rejectPayment(paymentId, await getMyMemberId(groupId));
   redirect(`/groups/${groupId}/settle?${new URLSearchParams(r.ok ? { notgot: "1", ...(r.eventId ? { did: r.eventId } : {}) } : { error: r.error })}`);
 }
+
+// Settle up → "Mark all paid": every payment shown, recorded at once; the group stays open.
+export async function markAllPaidAction(f: FormData) {
+  const groupId = field(f, "groupId");
+  const myId = await getMyMemberId(groupId);
+  if (!myId) redirect("/private");
+  const { loadGroup } = await import("@/lib/group-data");
+  const { applySettleMin } = await import("@/lib/settle");
+  const { markAllPaid, planKey } = await import("@/lib/settle-all");
+  const data = await loadGroup(groupId);
+  if (!data) redirect("/");
+  if (planKey(data.transfers) !== field(f, "plan")) redirect(`/groups/${groupId}/settle?${new URLSearchParams({ error: "Balances changed since you opened this. Check the updated list and try again." })}`);
+  const { shown } = applySettleMin(data.transfers, data.group.settleMin);
+  const r = await markAllPaid(groupId, myId, shown.map((t) => ({ from: t.from, to: t.to, amount: t.amount })), "");
+  redirect(`/groups/${groupId}/settle?${new URLSearchParams(r.ok ? { paid: "all", ...(r.eventId ? { did: r.eventId } : {}) } : { error: r.error })}`);
+}
