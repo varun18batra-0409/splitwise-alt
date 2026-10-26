@@ -31,6 +31,11 @@ import { tripPhase, type TripPhase } from "@/lib/countdown";
 import { todayKey } from "@/lib/dates";
 import { TripCountdown } from "@/components/TripCountdown";
 import { TripRow } from "@/components/TripRow";
+import { Stories } from "@/components/Stories";
+import { buildStories } from "@/lib/home/stories";
+import { placePhoto } from "@/lib/places";
+import { daysBetween } from "@/lib/countdown";
+import { parsePlayers, potSummary } from "@/lib/pot";
 
 export const metadata = { alternates: { canonical: "/" } };
 
@@ -156,6 +161,59 @@ export default async function Home({
         (a.phase.kind === "before" ? a.phase.days : 0) - (b.phase.kind === "before" ? b.phase.days : 0) ||
         (a.g.group.tripEnd || a.g.group.tripStart).localeCompare(b.g.group.tripEnd || b.g.group.tripStart),
     );
+  // Stories: the moments in your groups (a trip coming up, last night's game,
+  // a group that just got square, a collection filling up, a year ago today).
+  const potIds = open.filter((g) => g.group.type === "pot").map((g) => g.group.id);
+  const games = potIds.length
+    ? await db.potGame.findMany({ where: { groupId: { in: potIds }, status: "done", deletedAt: null, finishedAt: { gte: new Date(Date.now() - 3 * 86_400_000) } }, include: { moves: { where: { deletedAt: null } } }, take: 10 })
+    : [];
+  const stories = buildStories({
+    now: new Date(),
+    trips: trips.map((t) => ({
+      id: t.g.group.id,
+      name: t.g.group.name,
+      phase: t.phase,
+      photo: placePhoto(t.g.group.name)?.src,
+      cover: coverFor(t.g.group),
+      people: t.g.group.members.filter((m) => !m.leftAt).length,
+    })),
+    games: games.map((gm) => {
+      const grp = open.find((x) => x.group.id === gm.groupId)!;
+      const { lines } = potSummary(parsePlayers(gm.players), gm.moves);
+      const top = [...lines].sort((a, b) => b.net - a.net)[0];
+      const name = (id: string) => grp.group.members.find((m) => m.id === id)?.name ?? "Someone";
+      return {
+        id: gm.id,
+        groupId: gm.groupId,
+        name: gm.name,
+        winner: top && top.net > 0 ? name(top.memberId) : "",
+        won: top && top.net > 0 ? formatMoney(top.net, grp.group.currency) : "",
+        youWon: top && top.net > 0 && top.memberId === grp.myId ? formatMoney(top.net, grp.group.currency) : undefined,
+        finishedAt: gm.finishedAt ?? gm.createdAt,
+      };
+    }),
+    squared: open
+      .filter((g) => g.group.type !== "pot" && g.expenses.length > 0 && g.transfers.length === 0 && g.payments.length > 0)
+      .map((g) => ({ id: g.group.id, name: g.group.name, at: g.payments.reduce((m, p) => (p.createdAt > m ? p.createdAt : m), g.payments[0].createdAt), cover: coverFor(g.group), photo: g.group.type === "trip" ? placePhoto(g.group.name)?.src : undefined })),
+    collections: collections
+      .filter((c) => !c.closedAt)
+      .map((c) => {
+        const pr = progress(c.entries, c.amount);
+        return { id: c.id, code: c.code, title: c.title, paid: pr.paidCount, people: pr.people };
+      }),
+    memories: all
+      .filter((g) => g.group.type === "trip" && g.group.tripStart)
+      .flatMap((g) => {
+        const start = g.group.tripStart;
+        const years = Number(today.slice(0, 4)) - Number(start.slice(0, 4));
+        if (years < 1) return [];
+        const anniversary = `${today.slice(0, 4)}${start.slice(4)}`;
+        const since = daysBetween(anniversary, today); // shown on the day and for two days after
+        if (Number.isNaN(since) || since < 0 || since > 2) return [];
+        return [{ id: g.group.id, name: g.group.name, years, people: g.group.members.length, days: g.group.tripEnd ? daysBetween(start, g.group.tripEnd) + 1 : 1, photo: placePhoto(g.group.name)?.src, cover: coverFor(g.group) }];
+      }),
+    wrapped: [],
+  });
   const byWeight = [...open].sort((a, b) => Math.abs(b.myBalance) - Math.abs(a.myBalance) || b.lastActivity.getTime() - a.lastActivity.getTime());
   // With one or two groups, shorter cards, so "Needs attention" shows without scrolling.
   const short = byActivity.length <= 2;
@@ -204,6 +262,8 @@ export default async function Home({
           </Link>
         </div>
       </header>
+
+      <Stories stories={stories} />
 
       {/* New here (one group or none, no expenses yet): a gentle pointer to the 1-minute tour. */}
       {open.length <= 1 && open.every((g) => g.expenses.length === 0) && (
