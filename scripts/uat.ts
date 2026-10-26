@@ -2119,6 +2119,44 @@ async function main() {
     assert(r.status() === 200, `group photo answered ${r.status()}`);
   });
 
+  await step(V, "Add", "Type it in one line: “Snacks 600 split with everyone” fills the name, amount and split, and nothing saves until Save", async () => {
+    await go(V, `${g}/add`);
+    await V.getByRole("button", { name: /Type it in one line/ }).click();
+    await V.getByLabel("Type the expense in one line").fill("Snacks 600 split with everyone");
+    await V.getByRole("button", { name: "Fill", exact: true }).click();
+    assert((await V.locator("#expense-name").inputValue()) === "Snacks", `name is “${await V.locator("#expense-name").inputValue()}”`);
+    assert((await V.getByLabel("Amount", { exact: true }).inputValue()) === "600", "amount not filled");
+    await V.getByRole("group", { name: "Quick line" }).getByRole("status").filter({ hasText: "Check below" }).waitFor();
+  });
+
+  await step(V, "Add", "Split by item: one dish for me, one shared by all, 10% tax → the amount and each person's part fill in", async () => {
+    await go(V, `${g}/add`);
+    await V.getByRole("button", { name: /By item/ }).click();
+    const items = V.getByRole("group", { name: "Split by item" });
+    await items.getByLabel("Item 1 price").fill("300");
+    await items.locator("[data-item-row='0']").getByRole("button", { name: "You", exact: true }).click();
+    await items.getByLabel("Item 2 price").fill("900");
+    await items.locator("[data-item-row='1']").getByRole("button", { name: "All", exact: true }).click();
+    await items.getByLabel("Tax / GST").fill("10%");
+    await items.getByRole("button", { name: /Use this split · ₹1,320/ }).click();
+    assert((await V.getByLabel("Amount", { exact: true }).inputValue()) === "1320", "amount isn't ₹1,320");
+    const notes = await V.locator("textarea").inputValue();
+    assert(/₹300 \(You\)/.test(notes) && /Tax 10%/.test(notes), `notes: ${notes.slice(0, 120)}`);
+  });
+
+  await step(V, "Settle", "Varun adds his UPI ID on the You page; his WhatsApp Remind now carries it and a link to mark it paid", async () => {
+    await go(V, "/account#pay");
+    const pay = V.getByRole("region", { name: "How friends pay you back" });
+    await pay.getByLabel("UPI ID (India)").fill("varun@okicici");
+    await pay.getByRole("button", { name: "Save" }).click();
+    await V.waitForURL(/pay=saved/);
+    await go(V, `${g}/settle`);
+    const link = V.getByRole("link", { name: /Remind/ }).first();
+    if (!(await link.count())) return "saved; nobody owes Varun right now (nothing to remind)";
+    const href = decodeURIComponent((await link.getAttribute("href")) ?? "");
+    assert(href.includes("UPI: varun@okicici") && /Mark it here: https:\/\/.+\/settle/.test(href), `Remind text: ${href.slice(0, 200)}`);
+  });
+
   await browser.close();
 
   // ---------- report ----------
