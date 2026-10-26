@@ -6,8 +6,7 @@ import { addExpense, lookupRate } from "@/app/actions";
 import { CATEGORIES, analyzeName, applySuggestion, getCategory } from "@/lib/categories";
 import { computeTotals, PAYMENT_METHODS, type PaymentMethod } from "@/lib/conversion";
 import { buildExpense, chosenMarkupBp, type ExpenseDraft } from "@/lib/expense";
-import { currencyInfo, formatMoney, formatPercent, isSupportedCurrency, parseAmount, parsePercent, toInputAmount } from "@/lib/money";
-import { ItemSplit } from "./ItemSplit";
+import { currencyInfo, formatMoney, formatPercent, isSupportedCurrency, parseAmount, parsePercent } from "@/lib/money";
 import { QuickLine } from "./QuickLine";
 import { CurrencyPicker } from "./CurrencyPicker";
 import { expensePairs, payersJson } from "@/lib/payers";
@@ -113,7 +112,6 @@ export function AddExpenseForm({
   const [percent, setPercent] = useState<Record<string, string>>(initial?.percent ?? {});
 
   const [showOnly, setShowOnly] = useState(false);
-  const [showItems, setShowItems] = useState(false); // split by item
   const [showFx, setShowFx] = useState(false); // currency details (rate, card fee, calculation)
   const [usingLast, setUsingLast] = useState(false); // the last split in this group was filled in
 
@@ -374,7 +372,6 @@ export function AddExpenseForm({
             }
             if (q.forIds) {
               setShowOnly(false);
-              setShowItems(false);
               setSplitType("equal");
               if (q.forIds.length === memberIds.length) setForMode("everyone");
               else if (q.forIds.length === 1) {
@@ -807,45 +804,12 @@ export function AddExpenseForm({
             on={showPeople || (!showOnly && !groupSplitOn && (forMode === "one" || splitType !== "equal"))}
             onClick={() => {
               setShowOnly(false);
-              setShowItems(false);
               setShowPeople(true);
             }}
           >
             Custom ⚙
           </Chip>
-          {kind === "expense" && members.length > 1 && (
-            <Chip
-              on={showItems}
-              onClick={() => {
-                setShowOnly(false);
-                setShowPeople(false);
-                setShowItems((v) => !v);
-              }}
-            >
-              By item 🧾
-            </Chip>
-          )}
         </div>
-        {showItems && (
-          <ItemSplit
-            people={[...members].sort((a, b) => (a.id === myId ? -1 : b.id === myId ? 1 : 0)).map((m) => ({ id: m.id, label: who(m.id) }))}
-            currency={currency}
-            onClose={() => setShowItems(false)}
-            onApply={({ total, perPerson, note }) => {
-              const ids = memberIds.filter((id) => (perPerson[id] ?? 0) > 0);
-              setAmount(toInputAmount(total, currency));
-              setForMode(ids.length === memberIds.length ? "everyone" : "selected");
-              setSelected(ids);
-              setSplitType("exact");
-              setExact(Object.fromEntries(ids.map((id) => [id, toInputAmount(perPerson[id], currency)])));
-              setNotes((n) => (n.trim() ? `${n.trim()}\n${note}` : note).slice(0, 500));
-              setShowNotes(true);
-              setShowItems(false);
-              setShowOnly(false);
-              setShowPeople(true);
-            }}
-          />
-        )}
         {showOnly && !showPeople && (
           <div className="mt-3">
             <p className="mb-2 text-sm text-gray-500">Tap who it was for · split equally</p>

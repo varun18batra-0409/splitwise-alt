@@ -155,8 +155,7 @@ export default async function HowItWorks() {
         </p>
         <p>
           <strong>In a hurry?</strong> Tap <strong>Type it in one line</strong>: “Dinner 2400 Sam paid split with Maya Leo” or “Cab 600 except
-          Leo” fills in the form for you to check. <strong>Only had a drink?</strong> Tap <strong>By item</strong>, type each line of the bill
-          and tap who had it; tax, service charge and tip are shared by what each person ordered.
+          Leo” fills in the form for you to check. Nothing saves until you tap Save.
         </p>
         <Example>
           Dinner {m(x.dinner)} · Maya paid · Everyone equally (4)

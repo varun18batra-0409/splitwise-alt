@@ -313,7 +313,7 @@ if (!hosted) {
     await shot("96-new-group-menu", "/groups/new", undefined, false);
   }
   // Phase 7–8: Priya added her UPI ID, so Varun gets "Pay ₹1,000 · UPI"; Nupur
-  // says she paid Varun ₹500 and he's asked "Got it ✓"; a lunch split by item.
+  // says she paid Varun ₹500 and he's asked "Got it ✓"; the quick line.
   {
     await db.account.update({ where: { id: priya.id }, data: { upiId: "priya@okhdfcbank", payLink: "https://paypal.me/priya" } });
     const pune = await db.group.create({
@@ -336,19 +336,6 @@ if (!hosted) {
     await spent("Cab to Lonavala", 150000, v);
     await db.payment.create({ data: { groupId: pune.id, fromId: n, toId: v, amount: 50000, createdById: n, needsOk: true } });
     await shot("97-settle-pay-and-confirm", `/groups/${pune.id}/settle`);
-    await shot("98-add-by-item", `/groups/${pune.id}/add`, async (p) => {
-      await p.locator("#expense-name").fill("Lunch at Vohuman");
-      await p.getByRole("button", { name: /By item/ }).click();
-      const items = p.getByRole("group", { name: "Split by item" });
-      await items.getByLabel("Item 1 name").fill("Cheese omelette");
-      await items.getByLabel("Item 1 price").fill("240");
-      await items.locator("[data-item-row='0']").getByRole("button", { name: "You", exact: true }).click();
-      await items.getByLabel("Item 2 name").fill("Bun maska + chai");
-      await items.getByLabel("Item 2 price").fill("360");
-      await items.locator("[data-item-row='1']").getByRole("button", { name: "All", exact: true }).click();
-      await items.getByLabel("Service charge").fill("5%");
-      await p.waitForTimeout(300);
-    });
     await shot("99-add-quick-line", `/groups/${pune.id}/add`, async (p) => {
       await p.getByRole("button", { name: /Type it in one line/ }).click();
       await p.getByLabel("Type the expense in one line").fill("Snacks 450 Priya paid split with Nupur");

@@ -2129,21 +2129,6 @@ async function main() {
     await V.getByRole("group", { name: "Quick line" }).getByRole("status").filter({ hasText: "Check below" }).waitFor();
   });
 
-  await step(V, "Add", "Split by item: one dish for me, one shared by all, 10% tax → the amount and each person's part fill in", async () => {
-    await go(V, `${g}/add`);
-    await V.getByRole("button", { name: /By item/ }).click();
-    const items = V.getByRole("group", { name: "Split by item" });
-    await items.getByLabel("Item 1 price").fill("300");
-    await items.locator("[data-item-row='0']").getByRole("button", { name: "You", exact: true }).click();
-    await items.getByLabel("Item 2 price").fill("900");
-    await items.locator("[data-item-row='1']").getByRole("button", { name: "All", exact: true }).click();
-    await items.getByLabel("Tax / GST").fill("10%");
-    await items.getByRole("button", { name: /Use this split · ₹1,320/ }).click();
-    assert((await V.getByLabel("Amount", { exact: true }).inputValue()) === "1320", "amount isn't ₹1,320");
-    const notes = await V.locator("textarea").inputValue();
-    assert(/₹300 \(You\)/.test(notes) && /Tax 10%/.test(notes), `notes: ${notes.slice(0, 120)}`);
-  });
-
   await step(V, "Settle", "Varun adds his UPI ID on the You page; his WhatsApp Remind now carries it and a link to mark it paid", async () => {
     await go(V, "/account#pay");
     const pay = V.getByRole("region", { name: "How friends pay you back" });

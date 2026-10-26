@@ -5,8 +5,8 @@ import { contextFor, createGroup, joinGroup, readBalances, settled } from "../he
 
 // Phase 7–8 (the free parts): Asha adds her UPI ID; Ravi types an expense in one
 // line; Ravi gets a Pay with UPI button with the amount filled in, marks it
-// paid, and Asha confirms "Got it ✓". Then a dinner split by item with tax.
-test("pay buttons, payment tracking, quick line and split by item", async ({ browser }) => {
+// paid, and Asha confirms "Got it ✓".
+test("pay buttons, payment tracking and the quick line", async ({ browser }) => {
   const asha = await signUp("Asha", testEmail("pay-asha"));
   const ravi = await signUp("Ravi", testEmail("pay-ravi"));
   const A = await (await contextFor(browser, asha)).newPage();
@@ -63,42 +63,6 @@ test("pay buttons, payment tracking, quick line and split by item", async ({ bro
   await A.goto(`${g.path}?tab=activity`);
   await settled(A);
   await expect(A.getByText(/Confirmed ✓ · ₹500/).first()).toBeVisible();
-
-  // Split by item: Asha's soup ₹300, a ₹900 biryani shared, 10% tax shared by what each had.
-  await A.goto(`${g.path}/add`);
-  await settled(A);
-  await A.locator("#expense-name").fill("Lunch");
-  await A.getByRole("button", { name: /By item/ }).click();
-  const items = A.getByRole("group", { name: "Split by item" });
-  await items.getByLabel("Item 1 name").fill("Soup");
-  await items.getByLabel("Item 1 price").fill("300");
-  await items.locator("[data-item-row='0']").getByRole("button", { name: "You", exact: true }).click();
-  await items.getByLabel("Item 2 name").fill("Biryani");
-  await items.getByLabel("Item 2 price").fill("900");
-  await items.locator("[data-item-row='1']").getByRole("button", { name: "All", exact: true }).click();
-  await items.getByLabel("Tax / GST").fill("10%");
-  await expect(items.locator("[data-item-share='You']")).toContainText("₹825");
-  await expect(items.locator("[data-item-share='Ravi']")).toContainText("₹495");
-  await items.getByRole("button", { name: /Use this split · ₹1,320/ }).click();
-  await expect(A.getByLabel("Amount", { exact: true })).toHaveValue("1320");
-  await expect(A.getByLabel("Ravi amount")).toHaveValue("495");
-  await A.getByRole("button", { name: "Save expense" }).click();
-  await A.waitForURL(/tab=activity/);
-  // Before lunch everyone was square; now Ravi owes Asha his ₹495.
-  expect(await readBalances(A, g.path)).toMatchObject({ Asha: 49500, Ravi: -49500 });
-
-  // Free "scan": paste the text the phone's own reader copied from the bill.
-  await A.goto(`${g.path}/add`);
-  await settled(A);
-  await A.getByRole("button", { name: /By item/ }).click();
-  const box = A.getByRole("group", { name: "Split by item" });
-  await box.getByRole("button", { name: /Paste the bill/ }).click();
-  await box.getByLabel("Bill text").fill("Butter Chicken 320.00\n2 x Garlic Naan @ 60 120\nSub Total 440\nCGST @2.5% 11\nSGST @2.5% 11\nGrand Total 462");
-  await box.getByRole("button", { name: "Turn into items" }).click();
-  await expect(box.locator("[data-paste-note]")).toHaveText("Found 2 items and tax ₹22. Check them, then tap who had what.");
-  await expect(box.getByLabel("Item 1 name")).toHaveValue("Butter Chicken");
-  await expect(box.getByLabel("Item 2 price")).toHaveValue("120");
-  await expect(box.getByLabel("Tax / GST")).toHaveValue("22");
 
   await A.context().close();
   await R.context().close();

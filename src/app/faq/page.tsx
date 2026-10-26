@@ -84,10 +84,6 @@ const SECTIONS: { title: string; items: QA[] }[] = [
         ),
       },
       {
-        q: "Some people only had a drink. Can we split the bill by item?",
-        a: "Yes. When adding an expense, tap By item: type each line of the bill and tap who had it (tap everyone for shared dishes). Tax, service charge and tip, as an amount or a % like 5%, are shared by what each person ordered. Tap Use this split and the amounts fill in; the bill goes into the notes. No typing? Copy the bill’s text with Google Lens (Android) or Live Text (iPhone) and tap Paste the bill: the items, GST and service charge fill in.",
-      },
-      {
         q: "Can I just type an expense?",
         a: "Yes. Tap Type it in one line and write it the way you’d say it: “Dinner 2400 Ravi paid split with Asha Meera” or “Cab 600 except Dev”. Loopin fills in the form for you to check. Nothing saves until you tap Save, and it all happens on your phone, with no AI.",
       },
