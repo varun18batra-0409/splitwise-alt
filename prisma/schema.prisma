@@ -146,6 +146,10 @@ model Payment {
   createdById String    @default("") // who recorded it
   deletedAt   DateTime? // deleted payments stay in history but no longer count
   deletedById String?
+  // Payment tracking: recorded by someone other than the person paid, it waits
+  // for them to tap "Got it" (okAt) or "Not received" (the payment is removed).
+  needsOk     Boolean   @default(false)
+  okAt        DateTime?
   @@index([groupId])
 }
 
@@ -211,6 +215,9 @@ model Account {
   name      String   @default("") // shown to friends when they search for you
   createdAt DateTime @default(now())
   collectPush Boolean @default(true) // phone notifications about collections (added, reminders, payments checked)
+  // How friends pay you back: shown on Settle up to people in your groups who owe you.
+  upiId     String   @default("") // e.g. asha@okicici (opens GPay / PhonePe with the amount filled in)
+  payLink   String   @default("") // PayPal.me, Venmo, Cash App, Revolut or Monzo link
 }
 
 // Notifications for a person rather than a group (Collect: "Asha added you",

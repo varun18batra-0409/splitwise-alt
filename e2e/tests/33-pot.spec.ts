@@ -26,10 +26,20 @@ test("a Teen Patti game from first take to settled", async ({ browser }) => {
   await expect(A.locator('input[name="game"][value="teenpatti"]')).toBeChecked(); // Teen Patti first
   await A.locator('input[name="name"]').fill("Diwali night");
   // Chirag and Dev aren't on Loopin: just their names.
-  await A.locator('input[name="newNames"]').fill("Chirag, Dev");
+  await A.locator('input[name="newNames"]').fill("Chirag, Deev"); // a typo, fixed below
   await A.getByRole("button", { name: "Start the game" }).click();
   await A.waitForURL(/\/pot\/[^/?]+\?started=1/);
   const game = new URL(A.url()).pathname;
+  await settled(A);
+
+  // A spelling slip: tap the name, fix it. (Ravi joined Loopin, so his name isn't editable here.)
+  await A.getByRole("button", { name: "Deev: fix the name" }).click();
+  await A.getByRole("form", { name: "Fix Deev's name" }).getByLabel("Name").fill("Dev");
+  await A.getByRole("form", { name: "Fix Deev's name" }).getByRole("button", { name: "Save" }).click();
+  await A.waitForURL(/renamed=1/);
+  await settled(A);
+  await expect(A.locator("[data-player='Dev']")).toHaveCount(1);
+  await expect(A.getByRole("button", { name: "Ravi: fix the name" })).toHaveCount(0);
 
   // Buy-in: everyone ticked at the start; later, tick just who's topping up.
   const buyIn = async (page: Page, who: "everyone" | string[], amount: string, total: string) => {
@@ -109,6 +119,13 @@ test("a Teen Patti game from first take to settled", async ({ browser }) => {
   await expect(pays).toContainText("₹300");
   await expect(A.locator("[data-still-owed]")).toHaveAttribute("data-still-owed", "60000");
 
+  // Dev hands Asha ₹100 at the table: she marks it paid right on the game, and stays there.
+  await pays.getByRole("button", { name: "Mark paid: Dev pays you" }).click();
+  await A.waitForURL(/\/pot\/[^/?]+\?paid=1/);
+  await settled(A);
+  await expect(A.getByRole("region", { name: "Who pays whom" }).locator("[data-transfer='paid']").filter({ hasText: "Dev pays you" })).toHaveCount(1);
+  await expect(A.locator("[data-still-owed]")).toHaveAttribute("data-still-owed", "50000");
+
   // Ravi sees it in the group: lost ₹300, and pays Asha in Settle up.
   await R.goto(`${g.path}?tab=games`);
   await settled(R);
@@ -116,11 +133,11 @@ test("a Teen Patti game from first take to settled", async ({ browser }) => {
   await R.goto(`${g.path}/settle`);
   await settled(R);
   await R.locator("form").filter({ has: R.getByLabel(/^Amount (You|Ravi) paid Asha$/) }).getByRole("button", { name: "Mark paid" }).click();
-  await R.waitForURL(/settle|tab=/);
+  await R.waitForURL(/paid=1/); // (the settle page is already open: wait for the payment itself)
   await R.goto(game);
   await settled(R);
-  await expect(R.getByRole("region", { name: "Who pays whom" }).locator("[data-transfer='paid']")).toContainText("You pay Asha");
-  await expect(R.locator("[data-still-owed]")).toHaveAttribute("data-still-owed", "30000");
+  await expect(R.getByRole("region", { name: "Who pays whom" }).locator("[data-transfer='paid']").filter({ hasText: "You pay Asha" })).toHaveCount(1);
+  await expect(R.locator("[data-still-owed]")).toHaveAttribute("data-still-owed", "20000");
 
   // Only the host finishes or reopens: Ravi doesn't get those buttons.
   await expect(R.getByRole("button", { name: "Reopen game" })).toHaveCount(0);

@@ -7,6 +7,7 @@ import { CATEGORIES, analyzeName, applySuggestion, getCategory } from "@/lib/cat
 import { computeTotals, PAYMENT_METHODS, type PaymentMethod } from "@/lib/conversion";
 import { buildExpense, chosenMarkupBp, type ExpenseDraft } from "@/lib/expense";
 import { currencyInfo, formatMoney, formatPercent, isSupportedCurrency, parseAmount, parsePercent } from "@/lib/money";
+import { QuickLine } from "./QuickLine";
 import { CurrencyPicker } from "./CurrencyPicker";
 import { expensePairs, payersJson } from "@/lib/payers";
 import { participantsFor, type ForMode, type SplitType } from "@/lib/split";
@@ -353,6 +354,36 @@ export function AddExpenseForm({
       </div>
       {kind === "refund" && (
         <p className="-mt-4 text-sm text-gray-500">A refund, a returned item or a deposit coming back. Whoever got it owes the people it’s shared with.</p>
+      )}
+
+      {/* Quick line: "Dinner 2400 Ravi paid split with Asha Meera" fills the form below. */}
+      {!expenseId && members.length > 1 && (
+        <QuickLine
+          members={members.map((m) => ({ id: m.id, name: m.name }))}
+          myId={myId}
+          who={who}
+          currency={currency}
+          onFill={(q) => {
+            if (q.name) setName(q.name);
+            if (q.amount) setAmount(q.amount);
+            if (q.paidById) {
+              setMultiPay(false);
+              setPaidById(q.paidById);
+            }
+            if (q.forIds) {
+              setShowOnly(false);
+              setSplitType("equal");
+              if (q.forIds.length === memberIds.length) setForMode("everyone");
+              else if (q.forIds.length === 1) {
+                setForMode("one");
+                setOnePersonId(q.forIds[0]);
+              } else {
+                setForMode("selected");
+                setSelected(q.forIds);
+              }
+            }
+          }}
+        />
       )}
 
       {/* Who paid — visible at the top, one tap to change */}

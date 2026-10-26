@@ -24,7 +24,7 @@ function Submit() {
   );
 }
 
-export function NewCollectionForm({ defaultCurrency, yourName, friends = [] }: { defaultCurrency: string; yourName: string; friends?: { id: string; name: string }[] }) {
+export function NewCollectionForm({ defaultCurrency, yourName, friends = [], yourUpi = "", yourPayLink = "" }: { defaultCurrency: string; yourName: string; friends?: { id: string; name: string }[]; yourUpi?: string; yourPayLink?: string }) {
   const [state, action] = useActionState<CreateState, FormData>(createCollectionAction, {});
   const [currency, setCurrency] = useState(defaultCurrency);
   const v = state.values ?? {};
@@ -98,7 +98,7 @@ export function NewCollectionForm({ defaultCurrency, yourName, friends = [] }: {
           <span className={label}>
             Your UPI ID <span className={hint}>(so people pay you in one tap)</span>
           </span>
-          <input name="upiId" defaultValue={v.upiId} placeholder="name@okicici or 98xxxxxx@ybl" autoComplete="off" autoCapitalize="none" spellCheck={false} className={inputClass} />
+          <input name="upiId" defaultValue={v.upiId ?? yourUpi} placeholder="name@okicici or 98xxxxxx@ybl" autoComplete="off" autoCapitalize="none" spellCheck={false} className={inputClass} />
           <span className="mt-1.5 block text-xs text-gray-400">In Google Pay, PhonePe or Paytm, under your profile. Empty = cash.</span>
         </label>
       ) : (
@@ -106,7 +106,7 @@ export function NewCollectionForm({ defaultCurrency, yourName, friends = [] }: {
           <span className={label}>
             Your pay link <span className={hint}>(optional)</span>
           </span>
-          <input name="payLink" defaultValue={v.payLink} inputMode="url" placeholder="paypal.me/yourname" autoComplete="off" autoCapitalize="none" spellCheck={false} className={inputClass} />
+          <input name="payLink" defaultValue={v.payLink ?? yourPayLink} inputMode="url" placeholder="paypal.me/yourname" autoComplete="off" autoCapitalize="none" spellCheck={false} className={inputClass} />
           <span className="mt-1.5 block text-xs text-gray-400">PayPal.me, Venmo, Cash App, Revolut or Monzo. Empty = cash or bank transfer.</span>
         </label>
       )}

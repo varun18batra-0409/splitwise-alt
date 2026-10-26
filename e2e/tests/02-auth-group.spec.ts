@@ -32,7 +32,7 @@ test("sign up with an email code, then create a group", async ({ browser }) => {
   await page.getByLabel("Your name").fill("Solomon");
   await expect(page.getByLabel(/Also change it in the 1 group where you’re Sol/)).toBeChecked();
   await page.screenshot({ path: test.info().outputPath("profile-edit.png") });
-  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByRole("region", { name: "Your profile" }).getByRole("button", { name: "Save", exact: true }).click();
   await page.waitForURL(/name=saved/);
   await expect(page.getByText("Name saved, and changed in 1 group.")).toBeVisible();
   await expect(page.getByRole("region", { name: "Your profile" }).getByText("Solomon", { exact: true })).toBeVisible();

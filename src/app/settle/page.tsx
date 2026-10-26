@@ -6,11 +6,16 @@ import { formatMoney } from "@/lib/money";
 import { settleAcrossGroups } from "@/app/actions";
 import { newRequestKey } from "@/lib/once";
 import { PageHeader } from "@/components/ui";
+import { db } from "@/lib/db";
+import { payButtons } from "@/lib/pay-links";
 
 // Smart Settle across all your groups: one payment per person.
 export default async function SettlePage({ searchParams }: { searchParams: Promise<{ settle?: string }> }) {
   const { settle: notice } = await searchParams;
   const { all, common, settleItems, skippedGroups, othersPending } = await loadOverview(await getMemberships());
+  // Pay buttons for people you owe who added their UPI ID / pay link.
+  const owedAccounts = settleItems.filter((it) => it.net < 0 && !it.converted && it.key.startsWith("acc:")).map((it) => it.key.slice(4));
+  const accounts = owedAccounts.length ? await db.account.findMany({ where: { id: { in: owedAccounts } }, select: { id: true, upiId: true, payLink: true } }) : [];
 
   return (
     <>
@@ -52,12 +57,39 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
                     <li>In {it.parts[0].groupName}</li>
                   ) : (
                     it.parts.map((p) => (
-                      <li key={`${p.groupId}-${p.fromId}-${p.toId}`}>
-                        {p.groupName}: {p.iPay ? `you pay ${formatMoney(p.amount, p.currency)}` : `${it.name} pays you ${formatMoney(p.amount, p.currency)}`}
+                      <li key={`${p.groupId}-${p.fromId}-${p.toId}`} className="flex flex-wrap items-baseline justify-between gap-x-3">
+                        <span>
+                          {p.groupName}: {p.iPay ? `you pay ${formatMoney(p.amount, p.currency)}` : `${it.name} pays you ${formatMoney(p.amount, p.currency)}`}
+                        </span>
+                        {/* Just this group for now (the trip today, the flat at month-end). */}
+                        <Link href={`/groups/${p.groupId}/settle`} className="shrink-0 font-medium text-fg underline underline-offset-2">
+                          Settle only here →
+                        </Link>
                       </li>
                     ))
                   )}
                 </ul>
+                {it.net < 0 &&
+                  !it.converted &&
+                  (() => {
+                    const a = accounts.find((x) => `acc:${x.id}` === it.key);
+                    const buttons = payButtons(a, { amount: -it.net, currency: common, toName: it.name, note: "Loopin settle-up" });
+                    return buttons.length ? (
+                      <div className="mt-2.5 flex flex-wrap gap-2" data-pay-buttons>
+                        {buttons.map((b) => (
+                          <a
+                            key={b.kind}
+                            href={b.href}
+                            {...(b.kind === "upi" ? {} : { target: "_blank", rel: "noopener noreferrer" })}
+                            className="inline-flex items-center rounded-full bg-owed px-3.5 py-1.5 text-sm font-semibold text-canvas"
+                            data-pay={b.kind}
+                          >
+                            Pay {amt(it.net)} · {b.label}
+                          </a>
+                        ))}
+                      </div>
+                    ) : null;
+                  })()}
                 <div className="mt-2 flex items-center justify-between gap-3">
                   <span className="text-xs text-gray-400">{it.parts.length > 1 ? `1 payment instead of ${it.parts.length}` : ""}</span>
                   <form action={settleAcrossGroups}>

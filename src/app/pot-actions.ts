@@ -111,3 +111,17 @@ export async function countOutAction(f: FormData) {
   if (!r.ok) redirect(back(groupId, gameId, { error: r.error }));
   redirect(back(groupId, gameId, r.finished ? { finished: "1" } : r.gap ? { counted: "1", gap: "1" } : { counted: "1" }));
 }
+
+// Fix a player's name (a spelling slip): players who are just a name, or yourself.
+// A friend who joined Loopin owns their name.
+export async function renamePlayerAction(f: FormData) {
+  const gameId = field(f, "gameId");
+  const { groupId, myId } = await me(await gameGroup(gameId));
+  const memberId = field(f, "memberId");
+  const m = await db.member.findUnique({ where: { id: memberId }, select: { groupId: true, accountId: true, claimedAt: true } });
+  if (!m || m.groupId !== groupId) redirect(back(groupId, gameId, { error: "That player isn’t in this group." }));
+  if (memberId !== myId && (m.accountId || m.claimedAt)) redirect(back(groupId, gameId, { error: "They joined Loopin, so their name is theirs to change." }));
+  const { renameMember } = await import("@/lib/people");
+  const r = await renameMember(groupId, myId, memberId, field(f, "name").slice(0, 60));
+  redirect(back(groupId, gameId, r.ok ? { renamed: "1" } : { error: r.error }));
+}

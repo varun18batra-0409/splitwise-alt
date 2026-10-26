@@ -84,6 +84,10 @@ const SECTIONS: { title: string; items: QA[] }[] = [
         ),
       },
       {
+        q: "Can I just type an expense?",
+        a: "Yes. Tap Type it in one line and write it the way you’d say it: “Dinner 2400 Ravi paid split with Asha Meera” or “Cab 600 except Dev”. Loopin fills in the form for you to check. Nothing saves until you tap Save, and it all happens on your phone, with no AI.",
+      },
+      {
         q: "Two people paid, or we got money back?",
         a: "Pick more than one payer and type what each paid. For a refund or returned item, switch to Money back; it’s shared the same way and the balances move back.",
       },
@@ -94,6 +98,14 @@ const SECTIONS: { title: string; items: QA[] }[] = [
       {
         q: "How does Settle up work? Does Loopin move money?",
         a: "Settle up shows the fewest payments that clear everything, even across all your groups at once. You pay each other however you like, then tap Mark paid. Loopin only records payments; it never holds or moves money and never asks for bank details.",
+      },
+      {
+        q: "Can people pay me with UPI, PayPal or Venmo in one tap?",
+        a: "Yes. Add your UPI ID, or a PayPal, Venmo, Cash App, Revolut or Monzo link, on the You page. Anyone in your groups who owes you gets a Pay button in Settle up that opens their payment app with the amount filled in. Only people who owe you see it, and the money goes straight between you.",
+      },
+      {
+        q: "Someone marked a payment to me. What if I didn’t get it?",
+        a: "You’re asked in Settle up (and on your phone): Got it ✓ or Not received. Not received takes it off the balances, with Undo, so nobody is out of pocket on someone’s word. A WhatsApp Remind also carries your UPI ID or pay link and a link to mark it paid.",
       },
       {
         q: "I made a mistake. Can I undo it?",

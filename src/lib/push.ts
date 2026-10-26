@@ -1,6 +1,7 @@
 import { parseNotify, wantsPush } from "./notify-prefs";
 import webpush from "web-push";
 import { db } from "./db";
+import { isBigExpense } from "./big-expense";
 
 // Phone notifications (Web Push). When someone changes something in a group,
 // everyone else in it who turned notifications on gets a short message.
@@ -27,7 +28,7 @@ export async function vapidKeys(): Promise<{ publicKey: string; privateKey: stri
 // A small sign for what kind of change it was, so it's clear at a glance.
 const SIGN: Record<string, string> = {
   expense_added: "🧾", expense_edited: "✏️", expense_deleted: "🗑️", expense_restored: "↩️",
-  payment_recorded: "💸", payment_deleted: "🗑️", payment_restored: "↩️",
+  payment_recorded: "💸", payment_deleted: "🗑️", payment_restored: "↩️", payment_confirmed: "✅",
   members_added: "👋", member_invited: "✉️", members_removed: "👤", member_left: "👤", member_rejoined: "👋", member_renamed: "✏️",
   group_settled_closed: "✅", group_closed: "📦", group_reopened: "📂", group_imported: "📥", group_deleted: "🗑️", group_restored: "↩️",
   split_changed: "⚖️",
@@ -45,9 +46,18 @@ export function pushPayload(e: { groupId: string; groupName: string; actorName: 
   return {
     title: sign ? `${sign} ${e.groupName}` : e.groupName,
     body: body.length > 140 ? `${body.slice(0, 139)}…` : body,
-    url: `/groups/${e.groupId}?tab=activity`,
+    // A payment opens Settle up, where the person paid can tap "Got it ✓".
+    url: e.kind === "payment_recorded" ? `/groups/${e.groupId}/settle` : `/groups/${e.groupId}?tab=activity`,
     tag: e.eventId,
   };
+}
+
+async function bigOne(groupId: string, expenseId: string): Promise<boolean> {
+  const [e, recent] = await Promise.all([
+    db.expense.findUnique({ where: { id: expenseId }, select: { amount: true, kind: true } }),
+    db.expense.findMany({ where: { groupId, deletedAt: null, id: { not: expenseId }, kind: { notIn: ["refund", "pot"] } }, select: { amount: true }, orderBy: { createdAt: "desc" }, take: 50 }),
+  ]);
+  return Boolean(e && e.kind !== "pot" && e.kind !== "refund" && isBigExpense(e.amount, recent.map((r) => r.amount)));
 }
 
 // Send one change to everyone else in the group. Never throws.
@@ -68,9 +78,14 @@ export async function sendEventPush(eventId: string): Promise<number> {
     const subs = all.filter((s) => !actorPhones.has(s.endpoint) && wantsPush(parseNotify(s.member.notify), ev.kind));
     if (subs.length === 0) return 0;
     const actor = await db.member.findUnique({ where: { id: ev.actorId }, select: { name: true } });
-    const payload = JSON.stringify(
-      pushPayload({ groupId: ev.group.id, groupName: ev.group.name, actorName: actor?.name ?? "Someone", text: ev.text, eventId, kind: ev.kind }),
-    );
+    const base = pushPayload({ groupId: ev.group.id, groupName: ev.group.name, actorName: actor?.name ?? "Someone", text: ev.text, eventId, kind: ev.kind });
+    // A much bigger expense than this group usually has: say so, so people check it.
+    if (ev.kind === "expense_added" && ev.expenseId && (await bigOne(ev.groupId, ev.expenseId))) {
+      base.title = `💰 Big one in ${ev.group.name}`;
+      base.body = `${base.body} · worth a look`.slice(0, 140);
+      base.url = `/groups/${ev.group.id}/expenses/${ev.expenseId}`;
+    }
+    const payload = JSON.stringify(base);
     const keys = await vapidKeys();
     let sent = 0;
     const seen = new Set<string>(); // one phone can be several people in one group: notify once

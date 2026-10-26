@@ -38,7 +38,7 @@ export default async function NewCollection() {
     <>
       <PageHeader title="Collect money" back="/" />
       <p className="-mt-4 mb-6 text-sm text-gray-500">For gifts, farewells, bookings or a society fund: one link, and you’ll see who’s paid and who hasn’t.</p>
-      <NewCollectionForm defaultCurrency={currency} yourName={account.name} friends={await loopinFriends(account.id)} />
+      <NewCollectionForm defaultCurrency={currency} yourName={account.name} friends={await loopinFriends(account.id)} yourUpi={account.upiId} yourPayLink={account.payLink} />
     </>
   );
 }

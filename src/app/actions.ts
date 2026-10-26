@@ -20,6 +20,7 @@ import { settleAllAndClose } from "@/lib/settle-all";
 import { vapidKeys } from "@/lib/push";
 import { changeGroupCurrency, updateGroupBasics } from "@/lib/group-changes";
 import { logEvent } from "@/lib/events";
+import { needsOkFor } from "@/lib/payment-ok";
 import { claimKey, cleanKey, isDuplicateKey, previousResult } from "@/lib/once";
 import { safePath } from "@/lib/paths";
 import { addRegistered, copyPushTo, freeName, inviteByEmail } from "@/lib/invites";
@@ -391,12 +392,12 @@ export async function recordPayment(formData: FormData) {
 
   const key = cleanKey(formData.get("rid"));
   if ((await previousResult(key)) !== null || (await isDoubleTap(group.id, fromId, toId, amount, myId))) redirect(`/groups/${group.id}?tab=balances&paid=1`);
-  const names = await db.member.findMany({ where: { id: { in: [fromId, toId] } }, select: { id: true, name: true } });
+  const names = await db.member.findMany({ where: { id: { in: [fromId, toId] } }, select: { id: true, name: true, accountId: true, claimedAt: true } });
   const nameOf = (id: string) => names.find((n) => n.id === id)?.name ?? "Someone";
   let did = "";
   try {
    did = await db.$transaction(async (tx) => {
-    const p = await tx.payment.create({ data: { groupId: group.id, fromId, toId, amount, createdById: myId } });
+    const p = await tx.payment.create({ data: { groupId: group.id, fromId, toId, amount, createdById: myId, needsOk: needsOkFor(names.find((n) => n.id === toId), myId) } });
     await claimKey(tx, key, p.id);
     return logEvent(tx, {
       groupId: group.id,
@@ -461,7 +462,7 @@ export async function settleAcrossGroups(formData: FormData) {
   if ((await previousResult(key)) !== null) redirect("/settle?settle=done");
   const { loadGroup } = await import("@/lib/group-data");
   const memberships = await getMemberships();
-  const checked: { groupId: string; fromId: string; toId: string; amount: number; currency: string; names: Map<string, string> }[] = [];
+  const checked: { groupId: string; fromId: string; toId: string; amount: number; currency: string; names: Map<string, string>; needsOk: boolean }[] = [];
 
   for (const p of parts) {
     const myId = memberships[String(p.groupId)];
@@ -469,7 +470,7 @@ export async function settleAcrossGroups(formData: FormData) {
     if (!data || !myId) redirect("/settle?settle=error");
     const ok = data.transfers.some((t) => t.from === p.fromId && t.to === p.toId && t.amount === p.amount) && (p.fromId === myId || p.toId === myId);
     if (!ok) redirect("/settle?settle=changed"); // balances moved since the page loaded
-    checked.push({ ...p, currency: data.group.currency, names: new Map(data.group.members.map((m) => [m.id, m.name])) });
+    checked.push({ ...p, currency: data.group.currency, names: new Map(data.group.members.map((m) => [m.id, m.name])), needsOk: needsOkFor(data.group.members.find((m) => m.id === p.toId), myId) });
   }
 
   try {
@@ -477,7 +478,7 @@ export async function settleAcrossGroups(formData: FormData) {
     await claimKey(tx, key, "settled");
     for (const c of checked) {
       const myId = memberships[c.groupId];
-      const pay = await tx.payment.create({ data: { groupId: c.groupId, fromId: c.fromId, toId: c.toId, amount: c.amount, createdById: myId } });
+      const pay = await tx.payment.create({ data: { groupId: c.groupId, fromId: c.fromId, toId: c.toId, amount: c.amount, createdById: myId, needsOk: c.needsOk } });
       await logEvent(tx, {
         groupId: c.groupId,
         actorId: myId,
@@ -501,8 +502,10 @@ export async function recordCustomPayment(formData: FormData) {
   const toId = String(formData.get("toId") ?? "");
   const amountText = String(formData.get("amount") ?? "");
   const fromSettle = formData.get("back") === "settle";
+  // From a finished card game's "Who pays whom": stay on the game.
+  const potGame = /^pot:[A-Za-z0-9_-]{6,40}$/.test(String(formData.get("back") ?? "")) ? String(formData.get("back")).slice(4) : "";
 
-  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true, name: true } } } });
+  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true, name: true, accountId: true, claimedAt: true } } } });
   if (!group || group.deletedAt) redirect("/");
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
@@ -510,7 +513,9 @@ export async function recordCustomPayment(formData: FormData) {
 
   const back = (error: string) =>
     redirect(
-      fromSettle
+      potGame
+        ? `/groups/${group.id}/pot/${potGame}?${new URLSearchParams({ error })}`
+        : fromSettle
         ? `/groups/${group.id}/settle?${new URLSearchParams({ error })}`
         : `/groups/${group.id}/pay?${new URLSearchParams({ from: fromId, to: toId, amount: amountText, error })}`,
     );
@@ -519,14 +524,14 @@ export async function recordCustomPayment(formData: FormData) {
   if (fromId === toId) back("Pick two different people.");
   const amount = parseAmount(amountText, group.currency);
   if (amount === null || amount <= 0) back("Enter a valid amount, like 500 or 99.50.");
-  const done = fromSettle ? `/groups/${group.id}/settle?paid=1` : `/groups/${group.id}?tab=balances&paid=1`;
+  const done = potGame ? `/groups/${group.id}/pot/${potGame}?paid=1` : fromSettle ? `/groups/${group.id}/settle?paid=1` : `/groups/${group.id}?tab=balances&paid=1`;
   const key = cleanKey(formData.get("rid"));
   if ((await previousResult(key)) !== null || (await isDoubleTap(group.id, fromId, toId, amount!, myId))) redirect(done);
 
   let did = "";
   try {
    did = await db.$transaction(async (tx) => {
-    const p = await tx.payment.create({ data: { groupId: group.id, fromId, toId, amount: amount!, createdById: myId } });
+    const p = await tx.payment.create({ data: { groupId: group.id, fromId, toId, amount: amount!, createdById: myId, needsOk: needsOkFor(group.members.find((m) => m.id === toId), myId) } });
     await claimKey(tx, key, p.id);
     return logEvent(tx, {
       groupId: group.id,
