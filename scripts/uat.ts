@@ -2133,7 +2133,7 @@ async function main() {
     await go(V, "/account#pay");
     const pay = V.getByRole("region", { name: "How friends pay you back" });
     await pay.getByLabel("UPI ID (India)").fill("varun@okicici");
-    await pay.getByRole("button", { name: "Save" }).click();
+    await pay.getByRole("button", { name: "Save pay details" }).click();
     await V.waitForURL(/pay=saved/);
     await go(V, `${g}/settle`);
     const link = V.getByRole("link", { name: /Remind/ }).first();

@@ -20,12 +20,12 @@ test("pay buttons, payment tracking and the quick line", async ({ browser }) => 
   await settled(A);
   const pay = A.getByRole("region", { name: "How friends pay you back" });
   await pay.getByLabel("UPI ID (India)").fill("asha");
-  await pay.getByRole("button", { name: "Save" }).click();
+  await pay.getByRole("button", { name: "Save pay details" }).click();
   await A.waitForURL(/pay=error/);
   await expect(A.getByRole("alert").filter({ hasText: "UPI ID doesn’t look right" })).toBeVisible();
   await settled(A);
   await A.getByRole("region", { name: "How friends pay you back" }).getByLabel("UPI ID (India)").fill("Asha@OKICICI");
-  await A.getByRole("region", { name: "How friends pay you back" }).getByRole("button", { name: "Save" }).click();
+  await A.getByRole("region", { name: "How friends pay you back" }).getByRole("button", { name: "Save pay details" }).click();
   await A.waitForURL(/pay=saved/);
   await expect(A.getByRole("region", { name: "How friends pay you back" }).getByLabel("UPI ID (India)")).toHaveValue("asha@okicici");
 

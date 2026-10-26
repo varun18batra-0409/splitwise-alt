@@ -124,7 +124,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
               <input name="payLink" defaultValue={account.payLink} maxLength={300} placeholder="e.g. paypal.me/asha or venmo.com/u/asha" autoComplete="off" autoCapitalize="none" spellCheck={false} className={inputClass} />
             </label>
             <button type="submit" className={secondaryButtonClass}>
-              Save
+              Save pay details
             </button>
           </form>
         </section>
