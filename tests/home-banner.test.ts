@@ -54,8 +54,8 @@ describe("your month in numbers", () => {
 
 describe("seasonal card", () => {
   it("Diwali until the day itself, then nothing until New Year plans", () => {
-    expect(seasonNow(new Date("2026-10-20T10:00:00Z"), IST)).toMatchObject({ id: "diwali-2026", cover: "diwali" });
-    expect(seasonNow(new Date("2026-10-20T10:00:00Z"), IST)!.href).toBe("/groups/new?name=Diwali&type=other&cover=diwali");
+    expect(seasonNow(new Date("2026-10-20T10:00:00Z"), IST)).toMatchObject({ id: "diwali-2026", cover: "cards", button: "Start a Pot" });
+    expect(seasonNow(new Date("2026-10-20T10:00:00Z"), IST)!.href).toBe("/groups/new?name=Diwali+card+night&type=pot&cover=cards");
     expect(seasonNow(new Date("2026-11-08T19:00:00Z"), IST, "IN")).toBeNull(); // 12:30 am on 9 Nov in India
     expect(seasonNow(new Date("2026-11-20T10:00:00Z"), IST, "IN")).toBeNull();
     expect(seasonNow(new Date("2026-12-15T10:00:00Z"), IST)).toMatchObject({ id: "christmas" });

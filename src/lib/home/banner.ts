@@ -38,6 +38,7 @@ export function monthNumbers(
   for (const g of groups) {
     for (const e of g.expenses) {
       if (monthKey(e.spentAt ?? e.createdAt, tz) !== month) continue;
+      if (e.kind === "pot") continue; // a card game's result isn't spending
       const mine = e.shares.find((s) => s.memberId === g.myId)?.amount ?? 0;
       const signed = e.kind === "refund" ? -mine : mine;
       if (e.kind !== "refund") count++;
@@ -71,8 +72,9 @@ export type Season = {
 // (one year) or "MM-DD" (every year). Add new ones here.
 const SEASONS: (Omit<Season, "href"> & { from: string; to: string; name: string; type: string; countries?: string[] })[] = [
   {
-    id: "diwali-2026", from: "2026-10-05", to: "2026-11-08", eyebrow: "Diwali is on 8 Nov", title: "Diwali with family?",
-    text: "One group for gifts, sweets and travel, split fairly.", button: "Start a group", cover: "diwali", name: "Diwali", type: "other", countries: ["IN"],
+    // Diwali card nights: Teen Patti and Poker with The Pot.
+    id: "diwali-2026", from: "2026-10-05", to: "2026-11-08", eyebrow: "Diwali is on 8 Nov 🪔", title: "Diwali card night?",
+    text: "Teen Patti or Poker: The Pot keeps count of who took what, who won and who pays whom.", button: "Start a Pot", cover: "cards", name: "Diwali card night", type: "pot", countries: ["IN"],
   },
   {
     id: "thanksgiving-2026", from: "2026-11-01", to: "2026-11-26", eyebrow: "Thanksgiving is on Nov 26", title: "Friendsgiving?",

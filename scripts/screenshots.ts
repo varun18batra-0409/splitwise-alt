@@ -283,6 +283,35 @@ if (!hosted) {
   await shot("80-home-countdown-close", "/", undefined, false);
   await db.group.update({ where: { id: goa.id }, data: { tripStart: ist(-1), tripEnd: ist(3) } });
   await shot("81-group-countdown-during", `/groups/${goa.id}`, undefined, false);
+  // The Pot: a card-night group with a finished game (the brief's example) and one being played.
+  {
+    const { startGame, recordMove, finishGame } = await import("../src/lib/pot-db");
+    const pot = await db.group.create({
+      data: {
+        name: "Diwali card night", type: "pot", currency: "INR", inviteCode: `shotspot${now.toString(36)}`,
+        members: { create: [{ name: "Varun", accountId: acc.id, claimedAt: new Date() }, { name: "Ravi" }, { name: "Meera" }, { name: "Kabir" }] },
+      },
+      include: { members: { orderBy: { createdAt: "asc" } } },
+    });
+    const [v, r, m, k] = ["Varun", "Ravi", "Meera", "Kabir"].map((n) => pot.members.find((x) => x.name === n)!.id);
+    const one = await startGame(pot.id, v, { name: "Round 1", game: "teenpatti", players: [v, r, m, k] });
+    if (one.ok) {
+      for (const [who, a] of [[v, "1000"], [r, "2000"], [m, "500"], [k, "1000"], [k, "500"]] as const) await recordMove(one.id, v, { memberId: who, kind: "take", amount: a });
+      for (const [who, a] of [[v, "1600"], [r, "1700"], [m, "300"], [k, "1400"]] as const) await recordMove(one.id, v, { memberId: who, kind: "return", amount: a });
+      await finishGame(one.id, v);
+    }
+    const two = await startGame(pot.id, v, { name: "Round 2", game: "poker", players: [v, r, m, k] });
+    if (two.ok) {
+      for (const [who, a] of [[v, "2000"], [r, "1000"], [m, "1000"], [k, "2000"]] as const) await recordMove(two.id, r, { memberId: who, kind: "take", amount: a, note: who === k ? "second buy-in later" : "" });
+      await recordMove(two.id, m, { memberId: m, kind: "return", amount: "1500" });
+      await recordMove(two.id, v, { memberId: r, kind: "return", amount: "0" });
+    }
+    await shot("92-pot-games", `/groups/${pot.id}`, undefined, false);
+    if (two.ok) await shot("93-pot-live", `/groups/${pot.id}/pot/${two.id}`);
+    if (one.ok) await shot("94-pot-done", `/groups/${pot.id}/pot/${one.id}`);
+    await shot("95-pot-new-game", `/groups/${pot.id}/pot/new`, undefined, false);
+    await shot("96-new-group-menu", "/groups/new", undefined, false);
+  }
 }
 await context.clearCookies();
 await shot("16-join", `/join/${demo.trip.invite}`);
@@ -293,7 +322,7 @@ if (collectCode) {
   await context.addCookies([{ name: "lp_payer", value: "shotsPayerKey0000000001", url: `${base}/c/` }]);
   await shot("75-collect-payer-ticked", `/c/${collectCode}`);
 }
-for (const n of [2, 3, 4, 5, 6]) {
+for (const n of [2, 3, 4, 5, 6, 7]) {
   await shot(`24-tour-${n}`, "/", async (p) => {
     for (let k = 1; k < n; k++) {
       await p.getByRole("button", { name: /Next/ }).click();

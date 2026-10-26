@@ -9,11 +9,13 @@ import { TripDates } from "./TripDates";
 import { GroupCover } from "./GroupCover";
 import { coverOf, isCoverChoice, type CoverChoice } from "@/lib/covers";
 import { inputClass, primaryButtonClass, secondaryButtonClass } from "./ui";
+import Link from "./Link";
 
 const ICONS: Record<GroupType, React.ReactNode> = {
   trip: <path d="M2 16l20-7-4-2-6 2-6-4-2 1 4 5-4 1-2-1-1 1zM3 21h18" />,
   home: <path d="M3 11l9-7 9 7M5 10v10h14V10M10 20v-5h4v5" />,
   couple: <path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" />,
+  pot: <path d="M8 3h9a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM12.5 8 9.5 12l3 4 3-4zM3 7.5l3-1" />,
   other: <path d="M6 12h.01M12 12h.01M18 12h.01" strokeWidth={3} />,
 };
 
@@ -59,7 +61,26 @@ export function NewGroupForm({
         <fieldset>
           <legend className="mb-4 font-display text-[28px] font-semibold leading-tight">What’s it for?</legend>
           <div className="grid grid-cols-2 gap-2.5">
-            {GROUP_TYPES.map((t) => (
+            {GROUP_TYPES.flatMap((t) => (t.id === "other" ? ["collect" as const, t] : [t])).map((t) =>
+              t === "collect" ? (
+                // Collect isn't a group: one link to gather money from many (it lives here so everything starts in one place).
+                <Link
+                  key="collect"
+                  href="/collect/new"
+                  className="relative flex h-[140px] flex-col justify-between overflow-hidden rounded-[18px] border border-line bg-white p-4 text-left active:bg-mist"
+                >
+                  <span aria-hidden className="absolute -right-1.5 top-3 flex h-[68px] w-[52px] rotate-[9deg] items-center justify-center rounded-[4px] border-[3px] border-fg bg-[#1d3b2f] text-[26px] shadow-lg shadow-black/50">
+                    🫙
+                  </span>
+                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M9 3h6M10 3v3.5a5 5 0 0 0-4 4.9V19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-7.6a5 5 0 0 0-4-4.9V3M9 14h6" />
+                  </svg>
+                  <span>
+                    <span className="block text-[17px] font-semibold">Collect</span>
+                    <span className="mt-0.5 block text-xs text-gray-500">One link: gifts, fees, bookings</span>
+                  </span>
+                </Link>
+              ) : (
               <button
                 key={t.id}
                 type="button"
@@ -78,8 +99,15 @@ export function NewGroupForm({
                   <span className="mt-0.5 block text-xs text-gray-500">{t.hint}</span>
                 </span>
               </button>
-            ))}
+              ),
+            )}
           </div>
+          {type === "pot" && (
+            <p className="mt-3 rounded-xl border border-owed/25 bg-owed/[0.08] px-3.5 py-2.5 text-[13px] leading-snug text-fg/80">
+              <strong className="font-semibold text-owed">The Pot</strong> is for Poker and Teen Patti nights. Everyone takes money from the pot to play and puts back
+              what’s left. Loopin works out who won, who lost and who pays whom. It never holds or moves money.
+            </p>
+          )}
         </fieldset>
 
         <CoverPicker
@@ -119,7 +147,9 @@ export function NewGroupForm({
             <p className="rounded-xl bg-mist px-4 py-3 text-sm text-gray-500">
               {type === "home"
                 ? "Next: add your flatmates. You can set a split by room size in settings later."
-                : "Next: add people. Pick friends already on Loopin, choose from your contacts, or invite by email."}
+                : type === "pot"
+                  ? "Next: add the players. Pick friends on Loopin, or just type their names; they can join with the link any time."
+                  : "Next: add people. Pick friends already on Loopin, choose from your contacts, or invite by email."}
             </p>
             <button type="submit" className={primaryButtonClass}>
               Create group &amp; add people

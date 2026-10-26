@@ -63,8 +63,10 @@ export function payersLabel(payers: Payer[], who: (id: string) => string): strin
   return payers.map((p) => who(p.memberId)).join(" + ");
 }
 
-// How much an expense adds to "spent": money back takes it away again.
+// How much an expense adds to "spent": money back takes it away again. A card
+// game's result (The Pot) moves money between players but isn't spending.
 export function spentAmount(e: { amount: number; kind?: string | null }): number {
+  if (e.kind === "pot") return 0;
   return e.kind === "refund" ? -e.amount : e.amount;
 }
 

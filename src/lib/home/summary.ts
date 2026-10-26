@@ -31,7 +31,7 @@ export function monthSummary(expenses: ExpenseLike[], myId: string, key: string,
   const cats = new Map<string, number>();
   for (const e of expenses) {
     if (inMonth(e, last)) lastTotal += spentAmount(e);
-    if (!inMonth(e, key)) continue;
+    if (!inMonth(e, key) || e.kind === "pot") continue;
     const sign = e.kind === "refund" ? -1 : 1;
     const { credits, debits } = moneyLines(e);
     const share = e.shares.find((s) => s.memberId === myId)?.amount ?? 0;

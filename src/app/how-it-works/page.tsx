@@ -112,6 +112,8 @@ export default async function HowItWorks() {
           ["#trips", "Trip report"],
           ["#home", "Flatmates"],
           ["#couples", "Couples"],
+          ["#pot", "Card nights"],
+          ["#collect", "Collect money"],
           ["#safe", "Undo & privacy"],
           ["#splitwise", "From another app"],
         ].map(([href, label]) => (
@@ -125,7 +127,7 @@ export default async function HowItWorks() {
       <Section slot="roadtrip" kicker="1 · Start" title="Make a group, bring everyone in">
         <Steps
           items={[
-            <>Tap <strong>New group</strong> and pick what it’s for: <strong>Trip</strong>, <strong>Home</strong>, <strong>Couple</strong> or <strong>Other</strong>. Give it a name (“Euro trip”) and a currency. First time? Sign in with Google or your email in 30 seconds (no password). Next time, one touch with your fingerprint or face.</>,
+            <>Tap <strong>New group</strong> and pick what it’s for: <strong>Trip</strong>, <strong>Home</strong>, <strong>Couple</strong>, <strong>The Pot</strong> (card nights) or <strong>Anything Goes</strong>. Collecting for a gift or a booking? <strong>Collect</strong> is right there too. Give it a name (“Euro trip”) and a currency. First time? Sign in with Google or your email in 30 seconds (no password). Next time, one touch with your fingerprint or face.</>,
             <>Add people: friends already on Loopin, people from your contacts, or anyone by email.</>,
             <>Or share the group’s link or QR code. People confirm their email and they’re in, and show up on the People screen. From then on everyone is told about every change.</>,
           ]}
@@ -253,6 +255,33 @@ export default async function HowItWorks() {
           in your own accounts.
         </p>
         <Screen src="/guide/couple-month.webp" alt="A couple's This month screen: spent together, you're ahead, and a savings goal" caption="A couple’s month: who’s ahead, where it went, the Bali fund" />
+      </Section>
+
+      <div id="pot" className="scroll-mt-4" />
+      <Section title="Card nights: The Pot keeps score">
+        <p>
+          Playing <strong>Poker</strong> or <strong>Teen Patti</strong>? Make a group and pick <strong>The Pot</strong>. Add the players: friends on
+          Loopin see the game and their balance; anyone else can just be a name (they can join with the link later).
+        </p>
+        <Steps
+          items={[
+            <><strong>Start a game.</strong> Pick the game and who’s at the table. Whoever starts it is the host.</>,
+            <><strong>Take from the pot.</strong> Each time someone takes money to play ({india ? "₹1,000, then another ₹500" : "$100, then another $50"}), note it. Anyone in the group can add a line, and every line says who added it.</>,
+            <><strong>Put back.</strong> At the end, note what each person puts back (0 if they lost it all). Loopin shows each person’s win or loss: what they put back minus what they took.</>,
+            <><strong>It has to add up.</strong> If money is missing, or more came back than was taken, the game can’t finish until you find it, or the host fixes the difference (spread over everyone, or on one person) with a reason.</>,
+            <><strong>Finish.</strong> The fewest payments to square up (“Meera pays Ravi {india ? "₹300" : "$30"}”). The result goes into the group’s balances, so Settle up works as always. Every game stays in the history.</>,
+          ]}
+        />
+        <p>Loopin only keeps count, like a notebook at the table. It doesn’t run the game, track chips or bets, or hold or move any money.</p>
+      </Section>
+
+      <div id="collect" className="scroll-mt-4" />
+      <Section title="Collect: one link, see who’s paid">
+        <p>
+          Gathering money for a gift, a farewell or a booking? Tap <strong>New group → Collect</strong>. Set the amount each, your UPI ID (or a pay
+          link), and share the link in your WhatsApp group. People pay you directly, tick their name (no sign-up), and you tap <strong>Got it</strong> once you
+          see the money. Friends on Loopin hear about it in the app.
+        </p>
       </Section>
 
       <div id="safe" className="scroll-mt-4" />

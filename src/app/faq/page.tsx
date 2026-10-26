@@ -62,7 +62,7 @@ const SECTIONS: { title: string; items: QA[] }[] = [
       },
       {
         q: "What are the cards that slide by at the top of Home?",
-        a: "Your overall balance (with Settle up), your month in numbers (your share across groups, how many expenses, what you spent most on), a seasonal idea like Diwali, and a way to bring groups over from another app. Swipe them, tap the dots, or pause them.",
+        a: "Your overall balance (with Settle up), your month in numbers (your share across groups, how many expenses, what you spent most on), a seasonal idea (like a Diwali card night with The Pot), and a way to bring groups over from another app. Swipe them, tap the dots, or pause them.",
       },
       {
         q: "Why does Home show only four groups?",
@@ -111,6 +111,31 @@ const SECTIONS: { title: string; items: QA[] }[] = [
       {
         q: "Can a couple split by income instead of 50/50?",
         a: "Yes. A Couple group can use 50/50, a ratio you choose, or one worked out from your incomes (say 55/45). The incomes are only used on your phone to work out the ratio; they aren’t sent or saved.",
+      },
+    ],
+  },
+  {
+    title: "Card nights and collecting",
+    items: [
+      {
+        q: "What is The Pot?",
+        a: "For Poker and Teen Patti nights. Make a group and pick The Pot, then start a game. Note what each player takes from the pot to play (as often as they like) and what they put back at the end. Loopin works out who won, who lost and the fewest payments to square up.",
+      },
+      {
+        q: "The money doesn’t add up. What now?",
+        a: "Loopin won’t finish the game until every rupee taken has come back. Check the amounts (whoever added a line, or the host, can take it off and add it again). If it really is lost, the host can fix the difference: spread it over everyone who played, or put it on one person, with a reason everyone can see.",
+      },
+      {
+        q: "Do all the players need Loopin?",
+        a: "No. Friends on Loopin see the game and their balance and get a notification when it starts and finishes. Anyone else can just be a name, and they can join with the group’s link later and take over their name.",
+      },
+      {
+        q: "Does Loopin hold the money or run the game?",
+        a: "Neither. It only keeps count, like a notebook at the table: no chips, bets or hands, and it never holds or moves money. You pay each other however you usually do, then mark it paid in Settle up.",
+      },
+      {
+        q: "Where is Collect?",
+        a: "Tap New group and pick Collect: one link to gather money for a gift, a farewell or a booking. People pay you directly and tick their name. Your open collections still show on Home.",
       },
     ],
   },

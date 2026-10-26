@@ -56,6 +56,7 @@ export function computeInsights(
   for (const g of groups) {
     for (const e of g.expenses) {
       if (opts.include && !opts.include(e.id)) continue;
+      if (e.kind === "pot") continue; // a card game's result isn't spending
       const sign = e.kind === "refund" ? -1 : 1;
       const raw = opts.view === "share" ? (e.shares.find((s) => s.memberId === g.myId)?.amount ?? 0) : e.amount;
       if (bucketOf(e.spentAt ?? e.createdAt, opts.grain, opts.tz) === sel) {

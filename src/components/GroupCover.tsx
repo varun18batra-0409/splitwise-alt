@@ -215,6 +215,42 @@ export function GroupCover({
           <path d="M0 372 C 80 344, 200 350, 300 366 L 300 400 L 0 400 Z" fill="#111726" />
         </>,
       );
+    case "cards":
+      return svg(
+        <>
+          <defs>
+            <radialGradient id={id("felt")} cx="0.5" cy="0.55" r="0.75">
+              <stop offset="0" stopColor="#1f6b4a" />
+              <stop offset="0.6" stopColor="#124a33" />
+              <stop offset="1" stopColor="#0a2a1e" />
+            </radialGradient>
+          </defs>
+          <rect width="300" height="400" fill={`url(#${id("felt")})`} />
+          <ellipse cx="150" cy="210" rx="128" ry="150" fill="none" stroke="#2f8a62" strokeWidth="2" opacity="0.6" />
+          <g transform="translate(108 206) rotate(-16)">
+            <rect x="-46" y="-66" width="92" height="132" rx="10" fill="#f6f1e6" stroke="#d9cfbd" strokeWidth="2" />
+            <text x="-32" y="-36" fontSize="26" fontWeight="700" fill="#1b1b1f" fontFamily="Georgia, serif">A</text>
+            <text x="0" y="16" fontSize="54" textAnchor="middle" fill="#1b1b1f">♠</text>
+          </g>
+          <g transform="translate(150 190) rotate(0)">
+            <rect x="-46" y="-66" width="92" height="132" rx="10" fill="#f6f1e6" stroke="#d9cfbd" strokeWidth="2" />
+            <text x="-32" y="-36" fontSize="26" fontWeight="700" fill="#c0392b" fontFamily="Georgia, serif">K</text>
+            <text x="0" y="16" fontSize="54" textAnchor="middle" fill="#c0392b">♥</text>
+          </g>
+          <g transform="translate(194 206) rotate(16)">
+            <rect x="-46" y="-66" width="92" height="132" rx="10" fill="#f6f1e6" stroke="#d9cfbd" strokeWidth="2" />
+            <text x="-32" y="-36" fontSize="26" fontWeight="700" fill="#c0392b" fontFamily="Georgia, serif">Q</text>
+            <text x="0" y="16" fontSize="54" textAnchor="middle" fill="#c0392b">♦</text>
+          </g>
+          {/* A little stack of chips */}
+          {[0, 1, 2].map((i) => (
+            <g key={i}>
+              <ellipse cx="226" cy={330 - i * 9} rx="24" ry="8" fill={["#d9a441", "#c45b3c", "#efe6d6"][i]} stroke="#0a2a1e" strokeWidth="1.5" />
+            </g>
+          ))}
+          <ellipse cx="78" cy="334" rx="22" ry="7.5" fill="#d9a441" stroke="#0a2a1e" strokeWidth="1.5" />
+        </>,
+      );
     case "diwali":
       return svg(
         <>
