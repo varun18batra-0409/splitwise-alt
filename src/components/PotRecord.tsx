@@ -76,7 +76,7 @@ export function PotRecord({
         </span>
       </label>
       {kind === "take" && (
-        <div className="flex flex-wrap gap-2" aria-label="Quick amounts">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Quick amounts">
           {quick.map((q) => (
             <button key={q.value} type="button" onClick={() => setAmount(q.value)} className="rounded-full border border-line px-3.5 py-1.5 text-sm font-semibold tabular-nums active:bg-mist">
               {q.label}
