@@ -18,24 +18,24 @@ async function groupFor(groupId: string, actorId: string) {
     where: { id: groupId },
     select: { id: true, type: true, currency: true, closed: true, deletedAt: true, members: { select: { id: true, name: true, leftAt: true } } },
   });
-  if (!g || g.deletedAt) return { error: "This group isn’t there any more." } as const;
+  if (!g || g.deletedAt) return { error: "This group isn’t there any more." };
   const me = g.members.find((m) => m.id === actorId && !m.leftAt);
-  if (!me) return { error: "Only people in this group can do that." } as const;
-  return { g };
+  if (!me) return { error: "Only people in this group can do that." };
+  return { error: "", g };
 }
 
 async function gameFor(gameId: string, actorId: string) {
   const game = await db.potGame.findUnique({ where: { id: gameId }, include: { moves: { where: { deletedAt: null } } } });
-  if (!game || game.deletedAt) return { error: "This game isn’t there any more." } as const;
+  if (!game || game.deletedAt) return { error: "This game isn’t there any more." };
   const r = await groupFor(game.groupId, actorId);
-  if ("error" in r) return r;
-  return { game, g: r.g };
+  if (!r.g) return { error: r.error };
+  return { error: "", game, g: r.g };
 }
 
 // Start a game: its name, Poker or Teen Patti, and who's playing (at least two).
 export async function startGame(groupId: string, actorId: string, input: { name: string; game: string; players: string[] }, today = new Date()): Promise<Result<{ id: string }>> {
   const r = await groupFor(groupId, actorId);
-  if ("error" in r) return { ok: false, error: r.error };
+  if (!r.g) return { ok: false, error: r.error };
   if (r.g.type !== "pot") return { ok: false, error: "Games are for Pot groups." };
   if (r.g.closed) return { ok: false, error: "This group is closed. Reopen it in settings to play." };
   const game = isPotGame(input.game) ? input.game : "teenpatti";
@@ -52,7 +52,7 @@ export async function startGame(groupId: string, actorId: string, input: { name:
 // Money taken from the pot, or put back. "0" put back = lost it all.
 export async function recordMove(gameId: string, actorId: string, input: { memberId: string; kind: string; amount: string; note?: string }): Promise<Result> {
   const r = await gameFor(gameId, actorId);
-  if ("error" in r) return { ok: false, error: r.error };
+  if (!r.game || !r.g) return { ok: false, error: r.error };
   const { game, g } = r;
   if (game.status !== "open") return { ok: false, error: "This game is finished. The host can reopen it." };
   if (input.kind !== "take" && input.kind !== "return") return { ok: false, error: "Pick take or put back." };
@@ -75,7 +75,7 @@ export async function removeMove(moveId: string, actorId: string): Promise<Resul
   const m = await db.potMove.findUnique({ where: { id: moveId } });
   if (!m || m.deletedAt) return { ok: false, error: "That line isn’t there any more." };
   const r = await gameFor(m.gameId, actorId);
-  if ("error" in r) return { ok: false, error: r.error };
+  if (!r.game || !r.g) return { ok: false, error: r.error };
   if (r.game.status !== "open") return { ok: false, error: "This game is finished. The host can reopen it." };
   if (m.createdById !== actorId && r.game.hostId !== actorId) return { ok: false, error: "Only whoever added it, or the host, can take it back." };
   await db.potMove.update({ where: { id: moveId }, data: { deletedAt: new Date() } });
@@ -86,7 +86,7 @@ export async function removeMove(moveId: string, actorId: string): Promise<Resul
 // everyone who played, or on one player. Always with a reason.
 export async function adjustGap(gameId: string, actorId: string, input: { mode: string; memberId?: string; note?: string }): Promise<Result> {
   const r = await gameFor(gameId, actorId);
-  if ("error" in r) return { ok: false, error: r.error };
+  if (!r.game || !r.g) return { ok: false, error: r.error };
   const { game } = r;
   if (game.hostId !== actorId) return { ok: false, error: "Only the host can fix the difference." };
   if (game.status !== "open") return { ok: false, error: "This game is finished." };
@@ -107,7 +107,7 @@ export async function adjustGap(gameId: string, actorId: string, input: { mode: 
 // balances as one line, so settling up works as for any group.
 export async function finishGame(gameId: string, actorId: string): Promise<Result> {
   const r = await gameFor(gameId, actorId);
-  if ("error" in r) return { ok: false, error: r.error };
+  if (!r.game || !r.g) return { ok: false, error: r.error };
   const { game, g } = r;
   if (game.hostId !== actorId) return { ok: false, error: "Only the host can finish the game." };
   if (game.status !== "open") return { ok: false, error: "This game is already finished." };
@@ -156,7 +156,7 @@ export async function finishGame(gameId: string, actorId: string): Promise<Resul
 // Reopen a finished game (a wrong amount): its result comes out of the balances until it's finished again.
 export async function reopenGame(gameId: string, actorId: string): Promise<Result> {
   const r = await gameFor(gameId, actorId);
-  if ("error" in r) return { ok: false, error: r.error };
+  if (!r.game || !r.g) return { ok: false, error: r.error };
   const { game, g } = r;
   if (game.hostId !== actorId) return { ok: false, error: "Only the host can reopen the game." };
   if (game.status !== "done") return { ok: false, error: "This game is still going." };
@@ -175,7 +175,7 @@ export async function reopenGame(gameId: string, actorId: string): Promise<Resul
 // Delete a game started by mistake (only while it's open).
 export async function deleteGame(gameId: string, actorId: string): Promise<Result<{ groupId: string }>> {
   const r = await gameFor(gameId, actorId);
-  if ("error" in r) return { ok: false, error: r.error };
+  if (!r.game || !r.g) return { ok: false, error: r.error };
   if (r.game.hostId !== actorId) return { ok: false, error: "Only the host can delete the game." };
   if (r.game.status !== "open") return { ok: false, error: "Reopen it first." };
   await db.potGame.update({ where: { id: gameId }, data: { deletedAt: new Date() } });
