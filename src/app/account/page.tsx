@@ -9,11 +9,12 @@ import { niceDate } from "@/lib/format";
 import { getAccount, getMemberships } from "@/lib/identity";
 import { loadMyGroups } from "@/lib/group-data";
 import { ConfirmButton } from "@/components/ConfirmButton";
-import { PageHeader, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
+import { PageHeader, inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
+import { savePayWays } from "@/app/pay-actions";
 
 // You: signed-in email (optional), sign out, delete your data, privacy.
-export default async function AccountPage({ searchParams }: { searchParams: Promise<{ name?: string; groups?: string }> }) {
-  const { name: nameState, groups: renamed } = await searchParams;
+export default async function AccountPage({ searchParams }: { searchParams: Promise<{ name?: string; groups?: string; pay?: string; payError?: string }> }) {
+  const { name: nameState, groups: renamed, pay: payState, payError } = await searchParams;
   const account = await getAccount();
   const groups = await loadMyGroups(await getMemberships());
   const admins = (process.env.ADMIN_EMAIL ?? "").split(",").map((s) => s.trim().toLowerCase());
@@ -93,6 +94,39 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           <Link href="/signin?back=/account" className={`mt-5 ${primaryButtonClass}`}>
             Sign in or sign up
           </Link>
+        </section>
+      )}
+
+      {/* How friends pay you back: a Pay button on Settle up for anyone who owes you. */}
+      {account && (
+        <section id="pay" aria-label="How friends pay you back" className="mt-6 scroll-mt-4 rounded-[20px] border border-line px-5 py-5">
+          <h2 className="font-display text-lg font-semibold tracking-tight">How friends pay you back</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            People who owe you get a Pay button with the amount filled in. Only people in your groups who owe you see these. Loopin never moves money.
+          </p>
+          {payState === "saved" && (
+            <p role="status" className="mt-3 text-sm text-emerald-400">
+              Saved.
+            </p>
+          )}
+          {payState === "error" && payError && (
+            <p role="alert" className="mt-3 text-sm text-red-400">
+              {payError.slice(0, 160)}
+            </p>
+          )}
+          <form action={savePayWays} className="mt-4 space-y-3">
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium text-gray-600">UPI ID (India)</span>
+              <input name="upiId" defaultValue={account.upiId} maxLength={120} placeholder="e.g. asha@okicici" autoComplete="off" autoCapitalize="none" spellCheck={false} className={inputClass} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium text-gray-600">PayPal, Venmo, Cash App, Revolut or Monzo link</span>
+              <input name="payLink" defaultValue={account.payLink} maxLength={300} placeholder="e.g. paypal.me/asha or venmo.com/u/asha" autoComplete="off" autoCapitalize="none" spellCheck={false} className={inputClass} />
+            </label>
+            <button type="submit" className={secondaryButtonClass}>
+              Save
+            </button>
+          </form>
         </section>
       )}
 

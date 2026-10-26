@@ -69,7 +69,7 @@ export function ActivityRow({
             {nameOf(item.fromId)} paid {to === "You" ? "you" : to}
           </p>
           <p className={meta}>
-            {deleted ? deletedNote : "Settle-up"} · {money(item.amount)}
+            {deleted ? deletedNote : item.status === "waiting" ? `Waiting for ${to === "You" ? "you" : to} to confirm` : item.status === "ok" ? "Confirmed ✓" : "Settle-up"} · {money(item.amount)}
             {groupName && ` · ${groupName}`}
           </p>
         </div>

@@ -38,6 +38,8 @@ type PaymentRow = {
   createdById?: string;
   deletedAt?: Date | null;
   deletedById?: string | null;
+  needsOk?: boolean;
+  okAt?: Date | null;
 };
 type EventRow = { id: string; kind: string; actorId: string; text: string; details: string; createdAt: Date };
 
@@ -75,6 +77,7 @@ export type ActivityItem =
       effect: number;
       createdById: string;
       deletedById: string | null;
+      status?: "waiting" | "ok"; // payment tracking: waiting for the person paid to confirm, or confirmed
     }
   | { kind: "event"; id: string; date: Date; actorId: string; text: string; details: string; effect: 0 };
 
@@ -130,6 +133,7 @@ export function buildActivity(expenses: ExpenseRow[], payments: PaymentRow[], my
         effect: p.deletedAt ? 0 : p.fromId === myId ? p.amount : p.toId === myId ? -p.amount : 0,
         createdById: p.createdById ?? p.fromId,
         deletedById: p.deletedAt ? (p.deletedById ?? "") : null,
+        status: p.okAt ? "ok" : p.needsOk ? "waiting" : undefined,
       }),
     ),
     ...events
