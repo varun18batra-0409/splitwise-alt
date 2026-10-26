@@ -32,6 +32,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
   const money = (n: number) => formatMoney(n, group.currency);
   const nameOf = (mid: string) => group.members.find((m) => m.id === mid)?.name ?? "Someone";
   const you = (mid: string) => (mid === myId ? "You" : nameOf(mid));
+  const youLow = (mid: string) => (mid === myId ? "you" : nameOf(mid)); // in the middle of a sentence
   const players = parsePlayers(game.players);
   const live = game.moves.filter((m) => !m.deletedAt);
   const { lines, totals } = potSummary(players, live);
@@ -99,8 +100,8 @@ export default async function GamePage({ params, searchParams }: { params: Promi
 
       {/* The pot */}
       <section aria-label="The pot" className="relative overflow-hidden rounded-[24px] px-5 pb-5 pt-5 text-fg [background:radial-gradient(90%_100%_at_100%_0%,#1f6b4a_0%,transparent_60%),linear-gradient(160deg,#123a2a_0%,#0b1612_80%)]">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-fg/55">
-          {potGameLabel(game.game)} · host {you(game.hostId)} · {open ? "playing" : "finished"}
+        <p className="pr-14 text-[11px] font-semibold uppercase tracking-[0.16em] text-fg/55">
+          {potGameLabel(game.game)} · host {youLow(game.hostId)} · {open ? "playing" : "finished"}
         </p>
         {open ? (
           <>
@@ -188,7 +189,8 @@ export default async function GamePage({ params, searchParams }: { params: Promi
               Not put back yet: {notBack.map((l) => you(l.memberId)).join(", ")}. Put back 0 for anyone who lost it all.
             </p>
           )}
-          {totals.returned > 0 && !totals.balanced && (
+          {/* Only once everyone has put back: before that, money still being played isn't "missing". */}
+          {notBack.length === 0 && totals.returned > 0 && !totals.balanced && (
             <div className="rounded-2xl border border-owe/40 bg-owe/[0.08] px-4 py-3.5" role="status" data-pot-gap={totals.gap}>
               <p className="text-sm font-semibold text-owe">
                 {totals.gap < 0 ? `${gapText} is missing from the pot` : `${gapText} more came back than was taken`}
@@ -249,7 +251,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
                 return (
                   <li key={`${t.from}-${t.to}`} className="flex items-center gap-3 rounded-2xl border border-line px-4 py-3" data-transfer={done ? "paid" : "pending"}>
                     <span className="min-w-0 flex-1 text-sm">
-                      <strong className="font-semibold">{you(t.from)}</strong> {t.from === myId ? "pay" : "pays"} <strong className="font-semibold">{you(t.to)}</strong>
+                      <strong className="font-semibold">{you(t.from)}</strong> {t.from === myId ? "pay" : "pays"} <strong className="font-semibold">{youLow(t.to)}</strong>
                     </span>
                     <span className="font-semibold tabular-nums">{money(t.amount)}</span>
                     <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${done ? "bg-owed/[0.14] text-owed" : "bg-fg/[0.08] text-fg/60"}`}>{done ? "paid ✓" : "pending"}</span>
@@ -281,7 +283,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
                   {you(m.memberId)} {m.kind === "take" ? (m.memberId === myId ? "took" : "took") : m.kind === "return" ? "put back" : "fix"} {m.kind === "adjust" ? `${m.amount > 0 ? "+" : "−"}${money(Math.abs(m.amount))}` : money(m.amount)}
                   <span className="block text-xs text-gray-400">
                     {m.note ? `${m.note} · ` : ""}
-                    {m.createdById === m.memberId ? "" : `added by ${you(m.createdById)}`}
+                    {m.createdById === m.memberId ? "" : `added by ${youLow(m.createdById)}`}
                   </span>
                 </span>
                 {open && !m.deletedAt && (m.createdById === myId || host) && (

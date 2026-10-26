@@ -78,7 +78,7 @@ test("a Teen Patti game from first take to settled", async ({ browser }) => {
   expect([await net("Asha"), await net("Ravi"), await net("Chirag"), await net("Dev")]).toEqual([60000, -30000, -20000, -10000]);
   const pays = A.getByRole("region", { name: "Who pays whom" });
   await expect(pays.locator("[data-transfer]")).toHaveCount(3);
-  await expect(pays).toContainText("Ravi pays You");
+  await expect(pays).toContainText("Ravi pays you");
   await expect(pays).toContainText("₹300");
   await expect(A.locator("[data-still-owed]")).toHaveAttribute("data-still-owed", "60000");
 

@@ -2,8 +2,6 @@ import Link from "@/components/Link";
 import type { GroupView } from "./view";
 import { parsePlayers, potGameLabel, potSummary, POT_GAMES } from "@/lib/pot";
 import type { loadGames } from "@/lib/pot-db";
-import { niceDate } from "@/lib/format";
-import { dayKey } from "@/lib/dates";
 
 type Game = Awaited<ReturnType<typeof loadGames>>[number];
 
@@ -52,7 +50,7 @@ export function GamesTab({ v, games }: { v: GroupView; games: Game[] }) {
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-semibold">{g.name}</span>
                         <span className="block truncate text-xs text-gray-500">
-                          {potGameLabel(g.game)} · {niceDate(dayKey(g.createdAt, v.tz))} · {players.length} players
+                          {potGameLabel(g.game)} · {g.createdAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: v.tz })} · {players.length} players
                           {g.status === "open" ? ` · ${money(totals.taken)} taken` : top && top.net > 0 ? ` · ${nameOf(top.memberId)} won ${money(top.net)}` : ""}
                         </span>
                       </span>
