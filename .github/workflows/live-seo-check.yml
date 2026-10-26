@@ -9,11 +9,9 @@ jobs:
     steps:
       - run: |
           s=https://www.loopinapps.com
-          ls=$(curl -s "$s/photos/" -o /dev/null -w "%{http_code}")
-          for p in place-manali.jpg place-himachal.jpg; do echo "::notice title=/photos/$p::$(curl -s -o /dev/null -w "%{http_code} %{size_download}" "$s/photos/$p")"; done
-          curl -s -A "WhatsApp/2.24.20.80 A" "$s/how-it-works" -o /tmp/h
-          head=$(sed 's#</head>.*##' /tmp/h | tr -d '\n')
-          echo "::notice title=WhatsApp preview::description $(echo "$head" | grep -o '<meta name="description"' | wc -l), og:image $(echo "$head" | grep -o 'property="og:image"' | wc -l)"
+          curl -s "$s/how-it-works" -o /tmp/h
+          echo "::notice title=New names on How it works::Bites $(grep -c 'Bites &amp; Sips' /tmp/h) · Wheels $(grep -c 'Wheels &amp; Wings' /tmp/h) · Beds $(grep -c 'Beds &amp; Bunks' /tmp/h)"
           css=$(curl -s "$s/" | grep -o '/_next/static/css/[^"]*\.css' | sort -u | head -5)
           for f in $css; do curl -s "$s$f" >> /tmp/all.css; done
-          echo "::notice title=New styles::lp-takeoff $(grep -o 'lp-takeoff' /tmp/all.css | wc -l) · lp-fly $(grep -o 'lp-fly' /tmp/all.css | wc -l) · lp-streak $(grep -o 'lp-streak' /tmp/all.css | wc -l)"
+          echo "::notice title=Moving icons styles::lp-k-train $(grep -o 'lp-k-train' /tmp/all.css | wc -l) · lp-k-steam $(grep -o 'lp-k-steam' /tmp/all.css | wc -l) · lp-takeoff $(grep -o 'lp-takeoff' /tmp/all.css | wc -l) · lp-mo-once $(grep -o 'lp-mo-once' /tmp/all.css | wc -l)"
+          for p in "" groups/new collect/new notifications; do echo "::notice title=/$p::$(curl -s -o /dev/null -w '%{http_code}' "$s/$p")"; done
