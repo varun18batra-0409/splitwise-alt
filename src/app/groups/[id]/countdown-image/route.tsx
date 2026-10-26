@@ -108,6 +108,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         <div style={{ marginTop: "auto", display: "flex", fontSize: 32, letterSpacing: 4, color: "#77736a" }}>made with loopin</div>
       </div>
     ),
-    { ...size, emoji: "twemoji", headers: { "Cache-Control": "private, no-store" } },
+    // Kept on the phone for a few minutes, so opening Share and tapping WhatsApp is instant.
+    { ...size, emoji: "twemoji", headers: { "Cache-Control": "private, max-age=300" } },
   );
 }

@@ -37,7 +37,7 @@ test("a trip with dates counts down on the group and Home; settings change it; t
   // Share: WhatsApp, everyone in the trip (in Loopin), more apps.
   await card.getByRole("button", { name: "Share" }).click();
   const sheet = page.getByRole("dialog", { name: "Share the countdown" });
-  for (const b of [/WhatsApp/, /Everyone in the trip/, /More apps/]) await expect(sheet.getByRole("button", { name: b })).toBeVisible();
+  for (const b of [/WhatsApp/, /Everyone in the trip/, /Other apps/]) await expect(sheet.getByRole("button", { name: b })).toBeVisible();
   await sheet.getByRole("button", { name: /Everyone in the trip/ }).click();
   await expect(sheet.getByRole("status")).toHaveText("Sent to everyone in the trip ✓");
   await sheet.getByRole("button", { name: "Close" }).click();

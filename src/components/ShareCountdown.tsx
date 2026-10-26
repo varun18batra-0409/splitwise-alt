@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { shareCountdownInLoopin } from "@/app/countdown-actions";
 
@@ -16,25 +16,22 @@ export function ShareCountdown({ groupId, line, className }: { groupId: string; 
   const url = `/groups/${groupId}/countdown-image`;
   const words = `${line} ✨`;
 
+  // The picture is made as soon as the panel opens, so a tap on WhatsApp shares
+  // it straight away (phones only allow sharing right after the tap: waiting
+  // for the picture first made it fall back to plain text).
+  const pic = useRef<Promise<File | null> | null>(null);
   useEffect(() => {
     if (!open) return;
+    pic.current ??= fetch(url)
+      .then(async (res) => (res.ok ? new File([await res.blob()], "countdown.png", { type: "image/png" }) : null))
+      .catch(() => null);
     const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
     window.addEventListener("keydown", esc);
     return () => window.removeEventListener("keydown", esc);
-  }, [open]);
-
-  async function picture(): Promise<File | null> {
-    try {
-      const res = await fetch(url);
-      if (!res.ok) return null;
-      return new File([await res.blob()], "countdown.png", { type: "image/png" });
-    } catch {
-      return null;
-    }
-  }
+  }, [open, url]);
 
   async function shareFile(): Promise<"shared" | "closed" | "cant"> {
-    const file = await picture();
+    const file = await (pic.current ?? Promise.resolve(null));
     if (file && navigator.canShare?.({ files: [file] })) {
       try {
         await navigator.share({ files: [file], text: words });
@@ -50,7 +47,13 @@ export function ShareCountdown({ groupId, line, className }: { groupId: string; 
     setBusy("wa");
     setNote(null);
     const r = await shareFile();
-    if (r === "cant") window.open(`https://wa.me/?text=${encodeURIComponent(`${words} Counting the days on Loopin: ${window.location.origin}`)}`, "_blank", "noopener");
+    if (r === "cant") {
+      // No picture sharing here: WhatsApp with the words. Straight into the app on a
+      // phone (wa.me's web page mangled the emoji into “�”), its web page elsewhere.
+      const text = encodeURIComponent(`${words} Counting the days on Loopin: ${window.location.origin}`);
+      if (/Android|iPhone|iPad/i.test(navigator.userAgent)) window.location.href = `whatsapp://send?text=${text}`;
+      else window.open(`https://api.whatsapp.com/send?text=${text}`, "_blank", "noopener");
+    }
     setBusy("");
   }
 
@@ -127,18 +130,11 @@ export function ShareCountdown({ groupId, line, className }: { groupId: string; 
                   <span className="block text-xs text-fg/50">In Loopin: their Alerts and a buzz on their phones</span>
                 </span>
               </button>
-              <button type="button" onClick={more} disabled={busy !== ""} className={row}>
-                <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-fg/[0.08] text-fg/70">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M16 6l-4-4-4 4M12 2v14" />
-                  </svg>
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block font-semibold">{busy === "more" ? "Getting the picture…" : "More apps"}</span>
-                  <span className="block text-xs text-fg/50">Instagram, or save the picture</span>
-                </span>
-              </button>
             </div>
+            {/* Instagram and the rest: a small link, so the choice is simply WhatsApp or Loopin. */}
+            <button type="button" onClick={more} disabled={busy !== ""} className="mt-3 w-full text-center text-xs font-semibold text-fg/50 underline disabled:opacity-60">
+              {busy === "more" ? "Getting the picture…" : "Other apps (Instagram…) or save the picture"}
+            </button>
             {note && (
               <p role="status" className={`mt-4 rounded-xl px-4 py-3 text-sm ${note.ok ? "bg-owed/10 text-owed" : "bg-owe/10 text-owe"}`}>
                 {note.text}
