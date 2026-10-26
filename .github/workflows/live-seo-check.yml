@@ -8,5 +8,6 @@ jobs:
     steps:
       - run: |
           s=https://www.loopinapps.com
-          g=$(curl -s "$s/signin" | grep -c "Continue with Google" || true)
-          echo "::notice title=google-button::$g"
+          for p in "" signin faq how-it-works api/health; do echo "::notice title=/$p::$(curl -s -o /dev/null -w '%{http_code}' "$s/$p")"; done
+          echo "::notice title=pot-help::$(curl -s "$s/how-it-works" | grep -c 'Count the money')"
+          echo "::notice title=pot-faq::$(curl -s "$s/faq" | grep -c 'Calculate &amp; settle')"
