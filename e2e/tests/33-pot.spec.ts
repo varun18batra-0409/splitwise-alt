@@ -80,7 +80,8 @@ test("a Teen Patti game from first take to settled", async ({ browser }) => {
   await A.waitForURL(/finished=1/);
   await settled(A);
   const net = async (name: string) => Number(await A.locator(`[data-player='${name}']`).getAttribute("data-net"));
-  expect([await net("Asha"), await net("Ravi"), await net("Chirag"), await net("Dev")]).toEqual([60000, -30000, -20000, -10000]);
+  const nets = { Asha: await net("Asha"), Ravi: await net("Ravi"), Chirag: await net("Chirag"), Dev: await net("Dev"), Neha: await net("Neha") };
+  expect(nets, `nets were ${JSON.stringify(nets)}`).toEqual({ Asha: 60000, Ravi: -30000, Chirag: -20000, Dev: -10000, Neha: 0 });
   const pays = A.getByRole("region", { name: "Who pays whom" });
   await expect(pays.locator("[data-transfer]")).toHaveCount(3);
   await expect(pays).toContainText("Ravi pays you");
