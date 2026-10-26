@@ -123,7 +123,7 @@ test("a Teen Patti game from first take to settled", async ({ browser }) => {
   await pays.getByRole("button", { name: "Mark paid: Dev pays you" }).click();
   await A.waitForURL(/\/pot\/[^/?]+\?paid=1/);
   await settled(A);
-  await expect(A.getByRole("region", { name: "Who pays whom" }).locator("[data-transfer='paid']")).toContainText("Dev pays you");
+  await expect(A.getByRole("region", { name: "Who pays whom" }).locator("[data-transfer='paid']").filter({ hasText: "Dev pays you" })).toHaveCount(1);
   await expect(A.locator("[data-still-owed]")).toHaveAttribute("data-still-owed", "50000");
 
   // Ravi sees it in the group: lost ₹300, and pays Asha in Settle up.
@@ -136,7 +136,7 @@ test("a Teen Patti game from first take to settled", async ({ browser }) => {
   await R.waitForURL(/paid=1/); // (the settle page is already open: wait for the payment itself)
   await R.goto(game);
   await settled(R);
-  await expect(R.getByRole("region", { name: "Who pays whom" }).locator("[data-transfer='paid']")).toContainText("You pay Asha");
+  await expect(R.getByRole("region", { name: "Who pays whom" }).locator("[data-transfer='paid']").filter({ hasText: "You pay Asha" })).toHaveCount(1);
   await expect(R.locator("[data-still-owed]")).toHaveAttribute("data-still-owed", "20000");
 
   // Only the host finishes or reopens: Ravi doesn't get those buttons.
