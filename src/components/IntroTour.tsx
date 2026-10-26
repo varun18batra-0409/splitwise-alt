@@ -214,7 +214,7 @@ function makeSlides(L: Local): Slide[] {
   {
     id: "pot",
     title: ["Card night?", "The Pot keeps score."],
-    caption: "Poker or Teen Patti: note what each player takes from the pot and puts back. Loopin shows who won and who pays whom.",
+    caption: "Poker or Teen Patti: buy everyone in with one tap, count what each has at the end, and Loopin shows who pays whom.",
     art: (
       <Card className="[background:radial-gradient(90%_100%_at_100%_0%,rgba(31,107,74,0.35)_0%,transparent_60%)]">
         <p className="rise text-xs text-gray-400">🃏 Teen Patti · Diwali night</p>

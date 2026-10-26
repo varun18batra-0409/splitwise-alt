@@ -2,7 +2,8 @@ import { afterAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { eraseGroups } from "@/lib/purge";
 import { netBalances } from "@/lib/balances";
-import { addPlayerToGame, adjustGap, deleteGame, finishGame, loadGame, recordMove, removeMove, reopenGame, startGame } from "@/lib/pot-db";
+import { addPlayerToGame, adjustGap, buyIn, cashOut, countOut, deleteGame, finishGame, inPlay, loadGame, recordMove, removeMove, reopenGame, startGame } from "@/lib/pot-db";
+import { parsePlayers } from "@/lib/pot";
 
 // The Pot against a real database: a game from start to settle, the gap
 // check, the host's rules, and a finished game's result in the balances.
@@ -116,5 +117,39 @@ describe("The Pot (real database)", () => {
     expect((await addPlayerToGame(s.id, b, "Pia")).ok).toBe(true);
     expect(JSON.parse((await loadGame(g.id, s.id))!.players)).toHaveLength(5);
     expect((await addPlayerToGame(s.id, b, "  ")).ok).toBe(false);
+  });
+
+  it("the quick way: buy-in for everyone or a few, cash out and someone takes the seat, count everyone at the end and settle", async () => {
+    const { g, a, b, c, d } = await table();
+    const s = await startGame(g.id, a, { name: "Quick night", game: "poker", players: [a, b, c, d] });
+    if (!s.ok) throw new Error(s.error);
+    // ₹500 each for all four, then a top-up for three, then Bina once more, Dev once more.
+    expect(await buyIn(s.id, b, { memberIds: [a, b, c, d], amount: "500" })).toEqual({ ok: true, count: 4 });
+    expect((await buyIn(s.id, b, { memberIds: [a, b, d], amount: "500" })).ok).toBe(true);
+    expect((await buyIn(s.id, b, { memberIds: [b], amount: "1000" })).ok).toBe(true);
+    expect((await buyIn(s.id, b, { memberIds: [d], amount: "500" })).ok).toBe(true);
+    expect((await buyIn(s.id, b, { memberIds: [], amount: "500" })).ok).toBe(false);
+    expect((await buyIn(s.id, b, { memberIds: [a], amount: "abc" })).ok).toBe(false);
+
+    // Chirag cashes out with ₹300; Neha (just a name) takes his seat with ₹500.
+    expect((await cashOut(s.id, a, { memberId: c, amount: "300", newName: "Neha", newAmount: "500" })).ok).toBe(true);
+    expect((await cashOut(s.id, a, { memberId: c, amount: "0" })).ok).toBe(false); // already out
+    let game = (await loadGame(g.id, s.id))!;
+    const neha = (await db.member.findFirstOrThrow({ where: { groupId: g.id, name: "Neha" } })).id;
+    expect(inPlay(parsePlayers(game.players), game.moves.filter((m) => !m.deletedAt)).sort()).toEqual([a, b, d, neha].sort());
+
+    // Bina counts herself from her phone (not the host: saved, not settled).
+    expect(await countOut(s.id, b, [{ memberId: b, amount: "1700" }, { memberId: a, amount: "" }], true)).toEqual({ ok: true, finished: false, gap: false });
+    // The host can't settle with someone uncounted.
+    const missing = await countOut(s.id, a, [{ memberId: a, amount: "1600" }], true);
+    expect(!missing.ok && missing.error).toMatch(/Still to count: Dev, Neha/);
+    // A ₹100 slip: saved, but it doesn't add up, so no settle yet.
+    expect(await countOut(s.id, a, [{ memberId: a, amount: "1600" }, { memberId: d, amount: "1300" }, { memberId: neha, amount: "500" }], true)).toEqual({ ok: true, finished: false, gap: true });
+    game = (await loadGame(g.id, s.id))!;
+    const slip = game.moves.find((m) => m.memberId === d && m.kind === "return" && !m.deletedAt)!;
+    expect((await removeMove(slip.id, a)).ok).toBe(true);
+    expect(await countOut(s.id, a, [{ memberId: d, amount: "1400" }], true)).toEqual({ ok: true, finished: true, gap: false });
+    const net = await balances(g.id);
+    expect({ a: net[a], b: net[b], c: net[c], d: net[d], n: net[neha] }).toEqual({ a: 60000, b: -30000, c: -20000, d: -10000, n: 0 });
   });
 });

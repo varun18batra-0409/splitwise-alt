@@ -119,7 +119,7 @@ const SECTIONS: { title: string; items: QA[] }[] = [
     items: [
       {
         q: "What is The Pot?",
-        a: "For Poker and Teen Patti nights. Make a group and pick The Pot, then start a game. Note what each player takes from the pot to play (as often as they like) and what they put back at the end. Loopin works out who won, who lost and the fewest payments to square up.",
+        a: "For Poker and Teen Patti nights. Make a group and pick The Pot, then start a game. Buy everyone in with one tap (top-ups for just a few), cash out anyone who leaves early and let a new name take the seat, then count what everyone has in one table. Tap Calculate & settle: Loopin works out who won, who lost and the fewest payments to square up.",
       },
       {
         q: "The money doesn’t add up. What now?",

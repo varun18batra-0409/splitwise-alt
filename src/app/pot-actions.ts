@@ -3,7 +3,7 @@
 import { redirect } from "@/lib/fresh-redirect";
 import { getMyMemberId } from "@/lib/identity";
 import { db } from "@/lib/db";
-import { addPlayerToGame, adjustGap, deleteGame, finishGame, recordMove, removeMove, reopenGame, startGame } from "@/lib/pot-db";
+import { addPlayerToGame, adjustGap, buyIn, cashOut, countOut, deleteGame, finishGame, recordMove, removeMove, reopenGame, startGame } from "@/lib/pot-db";
 
 // The Pot's buttons. Every one checks you're in the group (and the host
 // rules in pot-db.ts), then goes back to the game with a note.
@@ -83,4 +83,31 @@ export async function addPlayerAction(f: FormData) {
   const { groupId, myId } = await me(await gameGroup(gameId));
   const r = await addPlayerToGame(gameId, myId, field(f, "name").slice(0, 200));
   redirect(back(groupId, gameId, r.ok ? { joined: "1" } : { error: r.error }));
+}
+
+// Buy-in: one amount for everyone ticked.
+export async function buyInAction(f: FormData) {
+  const gameId = field(f, "gameId");
+  const { groupId, myId } = await me(await gameGroup(gameId));
+  const r = await buyIn(gameId, myId, { memberIds: f.getAll("memberIds").map(String).slice(0, 60), amount: field(f, "amount"), note: field(f, "note") });
+  redirect(back(groupId, gameId, r.ok ? { bought: String(r.count) } : { error: r.error }));
+}
+
+// Cash out (and maybe someone new takes the seat).
+export async function cashOutAction(f: FormData) {
+  const gameId = field(f, "gameId");
+  const { groupId, myId } = await me(await gameGroup(gameId));
+  const r = await cashOut(gameId, myId, { memberId: field(f, "memberId"), amount: field(f, "amount"), newName: field(f, "newName").slice(0, 80), newAmount: field(f, "newAmount") });
+  redirect(back(groupId, gameId, r.ok ? { cashed: "1", ...(field(f, "newName").trim() ? { seat: "1" } : {}) } : { error: r.error }));
+}
+
+// End of the game: everyone's count in one go, then (host) settle.
+export async function countOutAction(f: FormData) {
+  const gameId = field(f, "gameId");
+  const { groupId, myId } = await me(await gameGroup(gameId));
+  const ids = f.getAll("memberId").map(String).slice(0, 60);
+  const entries = ids.map((memberId) => ({ memberId, amount: field(f, `count_${memberId}`) }));
+  const r = await countOut(gameId, myId, entries, field(f, "settle") === "1");
+  if (!r.ok) redirect(back(groupId, gameId, { error: r.error }));
+  redirect(back(groupId, gameId, r.finished ? { finished: "1" } : r.gap ? { counted: "1", gap: "1" } : { counted: "1" }));
 }
