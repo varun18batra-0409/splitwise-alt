@@ -127,6 +127,27 @@ const SECTIONS: { title: string; items: QA[] }[] = [
     ],
   },
   {
+    title: "Trips and the fun stuff",
+    items: [
+      {
+        q: "What are the little photos at the top of Home?",
+        a: "Stories from your groups: a trip coming up (or happening now), last night’s card game, a group that just got all square, a collection filling up, and a trip from a year ago. Tap one to watch; tap the right side for the next. A green peg means you haven’t seen it yet.",
+      },
+      {
+        q: "What is Wrapped?",
+        a: "A group’s story in a few slides: how much you spent together, where it went, the big night, the splurge, and everyone’s award (The Banker, Snack Lord, Night Owl…). Open it from a group’s Charts, or from Home after a trip ends, and share it as a picture.",
+      },
+      {
+        q: "What is the trip passport?",
+        a: "A stamp for every place your trips went: cities in your home country, a country stamp abroad. Loopin works out the place from the trip’s name, or from Where to? in the trip’s settings. Add places from before Loopin on the passport page; they show lighter. Open it from the You page and share it as a picture.",
+      },
+      {
+        q: "Reactions, titles and the spinning wheel?",
+        a: "Open any expense to react with 😂 🔥 😭 🙄 😍 👏 (tap again to take it back). Balances shows a fun title for some people, about habits, never about who owes most. On Add expense, Spin for it picks who pays tonight. During a trip, a short line at night sums up the day.",
+      },
+    ],
+  },
+  {
     title: "Card nights and collecting",
     items: [
       {
