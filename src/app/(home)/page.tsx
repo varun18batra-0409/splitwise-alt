@@ -212,7 +212,13 @@ export default async function Home({
         if (Number.isNaN(since) || since < 0 || since > 2) return [];
         return [{ id: g.group.id, name: g.group.name, years, people: g.group.members.length, days: g.group.tripEnd ? daysBetween(start, g.group.tripEnd) + 1 : 1, photo: placePhoto(g.group.name)?.src, cover: coverFor(g.group) }];
       }),
-    wrapped: [],
+    // A trip that ended in the last two weeks: its Wrapped.
+    wrapped: open
+      .filter((g) => g.group.type === "trip" && g.group.tripStart && g.expenses.length >= 3)
+      .flatMap((g) => {
+        const ended = daysBetween(g.group.tripEnd || g.group.tripStart, today);
+        return ended >= 1 && ended <= 14 ? [{ id: g.group.id, name: g.group.name, endedDaysAgo: ended, photo: placePhoto(g.group.name)?.src, cover: coverFor(g.group) }] : [];
+      }),
   });
   const byWeight = [...open].sort((a, b) => Math.abs(b.myBalance) - Math.abs(a.myBalance) || b.lastActivity.getTime() - a.lastActivity.getTime());
   // With one or two groups, shorter cards, so "Needs attention" shows without scrolling.

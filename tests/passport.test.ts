@@ -3,6 +3,7 @@ import { tripStops, countryOf } from "@/lib/geo";
 import { buildPassport, parseHandPlaces } from "@/lib/passport";
 import { buildStories } from "@/lib/home/stories";
 import { squareNumbers } from "@/lib/square";
+import { funTitles, wrapSlides } from "@/lib/wrapped";
 
 describe("Trip passport: where a trip went", () => {
   it("from the trip's name, or what was typed in Where to?", () => {
@@ -68,5 +69,34 @@ describe("All square numbers", () => {
     expect(
       squareNumbers({ expenses: [{ amount: 300000, createdAt: d("2026-10-01") }, { amount: 100000, kind: "pot", createdAt: d("2026-10-03") }], payments: [1, 2], people: 4, tripStart: "2026-10-01", tripEnd: "2026-10-04" }),
     ).toEqual({ spent: 300000, expenses: 2, payments: 2, people: 4, days: 4, each: 75000 });
+  });
+});
+
+describe("Trip Wrapped and fun titles", () => {
+  const at = (h: number, day = 12) => new Date(Date.UTC(2026, 9, day, h - 5, 30)); // IST hour h
+  const e = (description: string, amount: number, paidById: string, category: string, created: Date, createdById = paidById) => ({ description, amount, paidById, category, createdAt: created, spentAt: created, createdById });
+  const expenses = [
+    e("Villa", 1800000, "a", "accommodation", at(11, 10)),
+    e("Dinner", 480000, "b", "food", at(23, 10)),
+    e("Snacks", 60000, "b", "food", at(16, 11)),
+    e("Cab", 150000, "c", "transport", at(9, 11)),
+    e("Cab back", 120000, "c", "transport", at(18, 12)),
+    e("Late pizza", 90000, "b", "food", at(23, 12)),
+  ];
+  it("titles: one each, about habits", () => {
+    const t = funTitles(expenses, ["a", "b", "c"], "Asia/Kolkata", "INR");
+    expect(t.map((x) => [x.memberId, x.title])).toEqual([["a", "The Banker"], ["b", "Snack Lord"], ["c", "Always Pays First"]]);
+    expect(funTitles(expenses.slice(0, 3), ["a", "b", "c"], "Asia/Kolkata", "INR")).toEqual([]); // too few to judge
+  });
+  it("slides: total, top category, the big day, the splurge, awards, and how it ends", () => {
+    const { slides, total } = wrapSlides({ name: "Goa trip", currency: "INR", tz: "Asia/Kolkata", people: [{ id: "a", name: "Asha" }, { id: "b", name: "Ravi" }, { id: "c", name: "Dev" }], expenses, tripStart: "2026-10-10", tripEnd: "2026-10-12", stillToSettle: 0, myId: "a" });
+    expect(total).toBe(2700000);
+    expect(slides.map((s) => s.kind)).toEqual(["intro", "total", "category", "day", "splurge", "awards", "outro"]);
+    expect(slides[0].line).toBe("3 days, 3 of you, 6 expenses");
+    expect(slides[1].headline).toBe("₹27,000 spent together");
+    expect(slides[2].headline).toBe("Beds & Bunks took 67%");
+    expect(slides[3].headline).toBe("Saturday 10 Oct was the big one");
+    expect(slides[4]).toMatchObject({ headline: "The splurge: Villa", line: "₹18,000, paid by You" });
+    expect(slides[6].headline).toBe("All square 🎉");
   });
 });
