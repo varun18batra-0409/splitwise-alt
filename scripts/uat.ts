@@ -2143,8 +2143,9 @@ async function main() {
   });
 
   await step(V, "Fun", "React 🔥 to an expense: it shows under the expense; tapping 🔥 again takes it back", async () => {
-    await go(V, `${g}?tab=activity`);
-    await V.locator("details summary").first().click();
+    const ex = await db.expense.findFirst({ where: { groupId: g.split("/").pop()!, deletedAt: null }, orderBy: { createdAt: "desc" } });
+    if (!ex) return "no expense to react to";
+    await go(V, `${g}?tab=activity&open=${ex.id}`);
     const react = V.getByRole("group", { name: "React" }).first();
     await react.getByRole("button", { name: "React 🔥" }).click();
     await V.waitForURL(/open=/);
