@@ -37,6 +37,10 @@ test("a Teen Patti game from first take to settled", async ({ browser }) => {
     await form.getByLabel("Amount", { exact: true }).fill(amount);
     await form.getByRole("button", { name: kind === "take" ? "Take from the pot" : "Put back" }).last().click();
     await page.waitForURL(/saved=/);
+    // The screen has really moved on: the new line is in the history (the form is a fresh one).
+    const shown = who.endsWith("(you)") ? "You" : who;
+    const line = `${shown} ${kind === "take" ? "took" : "put back"} ₹${Number(amount).toLocaleString("en-IN")}`;
+    await expect(page.getByRole("region", { name: "History" }).getByRole("listitem").filter({ hasText: line }).first()).toBeVisible();
     await settled(page);
   };
   await record(A, "Asha (you)", "take", "1000");
