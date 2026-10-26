@@ -342,6 +342,46 @@ if (!hosted) {
       await p.getByRole("button", { name: "Fill", exact: true }).click();
       await p.waitForTimeout(300);
     }, false);
+
+    // The fun layer: reactions, spin the wheel, Wrapped, all square, stories, passport.
+    const dinner = await db.expense.findFirst({ where: { groupId: pune.id, description: "Dinner at Malaka Spice" } });
+    if (dinner) {
+      await db.reaction.createMany({ data: [{ expenseId: dinner.id, memberId: pr, emoji: "🔥" }, { expenseId: dinner.id, memberId: n, emoji: "😂" }, { expenseId: dinner.id, memberId: v, emoji: "🔥" }] });
+      await shot("100-reactions", `/groups/${pune.id}?tab=activity&open=${dinner.id}`, undefined, false);
+    }
+    for (const [d, by, cat] of [["Breakfast at Vohuman", n, "food"], ["Late-night Maggi", pr, "food"], ["Auto to FC Road", v, "transport"]] as const) await spent(d, 90000, by).then((e) => db.expense.update({ where: { id: e.id }, data: { category: cat } }));
+    await shot("101-spin-wheel", `/groups/${pune.id}/add`, async (p) => {
+      await p.getByRole("button", { name: /Spin for it/ }).click();
+      await p.getByRole("dialog", { name: "Spin the wheel" }).getByRole("button", { name: "Spin", exact: true }).click();
+      await p.waitForTimeout(4200);
+    }, false);
+    await shot("102-wrapped-intro", `/groups/${pune.id}/wrapped`, undefined, false);
+    await shot("103-wrapped-awards", `/groups/${pune.id}/wrapped`, async (p) => {
+      for (let k = 0; k < 5; k++) {
+        if ((await p.locator("[data-wrapped-slide='awards']").count()) > 0) break;
+        await p.getByRole("button", { name: "Next" }).click();
+        await p.waitForTimeout(250);
+      }
+    }, false);
+    await shot("104-balances-titles", `/groups/${pune.id}?tab=balances`);
+    const lona = await db.group.create({
+      data: {
+        name: "Lonavala weekend", type: "trip", currency: "INR", inviteCode: `shotslona${now.toString(36)}`, cover: "mountains",
+        members: { create: [{ name: "Varun", accountId: acc.id, claimedAt: new Date() }, { name: "Ravi" }] },
+      },
+      include: { members: true },
+    });
+    const [lv, lr] = ["Varun", "Ravi"].map((x) => lona.members.find((m) => m.name === x)!.id);
+    await db.expense.create({ data: { groupId: lona.id, description: "Villa", amount: 800000, splitType: "equal", forMode: "everyone", category: "accommodation", paidById: lv, originalAmount: 800000, originalCurrency: "INR", baseCurrency: "INR", convertedAmount: 800000, createdById: lv, spentAt: new Date(), shares: { create: [{ memberId: lv, amount: 400000 }, { memberId: lr, amount: 400000 }] } } });
+    await db.payment.create({ data: { groupId: lona.id, fromId: lr, toId: lv, amount: 400000, createdById: lr } });
+    await shot("105-all-square", `/groups/${lona.id}/square`);
+    await shot("106-home-stories", "/", undefined, false);
+    await shot("107-story-open", "/", async (p) => {
+      await p.locator("[data-stories] button").first().click();
+      await p.waitForTimeout(700);
+    }, false);
+    await db.account.update({ where: { id: acc.id }, data: { places: JSON.stringify([{ c: "TH", city: "Phuket" }, { c: "IN", city: "Jaipur" }]) } });
+    await shot("108-passport", "/passport");
   }
 }
 await context.clearCookies();
