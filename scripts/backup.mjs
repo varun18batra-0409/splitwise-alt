@@ -28,5 +28,10 @@ for (const t of tables.rows) {
 const idx = await tx.execute("SELECT sql FROM sqlite_master WHERE type = 'index' AND sql IS NOT NULL AND tbl_name NOT LIKE '_prisma%'");
 out.indexes = idx.rows.map((r) => String(r.sql));
 await tx.commit();
-writeFileSync(process.argv[2] ?? "backup.json", JSON.stringify(out, (_k, v) => (typeof v === "bigint" ? Number(v) : v)));
+// Numbers as numbers; pictures and other bytes (a group's own photo) as base64 text, which restore.mjs turns back into bytes.
+const bytes = (v) => v instanceof ArrayBuffer || ArrayBuffer.isView(v);
+writeFileSync(
+  process.argv[2] ?? "backup.json",
+  JSON.stringify(out, (_k, v) => (typeof v === "bigint" ? Number(v) : bytes(v) ? { $b64: Buffer.from(v instanceof ArrayBuffer ? new Uint8Array(v) : new Uint8Array(v.buffer, v.byteOffset, v.byteLength)).toString("base64") } : v)),
+);
 console.log(`Backed up ${tables.rows.length} tables, ${rows} rows.`);

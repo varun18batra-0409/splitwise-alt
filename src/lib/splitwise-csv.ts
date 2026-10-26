@@ -1,5 +1,5 @@
 import { decimalsOf, formatMoney, isSupportedCurrency, MAX_MINOR } from "./money";
-import { guessCategory } from "./categories";
+import { CATEGORIES, OLD_LABELS, guessCategory } from "./categories";
 
 // Moving a group over from Splitwise.
 //
@@ -223,7 +223,11 @@ const CATEGORY_MAP: [RegExp, string][] = [
   [/clothing|gifts|household|furniture|electronics|shopping|supplies/i, "shopping"],
 ];
 export function mapCategory(swCategory: string, description: string): string {
-  if (!/^(general|other|uncategorized|)$/i.test(swCategory.trim())) {
+  // A Loopin spreadsheet: our own names, today's or the earlier ones.
+  const own = swCategory.trim().toLowerCase();
+  const ours = CATEGORIES.find((c) => c.label.toLowerCase() === own)?.id ?? (own !== "other" ? OLD_LABELS[own] : undefined);
+  if (ours && ours !== "other") return ours;
+  if (!/^(general|other|uncategorized|odds & ends|)$/i.test(swCategory.trim())) {
     for (const [re, id] of CATEGORY_MAP) if (re.test(swCategory)) return id;
   }
   return guessCategory(description);

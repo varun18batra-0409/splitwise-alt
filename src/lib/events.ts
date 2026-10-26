@@ -47,6 +47,7 @@ export type EventKind =
   | "group_reopened"
   | "split_changed"
   | "trip_dates_set"
+  | "countdown_shared"
   | "bill_added"
   | "bill_changed"
   | "group_imported";

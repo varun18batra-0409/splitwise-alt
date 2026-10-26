@@ -72,13 +72,46 @@ export const CATEGORY_TINT: Record<string, string> = {
   other: "#b9b4a8",
 };
 
+// Moving icons: each one moves its own way (a cup's steam rises, a bus bounces,
+// a gift's lid pops). Some icons are drawn in parts so just that part moves.
+// Only used while moving; the still icon is the plain drawing above.
+type Part = { d: string; cls?: string; fill?: boolean };
+const PARTS: Partial<Record<Glyph, Part[]>> = {
+  coffee: [{ d: "M17 8h1a4 4 0 1 1 0 8h-1M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4z" }, { d: "M6 2v2M10 2v2M14 2v2", cls: "lp-p-steam" }],
+  road: [{ d: "M4 22 8 2M20 22 16 2" }, { d: "M12 4v3M12 11v3M12 18v3", cls: "lp-p-dash" }],
+  gift: [
+    { d: "M12 12v9M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7" },
+    { d: "M3 8h18v4H3zM7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 0 1 0 5", cls: "lp-p-lid" },
+  ],
+  film: [
+    { d: "M4 11v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8z" },
+    { d: "M4 11l-.9-2.9a2 2 0 0 1 1.3-2.5l11.5-3.5a2 2 0 0 1 2.5 1.3l.9 2.9zM6.6 5l3.4 4.2M11.9 3.4l3.4 4.2", cls: "lp-p-clap" },
+  ],
+  wifi: [
+    { d: "M12 20h.01" },
+    { d: "M8.5 16.4a5 5 0 0 1 7 0", cls: "lp-p-w1" },
+    { d: "M5 12.9a10 10 0 0 1 14 0", cls: "lp-p-w2" },
+    { d: "M2 8.8a15 15 0 0 1 20 0", cls: "lp-p-w3" },
+  ],
+  bed: [{ d: PATHS.bed }, { d: "M16.5 1.5h3l-3 3h3", cls: "lp-p-z" }],
+  fuel: [{ d: PATHS.fuel }, { d: "M22 19v1", cls: "lp-p-drip" }],
+  house: [{ d: PATHS.house }, { d: "M10 13h4v3h-4z", cls: "lp-p-light", fill: true }],
+  mountain: [{ d: PATHS.mountain }, { d: "M17 6V2l3 1-3 1", cls: "lp-p-flag" }],
+};
+// Icons that move as a whole (the rest move only in their parts above).
+const WHOLE = new Set<Glyph>([
+  "plane", "train", "bus", "car", "scooter", "boat", "parking", "food", "drink", "dessert", "delivery", "palm", "bag", "shirt",
+  "phone", "cart", "leaf", "ticket", "mic", "landmark", "spa", "wave", "bolt", "drop", "tv", "flame", "broom", "receipt",
+]);
+
 export function ExpenseGlyph({
   title,
   category,
   emoji,
   size = 40,
   className = "",
-  alive = false,
+  motion,
+  delay = 0,
   label,
 }: {
   title: string;
@@ -86,22 +119,27 @@ export function ExpenseGlyph({
   emoji?: string;
   size?: number;
   className?: string;
-  alive?: boolean; // Home only: the icon moves (a flight cruises, with wind streaks, and now and then flies off and back)
+  // "loop": moves now and then (Home's latest list); "once": moves once when it scrolls into view (a group's list).
+  motion?: "loop" | "once";
+  delay?: number; // seconds, so a list's icons take turns
   label?: string; // the category's name, said by screen readers (the icon shows it to everyone else)
 }) {
   // `emoji`: a picture already chosen (a bill's type), else worked out from the name.
   const glyph = FROM_EMOJI[emoji ?? expenseIcon(title, category)] ?? FROM_EMOJI[expenseIcon(title, category)] ?? "receipt";
   const tint = CATEGORY_TINT[category] ?? CATEGORY_TINT.other;
-  const moving = alive && glyph === "plane";
+  // The flight on Home keeps its own long cruise, with wind streaks.
+  const cruising = motion === "loop" && glyph === "plane";
+  const parts = motion ? (PARTS[glyph] ?? [{ d: PATHS[glyph] }]) : [{ d: PATHS[glyph] }];
   return (
     <span
       {...(label ? { role: "img", "aria-label": label } : { "aria-hidden": true })}
       data-glyph={glyph}
       data-category={category}
-      className={`relative flex shrink-0 items-center justify-center rounded-[14px] ${moving ? "overflow-hidden" : ""} ${className}`}
-      style={{ width: size, height: size, background: `${tint}1f`, color: tint, boxShadow: `inset 0 0 0 1px ${tint}26` }}
+      data-motion={motion}
+      className={`relative flex shrink-0 items-center justify-center rounded-[14px] ${motion ? `overflow-hidden ${motion === "loop" ? "lp-mo-loop" : "lp-mo-once"}` : ""} ${className}`}
+      style={{ width: size, height: size, background: `${tint}1f`, color: tint, boxShadow: `inset 0 0 0 1px ${tint}26`, ...(motion ? ({ "--lp-d": `${delay}s` } as React.CSSProperties) : {}) }}
     >
-      {moving && (
+      {cruising && (
         // Wind streaks blowing past, behind the plane (it flies up and to the right).
         <svg width={size} height={size} viewBox="0 0 40 40" fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" className="absolute inset-0 opacity-50">
           <path className="lp-streak" d="M11 31l-4 4" />
@@ -109,8 +147,21 @@ export function ExpenseGlyph({
           <path className="lp-streak [animation-delay:-0.25s]" d="M8 25l-3 3" />
         </svg>
       )}
-      <svg width={size * 0.48} height={size * 0.48} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={moving ? "lp-fly relative" : undefined}>
-        <path d={PATHS[glyph]} />
+      <svg
+        width={size * 0.48}
+        height={size * 0.48}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        overflow="visible"
+        className={cruising ? "lp-fly relative" : motion && WHOLE.has(glyph) ? `lp-mo lp-m-${glyph} relative` : undefined}
+      >
+        {parts.map((p, i) => (
+          <path key={i} d={p.d} className={p.cls ? `lp-mo lp-mo-part ${p.cls}` : undefined} {...(p.fill ? { fill: "currentColor", stroke: "none" } : {})} />
+        ))}
       </svg>
     </span>
   );

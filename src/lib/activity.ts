@@ -1,4 +1,4 @@
-import { getCategory } from "./categories";
+import { PLAIN_WORDS, getCategory } from "./categories";
 import { DEFAULT_TIME_ZONE, dayKey, formatter, isDayMarker, isTimeZone } from "./dates";
 import { moneyLines, payerIds, scalePayers } from "./payers";
 import { parseAmount } from "./money";
@@ -42,7 +42,7 @@ type PaymentRow = {
 type EventRow = { id: string; kind: string; actorId: string; text: string; details: string; createdAt: Date };
 
 // Group-level changes shown as their own lines (expense/payment changes show on the item itself).
-const GROUP_EVENT_KINDS = new Set(["group_renamed", "currency_changed", "markup_changed", "display_currency_changed", "members_added", "members_removed", "group_closed", "group_reopened", "split_changed", "trip_dates_set", "bill_added", "bill_changed", "group_imported"]);
+const GROUP_EVENT_KINDS = new Set(["group_renamed", "currency_changed", "markup_changed", "display_currency_changed", "members_added", "members_removed", "group_closed", "group_reopened", "split_changed", "trip_dates_set", "countdown_shared", "bill_added", "bill_changed", "group_imported"]);
 
 export type ActivityItem =
   | {
@@ -227,6 +227,6 @@ export function filterActivity(items: ActivityItem[], f: ActivityFilter, nameOf:
     const cat = getCategory(item.category);
     if (f.cat && cat.id !== f.cat) return false;
     if (f.who && !paidBy.includes(f.who) && !item.people.includes(f.who)) return false;
-    return matches(`${item.title} ${item.notes ?? ""} ${cat.label} ${paidBy.map(nameOf).join(" ")} ${item.people.map(nameOf).join(" ")}`);
+    return matches(`${item.title} ${item.notes ?? ""} ${cat.label} ${PLAIN_WORDS[cat.id] ?? ""} ${paidBy.map(nameOf).join(" ")} ${item.people.map(nameOf).join(" ")}`);
   });
 }

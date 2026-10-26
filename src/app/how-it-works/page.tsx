@@ -141,7 +141,7 @@ export default async function HowItWorks() {
         <Steps
           items={[
             <>Tap the <strong>＋</strong> at the bottom.</>,
-            <>Pick <strong>who paid</strong>, type what it was and how much. Loopin tags it for you (🍽️ Food, 🚕 Transport, 🏨 Stay…).</>,
+            <>Pick <strong>who paid</strong>, type what it was and how much. Loopin tags it for you (🍽️ Bites &amp; Sips, 🚕 Wheels &amp; Wings, 🏨 Beds &amp; Bunks…).</>,
             <>Choose how to split: <strong>Everyone equally</strong>, <strong>Only some</strong> people, or <strong>Custom</strong> (exact amounts, % or shares, like 2 : 1 for a bigger room).</>,
           ]}
         />
@@ -196,7 +196,7 @@ export default async function HowItWorks() {
         </p>
         <p className="mt-4">
           Looking for something? <strong>Recap</strong> (in the bottom bar) charts your spending by week, month or year, shows where it went, and finds any expense across your groups. <strong>Charts</strong> show where the money went, with a
-          few plain lines on top (“Food is 42% of all spending”). <strong>Download</strong> in a group’s settings gives you its expenses as a
+          few plain lines on top (“Bites &amp; Sips is 42% of all spending”). <strong>Download</strong> in a group’s settings gives you its expenses as a
           spreadsheet; <strong>Download all my data</strong> on the You page gives you every group in one file.
         </p>
       </Section>

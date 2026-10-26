@@ -1245,9 +1245,9 @@ async function main() {
     const shots = await V.evaluate(() => [...document.querySelectorAll('main img[src*="/guide/"]')].map((i) => (i as HTMLImageElement).naturalWidth));
     assert(shots.length === 3 && shots.every((w) => w > 0), `guide screens: ${JSON.stringify(shots)}`);
   });
-  await step(V, "Tags", "Each expense shows its category: the icon's colour and shape, and the name for screen readers (Dinner → Food, Taxi → Transport)", async () => {
+  await step(V, "Tags", "Each expense shows its category: the icon's colour and shape, and the name for screen readers (Dinner → Bites & Sips, Taxi → Wheels & Wings)", async () => {
     await go(V, `${g}?tab=activity`);
-    for (const [title, cat, label] of [["Dinner", "food", "Food"], ["Taxi", "transport", "Transport"]] as const) {
+    for (const [title, cat, label] of [["Dinner", "food", "Bites & Sips"], ["Taxi", "transport", "Wheels & Wings"]] as const) {
       const row = V.locator("details summary").filter({ hasText: title }).first();
       assert((await row.locator("[data-category]").first().getAttribute("data-category")) === cat, `${title}: icon isn't ${cat}`);
       assert(new RegExp(label).test((await row.locator("[data-category]").first().getAttribute("aria-label")) ?? ""), `${title}: no “${label}” for screen readers`);
@@ -1993,7 +1993,7 @@ async function main() {
     await V.getByText("Varun is collecting").waitFor();
     await V.getByText("₹500 each").first().waitFor();
     const due = V.getByRole("region", { name: "Still to pay" });
-    for (const n of ["Zoya", "Kabir", "Asha"]) await due.getByText(n, { exact: true }).waitFor();
+    for (const n of ["Zoya", "Kabir", "Asha"]) await due.getByRole("listitem").filter({ hasText: n }).first().waitFor();
     await due.getByText("on Loopin").waitFor();
     const p = await V.locator("[data-collection-progress]").innerText();
     assert(/0 of 3 paid/.test(p) && /₹0/.test(p) && /₹1,500/.test(p), `progress reads “${p.replace(/\s+/g, " ")}”`);
@@ -2033,7 +2033,7 @@ async function main() {
     await alertSays(V, /Zoya says they paid ₹500/);
     await go(V, collectPath);
     const paid = V.getByRole("region", { name: "Paid" });
-    await paid.getByText("says paid").waitFor();
+    await paid.getByText("₹500 · says paid").waitFor();
     await paid.getByRole("button", { name: "Got it" }).click();
     await V.waitForLoadState("networkidle").catch(() => undefined);
     await paid.getByText(/checked by you/).waitFor();

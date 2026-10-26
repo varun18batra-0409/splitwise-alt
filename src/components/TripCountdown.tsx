@@ -65,7 +65,7 @@ export function TripCountdown({ group, phase }: { group: Group; phase: TripPhase
           </p>
           {withWho && <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-fg/45">with {withWho}</p>}
           <div className="mt-3 flex items-center gap-3">
-            <ShareCountdown groupId={group.id} text={`${w.line} ✨`} />
+            <ShareCountdown groupId={group.id} line={w.line} />
           </div>
         </div>
         <span aria-hidden className="pointer-events-none absolute -right-3 -top-4 select-none text-[64px] opacity-[0.13]">

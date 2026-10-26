@@ -33,7 +33,7 @@ describe("your month in numbers", () => {
 
   it("adds up your part this month, money back taken off, other currencies converted", () => {
     const m = monthNumbers(groups, toCommon, "INR", new Date("2026-10-20T10:00:00Z"), IST)!;
-    expect(m).toMatchObject({ month: "2026-10", name: "October", wrapped: false, count: 3, currency: "INR", converted: true, top: "Stay" });
+    expect(m).toMatchObject({ month: "2026-10", name: "October", wrapped: false, count: 3, currency: "INR", converted: true, top: "Beds & Bunks" });
     expect(m.share).toBe(150000 + 40000 - 10000 + 125000);
   });
   it("looks back at last month in the first three days", () => {

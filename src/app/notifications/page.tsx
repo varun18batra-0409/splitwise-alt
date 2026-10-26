@@ -32,6 +32,7 @@ const ICON: Record<string, string> = {
   member_left: "👋",
   member_rejoined: "👤",
   trip_dates_set: "⏳",
+  countdown_shared: "⏳",
   split_changed: "÷",
   bill_added: "↻",
   bill_changed: "✎",

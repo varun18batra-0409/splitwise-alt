@@ -30,7 +30,9 @@ for (const [name, t] of Object.entries(backup.tables)) {
     await client.batch(
       chunk.map((row) => {
         const cols = Object.keys(row);
-        return { sql: `INSERT INTO ${q} (${cols.map((c) => `"${c}"`).join(",")}) VALUES (${cols.map(() => "?").join(",")})`, args: cols.map((c) => row[c]) };
+        // Bytes (a group's own photo) were saved as base64 text.
+        const val = (v) => (v && typeof v === "object" && typeof v.$b64 === "string" ? new Uint8Array(Buffer.from(v.$b64, "base64")) : v);
+        return { sql: `INSERT INTO ${q} (${cols.map((c) => `"${c}"`).join(",")}) VALUES (${cols.map(() => "?").join(",")})`, args: cols.map((c) => val(row[c])) };
       }),
       "write",
     );
