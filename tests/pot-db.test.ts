@@ -2,7 +2,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { eraseGroups } from "@/lib/purge";
 import { netBalances } from "@/lib/balances";
-import { adjustGap, deleteGame, finishGame, loadGame, recordMove, removeMove, reopenGame, startGame } from "@/lib/pot-db";
+import { addPlayerToGame, adjustGap, deleteGame, finishGame, loadGame, recordMove, removeMove, reopenGame, startGame } from "@/lib/pot-db";
 
 // The Pot against a real database: a game from start to settle, the gap
 // check, the host's rules, and a finished game's result in the balances.
@@ -100,5 +100,21 @@ describe("The Pot (real database)", () => {
     expect((await deleteGame(s.id, b)).ok).toBe(false);
     expect((await deleteGame(s.id, a)).ok).toBe(true);
     expect(await loadGame(g.id, s.id)).toBeNull();
+  });
+
+  it("players can be just names: added to the group once (a name already there is that person), and late arrivals join the table", async () => {
+    const { g, a, b } = await table();
+    const s = await startGame(g.id, a, { name: "", game: "poker", players: [a, b], newNames: "Neha, neha\nAsha, Om" });
+    if (!s.ok) throw new Error(s.error);
+    const members = await db.member.findMany({ where: { groupId: g.id }, orderBy: { name: "asc" } });
+    expect(members.map((m) => m.name)).toEqual(["Asha", "Bina", "Chirag", "Dev", "Neha", "Om"]); // no second Asha, one Neha
+    expect(members.filter((m) => m.name === "Neha" || m.name === "Om").every((m) => !m.accountId && !m.claimedAt)).toBe(true);
+    const game = (await loadGame(g.id, s.id))!;
+    const byName = (n: string) => members.find((m) => m.name === n)!.id;
+    expect(JSON.parse(game.players).sort()).toEqual([a, b, byName("Neha"), byName("Om")].sort());
+    expect((await db.groupEvent.findFirst({ where: { groupId: g.id, kind: "members_added" } }))?.text).toBe("added Neha and Om by name");
+    expect((await addPlayerToGame(s.id, b, "Pia")).ok).toBe(true);
+    expect(JSON.parse((await loadGame(g.id, s.id))!.players)).toHaveLength(5);
+    expect((await addPlayerToGame(s.id, b, "  ")).ok).toBe(false);
   });
 });

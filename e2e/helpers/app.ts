@@ -34,8 +34,13 @@ export async function createGroup(page: Page, name: string, type: "Trip" | "Home
   await page.locator('input[name="groupName"]').fill(name);
   await page.locator('select[name="currency"]').selectOption("INR");
   await page.getByRole("button", { name: /Create group/ }).click();
-  await page.waitForURL(/\/invite\?new=1/);
-  const path = new URL(page.url()).pathname.replace(/\/invite$/, "");
+  // A Pot goes straight to its first game; everything else to "Add people".
+  await page.waitForURL(/\/invite\?new=1|\/pot\/new\?first=1/);
+  const path = new URL(page.url()).pathname.replace(/\/invite$|\/pot\/new$/, "");
+  if (!/\/invite$/.test(new URL(page.url()).pathname)) {
+    await page.goto(`${path}/invite`);
+    await settled(page);
+  }
   const m = /\/join\/([A-Za-z0-9_-]+)/.exec(await page.content());
   expect(m, "the new group's invite link is on the Add people screen").toBeTruthy();
   return { path, invite: `/join/${m![1]}` };

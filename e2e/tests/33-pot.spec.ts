@@ -3,7 +3,6 @@ import type { Page } from "@playwright/test";
 import { testEmail, groupName } from "../env";
 import { signUp } from "../helpers/auth";
 import { contextFor, createGroup, joinGroup, settled } from "../helpers/app";
-import { db } from "../helpers/db";
 
 // The Pot (card nights), the brief's example: Asha (host) and Ravi on Loopin,
 // Chirag and Dev just names. Takes, put-backs, a ₹100 slip caught and fixed,
@@ -16,8 +15,6 @@ test("a Teen Patti game from first take to settled", async ({ browser }) => {
 
   const g = await createGroup(A, groupName("Diwali cards"), "The Pot");
   await joinGroup(R, g.invite, g.path);
-  const groupId = g.path.split("/").pop()!;
-  for (const name of ["Chirag", "Dev"]) await db.member.create({ data: { groupId, name } });
 
   // The group opens on its games, with what The Pot does.
   await A.goto(g.path);
@@ -27,6 +24,8 @@ test("a Teen Patti game from first take to settled", async ({ browser }) => {
   await settled(A);
   await expect(A.locator('input[name="game"][value="teenpatti"]')).toBeChecked(); // Teen Patti first
   await A.locator('input[name="name"]').fill("Diwali night");
+  // Chirag and Dev aren't on Loopin: just their names.
+  await A.locator('input[name="newNames"]').fill("Chirag, Dev");
   await A.getByRole("button", { name: "Start the game" }).click();
   await A.waitForURL(/\/pot\/[^/?]+\?started=1/);
   const game = new URL(A.url()).pathname;
@@ -46,6 +45,12 @@ test("a Teen Patti game from first take to settled", async ({ browser }) => {
   await record(A, "Dev", "take", "1000");
   await record(A, "Dev", "take", "500"); // a second buy-in
   await expect(A.locator("[data-pot-taken]")).toHaveText("₹5,000");
+  // Neha sits down late: just her name, she's at the table.
+  await A.getByLabel("New player's name").fill("Neha");
+  await A.getByRole("button", { name: "Add", exact: true }).click();
+  await A.waitForURL(/joined=1/);
+  await settled(A);
+  await expect(A.locator("[data-player='Neha']")).toContainText("took ₹0");
   await expect(A.locator("[data-player='Dev']")).toContainText("took ₹1,500 (2×)");
 
   // Ravi records his own put-back from his phone.
