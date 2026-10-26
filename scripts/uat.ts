@@ -2142,6 +2142,48 @@ async function main() {
     assert(href.includes("UPI: varun@okicici") && /Mark it here: https:\/\/.+\/settle/.test(href), `Remind text: ${href.slice(0, 200)}`);
   });
 
+  await step(V, "Fun", "React 🔥 to an expense: it shows under the expense; tapping 🔥 again takes it back", async () => {
+    await go(V, `${g}?tab=activity`);
+    await V.locator("details summary").first().click();
+    const react = V.getByRole("group", { name: "React" }).first();
+    await react.getByRole("button", { name: "React 🔥" }).click();
+    await V.waitForURL(/open=/);
+    await V.locator("[data-reactions*='🔥']").first().waitFor();
+    await V.getByRole("group", { name: "React" }).first().getByRole("button", { name: "React 🔥" }).click();
+    await V.waitForURL(/open=/);
+    await V.waitForTimeout(500);
+  });
+
+  await step(V, "Fun", "Spin for it: the wheel lands on someone, and they become the payer", async () => {
+    await go(V, `${g}/add`);
+    await V.getByRole("button", { name: /Spin for it/ }).click();
+    const d = V.getByRole("dialog", { name: "Spin the wheel" });
+    await d.getByRole("button", { name: "Spin", exact: true }).click();
+    const set = d.getByRole("button", { name: /^Set .+ as payer$/ });
+    await set.waitFor({ timeout: 8000 });
+    const who = ((await set.textContent()) ?? "").replace(/^Set | as payer$/g, "");
+    await set.click();
+    await V.getByRole("button", { name: new RegExp(`✓ ${who}`) }).waitFor();
+  });
+
+  await step(V, "Fun", "Wrapped: tap through the slides; the last one offers Share", async () => {
+    await go(V, `${g}/wrapped`);
+    for (let k = 0; k < 8 && !(await V.locator("[data-wrapped-slide='outro']").count()); k++) await V.getByRole("button", { name: "Next" }).click();
+    await V.getByRole("button", { name: "Share it" }).waitFor();
+  });
+
+  await step(V, "Fun", "Trip passport opens from the You page, and a place from before Loopin can be added", async () => {
+    await go(V, "/account");
+    await V.getByRole("link", { name: /Your trip passport/ }).click();
+    await V.waitForURL(/\/passport/);
+    const add = V.getByRole("form", { name: "Add a place" });
+    await add.getByLabel("Country").selectOption("TH");
+    await add.getByLabel("City").fill("Krabi");
+    await add.getByRole("button", { name: "Add" }).click();
+    await V.waitForURL(/added=1/);
+    await V.locator("[data-stamp='Krabi'][data-by-hand='1']").waitFor();
+  });
+
   await browser.close();
 
   // ---------- report ----------
