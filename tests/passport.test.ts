@@ -55,7 +55,7 @@ describe("Stories on Home", () => {
       memories: [{ id: "g9", name: "Manali trip", years: 1, people: 6, days: 4 }],
       wrapped: [],
     });
-    expect(s.map((x) => x.id)).toEqual(["trip-g1-b3", "memory-g9-1", "pot-p1", "collect-c1-2"]);
+    expect(s.map((x) => x.id)).toEqual(["trip-g1-b3", "pot-p1", "memory-g9-1", "collect-c1-2"]);
     expect(s[0]).toMatchObject({ headline: "Goa in 3 days", line: "5 of you, 3 sleeps to go", href: "/groups/g1" });
     expect(s.find((x) => x.kind === "pot")?.headline).toBe("Asha won ₹600");
     expect(s.find((x) => x.kind === "memory")?.headline).toBe("A year ago: Manali");
