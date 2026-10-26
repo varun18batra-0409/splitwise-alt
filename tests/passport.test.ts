@@ -5,6 +5,7 @@ import { buildStories } from "@/lib/home/stories";
 import { squareNumbers } from "@/lib/square";
 import { funTitles, wrapSlides } from "@/lib/wrapped";
 import { reactionSummary } from "@/lib/reactions";
+import { memoryText, pulseText } from "@/lib/pulse";
 
 describe("Trip passport: where a trip went", () => {
   it("from the trip's name, or what was typed in Where to?", () => {
@@ -109,5 +110,17 @@ describe("Reactions", () => {
       mine: "🔥",
     });
     expect(reactionSummary([], "a")).toEqual({ counts: [], mine: "" });
+  });
+});
+
+describe("Day-end pulse and memory lane", () => {
+  it("one playful line for the day", () => {
+    expect(pulseText({ place: "Goa", day: 2, of: 4, spent: 620000, currency: "INR", count: 5, topPayer: "Ravi", topShare: 0.7 })).toBe("Day 2 in Goa: ₹6,200 gone, Ravi’s carrying the team 😅");
+    expect(pulseText({ place: "Goa", day: 1, of: 1, spent: 50000, currency: "INR", count: 1, topShare: 1, topPayer: "Asha" })).toBe("Goa today: ₹500 gone, one expense. Restrained 🧘");
+    expect(pulseText({ place: "Goa", day: 3, of: 4, spent: 900000, currency: "INR", count: 9, topShare: 0.3 })).toBe("Day 3 in Goa: ₹9,000 gone, 9 expenses. Busy day 🔥");
+  });
+  it("a year ago today", () => {
+    expect(memoryText({ place: "Manali", years: 1, people: 6, days: 4 })).toBe("A year ago today: Manali, 6 of you, 4 days 🌴 Tap to relive it");
+    expect(memoryText({ place: "Goa", years: 2, people: 3, days: 1 })).toBe("2 years ago today: Goa, 3 of you 🌴 Tap to relive it");
   });
 });

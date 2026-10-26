@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { DEFAULT_TIME_ZONE } from "@/lib/dates";
 import { eraseExpiredGroups } from "@/lib/purge";
-import { sendTripCountdowns } from "@/lib/countdown-db";
+import { sendMemoryLane, sendTripCountdowns } from "@/lib/countdown-db";
 
 // The daily job (Vercel Cron, 06:00 India time): adds the bills that are due.
 // Safe to run more than once — every bill month is added at most once.
@@ -48,6 +48,7 @@ export async function GET(req: Request) {
   const daytime = hour >= 6 && hour < 22;
   const reminders = daytime ? await part("reminders", () => sendReminders(now)) : { sent: 0, skipped: "night" };
   const countdowns = daytime ? await part("countdowns", () => sendTripCountdowns(now)) : { sent: 0, skipped: "night" };
+  const memories = daytime ? await part("memories", () => sendMemoryLane(now)) : { sent: 0, skipped: "night" };
   // Budgets reached by bills added just now.
   const budgetAlerts = await part("budgets", async () => {
     const groups = await db.budget.findMany({ select: { groupId: true }, distinct: ["groupId"] });
@@ -72,5 +73,5 @@ export async function GET(req: Request) {
   await part("cleanup-mail", async () => (await db.notifyLog.deleteMany({ where: { key: { startsWith: "mail-failed:" }, createdAt: { lt: new Date(now.getTime() - 30 * 86_400_000) } } })).count);
   // Groups deleted more than 30 days ago (past their restore window) are erased for good.
   const groupsErased = await part("erase-deleted-groups", () => eraseExpiredGroups(now));
-  return Response.json({ ok: true, bills, reminders, countdowns, budgetAlerts, summaries, speedLogsRemoved, groupsErased });
+  return Response.json({ ok: true, bills, reminders, countdowns, memories, budgetAlerts, summaries, speedLogsRemoved, groupsErased });
 }
