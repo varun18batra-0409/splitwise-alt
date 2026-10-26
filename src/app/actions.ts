@@ -1,5 +1,7 @@
 "use server";
 
+import { RedirectType } from "next/navigation";
+
 import { cleanCover } from "@/lib/covers";
 import { redirect } from "@/lib/fresh-redirect";
 import { db } from "@/lib/db";
@@ -703,7 +705,8 @@ export async function deleteGroup(formData: FormData) {
     await tx.group.update({ where: { id: group.id }, data: { deletedAt: new Date(), deletedById: myId } });
     await logEvent(tx, { groupId: group.id, actorId: myId, kind: "group_deleted", text: "deleted the group (it can be restored for 30 days)" });
   });
-  redirect("/?deleted=group");
+  // Replaces the screen in the phone's history, so Back doesn't land on the deleted group.
+  redirect("/?deleted=group", RedirectType.replace);
 }
 
 export async function restoreGroup(formData: FormData) {

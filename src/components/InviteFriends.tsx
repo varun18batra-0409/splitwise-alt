@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { whatsappLink } from "@/lib/whatsapp";
 
 // "Invite friends to Loopin": no group needed. Opens the phone's share sheet
 // (WhatsApp, Messages…) with a short note and the link; where there's no share
@@ -24,7 +25,7 @@ export function InviteFriends({ name, className = "" }: { name?: string | null; 
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
     } catch {
-      window.open(`https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`, "_blank", "noopener");
+      window.open(whatsappLink(`${text} ${url}`), "_blank", "noopener");
     }
   }
   return (

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { addPerson, invitePeople } from "@/app/actions";
 import { InviteIcon, SearchIcon } from "./icons";
 import { reportSpeed } from "./speedReport";
+import { whatsappLink } from "@/lib/whatsapp";
 
 type Found = { accountId: string; name: string; email: string; inGroup: boolean; known: boolean };
 const isEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(s.trim());
@@ -220,7 +221,7 @@ export function ContactInvite({ groupId, groupName, link }: { groupId: string; g
                 <div className="mt-2 flex flex-wrap gap-2">
                   {c.tel && (
                     <a
-                      href={`https://wa.me/${c.tel.replace(/^\+/, "")}?text=${encodeURIComponent(text(first))}`}
+                      href={whatsappLink(text(first), c.tel.replace(/\D/g, ""))}
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={mark}

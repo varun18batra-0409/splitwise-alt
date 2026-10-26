@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { cleanNames, cleanPhone, sameName } from "./names";
 import { formatMoney, isSupportedCurrency, parseAmount } from "./money";
 import { parseDay } from "./dates";
+import { whatsappLink } from "./whatsapp";
 
 // "Collect" rules with no database: checking the form, UPI and pay links,
 // progress and the reminder message. Tested in tests/collect.test.ts.
@@ -123,7 +124,7 @@ export function phonesFor(names: string[], contactsJson: string, currency: strin
 // A WhatsApp chat with one person, message typed in. Numbers without a country code open WhatsApp's own picker.
 export function whatsappTo(phone: string, text: string): string {
   const digits = phone.replace(/\D/g, "");
-  return phone.startsWith("+") && digits.length >= 8 ? `https://wa.me/${digits}?text=${encodeURIComponent(text)}` : `https://wa.me/?text=${encodeURIComponent(text)}`;
+  return whatsappLink(text, phone.startsWith("+") && digits.length >= 8 ? digits : "");
 }
 
 // The personal reminder: "Hi Ravi! ₹300 for Diwali fund by 5 Nov…"

@@ -116,6 +116,8 @@ export default async function Home({
       ? "Your email and sign-in were deleted. Your groups on this phone are still here."
       : deleted === "group"
         ? "Group deleted. Anyone in it can restore it below for 30 days."
+        : deleted === "gone"
+          ? "That group was deleted. Anyone in it can restore it below for 30 days."
         : collection === "deleted"
           ? "Collection deleted."
           : moved === "1"
@@ -592,7 +594,7 @@ export default async function Home({
       {/* Recently deleted groups: tucked away (like Closed groups) and opened with a tap;
           open on its own right after a delete. Anyone in them can bring them back for 30 days. */}
       {deletedGroups.length > 0 && (
-        <details className="group/deleted mt-4" open={deleted === "group"}>
+        <details className="group/deleted mt-4" open={deleted === "group" || deleted === "gone"}>
           <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-full border border-line px-4 py-2 text-sm text-gray-600 active:bg-mist [&::-webkit-details-marker]:hidden">
             <span className="group-open/deleted:hidden">Recently deleted ({deletedGroups.length})</span>
             <span className="hidden group-open/deleted:inline">Hide recently deleted</span>

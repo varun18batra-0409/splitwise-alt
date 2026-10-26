@@ -4,6 +4,7 @@ import { useState } from "react";
 import { formatMoney } from "@/lib/money";
 import { dateRange, reportText, type TripReport } from "@/lib/trip-report";
 import { primaryButtonClass, secondaryButtonClass } from "./ui";
+import { whatsappLink } from "@/lib/whatsapp";
 
 // Share the trip report to WhatsApp (or anywhere): a picture made on the phone
 // plus the same numbers as text. There's no public link: only what's in the
@@ -151,7 +152,7 @@ export function TripShare({ report }: { report: TripReport }) {
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
     }
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener");
+    window.open(whatsappLink(text), "_blank", "noopener");
     setNote("The picture was saved. Attach it in WhatsApp next to the message.");
   }
 

@@ -10,6 +10,7 @@ import { Avatar, ErrorNote, PageHeader, inputClass } from "@/components/ui";
 import { ShareInvite } from "@/components/ShareInvite";
 import { ContactInvite, PeopleSearch } from "@/components/AddPeople";
 import { UndoBar } from "@/components/UndoBar";
+import { whatsappLink } from "@/lib/whatsapp";
 
 // Add people. Nobody can be added by just typing a name:
 //  1. people already on Loopin (search by name or email, one tap to add);
@@ -40,7 +41,7 @@ export default async function AddPeoplePage({
   const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
   const link = `${proto}://${host}/join/${group.inviteCode}`;
   const qr = await QRCode.toString(link, { type: "svg", margin: 1, errorCorrectionLevel: "M", color: { dark: "#0d0d0f", light: "#f4f2ec" } });
-  const whatsapp = `https://wa.me/?text=${encodeURIComponent(`Join “${group.name}” on Loopin so we can split expenses: ${link}`)}`;
+  const whatsapp = whatsappLink(`Join “${group.name}” on Loopin so we can split expenses: ${link}`);
 
   const active = group.members.filter((m) => !m.leftAt);
   const justDid = sp.did ? group.events.find((e) => e.id === sp.did) : undefined;

@@ -266,10 +266,11 @@ export default async function HowItWorks() {
         <Steps
           items={[
             <><strong>Start a game.</strong> Pick the game and who’s at the table. Whoever starts it is the host.</>,
-            <><strong>Take from the pot.</strong> Each time someone takes money to play ({india ? "₹1,000, then another ₹500" : "$100, then another $50"}), note it. Anyone in the group can add a line, and every line says who added it.</>,
-            <><strong>Put back.</strong> At the end, note what each person puts back (0 if they lost it all). Loopin shows each person’s win or loss: what they put back minus what they took.</>,
+            <><strong>Buy in.</strong> Everyone is ticked: pick an amount ({india ? "₹1,000" : "$100"}) and tap once. Topping up later? Tick just those players. Anyone in the group can add money, and every line says who added it.</>,
+            <><strong>Cash out, or swap a player.</strong> Someone leaving early taps <strong>Cash out</strong> with what they have. A new player can take the seat right there: just a name and their buy-in.</>,
+            <><strong>Count the money.</strong> At the end, one table: type what each player has in front of them (0 if they lost it all). It shows who’s up or down as you type, and whether it adds up.</>,
             <><strong>It has to add up.</strong> If money is missing, or more came back than was taken, the game can’t finish until you find it, or the host fixes the difference (spread over everyone, or on one person) with a reason.</>,
-            <><strong>Finish.</strong> The fewest payments to square up (“Meera pays Ravi {india ? "₹300" : "$30"}”). The result goes into the group’s balances, so Settle up works as always. Every game stays in the history.</>,
+            <><strong>Calculate & settle.</strong> The host taps it and gets the fewest payments to square up (“Meera pays Ravi {india ? "₹300" : "$30"}”). The result goes into the group’s balances, so Settle up works as always. Every game stays in the history.</>,
           ]}
         />
         <p>Loopin only keeps count, like a notebook at the table. It doesn’t run the game, track chips or bets, or hold or move any money.</p>

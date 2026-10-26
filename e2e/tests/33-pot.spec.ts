@@ -5,8 +5,9 @@ import { signUp } from "../helpers/auth";
 import { contextFor, createGroup, joinGroup, settled } from "../helpers/app";
 
 // The Pot (card nights), the brief's example: Asha (host) and Ravi on Loopin,
-// Chirag and Dev just names. Takes, put-backs, a ₹100 slip caught and fixed,
-// finish → A +600, B −300, C −200, D −100, three payments; Ravi pays and it shows.
+// Chirag and Dev just names. Buy-in for everyone, top-ups, a cash-out with Neha
+// taking the seat, a count table with a ₹100 slip caught and fixed, then
+// Calculate & settle → A +600, R −300, C −200, D −100, N 0; Ravi pays and it shows.
 test("a Teen Patti game from first take to settled", async ({ browser }) => {
   const asha = await signUp("Asha", testEmail("pot-asha"));
   const ravi = await signUp("Ravi", testEmail("pot-ravi"));
@@ -30,57 +31,73 @@ test("a Teen Patti game from first take to settled", async ({ browser }) => {
   await A.waitForURL(/\/pot\/[^/?]+\?started=1/);
   const game = new URL(A.url()).pathname;
 
-  const record = async (page: Page, who: string, kind: "take" | "return", amount: string) => {
-    const form = page.getByRole("form", { name: "Record money" });
-    await form.getByRole("radio", { name: kind === "take" ? "Take from the pot" : "Put back" }).check({ force: true });
-    await form.locator('select[name="memberId"]').selectOption({ label: who });
-    await form.getByLabel("Amount", { exact: true }).fill(amount);
-    await form.getByRole("button", { name: kind === "take" ? "Take from the pot" : "Put back" }).last().click();
-    await page.waitForURL(/saved=/);
-    // The screen has really moved on: the new line is in the history (the form is a fresh one).
-    const shown = who.endsWith("(you)") ? "You" : who;
-    const line = `${shown} ${kind === "take" ? "took" : "put back"} ₹${Number(amount).toLocaleString("en-IN")}`;
-    await expect(page.getByRole("region", { name: "History" }).getByRole("listitem").filter({ hasText: line }).first()).toBeVisible();
+  // Buy-in: everyone ticked at the start; later, tick just who's topping up.
+  const buyIn = async (page: Page, who: "everyone" | string[], amount: string, total: string) => {
+    const form = page.getByRole("form", { name: "Buy in" });
+    if (who === "everyone") await form.getByRole("button", { name: "Everyone", exact: true }).click();
+    else {
+      await form.getByRole("button", { name: "Nobody", exact: true }).click();
+      for (const n of who) await form.locator("label").filter({ hasText: new RegExp(`^${n}`) }).click();
+    }
+    await form.getByLabel("Amount each").fill(amount);
+    await form.locator('button[type="submit"]').click();
+    await page.waitForURL(/bought=/);
+    await expect(page.locator("[data-pot-taken]")).toHaveText(total);
     await settled(page);
   };
-  await record(A, "Asha (you)", "take", "1000");
-  await record(A, "Ravi", "take", "2000");
-  await record(A, "Chirag", "take", "500");
-  await record(A, "Dev", "take", "1000");
-  await record(A, "Dev", "take", "500"); // a second buy-in
-  await expect(A.locator("[data-pot-taken]")).toHaveText("₹5,000");
-  // Neha sits down late: just her name, she's at the table.
-  await A.getByLabel("New player's name").fill("Neha");
-  await A.getByRole("button", { name: "Add", exact: true }).click();
-  await A.waitForURL(/joined=1/);
-  await settled(A);
-  await expect(A.locator("[data-player='Neha']")).toContainText("took ₹0");
-  await expect(A.locator("[data-player='Dev']")).toContainText("took ₹1,500 (2×)");
+  await expect(A.getByRole("form", { name: "Buy in" }).locator('input[name="memberIds"]:checked')).toHaveCount(4); // all four, ready to go
+  await A.getByRole("form", { name: "Buy in" }).getByLabel("Amount each").fill("500");
+  await expect(A.getByRole("form", { name: "Buy in" }).locator('button[type="submit"]')).toHaveText("Give ₹500 to 4 players · ₹2,000");
+  await buyIn(A, "everyone", "500", "₹2,000");
+  await buyIn(A, ["You", "Ravi", "Dev"], "500", "₹3,500"); // a top-up for three
+  await buyIn(A, ["Ravi"], "1000", "₹4,500");
+  await buyIn(A, ["Dev"], "500", "₹5,000");
+  await expect(A.locator("[data-player='Dev']")).toContainText("took ₹1,500 (3×)");
 
-  // Ravi records his own put-back from his phone.
+  // Chirag leaves with ₹300; Neha (just a name) takes his seat with ₹500.
+  const chirag = A.locator("[data-player='Chirag']");
+  await chirag.locator("summary").click();
+  await chirag.getByLabel("Leaves with").fill("300");
+  await chirag.getByLabel("New player in the seat").fill("Neha");
+  await chirag.getByLabel("New player's buy-in").fill("500");
+  await chirag.getByRole("button", { name: "Cash out", exact: true }).click();
+  await A.waitForURL(/cashed=1/);
+  await expect(A.locator("[data-pot-taken]")).toHaveText("₹5,500");
+  await expect(A.locator("[data-player='Neha']")).toHaveAttribute("data-playing", "1");
+  await expect(A.locator("[data-player='Chirag']")).toHaveAttribute("data-net", "-20000");
+  await settled(A);
+
+  // The end: Ravi counts his own from his phone (he isn't the host: it's saved).
   await R.goto(game);
   await settled(R);
-  await record(R, "Ravi (you)", "return", "1700");
+  const rc = R.getByRole("form", { name: "Count the money" });
+  await rc.getByLabel("You have").fill("1700");
+  await rc.getByRole("button", { name: "Save the count" }).click();
+  await R.waitForURL(/counted=1/);
+  await expect(R.locator("[data-player='Ravi']")).toHaveAttribute("data-net", "-30000");
 
+  // Asha counts the rest in one table: a slip (Dev really has ₹1,400), and it says so before saving.
   await A.goto(game);
   await settled(A);
-  await record(A, "Asha (you)", "return", "1600");
-  await record(A, "Chirag", "return", "300");
-  await record(A, "Dev", "return", "1300"); // a slip: Dev really put back ₹1,400
-
-  // ₹100 short: flagged, and the game won't finish.
+  const count = A.getByRole("form", { name: "Count the money" });
+  await expect(count.locator("[data-count-row]")).toHaveCount(3); // Ravi's done; Asha, Dev, Neha left
+  await count.getByLabel("You have").fill("1600");
+  await count.getByLabel("Dev has").fill("1300");
+  await count.getByLabel("Neha has").fill("500");
+  await expect(count.locator("[data-count-check]")).toHaveAttribute("data-count-check", "-10000");
+  await expect(count.getByRole("status")).toContainText("₹100 short");
+  await count.getByRole("button", { name: /Calculate & settle/ }).click();
+  await A.waitForURL(/gap=1/);
+  await settled(A);
   await expect(A.locator("[data-pot-gap]")).toContainText("₹100 is missing from the pot");
-  await A.getByRole("button", { name: /Finish/ }).click();
-  await expect(A.getByText(/₹100 is still missing from the pot/)).toBeVisible();
 
-  // Fix the slip: take Dev's line off and put the right amount.
-  await A.getByRole("region", { name: "History" }).getByRole("listitem").filter({ hasText: "Dev put back ₹1,300" }).getByRole("button", { name: "Take it off" }).click();
+  // Fix the slip: take Dev's count off and count him again.
+  await A.getByRole("region", { name: "History" }).getByRole("listitem").filter({ hasText: "Dev ended with ₹1,300" }).getByRole("button", { name: "Take it off" }).click();
   await A.waitForURL(/removed=1/);
   await settled(A);
-  await record(A, "Dev", "return", "1400");
-  await expect(A.locator("[data-pot-gap]")).toHaveCount(0);
-
-  await A.getByRole("button", { name: /Finish the game/ }).click();
+  await A.getByRole("form", { name: "Count the money" }).getByLabel("Dev has").fill("1400");
+  await expect(A.getByRole("form", { name: "Count the money" }).getByRole("status")).toContainText("Adds up");
+  await A.getByRole("form", { name: "Count the money" }).getByRole("button", { name: /Calculate & settle/ }).click();
   await A.waitForURL(/finished=1/);
   await settled(A);
   const net = async (name: string) => Number(await A.locator(`[data-player='${name}']`).getAttribute("data-net"));

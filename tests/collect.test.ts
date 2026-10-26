@@ -114,7 +114,9 @@ describe("Collect: people from contacts, and WhatsApp", () => {
     const c = { title: "Diwali fund", amount: 30000, currency: "INR", dueDate: "2026-11-05" };
     const text = personalReminder(c, "Ravi Kumar", "https://loopinapps.com/c/abc");
     expect(text).toBe("Hi Ravi! ₹300 for Diwali fund by 5 Nov. Pay and tick your name here: https://loopinapps.com/c/abc");
-    expect(whatsappTo("+919876543210", "hi")).toBe("https://wa.me/919876543210?text=hi");
-    expect(whatsappTo("9876543210", "hi")).toBe("https://wa.me/?text=hi"); // no country code: WhatsApp lets them pick
+    expect(whatsappTo("+919876543210", "hi")).toBe("https://api.whatsapp.com/send?phone=919876543210&text=hi");
+    expect(whatsappTo("9876543210", "hi")).toBe("https://api.whatsapp.com/send?text=hi"); // no country code: WhatsApp lets them pick
+    // Emoji survive (wa.me's redirect turned them into "�").
+    expect(whatsappTo("", "Goa 🌴")).toBe("https://api.whatsapp.com/send?text=Goa%20%F0%9F%8C%B4");
   });
 });

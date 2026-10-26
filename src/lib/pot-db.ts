@@ -26,7 +26,7 @@ async function groupFor(groupId: string, actorId: string) {
 }
 
 async function gameFor(gameId: string, actorId: string) {
-  const game = await db.potGame.findUnique({ where: { id: gameId }, include: { moves: { where: { deletedAt: null } } } });
+  const game = await db.potGame.findUnique({ where: { id: gameId }, include: { moves: { where: { deletedAt: null }, orderBy: { createdAt: "asc" } } } });
   if (!game || game.deletedAt) return { error: "This game isn’t there any more." };
   const r = await groupFor(game.groupId, actorId);
   if (!r.g) return { error: r.error };
@@ -247,4 +247,88 @@ export async function loadGames(groupId: string) {
 export async function loadGame(groupId: string, gameId: string) {
   const g = await db.potGame.findUnique({ where: { id: gameId }, include: { moves: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } });
   return g && !g.deletedAt && g.groupId === groupId ? g : null;
+}
+
+// Who's still playing: bought in, and their latest money line is a take (not
+// yet cashed out, or bought back in after cashing out).
+export function inPlay(players: string[], moves: { memberId: string; kind: string; deletedAt?: Date | null }[]): string[] {
+  const last = new Map<string, string>();
+  for (const m of moves) if (!m.deletedAt && (m.kind === "take" || m.kind === "return")) last.set(m.memberId, m.kind);
+  return players.filter((p) => last.get(p) === "take");
+}
+
+// Buy-in: the same amount from the pot for each player picked (everyone at the
+// start, or just the ones topping up).
+export async function buyIn(gameId: string, actorId: string, input: { memberIds: string[]; amount: string; note?: string }): Promise<Result<{ count: number }>> {
+  const r = await gameFor(gameId, actorId);
+  if (!r.game || !r.g) return { ok: false, error: r.error };
+  const { game, g } = r;
+  if (game.status !== "open") return { ok: false, error: "This game is finished. The host can reopen it." };
+  const amount = parseAmount(String(input.amount ?? "").trim(), g.currency);
+  if (amount === null) return { ok: false, error: "Enter how much each person takes." };
+  const active = new Set(g.members.filter((m) => !m.leftAt).map((m) => m.id));
+  const who = [...new Set(input.memberIds.filter((id) => active.has(id)))];
+  if (!who.length) return { ok: false, error: "Pick who’s taking money." };
+  const players = parsePlayers(game.players);
+  const note = cleanNote(input.note ?? "");
+  await db.$transaction([
+    db.potMove.createMany({ data: who.map((memberId) => ({ gameId, memberId, kind: "take", amount, note, createdById: actorId })) }),
+    ...(who.every((id) => players.includes(id)) ? [] : [db.potGame.update({ where: { id: gameId }, data: { players: JSON.stringify([...new Set([...players, ...who])]) } })]),
+  ]);
+  return { ok: true, count: who.length };
+}
+
+// Cash out: a player leaves the table with what they have (0 if nothing).
+// Someone can take their seat: a new name (or someone in the group) with a buy-in.
+export async function cashOut(gameId: string, actorId: string, input: { memberId: string; amount: string; newName?: string; newAmount?: string }): Promise<Result> {
+  const r = await gameFor(gameId, actorId);
+  if (!r.game || !r.g) return { ok: false, error: r.error };
+  const { game, g } = r;
+  if (game.status !== "open") return { ok: false, error: "This game is finished. The host can reopen it." };
+  if (!inPlay(parsePlayers(game.players), game.moves).includes(input.memberId)) return { ok: false, error: "They aren’t playing right now." };
+  const typed = String(input.amount ?? "").trim();
+  const amount = /^0+([.,]0*)?$/.test(typed) ? 0 : parseAmount(typed, g.currency);
+  if (amount === null) return { ok: false, error: "Enter what they leave with (0 if nothing)." };
+  const seat = String(input.newName ?? "").trim();
+  const seatAmount = seat ? parseAmount(String(input.newAmount ?? "").trim(), g.currency) : null;
+  if (seat && seatAmount === null) return { ok: false, error: "Enter what the new player takes from the pot." };
+  await db.potMove.create({ data: { gameId, memberId: input.memberId, kind: "return", amount, note: "cashed out", createdById: actorId } });
+  if (seat && seatAmount !== null) {
+    const a = await addNamedPlayers(g.id, actorId, seat.split(/[\n,]+/)[0]);
+    if (!a.ok) return a;
+    const id = a.ids[0];
+    const players = parsePlayers(game.players);
+    await db.$transaction([
+      db.potMove.create({ data: { gameId, memberId: id, kind: "take", amount: seatAmount, note: `took ${g.members.find((m) => m.id === input.memberId)?.name ?? "their"}’s seat`, createdById: actorId } }),
+      ...(players.includes(id) ? [] : [db.potGame.update({ where: { id: gameId }, data: { players: JSON.stringify([...players, id]) } })]),
+    ]);
+  }
+  return { ok: true };
+}
+
+// The end of the game: what everyone still playing has, all at once. With
+// `settle` (the host), the game finishes straight away if it adds up.
+export async function countOut(gameId: string, actorId: string, entries: { memberId: string; amount: string }[], settle: boolean): Promise<Result<{ finished: boolean; gap: boolean }>> {
+  const r = await gameFor(gameId, actorId);
+  if (!r.game || !r.g) return { ok: false, error: r.error };
+  const { game, g } = r;
+  if (game.status !== "open") return { ok: false, error: "This game is finished. The host can reopen it." };
+  const playing = new Set(inPlay(parsePlayers(game.players), game.moves));
+  const name = (id: string) => g.members.find((m) => m.id === id)?.name ?? "Someone";
+  const rows: { memberId: string; amount: number }[] = [];
+  for (const e of entries) {
+    if (!playing.has(e.memberId)) continue;
+    const typed = String(e.amount ?? "").trim();
+    if (!typed) continue; // not counted yet
+    const amount = /^0+([.,]0*)?$/.test(typed) ? 0 : parseAmount(typed, g.currency);
+    if (amount === null) return { ok: false, error: `${name(e.memberId)}: enter an amount (0 if nothing).` };
+    rows.push({ memberId: e.memberId, amount });
+  }
+  if (!rows.length && !settle) return { ok: false, error: "Type what each person has." };
+  if (rows.length) await db.potMove.createMany({ data: rows.map((x) => ({ gameId, memberId: x.memberId, kind: "return", amount: x.amount, note: "counted at the end", createdById: actorId })) });
+  if (!settle || game.hostId !== actorId) return { ok: true, finished: false, gap: false };
+  const missing = [...playing].filter((id) => !rows.some((x) => x.memberId === id));
+  if (missing.length) return { ok: false, error: `Still to count: ${missing.map(name).join(", ")}. Put 0 for anyone who lost it all.` };
+  const f = await finishGame(gameId, actorId);
+  return f.ok ? { ok: true, finished: true, gap: false } : { ok: true, finished: false, gap: true };
 }

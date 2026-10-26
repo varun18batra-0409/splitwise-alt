@@ -16,6 +16,7 @@ import { loadCollection, loopinFriends, personalReminder, progress, reminderText
 import { FriendPicker } from "@/components/FriendPicker";
 import { PickContacts } from "@/components/PickContacts";
 import { organiserActionForm, undoPaidAction } from "@/app/collect-actions";
+import { whatsappLink } from "@/lib/whatsapp";
 
 // One collection's page: the link people open from the WhatsApp group.
 // Anyone with it can pay the organiser directly and tick their name; the
@@ -60,7 +61,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
   const upi = c.currency === "INR" && c.upiId ? upiLink(c, c.amount) : "";
   const qr = upi ? await QRCode.toString(upi, { type: "svg", margin: 1, errorCorrectionLevel: "M", color: { dark: "#0d0d0f", light: "#f4f2ec" } }) : "";
   const payHost = c.payLink ? new URL(c.payLink).hostname : "";
-  const remind = `https://wa.me/?text=${encodeURIComponent(reminderText(c, due.map((d) => d.name), link))}`;
+  const remind = whatsappLink(reminderText(c, due.map((d) => d.name), link));
   const shareText = `${c.title}: ${c.amount ? `${money(c.amount)} each` : "chip in"}. Pay and tick your name here:`;
 
   const orgForm = (kind: string, entryId: string | undefined, label: React.ReactNode, cls: string, confirm?: string) => (

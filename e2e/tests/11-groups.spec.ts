@@ -89,6 +89,13 @@ test("delete a group: it's under Recently deleted (opened with a tap) and Restor
   await page.waitForURL(/deleted=group/);
   // Right after deleting it opens on its own; on a later visit it's a closed button.
   await expect(page.getByText("Hide recently deleted")).toBeVisible();
+  // Back (or swipe back) never lands on a "not available" page: a deleted group's screens go to Home.
+  await page.goto(g.path);
+  await page.waitForURL(/\/\?deleted=gone/);
+  await expect(page.getByText("That group was deleted.", { exact: false })).toBeVisible();
+  await page.goBack();
+  await settled(page);
+  expect(new URL(page.url()).pathname).toBe("/");
   await page.goto("/");
   await settled(page);
   const pill = page.getByText(/^Recently deleted \(\d+\)$/);

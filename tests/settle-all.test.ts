@@ -106,8 +106,8 @@ describe("search by month and year", () => {
 
 describe("WhatsApp reminder", () => {
   it("goes straight to their chat when we have the number", () => {
-    expect(nudgeLink("+91 98765 43210", "Ravi", "₹500", "Goa")).toMatch(/^https:\/\/wa\.me\/919876543210\?text=Hey%20Ravi/);
-    expect(nudgeLink("9876543210", "Ravi", "₹500", "Goa")).toMatch(/^https:\/\/wa\.me\/919876543210\?/);
-    expect(nudgeLink("", "Ravi", "₹500", "Goa")).toMatch(/^https:\/\/wa\.me\/\?text=/);
+    expect(nudgeLink("+91 98765 43210", "Ravi", "₹500", "Goa")).toMatch(/^https:\/\/api\.whatsapp\.com\/send\?phone=919876543210&text=Hey%20Ravi/);
+    expect(nudgeLink("9876543210", "Ravi", "₹500", "Goa")).toMatch(/^https:\/\/api\.whatsapp\.com\/send\?phone=919876543210&/);
+    expect(nudgeLink("", "Ravi", "₹500", "Goa")).toMatch(/^https:\/\/api\.whatsapp\.com\/send\?text=/);
   });
 });
