@@ -75,7 +75,7 @@ describe("All square numbers", () => {
 });
 
 describe("Trip Wrapped and fun titles", () => {
-  const at = (h: number, day = 12) => new Date(Date.UTC(2026, 9, day, h - 5, 30)); // IST hour h
+  const at = (h: number, day = 12) => new Date(Date.UTC(2026, 9, day, h - 6, 30)); // IST h:00
   const e = (description: string, amount: number, paidById: string, category: string, created: Date, createdById = paidById) => ({ description, amount, paidById, category, createdAt: created, spentAt: created, createdById });
   const expenses = [
     e("Villa", 1800000, "a", "accommodation", at(11, 10)),
