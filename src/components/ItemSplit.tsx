@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { extraAmount, itemize, itemsNote } from "@/lib/itemize";
-import { formatMoney, parseAmount } from "@/lib/money";
+import { extraAmount, itemize, itemsNote, parseBillText } from "@/lib/itemize";
+import { formatMoney, parseAmount, toInputAmount } from "@/lib/money";
 
 // Split by item: type each line of the bill and tap who had it. Tax, service
 // charge and tip (an amount, or a % like "5%") are shared in proportion to what
@@ -26,6 +26,9 @@ export function ItemSplit({
   const [tax, setTax] = useState("");
   const [service, setService] = useState("");
   const [tip, setTip] = useState("");
+  const [pasting, setPasting] = useState(false);
+  const [pasted, setPasted] = useState("");
+  const [pasteNote, setPasteNote] = useState("");
   const money = (n: number) => formatMoney(n, currency);
   const label = (id: string) => people.find((p) => p.id === id)?.label ?? "?";
 
@@ -38,6 +41,24 @@ export function ItemSplit({
 
   const set = (i: number, patch: Partial<Row>) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   const toggle = (i: number, id: string) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, who: r.who.includes(id) ? r.who.filter((x) => x !== id) : [...r.who, id] } : r)));
+
+  // "Paste the bill": text copied from a photo (Google Lens / iPhone Live Text).
+  function takePasted() {
+    const b = parseBillText(pasted, currency);
+    if (!b.items.length) {
+      setPasteNote("Couldn’t find items with prices. Each line needs a name and a price, like “Butter Chicken 320”.");
+      return;
+    }
+    const kept = rows.filter((r) => r.price.trim());
+    setRows([...kept, ...b.items.map((i) => ({ name: i.name, price: toInputAmount(i.price, currency), who: [] }))]);
+    if (b.tax) setTax(toInputAmount(b.tax, currency));
+    if (b.service) setService(toInputAmount(b.service, currency));
+    if (b.tip) setTip(toInputAmount(b.tip, currency));
+    const extra = [b.tax && `tax ${money(b.tax)}`, b.service && `service ${money(b.service)}`, b.tip && `tip ${money(b.tip)}`].filter(Boolean).join(", ");
+    setPasteNote(`Found ${b.items.length} ${b.items.length === 1 ? "item" : "items"}${extra ? ` and ${extra}` : ""}. Check them, then tap who had what.`);
+    setPasting(false);
+    setPasted("");
+  }
 
   function apply() {
     if (!result) return;
@@ -62,6 +83,40 @@ export function ItemSplit({
         </button>
       </div>
       <p className="-mt-2 text-xs text-gray-500">Each line of the bill, and tap who had it. Shared dishes: tap everyone who shared.</p>
+      {/* Free "scan": the phone's own text reader does the reading. */}
+      {pasting ? (
+        <div className="space-y-2 rounded-xl border border-line p-3">
+          <p className="text-xs text-gray-500">
+            Point your camera at the bill and copy its text (Google Lens on Android, or press on the text in Photos on iPhone), then paste it here.
+          </p>
+          <textarea
+            value={pasted}
+            onChange={(e) => setPasted(e.target.value)}
+            rows={5}
+            maxLength={6000}
+            aria-label="Bill text"
+            placeholder={"Butter Chicken 320\nGarlic Naan 2 x 60 120\nCGST 2.5% 11\nService charge 22"}
+            className="w-full resize-none rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-accent"
+          />
+          <div className="flex gap-2">
+            <button type="button" onClick={takePasted} className="rounded-lg bg-fg px-3.5 py-2 text-sm font-semibold text-canvas">
+              Turn into items
+            </button>
+            <button type="button" onClick={() => setPasting(false)} className="px-2 text-sm text-gray-500">
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button type="button" onClick={() => { setPasting(true); setPasteNote(""); }} className="text-sm font-semibold text-fg">
+          📋 Paste the bill (from Google Lens / Live Text)
+        </button>
+      )}
+      {pasteNote && (
+        <p className="text-xs text-gray-500" role="status" data-paste-note>
+          {pasteNote}
+        </p>
+      )}
       <ul className="space-y-3">
         {rows.map((r, i) => (
           <li key={i} className="rounded-xl bg-mist p-3" data-item-row={i}>

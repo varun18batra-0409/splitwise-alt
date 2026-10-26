@@ -87,6 +87,19 @@ test("pay buttons, payment tracking, quick line and split by item", async ({ bro
   // Before lunch everyone was square; now Ravi owes Asha his ₹495.
   expect(await readBalances(A, g.path)).toMatchObject({ Asha: 49500, Ravi: -49500 });
 
+  // Free "scan": paste the text the phone's own reader copied from the bill.
+  await A.goto(`${g.path}/add`);
+  await settled(A);
+  await A.getByRole("button", { name: /By item/ }).click();
+  const box = A.getByRole("group", { name: "Split by item" });
+  await box.getByRole("button", { name: /Paste the bill/ }).click();
+  await box.getByLabel("Bill text").fill("Butter Chicken 320.00\n2 x Garlic Naan @ 60 120\nSub Total 440\nCGST @2.5% 11\nSGST @2.5% 11\nGrand Total 462");
+  await box.getByRole("button", { name: "Turn into items" }).click();
+  await expect(box.locator("[data-paste-note]")).toHaveText("Found 2 items and tax ₹22. Check them, then tap who had what.");
+  await expect(box.getByLabel("Item 1 name")).toHaveValue("Butter Chicken");
+  await expect(box.getByLabel("Item 2 price")).toHaveValue("120");
+  await expect(box.getByLabel("Tax / GST")).toHaveValue("22");
+
   await A.context().close();
   await R.context().close();
 });

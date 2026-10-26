@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseQuickLine } from "@/lib/quickline";
-import { extraAmount, itemize, itemsNote } from "@/lib/itemize";
+import { extraAmount, itemize, itemsNote, parseBillText } from "@/lib/itemize";
 
 const M = [
   { id: "me", name: "Varun" },
@@ -75,5 +75,43 @@ describe("Split by item, with tax / service / tip", () => {
 
   it("writes the bill into the notes", () => {
     expect(itemsNote([{ name: "Soup", priceText: "₹300", whoText: "Asha" }, { name: "", priceText: "", whoText: "" }], ["Tax 10%: shared by what each had"])).toBe("Soup ₹300 (Asha)\nTax 10%: shared by what each had");
+  });
+});
+
+describe("Paste the bill (text from Google Lens / Live Text)", () => {
+  it("items in, totals and payment lines out, GST and service charge into their boxes", () => {
+    const bill = [
+      "SPICE KITCHEN",
+      "GSTIN 27ABCDE1234F1Z5",
+      "Table 12   Date 26/10/26",
+      "Butter Chicken 1 320.00",
+      "2 x Butter Naan @ 60 120",
+      "Dal Makhani    280",
+      "Fresh Lime Soda ₹90",
+      "Sub Total 810.00",
+      "CGST @2.5% 20.25",
+      "SGST @2.5% 20.25",
+      "Service Charge 5% 40.50",
+      "Round off 0.00",
+      "Grand Total 891.00",
+      "Paid by UPI 891",
+    ].join("\n");
+    const r = parseBillText(bill, "INR");
+    expect(r.items).toEqual([
+      { name: "Butter Chicken", price: 32000 },
+      { name: "Butter Naan", price: 12000 },
+      { name: "Dal Makhani", price: 28000 },
+      { name: "Fresh Lime Soda", price: 9000 },
+    ]);
+    expect(r.tax).toBe(4050);
+    expect(r.service).toBe(4050);
+    expect(r.tip).toBe(0);
+  });
+
+  it("dollars, a tip line, and junk ignored", () => {
+    const r = parseBillText("Burger $12.50\nFries 4.25\nTip 3\nTotal $19.75\nThank you!", "USD");
+    expect(r.items.map((i) => i.price)).toEqual([1250, 425]);
+    expect(r.tip).toBe(300);
+    expect(parseBillText("", "INR").items).toEqual([]);
   });
 });
