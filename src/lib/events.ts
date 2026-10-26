@@ -48,6 +48,10 @@ export type EventKind =
   | "split_changed"
   | "trip_dates_set"
   | "countdown_shared"
+  | "pot_started"
+  | "pot_finished"
+  | "pot_reopened"
+  | "pot_deleted"
   | "bill_added"
   | "bill_changed"
   | "group_imported";

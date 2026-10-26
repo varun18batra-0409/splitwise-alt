@@ -45,6 +45,7 @@ const PATHS = {
   flame: "M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.4-.5-2-1-3-1.1-2.1-.2-4.1 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.2.4-2.3 1-3.3.4 1.6 1.7 2.8 3.5 2.8z",
   broom: "M19 3 9.5 12.5M14 18l-5-5-5 2 0 0 3 7 7-4zM9 13l2-2",
   receipt: "M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1zM16 8H8M16 12H8M13 16H8",
+  cards: "M8 3h9a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM12.5 8 9.5 12l3 4 3-4zM3 7.5l3-1",
 } as const;
 
 // The emoji the rules pick → the matching line icon.
@@ -57,7 +58,7 @@ const FROM_EMOJI: Record<string, Glyph> = {
   "🛒": "cart", "🍎": "leaf", "🥛": "cart", "🥦": "leaf",
   "🎟️": "ticket", "🎬": "film", "🎤": "mic", "🥾": "mountain", "🏛️": "landmark", "💆": "spa", "🤿": "wave", "🎢": "ticket",
   "💡": "bolt", "⚡": "bolt", "💧": "drop", "📶": "wifi", "📺": "tv", "🔥": "flame", "🧹": "broom",
-  "📦": "receipt", "🏢": "landmark", "🍳": "food",
+  "📦": "receipt", "🏢": "landmark", "🍳": "food", "🃏": "cards",
 };
 
 // Soft tints per category (tile background at low strength, icon at full).
@@ -101,7 +102,7 @@ const PARTS: Partial<Record<Glyph, Part[]>> = {
 // Icons that move as a whole (the rest move only in their parts above).
 const WHOLE = new Set<Glyph>([
   "plane", "train", "bus", "car", "scooter", "boat", "parking", "food", "drink", "dessert", "delivery", "palm", "bag", "shirt",
-  "phone", "cart", "leaf", "ticket", "mic", "landmark", "spa", "wave", "bolt", "drop", "tv", "flame", "broom", "receipt",
+  "phone", "cart", "leaf", "ticket", "mic", "landmark", "spa", "wave", "bolt", "drop", "tv", "flame", "broom", "receipt", "cards",
 ]);
 
 export function ExpenseGlyph({

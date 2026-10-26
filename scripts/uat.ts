@@ -1215,20 +1215,21 @@ async function main() {
     await V.waitForURL(/\/welcome/);
     return `${imgs} photos on the guide (${sizes})`;
   });
-  await step(null, "Help", "The 1-minute tour has 6 slides, one for flats & couples, and none says “no sign-up”", async () => {
+  await step(null, "Help", "The 1-minute tour has 7 slides, one for flats & couples and one for card nights (The Pot), and none says “no sign-up”", async () => {
     const { ctx, page } = await person(browser);
     await go(page, "/welcome");
     const seen: string[] = [];
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 7; i++) {
       seen.push((await page.locator("main").innerText()).replace(/\s+/g, " "));
       const next = page.getByRole("button", { name: /Next/ });
-      if (i < 5) {
+      if (i < 6) {
         await next.click();
         await page.waitForTimeout(500);
       }
     }
     const all = seen.join(" ");
     assert(/Bills on repeat/.test(all), "no flats & couples slide");
+    assert(/The Pot keeps score/.test(all), "no card-night slide");
     assert(!/no sign-up/i.test(all), "a slide still says “no sign-up”");
     await ctx.close();
   });
@@ -1342,7 +1343,7 @@ async function main() {
   });
   await step(V, "Flat", "A ₹1,500 Groceries budget with ₹1,240 spent shows “₹260 left” (nearly there)", async () => {
     await go(V, `${gh}/budgets`);
-    await V.getByLabel("Groceries budget").fill("1500");
+    await V.getByLabel("Pantry Run budget").fill("1500");
     await V.getByRole("button", { name: "Save budgets" }).click();
     await V.waitForURL(new RegExp(`${gh}$`));
     const t = (await V.locator("main").innerText()).replace(/\s+/g, " ");
@@ -1581,7 +1582,7 @@ async function main() {
   });
   await step(V, "Flat", "A ₹1,000 Groceries budget with ₹1,240 spent shows “₹240 over”", async () => {
     await go(V, `${gh}/budgets`);
-    await V.getByLabel("Groceries budget").fill("1000");
+    await V.getByLabel("Pantry Run budget").fill("1000");
     await V.getByRole("button", { name: "Save budgets" }).click();
     await V.waitForURL(new RegExp(`${gh}$`));
     await V.getByText(/₹240(\.00)? over/).first().waitFor();
@@ -2060,6 +2061,15 @@ async function main() {
     await ctx.close();
   });
 
+  await step(V, "New group", "“What’s it for?” offers Trip, Home, Couple, The Pot, Collect and Anything Goes; The Pot explains itself; Collect opens Collect", async () => {
+    await go(V, "/groups/new");
+    for (const t of [/^Trip/, /^Home/, /^Couple/, /^The Pot/, /^Anything Goes/]) assert(await V.getByRole("button", { name: t }).count(), `no ${t} choice`);
+    await V.getByRole("button", { name: /^The Pot/ }).click();
+    await V.getByText(/Loopin works out who won, who lost and who pays whom/).waitFor();
+    await V.getByRole("link", { name: /^Collect/ }).click();
+    await V.waitForURL(/\/collect\/new/);
+  });
+
   // ===== Trip countdown =====
   const istDay = (plus: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(Date.now() + plus * 86_400_000));
   async function newTrip(page: Page, name: string, start: string) {
@@ -2097,7 +2107,7 @@ async function main() {
 
   await step(V, "Groups", "A photo picked while making a group becomes its picture", async () => {
     await go(V, "/groups/new");
-    await V.getByRole("button", { name: /^Other/ }).click();
+    await V.getByRole("button", { name: /^Anything Goes/ }).click();
     await V.locator('input[name="groupName"]').fill(`UAT photo group ${stamp % 1000}`);
     const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
     await V.getByLabel("Choose your own photo").setInputFiles({ name: "me.png", mimeType: "image/png", buffer: png });

@@ -8,6 +8,7 @@ describe("group pictures", () => {
     expect(coverOf({ type: "home", cover: "" })).toBe("city");
     expect(coverOf({ type: "couple", cover: null })).toBe("couple");
     expect(coverOf({ type: "other" })).toBe("dinner");
+    expect(coverOf({ type: "pot" })).toBe("cards"); // card nights: a card table
     expect(coverOf({ type: "trip", cover: "mountain" })).toBe("mountain");
     expect(coverOf({ type: "trip", cover: "plain" })).toBe("plain");
   });

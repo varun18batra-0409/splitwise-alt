@@ -7,7 +7,7 @@ import photos from "../generated/photos.json"; // relative, so the test tools ca
 // Stored on the group as "" (pick one from the group's type), a cover id, or
 // "plain" (no picture: the first letter of the name instead).
 
-export type DrawnId = "beach" | "mountain" | "city" | "couple" | "dinner" | "diwali";
+export type DrawnId = "beach" | "mountain" | "city" | "couple" | "dinner" | "diwali" | "cards";
 export type PhotoId =
   | "photo-beach" | "photo-mountains" | "photo-road" | "photo-lake" | "photo-forest" | "photo-snow" | "photo-city" | "photo-paris" | "photo-taj"
   | "photo-home" | "photo-food" | "photo-cafe" | "photo-party" | "photo-birthday" | "photo-wedding" | "photo-friends";
@@ -75,6 +75,7 @@ const ALL: { id: CoverChoice; label: string }[] = [
   { id: "dinner", label: "Dinner table" },
   { id: "couple", label: "Two circles" },
   { id: "diwali", label: "Diwali lamp" },
+  { id: "cards", label: "Card table" },
   { id: "plain", label: "Plain" },
   { id: "own", label: "Your own photo" },
 ];
@@ -98,7 +99,7 @@ export function isCoverChoice(x: string): x is CoverChoice {
 // The picture a group gets when nobody has picked one: drawn, so Home looks of a
 // piece (real photos are there to pick).
 function typeDefault(type: string): CoverChoice {
-  const want: Record<string, CoverId> = { trip: "beach", home: "city", couple: "couple", other: "dinner" };
+  const want: Record<string, CoverId> = { trip: "beach", home: "city", couple: "couple", pot: "cards", other: "dinner" };
   return resolve(want[type] ?? "photo-food");
 }
 

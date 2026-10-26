@@ -32,6 +32,10 @@ const SIGN: Record<string, string> = {
   group_settled_closed: "✅", group_closed: "📦", group_reopened: "📂", group_imported: "📥", group_deleted: "🗑️", group_restored: "↩️",
   split_changed: "⚖️",
   countdown_shared: "⏳",
+  pot_started: "🃏",
+  pot_finished: "🏆",
+  pot_reopened: "🃏",
+  pot_deleted: "🗑️",
   bill_added: "🧾",
   bill_changed: "🧾",
 };

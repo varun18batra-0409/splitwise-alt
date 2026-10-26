@@ -490,6 +490,7 @@ html.lp-opened .lp-open {
 .lp-m-flame { animation-name: lp-k-flame; transform-origin: 50% 100%; }
 .lp-m-broom { animation-name: lp-k-sweep; transform-origin: 80% 10%; }
 .lp-m-receipt { animation-name: lp-k-print; }
+.lp-m-cards { animation-name: lp-k-wiggle; }
 .lp-p-steam { animation-name: lp-k-steam; }
 .lp-p-dash { animation-name: lp-k-dash; }
 .lp-p-lid { animation-name: lp-k-lid; transform-origin: 0% 100%; }

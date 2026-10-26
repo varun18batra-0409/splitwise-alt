@@ -42,7 +42,7 @@ type PaymentRow = {
 type EventRow = { id: string; kind: string; actorId: string; text: string; details: string; createdAt: Date };
 
 // Group-level changes shown as their own lines (expense/payment changes show on the item itself).
-const GROUP_EVENT_KINDS = new Set(["group_renamed", "currency_changed", "markup_changed", "display_currency_changed", "members_added", "members_removed", "group_closed", "group_reopened", "split_changed", "trip_dates_set", "countdown_shared", "bill_added", "bill_changed", "group_imported"]);
+const GROUP_EVENT_KINDS = new Set(["group_renamed", "currency_changed", "markup_changed", "display_currency_changed", "members_added", "members_removed", "group_closed", "group_reopened", "split_changed", "trip_dates_set", "countdown_shared", "pot_started", "pot_finished", "pot_reopened", "pot_deleted", "bill_added", "bill_changed", "group_imported"]);
 
 export type ActivityItem =
   | {
@@ -56,6 +56,7 @@ export type ActivityItem =
       paidById: string;
       payerIds: string[]; // everyone who paid (usually just paidById); for money back, who got it
       refund: boolean; // money back
+      pot?: boolean; // a card game's result (The Pot): winners up, losers down
       people: string[]; // who it was for
       effect: number; // + you're owed this much more, − you owe this much more, 0 not involved
       createdById: string;
@@ -109,6 +110,7 @@ export function buildActivity(expenses: ExpenseRow[], payments: PaymentRow[], my
         paidById: e.paidById,
         payerIds: payerIds(e),
         refund: e.kind === "refund",
+        pot: e.kind === "pot",
         people: e.shares.map((s) => s.memberId),
         effect: deleted ? 0 : effectFor(e, myId),
         createdById: e.createdById ?? e.paidById,

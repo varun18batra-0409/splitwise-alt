@@ -491,3 +491,39 @@ model CollectionEntry {
   accountId    String     @default("") // a Loopin user: gets in-app notifications (added, reminded, payment checked)
   @@index([collectionId])
 }
+
+// "The Pot": card nights (Poker, Teen Patti). Players take money from a shared
+// pot, play, and put back what they have left; the difference is each one's
+// win or loss. Only the money in and out is kept (no chips, bets or hands).
+// When the game is finished its result goes into the group's balances as one
+// line (an expense of kind "pot"), so settling up works as for any group.
+model PotGame {
+  id          String    @id @default(cuid())
+  groupId     String
+  name        String
+  game        String    @default("teenpatti") // "poker" | "teenpatti"
+  players     String    @default("[]") // JSON list of member ids playing this game
+  hostId      String // the member who started it: finishes, adjusts, reopens
+  status      String    @default("open") // "open" | "done"
+  resultId    String    @default("") // the result line in the group's balances ("" while open)
+  finishedAt  DateTime?
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  moves       PotMove[]
+  @@index([groupId])
+}
+
+// Money taken from the pot, put back, or an adjustment the host made (with a reason).
+model PotMove {
+  id          String    @id @default(cuid())
+  gameId      String
+  game        PotGame   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  memberId    String // whose money it is
+  kind        String // "take" | "return" | "adjust"
+  amount      Int // smallest units; take/return > 0, adjust can be minus
+  note        String    @default("")
+  createdById String // who recorded it
+  createdAt   DateTime  @default(now())
+  deletedAt   DateTime?
+  @@index([gameId])
+}

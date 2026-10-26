@@ -27,7 +27,7 @@ export async function settled(page: Page) {
 
 // New group (src/components/NewGroupForm.tsx) → lands on "Add people".
 // Returns the group's address and its invite link.
-export async function createGroup(page: Page, name: string, type: "Trip" | "Home" | "Other" = "Trip"): Promise<{ path: string; invite: string }> {
+export async function createGroup(page: Page, name: string, type: "Trip" | "Home" | "Anything Goes" | "The Pot" = "Trip"): Promise<{ path: string; invite: string }> {
   await page.goto("/groups/new");
   await settled(page);
   await page.getByRole("button", { name: new RegExp(`^${type}`) }).click();

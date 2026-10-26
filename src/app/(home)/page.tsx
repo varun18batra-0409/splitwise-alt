@@ -262,7 +262,7 @@ export default async function Home({
                 ›
               </span>
             </Link>
-            <CollectTeaser className="mt-2" />
+            <PotTeaser className="mt-2" />
             <Link href="/switching" className="mt-2 flex items-center gap-3 rounded-2xl border border-line px-4 py-3.5 active:bg-mist">
               <span className="text-xl" aria-hidden>
                 📥
@@ -375,6 +375,21 @@ export default async function Home({
               )}
             </div>
 
+            {season && (
+              <div className="relative flex h-[268px] flex-col overflow-hidden bg-[#120a10] px-5 pb-12 pt-5">
+                <div className="absolute inset-y-0 left-[38%] w-[75%]">
+                  <GroupCover kind={coverOf({ cover: season.cover })} uid={`season-${season.id}`} />
+                </div>
+                <div aria-hidden className="absolute inset-0 bg-[linear-gradient(90deg,#120a10_32%,rgba(18,10,16,0)_78%)]" />
+                <p className="relative text-sm text-[#ffc93c]">{season.eyebrow}</p>
+                <p className="relative mt-1 max-w-[62%] font-display text-[26px] font-semibold leading-[1.1]">{season.title}</p>
+                <p className="relative mt-auto max-w-[58%] text-[13px] leading-snug text-gray-700">{season.text}</p>
+                <Link href={season.href} className={`relative mt-3 ${bannerButton}`}>
+                  {season.button}
+                </Link>
+              </div>
+            )}
+
             {month && (
               <div className="relative flex h-[268px] flex-col overflow-hidden bg-[radial-gradient(90%_90%_at_90%_10%,#4a2c16_0%,transparent_60%),linear-gradient(160deg,#24170f_0%,#121014_75%)] px-5 pb-12 pt-5">
                 <p aria-hidden className="absolute -right-3 -top-6 font-display text-[150px] font-semibold leading-none text-fg/[0.06]">
@@ -403,21 +418,6 @@ export default async function Home({
                 </div>
                 <Link href={`/search?m=${month.month}`} className={`relative mt-3 ${bannerButton}`}>
                   See {month.name}
-                </Link>
-              </div>
-            )}
-
-            {season && (
-              <div className="relative flex h-[268px] flex-col overflow-hidden bg-[#120a10] px-5 pb-12 pt-5">
-                <div className="absolute inset-y-0 left-[38%] w-[75%]">
-                  <GroupCover kind={coverOf({ cover: season.cover })} uid={`season-${season.id}`} />
-                </div>
-                <div aria-hidden className="absolute inset-0 bg-[linear-gradient(90deg,#120a10_32%,rgba(18,10,16,0)_78%)]" />
-                <p className="relative text-sm text-[#ffc93c]">{season.eyebrow}</p>
-                <p className="relative mt-1 max-w-[62%] font-display text-[26px] font-semibold leading-[1.1]">{season.title}</p>
-                <p className="relative mt-auto max-w-[58%] text-[13px] leading-snug text-gray-700">{season.text}</p>
-                <Link href={season.href} className={`relative mt-3 ${bannerButton}`}>
-                  {season.button}
                 </Link>
               </div>
             )}
@@ -526,7 +526,7 @@ export default async function Home({
             )}
           </section>
 
-          {collections.length > 0 ? <CollectionsSection list={collections} /> : <CollectTeaser className="mt-4" />}
+          {collections.length > 0 && <CollectionsSection list={collections} />}
 
           {/* Needs attention */}
           {attention.length > 0 && (
@@ -792,15 +792,16 @@ function CollectionsSection({ list }: { list: Awaited<ReturnType<typeof myCollec
 }
 
 // "Collect money": one small row inviting a first collection.
-function CollectTeaser({ className = "" }: { className?: string }) {
+// For someone just starting: card nights (Collect and everything else start from New group).
+function PotTeaser({ className = "" }: { className?: string }) {
   return (
-    <Link href="/collect/new" className={`flex items-center gap-3 rounded-2xl border border-line px-4 py-3.5 active:bg-mist ${className}`}>
+    <Link href="/groups/new?type=pot" className={`flex items-center gap-3 rounded-2xl border border-line px-4 py-3.5 active:bg-mist ${className}`}>
       <span className="text-xl" aria-hidden>
-        🫙
+        🃏
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-medium">Collect money</span>
-        <span className="block text-xs text-gray-400">One link for a gift, farewell or booking. See who’s paid.</span>
+        <span className="block text-sm font-medium">Card night? Start a Pot</span>
+        <span className="block text-xs text-gray-400">Teen Patti or Poker: who took what from the pot, who won, who pays</span>
       </span>
       <span className="text-gray-400" aria-hidden>
         ›

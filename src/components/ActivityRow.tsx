@@ -86,6 +86,28 @@ export function ActivityRow({
     );
   }
 
+  // A card game's result (The Pot): who won, and how it went for you.
+  if (item.pot) {
+    return (
+      <div className="flex items-center gap-3.5 py-3.5">
+        <ExpenseGlyph title={item.title} category="activities" emoji="🃏" motion={motion} delay={delay} label="Card game" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[15px] font-semibold tracking-tight">{item.title}</p>
+          <p className={meta}>
+            Game result · {(item.payerIds ?? [item.paidById]).map(nameOf).join(" + ")} won {money(item.amount)}
+            {groupName && ` · ${groupName}`}
+          </p>
+        </div>
+        {item.effect > 0 ? (
+          <Effect label="you won" amount={money(item.effect)} cls="text-owed" />
+        ) : item.effect < 0 ? (
+          <Effect label="you lost" amount={money(-item.effect)} cls="text-owe" />
+        ) : (
+          <Effect label="even" cls="" />
+        )}
+      </div>
+    );
+  }
   const cat = getCategory(item.category);
   // Foreign-currency expense: show the amount in its own currency first, then the group currency.
   const o = item.original;

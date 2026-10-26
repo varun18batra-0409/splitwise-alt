@@ -22,6 +22,7 @@ export function resolveSecondary(
 export function spentByCurrency(expenses: { originalCurrency: string; originalAmount: number; amount: number; kind?: string | null }[]) {
   const m = new Map<string, { original: number; group: number; count: number }>();
   for (const e of expenses) {
+    if (e.kind === "pot") continue;
     const row = m.get(e.originalCurrency) ?? { original: 0, group: 0, count: 0 };
     const sign = e.kind === "refund" ? -1 : 1; // money back reduces what was spent
     row.original += sign * e.originalAmount;

@@ -34,6 +34,8 @@ export async function eraseGroups(ids: string[]) {
     db.depositShare.deleteMany({ where: { deposit: inG } }),
     db.deposit.deleteMany({ where: inG }),
     db.groupPhoto.deleteMany({ where: inG }),
+    db.potMove.deleteMany({ where: { game: inG } }),
+    db.potGame.deleteMany({ where: inG }),
     db.member.deleteMany({ where: inG }),
     db.group.deleteMany({ where: { id: { in: ids } } }),
   ]);

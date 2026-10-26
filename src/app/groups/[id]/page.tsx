@@ -22,6 +22,8 @@ import { billStatuses } from "@/lib/home/bills-db";
 import { niceDate } from "@/lib/format";
 import { dayKey } from "@/lib/dates";
 import { Notice } from "@/components/Notice";
+import { GamesTab } from "./_components/GamesTab";
+import { loadGames } from "@/lib/pot-db";
 
 const TABS = [
   { id: "activity", label: "Activity" },
@@ -35,7 +37,13 @@ const HOME_TABS = [
   { id: "list", label: "List" },
   { id: "activity", label: "Activity" },
 ] as const;
-type Tab = "activity" | "balances" | "charts" | "month" | "bills" | "list";
+// Pot groups (card nights) open on their games.
+const POT_TABS = [
+  { id: "games", label: "Games" },
+  { id: "balances", label: "Balances" },
+  { id: "activity", label: "Activity" },
+] as const;
+type Tab = "activity" | "balances" | "charts" | "month" | "bills" | "list" | "games";
 
 // A group: header, your balance, and three tabs (Activity · Balances · Charts).
 export default async function GroupPage({
@@ -89,14 +97,15 @@ export default async function GroupPage({
   const v = await buildGroupView(data, myId, tz);
   const { group } = v;
   const home = group.type === "home" || group.type === "couple";
-  const tabs = home ? HOME_TABS : TABS;
-  const allowed: readonly string[] = home ? ["month", "bills", "list", "activity", "balances", "charts"] : ["activity", "balances", "charts"];
-  const tab: Tab = allowed.includes(sp.tab ?? "") ? (sp.tab as Tab) : home ? "month" : "activity";
+  const pot = group.type === "pot";
+  const tabs = home ? HOME_TABS : pot ? POT_TABS : TABS;
+  const allowed: readonly string[] = home ? ["month", "bills", "list", "activity", "balances", "charts"] : pot ? ["games", "balances", "activity"] : ["activity", "balances", "charts"];
+  const tab: Tab = allowed.includes(sp.tab ?? "") ? (sp.tab as Tab) : home ? "month" : pot ? "games" : "activity";
 
   // Home & Couple: everything This month / Bills / List need, fetched together.
   const monthTab = home && tab === "month";
   const active = group.expenses.filter((e) => !e.deletedAt);
-  const [bills, budgets, depositShares, heads, goalRows, list] = await Promise.all([
+  const [bills, budgets, depositShares, heads, goalRows, list, games] = await Promise.all([
     home && (tab === "month" || tab === "bills") ? billStatuses(group.id) : Promise.resolve<Awaited<ReturnType<typeof billStatuses>>>([]),
     monthTab ? budgetsNow(group.id, active, myId, v.tz) : Promise.resolve<Awaited<ReturnType<typeof budgetsNow>>>([]),
     // The deposit tile (held shares only).
@@ -116,6 +125,7 @@ export default async function GroupPage({
           db.listItem.findMany({ where: { groupId: group.id }, orderBy: { createdAt: "desc" }, take: 200, select: { text: true } }),
         ]).then(([items, history]) => ({ items, usual: usualItems(history.map((h) => h.text), items.map((i) => i.text)) }))
       : Promise.resolve(null),
+    pot && tab === "games" ? loadGames(group.id) : Promise.resolve([] as Awaited<ReturnType<typeof loadGames>>),
   ]);
   const today = dayKey(new Date(), v.tz);
   const comingUp = bills
@@ -197,6 +207,7 @@ export default async function GroupPage({
       {tab === "list" && list && (
         <ListTab v={v} items={list.items} usual={list.usual} notice={sp.bought ? "Added as an expense. Everyone has been told." : sp.told ? "Told everyone you’re going shopping." : undefined} />
       )}
+      {tab === "games" && <GamesTab v={v} games={games} />}
       {tab === "balances" && <BalancesTab v={v} paid={sp.paid === "1"} why={sp.why} />}
       {tab === "charts" && <ChartsTab v={v} />}
 

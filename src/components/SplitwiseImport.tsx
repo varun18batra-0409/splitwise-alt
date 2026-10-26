@@ -214,7 +214,7 @@ export function SplitwiseImport({ yourName }: { yourName: string }) {
           <fieldset>
             <legend className="mb-2 text-sm font-medium text-gray-600">What’s it for?</legend>
             <div className="grid grid-cols-4 gap-1 rounded-xl bg-mist p-1" role="radiogroup" aria-label="What’s it for?">
-              {GROUP_TYPES.map((t) => (
+              {GROUP_TYPES.filter((t) => t.id !== "pot").map((t) => (
                 <button
                   key={t.id}
                   type="button"

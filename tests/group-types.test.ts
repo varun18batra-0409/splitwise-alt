@@ -15,7 +15,7 @@ afterAll(async () => {
 
 describe("group types", () => {
   it("has the four types, each with a name hint", () => {
-    expect(GROUP_TYPES.map((t) => t.id)).toEqual(["trip", "home", "couple", "other"]);
+    expect(GROUP_TYPES.map((t) => t.id)).toEqual(["trip", "home", "couple", "pot", "other"]);
     for (const t of GROUP_TYPES) expect(t.namePlaceholder.length).toBeGreaterThan(0);
     expect(isGroupType("home")).toBe(true);
     expect(isGroupType("business")).toBe(false);

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Caveat, Fraunces } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { BottomNav } from "@/components/BottomNav";
 import { PushSync } from "@/components/PushControls";
@@ -13,10 +13,19 @@ import { MotionWatch } from "@/components/MotionWatch";
 import { SITE_DESCRIPTION, SITE_TITLE, SITE_URL } from "@/lib/site";
 
 // Fraunces: a sharp, high-contrast serif for headings and big amounts.
-// Body text stays in the phone's own font.
-const fraunces = Fraunces({ subsets: ["latin"], variable: "--font-fraunces", display: "swap" });
+// Body text stays in the phone's own font. Both fonts ship with the app
+// (src/fonts, SIL Open Font License): fetching them from Google while
+// building sometimes failed, and that stopped a release.
+const fraunces = localFont({ src: [{ path: "../fonts/fraunces-latin-wght-normal.woff2", weight: "100 900", style: "normal" }], variable: "--font-fraunces", display: "swap" });
 // Caveat: a handwritten hand for the captions on polaroid photos (names written under a picture).
-const caveat = Caveat({ subsets: ["latin"], weight: ["600", "700"], variable: "--font-caveat", display: "swap" });
+const caveat = localFont({
+  src: [
+    { path: "../fonts/caveat-latin-600-normal.woff2", weight: "600", style: "normal" },
+    { path: "../fonts/caveat-latin-700-normal.woff2", weight: "700", style: "normal" },
+  ],
+  variable: "--font-caveat",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

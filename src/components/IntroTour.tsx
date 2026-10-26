@@ -212,6 +212,42 @@ function makeSlides(L: Local): Slide[] {
     ),
   },
   {
+    id: "pot",
+    title: ["Card night?", "The Pot keeps score."],
+    caption: "Poker or Teen Patti: note what each player takes from the pot and puts back. Loopin shows who won and who pays whom.",
+    art: (
+      <Card className="[background:radial-gradient(90%_100%_at_100%_0%,rgba(31,107,74,0.35)_0%,transparent_60%)]">
+        <p className="rise text-xs text-gray-400">🃏 Teen Patti · Diwali night</p>
+        {(
+          [
+            ["Ravi", L.india ? 2000 : 200, L.india ? 2600 : 260],
+            ["You", L.india ? 1000 : 100, L.india ? 700 : 70],
+            ["Meera", L.india ? 1500 : 150, L.india ? 1200 : 120],
+          ] as const
+        ).map(([who, took, back], i) => (
+          <div key={who} className={`rise rise-${i + 2} mt-2.5 flex items-center justify-between text-sm`}>
+            <span className="flex items-center gap-2">
+              <Dot name={who} />
+              <span>
+                <span className="block font-medium">{who}</span>
+                <span className="block text-[11px] text-gray-400">
+                  took {L.m(took)} · back {L.m(back)}
+                </span>
+              </span>
+            </span>
+            <span className={`font-display font-semibold ${back > took ? owed : owe}`}>
+              {back > took ? "+" : "−"}
+              {L.m(Math.abs(back - took))}
+            </span>
+          </div>
+        ))}
+        <p className="rise rise-5 mt-4 border-t border-line pt-3 text-sm">
+          You pay Ravi <strong className="font-display">{L.m(L.india ? 300 : 30)}</strong> · Meera pays Ravi <strong className="font-display">{L.m(L.india ? 300 : 30)}</strong>
+        </p>
+      </Card>
+    ),
+  },
+  {
     id: "undo",
     title: ["Oops?", "Undo anything."],
     caption: "Anyone can fix a mistake. Every change is kept in the history and everyone in the group is told.",

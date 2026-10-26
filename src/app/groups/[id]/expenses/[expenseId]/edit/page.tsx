@@ -28,6 +28,11 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
 
   const e = await db.expense.findFirst({ where: { id: expenseId, groupId: group.id }, include: { shares: true } });
   if (!e) notFound();
+  // A game's result is worked out from the game: changes happen there (the host reopens it).
+  if (e.kind === "pot") {
+    const g = await db.potGame.findFirst({ where: { resultId: e.id, groupId: group.id }, select: { id: true } });
+    redirect(g ? `/groups/${group.id}/pot/${g.id}` : `/groups/${group.id}?tab=games`);
+  }
 
   const back = `/groups/${group.id}?tab=activity`;
   const blocked =
