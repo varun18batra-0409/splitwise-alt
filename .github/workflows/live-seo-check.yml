@@ -8,4 +8,5 @@ jobs:
     steps:
       - run: |
           s=https://www.loopinapps.com
-          for p in "" groups/new collect/new faq how-it-works api/health; do echo "::notice title=/$p::$(curl -s -o /dev/null -w '%{http_code}' "$s/$p")"; done
+          g=$(curl -s "$s/signin" | grep -c "Continue with Google" || true)
+          echo "::notice title=google-button::$g"
