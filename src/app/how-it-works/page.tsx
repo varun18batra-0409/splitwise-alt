@@ -153,6 +153,11 @@ export default async function HowItWorks() {
           item)? Switch to <strong>Money back</strong> and it’s shared the same way. Adding a few in a row? <strong>Save &amp; add another</strong>.
           The same thing again? Open it and tap <strong>Repeat</strong>. Loopin warns you if something looks like a duplicate.
         </p>
+        <p>
+          <strong>In a hurry?</strong> Tap <strong>Type it in one line</strong>: “Dinner 2400 Sam paid split with Maya Leo” or “Cab 600 except
+          Leo” fills in the form for you to check. <strong>Only had a drink?</strong> Tap <strong>By item</strong>, type each line of the bill
+          and tap who had it; tax, service charge and tip are shared by what each person ordered.
+        </p>
         <Example>
           Dinner {m(x.dinner)} · Maya paid · Everyone equally (4)
           <br />
@@ -209,6 +214,8 @@ export default async function HowItWorks() {
           items={[
             <>In a group, tap <strong>Settle up</strong>. Loopin shows the fewest payments that clear everything.</>,
             <>Paid in full? Tap <strong>Mark paid</strong>. Paid part? Change the amount first.</>,
+            <>Your friend added their UPI ID or PayPal / Venmo link? A <strong>Pay</strong> button opens the app with the amount filled in.</>,
+            <>Whoever was paid is asked <strong>Got it ✓</strong> or <strong>Not received</strong>, so a payment only stays if it really arrived.</>,
             <>Owe the same friend in two groups? The <strong>Settle</strong> tab combines them into one payment.</>,
           ]}
         />
