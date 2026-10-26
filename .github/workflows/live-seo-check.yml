@@ -1,4 +1,3 @@
-# One-off: confirm the live site after a release.
 name: Live SEO check
 on:
   push:
@@ -9,10 +8,4 @@ jobs:
     steps:
       - run: |
           s=https://www.loopinapps.com
-          curl -s "$s/faq" -o /tmp/faq; curl -s "$s/how-it-works" -o /tmp/hiw; curl -s "$s/welcome" -o /tmp/w
-          echo "::notice title=FAQ::What is The Pot $(grep -c 'What is The Pot' /tmp/faq) · Where is Collect $(grep -c 'Where is Collect' /tmp/faq)"
-          echo "::notice title=How it works::Card nights $(grep -c 'The Pot keeps score' /tmp/hiw) · Anything Goes $(grep -c 'Anything Goes' /tmp/hiw)"
-          echo "::notice title=Tour::Pot slide $(grep -c 'The Pot keeps score' /tmp/w)"
-          css=$(curl -s "$s/" | grep -o '/_next/static/media/[^"]*\.woff2' | sort -u | wc -l)
-          echo "::notice title=Fonts::own font files linked on Home: $css"
-          for p in "" groups/new collect/new notifications; do echo "::notice title=/$p::$(curl -s -o /dev/null -w '%{http_code}' "$s/$p")"; done
+          for p in "" groups/new collect/new faq how-it-works api/health; do echo "::notice title=/$p::$(curl -s -o /dev/null -w '%{http_code}' "$s/$p")"; done
