@@ -1,4 +1,6 @@
 import Link from "@/components/Link";
+import { StoryArt } from "@/components/StoryArt";
+import type { StoryKind } from "@/lib/home/stories";
 import Image from "next/image";
 import photos from "@/generated/photos.json";
 import { PageHeader } from "@/components/ui";
@@ -39,11 +41,22 @@ function Photo({ slot, children, tall }: { slot: Slot; children?: React.ReactNod
   );
 }
 
-function Section({ slot, title, children }: { slot?: Slot; kicker?: string; title: string; children: React.ReactNode }) {
+function Section({ slot, art, title, children }: { slot?: Slot; art?: StoryKind; kicker?: string; title: string; children: React.ReactNode }) {
   const heading = <h2 className="mt-1 font-display text-[26px] font-semibold leading-tight tracking-tight text-fg">{title}</h2>;
   return (
     <section className="mt-12">
-      {slot ? <Photo slot={slot}>{heading}</Photo> : heading}
+      {slot ? (
+        <Photo slot={slot}>{heading}</Photo>
+      ) : art ? (
+        // Designed artwork where a stock photo would look cheap (card nights).
+        <div className="relative -mx-5 h-[200px] overflow-hidden">
+          <StoryArt kind={art} uid={`guide-${art}`} />
+          <div className="absolute inset-0 bg-gradient-to-t from-canvas via-canvas/30 to-transparent" />
+          <div className="absolute inset-x-5 bottom-5">{heading}</div>
+        </div>
+      ) : (
+        heading
+      )}
       <div className="mt-4 space-y-3 text-[15px] leading-relaxed text-gray-600">{children}</div>
     </section>
   );
@@ -288,7 +301,7 @@ export default async function HowItWorks() {
       </Section>
 
       <div id="pot" className="scroll-mt-4" />
-      <Section title="Card nights: The Pot keeps score">
+      <Section art="pot" title="Card nights: The Pot keeps score">
         <p>
           Playing <strong>Poker</strong> or <strong>Teen Patti</strong>? Make a group and pick <strong>The Pot</strong>. Add the players: friends on
           Loopin see the game and their balance; anyone else can just be a name (they can join with the link later).

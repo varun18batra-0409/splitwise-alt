@@ -56,8 +56,14 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
 
   if (all.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-line py-10 text-center text-sm text-gray-500">
-        {group.closed ? "This group had no expenses." : "No expenses yet. Tap Add expense below to add the first one."}
+      <div className="vault relative overflow-hidden rounded-[22px] px-6 py-9 text-center">
+        <span aria-hidden className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-[#d8bd7a]/45 text-[#e8d29a]">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M6 3h12v18l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4L6 21ZM9 8h6M9 11.5h6M9 15h4" />
+          </svg>
+        </span>
+        <p className="mt-4 font-display text-xl font-semibold">{group.closed ? "No expenses here" : "A clean slate"}</p>
+        <p className="mx-auto mt-1.5 max-w-[17rem] text-sm text-gray-500">{group.closed ? "This group had no expenses." : "No expenses yet. Tap + below to add the first one, and everyone sees it straight away."}</p>
       </div>
     );
   }
@@ -185,7 +191,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                 const details = parseDetails(item.details);
                 return (
                   <li key={item.id}>
-                    <ActivityRow item={item} currency={group.currency} nameOf={nameOf} motion="once" />
+                    <ActivityRow item={item} currency={group.currency} nameOf={nameOf} motion="loop" delay={stagger(item.id)} />
                     {details.length > 0 && (
                       <ul className="-mt-1 mb-2 ml-[3.25rem] space-y-0.5 text-xs text-gray-400">
                         {details.map((d) => (
@@ -206,7 +212,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                   <li key={item.id} id={`item-${item.id}`} className="scroll-mt-20">
                     <details open={openId === item.id}>
                       <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-                        <ActivityRow item={item} currency={group.currency} nameOf={nameOf} motion="once" />
+                        <ActivityRow item={item} currency={group.currency} nameOf={nameOf} motion="loop" delay={stagger(item.id)} />
                       </summary>
                       <div className="mb-3 ml-[3.25rem] space-y-2 rounded-xl bg-mist p-3 text-sm text-gray-600">
                         <History v={v} events={historyOf("paymentId", item.id)} fallback={`Recorded ${when(item.date)}`} />
@@ -247,7 +253,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                 <li key={item.id} id={`item-${item.id}`} className="scroll-mt-20">
                   <details open={openId === item.id}>
                     <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-                      <ActivityRow item={item} currency={group.currency} nameOf={nameOf} motion="once" />
+                      <ActivityRow item={item} currency={group.currency} nameOf={nameOf} motion="loop" delay={stagger(item.id)} />
                       {reacted.counts.length > 0 && (
                         <span className="-mt-2 mb-2 ml-[3.25rem] flex gap-1.5" data-reactions={reacted.counts.map((c) => `${c.emoji}${c.count}`).join(" ")}>
                           {reacted.counts.map((c) => (
@@ -428,4 +434,10 @@ function History({ v, events, fallback }: { v: GroupView; events: GroupEvent[]; 
       ))}
     </ol>
   );
+}
+
+// The icons take turns to move (each now and then, never all at once), like on Home.
+function stagger(id: string): number {
+  const h = [...id].reduce((x, c) => (x * 31 + c.charCodeAt(0)) >>> 0, 7);
+  return 0.4 + (h % 6) * 0.8;
 }

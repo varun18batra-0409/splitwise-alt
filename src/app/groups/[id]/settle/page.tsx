@@ -1,4 +1,5 @@
 import Link from "@/components/Link";
+import { SquareSeal } from "@/components/Icons";
 import { notFound, redirect } from "next/navigation";
 import { Notice } from "@/components/Notice";
 import { getMyMemberId } from "@/lib/identity";
@@ -123,14 +124,12 @@ export default async function GroupSettle({
 
       {transfers.length === 0 ? (
         <div className="rounded-2xl bg-mist px-4 py-10 text-center">
-          <p className="text-3xl" aria-hidden>
-            🎉
-          </p>
-          <p className="mt-2 font-display text-xl font-semibold">All square</p>
+          <SquareSeal size={56} className="mx-auto" />
+          <p className="mt-3 font-display text-xl font-semibold">All square</p>
           <p className="mt-1 text-sm text-gray-500">Nobody owes anybody here.</p>
           {expenses.length > 0 && (
             <Link href={`/groups/${group.id}/square`} className="mt-4 inline-block rounded-full bg-fg px-4 py-2 text-sm font-semibold text-canvas">
-              Share the moment 🎉
+              Share the moment
             </Link>
           )}
         </div>

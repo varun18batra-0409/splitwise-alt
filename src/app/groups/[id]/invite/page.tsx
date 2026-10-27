@@ -61,7 +61,7 @@ export default async function AddPeoplePage({
     <>
       <PageHeader title="Add people" back={`/groups/${group.id}`} />
       {sp.new === "1" && (
-        <Notice params={["new"]} className="-mt-2 mb-5">🎉 {group.name} is ready. Now bring your people in.</Notice>
+        <Notice params={["new"]} className="-mt-2 mb-5">{group.name} is ready. Now bring your people in.</Notice>
       )}
       {sp.error && <ErrorNote>{sp.error}</ErrorNote>}
       {sp.added && !sp.undone && <Notice tone="success" params={["added"]} className="mb-4">Added {sp.added}. They’ve been notified.</Notice>}

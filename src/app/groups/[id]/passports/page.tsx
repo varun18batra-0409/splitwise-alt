@@ -97,7 +97,7 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
                   ? mine
                     ? "Empty so far · add where you’ve been"
                     : "Empty so far · nudge them"
-                  : `${codes.length} ${codes.length === 1 ? "country" : "countries"} · ${cities} ${cities === 1 ? "city" : "cities"}`;
+                  : [`${codes.length} ${codes.length === 1 ? "country" : "countries"}`, cities ? `${cities} ${cities === 1 ? "city" : "cities"}` : ""].filter(Boolean).join(" · ");
           return (
             <li key={m.id}>
               <Link href={href} className="flex items-center gap-3 py-3 active:bg-mist" data-passport-person={first(m.name)}>

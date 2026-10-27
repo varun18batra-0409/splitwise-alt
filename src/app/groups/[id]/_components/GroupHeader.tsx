@@ -1,4 +1,5 @@
 import Link from "@/components/Link";
+import { CalendarClockIcon } from "@/components/Icons";
 import { BackIcon, ChevronDown, GearIcon, InviteIcon, iconButtonClass } from "@/components/icons";
 import { GroupCover } from "@/components/GroupCover";
 import { coverFor, coverOf, type CoverChoice } from "@/lib/covers";
@@ -25,7 +26,9 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
       </span>
     ) : !group.tripStart ? (
       <Link href={`/groups/${group.id}/settings#trip`} className="inline-block rounded-full bg-canvas/55 px-2.5 py-1 text-xs font-semibold text-fg/80 backdrop-blur active:bg-canvas/80">
-        ＋ Add trip dates ⏳
+        <span className="inline-flex items-center gap-1.5">
+          <CalendarClockIcon size={13} /> Add trip dates
+        </span>
       </Link>
     ) : null;
 

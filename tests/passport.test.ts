@@ -118,8 +118,11 @@ describe("Stories on Home", () => {
     expect(trip.frames.some((f) => f.kind === "poster" && f.big === "3")).toBe(true);
     expect(trip.frames.some((f) => f.kind === "list" && f.kicker === "The crew")).toBe(true);
     const pot = s.find((x) => x.kind === "pot")!;
-    expect(pot.photo).toBe("/cards.jpg");
-    expect(pot.frames.map((f) => (f.kind === "photo" ? "photo" : f.kicker))).toEqual(["photo", "The table", "Who pays whom", "Still to settle"]);
+    // Card nights get designed artwork (felt, gold, the cards), never a stock photo.
+    expect(pot.photo).toBeUndefined();
+    expect(pot.art).toBe("pot");
+    expect(pot.frames.map((f) => (f.kind === "art" ? `art:${f.art}` : f.kicker))).toEqual(["art:pot", "The table", "Who pays whom", "Still to settle", "art:pot"]);
+    expect(pot.frames.some((f) => f.kind === "photo")).toBe(false);
     // No photos at all: still a proper story (posters), never empty.
     const bare = buildStories({ now, trips: [{ id: "g2", name: "Weekend away", phase: { kind: "before", days: 5 }, people: 2 }], games: [], squared: [], collections: [], memories: [], wrapped: [] });
     expect(bare[0].frames.length).toBeGreaterThan(0);
@@ -173,7 +176,7 @@ describe("Trip Wrapped and fun titles", () => {
     expect(slides[2].headline).toBe("Beds & Bunks took 67%");
     expect(slides[3].headline).toBe("Saturday 10 Oct was the big one");
     expect(slides[4]).toMatchObject({ headline: "The splurge: Villa", line: "₹18,000, paid by You" });
-    expect(slides[6].headline).toBe("All square 🎉");
+    expect(slides[6].headline).toBe("All square");
   });
 });
 

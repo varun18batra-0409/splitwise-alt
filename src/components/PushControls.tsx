@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { BellIcon } from "./Icons";
 import { pushPublicKey, removePushSubscription, savePushSubscription } from "@/app/actions";
 
 // Turning phone notifications on and off, and keeping them working when
@@ -83,8 +84,8 @@ export function PushToggle() {
   return (
     <section className="mb-8 rounded-2xl border border-line p-4">
       <div className="flex items-center gap-3">
-        <span className="text-2xl" aria-hidden>
-          🔔
+        <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#d8bd7a]/45 text-[#e8d29a]">
+          <BellIcon size={20} />
         </span>
         <div className="min-w-0 flex-1">
           <p className="font-medium">Notifications on this phone</p>

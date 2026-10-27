@@ -1,4 +1,5 @@
 import Link from "@/components/Link";
+import { CompassIcon, PeoplePassportsIcon } from "@/components/Icons";
 import { InviteFriends } from "@/components/InviteFriends";
 import { deleteMyAccount, removeMyPasskey, saveMyName, signOutThisPhone } from "@/app/actions";
 import { db } from "@/lib/db";
@@ -100,7 +101,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
       {/* The trip passport: a stamp for every trip. */}
       {account && (
         <Link href="/passport" className="mt-6 flex items-center gap-4 rounded-[20px] border border-line bg-white px-5 py-4 text-fg active:opacity-90">
-          <span aria-hidden className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-owed/60 text-2xl">🧭</span>
+          <span aria-hidden className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-[#d8bd7a]/50 bg-[radial-gradient(circle_at_30%_25%,rgba(216,189,122,0.18),transparent_70%)] text-[#e8d29a]"><CompassIcon size=24 /></span>
           <span className="min-w-0 flex-1">
             <span className="block font-display text-lg font-semibold">Your trip passport</span>
             <span className="block text-sm text-gray-500">A stamp for every place you’ve been</span>
@@ -110,7 +111,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
       )}
       {account && (
         <Link href="/passport/friends" className="mt-3 flex items-center gap-4 rounded-[20px] border border-line bg-white px-5 py-4 text-fg active:opacity-90">
-          <span aria-hidden className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-owed/60 text-2xl">🛂</span>
+          <span aria-hidden className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-owed/40 bg-[radial-gradient(circle_at_30%_25%,rgba(111,227,168,0.16),transparent_70%)] text-owed"><PeoplePassportsIcon size=24 /></span>
           <span className="min-w-0 flex-1">
             <span className="block font-display text-lg font-semibold">Friends’ passports</span>
             <span className="block text-sm text-gray-500">Where everyone in your groups has been</span>

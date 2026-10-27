@@ -218,7 +218,7 @@ export function wrapSlides(g: {
   slides.push(
     g.stillToSettle > 0
       ? { kind: "outro", headline: `${money(g.stillToSettle)} still to settle`, line: "Close it out and make it official", emoji: "🤝" }
-      : { kind: "outro", headline: "All square 🎉", line: "Same time next year?", emoji: "🎉" },
+      : { kind: "outro", headline: "All square", line: "Same time next year?", emoji: "🎉" },
   );
   return { slides, awards, total };
 }

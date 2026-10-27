@@ -11,6 +11,7 @@ export type Tone = "sun" | "coral" | "sky" | "pink" | "lilac" | "mint";
 // One slide: a full photo with words, a bold poster, or a short list.
 export type Frame =
   | { kind: "photo"; photo: string; kicker?: string; head: string; line?: string }
+  | { kind: "art"; art: StoryKind; kicker?: string; head: string; line?: string } // designed artwork (card night, collection…) instead of a photo
   | { kind: "poster"; tone: Tone; kicker: string; big: string; line?: string }
   | { kind: "list"; tone: Tone; kicker: string; rows: { label: string; value?: string; good?: boolean; bad?: boolean; share?: number }[]; line?: string };
 
@@ -24,6 +25,7 @@ export type Story = {
   href: string;
   photo?: string; // the little picture on Home
   cover?: { kind: string; src?: string }; // the group's own picture
+  art?: StoryKind; // designed artwork for the little picture, when there's no photo
   emoji: string; // when there's no picture
   big?: string; // the poster's big words when there's no picture ("3 days", "2/5")
   frames: Frame[];
@@ -145,23 +147,21 @@ export function buildStories(i: StoryInput): Story[] {
       ...(photos[0] ? [{ kind: "photo", photo: photos[0], kicker: "Just in", head: `${place(w.name)}, wrapped`, line: "The trip, told in slides" } as Frame] : []),
       ...(w.spent ? [{ kind: "poster", tone: "sun", kicker: "Together you spent", big: w.spent, line: "Worth every rupee? Discuss." } as Frame] : []),
       ...(w.topCategory ? [{ kind: "poster", tone: "coral", kicker: "Most of it went on", big: w.topCategory, line: "No regrets. Mostly." } as Frame] : []),
-      { kind: "poster", tone: "lilac", kicker: "Also inside", big: "Awards 🏆", line: "Who's the Banker? Who's the Snack Lord? Find out." },
+      { kind: "poster", tone: "lilac", kicker: "Also inside", big: "Awards", line: "Who's the Banker? Who's the Snack Lord? Find out." },
       ...(photos[1] ? [{ kind: "photo", photo: photos[1], kicker: "Ready when you are", head: "Watch the whole thing", line: "Then share it to the group" } as Frame] : []),
     ];
     out.push({ id: `wrapped-${w.id}`, kind: "wrapped", label: place(w.name), headline: `${place(w.name)}, wrapped`, line: "Who paid most, the biggest night and more", cta: "Watch it", href: `/groups/${w.id}/wrapped`, photo: photos[0], cover: w.cover, emoji: "🎬", big: "Wrapped", frames, at: now - w.endedDaysAgo * 86_400_000 + 3_600_000 });
   }
   for (const g of i.games) {
     if (now - g.finishedAt.getTime() > 3 * 86_400_000) continue;
-    const headline = g.youWon ? `You won ${g.youWon} 🏆` : g.winner ? `${g.winner} won ${g.won}` : "Everyone broke even";
-    const photos = g.photos ?? [];
+    const headline = g.youWon ? `You won ${g.youWon}` : g.winner ? `${g.winner} won ${g.won}` : "Everyone broke even";
+    // Card nights get their own artwork (green felt, gold, the cards), never a stock photo.
     const frames: Frame[] = [
-      photos[0]
-        ? { kind: "photo", photo: photos[0], kicker: g.name, head: g.youWon ? `You won ${g.youWon}` : g.winner ? `${g.winner} took the pot` : "Everyone broke even", line: g.youWon ? "Drinks are on you, apparently 🍾" : g.winner ? `${g.won} richer. Insufferable now.` : "Nobody won. Nobody lost. Suspicious." }
-        : { kind: "poster", tone: "mint", kicker: g.name, big: g.youWon ?? (g.won || "Even"), line: headline },
+      { kind: "art", art: "pot", kicker: g.name, head: g.youWon ? `You won ${g.youWon}` : g.winner ? `${g.winner} took the pot` : "Everyone broke even", line: g.youWon ? "Drinks are on you, apparently" : g.winner ? `${g.won} richer. Insufferable now.` : "Nobody won. Nobody lost. Suspicious." },
       ...(g.table && g.table.length > 1 ? [{ kind: "list", tone: "mint", kicker: "The table", rows: g.table.slice(0, 8).map((r) => ({ label: r.name, value: r.net, good: r.up && !r.even, bad: !r.up && !r.even, share: r.share })) } as Frame] : []),
       ...(g.pays && g.pays.length ? [{ kind: "list", tone: "sun", kicker: "Who pays whom", rows: g.pays.slice(0, 6).map((l) => ({ label: l })), line: g.pays.length > 6 ? `and ${g.pays.length - 6} more` : "Pay up, card sharks" } as Frame] : []),
       { kind: "poster", tone: g.toSettle ? "coral" : "sky", kicker: g.toSettle ? "Still to settle" : "Settled", big: g.toSettle ?? "All square ✓", line: g.toSettle ? "Mark it paid in the game" : "Clean books. Respect." },
-      ...(photos[1] ? [{ kind: "photo", photo: photos[1], kicker: "Next time", head: "Same table, next week?", line: "Bring snacks. And your poker face." } as Frame] : []),
+      { kind: "art", art: "pot", kicker: "Next time", head: "Same table, next week?", line: "Bring snacks. And your poker face." },
     ];
     out.push({
       id: `pot-${g.id}`,
@@ -171,7 +171,7 @@ export function buildStories(i: StoryInput): Story[] {
       line: g.name,
       cta: "See who pays whom",
       href: `/groups/${g.groupId}/pot/${g.id}`,
-      photo: photos[0],
+      art: "pot",
       emoji: "🃏",
       big: g.youWon ?? (g.won || "Even"),
       frames,
@@ -182,18 +182,18 @@ export function buildStories(i: StoryInput): Story[] {
     if (now - s.at.getTime() > 3 * 86_400_000) continue;
     const photos = s.photos?.length ? s.photos : s.photo ? [s.photo] : [];
     const frames: Frame[] = [
-      photos[0] ? { kind: "photo", photo: photos[0], kicker: "Breaking news", head: `${place(s.name)} is all square`, line: "Nobody owes anybody. Nice one 🎉" } : { kind: "poster", tone: "mint", kicker: "Breaking news", big: "All square", line: `${place(s.name)}: nobody owes anybody 🎉` },
+      photos[0] ? { kind: "photo", photo: photos[0], kicker: "Breaking news", head: `${place(s.name)} is all square`, line: "Nobody owes anybody. Nice one 🎉" } : { kind: "art", art: "square", kicker: "Breaking news", head: `${place(s.name)} is all square`, line: "Nobody owes anybody. Nice one." },
       ...(s.spent ? [{ kind: "poster", tone: "sun", kicker: "Spent together", big: s.spent, line: s.people ? `Split ${s.people} ways, without a single fight*` : "Without a single fight*" } as Frame] : []),
       ...(s.payments ? [{ kind: "poster", tone: "sky", kicker: "Payments it took", big: String(s.payments), line: "*that we know of" } as Frame] : []),
       ...(photos[1] ? [{ kind: "photo", photo: photos[1], kicker: "Bragging rights", head: "Share it with the group", line: "Friendships: intact ✓" } as Frame] : []),
     ];
-    out.push({ id: `square-${s.id}-${s.at.getTime()}`, kind: "square", label: place(s.name), headline: `${place(s.name)} is all square`, line: "Nobody owes anybody. Nice one 🎉", cta: "Share it", href: `/groups/${s.id}/square`, photo: photos[0], cover: s.cover, emoji: "🎉", big: "All square", frames, at: s.at.getTime() });
+    out.push({ id: `square-${s.id}-${s.at.getTime()}`, kind: "square", label: place(s.name), headline: `${place(s.name)} is all square`, line: "Nobody owes anybody. Nice one 🎉", cta: "Share it", href: `/groups/${s.id}/square`, photo: photos[0], cover: s.cover, art: "square", emoji: "🎉", big: "All square", frames, at: s.at.getTime() });
   }
   for (const c of i.collections) {
     if (c.people === 0) continue;
     const all = c.paid === c.people;
     const frames: Frame[] = [
-      { kind: "poster", tone: "sun", kicker: c.title, big: `${c.paid}/${c.people}`, line: all ? "Everyone's in. Time to close it ✨" : c.paid === 0 ? "Who's going first? 👀" : "paid so far" },
+      { kind: "art", art: "collect", kicker: c.title, head: all ? "Everyone’s in" : `${c.paid} of ${c.people} paid`, line: all ? "Time to close it" : c.paid === 0 ? "Who’s going first?" : "The jar is filling up" },
       ...(c.in && c.target ? [{ kind: "poster", tone: "coral", kicker: "Collected", big: c.in, line: `of ${c.target}` } as Frame] : []),
       ...((c.paidNames?.length || c.dueNames?.length)
         ? [{ kind: "list", tone: "mint", kicker: "Roll call", rows: [...(c.paidNames ?? []).slice(0, 5).map((n) => ({ label: n, value: "Paid ✓", good: true })), ...(c.dueNames ?? []).slice(0, 5).map((n) => ({ label: n, value: "Not yet", bad: true }))], line: (c.dueNames?.length ?? 0) > 0 ? "A gentle nudge might help" : "Legends, all of them" } as Frame]
@@ -207,6 +207,7 @@ export function buildStories(i: StoryInput): Story[] {
       line: all ? "Time to close it" : c.paid === 0 ? "Share the link to get it going" : "Nearly there. A nudge might help",
       cta: "Open the collection",
       href: `/c/${c.code}`,
+      art: "collect",
       emoji: "🪙",
       big: `${c.paid}/${c.people}`,
       frames,

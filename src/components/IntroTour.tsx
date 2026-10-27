@@ -4,6 +4,9 @@ import Link from "@/components/Link";
 import Image from "next/image";
 import { GetAppButton } from "./GetApp";
 import { HomeIcon } from "./icons";
+import { GroupCover } from "./GroupCover";
+import { StoryArt } from "./StoryArt";
+import type { CoverChoice } from "@/lib/covers";
 
 // Remember the tour was seen, so Home shows the start screen next time.
 const seen = () => {
@@ -40,40 +43,29 @@ function Dot({ name, tone = "bg-mist" }: { name: string; tone?: string }) {
   );
 }
 
-// Two beer glasses that swing in and clink, with bubbles and a spark.
+// Three of Loopin's own group pictures as polaroids, fanning in: a trip, a
+// flat, the two of you. Under them, the kinds of group.
 function Cheers() {
-  const Mug = ({ flip }: { flip?: boolean }) => (
-    <svg viewBox="0 0 90 110" className={`h-32 w-24 ${flip ? "mug-right" : "mug-left"}`} aria-hidden>
-      <g transform={flip ? "translate(90 0) scale(-1 1)" : undefined}>
-        <path d="M66 38h8a12 12 0 0 1 12 12v18a12 12 0 0 1-12 12h-8" fill="none" stroke="#f4f2ec" strokeWidth="6" />
-        <rect x="8" y="28" width="60" height="76" rx="8" fill="#e8a33a" />
-        <rect x="8" y="28" width="60" height="76" rx="8" fill="url(#shine)" />
-        <path d="M6 30c0-12 10-18 18-14 4-8 18-10 24-2 8-6 22-2 22 10 6 2 6 10 0 12H6z" fill="#f4f2ec" />
-        <circle className="bubble" cx="24" cy="86" r="3" fill="#fbe7b0" />
-        <circle className="bubble" style={{ animationDelay: "0.7s" }} cx="44" cy="92" r="2.5" fill="#fbe7b0" />
-        <circle className="bubble" style={{ animationDelay: "1.3s" }} cx="34" cy="78" r="2" fill="#fbe7b0" />
-      </g>
-    </svg>
-  );
+  const shots: [CoverChoice, string, number, string][] = [
+    ["beach", "Trip", -9, "rise-2"],
+    ["city", "Flat", 2, "rise-3"],
+    ["couple", "Us", 10, "rise-4"],
+  ];
   return (
     <div className="relative flex flex-col items-center">
-      <svg width="0" height="0" aria-hidden>
-        <defs>
-          <linearGradient id="shine" x1="0" x2="1">
-            <stop offset="0.1" stopColor="#fff" stopOpacity="0.25" />
-            <stop offset="0.35" stopColor="#fff" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-      </svg>
-      <span className="clink absolute left-1/2 top-0 -translate-x-1/2 text-4xl text-[#fbe7b0]" aria-hidden>
-        ✦
-      </span>
-      <div className="mt-6 flex items-end">
-        <Mug />
-        <Mug flip />
+      <span aria-hidden className="absolute -top-6 left-1/2 h-40 w-64 -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(216,189,122,0.18),transparent)]" />
+      <div className="relative flex items-end">
+        {shots.map(([kind, label, tilt, d], i) => (
+          <span key={label} className={`rise ${d} relative block w-[96px] bg-[#f4f1e8] p-[5px] pb-0 shadow-[0_16px_28px_-12px_rgba(0,0,0,0.95)] ${i ? "-ml-4" : ""}`} style={{ transform: `rotate(${tilt}deg) translateY(${i === 1 ? -10 : 0}px)`, zIndex: i === 1 ? 2 : 1 }}>
+            <span className="relative block h-[92px] overflow-hidden bg-[#222]">
+              <GroupCover kind={kind} uid={`tour-${label}`} small sizes="96px" />
+            </span>
+            <span className="block py-1 text-center font-hand text-[18px] font-bold leading-tight text-[#2a2620]">{label}</span>
+          </span>
+        ))}
       </div>
-      <div className="mt-6 flex gap-2">
-        {["✈️ Trip", "🏠 Flat", "💞 Couple"].map((t, i) => (
+      <div className="mt-7 flex gap-2">
+        {["Trips", "Flats", "Couples", "Card nights"].map((t, i) => (
           <span key={t} className={`rise rise-${i + 2} rounded-full border border-line bg-canvas px-3 py-1 text-xs text-gray-600`}>
             {t}
           </span>
@@ -106,7 +98,7 @@ function makeSlides(L: Local): Slide[] {
 
   {
     id: "cheers",
-    title: ["Split it.", "Cheers. 🍻"],
+    title: ["Split it.", "Cheers."],
     caption: "Free, no ads. Make a group for a trip, a flat, the two of you, or a class gift. Friends join from a link, a QR code or an email in 30 seconds. No password.",
     art: <Cheers />,
   },
@@ -272,7 +264,7 @@ function makeSlides(L: Local): Slide[] {
               <span aria-hidden className="absolute left-1/2 top-0 z-10 h-4 w-2.5 -translate-x-1/2 rounded-[2px] bg-owed shadow-[0_0_10px_rgba(111,227,168,0.6)]" />
               <span className="block w-[92px] bg-[#f4f1e8] p-[5px] pb-0 shadow-[0_12px_22px_-10px_rgba(0,0,0,0.95)]">
                 <span className="relative block h-[104px] overflow-hidden bg-[#2a2a30]">
-                  {photo(slot) && <Image src={photo(slot)!} alt="" fill sizes="96px" className="object-cover" />}
+                  {slot === "cards-2" ? <StoryArt kind="pot" uid="tour-pot" /> : photo(slot) && <Image src={photo(slot)!} alt="" fill sizes="96px" className="object-cover" />}
                   <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1 pt-4 text-left font-display text-[13px] font-semibold text-[#f7f4ec]">{big}</span>
                 </span>
                 <span className="block truncate px-0.5 pb-1 pt-0.5 text-center font-hand text-[16px] font-bold leading-tight text-[#2a2620]">{label}</span>

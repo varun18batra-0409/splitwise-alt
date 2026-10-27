@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Badge, IndexRow, Stamp } from "@/lib/passport";
 import map from "@/generated/map.json";
 
-// The trip passport as a little booklet. A navy cover you tap to open, then
+// The trip passport as a little booklet. A cover in Loopin's colours you tap to open, then
 // pages you swipe like a real passport: the photo page with your counts, the
 // stamp pages (one stamp per trip, inked at a slant), and an index at the back.
 
@@ -279,13 +279,13 @@ export function PassportBook({ name, stats, milestones, pages, index, badges = [
                   <div>
                     <dt className="text-[10px] text-[#8a8270]">Places</dt>
                     <dd className="font-semibold tabular-nums" data-passport-stats={`${stats.cities}|${stats.countries}`}>
-                      {stats.countries} {stats.countries === 1 ? "country" : "countries"}, {stats.cities} {stats.cities === 1 ? "city" : "cities"}
+                      {[stats.countries ? `${stats.countries} ${stats.countries === 1 ? "country" : "countries"}` : "", stats.cities ? `${stats.cities} ${stats.cities === 1 ? "city" : "cities"}` : ""].filter(Boolean).join(", ") || "Your first stamp is coming"}
                     </dd>
                   </div>
                   <div>
                     <dt className="text-[10px] text-[#8a8270]">Trips</dt>
                     <dd className="font-semibold tabular-nums">
-                      {stats.trips} with Loopin{stats.thisYear ? `, ${stats.thisYear} this year` : ""}
+                      {stats.trips ? `${stats.trips} with Loopin${stats.thisYear ? `, ${stats.thisYear} this year` : ""}` : "None yet. Start one!"}
                     </dd>
                   </div>
                 </dl>

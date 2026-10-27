@@ -617,10 +617,10 @@ html.lp-opened .lp-open {
 }
 .lp-draw-ring { transform: rotate(-90deg); transform-origin: 50% 50%; animation: lp-draw-ring 700ms 120ms ease-out backwards; }
 @keyframes lp-draw-tick {
-  from { stroke-dashoffset: 24; }
+  from { stroke-dashoffset: var(--len, 24); }
   to { stroke-dashoffset: 0; }
 }
-.lp-draw-tick { stroke-dasharray: 24; animation: lp-draw-tick 380ms 650ms ease-out backwards; }
+.lp-draw-tick { stroke-dasharray: var(--len, 24); animation: lp-draw-tick 380ms 650ms ease-out backwards; }
 @media (prefers-reduced-motion: reduce) {
   .lp-pop-in, .lp-draw-ring, .lp-draw-tick { animation: none; }
 }
