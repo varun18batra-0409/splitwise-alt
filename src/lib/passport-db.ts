@@ -34,3 +34,37 @@ export async function loadPassport(account: { id: string; homeCountry: string; p
     .map((t) => ({ groupId: t.groupId, name: t.name }));
   return { ...passport, home, unplaced };
 }
+
+// Everyone you've shared a group with at some point (they may have left since),
+// who's on Loopin: the people whose passports you can open. Deleted groups don't count.
+export async function passportFriends(accountId: string) {
+  const mine = await db.member.findMany({ where: { accountId, group: { deletedAt: null } }, select: { groupId: true }, take: 500 });
+  if (!mine.length) return [];
+  const others = await db.member.findMany({
+    where: { groupId: { in: mine.map((m) => m.groupId) }, accountId: { not: null, notIn: [accountId] } },
+    select: { accountId: true, name: true, groupId: true, group: { select: { name: true } } },
+    take: 3000,
+  });
+  const by = new Map<string, { accountId: string; name: string; groups: string[] }>();
+  for (const o of others) {
+    const f = by.get(o.accountId!) ?? { accountId: o.accountId!, name: o.name, groups: [] };
+    if (!f.groups.includes(o.group.name)) f.groups.push(o.group.name);
+    by.set(o.accountId!, f);
+  }
+  return [...by.values()].sort((a, b) => a.name.localeCompare(b.name, "en"));
+}
+
+// May this person open that person's passport? Only if they've shared a group
+// (not deleted), and the owner lets people in their groups see it.
+export async function canSeePassport(viewerAccountId: string, ownerAccountId: string) {
+  if (viewerAccountId === ownerAccountId) return { ok: true as const, owner: await db.account.findUnique({ where: { id: ownerAccountId } }), name: undefined as string | undefined };
+  const shared = await db.member.findFirst({
+    where: { accountId: ownerAccountId, group: { deletedAt: null, members: { some: { accountId: viewerAccountId } } } },
+    select: { name: true },
+  });
+  if (!shared) return { ok: false as const, reason: "stranger" as const, name: undefined as string | undefined };
+  const owner = await db.account.findUnique({ where: { id: ownerAccountId } });
+  if (!owner) return { ok: false as const, reason: "stranger" as const, name: undefined as string | undefined };
+  if (owner.passportShare === "private") return { ok: false as const, reason: "private" as const, name: shared.name as string | undefined };
+  return { ok: true as const, owner, name: shared.name as string | undefined };
+}

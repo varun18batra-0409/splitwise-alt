@@ -108,6 +108,16 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           <span aria-hidden className="text-xl">›</span>
         </Link>
       )}
+      {account && (
+        <Link href="/passport/friends" className="mt-3 flex items-center gap-4 rounded-[20px] border border-line bg-white px-5 py-4 text-fg active:opacity-90">
+          <span aria-hidden className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-owed/60 text-2xl">🛂</span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-display text-lg font-semibold">Friends’ passports</span>
+            <span className="block text-sm text-gray-500">Where everyone in your groups has been</span>
+          </span>
+          <span aria-hidden className="text-xl">›</span>
+        </Link>
+      )}
 
       {/* How friends pay you back: a Pay button on Settle up for anyone who owes you. */}
       {account && (

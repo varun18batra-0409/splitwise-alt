@@ -46,6 +46,22 @@ test("titles, Wrapped, the passport and a card game: in, around, back out, and d
   await settled(R);
   await R.getByRole("button", { name: "People in my groups" }).click();
   await R.waitForURL(/shared=groups/);
+  // Friends' passports: from your own passport, everyone you've shared a group with.
+  await page.goto("/passport");
+  await settled(page);
+  await page.locator("[data-friends-link]").click();
+  await page.waitForURL(/\/passport\/friends$/);
+  await page.getByRole("link", { name: /Ravi/ }).click();
+  await page.waitForURL(/\/passport\/friends\/[^/]+$/);
+  const ravisPage = new URL(page.url()).pathname;
+  await expect(page.getByRole("button", { name: "Open your passport" })).toBeVisible();
+  await page.goBack();
+  await page.waitForURL(/\/passport\/friends$/);
+  // Cara shares no group with Ravi: his passport isn't there for her, even by its address.
+  expect((await C.goto(ravisPage))?.status()).toBe(404);
+  await C.goto("/passport/friends");
+  await settled(C);
+  await expect(C.getByText("No friends here yet")).toBeVisible();
 
   // Wrapped from Charts, through to the end, then Back lands on the group again.
   await page.goto(`${trip.path}?tab=charts`);

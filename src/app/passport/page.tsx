@@ -43,6 +43,14 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
       <PageHeader title="Trip passport" back="/account" />
       {sp.error && <ErrorNote>{sp.error.slice(0, 120)}</ErrorNote>}
 
+      <Link href="/passport/friends" className="mb-4 flex items-center gap-3 rounded-2xl border border-line px-4 py-3 active:bg-mist" data-friends-link>
+        <span aria-hidden className="text-xl">🛂</span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold">Friends’ passports</span>
+          <span className="block text-xs text-gray-500">Where everyone in your groups has been</span>
+        </span>
+        <span aria-hidden className="text-gray-400">›</span>
+      </Link>
       <PassportBook name={account.name} stats={p.stats} milestones={p.milestones} pages={stampPages(p.stamps, p.been)} index={p.index} />
 
       {!empty && (
