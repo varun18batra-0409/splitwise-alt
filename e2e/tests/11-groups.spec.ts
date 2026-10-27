@@ -128,6 +128,9 @@ test("a group's own photo: upload it in settings; it shows on the group and Home
   // reachable and stay in view (the old snapping stopped one tile short and hid it).
   if (test.info().project.name === "phone") {
     const cdp = await page.context().newCDPSession(page);
+    // Swipe where a finger would: the row in the middle of the screen, clear of the bottom bar.
+    await row.evaluate((el) => el.scrollIntoView({ block: "center" }));
+    await page.waitForTimeout(300);
     const box = (await row.boundingBox())!;
     const y = box.y + box.height / 2;
     const drag = async (from: number, to: number) => {
