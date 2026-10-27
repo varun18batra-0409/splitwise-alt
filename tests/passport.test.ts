@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { tripStops, countryOf } from "@/lib/geo";
-import { buildPassport, parseHandPlaces } from "@/lib/passport";
+import { COUNTRIES, countryOf, searchCountries, tripStops } from "@/lib/geo";
+import { buildPassport, parseHandPlaces, stampPages } from "@/lib/passport";
 import { buildStories } from "@/lib/home/stories";
 import { squareNumbers } from "@/lib/square";
 import { funTitles, wrapSlides } from "@/lib/wrapped";
@@ -21,22 +21,54 @@ describe("Trip passport: where a trip went", () => {
 
 describe("Trip passport: stamps", () => {
   const trip = (groupId: string, name: string, start: string, place = "") => ({ groupId, name, start, end: "", place, country: "", people: 4 });
-  it("cities at home, countries abroad, hand-added places lighter, trips to come not yet", () => {
-    const p = buildPassport(
-      [trip("a", "Goa trip", "2024-03-01"), trip("b", "Goa again", "2025-01-01"), trip("c", "Goa 3", "2026-02-01"), trip("d", "Thailand", "2026-05-01", "Bangkok, Phuket"), trip("e", "Manali", "2027-05-01")],
-      [{ c: "JP" }, { c: "IN", city: "Jaipur" }],
-      "IN",
-      "2026-10-27",
-    );
-    expect(p.countries.map((c) => c.code)).toEqual(["IN", "TH", "JP"]);
-    expect(p.countries[0].cities.map((c) => [c.city, c.trips, c.byHand])).toEqual([["Goa", 3, false], ["Jaipur", 0, true]]);
-    expect(p.countries[2].byHand).toBe(true);
-    expect(p.stats).toEqual({ cities: 4, countries: 3, abroad: 2, trips: 4, thisYear: 2 });
-    expect(p.milestones).toEqual(["First trip abroad ✈️", "Goa ×3 🔁"]);
+  const p = buildPassport(
+    [trip("a", "Goa trip", "2024-03-01"), trip("b", "Goa again", "2025-01-01"), trip("c", "Goa 3", "2026-02-01"), trip("d", "Thailand", "2026-05-01", "Bangkok, Phuket"), trip("f", "Italy", "2026-06-01", "Rome"), trip("e", "Manali", "2027-05-01")],
+    [{ c: "JP" }, { c: "IT" }],
+    "IN",
+    "2026-10-27",
+  );
+  it("every trip leaves its own stamp, oldest first; trips to come not yet", () => {
+    expect(p.stamps.map((s) => [s.kind, s.name, s.when])).toEqual([
+      ["city", "Goa", "2024-03-01"],
+      ["city", "Goa", "2025-01-01"],
+      ["city", "Goa", "2026-02-01"],
+      ["country", "Thailand", "2026-05-01"],
+      ["country", "Italy", "2026-06-01"],
+    ]);
+    expect(p.stamps[3].cities).toEqual(["Bangkok", "Phuket"]);
   });
-  it("hand-added places are checked", () => {
-    expect(parseHandPlaces('[{"c":"th","city":" Krabi "},{"c":"XX"},"junk"]')).toEqual([{ c: "TH", city: "Krabi" }]);
+  it("Been there stamps stay apart, even for a country a Loopin trip went to", () => {
+    expect(p.been.map((s) => [s.code, s.byHand])).toEqual([["IT", true], ["JP", true]]);
+    expect(p.stamps.some((s) => s.code === "IT" && !s.byHand)).toBe(true);
+  });
+  it("counts places once, not stamps", () => {
+    expect(p.stats).toEqual({ cities: 4, countries: 4, abroad: 3, trips: 5, thisYear: 3 });
+    expect(p.index.map((r) => [r.code, r.trips, r.byHand, r.cities.join("/")])).toEqual([
+      ["IN", 3, false, "Goa"],
+      ["IT", 1, true, "Rome"],
+      ["JP", 0, true, ""],
+      ["TH", 1, false, "Bangkok/Phuket"],
+    ]);
+    expect(p.milestones).toEqual(["First trip abroad ✈️", "3 countries 🌍", "Goa ×3 🔁", "3 trips this year 🔥"]);
+  });
+  it("pages of six: trips first, then Before Loopin", () => {
+    const pages = stampPages(p.stamps, p.been, 2);
+    expect(pages.map((x) => [x.title, x.stamps.length])).toEqual([["Trips", 2], ["Trips", 2], ["Trips", 1], ["Before Loopin", 2]]);
+  });
+  it("Places I've been are countries only (old cities dropped, no repeats)", () => {
+    expect(parseHandPlaces('[{"c":"th","city":" Krabi "},{"c":"TH"},{"c":"XX"},"junk"]')).toEqual([{ c: "TH" }]);
     expect(parseHandPlaces("nope")).toEqual([]);
+  });
+  it("every country is there, A to Z, and can be searched", () => {
+    expect(COUNTRIES.length).toBeGreaterThan(230);
+    expect(new Set(COUNTRIES.map((c) => c.code)).size).toBe(COUNTRIES.length);
+    expect(COUNTRIES.map((c) => c.name)).toEqual([...COUNTRIES.map((c) => c.name)].sort((a, b) => a.localeCompare(b, "en")));
+    expect(searchCountries("uae").map((c) => c.code)).toEqual(["AE"]);
+    expect(searchCountries("cro").map((c) => c.code)).toEqual(["HR"]);
+    expect(searchCountries("new z").map((c) => c.code)).toEqual(["NZ"]);
+    expect(searchCountries("saint lu").map((c) => c.code)).toEqual(["LC"]);
+    expect(searchCountries("turkiye").map((c) => c.code)).toEqual(["TR"]);
+    expect(searchCountries("").length).toBe(COUNTRIES.length);
   });
 });
 

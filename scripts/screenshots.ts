@@ -380,8 +380,39 @@ if (!hosted) {
       await p.locator("[data-stories] button").first().click();
       await p.waitForTimeout(700);
     }, false);
-    await db.account.update({ where: { id: acc.id }, data: { places: JSON.stringify([{ c: "TH", city: "Phuket" }, { c: "IN", city: "Jaipur" }]) } });
-    await shot("108-passport", "/passport");
+    await db.account.update({ where: { id: acc.id }, data: { places: JSON.stringify([{ c: "TH" }, { c: "IT" }, { c: "AT" }, { c: "HR" }]) } });
+    await shot("108-passport", "/passport", undefined, false);
+    await shot("109-passport-open", "/passport", async (p) => {
+      await p.getByRole("button", { name: "Open your passport" }).click();
+      await p.waitForTimeout(800);
+    }, false);
+    await shot("110-passport-stamps", "/passport", async (p) => {
+      await p.getByRole("button", { name: "Open your passport" }).click();
+      await p.waitForTimeout(800);
+      await p.getByRole("button", { name: "Next page" }).click();
+      await p.waitForTimeout(700);
+    }, false);
+    await shot("111-passport-been", "/passport", async (p) => {
+      await p.getByRole("button", { name: "Open your passport" }).click();
+      await p.waitForTimeout(800);
+      const pages = await p.locator("[data-page]").count();
+      for (let k = 1; k < pages - 1; k++) await p.getByRole("button", { name: "Next page" }).click();
+      await p.waitForTimeout(700);
+    }, false);
+    await shot("112-passport-index", "/passport", async (p) => {
+      await p.getByRole("button", { name: "Open your passport" }).click();
+      await p.waitForTimeout(800);
+      const pages = await p.locator("[data-page]").count();
+      for (let k = 1; k < pages; k++) await p.getByRole("button", { name: "Next page" }).click();
+      await p.waitForTimeout(700);
+    }, false);
+    await shot("113-passport-pick", "/passport", async (p) => {
+      await p.getByRole("button", { name: "+ Add countries" }).click();
+      const sheet = p.getByRole("dialog", { name: "Add countries" });
+      await sheet.getByRole("checkbox", { name: "Albania" }).check();
+      await sheet.getByRole("checkbox", { name: "Andorra" }).check();
+      await p.waitForTimeout(300);
+    }, false);
   }
 }
 await context.clearCookies();

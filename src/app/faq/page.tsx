@@ -139,7 +139,7 @@ const SECTIONS: { title: string; items: QA[] }[] = [
       },
       {
         q: "What is the trip passport?",
-        a: "A stamp for every place your trips went: cities in your home country, a country stamp abroad. Loopin works out the place from the trip’s name, or from Where to? in the trip’s settings. Add places from before Loopin on the passport page; they show lighter. Open it from the You page and share it as a picture.",
+        a: "A little booklet with a stamp for every trip: a city stamp for trips in your home country, a country stamp for trips abroad. Go twice and you get two stamps, but the counts on the first page count each place once. Loopin works out the place from the trip’s name, or from Where to? in the trip’s settings. Tick the countries you went to before Loopin under Places I’ve been; they get their own lighter Been there stamps at the back. Open it from the You page, swipe through the pages, and share it as a picture.",
       },
       {
         q: "Reactions, titles and the spinning wheel?",

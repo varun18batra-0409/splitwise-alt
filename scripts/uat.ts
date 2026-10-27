@@ -2184,16 +2184,23 @@ async function main() {
     await V.getByRole("button", { name: "Share it" }).waitFor();
   });
 
-  await step(V, "Fun", "Trip passport opens from the You page, and a place from before Loopin can be added", async () => {
+  await step(V, "Fun", "Trip passport opens like a booklet, and several countries from before Loopin can be added at once", async () => {
     await go(V, "/account");
     await V.getByRole("link", { name: /Your trip passport/ }).click();
     await V.waitForURL(/\/passport/);
-    const add = V.getByRole("form", { name: "Add a place" });
-    await add.getByLabel("Country").selectOption("TH");
-    await add.getByLabel("City").fill("Krabi");
-    await add.getByRole("button", { name: "Add" }).click();
-    await V.waitForURL(/added=1/);
-    await V.locator("[data-stamp='Krabi'][data-by-hand='1']").waitFor();
+    await V.getByRole("button", { name: "Open your passport" }).click();
+    await V.getByRole("button", { name: "Next page" }).waitFor();
+    await V.getByRole("button", { name: "+ Add countries" }).click();
+    const sheet = V.getByRole("dialog", { name: "Add countries" });
+    await sheet.getByLabel("Search countries").fill("thai");
+    await sheet.getByRole("checkbox", { name: "Thailand" }).check();
+    await sheet.getByLabel("Search countries").fill("jap");
+    await sheet.getByRole("checkbox", { name: "Japan" }).check();
+    await sheet.getByRole("button", { name: "Add 2 countries" }).click();
+    await V.waitForURL(/added=2/);
+    await V.locator("[data-country-stamp='TH'][data-by-hand='1']").waitFor({ state: "attached" });
+    await V.locator("[data-country-stamp='JP'][data-by-hand='1']").waitFor({ state: "attached" });
+    await V.locator("[data-index-country='JP']").waitFor({ state: "attached" });
   });
 
   await browser.close();

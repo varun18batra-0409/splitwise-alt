@@ -19,10 +19,10 @@ export async function GET() {
   if (!account) return new Response("Not found", { status: 404, headers: { "Cache-Control": "private, no-store" } });
   const region = visitorRegion(await headers());
   const p = await loadPassport(account, region.country && countryOf(region.country) ? region.country : "", todayKey(new Date(), await getTimeZone()));
-  // Up to 14 stamps: countries abroad first, then cities.
+  // Up to 14 stamps: the newest Loopin trips first, then "Been there".
   const stamps = [
-    ...p.countries.filter((c) => !c.home).map((c) => ({ key: c.code, big: `${c.flag}`, small: c.name, round: true, light: c.byHand })),
-    ...p.countries.flatMap((c) => c.cities.map((x) => ({ key: `${c.code}-${x.city}`, big: x.city, small: c.flag, round: false, light: x.byHand }))),
+    ...[...p.stamps].reverse().map((s) => ({ key: s.id, big: s.kind === "country" ? s.flag : s.name, small: s.kind === "country" ? s.name : s.flag, round: s.kind === "country", light: false })),
+    ...p.been.map((s) => ({ key: s.id, big: s.flag, small: s.name, round: true, light: true })),
   ].slice(0, 14);
   return new ImageResponse(
     (
@@ -30,7 +30,7 @@ export async function GET() {
         <div style={{ display: "flex", fontSize: 34, letterSpacing: 14, opacity: 0.7 }}>LOOPIN · PASSPORT</div>
         <div style={{ display: "flex", marginTop: 30, fontSize: 96, fontWeight: 700 }}>{(account.name || "My trips").slice(0, 20)}</div>
         <div style={{ display: "flex", marginTop: 20, fontSize: 46, opacity: 0.85 }}>
-          {p.stats.cities} cities · {p.stats.countries} countries · {p.stats.trips} trips
+          {p.stats.countries} {p.stats.countries === 1 ? "country" : "countries"} · {p.stats.cities} {p.stats.cities === 1 ? "city" : "cities"} · {p.stats.trips} {p.stats.trips === 1 ? "trip" : "trips"}
         </div>
         <div style={{ marginTop: 70, display: "flex", flexWrap: "wrap", gap: 34, padding: 50, borderRadius: 36, background: "#efe9da", justifyContent: "center", alignItems: "center", flexGrow: 1 }}>
           {stamps.map((s) => {
