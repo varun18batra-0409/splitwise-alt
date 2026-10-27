@@ -1887,8 +1887,10 @@ async function main() {
     await go(V, `${g}/settle`);
     const link = V.getByRole("link", { name: /Remind/ }).first();
     if (!(await link.count())) return "nobody owes Varun right now (nothing to remind)";
-    const href = (await link.getAttribute("href")) ?? "";
-    assert(/^https:\/\/(wa\.me|api\.whatsapp\.com)\//.test(href) && /%E2%82%B9|₹/.test(href), `Remind link: ${href.slice(0, 120)}`);
+    // Remind goes through Loopin (to make the "I've paid" link), then on to WhatsApp.
+    const res = await V.request.get(base + ((await link.getAttribute("href")) ?? ""), { maxRedirects: 0 });
+    const href = res.headers()["location"] ?? "";
+    assert(res.status() === 303 && /^https:\/\/(wa\.me|api\.whatsapp\.com)\//.test(href) && /%E2%82%B9|₹/.test(href), `Remind went to: ${res.status()} ${href.slice(0, 120)}`);
   });
 
   await step(V, "Settle", "When every payment is under the group's minimum, Settle says “Nearly square”", async () => {
