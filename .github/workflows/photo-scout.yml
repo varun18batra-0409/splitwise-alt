@@ -16,14 +16,16 @@ jobs:
           q() { python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))" "$1"; }
           while IFS='|' read -r slot query; do
             [ -z "$slot" ] && continue
-            curl -s -A "Mozilla/5.0" "https://unsplash.com/napi/search/photos?query=$(q "$query")&per_page=12&orientation=portrait" -o "$slot.json"
-            echo "== $slot ($query): $(jq '.results|length' "$slot.json" 2>/dev/null)"
-            jq -r '.results[]? | select(.premium != true and .plus != true) | [.urls.raw, (.alt_description // "" | .[0:60]), (.likes|tostring)] | @tsv' "$slot.json" | head -8 > "$slot.tsv"
+            slug=$(echo "$query" | tr ' ' '-')
+            curl -sL -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36" -H "Accept-Language: en" "https://unsplash.com/s/photos/$slug?orientation=portrait&license=free" -o "$slot.html"
+            grep -oE 'https://images\.unsplash\.com/photo-[0-9]+-[0-9a-f]+' "$slot.html" | awk '!seen[$0]++' | head -8 | sed 's/$/?ixlib=rb-4.0.3\t-\t-/' > "$slot.tsv"
+            echo "== $slot ($query): $(wc -l < "$slot.tsv") found, html $(wc -c < "$slot.html")"
             i=0; files=""
             while IFS=$'\t' read -r raw alt likes; do
               i=$((i+1)); id=$(echo "$raw" | sed -E 's#https://images.unsplash.com/(photo-[^?]+).*#\1#')
               echo "$slot $i $id $likes $alt"
               curl -s "${raw}&w=360&h=480&fit=crop&q=60&fm=jpg" -o "$slot-$i.jpg" && files="$files $slot-$i.jpg"
+              rm -f "$slot.html"
               convert "$slot-$i.jpg" -gravity south -background black -splice 0x34 -fill white -pointsize 20 -annotate +0+6 "$i ${id:6:22}" "$slot-$i.jpg" 2>/dev/null
             done < "$slot.tsv"
             [ -n "$files" ] && montage $files -tile 8x1 -geometry 270x386+4+4 -background '#111' -title "$slot: $query" -fill white -pointsize 22 "sheet-$slot.jpg"
