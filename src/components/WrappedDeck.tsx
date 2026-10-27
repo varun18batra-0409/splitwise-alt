@@ -214,6 +214,7 @@ export function WrappedDeck({
         ))}
       {photoBg && <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.45)_0%,transparent_25%,transparent_45%,rgba(0,0,0,0.85)_100%)]" />}
 
+      <p className="sr-only" aria-live="polite">{`Slide ${i + 1} of ${slides.length}: ${s.headline}`}</p>
       <div className="absolute inset-x-3 top-3 z-20 flex gap-1" aria-hidden>
         {slides.map((x, k) => (
           <span key={k} className="h-[3px] flex-1 rounded-full" style={{ background: fg, opacity: k <= i ? 1 : 0.28 }} />
