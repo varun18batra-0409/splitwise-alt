@@ -353,9 +353,13 @@ function settle(game: GameLike, groupNet: Record<string, number>, payments: { fr
   const paid = new Map<string, number>();
   for (const p of payments) if (p.createdAt >= since) paid.set(`${p.fromId}|${p.toId}`, (paid.get(`${p.fromId}|${p.toId}`) ?? 0) + p.amount);
   const { lines } = potSummary(parsePlayers(game.players), game.moves.filter((m) => !m.deletedAt));
+  // Never more than they owe in the group overall (other games or expenses may have evened it out).
+  const owes = new Map(Object.entries(groupNet).map(([id, v]) => [id, Math.max(0, -v)]));
   return potTransfers(lines).map((t) => {
-    const left = Math.max(0, t.amount - (paid.get(`${t.from}|${t.to}`) ?? 0));
-    return { ...t, left, done: left === 0 || (groupNet[t.from] ?? 0) >= 0 };
+    const unpaid = Math.max(0, t.amount - (paid.get(`${t.from}|${t.to}`) ?? 0));
+    const left = Math.min(unpaid, owes.get(t.from) ?? 0);
+    owes.set(t.from, (owes.get(t.from) ?? 0) - left);
+    return { ...t, left, done: left === 0 };
   });
 }
 
