@@ -309,7 +309,7 @@ export default async function Home({
   const heroChip = hero
     ? `${hero.phase.kind === "before" ? "Your next trip" : "On the trip"}${friends ? `, with ${friends === 1 ? "1 friend" : `${friends} friends`}` : ""}`
     : "";
-  const words = hero ? heroWords(hero.g.group.name, hero.phase) : { small: greeting(new Date(), tz, account?.name) };
+  const words: ReturnType<typeof heroWords> = hero ? heroWords(hero.g.group.name, hero.phase) : { small: greeting(new Date(), tz, account?.name) };
 
   // First visit: show what Loopin does instead of an empty screen.
   const tourSeen = (await cookies()).get("lp_tour")?.value === "1";
