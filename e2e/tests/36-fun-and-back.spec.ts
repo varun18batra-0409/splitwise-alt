@@ -66,7 +66,8 @@ test("titles, Wrapped, the passport and a card game: in, around, back out, and d
   await settled(page);
   await page.getByRole("button", { name: "👋 Nudge Ravi" }).click();
   await expect(page.getByText("You nudged them recently")).toBeVisible();
-  await page.goBack();
+  // The screen's Back goes to the friends list.
+  await page.getByRole("link", { name: "Back", exact: true }).click();
   await page.waitForURL(/\/passport\/friends$/);
   // Cara shares no group with Ravi: his passport isn't there for her, even by its address.
   await C.goto(ravisPage);
