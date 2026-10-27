@@ -62,3 +62,26 @@ export function placePhoto(tripName: string): { slot: string; src: string } | nu
 export function placeSlot(tripName: string): string | null {
   return PLACES.find(([re]) => re.test(tripName))?.[1] ?? null;
 }
+
+// Every picture of a slot that downloaded: the slot itself, then slot-2, slot-3…
+export function photoSet(slot: string): string[] {
+  const out: string[] = [];
+  for (const k of [slot, ...Array.from({ length: 8 }, (_, i) => `${slot}-${i + 2}`)]) {
+    const src = have[k]?.src;
+    if (src && !out.includes(src)) out.push(src);
+  }
+  return out;
+}
+
+// Up to `max` pictures for a trip's story: the place (from its name or Where to?),
+// then pictures that fit its mood, then friends together.
+export function placePhotos(tripName: string, place = "", max = 6): string[] {
+  const text = `${tripName} ${place}`;
+  const slots = [...PLACES.filter(([re]) => re.test(text)).map(([, slot]) => slot), ...(MOOD[tripEmoji(tripName)] ?? []), "cover-friends", "friends", "hero"];
+  const out: string[] = [];
+  for (const slot of slots) for (const src of photoSet(slot)) if (out.length < max && !out.includes(src)) out.push(src);
+  return out;
+}
+
+// Pictures for a card night.
+export const cardPhotos = () => photoSet("cards");

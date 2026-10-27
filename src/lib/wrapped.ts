@@ -40,7 +40,7 @@ export function funTitles(expensesIn: WrapExpense[], memberIds: string[], tz: st
   if (expenses.length < 4 || !memberIds.length) return [];
   const money = (n: number) => formatMoney(n, currency);
   const tally = () => new Map<string, number>(memberIds.map((id) => [id, 0]));
-  const paidAmount = tally(), paidCount = tally(), food = tally(), night = tally(), added = tally(), rides = tally(), first = tally(), stays = tally(), fun = tally(), shops = tally(), early = tally(), biggest = tally();
+  const paidAmount = tally(), paidCount = tally(), food = tally(), night = tally(), added = tally(), rides = tally(), first = tally(), stays = tally(), fun = tally(), shops = tally(), early = tally(), weekend = tally();
   const reached = new Map<string, number>(); // "title|member" → when they got there (for ties)
   const bump = (m: Map<string, number>, id: string, key: string, at: number, by = 1) => {
     if (!m.has(id)) return;
@@ -58,10 +58,8 @@ export function funTitles(expensesIn: WrapExpense[], memberIds: string[], tz: st
       if (e.category === "accommodation") bump(stays, p.memberId, "stays", at);
       if (e.category === "activities") bump(fun, p.memberId, "fun", at);
       if (e.category === "shopping" || e.category === "groceries") bump(shops, p.memberId, "shops", at);
-      if (p.amount > (biggest.get(p.memberId) ?? 0) && biggest.has(p.memberId)) {
-        biggest.set(p.memberId, p.amount);
-        reached.set(`big|${p.memberId}`, at);
-      }
+      const wd = new Date(`${dayIn(e.spentAt ?? e.createdAt, tz)}T12:00:00Z`).getUTCDay();
+      if (wd === 0 || wd === 6) bump(weekend, p.memberId, "weekend", at);
     }
     const h = hourIn(e.createdAt, tz);
     if (e.createdById && (h >= 22 || h < 4)) bump(night, e.createdById, "night", at);
@@ -86,7 +84,7 @@ export function funTitles(expensesIn: WrapExpense[], memberIds: string[], tz: st
     ["added", added, 3, "Keeper of Receipts", "🧾", (n) => `Added ${n} expenses`],
     ["shops", shops, 1, "Shopaholic", "🛍️", (n) => (n === 1 ? "Did the shopping" : `Shopped ${n} times`)],
     ["early", early, 2, "Early Bird", "🌅", (n) => `${n} expenses added before 9 am`],
-    ["big", biggest, 1, "Big Spender", "💎", (n) => `The biggest single bill: ${money(n)}`],
+    ["weekend", weekend, 2, "Weekend Warrior", "🎉", (n) => `${n} weekend expenses paid`],
     ["count", paidCount, 2, "Team Player", "🤝", (n) => `Paid ${n} times`],
   ];
   const out: Award[] = [];
@@ -97,21 +95,22 @@ export function funTitles(expensesIn: WrapExpense[], memberIds: string[], tz: st
       .sort((a, b) => b[1] - a[1] || (reached.get(`${key}|${a[0]}`) ?? 0) - (reached.get(`${key}|${b[0]}`) ?? 0))[0];
     if (best) out.push({ memberId: best[0], title, emoji, why: why(best[1]) });
   }
-  // Everyone else: a title of their own (different ones while they last).
+  // Everyone else: a title of their own (different ones while they last). Never
+  // about money: nobody is singled out for paying less.
   const spare: [string, string, string][] = [
-    ["The VIP", "😎", "Everyone else had it covered"],
     ["Smooth Operator", "😌", "Kept it easy"],
-    ["The Wildcard", "🃏", "Nobody saw them coming"],
     ["Chief Vibe Officer", "✨", "Brought the good mood"],
+    ["The Wildcard", "🃏", "Nobody saw them coming"],
     ["The Chill One", "🧊", "Never broke a sweat"],
+    ["Main Character", "🎬", "Every story has one"],
+    ["The Navigator", "🧭", "Always knew the way"],
+    ["Good Company", "🤝", "Made it a better trip"],
   ];
-  const used = new Set<string>();
+  let k = 0;
   for (const id of memberIds) {
     if (has(id)) continue;
-    const times = paidCount.get(id) ?? 0;
-    const pick = (times === 0 && !used.has("The VIP") ? spare[0] : spare.slice(1).find(([t]) => !used.has(t))) ?? spare[1 + (used.size % (spare.length - 1))];
-    used.add(pick[0]);
-    out.push({ memberId: id, title: pick[0], emoji: pick[1], why: times > 0 && pick[0] !== "The VIP" ? `Paid ${times} ${times === 1 ? "time" : "times"}, no fuss` : pick[2] });
+    const [title, emoji, why] = spare[k++ % spare.length];
+    out.push({ memberId: id, title, emoji, why });
   }
   return out;
 }

@@ -58,6 +58,36 @@ const SLOTS = {
   "place-switzerland": ["photo-1723276300410-113696641bab"],
 };
 
+// More pictures of each place, for the story slides (place-goa-2, place-goa-3…).
+// Free Unsplash photos; one that doesn't download is simply left out.
+const MORE = {
+  "place-goa": ["photo-1560179406-1c6c60e0dc76", "photo-1587922546307-776227941871", "photo-1625505826533-5c80aca7d157", "photo-1512343879784-a960bf40e7f2", "photo-1642922835816-e2ac68db5c42"],
+  "place-thailand": ["photo-1506665531195-3566af2b4dfa", "photo-1563492065599-3520f775eeed", "photo-1519451241324-20b4ea2c4220", "photo-1613672803979-a6edfc5a179b", "photo-1508009603885-50cf7c579365"],
+  "place-bali": ["photo-1577717903315-1691ae25ab3f", "photo-1544644181-1484b3fdfc62", "photo-1573790387438-4da905039392", "photo-1554931670-4ebfabf6e7a9", "photo-1558005530-a7958896ec60"],
+  "place-dubai": ["photo-1512453979798-5ea266f8880c", "photo-1518684079-3c830dcef090", "photo-1784125160488-09f633671243", "photo-1546412414-e1885259563a"],
+  "place-manali": ["photo-1712388430474-ace0c16051e2", "photo-1609920658906-8223bd289001", "photo-1711359940524-ed5e0ad9b89b", "photo-1594102552386-793e5a27ad10", "photo-1648131877984-f39ebc1647f1"],
+  "place-ladakh": ["photo-1619837374214-f5b9eb80876d", "photo-1581793745862-99fde7fa73d2", "photo-1617824077360-7a77db40aae1", "photo-1581280445448-ab465a010046", "photo-1600356033695-a003690a6351"],
+  "place-kerala": ["photo-1602590745208-870366224847", "photo-1651298219452-d3f2c84561b3", "photo-1668522871883-d3ea92f64dbc"],
+  "place-singapore": ["photo-1508964942454-1a56651d54ac", "photo-1542114740389-9b46fb1e5be7", "photo-1525625293386-3f8f99389edd", "photo-1605425183435-25b7e99104a4", "photo-1565967511849-76a60a516170"],
+  "place-srilanka": ["photo-1580794749460-76f97b7180d8", "photo-1609681980718-340e7f4b11d7", "photo-1533484482814-3fe2d922be89", "photo-1544750040-4ea9b8a27d38"],
+  "place-japan": ["photo-1528164344705-47542687000d", "photo-1545569341-9eb8b30979d9", "photo-1492571350019-22de08371fd3", "photo-1573455494060-c5595004fb6c", "photo-1522547902298-51566e4fb383"],
+  "place-london": ["photo-1486299267070-83823f5448dd", "photo-1543832923-44667a44c804", "photo-1534359265607-b9cdb5e0a81e", "photo-1549483249-f0b359d1e289"],
+  "place-jaipur": ["photo-1661924326425-c14a6426d989", "photo-1602643163983-ed0babc39797", "photo-1622225399403-548e2df0c908", "photo-1714562555125-3c8d050d5d2d"],
+  "place-nepal": ["photo-1529733905113-027ed85d7e33", "photo-1518002054494-3a6f94352e9d", "photo-1748760036656-964ac32eefb4", "photo-1623492701902-47dc207df5dc"],
+  "place-rishikesh": ["photo-1607406374368-809f8ec7f118", "photo-1603867106100-0d2039fc8757", "photo-1720819029162-8500607ae232", "photo-1624807136278-e2973be118ff"],
+  "place-newyork": ["photo-1496588152823-86ff7695e68f", "photo-1541336032412-2048a678540d", "photo-1500916434205-0c77489c6cf7", "photo-1568515387631-8b650bbcdb90", "photo-1496442226666-8d4d0e62e6e9"],
+  "place-santorini": ["photo-1509321528270-797a4f7c1485", "photo-1672622851784-0dbd3df4c088", "photo-1592468662684-0376320a0842"],
+  "place-switzerland": ["photo-1634920967431-b46ec552bef1", "photo-1684050879098-87151a1ded14", "photo-1563644734741-7382a8584739"],
+  "place-vietnam": ["photo-1509030450996-dd1a26dda07a", "photo-1504457047772-27faf1c00561"],
+  "cover-paris": ["photo-1511739001486-6bfe10ce785f", "photo-1509439581779-6298f75bf6e5", "photo-1581683705068-ca8f49fc7f45", "photo-1499856871958-5b9627545d1a"],
+  "cover-beach": ["photo-1519046904884-53103b34b206", "photo-1546484475-7f7bd55792da", "photo-1625505826533-5c80aca7d157"],
+  "cover-mountains": ["photo-1464822759023-fed622ff2c3b", "photo-1605649487212-47bdab064df7", "photo-1563644734741-7382a8584739"],
+  "cover-city": ["photo-1477959858617-67f85cf4f1df", "photo-1523731407965-2430cd12f5e4", "photo-1549483249-f0b359d1e289"],
+  // Card nights (The Pot).
+  "cards": ["photo-1541278107931-e006523892df", "photo-1636583133884-fbefc7ac3fb3", "photo-1501003878151-d3cb87799705", "photo-1596451190630-186aff535bf2", "photo-1604345250885-11f528eec3ff", "photo-1622975696911-c1c444035f43"],
+};
+for (const [slot, ids] of Object.entries(MORE)) ids.forEach((id, i) => (SLOTS[`${slot}-${i + 2}`] = [id]));
+
 const out = "public/photos";
 mkdirSync(out, { recursive: true });
 const got = {};
@@ -65,7 +95,7 @@ for (const [slot, ids] of Object.entries(SLOTS)) {
   for (const id of ids) {
     try {
       const url = id.startsWith("photo-")
-        ? `https://images.unsplash.com/${id}?w=${slot.startsWith("cover-") || slot.startsWith("place-") ? 900 : 1280}&q=${slot.startsWith("cover-") || slot.startsWith("place-") ? 70 : 75}&fm=jpg&fit=crop`
+        ? `https://images.unsplash.com/${id}?w=${slot.startsWith("cover-") || slot.startsWith("place-") || slot.startsWith("cards") ? 900 : 1280}&q=${slot.startsWith("cover-") || slot.startsWith("place-") || slot.startsWith("cards") ? 70 : 75}&fm=jpg&fit=crop`
         : `https://unsplash.com/photos/${id}/download?force=true&w=${slot.startsWith("place-") ? 800 : 1280}`;
       const r = await fetch(url, {
         redirect: "follow",

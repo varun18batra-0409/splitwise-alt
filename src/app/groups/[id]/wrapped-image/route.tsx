@@ -62,7 +62,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
           <div style={{ marginTop: 22, display: "flex", flexDirection: "column", gap: 10, padding: "30px 34px", borderRadius: 34, background: "#c3aeff" }}>
             <div style={{ display: "flex", fontSize: 32 }}>🏆 The awards</div>
             {awards.slice(0, 4).map((a) => (
-              <div key={a.title} style={{ display: "flex", fontSize: 40 }}>
+              <div key={a.memberId} style={{ display: "flex", fontSize: 40 }}>
                 {a.emoji} {a.title}: {name(a.memberId)}
               </div>
             ))}

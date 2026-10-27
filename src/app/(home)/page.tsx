@@ -33,7 +33,10 @@ import { TripCountdown } from "@/components/TripCountdown";
 import { TripRow } from "@/components/TripRow";
 import { Stories } from "@/components/Stories";
 import { buildStories } from "@/lib/home/stories";
-import { placePhoto } from "@/lib/places";
+import { cardPhotos, placePhoto, placePhotos } from "@/lib/places";
+import { tripEmoji } from "@/lib/countdown";
+import { payersOf, spentAmount } from "@/lib/payers";
+import { getCategory } from "@/lib/categories";
 import { daysBetween } from "@/lib/countdown";
 import { parsePlayers, potSummary } from "@/lib/pot";
 
@@ -167,17 +170,57 @@ export default async function Home({
   const games = potIds.length
     ? await db.potGame.findMany({ where: { groupId: { in: potIds }, status: "done", deletedAt: null, finishedAt: { gte: new Date(Date.now() - 3 * 86_400_000) } }, include: { moves: { where: { deletedAt: null } } }, take: 10 })
     : [];
+  // What each story shows: the place's photos, the crew, today's numbers, a game's table.
+  const first = (n: string) => n.trim().split(/\s+/)[0] || n;
+  const crewOf = (g: (typeof open)[number]) => g.group.members.filter((m) => !m.leftAt).map((m) => (m.id === g.myId ? "You" : first(m.name)));
+  const moodOf = (name: string) => {
+    const e = tripEmoji(name);
+    return e === "🌴" ? "beach" : e === "🏔️" || e === "❄️" || e === "🏕️" ? "hills" : e === "🌆" ? "city" : "any";
+  };
+  const dayOf = (d: Date) => todayKey(d, tz);
+  const todayIn = (g: (typeof open)[number]) => {
+    const list = g.expenses.filter((e) => e.kind !== "pot" && e.kind !== "refund" && dayOf(e.spentAt ?? e.createdAt) === today);
+    if (!list.length) return { spent: "", count: 0 };
+    const money = (n: number) => formatMoney(n, g.group.currency);
+    const paid = new Map<string, number>();
+    for (const e of list) for (const p of payersOf(e)) paid.set(p.memberId, (paid.get(p.memberId) ?? 0) + p.amount);
+    const [topId] = [...paid].sort((a, b) => b[1] - a[1])[0] ?? [""];
+    const topName = topId === g.myId ? "You" : first(g.group.members.find((m) => m.id === topId)?.name ?? "");
+    const big = [...list].sort((a, b) => b.amount - a.amount)[0];
+    return { spent: money(list.reduce((t, e) => t + spentAmount(e), 0)), count: list.length, top: list.length > 1 && topName ? topName : undefined, biggest: list.length > 1 ? { what: big.description, amount: money(big.amount) } : undefined };
+  };
+  const cards = cardPhotos();
+  const gameDetails = await Promise.all(
+    games.map(async (gm) => {
+      const grp = open.find((x) => x.group.id === gm.groupId)!;
+      const { lines } = potSummary(parsePlayers(gm.players), gm.moves);
+      const name = (id: string) => (id === grp.myId ? "You" : first(grp.group.members.find((m) => m.id === id)?.name ?? "Someone"));
+      const money = (n: number) => formatMoney(n, grp.group.currency);
+      const max = Math.max(1, ...lines.map((l) => Math.abs(l.net)));
+      const { gameSettlement } = await import("@/lib/pot-db");
+      const st = await gameSettlement(gm.groupId, gm).catch(() => null);
+      const left = st ? st.transfers.reduce((t, x) => t + x.left, 0) : 0;
+      return {
+        table: [...lines].sort((a, b) => b.net - a.net).map((l) => ({ name: name(l.memberId), net: `${l.net > 0 ? "+" : l.net < 0 ? "−" : ""}${money(Math.abs(l.net))}`, up: l.net >= 0, even: l.net === 0, share: Math.abs(l.net) / max })),
+        pays: (st?.transfers ?? []).filter((t) => t.left > 0).map((t) => `${name(t.from)} → ${name(t.to)}  ${money(t.left)}`),
+        toSettle: left > 0 ? money(left) : undefined,
+      };
+    }),
+  );
   const stories = buildStories({
     now: new Date(),
     trips: trips.map((t) => ({
       id: t.g.group.id,
       name: t.g.group.name,
       phase: t.phase,
-      photo: placePhoto(t.g.group.name)?.src,
+      photos: placePhotos(t.g.group.name, t.g.group.tripPlace),
       cover: coverFor(t.g.group),
       people: t.g.group.members.filter((m) => !m.leftAt).length,
+      crew: crewOf(t.g),
+      mood: moodOf(t.g.group.name),
+      today: t.phase.kind === "before" ? undefined : todayIn(t.g),
     })),
-    games: games.map((gm) => {
+    games: games.map((gm, k) => {
       const grp = open.find((x) => x.group.id === gm.groupId)!;
       const { lines } = potSummary(parsePlayers(gm.players), gm.moves);
       const top = [...lines].sort((a, b) => b.net - a.net)[0];
@@ -190,16 +233,37 @@ export default async function Home({
         won: top && top.net > 0 ? formatMoney(top.net, grp.group.currency) : "",
         youWon: top && top.net > 0 && top.memberId === grp.myId ? formatMoney(top.net, grp.group.currency) : undefined,
         finishedAt: gm.finishedAt ?? gm.createdAt,
+        photos: cards.length ? [cards[k % cards.length], cards[(k + 3) % cards.length]] : [],
+        ...gameDetails[k],
       };
     }),
     squared: open
       .filter((g) => g.group.type !== "pot" && g.expenses.length > 0 && g.transfers.length === 0 && g.payments.length > 0)
-      .map((g) => ({ id: g.group.id, name: g.group.name, at: g.payments.reduce((m, p) => (p.createdAt > m ? p.createdAt : m), g.payments[0].createdAt), cover: coverFor(g.group), photo: g.group.type === "trip" ? placePhoto(g.group.name)?.src : undefined })),
+      .map((g) => ({
+        id: g.group.id,
+        name: g.group.name,
+        at: g.payments.reduce((m, p) => (p.createdAt > m ? p.createdAt : m), g.payments[0].createdAt),
+        cover: coverFor(g.group),
+        photos: g.group.type === "trip" ? placePhotos(g.group.name, g.group.tripPlace, 2) : [],
+        spent: formatMoney(g.spent, g.group.currency),
+        payments: g.payments.length,
+        people: g.group.members.filter((m) => !m.leftAt).length,
+      })),
     collections: collections
       .filter((c) => !c.closedAt)
       .map((c) => {
         const pr = progress(c.entries, c.amount);
-        return { id: c.id, code: c.code, title: c.title, paid: pr.paidCount, people: pr.people };
+        return {
+          id: c.id,
+          code: c.code,
+          title: c.title,
+          paid: pr.paidCount,
+          people: pr.people,
+          in: formatMoney(pr.collected, c.currency),
+          target: pr.target ? formatMoney(pr.target, c.currency) : undefined,
+          paidNames: c.entries.filter((e) => e.status === "paid" || e.status === "confirmed").map((e) => first(e.name)),
+          dueNames: c.entries.filter((e) => e.status === "due").map((e) => first(e.name)),
+        };
       }),
     memories: all
       .filter((g) => g.group.type === "trip" && g.group.tripStart)
@@ -210,14 +274,30 @@ export default async function Home({
         const anniversary = `${today.slice(0, 4)}${start.slice(4)}`;
         const since = daysBetween(anniversary, today); // shown on the day and for two days after
         if (Number.isNaN(since) || since < 0 || since > 2) return [];
-        return [{ id: g.group.id, name: g.group.name, years, people: g.group.members.length, days: g.group.tripEnd ? daysBetween(start, g.group.tripEnd) + 1 : 1, photo: placePhoto(g.group.name)?.src, cover: coverFor(g.group) }];
+        return [
+          {
+            id: g.group.id,
+            name: g.group.name,
+            years,
+            people: g.group.members.length,
+            days: g.group.tripEnd ? daysBetween(start, g.group.tripEnd) + 1 : 1,
+            photos: placePhotos(g.group.name, g.group.tripPlace, 2),
+            cover: coverFor(g.group),
+            spent: g.spent > 0 ? formatMoney(g.spent, g.group.currency) : undefined,
+            crew: crewOf(g),
+          },
+        ];
       }),
     // A trip that ended in the last two weeks: its Wrapped.
     wrapped: open
       .filter((g) => g.group.type === "trip" && g.group.tripStart && g.expenses.length >= 3)
       .flatMap((g) => {
         const ended = daysBetween(g.group.tripEnd || g.group.tripStart, today);
-        return ended >= 1 && ended <= 14 ? [{ id: g.group.id, name: g.group.name, endedDaysAgo: ended, photo: placePhoto(g.group.name)?.src, cover: coverFor(g.group) }] : [];
+        if (ended < 1 || ended > 14) return [];
+        const cats = new Map<string, number>();
+        for (const e of g.expenses) if (e.kind !== "pot" && e.kind !== "refund") cats.set(e.category, (cats.get(e.category) ?? 0) + e.amount);
+        const top = [...cats].sort((a, b) => b[1] - a[1])[0];
+        return [{ id: g.group.id, name: g.group.name, endedDaysAgo: ended, photos: placePhotos(g.group.name, g.group.tripPlace, 2), cover: coverFor(g.group), spent: formatMoney(g.spent, g.group.currency), topCategory: top ? getCategory(top[0]).label : undefined }];
       }),
   });
   const byWeight = [...open].sort((a, b) => Math.abs(b.myBalance) - Math.abs(a.myBalance) || b.lastActivity.getTime() - a.lastActivity.getTime());

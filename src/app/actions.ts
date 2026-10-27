@@ -40,7 +40,9 @@ export async function createGroup(formData: FormData) {
   // Everyone in Loopin has a verified email, so making a group needs an account.
   const account = await getAccount();
   if (!account) redirect(`/signin?${new URLSearchParams({ mode: "signup", back: "/groups/new" })}`);
-  if (!(await allow(`create-group:${(await originAndIp()).ip}`, 20, 3600))) redirect("/groups/new?error=busy");
+  // 20 new groups an hour per person; a looser cap per network, since many phones share
+  // one address (mobile networks, office and college wifi).
+  if (!(await allow(`create-group:${account.id}`, 20, 3600)) || !(await allow(`create-group-ip:${(await originAndIp()).ip}`, 200, 3600))) redirect("/groups/new?error=busy");
   const groupName = String(formData.get("groupName") ?? "").trim().slice(0, 60);
   const yourName = cleanNames([String(formData.get("yourName") ?? account.name ?? "")])[0];
   if (!groupName || !yourName) redirect("/groups/new?error=missing");

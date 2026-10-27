@@ -74,7 +74,12 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
 
       {/* Each person: their balance; tap for exactly why, and who they pay. */}
       <section>
-        <h2 className="font-display text-lg font-semibold tracking-tight">By person</h2>
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 className="font-display text-lg font-semibold tracking-tight">By person</h2>
+          <Link href={`/groups/${group.id}/passports`} className="shrink-0 text-sm font-semibold underline underline-offset-4" data-our-passports>
+            🛂 Our passports
+          </Link>
+        </div>
         <p className="mb-3 text-sm text-gray-500">Tap anyone to see why.</p>
         <ul className="divide-y divide-line border-y border-line">
           {group.members.filter((m) => !m.leftAt || (net[m.id] ?? 0) !== 0).map((m) => {
@@ -116,6 +121,11 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
                     </span>
                   </summary>
                   <div className="mb-3 ml-12 space-y-2">
+                    {m.accountId && m.id !== myId && (
+                      <Link href={`/groups/${group.id}/passport/${m.id}`} className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-xs font-semibold active:bg-mist" data-passport-link>
+                        <span aria-hidden>🛂</span> {m.name.trim().split(/\s+/)[0]}’s passport
+                      </Link>
+                    )}
                     <WhyPanel v={v} memberId={m.id} open={why === m.id} />
                     {theirs.length === 0 ? (
                       <p className="text-sm text-gray-500">Nothing due between {m.id === myId ? "you" : m.name} and anyone.</p>

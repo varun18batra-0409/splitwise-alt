@@ -95,6 +95,32 @@ describe("Stories on Home", () => {
     expect(s.find((x) => x.kind === "pot")?.headline).toBe("Asha won ₹600");
     expect(s.find((x) => x.kind === "memory")?.headline).toBe("A year ago: Manali");
   });
+  it("each story is several slides: photos of the place, the countdown, the crew; a game's table and who pays whom", () => {
+    const s = buildStories({
+      now,
+      trips: [{ id: "g1", name: "Goa trip", phase: { kind: "before", days: 3 }, people: 3, photos: ["/a.jpg", "/b.jpg", "/c.jpg", "/d.jpg"], crew: ["You", "Asha", "Ravi"], mood: "beach" }],
+      games: [
+        {
+          id: "p1", groupId: "pg", name: "Diwali night", winner: "Asha", won: "₹600", finishedAt: new Date("2026-10-26T20:00:00Z"), photos: ["/cards.jpg"],
+          table: [{ name: "Asha", net: "+₹600", up: true, even: false, share: 1 }, { name: "Ravi", net: "−₹600", up: false, even: false, share: 1 }],
+          pays: ["Ravi → Asha  ₹600"], toSettle: "₹600",
+        },
+      ],
+      squared: [], collections: [], memories: [], wrapped: [],
+    });
+    const trip = s.find((x) => x.kind === "trip")!;
+    expect(trip.frames.length).toBeGreaterThanOrEqual(5);
+    expect(trip.frames.filter((f) => f.kind === "photo").map((f) => (f.kind === "photo" ? f.photo : ""))).toEqual(["/a.jpg", "/b.jpg", "/c.jpg", "/d.jpg"]);
+    expect(trip.frames.some((f) => f.kind === "poster" && f.big === "3")).toBe(true);
+    expect(trip.frames.some((f) => f.kind === "list" && f.kicker === "The crew")).toBe(true);
+    const pot = s.find((x) => x.kind === "pot")!;
+    expect(pot.photo).toBe("/cards.jpg");
+    expect(pot.frames.map((f) => (f.kind === "photo" ? "photo" : f.kicker))).toEqual(["photo", "The table", "Who pays whom", "Still to settle"]);
+    // No photos at all: still a proper story (posters), never empty.
+    const bare = buildStories({ now, trips: [{ id: "g2", name: "Weekend away", phase: { kind: "before", days: 5 }, people: 2 }], games: [], squared: [], collections: [], memories: [], wrapped: [] });
+    expect(bare[0].frames.length).toBeGreaterThan(0);
+    expect(bare[0].frames.every((f) => f.kind !== "photo")).toBe(true);
+  });
 });
 
 describe("All square numbers", () => {
@@ -122,10 +148,14 @@ describe("Trip Wrapped and fun titles", () => {
     expect(t.map((x) => [x.memberId, x.title])).toEqual([["a", "The Banker"], ["b", "Snack Lord"], ["c", "The Driver"]]);
     expect(funTitles(expenses.slice(0, 3), ["a", "b", "c"], "Asia/Kolkata", "INR")).toEqual([]); // too few to judge
   });
-  it("titles: everyone gets one, even someone who paid for nothing", () => {
+  it("titles: everyone gets one, never about who paid less", () => {
     const t = funTitles(expenses, ["a", "b", "c", "d", "e"], "Asia/Kolkata", "INR");
-    expect(t.map((x) => [x.memberId, x.title])).toEqual([["a", "The Banker"], ["b", "Snack Lord"], ["c", "The Driver"], ["d", "The VIP"], ["e", "Smooth Operator"]]);
-    expect(t[3].why).toBe("Everyone else had it covered");
+    expect(t.map((x) => [x.memberId, x.title])).toEqual([["a", "The Banker"], ["b", "Snack Lord"], ["c", "The Driver"], ["d", "Smooth Operator"], ["e", "Chief Vibe Officer"]]);
+    expect(t.every((x) => !/had it covered|paid nothing|didn.t pay/i.test(x.why))).toBe(true);
+    // A big group: still one each, and no title twice.
+    const many = funTitles(expenses, ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"], "Asia/Kolkata", "INR");
+    expect(many).toHaveLength(10);
+    expect(new Set(many.map((x) => x.title)).size).toBe(10);
     // A tie goes to whoever got there first.
     const tie = [e("Lunch", 1000, "x", "food", at(12, 10)), e("Tea", 1000, "y", "food", at(16, 10)), e("Dinner", 1000, "y", "food", at(20, 10)), e("Snack", 1000, "x", "food", at(21, 10))];
     expect(funTitles(tie, ["x", "y"], "Asia/Kolkata", "INR").map((x) => [x.memberId, x.title])).toEqual([["y", "The Banker"], ["x", "Snack Lord"]]);

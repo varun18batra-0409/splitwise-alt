@@ -38,7 +38,7 @@ function Total({ d }: { d: Extract<SlideData, { kind: "total" }> }) {
   const shown = d.payers.slice(0, 5);
   return (
     <div className="flex h-full flex-col justify-center">
-      <p className={`font-display font-semibold leading-[0.95] tracking-[-0.02em] ${d.amount.length > 11 ? "text-[54px]" : "text-[68px]"}`} data-wrapped-headline>
+      <p className="whitespace-nowrap font-display font-semibold leading-[0.95] tracking-[-0.02em]" style={{ fontSize: `min(68px, ${Math.floor(150 / Math.max(6, d.amount.length))}vw)` }} data-wrapped-headline>
         {d.amount}
       </p>
       <p className="mt-3 font-hand text-[26px] font-bold">About {d.each} each</p>
@@ -47,12 +47,12 @@ function Total({ d }: { d: Extract<SlideData, { kind: "total" }> }) {
           <p className="mb-2 text-sm font-semibold">Who paid up front</p>
           <div className="flex h-5 overflow-hidden rounded-full bg-[#17150f]/10">
             {shown.map((p, k) => (
-              <span key={p.name} style={{ width: `${Math.max(3, p.share * 100)}%`, background: BAR[k % BAR.length] }} />
+              <span key={k} style={{ width: `${Math.max(3, p.share * 100)}%`, background: BAR[k % BAR.length] }} />
             ))}
           </div>
           <ul className="mt-3 space-y-1.5 text-[15px]">
             {shown.map((p, k) => (
-              <li key={p.name} className="flex items-center gap-2.5">
+              <li key={k} className="flex items-center gap-2.5">
                 <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: BAR[k % BAR.length] }} />
                 <span className="min-w-0 flex-1 truncate font-semibold">{p.name}</span>
                 <span className="tabular-nums">{p.amount}</span>
@@ -154,7 +154,7 @@ function Awards({ d }: { d: Extract<SlideData, { kind: "awards" }> }) {
     <div className="flex h-full flex-col justify-center">
       <ul className={`grid gap-3 ${shown.length > 2 ? "grid-cols-2" : "grid-cols-1"}`} data-wrapped-headline>
         {shown.map((a, k) => (
-          <li key={a.title + a.name} className="lp-card rounded-[16px] bg-[#fffdf6] px-3.5 py-3 text-[#17150f] shadow-[0_14px_24px_-14px_rgba(0,0,0,0.6)]" style={{ transform: `rotate(${tilt[k % tilt.length]}deg)`, animationDelay: `${k * 70}ms` }}>
+          <li key={k} className="lp-card rounded-[16px] bg-[#fffdf6] px-3.5 py-3 text-[#17150f] shadow-[0_14px_24px_-14px_rgba(0,0,0,0.6)]" style={{ transform: `rotate(${tilt[k % tilt.length]}deg)`, animationDelay: `${k * 70}ms` }}>
             <span className="text-[26px] leading-none" aria-hidden>
               {a.emoji}
             </span>
@@ -214,6 +214,7 @@ export function WrappedDeck({
         ))}
       {photoBg && <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.45)_0%,transparent_25%,transparent_45%,rgba(0,0,0,0.85)_100%)]" />}
 
+      <p className="sr-only" aria-live="polite">{`Slide ${i + 1} of ${slides.length}: ${s.headline}`}</p>
       <div className="absolute inset-x-3 top-3 z-20 flex gap-1" aria-hidden>
         {slides.map((x, k) => (
           <span key={k} className="h-[3px] flex-1 rounded-full" style={{ background: fg, opacity: k <= i ? 1 : 0.28 }} />

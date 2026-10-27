@@ -101,6 +101,8 @@ export default async function Notifications() {
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
                               {note.kind === "collect_reminder" ? (
                                 <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                              ) : note.kind === "passport_nudge" ? (
+                                <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3.6 9h16.8M3.6 15h16.8M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
                               ) : note.kind === "collect_paid" || note.kind === "collect_ticked" ? (
                                 <path d="M22 11.1V12a10 10 0 1 1-5.9-9.1M22 4 12 14l-3-3" />
                               ) : (
@@ -112,7 +114,7 @@ export default async function Notifications() {
                             <span className="block text-sm">
                               <strong className="font-medium">{note.title}</strong> · {note.body}
                             </span>
-                            <span className="mt-0.5 block text-xs text-gray-400">Collection · {time(note.createdAt)}</span>
+                            <span className="mt-0.5 block text-xs text-gray-400">{note.kind === "passport_nudge" ? "Passport" : "Collection"} · {time(note.createdAt)}</span>
                           </span>
                           {!note.seenAt && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-owe" aria-label="New" />}
                         </Link>

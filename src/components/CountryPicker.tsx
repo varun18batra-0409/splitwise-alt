@@ -1,17 +1,26 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
 import { createPortal } from "react-dom";
 import { searchCountries } from "@/lib/geo";
 import { addPlacesAction } from "@/app/passport-actions";
 
 // "Places I've been": tick as many countries as you like, then add them in one go.
-export function CountryPicker({ added }: { added: string[] }) {
+export function CountryPicker({ added, home = "" }: { added: string[]; home?: string }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [ticked, setTicked] = useState<string[]>([]);
-  const [saving, setSaving] = useState(false);
   const have = useMemo(() => new Set(added), [added]);
+  const opener = useRef<HTMLButtonElement>(null);
+  const search = useRef<HTMLInputElement>(null);
+  // Once the countries are saved (the list we're given changes), close and start fresh.
+  const saved = added.join();
+  useEffect(() => {
+    setOpen(false);
+    setTicked([]);
+    setQ("");
+  }, [saved]);
   const shown = useMemo(() => searchCountries(q), [q]);
 
   useEffect(() => {
@@ -20,9 +29,12 @@ export function CountryPicker({ added }: { added: string[] }) {
     document.body.style.overflow = "hidden";
     const key = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
     window.addEventListener("keydown", key);
+    search.current?.focus({ preventScroll: true });
+    const back = opener.current;
     return () => {
       document.body.style.overflow = prev;
       window.removeEventListener("keydown", key);
+      back?.focus({ preventScroll: true });
     };
   }, [open]);
 
@@ -31,15 +43,14 @@ export function CountryPicker({ added }: { added: string[] }) {
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" className="mt-3 w-full rounded-xl border border-line px-4 py-3 text-sm font-semibold active:bg-mist">
+      <button ref={opener} type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" className="mt-3 w-full rounded-xl border border-line px-4 py-3 text-sm font-semibold active:bg-mist">
         + Add countries
       </button>
       {open &&
         createPortal(
-          <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/70" onClick={() => !saving && setOpen(false)}>
+          <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/70" onClick={() => setOpen(false)}>
             <form
               action={addPlacesAction}
-              onSubmit={() => setSaving(true)}
               role="dialog"
               aria-modal="true"
               aria-label="Add countries"
@@ -54,6 +65,7 @@ export function CountryPicker({ added }: { added: string[] }) {
               </div>
               <div className="px-5 pb-2">
                 <input
+                  ref={search}
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   placeholder="Search countries"
@@ -68,7 +80,7 @@ export function CountryPicker({ added }: { added: string[] }) {
               ))}
               <ul className="min-h-0 flex-1 overflow-y-auto px-2 pb-2" aria-label="Countries">
                 {shown.map((c) => {
-                  const already = have.has(c.code);
+                  const already = have.has(c.code) || c.code === home;
                   const on = already || ticked.includes(c.code);
                   return (
                     <li key={c.code}>
@@ -76,7 +88,7 @@ export function CountryPicker({ added }: { added: string[] }) {
                         <input type="checkbox" checked={on} disabled={already} onChange={() => toggle(c.code)} className="h-5 w-5 shrink-0 accent-[#6fe3a8]" aria-label={c.name} />
                         <span className="text-xl leading-none">{c.flag}</span>
                         <span className="min-w-0 flex-1 truncate">{c.name}</span>
-                        {already && <span className="text-xs text-fg/60">Added</span>}
+                        {already && <span className="text-xs text-fg/60">{c.code === home ? "Home" : "Added"}</span>}
                       </label>
                     </li>
                   );
@@ -84,14 +96,22 @@ export function CountryPicker({ added }: { added: string[] }) {
                 {shown.length === 0 && <li className="px-3 py-6 text-center text-sm text-fg/60">No country matches “{q}”.</li>}
               </ul>
               <div className="border-t border-line px-5 pb-[max(16px,env(safe-area-inset-bottom))] pt-3">
-                <button type="submit" disabled={n === 0 || saving} className="pop block w-full bg-fg px-4 py-3.5 text-center font-semibold text-canvas [--pop-edge:#6e6b63] disabled:opacity-50">
-                  {saving ? "Adding…" : n === 0 ? "Tick the countries you’ve been to" : `Add ${n} ${n === 1 ? "country" : "countries"}`}
-                </button>
+                <AddButton n={n} />
               </div>
             </form>
           </div>,
           document.body,
         )}
     </>
+  );
+}
+
+// Shows "Adding…" while the countries are being saved.
+function AddButton({ n }: { n: number }) {
+  const { pending } = useFormStatus();
+  return (
+    <button type="submit" disabled={n === 0 || pending} className="pop block w-full bg-fg px-4 py-3.5 text-center font-semibold text-canvas [--pop-edge:#6e6b63] disabled:opacity-50">
+      {pending ? "Adding…" : n === 0 ? "Tick the countries you’ve been to" : `Add ${n} ${n === 1 ? "country" : "countries"}`}
+    </button>
   );
 }
