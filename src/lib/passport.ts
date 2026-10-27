@@ -146,3 +146,10 @@ export function stampPages(stamps: Stamp[], been: Stamp[], per = 6) {
   for (let i = 0; i < been.length; i += per) pages.push({ title: "Before Loopin", stamps: been.slice(i, i + per) });
   return pages;
 }
+
+// The passport sent as an album: how many stamp pages (six stamps a page, at
+// most six pages; the last one says "+N more" when there are even more).
+export const ALBUM_MAX_STAMP_PAGES = 6;
+export function albumStampPages(stampCount: number): number {
+  return stampCount > 0 ? Math.min(ALBUM_MAX_STAMP_PAGES, Math.ceil(stampCount / 6)) : 0;
+}

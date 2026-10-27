@@ -624,3 +624,12 @@ html.lp-opened .lp-open {
 @media (prefers-reduced-motion: reduce) {
   .lp-pop-in, .lp-draw-ring, .lp-draw-tick { animation: none; }
 }
+
+/* Album pages fanning in, one after another. */
+@keyframes lp-fan {
+  from { opacity: 0; transform: translateY(10px) rotate(-4deg); }
+}
+.lp-fan { animation: lp-fan 380ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+@media (prefers-reduced-motion: reduce) {
+  .lp-fan { animation: none; }
+}

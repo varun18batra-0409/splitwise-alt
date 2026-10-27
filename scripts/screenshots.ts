@@ -419,6 +419,13 @@ if (!hosted) {
       await p.waitForTimeout(700);
     }, false);
     await shot("118-passport-picture", "/passport/image", undefined, false);
+    // The passport as an album for WhatsApp: cover, details, stamp pages; and the share panel showing them.
+    for (const n of [0, 1, 2]) await shot(`118${"abc"[n]}-passport-album-${n}`, `/passport/album?page=${n}`, undefined, false);
+    await shot("118d-passport-share-sheet", "/passport", async (p) => {
+      await p.getByRole("button", { name: "Share my passport" }).first().click();
+      await p.locator("[data-album-preview]").waitFor();
+      await p.waitForTimeout(1500);
+    }, false);
     await db.account.update({ where: { id: priya.id }, data: { places: JSON.stringify([{ c: "JP" }, { c: "FR" }, { c: "GR" }, { c: "TH" }, { c: "AE" }, { c: "ID" }]) } });
     await shot("123-friends-passports", "/passport/friends", undefined, false);
     await shot("124-friend-passport", `/passport/friends/${priya.id}`, async (p) => {

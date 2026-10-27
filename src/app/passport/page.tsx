@@ -6,7 +6,7 @@ import { todayKey } from "@/lib/dates";
 import { visitorRegion } from "@/lib/region";
 import { loadPassport } from "@/lib/passport-db";
 import { COUNTRIES, countryOf } from "@/lib/geo";
-import { parseHandPlaces, stampPages } from "@/lib/passport";
+import { albumStampPages, parseHandPlaces, stampPages } from "@/lib/passport";
 import { removePlaceAction, setHomeCountryAction, setPassportShareAction } from "@/app/passport-actions";
 import { ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/components/ui";
 import { ShareSheet } from "@/components/ShareSheet";
@@ -34,6 +34,8 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
   const today = todayKey(new Date(), await getTimeZone());
   const region = visitorRegion(await headers());
   const p = await loadPassport(account, region.country && countryOf(region.country) ? region.country : "", today);
+  // Changes whenever the passport does, so a shared picture is never an old one.
+  const version = `${p.stats.countries}-${p.stats.cities}-${p.stamps.length}-${p.been.length}-${(account.name || "").length}`;
   const home = countryOf(p.home);
   const hand = parseHandPlaces(account.places);
   const empty = p.stamps.length + p.been.length === 0;
@@ -55,7 +57,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
 
       {!empty && (
         <div className="mt-5">
-          <ShareSheet image={`/passport/image?v=${p.stats.countries}-${p.stats.cities}-${p.stamps.length}-${p.been.length}`} fileName="loopin-passport.png" title="Share your passport" words={`My Loopin passport: ${[p.stats.countries ? `${p.stats.countries} ${p.stats.countries === 1 ? "country" : "countries"}` : "", p.stats.cities ? `${p.stats.cities} ${p.stats.cities === 1 ? "city" : "cities"}` : ""].filter(Boolean).join(", ") || "my first stamps"} and counting ✈️`} label="Share my passport" />
+          <ShareSheet album={Array.from({ length: 2 + albumStampPages(p.stamps.length + p.been.length) }, (_, i) => `/passport/album?page=${i}&v=${version}`)} image={`/passport/image?v=${version}`} fileName="loopin-passport.png" title="Share your passport" words={`My Loopin passport: ${[p.stats.countries ? `${p.stats.countries} ${p.stats.countries === 1 ? "country" : "countries"}` : "", p.stats.cities ? `${p.stats.cities} ${p.stats.cities === 1 ? "city" : "cities"}` : ""].filter(Boolean).join(", ") || "my first stamps"} and counting ✈️`} label="Share my passport" />
         </div>
       )}
 

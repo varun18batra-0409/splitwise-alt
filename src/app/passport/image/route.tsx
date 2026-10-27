@@ -6,8 +6,7 @@ import { todayKey } from "@/lib/dates";
 import { visitorRegion } from "@/lib/region";
 import { countryOf } from "@/lib/geo";
 import { loadPassport } from "@/lib/passport-db";
-import fonts from "@/generated/og-fonts.json";
-import map from "@/generated/map.json";
+import { loadOgFonts, worldMapImage } from "@/lib/og-assets";
 
 // Your passport as a story-sized picture (1080 × 1920) for WhatsApp: the
 // cover with your name and counts, your world map with the countries inked
@@ -23,45 +22,6 @@ const PAPER = "#efe8d6";
 const FOIL = "#ece8dc";
 const GREEN = "#6fe3a8";
 
-async function loadFonts(origin: string) {
-  const list: { name: string; data: ArrayBuffer; weight: 500 | 600 | 700; style: "normal" }[] = [];
-  const want: [string, string, 500 | 600 | 700][] = [
-    ["display-600", "Display", 600],
-    ["display-700", "Display", 700],
-    ["sans-500", "Sans", 500],
-    ["sans-700", "Sans", 700],
-  ];
-  await Promise.all(
-    want.map(async ([key, name, weight]) => {
-      const path = (fonts as Record<string, string>)[key];
-      if (!path) return;
-      try {
-        const r = await fetch(new URL(path, origin));
-        if (r.ok) list.push({ name, data: await r.arrayBuffer(), weight, style: "normal" });
-      } catch {
-        /* the default font, then */
-      }
-    }),
-  );
-  return list;
-}
-
-// The world map with your countries filled in, as a picture inside the picture.
-async function mapImage(origin: string, trips: string[], been: string[]) {
-  if (!(map as { ok: boolean }).ok) return null;
-  try {
-    const r = await fetch(new URL("/world.svg", origin));
-    if (!r.ok) return null;
-    const svg = await r.text();
-    const ok = (c: string) => /^[A-Z]{2}$/.test(c);
-    const style = `<style>${been.filter(ok).length ? `${been.filter(ok).map((c) => `#${c}`).join(",")}{fill:#8fc4a8}` : ""}${trips.filter(ok).length ? `${trips.filter(ok).map((c) => `#${c}`).join(",")}{fill:#2f7d4f}` : ""}</style>`;
-    const painted = svg.replace(/<g /, `${style}<g `);
-    return `data:image/svg+xml;base64,${Buffer.from(painted).toString("base64")}`;
-  } catch {
-    return null;
-  }
-}
-
 export async function GET(req: Request) {
   const account = await getAccount();
   if (!account) return new Response("Not found", { status: 404, headers: { "Cache-Control": "private, no-store" } });
@@ -69,7 +29,7 @@ export async function GET(req: Request) {
   const region = visitorRegion(await headers());
   const p = await loadPassport(account, region.country && countryOf(region.country) ? region.country : "", todayKey(new Date(), await getTimeZone()));
   const name = (account.name || "Traveller").split(/\s+/)[0].slice(0, 18);
-  const [fontList, mapSrc] = await Promise.all([loadFonts(origin), mapImage(origin, p.index.filter((r) => r.trips > 0).map((r) => r.code), p.index.filter((r) => r.trips === 0).map((r) => r.code))]);
+  const [fontList, mapSrc] = await Promise.all([loadOgFonts(origin), worldMapImage(origin, p.index.filter((r) => r.trips > 0).map((r) => r.code), p.index.filter((r) => r.trips === 0).map((r) => r.code))]);
   const display = fontList.some((f) => f.name === "Display") ? "Display" : undefined;
   const sans = fontList.some((f) => f.name === "Sans") ? "Sans" : undefined;
 
