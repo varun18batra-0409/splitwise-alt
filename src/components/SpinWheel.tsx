@@ -141,7 +141,7 @@ export function SpinWheel({ people, onPick }: { people: { id: string; label: str
                       <g key={p.id} opacity={lost ? 0.45 : 1} style={{ transition: "opacity 300ms" }}>
                         <path d={`M${r},${r} L${x1},${y1} A${r},${r} 0 ${slice > 180 ? 1 : 0},1 ${x2},${y2} Z`} fill={SLICES[i % SLICES.length]} stroke={GOLD} strokeWidth="1.6" />
                         {/* Names read outwards from the middle, over two lines when long. */}
-                        <text x={tx} y={ty} transform={`rotate(${mid - 90} ${tx} ${ty})`} textAnchor="middle" fill={INK} fontSize={size} fontWeight="700" style={{ letterSpacing: "0.02em" }}>
+                        <text x={tx} y={ty} transform={`rotate(${mid > 180 ? mid + 90 : mid - 90} ${tx} ${ty})`} textAnchor="middle" fill={INK} fontSize={size} fontWeight="700" style={{ letterSpacing: "0.02em" }}>
                           {ls.map((l, k) => (
                             <tspan key={k} x={tx} dy={k === 0 ? (ls.length === 1 ? "0.35em" : "-0.2em") : "1.15em"}>
                               {l}
