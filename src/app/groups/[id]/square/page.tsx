@@ -45,7 +45,7 @@ export default async function SquarePage({ params }: { params: Promise<{ id: str
         {square ? (
           <>
             <p className="mt-9 text-center font-display text-[44px] font-semibold leading-none tracking-tight" data-square>
-              All square 🎉
+              All square
             </p>
             <p className="mt-3 text-center font-hand text-[24px] font-bold text-[#ffd9a8]">Nobody owes anybody. Nice one.</p>
             <dl className="mt-8 grid w-full grid-cols-3 gap-2 text-center">

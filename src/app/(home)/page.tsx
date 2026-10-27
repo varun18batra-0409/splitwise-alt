@@ -33,7 +33,7 @@ import { TripCountdown } from "@/components/TripCountdown";
 import { TripRow } from "@/components/TripRow";
 import { Stories } from "@/components/Stories";
 import { buildStories } from "@/lib/home/stories";
-import { cardPhotos, placePhoto, placePhotos } from "@/lib/places";
+import { placePhoto, placePhotos } from "@/lib/places";
 import { tripEmoji } from "@/lib/countdown";
 import { payersOf, spentAmount } from "@/lib/payers";
 import { getCategory } from "@/lib/categories";
@@ -189,7 +189,6 @@ export default async function Home({
     const big = [...list].sort((a, b) => b.amount - a.amount)[0];
     return { spent: money(list.reduce((t, e) => t + spentAmount(e), 0)), count: list.length, top: list.length > 1 && topName ? topName : undefined, biggest: list.length > 1 ? { what: big.description, amount: money(big.amount) } : undefined };
   };
-  const cards = cardPhotos();
   const gameDetails = await Promise.all(
     games.map(async (gm) => {
       const grp = open.find((x) => x.group.id === gm.groupId)!;
@@ -233,7 +232,6 @@ export default async function Home({
         won: top && top.net > 0 ? formatMoney(top.net, grp.group.currency) : "",
         youWon: top && top.net > 0 && top.memberId === grp.myId ? formatMoney(top.net, grp.group.currency) : undefined,
         finishedAt: gm.finishedAt ?? gm.createdAt,
-        photos: cards.length ? [cards[k % cards.length], cards[(k + 3) % cards.length]] : [],
         ...gameDetails[k],
       };
     }),
@@ -320,7 +318,7 @@ export default async function Home({
       {account && signedin === "1" && (await countPasskeys(account.id)) === 0 && <PasskeyOffer />}
       {justClosed === "1" && !undone && (
         <Notice params={["closed"]} className="mb-4">
-          <span aria-hidden>🎉</span> Group closed. Find it under “Closed groups”.
+          Group closed. Find it under “Closed groups”.
           {closed.some((c) => c.group.id === didGroup && c.group.type === "trip") && (
             <>
               {" "}
@@ -353,10 +351,15 @@ export default async function Home({
 
       {/* New here (one group or none, no expenses yet): a gentle pointer to the 1-minute tour. */}
       {open.length <= 1 && open.every((g) => g.expenses.length === 0) && (
-        <Link href="/how-it-works" className="mb-6 flex items-center gap-3 rounded-2xl bg-mist px-4 py-3 text-sm active:bg-line">
-          <span aria-hidden>👋</span>
-          <span className="min-w-0 flex-1">
-            New to Loopin? <span className="font-medium text-fg">See how it works</span> <span className="text-gray-400">· 1 min</span>
+        <Link href="/how-it-works" className="mb-6 flex items-center gap-3 rounded-2xl border border-line bg-mist px-4 py-3 text-sm active:bg-line">
+          <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#d8bd7a]/45 text-[#e8d29a]">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M8 5.5v13l10.5-6.5Z" />
+            </svg>
+          </span>
+          <span className="min-w-0 flex-1 leading-snug">
+            <span className="block font-medium text-fg">New to Loopin? See how it works</span>
+            <span className="block text-xs text-gray-400">A one-minute guide</span>
           </span>
           <span className="text-gray-400" aria-hidden>›</span>
         </Link>
@@ -478,13 +481,13 @@ export default async function Home({
                   <p className="relative z-10 text-sm text-fg/60">Net balance{netCommon && netCommon.converted ? ` · in ${common}` : ""}</p>
                   {/* The big number shrinks as it gets longer, so it never runs into the photos. */}
                   <h1
-                    className={`relative z-10 mt-auto max-w-[60%] break-words font-display [text-shadow:0_2px_14px_rgba(0,0,0,0.7)] font-semibold leading-none tracking-tight tabular-nums ${
-                      heroText.length <= 8 ? "text-[clamp(28px,9vw,36px)]" : heroText.length <= 10 ? "text-[clamp(24px,7.6vw,31px)]" : heroText.length <= 12 ? "text-[clamp(22px,6.6vw,27px)]" : "text-[22px]"
+                    className={`relative z-10 mt-auto max-w-[54%] whitespace-nowrap font-display [text-shadow:0_2px_14px_rgba(0,0,0,0.7)] font-semibold leading-none tracking-tight tabular-nums ${
+                      heroText.length <= 8 ? "text-[clamp(28px,9vw,36px)]" : heroText.length <= 10 ? "text-[clamp(22px,6.8vw,28px)]" : heroText.length <= 12 ? "text-[clamp(19px,5.9vw,24px)]" : "text-[19px]"
                     } ${netValue > 0 ? "text-owed" : netValue < 0 ? "text-owe" : ""}`}
                   >
                     {heroText}
                   </h1>
-                  <p className="relative z-10 mt-1.5 max-w-[62%] font-hand text-[21px] font-bold leading-none text-[#ffd9a8] [text-shadow:0_1px_8px_rgba(0,0,0,0.8)]">
+                  <p className="relative z-10 mt-1.5 max-w-[56%] font-hand text-[21px] font-bold leading-none text-[#ffd9a8] [text-shadow:0_1px_8px_rgba(0,0,0,0.8)]">
                     {netValue > 0 ? "you get money back" : netValue < 0 ? "you need to pay" : "it all evens out"}
                     {open.filter((g) => g.myBalance !== 0).length > 1 ? `, from ${open.filter((g) => g.myBalance !== 0).length} groups` : ""}
                   </p>
@@ -979,7 +982,7 @@ function roundWhole(minor: number, currency: string): number {
 // The last spot is for when there's only one group.
 const POLAROID_SPOTS = [
   "right-[-12px] top-[14px] rotate-[8deg] z-[3]",
-  "right-[70px] top-[-22px] -rotate-[9deg] z-[2]",
+  "right-[60px] top-[-30px] -rotate-[9deg] z-[2]",
   "right-[34px] top-[116px] -rotate-[5deg] z-[1]",
   "right-[22px] top-[22px] rotate-[9deg]",
 ];

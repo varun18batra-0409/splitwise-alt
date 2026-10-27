@@ -1,8 +1,12 @@
 "use client";
 
 import Link from "@/components/Link";
+import Image from "next/image";
 import { GetAppButton } from "./GetApp";
 import { HomeIcon } from "./icons";
+import { GroupCover } from "./GroupCover";
+import { StoryArt } from "./StoryArt";
+import type { CoverChoice } from "@/lib/covers";
 
 // Remember the tour was seen, so Home shows the start screen next time.
 const seen = () => {
@@ -14,8 +18,11 @@ const seen = () => {
 };
 import { useEffect, useMemo, useRef, useState } from "react";
 import { currencyInfo, decimalsOf, formatMoney } from "@/lib/money";
+import photos from "@/generated/photos.json";
 
-// The intro tour, in the visitor's own currency: six swipeable slides (start, balances, currencies, settling, home & couples, undo) that show what Loopin does, each with
+const photo = (slot: string) => (photos as Record<string, { src: string } | undefined>)[slot]?.src;
+
+// The intro tour, in the visitor's own currency: nine swipeable slides (start, balances, currencies, settling, home & couples, card nights, stories, passport, undo) that show what Loopin does, each with
 // a small animated picture. Shown to first-time visitors on the home screen,
 // and any time at /welcome.
 
@@ -36,40 +43,29 @@ function Dot({ name, tone = "bg-mist" }: { name: string; tone?: string }) {
   );
 }
 
-// Two beer glasses that swing in and clink, with bubbles and a spark.
+// Three of Loopin's own group pictures as polaroids, fanning in: a trip, a
+// flat, the two of you. Under them, the kinds of group.
 function Cheers() {
-  const Mug = ({ flip }: { flip?: boolean }) => (
-    <svg viewBox="0 0 90 110" className={`h-32 w-24 ${flip ? "mug-right" : "mug-left"}`} aria-hidden>
-      <g transform={flip ? "translate(90 0) scale(-1 1)" : undefined}>
-        <path d="M66 38h8a12 12 0 0 1 12 12v18a12 12 0 0 1-12 12h-8" fill="none" stroke="#f4f2ec" strokeWidth="6" />
-        <rect x="8" y="28" width="60" height="76" rx="8" fill="#e8a33a" />
-        <rect x="8" y="28" width="60" height="76" rx="8" fill="url(#shine)" />
-        <path d="M6 30c0-12 10-18 18-14 4-8 18-10 24-2 8-6 22-2 22 10 6 2 6 10 0 12H6z" fill="#f4f2ec" />
-        <circle className="bubble" cx="24" cy="86" r="3" fill="#fbe7b0" />
-        <circle className="bubble" style={{ animationDelay: "0.7s" }} cx="44" cy="92" r="2.5" fill="#fbe7b0" />
-        <circle className="bubble" style={{ animationDelay: "1.3s" }} cx="34" cy="78" r="2" fill="#fbe7b0" />
-      </g>
-    </svg>
-  );
+  const shots: [CoverChoice, string, number, string][] = [
+    ["beach", "Trip", -9, "rise-2"],
+    ["city", "Flat", 2, "rise-3"],
+    ["couple", "Us", 10, "rise-4"],
+  ];
   return (
     <div className="relative flex flex-col items-center">
-      <svg width="0" height="0" aria-hidden>
-        <defs>
-          <linearGradient id="shine" x1="0" x2="1">
-            <stop offset="0.1" stopColor="#fff" stopOpacity="0.25" />
-            <stop offset="0.35" stopColor="#fff" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-      </svg>
-      <span className="clink absolute left-1/2 top-0 -translate-x-1/2 text-4xl text-[#fbe7b0]" aria-hidden>
-        ✦
-      </span>
-      <div className="mt-6 flex items-end">
-        <Mug />
-        <Mug flip />
+      <span aria-hidden className="absolute -top-6 left-1/2 h-40 w-64 -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(216,189,122,0.18),transparent)]" />
+      <div className="relative flex items-end">
+        {shots.map(([kind, label, tilt, d], i) => (
+          <span key={label} className={`rise ${d} relative block w-[96px] bg-[#f4f1e8] p-[5px] pb-0 shadow-[0_16px_28px_-12px_rgba(0,0,0,0.95)] ${i ? "-ml-4" : ""}`} style={{ transform: `rotate(${tilt}deg) translateY(${i === 1 ? -10 : 0}px)`, zIndex: i === 1 ? 2 : 1 }}>
+            <span className="relative block h-[92px] overflow-hidden bg-[#222]">
+              <GroupCover kind={kind} uid={`tour-${label}`} small sizes="96px" />
+            </span>
+            <span className="block py-1 text-center font-hand text-[18px] font-bold leading-tight text-[#2a2620]">{label}</span>
+          </span>
+        ))}
       </div>
-      <div className="mt-6 flex gap-2">
-        {["✈️ Trip", "🏠 Flat", "💞 Couple"].map((t, i) => (
+      <div className="mt-7 flex gap-2">
+        {["Trips", "Flats", "Couples", "Card nights"].map((t, i) => (
           <span key={t} className={`rise rise-${i + 2} rounded-full border border-line bg-canvas px-3 py-1 text-xs text-gray-600`}>
             {t}
           </span>
@@ -102,7 +98,7 @@ function makeSlides(L: Local): Slide[] {
 
   {
     id: "cheers",
-    title: ["Split it.", "Cheers. 🍻"],
+    title: ["Split it.", "Cheers."],
     caption: "Free, no ads. Make a group for a trip, a flat, the two of you, or a class gift. Friends join from a link, a QR code or an email in 30 seconds. No password.",
     art: <Cheers />,
   },
@@ -245,6 +241,67 @@ function makeSlides(L: Local): Slide[] {
           You pay Ravi <strong className="font-display">{L.m(L.india ? 300 : 30)}</strong> · Meera pays Ravi <strong className="font-display">{L.m(L.india ? 300 : 30)}</strong>
         </p>
       </Card>
+    ),
+  },
+  {
+    id: "stories",
+    title: ["Your trips,", "as stories."],
+    caption: "Home turns your groups into stories: the countdown to a trip, today’s spend while you’re away, last night’s card game. When it’s over, Wrapped tells the trip in posters.",
+    art: (
+      <div className="relative w-full">
+        <svg aria-hidden className="absolute inset-x-0 top-[9px] h-6 w-full" preserveAspectRatio="none" viewBox="0 0 100 10">
+          <path d="M0 1 Q 50 9 100 1" fill="none" stroke="#f4f2ec" strokeOpacity="0.25" strokeWidth="0.4" vectorEffect="non-scaling-stroke" />
+        </svg>
+        <div className="flex justify-center gap-3 pt-1">
+          {(
+            [
+              ["place-goa", L.india ? "Goa" : "Beach", "3 days", -4],
+              ["place-santorini", "Santorini", "Day 2", 3],
+              ["cards-2", "Card night", L.m(L.india ? 600 : 60), -2],
+            ] as const
+          ).map(([slot, label, big, tilt], i) => (
+            <span key={slot} className={`rise rise-${i + 2} relative block pt-2`} style={{ transform: `rotate(${tilt}deg)` }}>
+              <span aria-hidden className="absolute left-1/2 top-0 z-10 h-4 w-2.5 -translate-x-1/2 rounded-[2px] bg-owed shadow-[0_0_10px_rgba(111,227,168,0.6)]" />
+              <span className="block w-[92px] bg-[#f4f1e8] p-[5px] pb-0 shadow-[0_12px_22px_-10px_rgba(0,0,0,0.95)]">
+                <span className="relative block h-[104px] overflow-hidden bg-[#2a2a30]">
+                  {slot === "cards-2" ? <StoryArt kind="pot" uid="tour-pot" /> : photo(slot) && <Image src={photo(slot)!} alt="" fill sizes="96px" className="object-cover" />}
+                  <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1 pt-4 text-left font-display text-[13px] font-semibold text-[#f7f4ec]">{big}</span>
+                </span>
+                <span className="block truncate px-0.5 pb-1 pt-0.5 text-center font-hand text-[16px] font-bold leading-tight text-[#2a2620]">{label}</span>
+              </span>
+            </span>
+          ))}
+        </div>
+      </div>
+    ),
+  },
+  {
+    id: "passport",
+    title: ["Every trip,", "a stamp."],
+    caption: "Your trip passport fills itself as you travel. Flip through your friends’ passports, see where your group has been together, and share yours to WhatsApp.",
+    art: (
+      <div className="relative w-full overflow-hidden rounded-[18px] px-4 py-5" style={{ backgroundColor: "#efe8d6", backgroundImage: "repeating-linear-gradient(115deg, rgba(38,35,29,0.035) 0 1px, transparent 1px 7px)" }}>
+        <p className="text-[10px] font-semibold tracking-[0.2em] text-[#8a8270]">VISAS · STAMPS</p>
+        <div className="relative mt-2 h-[150px]">
+          {(
+            [
+              ["🇹🇭", "THAILAND", "MAR 2026", "#2b4c7e", "8%", "6%", -8],
+              ["🇮🇹", "ITALY", "JUN 2026", "#a53a3a", "52%", "2%", 6],
+              ["", L.india ? "Goa" : "Austin", "OCT 2026", "#2f7d4f", "30%", "52%", -3],
+            ] as const
+          ).map(([flag, name, when, ink, left, top, tilt], i) => (
+            <span
+              key={name}
+              className={`rise rise-${i + 2} absolute flex flex-col items-center justify-center text-center mix-blend-multiply ${flag ? "h-[96px] w-[96px] rounded-full border-[3px]" : "rounded-[8px] border-[2.5px] px-4 py-2"}`}
+              style={{ left, top, borderColor: ink, color: ink, transform: `rotate(${tilt}deg)`, boxShadow: flag ? `inset 0 0 0 4px #efe8d6, inset 0 0 0 5.5px ${ink}` : undefined }}
+            >
+              {flag ? <span className="text-[24px] leading-none">{flag}</span> : <span className="text-[8px] font-bold tracking-[0.2em]">✈ ARRIVED</span>}
+              <span className="mt-0.5 font-display text-[12px] font-bold tracking-wide">{name}</span>
+              <span className="text-[8px] font-bold tracking-[0.14em]">{when}</span>
+            </span>
+          ))}
+        </div>
+      </div>
     ),
   },
   {

@@ -237,7 +237,7 @@ if (!hosted) {
   {
     const got = JSON.parse(readFileSync("src/generated/photos.json", "utf8")) as Record<string, { src: string }>;
     const tiles = Object.entries(got)
-      .filter(([k]) => k.startsWith("place-") || ["cover-paris", "cover-taj", "cover-beach", "cover-mountains", "cover-city", "cover-snow", "cover-road"].includes(k))
+      .filter(([k]) => k.startsWith("place-") || ["cover-paris", "cover-taj", "cover-beach", "cover-mountains", "cover-city", "cover-snow", "cover-road-in"].includes(k))
       .map(([k, v]) => `<figure style="margin:0;width:180px"><img src="${base}${v.src}" style="width:180px;height:130px;object-fit:cover;border-radius:8px"><figcaption style="font:12px sans-serif;color:#ddd;margin-top:4px">${k}</figcaption></figure>`)
       .join("");
     try {
@@ -419,6 +419,22 @@ if (!hosted) {
       await p.waitForTimeout(700);
     }, false);
     await shot("118-passport-picture", "/passport/image", undefined, false);
+    // The passport as an album for WhatsApp: cover, details, stamp pages; and the share panel showing them.
+    for (const n of [0, 1, 2]) await shot(`118${"abc"[n]}-passport-album-${n}`, `/passport/album?page=${n}`, undefined, false);
+    await shot("118d-passport-share-sheet", "/passport", async (p) => {
+      await p.getByRole("button", { name: "Share my passport" }).first().click();
+      await p.locator("[data-album-preview]").waitFor();
+      await p.waitForTimeout(1500);
+    }, false);
+    await db.account.update({ where: { id: priya.id }, data: { places: JSON.stringify([{ c: "JP" }, { c: "FR" }, { c: "GR" }, { c: "TH" }, { c: "AE" }, { c: "ID" }]) } });
+    await shot("123-friends-passports", "/passport/friends", undefined, false);
+    await shot("124-friend-passport", `/passport/friends/${priya.id}`, async (p) => {
+      await p.getByRole("button", { name: "Open your passport" }).click();
+      await p.waitForTimeout(800);
+      await p.getByRole("button", { name: "Next page" }).click();
+      await p.waitForTimeout(800);
+    }, false);
+    await shot("125-our-passports", `/groups/${pune.id}/passports`, undefined, false);
     await shot("119-story-pot", "/", async (p) => {
       const pot = p.locator("[data-stories] [data-story='pot'] button");
       if (await pot.count()) await pot.first().click();
@@ -455,8 +471,24 @@ if (!hosted) {
     }, false);
   }
 }
+// The "I've paid" link from a Remind, as the person who owes sees it (no sign-in).
+let payPath = "";
+try {
+  await page.goto(`${base}${g}/settle`, { waitUntil: "load" });
+  const href = await page.locator("[data-remind]").first().getAttribute("href", { timeout: 5000 });
+  const res = href ? await page.request.get(base + href, { maxRedirects: 0 }) : null;
+  payPath = res ? new URL(res.headers()["x-pay-link"] ?? "", base).pathname : "";
+} catch (e) {
+  console.log("  (no pay link:", String(e).split("\n")[0], ")");
+}
+await shot("85b-invite-card", `${g}/invite`, undefined, false);
 await context.clearCookies();
 await shot("16-join", `/join/${demo.trip.invite}`);
+await shot("16b-join-preview", `/join/${demo.trip.invite}/card`, undefined, false);
+if (payPath.startsWith("/p/")) {
+  await shot("126-paid-link", payPath);
+  await shot("127-paid-link-gone", "/p/AAAAAAAAAAAAAAAAAAAAAA", undefined, false);
+}
 await shot("24-tour-1", "/", undefined, false);
 if (collectCode) {
   await shot("73-collect-payer", `/c/${collectCode}`);

@@ -49,8 +49,8 @@ test("every link in the app opens a real screen (no 404s)", async ({ browser }) 
     !href.startsWith("/") ||
     href.startsWith("//") ||
     /^\/(api\/auth|_next|signout)/.test(href) ||
-    /\/(countdown-image|square-image|wrapped-image|export)(\?|$)/.test(href) ||
-    /^\/passport\/image/.test(href);
+    /\/(countdown-image|square-image|wrapped-image|export|remind)(\?|$)/.test(href) ||
+    /^\/passport\/(image|album)/.test(href);
   const seen = new Set<string>();
   const queue = [...start];
   const bad: string[] = [];

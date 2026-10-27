@@ -105,7 +105,11 @@ const SECTIONS: { title: string; items: QA[] }[] = [
       },
       {
         q: "Someone marked a payment to me. What if I didn’t get it?",
-        a: "You’re asked in Settle up (and on your phone): Got it ✓ or Not received. Not received takes it off the balances, with Undo, so nobody is out of pocket on someone’s word. A WhatsApp Remind also carries your UPI ID or pay link and a link to mark it paid.",
+        a: "You’re asked in Settle up (and on your phone): Got it ✓ or Not received. Not received takes it off the balances, with Undo, so nobody is out of pocket on someone’s word. A WhatsApp Remind also carries your UPI ID or pay link and an “I’ve paid” link.",
+      },
+      {
+        q: "Can someone tell me they paid without having Loopin?",
+        a: "Yes. Tap Remind in Settle up and WhatsApp opens with a note, your UPI ID and a link. They open it (no app, no sign-in), pay with UPI, and tap I’ve paid. You’re asked to confirm with Got it ✓. The link only works for what they owe you right now, can’t be used for anything else, and stops working once you’re square or after 30 days.",
       },
       {
         q: "I made a mistake. Can I undo it?",
@@ -131,19 +135,27 @@ const SECTIONS: { title: string; items: QA[] }[] = [
     items: [
       {
         q: "What are the little photos at the top of Home?",
-        a: "Stories from your groups: a trip coming up (or happening now), last night’s card game, a group that just got all square, a collection filling up, and a trip from a year ago. Tap one to watch; tap the right side for the next. A green peg means you haven’t seen it yet.",
+        a: "Stories from your groups. Each one is a few slides you tap through: photos of where a trip is going with a countdown and the crew, today’s spend while you’re away, last night’s card game with everyone’s result and who pays whom, a group that just got all square, a collection filling up, and a trip from a year ago. Tap the right side for the next slide, swipe down or press Back to close. A green peg means you haven’t seen it yet.",
       },
       {
         q: "What is Wrapped?",
-        a: "A group’s story in a few slides: how much you spent together, where it went, the big night, the splurge, and everyone’s award (The Banker, Snack Lord, Night Owl…). Open it from a group’s Charts, or from Home after a trip ends, and share it as a picture.",
+        a: "A trip told as a few posters: the total you spent together and who paid up front, where the money went, the biggest day, the splurge as a receipt, and everyone’s title. Open it from a group’s Charts, or from Home after a trip ends, and share it as a picture.",
       },
       {
         q: "What is the trip passport?",
-        a: "A little booklet with a stamp for every trip: a city stamp for trips in your home country, a country stamp for trips abroad. Go twice and you get two stamps, but the counts on the first page count each place once. Loopin works out the place from the trip’s name, or from Where to? in the trip’s settings. Tick the countries you went to before Loopin under Places I’ve been; they get their own lighter Been there stamps at the back. Open it from the You page, swipe through the pages, and share it as a picture.",
+        a: "A little booklet with a stamp for every trip: a city stamp for trips in your home country, a country stamp for trips abroad. Go twice and you get two stamps, but the counts on the first page count each place once. Loopin works out the place from the trip’s name, or from Where to? (when you make a trip, or in its settings). Tick the countries you went to before Loopin under Places I’ve been; they get their own lighter Been there stamps. Open it from the You page and share it to WhatsApp as a booklet: the cover, your details page with your map, and your stamp pages, sent together as an album (or as one picture for your Status).",
+      },
+      {
+        q: "Can I see my friends’ passports?",
+        a: "Yes: anyone you’ve shared a group with, even a closed one or if they’ve left. Open You → Friends’ passports, or Our passports inside any group, and tap a name. If their passport is empty, you can nudge them (it shows in their Alerts, at most once a month). People you’ve never shared a group with can’t open yours.",
+      },
+      {
+        q: "Who can see my passport?",
+        a: "People you share a group with, unless you switch it to Only me on your passport page. They see your stamps and countries only: never your money, your groups or your email. Trips that are still happening stay hidden until they’re over, so nobody can tell where you are right now. Nobody is told when you look at a passport.",
       },
       {
         q: "Reactions, titles and the spinning wheel?",
-        a: "Open any expense to react with 😂 🔥 😭 🙄 😍 👏 (tap again to take it back). Balances shows a fun title for some people, about habits, never about who owes most. On Add expense, Spin for it picks who pays tonight. During a trip, a short line at night sums up the day.",
+        a: "Open any expense to react with 😂 🔥 😭 🙄 😍 👏 (tap again to take it back). Once a group has a few expenses, everyone gets a title on Balances (The Banker, Snack Lord, Night Owl…): about habits, never about who paid less. On Add expense, Spin for it lets the wheel decide who pays tonight. During a trip, a short line at night sums up the day.",
       },
     ],
   },

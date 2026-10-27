@@ -44,7 +44,7 @@ export default async function FriendPassportByAccount({ params, searchParams }: 
   return (
     <>
       <PageHeader title={`${first}’s passport`} back={back} />
-      <PassportBook name={first} stats={p.stats} milestones={p.milestones} pages={stampPages(p.stamps, p.been)} index={p.index} />
+      <PassportBook name={first} stats={p.stats} milestones={p.milestones} pages={stampPages(p.stamps, p.been)} index={p.index} badges={p.badges} own={false} />
       {empty && <NudgeBox accountId={accountId} first={first} sent={sp.nudged === "1"} error={sp.error} />}
       <p className="mt-5 text-center text-sm text-gray-500">
         <Link href="/passport/friends" className="font-semibold text-fg underline underline-offset-4">

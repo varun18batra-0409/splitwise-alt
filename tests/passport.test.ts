@@ -4,7 +4,7 @@ import { buildPassport, parseHandPlaces, stampPages } from "@/lib/passport";
 import { buildStories } from "@/lib/home/stories";
 import { squareNumbers } from "@/lib/square";
 import { funTitles, wrapSlides } from "@/lib/wrapped";
-import { reactionSummary } from "@/lib/reactions";
+import { quickReactions, reactionSummary } from "@/lib/reactions";
 import { memoryText, pulseText } from "@/lib/pulse";
 
 describe("Trip passport: where a trip went", () => {
@@ -50,6 +50,10 @@ describe("Trip passport: stamps", () => {
       ["TH", 1, false, "Bangkok/Phuket"],
     ]);
     expect(p.milestones).toEqual(["First trip abroad ✈️", "3 countries abroad 🌍", "Goa ×3 🔁", "3 trips this year 🔥"]);
+  });
+  it("badges: earned ones, and how close the rest are", () => {
+    const b = Object.fromEntries(p.badges.map((x) => [x.id, x.earned ? "✓" : `${x.have}/${x.need}`]));
+    expect(b).toEqual({ "first-abroad": "✓", beach: "✓", hills: "0/3", city: "1/3", cities: "4/10", countries: "4/10", frequent: "2/5", year: "✓", trips: "5/10" });
   });
   it("pages of six: trips first, then Before Loopin", () => {
     const pages = stampPages(p.stamps, p.been, 2);
@@ -114,8 +118,11 @@ describe("Stories on Home", () => {
     expect(trip.frames.some((f) => f.kind === "poster" && f.big === "3")).toBe(true);
     expect(trip.frames.some((f) => f.kind === "list" && f.kicker === "The crew")).toBe(true);
     const pot = s.find((x) => x.kind === "pot")!;
-    expect(pot.photo).toBe("/cards.jpg");
-    expect(pot.frames.map((f) => (f.kind === "photo" ? "photo" : f.kicker))).toEqual(["photo", "The table", "Who pays whom", "Still to settle"]);
+    // Card nights get designed artwork (felt, gold, the cards), never a stock photo.
+    expect(pot.photo).toBeUndefined();
+    expect(pot.art).toBe("pot");
+    expect(pot.frames.map((f) => (f.kind === "art" ? `art:${f.art}` : f.kicker))).toEqual(["art:pot", "The table", "Who pays whom", "Still to settle", "art:pot"]);
+    expect(pot.frames.some((f) => f.kind === "photo")).toBe(false);
     // No photos at all: still a proper story (posters), never empty.
     const bare = buildStories({ now, trips: [{ id: "g2", name: "Weekend away", phase: { kind: "before", days: 5 }, people: 2 }], games: [], squared: [], collections: [], memories: [], wrapped: [] });
     expect(bare[0].frames.length).toBeGreaterThan(0);
@@ -169,16 +176,19 @@ describe("Trip Wrapped and fun titles", () => {
     expect(slides[2].headline).toBe("Beds & Bunks took 67%");
     expect(slides[3].headline).toBe("Saturday 10 Oct was the big one");
     expect(slides[4]).toMatchObject({ headline: "The splurge: Villa", line: "₹18,000, paid by You" });
-    expect(slides[6].headline).toBe("All square 🎉");
+    expect(slides[6].headline).toBe("All square");
   });
 });
 
 describe("Reactions", () => {
   it("counts in a fixed order, and which one is mine", () => {
     expect(reactionSummary([{ emoji: "🔥", memberId: "a" }, { emoji: "😂", memberId: "b" }, { emoji: "🔥", memberId: "c" }], "c")).toEqual({
-      counts: [{ emoji: "😂", count: 1 }, { emoji: "🔥", count: 2 }],
+      counts: [{ emoji: "🔥", count: 2 }, { emoji: "😂", count: 1 }],
       mine: "🔥",
     });
+    // More behind "+", and the group's favourites come first in the quick row.
+    expect(quickReactions([{ emoji: "🍻" }, { emoji: "🍻" }, { emoji: "🔥" }, { emoji: "nope" }])).toEqual(["🍻", "🔥", "😂", "😭", "🙄", "😍"]);
+    expect(quickReactions([])).toEqual(["😂", "🔥", "😭", "🙄", "😍", "👏"]);
     expect(reactionSummary([], "a")).toEqual({ counts: [], mine: "" });
   });
 });

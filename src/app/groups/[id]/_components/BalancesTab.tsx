@@ -1,4 +1,6 @@
 import Link from "@/components/Link";
+import { TitleIcon } from "@/components/TitleIcon";
+import { PassportIcon, PeoplePassportsIcon, SquareSeal } from "@/components/DrawnIcons";
 import { pairwiseDebtCount } from "@/lib/settle";
 import { Notice } from "@/components/Notice";
 import { formatMoney, formatPercent } from "@/lib/money";
@@ -26,14 +28,12 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
 
       {transfers.length === 0 ? (
         <div className="rounded-2xl bg-mist px-4 py-8 text-center">
-          <p className="text-3xl" aria-hidden>
-            🎉
-          </p>
-          <p className="mt-2 font-display text-xl font-semibold">All square</p>
+          <SquareSeal size={56} className="mx-auto" />
+          <p className="mt-3 font-display text-xl font-semibold">All square</p>
           <p className="mt-1 text-sm text-gray-500">Nobody owes anybody in this group.</p>
           {expenses.length > 0 && (
             <Link href={`/groups/${group.id}/square`} className="mt-4 inline-block rounded-full bg-fg px-4 py-2 text-sm font-semibold text-canvas">
-              Share the moment 🎉
+              Share the moment
             </Link>
           )}
         </div>
@@ -56,10 +56,10 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
           <ul className="-mx-5 flex snap-x gap-3 overflow-x-auto px-5 pb-2 [scrollbar-width:none]" data-titles>
             {titles.map((t, k) => {
               const m = group.members.find((x) => x.id === t.memberId);
-              const tint = ["#6fe3a8", "#ffab6b", "#7cc4ff", "#ff8fc7", "#b79cff", "#ffd66b"][k % 6];
+              const tint = ["#6fe3a8", "#d8bd7a", "#9cc8ec", "#f2a07b", "#b9a6ef", "#e6a7c8"][k % 6];
               return (
                 <li key={t.memberId} className="w-[148px] shrink-0 snap-start rounded-[18px] border border-line bg-mist px-3.5 pb-3.5 pt-3" style={{ boxShadow: `inset 0 3px 0 ${tint}` }} data-title-card={t.title}>
-                  <span aria-hidden className="block text-[34px] leading-none">{t.emoji}</span>
+                  <TitleIcon title={t.title} size={42} accent={tint} />
                   <span className="mt-2 block font-display text-[16px] font-semibold leading-tight">{t.title}</span>
                   <span className="mt-1 block truncate text-sm font-semibold" style={{ color: tint }}>
                     {m ? (m.id === myId ? "You" : m.name.split(" ")[0]) : "Someone"}
@@ -77,7 +77,9 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="font-display text-lg font-semibold tracking-tight">By person</h2>
           <Link href={`/groups/${group.id}/passports`} className="shrink-0 text-sm font-semibold underline underline-offset-4" data-our-passports>
-            🛂 Our passports
+            <span className="inline-flex items-center gap-1.5">
+              <PeoplePassportsIcon size={16} /> Our passports
+            </span>
           </Link>
         </div>
         <p className="mb-3 text-sm text-gray-500">Tap anyone to see why.</p>
@@ -108,7 +110,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
                         const t = titles.find((x) => x.memberId === m.id);
                         return t ? (
                           <span className="mb-0.5 mt-0.5 inline-block rounded-full bg-fg/[0.07] px-2 py-0.5 text-[11px] font-semibold text-fg/80" title={t.why} data-title={t.title}>
-                            {t.emoji} {t.title}
+                            {t.title}
                           </span>
                         ) : null;
                       })()}
@@ -123,7 +125,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
                   <div className="mb-3 ml-12 space-y-2">
                     {m.accountId && m.id !== myId && (
                       <Link href={`/groups/${group.id}/passport/${m.id}`} className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-xs font-semibold active:bg-mist" data-passport-link>
-                        <span aria-hidden>🛂</span> {m.name.trim().split(/\s+/)[0]}’s passport
+                        <PassportIcon size={14} /> {m.name.trim().split(/\s+/)[0]}’s passport
                       </Link>
                     )}
                     <WhyPanel v={v} memberId={m.id} open={why === m.id} />

@@ -1,4 +1,7 @@
 import Link from "@/components/Link";
+import { StoryArt } from "@/components/StoryArt";
+import type { StoryKind } from "@/lib/home/stories";
+import Image from "next/image";
 import photos from "@/generated/photos.json";
 import { PageHeader } from "@/components/ui";
 import { GetAppButton } from "@/components/GetApp";
@@ -19,6 +22,11 @@ const FALLBACK = {
   sunset: "from-orange-900 to-purple-950",
   friends: "from-orange-800 to-rose-950",
   home: "from-emerald-950 to-stone-800",
+  "place-goa": "from-sky-900 to-teal-800",
+  "place-santorini": "from-sky-950 to-indigo-900",
+  "place-bali-2": "from-teal-950 to-emerald-900",
+  "place-japan-2": "from-rose-950 to-stone-900",
+  "cards-2": "from-emerald-950 to-stone-900",
 };
 const pic = (slot: Slot) => (photos as Record<string, { src: string } | undefined>)[slot]?.src;
 
@@ -26,18 +34,29 @@ function Photo({ slot, children, tall }: { slot: Slot; children?: React.ReactNod
   const src = pic(slot);
   return (
     <div className={`relative -mx-5 overflow-hidden bg-gradient-to-br ${FALLBACK[slot]} ${tall ? "h-[340px]" : "h-[200px]"}`}>
-      {src && <img src={src} alt="" loading="eager" decoding="async" className="absolute inset-0 h-full w-full object-cover" />}
+      {src && <Image src={src} alt="" fill sizes="(max-width: 480px) 100vw, 480px" className="object-cover" />}
       <div className="absolute inset-0 bg-gradient-to-t from-canvas via-canvas/30 to-transparent" />
       {children && <div className="absolute inset-x-5 bottom-5">{children}</div>}
     </div>
   );
 }
 
-function Section({ slot, title, children }: { slot?: Slot; kicker?: string; title: string; children: React.ReactNode }) {
+function Section({ slot, art, title, children }: { slot?: Slot; art?: StoryKind; kicker?: string; title: string; children: React.ReactNode }) {
   const heading = <h2 className="mt-1 font-display text-[26px] font-semibold leading-tight tracking-tight text-fg">{title}</h2>;
   return (
     <section className="mt-12">
-      {slot ? <Photo slot={slot}>{heading}</Photo> : heading}
+      {slot ? (
+        <Photo slot={slot}>{heading}</Photo>
+      ) : art ? (
+        // Designed artwork where a stock photo would look cheap (card nights).
+        <div className="relative -mx-5 h-[200px] overflow-hidden">
+          <StoryArt kind={art} uid={`guide-${art}`} />
+          <div className="absolute inset-0 bg-gradient-to-t from-canvas via-canvas/30 to-transparent" />
+          <div className="absolute inset-x-5 bottom-5">{heading}</div>
+        </div>
+      ) : (
+        heading
+      )}
       <div className="mt-4 space-y-3 text-[15px] leading-relaxed text-gray-600">{children}</div>
     </section>
   );
@@ -65,6 +84,24 @@ function Screen({ src, alt, caption }: { src: string; alt: string; caption: stri
       </div>
       <figcaption className="mt-2 text-center text-xs text-gray-500">{caption}</figcaption>
     </figure>
+  );
+}
+
+// Two real screens side by side.
+function Screens({ a, b }: { a: { src: string; alt: string; caption: string }; b: { src: string; alt: string; caption: string } }) {
+  const one = (x: { src: string; alt: string; caption: string }, tilt: string) => (
+    <figure className={`w-1/2 max-w-[190px] ${tilt}`}>
+      <div className="overflow-hidden rounded-[22px] border-[4px] border-[#2b2b31] bg-canvas shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
+        <img src={x.src} alt={x.alt} loading="lazy" decoding="async" width={390} height={844} className="block h-auto w-full" />
+      </div>
+      <figcaption className="mt-2 text-center text-xs text-gray-500">{x.caption}</figcaption>
+    </figure>
+  );
+  return (
+    <div className="flex items-start justify-center gap-3">
+      {one(a, "-rotate-2")}
+      {one(b, "mt-6 rotate-2")}
+    </div>
   );
 }
 
@@ -214,6 +251,7 @@ export default async function HowItWorks() {
             <>In a group, tap <strong>Settle up</strong>. Loopin shows the fewest payments that clear everything.</>,
             <>Paid in full? Tap <strong>Mark paid</strong>. Paid part? Change the amount first.</>,
             <>Your friend added their UPI ID or PayPal / Venmo link? A <strong>Pay</strong> button opens the app with the amount filled in.</>,
+            <>Someone owes you? Tap <strong>Remind</strong>: WhatsApp opens with a friendly note, your UPI ID and an <strong>I’ve paid</strong> link. They pay and tap it, no app or sign-in needed.</>,
             <>Whoever was paid is asked <strong>Got it ✓</strong> or <strong>Not received</strong>, so a payment only stays if it really arrived.</>,
             <>Owe the same friend in two groups? The <strong>Settle</strong> tab combines them into one payment.</>,
           ]}
@@ -264,7 +302,7 @@ export default async function HowItWorks() {
       </Section>
 
       <div id="pot" className="scroll-mt-4" />
-      <Section title="Card nights: The Pot keeps score">
+      <Section art="pot" title="Card nights: The Pot keeps score">
         <p>
           Playing <strong>Poker</strong> or <strong>Teen Patti</strong>? Make a group and pick <strong>The Pot</strong>. Add the players: friends on
           Loopin see the game and their balance; anyone else can just be a name (they can join with the link later).
@@ -280,6 +318,63 @@ export default async function HowItWorks() {
           ]}
         />
         <p>Loopin only keeps count, like a notebook at the table. It doesn’t run the game, track chips or bets, or hold or move any money.</p>
+      </Section>
+
+      <div id="stories" className="scroll-mt-4" />
+      <Section slot="place-goa" title="Home, told as stories">
+        <p>
+          The top of Home is a row of little polaroids. Each one is a <strong>story</strong> from your groups, a few slides you tap through: the
+          countdown to a trip with photos of where you’re going and the crew, <strong>today’s spend</strong> while you’re away, last night’s{" "}
+          <strong>card game</strong> with everyone’s result and who pays whom, a group that just got <strong>all square</strong>, and a trip from a year ago.
+        </p>
+        <Screens
+          a={{ src: "/guide/story-trip.webp", alt: "A trip story: a photo of the beach with a quirky caption", caption: "A trip coming up" }}
+          b={{ src: "/guide/story-pot.webp", alt: "A card night story: everyone's result as bars", caption: "Last night’s card game" }}
+        />
+      </Section>
+
+      <div id="wrapped" className="scroll-mt-4" />
+      <Section slot="place-bali-2" title="Trip over? Watch the Wrapped">
+        <p>
+          Every trip gets its own <strong>Wrapped</strong>: the total you spent together and who paid up front, where the money went, the biggest
+          day, the splurge as a receipt, and everyone’s title. Open it from the group’s Charts (or from Home after the trip) and share it as a picture.
+        </p>
+        <Screens
+          a={{ src: "/guide/wrapped-total.webp", alt: "Wrapped: the total spent together, and who paid up front", caption: "The total, and who paid" }}
+          b={{ src: "/guide/wrapped-receipt.webp", alt: "Wrapped: the splurge as a receipt", caption: "The splurge" }}
+        />
+      </Section>
+
+      <div id="passport" className="scroll-mt-4" />
+      <Section slot="place-santorini" title="Your trip passport">
+        <p>
+          Every trip stamps your <strong>passport</strong>: a city stamp at home, a country stamp abroad. Add the countries you went to before Loopin
+          with a few ticks. Open it from the <strong>You</strong> page, flip the pages, and share it to WhatsApp as a picture of your passport.
+        </p>
+        <Steps
+          items={[
+            <><strong>Friends’ passports.</strong> Anyone you’ve shared a group with, even an old flat or a finished trip: You → Friends’ passports.</>,
+            <><strong>Our passports.</strong> Inside any group: where you’ve all been together, with every flag.</>,
+            <><strong>Empty passport?</strong> Nudge them. They’ll see it in Alerts, never as a push or email.</>,
+            <><strong>Private when you want.</strong> Switch yours to Only me. Trips still happening stay hidden until they’re over.</>,
+          ]}
+        />
+        <Screens
+          a={{ src: "/guide/passport-stamps.webp", alt: "Passport stamps on a page", caption: "Your stamps" }}
+          b={{ src: "/guide/friends-passports.webp", alt: "Friends' passports: everyone you've shared a group with and their flags", caption: "Friends’ passports" }}
+        />
+      </Section>
+
+      <div id="fun" className="scroll-mt-4" />
+      <Section slot="place-japan-2" title="Spin for it, titles and reactions">
+        <p>
+          Can’t decide who pays tonight? On Add expense, tap <strong>Spin for it</strong> and let the wheel decide. Once a group has a few expenses,
+          everyone earns a <strong>title</strong> (The Banker, Snack Lord, Night Owl…), and you can react to any expense with 😂 🔥 😭.
+        </p>
+        <Screens
+          a={{ src: "/guide/spin.webp", alt: "The wheel picking who pays tonight", caption: "Let the wheel decide" }}
+          b={{ src: "/guide/titles.webp", alt: "Everyone's titles on Balances", caption: "Everyone gets a title" }}
+        />
       </Section>
 
       <div id="collect" className="scroll-mt-4" />
@@ -316,6 +411,11 @@ export default async function HowItWorks() {
       <Link href="/groups/new" className="pop mt-4 block bg-fg px-4 py-3.5 text-center font-semibold text-canvas [--pop-edge:#6e6b63]">
         Create a group
       </Link>
+      <p className="mt-8 text-center text-xs text-gray-400">
+        <Link href="/credits" className="underline underline-offset-4">
+          Photo credits
+        </Link>
+      </p>
     </>
   );
 }

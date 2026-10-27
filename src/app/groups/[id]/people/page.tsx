@@ -1,4 +1,5 @@
 import { setMoveIn } from "@/app/bill-actions";
+import { PassportIcon, PeoplePassportsIcon } from "@/components/DrawnIcons";
 import { payerIds } from "@/lib/payers";
 import { notFound, redirect } from "next/navigation";
 import { getMyMemberId } from "@/lib/identity";
@@ -78,7 +79,7 @@ export default async function PeoplePage({
           <div className="space-y-4 pb-5 pl-12">
             {m.accountId && !me && (
               <Link href={`/groups/${group.id}/passport/${m.id}`} className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-xs font-semibold active:bg-mist">
-                <span aria-hidden>🛂</span> {m.name.trim().split(/\s+/)[0]}’s passport
+                <PassportIcon size={14} /> {m.name.trim().split(/\s+/)[0]}’s passport
               </Link>
             )}
             {!m.accountId && !m.claimedAt && !m.leftAt && (
@@ -166,7 +167,7 @@ export default async function PeoplePage({
       )}
 
       <Link href={`/groups/${group.id}/passports`} className="mb-4 flex items-center gap-3 rounded-2xl border border-line px-4 py-3 active:bg-mist" data-our-passports>
-        <span aria-hidden className="text-xl">🛂</span>
+        <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-owed/40 text-owed"><PeoplePassportsIcon size={18} /></span>
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold">Our passports</span>
           <span className="block text-xs text-gray-500">Where everyone in {group.name} has been</span>

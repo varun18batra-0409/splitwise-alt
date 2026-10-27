@@ -1,10 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import Link from "./Link";
 import { GroupCover } from "./GroupCover";
+import { StoryArt } from "./StoryArt";
+import { Backdrop, TONE } from "./Backdrop";
 import type { CoverChoice } from "@/lib/covers";
-import type { Frame, Story, Tone } from "@/lib/home/stories";
+import type { Frame, Story } from "@/lib/home/stories";
 
 // Home's stories, as little polaroids pegged on a string. A green peg means
 // you haven't seen it yet. Tap one to open the stories full screen: tap the
@@ -29,27 +32,12 @@ function writeSeen(s: Set<string>) {
   }
 }
 
-// No photo: a flat, bold poster in the story's own colour, with its big words.
-const POSTER: Record<Story["kind"], string> = {
-  trip: "#8ccfff",
-  pot: "#6fe3a8",
-  square: "#b9f0a0",
-  collect: "#ffd66b",
-  memory: "#ffb38a",
-  wrapped: "#c3aeff",
-};
-
 function Picture({ s, uid, big }: { s: Story; uid: string; big?: boolean }) {
-  if (s.photo)
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={s.photo} alt="" aria-hidden className={`absolute inset-0 h-full w-full object-cover ${big ? "lp-drift" : ""}`} loading={big ? "eager" : "lazy"} decoding="async" />;
-  if (s.cover) return <GroupCover kind={s.cover.kind as CoverChoice} src={s.cover.src} uid={uid} sizes={big ? "448px" : "80px"} drift={big} />;
-  return (
-    <span aria-hidden className="absolute inset-0 flex flex-col items-center justify-center px-2 text-center text-[#17150f]" style={{ background: POSTER[s.kind] }}>
-      <span className={big ? "text-[44px] leading-none" : "text-[18px] leading-none"}>{s.emoji}</span>
-      {s.big && <span className={`max-w-full font-display font-semibold leading-[0.95] tracking-[-0.02em] ${big ? "mt-3 text-[clamp(44px,15vw,72px)]" : "mt-0.5 truncate text-[11px]"}`}>{s.big}</span>}
-    </span>
-  );
+  // Sized for where it shows: a small copy for the polaroid, a sharp one full screen.
+  if (s.photo) return <Image src={s.photo} alt="" aria-hidden fill sizes={big ? "(max-width: 448px) 100vw, 448px" : "96px"} quality={big ? 82 : 70} priority={big} className={`object-cover ${big ? "lp-drift" : ""}`} />;
+  if (s.cover && !s.art) return <GroupCover kind={s.cover.kind as CoverChoice} src={s.cover.src} uid={uid} sizes={big ? "448px" : "80px"} drift={big} />;
+  // No photo: designed artwork (green felt for a card night, a jar for a collection…).
+  return <StoryArt kind={s.art ?? s.kind} uid={uid} />;
 }
 
 export function Stories({ stories }: { stories: Story[] }) {
@@ -107,60 +95,67 @@ export function Stories({ stories }: { stories: Story[] }) {
   );
 }
 
-// The bold flat colours for poster and list slides (dark ink on top).
-const TONE: Record<Tone, string> = { sun: "#ffd66b", coral: "#ff9b73", sky: "#8ccfff", pink: "#ff9fd0", lilac: "#c3aeff", mint: "#8fe3b8" };
+function Words({ kicker, head, line }: { kicker?: string; head: string; line?: string }) {
+  return (
+    <div className="lp-slide-in pointer-events-none absolute inset-x-0 bottom-[132px] z-20 px-6 text-[#f7f4ec]">
+      {kicker && <p className="mb-2 inline-block rounded-full bg-[#f7f4ec]/15 px-3 py-1 text-[13px] font-semibold backdrop-blur-sm">{kicker}</p>}
+      <p className="font-display text-[clamp(30px,9vw,40px)] font-semibold leading-[1.04]" data-story-headline>
+        {head}
+      </p>
+      {line && <p className="mt-2 font-hand text-[24px] font-bold leading-tight text-[#ffd9a8]">{line}</p>}
+    </div>
+  );
+}
 
-function Slide({ f }: { f: Frame }) {
-  if (f.kind === "photo")
+function Slide({ f, uid }: { f: Frame; uid: string }) {
+  if (f.kind === "photo" || f.kind === "art")
     return (
       <>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={f.photo} alt="" aria-hidden className="lp-drift absolute inset-0 h-full w-full object-cover" decoding="async" />
+        {f.kind === "photo" ? <Image src={f.photo} alt="" aria-hidden fill sizes="(max-width: 448px) 100vw, 448px" quality={82} priority className="lp-drift object-cover" /> : <StoryArt kind={f.art} uid={uid} />}
         <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.5)_0%,transparent_22%,transparent_42%,rgba(0,0,0,0.9)_100%)]" />
-        <div className="lp-slide-in pointer-events-none absolute inset-x-0 bottom-[132px] z-20 px-6 text-[#f7f4ec]">
-          {f.kicker && <p className="mb-2 inline-block rounded-full bg-[#f7f4ec]/15 px-3 py-1 text-[13px] font-semibold backdrop-blur-sm">{f.kicker}</p>}
-          <p className="font-display text-[clamp(30px,9vw,40px)] font-semibold leading-[1.04]" data-story-headline>
-            {f.head}
-          </p>
-          {f.line && <p className="mt-2 font-hand text-[24px] font-bold leading-tight text-[#ffd9a8]">{f.line}</p>}
-        </div>
+        <Words kicker={f.kicker} head={f.head} line={f.line} />
       </>
     );
-  const bg = TONE[f.tone];
+  const accent = TONE[f.tone];
   if (f.kind === "poster")
     return (
-      <div className="absolute inset-0 text-[#17150f]" style={{ background: bg }}>
-        <div className="lp-slide-in pointer-events-none flex h-full flex-col justify-center px-7 pb-[140px] pt-24">
-          <p className="font-display text-[20px] font-semibold">{f.kicker}</p>
-          <p className="mt-3 break-words font-display font-semibold leading-[0.95] tracking-[-0.02em]" style={{ fontSize: `min(84px, ${Math.floor(170 / Math.max(5, f.big.length))}vw)` }} data-story-headline>
+      <div className="absolute inset-0 text-[#f7f4ec]">
+        <Backdrop accent={accent} />
+        <div className="lp-slide-in pointer-events-none relative flex h-full flex-col justify-center px-7 pb-[140px] pt-24">
+          <p className="text-[13px] font-semibold uppercase tracking-[0.22em]" style={{ color: accent }}>
+            {f.kicker}
+          </p>
+          <p className="mt-4 break-words font-display font-semibold leading-[0.95] tracking-[-0.02em]" style={{ fontSize: `min(84px, ${Math.floor(170 / Math.max(5, f.big.length))}vw)` }} data-story-headline>
             {f.big}
           </p>
-          {f.line && <p className="mt-4 font-hand text-[26px] font-bold leading-tight">{f.line}</p>}
+          <span aria-hidden className="mt-5 block h-[3px] w-14 rounded-full" style={{ background: accent }} />
+          {f.line && <p className="mt-4 font-hand text-[26px] font-bold leading-tight text-[#f7f4ec]/85">{f.line}</p>}
         </div>
       </div>
     );
   return (
-    <div className="absolute inset-0 text-[#17150f]" style={{ background: bg }}>
-      <div className="lp-slide-in pointer-events-none flex h-full flex-col justify-center px-7 pb-[140px] pt-24">
-        <p className="font-display text-[26px] font-semibold" data-story-headline>
+    <div className="absolute inset-0 text-[#f7f4ec]">
+      <Backdrop accent={accent} />
+      <div className="lp-slide-in pointer-events-none relative flex h-full flex-col justify-center px-7 pb-[140px] pt-24">
+        <p className="text-[13px] font-semibold uppercase tracking-[0.22em]" style={{ color: accent }} data-story-headline>
           {f.kicker}
         </p>
         <ul className="mt-5 space-y-2.5">
           {f.rows.map((r, k) => (
-            <li key={k} className="lp-card rounded-[14px] bg-[#fffdf6]/80 px-4 py-2.5" style={{ animationDelay: `${k * 60}ms` }}>
+            <li key={k} className="lp-card rounded-[16px] border border-[#f7f4ec]/10 bg-[#f7f4ec]/[0.06] px-4 py-3 backdrop-blur-sm" style={{ animationDelay: `${k * 60}ms` }}>
               <p className="flex items-baseline gap-3 text-[17px]">
                 <span className="min-w-0 flex-1 truncate font-semibold">{r.label}</span>
-                {r.value && <span className={`shrink-0 font-semibold tabular-nums ${r.good ? "text-[#1d7a4b]" : r.bad ? "text-[#b4462a]" : ""}`}>{r.value}</span>}
+                {r.value && <span className={`shrink-0 font-semibold tabular-nums ${r.good ? "text-[#6fe3a8]" : r.bad ? "text-[#f2a07b]" : "text-[#f7f4ec]/80"}`}>{r.value}</span>}
               </p>
               {r.share !== undefined && (
-                <span className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-[#17150f]/10">
-                  <span className="block h-full rounded-full" style={{ width: `${Math.max(4, r.share * 100)}%`, background: r.good ? "#1d7a4b" : r.bad ? "#b4462a" : "#17150f" }} />
+                <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-[#f7f4ec]/10">
+                  <span className="block h-full rounded-full" style={{ width: `${Math.max(4, r.share * 100)}%`, background: r.good ? "#6fe3a8" : r.bad ? "#f2a07b" : accent }} />
                 </span>
               )}
             </li>
           ))}
         </ul>
-        {f.line && <p className="mt-4 font-hand text-[24px] font-bold leading-tight">{f.line}</p>}
+        {f.line && <p className="mt-4 font-hand text-[24px] font-bold leading-tight text-[#f7f4ec]/85">{f.line}</p>}
       </div>
     </div>
   );
@@ -226,16 +221,10 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
     return () => clearTimeout(t);
   }, [at, paused, still, stories.length, next]);
 
-  // Load the next few pictures before they're needed.
-  useEffect(() => {
-    const upcoming = [...frames.slice(at.f + 1), ...(stories[at.s + 1]?.frames ?? [])].filter((f) => f.kind === "photo").slice(0, 3);
-    for (const f of upcoming) if (f.kind === "photo") new Image().src = f.photo;
-  }, [at, frames, stories]);
-
   if (!story) return null;
   const f = frames[Math.min(at.f, frames.length - 1)];
-  const dark = !f || f.kind === "photo";
-  const ink = dark ? "#f7f4ec" : "#17150f";
+  // Every slide is dark now (photos, artwork, posters), so the controls are always light.
+  const ink = "#f7f4ec";
   return (
     <div className="fixed inset-0 z-[60] bg-black" role="dialog" aria-modal="true" aria-label={`Story: ${story.headline}`}>
       <div
@@ -251,7 +240,7 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
         }}
         onPointerCancel={() => setPaused(false)}
       >
-        {f ? <Slide key={`${at.s}-${at.f}`} f={f} /> : <Picture s={story} uid={`sv-${story.id}`} big />}
+        {f ? <Slide key={`${at.s}-${at.f}`} f={f} uid={`sl-${story.id}-${at.f}`} /> : <Picture s={story} uid={`sv-${story.id}`} big />}
 
         {/* Progress: one bar per slide of this story. */}
         <div className="absolute inset-x-3 top-[max(12px,env(safe-area-inset-top))] z-20 flex gap-1" aria-hidden>
@@ -272,7 +261,7 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
           </span>
           <span className="text-sm font-semibold">{story.label}</span>
         </div>
-        <button type="button" onClick={close} aria-label="Close" className="absolute right-3 top-[max(22px,calc(env(safe-area-inset-top)+10px))] z-30 flex h-10 w-10 items-center justify-center rounded-full text-xl" style={{ color: ink, background: dark ? "rgba(0,0,0,0.35)" : "rgba(23,21,15,0.08)" }}>
+        <button type="button" onClick={close} aria-label="Close" className="absolute right-3 top-[max(22px,calc(env(safe-area-inset-top)+10px))] z-30 flex h-10 w-10 items-center justify-center rounded-full text-xl" style={{ color: ink, background: "rgba(0,0,0,0.35)" }}>
           ×
         </button>
 
@@ -282,7 +271,7 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
 
         {/* One thing to do next, on every slide. */}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 px-6 pb-[max(28px,env(safe-area-inset-bottom))]">
-          <Link href={story.href} replace className="pop pointer-events-auto relative block px-4 py-3.5 text-center text-base font-semibold [--pop-edge:#6e6b63]" style={{ background: dark ? "#f4f1e8" : "#17150f", color: dark ? "#14130f" : "#f7f4ec" }}>
+          <Link href={story.href} replace className="pop pointer-events-auto relative block px-4 py-3.5 text-center text-base font-semibold [--pop-edge:#6e6b63]" style={{ background: "#f4f1e8", color: "#14130f" }}>
             {story.cta}
           </Link>
           <p className="mt-2 text-center text-[11px]" style={{ color: `${ink}99` }}>

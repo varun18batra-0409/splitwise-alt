@@ -1,4 +1,5 @@
 import Link from "@/components/Link";
+import { PeoplePassportsIcon } from "@/components/DrawnIcons";
 import { getAccount } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
 import { todayKey } from "@/lib/dates";
@@ -30,7 +31,7 @@ export default async function FriendsPassports() {
       const { db } = await import("@/lib/db");
       const a = await db.account.findUnique({ where: { id: f.accountId }, select: { id: true, homeCountry: true, places: true, passportShare: true } });
       if (!a || a.passportShare === "private") return { ...f, private: true, countries: [] as string[], stats: null };
-      const p = await loadPassport(a, "", today);
+      const p = await loadPassport(a, "", today, { forFriend: true });
       return { ...f, private: false, countries: p.index.map((r) => r.code), stats: p.stats };
     }),
   );
@@ -41,9 +42,9 @@ export default async function FriendsPassports() {
       <p className="-mt-2 mb-4 text-sm text-gray-500">Everyone you’ve shared a group with. Tap anyone to flip through their stamps.</p>
       {owners.length === 0 ? (
         <div className="rounded-2xl bg-mist px-5 py-8 text-center">
-          <p className="text-3xl" aria-hidden>
-            🛂
-          </p>
+          <span aria-hidden className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-owed/40 text-owed">
+            <PeoplePassportsIcon size={26} />
+          </span>
           <p className="mt-2 font-semibold">No friends here yet</p>
           <p className="mt-1 text-sm text-gray-500">When friends join your groups on Loopin, their passports show up here.</p>
           <Link href="/groups/new" className="mt-5 inline-block text-sm font-semibold underline underline-offset-4">
@@ -60,7 +61,7 @@ export default async function FriendsPassports() {
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">{f.name}</span>
                     <span className="block truncate text-xs text-gray-400">
-                      {f.private ? "Keeps their passport private" : f.stats ? `${f.stats.countries} ${f.stats.countries === 1 ? "country" : "countries"} · ${f.stats.cities} ${f.stats.cities === 1 ? "city" : "cities"}` : ""}
+                      {f.private ? "Keeps their passport private" : f.stats ? [f.stats.countries ? `${f.stats.countries} ${f.stats.countries === 1 ? "country" : "countries"}` : "", f.stats.cities ? `${f.stats.cities} ${f.stats.cities === 1 ? "city" : "cities"}` : ""].filter(Boolean).join(" · ") : ""}
                       {" · "}
                       {f.groups.slice(0, 2).join(", ")}
                       {f.groups.length > 2 ? ` +${f.groups.length - 2}` : ""}

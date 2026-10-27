@@ -73,6 +73,7 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
         initial={initial}
         weights={groupWeights}
         splitName={splitNameFor(group.type)}
+        spin={group.type !== "pot"}
       />
 
       <form action={deleteExpense} className="mt-10 border-t border-gray-100 pt-6">

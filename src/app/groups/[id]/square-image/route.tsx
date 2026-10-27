@@ -32,7 +32,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
           </div>
           <div style={{ display: "flex", padding: "18px 6px 30px", fontSize: 56, color: "#26231d" }}>{group.name.slice(0, 28)}</div>
         </div>
-        <div style={{ marginTop: 110, display: "flex", fontSize: 150, fontWeight: 700, letterSpacing: -4 }}>All square 🎉</div>
+        <div style={{ marginTop: 110, display: "flex", fontSize: 150, fontWeight: 700, letterSpacing: -4 }}>All square</div>
         <div style={{ marginTop: 22, display: "flex", fontSize: 54, color: "#ffd9a8" }}>Nobody owes anybody.</div>
         <div style={{ marginTop: 80, display: "flex", gap: 28 }}>
           {stats.map(([v, l]) => (

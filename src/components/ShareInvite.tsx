@@ -15,7 +15,7 @@ export function ShareInvite({ code, groupName }: { code: string; groupName: stri
   async function share() {
     if (navigator.share) {
       try {
-        await navigator.share({ title: groupName, text: `Join "${groupName}" to split expenses`, url: link });
+        await navigator.share({ title: groupName, text: `You’re invited to “${groupName}” on Loopin. Tap to join:`, url: link });
         return;
       } catch {
         // person closed the share sheet — fall through to copy
@@ -31,15 +31,8 @@ export function ShareInvite({ code, groupName }: { code: string; groupName: stri
   }
 
   return (
-    <div className="border border-line bg-white p-4">
-      <p className="truncate font-mono text-[13px] text-gray-500">{link.replace(/^https?:\/\//, "")}</p>
-      <button
-        type="button"
-        onClick={share}
-        className="pop mt-3 w-full bg-fg px-4 py-3 text-[15px] font-semibold tracking-wide text-canvas"
-      >
-        {copied ? "Link copied" : "Share invite link"}
-      </button>
-    </div>
+    <button type="button" onClick={share} className="block w-full rounded-none border border-line px-4 py-3 text-center text-sm font-semibold text-fg active:bg-mist" data-share-invite>
+      {copied ? "Link copied" : "More ways to share"}
+    </button>
   );
 }

@@ -7,7 +7,7 @@ export function nudgeMessage(name: string, amountText: string, groupName: string
   const lines = [`Hey ${name}! 👋 Quick one from Loopin: you owe me ${amountText} for “${groupName}”. Settle whenever you can, thanks!`];
   if (extra?.ways?.upiId) lines.push(`UPI: ${extra.ways.upiId}`);
   if (extra?.ways?.payLink) lines.push(`${payLinkLabel(extra.ways.payLink)}: ${extra.ways.payLink}`);
-  if (extra?.link) lines.push(`Paid? Mark it here: ${extra.link}`);
+  if (extra?.link) lines.push(`Paid? Tap “I’ve paid” here, no sign-in needed:\n${extra.link}`);
   return lines.join("\n");
 }
 

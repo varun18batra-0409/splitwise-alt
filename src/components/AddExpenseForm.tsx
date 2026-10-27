@@ -41,6 +41,7 @@ export function AddExpenseForm({
   tz,
   weights,
   splitName = "Group split",
+  spin = true,
   billRun,
 }: {
   groupId: string;
@@ -53,6 +54,7 @@ export function AddExpenseForm({
   tz?: string; // the person's time zone, for "today"
   weights?: Record<string, number>; // the group's own split (hundredths of a share); all equal = none
   splitName?: string; // "Our split" (couple), "Flat split" (home)…
+  spin?: boolean; // Spin for it (every group but card nights)
   billRun?: { billId: string; period: string }; // "Enter amount" for a waiting bill
 }) {
   const memberIds = useMemo(() => members.map((m) => m.id), [members]);
@@ -392,7 +394,7 @@ export function AddExpenseForm({
         <div>
           <div className="flex items-start justify-between gap-3">
             <span className={labelClass}>{kind === "refund" ? "Who got the money?" : "Who paid?"}</span>
-            {kind === "expense" && (
+            {kind === "expense" && spin && (
               <SpinWheel
                 people={members.map((m) => ({ id: m.id, label: who(m.id) }))}
                 onPick={(id) => {

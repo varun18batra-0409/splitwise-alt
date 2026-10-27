@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { TrophyIcon } from "@/components/DrawnIcons";
 import Link from "@/components/Link";
 import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
@@ -199,7 +200,9 @@ export default async function GamePage({ params, searchParams }: { params: Promi
           </>
         ) : (
           <>
-            <p className="mt-2 font-display text-[34px] font-semibold leading-none">Game over 🏆</p>
+            <p className="mt-2 flex items-center gap-2.5 font-display text-[34px] font-semibold leading-none">
+              Game over <TrophyIcon size={30} className="text-[#e8d29a]" />
+            </p>
             <p className="mt-1.5 font-hand text-[21px] font-bold leading-none text-[#ffd9a8]">
               {ranked[0] && ranked[0].net > 0 ? `${you(ranked[0].memberId)} won ${money(ranked[0].net)}` : "everyone broke even"}
             </p>

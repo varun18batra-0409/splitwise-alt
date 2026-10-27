@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { PassportIcon } from "@/components/DrawnIcons";
 import Link from "@/components/Link";
 import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
@@ -21,9 +22,9 @@ export default async function MemberPassport({ params }: { params: Promise<{ id:
     <>
       <PageHeader title={`${first}’s passport`} back={`/groups/${id}?tab=balances`} />
       <div className="rounded-2xl bg-mist px-5 py-8 text-center">
-        <p className="text-3xl" aria-hidden>
-          🛂
-        </p>
+        <span aria-hidden className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-owed/40 text-owed">
+          <PassportIcon size={26} />
+        </span>
         <p className="mt-2 font-semibold">{first} isn’t on Loopin yet</p>
         <p className="mt-1 text-sm text-gray-500">Their passport starts when they join.</p>
         <Link href={`/groups/${id}/people`} className="mt-5 inline-block text-sm font-semibold underline underline-offset-4">
