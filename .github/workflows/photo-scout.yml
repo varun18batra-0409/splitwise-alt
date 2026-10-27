@@ -1,0 +1,68 @@
+name: Photo scout
+on:
+  push:
+    branches: [check-names]
+    paths: [.github/workflows/photo-scout.yml]
+permissions:
+  contents: write
+jobs:
+  scout:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get install -y imagemagick >/dev/null 2>&1 || true
+      - run: |
+          mkdir -p scout && cd scout
+          q() { python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))" "$1"; }
+          while IFS='|' read -r slot query; do
+            [ -z "$slot" ] && continue
+            curl -s -A "Mozilla/5.0" "https://unsplash.com/napi/search/photos?query=$(q "$query")&per_page=12&orientation=portrait" -o "$slot.json"
+            echo "== $slot ($query): $(jq '.results|length' "$slot.json" 2>/dev/null)"
+            jq -r '.results[]? | select(.premium != true and .plus != true) | [.urls.raw, (.alt_description // "" | .[0:60]), (.likes|tostring)] | @tsv' "$slot.json" | head -8 > "$slot.tsv"
+            i=0; files=""
+            while IFS=$'\t' read -r raw alt likes; do
+              i=$((i+1)); id=$(echo "$raw" | sed -E 's#https://images.unsplash.com/(photo-[^?]+).*#\1#')
+              echo "$slot $i $id $likes $alt"
+              curl -s "${raw}&w=360&h=480&fit=crop&q=60&fm=jpg" -o "$slot-$i.jpg" && files="$files $slot-$i.jpg"
+              convert "$slot-$i.jpg" -gravity south -background black -splice 0x34 -fill white -pointsize 20 -annotate +0+6 "$i ${id:6:22}" "$slot-$i.jpg" 2>/dev/null
+            done < "$slot.tsv"
+            [ -n "$files" ] && montage $files -tile 8x1 -geometry 270x386+4+4 -background '#111' -title "$slot: $query" -fill white -pointsize 22 "sheet-$slot.jpg"
+            rm -f $slot-*.jpg
+          done <<'LIST'
+          place-pune|pune india
+          place-lonavala|lonavala monsoon
+          place-mumbai|mumbai marine drive
+          place-delhi|india gate delhi
+          place-bangalore|bangalore city
+          place-hyderabad|charminar hyderabad
+          place-kolkata|howrah bridge kolkata
+          place-chennai|chennai marina
+          place-coorg|coorg coffee hills
+          place-pondicherry|pondicherry french quarter
+          place-hampi|hampi
+          place-varanasi|varanasi ghats
+          place-darjeeling|darjeeling tea
+          place-ooty|ooty nilgiri
+          place-mysore|mysore palace
+          place-gokarna|gokarna beach
+          place-alibaug|alibaug beach
+          place-mahabaleshwar|mahabaleshwar
+          place-kodaikanal|kodaikanal lake
+          place-sikkim|gangtok sikkim
+          place-kashmir|kashmir srinagar dal lake
+          place-amritsar|golden temple amritsar
+          place-udaipur|udaipur lake palace
+          place-jaisalmer|jaisalmer desert
+          place-nainital|nainital lake
+          place-chikmagalur|chikmagalur
+          place-kutch|rann of kutch
+          place-corbett|jim corbett forest
+          place-ahmedabad|ahmedabad
+          place-matheran|western ghats monsoon green
+          cover-road-in|india highway road trip mountains
+          place-mussoorie|mussoorie hills
+          LIST
+      - run: |
+          git config user.name scout && git config user.email scout@users.noreply.github.com
+          git checkout -B photo-scout
+          git add scout && git commit -qm "Photo scout" && git push -f origin photo-scout
