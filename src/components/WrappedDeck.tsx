@@ -63,7 +63,7 @@ export function WrappedDeck({
 
       <div className="absolute inset-x-3 top-3 z-20 flex gap-1" aria-hidden>
         {slides.map((x, k) => (
-          <span key={k} className={`h-[3px] flex-1 rounded-full ${k <= i ? "bg-white" : "bg-white/30"}`} />
+          <span key={k} className={`h-[3px] flex-1 rounded-full ${k <= i ? "bg-[#f7f4ec]" : "bg-[#f7f4ec]/30"}`} />
         ))}
       </div>
 
@@ -77,7 +77,7 @@ export function WrappedDeck({
       {!last && <button type="button" aria-label="Next" onClick={() => setI((x) => x + 1)} className="absolute inset-y-0 right-0 z-10 w-2/3" />}
 
       <div className="absolute inset-x-0 bottom-0 z-20 px-6 pb-7">
-        <p className="font-display text-[34px] font-semibold leading-[1.05] text-white" data-wrapped-headline>
+        <p className="font-display text-[34px] font-semibold leading-[1.05] text-[#f7f4ec]" data-wrapped-headline>
           {s.headline}
         </p>
         <p className="mt-2 whitespace-pre-line font-hand text-[23px] font-bold leading-snug text-[#ffd9a8]">{s.line}</p>
@@ -91,12 +91,12 @@ export function WrappedDeck({
               label="Share it"
               className="pop block w-full bg-[#f4f1e8] px-4 py-3.5 text-center text-base font-semibold text-[#14130f] [--pop-edge:#6e6b63]"
             />
-            <Link href={settleHref ?? `/groups/${groupId}`} className="block py-2 text-center text-sm font-semibold text-white/80 underline underline-offset-4">
+            <Link href={settleHref ?? `/groups/${groupId}`} className="block py-2 text-center text-sm font-semibold text-[#f7f4ec]/80 underline underline-offset-4">
               {settleHref ? "Settle up" : `Back to ${groupName}`}
             </Link>
           </div>
         ) : (
-          <p className="mt-6 text-center text-xs text-white/50">Tap for more</p>
+          <p className="mt-6 text-center text-xs text-[#f7f4ec]/50">Tap for more</p>
         )}
       </div>
     </section>

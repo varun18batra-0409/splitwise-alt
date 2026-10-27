@@ -2162,7 +2162,7 @@ async function main() {
     await d.getByRole("button", { name: "Spin", exact: true }).click();
     const set = d.getByRole("button", { name: /^Set .+ as payer$/ });
     await set.waitFor({ timeout: 8000 });
-    const who = ((await set.textContent()) ?? "").replace(/^Set | as payer$/g, "");
+    const who = ((await set.textContent()) ?? "").replace(/^Set | as payer$/g, "").replace(/^yourself$/, "You");
     await set.click();
     await V.getByRole("button", { name: new RegExp(`✓ ${who}`) }).waitFor();
   });

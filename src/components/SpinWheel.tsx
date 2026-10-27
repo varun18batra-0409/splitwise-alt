@@ -21,6 +21,7 @@ export function SpinWheel({ people, onPick }: { people: { id: string; label: str
   if (people.length < 2) return null;
 
   const n = people.length;
+  const label = (id: string) => people.find((p) => p.id === id)?.label ?? "";
   const slice = 360 / n;
   function spin() {
     if (spinning) return;
@@ -81,7 +82,7 @@ export function SpinWheel({ people, onPick }: { people: { id: string; label: str
                 </svg>
               </div>
               <p className="mt-4 min-h-[32px] font-hand text-[26px] font-bold text-[#ffd9a8]" role="status" data-spin-winner={winner ?? ""}>
-                {winner ? `${people.find((p) => p.id === winner)?.label} pays! 🎉` : spinning ? "Round and round…" : "Tap spin. No take-backs 😏"}
+                {winner ? (label(winner) === "You" ? "You pay! 🎉" : `${label(winner)} pays! 🎉`) : spinning ? "Round and round…" : "Tap spin. No take-backs 😏"}
               </p>
               {winner ? (
                 <button
@@ -92,7 +93,7 @@ export function SpinWheel({ people, onPick }: { people: { id: string; label: str
                   }}
                   className="pop mt-3 block w-full bg-fg px-4 py-3 text-center font-semibold text-canvas [--pop-edge:#6e6b63]"
                 >
-                  Set {people.find((p) => p.id === winner)?.label} as payer
+                  {label(winner) === "You" ? "Set yourself as payer" : `Set ${label(winner)} as payer`}
                 </button>
               ) : (
                 <button type="button" onClick={spin} disabled={spinning} className="pop mt-3 block w-full bg-fg px-4 py-3 text-center font-semibold text-canvas [--pop-edge:#6e6b63] disabled:opacity-60">

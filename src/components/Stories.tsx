@@ -173,16 +173,16 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
         {/* Progress, one bar per story. */}
         <div className="absolute inset-x-3 top-[max(12px,env(safe-area-inset-top))] z-20 flex gap-1" aria-hidden>
           {stories.map((x, k) => (
-            <span key={x.id} className="h-[3px] flex-1 overflow-hidden rounded-full bg-white/30">
+            <span key={x.id} className="h-[3px] flex-1 overflow-hidden rounded-full bg-[#f7f4ec]/30">
               <span
                 key={`${k}-${i}`}
-                className={`block h-full bg-white ${k < i ? "w-full" : k > i ? "w-0" : still ? "w-full" : "lp-story-bar"}`}
+                className={`block h-full bg-[#f7f4ec] ${k < i ? "w-full" : k > i ? "w-0" : still ? "w-full" : "lp-story-bar"}`}
                 style={k === i && !still ? { animationDuration: `${DURATION}ms`, animationPlayState: paused ? "paused" : "running" } : undefined}
               />
             </span>
           ))}
         </div>
-        <button type="button" onClick={close} aria-label="Close" className="absolute right-3 top-[max(26px,calc(env(safe-area-inset-top)+14px))] z-30 flex h-10 w-10 items-center justify-center rounded-full bg-black/35 text-xl text-white">
+        <button type="button" onClick={close} aria-label="Close" className="absolute right-3 top-[max(26px,calc(env(safe-area-inset-top)+14px))] z-30 flex h-10 w-10 items-center justify-center rounded-full bg-black/35 text-xl text-[#f7f4ec]">
           ×
         </button>
 
@@ -191,7 +191,7 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
         <button type="button" aria-label="Next" onClick={() => setI((x) => x + 1)} className="absolute inset-y-0 right-0 z-10 w-2/3" />
 
         <div className="absolute inset-x-0 bottom-0 z-20 px-6 pb-[max(28px,env(safe-area-inset-bottom))]">
-          <p className="font-display text-[34px] font-semibold leading-[1.05] text-white" data-story-headline>
+          <p className="font-display text-[34px] font-semibold leading-[1.05] text-[#f7f4ec]" data-story-headline>
             {s.headline}
           </p>
           <p className="mt-2 font-hand text-[24px] font-bold leading-tight text-[#ffd9a8]">{s.line}</p>
