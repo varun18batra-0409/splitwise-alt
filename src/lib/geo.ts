@@ -8,21 +8,66 @@ export type Country = { code: string; name: string; flag: string };
 const flag = (code: string) => String.fromCodePoint(...[...code.toUpperCase()].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65));
 const C = (code: string, name: string): Country => ({ code, name, flag: flag(code) });
 
-// Countries people travel to most from our markets (picked from a list, so names are always right).
+// Every country (and the places people fly to that have their own flag), A to Z.
+// Picked from a list, so names are always right.
 export const COUNTRIES: Country[] = [
-  C("IN", "India"), C("US", "United States"), C("GB", "United Kingdom"), C("CA", "Canada"), C("AU", "Australia"), C("NZ", "New Zealand"),
-  C("SG", "Singapore"), C("AE", "UAE"), C("TH", "Thailand"), C("ID", "Indonesia"), C("MY", "Malaysia"), C("VN", "Vietnam"),
-  C("LK", "Sri Lanka"), C("MV", "Maldives"), C("NP", "Nepal"), C("BT", "Bhutan"), C("JP", "Japan"), C("KR", "South Korea"),
-  C("CN", "China"), C("HK", "Hong Kong"), C("PH", "Philippines"), C("KH", "Cambodia"), C("TR", "Turkey"), C("GR", "Greece"),
-  C("IT", "Italy"), C("FR", "France"), C("ES", "Spain"), C("PT", "Portugal"), C("DE", "Germany"), C("NL", "Netherlands"),
-  C("CH", "Switzerland"), C("AT", "Austria"), C("CZ", "Czechia"), C("HU", "Hungary"), C("IE", "Ireland"), C("IS", "Iceland"),
-  C("NO", "Norway"), C("SE", "Sweden"), C("DK", "Denmark"), C("FI", "Finland"), C("BE", "Belgium"), C("PL", "Poland"),
-  C("HR", "Croatia"), C("EG", "Egypt"), C("ZA", "South Africa"), C("KE", "Kenya"), C("TZ", "Tanzania"), C("MA", "Morocco"),
-  C("MU", "Mauritius"), C("SC", "Seychelles"), C("QA", "Qatar"), C("OM", "Oman"), C("SA", "Saudi Arabia"), C("JO", "Jordan"),
-  C("IL", "Israel"), C("MX", "Mexico"), C("BR", "Brazil"), C("AR", "Argentina"), C("PE", "Peru"), C("CL", "Chile"),
-  C("CO", "Colombia"), C("CR", "Costa Rica"), C("CU", "Cuba"), C("JM", "Jamaica"), C("BS", "Bahamas"), C("RU", "Russia"),
-  C("GE", "Georgia"), C("AZ", "Azerbaijan"), C("UZ", "Uzbekistan"), C("KZ", "Kazakhstan"), C("TW", "Taiwan"), C("FJ", "Fiji"),
+  C("AF", "Afghanistan"), C("AX", "Åland Islands"), C("AL", "Albania"), C("DZ", "Algeria"), C("AS", "American Samoa"), C("AD", "Andorra"),
+  C("AO", "Angola"), C("AI", "Anguilla"), C("AQ", "Antarctica"), C("AG", "Antigua & Barbuda"), C("AR", "Argentina"), C("AM", "Armenia"),
+  C("AW", "Aruba"), C("AU", "Australia"), C("AT", "Austria"), C("AZ", "Azerbaijan"), C("BS", "Bahamas"), C("BH", "Bahrain"), C("BD", "Bangladesh"),
+  C("BB", "Barbados"), C("BY", "Belarus"), C("BE", "Belgium"), C("BZ", "Belize"), C("BJ", "Benin"), C("BM", "Bermuda"), C("BT", "Bhutan"),
+  C("BO", "Bolivia"), C("BA", "Bosnia & Herzegovina"), C("BW", "Botswana"), C("BR", "Brazil"), C("VG", "British Virgin Islands"), C("BN", "Brunei"),
+  C("BG", "Bulgaria"), C("BF", "Burkina Faso"), C("BI", "Burundi"), C("KH", "Cambodia"), C("CM", "Cameroon"), C("CA", "Canada"),
+  C("CV", "Cape Verde"), C("BQ", "Caribbean Netherlands"), C("KY", "Cayman Islands"), C("CF", "Central African Republic"), C("TD", "Chad"),
+  C("CL", "Chile"), C("CN", "China"), C("CO", "Colombia"), C("KM", "Comoros"), C("CG", "Congo"), C("CK", "Cook Islands"), C("CR", "Costa Rica"),
+  C("CI", "Côte d’Ivoire"), C("HR", "Croatia"), C("CU", "Cuba"), C("CW", "Curaçao"), C("CY", "Cyprus"), C("CZ", "Czechia"), C("DK", "Denmark"),
+  C("DJ", "Djibouti"), C("DM", "Dominica"), C("DO", "Dominican Republic"), C("CD", "DR Congo"), C("EC", "Ecuador"), C("EG", "Egypt"),
+  C("SV", "El Salvador"), C("GQ", "Equatorial Guinea"), C("ER", "Eritrea"), C("EE", "Estonia"), C("SZ", "Eswatini"), C("ET", "Ethiopia"),
+  C("FK", "Falkland Islands"), C("FO", "Faroe Islands"), C("FJ", "Fiji"), C("FI", "Finland"), C("FR", "France"), C("GF", "French Guiana"),
+  C("PF", "French Polynesia"), C("GA", "Gabon"), C("GM", "Gambia"), C("GE", "Georgia"), C("DE", "Germany"), C("GH", "Ghana"), C("GI", "Gibraltar"),
+  C("GR", "Greece"), C("GL", "Greenland"), C("GD", "Grenada"), C("GP", "Guadeloupe"), C("GU", "Guam"), C("GT", "Guatemala"), C("GG", "Guernsey"),
+  C("GN", "Guinea"), C("GW", "Guinea-Bissau"), C("GY", "Guyana"), C("HT", "Haiti"), C("HN", "Honduras"), C("HK", "Hong Kong"), C("HU", "Hungary"),
+  C("IS", "Iceland"), C("IN", "India"), C("ID", "Indonesia"), C("IR", "Iran"), C("IQ", "Iraq"), C("IE", "Ireland"), C("IM", "Isle of Man"),
+  C("IL", "Israel"), C("IT", "Italy"), C("JM", "Jamaica"), C("JP", "Japan"), C("JE", "Jersey"), C("JO", "Jordan"), C("KZ", "Kazakhstan"),
+  C("KE", "Kenya"), C("KI", "Kiribati"), C("XK", "Kosovo"), C("KW", "Kuwait"), C("KG", "Kyrgyzstan"), C("LA", "Laos"), C("LV", "Latvia"),
+  C("LB", "Lebanon"), C("LS", "Lesotho"), C("LR", "Liberia"), C("LY", "Libya"), C("LI", "Liechtenstein"), C("LT", "Lithuania"),
+  C("LU", "Luxembourg"), C("MO", "Macau"), C("MG", "Madagascar"), C("MW", "Malawi"), C("MY", "Malaysia"), C("MV", "Maldives"), C("ML", "Mali"),
+  C("MT", "Malta"), C("MH", "Marshall Islands"), C("MQ", "Martinique"), C("MR", "Mauritania"), C("MU", "Mauritius"), C("YT", "Mayotte"),
+  C("MX", "Mexico"), C("FM", "Micronesia"), C("MD", "Moldova"), C("MC", "Monaco"), C("MN", "Mongolia"), C("ME", "Montenegro"), C("MS", "Montserrat"),
+  C("MA", "Morocco"), C("MZ", "Mozambique"), C("MM", "Myanmar"), C("NA", "Namibia"), C("NR", "Nauru"), C("NP", "Nepal"), C("NL", "Netherlands"),
+  C("NC", "New Caledonia"), C("NZ", "New Zealand"), C("NI", "Nicaragua"), C("NE", "Niger"), C("NG", "Nigeria"), C("NU", "Niue"),
+  C("KP", "North Korea"), C("MK", "North Macedonia"), C("MP", "Northern Mariana Islands"), C("NO", "Norway"), C("OM", "Oman"), C("PK", "Pakistan"),
+  C("PW", "Palau"), C("PS", "Palestine"), C("PA", "Panama"), C("PG", "Papua New Guinea"), C("PY", "Paraguay"), C("PE", "Peru"),
+  C("PH", "Philippines"), C("PL", "Poland"), C("PT", "Portugal"), C("PR", "Puerto Rico"), C("QA", "Qatar"), C("RE", "Réunion"), C("RO", "Romania"),
+  C("RU", "Russia"), C("RW", "Rwanda"), C("WS", "Samoa"), C("SM", "San Marino"), C("ST", "São Tomé & Príncipe"), C("SA", "Saudi Arabia"),
+  C("SN", "Senegal"), C("RS", "Serbia"), C("SC", "Seychelles"), C("SL", "Sierra Leone"), C("SG", "Singapore"), C("SX", "Sint Maarten"),
+  C("SK", "Slovakia"), C("SI", "Slovenia"), C("SB", "Solomon Islands"), C("SO", "Somalia"), C("ZA", "South Africa"), C("KR", "South Korea"),
+  C("SS", "South Sudan"), C("ES", "Spain"), C("LK", "Sri Lanka"), C("BL", "St. Barthélemy"), C("SH", "St. Helena"), C("KN", "St. Kitts & Nevis"),
+  C("LC", "St. Lucia"), C("MF", "St. Martin"), C("PM", "St. Pierre & Miquelon"), C("VC", "St. Vincent & Grenadines"), C("SD", "Sudan"),
+  C("SR", "Suriname"), C("SE", "Sweden"), C("CH", "Switzerland"), C("SY", "Syria"), C("TW", "Taiwan"), C("TJ", "Tajikistan"), C("TZ", "Tanzania"),
+  C("TH", "Thailand"), C("TL", "Timor-Leste"), C("TG", "Togo"), C("TO", "Tonga"), C("TT", "Trinidad & Tobago"), C("TN", "Tunisia"),
+  C("TR", "Turkey"), C("TM", "Turkmenistan"), C("TC", "Turks & Caicos Islands"), C("TV", "Tuvalu"), C("VI", "U.S. Virgin Islands"),
+  C("UG", "Uganda"), C("UA", "Ukraine"), C("AE", "United Arab Emirates"), C("GB", "United Kingdom"), C("US", "United States"), C("UY", "Uruguay"),
+  C("UZ", "Uzbekistan"), C("VU", "Vanuatu"), C("VA", "Vatican City"), C("VE", "Venezuela"), C("VN", "Vietnam"), C("WF", "Wallis & Futuna"),
+  C("EH", "Western Sahara"), C("YE", "Yemen"), C("ZM", "Zambia"), C("ZW", "Zimbabwe"),
 ];
+
+// Other names people search for.
+const ALSO: Record<string, string> = {
+  AE: "uae emirates dubai abu dhabi", GB: "uk britain great britain england scotland wales", US: "usa america united states of america",
+  TR: "turkiye türkiye", CZ: "czech republic", NL: "holland", KR: "korea", KP: "korea", CI: "ivory coast", CV: "cabo verde", SZ: "swaziland",
+  MK: "macedonia", MM: "burma", TL: "east timor", VA: "vatican holy see", BA: "bosnia", TT: "trinidad tobago", CD: "congo kinshasa zaire",
+  CG: "congo brazzaville", LA: "lao", RU: "russian federation", VN: "viet nam", HK: "hongkong", MO: "macao",
+};
+const fold = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+// Countries whose name (or another name for them) has the typed words.
+export function searchCountries(q: string, list: Country[] = COUNTRIES): Country[] {
+  const words = fold(q).replace(/[^a-z ]/g, " ").split(/\s+/).filter(Boolean);
+  if (!words.length) return list;
+  return list.filter((c) => {
+    const hay = fold(`${c.name} ${ALSO[c.code] ?? ""} ${c.code}`).replace(/&/g, "and").replace(/\bst\./g, "saint st");
+    return words.every((w) => hay.split(/[^a-z]+/).some((x) => x.startsWith(w)));
+  });
+}
 export const countryOf = (code: string): Country | undefined => COUNTRIES.find((c) => c.code === code.toUpperCase());
 
 // Known places: the words people use → a city name and its country.

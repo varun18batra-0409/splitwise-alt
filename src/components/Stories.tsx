@@ -29,14 +29,14 @@ function writeSeen(s: Set<string>) {
   }
 }
 
-// Each kind's own backdrop when there's no photo.
-const BACKDROP: Record<Story["kind"], string> = {
-  trip: "[background:radial-gradient(120%_80%_at_80%_0%,#2b5d8a_0%,transparent_60%),linear-gradient(170deg,#14273a_0%,#0b1118_85%)]",
-  pot: "[background:radial-gradient(90%_100%_at_100%_0%,#1f6b4a_0%,transparent_60%),linear-gradient(160deg,#123a2a_0%,#0b1612_80%)]",
-  square: "[background:radial-gradient(100%_90%_at_20%_0%,#2f8a62_0%,transparent_60%),linear-gradient(170deg,#173a2b_0%,#0c1511_85%)]",
-  collect: "[background:radial-gradient(100%_90%_at_90%_10%,#8a5a1f_0%,transparent_60%),linear-gradient(170deg,#3a2812_0%,#140f09_85%)]",
-  memory: "[background:radial-gradient(100%_90%_at_10%_10%,#7a6a52_0%,transparent_60%),linear-gradient(170deg,#2e271d_0%,#110f0b_85%)]",
-  wrapped: "[background:radial-gradient(100%_90%_at_80%_10%,#6b3a8a_0%,transparent_60%),linear-gradient(170deg,#2a1838_0%,#0f0a14_85%)]",
+// No photo: a flat, bold poster in the story's own colour, with its big words.
+const POSTER: Record<Story["kind"], string> = {
+  trip: "#8ccfff",
+  pot: "#6fe3a8",
+  square: "#b9f0a0",
+  collect: "#ffd66b",
+  memory: "#ffb38a",
+  wrapped: "#c3aeff",
 };
 
 function Picture({ s, uid, big }: { s: Story; uid: string; big?: boolean }) {
@@ -45,8 +45,9 @@ function Picture({ s, uid, big }: { s: Story; uid: string; big?: boolean }) {
     return <img src={s.photo} alt="" aria-hidden className={`absolute inset-0 h-full w-full object-cover ${big ? "lp-drift" : ""}`} loading={big ? "eager" : "lazy"} decoding="async" />;
   if (s.cover) return <GroupCover kind={s.cover.kind as CoverChoice} src={s.cover.src} uid={uid} sizes={big ? "448px" : "80px"} drift={big} />;
   return (
-    <span aria-hidden className={`absolute inset-0 flex items-center justify-center ${BACKDROP[s.kind]} ${big ? "text-[96px]" : "text-[30px]"}`}>
-      {s.emoji}
+    <span aria-hidden className="absolute inset-0 flex flex-col items-center justify-center px-2 text-center text-[#17150f]" style={{ background: POSTER[s.kind] }}>
+      <span className={big ? "text-[44px] leading-none" : "text-[18px] leading-none"}>{s.emoji}</span>
+      {s.big && <span className={`font-display font-semibold leading-[0.95] tracking-[-0.02em] ${big ? "mt-3 text-[72px]" : "mt-0.5 text-[15px]"}`}>{s.big}</span>}
     </span>
   );
 }

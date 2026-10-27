@@ -47,7 +47,7 @@ export function SpinWheel({ people, onPick }: { people: { id: string; label: str
   const point = (deg: number) => [r + r * Math.sin((deg * Math.PI) / 180), r - r * Math.cos((deg * Math.PI) / 180)];
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className="rounded-full border border-line px-3 py-1 text-xs font-semibold active:bg-mist" aria-haspopup="dialog">
+      <button type="button" onClick={() => setOpen(true)} className="rounded-full border border-[#ffd66b]/45 bg-[#ffd66b]/10 px-3 py-1.5 text-xs font-semibold text-[#ffd66b] active:bg-[#ffd66b]/20" aria-haspopup="dialog">
         🎡 Spin for it
       </button>
       {open &&

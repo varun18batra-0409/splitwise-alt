@@ -17,6 +17,7 @@ export type Story = {
   photo?: string; // a destination photo
   cover?: { kind: string; src?: string }; // the group's own picture
   emoji: string; // when there's no picture
+  big?: string; // the poster's big words when there's no picture ("3 days", "2/5")
   at: number; // when it happened (for ordering)
 };
 
@@ -61,12 +62,13 @@ export function buildStories(i: StoryInput): Story[] {
       photo: t.photo,
       cover: t.cover,
       emoji: "✈️",
+      big: p.kind === "before" ? (p.days === 1 ? "Tomorrow" : `${p.days} days`) : p.kind === "today" ? "Today" : `Day ${p.day}`,
       // Happening now first, then the soonest.
       at: now + (p.kind === "before" ? -p.days * 3_600_000 : 86_400_000),
     });
   }
   for (const w of i.wrapped) {
-    out.push({ id: `wrapped-${w.id}`, kind: "wrapped", label: place(w.name), headline: `${place(w.name)}, wrapped`, line: "Who paid most, the biggest night and more", cta: "Watch it", href: `/groups/${w.id}/wrapped`, photo: w.photo, cover: w.cover, emoji: "🎬", at: now - w.endedDaysAgo * 86_400_000 + 3_600_000 });
+    out.push({ id: `wrapped-${w.id}`, kind: "wrapped", label: place(w.name), headline: `${place(w.name)}, wrapped`, line: "Who paid most, the biggest night and more", cta: "Watch it", href: `/groups/${w.id}/wrapped`, photo: w.photo, cover: w.cover, emoji: "🎬", big: "Wrapped", at: now - w.endedDaysAgo * 86_400_000 + 3_600_000 });
   }
   for (const g of i.games) {
     if (now - g.finishedAt.getTime() > 3 * 86_400_000) continue;
@@ -79,12 +81,13 @@ export function buildStories(i: StoryInput): Story[] {
       cta: "See who pays whom",
       href: `/groups/${g.groupId}/pot/${g.id}`,
       emoji: "🃏",
+      big: g.youWon ?? (g.won || "Even"),
       at: g.finishedAt.getTime(),
     });
   }
   for (const s of i.squared) {
     if (now - s.at.getTime() > 3 * 86_400_000) continue;
-    out.push({ id: `square-${s.id}-${s.at.getTime()}`, kind: "square", label: place(s.name), headline: `${place(s.name)} is all square`, line: "Nobody owes anybody. Nice one 🎉", cta: "Share it", href: `/groups/${s.id}/square`, photo: s.photo, cover: s.cover, emoji: "🎉", at: s.at.getTime() });
+    out.push({ id: `square-${s.id}-${s.at.getTime()}`, kind: "square", label: place(s.name), headline: `${place(s.name)} is all square`, line: "Nobody owes anybody. Nice one 🎉", cta: "Share it", href: `/groups/${s.id}/square`, photo: s.photo, cover: s.cover, emoji: "🎉", big: "All square", at: s.at.getTime() });
   }
   for (const c of i.collections) {
     if (c.people === 0) continue;
@@ -97,6 +100,7 @@ export function buildStories(i: StoryInput): Story[] {
       cta: "Open the collection",
       href: `/c/${c.code}`,
       emoji: "🪙",
+      big: `${c.paid}/${c.people}`,
       at: now - 2 * 86_400_000,
     });
   }
@@ -112,6 +116,7 @@ export function buildStories(i: StoryInput): Story[] {
       photo: m.photo,
       cover: m.cover,
       emoji: "📸",
+      big: m.years === 1 ? "1 year" : `${m.years} years`,
       at: now - 86_400_000,
     });
   }

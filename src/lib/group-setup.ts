@@ -5,11 +5,12 @@ import { logEvent } from "./events";
 import { MAX_PHOTO_BYTES, cleanCover, photoType } from "./covers";
 import { cleanTripDates } from "./countdown";
 import { dayKey, DEFAULT_TIME_ZONE } from "./dates";
+import { countryOf } from "./geo";
 import { isGroupType, parseWeight, sharingInputs, weightsLabel, type GroupType } from "./group-types";
 
 // Creating groups and changing how a group shares costs (database side).
 
-export type NewGroupInput = { type: string; name: string; yourName: string; currency: string; ratio?: number; cover?: string; tripStart?: string; tripEnd?: string; photo?: Uint8Array<ArrayBuffer> };
+export type NewGroupInput = { type: string; name: string; yourName: string; currency: string; ratio?: number; cover?: string; tripStart?: string; tripEnd?: string; tripPlace?: string; tripCountry?: string; photo?: Uint8Array<ArrayBuffer> };
 
 // Makes a group with its creator as the first member.
 export async function createGroupFor(account: { id: string }, input: NewGroupInput) {
@@ -28,6 +29,7 @@ export async function createGroupFor(account: { id: string }, input: NewGroupInp
       joinWeight: couple ? 100 - ratio : 100,
       cover: cleanCover(input.cover ?? "", type),
       ...(type === "trip" ? tripDatesOrNone(input.tripStart, input.tripEnd) : {}),
+      ...(type === "trip" ? wherePlace(input.tripPlace, input.tripCountry) : {}),
       members: { create: [{ name: input.yourName, claimedAt: new Date(), accountId: account.id, splitWeight: couple ? ratio : 100 }] },
     },
     include: { members: true },
@@ -133,4 +135,11 @@ export async function updateSharing(
     });
   });
   return { ok: true, eventId };
+}
+
+// Where a new trip goes (optional): as typed, and a country from the list.
+function wherePlace(place = "", country = "") {
+  const tripPlace = place.replace(/\s+/g, " ").trim().slice(0, 80);
+  const tc = country.toUpperCase();
+  return { tripPlace, tripCountry: countryOf(tc) ? tc : "" };
 }

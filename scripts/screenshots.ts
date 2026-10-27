@@ -356,13 +356,15 @@ if (!hosted) {
       await p.waitForTimeout(4200);
     }, false);
     await shot("102-wrapped-intro", `/groups/${pune.id}/wrapped`, undefined, false);
-    await shot("103-wrapped-awards", `/groups/${pune.id}/wrapped`, async (p) => {
-      for (let k = 0; k < 5; k++) {
-        if ((await p.locator("[data-wrapped-slide='awards']").count()) > 0) break;
-        await p.getByRole("button", { name: "Next" }).click();
-        await p.waitForTimeout(250);
-      }
-    }, false);
+    for (const [n, kind] of [["103-wrapped-awards", "awards"], ["114-wrapped-total", "total"], ["115-wrapped-category", "category"], ["116-wrapped-day", "day"], ["117-wrapped-splurge", "splurge"]] as const)
+      await shot(n, `/groups/${pune.id}/wrapped`, async (p) => {
+        for (let k = 0; k < 7; k++) {
+          if ((await p.locator(`[data-wrapped-slide='${kind}']`).count()) > 0) break;
+          await p.getByRole("button", { name: "Next" }).click();
+          await p.waitForTimeout(250);
+        }
+        await p.waitForTimeout(1000);
+      }, false);
     await shot("104-balances-titles", `/groups/${pune.id}?tab=balances`);
     const lona = await db.group.create({
       data: {
@@ -380,8 +382,45 @@ if (!hosted) {
       await p.locator("[data-stories] button").first().click();
       await p.waitForTimeout(700);
     }, false);
-    await db.account.update({ where: { id: acc.id }, data: { places: JSON.stringify([{ c: "TH", city: "Phuket" }, { c: "IN", city: "Jaipur" }]) } });
-    await shot("108-passport", "/passport");
+    await db.account.update({ where: { id: acc.id }, data: { places: JSON.stringify([{ c: "TH" }, { c: "IT" }, { c: "AT" }, { c: "HR" }]) } });
+    await shot("108-passport", "/passport", undefined, false);
+    await shot("109-passport-open", "/passport", async (p) => {
+      await p.getByRole("button", { name: "Open your passport" }).click();
+      await p.waitForTimeout(800);
+    }, false);
+    await shot("110-passport-stamps", "/passport", async (p) => {
+      await p.getByRole("button", { name: "Open your passport" }).click();
+      await p.waitForTimeout(800);
+      await p.getByRole("button", { name: "Next page" }).click();
+      await p.waitForTimeout(700);
+    }, false);
+    await shot("111-passport-been", "/passport", async (p) => {
+      await p.getByRole("button", { name: "Open your passport" }).click();
+      await p.waitForTimeout(800);
+      const pages = await p.locator("[data-page]").count();
+      for (let k = 1; k < pages - 1; k++) {
+        await p.getByRole("button", { name: "Next page" }).click();
+        await p.waitForTimeout(150);
+      }
+      await p.waitForTimeout(700);
+    }, false);
+    await shot("112-passport-index", "/passport", async (p) => {
+      await p.getByRole("button", { name: "Open your passport" }).click();
+      await p.waitForTimeout(800);
+      const pages = await p.locator("[data-page]").count();
+      for (let k = 1; k < pages; k++) {
+        await p.getByRole("button", { name: "Next page" }).click();
+        await p.waitForTimeout(150);
+      }
+      await p.waitForTimeout(700);
+    }, false);
+    await shot("113-passport-pick", "/passport", async (p) => {
+      await p.getByRole("button", { name: "+ Add countries" }).click();
+      const sheet = p.getByRole("dialog", { name: "Add countries" });
+      await sheet.getByRole("checkbox", { name: "Albania" }).check();
+      await sheet.getByRole("checkbox", { name: "Andorra" }).check();
+      await p.waitForTimeout(300);
+    }, false);
   }
 }
 await context.clearCookies();

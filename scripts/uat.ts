@@ -50,9 +50,18 @@ const minor = (text: string): number => {
 };
 const rupees = (paise: number) => `₹${(paise / 100).toFixed(2)}`;
 
+// A step that hangs (a screen that never finishes on the hosted copy) fails on
+// its own after two minutes instead of stopping the whole run.
+const STEP_LIMIT_MS = 120_000;
 async function step(page: Page | null, area: string, name: string, fn: () => Promise<void | string>) {
   try {
-    const note = await fn();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const note = await Promise.race([
+      fn(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`still not done after ${STEP_LIMIT_MS / 1000} s`)), STEP_LIMIT_MS);
+      }),
+    ]).finally(() => clearTimeout(timer));
     results.push({ area, name, ok: true, detail: typeof note === "string" ? note : "" });
     console.log("✓", area, "—", name);
   } catch (e) {
@@ -1984,8 +1993,10 @@ async function main() {
     await V.getByRole("button", { name: "Farewell", exact: true }).click();
     assert((await V.locator('input[name="title"]').inputValue()).includes("Farewell"), "the quick pick didn't fill the name");
     await V.locator('input[name="amount"]').fill("500");
-    await V.locator('input[name="upiId"]').fill("varun@okicici");
+    // In rupees (the hosted copy is opened from a US machine, so it starts in dollars).
     await V.getByText("More options").click();
+    await V.locator('select[name="currency"]').selectOption("INR");
+    await V.locator('input[name="upiId"]').fill("varun@okicici");
     await V.locator('textarea[name="names"]').fill("Zoya\nKabir");
     await V.getByRole("group", { name: "Your Loopin friends" }).getByRole("button", { name: /Asha/ }).click();
     await V.getByRole("button", { name: "Make the link" }).click();
@@ -2173,16 +2184,49 @@ async function main() {
     await V.getByRole("button", { name: "Share it" }).waitFor();
   });
 
-  await step(V, "Fun", "Trip passport opens from the You page, and a place from before Loopin can be added", async () => {
+  await step(V, "Fun", "Titles: everyone in the group gets a fun title, shown as cards at the top of Balances", async () => {
+    await go(V, `${g}?tab=balances`);
+    const cards = await V.locator("[data-title-card]").count();
+    const people = await V.locator("[data-title]").count();
+    assert(cards >= 2, `only ${cards} title cards`);
+    assert(cards === people, `${cards} cards but ${people} people with a title`);
+  });
+
+  await step(V, "Fun", "Where to? when making a trip (optional): the trip earns its passport stamp", async () => {
+    await go(V, "/groups/new");
+    await V.getByRole("button", { name: /^Trip/ }).click();
+    await V.locator('input[name="groupName"]').fill(`UAT weekend ${stamp % 1000}`);
+    await V.getByText("Add it to get a stamp in everyone’s trip passport.").waitFor();
+    await V.getByLabel("Places").fill("Krabi");
+    await V.getByLabel("Country").selectOption("TH");
+    await V.locator('input[name="tripStart"]').fill(istDay(-2));
+    await V.locator('select[name="currency"]').selectOption("INR");
+    await V.getByRole("button", { name: /Create group/ }).click();
+    await V.waitForURL(/\/invite\?new=1/);
+    const trip = new URL(V.url()).pathname.replace(/\/invite$/, "");
+    await go(V, `${trip}/settings`);
+    assert((await V.getByLabel("Places").inputValue()) === "Krabi", "Where to? wasn't saved");
+    await go(V, "/passport");
+    await V.locator("[data-country-stamp='TH'][data-by-hand='0']").waitFor({ state: "attached" });
+  });
+
+  await step(V, "Fun", "Trip passport opens like a booklet, and several countries from before Loopin can be added at once", async () => {
     await go(V, "/account");
     await V.getByRole("link", { name: /Your trip passport/ }).click();
     await V.waitForURL(/\/passport/);
-    const add = V.getByRole("form", { name: "Add a place" });
-    await add.getByLabel("Country").selectOption("TH");
-    await add.getByLabel("City").fill("Krabi");
-    await add.getByRole("button", { name: "Add" }).click();
-    await V.waitForURL(/added=1/);
-    await V.locator("[data-stamp='Krabi'][data-by-hand='1']").waitFor();
+    await V.getByRole("button", { name: "Open your passport" }).click();
+    await V.getByRole("button", { name: "Next page" }).waitFor();
+    await V.getByRole("button", { name: "+ Add countries" }).click();
+    const sheet = V.getByRole("dialog", { name: "Add countries" });
+    await sheet.getByLabel("Search countries").fill("thai");
+    await sheet.getByRole("checkbox", { name: "Thailand" }).check();
+    await sheet.getByLabel("Search countries").fill("jap");
+    await sheet.getByRole("checkbox", { name: "Japan" }).check();
+    await sheet.getByRole("button", { name: "Add 2 countries" }).click();
+    await V.waitForURL(/added=2/);
+    await V.locator("[data-country-stamp='TH'][data-by-hand='1']").waitFor({ state: "attached" });
+    await V.locator("[data-country-stamp='JP'][data-by-hand='1']").waitFor({ state: "attached" });
+    await V.locator("[data-index-country='JP']").waitFor({ state: "attached" });
   });
 
   await browser.close();
