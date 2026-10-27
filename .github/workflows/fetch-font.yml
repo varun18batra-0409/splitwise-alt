@@ -18,6 +18,10 @@ jobs:
           url=$(awk '/\/\* latin \*\//{f=1} f && /src:/{print; exit}' css.txt | grep -o 'https://[^)]*')
           echo "latin: $url"
           curl -sSL "$url" -o instrument-sans-latin-wght-normal.woff2
+          ext=$(awk '/\/\* latin-ext \*\//{f=1} f && /src:/{print; exit}' css.txt | grep -o 'https://[^)]*')
+          curl -sSL "$ext" -o instrument-sans-latin-ext-wght-normal.woff2
+          pip install fonttools brotli >/dev/null 2>&1 || true
+          python3 -c "from fontTools.ttLib import TTFont; f=TTFont('instrument-sans-latin-ext-wght-normal.woff2'); print('rupee in ext:', 0x20B9 in f.getBestCmap())" || true
           curl -sSL "https://raw.githubusercontent.com/google/fonts/main/ofl/instrumentsans/OFL.txt" -o LICENSE-instrument-sans
           ls -la
       - run: |
