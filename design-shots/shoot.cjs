@@ -2,7 +2,7 @@ const { chromium } = require("playwright");
 (async () => {
   const b = await chromium.launch();
   const p = await b.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
-  for (const f of ["HomeLight", "HomeDark", "Group", "Add", "StoryNew", "JoinNew"]) {
+  for (const f of ["B1-Home","B2-Group","B3-Add","B4-Settle","B5-Story","B6-Join","B7-Passport","B8-SignIn"]) {
     await p.goto(`file://${__dirname}/${f}.html`, { waitUntil: "networkidle" });
     await p.evaluate(() => document.fonts.ready);
     await p.waitForTimeout(800);
