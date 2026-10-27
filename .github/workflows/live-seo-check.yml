@@ -8,6 +8,6 @@ jobs:
     steps:
       - run: |
           s=https://www.loopinapps.com
-          for p in "" signin faq how-it-works settle account passport api/health api/cron/evening; do echo "::notice title=/$p::$(curl -s -o /dev/null -w '%{http_code}' "$s/$p")"; done
+          for p in "" signin faq how-it-works settle account passport passport/friends passport/friends/abcdefghij api/health api/cron/evening; do echo "::notice title=/$p::$(curl -s -o /dev/null -w '%{http_code}' "$s/$p")"; done
           echo "::notice title=faq-booklet::$(curl -s "$s/faq" | grep -c 'A little booklet')"
           echo "::notice title=passport-image::$(curl -s -o /dev/null -w '%{http_code}' "$s/passport/image")"
