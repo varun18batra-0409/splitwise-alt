@@ -105,7 +105,11 @@ const SECTIONS: { title: string; items: QA[] }[] = [
       },
       {
         q: "Someone marked a payment to me. What if I didn’t get it?",
-        a: "You’re asked in Settle up (and on your phone): Got it ✓ or Not received. Not received takes it off the balances, with Undo, so nobody is out of pocket on someone’s word. A WhatsApp Remind also carries your UPI ID or pay link and a link to mark it paid.",
+        a: "You’re asked in Settle up (and on your phone): Got it ✓ or Not received. Not received takes it off the balances, with Undo, so nobody is out of pocket on someone’s word. A WhatsApp Remind also carries your UPI ID or pay link and an “I’ve paid” link.",
+      },
+      {
+        q: "Can someone tell me they paid without having Loopin?",
+        a: "Yes. Tap Remind in Settle up and WhatsApp opens with a note, your UPI ID and a link. They open it (no app, no sign-in), pay with UPI, and tap I’ve paid. You’re asked to confirm with Got it ✓. The link only works for what they owe you right now, can’t be used for anything else, and stops working once you’re square or after 30 days.",
       },
       {
         q: "I made a mistake. Can I undo it?",
@@ -139,7 +143,7 @@ const SECTIONS: { title: string; items: QA[] }[] = [
       },
       {
         q: "What is the trip passport?",
-        a: "A little booklet with a stamp for every trip: a city stamp for trips in your home country, a country stamp for trips abroad. Go twice and you get two stamps, but the counts on the first page count each place once. Loopin works out the place from the trip’s name, or from Where to? (when you make a trip, or in its settings). Tick the countries you went to before Loopin under Places I’ve been; they get their own lighter Been there stamps. Open it from the You page and share it to WhatsApp as a picture of your passport.",
+        a: "A little booklet with a stamp for every trip: a city stamp for trips in your home country, a country stamp for trips abroad. Go twice and you get two stamps, but the counts on the first page count each place once. Loopin works out the place from the trip’s name, or from Where to? (when you make a trip, or in its settings). Tick the countries you went to before Loopin under Places I’ve been; they get their own lighter Been there stamps. Open it from the You page and share it to WhatsApp as a booklet: the cover, your details page with your map, and your stamp pages, sent together as an album (or as one picture for your Status).",
       },
       {
         q: "Can I see my friends’ passports?",
