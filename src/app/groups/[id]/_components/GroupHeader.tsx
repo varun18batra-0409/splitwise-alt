@@ -1,5 +1,5 @@
 import Link from "@/components/Link";
-import { CalendarClockIcon } from "@/components/Icons";
+import { CalendarClockIcon } from "@/components/DrawnIcons";
 import { BackIcon, ChevronDown, GearIcon, InviteIcon, iconButtonClass } from "@/components/icons";
 import { GroupCover } from "@/components/GroupCover";
 import { coverFor, coverOf, type CoverChoice } from "@/lib/covers";

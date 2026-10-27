@@ -1,5 +1,5 @@
 import Link from "@/components/Link";
-import { PeoplePassportsIcon } from "@/components/Icons";
+import { PeoplePassportsIcon } from "@/components/DrawnIcons";
 import { getAccount } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
 import { todayKey } from "@/lib/dates";

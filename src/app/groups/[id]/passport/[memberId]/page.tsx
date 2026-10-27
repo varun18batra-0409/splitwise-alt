@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { PassportIcon } from "@/components/Icons";
+import { PassportIcon } from "@/components/DrawnIcons";
 import Link from "@/components/Link";
 import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";

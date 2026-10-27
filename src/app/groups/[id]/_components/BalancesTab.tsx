@@ -1,6 +1,6 @@
 import Link from "@/components/Link";
 import { TitleIcon } from "@/components/TitleIcon";
-import { PassportIcon, PeoplePassportsIcon, SquareSeal } from "@/components/Icons";
+import { PassportIcon, PeoplePassportsIcon, SquareSeal } from "@/components/DrawnIcons";
 import { pairwiseDebtCount } from "@/lib/settle";
 import { Notice } from "@/components/Notice";
 import { formatMoney, formatPercent } from "@/lib/money";

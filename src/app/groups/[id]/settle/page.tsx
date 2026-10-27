@@ -1,5 +1,5 @@
 import Link from "@/components/Link";
-import { SquareSeal } from "@/components/Icons";
+import { SquareSeal } from "@/components/DrawnIcons";
 import { notFound, redirect } from "next/navigation";
 import { Notice } from "@/components/Notice";
 import { getMyMemberId } from "@/lib/identity";

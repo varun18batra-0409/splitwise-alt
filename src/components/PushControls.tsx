@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BellIcon } from "./Icons";
+import { BellIcon } from "./DrawnIcons";
 import { pushPublicKey, removePushSubscription, savePushSubscription } from "@/app/actions";
 
 // Turning phone notifications on and off, and keeping them working when

@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { TrophyIcon } from "@/components/Icons";
+import { TrophyIcon } from "@/components/DrawnIcons";
 import Link from "@/components/Link";
 import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";

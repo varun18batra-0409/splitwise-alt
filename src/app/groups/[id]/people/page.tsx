@@ -1,5 +1,5 @@
 import { setMoveIn } from "@/app/bill-actions";
-import { PassportIcon, PeoplePassportsIcon } from "@/components/Icons";
+import { PassportIcon, PeoplePassportsIcon } from "@/components/DrawnIcons";
 import { payerIds } from "@/lib/payers";
 import { notFound, redirect } from "next/navigation";
 import { getMyMemberId } from "@/lib/identity";

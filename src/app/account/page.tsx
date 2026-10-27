@@ -1,5 +1,5 @@
 import Link from "@/components/Link";
-import { CompassIcon, PeoplePassportsIcon } from "@/components/Icons";
+import { CompassIcon, PeoplePassportsIcon } from "@/components/DrawnIcons";
 import { InviteFriends } from "@/components/InviteFriends";
 import { deleteMyAccount, removeMyPasskey, saveMyName, signOutThisPhone } from "@/app/actions";
 import { db } from "@/lib/db";

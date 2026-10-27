@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import { PeoplePassportsIcon } from "@/components/Icons";
+import { PeoplePassportsIcon } from "@/components/DrawnIcons";
 import Link from "@/components/Link";
 import { getAccount } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
