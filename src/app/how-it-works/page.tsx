@@ -411,6 +411,11 @@ export default async function HowItWorks() {
       <Link href="/groups/new" className="pop mt-4 block bg-fg px-4 py-3.5 text-center font-semibold text-canvas [--pop-edge:#6e6b63]">
         Create a group
       </Link>
+      <p className="mt-8 text-center text-xs text-gray-400">
+        <Link href="/credits" className="underline underline-offset-4">
+          Photo credits
+        </Link>
+      </p>
     </>
   );
 }

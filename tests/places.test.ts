@@ -14,11 +14,19 @@ describe("Trip countdown: the destination's photo", () => {
     expect(placeSlot("NYC")).toBe("place-newyork");
     expect(placeSlot("Paris honeymoon")).toBe("cover-paris");
     expect(placeSlot("Agra day trip")).toBe("cover-taj");
+    // Indian weekends get their own place, not a stranger's road.
+    expect(placeSlot("Weekend in Pune")).toBe("place-pune");
+    expect(placeSlot("Lonavala weekend")).toBe("place-lonavala");
+    expect(placeSlot("Mumbai darshan")).toBe("place-mumbai");
+    expect(placeSlot("Udaipur wedding")).toBe("place-udaipur");
+    expect(placeSlot("Pondy break")).toBe("place-pondicherry");
   });
   it("doesn't match inside other words", () => {
     expect(placeSlot("Goal party")).toBeNull(); // not Goa
     expect(placeSlot("Lehenga shopping")).toBeNull(); // not Leh
     expect(placeSlot("Bellary")).toBeNull(); // not Ella
     expect(placeSlot("Weekend away")).toBeNull();
+    expect(placeSlot("Brann party")).toBeNull(); // not Rann
+    expect(placeSlot("Kashish birthday")).toBeNull(); // not Kashi
   });
 });
