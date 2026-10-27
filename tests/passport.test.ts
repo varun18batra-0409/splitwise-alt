@@ -55,9 +55,10 @@ describe("Trip passport: stamps", () => {
     const b = Object.fromEntries(p.badges.map((x) => [x.id, x.earned ? "✓" : `${x.have}/${x.need}`]));
     expect(b).toEqual({ "first-abroad": "✓", beach: "✓", hills: "0/3", city: "1/3", cities: "4/10", countries: "4/10", frequent: "2/5", year: "✓", trips: "5/10" });
   });
-  it("pages of six: trips first, then Before Loopin", () => {
+  it("pages of six: one passport, trip stamps first, then Been there, no separate section", () => {
     const pages = stampPages(p.stamps, p.been, 2);
-    expect(pages.map((x) => [x.title, x.stamps.length])).toEqual([["Trips", 2], ["Trips", 2], ["Trips", 1], ["Before Loopin", 2]]);
+    expect(pages.map((x) => [x.title, x.stamps.length])).toEqual([["Stamps", 2], ["Stamps", 2], ["Stamps", 2], ["Stamps", 1]]);
+    expect(pages.flatMap((x) => x.stamps).slice(-2).every((s) => s.byHand)).toBe(true);
   });
   it("Places I've been are countries only (old cities dropped, no repeats)", () => {
     expect(parseHandPlaces('[{"c":"th","city":" Krabi "},{"c":"TH"},{"c":"XX"},"junk"]')).toEqual([{ c: "TH" }]);

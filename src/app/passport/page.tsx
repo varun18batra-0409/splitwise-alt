@@ -7,7 +7,7 @@ import { todayKey } from "@/lib/dates";
 import { visitorRegion } from "@/lib/region";
 import { loadPassport } from "@/lib/passport-db";
 import { COUNTRIES, countryOf } from "@/lib/geo";
-import { albumStampPages, parseHandPlaces, stampPages } from "@/lib/passport";
+import { parseHandPlaces, stampPages } from "@/lib/passport";
 import { removePlaceAction, setHomeCountryAction, setPassportShareAction } from "@/app/passport-actions";
 import { ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/components/ui";
 import { ShareSheet } from "@/components/ShareSheet";
@@ -58,7 +58,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
 
       {!empty && (
         <div className="mt-5">
-          <ShareSheet album={Array.from({ length: 2 + albumStampPages(p.stamps.length + p.been.length) }, (_, i) => `/passport/album?page=${i}&v=${version}`)} image={`/passport/image?v=${version}`} fileName="loopin-passport.png" title="Share your passport" words={`My Loopin passport: ${[p.stats.countries ? `${p.stats.countries} ${p.stats.countries === 1 ? "country" : "countries"}` : "", p.stats.cities ? `${p.stats.cities} ${p.stats.cities === 1 ? "city" : "cities"}` : ""].filter(Boolean).join(", ") || "my first stamps"} and counting ✈️`} label="Share my passport" />
+          <ShareSheet image={`/passport/image?v=${version}`} fileName="loopin-passport.png" title="Share your passport" words={`My Loopin passport: ${[p.stats.countries ? `${p.stats.countries} ${p.stats.countries === 1 ? "country" : "countries"}` : "", p.stats.cities ? `${p.stats.cities} ${p.stats.cities === 1 ? "city" : "cities"}` : ""].filter(Boolean).join(", ") || "my first stamps"} and counting ✈️`} label="Share my passport" />
         </div>
       )}
 
@@ -81,7 +81,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
       {/* Places from before Loopin */}
       <section id="been" className="mt-8 scroll-mt-4">
         <h2 className="font-display text-lg font-semibold tracking-tight">Places I’ve been</h2>
-        <p className="mt-0.5 text-sm text-gray-500">Countries from before Loopin. Each gets a lighter “Been there” stamp at the back, apart from your Loopin trips. City stamps come from your trips.</p>
+        <p className="mt-0.5 text-sm text-gray-500">Countries you’ve been to. Each gets a “Been there” stamp in your passport, and every trip you take with Loopin adds its own stamp too. City stamps come from your trips.</p>
         {sp.added && (
           <p role="status" className="mt-2 text-sm text-owed">
             {Number(sp.added) > 1 ? `${Number(sp.added)} countries added to your passport.` : Number(sp.added) === 1 ? "Added to your passport." : "Those were already in your passport."}
@@ -89,7 +89,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
         )}
         <CountryPicker added={hand.map((h) => h.c)} home={p.home} />
         {hand.length > 0 && (
-          <ul className="mt-3 flex flex-wrap gap-2" aria-label="Countries from before Loopin">
+          <ul className="mt-3 flex flex-wrap gap-2" aria-label="Countries you’ve been to">
             {hand.map((h) => (
               <li key={h.c}>
                 <form action={removePlaceAction} className="flex items-center gap-1.5 rounded-full border border-line py-1 pl-3 pr-1 text-sm">

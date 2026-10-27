@@ -2246,19 +2246,15 @@ async function main() {
     await V.locator("[data-index-country='JP']").waitFor({ state: "attached" });
   });
 
-  await step(V, "Fun", "Share my passport offers the whole booklet as an album (cover, details, stamp pages), every page a real picture", async () => {
+  await step(V, "Fun", "Share my passport sends one picture of the open booklet (details, map, every stamp), and nothing else", async () => {
     await go(V, "/passport");
     await V.getByRole("button", { name: "Share my passport" }).first().click();
-    const preview = V.locator("[data-album-preview]");
-    await preview.waitFor();
-    const pages = Number(await preview.getAttribute("data-album-preview"));
-    assert(pages >= 3, `only ${pages} pages`);
-    await V.getByText(`The whole booklet: ${pages} pages, as an album`).waitFor();
-    for (let i = 0; i < pages; i++) {
-      const res = await V.request.get(`${base}/passport/album?page=${i}`);
-      assert(res.ok() && (res.headers()["content-type"] ?? "").startsWith("image/png") && (await res.body()).length > 20_000, `page ${i + 1}: ${res.status()} ${res.headers()["content-type"]}`);
-    }
-    await V.getByRole("dialog", { name: "Share your passport" }).getByRole("button", { name: "Close" }).click();
+    const sheet = V.getByRole("dialog", { name: "Share your passport" });
+    await sheet.getByText("WhatsApp", { exact: true }).waitFor();
+    assert((await sheet.locator("[data-album-preview]").count()) === 0, "still offers an album of several pictures");
+    const res = await V.request.get(`${base}/passport/image`);
+    assert(res.ok() && (res.headers()["content-type"] ?? "").startsWith("image/png") && (await res.body()).length > 40_000, `picture: ${res.status()} ${res.headers()["content-type"]}`);
+    await sheet.getByRole("button", { name: "Close" }).click();
   });
 
   await browser.close();

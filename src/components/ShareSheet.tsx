@@ -55,8 +55,10 @@ export function ShareSheet({
       try {
         await navigator.share({ files, text: words });
         return "shared";
-      } catch (e) {
-        return (e as Error)?.name === "AbortError" ? "closed" : "cant";
+      } catch {
+        // Closed, or the phone reported back oddly after WhatsApp took it: either
+        // way never send a second, plain-text message on top.
+        return "closed";
       }
     }
     return "cant";
@@ -69,8 +71,9 @@ export function ShareSheet({
 
   async function whatsapp() {
     setBusy("wa");
-    let r = many ? await shareFiles(await booklet()) : "cant";
-    if (r === "cant") r = await shareFiles(await one());
+    // One thing only: the pages (or the picture); words with a link only when this phone can't share pictures at all.
+    const files = many ? await booklet() : await one();
+    const r = await shareFiles(files.length ? files : await one());
     if (r === "cant") {
       const text = encodeURIComponent(`${words} ${window.location.origin}`);
       if (/Android|iPhone|iPad/i.test(navigator.userAgent)) window.location.href = `whatsapp://send?text=${text}`;
