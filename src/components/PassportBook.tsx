@@ -59,10 +59,10 @@ function StampMark({ s, i }: { s: Stamp; i: number }) {
   // Scattered in a loose 2 × 3 grid, each a little off its spot.
   const col = i % 2;
   const rowN = Math.floor(i / 2);
-  const dx = ((h >> 3) % 25) - 12;
-  const dy = ((h >> 7) % 17) - 8;
+  const dx = ((h >>> 3) % 25) - 12;
+  const dy = ((h >>> 7) % 17) - 8;
   const pos = { left: `calc(${col * 50 + 25}% + ${dx}px)`, top: `calc(${rowN * 33.3 + 16.6}% + ${dy}px)` };
-  const shape = s.kind === "country" ? (["circle", "circle", "oval", "octagon"] as const)[(h >> 5) % 4] : (["box", "ticket"] as const)[(h >> 5) % 2];
+  const shape = s.kind === "country" ? (["circle", "circle", "oval", "octagon"] as const)[(h >>> 5) % 4] : (["box", "ticket"] as const)[(h >>> 5) % 2];
   const dash = s.byHand ? "5 3.5" : undefined;
   const when = s.byHand ? "BEEN THERE" : month(s.when);
   const id = `st-${h.toString(36)}-${i}`;
@@ -253,7 +253,7 @@ export function PassportBook({ name, stats, milestones, pages, index, badges = [
       <svg width="0" height="0" className="absolute" aria-hidden>
         <filter id="lp-ink">
           <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="3" result="n" />
-          <feDisplacementMap in="SourceGraphic" in2="n" scale="1.6" />
+          <feDisplacementMap in="SourceGraphic" in2="n" scale="0.9" />
         </filter>
       </svg>
       <div className="relative h-[480px] [perspective:1400px]">
