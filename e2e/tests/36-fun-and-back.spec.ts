@@ -23,6 +23,30 @@ test("titles, Wrapped, the passport and a card game: in, around, back out, and d
   await settled(page);
   await expect(page.locator("[data-title-card]")).toHaveCount(2);
 
+  // A friend's passport, from Balances: only for people in the group, and only if they share it.
+  await page.locator("summary", { hasText: "Ravi" }).first().click();
+  const link = page.locator("[data-passport-link]").first();
+  await expect(link).toBeVisible();
+  const ravisPassport = (await link.getAttribute("href"))!;
+  await link.click();
+  await page.waitForURL((u) => u.pathname === ravisPassport);
+  await expect(page.getByRole("button", { name: "Open your passport" })).toBeVisible();
+  await R.goto("/passport");
+  await settled(R);
+  await R.getByRole("button", { name: "Only me" }).click();
+  await R.waitForURL(/shared=private/);
+  await page.goto(ravisPassport);
+  await settled(page);
+  await expect(page.getByText("Ravi keeps their passport private.")).toBeVisible();
+  const cara = await signUp("Cara", testEmail("fun-cara"));
+  const C = await (await contextFor(browser, cara)).newPage();
+  await C.goto(ravisPassport);
+  await C.waitForURL(/\/private/);
+  await R.goto("/passport");
+  await settled(R);
+  await R.getByRole("button", { name: "People in my groups" }).click();
+  await R.waitForURL(/shared=groups/);
+
   // Wrapped from Charts, through to the end, then Back lands on the group again.
   await page.goto(`${trip.path}?tab=charts`);
   await settled(page);

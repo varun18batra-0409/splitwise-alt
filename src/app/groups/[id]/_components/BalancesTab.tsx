@@ -116,6 +116,11 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
                     </span>
                   </summary>
                   <div className="mb-3 ml-12 space-y-2">
+                    {m.accountId && m.id !== myId && (
+                      <Link href={`/groups/${group.id}/passport/${m.id}`} className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-xs font-semibold active:bg-mist" data-passport-link>
+                        <span aria-hidden>🛂</span> {m.name.trim().split(/\s+/)[0]}’s passport
+                      </Link>
+                    )}
                     <WhyPanel v={v} memberId={m.id} open={why === m.id} />
                     {theirs.length === 0 ? (
                       <p className="text-sm text-gray-500">Nothing due between {m.id === myId ? "you" : m.name} and anyone.</p>

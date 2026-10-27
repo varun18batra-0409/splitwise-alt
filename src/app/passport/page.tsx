@@ -7,7 +7,7 @@ import { visitorRegion } from "@/lib/region";
 import { loadPassport } from "@/lib/passport-db";
 import { COUNTRIES, countryOf } from "@/lib/geo";
 import { parseHandPlaces, stampPages } from "@/lib/passport";
-import { removePlaceAction, setHomeCountryAction } from "@/app/passport-actions";
+import { removePlaceAction, setHomeCountryAction, setPassportShareAction } from "@/app/passport-actions";
 import { ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/components/ui";
 import { ShareSheet } from "@/components/ShareSheet";
 import { PassportBook } from "@/components/PassportBook";
@@ -18,7 +18,7 @@ export const metadata = { title: "Your trip passport", robots: { index: false } 
 // Your trip passport: a booklet with a stamp for every trip (cities at home,
 // countries abroad), plus countries from before Loopin, stamped lighter.
 
-export default async function PassportPage({ searchParams }: { searchParams: Promise<{ error?: string; added?: string }> }) {
+export default async function PassportPage({ searchParams }: { searchParams: Promise<{ error?: string; added?: string; shared?: string }> }) {
   const sp = await searchParams;
   const account = await getAccount();
   if (!account)
@@ -91,6 +91,32 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
               </li>
             ))}
           </ul>
+        )}
+      </section>
+
+      {/* Who can open it from a group */}
+      <section id="who" className="mt-8 scroll-mt-4 border-t border-line pt-6">
+        <h2 className="font-display text-lg font-semibold tracking-tight">Who can see it</h2>
+        <p className="mt-0.5 text-sm text-gray-500">People you share a group with can open your passport from the group. Never your money, groups or email.</p>
+        <form action={setPassportShareAction} className="mt-3 grid grid-cols-2 gap-1 rounded-xl bg-mist p-1" aria-label="Who can see my passport">
+          {(
+            [
+              ["groups", "People in my groups"],
+              ["private", "Only me"],
+            ] as const
+          ).map(([v, label]) => {
+            const on = (account.passportShare || "groups") === v;
+            return (
+              <button key={v} type="submit" name="share" value={v} aria-pressed={on} className={`rounded-lg px-2 py-2.5 text-sm ${on ? "bg-fg font-semibold text-canvas" : "text-gray-500"}`}>
+                {label}
+              </button>
+            );
+          })}
+        </form>
+        {sp.shared && (
+          <p role="status" className="mt-2 text-sm text-owed">
+            {sp.shared === "private" ? "Only you can see your passport now." : "People in your groups can see your passport."}
+          </p>
         )}
       </section>
 

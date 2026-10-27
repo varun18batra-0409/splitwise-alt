@@ -224,6 +224,8 @@ model Account {
   // places you've been before Loopin, added by hand: JSON [{ c: "TH", city: "Phuket" }].
   homeCountry String @default("")
   places      String @default("[]")
+  // Who can open your passport from a group: "groups" (people you share a group with) or "private".
+  passportShare String @default("groups")
 }
 
 // Notifications for a person rather than a group (Collect: "Asha added you",

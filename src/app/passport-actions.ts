@@ -38,3 +38,12 @@ export async function setHomeCountryAction(f: FormData) {
   await db.account.update({ where: { id: a.id }, data: { homeCountry: countryOf(c) ? c : "" } });
   redirect("/passport");
 }
+
+// Who can see your passport: people you share a group with, or only you.
+export async function setPassportShareAction(f: FormData) {
+  const a = await getAccount();
+  if (!a) redirect("/signin?back=/passport");
+  const v = field(f, "share") === "private" ? "private" : "groups";
+  await db.account.update({ where: { id: a.id }, data: { passportShare: v } });
+  redirect(`/passport?shared=${v}#who`);
+}

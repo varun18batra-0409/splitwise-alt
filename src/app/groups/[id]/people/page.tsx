@@ -76,6 +76,11 @@ export default async function PeoplePage({
           </summary>
 
           <div className="space-y-4 pb-5 pl-12">
+            {m.accountId && !me && (
+              <Link href={`/groups/${group.id}/passport/${m.id}`} className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-xs font-semibold active:bg-mist">
+                <span aria-hidden>🛂</span> {m.name.trim().split(/\s+/)[0]}’s passport
+              </Link>
+            )}
             {!m.accountId && !m.claimedAt && !m.leftAt && (
               <form action={invitePersonByEmail} className="space-y-2">
                 <input type="hidden" name="groupId" value={group.id} />
