@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { withRetry } from "./once";
+import { claimKey, isDuplicateKey, previousResult, withRetry } from "./once";
 import { loadGroup } from "./group-data";
 import { logEvent } from "./events";
 import { formatMoney } from "./money";
@@ -89,13 +89,19 @@ export async function applySettleAll(groupId: string, actorId: string, paymentId
 // week): records the given payments in one go, as one change with Undo.
 // From Settle up, each payment must still be one of the group's current Smart
 // Settle payments; a card game passes its own (already checked) payments.
-export async function markAllPaid(groupId: string, actorId: string, pick: { from: string; to: string; amount: number }[], label: string, checkPlan = true): Promise<Result> {
-  return withRetry(async () => {
+type Pick = { from: string; to: string; amount: number }[];
+export async function markAllPaid(groupId: string, actorId: string, pickIn: Pick | (() => Promise<Pick>), label: string, checkPlan = true, key?: string): Promise<Result> {
+  // The same tap arriving twice (a slow network, two servers) is recorded once.
+  if ((await previousResult(key)) !== null) return { ok: true };
+  try {
+    return await withRetry(async () => {
     const data = await loadGroup(groupId);
     if (!data) return { ok: false, error: "This group no longer exists." };
     const { group, transfers } = data;
     if (!group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can do this." };
     if (group.closed) return { ok: false, error: "This group is closed. Reopen it to record payments." };
+    // Worked out here, in the write queue, so two people tapping at once can't both record it.
+    const pick = typeof pickIn === "function" ? await pickIn() : pickIn;
     if (!pick.length) return { ok: false, error: "Nothing left to mark paid." };
     // Each one must still be owed (balances may have moved since the screen loaded).
     const ids = new Set(group.members.map((m) => m.id));
@@ -106,6 +112,7 @@ export async function markAllPaid(groupId: string, actorId: string, pick: { from
     const nameOf = (id: string) => group.members.find((m) => m.id === id)?.name ?? "Someone";
     const money = (n: number) => formatMoney(n, group.currency);
     const eventId = await db.$transaction(async (tx) => {
+      await claimKey(tx, key, "paid");
       const ids: string[] = [];
       for (const t of pick) {
         const r = group.members.find((m) => m.id === t.to);
@@ -123,6 +130,10 @@ export async function markAllPaid(groupId: string, actorId: string, pick: { from
     });
     return { ok: true, eventId };
   });
+  } catch (err) {
+    if (isDuplicateKey(err)) return { ok: true };
+    throw err;
+  }
 }
 
 // Undo / redo of "Mark all paid": take those payments out, or put them back.

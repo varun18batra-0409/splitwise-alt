@@ -289,20 +289,29 @@ export async function cashOut(gameId: string, actorId: string, input: { memberId
   const typed = String(input.amount ?? "").trim();
   const amount = /^0+([.,]0*)?$/.test(typed) ? 0 : parseAmount(typed, g.currency);
   if (amount === null) return { ok: false, error: "Enter what they leave with (0 if nothing)." };
-  const seat = String(input.newName ?? "").trim();
+  const seat = (cleanNames(String(input.newName ?? "").split(/[\n,]+/))[0] ?? "").trim();
+  if (String(input.newName ?? "").trim() && !seat) return { ok: false, error: "Type the new player's name." };
   const seatAmount = seat ? parseAmount(String(input.newAmount ?? "").trim(), g.currency) : null;
   if (seat && seatAmount === null) return { ok: false, error: "Enter what the new player takes from the pot." };
-  await db.potMove.create({ data: { gameId, memberId: input.memberId, kind: "return", amount, note: "cashed out", createdById: actorId } });
-  if (seat && seatAmount !== null) {
-    const a = await addNamedPlayers(g.id, actorId, seat.split(/[\n,]+/)[0]);
+  // The new player first (that can fail), then the cash-out and their buy-in together.
+  let seatId = "";
+  if (seat) {
+    const a = await addNamedPlayers(g.id, actorId, seat);
     if (!a.ok) return a;
-    const id = a.ids[0];
-    const players = parsePlayers(game.players);
-    await db.$transaction([
-      db.potMove.create({ data: { gameId, memberId: id, kind: "take", amount: seatAmount, note: `took ${g.members.find((m) => m.id === input.memberId)?.name ?? "their"}’s seat`, createdById: actorId } }),
-      ...(players.includes(id) ? [] : [db.potGame.update({ where: { id: gameId }, data: { players: JSON.stringify([...players, id]) } })]),
-    ]);
+    if (!a.ids[0]) return { ok: false, error: "Type the new player's name." };
+    seatId = a.ids[0];
   }
+  const players = parsePlayers(game.players);
+  const leaver = g.members.find((m) => m.id === input.memberId)?.name ?? "their";
+  await db.$transaction([
+    db.potMove.create({ data: { gameId, memberId: input.memberId, kind: "return", amount, note: "cashed out", createdById: actorId } }),
+    ...(seatId && seatAmount !== null
+      ? [
+          db.potMove.create({ data: { gameId, memberId: seatId, kind: "take", amount: seatAmount, note: `took ${leaver}’s seat`, createdById: actorId } }),
+          ...(players.includes(seatId) ? [] : [db.potGame.update({ where: { id: gameId }, data: { players: JSON.stringify([...players, seatId]) } })]),
+        ]
+      : []),
+  ]);
   return { ok: true };
 }
 
@@ -330,7 +339,9 @@ export async function countOut(gameId: string, actorId: string, entries: { membe
   const missing = [...playing].filter((id) => !rows.some((x) => x.memberId === id));
   if (missing.length) return { ok: false, error: `Still to count: ${missing.map(name).join(", ")}. Put 0 for anyone who lost it all.` };
   const f = await finishGame(gameId, actorId);
-  return f.ok ? { ok: true, finished: true, gap: false } : { ok: true, finished: false, gap: true };
+  if (f.ok) return { ok: true, finished: true, gap: false };
+  // Counted, but it doesn't add up (or something else stopped it: say what).
+  return /missing from the pot|more came back/.test(f.error) ? { ok: true, finished: false, gap: true } : { ok: false, error: f.error };
 }
 
 // A finished game's payments: each "Ravi pays Asha ₹300" with what's left to
@@ -348,40 +359,70 @@ async function groupMoney(groupId: string) {
   return { groupNet: netBalances(members.map((m) => m.id), expenses, payments), payments };
 }
 
-function settle(game: GameLike, groupNet: Record<string, number>, payments: { fromId: string; toId: string; amount: number; createdAt: Date }[]) {
-  const since = game.finishedAt ?? game.createdAt;
-  const paid = new Map<string, number>();
-  for (const p of payments) if (p.createdAt >= since) paid.set(`${p.fromId}|${p.toId}`, (paid.get(`${p.fromId}|${p.toId}`) ?? 0) + p.amount);
-  const { lines } = potSummary(parsePlayers(game.players), game.moves.filter((m) => !m.deletedAt));
-  return potTransfers(lines).map((t) => {
-    const left = Math.max(0, t.amount - (paid.get(`${t.from}|${t.to}`) ?? 0));
-    return { ...t, left, done: left === 0 || (groupNet[t.from] ?? 0) >= 0 };
-  });
+type Pay = { fromId: string; toId: string; amount: number; createdAt: Date };
+type GameDue = { from: string; to: string; amount: number; left: number; done: boolean };
+
+// Every finished game's payments, oldest game first. A payment counts once:
+// the oldest game still owed between those two people takes it first, and only
+// payments made after that game finished count for it. Never more than someone
+// owes in the group overall (other games or expenses may have evened it out).
+function settleAll(games: (GameLike & { id: string })[], groupNet: Record<string, number>, payments: Pay[]): Map<string, GameDue[]> {
+  const pool = payments.map((p) => ({ ...p, rest: p.amount })).sort((x, y) => x.createdAt.getTime() - y.createdAt.getTime());
+  const owes = new Map(Object.entries(groupNet).map(([id, v]) => [id, Math.max(0, -v)]));
+  const out = new Map<string, GameDue[]>();
+  const ordered = [...games].sort((x, y) => (x.finishedAt ?? x.createdAt).getTime() - (y.finishedAt ?? y.createdAt).getTime());
+  for (const game of ordered) {
+    const since = game.finishedAt ?? game.createdAt;
+    const { lines } = potSummary(parsePlayers(game.players), game.moves.filter((m) => !m.deletedAt));
+    out.set(
+      game.id,
+      potTransfers(lines).map((t) => {
+        let unpaid = t.amount;
+        for (const p of pool) {
+          if (!unpaid) break;
+          if (p.rest <= 0 || p.fromId !== t.from || p.toId !== t.to || p.createdAt < since) continue;
+          const used = Math.min(p.rest, unpaid);
+          p.rest -= used;
+          unpaid -= used;
+        }
+        const left = Math.min(unpaid, owes.get(t.from) ?? 0);
+        owes.set(t.from, (owes.get(t.from) ?? 0) - left);
+        return { ...t, left, done: left === 0 };
+      }),
+    );
+  }
+  return out;
 }
 
-export async function gameSettlement(groupId: string, game: GameLike) {
-  const { groupNet, payments } = await groupMoney(groupId);
+async function finishedGames(groupId: string) {
+  return db.potGame.findMany({ where: { groupId, status: "done", deletedAt: null }, include: { moves: { where: { deletedAt: null } } } });
+}
+
+export async function gameSettlement(groupId: string, game: GameLike & { id: string }) {
+  const [{ groupNet, payments }, games] = await Promise.all([groupMoney(groupId), finishedGames(groupId)]);
   const stillOwed = Object.values(groupNet).reduce((s, v) => s + (v > 0 ? v : 0), 0);
-  return { transfers: settle(game, groupNet, payments), groupNet, stillOwed };
+  const all = settleAll(games.some((x) => x.id === game.id) ? games : [...games, game], groupNet, payments);
+  return { transfers: all.get(game.id) ?? [], groupNet, stillOwed };
 }
 
 // For the games list: what's still to settle in each finished game.
 export async function gamesToSettle(groupId: string, games: (GameLike & { id: string; status: string })[]): Promise<Record<string, number>> {
-  const done = games.filter((g) => g.status === "done");
-  if (!done.length) return {};
-  const { groupNet, payments } = await groupMoney(groupId);
-  return Object.fromEntries(done.map((g) => [g.id, settle(g, groupNet, payments).filter((t) => !t.done).reduce((s, t) => s + t.left, 0)]));
+  if (!games.some((g) => g.status === "done")) return {};
+  const [{ groupNet, payments }, done] = await Promise.all([groupMoney(groupId), finishedGames(groupId)]);
+  const all = settleAll(done, groupNet, payments);
+  return Object.fromEntries(done.map((g) => [g.id, (all.get(g.id) ?? []).reduce((s, t) => s + t.left, 0)]));
 }
 
 // "Mark all paid" inside a finished game: every line still pending, in one go (with Undo).
-export async function markGamePaid(gameId: string, actorId: string): Promise<Result<{ eventId?: string }>> {
+export async function markGamePaid(gameId: string, actorId: string, key = ""): Promise<Result<{ eventId?: string }>> {
   const r = await gameFor(gameId, actorId);
   if (!r.game || !r.g) return { ok: false, error: r.error };
   if (r.game.status !== "done") return { ok: false, error: "Finish the game first." };
-  const { transfers } = await gameSettlement(r.g.id, r.game);
-  const pick = transfers.filter((t) => !t.done).map((t) => ({ from: t.from, to: t.to, amount: t.left }));
-  if (!pick.length) return { ok: false, error: "Everything in this game is already paid." };
+  const groupId = r.g.id;
+  const game = r.game;
   const { markAllPaid } = await import("./settle-all");
-  const m = await markAllPaid(r.g.id, actorId, pick, r.game.name, false);
+  // The list is worked out again right before saving (two people tapping at once can't both record it).
+  const m = await markAllPaid(groupId, actorId, async () => (await gameSettlement(groupId, game)).transfers.filter((t) => !t.done).map((t) => ({ from: t.from, to: t.to, amount: t.left })), game.name, false, key);
+  if (!m.ok && m.error === "Nothing left to mark paid.") return { ok: false, error: "Everything in this game is already paid." };
   return m.ok ? { ok: true, eventId: m.eventId } : m;
 }

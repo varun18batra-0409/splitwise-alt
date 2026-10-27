@@ -42,7 +42,7 @@ export function PotCount({
   currency: string;
 }) {
   const money = (n: number) => formatMoney(n, currency);
-  // Only for the preview; what's saved comes from the fields.
+  // What's typed (kept if the save comes back with a problem, so nobody types it all again).
   const [typed, setTyped] = useState<Record<string, string>>({});
   const value = (id: string) => {
     const t = typed[id] ?? "";
@@ -80,12 +80,12 @@ export function PotCount({
                 <input
                   name={`count_${r.id}`}
                   inputMode="decimal"
-                  defaultValue=""
+                  value={typed[r.id] ?? ""}
                   placeholder="0"
                   autoComplete="off"
                   aria-label={r.name === "You" ? "You have" : `${r.name} has`}
-                  onInput={(e) => {
-                    const v2 = e.currentTarget.value;
+                  onChange={(e) => {
+                    const v2 = e.target.value;
                     setTyped((t) => ({ ...t, [r.id]: v2 }));
                   }}
                   className="w-full bg-transparent py-2.5 text-right font-display text-lg tabular-nums outline-none"

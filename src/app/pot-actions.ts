@@ -123,6 +123,7 @@ export async function markGamePaidAction(f: FormData) {
   const gameId = field(f, "gameId");
   const { groupId, myId } = await me(await gameGroup(gameId));
   const { markGamePaid } = await import("@/lib/pot-db");
-  const r = await markGamePaid(gameId, myId);
+  const { cleanKey } = await import("@/lib/once");
+  const r = await markGamePaid(gameId, myId, cleanKey(f.get("rid")) ?? "");
   redirect(back(groupId, gameId, r.ok ? { allpaid: "1", ...(r.eventId ? { did: r.eventId } : {}) } : { error: r.error }));
 }

@@ -76,13 +76,14 @@ export function WrappedDeck({
       <button type="button" aria-label="Previous" onClick={() => setI((x) => Math.max(x - 1, 0))} className="absolute inset-y-0 left-0 z-10 w-1/3" />
       {!last && <button type="button" aria-label="Next" onClick={() => setI((x) => x + 1)} className="absolute inset-y-0 right-0 z-10 w-2/3" />}
 
-      <div className="absolute inset-x-0 bottom-0 z-20 px-6 pb-7">
+      {/* The words let taps through (for next); only the buttons on the last slide catch them. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 px-6 pb-7">
         <p className="font-display text-[34px] font-semibold leading-[1.05] text-[#f7f4ec]" data-wrapped-headline>
           {s.headline}
         </p>
         <p className="mt-2 whitespace-pre-line font-hand text-[23px] font-bold leading-snug text-[#ffd9a8]">{s.line}</p>
         {last ? (
-          <div className="relative z-30 mt-6 space-y-2.5">
+          <div className="pointer-events-auto relative z-30 mt-6 space-y-2.5">
             <ShareSheet
               image={`/groups/${groupId}/wrapped-image`}
               fileName="wrapped.png"
