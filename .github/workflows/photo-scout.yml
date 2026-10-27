@@ -47,16 +47,15 @@ jobs:
           cover-road-in|india highway road trip mountains
           place-mussoorie|mussoorie hills
           LIST
-          cd scout-tool && npm init -y >/dev/null && npm i playwright@1.48.2 >/dev/null 2>&1 && npx playwright install --with-deps chromium >/dev/null 2>&1
-          node find.cjs ../scout/list.txt && mv found.json ../scout/
+          cd scout-tool && python3 commons.py ../scout/list.txt && mv found.json ../scout/
       - run: |
           cd scout
           for slot in $(jq -r 'keys[]' found.json); do
             files=""; i=0
-            for id in $(jq -r --arg s "$slot" '.[$s][].id' found.json); do
+            for thumb in $(jq -r --arg s "$slot" '.[$s][].thumb' found.json); do
               i=$((i+1))
-              curl -s "https://images.unsplash.com/$id?w=300&h=400&fit=crop&q=60&fm=jpg" -o "$slot-$i.jpg" || continue
-              convert "$slot-$i.jpg" -gravity south -background black -splice 0x30 -fill white -pointsize 18 -annotate +0+5 "$i" "$slot-$i.jpg" 2>/dev/null && files="$files $slot-$i.jpg"
+              curl -s -A "LoopinPhotoScout/1.0" "$thumb" -o "$slot-$i.jpg" || continue
+              convert "$slot-$i.jpg" -resize 300x400^ -gravity center -extent 300x400 -gravity south -background black -splice 0x30 -fill white -pointsize 18 -annotate +0+5 "$i" "$slot-$i.jpg" 2>/dev/null && files="$files $slot-$i.jpg"
             done
             [ -n "$files" ] && montage $files -tile 8x1 -geometry 220x320+3+3 -background '#111' -title "$slot" -fill white -pointsize 20 "sheet-$slot.jpg"
             rm -f $slot-*.jpg
