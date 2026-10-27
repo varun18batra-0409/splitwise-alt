@@ -1,0 +1,25 @@
+name: Fetch font
+on:
+  push:
+    branches: [check-names]
+    paths: [.github/workflows/fetch-font.yml]
+permissions:
+  contents: write
+jobs:
+  font:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: |
+          mkdir -p out && cd out
+          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+          curl -sSL -A "$UA" "https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400..700&display=swap" > css.txt
+          cat css.txt
+          # the latin block is the last @font-face
+          url=$(awk '/\/\* latin \*\//{f=1} f && /src:/{print; exit}' css.txt | grep -o 'https://[^)]*')
+          echo "latin: $url"
+          curl -sSL "$url" -o instrument-sans-latin-wght-normal.woff2
+          curl -sSL "https://raw.githubusercontent.com/google/fonts/main/ofl/instrumentsans/OFL.txt" -o LICENSE-instrument-sans
+          ls -la
+      - run: |
+          cd out && git init -q && git checkout -q -b fonts-out && git add . && git -c user.name=f -c user.email=f@users.noreply.github.com commit -qm font
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" fonts-out
