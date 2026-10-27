@@ -356,13 +356,15 @@ if (!hosted) {
       await p.waitForTimeout(4200);
     }, false);
     await shot("102-wrapped-intro", `/groups/${pune.id}/wrapped`, undefined, false);
-    await shot("103-wrapped-awards", `/groups/${pune.id}/wrapped`, async (p) => {
-      for (let k = 0; k < 5; k++) {
-        if ((await p.locator("[data-wrapped-slide='awards']").count()) > 0) break;
-        await p.getByRole("button", { name: "Next" }).click();
-        await p.waitForTimeout(250);
-      }
-    }, false);
+    for (const [n, kind] of [["103-wrapped-awards", "awards"], ["114-wrapped-total", "total"], ["115-wrapped-category", "category"], ["116-wrapped-day", "day"], ["117-wrapped-splurge", "splurge"]] as const)
+      await shot(n, `/groups/${pune.id}/wrapped`, async (p) => {
+        for (let k = 0; k < 7; k++) {
+          if ((await p.locator(`[data-wrapped-slide='${kind}']`).count()) > 0) break;
+          await p.getByRole("button", { name: "Next" }).click();
+          await p.waitForTimeout(250);
+        }
+        await p.waitForTimeout(1000);
+      }, false);
     await shot("104-balances-titles", `/groups/${pune.id}?tab=balances`);
     const lona = await db.group.create({
       data: {

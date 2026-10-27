@@ -2184,6 +2184,32 @@ async function main() {
     await V.getByRole("button", { name: "Share it" }).waitFor();
   });
 
+  await step(V, "Fun", "Titles: everyone in the group gets a fun title, shown as cards at the top of Balances", async () => {
+    await go(V, `${g}?tab=balances`);
+    const cards = await V.locator("[data-title-card]").count();
+    const people = await V.locator("[data-title]").count();
+    assert(cards >= 2, `only ${cards} title cards`);
+    assert(cards === people, `${cards} cards but ${people} people with a title`);
+  });
+
+  await step(V, "Fun", "Where to? when making a trip (optional): the trip earns its passport stamp", async () => {
+    await go(V, "/groups/new");
+    await V.getByRole("button", { name: /^Trip/ }).click();
+    await V.locator('input[name="groupName"]').fill(`UAT weekend ${stamp % 1000}`);
+    await V.getByText("Add it to get a stamp in everyone’s trip passport.").waitFor();
+    await V.getByLabel("Places").fill("Krabi");
+    await V.getByLabel("Country").selectOption("TH");
+    await V.locator('input[name="tripStart"]').fill(istDay(-2));
+    await V.locator('select[name="currency"]').selectOption("INR");
+    await V.getByRole("button", { name: /Create group/ }).click();
+    await V.waitForURL(/\/invite\?new=1/);
+    const trip = new URL(V.url()).pathname.replace(/\/invite$/, "");
+    await go(V, `${trip}/settings`);
+    assert((await V.getByLabel("Places").inputValue()) === "Krabi", "Where to? wasn't saved");
+    await go(V, "/passport");
+    await V.locator("[data-country-stamp='TH'][data-by-hand='0']").waitFor({ state: "attached" });
+  });
+
   await step(V, "Fun", "Trip passport opens like a booklet, and several countries from before Loopin can be added at once", async () => {
     await go(V, "/account");
     await V.getByRole("link", { name: /Your trip passport/ }).click();

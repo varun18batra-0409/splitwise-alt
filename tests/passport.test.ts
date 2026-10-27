@@ -119,8 +119,16 @@ describe("Trip Wrapped and fun titles", () => {
   ];
   it("titles: one each, about habits", () => {
     const t = funTitles(expenses, ["a", "b", "c"], "Asia/Kolkata", "INR");
-    expect(t.map((x) => [x.memberId, x.title])).toEqual([["a", "The Banker"], ["b", "Snack Lord"], ["c", "Always Pays First"]]);
+    expect(t.map((x) => [x.memberId, x.title])).toEqual([["a", "The Banker"], ["b", "Snack Lord"], ["c", "The Driver"]]);
     expect(funTitles(expenses.slice(0, 3), ["a", "b", "c"], "Asia/Kolkata", "INR")).toEqual([]); // too few to judge
+  });
+  it("titles: everyone gets one, even someone who paid for nothing", () => {
+    const t = funTitles(expenses, ["a", "b", "c", "d", "e"], "Asia/Kolkata", "INR");
+    expect(t.map((x) => [x.memberId, x.title])).toEqual([["a", "The Banker"], ["b", "Snack Lord"], ["c", "The Driver"], ["d", "The VIP"], ["e", "Smooth Operator"]]);
+    expect(t[3].why).toBe("Everyone else had it covered");
+    // A tie goes to whoever got there first.
+    const tie = [e("Lunch", 1000, "x", "food", at(12, 10)), e("Tea", 1000, "y", "food", at(16, 10)), e("Dinner", 1000, "y", "food", at(20, 10)), e("Snack", 1000, "x", "food", at(21, 10))];
+    expect(funTitles(tie, ["x", "y"], "Asia/Kolkata", "INR").map((x) => [x.memberId, x.title])).toEqual([["y", "The Banker"], ["x", "Snack Lord"]]);
   });
   it("slides: total, top category, the big day, the splurge, awards, and how it ends", () => {
     const { slides, total } = wrapSlides({ name: "Goa trip", currency: "INR", tz: "Asia/Kolkata", people: [{ id: "a", name: "Asha" }, { id: "b", name: "Ravi" }, { id: "c", name: "Dev" }], expenses, tripStart: "2026-10-10", tripEnd: "2026-10-12", stillToSettle: 0, myId: "a" });

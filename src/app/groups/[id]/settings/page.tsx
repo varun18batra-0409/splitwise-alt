@@ -13,7 +13,7 @@ import Link from "@/components/Link";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { CoverPicker } from "@/components/CoverPicker";
 import { TripDates } from "@/components/TripDates";
-import { COUNTRIES, countryOf, tripStops } from "@/lib/geo";
+import { WhereTo } from "@/components/WhereTo";
 import { coverFor, coverOf } from "@/lib/covers";
 import { ErrorNote, PageHeader, inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
 
@@ -125,30 +125,7 @@ export default async function GroupSettings({
         {group.type === "trip" && <TripDates name={group.name} start={group.tripStart} end={group.tripEnd} titleClass="text-base font-semibold" />}
 
         {/* Where to: for everyone's trip passport (a stamp for each place). */}
-        {group.type === "trip" && (
-          <fieldset id="where">
-            <legend className="mb-1 text-base font-semibold">Where to?</legend>
-            <p className="mb-3 text-sm text-gray-500">
-              {(() => {
-                const guess = tripStops(group.name);
-                return guess.length && !group.tripPlace
-                  ? `From the name we guessed ${guess.map((s) => s.city || countryOf(s.country)?.name).join(", ")}. Fix it or add more stops.`
-                  : "Each place becomes a stamp in everyone’s trip passport.";
-              })()}
-            </p>
-            <div className="grid grid-cols-[minmax(0,1fr)_9rem] gap-2">
-              <input name="tripPlace" defaultValue={group.tripPlace} maxLength={80} placeholder="e.g. Bangkok, Phuket" aria-label="Places" autoComplete="off" className={inputClass} />
-              <select name="tripCountry" defaultValue={group.tripCountry} aria-label="Country" className={`${inputClass} min-w-0`}>
-                <option value="">Country…</option>
-                {COUNTRIES.map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.flag} {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </fieldset>
-        )}
+        {group.type === "trip" && <WhereTo name={group.name} place={group.tripPlace} country={group.tripCountry} />}
 
         <CoverPicker defaultValue={coverOf(group)} letter={group.name} uid={group.id} legendClassName="mb-1 text-base font-semibold" own={{ groupId: group.id, src: coverFor(group).src }} />
 

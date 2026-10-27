@@ -560,3 +560,48 @@ html.lp-opened .lp-open {
   animation-timing-function: linear;
   animation-fill-mode: forwards;
 }
+
+/* Wrapped posters: each slide's picture arrives when you tap to it. */
+@keyframes lp-slide-in {
+  from {
+    opacity: 0;
+    translate: 0 10px;
+  }
+}
+.lp-slide-in {
+  animation: lp-slide-in 260ms ease-out both;
+}
+@keyframes lp-ring {
+  from {
+    stroke-dasharray: 0 999;
+  }
+}
+.lp-ring {
+  animation: lp-ring 900ms cubic-bezier(0.3, 0.7, 0.2, 1) both;
+}
+@keyframes lp-bar {
+  from {
+    transform: scaleY(0);
+  }
+}
+.lp-bar {
+  transform-origin: bottom;
+  animation: lp-bar 520ms cubic-bezier(0.3, 0.7, 0.2, 1) both;
+}
+@keyframes lp-card {
+  from {
+    opacity: 0;
+    translate: 0 14px;
+  }
+}
+.lp-card {
+  animation: lp-card 320ms ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-slide-in,
+  .lp-ring,
+  .lp-bar,
+  .lp-card {
+    animation: none;
+  }
+}

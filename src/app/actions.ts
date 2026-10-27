@@ -55,6 +55,8 @@ export async function createGroup(formData: FormData) {
     cover: String(formData.get("cover") ?? ""),
     tripStart: String(formData.get("tripStart") ?? ""),
     tripEnd: String(formData.get("tripEnd") ?? ""),
+    tripPlace: String(formData.get("tripPlace") ?? ""),
+    tripCountry: String(formData.get("tripCountry") ?? ""),
     photo: photoFrom(formData.get("photo")),
   });
   const me = group.members[0];

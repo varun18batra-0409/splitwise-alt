@@ -48,6 +48,30 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
         </section>
       )}
 
+      {/* Everyone's fun title, as a row of little cards. */}
+      {titles.length > 0 && (
+        <section aria-label="Fun titles">
+          <h2 className="font-display text-lg font-semibold tracking-tight">Titles</h2>
+          <p className="mb-3 text-sm text-gray-500">Earned on this {group.type === "trip" ? "trip" : "group"} so far.</p>
+          <ul className="-mx-5 flex snap-x gap-3 overflow-x-auto px-5 pb-2 [scrollbar-width:none]" data-titles>
+            {titles.map((t, k) => {
+              const m = group.members.find((x) => x.id === t.memberId);
+              const tint = ["#6fe3a8", "#ffab6b", "#7cc4ff", "#ff8fc7", "#b79cff", "#ffd66b"][k % 6];
+              return (
+                <li key={t.memberId} className="w-[148px] shrink-0 snap-start rounded-[18px] border border-line bg-mist px-3.5 pb-3.5 pt-3" style={{ boxShadow: `inset 0 3px 0 ${tint}` }} data-title-card={t.title}>
+                  <span aria-hidden className="block text-[34px] leading-none">{t.emoji}</span>
+                  <span className="mt-2 block font-display text-[16px] font-semibold leading-tight">{t.title}</span>
+                  <span className="mt-1 block truncate text-sm font-semibold" style={{ color: tint }}>
+                    {m ? (m.id === myId ? "You" : m.name.split(" ")[0]) : "Someone"}
+                  </span>
+                  <span className="mt-1 block text-xs leading-snug text-gray-500">{t.why}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
       {/* Each person: their balance; tap for exactly why, and who they pay. */}
       <section>
         <h2 className="font-display text-lg font-semibold tracking-tight">By person</h2>

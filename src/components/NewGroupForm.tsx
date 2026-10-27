@@ -6,6 +6,7 @@ import { GROUP_TYPES, ratioFromIncomes, type GroupType } from "@/lib/group-types
 import { CurrencySelect } from "./CurrencySelect";
 import { CoverPicker } from "./CoverPicker";
 import { TripDates } from "./TripDates";
+import { WhereTo } from "./WhereTo";
 import { GroupCover } from "./GroupCover";
 import { coverOf, isCoverChoice, type CoverChoice } from "@/lib/covers";
 import { inputClass, primaryButtonClass, secondaryButtonClass } from "./ui";
@@ -127,6 +128,7 @@ export function NewGroupForm({
           <input name="groupName" required value={name} onChange={(e) => setName(e.target.value)} placeholder={placeholder} autoComplete="off" maxLength={60} className={inputClass} />
         </label>
         {type === "trip" && <TripDates name={name} />}
+        {type === "trip" && <WhereTo name={name} optional />}
         <label className="block">
           <span className="mb-2 block text-sm font-medium text-gray-600">Your name in this group</span>
           <input name="yourName" required defaultValue={yourName} placeholder="Your name" autoComplete="given-name" className={inputClass} />
