@@ -228,6 +228,7 @@ export default async function GroupSettle({
         <form action={markAllPaidAction} className="mt-4">
           <input type="hidden" name="groupId" value={group.id} />
           <input type="hidden" name="plan" value={planKey(transfers)} />
+          <input type="hidden" name="rid" value={newRequestKey()} />
           <ConfirmButton
             message={`Mark all ${ordered.length} payments paid? The group stays open, everyone is told, and you can undo it.`}
             className="pop block w-full bg-fg px-4 py-3 text-center text-sm font-semibold text-canvas [--pop-edge:#6e6b63]"

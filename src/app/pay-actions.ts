@@ -51,6 +51,7 @@ export async function markAllPaidAction(f: FormData) {
   if (!data) redirect("/");
   if (planKey(data.transfers) !== field(f, "plan")) redirect(`/groups/${groupId}/settle?${new URLSearchParams({ error: "Balances changed since you opened this. Check the updated list and try again." })}`);
   const { shown } = applySettleMin(data.transfers, data.group.settleMin);
-  const r = await markAllPaid(groupId, myId, shown.map((t) => ({ from: t.from, to: t.to, amount: t.amount })), "");
+  const { cleanKey } = await import("@/lib/once");
+  const r = await markAllPaid(groupId, myId, shown.map((t) => ({ from: t.from, to: t.to, amount: t.amount })), "", true, cleanKey(f.get("rid")));
   redirect(`/groups/${groupId}/settle?${new URLSearchParams(r.ok ? { paid: "all", ...(r.eventId ? { did: r.eventId } : {}) } : { error: r.error })}`);
 }

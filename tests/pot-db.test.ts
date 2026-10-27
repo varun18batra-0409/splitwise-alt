@@ -167,4 +167,27 @@ describe("The Pot (real database)", () => {
     expect(u.ok).toBe(true);
     expect((await balances(g.id))[a]).toBe(50000);
   });
+
+  it("one payment counts for one game only (the oldest still owed); Mark all paid twice at once records it once", async () => {
+    const { g, a, b } = await table();
+    const play = async (name: string) => {
+      const s = await startGame(g.id, a, { name, game: "poker", players: [a, b] });
+      if (!s.ok) throw new Error(s.error);
+      await buyIn(s.id, a, { memberIds: [a, b], amount: "500" });
+      const c = await countOut(s.id, a, [{ memberId: a, amount: "800" }, { memberId: b, amount: "200" }], true);
+      expect(c).toEqual({ ok: true, finished: true, gap: false }); // Bina owes Asha ₹300
+      return s.id;
+    };
+    const one = await play("Monday");
+    const two = await play("Tuesday");
+    const games = await db.potGame.findMany({ where: { groupId: g.id }, include: { moves: { where: { deletedAt: null } } } });
+    expect(await gamesToSettle(g.id, games)).toEqual({ [one]: 30000, [two]: 30000 });
+    await db.payment.create({ data: { groupId: g.id, fromId: b, toId: a, amount: 30000, createdById: b } });
+    expect(await gamesToSettle(g.id, games)).toEqual({ [one]: 0, [two]: 30000 });
+    // Two people tap "Mark all paid" in Tuesday's game at the same moment: one payment.
+    const [x, y] = await Promise.all([markGamePaid(two, a), markGamePaid(two, b)]);
+    expect([x.ok, y.ok].filter(Boolean).length).toBeGreaterThanOrEqual(1);
+    expect(await gamesToSettle(g.id, games)).toEqual({ [one]: 0, [two]: 0 });
+    expect((await balances(g.id))[a]).toBe(0);
+  });
 });

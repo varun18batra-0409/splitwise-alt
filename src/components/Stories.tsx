@@ -113,7 +113,10 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
   const startY = useRef<number | null>(null);
   const s = stories[i];
 
+  const closing = useRef(false);
   const close = useCallback(() => {
+    if (closing.current) return; // a quick double tap on × must not go back twice
+    closing.current = true;
     // Opened with a history step, so the phone's Back closes it too.
     if (history.state?.lpStory) history.back();
     else onClose();
@@ -196,7 +199,7 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
             {s.headline}
           </p>
           <p className="mt-2 font-hand text-[24px] font-bold leading-tight text-[#ffd9a8]">{s.line}</p>
-          <Link href={s.href} className="pop pointer-events-auto relative z-30 mt-6 block bg-[#f4f1e8] px-4 py-3.5 text-center text-base font-semibold text-[#14130f] [--pop-edge:#6e6b63]">
+          <Link href={s.href} replace className="pop pointer-events-auto relative z-30 mt-6 block bg-[#f4f1e8] px-4 py-3.5 text-center text-base font-semibold text-[#14130f] [--pop-edge:#6e6b63]">
             {s.cta}
           </Link>
         </div>

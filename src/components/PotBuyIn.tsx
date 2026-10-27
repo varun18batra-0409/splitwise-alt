@@ -1,13 +1,13 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { buyInAction } from "@/app/pot-actions";
 import { formatMoney, parseAmount } from "@/lib/money";
 
 // Buy-in: tick who's taking money (everyone, at the start), one amount, one
-// tap. The ticks and the amount live in the form's own fields, so what's on
-// screen is exactly what's saved, even if tapped before the page has loaded.
+// tap. What's on screen is what's saved; if the save comes back with a
+// problem (a typo in the amount), the ticks and the amount stay as they were.
 function Submit({ label }: { label: string }) {
   const { pending } = useFormStatus();
   return (
@@ -30,20 +30,13 @@ export function PotBuyIn({
   quick: { value: string; label: string }[];
   currency: string;
 }) {
-  const form = useRef<HTMLFormElement>(null);
-  const amount = useRef<HTMLInputElement>(null);
-  // Only for the words on the button; what's saved comes from the fields.
-  const [count, setCount] = useState(allTicked ? players.length : 0);
-  const [each, setEach] = useState<number | null>(null);
-  const recount = () => setCount(form.current ? form.current.querySelectorAll('input[name="memberIds"]:checked').length : 0);
-  const tickAll = (on: boolean) => {
-    form.current?.querySelectorAll<HTMLInputElement>('input[name="memberIds"]').forEach((b) => (b.checked = on));
-    recount();
-  };
-  const setAmount = (v: string) => {
-    if (amount.current) amount.current.value = v;
-    setEach(parseAmount(v, currency));
-  };
+  // Who's ticked and the amount: kept on screen if the save comes back with a problem.
+  const [ticked, setTicked] = useState<string[]>(allTicked ? players.map((p) => p.id) : []);
+  const [typed, setTyped] = useState("");
+  const count = ticked.length;
+  const each = typed.trim() ? parseAmount(typed, currency) : null;
+  const tickAll = (on: boolean) => setTicked(on ? players.map((p) => p.id) : []);
+  const setAmount = (v: string) => setTyped(v);
   const label =
     count === 0
       ? "Tick who’s buying in"
@@ -52,7 +45,7 @@ export function PotBuyIn({
         : `Buy in for ${count === 1 ? "1 player" : `${count} players`}`;
 
   return (
-    <form ref={form} action={buyInAction} className="space-y-3.5" data-allow-repeat="1" aria-label="Buy in">
+    <form action={buyInAction} className="space-y-3.5" data-allow-repeat="1" aria-label="Buy in">
       <input type="hidden" name="gameId" value={gameId} />
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="font-display text-lg font-semibold tracking-tight">{allTicked ? "Buy in" : "Buy in / top up"}</h2>
@@ -72,7 +65,7 @@ export function PotBuyIn({
             key={p.id}
             className="flex cursor-pointer items-center gap-2 rounded-full border border-line px-3 py-1.5 text-sm has-[:checked]:border-fg has-[:checked]:bg-fg has-[:checked]:text-canvas has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent"
           >
-            <input type="checkbox" name="memberIds" value={p.id} defaultChecked={allTicked} onChange={recount} className="sr-only" />
+            <input type="checkbox" name="memberIds" value={p.id} checked={ticked.includes(p.id)} onChange={(e) => setTicked((t) => (e.target.checked ? [...t, p.id] : t.filter((x) => x !== p.id)))} className="sr-only" />
             <span className="font-semibold">{p.name}</span>
             {p.note && <span className="text-xs opacity-60">{p.note}</span>}
           </label>
@@ -83,15 +76,8 @@ export function PotBuyIn({
         <span className="flex items-center gap-2 rounded-xl border border-line bg-mist px-4 focus-within:border-accent">
           <span className="text-sm text-gray-400">{currency}</span>
           <input
-            ref={amount}
-            name="amount"
-            required
-            inputMode="decimal"
-            defaultValue=""
-            placeholder={quick[1]?.value ?? "1000"}
-            autoComplete="off"
-            aria-label="Amount each"
-            onInput={(e) => setEach(parseAmount(e.currentTarget.value, currency))}
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
             className="w-full bg-transparent py-3 font-display text-xl tabular-nums outline-none"
           />
         </span>

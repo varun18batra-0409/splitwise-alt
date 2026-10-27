@@ -94,7 +94,10 @@ export default async function GamePage({ params, searchParams }: { params: Promi
                     <span className="min-w-0 flex-1 text-sm">
                       <strong className="font-semibold">{you(t.from)}</strong> {t.from === myId ? "pay" : "pays"} <strong className="font-semibold">{youLow(t.to)}</strong>
                     </span>
-                    <span className="font-semibold tabular-nums">{money(t.amount)}</span>
+                    <span className="text-right font-semibold tabular-nums">
+                      {money(done || left === t.amount ? t.amount : left)}
+                      {!done && left !== t.amount && <span className="block text-[11px] font-normal text-gray-500">left of {money(t.amount)}</span>}
+                    </span>
                     {done || group.closed ? (
                       <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${done ? "bg-owed/[0.14] text-owed" : "bg-fg/[0.08] text-fg/60"}`}>{done ? "paid ✓" : "pending"}</span>
                     ) : (
@@ -119,6 +122,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
           {pending.length > 1 && !group.closed && (
             <form action={markGamePaidAction} className="mt-3">
               <input type="hidden" name="gameId" value={game.id} />
+              <input type="hidden" name="rid" value={newRequestKey()} />
               <ConfirmButton message={`Mark all ${pending.length} payments of this game paid? Everyone is told, and you can undo it.`} className={secondaryButtonClass}>
                 Mark all {pending.length} paid
               </ConfirmButton>
