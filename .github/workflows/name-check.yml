@@ -7,21 +7,24 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - run: |
-          names="chipin chippin pitchin poolin kickin dropin roamin squadin tabbin zingo jollin yollo splitzy tabbo kittee kittin gangin vibin groupin clubin poolio chipo tabzy squadzy roamo chipinapp chippinapp pitchinapp poolinapp kickinapp squadinapp tabbinapp roaminapp zingoapp yolloapp jolloapp tabbeo kitto squado splitto chipster tabble splitsy yallo"
+          names="yaarana yaarlo dostana saathly huddlin flockin crewzy kinloop ourloop evrin bandin bunchin tribin covey merrygo togethr withly wanderkin stampin jauntly tripsy loopsy chumly pallin crewlo hangin huddly yaarin kinzo folkin zingly joynt karvaan karwaan yatrin clanin inloop tallyho tallyin tabtrip bonhomie kittyup gangway roamies wandr tribewise yaariyan safarin hopsy jaunt merrytrip palsy chumsy crewbook tagalong caravanly allaboard nomadin storytab kinfolkapp"
           curl -s https://data.iana.org/rdap/dns.json -o dns.json
           base() { jq -r --arg t "$1" '.services[] | select(.[0] | index($t)) | .[1][0]' dns.json | head -1; }
-          declare -A B; for t in com app co io; do B[$t]=$(base $t); echo "$t -> ${B[$t]}"; done
-          q() { # registry RDAP: 404 = nobody has it
-            curl -s -o /dev/null -w '%{http_code}' --max-time 15 "${B[$2]%/}/domain/$1.$2" || echo "err"
-          }
+          declare -A B; for t in com app in; do B[$t]=$(base $t); echo "$t -> ${B[$t]}"; done
+          q() { curl -s -o /dev/null -w '%{http_code}' --max-time 15 "${B[$2]%/}/domain/$1.$2" || echo "err"; }
           out=""
           for n in $names; do
             line="$n:"
-            for tld in com app; do
-              code=$(q $n $tld); sleep 0.4
+            for tld in com app in; do
+              code=$(q $n $tld); sleep 0.3
               case "$code" in 404) s="FREE";; 200) s="taken";; *) s="?$code";; esac
               line="$line $tld=$s"
             done
+            # Apps already called this (App Store titles that start with the name)
+            ios=$(curl -s --max-time 15 "https://itunes.apple.com/search?term=$n&entity=software&limit=25&country=in" | jq --arg n "$n" '[.results[]?.trackName | ascii_downcase | select(startswith($n))] | length' 2>/dev/null || echo "?")
+            line="$line ios=$ios"
+            play=$(curl -s --max-time 15 -A "Mozilla/5.0" "https://play.google.com/store/search?q=$n&c=apps&hl=en&gl=IN" | grep -oiE ">$n[^<]{0,25}<" | sort -u | head -3 | tr '\n' '|' )
+            line="$line play=[$play]"
             echo "$line"
             out="$out$line%0A"
           done
