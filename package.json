@@ -11,7 +11,7 @@
     "db:setup": "prisma db push && node prisma/upgrade-data.mjs",
     "postinstall": "prisma generate",
     "share": "gh codespace ports visibility 3000:public -c \"$CODESPACE_NAME\" && echo \"✓ The app address is public: invite links now work for friends.\" || echo \"Could not make the address public automatically. In the Ports tab, long-press port 3000 → Port Visibility → Public.\"",
-    "vercel-build": "node scripts/turso-sync.mjs && node prisma/upgrade-data.mjs && node scripts/fetch-photos.mjs && node scripts/fetch-map.mjs && next build",
+    "vercel-build": "node scripts/turso-sync.mjs && node prisma/upgrade-data.mjs && node scripts/fetch-photos.mjs && node scripts/fetch-map.mjs && node scripts/fetch-fonts.mjs && next build",
     "test:e2e": "playwright test",
     "test:e2e:report": "playwright show-report e2e-report"
   },

@@ -55,7 +55,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
 
       {!empty && (
         <div className="mt-5">
-          <ShareSheet image={`/passport/image?v=${p.stats.countries}-${p.stats.cities}-${p.stamps.length}-${p.been.length}`} fileName="loopin-passport.png" title="Share your passport" words={`${p.stats.countries} ${p.stats.countries === 1 ? "country" : "countries"}, ${p.stats.cities} ${p.stats.cities === 1 ? "city" : "cities"} and counting ✈️`} label="Share my passport" />
+          <ShareSheet image={`/passport/image?v=${p.stats.countries}-${p.stats.cities}-${p.stamps.length}-${p.been.length}`} fileName="loopin-passport.png" title="Share your passport" words={`My Loopin passport: ${[p.stats.countries ? `${p.stats.countries} ${p.stats.countries === 1 ? "country" : "countries"}` : "", p.stats.cities ? `${p.stats.cities} ${p.stats.cities === 1 ? "city" : "cities"}` : ""].filter(Boolean).join(", ") || "my first stamps"} and counting ✈️`} label="Share my passport" />
         </div>
       )}
 

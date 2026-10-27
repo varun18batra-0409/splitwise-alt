@@ -70,7 +70,7 @@ jobs:
           set -o pipefail
           npm run vercel-build 2>&1 | tee vb.log || { echo "::error title=Hosting build failed::$(tail -60 vb.log | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"; exit 1; }
           echo "::notice title=Photos::$(grep 'photos:' vb.log | tr '\n' ' ')"
-          echo "::notice title=Map::$(grep 'map:' vb.log | tr '\n' ' ')"
+          echo "::notice title=Map::$(grep -E 'map:|fonts:' vb.log | tr '\n' ' ')"
           echo "::notice title=Schema upgrade from live::$(grep -E '^(ALTER|CREATE TABLE|DROP)|already matches|REFUSING' vb.log | tr '\n' ' ' | cut -c1-900)"
           node scripts/turso-sync.mjs | tee sync2.log
           grep -q "already matches" sync2.log || { echo "::error title=Schema sync not idempotent::$(cat sync2.log | tr '\n' ' ')"; exit 1; }
