@@ -1,7 +1,20 @@
 # Every time code is pushed, GitHub installs everything, runs the tests and
 # checks the app builds. A green tick on GitHub means it all worked.
+#
+# Saving GitHub minutes (the repo is private): the quick check runs on every
+# push to the app's branches; the long tap-through of every screen (UAT and
+# screenshots) runs by hand ("Run workflow") or when the commit message says
+# [full], which every release candidate does before it goes to main. A newer
+# push to the same branch replaces an older run.
 name: Check
-on: [push, pull_request]
+on:
+  push:
+    branches: [main, "phase*", staging, "next*"]
+  pull_request:
+  workflow_dispatch:
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 jobs:
   check:
     runs-on: ubuntu-24.04
@@ -30,7 +43,7 @@ jobs:
   # phase is tapped through before it's merged.
   screens:
     needs: check
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/phase')
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[full]')
     runs-on: ubuntu-24.04
     permissions:
       contents: write

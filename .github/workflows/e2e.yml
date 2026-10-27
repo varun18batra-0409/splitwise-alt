@@ -24,7 +24,8 @@ concurrency:
 jobs:
   local:
     name: E2E (throwaway copy on GitHub)
-    if: github.event_name != 'workflow_dispatch' || inputs.target == 'local'
+    # Long (Android + iPhone): by hand, or when the commit message says [full] (every release candidate).
+    if: (github.event_name == 'workflow_dispatch' && inputs.target == 'local') || (github.event_name == 'push' && contains(github.event.head_commit.message, '[full]')) || github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
