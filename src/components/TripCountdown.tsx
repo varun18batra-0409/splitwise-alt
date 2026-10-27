@@ -77,7 +77,7 @@ export function TripCountdown({ group, phase }: { group: Group; phase: TripPhase
 }
 
 // A small plane taking off down a dashed runway, next to "Boarding in".
-function TakeOff({ className }: { className: string }) {
+export function TakeOff({ className }: { className: string }) {
   return (
     <span aria-hidden data-takeoff className="relative h-[24px] min-w-[34px] flex-1 overflow-hidden">
       <span className="absolute inset-x-0 bottom-[3px] border-t border-dashed border-fg/20" />

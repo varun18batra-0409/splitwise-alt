@@ -153,7 +153,7 @@ export function PasskeyOffer() {
       <p className="font-semibold">Sign in faster next time?</p>
       <p className="mt-1 text-sm text-gray-500">Use your fingerprint or face instead of a code. It stays on your phone.</p>
       <div className="mt-3">
-        <PasskeyAdd className="flex items-center border border-line px-4 py-2.5 text-sm font-semibold text-fg active:bg-mist" label="Turn it on" onDone={() => setTimeout(hide, 2500)} />
+        <PasskeyAdd className="flex items-center border border-line px-4 py-2.5 text-sm font-semibold text-fg active:bg-mist rounded-full" label="Turn it on" onDone={() => setTimeout(hide, 2500)} />
       </div>
       <button type="button" onClick={hide} aria-label="Not now" className="absolute right-1 top-1 flex h-8 w-8 items-center justify-center rounded-full text-base opacity-60 active:bg-black/10">
         ✕

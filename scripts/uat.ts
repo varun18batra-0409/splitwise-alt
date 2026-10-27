@@ -179,7 +179,7 @@ async function fillExpense(page: Page, o: AddOpts) {
   await pickCurrency(page, o.currency ?? "INR");
   await page.getByLabel("Amount", { exact: true }).fill(o.amount);
   if (o.date) {
-    await page.getByRole("button", { name: /Today · Change/ }).click();
+    await page.getByRole("button", { name: /Today.*Change/ }).click();
     await page.getByRole("button", { name: o.date, exact: true }).click();
   }
   if (o.currency && o.currency !== "INR") {
@@ -602,7 +602,7 @@ async function main() {
   const settleCards = (page: Page) => page.locator("main ul > li").filter({ has: page.locator('input[name="amount"]') });
   const cardPeople = async (page: Page, i: number, me: Person): Promise<[Person, Person, number]> => {
     const t = (await settleCards(page).nth(i).innerText()).replace(/\s+/g, " ");
-    const m = /^(\w+) (?:pay|pays) (\w+) (₹[\d,.]+)/.exec(t);
+    const m = /^(?:[A-Z] )?(\w+) (?:pay|pays) (\w+) (₹[\d,.]+)/.exec(t); // the card starts with the person's initial
     assert(m, `can't read card: ${t}`);
     const who = (s: string) => (s === "You" || s === "you" ? me : (s as Person));
     return [who(m[1]), who(m[2]), minor(m[3])];
@@ -863,10 +863,11 @@ async function main() {
     await go(A, "/notifications");
     await A.getByText(/added Asha to the group/).first().waitFor();
   });
-  await step(V, "Home", "Home shows net balance, Needs attention or Groups, and the bottom bar", async () => {
+  await step(V, "Home", "Home opens on a photo (the next trip, or your latest group), then your balance, Your groups and the bottom bar", async () => {
     await go(V, "/");
-    await V.getByText(/Net balance|All square/).first().waitFor();
-    await V.getByRole("heading", { name: "Groups" }).waitFor();
+    await V.locator("[data-home-hero]").waitFor();
+    await V.getByRole("region", { name: "Your balance" }).getByText(/Coming back to you|You owe, all in|It all evens out|All square/).first().waitFor();
+    await V.getByRole("heading", { name: "Your groups" }).waitFor();
     await V.getByRole("navigation", { name: "Main" }).waitFor();
   });
   await step(V, "Home", "Tapping an expense in Latest opens it in its group, expanded, with Edit or delete", async () => {
@@ -2109,13 +2110,14 @@ async function main() {
     assert(await card.locator("[data-takeoff]").count(), "no plane on the countdown");
   });
 
-  await step(V, "Countdown", "A second trip in 30 days: Home turns it into “Your trips 2”, soonest first, one card at a time", async () => {
+  await step(V, "Countdown", "A second trip in 30 days: the soonest stays big at the top of Home, the later one shows under “Also coming up”, one card at a time", async () => {
     await newTrip(V, `UAT Manali trip ${stamp % 1000}`, istDay(30));
     await go(V, "/");
+    assert((await V.locator("[data-home-hero]").getAttribute("data-countdown")) === "10", "the soonest trip isn't at the top");
     const row = V.locator("[data-trip-row]");
     const days = await row.locator("[data-countdown]").evaluateAll((els) => els.map((e) => e.getAttribute("data-countdown")));
-    assert(JSON.stringify(days.slice(0, 2)) === JSON.stringify(["10", "30"]), `trips in the order ${days.join(", ")}`);
-    await V.getByRole("heading", { name: /Your trips/ }).waitFor();
+    assert(days[0] === "30", `later trips in the order ${days.join(", ")}`);
+    await V.getByRole("heading", { name: "Also coming up" }).waitFor();
     const w = await row.evaluate((el) => [el.clientWidth, (el.firstElementChild as HTMLElement).clientWidth]);
     assert(w[0] === w[1], `a card is ${w[1]}px in a ${w[0]}px row (should be one per screen)`);
   });
@@ -2192,7 +2194,7 @@ async function main() {
     await set.waitFor({ timeout: 8000 });
     const who = ((await set.textContent()) ?? "").replace(/^Set | as payer$/g, "").replace(/^yourself$/, "You");
     await set.click();
-    await V.getByRole("button", { name: new RegExp(`✓ ${who}`) }).waitFor();
+    await V.getByRole("button", { name: who, exact: true, pressed: true }).waitFor();
   });
 
   await step(V, "Fun", "Wrapped: tap through the slides; the last one offers Share", async () => {

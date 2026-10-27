@@ -44,14 +44,14 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
         {couple ? (
           <>
             <p className="text-sm text-gray-500">{monthName} together</p>
-            <p className="mt-1 font-display text-[40px] font-semibold leading-none tracking-tight tabular-nums">{money(s.total)}</p>
+            <p className="mt-1 money text-[40px] font-semibold leading-none tracking-tight tabular-nums">{money(s.total)}</p>
             {s.lastTotal > 0 && (
               <p className="mt-1.5 text-sm text-gray-500">
                 {change <= 0 ? `${money(-change)} less than last month` : `${money(change)} more than last month`}
               </p>
             )}
             <div className="my-4 h-px bg-line" />
-            <p className={`font-display text-[22px] font-semibold tabular-nums ${mine > 0 ? "text-owed" : mine < 0 ? "text-owe" : ""}`}>
+            <p className={`money text-[22px] font-semibold tabular-nums ${mine > 0 ? "text-owed" : mine < 0 ? "text-owe" : ""}`}>
               {aheadBehind(mine) === "ahead" ? `Overall you’re ${money(mine)} ahead` : aheadBehind(mine) === "behind" ? `Overall you’re ${money(-mine)} behind` : "You’re even"}
             </p>
             {s.total > 0 && (
@@ -77,7 +77,7 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
               </>
             )}
             {settle && (
-              <Link href={`/groups/${group.id}/settle`} className="mt-4 inline-block border border-gray-300 px-4 py-2.5 text-sm font-semibold text-fg active:bg-mist">
+              <Link href={`/groups/${group.id}/settle`} className="mt-4 inline-block border border-gray-300 px-4 py-2.5 text-sm font-semibold text-fg active:bg-mist rounded-full">
                 Even out
               </Link>
             )}
@@ -88,12 +88,12 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
               <p className="text-sm text-gray-500">{monthName} · your share</p>
               <p className="text-xs text-gray-500">{left === 0 ? "Last day" : left === 1 ? "1 day left" : `${left} days left`}</p>
             </div>
-            <p className="mt-1 font-display text-[40px] font-semibold leading-none tracking-tight tabular-nums">{money(s.mine)}</p>
+            <p className="mt-1 money text-[40px] font-semibold leading-none tracking-tight tabular-nums">{money(s.mine)}</p>
             <p className="mt-1.5 text-sm text-gray-500">of {money(s.total)} for the {group.type === "home" ? "home" : "group"} so far</p>
             <div className="my-4 h-px bg-line" />
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className={`font-display text-[22px] font-semibold tabular-nums ${mine > 0 ? "text-owed" : mine < 0 ? "text-owe" : ""}`}>
+                <p className={`money text-[22px] font-semibold tabular-nums ${mine > 0 ? "text-owed" : mine < 0 ? "text-owe" : ""}`}>
                   {mine > 0 ? `You’re owed ${money(mine)}` : mine < 0 ? `You owe ${money(-mine)}` : "All square"}
                 </p>
                 {settleDayText && <p className="mt-0.5 text-xs text-gray-500">{settleDayText}</p>}
@@ -126,13 +126,13 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
                   </span>
                 </span>
                 {b.status === "enter" && b.href ? (
-                  <Link href={b.href} className="shrink-0 border border-gray-300 px-3 py-2 text-sm font-semibold text-fg active:bg-mist">
+                  <Link href={b.href} className="shrink-0 border border-gray-300 px-3 py-2 text-sm font-semibold text-fg active:bg-mist rounded-full">
                     Enter amount
                   </Link>
                 ) : b.status === "added" ? (
                   <span className="shrink-0 rounded-full border border-line px-2.5 py-1 text-xs text-gray-500">Added</span>
                 ) : (
-                  <span className="shrink-0 font-display tabular-nums">{b.amount}</span>
+                  <span className="shrink-0 money tabular-nums">{b.amount}</span>
                 )}
               </li>
             ))}
@@ -168,7 +168,7 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
                 <span className="h-2 overflow-hidden rounded-full bg-mist">
                   <span className="block h-full rounded-full bg-gray-600" style={{ width: `${Math.max(2, Math.round((Math.max(0, c.amount) * 100) / Math.max(1, s.byCategory[0].amount)))}%` }} />
                 </span>
-                <span className="text-right font-display tabular-nums">{money(c.amount)}</span>
+                <span className="text-right money tabular-nums">{money(c.amount)}</span>
               </li>
             ))}
           </ul>
@@ -189,7 +189,7 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
                 <div className="flex justify-between text-sm">
                   <span>{getCategory(b.category).label}</span>
                   <span>
-                    <span className={`font-display tabular-nums ${b.level === "over" ? "text-owe" : ""}`}>{money(b.spent)}</span>{" "}
+                    <span className={`money tabular-nums ${b.level === "over" ? "text-owe" : ""}`}>{money(b.spent)}</span>{" "}
                     <span className="text-gray-500">of {money(b.amount)}</span>
                   </span>
                 </div>
@@ -216,14 +216,14 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
           {extras.forecast && (
             <div className={`${card} p-3.5`}>
               <p className="text-xs text-gray-500">Next month, about</p>
-              <p className="mt-1 font-display text-[22px] font-semibold tabular-nums">{money(Math.round(extras.forecast.total / 100) * 100)}</p>
+              <p className="mt-1 money text-[22px] font-semibold tabular-nums">{money(Math.round(extras.forecast.total / 100) * 100)}</p>
               <p className="mt-0.5 text-xs text-gray-500">Your share {money(Math.round(extras.forecast.mine / 100) * 100)}</p>
             </div>
           )}
           {extras.deposit && (
             <Link href={`/groups/${group.id}/deposit`} className={`${card} p-3.5 text-fg`}>
               <p className="text-xs text-gray-500">Deposit</p>
-              <p className="mt-1 font-display text-[22px] font-semibold tabular-nums">{money(extras.deposit.total)}</p>
+              <p className="mt-1 money text-[22px] font-semibold tabular-nums">{money(extras.deposit.total)}</p>
               <p className="mt-0.5 text-xs text-gray-500">Yours {money(extras.deposit.mine)}</p>
             </Link>
           )}
@@ -239,7 +239,7 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
                 <span className="text-sm text-gray-500">{Math.min(100, Math.round((g.saved * 100) / Math.max(1, g.target)))}%</span>
               </div>
               <p className="mt-1 text-sm">
-                <span className="font-display tabular-nums">{money(g.saved)}</span> <span className="text-gray-500">of {money(g.target)} set aside</span>
+                <span className="money tabular-nums">{money(g.saved)}</span> <span className="text-gray-500">of {money(g.target)} set aside</span>
               </p>
               <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-mist">
                 <div className="h-full rounded-full bg-fg" style={{ width: `${Math.min(100, Math.round((g.saved * 100) / Math.max(1, g.target)))}%` }} />

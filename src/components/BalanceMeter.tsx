@@ -38,7 +38,7 @@ export function BalanceMeter({ rows, tone = "light" }: { rows: MeterRow[]; tone?
                 {r.label}
                 {r.sublabel && <span className={`ml-1.5 font-normal ${subInk}`}>{r.sublabel}</span>}
               </span>
-              <span className={`shrink-0 font-display text-sm tabular-nums ${valueInk}`}>
+              <span className={`shrink-0 money text-sm tabular-nums ${valueInk}`}>
                 {valueText}
                 {words && <span className={`ml-1 font-sans text-xs ${subInk}`}>{words}</span>}
               </span>

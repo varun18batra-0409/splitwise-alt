@@ -120,7 +120,7 @@ export function PeopleSearch({ groupId }: { groupId: string }) {
               <form action={invitePeople}>
                 <input type="hidden" name="groupId" value={groupId} />
                 <input type="hidden" name="emails" value={q.trim()} />
-                <button type="submit" className="shrink-0 border border-line px-3 py-1.5 text-sm font-medium text-fg active:bg-mist">
+                <button type="submit" className="shrink-0 border border-line px-3 py-1.5 text-sm font-medium text-fg active:bg-mist rounded-full">
                   Send invite
                 </button>
               </form>
@@ -190,7 +190,7 @@ export function ContactInvite({ groupId, groupName, link }: { groupId: string; g
       <button
         type="button"
         onClick={picker ? pick : share}
-        className="flex w-full items-center justify-center gap-2 border border-line px-4 py-3 text-[15px] font-medium text-fg active:bg-mist"
+        className="flex w-full items-center justify-center gap-2 border border-line px-4 py-3 text-[15px] font-medium text-fg active:bg-mist rounded-full"
       >
         <InviteIcon size={18} /> {picker ? "Choose from contacts" : "Invite from contacts"}
       </button>
@@ -225,13 +225,13 @@ export function ContactInvite({ groupId, groupName, link }: { groupId: string; g
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={mark}
-                      className="border border-line px-3 py-1.5 text-sm text-fg active:bg-mist"
+                      className="border border-line px-3 py-1.5 text-sm text-fg active:bg-mist rounded-full"
                     >
                       WhatsApp
                     </a>
                   )}
                   {c.tel && (
-                    <a href={`sms:${c.tel}?&body=${encodeURIComponent(text(first))}`} onClick={mark} className="border border-line px-3 py-1.5 text-sm text-fg active:bg-mist">
+                    <a href={`sms:${c.tel}?&body=${encodeURIComponent(text(first))}`} onClick={mark} className="border border-line px-3 py-1.5 text-sm text-fg active:bg-mist rounded-full">
                       SMS
                     </a>
                   )}
@@ -239,7 +239,7 @@ export function ContactInvite({ groupId, groupName, link }: { groupId: string; g
                     <form action={invitePeople} onSubmit={mark}>
                       <input type="hidden" name="groupId" value={groupId} />
                       <input type="hidden" name="emails" value={c.email} />
-                      <button type="submit" className="border border-line px-3 py-1.5 text-sm text-fg active:bg-mist">
+                      <button type="submit" className="border border-line px-3 py-1.5 text-sm text-fg active:bg-mist rounded-full">
                         Email
                       </button>
                     </form>

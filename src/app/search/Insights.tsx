@@ -55,14 +55,14 @@ export function Insights({ d }: { d: InsightsData }) {
   const approx = d.converted ? "≈ " : "";
   const totalCat = d.categories.reduce((s, c) => s + Math.max(0, c.amount), 0);
   // Same look as the rest of Loopin: the group tabs' switch, off-white for what's chosen, green for money bars.
-  const pill = (on: boolean) => `flex-1 rounded-lg py-2 text-center text-sm ${on ? "bg-fg font-semibold text-canvas" : "text-gray-500"}`;
+  const pill = (on: boolean) => `flex-1 rounded-full py-2 text-center text-sm ${on ? "bg-fg font-semibold text-canvas" : "text-gray-500"}`;
   const grainChip = (on: boolean) =>
     `flex h-8 w-11 items-center justify-center rounded-full border text-xs font-semibold ${on ? "border-fg bg-fg text-canvas" : "border-line text-gray-500 active:bg-mist"}`;
 
   return (
     <section aria-label="Insights" className="mb-8">
       {/* Your share | Group spend */}
-      <div className="grid grid-cols-2 gap-1 rounded-xl bg-mist p-1" role="tablist" aria-label="What to show">
+      <div className="grid grid-cols-2 gap-1 rounded-full bg-mist p-1" role="tablist" aria-label="What to show">
         <Link href={d.link({ v: "share" })} role="tab" aria-selected={d.view === "share"} className={pill(d.view === "share")}>
           My cut
         </Link>
@@ -78,7 +78,7 @@ export function Insights({ d }: { d: InsightsData }) {
             <p className="text-xs text-fg/55">
               {d.view === "share" ? "My cut" : "Group total"} · {bucketTitle(d.selected, d.grain)}
             </p>
-            <p className="mt-1 font-display text-[34px] font-semibold leading-none tracking-tight tabular-nums" data-insights-total>
+            <p className="mt-1 money text-[34px] font-semibold leading-none tracking-tight tabular-nums" data-insights-total>
               {approx}
               {formatMoney(Math.max(0, now), d.currency)}
             </p>

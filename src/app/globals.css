@@ -46,10 +46,11 @@
   --color-red-700: #ff8a80;
   --color-orange-700: #ffab6b;
 
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 @theme inline {
+  /* Instrument Sans for everything you read; the phone's own font fills in any sign it lacks (₹). */
+  --font-sans: var(--font-instrument), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
   --font-hand: var(--font-caveat), "Bradley Hand", "Segoe Print", cursive;
 }
@@ -70,28 +71,47 @@ body {
   color: var(--color-canvas);
 }
 
-/* NeoPOP buttons: flat, square, with a hard edge that collapses when pressed. */
-.pop {
-  border-radius: 0;
-  box-shadow: 3px 3px 0 0 var(--pop-edge, #4a4a50);
-  transition:
-    transform 90ms ease-out,
-    box-shadow 90ms ease-out;
-}
-.pop:active {
-  transform: translate(2px, 2px);
-  box-shadow: 1px 1px 0 0 var(--pop-edge, #4a4a50);
+/* Main buttons: off-white pills that sink a little when pressed. In a layer, so a
+   screen can still round a button differently with a utility class. */
+@layer components {
+  .pop {
+    border-radius: 9999px;
+    box-shadow: 0 10px 24px -12px rgb(0 0 0 / 0.7);
+    transition:
+      transform 120ms cubic-bezier(0.2, 0.9, 0.25, 1),
+      opacity 120ms;
+  }
+  .pop:active {
+    transform: scale(0.97);
+  }
+  /* Frosted glass over photos: Home's cards, the bottom bar, buttons on pictures. */
+  .glass {
+    background: rgb(22 22 26 / 0.58);
+    -webkit-backdrop-filter: blur(24px) saturate(150%);
+    backdrop-filter: blur(24px) saturate(150%);
+    border: 1px solid rgb(244 242 236 / 0.13);
+  }
+  .glass-strong {
+    background: rgb(22 22 26 / 0.78);
+    -webkit-backdrop-filter: blur(24px) saturate(150%);
+    backdrop-filter: blur(24px) saturate(150%);
+    border: 1px solid rgb(244 242 236 / 0.12);
+  }
+  /* Money in the new face: tight and even-width figures. */
+  .money {
+    font-family: var(--font-sans);
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+  }
 }
 
-/* The balance "vault": a dark card with a fine grid, a brushed-metal edge and a quiet silver sheen. */
+/* The balance card: smoked glass with a soft light from the top corner and a fine bright edge. */
 .vault {
   position: relative;
   background:
-    radial-gradient(120% 80% at 100% 0%, rgb(244 242 236 / 0.09), transparent 55%),
-    linear-gradient(rgb(244 242 236 / 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(244 242 236 / 0.035) 1px, transparent 1px),
-    linear-gradient(165deg, #1b1b20 0%, #111114 70%);
-  background-size: auto, 22px 22px, 22px 22px, auto;
+    radial-gradient(120% 80% at 100% 0%, rgb(244 242 236 / 0.08), transparent 55%),
+    linear-gradient(165deg, #1c1c21 0%, #131316 75%);
   border: 1px solid transparent;
   background-clip: padding-box;
 }
@@ -142,9 +162,12 @@ body {
   }
 }
 
-:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
+/* In the base layer, so a screen can swap the ring for its own focus look (the big amount on Add expense). */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
 }
 
 /* ---------- Intro tour ---------- */
@@ -632,4 +655,38 @@ html.lp-opened .lp-open {
 .lp-fan { animation: lp-fan 380ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
 @media (prefers-reduced-motion: reduce) {
   .lp-fan { animation: none; }
+}
+
+/* Confetti when a group goes all square (Confetti.tsx). */
+@keyframes lp-confetti {
+  0% { transform: translate3d(0, -6vh, 0) rotate(0deg); opacity: 1; }
+  80% { opacity: 1; }
+  100% { transform: translate3d(var(--dx, 0px), 104vh, 0) rotate(var(--turn, 720deg)); opacity: 0; }
+}
+.lp-confetti {
+  position: absolute;
+  top: 0;
+  animation-name: lp-confetti;
+  animation-timing-function: cubic-bezier(0.25, 0.55, 0.45, 1);
+  animation-fill-mode: both;
+}
+
+/* Settle up's ring fills from empty to how much is settled, once. */
+@keyframes lp-ring {
+  from {
+    stroke-dashoffset: 289.03;
+  }
+}
+.lp-ring {
+  animation: lp-ring 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-ring {
+    animation: none;
+  }
+}
+
+/* A group's tinted screens (groups/[id]/layout.tsx) paint their own page colour behind everything. */
+body:has([data-tint]) {
+  background: transparent;
 }

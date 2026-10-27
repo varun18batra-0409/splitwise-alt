@@ -7,7 +7,9 @@ import { parseDetails } from "@/lib/events";
 import { niceDate, rateText } from "@/lib/format";
 import { formatMoney, formatPercent } from "@/lib/money";
 import { canUndo } from "@/lib/undo";
-import { removePayment, restoreExpense, restorePayment, undoChange } from "@/app/actions";
+import { deleteExpense, removePayment, restoreExpense, restorePayment, undoChange } from "@/app/actions";
+import { SwipeRow } from "@/components/SwipeRow";
+import type { ReactNode } from "react";
 import { ActivityRow } from "@/components/ActivityRow";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { Line } from "./Line";
@@ -249,8 +251,49 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
               const deleted = Boolean(e.deletedAt);
               const orig = foreign ? originalShares(e) : [];
               const reacted = reactionSummary(reactions.filter((r) => r.expenseId === e.id), myId);
+              const swipeable = !deleted && !group.closed;
+              const wrap = (node: ReactNode) =>
+                swipeable ? (
+                    <SwipeRow
+                      count={2}
+                      actions={
+                        <>
+                          <Link
+                            href={`/groups/${group.id}/expenses/${e.id}/edit`}
+                            data-swipe-edit
+                            className="flex flex-1 flex-col items-center justify-center gap-1 bg-mist text-[12px] font-semibold text-fg"
+                          >
+                            <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M4 20h4L19 9l-4-4L4 16v4Z" />
+                            </svg>
+                            Edit
+                          </Link>
+                          <form action={deleteExpense} className="flex flex-1">
+                            <input type="hidden" name="groupId" value={group.id} />
+                            <input type="hidden" name="expenseId" value={e.id} />
+                            <button
+                              type="submit"
+                              data-swipe-delete
+                              data-haptic="warn"
+                              className="flex flex-1 flex-col items-center justify-center gap-1 bg-[#4a1e1e] text-[12px] font-semibold text-red-600"
+                            >
+                              <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" />
+                              </svg>
+                              Delete
+                            </button>
+                          </form>
+                        </>
+                      }
+                    >
+                      {node}
+                    </SwipeRow>
+                  ) : (
+                    node
+                  );
               return (
                 <li key={item.id} id={`item-${item.id}`} className="scroll-mt-20">
+                  {wrap(
                   <details open={openId === item.id}>
                     <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
                       <ActivityRow item={item} currency={group.currency} nameOf={nameOf} motion="loop" delay={stagger(item.id)} />
@@ -370,7 +413,8 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                         </div>
                       )}
                     </div>
-                  </details>
+                  </details>,
+                  )}
                 </li>
               );
             })}

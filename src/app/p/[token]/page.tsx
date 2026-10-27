@@ -116,7 +116,7 @@ async function Owes({ s, money, to, from, token, undone }: { s: Shown; money: st
       <section aria-label="What you owe" className="vault lp-rise relative overflow-hidden rounded-[24px] px-6 pb-6 pt-6" data-paylink="owes">
         <span aria-hidden className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-[radial-gradient(closest-side,rgba(111,227,168,0.18),transparent)]" />
         <p className="font-hand text-[24px] font-bold leading-none text-fg/75">{to} is asking</p>
-        <p className="mt-3 font-display text-[52px] font-semibold leading-none tracking-tight tabular-nums" data-paylink-amount>
+        <p className="mt-3 money text-[52px] font-semibold leading-none tracking-tight tabular-nums" data-paylink-amount>
           {money}
         </p>
         <p className="mt-3 text-sm text-fg/60">
@@ -158,7 +158,7 @@ async function Owes({ s, money, to, from, token, undone }: { s: Shown; money: st
         {step(2, `Tell ${to}`)}
         <form action={iPaidAction}>
           <input type="hidden" name="token" value={token} />
-          <button type="submit" className="pop block w-full bg-owed px-4 py-3.5 text-center text-base font-semibold text-canvas [--pop-edge:#1f6b4a]" data-i-paid>
+          <button type="submit" className="pop block w-full bg-owed px-4 py-3.5 text-center text-base font-semibold text-canvas [--pop-edge:#1f6b4a]" data-i-paid data-haptic="success">
             I’ve paid {money} ✓
           </button>
         </form>

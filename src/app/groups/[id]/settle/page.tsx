@@ -1,3 +1,4 @@
+import { Confetti } from "@/components/Confetti";
 import Link from "@/components/Link";
 import { SquareSeal } from "@/components/DrawnIcons";
 import { notFound, redirect } from "next/navigation";
@@ -12,12 +13,14 @@ import { recordCustomPayment, settleEverything } from "@/app/actions";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { newRequestKey } from "@/lib/once";
 import { UndoBar } from "@/components/UndoBar";
-import { ErrorNote, PageHeader } from "@/components/ui";
+import { Avatar, ErrorNote, PageHeader, secondaryButtonClass } from "@/components/ui";
 import { db } from "@/lib/db";
 import { getAccount } from "@/lib/identity";
 import { payButtons, type PayWays } from "@/lib/pay-links";
 import { waitingForMe } from "@/lib/payment-ok";
 import { confirmPaymentAction, markAllPaidAction, rejectPaymentAction } from "@/app/pay-actions";
+
+const RING = 2 * Math.PI * 46;
 
 // Settle up inside one group: the fewest payments that clear every debt.
 // Each can be recorded in full with one tap, or for a smaller amount
@@ -64,15 +67,49 @@ export default async function GroupSettle({
   };
   const myWays = waysOf(myId);
   const owedToMe = ordered.some((t) => t.to === myId);
+  // Paid back so far, out of everything that needed paying back (payments made + what's still left).
+  const paidSoFar = payments.reduce((t, p) => t + p.amount, 0);
+  const left = transfers.reduce((t, x) => t + x.amount, 0);
+  const settledPct = paidSoFar + left > 0 ? Math.round((paidSoFar / (paidSoFar + left)) * 100) : 100;
 
   return (
     <>
       <PageHeader title="Settle up" back={`/groups/${group.id}?tab=balances`} />
-      <p className="-mt-4 mb-6 text-sm text-gray-500">
-        {group.name}
-        {transfers.length > 0 && ` · ${transfers.length} ${transfers.length === 1 ? "payment" : "payments"} clear everything`}
-        {transfers.length > 0 && before > transfers.length && ` (instead of ${before})`}
-      </p>
+      {/* How far the group is: a ring of what's been paid back so far, and how many payments are left. */}
+      <div className="relative -mt-2 mb-7 flex items-center gap-5">
+        <span aria-hidden className="pointer-events-none absolute -left-24 -top-24 h-80 w-80 rounded-full bg-[radial-gradient(circle,rgba(111,227,168,0.14),transparent_65%)]" />
+        <span className="relative h-[108px] w-[108px] shrink-0" role="img" aria-label={`${settledPct}% settled`} data-settled-pct={settledPct}>
+          <svg width="108" height="108" viewBox="0 0 108 108" aria-hidden>
+            <circle cx="54" cy="54" r="46" fill="none" stroke="var(--color-mist)" strokeWidth="9" />
+            <circle
+              cx="54"
+              cy="54"
+              r="46"
+              fill="none"
+              stroke="var(--color-owed)"
+              strokeWidth="9"
+              strokeLinecap="round"
+              strokeDasharray={RING}
+              strokeDashoffset={RING * (1 - settledPct / 100)}
+              transform="rotate(-90 54 54)"
+              className="lp-ring"
+            />
+          </svg>
+          <span className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="money text-[26px] leading-none">{settledPct}%</span>
+            <span className="text-[11px] text-fg/50">settled</span>
+          </span>
+        </span>
+        <div className="relative min-w-0">
+          <p className="font-display text-[28px] font-semibold leading-[1.04] tracking-[-0.02em]">
+            {transfers.length === 0 ? "All square" : `${transfers.length === 1 ? "One payment" : `${transfers.length} payments`} and you’re all square`}
+          </p>
+          <p className="mt-1.5 text-[13px] leading-snug text-fg/55">
+            {group.name}
+            {transfers.length > 0 && before > transfers.length ? `: the fewest payments, instead of ${before}` : ""}
+          </p>
+        </div>
+      </div>
 
       {sp.error && <ErrorNote>{sp.error}</ErrorNote>}
       {sp.paid === "all" && !sp.undone && <Notice params={["paid"]} className="mb-4">All marked paid ✓ The group stays open.</Notice>}
@@ -88,7 +125,7 @@ export default async function GroupSettle({
 
       {/* Payment tracking: someone said they paid you. */}
       {waiting.length > 0 && (
-        <section aria-label="Did you get these?" className="mb-6 rounded-2xl border border-owed/40 bg-owed/[0.06] px-4 py-3.5">
+        <section aria-label="Did you get these?" className="mb-6 rounded-[22px] border border-owed/40 bg-owed/[0.06] px-4 py-3.5">
           <h2 className="text-sm font-semibold">Did you get {waiting.length === 1 ? "this" : "these"}?</h2>
           <ul className="mt-2 divide-y divide-line">
             {waiting.map((p) => (
@@ -99,7 +136,7 @@ export default async function GroupSettle({
                 <span className="flex shrink-0 gap-2">
                   <form action={confirmPaymentAction}>
                     <input type="hidden" name="paymentId" value={p.id} />
-                    <button type="submit" className="rounded-full bg-fg px-3.5 py-1.5 text-xs font-semibold text-canvas">
+                    <button type="submit" data-haptic="success" className="rounded-full bg-fg px-3.5 py-1.5 text-xs font-semibold text-canvas">
                       Got it ✓
                     </button>
                   </form>
@@ -123,7 +160,8 @@ export default async function GroupSettle({
       )}
 
       {transfers.length === 0 ? (
-        <div className="rounded-2xl bg-mist px-4 py-10 text-center">
+        <div className="rounded-[26px] bg-mist px-4 py-10 text-center">
+          {expenses.length > 0 && <Confetti id={`${group.id}:${expenses.length}:${payments.length}`} />}
           <SquareSeal size={56} className="mx-auto" />
           <p className="mt-3 font-display text-xl font-semibold">All square</p>
           <p className="mt-1 text-sm text-gray-500">Nobody owes anybody here.</p>
@@ -134,7 +172,7 @@ export default async function GroupSettle({
           )}
         </div>
       ) : ordered.length === 0 ? (
-        <div className="rounded-2xl bg-mist px-4 py-10 text-center">
+        <div className="rounded-[26px] bg-mist px-4 py-10 text-center">
           <p className="font-display text-xl font-semibold">Nearly square</p>
           <p className="mt-1 text-sm text-gray-500">
             Only small amounts are left, all under {money(group.settleMin)}, so no payments are suggested. They stay in the balances; change the minimum in
@@ -145,47 +183,62 @@ export default async function GroupSettle({
         <ul className="space-y-3">
           {ordered.map((t) => {
             const mine = t.from === myId || t.to === myId;
+            const other = t.from === myId ? t.to : t.from;
+            const buttons = t.from === myId ? payButtons(waysOf(t.to), { amount: t.amount, currency: group.currency, toName: group.members.find((m) => m.id === t.to)?.name ?? "", note: group.name }) : [];
             return (
-              <li key={`${t.from}-${t.to}`} className={`border px-4 py-4 ${mine ? "border-gray-300 bg-white" : "border-line"}`}>
-                <div className="flex items-baseline justify-between gap-3">
-                  <p className="min-w-0 text-[15px]">
-                    <strong className="font-medium">{nameOf(t.from)}</strong>
-                    <span className="text-gray-500"> {t.from === myId ? "pay" : "pays"} </span>
-                    <strong className="font-medium">{t.to === myId ? "you" : nameOf(t.to)}</strong>
-                  </p>
-                  <p className={`shrink-0 font-display text-lg font-semibold tabular-nums ${t.to === myId ? "text-owed" : t.from === myId ? "text-owe" : ""}`}>
-                    {money(t.amount)}
-                  </p>
+              <li
+                key={`${t.from}-${t.to}`}
+                data-transfer-row
+                className={`rounded-[22px] border px-4 py-3.5 ${t.from === myId ? "border-owe/25 bg-[linear-gradient(180deg,rgba(255,171,107,0.07),rgba(255,171,107,0.02))]" : mine ? "border-line bg-white" : "border-line"}`}
+              >
+                <div className="flex items-center gap-3">
+                  <Avatar name={nameOf(mine ? other : t.from)} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[15px] font-semibold">
+                      {nameOf(t.from)} {t.from === myId ? "pay" : "pays"} {t.to === myId ? "you" : nameOf(t.to)}
+                    </p>
+                    <p className={`money text-[22px] leading-tight ${t.to === myId ? "text-owed" : t.from === myId ? "text-owe" : "text-fg/80"}`}>{money(t.amount)}</p>
+                  </div>
+                  {t.to === myId && !group.closed && (
+                    <a
+                      href={`/groups/${group.id}/remind?from=${encodeURIComponent(t.from)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-line bg-mist px-3.5 text-sm font-semibold active:scale-[0.97]"
+                      data-remind={t.from}
+                    >
+                      <svg aria-hidden width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 3 10 14M21 3l-7 18-4-7-7-4Z" />
+                      </svg>
+                      Remind
+                    </a>
+                  )}
                 </div>
                 {/* Pay in one tap: the payment app opens with the amount filled in. */}
-                {t.from === myId &&
-                  (() => {
-                    const buttons = payButtons(waysOf(t.to), { amount: t.amount, currency: group.currency, toName: group.members.find((m) => m.id === t.to)?.name ?? "", note: group.name });
-                    return buttons.length > 0 ? (
-                      <div className="mt-3 flex flex-wrap gap-2" data-pay-buttons>
-                        {buttons.map((b) => (
-                          <a
-                            key={b.kind}
-                            href={b.href}
-                            {...(b.kind === "upi" ? {} : { target: "_blank", rel: "noopener noreferrer" })}
-                            className="pop inline-flex items-center gap-1.5 bg-owed px-4 py-2.5 text-sm font-semibold text-canvas [--pop-edge:#1f6b4a]"
-                            data-pay={b.kind}
-                          >
-                            Pay {money(t.amount)} · {b.label}
-                          </a>
-                        ))}
-                        <span className="basis-full text-xs text-gray-400">Paid? Tap Mark paid below so it counts.</span>
-                      </div>
-                    ) : null;
-                  })()}
+                {buttons.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2 pl-12" data-pay-buttons>
+                    {buttons.map((b) => (
+                      <a
+                        key={b.kind}
+                        href={b.href}
+                        {...(b.kind === "upi" ? {} : { target: "_blank", rel: "noopener noreferrer" })}
+                        className="pop inline-flex h-10 items-center gap-1.5 bg-fg px-4 text-sm font-semibold text-canvas"
+                        data-pay={b.kind}
+                      >
+                        Pay {money(t.amount)} with {b.label}
+                      </a>
+                    ))}
+                    <span className="basis-full text-xs text-gray-400">Paid? Tap Mark paid below so it counts.</span>
+                  </div>
+                )}
                 {!group.closed && (
-                  <form action={recordCustomPayment} className="mt-3 flex items-center gap-2">
+                  <form action={recordCustomPayment} className="mt-3 flex items-center gap-2 pl-12">
                     <input type="hidden" name="groupId" value={group.id} />
                     <input type="hidden" name="fromId" value={t.from} />
                     <input type="hidden" name="toId" value={t.to} />
                     <input type="hidden" name="back" value="settle" />
                     <input type="hidden" name="rid" value={newRequestKey()} />
-                    <label className="flex min-w-0 flex-1 items-center rounded-xl border border-line bg-mist px-3 focus-within:border-accent">
+                    <label className="flex h-10 min-w-0 flex-1 items-center rounded-full border border-line bg-mist px-3.5 focus-within:border-fg/40">
                       <span className="shrink-0 text-xs text-gray-400">{group.currency}</span>
                       <input
                         name="amount"
@@ -193,28 +246,15 @@ export default async function GroupSettle({
                         defaultValue={toInputAmount(t.amount, group.currency)}
                         aria-label={`Amount ${nameOf(t.from)} paid ${t.to === myId ? "you" : nameOf(t.to)}`}
                         autoComplete="off"
-                        className="w-full bg-transparent px-2 py-2.5 text-right text-base tabular-nums outline-none"
+                        className="w-full bg-transparent px-2 text-right text-base tabular-nums outline-none"
                       />
                     </label>
-                    <button type="submit" className="pop shrink-0 bg-fg px-4 py-2.5 text-sm font-semibold text-canvas [--pop-edge:#6e6b63]">
+                    <button type="submit" data-haptic="success" className="h-10 shrink-0 rounded-full border border-fg/18 bg-fg/[0.07] px-4 text-sm font-semibold text-fg active:scale-[0.97]">
                       Mark paid
                     </button>
                   </form>
                 )}
-                <div className="mt-2 flex items-center justify-between gap-3 text-xs text-gray-400">
-                  <span>Paid less? Change the amount first.</span>
-                  {t.to === myId && !group.closed && (
-                    <a
-                      href={`/groups/${group.id}/remind?from=${encodeURIComponent(t.from)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="shrink-0 font-medium text-fg"
-                      data-remind={t.from}
-                    >
-                      Remind
-                    </a>
-                  )}
-                </div>
+                {!group.closed && <p className="mt-1.5 pl-12 text-xs text-gray-400">Paid less? Change the amount first.</p>}
               </li>
             );
           })}
@@ -229,7 +269,7 @@ export default async function GroupSettle({
           <input type="hidden" name="rid" value={newRequestKey()} />
           <ConfirmButton
             message={`Mark all ${ordered.length} payments paid? The group stays open, everyone is told, and you can undo it.`}
-            className="pop block w-full bg-fg px-4 py-3 text-center text-sm font-semibold text-canvas [--pop-edge:#6e6b63]"
+            className="pop block w-full bg-fg px-4 py-3.5 text-center text-[15px] font-semibold text-canvas"
           >
             Mark all {ordered.length} paid
           </ConfirmButton>
@@ -247,8 +287,8 @@ export default async function GroupSettle({
       )}
 
       {!group.closed && (
-        <Link href={`/groups/${group.id}/pay`} className="mt-4 block border border-line px-4 py-3 text-center text-sm font-medium text-fg active:bg-mist">
-          + Record a different payment
+        <Link href={`/groups/${group.id}/pay`} className={`mt-3 ${secondaryButtonClass} text-[15px]`}>
+          Record a different payment
         </Link>
       )}
 
@@ -267,7 +307,7 @@ export default async function GroupSettle({
                   ? `Mark all ${transfers.length} payments as paid and close ${group.name}? Everyone will be notified. You can undo this.`
                   : `Close ${group.name}? You can reopen it any time.`
               }
-              className="block w-full border border-line px-4 py-3 text-center text-sm font-semibold text-fg active:bg-mist"
+              className={`${secondaryButtonClass} text-[15px]`}
             >
               {transfers.length > 0 ? "Settle everything & close" : "Close group"}
             </ConfirmButton>

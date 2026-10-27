@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { shareCountdownInLoopin } from "@/app/countdown-actions";
+import { useDragToClose } from "@/lib/use-drag-close";
 
 // "Share": a small panel with three ways to share the countdown.
 // - WhatsApp: the story-sized picture (for a chat or Status) through the
@@ -11,6 +12,7 @@ import { shareCountdownInLoopin } from "@/app/countdown-actions";
 // - More apps: Instagram and the rest, through the phone's share step.
 export function ShareCountdown({ groupId, line, className }: { groupId: string; line: string; className?: string }) {
   const [open, setOpen] = useState(false);
+  const dragRef = useDragToClose(useCallback(() => setOpen(false), []));
   const [busy, setBusy] = useState<"" | "wa" | "app" | "more">("");
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
   const url = `/groups/${groupId}/countdown-image`;
@@ -102,7 +104,8 @@ export function ShareCountdown({ groupId, line, className }: { groupId: string; 
             aria-modal="true"
             aria-label="Share the countdown"
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md rounded-t-[28px] border-t border-line bg-canvas px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-3 text-fg"
+            ref={dragRef}
+            className="sheet-enter w-full max-w-md rounded-t-[28px] border-t border-line bg-canvas px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-3 text-fg"
           >
             <span aria-hidden className="mx-auto mb-4 block h-1 w-10 rounded-full bg-fg/20" />
             <p className="font-display text-xl font-semibold tracking-tight">Share the countdown</p>

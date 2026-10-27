@@ -167,15 +167,16 @@ export default async function GroupPage({
       <GroupSummary v={v} sp={sp} compact={home} />
       {sp.imported && <ImportedNote code={sp.imported} groupId={group.id} />}
 
-      <nav className={`mb-6 grid gap-1 rounded-xl bg-mist p-1 ${tabs.length === 4 ? "grid-cols-[1.4fr_1fr_1fr_1fr]" : "grid-cols-3"}`} aria-label="Group sections">
+      <nav className="-mx-5 mb-5 flex gap-6 overflow-x-auto border-b border-line px-5 [scrollbar-width:none]" aria-label="Group sections">
         {tabs.map((t) => (
           <Link
             key={t.id}
             href={`/groups/${group.id}?tab=${t.id}`}
             aria-current={t.id === tab ? "page" : undefined}
-            className={`whitespace-nowrap rounded-lg px-1 py-2 text-center text-sm ${t.id === tab ? "bg-fg font-semibold text-canvas" : "text-gray-500"}`}
+            className={`relative shrink-0 whitespace-nowrap pb-3 pt-1 text-[15px] font-semibold transition-colors ${t.id === tab ? "text-fg" : "text-fg/45"}`}
           >
             {t.label}
+            {t.id === tab && <span aria-hidden className="absolute inset-x-0 -bottom-px h-[2px] rounded-full bg-[var(--color-tint,var(--color-fg))]" />}
           </Link>
         ))}
       </nav>

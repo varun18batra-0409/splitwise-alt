@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useDragToClose } from "@/lib/use-drag-close";
 
 // Share a story-sized picture (All square, Wrapped, your passport): WhatsApp
 // first (the picture through the phone's share step; where pictures can't be
@@ -29,6 +30,7 @@ export function ShareSheet({
   album?: string[];
 }) {
   const [open, setOpen] = useState(false);
+  const dragRef = useDragToClose(useCallback(() => setOpen(false), []));
   const [busy, setBusy] = useState<"" | "wa" | "one" | "more">("");
   const pic = useRef<Promise<File | null> | null>(null);
   const pages = useRef<Promise<File[]> | null>(null);
@@ -107,6 +109,7 @@ export function ShareSheet({
               aria-modal="true"
               aria-label={title}
               onClick={(e) => e.stopPropagation()}
+              ref={dragRef}
               className="sheet-enter w-full max-w-md rounded-t-[28px] border-t border-line bg-canvas px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-3 text-fg"
             >
               <span aria-hidden className="mx-auto mb-4 block h-1 w-10 rounded-full bg-fg/20" />

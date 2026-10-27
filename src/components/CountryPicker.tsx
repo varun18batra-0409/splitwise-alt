@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { createPortal } from "react-dom";
 import { searchCountries } from "@/lib/geo";
 import { addPlacesAction } from "@/app/passport-actions";
+import { useDragToClose } from "@/lib/use-drag-close";
 
 // "Places I've been": tick as many countries as you like, then add them in one go.
 export function CountryPicker({ added, home = "" }: { added: string[]; home?: string }) {
   const [open, setOpen] = useState(false);
+  const dragRef = useDragToClose(useCallback(() => setOpen(false), []), { from: "top" });
   const [q, setQ] = useState("");
   const [ticked, setTicked] = useState<string[]>([]);
   const have = useMemo(() => new Set(added), [added]);
@@ -55,6 +57,7 @@ export function CountryPicker({ added, home = "" }: { added: string[]; home?: st
               aria-modal="true"
               aria-label="Add countries"
               onClick={(e) => e.stopPropagation()}
+              ref={dragRef}
               className="sheet-enter flex h-[88dvh] w-full max-w-md flex-col rounded-t-[24px] border border-line bg-canvas text-fg"
             >
               <div className="flex items-center justify-between px-5 pb-2 pt-4">

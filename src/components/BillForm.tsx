@@ -154,7 +154,7 @@ export function BillForm({
 
       <div>
         <span className="mb-2 block text-sm text-gray-500">The amount</span>
-        <div className="grid grid-cols-3 gap-1 rounded-xl bg-mist p-1" role="radiogroup" aria-label="The amount">
+        <div className="grid grid-cols-3 gap-1 rounded-full bg-mist p-1" role="radiogroup" aria-label="The amount">
           {(
             [
               ["fixed", "Fixed"],
@@ -171,7 +171,7 @@ export function BillForm({
                 setNature(id);
                 if (id !== "fixed" && split === "amounts") setSplit("percent");
               }}
-              className={`rounded-lg py-2.5 text-[13px] ${nature === id ? "bg-fg font-semibold text-canvas" : "text-gray-500"}`}
+              className={`rounded-full py-2.5 text-[13px] ${nature === id ? "bg-fg font-semibold text-canvas" : "text-gray-500"}`}
             >
               {label}
             </button>

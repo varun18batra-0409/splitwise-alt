@@ -194,7 +194,7 @@ function makeSlides(L: Local): Slide[] {
         </div>
         <div className="rise rise-3 mt-2.5 flex items-center justify-between text-sm">
           <span>Electricity</span>
-          <span className="border border-gray-300 px-2.5 py-1 text-xs font-semibold">Enter amount</span>
+          <span className="border border-gray-300 px-2.5 py-1 text-xs font-semibold rounded-full">Enter amount</span>
         </div>
         <div className="rise rise-4 mt-2.5 flex items-center justify-between text-sm">
           <span>{L.india ? "Milk" : "Internet"}</span>
@@ -319,7 +319,7 @@ function makeSlides(L: Local): Slide[] {
           </span>
           <span className="text-sm text-owed">you lent {L.m(v.lent)}</span>
         </div>
-        <div className="undo-pill mx-auto mt-5 flex w-fit items-center gap-3 border border-line bg-canvas px-4 py-2 text-sm">
+        <div className="undo-pill mx-auto mt-5 flex w-fit items-center gap-3 border border-line bg-canvas px-4 py-2 text-sm rounded-full">
           Deleted · <span className="font-semibold">Undo ↺</span>
         </div>
       </Card>

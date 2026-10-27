@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useDragToClose } from "@/lib/use-drag-close";
 
 // "Get the app": Loopin installs from the browser onto the home screen (no app
 // store). Android Chrome can install with one tap; iPhone needs Share → Add to
@@ -58,6 +59,7 @@ function useInstall() {
 
 // The steps for this phone, shown in a sheet.
 function Steps({ platform, onClose }: { platform: Platform; onClose: () => void }) {
+  const dragRef = useDragToClose(onClose);
   const steps =
     platform === "ios-safari"
       ? [
@@ -77,7 +79,8 @@ function Steps({ platform, onClose }: { platform: Platform; onClose: () => void 
           : ["Open your browser's menu.", "Choose “Install app” or “Add to Home screen”.", "Confirm."];
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" role="dialog" aria-modal="true" aria-label="Get the app" onClick={onClose}>
-      <div className="w-full max-w-md rounded-t-[24px] border-t border-line bg-canvas px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-6" onClick={(e) => e.stopPropagation()}>
+      <div ref={dragRef} className="sheet-enter w-full max-w-md rounded-t-[24px] border-t border-line bg-canvas px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-3" onClick={(e) => e.stopPropagation()}>
+        <span aria-hidden className="mx-auto mb-4 block h-1 w-10 rounded-full bg-fg/20" />
         <p className="font-display text-xl font-semibold">Put Loopin on your home screen</p>
         <p className="mt-1 text-sm text-gray-500">No app store needed. It opens full-screen, like any app.</p>
         <ol className="mt-5 space-y-3">
@@ -108,6 +111,7 @@ export function GetAppButton({ variant = "icon", className = "" }: { variant?: "
       /* ignore */
     }
   }, [variant]);
+  const closeSheet = useCallback(() => setOpen(false), []);
   if (installed || hidden) return null;
 
   const go = async () => {
@@ -118,7 +122,7 @@ export function GetAppButton({ variant = "icon", className = "" }: { variant?: "
       window.dispatchEvent(new Event("loopin-install"));
     } else setOpen(true);
   };
-  const sheet = open && <Steps platform={platform} onClose={() => setOpen(false)} />;
+  const sheet = open && <Steps platform={platform} onClose={closeSheet} />;
 
   if (variant === "icon") {
     return (

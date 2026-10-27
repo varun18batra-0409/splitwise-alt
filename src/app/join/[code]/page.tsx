@@ -4,9 +4,12 @@ import { GetAppButton } from "@/components/GetApp";
 import { db } from "@/lib/db";
 import { getAccount, getMemberships } from "@/lib/identity";
 import { joinAsExisting, joinAsNew } from "@/app/actions";
-import { Avatar, ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/components/ui";
+import { Avatar, ErrorNote, avatarTone, inputClass, primaryButtonClass } from "@/components/ui";
+import { GoogleG } from "@/components/GoogleG";
+import { googleConfigured } from "@/lib/google";
 import { GroupCover } from "@/components/GroupCover";
 import { coverFor, coverOf } from "@/lib/covers";
+import { placePhoto } from "@/lib/places";
 import { StoryArt } from "@/components/StoryArt";
 import type { StoryKind } from "@/lib/home/stories";
 import { countdownWords, tripPhase } from "@/lib/countdown";
@@ -94,72 +97,78 @@ export default async function JoinPage({
 
   return (
     <>
-      <PageHeader title={`Join ${group.name}`} />
+      {/* The group's picture, edge to edge, with Loopin's name and (for a trip) how soon it leaves. */}
+      <div className="relative -mx-5 -mt-[max(1.5rem,env(safe-area-inset-top))] h-[400px] overflow-hidden" aria-hidden>
+        {group.type === "trip" && !group.cover && placePhoto(group.name) ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={placePhoto(group.name)!.src} alt="" className="lp-drift absolute inset-0 h-full w-full object-cover" />
+        ) : coverOf(group) !== "plain" ? (
+          <GroupCover {...coverFor(group, true)} uid={`join-${group.id}`} sizes="(max-width: 448px) 100vw, 448px" priority drift />
+        ) : (
+          <StoryArt kind={group.type === "pot" ? "pot" : "trip"} uid={`join-${group.id}`} />
+        )}
+        <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(13,13,15,0.5)_0%,rgba(13,13,15,0)_26%,rgba(13,13,15,0.3)_62%,#0d0d0f_100%)]" />
+      </div>
+      <div className="absolute inset-x-0 top-0 mx-auto flex max-w-md items-center justify-between px-5 pt-[max(1.2rem,env(safe-area-inset-top))]">
+        <span className="font-display text-[26px] font-semibold leading-none tracking-tight [text-shadow:0_2px_12px_rgba(0,0,0,0.4)]">loopin</span>
+        {countdown && <span className="glass rounded-full px-3 py-1.5 text-[13px] font-semibold">{countdown.line}</span>}
+      </div>
 
-      {error === "busy" && <ErrorNote>Too many joins from here in the last hour. Wait a bit and try again.</ErrorNote>}
-      {error === "claimed" && <ErrorNote>That name is already taken by someone else. Join as yourself instead.</ErrorNote>}
-
-      {/* The invitation itself: the group's picture, who's in, and (for a trip) how soon. */}
-      <section className="vault relative -mx-1 mb-7 overflow-hidden rounded-[26px] text-fg" data-join-card>
-        <div className="relative h-[210px] overflow-hidden" aria-hidden>
-          {coverOf(group) !== "plain" ? (
-            <GroupCover {...coverFor(group, true)} uid={`join-${group.id}`} sizes="(max-width: 448px) 100vw, 448px" priority drift />
-          ) : (
-            <StoryArt kind={group.type === "pot" ? "pot" : "trip"} uid={`join-${group.id}`} />
-          )}
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(17,17,20,0.1)_30%,#141418_100%)]" />
-          <span className="absolute left-4 top-4 rounded-full bg-canvas/60 px-3 py-1 text-xs font-semibold backdrop-blur">
-            {kind} · {active.length} {active.length === 1 ? "person" : "people"}
-          </span>
-        </div>
-        <div className="relative -mt-10 px-5 pb-6">
-          <p className="lp-slide-in font-hand text-[24px] font-bold leading-none text-[#ffd9a8]">You’re invited to</p>
-          <h2 className="lp-slide-in mt-1 font-display text-[32px] font-semibold leading-[1.05] tracking-tight">{group.name}</h2>
-          {(whoIn || countdown) && (
-            <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
-              {firsts.length > 0 && (
-                <span className="flex items-center">
-                  <span className="flex">
-                    {firsts.slice(0, 4).map((n, i) => (
-                      <span key={i} className="lp-pop-in -mr-2 flex h-8 w-8 items-center justify-center rounded-full border-2 border-[#141418] bg-[#26262c] font-display text-[13px] font-semibold text-fg" style={{ animationDelay: `${200 + i * 90}ms` }}>
-                        {n.charAt(0).toUpperCase()}
-                      </span>
-                    ))}
-                  </span>
-                  <span className="ml-4 text-sm text-fg/70">{whoIn}</span>
+      {/* The invitation itself, on frosted glass over the picture: who's in, and what you get. */}
+      <section className="glass relative z-10 -mt-[150px] mb-7 rounded-[30px] px-5 pb-5 pt-5 text-fg" data-join-card>
+        <p className="text-[15px] text-fg/70">
+          You’re invited to join, {active.length} {active.length === 1 ? "person" : "people"} so far
+        </p>
+        <h1 className="lp-slide-in mt-1.5 font-display text-[clamp(38px,12vw,52px)] font-semibold leading-[1.02] tracking-[-0.02em]">{group.name}</h1>
+        {firsts.length > 0 && (
+          <span className="mt-3.5 flex items-center gap-2.5">
+            <span className="flex">
+              {firsts.slice(0, 4).map((n, i) => (
+                <span key={i} className={`lp-pop-in flex h-8 w-8 items-center justify-center rounded-full border-2 border-[#1c1c20] text-[12px] font-bold ${i ? "-ml-2" : ""} ${avatarTone(n)}`} style={{ animationDelay: `${200 + i * 90}ms` }}>
+                  {n.charAt(0).toUpperCase()}
                 </span>
-              )}
-              {countdown && <span className="rounded-full bg-owe/20 px-3 py-1 text-xs font-semibold text-[#ffd2b0]">{countdown.line}</span>}
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* What joining gets you, for this kind of group. */}
-      <section aria-label="What you get" className="-mx-5 mb-8">
-        <p className="mb-3 px-5 text-[12px] font-semibold uppercase tracking-[0.2em] text-gray-400">Inside, you get</p>
-        <ul className="flex snap-x gap-3 overflow-x-auto px-5 pb-1 [scrollbar-width:none]">
+              ))}
+            </span>
+            <span className="text-sm text-fg/75">{whoIn}</span>
+          </span>
+        )}
+        <span aria-hidden className="mb-4 mt-5 block h-px bg-fg/10" />
+        <ul aria-label="What you get" className="space-y-2.5">
           {perks.map((k, i) => (
-            <li key={k.title} className="lp-card w-[168px] shrink-0 snap-start overflow-hidden rounded-[20px] border border-line bg-mist" style={{ animationDelay: `${120 + i * 90}ms` }}>
-              <span className="relative block h-[88px] overflow-hidden" aria-hidden>
-                <StoryArt kind={k.art} uid={`perk-${i}`} />
-              </span>
-              <span className="block px-3.5 pb-3.5 pt-3">
-                <span className="block font-display text-[16px] font-semibold leading-tight">{k.title}</span>
-                <span className="mt-1 block text-xs leading-snug text-gray-500">{k.line}</span>
+            <li key={k.title} className="lp-card flex items-start gap-2.5 text-[14.5px] leading-snug" style={{ animationDelay: `${120 + i * 90}ms` }}>
+              <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-owed)" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" className="mt-px shrink-0">
+                <path d="M5 12.5l4.5 4.5L19 7.5" />
+              </svg>
+              <span>
+                <span className="font-semibold">{k.title}</span>
+                <span className="text-fg/60">: {k.line}</span>
               </span>
             </li>
           ))}
         </ul>
       </section>
 
+      {error === "busy" && <ErrorNote>Too many joins from here in the last hour. Wait a bit and try again.</ErrorNote>}
+      {error === "claimed" && <ErrorNote>That name is already taken by someone else. Join as yourself instead.</ErrorNote>}
+
       {!account ? (
         <>
-          <p className="mb-4 text-[15px] text-gray-600">Sign in with Google or your email to join. 30 seconds, no password, and your groups follow you to any phone.</p>
-          {asMember && <p className="mb-4 rounded-xl bg-mist px-4 py-3 text-sm">You were added as <strong>{asMember.name}</strong>. Join to see your share.</p>}
-          <Link href={`/signin?${new URLSearchParams({ back, ...(invitedEmail ? { e: invitedEmail } : {}) })}`} className={primaryButtonClass}>
-            Sign in or sign up to join
-          </Link>
+          {asMember && <p className="mb-4 rounded-[18px] bg-mist px-4 py-3 text-sm">You were added as <strong>{asMember.name}</strong>. Join to see your share.</p>}
+          <div className="space-y-2.5">
+            {googleConfigured() && (
+              <a href={`/api/auth/google/start?${new URLSearchParams({ back })}`} className="pop flex h-14 w-full items-center justify-center gap-3 bg-fg text-base font-semibold text-canvas">
+                <GoogleG />
+                Join with Google
+              </a>
+            )}
+            <Link
+              href={`/signin?${new URLSearchParams({ back, ...(invitedEmail ? { e: invitedEmail } : {}) })}`}
+              className={googleConfigured() ? "flex h-14 w-full items-center justify-center rounded-full border border-fg/15 bg-fg/[0.06] text-base font-semibold text-fg transition-transform active:scale-[0.97]" : "pop flex h-14 w-full items-center justify-center bg-fg text-base font-semibold text-canvas"}
+            >
+              Sign up to join with email
+            </Link>
+          </div>
+          <p className="mt-3 text-center text-[13px] text-fg/50">30 seconds, no password. Your groups follow you to any phone.</p>
         </>
       ) : (
         <>
@@ -211,7 +220,7 @@ export default async function JoinPage({
         </>
       )}
 
-      <p className="mt-8 text-center text-xs text-gray-400">Free · No ads · Loopin keeps count, it never touches your money</p>
+      <p className="mt-8 text-center text-xs text-gray-400">Free, no ads. Loopin keeps count; it never touches your money.</p>
       <GetAppButton variant="card" className="mt-6" />
     </>
   );

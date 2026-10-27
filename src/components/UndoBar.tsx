@@ -29,7 +29,7 @@ export function UndoBar({
 
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-24 z-30 flex justify-center px-5" role="status" aria-live="polite">
-      <div className="sheet-enter pointer-events-auto flex w-full max-w-md items-center gap-3 border border-line bg-white px-4 py-3 shadow-2xl shadow-black/60">
+      <div className="sheet-enter pointer-events-auto flex w-full max-w-md items-center gap-3 border border-line bg-white px-4 py-3 shadow-2xl shadow-black/60 rounded-full">
         <p className="min-w-0 flex-1 truncate text-sm">{text}</p>
         <form action={undoChange}>
           <input type="hidden" name="groupId" value={groupId} />

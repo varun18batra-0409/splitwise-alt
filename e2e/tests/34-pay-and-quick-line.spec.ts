@@ -42,11 +42,11 @@ test("pay buttons, payment tracking and the quick line", async ({ browser }) => 
   await R.waitForURL(/tab=activity/);
   expect(await readBalances(R, g.path)).toMatchObject({ Asha: 50000, Ravi: -50000 });
 
-  // Settle up: Ravi gets "Pay ₹500 · UPI", which opens the payment app with ₹500 filled in.
+  // Settle up: Ravi gets "Pay ₹500 with UPI", which opens the payment app with ₹500 filled in.
   await R.goto(`${g.path}/settle`);
   await settled(R);
   const upi = R.locator("[data-pay='upi']");
-  await expect(upi).toHaveText(/Pay ₹500 · UPI/);
+  await expect(upi).toHaveText(/Pay ₹500 with UPI/);
   const href = (await upi.getAttribute("href")) ?? "";
   expect(href, href).toMatch(/^upi:\/\/pay\?pa=asha%40okicici&pn=Asha&am=500\.00&cu=INR&tn=/);
   await R.locator("form").filter({ has: R.getByLabel(/^Amount (You|Ravi) paid Asha$/) }).getByRole("button", { name: "Mark paid" }).click();

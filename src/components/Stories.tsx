@@ -1,18 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import Image from "next/image";
+import { createPortal } from "react-dom";
 import Link from "./Link";
+import { buzz } from "@/lib/haptics";
 import { GroupCover } from "./GroupCover";
 import { StoryArt } from "./StoryArt";
 import { Backdrop, TONE } from "./Backdrop";
 import type { CoverChoice } from "@/lib/covers";
 import type { Frame, Story } from "@/lib/home/stories";
 
-// Home's stories, as little polaroids pegged on a string. A green peg means
-// you haven't seen it yet. Tap one to open the stories full screen: tap the
-// right side for the next, the left for the one before, swipe down (or Back)
-// to close. Seen stories are remembered on this phone only.
+// Home's stories, as photo cards. A bright ring means you haven't seen it yet. Tap one to open the stories full screen: tap the
+// right side for the next, the left for the one before, hold to pause,
+// swipe sideways to jump stories, swipe up for the story's button, swipe
+// down (or Back) to close. Seen stories are remembered on this phone only.
 
 const SEEN_KEY = "lp_seen_stories";
 const DURATION = 6000;
@@ -34,13 +36,13 @@ function writeSeen(s: Set<string>) {
 
 function Picture({ s, uid, big }: { s: Story; uid: string; big?: boolean }) {
   // Sized for where it shows: a small copy for the polaroid, a sharp one full screen.
-  if (s.photo) return <Image src={s.photo} alt="" aria-hidden fill sizes={big ? "(max-width: 448px) 100vw, 448px" : "96px"} quality={big ? 82 : 70} priority={big} className={`object-cover ${big ? "lp-drift" : ""}`} />;
-  if (s.cover && !s.art) return <GroupCover kind={s.cover.kind as CoverChoice} src={s.cover.src} uid={uid} sizes={big ? "448px" : "80px"} drift={big} />;
+  if (s.photo) return <Image src={s.photo} alt="" aria-hidden fill sizes={big ? "(max-width: 448px) 100vw, 448px" : "120px"} quality={big ? 82 : 70} priority={big} className={`object-cover ${big ? "lp-drift" : ""}`} />;
+  if (s.cover && !s.art) return <GroupCover kind={s.cover.kind as CoverChoice} src={s.cover.src} uid={uid} sizes={big ? "448px" : "120px"} drift={big} />;
   // No photo: designed artwork (green felt for a card night, a jar for a collection…).
   return <StoryArt kind={s.art ?? s.kind} uid={uid} />;
 }
 
-export function Stories({ stories }: { stories: Story[] }) {
+export function Stories({ stories, className = "mb-6" }: { stories: Story[]; className?: string }) {
   const [seen, setSeen] = useState<Set<string>>(() => new Set());
   const [open, setOpen] = useState<number | null>(null);
   useEffect(() => setSeen(readSeen()), []);
@@ -58,48 +60,48 @@ export function Stories({ stories }: { stories: Story[] }) {
   const ordered = [...stories.filter((s) => !seen.has(s.id)), ...stories.filter((s) => seen.has(s.id))];
   if (!stories.length) return null;
 
-  const tilt = [-3, 2, -1.5, 2.5, -2, 1.5];
   return (
-    <section aria-label="Stories" className="relative -mx-5 mb-6">
-      {/* The string the photos hang on. */}
-      <svg aria-hidden className="pointer-events-none absolute inset-x-0 top-[9px] h-6 w-full" preserveAspectRatio="none" viewBox="0 0 100 10">
-        <path d="M0 1 Q 50 9 100 1" fill="none" stroke="currentColor" strokeWidth="0.35" className="text-fg/25" vectorEffect="non-scaling-stroke" />
-      </svg>
-      <ul className="flex gap-3.5 overflow-x-auto px-5 pb-2 pt-1 [scrollbar-width:none]" data-stories>
-        {ordered.map((s, i) => {
+    <section aria-label="Stories" className={`relative -mx-5 ${className}`}>
+      <ul className="flex gap-2.5 overflow-x-auto px-5 pb-3 pt-1 [scrollbar-width:none]" data-stories>
+        {ordered.map((s) => {
           const isNew = !seen.has(s.id);
+          const caption = s.headline.length <= 30 ? s.headline : s.label;
           return (
             <li key={s.id} className="shrink-0" data-story={s.kind} data-new={isNew ? "1" : "0"}>
               <button
                 type="button"
                 onClick={() => setOpen(stories.indexOf(s))}
                 aria-label={`${s.headline}${isNew ? " (new)" : ""}`}
-                className="relative block pt-2 transition-transform active:scale-95"
-                style={{ transform: `rotate(${tilt[i % tilt.length]}deg)` }}
+                className={`relative block h-[132px] w-[96px] overflow-hidden rounded-[20px] bg-mist text-left shadow-[0_14px_28px_-12px_rgba(0,0,0,0.9)] transition-transform active:scale-95 ${
+                  isNew ? "outline outline-2 outline-offset-2 outline-fg" : "opacity-75"
+                }`}
               >
-                {/* The peg: green until you've seen it. */}
-                <span aria-hidden className={`absolute left-1/2 top-0 z-10 h-4 w-2.5 -translate-x-1/2 rounded-[2px] ${isNew ? "bg-owed shadow-[0_0_10px_rgba(111,227,168,0.6)]" : "bg-fg/35"}`} />
-                <span className={`block w-[72px] bg-[#f4f1e8] p-[4px] pb-0 shadow-[0_12px_22px_-10px_rgba(0,0,0,0.95)] ${isNew ? "" : "opacity-70"}`}>
-                  <span className="relative block h-[64px] overflow-hidden bg-[#222]">
-                    <Picture s={s} uid={`st-${s.id}`} />
-                  </span>
-                  <span className="block truncate px-0.5 pb-1 pt-0.5 text-center font-hand text-[15px] font-bold leading-tight text-[#2a2620]">{s.label}</span>
-                </span>
+                <Picture s={s} uid={`st-${s.id}`} />
+                <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,transparent_38%,rgba(0,0,0,0.78)_100%)]" />
+                <span className="absolute inset-x-2 bottom-2 line-clamp-3 text-[12.5px] font-semibold leading-[1.2] text-[#f7f4ec]">{caption}</span>
               </button>
             </li>
           );
         })}
       </ul>
-      {open !== null && <Viewer stories={stories} start={open} onSeen={markSeen} onClose={() => setOpen(null)} />}
+      {/* On top of everything (the page's cards and the bottom bar), whatever the strip sits inside. */}
+      {open !== null && createPortal(<Viewer stories={stories} start={open} onSeen={markSeen} onClose={() => setOpen(null)} />, document.body)}
     </section>
+  );
+}
+
+// A handwritten label on a strip of paper tape, stuck on at a slight angle ("Day 2 of 5").
+function Sticker({ children }: { children: ReactNode }) {
+  return (
+    <p className="mb-3 inline-block -rotate-[4deg] bg-[#f4f2ec] px-3.5 pb-1 pt-0.5 font-hand text-[25px] font-bold leading-tight text-[#0d0d0f] shadow-[0_8px_18px_-6px_rgba(0,0,0,0.6)]">{children}</p>
   );
 }
 
 function Words({ kicker, head, line }: { kicker?: string; head: string; line?: string }) {
   return (
     <div className="lp-slide-in pointer-events-none absolute inset-x-0 bottom-[132px] z-20 px-6 text-[#f7f4ec]">
-      {kicker && <p className="mb-2 inline-block rounded-full bg-[#f7f4ec]/15 px-3 py-1 text-[13px] font-semibold backdrop-blur-sm">{kicker}</p>}
-      <p className="font-display text-[clamp(30px,9vw,40px)] font-semibold leading-[1.04]" data-story-headline>
+      {kicker && <Sticker>{kicker}</Sticker>}
+      <p className="font-display text-[clamp(34px,10.5vw,44px)] font-semibold leading-[1.0] tracking-[-0.02em]" data-story-headline>
         {head}
       </p>
       {line && <p className="mt-2 font-hand text-[24px] font-bold leading-tight text-[#ffd9a8]">{line}</p>}
@@ -122,10 +124,8 @@ function Slide({ f, uid }: { f: Frame; uid: string }) {
       <div className="absolute inset-0 text-[#f7f4ec]">
         <Backdrop accent={accent} />
         <div className="lp-slide-in pointer-events-none relative flex h-full flex-col justify-center px-7 pb-[140px] pt-24">
-          <p className="text-[13px] font-semibold uppercase tracking-[0.22em]" style={{ color: accent }}>
-            {f.kicker}
-          </p>
-          <p className="mt-4 break-words font-display font-semibold leading-[0.95] tracking-[-0.02em]" style={{ fontSize: `min(84px, ${Math.floor(170 / Math.max(5, f.big.length))}vw)` }} data-story-headline>
+          <Sticker>{f.kicker}</Sticker>
+          <p className="mt-1 break-words font-display font-semibold leading-[0.95] tracking-[-0.02em]" style={{ fontSize: `min(84px, ${Math.floor(170 / Math.max(5, f.big.length))}vw)` }} data-story-headline>
             {f.big}
           </p>
           <span aria-hidden className="mt-5 block h-[3px] w-14 rounded-full" style={{ background: accent }} />
@@ -137,7 +137,7 @@ function Slide({ f, uid }: { f: Frame; uid: string }) {
     <div className="absolute inset-0 text-[#f7f4ec]">
       <Backdrop accent={accent} />
       <div className="lp-slide-in pointer-events-none relative flex h-full flex-col justify-center px-7 pb-[140px] pt-24">
-        <p className="text-[13px] font-semibold uppercase tracking-[0.22em]" style={{ color: accent }} data-story-headline>
+        <p className="font-display text-[34px] font-semibold leading-none tracking-[-0.02em]" data-story-headline>
           {f.kicker}
         </p>
         <ul className="mt-5 space-y-2.5">
@@ -165,7 +165,13 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
   const [at, setAt] = useState({ s: start, f: 0 });
   const [paused, setPaused] = useState(false);
   const [still, setStill] = useState(false); // the phone asks for less motion: no auto-advance
-  const startY = useRef<number | null>(null);
+  // Gestures: hold to pause, drag down to close, swipe sideways for the next or previous story,
+  // swipe up to do the story's one thing. A hold or a swipe never also counts as a tap.
+  const drag = useRef<{ x: number; y: number; t: number; moved: boolean } | null>(null);
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const notATap = useRef(false);
+  const cta = useRef<HTMLAnchorElement>(null);
+  const [dy, setDy] = useState(0);
   const story = stories[at.s];
   const frames = story?.frames.length ? story.frames : [];
 
@@ -188,6 +194,36 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
     [stories],
   );
   const prev = useCallback(() => setAt((x) => (x.f > 0 ? { s: x.s, f: x.f - 1 } : x.s > 0 ? { s: x.s - 1, f: 0 } : x)), []);
+  const tap = (go: () => void) => () => {
+    if (notATap.current) {
+      notATap.current = false;
+      return;
+    }
+    go();
+  };
+  const letGo = (e: PointerEvent<HTMLDivElement> | null) => {
+    clearTimeout(holdTimer.current);
+    const d = drag.current;
+    drag.current = null;
+    setPaused(false);
+    setDy(0);
+    if (!d || !e) return;
+    const mx = e.clientX - d.x;
+    const my = e.clientY - d.y;
+    if (d.moved || Date.now() - d.t > 260) notATap.current = true;
+    if (!d.moved) return;
+    const down = my > 0 && Math.abs(my) > Math.abs(mx);
+    const up = my < 0 && Math.abs(my) > Math.abs(mx);
+    if (down && my > 110) close();
+    else if (up && my < -90) {
+      buzz("tap");
+      cta.current?.click();
+    } else if (Math.abs(mx) > 70 && Math.abs(mx) > Math.abs(my)) {
+      buzz("tap");
+      if (mx < 0) setAt((x) => ({ s: x.s + 1, f: 0 }));
+      else setAt((x) => ({ s: Math.max(0, x.s - 1), f: 0 }));
+    }
+  };
 
   useEffect(() => {
     setStill(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
@@ -226,19 +262,35 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
   // Every slide is dark now (photos, artwork, posters), so the controls are always light.
   const ink = "#f7f4ec";
   return (
-    <div className="fixed inset-0 z-[60] bg-black" role="dialog" aria-modal="true" aria-label={`Story: ${story.headline}`}>
+    <div className="fixed inset-0 z-[60]" style={{ background: `rgba(0,0,0,${dy ? Math.max(0.35, 1 - dy / 500) : 1})` }} role="dialog" aria-modal="true" aria-label={`Story: ${story.headline}`}>
       <div
-        className="relative mx-auto h-full max-w-md overflow-hidden"
+        className="relative mx-auto h-full max-w-md touch-none overflow-hidden"
+        data-story-viewer
+        style={
+          dy
+            ? { transform: `translateY(${dy * 0.85}px) scale(${1 - Math.min(dy, 400) / 1800})`, borderRadius: 24, transition: "none" }
+            : { transition: "transform 240ms cubic-bezier(.2,.9,.25,1), border-radius 240ms" }
+        }
         onPointerDown={(e) => {
-          startY.current = e.clientY;
-          setPaused(true);
+          drag.current = { x: e.clientX, y: e.clientY, t: Date.now(), moved: false };
+          clearTimeout(holdTimer.current);
+          holdTimer.current = setTimeout(() => setPaused(true), 180);
         }}
-        onPointerUp={(e) => {
-          setPaused(false);
-          if (startY.current !== null && e.clientY - startY.current > 90) close();
-          startY.current = null;
+        onPointerMove={(e) => {
+          const d = drag.current;
+          if (!d) return;
+          const mx = e.clientX - d.x;
+          const my = e.clientY - d.y;
+          if (!d.moved && Math.hypot(mx, my) > 10) {
+            d.moved = true;
+            clearTimeout(holdTimer.current);
+            setPaused(true);
+          }
+          if (d.moved && my > 0 && my > Math.abs(mx)) setDy(my);
+          else if (dy) setDy(0);
         }}
-        onPointerCancel={() => setPaused(false)}
+        onPointerUp={letGo}
+        onPointerCancel={() => letGo(null)}
       >
         {f ? <Slide key={`${at.s}-${at.f}`} f={f} uid={`sl-${story.id}-${at.f}`} /> : <Picture s={story} uid={`sv-${story.id}`} big />}
 
@@ -261,21 +313,23 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
           </span>
           <span className="text-sm font-semibold">{story.label}</span>
         </div>
-        <button type="button" onClick={close} aria-label="Close" className="absolute right-3 top-[max(22px,calc(env(safe-area-inset-top)+10px))] z-30 flex h-10 w-10 items-center justify-center rounded-full text-xl" style={{ color: ink, background: "rgba(0,0,0,0.35)" }}>
-          ×
+        <button type="button" onClick={close} aria-label="Close" className="glass absolute right-3 top-[max(22px,calc(env(safe-area-inset-top)+10px))] z-30 flex h-11 w-11 items-center justify-center rounded-full" style={{ color: ink }}>
+          <svg aria-hidden width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+            <path d="M6 6l12 12M18 6 6 18" />
+          </svg>
         </button>
 
         {/* Tap the left third for back, the rest for next. */}
-        <button type="button" aria-label="Previous" onClick={prev} className="absolute inset-y-0 left-0 z-10 w-1/3" />
-        <button type="button" aria-label="Next" onClick={next} className="absolute inset-y-0 right-0 z-10 w-2/3" />
+        <button type="button" aria-label="Previous" onClick={tap(prev)} className="absolute inset-y-0 left-0 z-10 w-1/3" />
+        <button type="button" aria-label="Next" onClick={tap(next)} className="absolute inset-y-0 right-0 z-10 w-2/3" />
 
         {/* One thing to do next, on every slide. */}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 px-6 pb-[max(28px,env(safe-area-inset-bottom))]">
-          <Link href={story.href} replace className="pop pointer-events-auto relative block px-4 py-3.5 text-center text-base font-semibold [--pop-edge:#6e6b63]" style={{ background: "#f4f1e8", color: "#14130f" }}>
+          <Link ref={cta} href={story.href} replace className="pop pointer-events-auto relative block px-4 py-4 text-center text-base font-semibold" style={{ background: "#f4f2ec", color: "#0d0d0f" }}>
             {story.cta}
           </Link>
           <p className="mt-2 text-center text-[11px]" style={{ color: `${ink}99` }}>
-            Tap for more · swipe down to close
+            Hold to pause. Swipe up to open, down to close.
           </p>
         </div>
       </div>

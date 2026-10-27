@@ -188,12 +188,12 @@ export default async function GamePage({ params, searchParams }: { params: Promi
 
       {/* The pot */}
       <section aria-label="The pot" className="relative overflow-hidden rounded-[24px] px-5 pb-5 pt-5 text-fg [background:radial-gradient(90%_100%_at_100%_0%,#1f6b4a_0%,transparent_60%),linear-gradient(160deg,#123a2a_0%,#0b1612_80%)]">
-        <p className="pr-14 text-[11px] font-semibold uppercase tracking-[0.16em] text-fg/55">
+        <p className="pr-14 text-[11px] font-semibold text-fg/55">
           {potGameLabel(game.game)} · host {youLow(game.hostId)} · {open ? "playing" : "finished"}
         </p>
         {open ? (
           <>
-            <p className="mt-2 font-display text-[40px] font-semibold leading-none tabular-nums" data-pot-out>
+            <p className="mt-2 money text-[40px] font-semibold leading-none tabular-nums" data-pot-out>
               {money(totals.out)}
             </p>
             <p className="mt-1 font-hand text-[21px] font-bold leading-none text-[#ffd9a8]">out of the pot, in play</p>

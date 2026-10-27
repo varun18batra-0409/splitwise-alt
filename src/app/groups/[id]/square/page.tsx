@@ -9,6 +9,7 @@ import { ShareSheet } from "@/components/ShareSheet";
 import { coverFor } from "@/lib/covers";
 import { placePhoto } from "@/lib/places";
 import { squareNumbers } from "@/lib/square";
+import { Confetti } from "@/components/Confetti";
 
 // "All square": nobody owes anybody. A moment worth sharing, not just a zero.
 export default async function SquarePage({ params }: { params: Promise<{ id: string }> }) {
@@ -44,6 +45,7 @@ export default async function SquarePage({ params }: { params: Promise<{ id: str
 
         {square ? (
           <>
+            <Confetti id={`${group.id}:${expenses.length}:${payments.length}`} />
             <p className="mt-9 text-center font-display text-[44px] font-semibold leading-none tracking-tight" data-square>
               All square
             </p>
@@ -56,7 +58,7 @@ export default async function SquarePage({ params }: { params: Promise<{ id: str
               ].map(([v, l]) => (
                 <div key={l} className="rounded-2xl border border-line px-2 py-3">
                   <dt className="sr-only">{l}</dt>
-                  <dd className="font-display text-lg font-semibold tabular-nums">{v}</dd>
+                  <dd className="money text-lg font-semibold tabular-nums">{v}</dd>
                   <dd className="text-xs text-gray-500">{l}</dd>
                 </div>
               ))}

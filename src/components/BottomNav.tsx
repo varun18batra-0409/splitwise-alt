@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { BellIcon, ChartIcon, HomeIcon, PlusIcon, SettleIcon } from "./icons";
 
-// The bar at the bottom of every main screen: Home · Search · ＋ · Settle · Alerts.
+// The bar at the bottom of every main screen, floating as a frosted pill: Home, Recap, ＋, Settle, Alerts.
 // Inside a group, Search / ＋ / Settle work on that group.
 // Hidden on forms (adding, editing, paying, joining) so it never gets in the way.
 const HIDE = [/^\/join/, /^\/groups\/new$/, /\/add$/, /^\/add$/, /\/edit$/, /\/pay$/, /^\/signin/, /^\/welcome$/, /^\/collect\//, /^\/c\//];
@@ -39,10 +39,10 @@ export function BottomNav() {
       href={it.href}
       aria-current={it.on ? "page" : undefined}
       aria-label={it.badge ? `${it.label}, ${it.badge} new` : it.label}
-      className={`relative flex flex-1 flex-col items-center gap-0.5 py-1.5 text-[11px] ${it.on ? "text-fg" : "text-gray-500"}`}
+      className={`relative flex flex-1 flex-col items-center gap-[3px] py-1 text-[11px] font-semibold transition-colors ${it.on ? "text-fg" : "text-fg/45"}`}
     >
       {it.icon}
-      <span className={it.on ? "font-semibold" : ""}>{it.label}</span>
+      <span>{it.label}</span>
       {it.badge ? (
         <span className="absolute left-1/2 top-0 ml-1.5 min-w-[17px] rounded-full bg-fg px-1 text-center text-[10px] font-semibold leading-[17px] text-canvas tabular-nums">
           {it.badge > 9 ? "9+" : it.badge}
@@ -52,17 +52,15 @@ export function BottomNav() {
   );
 
   return (
-    <nav
-      aria-label="Main"
-      className="bottom-nav fixed inset-x-0 bottom-0 z-20 border-t border-line bg-canvas/95 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1.5 backdrop-blur"
-    >
-      <div className="mx-auto flex max-w-md items-end px-2">
+    <nav aria-label="Main" className="bottom-nav pointer-events-none fixed inset-x-0 bottom-0 z-20 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <div className="glass-strong pointer-events-auto mx-auto flex h-[66px] max-w-[416px] items-center rounded-full px-2 shadow-[0_18px_40px_-12px_rgba(0,0,0,0.8)]">
         {cell(items[0])}
         {cell(items[1])}
         <Link
           href={g ? `/groups/${g}/add` : "/add"}
           aria-label="Add expense"
-          className="pop mx-2 -mt-5 flex h-14 w-14 shrink-0 items-center justify-center bg-fg text-canvas [--pop-edge:#6e6b63]"
+          data-haptic="tap"
+          className="pop mx-1.5 flex h-[52px] w-[52px] shrink-0 items-center justify-center bg-fg text-canvas"
         >
           <PlusIcon size={26} />
         </Link>
