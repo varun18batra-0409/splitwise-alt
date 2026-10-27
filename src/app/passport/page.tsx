@@ -148,8 +148,8 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
             Added to your passport.
           </p>
         )}
-        <form action={addPlaceAction} className="mt-3 flex flex-wrap gap-2" aria-label="Add a place">
-          <select name="country" required defaultValue="" aria-label="Country" className={`${inputClass} min-w-0 flex-1`}>
+        <form action={addPlaceAction} className="mt-3 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2" aria-label="Add a place">
+          <select name="country" required defaultValue="" aria-label="Country" className={`${inputClass} min-w-0`}>
             <option value="" disabled>
               Country…
             </option>
@@ -159,7 +159,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
               </option>
             ))}
           </select>
-          <input name="city" maxLength={30} placeholder="City (optional)" aria-label="City" autoComplete="off" className={`${inputClass} w-40`} />
+          <input name="city" maxLength={30} placeholder="City (optional)" aria-label="City" autoComplete="off" className={`${inputClass} min-w-0`} />
           <button type="submit" className="rounded-xl bg-fg px-4 py-3 text-sm font-semibold text-canvas">
             Add
           </button>
@@ -188,7 +188,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
           <label className="block min-w-0 flex-1">
             <span className="mb-1 block text-sm font-semibold">Home country</span>
             <span className="mb-2 block text-xs text-gray-500">Trips here get city stamps; trips abroad get a country stamp.</span>
-            <select name="country" defaultValue={p.home} aria-label="Home country" className={inputClass}>
+            <select name="country" defaultValue={p.home} aria-label="Home country" className={`${inputClass} min-w-0`}>
               <option value="">Not set</option>
               {COUNTRIES.map((c) => (
                 <option key={c.code} value={c.code}>

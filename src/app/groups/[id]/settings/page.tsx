@@ -136,9 +136,9 @@ export default async function GroupSettings({
                   : "Each place becomes a stamp in everyone’s trip passport.";
               })()}
             </p>
-            <div className="flex gap-2">
-              <input name="tripPlace" defaultValue={group.tripPlace} maxLength={80} placeholder="e.g. Bangkok, Phuket" aria-label="Places" autoComplete="off" className={`${inputClass} min-w-0 flex-1`} />
-              <select name="tripCountry" defaultValue={group.tripCountry} aria-label="Country" className={`${inputClass} w-36 shrink-0`}>
+            <div className="grid grid-cols-[minmax(0,1fr)_9rem] gap-2">
+              <input name="tripPlace" defaultValue={group.tripPlace} maxLength={80} placeholder="e.g. Bangkok, Phuket" aria-label="Places" autoComplete="off" className={inputClass} />
+              <select name="tripCountry" defaultValue={group.tripCountry} aria-label="Country" className={`${inputClass} min-w-0`}>
                 <option value="">Country…</option>
                 {COUNTRIES.map((c) => (
                   <option key={c.code} value={c.code}>
