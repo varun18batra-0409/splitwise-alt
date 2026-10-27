@@ -42,8 +42,9 @@ const MOOD: Record<string, string[]> = {
   "💍": ["cover-wedding"],
   "🎶": ["cover-party"],
   "🌆": ["cover-city"],
-  "🚗": ["cover-road"],
-  "✈️": ["cover-road", "cover-friends"],
+  // Not a place we know: friends together, never a road somewhere it isn't (the road photo is the US desert).
+  "🚗": ["cover-friends"],
+  "✈️": ["cover-friends"],
 };
 
 const have = photos as Record<string, { src: string } | undefined>;

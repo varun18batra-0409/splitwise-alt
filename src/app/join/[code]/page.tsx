@@ -105,7 +105,7 @@ export default async function JoinPage({
           {coverOf(group) !== "plain" ? (
             <GroupCover {...coverFor(group, true)} uid={`join-${group.id}`} sizes="(max-width: 448px) 100vw, 448px" priority drift />
           ) : (
-            <StoryArt kind={group.type === "pot" ? "pot" : "trip"} uid={`join-${group.id}`} className="lp-drift" />
+            <StoryArt kind={group.type === "pot" ? "pot" : "trip"} uid={`join-${group.id}`} />
           )}
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(17,17,20,0.1)_30%,#141418_100%)]" />
           <span className="absolute left-4 top-4 rounded-full bg-canvas/60 px-3 py-1 text-xs font-semibold backdrop-blur">

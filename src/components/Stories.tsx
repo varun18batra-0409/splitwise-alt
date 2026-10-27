@@ -37,7 +37,7 @@ function Picture({ s, uid, big }: { s: Story; uid: string; big?: boolean }) {
   if (s.photo) return <Image src={s.photo} alt="" aria-hidden fill sizes={big ? "(max-width: 448px) 100vw, 448px" : "96px"} quality={big ? 82 : 70} priority={big} className={`object-cover ${big ? "lp-drift" : ""}`} />;
   if (s.cover && !s.art) return <GroupCover kind={s.cover.kind as CoverChoice} src={s.cover.src} uid={uid} sizes={big ? "448px" : "80px"} drift={big} />;
   // No photo: designed artwork (green felt for a card night, a jar for a collection…).
-  return <StoryArt kind={s.art ?? s.kind} uid={uid} className={big ? "lp-drift" : ""} />;
+  return <StoryArt kind={s.art ?? s.kind} uid={uid} />;
 }
 
 export function Stories({ stories }: { stories: Story[] }) {
@@ -111,7 +111,7 @@ function Slide({ f, uid }: { f: Frame; uid: string }) {
   if (f.kind === "photo" || f.kind === "art")
     return (
       <>
-        {f.kind === "photo" ? <Image src={f.photo} alt="" aria-hidden fill sizes="(max-width: 448px) 100vw, 448px" quality={82} priority className="lp-drift object-cover" /> : <StoryArt kind={f.art} uid={uid} className="lp-drift" />}
+        {f.kind === "photo" ? <Image src={f.photo} alt="" aria-hidden fill sizes="(max-width: 448px) 100vw, 448px" quality={82} priority className="lp-drift object-cover" /> : <StoryArt kind={f.art} uid={uid} />}
         <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.5)_0%,transparent_22%,transparent_42%,rgba(0,0,0,0.9)_100%)]" />
         <Words kicker={f.kicker} head={f.head} line={f.line} />
       </>
