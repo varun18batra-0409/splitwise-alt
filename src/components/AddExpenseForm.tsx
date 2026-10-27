@@ -1,5 +1,6 @@
 "use client";
 
+import { avatarTone } from "@/components/ui";
 import { ExpenseGlyph } from "./ExpenseGlyph";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { addExpense, lookupRate } from "@/app/actions";
@@ -23,7 +24,7 @@ type RateState =
   | { status: "ok"; rate: string; date: string; stale: boolean }
   | { status: "missing"; message: string };
 
-const labelClass = "mb-2 block text-sm font-medium text-gray-600";
+const labelClass = "mb-2 block text-[13px] font-semibold text-fg/55";
 
 export type { ExpenseInitial } from "@/lib/expense-initial";
 import type { ExpenseInitial } from "@/lib/expense-initial";
@@ -336,7 +337,7 @@ export function AddExpenseForm({
     // buttons are off while saving), so the page-wide double-tap lock isn't needed here.
     <form ref={formRef} onSubmit={save} data-allow-repeat="1" className="space-y-7">
       {/* Money spent (normal) or money back (a refund, a deposit returned) */}
-      <div className="grid grid-cols-2 gap-1 rounded-xl bg-mist p-1" role="radiogroup" aria-label="Money spent or money back">
+      <div className="mx-auto grid max-w-[280px] grid-cols-2 gap-1 rounded-full bg-mist p-1" role="radiogroup" aria-label="Money spent or money back">
         {(
           [
             ["expense", "Money spent"],
@@ -349,7 +350,7 @@ export function AddExpenseForm({
             role="radio"
             aria-checked={kind === id}
             onClick={() => setKind(id)}
-            className={`rounded-lg py-2.5 text-sm ${kind === id ? "bg-fg font-semibold text-canvas" : "text-gray-500"}`}
+            className={`rounded-full py-2 text-sm font-semibold transition-colors ${kind === id ? "bg-fg text-canvas" : "text-fg/55"}`}
           >
             {label}
           </button>
@@ -358,6 +359,69 @@ export function AddExpenseForm({
       {kind === "refund" && (
         <p className="-mt-4 text-sm text-gray-500">A refund, a returned item or a deposit coming back. Whoever got it owes the people it’s shared with.</p>
       )}
+
+      {/* 2 + 4. Amount and currency */}
+      <div className="flex flex-col items-center pt-1 text-center" data-amount-hero>
+        <button
+          type="button"
+          onClick={() => setShowCurrencies((s) => !s)}
+          aria-label={`Currency: ${cur.name}. Tap to change`}
+          className="flex items-center gap-1.5 rounded-full bg-mist px-3 py-1.5 text-sm font-semibold active:scale-95"
+        >
+          <span className="text-base leading-none">{cur.flag}</span>
+          {currency}
+          <svg aria-hidden width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" className="text-fg/50">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+        <input
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          inputMode="decimal"
+          placeholder="0"
+          autoComplete="off"
+          aria-label="Amount"
+          autoFocus={!initial?.name}
+          size={Math.max(2, amount.length + 1)}
+          className="money mt-2 w-full bg-transparent text-center text-[clamp(52px,17vw,72px)] leading-[1.05] text-fg caret-[var(--color-tint,var(--color-fg))] outline-none placeholder:text-fg/25"
+        />
+        {showCurrencies && (
+          <div className="w-full text-left">
+            <CurrencyPicker value={currency} recent={[baseCurrency, currency]} onPick={chooseCurrency} />
+          </div>
+        )}
+
+        {/* When it was spent — optional: today unless changed. */}
+        {!showDate ? (
+          <button type="button" onClick={() => setShowDate(true)} className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-line px-3.5 py-2 text-sm font-medium text-fg/80 active:scale-95">
+            <CalIcon /> {date === today ? "Today" : date === yesterday ? "Yesterday" : niceDate(date)}
+            <span className="sr-only">. Change</span>
+          </button>
+        ) : (
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-2" role="group" aria-label="When">
+            <Chip on={!pickingDate && date === today} onClick={() => { setPickingDate(false); setDate(today); }}>
+              Today
+            </Chip>
+            <Chip on={!pickingDate && date === yesterday} onClick={() => { setPickingDate(false); setDate(yesterday); }}>
+              Yesterday
+            </Chip>
+            {pickingDate ? (
+              <input
+                type="date"
+                value={date}
+                max={today}
+                onChange={(e) => setDate(e.target.value || today)}
+                aria-label="Date of the expense"
+                className="rounded-full border border-fg bg-transparent px-3 py-1.5 text-sm text-fg outline-none [color-scheme:dark]"
+              />
+            ) : (
+              <Chip on={false} onClick={() => setPickingDate(true)}>
+                <CalIcon /> Pick date
+              </Chip>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Quick line: "Dinner 2400 Ravi paid split with Asha Meera" fills the form below. */}
       {!expenseId && members.length > 1 && (
@@ -389,80 +453,10 @@ export function AddExpenseForm({
         />
       )}
 
-      {/* Who paid — visible at the top, one tap to change */}
-      {members.length > 1 && (
-        <div>
-          <div className="flex items-start justify-between gap-3">
-            <span className={labelClass}>{kind === "refund" ? "Who got the money?" : "Who paid?"}</span>
-            {kind === "expense" && spin && (
-              <SpinWheel
-                people={members.map((m) => ({ id: m.id, label: who(m.id) }))}
-                onPick={(id) => {
-                  setMultiPay(false);
-                  setPaidById(id);
-                }}
-              />
-            )}
-          </div>
-          <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none]">
-            {[...members].sort((a, b) => (a.id === myId ? -1 : b.id === myId ? 1 : 0)).map((m) => (
-              <Chip
-                key={m.id}
-                on={!multiPay && m.id === paidById}
-                onClick={() => {
-                  setMultiPay(false);
-                  setPaidById(m.id);
-                }}
-              >
-                {!multiPay && m.id === paidById && "✓ "}
-                {who(m.id)}
-              </Chip>
-            ))}
-            <Chip
-              on={multiPay}
-              onClick={() => {
-                setMultiPay(true);
-                // Start from the current payer paying everything, so it already adds up.
-                if (!Object.values(payers).some((v) => v.trim())) setPayers({ [paidById]: amount });
-              }}
-            >
-              More than one
-            </Chip>
-          </div>
-          {multiPay && (
-            <div className="mt-3 rounded-2xl border border-line px-4 py-1">
-              <ul className="divide-y divide-line">
-                {members.map((m) => (
-                  <li key={m.id} className="flex items-center gap-3 py-2">
-                    <span className="flex-1">{who(m.id)}</span>
-                    <span className="flex w-36 items-center rounded-xl border border-line px-3 focus-within:border-accent">
-                      <span className="text-xs text-gray-400">{currency}</span>
-                      <input
-                        inputMode="decimal"
-                        placeholder="0"
-                        aria-label={`${who(m.id)} paid`}
-                        value={payers[m.id] ?? ""}
-                        onChange={(e) => setPayers((prev) => ({ ...prev, [m.id]: e.target.value }))}
-                        className="w-full bg-transparent py-2 text-right outline-none"
-                      />
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              {payersLeft && (
-                <p className={`pb-2 text-sm ${payersLeft.state === "done" ? "text-accent-dark" : payersLeft.state === "over" ? "text-red-600" : "text-gray-500"}`}>
-                  {payersLeft.text}
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* 1. Expense name, with its category as a small tag (used for group reports) */}
       <div>
         <label htmlFor="expense-name" className={labelClass}>
-          Expense name
+          What was it?
         </label>
         <div className="flex gap-2">
           <input
@@ -472,7 +466,7 @@ export function AddExpenseForm({
             placeholder="e.g. Dinner at the night market"
             autoComplete="off"
             maxLength={80}
-            autoFocus
+            autoFocus={Boolean(initial?.name)}
             className={inputClass}
           />
           <button
@@ -538,62 +532,75 @@ export function AddExpenseForm({
         )}
       </div>
 
-      {/* 2 + 4. Amount and currency */}
-      <div>
-        <span className={labelClass}>Amount</span>
-        <div className="flex items-stretch gap-2">
-          <button
-            type="button"
-            onClick={() => setShowCurrencies((s) => !s)}
-            aria-label={`Currency: ${cur.name}. Tap to change`}
-            className="flex shrink-0 items-center gap-1.5 rounded-xl border border-gray-200 px-3 text-base font-medium active:bg-gray-50"
-          >
-            <span className="text-lg">{cur.flag}</span>
-            {currency}
-            <span className="text-gray-400">▾</span>
-          </button>
-          <input
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            inputMode="decimal"
-            placeholder="0"
-            autoComplete="off"
-            aria-label="Amount"
-            className={`${inputClass} text-2xl font-semibold`}
-          />
-        </div>
-        {showCurrencies && <CurrencyPicker value={currency} recent={[baseCurrency, currency]} onPick={chooseCurrency} />}
-
-        {/* When it was spent — optional: today unless changed. */}
-        {!showDate ? (
-          <button type="button" onClick={() => setShowDate(true)} className="mt-2 py-1 text-sm text-gray-500">
-            <CalIcon /> {date === today ? "Today" : date === yesterday ? "Yesterday" : niceDate(date)} · <span className="font-medium text-fg">Change</span>
-          </button>
-        ) : (
-          <div className="mt-3 flex flex-wrap items-center gap-2" role="group" aria-label="When">
-            <Chip on={!pickingDate && date === today} onClick={() => { setPickingDate(false); setDate(today); }}>
-              Today
-            </Chip>
-            <Chip on={!pickingDate && date === yesterday} onClick={() => { setPickingDate(false); setDate(yesterday); }}>
-              Yesterday
-            </Chip>
-            {pickingDate ? (
-              <input
-                type="date"
-                value={date}
-                max={today}
-                onChange={(e) => setDate(e.target.value || today)}
-                aria-label="Date of the expense"
-                className="rounded-full border border-fg bg-transparent px-3 py-1.5 text-sm text-fg outline-none [color-scheme:dark]"
+      {/* Who paid — visible at the top, one tap to change */}
+      {members.length > 1 && (
+        <div>
+          <div className="flex items-start justify-between gap-3">
+            <span className={labelClass}>{kind === "refund" ? "Who got the money?" : "Who paid?"}</span>
+            {kind === "expense" && spin && (
+              <SpinWheel
+                people={members.map((m) => ({ id: m.id, label: who(m.id) }))}
+                onPick={(id) => {
+                  setMultiPay(false);
+                  setPaidById(id);
+                }}
               />
-            ) : (
-              <Chip on={false} onClick={() => setPickingDate(true)}>
-                <CalIcon /> Pick date
-              </Chip>
             )}
           </div>
-        )}
-      </div>
+          <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none]">
+            {[...members].sort((a, b) => (a.id === myId ? -1 : b.id === myId ? 1 : 0)).map((m) => (
+              <Chip
+                key={m.id}
+                on={!multiPay && m.id === paidById}
+                face={m.name}
+                onClick={() => {
+                  setMultiPay(false);
+                  setPaidById(m.id);
+                }}
+              >
+                {who(m.id)}
+              </Chip>
+            ))}
+            <Chip
+              on={multiPay}
+              onClick={() => {
+                setMultiPay(true);
+                // Start from the current payer paying everything, so it already adds up.
+                if (!Object.values(payers).some((v) => v.trim())) setPayers({ [paidById]: amount });
+              }}
+            >
+              More than one
+            </Chip>
+          </div>
+          {multiPay && (
+            <div className="mt-3 rounded-2xl border border-line px-4 py-1">
+              <ul className="divide-y divide-line">
+                {members.map((m) => (
+                  <li key={m.id} className="flex items-center gap-3 py-2">
+                    <span className="flex-1">{who(m.id)}</span>
+                    <span className="flex w-36 items-center rounded-xl border border-line px-3 focus-within:border-accent">
+                      <span className="text-xs text-gray-400">{currency}</span>
+                      <input
+                        inputMode="decimal"
+                        placeholder="0"
+                        aria-label={`${who(m.id)} paid`}
+                        value={payers[m.id] ?? ""}
+                        onChange={(e) => setPayers((prev) => ({ ...prev, [m.id]: e.target.value }))}
+                        className="w-full bg-transparent py-2 text-right outline-none"
+                      />
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {payersLeft && (
+                <p className={`pb-2 text-sm ${payersLeft.state === "done" ? "text-accent-dark" : payersLeft.state === "over" ? "text-red-600" : "text-gray-500"}`}>
+                  {payersLeft.text}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Foreign currency: one summary line; details (rate, card fee, how it adds up) on tap */}
       {foreign && !fxOpen && (
@@ -1060,7 +1067,8 @@ export function AddExpenseForm({
         </div>
       )}
 
-      <div className={expenseId ? "" : "flex gap-2.5"}>
+      {/* Always in reach: the save buttons ride along at the bottom while you scroll the form. */}
+      <div className={`sticky bottom-[max(1rem,env(safe-area-inset-bottom))] z-10 ${expenseId ? "" : "flex gap-2.5"}`}>
         <button
           type="submit"
           data-haptic="tap"
@@ -1081,7 +1089,7 @@ export function AddExpenseForm({
               setAgain(true);
             }}
             disabled={saving || rateState.status === "loading"}
-            className="flex-1 border border-gray-300 px-3 py-3.5 text-center text-sm font-semibold text-fg active:bg-mist disabled:opacity-50"
+            className="glass flex-1 rounded-full px-3 py-3.5 text-center text-sm font-semibold text-fg transition-transform active:scale-[0.97] disabled:opacity-50"
           >
             {saving && again ? "Saving…" : "Save & add another"}
           </button>
@@ -1101,14 +1109,14 @@ function Segmented({
   onChange: (id: string) => void;
 }) {
   return (
-    <div className="grid gap-1 rounded-xl bg-gray-100 p-1" style={{ gridTemplateColumns: `repeat(${options.length}, 1fr)` }}>
+    <div className="grid gap-1 rounded-full bg-mist p-1" style={{ gridTemplateColumns: `repeat(${options.length}, 1fr)` }}>
       {options.map((o) => (
         <button
           key={o.id}
           type="button"
           onClick={() => onChange(o.id)}
           aria-pressed={o.id === value}
-          className={`rounded-lg py-2 text-sm ${o.id === value ? "bg-fg font-semibold text-canvas" : "text-gray-500"}`}
+          className={`rounded-full py-2 text-sm font-semibold ${o.id === value ? "bg-fg text-canvas" : "text-fg/55"}`}
         >
           {o.label}
         </button>
@@ -1117,16 +1125,21 @@ function Segmented({
   );
 }
 
-function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
+function Chip({ on, onClick, children, face }: { on: boolean; onClick: () => void; children: React.ReactNode; face?: string }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-pressed={on}
-      className={`shrink-0 whitespace-nowrap rounded-full border px-4 py-2 text-sm ${
-        on ? "border-fg bg-fg font-medium text-canvas" : "border-line bg-white text-gray-700"
+      className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border text-sm transition-transform active:scale-95 ${face ? "py-1.5 pl-1.5 pr-4" : "px-4 py-2"} ${
+        on ? "border-fg bg-fg font-semibold text-canvas" : "border-line bg-mist font-medium text-fg/85"
       }`}
     >
+      {face && (
+        <span aria-hidden className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${avatarTone(face)}`}>
+          {face.trim().charAt(0).toUpperCase()}
+        </span>
+      )}
       {children}
     </button>
   );

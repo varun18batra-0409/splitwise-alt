@@ -13,7 +13,7 @@ import { PasskeyOffer } from "@/components/Passkeys";
 import { countAllUnread, loadDeletedGroups } from "@/lib/group-data";
 import { loadOverview } from "@/lib/overview";
 import { buildActivity, dayLabel } from "@/lib/activity";
-import { decimalsOf, formatMoney } from "@/lib/money";
+import { formatMoney } from "@/lib/money";
 import { HomeBanner } from "@/components/HomeBanner";
 import { GroupCover } from "@/components/GroupCover";
 import { Polaroid } from "@/components/Polaroid";
@@ -26,10 +26,13 @@ import { db } from "@/lib/db";
 import { canUndo } from "@/lib/undo";
 import { UndoBar } from "@/components/UndoBar";
 import { PersonIcon, iconButtonClass } from "@/components/icons";
+import { avatarTone } from "@/components/ui";
 import { myCollections, progress } from "@/lib/collect";
-import { tripPhase, type TripPhase } from "@/lib/countdown";
+import { countdownWords, placeOf, tripPhase, type TripPhase } from "@/lib/countdown";
 import { todayKey } from "@/lib/dates";
-import { TripCountdown } from "@/components/TripCountdown";
+import { TakeOff, TripCountdown } from "@/components/TripCountdown";
+import { ShareCountdown } from "@/components/ShareCountdown";
+import { HomeHero } from "@/components/HomeHero";
 import { TripRow } from "@/components/TripRow";
 import { Stories } from "@/components/Stories";
 import { buildStories } from "@/lib/home/stories";
@@ -147,8 +150,6 @@ export default async function Home({
   const region = visitorRegion(await headers());
   const season = seasonNow(new Date(), tz, region.country);
   const byActivity = [...open].sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
-  // The balance card's polaroids: the groups that make up most of your balance (then the latest).
-  const single = open.length === 1;
   // The balance card's big number (all groups together, or per currency).
   const heroText = netCommon
     ? `${netCommon.converted ? "≈ " : ""}${netCommon.value > 0 ? "+" : netCommon.value < 0 ? "−" : ""}${formatMoney(Math.abs(netCommon.value), common)}`
@@ -298,9 +299,17 @@ export default async function Home({
         return [{ id: g.group.id, name: g.group.name, endedDaysAgo: ended, photos: placePhotos(g.group.name, g.group.tripPlace, 2), cover: coverFor(g.group), spent: formatMoney(g.spent, g.group.currency), topCategory: top ? getCategory(top[0]).label : undefined }];
       }),
   });
-  const byWeight = [...open].sort((a, b) => Math.abs(b.myBalance) - Math.abs(a.myBalance) || b.lastActivity.getTime() - a.lastActivity.getTime());
-  // With one or two groups, shorter cards, so "Needs attention" shows without scrolling.
-  const short = byActivity.length <= 2;
+  // The top of Home: the next trip (or the one you're on) in big type over its photo; else your
+  // most active group's picture and a greeting.
+  const hero = trips[0];
+  const heroGroup = hero?.g ?? byActivity[0];
+  const ownPhoto = heroGroup ? coverOf(heroGroup.group) === "own" : false;
+  const heroPhoto = ownPhoto || !heroGroup || heroGroup.group.type !== "trip" ? undefined : placePhoto(heroGroup.group.name)?.src;
+  const friends = hero ? crewOf(hero.g).filter((n) => n !== "You").length : 0;
+  const heroChip = hero
+    ? `${hero.phase.kind === "before" ? "Your next trip" : "On the trip"}${friends ? `, with ${friends === 1 ? "1 friend" : `${friends} friends`}` : ""}`
+    : "";
+  const words = hero ? heroWords(hero.g.group.name, hero.phase) : { small: greeting(new Date(), tz, account?.name) };
 
   // First visit: show what Loopin does instead of an empty screen.
   const tourSeen = (await cookies()).get("lp_tour")?.value === "1";
@@ -330,24 +339,54 @@ export default async function Home({
         </Notice>
       )}
 
-      <header className="mb-8 flex items-center justify-between">
-        <div>
-          <p className="font-display text-[26px] font-semibold leading-none tracking-tight">loopin</p>
-          <p className="mt-1.5 text-xs text-gray-400">Everyone’s in. Everything adds up.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <GetAppButton variant="icon" />
-          <Link href="/how-it-works" aria-label="How Loopin works" className={`${iconButtonClass} text-[17px] font-semibold`}>
-            ?
-          </Link>
-          <Link href="/account" aria-label={account ? `Account: ${account.email}` : "Sign in or account"} className={`relative ${iconButtonClass}`}>
-          <PersonIcon size={20} />
-          {account && <span className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-owed" aria-hidden />}
-          </Link>
-        </div>
-      </header>
-
-      <Stories stories={stories} />
+      <HomeHero
+        tall={Boolean(hero) || stories.length > 0}
+        photo={heroPhoto}
+        cover={heroGroup ? coverFor(heroGroup.group) : { kind: coverOf({ cover: "photo-friends", type: "other" }) }}
+        uid={heroGroup?.group.id ?? "start"}
+        letter={heroGroup?.group.name}
+        crew={hero ? crewOf(hero.g).filter((n) => n !== "You") : []}
+        chip={hero ? heroChip : undefined}
+        small={words.small}
+        big={
+          words.num !== undefined ? (
+            <>
+              <span data-countdown-big>{words.num}</span> {words.unit}
+            </>
+          ) : (
+            words.big
+          )
+        }
+        bigLength={words.big?.length ?? 0}
+        label={hero ? "Trip countdown" : undefined}
+        countdown={hero ? (hero.phase.kind === "before" ? String(hero.phase.kind === "before" ? hero.phase.days : 0) : hero.phase.kind) : undefined}
+        extra={
+          hero ? (
+            <>
+              {hero.phase.kind === "before" && <TakeOff className="text-fg" />}
+              <ShareCountdown groupId={hero.g.group.id} line={countdownWords(hero.g.group.name, hero.phase)?.line ?? ""} className="glass flex h-9 w-9 items-center justify-center rounded-full text-[0px]" />
+            </>
+          ) : undefined
+        }
+        href={hero ? `/groups/${hero.g.group.id}` : undefined}
+        header={
+          <header className="flex items-center justify-between">
+            <p className="font-display text-[26px] font-semibold leading-none tracking-tight [text-shadow:0_2px_12px_rgba(0,0,0,0.4)]">loopin</p>
+            <div className="flex items-center gap-2">
+              <GetAppButton variant="icon" />
+              <Link href="/how-it-works" aria-label="How Loopin works" className={`glass ${iconButtonClass} text-[17px] font-semibold`}>
+                ?
+              </Link>
+              <Link href="/account" aria-label={account ? `Account: ${account.email}` : "Sign in or account"} className={`relative glass ${iconButtonClass}`}>
+                {account?.name ? <span className="text-[15px] font-bold">{account.name.trim().charAt(0).toUpperCase()}</span> : <PersonIcon size={20} />}
+                {account && <span className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-owed" aria-hidden />}
+              </Link>
+            </div>
+          </header>
+        }
+      >
+        <Stories stories={stories} className="mb-4" />
+      </HomeHero>
 
       {/* New here (one group or none, no expenses yet): a gentle pointer to the 1-minute tour. */}
       {open.length <= 1 && open.every((g) => g.expenses.length === 0) && (
@@ -368,20 +407,14 @@ export default async function Home({
       {all.length === 0 ? (
         <>
           {/* Start screen: nothing here yet. */}
-          <section className="overflow-hidden rounded-[24px] border border-line bg-white text-fg">
-            <div className="relative h-[210px] overflow-hidden">
-              <GroupCover kind={coverOf({ cover: "photo-friends", type: "other" })} uid="start" sizes="(max-width: 448px) 100vw, 448px" priority drift />
-              <div aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgba(22,22,26,0)_35%,#16161a_100%)]" />
-            </div>
-            <div className="relative -mt-12 px-6 pb-6">
-            <h1 className="font-display text-[30px] font-semibold leading-tight tracking-tight">Let’s get you started</h1>
-            <p className="mt-2 text-fg/60">Split costs with friends, flatmates or your partner. Free, no ads.</p>
-            <div className="mt-7 space-y-3">
-              <Link href="/groups/new" className="pop block bg-fg px-4 py-3.5 text-center font-semibold text-canvas [--pop-edge:#6e6b63]">
+          <section className="glass relative z-10 rounded-[26px] px-5 pb-5 pt-6 text-fg">
+            <h1 className="font-display text-[32px] font-semibold leading-tight tracking-tight">Let’s get you started</h1>
+            <p className="mt-2 text-fg/65">Split costs with friends, flatmates or your partner. Free, no ads.</p>
+            <div className="mt-6 space-y-3">
+              <Link href="/groups/new" className="pop block bg-fg px-4 py-3.5 text-center font-semibold text-canvas">
                 Create a group
               </Link>
               <JoinByLink />
-            </div>
             </div>
           </section>
 
@@ -402,9 +435,7 @@ export default async function Home({
               ))}
             </div>
             <Link href="/add" className="mt-4 flex items-center gap-3 rounded-2xl border border-line px-4 py-3.5 active:bg-mist">
-              <span className="text-xl" aria-hidden>
-                ＋
-              </span>
+              <RowIcon d="M12 5v14M5 12h14" />
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium">Add an expense</span>
                 <span className="block text-xs text-gray-400">We’ll make a group for it first</span>
@@ -415,9 +446,7 @@ export default async function Home({
             </Link>
             <PotTeaser className="mt-2" />
             <Link href="/switching" className="mt-2 flex items-center gap-3 rounded-2xl border border-line px-4 py-3.5 active:bg-mist">
-              <span className="text-xl" aria-hidden>
-                📥
-              </span>
+              <RowIcon d="M12 3v12M7 10l5 5 5-5M4 17v3h16v-3" />
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium">Coming from another app?</span>
                 <span className="block text-xs text-gray-400">Bring your groups over, balances and all</span>
@@ -442,195 +471,90 @@ export default async function Home({
         </>
       ) : (
         <>
-          {/* The sliding cards: your balance, your month, a seasonal idea, bringing a group over. */}
-          <HomeBanner>
-            {/* Your balance, told by your groups: each polaroid is a group, with what it adds up to for you
-                written under it — so where the number comes from is right there. */}
-            <div className="relative flex h-[268px] flex-col overflow-hidden px-5 pb-12 pt-5 text-fg [background:radial-gradient(70%_80%_at_85%_30%,#3a2a1e_0%,transparent_70%),repeating-linear-gradient(45deg,rgba(244,241,232,0.035)_0_2px,transparent_2px_9px),repeating-linear-gradient(-45deg,rgba(244,241,232,0.03)_0_2px,transparent_2px_9px),linear-gradient(160deg,#211813_0%,#121014_75%)]">
-              <div aria-hidden className="absolute inset-y-0 right-0 w-[62%]">
-                {byWeight.slice(0, 3).map((g, i) => (
-                  <Polaroid
-                    key={g.group.id}
-                    cover={coverFor(g.group)}
-                    uid={`pol-${g.group.id}`}
-                    letter={g.group.name}
-                    caption={g.group.name}
-                    note={g.myBalance > 0 ? `+${formatMoney(roundWhole(g.myBalance, g.group.currency), g.group.currency)}` : g.myBalance < 0 ? `−${formatMoney(roundWhole(g.myBalance, g.group.currency), g.group.currency)}` : "settled"}
-                    noteTone={g.myBalance > 0 ? "owed" : g.myBalance < 0 ? "owe" : undefined}
-                    // One group: a small keepsake, not a second copy of the big card below.
-                    photoClass={single ? "h-[52px]" : "h-[74px]"}
-                    captionClass={single ? "text-[14px]" : "text-[17px]"}
-                    className={`lp-drop absolute ${single ? "w-[74px]" : "w-[100px]"} ${POLAROID_SPOTS[single ? 3 : i]}`}
-                    style={{ animationDelay: `${i * 110}ms` }}
-                    sizes="100px"
-                  >
-                    {i === 0 && <span className={`absolute -top-1 left-1/2 h-[12px] -translate-x-1/2 -rotate-[4deg] bg-[#e9d9b0]/75 shadow-sm ${single ? "w-[34px]" : "w-[46px]"}`} />}
-                  </Polaroid>
-                ))}
-              </div>
-              {/* Keeps the words readable where the photos slide under them. */}
-              <div aria-hidden className="absolute inset-y-0 left-0 z-[5] w-[75%] bg-[linear-gradient(90deg,#17110e_0%,rgba(23,17,14,0.9)_50%,rgba(23,17,14,0)_100%)]" />
-              {owedLines.length === 0 && oweLines.length === 0 ? (
-                <>
-                  <p className="relative z-10 text-sm text-fg/60">Across your groups</p>
-                  <h1 className="relative z-10 mt-auto font-display text-[40px] font-semibold leading-none tracking-tight [text-shadow:0_2px_12px_rgba(0,0,0,0.6)]">All square</h1>
-                  <p className="relative z-10 mt-2 font-hand text-[22px] font-bold leading-none text-[#ffd9a8]">nobody owes anybody ✌︎</p>
-                </>
-              ) : (
-                <>
-                  <p className="relative z-10 text-sm text-fg/60">Net balance{netCommon && netCommon.converted ? ` · in ${common}` : ""}</p>
-                  {/* The big number shrinks as it gets longer, so it never runs into the photos. */}
-                  <h1
-                    className={`relative z-10 mt-auto max-w-[54%] whitespace-nowrap font-display [text-shadow:0_2px_14px_rgba(0,0,0,0.7)] font-semibold leading-none tracking-tight tabular-nums ${
-                      heroText.length <= 8 ? "text-[clamp(28px,9vw,36px)]" : heroText.length <= 10 ? "text-[clamp(22px,6.8vw,28px)]" : heroText.length <= 12 ? "text-[clamp(19px,5.9vw,24px)]" : "text-[19px]"
-                    } ${netValue > 0 ? "text-owed" : netValue < 0 ? "text-owe" : ""}`}
-                  >
-                    {heroText}
-                  </h1>
-                  <p className="relative z-10 mt-1.5 max-w-[56%] font-hand text-[21px] font-bold leading-none text-[#ffd9a8] [text-shadow:0_1px_8px_rgba(0,0,0,0.8)]">
-                    {netValue > 0 ? "you get money back" : netValue < 0 ? "you need to pay" : "it all evens out"}
-                    {open.filter((g) => g.myBalance !== 0).length > 1 ? `, from ${open.filter((g) => g.myBalance !== 0).length} groups` : ""}
+          {/* Your balance across every group: frosted glass over the bottom of the photo. */}
+          <section aria-label="Your balance" className="glass relative z-10 rounded-[26px] px-[18px] pb-4 pt-[18px]" data-balance-card>
+            {owedLines.length === 0 && oweLines.length === 0 ? (
+              <>
+                <p className="text-sm text-fg/60">Across your groups</p>
+                <p className="mt-1 font-display text-[40px] font-semibold leading-none tracking-tight">All square</p>
+                <p className="mt-2 text-sm text-fg/55">Nobody owes anybody. Add an expense and it shows here.</p>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm text-fg/70">
+                    {netValue > 0 ? "Coming back to you" : netValue < 0 ? "You owe, all in" : "It all evens out"}
+                    {netCommon && netCommon.converted ? ` (in ${common})` : ""}
                   </p>
-                  {/* Everyone behind the number: tap to see the full list (Settle). */}
                   {settleItems.length > 0 && (
                     <Link
                       href="/settle"
                       aria-label={`Who: ${settleItems.map((it) => (it.net < 0 ? `you owe ${it.name} ${amt(it.net, it.converted)}` : `${it.name} owes you ${amt(it.net, it.converted)}`)).join("; ")}`}
-                      className="relative z-10 mt-2.5 flex items-center self-start rounded-full py-0.5 pr-1 active:opacity-80"
+                      className="flex shrink-0 items-center rounded-full active:opacity-80"
                     >
-                      {settleItems.slice(0, 4).map((it) => (
-                        <span
-                          key={it.key}
-                          aria-hidden
-                          className={`-mr-[6px] flex h-[24px] w-[24px] items-center justify-center rounded-full border-2 border-[#17110e] text-[10px] font-bold text-canvas ${it.net < 0 ? "bg-owe" : "bg-owed"}`}
-                        >
+                      {settleItems.slice(0, 3).map((it, k) => (
+                        <span key={it.key} aria-hidden className={`flex h-[26px] w-[26px] items-center justify-center rounded-full border-2 border-[#1c1c20] text-[11px] font-bold ${k ? "-ml-2" : ""} ${avatarTone(it.name)}`}>
                           {it.name.trim().charAt(0).toUpperCase()}
                         </span>
                       ))}
-                      {settleItems.length > 4 && (
-                        <span aria-hidden className="flex h-[24px] items-center rounded-full border-2 border-[#17110e] bg-fg px-1.5 text-[10px] font-bold text-canvas">
-                          +{settleItems.length - 4}
+                      {settleItems.length > 3 && (
+                        <span aria-hidden className="-ml-2 flex h-[26px] items-center rounded-full border-2 border-[#1c1c20] bg-mist px-1.5 text-[11px] font-bold text-fg/80">
+                          +{settleItems.length - 3}
                         </span>
                       )}
-                      <span aria-hidden className="ml-3 text-xs text-fg/60">
-                        {settleItems.length === 1 ? settleItems[0].name : `${settleItems.length} people`} ›
-                      </span>
                     </Link>
                   )}
-                </>
-              )}
-              {settleItems.length > 0 && (
-                <Link href="/settle" className={`relative z-10 mt-3 ${bannerButton}`}>
-                  Settle up
-                </Link>
-              )}
-            </div>
-
-            {season && (
-              <div className="relative flex h-[268px] flex-col overflow-hidden bg-[#120a10] px-5 pb-12 pt-5">
-                <div className="absolute inset-y-0 left-[38%] w-[75%]">
-                  <GroupCover kind={coverOf({ cover: season.cover })} uid={`season-${season.id}`} />
                 </div>
-                <div aria-hidden className="absolute inset-0 bg-[linear-gradient(90deg,#120a10_32%,rgba(18,10,16,0)_78%)]" />
-                <p className="relative text-sm text-[#ffc93c]">{season.eyebrow}</p>
-                <p className="relative mt-1 max-w-[62%] font-display text-[26px] font-semibold leading-[1.1]">{season.title}</p>
-                <p className="relative mt-auto max-w-[58%] text-[13px] leading-snug text-gray-700">{season.text}</p>
-                <Link href={season.href} className={`relative mt-3 ${bannerButton}`}>
-                  {season.button}
-                </Link>
-              </div>
-            )}
-
-            {month && (
-              <div className="relative flex h-[268px] flex-col overflow-hidden bg-[radial-gradient(90%_90%_at_90%_10%,#4a2c16_0%,transparent_60%),linear-gradient(160deg,#24170f_0%,#121014_75%)] px-5 pb-12 pt-5">
-                <p aria-hidden className="absolute -right-3 -top-6 font-display text-[150px] font-semibold leading-none text-fg/[0.06]">
-                  {month.name.slice(0, 3)}
+                <p
+                  className={`money mt-1 whitespace-nowrap leading-[1.1] ${heroText.length <= 9 ? "text-[44px]" : heroText.length <= 12 ? "text-[36px]" : "text-[28px]"} ${netValue > 0 ? "text-owed" : netValue < 0 ? "text-owe" : ""}`}
+                  data-net-balance
+                >
+                  {heroText.replace(/^([≈ ]*)[+−]/, "$1")}
                 </p>
-                <p className="relative text-sm text-[#d9b38c]">{month.wrapped ? "Your month, wrapped" : "Your month so far"}</p>
-                <p className="relative mt-1 font-display text-[27px] font-semibold leading-[1.1]">{month.name} in numbers</p>
-                <div className="relative mt-auto flex gap-5">
-                  <p>
-                    <span className="block font-display text-[19px] font-semibold tabular-nums" data-month-share>
-                      {month.converted ? "≈ " : ""}
-                      {formatMoney(month.share, month.currency)}
-                    </span>
-                    <span className="block text-xs text-gray-600">your share</span>
-                  </p>
-                  <p>
-                    <span className="block font-display text-[19px] font-semibold tabular-nums">{month.count}</span>
-                    <span className="block text-xs text-gray-600">{month.count === 1 ? "expense" : "expenses"}</span>
-                  </p>
-                  {month.top && (
-                    <p className="min-w-0">
-                      <span className="block truncate font-display text-[19px] font-semibold">{month.top}</span>
-                      <span className="block text-xs text-gray-600">most spent on</span>
-                    </p>
-                  )}
-                </div>
-                <Link href={`/search?m=${month.month}`} className={`relative mt-3 ${bannerButton}`}>
-                  See {month.name}
-                </Link>
-              </div>
+                <p className="mt-0.5 text-[13px] text-fg/55">
+                  {open.filter((g) => g.myBalance !== 0).length > 1 ? `Across ${open.filter((g) => g.myBalance !== 0).length} groups` : "In one group"}
+                  {settleItems.length > 0 ? `, ${settleItems.length === 1 ? settleItems[0].name : `${settleItems.length} people`}` : ""}
+                </p>
+                {settleItems.length > 0 && (
+                  <div className="mt-4 flex gap-2.5">
+                    <Link href="/settle" className="pop flex h-12 flex-1 items-center justify-center bg-fg text-[15px] font-semibold text-canvas">
+                      Settle up
+                    </Link>
+                    {settleItems.some((it) => it.net > 0) && (
+                      <Link href="/settle#remind" className="flex h-12 flex-1 items-center justify-center gap-2 rounded-full border border-fg/18 bg-fg/[0.07] text-[15px] font-semibold active:scale-[0.97]">
+                        <svg aria-hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 3 10 14M21 3l-7 18-4-7-7-4Z" />
+                        </svg>
+                        Remind
+                      </Link>
+                    )}
+                  </div>
+                )}
+              </>
             )}
+          </section>
 
-            {open.length <= 3 && (
-              <div className="relative flex h-[268px] flex-col overflow-hidden bg-[radial-gradient(80%_90%_at_100%_100%,#17403a_0%,transparent_65%),linear-gradient(160deg,#10201f_0%,#0e1213_75%)] px-5 pb-12 pt-5">
-                <div aria-hidden className="absolute right-7 top-7 flex h-[92px] w-[72px] -rotate-[10deg] flex-col gap-[7px] rounded-md bg-[#e9e5da] px-2.5 py-3 shadow-xl shadow-black/50">
-                  <span className="h-1 rounded bg-[#b9b3a5]" />
-                  <span className="h-1 w-2/3 rounded bg-[#b9b3a5]" />
-                  <span className="h-1 rounded bg-[#b9b3a5]" />
-                  <span className="h-1 w-1/2 rounded bg-[#b9b3a5]" />
-                </div>
-                <div aria-hidden className="absolute right-3 top-12 flex h-[92px] w-[72px] rotate-[8deg] flex-col gap-[7px] rounded-md bg-fg px-2.5 py-3 shadow-xl shadow-black/50">
-                  <span className="h-1 rounded bg-[#c9c3b5]" />
-                  <span className="h-1 w-3/5 rounded bg-[#c9c3b5]" />
-                  <span className="h-1 rounded bg-[#c9c3b5]" />
-                  <span className="mt-auto flex h-5 w-5 items-center justify-center self-end rounded-full bg-meter-up">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M5 12.5l4.5 4.5L19 7.5" />
-                    </svg>
-                  </span>
-                </div>
-                <p className="relative text-sm text-[#8fd9c4]">Switching to Loopin?</p>
-                <p className="relative mt-1 max-w-[62%] font-display text-[26px] font-semibold leading-[1.1]">Coming from another app?</p>
-                <p className="relative mt-auto max-w-[60%] text-[13px] leading-snug text-gray-700">Bring a group over in about a minute. Same balances.</p>
-                <Link href="/switching" className={`relative mt-3 ${bannerButton}`}>
-                  Bring a group over
-                </Link>
-              </div>
-            )}
-          </HomeBanner>
 
-          {trips.length === 1 && (
-            <div className="mt-6">
-              <TripCountdown group={trips[0].g.group} phase={trips[0].phase} />
-            </div>
-          )}
-          {/* More than one trip: one card at a time, swipe for the next (soonest first). */}
+          {/* The next trip is the photo at the top; any others, one card at a time (soonest first). */}
           {trips.length > 1 && (
-            <section className="mt-6" aria-label="Your trips">
-              <div className="mb-2 flex items-baseline justify-between">
-                <h2 className="font-display text-lg font-semibold tracking-tight">
-                  Your trips <span className="ml-1 text-sm font-normal text-fg/40 tabular-nums">{trips.length}</span>
-                </h2>
-                <span className="text-xs text-fg/40">Swipe →</span>
+            <section className="mt-8" aria-label="More trips">
+              <div className="mb-3 flex items-baseline justify-between">
+                <h2 className="font-display text-[22px] font-semibold tracking-tight">Also coming up</h2>
+                {trips.length > 2 && <span className="text-xs text-fg/40">Swipe for more</span>}
               </div>
               <TripRow>
-                {trips.map((t) => (
+                {trips.slice(1).map((t) => (
                   <TripCountdown key={t.g.group.id} group={t.g.group} phase={t.phase} />
                 ))}
               </TripRow>
             </section>
           )}
 
-          {/* Groups */}
-          <section className="mt-8">
-            <div className="mb-1 flex items-center justify-between">
-              <h2 className="font-display text-lg font-semibold tracking-tight">Groups</h2>
-              <Link href="/groups/new" className="pop flex items-center gap-1.5 bg-fg px-4 py-2 text-sm font-semibold text-canvas [--pop-edge:#6e6b63]">
-                <span className="text-base leading-none" aria-hidden>
-                  ＋
-                </span>
+          {/* Groups: each with its photo, what happened last and where you stand. */}
+          <section className="mt-8" aria-label="Your groups">
+            <div className="mb-1 flex items-baseline justify-between">
+              <h2 className="font-display text-[22px] font-semibold tracking-tight">Your groups</h2>
+              <Link href="/groups/new" className="flex items-center gap-1 text-sm font-semibold text-fg/85 underline decoration-fg/30 underline-offset-4">
                 New group
               </Link>
             </div>
@@ -638,24 +562,21 @@ export default async function Home({
               <p className="py-6 text-sm text-gray-500">No open groups. Create one, or reopen a closed one.</p>
             ) : (
               <>
-                {/* Up to 4 groups (most recently active first); the rest open with a tap, in the same grid. */}
-                <ul className="lp-rise mt-4 grid grid-cols-2 gap-x-4 gap-y-6">
-                  {byActivity.slice(0, 4).map((g, i) => (
-                    <GroupCard key={g.group.id} g={g} tz={tz} short={short} i={i} wide={single} />
+                <ul className="lp-rise">
+                  {byActivity.slice(0, 5).map((g) => (
+                    <GroupLine key={g.group.id} g={g} tz={tz} />
                   ))}
-                  {byActivity.length > 1 && byActivity.length < 4 && byActivity.length % 2 === 1 && <StartTile short={short} />}
                 </ul>
-                {byActivity.length > 4 && (
-                  <details className="group/more mt-5">
-                    <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-full border border-line px-4 py-2 text-sm text-gray-600 active:bg-mist [&::-webkit-details-marker]:hidden">
+                {byActivity.length > 5 && (
+                  <details className="group/more">
+                    <summary className="mt-2 inline-flex cursor-pointer list-none items-center gap-2 rounded-full border border-line px-4 py-2 text-sm text-gray-600 active:bg-mist [&::-webkit-details-marker]:hidden">
                       <span className="group-open/more:hidden">Show all {byActivity.length} groups</span>
                       <span className="hidden group-open/more:inline">Show fewer</span>
                     </summary>
-                    <ul className="lp-rise mt-5 grid grid-cols-2 gap-x-4 gap-y-6">
-                      {byActivity.slice(4).map((g, i) => (
-                        <GroupCard key={g.group.id} g={g} tz={tz} short={short} i={i} />
+                    <ul className="lp-rise">
+                      {byActivity.slice(5).map((g) => (
+                        <GroupLine key={g.group.id} g={g} tz={tz} />
                       ))}
-                      {byActivity.length % 2 === 1 && <StartTile short={short} />}
                     </ul>
                   </details>
                 )}
@@ -737,6 +658,85 @@ export default async function Home({
               </ul>
             </section>
           )}
+
+          <div className="mt-8">
+          {/* The sliding cards: your month, a seasonal idea, bringing a group over. */}
+            <HomeBanner>
+              {season && (
+                <div className="relative flex h-[268px] flex-col overflow-hidden bg-[#120a10] px-5 pb-12 pt-5">
+                  <div className="absolute inset-y-0 left-[38%] w-[75%]">
+                    <GroupCover kind={coverOf({ cover: season.cover })} uid={`season-${season.id}`} />
+                  </div>
+                  <div aria-hidden className="absolute inset-0 bg-[linear-gradient(90deg,#120a10_32%,rgba(18,10,16,0)_78%)]" />
+                  <p className="relative text-sm text-[#ffc93c]">{season.eyebrow}</p>
+                  <p className="relative mt-1 max-w-[62%] font-display text-[26px] font-semibold leading-[1.1]">{season.title}</p>
+                  <p className="relative mt-auto max-w-[58%] text-[13px] leading-snug text-gray-700">{season.text}</p>
+                  <Link href={season.href} className={`relative mt-3 ${bannerButton}`}>
+                    {season.button}
+                  </Link>
+                </div>
+              )}
+
+              {month && (
+                <div className="relative flex h-[268px] flex-col overflow-hidden bg-[radial-gradient(90%_90%_at_90%_10%,#4a2c16_0%,transparent_60%),linear-gradient(160deg,#24170f_0%,#121014_75%)] px-5 pb-12 pt-5">
+                  <p aria-hidden className="absolute -right-3 -top-6 font-display text-[150px] font-semibold leading-none text-fg/[0.06]">
+                    {month.name.slice(0, 3)}
+                  </p>
+                  <p className="relative text-sm text-[#d9b38c]">{month.wrapped ? "Your month, wrapped" : "Your month so far"}</p>
+                  <p className="relative mt-1 font-display text-[27px] font-semibold leading-[1.1]">{month.name} in numbers</p>
+                  <div className="relative mt-auto flex gap-5">
+                    <p>
+                      <span className="block font-display text-[19px] font-semibold tabular-nums" data-month-share>
+                        {month.converted ? "≈ " : ""}
+                        {formatMoney(month.share, month.currency)}
+                      </span>
+                      <span className="block text-xs text-gray-600">your share</span>
+                    </p>
+                    <p>
+                      <span className="block font-display text-[19px] font-semibold tabular-nums">{month.count}</span>
+                      <span className="block text-xs text-gray-600">{month.count === 1 ? "expense" : "expenses"}</span>
+                    </p>
+                    {month.top && (
+                      <p className="min-w-0">
+                        <span className="block truncate font-display text-[19px] font-semibold">{month.top}</span>
+                        <span className="block text-xs text-gray-600">most spent on</span>
+                      </p>
+                    )}
+                  </div>
+                  <Link href={`/search?m=${month.month}`} className={`relative mt-3 ${bannerButton}`}>
+                    See {month.name}
+                  </Link>
+                </div>
+              )}
+
+              {open.length <= 3 && (
+                <div className="relative flex h-[268px] flex-col overflow-hidden bg-[radial-gradient(80%_90%_at_100%_100%,#17403a_0%,transparent_65%),linear-gradient(160deg,#10201f_0%,#0e1213_75%)] px-5 pb-12 pt-5">
+                  <div aria-hidden className="absolute right-7 top-7 flex h-[92px] w-[72px] -rotate-[10deg] flex-col gap-[7px] rounded-md bg-[#e9e5da] px-2.5 py-3 shadow-xl shadow-black/50">
+                    <span className="h-1 rounded bg-[#b9b3a5]" />
+                    <span className="h-1 w-2/3 rounded bg-[#b9b3a5]" />
+                    <span className="h-1 rounded bg-[#b9b3a5]" />
+                    <span className="h-1 w-1/2 rounded bg-[#b9b3a5]" />
+                  </div>
+                  <div aria-hidden className="absolute right-3 top-12 flex h-[92px] w-[72px] rotate-[8deg] flex-col gap-[7px] rounded-md bg-fg px-2.5 py-3 shadow-xl shadow-black/50">
+                    <span className="h-1 rounded bg-[#c9c3b5]" />
+                    <span className="h-1 w-3/5 rounded bg-[#c9c3b5]" />
+                    <span className="h-1 rounded bg-[#c9c3b5]" />
+                    <span className="mt-auto flex h-5 w-5 items-center justify-center self-end rounded-full bg-meter-up">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M5 12.5l4.5 4.5L19 7.5" />
+                      </svg>
+                    </span>
+                  </div>
+                  <p className="relative text-sm text-[#8fd9c4]">Switching to Loopin?</p>
+                  <p className="relative mt-1 max-w-[62%] font-display text-[26px] font-semibold leading-[1.1]">Coming from another app?</p>
+                  <p className="relative mt-auto max-w-[60%] text-[13px] leading-snug text-gray-700">Bring a group over in about a minute. Same balances.</p>
+                  <Link href="/switching" className={`relative mt-3 ${bannerButton}`}>
+                    Bring a group over
+                  </Link>
+                </div>
+              )}
+            </HomeBanner>
+          </div>
         </>
       )}
 
@@ -825,77 +825,35 @@ function GroupRow({ g, closed, tz }: { g: Awaited<ReturnType<typeof loadOverview
   );
 }
 
-// An open group on Home, as a polaroid: its picture (with who's in it), the
-// name written underneath and your balance; tilted a little, alternately, like
-// photos laid out on a table. Straightens when pressed.
-function GroupCard({ g, tz, short, i = 0, wide }: { g: Awaited<ReturnType<typeof loadOverview>>["all"][number]; tz: string; short?: boolean; i?: number; wide?: boolean }) {
+// A group on Home: its photo, its name, what happened last, and your balance in it.
+function GroupLine({ g, tz }: { g: Awaited<ReturnType<typeof loadOverview>>["all"][number]; tz: string }) {
   const b = g.myBalance;
   const people = g.group.members.filter((m) => !m.leftAt);
-  const type = TYPE_LABEL[g.group.type];
-  // Your only group: one wide photo across the row (no empty "Start a group" box beside it).
-  const photoH = wide ? 168 : short ? 118 : 150;
-  return (
-    <li className={`min-w-0 ${wide ? "col-span-2" : ""}`}>
-      <div className={`relative transition-transform duration-200 has-[a:active]:rotate-0 ${wide ? "-rotate-[0.8deg]" : i % 2 === 0 ? "-rotate-[1.4deg]" : "rotate-[1.6deg]"}`}>
-        <Link href={`/groups/${g.group.id}`} className="lp-press block">
-          <Polaroid
-            cover={coverFor(g.group)}
-            uid={g.group.id}
-            letter={g.group.name}
-            caption={g.group.name}
-            note={b > 0 ? `owed ${formatMoney(b, g.group.currency)}` : b < 0 ? `owe ${formatMoney(-b, g.group.currency)}` : "settled"}
-            noteTone={b > 0 ? "owed" : b < 0 ? "owe" : undefined}
-            photoClass={wide ? "h-[168px]" : short ? "h-[118px]" : "h-[150px]"}
-            captionClass={wide ? "text-[24px]" : "text-[21px]"}
-            sizes={wide ? "(max-width: 448px) 100vw, 448px" : "(max-width: 448px) 50vw, 224px"}
-          >
-            {type && (
-              <span className="absolute left-2 top-2 rounded-full bg-canvas/60 px-2.5 py-1 text-[11px] font-semibold text-fg backdrop-blur" aria-hidden>
-                {type}
-              </span>
-            )}
-          </Polaroid>
-          <span className="mt-2 block truncate px-0.5 text-xs text-gray-400">
-            {peopleCount(people.length)}, {activeText(g.lastActivity, tz)}
-          </span>
-        </Link>
-        {/* Who's in it: tap the faces (or "+2") to see everyone and where each one stands. */}
-        <Link
-          href={`/groups/${g.group.id}/people`}
-          aria-label={`Everyone in ${g.group.name}: ${people.map((m) => m.name).join(", ")}`}
-          className="absolute left-[13px] flex rounded-full active:opacity-80"
-          style={{ top: `${photoH - 27}px` }}
-        >
-          {people.slice(0, 4).map((m) => (
-            <span key={m.id} aria-hidden className="-mr-[7px] flex h-[24px] w-[24px] items-center justify-center rounded-full border-2 border-canvas bg-gray-100 text-[10px] font-bold text-fg">
-              {m.name.trim().charAt(0).toUpperCase()}
-            </span>
-          ))}
-          {people.length > 4 && (
-            <span aria-hidden className="flex h-[24px] items-center rounded-full border-2 border-canvas bg-gray-100 px-1.5 text-[10px] font-bold text-fg">
-              +{people.length - 4}
-            </span>
-          )}
-        </Link>
-      </div>
-    </li>
-  );
-}
-
-const TYPE_LABEL: Record<string, string | undefined> = { trip: "Trip", home: "Home", couple: "Couple" };
-
-// "Start a group": only to fill an empty spot in the grid (New group is always at the top).
-function StartTile({ short }: { short?: boolean }) {
+  const own = coverOf(g.group) === "own";
+  const photo = !own && g.group.type === "trip" ? placePhoto(g.group.name)?.src : undefined;
   return (
     <li>
-      <Link
-        href="/groups/new"
-        className={`lp-press flex ${short ? "h-[170px]" : "h-[202px]"} rotate-[1.6deg] flex-col items-center justify-center gap-2 border-[1.5px] border-dashed border-gray-300 text-sm font-medium text-gray-600 active:bg-mist`}
-      >
-        <span className="text-2xl leading-none" aria-hidden>
-          ＋
+      <Link href={`/groups/${g.group.id}`} className="flex items-center gap-3.5 py-2.5 active:opacity-80" data-group-line>
+        <span className="relative h-[52px] w-[52px] shrink-0 overflow-hidden rounded-[16px] bg-mist" aria-hidden>
+          {photo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={photo} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" decoding="async" />
+          ) : (
+            <GroupCover {...coverFor(g.group)} uid={`line-${g.group.id}`} letter={g.group.name} letterClass="text-lg" sizes="52px" />
+          )}
         </span>
-        Start a group
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[16px] font-semibold tracking-tight">{g.group.name}</span>
+          <span className="block truncate text-[13px] text-fg/50">
+            {peopleCount(people.length)}, {activeText(g.lastActivity, tz)}
+          </span>
+        </span>
+        <span className="shrink-0 text-right leading-tight">
+          <span className={`money block text-[17px] ${b > 0 ? "text-owed" : b < 0 ? "text-owe" : "text-fg/40"}`}>
+            {b > 0 ? `+${formatMoney(b, g.group.currency)}` : b < 0 ? `−${formatMoney(-b, g.group.currency)}` : "Settled"}
+          </span>
+          {b !== 0 && <span className="block text-[11px] text-fg/45">{b > 0 ? "you’re owed" : "you owe"}</span>}
+        </span>
       </Link>
     </li>
   );
@@ -947,9 +905,7 @@ function CollectionsSection({ list }: { list: Awaited<ReturnType<typeof myCollec
 function PotTeaser({ className = "" }: { className?: string }) {
   return (
     <Link href="/groups/new?type=pot" className={`flex items-center gap-3 rounded-2xl border border-line px-4 py-3.5 active:bg-mist ${className}`}>
-      <span className="text-xl" aria-hidden>
-        🃏
-      </span>
+      <RowIcon d="M7 4h8a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2ZM17 7l2.2.6a2 2 0 0 1 1.4 2.4l-2.6 9.6" />
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-medium">Card night? Start a Pot</span>
         <span className="block text-xs text-gray-400">Teen Patti or Poker: who took what from the pot, who won, who pays</span>
@@ -972,17 +928,33 @@ function activeText(d: Date, tz: string): string {
 
 const peopleCount = (n: number) => (n === 1 ? "1 person" : `${n} people`);
 
-// Whole units for a small label (₹30,703 rather than ₹30,702.19).
-function roundWhole(minor: number, currency: string): number {
-  const unit = 10 ** decimalsOf(currency);
-  return Math.round(Math.abs(minor) / unit) * unit;
+// The hero's words for a trip: "Goa in / 12 days", "Goa / tomorrow", "It’s / Goa day", "Goa, / day 3 of 6".
+function heroWords(name: string, p: TripPhase): { small: string; big?: string; num?: string; unit?: string } {
+  const place = placeOf(name);
+  if (p.kind === "before") {
+    if (p.days === 1) return { small: place, big: "tomorrow" };
+    const [num, unit] = p.days <= 7 ? [p.days, "sleeps"] : p.days >= 60 && p.days % 7 === 0 ? [p.days / 7, "weeks"] : [p.days, "days"];
+    return { small: `${place} in`, big: `${num} ${unit}`, num: String(num), unit };
+  }
+  if (p.kind === "today") return { small: "It’s", big: `${place} day` };
+  if (p.kind === "during") return { small: `${place},`, big: `day ${p.day} of ${p.of}` };
+  return { small: place };
 }
 
-// Where the balance card's polaroids land: scattered, a little off the edge, like on a table.
-// The last spot is for when there's only one group.
-const POLAROID_SPOTS = [
-  "right-[-12px] top-[14px] rotate-[8deg] z-[3]",
-  "right-[60px] top-[-30px] -rotate-[9deg] z-[2]",
-  "right-[34px] top-[116px] -rotate-[5deg] z-[1]",
-  "right-[22px] top-[22px] rotate-[9deg]",
-];
+function greeting(now: Date, tz: string, name?: string | null): string {
+  const h = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: tz }).format(now));
+  const part = h >= 5 && h < 12 ? "morning" : h >= 12 && h < 17 ? "afternoon" : "evening";
+  const first = name?.trim().split(/\s+/)[0];
+  return `Good ${part}${first ? `, ${first}` : ""}`;
+}
+
+// A drawn icon in a soft round tile, for the rows on the start screen.
+function RowIcon({ d }: { d: string }) {
+  return (
+    <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-fg/[0.07] text-fg/85">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
+        <path d={d} />
+      </svg>
+    </span>
+  );
+}

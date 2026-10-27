@@ -394,6 +394,29 @@ const COMMONS = {
 };
 for (const [slot, c] of Object.entries(COMMONS)) SLOTS[slot] = [c.url];
 
+// The photo's own colour, so a group's screens can be tinted to match it: the average of its most
+// colourful, mid-bright spots (sky, sea, sand, stone), measured on a tiny 12×12 copy.
+async function toneOf(buf) {
+  try {
+    const sharp = (await import("sharp")).default;
+    const { data } = await sharp(buf).resize(12, 12, { fit: "cover" }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    const px = [];
+    for (let i = 0; i + 2 < data.length; i += 3) {
+      const [r, g, b] = [data[i], data[i + 1], data[i + 2]];
+      const max = Math.max(r, g, b), min = Math.min(r, g, b);
+      const l = (max + min) / 510;
+      const sat = max === min ? 0 : (max - min) / (255 - Math.abs(max + min - 255));
+      if (l > 0.18 && l < 0.85) px.push({ r, g, b, sat });
+    }
+    if (!px.length) return undefined;
+    const top = px.sort((a, b) => b.sat - a.sat).slice(0, 24);
+    const avg = (k) => Math.round(top.reduce((t, p) => t + p[k], 0) / top.length);
+    return "#" + [avg("r"), avg("g"), avg("b")].map((v) => v.toString(16).padStart(2, "0")).join("");
+  } catch {
+    return undefined; // no image tool here: the tint falls back to what the picture shows
+  }
+}
+
 const out = "public/photos";
 mkdirSync(out, { recursive: true });
 const got = {};
@@ -419,7 +442,8 @@ for (const [slot, ids] of Object.entries(SLOTS)) {
         continue;
       }
       writeFileSync(`${out}/${slot}.jpg`, buf);
-      got[slot] = { id, src: `/photos/${slot}.jpg` };
+      const tone = await toneOf(buf);
+      got[slot] = { id, src: `/photos/${slot}.jpg`, ...(tone ? { tone } : {}) };
       console.log(`photos: ${slot} ✓ ${id} (${Math.round(buf.length / 1024)} KB)`);
       break;
     } catch (e) {

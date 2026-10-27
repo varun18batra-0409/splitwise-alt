@@ -14,10 +14,12 @@ import { MotionWatch } from "@/components/MotionWatch";
 import { SITE_DESCRIPTION, SITE_TITLE, SITE_URL } from "@/lib/site";
 
 // Fraunces: a sharp, high-contrast serif for headings and big amounts.
-// Body text stays in the phone's own font. Both fonts ship with the app
+// Both fonts ship with the app
 // (src/fonts, SIL Open Font License): fetching them from Google while
 // building sometimes failed, and that stopped a release.
 const fraunces = localFont({ src: [{ path: "../fonts/fraunces-latin-wght-normal.woff2", weight: "100 900", style: "normal" }], variable: "--font-fraunces", display: "swap" });
+// Instrument Sans: the everyday face for text and money (clean, a little warm, made for screens).
+const instrument = localFont({ src: [{ path: "../fonts/instrument-sans-latin-wght-normal.woff2", weight: "400 700", style: "normal" }], variable: "--font-instrument", display: "swap" });
 // Caveat: a handwritten hand for the captions on polaroid photos (names written under a picture).
 const caveat = localFont({
   src: [
@@ -50,7 +52,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${fraunces.variable} ${caveat.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${fraunces.variable} ${caveat.variable} ${instrument.variable}`} suppressHydrationWarning>
       <head>
         {/* Opening the app: the opening screen stays at least 1.5 seconds (and until the app is ready), once per visit. */}
         <script dangerouslySetInnerHTML={{ __html: OPENING }} />

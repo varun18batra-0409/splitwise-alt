@@ -11,6 +11,9 @@ import { deleteExpense } from "@/app/actions";
 import { AddExpenseForm } from "@/components/AddExpenseForm";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { PageHeader } from "@/components/ui";
+import { SheetPage } from "@/components/SheetPage";
+import { coverFor, coverOf } from "@/lib/covers";
+import { placePhoto } from "@/lib/places";
 
 // Edit an expense: everything can change (name, amount, currency, category,
 // who paid, who it was for, how it's split). Anyone in the group can; the change
@@ -57,9 +60,16 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
   const savedPayers = parsePayers(e.payers);
   const initial = initialFromExpense(e, { groupMarkupBp: group.cardMarkupBp, groupWeights, tz, today: dayKey(new Date(), tz) }, "edit");
 
+  const own = coverOf(group) === "own";
   return (
-    <>
-      <PageHeader title="Edit expense" back={back} />
+    <SheetPage
+      title="Edit expense"
+      back={back}
+      cover={coverFor(group)}
+      photo={!own && group.type === "trip" ? placePhoto(group.name)?.src : undefined}
+      uid={group.id}
+      letter={group.name}
+    >
       <AddExpenseForm
         groupId={group.id}
         baseCurrency={group.currency}
@@ -84,11 +94,11 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
         </p>
         <ConfirmButton
           message={`Delete “${e.description}”? Everyone in the group will be notified.`}
-          className="w-full rounded-xl border border-red-200 px-4 py-3.5 text-base font-medium text-red-700 active:bg-red-50"
+          className="w-full rounded-full border border-red-200 px-4 py-3.5 text-base font-semibold text-red-700 active:scale-[0.98] active:bg-red-50"
         >
           Delete expense
         </ConfirmButton>
       </form>
-    </>
+    </SheetPage>
   );
 }

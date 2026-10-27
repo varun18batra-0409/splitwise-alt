@@ -5,6 +5,9 @@ import { getMyMemberId } from "@/lib/identity";
 import { PageHeader, primaryButtonClass } from "@/components/ui";
 import { setGroupClosed } from "@/app/actions";
 import { AddExpenseForm } from "@/components/AddExpenseForm";
+import { SheetPage } from "@/components/SheetPage";
+import { coverFor, coverOf } from "@/lib/covers";
+import { placePhoto } from "@/lib/places";
 import { getTimeZone } from "@/lib/tz";
 import { splitNameFor } from "@/lib/group-types";
 import { initialFromExpense } from "@/lib/expense-initial";
@@ -75,9 +78,16 @@ export default async function AddExpensePage({
     ? initialFromExpense(source, { groupMarkupBp: group.cardMarkupBp, groupWeights: weights, tz, today: todayKey(new Date(), tz) }, sp.again ? "again" : "repeat")
     : billInitial;
 
+  const own = coverOf(group) === "own";
   return (
-    <>
-      <PageHeader title={`Add to ${group.name}`} back={`/groups/${group.id}`} />
+    <SheetPage
+      title={`Add to ${group.name}`}
+      back={`/groups/${group.id}`}
+      cover={coverFor(group)}
+      photo={!own && group.type === "trip" ? placePhoto(group.name)?.src : undefined}
+      uid={group.id}
+      letter={group.name}
+    >
       {sp.again && source && (
         <Notice tone="success" className="-mt-2 mb-5">
           Saved {source.description} ({formatMoney(source.amount, group.currency)}). Add the next one.
@@ -102,7 +112,7 @@ export default async function AddExpensePage({
         splitName={splitNameFor(group.type)}
         spin={group.type !== "pot"}
       />
-    </>
+    </SheetPage>
   );
 }
 

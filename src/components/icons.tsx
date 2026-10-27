@@ -111,4 +111,4 @@ export const ChartIcon = (p: P) => (
 );
 
 export const iconButtonClass =
-  "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-line text-gray-700 active:bg-mist";
+  "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-fg/10 bg-fg/[0.06] text-fg/85 backdrop-blur transition-transform active:scale-95 active:bg-fg/10";
