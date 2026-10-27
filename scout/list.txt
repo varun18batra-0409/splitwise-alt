@@ -1,0 +1,32 @@
+place-pune|pune india
+place-lonavala|lonavala monsoon
+place-mumbai|mumbai marine drive
+place-delhi|india gate delhi
+place-bangalore|bangalore city
+place-hyderabad|charminar hyderabad
+place-kolkata|howrah bridge kolkata
+place-chennai|chennai marina
+place-coorg|coorg coffee hills
+place-pondicherry|pondicherry french quarter
+place-hampi|hampi
+place-varanasi|varanasi ghats
+place-darjeeling|darjeeling tea
+place-ooty|ooty nilgiri
+place-mysore|mysore palace
+place-gokarna|gokarna beach
+place-alibaug|alibaug beach
+place-mahabaleshwar|mahabaleshwar
+place-kodaikanal|kodaikanal lake
+place-sikkim|gangtok sikkim
+place-kashmir|kashmir srinagar dal lake
+place-amritsar|golden temple amritsar
+place-udaipur|udaipur lake palace
+place-jaisalmer|jaisalmer desert
+place-nainital|nainital lake
+place-chikmagalur|chikmagalur
+place-kutch|rann of kutch
+place-corbett|jim corbett forest
+place-ahmedabad|ahmedabad
+place-matheran|western ghats monsoon green
+cover-road-in|india highway road trip mountains
+place-mussoorie|mussoorie hills
