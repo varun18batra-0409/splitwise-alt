@@ -6,15 +6,7 @@ jobs:
   check:
     runs-on: ubuntu-24.04
     steps:
+      - uses: actions/checkout@v4
       - run: |
           curl -sL https://cdn.jsdelivr.net/npm/svgmap@2.20.0/dist/index.js -o m.js
-          node -e '
-            const s=require("fs").readFileSync("m.js","utf8");
-            const i=s.indexOf("mapPaths");
-            const j=s.indexOf("AF");
-            console.log("::notice title=around mapPaths::"+JSON.stringify(s.slice(i,i+300)));
-            const k=s.search(/["']?AF["']?\s*:\s*\{/);
-            console.log("::notice title=around AF::"+JSON.stringify(s.slice(k-50,k+250)));
-            const re=/["']?([A-Z]{2})["']?\s*:\s*\{\s*d\s*:\s*["'`]([^"'`]+)/g; let n=0,m; while((m=re.exec(s))) n++;
-            console.log("::notice title=matches::"+n);
-          '
+          node inspect.cjs

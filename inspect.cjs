@@ -1,0 +1,9 @@
+const s = require("fs").readFileSync("m.js", "utf8");
+const i = s.indexOf("mapPaths");
+console.log("::notice title=around mapPaths::" + JSON.stringify(s.slice(i, i + 300)));
+const k = s.search(/["']?AF["']?\s*:\s*\{/);
+console.log("::notice title=around AF::" + JSON.stringify(s.slice(k - 60, k + 300)));
+const re = /["']?([A-Z]{2})["']?\s*:\s*\{\s*d\s*:\s*["'`]([^"'`]+)/g;
+let n = 0, m;
+while ((m = re.exec(s))) n++;
+console.log("::notice title=matches::" + n);
