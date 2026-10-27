@@ -57,7 +57,7 @@ export default async function BillPage({
         <section id="calendar" className="mb-8 scroll-mt-4 rounded-2xl border border-line bg-white px-4 py-4">
           <div className="flex items-baseline justify-between">
             <h2 className="font-semibold">{new Date(`${month}-15T12:00:00Z`).toLocaleString("en-IN", { month: "long", timeZone: "UTC" })}</h2>
-            <span className="font-display tabular-nums">{money(dailyTotal(bill, month).amount)}</span>
+            <span className="money tabular-nums">{money(dailyTotal(bill, month).amount)}</span>
           </div>
           <p className="mt-1 text-sm text-gray-500">
             {money(bill.amount)} a day · {daysInMonth(month) - missed.length} of {daysInMonth(month)} days

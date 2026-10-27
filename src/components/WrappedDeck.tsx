@@ -46,7 +46,7 @@ function Total({ d }: { d: Extract<SlideData, { kind: "total" }> }) {
       <p className="mt-3 font-hand text-[26px] font-bold text-[#d8bd7a]">About {d.each} each</p>
       {shown.length > 1 && (
         <div className="mt-9">
-          <p className="mb-2 text-[12px] font-semibold uppercase tracking-[0.2em] text-[#f7f4ec]/60">Who paid up front</p>
+          <p className="mb-2 text-[12px] font-semibold text-[#f7f4ec]/60">Who paid up front</p>
           <div className="flex h-4 gap-[3px] overflow-hidden rounded-full">
             {shown.map((p, k) => (
               <span key={k} style={{ width: `${Math.max(3, p.share * 100)}%`, background: BAR[k % BAR.length] }} />
@@ -79,7 +79,7 @@ function Category({ d }: { d: Extract<SlideData, { kind: "category" }> }) {
         </svg>
         <span className="absolute inset-0 flex flex-col items-center justify-center">
           <span className="font-display text-[52px] font-semibold leading-none tabular-nums">{d.pct}%</span>
-          <span className="mt-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#f7f4ec]/55">of it all</span>
+          <span className="mt-1 text-[11px] font-semibold text-[#f7f4ec]/55">of it all</span>
         </span>
       </div>
       <p className="mt-6 font-display text-[34px] font-semibold leading-tight" data-wrapped-headline>
@@ -250,7 +250,7 @@ export function WrappedDeck({
         </div>
       ) : (
         <div key={i} className="lp-slide-in pointer-events-none absolute inset-0 z-20 flex flex-col px-6 pb-6 pt-11">
-          <p className="text-[12px] font-semibold uppercase tracking-[0.22em]" style={{ color: accent }}>
+          <p className="text-[12px] font-semibold" style={{ color: accent }}>
             {KICKER[s.kind]}
           </p>
           <div className="min-h-0 flex-1">

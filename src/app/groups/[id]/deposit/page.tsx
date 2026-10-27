@@ -44,7 +44,7 @@ export default async function DepositPage({
 
       <section className="vault mb-8 rounded-[24px] px-5 py-5">
         <p className="text-sm text-gray-500">With {group.deposit?.heldBy ?? "the landlord"}</p>
-        <p className="mt-1 font-display text-[36px] font-semibold tabular-nums">{money(total)}</p>
+        <p className="mt-1 money text-[36px] font-semibold tabular-nums">{money(total)}</p>
         <p className="mt-1 text-sm text-gray-500">Kept on record only. It’s never part of who owes whom.</p>
       </section>
 
@@ -93,7 +93,7 @@ export default async function DepositPage({
                       </span>
                     )}
                   </span>
-                  <span className="font-display tabular-nums">{money(s.status === "returned" ? s.returnedAmount : s.amount)}</span>
+                  <span className="money tabular-nums">{money(s.status === "returned" ? s.returnedAmount : s.amount)}</span>
                 </li>
               ))}
           </ul>

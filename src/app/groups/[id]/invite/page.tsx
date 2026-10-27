@@ -129,7 +129,7 @@ export default async function AddPeoplePage({
         </div>
       </section>
 
-      <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.2em] text-gray-400">Or add them yourself</p>
+      <p className="mb-3 text-[13px] font-semibold text-fg/55">Or add them yourself</p>
       <section className={box}>
         {step(ico("M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14ZM20.5 20.5 16 16"), "People on Loopin", "Search friends by name, or anyone by their email")}
         <PeopleSearch groupId={group.id} />

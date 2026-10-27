@@ -109,7 +109,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
       <section id="who" className="mt-8 scroll-mt-4 border-t border-line pt-6">
         <h2 className="font-display text-lg font-semibold tracking-tight">Who can see it</h2>
         <p className="mt-0.5 text-sm text-gray-500">People you share a group with can open your passport from the group. Never your money, groups or email.</p>
-        <form action={setPassportShareAction} className="mt-3 grid grid-cols-2 gap-1 rounded-xl bg-mist p-1" aria-label="Who can see my passport">
+        <form action={setPassportShareAction} className="mt-3 grid grid-cols-2 gap-1 rounded-full bg-mist p-1" aria-label="Who can see my passport">
           {(
             [
               ["groups", "People in my groups"],
@@ -118,7 +118,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
           ).map(([v, label]) => {
             const on = (account.passportShare || "groups") === v;
             return (
-              <button key={v} type="submit" name="share" value={v} aria-pressed={on} className={`rounded-lg px-2 py-2.5 text-sm ${on ? "bg-fg font-semibold text-canvas" : "text-gray-500"}`}>
+              <button key={v} type="submit" name="share" value={v} aria-pressed={on} className={`rounded-full px-2 py-2.5 text-sm ${on ? "bg-fg font-semibold text-canvas" : "text-gray-500"}`}>
                 {label}
               </button>
             );

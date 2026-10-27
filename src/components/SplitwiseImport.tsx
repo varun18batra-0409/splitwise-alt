@@ -213,7 +213,7 @@ export function SplitwiseImport({ yourName }: { yourName: string }) {
 
           <fieldset>
             <legend className="mb-2 text-sm font-medium text-gray-600">What’s it for?</legend>
-            <div className="grid grid-cols-4 gap-1 rounded-xl bg-mist p-1" role="radiogroup" aria-label="What’s it for?">
+            <div className="grid grid-cols-4 gap-1 rounded-full bg-mist p-1" role="radiogroup" aria-label="What’s it for?">
               {GROUP_TYPES.filter((t) => t.id !== "pot").map((t) => (
                 <button
                   key={t.id}
@@ -221,7 +221,7 @@ export function SplitwiseImport({ yourName }: { yourName: string }) {
                   role="radio"
                   aria-checked={type === t.id}
                   onClick={() => setType(t.id)}
-                  className={`rounded-lg py-2.5 text-sm ${type === t.id ? "bg-fg font-semibold text-canvas" : "text-gray-500"}`}
+                  className={`rounded-full py-2.5 text-sm ${type === t.id ? "bg-fg font-semibold text-canvas" : "text-gray-500"}`}
                 >
                   {t.label}
                 </button>

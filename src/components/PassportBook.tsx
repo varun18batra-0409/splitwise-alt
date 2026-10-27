@@ -202,6 +202,7 @@ function Sheet({ n, of, children, label }: { n: number; of: number; children: Re
 }
 
 export function PassportBook({ name, stats, milestones, pages, index, badges = [], own = true }: Props) {
+  const stampCount = pages.reduce((t, p) => t + p.stamps.length, 0);
   const [open, setOpen] = useState(false);
   const [gone, setGone] = useState(false); // the cover, once it has swung away
   const [at, setAt] = useState(0);
@@ -290,8 +291,23 @@ export function PassportBook({ name, stats, milestones, pages, index, badges = [
                   </div>
                 </dl>
               </div>
+              {/* The counts, big, as soon as the passport opens. */}
+              <dl className="mt-5 grid grid-cols-3 border-y border-[#26231d]/15 py-3 text-center" data-passport-counts={`${stats.countries}|${stampCount}|${stats.trips}`}>
+                {(
+                  [
+                    [stats.countries, stats.countries === 1 ? "country" : "countries"],
+                    [stampCount, stampCount === 1 ? "stamp" : "stamps"],
+                    [stats.trips, stats.trips === 1 ? "trip" : "trips"],
+                  ] as const
+                ).map(([n, label], i) => (
+                  <div key={label} className={`flex flex-col-reverse ${i ? "border-l border-[#26231d]/12" : ""}`}>
+                    <dt className="mt-1 text-[11px] font-semibold text-[#7a7262]">{label}</dt>
+                    <dd className="font-display text-[32px] font-semibold leading-none tabular-nums text-[#26231d]">{n}</dd>
+                  </div>
+                ))}
+              </dl>
               {milestones.length > 0 && (
-                <ul className="mt-5 flex flex-wrap gap-1.5">
+                <ul className="mt-4 flex flex-wrap gap-1.5">
                   {milestones.map((m) => (
                     <li key={m} className="rounded-full border border-[#2b4c7e]/35 px-2.5 py-1 text-xs font-semibold text-[#2b4c7e]">
                       {m}
@@ -381,6 +397,11 @@ export function PassportBook({ name, stats, milestones, pages, index, badges = [
             <span className="mt-12 font-display text-[30px] font-semibold tracking-[0.28em]">PASSPORT</span>
             <span className="mt-3 h-px w-14" style={{ background: GREEN }} aria-hidden />
             <span className="mt-3 text-[13px] opacity-80">{name || "Traveller"}</span>
+            {(stats.countries > 0 || stampCount > 0) && (
+              <span className="mt-6 text-[13px] font-semibold tracking-[0.06em] opacity-90" data-cover-counts>
+                {stats.countries} {stats.countries === 1 ? "country" : "countries"}, {stampCount} {stampCount === 1 ? "stamp" : "stamps"}
+              </span>
+            )}
             <span className="mt-auto pb-8 text-sm opacity-70">Tap to open</span>
           </button>
         )}

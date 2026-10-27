@@ -103,13 +103,15 @@ export function SpinWheel({ people, onPick }: { people: { id: string; label: str
               aria-modal="true"
               aria-label="Spin the wheel"
               onClick={(e) => e.stopPropagation()}
-              className="sheet-enter relative w-full max-w-sm overflow-hidden rounded-[28px] border border-[#d8bd7a]/25 bg-[radial-gradient(120%_70%_at_50%_0%,#24242a_0%,#141417_60%,#0d0d0f_100%)] px-5 pb-6 pt-6 text-center"
+              className="sheet-enter relative w-full max-w-sm overflow-hidden rounded-[32px] border border-[#d8bd7a]/25 bg-[radial-gradient(120%_70%_at_50%_0%,#24242a_0%,#141417_60%,#0d0d0f_100%)] px-5 pb-6 pt-6 text-center"
               style={{ color: INK }}
             >
-              <button type="button" onClick={() => !spinning && setOpen(false)} aria-label="Close" className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full text-xl text-[#f7f4ec]/60 active:bg-white/10">
-                ×
+              <button type="button" onClick={() => !spinning && setOpen(false)} aria-label="Close" className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full text-[#f7f4ec]/70 active:bg-white/10">
+                <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+                  <path d="M6 6l12 12M18 6 6 18" />
+                </svg>
               </button>
-              <p className="text-[12px] font-semibold tracking-[0.22em] text-[#d8bd7a]">WHO PAYS?</p>
+              <p className="font-hand text-[24px] font-bold leading-none text-[#e8d29a]">Who pays?</p>
               <p className="mt-1 font-display text-[26px] font-semibold leading-tight">Let the wheel decide</p>
 
               <div className="relative mx-auto mt-5 aspect-square w-full max-w-[300px]">
@@ -165,7 +167,7 @@ export function SpinWheel({ people, onPick }: { people: { id: string; label: str
               <div className="mt-5 min-h-[64px]" role="status" aria-live="polite" data-spin-winner={win?.id ?? ""}>
                 {win ? (
                   <>
-                    <p className="text-[12px] font-semibold tracking-[0.22em] text-[#d8bd7a]">{you ? "TONIGHT IT’S ON YOU" : "TONIGHT’S PAYER"}</p>
+                    <p className="font-hand text-[24px] font-bold leading-none text-[#e8d29a]">{you ? "Tonight it’s on you" : "Tonight’s payer"}</p>
                     <p className="lp-slide-in mt-1 font-display text-[32px] font-semibold leading-tight">{win.label}</p>
                   </>
                 ) : (
@@ -180,11 +182,11 @@ export function SpinWheel({ people, onPick }: { people: { id: string; label: str
                       onPick(win.id);
                       setOpen(false);
                     }}
-                    className="rounded-2xl bg-[linear-gradient(180deg,#e8d29a,#c9a75a)] px-4 py-3.5 text-center font-semibold text-[#17150f] shadow-[0_8px_20px_-10px_rgba(216,189,122,0.8)] active:opacity-90"
+                    className="pop rounded-full bg-fg px-4 py-3.5 text-center font-semibold text-canvas"
                   >
                     {you ? "Set yourself as payer" : `Set ${win.label} as payer`}
                   </button>
-                  <button type="button" onClick={spin} className="rounded-2xl border border-[#d8bd7a]/40 px-4 py-3.5 text-sm font-semibold text-[#e8d29a] active:bg-white/5">
+                  <button type="button" onClick={spin} className="rounded-full border border-fg/18 bg-fg/[0.07] px-5 py-3.5 text-sm font-semibold text-fg active:scale-[0.97]">
                     Again
                   </button>
                 </div>
@@ -193,7 +195,7 @@ export function SpinWheel({ people, onPick }: { people: { id: string; label: str
                   type="button"
                   onClick={spin}
                   disabled={spinning}
-                  className="mt-2 block w-full rounded-2xl bg-[linear-gradient(180deg,#e8d29a,#c9a75a)] px-4 py-3.5 text-center font-semibold text-[#17150f] shadow-[0_8px_20px_-10px_rgba(216,189,122,0.8)] active:opacity-90 disabled:opacity-60"
+                  className="pop mt-2 block w-full rounded-full bg-fg px-4 py-3.5 text-center font-semibold text-canvas disabled:opacity-60"
                 >
                   {spinning ? "Spinning…" : "Spin"}
                 </button>

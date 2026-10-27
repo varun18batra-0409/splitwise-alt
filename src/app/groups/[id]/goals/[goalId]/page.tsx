@@ -90,7 +90,7 @@ export default async function GoalPage({
             <circle cx="100" cy="100" r={r} fill="none" strokeWidth="14" strokeLinecap="round" className="stroke-fg" strokeDasharray={`${(circ * pct) / 100} ${circ}`} />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <p className="font-display text-[28px] font-semibold tabular-nums">{money(saved)}</p>
+            <p className="money text-[28px] font-semibold tabular-nums">{money(saved)}</p>
             <p className="text-sm text-gray-500">of {money(goal.target)}</p>
           </div>
         </div>
@@ -114,7 +114,7 @@ export default async function GoalPage({
         {active.map((m) => (
           <div key={m.id} className="rounded-2xl border border-line bg-white p-3.5">
             <p className="text-xs text-gray-500">{m.id === myId ? "You’ve set aside" : `${m.name} has set aside`}</p>
-            <p className="mt-1 font-display text-[22px] font-semibold tabular-nums">{money(goal.entries.filter((e) => e.memberId === m.id).reduce((s, e) => s + e.amount, 0))}</p>
+            <p className="mt-1 money text-[22px] font-semibold tabular-nums">{money(goal.entries.filter((e) => e.memberId === m.id).reduce((s, e) => s + e.amount, 0))}</p>
           </div>
         ))}
       </div>
@@ -152,7 +152,7 @@ export default async function GoalPage({
                 <span>
                   {name(e.memberId)} set aside <span className="block text-xs text-gray-500">{niceDate(dayKey(e.createdAt, tz))}</span>
                 </span>
-                <span className="font-display tabular-nums">{money(e.amount)}</span>
+                <span className="money tabular-nums">{money(e.amount)}</span>
               </li>
             ))}
           </ul>

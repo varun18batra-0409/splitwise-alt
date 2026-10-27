@@ -491,7 +491,7 @@ export function AddExpenseForm({
             <button
               type="button"
               onClick={() => setName((n) => applySuggestion(n, typo))}
-              className="shrink-0 border border-line px-2.5 py-1 text-xs font-semibold text-fg active:bg-mist"
+              className="shrink-0 border border-line px-2.5 py-1 text-xs font-semibold text-fg active:bg-mist rounded-full"
             >
               Fix
             </button>

@@ -686,14 +686,14 @@ export default async function Home({
                   <p className="relative mt-1 font-display text-[27px] font-semibold leading-[1.1]">{month.name} in numbers</p>
                   <div className="relative mt-auto flex gap-5">
                     <p>
-                      <span className="block font-display text-[19px] font-semibold tabular-nums" data-month-share>
+                      <span className="block money text-[19px] font-semibold tabular-nums" data-month-share>
                         {month.converted ? "≈ " : ""}
                         {formatMoney(month.share, month.currency)}
                       </span>
                       <span className="block text-xs text-gray-600">your share</span>
                     </p>
                     <p>
-                      <span className="block font-display text-[19px] font-semibold tabular-nums">{month.count}</span>
+                      <span className="block money text-[19px] font-semibold tabular-nums">{month.count}</span>
                       <span className="block text-xs text-gray-600">{month.count === 1 ? "expense" : "expenses"}</span>
                     </p>
                     {month.top && (

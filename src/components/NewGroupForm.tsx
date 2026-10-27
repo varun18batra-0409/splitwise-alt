@@ -166,7 +166,7 @@ export function NewGroupForm({
             <h2 className="font-display text-[28px] font-semibold leading-tight">How do you two share costs?</h2>
             <p className="mt-2 text-sm text-gray-500">Used for every expense. You can still change any one of them.</p>
           </div>
-          <div className="grid grid-cols-3 gap-1 rounded-xl bg-mist p-1" role="radiogroup" aria-label="How you share">
+          <div className="grid grid-cols-3 gap-1 rounded-full bg-mist p-1" role="radiogroup" aria-label="How you share">
             {(
               [
                 ["equal", "50 / 50"],
@@ -180,7 +180,7 @@ export function NewGroupForm({
                 role="radio"
                 aria-checked={mode === id}
                 onClick={() => setMode(id)}
-                className={`rounded-lg py-2.5 text-sm ${mode === id ? "bg-fg font-semibold text-canvas" : "text-gray-500"}`}
+                className={`rounded-full py-2.5 text-sm ${mode === id ? "bg-fg font-semibold text-canvas" : "text-gray-500"}`}
               >
                 {label}
               </button>
@@ -208,7 +208,7 @@ export function NewGroupForm({
 
           <section className="vault rounded-[20px] px-5 py-5">
             <p className="text-sm text-gray-500">Your split</p>
-            <p className="font-display text-[40px] font-semibold leading-tight tabular-nums">
+            <p className="money text-[40px] font-semibold leading-tight tabular-nums">
               {ratio} / {100 - ratio}
             </p>
             <div className="mt-3 flex h-3 overflow-hidden rounded-full" aria-hidden>

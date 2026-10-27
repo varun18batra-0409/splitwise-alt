@@ -52,7 +52,7 @@ export default async function MoveOutPage({
           <span className="block text-sm text-gray-500">Last day in the flat</span>
           <input type="date" name="day" defaultValue={lastDay} max={today} min={`${addMonths(today.slice(0, 7), -1)}-01`} className={`${inputClass} mt-1 py-2`} />
         </label>
-        <button type="submit" className="border border-line px-4 py-2.5 text-sm font-medium active:bg-mist">
+        <button type="submit" className="border border-line px-4 py-2.5 text-sm font-medium active:bg-mist rounded-full">
           Update
         </button>
       </form>
@@ -71,7 +71,7 @@ export default async function MoveOutPage({
             <dl className="space-y-2.5 text-sm">
               <div className="flex justify-between">
                 <dt>Balance today</dt>
-                <dd className="font-display tabular-nums">{p.balanceToday > 0 ? `gets ${money(p.balanceToday)}` : p.balanceToday < 0 ? `owes ${money(-p.balanceToday)}` : "square"}</dd>
+                <dd className="money tabular-nums">{p.balanceToday > 0 ? `gets ${money(p.balanceToday)}` : p.balanceToday < 0 ? `owes ${money(-p.balanceToday)}` : "square"}</dd>
               </div>
               {p.bills.map((b) => (
                 <div key={`${b.name}-${b.period}`} className="flex justify-between">
@@ -81,7 +81,7 @@ export default async function MoveOutPage({
                       · {monthLabel(b.period)}, {b.days} of {b.monthDays} days
                     </span>
                   </dt>
-                  <dd className="font-display tabular-nums text-owed">− {money(b.before - b.after)}</dd>
+                  <dd className="money tabular-nums text-owed">− {money(b.before - b.after)}</dd>
                 </div>
               ))}
             </dl>
@@ -124,12 +124,12 @@ export default async function MoveOutPage({
             ) : (
               <ul className="space-y-2">
                 {p.payments.map((t) => (
-                  <li key={`${t.from}-${t.to}`} className="flex items-center justify-between border border-line px-4 py-3 text-sm">
+                  <li key={`${t.from}-${t.to}`} className="flex items-center justify-between border border-line px-4 py-3 text-sm rounded-2xl">
                     <span>
                       <strong className="font-semibold">{Name(t.from)}</strong> <span className="text-gray-500">{t.from === myId ? "pay" : "pays"}</span>{" "}
                       <strong className="font-semibold">{name(t.to)}</strong>
                     </span>
-                    <span className={`font-display text-[17px] tabular-nums ${t.to === myId ? "text-owed" : t.from === myId ? "text-owe" : ""}`}>{money(t.amount)}</span>
+                    <span className={`money text-[17px] tabular-nums ${t.to === myId ? "text-owed" : t.from === myId ? "text-owe" : ""}`}>{money(t.amount)}</span>
                   </li>
                 ))}
               </ul>

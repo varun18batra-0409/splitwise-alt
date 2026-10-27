@@ -7,8 +7,9 @@ import { mailConfigured } from "@/lib/mail";
 import { googleConfigured } from "@/lib/google";
 import { PasskeySignIn } from "@/components/Passkeys";
 import { ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/components/ui";
-import { GroupCover } from "@/components/GroupCover";
-import { coverOf } from "@/lib/covers";
+import { BackIcon, iconButtonClass } from "@/components/icons";
+import { GoogleG } from "@/components/GoogleG";
+import { placePhoto } from "@/lib/places";
 
 // Optional sign-in: type your email, get a 6-digit code, type it here.
 // Your groups then follow you to a new phone or the installed app.
@@ -27,34 +28,59 @@ export default async function SignIn({
 
   return (
     <>
-      <PageHeader title={sent ? "Check your email" : "Continue to Loopin"} back={back} />
+      {sent ? (
+        <PageHeader title="Check your email" back={back} />
+      ) : (
+        <>
+          {/* Three trips, as polaroids tossed on the table: what Loopin is for, before a word is read. */}
+          <div className="relative -mx-5 -mt-[max(1.5rem,env(safe-area-inset-top))] h-[420px] overflow-hidden pt-[max(1.2rem,env(safe-area-inset-top))]" aria-hidden>
+            <span className="absolute left-1/2 top-24 h-[480px] w-[480px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(255,171,107,0.13),transparent_62%)]" />
+            <p className="relative text-center font-display text-[26px] font-semibold leading-none tracking-tight">loopin</p>
+            {SNAPS.map((p) => (
+              <span key={p.caption} className={`lp-drop absolute block bg-[#f4f2ec] p-2 pb-9 shadow-[0_24px_50px_-10px_rgba(0,0,0,0.7)] ${p.spot}`} style={{ animationDelay: p.delay }}>
+                <span className="relative block h-full w-full overflow-hidden bg-[#222]">
+                  {placePhoto(p.place)?.src && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={placePhoto(p.place)!.src} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                  )}
+                </span>
+                <span className="absolute inset-x-0 bottom-1.5 text-center font-hand text-[21px] font-bold text-[#1d1b17]">{p.caption}</span>
+              </span>
+            ))}
+          </div>
+          {back !== "/" && (
+            <Link href={back} aria-label="Back" className={`glass absolute left-5 top-[max(1.1rem,env(safe-area-inset-top))] ${iconButtonClass}`}>
+              <BackIcon size={20} />
+            </Link>
+          )}
+          <p className="-mt-6 font-display text-[clamp(38px,11.5vw,46px)] font-semibold leading-[1.02] tracking-[-0.02em]">
+            Split the trip.
+            <br />
+            Keep the story.
+          </p>
+          <p className="mt-3 text-[16px] leading-relaxed text-fg/65">Add costs as you go, settle up with UPI in one tap, and get every trip back as stories and stamps.</p>
+          <h1 className="mb-3 mt-7 text-[15px] font-semibold text-fg/80">Continue to Loopin</h1>
+        </>
+      )}
       {error && <ErrorNote>{error}</ErrorNote>}
 
       {!sent ? (
         <>
-          <div className="relative mb-6 h-[150px] overflow-hidden rounded-[22px] border border-line" aria-hidden>
-            <GroupCover kind={coverOf({ cover: "photo-friends", type: "other" })} uid="signin" sizes="(max-width: 448px) 100vw, 448px" priority drift />
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(13,13,15,0)_40%,rgba(13,13,15,0.7)_100%)]" />
-            <p className="absolute bottom-3 left-4 font-display text-[22px] font-semibold">Everyone’s in.</p>
-          </div>
-          <p className="mb-6 text-gray-600">
-            New here or coming back, it’s the same: we’ll get your groups on this phone, and on any other. No password needed.
-          </p>
-          <PasskeySignIn back={back} className="mb-3 flex w-full items-center justify-center border border-line px-4 py-3.5 text-base font-semibold text-fg active:bg-mist" />
           {googleConfigured() && (
             <>
               {/* A plain link: it leaves the app for Google's account picker. */}
-              <a href={`/api/auth/google/start?${new URLSearchParams({ back })}`} className="flex w-full items-center justify-center gap-3 border border-line bg-white px-4 py-3.5 text-base font-semibold text-fg active:bg-mist">
-                <GoogleMark />
+              <a href={`/api/auth/google/start?${new URLSearchParams({ back })}`} className="pop mb-3 flex h-14 w-full items-center justify-center gap-3 bg-fg text-base font-semibold text-canvas">
+                <GoogleG />
                 Continue with Google
               </a>
-              <div className="my-6 flex items-center gap-3 text-xs text-gray-400" aria-hidden>
-                <span className="h-px flex-1 bg-line" />
-                or with your email
-                <span className="h-px flex-1 bg-line" />
-              </div>
             </>
           )}
+          <PasskeySignIn back={back} className="mb-3 flex h-14 w-full items-center justify-center rounded-full border border-fg/15 bg-fg/[0.06] text-base font-semibold text-fg transition-transform active:scale-[0.97]" />
+          <div className="my-6 flex items-center gap-3 text-xs text-gray-400" aria-hidden>
+            <span className="h-px flex-1 bg-line" />
+            or with your email
+            <span className="h-px flex-1 bg-line" />
+          </div>
           {!mailConfigured() && (
             <p className="mb-6 rounded-xl bg-mist px-4 py-3 text-sm text-gray-500">Email sign-in isn’t switched on yet. Check back soon.</p>
           )}
@@ -134,14 +160,9 @@ export default async function SignIn({
   );
 }
 
-// Google's "G", for the Continue with Google button.
-function GoogleMark() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden>
-      <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />
-      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
-      <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z" />
-      <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z" />
-    </svg>
-  );
-}
+// The three polaroids on the sign-in screen (photos from the app's own place pictures).
+const SNAPS = [
+  { place: "Manali", caption: "Manali", spot: "left-[6%] top-[86px] h-[200px] w-[160px] -rotate-[9deg]", delay: "0ms" },
+  { place: "Jaipur", caption: "Jaipur", spot: "right-[5%] top-[72px] h-[200px] w-[160px] rotate-[7deg]", delay: "120ms" },
+  { place: "Goa", caption: "Goa, all square", spot: "left-[27%] top-[176px] z-[2] h-[220px] w-[176px] -rotate-[1.5deg]", delay: "240ms" },
+];

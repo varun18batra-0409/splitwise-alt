@@ -54,7 +54,7 @@ test("Gestures: swipe to delete an expense, drag a sheet closed, confetti on all
   const summary = row.locator("summary").first();
   await drag(summary, "right", -170, 4);
   await expect(row.locator("[data-swipe-row='open']")).toHaveCount(1);
-  await expect(row.locator("details")).not.toHaveAttribute("open", "");
+  await expect(row.locator("details").first()).not.toHaveAttribute("open", "");
   await expect(row.locator("[data-swipe-edit]")).toBeVisible();
   // A short swipe back closes it again.
   await drag(summary, "right", 160, 2);

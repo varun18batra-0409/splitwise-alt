@@ -88,7 +88,7 @@ export function PotCount({
                     const v2 = e.target.value;
                     setTyped((t) => ({ ...t, [r.id]: v2 }));
                   }}
-                  className="w-full bg-transparent py-2.5 text-right font-display text-lg tabular-nums outline-none"
+                  className="w-full bg-transparent py-2.5 text-right money text-lg tabular-nums outline-none"
                 />
               </span>
             </li>

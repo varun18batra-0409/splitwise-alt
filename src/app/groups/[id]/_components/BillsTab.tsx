@@ -53,12 +53,12 @@ export function BillsTab({ v, bills, saved }: { v: GroupView; bills: BillStatus[
           </span>
         </Link>
         {b.status === "waiting" ? (
-          <Link href={`/groups/${group.id}/add?bill=${b.bill.id}&period=${b.period}`} className="shrink-0 border border-gray-300 px-3 py-2 text-sm font-semibold text-fg active:bg-mist">
+          <Link href={`/groups/${group.id}/add?bill=${b.bill.id}&period=${b.period}`} className="shrink-0 border border-gray-300 px-3 py-2 text-sm font-semibold text-fg active:bg-mist rounded-full">
             {b.reason === "payer left" ? "Add it" : "Enter amount"}
           </Link>
         ) : (
           <span className="shrink-0 text-right">
-            {b.bill.nature !== "varies" && <span className="block font-display tabular-nums">{money(b.bill.amount)}</span>}
+            {b.bill.nature !== "varies" && <span className="block money tabular-nums">{money(b.bill.amount)}</span>}
             {b.due && <span className="block text-[11px] text-gray-500">{niceDate(b.due)}</span>}
           </span>
         )}
@@ -76,7 +76,7 @@ export function BillsTab({ v, bills, saved }: { v: GroupView; bills: BillStatus[
       <div className="flex items-end justify-between gap-3">
         <div>
           <p className="text-sm text-gray-500">Regular bills, every month</p>
-          <p className="font-display text-[30px] font-semibold tabular-nums">{money(total)}</p>
+          <p className="money text-[30px] font-semibold tabular-nums">{money(total)}</p>
           {total > 0 && <p className="text-sm text-gray-500">Your share about {money(Math.round(mine / 100) * 100)}</p>}
         </div>
         {!group.closed && (

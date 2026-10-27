@@ -46,7 +46,7 @@ export default async function RecordPayment({
           <ul className="flex flex-wrap gap-2">
             {transfers.map((t) => (
               <li key={`${t.from}-${t.to}`}>
-                <Link href={fill(t.from, t.to, t.amount)} className="inline-block border border-line px-3 py-2 text-sm active:bg-mist">
+                <Link href={fill(t.from, t.to, t.amount)} className="inline-block border border-line px-3 py-2 text-sm active:bg-mist rounded-full">
                   {nameOf(t.from)} → {t.to === myId ? "you" : nameOf(t.to)} · <span className="tabular-nums">{money(t.amount)}</span>
                 </Link>
               </li>

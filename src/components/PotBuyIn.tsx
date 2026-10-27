@@ -84,7 +84,7 @@ export function PotBuyIn({
             placeholder={quick[1]?.value ?? "1000"}
             autoComplete="off"
             aria-label="Amount each"
-            className="w-full bg-transparent py-3 font-display text-xl tabular-nums outline-none"
+            className="w-full bg-transparent py-3 money text-xl tabular-nums outline-none"
           />
         </span>
       </label>

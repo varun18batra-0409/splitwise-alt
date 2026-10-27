@@ -42,7 +42,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
             <div className={`relative px-6 pb-7 ${coverOf(group) !== "plain" ? "-mt-8" : "pt-7"}`}>
             <p className="text-sm text-fg/60">{[dateRange(r), r.days > 1 ? `${r.days} days` : "", `${r.count} expenses`].filter(Boolean).join(" · ")}</p>
             <h1 className="mt-1 font-display text-[28px] font-semibold leading-tight">{group.name}</h1>
-            <p className="mt-4 font-display text-[40px] font-semibold leading-none tabular-nums">{m(r.total)}</p>
+            <p className="mt-4 money text-[40px] font-semibold leading-none tabular-nums">{m(r.total)}</p>
             <p className="mt-2 text-sm text-fg/70">
               {[r.people > 1 ? `about ${m(r.perPerson)} each` : "", r.days > 1 ? `${m(r.perDay)} a day` : ""].filter(Boolean).join(" · ")}
             </p>
@@ -130,7 +130,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
                   ? "Settle up, then close the group. It stays in your history, and this report stays here."
                   : "Everyone’s square. Close the group; it stays in your history, and this report stays here."}
               </p>
-              <Link href={`/groups/${group.id}/settle#close`} className="block border border-line px-4 py-3 text-center text-sm font-semibold text-fg active:bg-mist">
+              <Link href={`/groups/${group.id}/settle#close`} className="block border border-line px-4 py-3 text-center text-sm font-semibold text-fg active:bg-mist rounded-full">
                 {transfers.length ? "Settle up & close" : "Close the group"}
               </Link>
             </section>

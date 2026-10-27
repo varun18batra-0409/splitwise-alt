@@ -118,7 +118,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
                         {foreign || eq(b) || (theirs.length ? `${theirs.length} payment${theirs.length === 1 ? "" : "s"} to settle` : "settled up")}
                       </span>
                     </span>
-                    <span className={`shrink-0 text-right font-display tabular-nums ${b > 0 ? "text-owed" : b < 0 ? "text-owe" : "text-gray-400"}`}>
+                    <span className={`shrink-0 text-right money tabular-nums ${b > 0 ? "text-owed" : b < 0 ? "text-owe" : "text-gray-400"}`}>
                       {b > 0 ? `gets ${money(b)}` : b < 0 ? `owes ${money(-b)}` : "settled"}
                     </span>
                   </summary>
@@ -138,7 +138,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
                             <span className="min-w-0 text-gray-600">
                               {t.from === myId ? "You pay" : `${nameOf(t.from)} pays`} {t.to === myId ? "you" : nameOf(t.to)}
                             </span>
-                            <span className="shrink-0 font-display tabular-nums">{money(t.amount)}</span>
+                            <span className="shrink-0 money tabular-nums">{money(t.amount)}</span>
                           </li>
                         ))}
                       </ul>
@@ -169,7 +169,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
                       {payments.some((p) => p.fromId === myId || p.toId === myId) ? ", before payments" : ""}
                     </span>
                   </span>
-                  <span className={`shrink-0 text-right font-display tabular-nums ${val > 0 ? "text-owed" : val < 0 ? "text-owe" : "text-gray-400"}`}>
+                  <span className={`shrink-0 text-right money tabular-nums ${val > 0 ? "text-owed" : val < 0 ? "text-owe" : "text-gray-400"}`}>
                     {val > 0 ? `owed ${formatMoney(val, l.currency)}` : val < 0 ? `owe ${formatMoney(-val, l.currency)}` : "even"}
                   </span>
                 </li>
