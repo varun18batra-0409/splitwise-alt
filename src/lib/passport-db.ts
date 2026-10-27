@@ -2,7 +2,7 @@ import { db } from "./db";
 import { buildPassport, parseHandPlaces, type PassportTrip } from "./passport";
 
 // Your passport, from every trip group you're in (any phone you signed in on).
-export async function loadPassport(account: { id: string; homeCountry: string; places: string }, fallbackHome: string, today: string) {
+export async function loadPassport(account: { id: string; homeCountry: string; places: string }, fallbackHome: string, today: string, opts: { forFriend?: boolean } = {}) {
   const groups = await db.group.findMany({
     where: { type: "trip", deletedAt: null, members: { some: { accountId: account.id } } },
     select: { id: true, name: true, tripStart: true, tripEnd: true, tripPlace: true, tripCountry: true, createdAt: true, _count: { select: { members: true, expenses: { where: { deletedAt: null } } } } },
@@ -11,7 +11,11 @@ export async function loadPassport(account: { id: string; homeCountry: string; p
   });
   // A trip without dates counts from when the group was made, once something was spent
   // (a trip still being planned isn't a stamp yet).
-  const trips: PassportTrip[] = groups.filter((g) => g.tripStart || g._count.expenses > 0).map((g) => ({
+  // Seen by a friend: only trips that are over (a trip happening now would say where you are today).
+  // (A trip without dates counts once it's a few days old.)
+  const over = (g: { tripStart: string; tripEnd: string; createdAt: Date }) =>
+    g.tripEnd || g.tripStart ? (g.tripEnd || g.tripStart) < today : new Date(g.createdAt.getTime() + 3 * 86_400_000).toISOString().slice(0, 10) < today;
+  const trips: PassportTrip[] = groups.filter((g) => (g.tripStart || g._count.expenses > 0) && (!opts.forFriend || over(g))).map((g) => ({
     groupId: g.id,
     name: g.name,
     start: g.tripStart || g.createdAt.toISOString().slice(0, 10),

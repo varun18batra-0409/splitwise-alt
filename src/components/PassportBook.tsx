@@ -47,45 +47,123 @@ function Emblem({ size = 92 }: { size?: number }) {
   );
 }
 
+// One stamp, drawn like a real customs stamp: a double ring with the place
+// running round the edge, or a boxed "arrived" stamp for a city at home; a few
+// shapes so a page doesn't look printed; a touch of uneven ink.
 function StampMark({ s, i }: { s: Stamp; i: number }) {
   const h = hash(s.id);
   const ink = INKS[hash(s.code + s.name) % INKS.length];
-  const tilt = (h % 17) - 8;
+  const tilt = (h % 19) - 9;
   // Scattered in a loose 2 × 3 grid, each a little off its spot.
   const col = i % 2;
   const rowN = Math.floor(i / 2);
   const dx = ((h >> 3) % 25) - 12;
-  const dy = ((h >> 7) % 21) - 10;
+  const dy = ((h >> 7) % 17) - 8;
   const pos = { left: `calc(${col * 50 + 25}% + ${dx}px)`, top: `calc(${rowN * 33.3 + 16.6}% + ${dy}px)` };
-  const common = "absolute flex flex-col items-center justify-center text-center mix-blend-multiply";
-  if (s.kind === "country")
+  const shape = s.kind === "country" ? (["circle", "circle", "oval", "octagon"] as const)[(h >> 5) % 4] : (["box", "ticket"] as const)[(h >> 5) % 2];
+  const dash = s.byHand ? "5 3.5" : undefined;
+  const when = s.byHand ? "BEEN THERE" : month(s.when);
+  const id = `st-${h.toString(36)}-${i}`;
+  const common = { position: "absolute" as const, ...pos, transform: `translate(-50%,-50%) rotate(${tilt}deg)`, color: ink, opacity: s.byHand ? 0.6 : 0.9 };
+  const name = s.name.toUpperCase();
+  if (shape === "circle" || shape === "oval") {
+    const w = shape === "oval" ? 150 : 124;
+    const ht = shape === "oval" ? 108 : 124;
+    const rx = w / 2 - 3;
+    const ry = ht / 2 - 3;
+    const irx = rx - 15;
+    const iry = ry - 15;
+    // The words follow the ring: the place along the top, the date along the bottom.
+    const top = `M ${w / 2 - irx - 7} ${ht / 2} A ${irx + 7} ${iry + 7} 0 0 1 ${w / 2 + irx + 7} ${ht / 2}`;
+    const bottom = `M ${w / 2 - irx - 7} ${ht / 2} A ${irx + 7} ${iry + 7} 0 0 0 ${w / 2 + irx + 7} ${ht / 2}`;
+    const fit = Math.min(10.5, (Math.PI * (irx + 7) * 0.9) / Math.max(6, name.length) / 0.68);
     return (
-      <div
-        className={`${common} h-[118px] w-[118px] rounded-full ${s.byHand ? "border-[2.5px] border-dashed opacity-55" : "border-[3px]"}`}
-        style={{ ...pos, borderColor: ink, color: ink, transform: `translate(-50%,-50%) rotate(${tilt}deg)`, boxShadow: s.byHand ? undefined : `inset 0 0 0 4px ${PAPER}, inset 0 0 0 5.5px ${ink}` }}
-        data-stamp={s.name}
-        data-country-stamp={s.code}
-        data-by-hand={s.byHand ? "1" : "0"}
-      >
-        <span className="text-[28px] leading-none">{s.flag}</span>
-        <span className={`mt-1 line-clamp-2 max-w-[96px] break-words font-display font-bold leading-[1.05] ${s.name.length > 14 ? "text-[11.5px]" : "text-[14px]"}`}>{s.name}</span>
-        {s.cities.length > 0 && <span className="max-w-[90px] truncate text-[9px] font-semibold">{s.cities.join(" · ")}</span>}
-        <span className="mt-0.5 text-[9px] font-semibold tracking-[0.14em]">{s.byHand ? "BEEN THERE" : month(s.when)}</span>
-      </div>
+      <svg width={w} height={ht} viewBox={`0 0 ${w} ${ht}`} style={common} className="mix-blend-multiply" data-stamp={s.name} data-country-stamp={s.code} data-by-hand={s.byHand ? "1" : "0"} aria-label={`${s.name}, ${s.byHand ? "been there" : when}`} role="img">
+        <defs>
+          <path id={`${id}-t`} d={top} />
+          <path id={`${id}-b`} d={bottom} />
+        </defs>
+        <g filter="url(#lp-ink)" fill="none" stroke="currentColor">
+          <ellipse cx={w / 2} cy={ht / 2} rx={rx} ry={ry} strokeWidth="2.6" strokeDasharray={dash} />
+          <ellipse cx={w / 2} cy={ht / 2} rx={irx} ry={iry} strokeWidth="1.2" strokeDasharray={dash} />
+        </g>
+        <g fill="currentColor" fontWeight="700" style={{ letterSpacing: "0.08em" }}>
+          <text fontSize={fit}>
+            <textPath href={`#${id}-t`} xlinkHref={`#${id}-t`} startOffset="50%" textAnchor="middle">
+              {name}
+            </textPath>
+          </text>
+          <text fontSize="8" dy="7">
+            <textPath href={`#${id}-b`} xlinkHref={`#${id}-b`} startOffset="50%" textAnchor="middle">
+              {when}
+            </textPath>
+          </text>
+        </g>
+        <text x={w / 2} y={ht / 2 + 1} textAnchor="middle" dominantBaseline="central" fontSize={shape === "oval" ? 26 : 30}>
+          {s.flag}
+        </text>
+        {s.cities.length > 0 && (
+          <text x={w / 2} y={ht / 2 + (shape === "oval" ? 21 : 24)} textAnchor="middle" fill="currentColor" fontSize="7.5" fontWeight="700">
+            {s.cities.join(" · ").slice(0, 22)}
+          </text>
+        )}
+      </svg>
     );
+  }
+  if (shape === "octagon") {
+    const w = 124;
+    const c = 36;
+    const oct = (o: number) => `${c + o},${o} ${w - c - o},${o} ${w - o},${c + o} ${w - o},${w - c - o} ${w - c - o},${w - o} ${c + o},${w - o} ${o},${w - c - o} ${o},${c + o}`;
+    return (
+      <svg width={w} height={w} viewBox={`0 0 ${w} ${w}`} style={common} className="mix-blend-multiply" data-stamp={s.name} data-country-stamp={s.code} data-by-hand={s.byHand ? "1" : "0"} aria-label={`${s.name}, ${s.byHand ? "been there" : when}`} role="img">
+        <g filter="url(#lp-ink)" fill="none" stroke="currentColor">
+          <polygon points={oct(3)} strokeWidth="2.6" strokeDasharray={dash} />
+          <polygon points={oct(9)} strokeWidth="1.1" strokeDasharray={dash} />
+        </g>
+        <text x={w / 2} y={36} textAnchor="middle" fontSize="24">
+          {s.flag}
+        </text>
+        <text x={w / 2} y={66} textAnchor="middle" fill="currentColor" fontWeight="800" fontSize={name.length > 11 ? 9 : 12} style={{ letterSpacing: "0.06em" }}>
+          {name.length > 16 ? `${name.slice(0, 15)}…` : name}
+        </text>
+        <line x1="30" x2={w - 30} y1="76" y2="76" stroke="currentColor" strokeWidth="1" />
+        <text x={w / 2} y={90} textAnchor="middle" fill="currentColor" fontWeight="700" fontSize="8" style={{ letterSpacing: "0.14em" }}>
+          {when}
+        </text>
+        {s.cities.length > 0 && (
+          <text x={w / 2} y={102} textAnchor="middle" fill="currentColor" fontSize="7">
+            {s.cities.join(" · ").slice(0, 20)}
+          </text>
+        )}
+      </svg>
+    );
+  }
+  // A city at home: a boxed "arrived" stamp (or a ticket with notched corners).
+  const w = Math.min(150, Math.max(112, s.name.length * 9 + 40));
+  const ht = 70;
+  const ticket = shape === "ticket";
   return (
-    <div
-      className={`${common} min-w-[112px] max-w-[150px] rounded-[8px] border-[2.5px] px-3 py-2`}
-      style={{ ...pos, borderColor: ink, color: ink, transform: `translate(-50%,-50%) rotate(${tilt}deg)` }}
-      data-stamp={s.name}
-      data-by-hand="0"
-    >
-      <span className="text-[9px] font-semibold tracking-[0.14em]">ARRIVED</span>
-      <span className={`max-w-full break-words font-display font-bold leading-tight ${s.name.length > 12 ? "text-[13px]" : "text-[17px]"}`}>{s.name}</span>
-      <span className="mt-0.5 border-t pt-0.5 text-[9px] font-semibold tracking-[0.14em]" style={{ borderColor: ink }}>
-        {month(s.when)}
-      </span>
-    </div>
+    <svg width={w} height={ht} viewBox={`0 0 ${w} ${ht}`} style={common} className="mix-blend-multiply" data-stamp={s.name} data-by-hand="0" aria-label={`${s.name}, ${when}`} role="img">
+      <g filter="url(#lp-ink)" fill="none" stroke="currentColor">
+        {ticket ? (
+          <path d={`M10 2 H${w - 10} A8 8 0 0 0 ${w - 2} 10 V${ht - 10} A8 8 0 0 0 ${w - 10} ${ht - 2} H10 A8 8 0 0 0 2 ${ht - 10} V10 A8 8 0 0 0 10 2 Z`} strokeWidth="2.4" />
+        ) : (
+          <rect x="2" y="2" width={w - 4} height={ht - 4} rx="5" strokeWidth="2.4" />
+        )}
+        <rect x="7" y="7" width={w - 14} height={ht - 14} rx="3" strokeWidth="1" />
+      </g>
+      <g fill="currentColor" textAnchor="middle">
+        <text x={w / 2} y="20" fontSize="7.5" fontWeight="700" style={{ letterSpacing: "0.2em" }}>
+          ✈ ARRIVED
+        </text>
+        <text x={w / 2} y="41" fontSize={s.name.length > 12 ? 13 : 16} fontWeight="800" style={{ fontFamily: "var(--font-display), serif" }}>
+          {s.name.length > 18 ? `${s.name.slice(0, 17)}…` : s.name}
+        </text>
+        <text x={w / 2} y="56" fontSize="7.5" fontWeight="700" style={{ letterSpacing: "0.16em" }}>
+          {when}
+        </text>
+      </g>
+    </svg>
   );
 }
 
@@ -151,6 +229,13 @@ export function PassportBook({ name, stats, milestones, pages, index }: Props) {
 
   return (
     <div className="relative" data-passport>
+      {/* Uneven ink for the stamps (used by every stamp on the page). */}
+      <svg width="0" height="0" className="absolute" aria-hidden>
+        <filter id="lp-ink">
+          <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="3" result="n" />
+          <feDisplacementMap in="SourceGraphic" in2="n" scale="1.6" />
+        </filter>
+      </svg>
       <div className="relative h-[480px] [perspective:1400px]">
         {/* Page edges peeking out under the book. */}
         <span aria-hidden className="absolute inset-y-2 left-1 right-[-5px] rounded-r-[14px] bg-[#d9d1bc]" />
@@ -206,7 +291,7 @@ export function PassportBook({ name, stats, milestones, pages, index }: Props) {
           {pages.map((p, k) => (
             <Sheet key={k} n={k + 2} of={total} label={`${p.title}, page ${k + 1}`}>
               <p className="absolute left-6 top-4 text-[11px] font-semibold tracking-[0.2em] text-[#8a8270]">{p.title === "Trips" ? "VISAS · STAMPS" : "BEFORE LOOPIN"}</p>
-              <div className="absolute inset-x-2 bottom-8 top-10">
+              <div className="absolute inset-x-2 bottom-7 top-12">
                 {p.stamps.map((s, i) => (
                   <StampMark key={s.id} s={s} i={i} />
                 ))}

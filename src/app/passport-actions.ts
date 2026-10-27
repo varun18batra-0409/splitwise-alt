@@ -47,3 +47,23 @@ export async function setPassportShareAction(f: FormData) {
   await db.account.update({ where: { id: a.id }, data: { passportShare: v } });
   redirect(`/passport?shared=${v}#who`);
 }
+
+// "Nudge Ravi": a friend's passport is empty, so ask them (in their Alerts only:
+// no push, no email) to add where they've been. Once every 30 days per pair.
+export async function nudgePassportAction(f: FormData) {
+  const a = await getAccount();
+  if (!a) redirect("/signin?back=/passport/friends");
+  const to = field(f, "accountId");
+  const back = `/passport/friends/${encodeURIComponent(to)}`;
+  if (!/^[A-Za-z0-9_-]{6,40}$/.test(to) || to === a.id) redirect("/passport/friends");
+  const { canSeePassport } = await import("@/lib/passport-db");
+  const r = await canSeePassport(a.id, to);
+  if (!r.ok) redirect(back);
+  const { allow } = await import("@/lib/rate-limit");
+  if (!(await allow(`passport-nudge:${a.id}:${to}`, 1, 30 * 86_400))) redirect(`${back}?${new URLSearchParams({ error: "You nudged them recently. Give it a few weeks." })}`);
+  const me = (a.name || "A friend").trim().split(/\s+/)[0];
+  await db.accountNote.create({
+    data: { accountId: to, kind: "passport_nudge", title: `${me} wants to see where you’ve been 🌍`, body: "Add the countries you’ve visited to your trip passport", url: "/passport#been" },
+  });
+  redirect(`${back}?nudged=1`);
+}

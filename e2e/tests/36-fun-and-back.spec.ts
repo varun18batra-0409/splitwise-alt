@@ -29,7 +29,7 @@ test("titles, Wrapped, the passport and a card game: in, around, back out, and d
   await expect(link).toBeVisible();
   const ravisPassport = (await link.getAttribute("href"))!;
   await link.click();
-  await page.waitForURL((u) => u.pathname === ravisPassport);
+  await page.waitForURL(/\/passport\/friends\/[^/?]+\?from=/);
   await expect(page.getByRole("button", { name: "Open your passport" })).toBeVisible();
   await R.goto("/passport");
   await settled(R);
@@ -55,10 +55,22 @@ test("titles, Wrapped, the passport and a card game: in, around, back out, and d
   await page.waitForURL(/\/passport\/friends\/[^/]+$/);
   const ravisPage = new URL(page.url()).pathname;
   await expect(page.getByRole("button", { name: "Open your passport" })).toBeVisible();
+  // His trip with Asha is still going, so friends don't see it yet: the passport is empty → nudge him (Alerts only).
+  await page.getByRole("button", { name: "👋 Nudge Ravi" }).click();
+  await page.waitForURL(/nudged=1/);
+  await R.goto("/notifications");
+  await settled(R);
+  await expect(R.getByText(/Asha wants to see where you’ve been/)).toBeVisible();
+  // A second nudge straight away is refused politely.
+  await page.goto(ravisPage);
+  await settled(page);
+  await page.getByRole("button", { name: "👋 Nudge Ravi" }).click();
+  await expect(page.getByText("You nudged them recently")).toBeVisible();
   await page.goBack();
   await page.waitForURL(/\/passport\/friends$/);
   // Cara shares no group with Ravi: his passport isn't there for her, even by its address.
-  expect((await C.goto(ravisPage))?.status()).toBe(404);
+  await C.goto(ravisPage);
+  await expect(C.getByText("You can’t open this passport")).toBeVisible();
   await C.goto("/passport/friends");
   await settled(C);
   await expect(C.getByText("No friends here yet")).toBeVisible();
