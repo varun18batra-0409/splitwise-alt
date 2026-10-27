@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - run: |
-          names="tabtales crewstamp tripstamp merrymates yaarstamp tallytales huddlepot jollypot wanderpot storypot stampsquad passportpal gangstamp roamstamp everyonein allinloop roamtab triptally wandertab yaarpot jhoom safarnama kaafila hamsafar humsafar sangat toli mandali yaatri ghoomo getyaarlo gethuddlin getcrewlo gettallyin getevrin getstorytab getmerrytrip gettoli getsafarnama gethamsafar getkaafila crewlo tallyin evrin huddlin yaarlo storytab merrytrip caravanly clanin bunchin nomadin saathly yaariyan"
+          names="sabin usin weyn ourin omnin avrin ovin uvin allyn inyo ensa tova kova kinra evra everi unyo joyn sangi saath togi nuvin amio aveo evvy evrinn evryn evrinapp joinevrin sabinapp getsabin weynapp getweyn getomnin getavrin getovin getkinra getevra getunyo getsangi tovaapp hievrin evrinhq usevrin"
           curl -s https://data.iana.org/rdap/dns.json -o dns.json
           base() { jq -r --arg t "$1" '.services[] | select(.[0] | index($t)) | .[1][0]' dns.json | head -1; }
           declare -A B; for t in com app in; do B[$t]=$(base $t); echo "$t -> ${B[$t]}"; done
