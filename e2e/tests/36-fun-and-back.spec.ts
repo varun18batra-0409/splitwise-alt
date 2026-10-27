@@ -11,7 +11,6 @@ test("titles, Wrapped, the passport and a card game: in, around, back out, and d
   const asha = await signUp("Asha", testEmail("fun-asha"));
   const ravi = await signUp("Ravi", testEmail("fun-ravi"));
   const page = await (await contextFor(browser, asha)).newPage();
-  page.on("dialog", (d) => d.accept()); // "Delete this game?" → yes
   const R = await (await contextFor(browser, ravi)).newPage();
 
   const trip = await createGroup(page, groupName("Goa trip"), "Trip");
