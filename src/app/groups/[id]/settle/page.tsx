@@ -6,7 +6,6 @@ import { loadGroup } from "@/lib/group-data";
 import { formatMoney, toInputAmount } from "@/lib/money";
 import { applySettleMin, pairwiseDebtCount } from "@/lib/settle";
 import { planKey } from "@/lib/settle-all";
-import { nudgeLink } from "@/lib/nudge";
 import { canUndo } from "@/lib/undo";
 import { recordCustomPayment, settleEverything } from "@/app/actions";
 import { ConfirmButton } from "@/components/ConfirmButton";
@@ -18,7 +17,6 @@ import { getAccount } from "@/lib/identity";
 import { payButtons, type PayWays } from "@/lib/pay-links";
 import { waitingForMe } from "@/lib/payment-ok";
 import { confirmPaymentAction, markAllPaidAction, rejectPaymentAction } from "@/app/pay-actions";
-import { SITE_URL } from "@/lib/site";
 
 // Settle up inside one group: the fewest payments that clear every debt.
 // Each can be recorded in full with one tap, or for a smaller amount
@@ -208,10 +206,11 @@ export default async function GroupSettle({
                   <span>Paid less? Change the amount first.</span>
                   {t.to === myId && !group.closed && (
                     <a
-                      href={nudgeLink(group.members.find((m) => m.id === t.from)?.phone ?? "", nameOf(t.from), money(t.amount), group.name, { ways: myWays, link: `${SITE_URL}/groups/${group.id}/settle` })}
+                      href={`/groups/${group.id}/remind?from=${encodeURIComponent(t.from)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="shrink-0 font-medium text-fg"
+                      data-remind={t.from}
                     >
                       Remind
                     </a>

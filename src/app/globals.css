@@ -605,3 +605,22 @@ html.lp-opened .lp-open {
     animation: none;
   }
 }
+
+/* A done mark: the ring draws round, then the tick draws in. */
+@keyframes lp-pop-in {
+  from { opacity: 0; transform: scale(0.8); }
+}
+.lp-pop-in { animation: lp-pop-in 420ms cubic-bezier(0.2, 0.9, 0.25, 1.2) backwards; }
+@keyframes lp-draw-ring {
+  from { stroke-dashoffset: 188.5; }
+  to { stroke-dashoffset: 0; }
+}
+.lp-draw-ring { transform: rotate(-90deg); transform-origin: 50% 50%; animation: lp-draw-ring 700ms 120ms ease-out backwards; }
+@keyframes lp-draw-tick {
+  from { stroke-dashoffset: 24; }
+  to { stroke-dashoffset: 0; }
+}
+.lp-draw-tick { stroke-dasharray: 24; animation: lp-draw-tick 380ms 650ms ease-out backwards; }
+@media (prefers-reduced-motion: reduce) {
+  .lp-pop-in, .lp-draw-ring, .lp-draw-tick { animation: none; }
+}

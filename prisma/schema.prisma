@@ -553,3 +553,20 @@ model Reaction {
   @@unique([expenseId, memberId])
   @@index([expenseId])
 }
+
+// "I've paid" links: the Remind message carries one, so the person who owes
+// can say they paid without signing in. One per (group, who owes, who's owed),
+// unguessable, and it stops working once nothing is owed or after 30 days.
+model PayLink {
+  id          String   @id @default(cuid())
+  token       String   @unique
+  groupId     String
+  fromId      String // who owes (the one who taps "I've paid")
+  toId        String // who's owed (the one who sent the reminder)
+  createdById String
+  paymentId   String   @default("") // the last payment made through it (for undo)
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+  @@unique([groupId, fromId, toId])
+  @@index([groupId])
+}

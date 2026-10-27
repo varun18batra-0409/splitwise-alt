@@ -34,8 +34,8 @@ describe("Pay buttons", () => {
   });
 
   it("the WhatsApp reminder carries how to pay and where to mark it paid", () => {
-    expect(nudgeMessage("Ravi", "₹500", "Goa", { ways: { upiId: "asha@okicici", payLink: "https://paypal.me/asha" }, link: "https://www.loopinapps.com/groups/g/settle" })).toBe(
-      "Hey Ravi! 👋 Quick one from Loopin: you owe me ₹500 for “Goa”. Settle whenever you can, thanks!\nUPI: asha@okicici\nPayPal: https://paypal.me/asha\nPaid? Mark it here: https://www.loopinapps.com/groups/g/settle",
+    expect(nudgeMessage("Ravi", "₹500", "Goa", { ways: { upiId: "asha@okicici", payLink: "https://paypal.me/asha" }, link: "https://www.loopinapps.com/p/abc" })).toBe(
+      "Hey Ravi! 👋 Quick one from Loopin: you owe me ₹500 for “Goa”. Settle whenever you can, thanks!\nUPI: asha@okicici\nPayPal: https://paypal.me/asha\nPaid? Tap “I’ve paid” here, no sign-in needed:\nhttps://www.loopinapps.com/p/abc",
     );
     expect(nudgeMessage("Ravi", "₹500", "Goa")).not.toContain("\n");
   });

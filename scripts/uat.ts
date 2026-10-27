@@ -2142,17 +2142,30 @@ async function main() {
     await V.getByRole("group", { name: "Quick line" }).getByRole("status").filter({ hasText: "Check below" }).waitFor();
   });
 
-  await step(V, "Settle", "Varun adds his UPI ID on the You page; his WhatsApp Remind now carries it and a link to mark it paid", async () => {
+  await step(V, "Settle", "Varun adds his UPI ID on the You page; his WhatsApp Remind carries it and an “I’ve paid” link that opens without signing in", async () => {
     await go(V, "/account#pay");
     const pay = V.getByRole("region", { name: "How friends pay you back" });
     await pay.getByLabel("UPI ID (India)").fill("varun@okicici");
     await pay.getByRole("button", { name: "Save pay details" }).click();
     await V.waitForURL(/pay=saved/);
     await go(V, `${g}/settle`);
-    const link = V.getByRole("link", { name: /Remind/ }).first();
+    const link = V.locator("[data-remind]").first();
     if (!(await link.count())) return "saved; nobody owes Varun right now (nothing to remind)";
-    const href = decodeURIComponent((await link.getAttribute("href")) ?? "");
-    assert(href.includes("UPI: varun@okicici") && /Mark it here: https:\/\/.+\/settle/.test(href), `Remind text: ${href.slice(0, 200)}`);
+    const res = await V.request.get(base + ((await link.getAttribute("href")) ?? ""), { maxRedirects: 0 });
+    assert(res.status() === 303, `Remind answered ${res.status()}`);
+    const wa = decodeURIComponent(res.headers()["location"] ?? "");
+    assert(wa.startsWith("https://api.whatsapp.com/send") && wa.includes("UPI: varun@okicici") && /I’ve paid/.test(wa) && /\/p\/[A-Za-z0-9_-]{22}/.test(wa), `Remind text: ${wa.slice(0, 240)}`);
+    // The link, on a phone that has never signed in: what's owed, Pay with UPI, I've paid. (Not tapped here: the money check is in the end-to-end tests.)
+    const payPath = new URL(res.headers()["x-pay-link"] ?? "").pathname;
+    const { ctx, page } = await person(browser);
+    await go(page, payPath);
+    await page.locator("[data-paylink='owes']").waitFor();
+    assert(((await page.locator("[data-pay='upi']").getAttribute("href")) ?? "").startsWith("upi://pay?pa=varun%40okicici"), "no UPI button for Varun");
+    assert(await page.locator("[data-i-paid]").count(), "no I’ve paid button");
+    // A made-up link: a friendly page, not an error.
+    await go(page, "/p/AAAAAAAAAAAAAAAAAAAAAA");
+    await page.locator("[data-paylink='gone']").waitFor();
+    await ctx.close();
   });
 
   await step(V, "Fun", "React 🔥 to an expense: it shows under the expense; tapping 🔥 again takes it back", async () => {
