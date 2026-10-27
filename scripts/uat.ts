@@ -50,9 +50,18 @@ const minor = (text: string): number => {
 };
 const rupees = (paise: number) => `₹${(paise / 100).toFixed(2)}`;
 
+// A step that hangs (a screen that never finishes on the hosted copy) fails on
+// its own after two minutes instead of stopping the whole run.
+const STEP_LIMIT_MS = 120_000;
 async function step(page: Page | null, area: string, name: string, fn: () => Promise<void | string>) {
   try {
-    const note = await fn();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const note = await Promise.race([
+      fn(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`still not done after ${STEP_LIMIT_MS / 1000} s`)), STEP_LIMIT_MS);
+      }),
+    ]).finally(() => clearTimeout(timer));
     results.push({ area, name, ok: true, detail: typeof note === "string" ? note : "" });
     console.log("✓", area, "—", name);
   } catch (e) {

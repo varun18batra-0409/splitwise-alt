@@ -10,7 +10,7 @@ on:
 jobs:
   uat:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 90
     permissions:
       contents: write
       deployments: read
@@ -79,7 +79,9 @@ jobs:
           npx tsx scripts/perf-audit.ts > perf.log 2>&1 || true
           echo "::notice title=Phone speed (hosted)::$(grep -E '^\| (Open|Tap|Type|People)' screenshots/uat/perf.md | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"
       - name: Save to the screenshots-staging branch
+        if: always()
         run: |
+          mkdir -p screenshots/uat && cp uat.log shots.log perf.log screenshots/uat/ 2>/dev/null || true
           cd screenshots
           echo '{ "git": { "deploymentEnabled": false } }' > vercel.json
           git init -q -b screenshots
