@@ -1244,9 +1244,9 @@ async function main() {
     assert(!/no sign-up/i.test(all), "a slide still says “no sign-up”");
     await ctx.close();
   });
-  await step(V, "Help", "The guide has Flatmates, Couples, the trip report and Splitwise, with real app screens that load", async () => {
+  await step(V, "Help", "The guide has Flatmates, Couples, the trip report, stories, Wrapped, the passport and Splitwise, with real app screens that load", async () => {
     await go(V, "/how-it-works");
-    for (const h of ["Flatmates: the flat runs itself", "Couples: your split, not 50/50", "Trip over? The trip in numbers", "Coming from another app?"]) await V.getByRole("heading", { name: h }).waitFor();
+    for (const h of ["Flatmates: the flat runs itself", "Couples: your split, not 50/50", "Trip over? The trip in numbers", "Home, told as stories", "Trip over? Watch the Wrapped", "Your trip passport", "Coming from another app?"]) await V.getByRole("heading", { name: h }).waitFor();
     assert(!(await V.getByText("Recurring bills are coming soon").count()), "still says recurring bills are coming soon");
     for (const id of ["trips", "home", "couples"]) {
       await V.locator(`#${id}`).scrollIntoViewIfNeeded();
@@ -1255,7 +1255,7 @@ async function main() {
     await V.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     await V.waitForTimeout(1500);
     const shots = await V.evaluate(() => [...document.querySelectorAll('main img[src*="/guide/"]')].map((i) => (i as HTMLImageElement).naturalWidth));
-    assert(shots.length === 3 && shots.every((w) => w > 0), `guide screens: ${JSON.stringify(shots)}`);
+    assert(shots.length >= 11 && shots.every((w) => w > 0), `guide screens: ${JSON.stringify(shots)}`);
   });
   await step(V, "Tags", "Each expense shows its category: the icon's colour and shape, and the name for screen readers (Dinner → Bites & Sips, Taxi → Wheels & Wings)", async () => {
     await go(V, `${g}?tab=activity`);
