@@ -86,7 +86,7 @@ export default async function JoinPage({
   const back = `/join/${code}${backQ ? `?${backQ}` : ""}`;
 
   const kind = group.type === "trip" ? "Trip" : group.type === "home" ? "Home" : group.type === "couple" ? "Couple" : group.type === "pot" ? "The Pot" : "Group";
-  const phase = group.type === "trip" && group.tripStart ? tripPhase(group.tripStart, group.tripEnd ?? "", todayKey(new Date(), await getTimeZone())) : null;
+  const phase = group.type === "trip" && group.tripStart ? tripPhase(group.tripStart, group.tripEnd, todayKey(new Date(), await getTimeZone())) : null;
   const countdown = phase ? countdownWords(group.name, phase) : null;
   const firsts = verified.map((m) => m.name.trim().split(/\s+/)[0]);
   const whoIn = firsts.length === 0 ? "" : firsts.length === 1 ? `${firsts[0]} is in` : firsts.length === 2 ? `${firsts[0]} and ${firsts[1]} are in` : `${firsts.slice(0, 2).join(", ")} and ${firsts.length - 2} more are in`;
