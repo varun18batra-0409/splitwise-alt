@@ -292,9 +292,9 @@ export default async function GamePage({ params, searchParams }: { params: Promi
                         <input name="amount" required inputMode="decimal" placeholder="0" autoComplete="off" aria-label="Leaves with" className={inputClass} />
                       </label>
                       <p className="pt-1 text-xs font-medium text-gray-600">Someone taking the seat? (optional)</p>
-                      <div className="flex gap-2">
-                        <input name="newName" maxLength={80} placeholder="Their name" autoComplete="off" aria-label="New player in the seat" className={`${inputClass} min-w-0 flex-1`} />
-                        <input name="newAmount" inputMode="decimal" placeholder="Buy-in" autoComplete="off" aria-label="New player's buy-in" className={`${inputClass} w-28 shrink-0`} />
+                      <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-2">
+                        <input name="newName" maxLength={80} placeholder="Their name" autoComplete="off" aria-label="New player in the seat" className={`${inputClass} min-w-0`} />
+                        <input name="newAmount" inputMode="decimal" placeholder="Buy-in" autoComplete="off" aria-label="New player's buy-in" className={`${inputClass} min-w-0`} />
                       </div>
                       <button type="submit" className="block w-full rounded-xl bg-fg px-4 py-2.5 text-sm font-semibold text-canvas">
                         Cash out
