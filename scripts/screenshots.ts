@@ -353,7 +353,11 @@ if (!hosted) {
     await shot("101-spin-wheel", `/groups/${pune.id}/add`, async (p) => {
       await p.getByRole("button", { name: /Spin for it/ }).click();
       await p.getByRole("dialog", { name: "Spin the wheel" }).getByRole("button", { name: "Spin", exact: true }).click();
-      await p.waitForTimeout(4200);
+      await p.waitForTimeout(4900);
+    }, false);
+    await shot("101b-spin-wheel-ready", `/groups/${pune.id}/add`, async (p) => {
+      await p.getByRole("button", { name: /Spin for it/ }).click();
+      await p.waitForTimeout(500);
     }, false);
     await shot("102-wrapped-intro", `/groups/${pune.id}/wrapped`, undefined, false);
     for (const [n, kind] of [["103-wrapped-awards", "awards"], ["114-wrapped-total", "total"], ["115-wrapped-category", "category"], ["116-wrapped-day", "day"], ["117-wrapped-splurge", "splurge"]] as const)
@@ -413,6 +417,34 @@ if (!hosted) {
         await p.waitForTimeout(150);
       }
       await p.waitForTimeout(700);
+    }, false);
+    await shot("118-passport-picture", "/passport/image", undefined, false);
+    await shot("119-story-pot", "/", async (p) => {
+      const pot = p.locator("[data-stories] [data-story='pot'] button");
+      if (await pot.count()) await pot.first().click();
+      await p.waitForTimeout(900);
+    }, false);
+    await shot("120-story-pot-table", "/", async (p) => {
+      const pot = p.locator("[data-stories] [data-story='pot'] button");
+      if (await pot.count()) await pot.first().click();
+      await p.waitForTimeout(500);
+      await p.getByRole("button", { name: "Next" }).click();
+      await p.waitForTimeout(900);
+    }, false);
+    await shot("121-story-trip-2", "/", async (p) => {
+      await p.locator("[data-stories] [data-story='trip'] button").first().click();
+      await p.waitForTimeout(500);
+      await p.getByRole("button", { name: "Next" }).click();
+      await p.waitForTimeout(900);
+    }, false);
+    await shot("122-story-trip-3", "/", async (p) => {
+      await p.locator("[data-stories] [data-story='trip'] button").first().click();
+      await p.waitForTimeout(500);
+      for (let k = 0; k < 2; k++) {
+        await p.getByRole("button", { name: "Next" }).click();
+        await p.waitForTimeout(300);
+      }
+      await p.waitForTimeout(900);
     }, false);
     await shot("113-passport-pick", "/passport", async (p) => {
       await p.getByRole("button", { name: "+ Add countries" }).click();

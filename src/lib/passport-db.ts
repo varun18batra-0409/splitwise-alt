@@ -6,6 +6,7 @@ export async function loadPassport(account: { id: string; homeCountry: string; p
   const groups = await db.group.findMany({
     where: { type: "trip", deletedAt: null, members: { some: { accountId: account.id } } },
     select: { id: true, name: true, tripStart: true, tripEnd: true, tripPlace: true, tripCountry: true, createdAt: true, _count: { select: { members: true, expenses: { where: { deletedAt: null } } } } },
+    orderBy: [{ tripStart: "desc" }, { createdAt: "desc" }],
     take: 300,
   });
   // A trip without dates counts from when the group was made, once something was spent
@@ -23,6 +24,13 @@ export async function loadPassport(account: { id: string; homeCountry: string; p
   const passport = buildPassport(trips, parseHandPlaces(account.places), home, today);
   // Trips we couldn't place: a nudge to add "Where to?".
   const { tripStops } = await import("./geo");
-  const unplaced = trips.filter((t) => t.start <= today && !tripStops(t.name, t.place, t.country).length).map((t) => ({ groupId: t.groupId, name: t.name }));
+  // (Also a trip whose place we can't put in a country: no country picked and no home country.)
+  const unplaced = trips
+    .filter((t) => t.start <= today)
+    .filter((t) => {
+      const stops = tripStops(t.name, t.place, t.country);
+      return !stops.length || stops.every((s) => !s.country && !home);
+    })
+    .map((t) => ({ groupId: t.groupId, name: t.name }));
   return { ...passport, home, unplaced };
 }

@@ -9,7 +9,9 @@ import type { IndexRow, Stamp } from "@/lib/passport";
 
 const INKS = ["#2b4c7e", "#a53a3a", "#2f7d4f", "#6a3d8f", "#8a5a2b", "#1f6f78"];
 const hash = (s: string) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
-const month = (d: string) => (d ? new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { month: "short", year: "numeric", timeZone: "UTC" }).toUpperCase() : "");
+// Written out by hand, so the phone and the server always agree ("SEP 2026").
+const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+const month = (d: string) => (/^\d{4}-\d{2}/.test(d) ? `${MONTHS[Number(d.slice(5, 7)) - 1] ?? ""} ${d.slice(0, 4)}` : "");
 const GOLD = "#d8bd7a";
 const PAPER = "#efe8d6";
 
@@ -63,7 +65,7 @@ function StampMark({ s, i }: { s: Stamp; i: number }) {
         data-by-hand={s.byHand ? "1" : "0"}
       >
         <span className="text-[28px] leading-none">{s.flag}</span>
-        <span className="mt-1 max-w-[94px] font-display text-[14px] font-bold leading-tight">{s.name}</span>
+        <span className={`mt-1 line-clamp-2 max-w-[96px] break-words font-display font-bold leading-[1.05] ${s.name.length > 14 ? "text-[11.5px]" : "text-[14px]"}`}>{s.name}</span>
         {s.cities.length > 0 && <span className="max-w-[90px] truncate text-[9px] font-semibold">{s.cities.join(" · ")}</span>}
         <span className="mt-0.5 text-[9px] font-semibold tracking-[0.14em]">{s.byHand ? "BEEN THERE" : month(s.when)}</span>
       </div>
@@ -76,7 +78,7 @@ function StampMark({ s, i }: { s: Stamp; i: number }) {
       data-by-hand="0"
     >
       <span className="text-[9px] font-semibold tracking-[0.14em]">ARRIVED</span>
-      <span className="font-display text-[17px] font-bold leading-tight">{s.name}</span>
+      <span className={`max-w-full break-words font-display font-bold leading-tight ${s.name.length > 12 ? "text-[13px]" : "text-[17px]"}`}>{s.name}</span>
       <span className="mt-0.5 border-t pt-0.5 text-[9px] font-semibold tracking-[0.14em]" style={{ borderColor: ink }}>
         {month(s.when)}
       </span>
@@ -107,7 +109,10 @@ export function PassportBook({ name, stats, milestones, pages, index }: Props) {
   useEffect(() => {
     if (!open) return;
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const t = setTimeout(() => setGone(true), still ? 0 : 650);
+    const t = setTimeout(() => {
+      setGone(true);
+      requestAnimationFrame(() => strip.current?.focus({ preventScroll: true }));
+    }, still ? 0 : 650);
     return () => clearTimeout(t);
   }, [open]);
 
@@ -120,15 +125,24 @@ export function PassportBook({ name, stats, milestones, pages, index }: Props) {
     const k = Math.round(el.scrollLeft / el.clientWidth);
     setAt(k);
     clearTimeout(settle.current);
-    settle.current = setTimeout(() => (target.current = k), 160);
+    settle.current = setTimeout(() => {
+      target.current = k;
+      busy.current = false;
+    }, 160);
   };
+  const busy = useRef(false); // an arrow-started turn is still going
   const go = (step: number) => {
     const el = strip.current;
     if (!el) return;
+    // Start from where the page really is, unless an arrow turn is still under way.
+    const from = busy.current ? target.current : Math.round(el.scrollLeft / el.clientWidth);
     clearTimeout(settle.current);
-    target.current = Math.max(0, Math.min(target.current + step, total - 1));
+    target.current = Math.max(0, Math.min(from + step, total - 1));
     setAt(target.current);
-    el.scrollTo({ left: target.current * el.clientWidth, behavior: "smooth" });
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    busy.current = !still;
+    el.scrollTo({ left: target.current * el.clientWidth, behavior: still ? "auto" : "smooth" });
+    settle.current = setTimeout(() => (busy.current = false), 600);
   };
   const mrz = `P<LOOPIN<<${(name || "TRAVELLER").toUpperCase().replace(/[^A-Z]+/g, "<")}`.padEnd(36, "<").slice(0, 36);
 
@@ -146,7 +160,7 @@ export function PassportBook({ name, stats, milestones, pages, index }: Props) {
               <p className="text-[11px] font-semibold tracking-[0.2em] text-[#7a7262]">LOOPIN · TRAVEL DOCUMENT</p>
               <div className="mt-4 flex gap-4">
                 <div aria-hidden className="flex h-[108px] w-[86px] shrink-0 items-center justify-center rounded-[6px] border border-[#cfc6b1] bg-[#e4dcc6] font-display text-[44px] font-semibold text-[#5c564a]">
-                  {(name || "Y").slice(0, 1).toUpperCase()}
+                  {([...(name.trim() || "You")][0] ?? "Y").toUpperCase()}
                 </div>
                 <dl className="min-w-0 space-y-2 text-[13px]">
                   <div>
@@ -242,6 +256,9 @@ export function PassportBook({ name, stats, milestones, pages, index }: Props) {
         )}
       </div>
 
+      <p className="sr-only" aria-live="polite">
+        {gone ? `Page ${at + 1} of ${total}` : ""}
+      </p>
       {/* Turn the page without swiping, and where you are. */}
       {gone && (
         <div className="mt-3 flex items-center justify-between">
@@ -251,7 +268,7 @@ export function PassportBook({ name, stats, milestones, pages, index }: Props) {
           {total <= 8 ? (
             <div className="flex gap-1.5" aria-hidden>
               {Array.from({ length: total }, (_, k) => (
-                <span key={k} className={`h-1.5 rounded-full transition-all ${k === at ? "w-5 bg-fg" : "w-1.5 bg-fg/25"}`} />
+                <span key={k} className={`h-1.5 rounded-full motion-safe:transition-all ${k === at ? "w-5 bg-fg" : "w-1.5 bg-fg/25"}`} />
               ))}
             </div>
           ) : (

@@ -47,7 +47,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
 
       {!empty && (
         <div className="mt-5">
-          <ShareSheet image="/passport/image" fileName="loopin-passport.png" title="Share your passport" words={`${p.stats.countries} ${p.stats.countries === 1 ? "country" : "countries"}, ${p.stats.cities} ${p.stats.cities === 1 ? "city" : "cities"} and counting ✈️`} label="Share my passport" />
+          <ShareSheet image={`/passport/image?v=${p.stats.countries}-${p.stats.cities}-${p.stamps.length}-${p.been.length}`} fileName="loopin-passport.png" title="Share your passport" words={`${p.stats.countries} ${p.stats.countries === 1 ? "country" : "countries"}, ${p.stats.cities} ${p.stats.cities === 1 ? "city" : "cities"} and counting ✈️`} label="Share my passport" />
         </div>
       )}
 
@@ -76,7 +76,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
             {Number(sp.added) > 1 ? `${Number(sp.added)} countries added to your passport.` : Number(sp.added) === 1 ? "Added to your passport." : "Those were already in your passport."}
           </p>
         )}
-        <CountryPicker added={hand.map((h) => h.c)} />
+        <CountryPicker added={hand.map((h) => h.c)} home={p.home} />
         {hand.length > 0 && (
           <ul className="mt-3 flex flex-wrap gap-2" aria-label="Countries from before Loopin">
             {hand.map((h) => (

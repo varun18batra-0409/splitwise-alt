@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "./Link";
 import { GroupCover } from "./GroupCover";
 import type { CoverChoice } from "@/lib/covers";
-import type { Story } from "@/lib/home/stories";
+import type { Frame, Story, Tone } from "@/lib/home/stories";
 
 // Home's stories, as little polaroids pegged on a string. A green peg means
 // you haven't seen it yet. Tap one to open the stories full screen: tap the
@@ -47,7 +47,7 @@ function Picture({ s, uid, big }: { s: Story; uid: string; big?: boolean }) {
   return (
     <span aria-hidden className="absolute inset-0 flex flex-col items-center justify-center px-2 text-center text-[#17150f]" style={{ background: POSTER[s.kind] }}>
       <span className={big ? "text-[44px] leading-none" : "text-[18px] leading-none"}>{s.emoji}</span>
-      {s.big && <span className={`font-display font-semibold leading-[0.95] tracking-[-0.02em] ${big ? "mt-3 text-[72px]" : "mt-0.5 text-[15px]"}`}>{s.big}</span>}
+      {s.big && <span className={`max-w-full font-display font-semibold leading-[0.95] tracking-[-0.02em] ${big ? "mt-3 text-[clamp(44px,15vw,72px)]" : "mt-0.5 truncate text-[11px]"}`}>{s.big}</span>}
     </span>
   );
 }
@@ -107,12 +107,72 @@ export function Stories({ stories }: { stories: Story[] }) {
   );
 }
 
+// The bold flat colours for poster and list slides (dark ink on top).
+const TONE: Record<Tone, string> = { sun: "#ffd66b", coral: "#ff9b73", sky: "#8ccfff", pink: "#ff9fd0", lilac: "#c3aeff", mint: "#8fe3b8" };
+
+function Slide({ f }: { f: Frame }) {
+  if (f.kind === "photo")
+    return (
+      <>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={f.photo} alt="" aria-hidden className="lp-drift absolute inset-0 h-full w-full object-cover" decoding="async" />
+        <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.5)_0%,transparent_22%,transparent_42%,rgba(0,0,0,0.9)_100%)]" />
+        <div className="lp-slide-in pointer-events-none absolute inset-x-0 bottom-[132px] z-20 px-6 text-[#f7f4ec]">
+          {f.kicker && <p className="mb-2 inline-block rounded-full bg-[#f7f4ec]/15 px-3 py-1 text-[13px] font-semibold backdrop-blur-sm">{f.kicker}</p>}
+          <p className="font-display text-[clamp(30px,9vw,40px)] font-semibold leading-[1.04]" data-story-headline>
+            {f.head}
+          </p>
+          {f.line && <p className="mt-2 font-hand text-[24px] font-bold leading-tight text-[#ffd9a8]">{f.line}</p>}
+        </div>
+      </>
+    );
+  const bg = TONE[f.tone];
+  if (f.kind === "poster")
+    return (
+      <div className="absolute inset-0 text-[#17150f]" style={{ background: bg }}>
+        <div className="lp-slide-in pointer-events-none flex h-full flex-col justify-center px-7 pb-[140px] pt-24">
+          <p className="font-display text-[20px] font-semibold">{f.kicker}</p>
+          <p className="mt-3 break-words font-display font-semibold leading-[0.95] tracking-[-0.02em]" style={{ fontSize: `min(84px, ${Math.floor(170 / Math.max(5, f.big.length))}vw)` }} data-story-headline>
+            {f.big}
+          </p>
+          {f.line && <p className="mt-4 font-hand text-[26px] font-bold leading-tight">{f.line}</p>}
+        </div>
+      </div>
+    );
+  return (
+    <div className="absolute inset-0 text-[#17150f]" style={{ background: bg }}>
+      <div className="lp-slide-in pointer-events-none flex h-full flex-col justify-center px-7 pb-[140px] pt-24">
+        <p className="font-display text-[26px] font-semibold" data-story-headline>
+          {f.kicker}
+        </p>
+        <ul className="mt-5 space-y-2.5">
+          {f.rows.map((r, k) => (
+            <li key={k} className="lp-card rounded-[14px] bg-[#fffdf6]/80 px-4 py-2.5" style={{ animationDelay: `${k * 60}ms` }}>
+              <p className="flex items-baseline gap-3 text-[17px]">
+                <span className="min-w-0 flex-1 truncate font-semibold">{r.label}</span>
+                {r.value && <span className={`shrink-0 font-semibold tabular-nums ${r.good ? "text-[#1d7a4b]" : r.bad ? "text-[#b4462a]" : ""}`}>{r.value}</span>}
+              </p>
+              {r.share !== undefined && (
+                <span className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-[#17150f]/10">
+                  <span className="block h-full rounded-full" style={{ width: `${Math.max(4, r.share * 100)}%`, background: r.good ? "#1d7a4b" : r.bad ? "#b4462a" : "#17150f" }} />
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+        {f.line && <p className="mt-4 font-hand text-[24px] font-bold leading-tight">{f.line}</p>}
+      </div>
+    </div>
+  );
+}
+
 function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: number; onSeen: (id: string) => void; onClose: () => void }) {
-  const [i, setI] = useState(start);
+  const [at, setAt] = useState({ s: start, f: 0 });
   const [paused, setPaused] = useState(false);
   const [still, setStill] = useState(false); // the phone asks for less motion: no auto-advance
   const startY = useRef<number | null>(null);
-  const s = stories[i];
+  const story = stories[at.s];
+  const frames = story?.frames.length ? story.frames : [];
 
   const closing = useRef(false);
   const close = useCallback(() => {
@@ -123,41 +183,61 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
     else onClose();
   }, [onClose]);
 
+  // Next slide; after the last slide, the next story; after the last story, close.
+  const next = useCallback(
+    () =>
+      setAt((x) => {
+        const n = stories[x.s]?.frames.length ?? 1;
+        return x.f + 1 < n ? { s: x.s, f: x.f + 1 } : { s: x.s + 1, f: 0 };
+      }),
+    [stories],
+  );
+  const prev = useCallback(() => setAt((x) => (x.f > 0 ? { s: x.s, f: x.f - 1 } : x.s > 0 ? { s: x.s - 1, f: 0 } : x)), []);
+
   useEffect(() => {
     setStill(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
     history.pushState({ ...(history.state ?? {}), lpStory: 1 }, "");
     const pop = () => onClose();
     const key = (e: KeyboardEvent) => {
       if (e.key === "Escape") close();
-      if (e.key === "ArrowRight") setI((x) => Math.min(x + 1, stories.length));
-      if (e.key === "ArrowLeft") setI((x) => Math.max(x - 1, 0));
+      if (e.key === "ArrowRight") next();
+      if (e.key === "ArrowLeft") prev();
     };
     window.addEventListener("popstate", pop);
     window.addEventListener("keydown", key);
-    const prev = document.body.style.overflow;
+    const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       window.removeEventListener("popstate", pop);
       window.removeEventListener("keydown", key);
-      document.body.style.overflow = prev;
+      document.body.style.overflow = prevOverflow;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (i >= stories.length) close();
-    else onSeen(stories[i].id);
-  }, [i, stories, onSeen, close]);
+    if (at.s >= stories.length) close();
+    else onSeen(stories[at.s].id);
+  }, [at.s, stories, onSeen, close]);
 
   useEffect(() => {
-    if (still || paused || i >= stories.length) return;
-    const t = setTimeout(() => setI((x) => x + 1), DURATION);
+    if (still || paused || at.s >= stories.length) return;
+    const t = setTimeout(next, DURATION);
     return () => clearTimeout(t);
-  }, [i, paused, still, stories.length]);
+  }, [at, paused, still, stories.length, next]);
 
-  if (!s) return null;
+  // Load the next few pictures before they're needed.
+  useEffect(() => {
+    const upcoming = [...frames.slice(at.f + 1), ...(stories[at.s + 1]?.frames ?? [])].filter((f) => f.kind === "photo").slice(0, 3);
+    for (const f of upcoming) if (f.kind === "photo") new Image().src = f.photo;
+  }, [at, frames, stories]);
+
+  if (!story) return null;
+  const f = frames[Math.min(at.f, frames.length - 1)];
+  const dark = !f || f.kind === "photo";
+  const ink = dark ? "#f7f4ec" : "#17150f";
   return (
-    <div className="fixed inset-0 z-[60] bg-black" role="dialog" aria-modal="true" aria-label="Stories">
+    <div className="fixed inset-0 z-[60] bg-black" role="dialog" aria-modal="true" aria-label={`Story: ${story.headline}`}>
       <div
         className="relative mx-auto h-full max-w-md overflow-hidden"
         onPointerDown={(e) => {
@@ -171,38 +251,43 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
         }}
         onPointerCancel={() => setPaused(false)}
       >
-        <Picture s={s} uid={`sv-${s.id}`} big />
-        <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.55)_0%,transparent_22%,transparent_45%,rgba(0,0,0,0.88)_100%)]" />
+        {f ? <Slide key={`${at.s}-${at.f}`} f={f} /> : <Picture s={story} uid={`sv-${story.id}`} big />}
 
-        {/* Progress, one bar per story. */}
+        {/* Progress: one bar per slide of this story. */}
         <div className="absolute inset-x-3 top-[max(12px,env(safe-area-inset-top))] z-20 flex gap-1" aria-hidden>
-          {stories.map((x, k) => (
-            <span key={x.id} className="h-[3px] flex-1 overflow-hidden rounded-full bg-[#f7f4ec]/30">
+          {frames.map((_, k) => (
+            <span key={k} className="h-[3px] flex-1 overflow-hidden rounded-full" style={{ background: `${ink}40` }}>
               <span
-                key={`${k}-${i}`}
-                className={`block h-full bg-[#f7f4ec] ${k < i ? "w-full" : k > i ? "w-0" : still ? "w-full" : "lp-story-bar"}`}
-                style={k === i && !still ? { animationDuration: `${DURATION}ms`, animationPlayState: paused ? "paused" : "running" } : undefined}
+                key={`${at.s}-${at.f}-${k}`}
+                className={`block h-full ${k < at.f ? "w-full" : k > at.f ? "w-0" : still ? "w-full" : "lp-story-bar"}`}
+                style={{ background: ink, ...(k === at.f && !still ? { animationDuration: `${DURATION}ms`, animationPlayState: paused ? "paused" : "running" } : {}) }}
               />
             </span>
           ))}
         </div>
-        <button type="button" onClick={close} aria-label="Close" className="absolute right-3 top-[max(26px,calc(env(safe-area-inset-top)+14px))] z-30 flex h-10 w-10 items-center justify-center rounded-full bg-black/35 text-xl text-[#f7f4ec]">
+        {/* Whose story: the little picture and its name. */}
+        <div className="pointer-events-none absolute left-4 top-[max(26px,calc(env(safe-area-inset-top)+14px))] z-20 flex items-center gap-2.5" style={{ color: ink }}>
+          <span className="relative block h-8 w-8 overflow-hidden rounded-full border-2" style={{ borderColor: ink }}>
+            <Picture s={story} uid={`sva-${story.id}`} />
+          </span>
+          <span className="text-sm font-semibold">{story.label}</span>
+        </div>
+        <button type="button" onClick={close} aria-label="Close" className="absolute right-3 top-[max(22px,calc(env(safe-area-inset-top)+10px))] z-30 flex h-10 w-10 items-center justify-center rounded-full text-xl" style={{ color: ink, background: dark ? "rgba(0,0,0,0.35)" : "rgba(23,21,15,0.08)" }}>
           ×
         </button>
 
         {/* Tap the left third for back, the rest for next. */}
-        <button type="button" aria-label="Previous" onClick={() => setI((x) => Math.max(x - 1, 0))} className="absolute inset-y-0 left-0 z-10 w-1/3" />
-        <button type="button" aria-label="Next" onClick={() => setI((x) => x + 1)} className="absolute inset-y-0 right-0 z-10 w-2/3" />
+        <button type="button" aria-label="Previous" onClick={prev} className="absolute inset-y-0 left-0 z-10 w-1/3" />
+        <button type="button" aria-label="Next" onClick={next} className="absolute inset-y-0 right-0 z-10 w-2/3" />
 
-        {/* The words don't catch taps (tap through them for next); only the button does. */}
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 px-6 pb-[max(28px,env(safe-area-inset-bottom))]">
-          <p className="font-display text-[34px] font-semibold leading-[1.05] text-[#f7f4ec]" data-story-headline>
-            {s.headline}
-          </p>
-          <p className="mt-2 font-hand text-[24px] font-bold leading-tight text-[#ffd9a8]">{s.line}</p>
-          <Link href={s.href} replace className="pop pointer-events-auto relative z-30 mt-6 block bg-[#f4f1e8] px-4 py-3.5 text-center text-base font-semibold text-[#14130f] [--pop-edge:#6e6b63]">
-            {s.cta}
+        {/* One thing to do next, on every slide. */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 px-6 pb-[max(28px,env(safe-area-inset-bottom))]">
+          <Link href={story.href} replace className="pop pointer-events-auto relative block px-4 py-3.5 text-center text-base font-semibold [--pop-edge:#6e6b63]" style={{ background: dark ? "#f4f1e8" : "#17150f", color: dark ? "#14130f" : "#f7f4ec" }}>
+            {story.cta}
           </Link>
+          <p className="mt-2 text-center text-[11px]" style={{ color: `${ink}99` }}>
+            Tap for more · swipe down to close
+          </p>
         </div>
       </div>
     </div>
