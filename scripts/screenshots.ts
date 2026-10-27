@@ -471,8 +471,24 @@ if (!hosted) {
     }, false);
   }
 }
+// The "I've paid" link from a Remind, as the person who owes sees it (no sign-in).
+let payPath = "";
+try {
+  await page.goto(`${base}${g}/settle`, { waitUntil: "load" });
+  const href = await page.locator("[data-remind]").first().getAttribute("href", { timeout: 5000 });
+  const res = href ? await page.request.get(base + href, { maxRedirects: 0 }) : null;
+  payPath = res ? new URL(res.headers()["x-pay-link"] ?? "", base).pathname : "";
+} catch (e) {
+  console.log("  (no pay link:", String(e).split("\n")[0], ")");
+}
+await shot("85b-invite-card", `${g}/invite`, undefined, false);
 await context.clearCookies();
 await shot("16-join", `/join/${demo.trip.invite}`);
+await shot("16b-join-preview", `/join/${demo.trip.invite}/card`, undefined, false);
+if (payPath.startsWith("/p/")) {
+  await shot("126-paid-link", payPath);
+  await shot("127-paid-link-gone", "/p/AAAAAAAAAAAAAAAAAAAAAA", undefined, false);
+}
 await shot("24-tour-1", "/", undefined, false);
 if (collectCode) {
   await shot("73-collect-payer", `/c/${collectCode}`);
