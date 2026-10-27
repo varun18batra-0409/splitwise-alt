@@ -139,17 +139,12 @@ export function buildPassport(trips: PassportTrip[], hand: HandPlace[], home: st
   return { stamps, been, index: rows, stats, milestones, badges };
 }
 
-// The booklet's pages: a few stamps each, Loopin trips first, then the ones from before.
+// The booklet's pages: a few stamps each, one passport: trip stamps first, then
+// the lighter Been there ones, on the same run of pages.
 export function stampPages(stamps: Stamp[], been: Stamp[], per = 6) {
+  const all = [...stamps, ...been];
   const pages: { title: string; stamps: Stamp[] }[] = [];
-  for (let i = 0; i < stamps.length; i += per) pages.push({ title: "Trips", stamps: stamps.slice(i, i + per) });
-  for (let i = 0; i < been.length; i += per) pages.push({ title: "Before Loopin", stamps: been.slice(i, i + per) });
+  for (let i = 0; i < all.length; i += per) pages.push({ title: "Stamps", stamps: all.slice(i, i + per) });
   return pages;
 }
 
-// The passport sent as an album: how many stamp pages (six stamps a page, at
-// most six pages; the last one says "+N more" when there are even more).
-export const ALBUM_MAX_STAMP_PAGES = 6;
-export function albumStampPages(stampCount: number): number {
-  return stampCount > 0 ? Math.min(ALBUM_MAX_STAMP_PAGES, Math.ceil(stampCount / 6)) : 0;
-}

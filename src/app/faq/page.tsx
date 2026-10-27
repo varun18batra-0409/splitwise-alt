@@ -143,7 +143,7 @@ const SECTIONS: { title: string; items: QA[] }[] = [
       },
       {
         q: "What is the trip passport?",
-        a: "A little booklet with a stamp for every trip: a city stamp for trips in your home country, a country stamp for trips abroad. Go twice and you get two stamps, but the counts on the first page count each place once. Loopin works out the place from the trip’s name, or from Where to? (when you make a trip, or in its settings). Tick the countries you went to before Loopin under Places I’ve been; they get their own lighter Been there stamps. Open it from the You page and share it to WhatsApp as a booklet: the cover, your details page with your map, and your stamp pages, sent together as an album (or as one picture for your Status).",
+        a: "A little booklet with a stamp for every trip: a city stamp for trips in your home country, a country stamp for trips abroad. Go twice and you get two stamps, but the counts on the first page count each place once. Loopin works out the place from the trip’s name, or from Where to? (when you make a trip, or in its settings). Tick the countries you went to before Loopin under Places I’ve been; they get their own lighter Been there stamps. Open it from the You page and share it to WhatsApp as one picture of your passport lying open: your details and world map on one page, every stamp on the other.",
       },
       {
         q: "Can I see my friends’ passports?",
