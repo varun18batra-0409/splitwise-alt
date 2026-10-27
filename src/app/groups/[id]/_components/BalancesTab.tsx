@@ -51,7 +51,12 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
       {/* Everyone's fun title, as a row of little cards. */}
       {titles.length > 0 && (
         <section aria-label="Fun titles">
-          <h2 className="font-display text-lg font-semibold tracking-tight">Titles</h2>
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="font-display text-lg font-semibold tracking-tight">Titles</h2>
+            <Link href={`/groups/${group.id}/passports`} className="shrink-0 text-sm font-semibold underline underline-offset-4" data-our-passports>
+              🛂 Our passports
+            </Link>
+          </div>
           <p className="mb-3 text-sm text-gray-500">Earned on this {group.type === "trip" ? "trip" : "group"} so far.</p>
           <ul className="-mx-5 flex snap-x gap-3 overflow-x-auto px-5 pb-2 [scrollbar-width:none]" data-titles>
             {titles.map((t, k) => {

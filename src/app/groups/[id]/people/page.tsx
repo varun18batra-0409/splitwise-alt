@@ -165,6 +165,14 @@ export default async function PeoplePage({
         </Notice>
       )}
 
+      <Link href={`/groups/${group.id}/passports`} className="mb-4 flex items-center gap-3 rounded-2xl border border-line px-4 py-3 active:bg-mist" data-our-passports>
+        <span aria-hidden className="text-xl">🛂</span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold">Our passports</span>
+          <span className="block text-xs text-gray-500">Where everyone in {group.name} has been</span>
+        </span>
+        <span aria-hidden className="text-gray-400">›</span>
+      </Link>
       <div className="mb-3 flex items-center justify-between">
         <p className="text-sm text-gray-500">
           {active.length} {active.length === 1 ? "person" : "people"} in {group.name}

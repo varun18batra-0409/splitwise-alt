@@ -75,6 +75,15 @@ test("titles, Wrapped, the passport and a card game: in, around, back out, and d
   await settled(C);
   await expect(C.getByText("No friends here yet")).toBeVisible();
 
+  // The group's passports: everyone in it, from Balances; Back goes to the group.
+  await page.goto(`${trip.path}?tab=balances`);
+  await settled(page);
+  await page.locator("[data-our-passports]").first().click();
+  await page.waitForURL(/\/passports$/);
+  await expect(page.locator("[data-passport-person]")).toHaveCount(2);
+  await page.getByRole("link", { name: "Back", exact: true }).click();
+  await page.waitForURL((u) => u.pathname === trip.path);
+
   // Wrapped from Charts, through to the end, then Back lands on the group again.
   await page.goto(`${trip.path}?tab=charts`);
   await settled(page);
