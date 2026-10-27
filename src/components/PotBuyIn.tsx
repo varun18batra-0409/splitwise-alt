@@ -76,8 +76,14 @@ export function PotBuyIn({
         <span className="flex items-center gap-2 rounded-xl border border-line bg-mist px-4 focus-within:border-accent">
           <span className="text-sm text-gray-400">{currency}</span>
           <input
+            name="amount"
+            required
+            inputMode="decimal"
             value={typed}
             onChange={(e) => setTyped(e.target.value)}
+            placeholder={quick[1]?.value ?? "1000"}
+            autoComplete="off"
+            aria-label="Amount each"
             className="w-full bg-transparent py-3 font-display text-xl tabular-nums outline-none"
           />
         </span>
