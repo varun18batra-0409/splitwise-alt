@@ -5,7 +5,7 @@ import { diffExpense, expenseState, logEvent, parseUndo, type UndoPayload } from
 import { setExpenseDeleted, setPaymentDeleted } from "./save-expense";
 import { formatPercent } from "./money";
 import { setMember } from "./people";
-import { applySettleAll } from "./settle-all";
+import { applySettleAll, setPaymentsDeleted } from "./settle-all";
 
 // Undo any change in a group. Undoing is itself a logged change that everyone
 // is notified about, and it can be undone too ("redo").
@@ -62,6 +62,9 @@ export function canUndo(ev: EventLike, all: EventLike[]): { ok: true } | { ok: f
     if (newer.some((x) => settingFamily(x.kind) === "open-state" || (x.paymentId && payload.paymentIds.includes(x.paymentId)))) {
       return { ok: false, reason: "The group or those payments changed since. Undo the newer change first." };
     }
+  }
+  if (payload.type === "payments_set" && newer.some((x) => x.paymentId && payload.paymentIds.includes(x.paymentId))) {
+    return { ok: false, reason: "One of those payments changed since. Undo the newer change first." };
   }
   if (payload.type === "member_set") {
     const sameKind = (x: EventLike) => {
@@ -135,6 +138,8 @@ async function apply(p: UndoPayload, groupId: string, actorId: string, originalT
       return restoreMembers(groupId, actorId, p.members);
     case "settle_all":
       return fromResult(await applySettleAll(groupId, actorId, p.paymentIds, p.apply));
+    case "payments_set":
+      return fromResult(await setPaymentsDeleted(groupId, actorId, p.paymentIds, p.deleted));
     case "member_set":
       return fromResult(await setMember(groupId, actorId, p.memberId, p.data, true));
   }

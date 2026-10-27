@@ -17,7 +17,7 @@ import { db } from "@/lib/db";
 import { getAccount } from "@/lib/identity";
 import { payButtons, type PayWays } from "@/lib/pay-links";
 import { waitingForMe } from "@/lib/payment-ok";
-import { confirmPaymentAction, rejectPaymentAction } from "@/app/pay-actions";
+import { confirmPaymentAction, markAllPaidAction, rejectPaymentAction } from "@/app/pay-actions";
 import { SITE_URL } from "@/lib/site";
 
 // Settle up inside one group: the fewest payments that clear every debt.
@@ -76,6 +76,7 @@ export default async function GroupSettle({
       </p>
 
       {sp.error && <ErrorNote>{sp.error}</ErrorNote>}
+      {sp.paid === "all" && !sp.undone && <Notice params={["paid"]} className="mb-4">All marked paid ✓ The group stays open.</Notice>}
       {sp.paid === "1" && !sp.undone && <Notice params={["paid"]} className="mb-4">Payment recorded. Balances updated. If the person paid is on Loopin, they’re asked to confirm.</Notice>}
       {group.closed && <p className="mb-4 rounded-xl bg-mist px-4 py-3 text-sm text-gray-600">This group is closed. Reopen it to record payments.</p>}
 
@@ -129,6 +130,11 @@ export default async function GroupSettle({
           </p>
           <p className="mt-2 font-display text-xl font-semibold">All square</p>
           <p className="mt-1 text-sm text-gray-500">Nobody owes anybody here.</p>
+          {expenses.length > 0 && (
+            <Link href={`/groups/${group.id}/square`} className="mt-4 inline-block rounded-full bg-fg px-4 py-2 text-sm font-semibold text-canvas">
+              Share the moment 🎉
+            </Link>
+          )}
         </div>
       ) : ordered.length === 0 ? (
         <div className="rounded-2xl bg-mist px-4 py-10 text-center">
@@ -215,6 +221,20 @@ export default async function GroupSettle({
             );
           })}
         </ul>
+      )}
+
+      {/* Everything at once, but keep the group open (a card group plays again next week). */}
+      {!group.closed && ordered.length > 1 && (
+        <form action={markAllPaidAction} className="mt-4">
+          <input type="hidden" name="groupId" value={group.id} />
+          <input type="hidden" name="plan" value={planKey(transfers)} />
+          <ConfirmButton
+            message={`Mark all ${ordered.length} payments paid? The group stays open, everyone is told, and you can undo it.`}
+            className="pop block w-full bg-fg px-4 py-3 text-center text-sm font-semibold text-canvas [--pop-edge:#6e6b63]"
+          >
+            Mark all {ordered.length} paid
+          </ConfirmButton>
+        </form>
       )}
 
       {owedToMe && !myWays && me && (

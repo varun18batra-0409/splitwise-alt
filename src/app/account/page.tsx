@@ -97,6 +97,18 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         </section>
       )}
 
+      {/* The trip passport: a stamp for every trip. */}
+      {account && (
+        <Link href="/passport" className="mt-6 flex items-center gap-4 rounded-[20px] bg-[#1d2a44] px-5 py-4 text-[#e9dfc4] active:opacity-90">
+          <span aria-hidden className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-[#e9dfc4]/60 text-2xl">🧭</span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-display text-lg font-semibold">Your trip passport</span>
+            <span className="block text-sm text-[#e9dfc4]/70">A stamp for every place you’ve been</span>
+          </span>
+          <span aria-hidden className="text-xl">›</span>
+        </Link>
+      )}
+
       {/* How friends pay you back: a Pay button on Settle up for anyone who owes you. */}
       {account && (
         <section id="pay" aria-label="How friends pay you back" className="mt-6 scroll-mt-4 rounded-[20px] border border-line px-5 py-5">

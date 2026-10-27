@@ -144,7 +144,8 @@ export type UndoPayload =
       members: { id: string; name: string; phone: string; createdAt: string; accountId?: string | null; claimedAt?: string | null; splitWeight?: number; notify?: string; joinedFrom?: string | null }[];
     }
   | { type: "member_set"; memberId: string; data: { name?: string; leftAt?: string | null } }
-  | { type: "settle_all"; paymentIds: string[]; apply: boolean };
+  | { type: "settle_all"; paymentIds: string[]; apply: boolean }
+  | { type: "payments_set"; paymentIds: string[]; deleted: boolean };
 
 export function parseUndo(json: string): UndoPayload | null {
   if (!json) return null;

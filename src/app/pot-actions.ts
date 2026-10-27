@@ -3,7 +3,7 @@
 import { redirect } from "@/lib/fresh-redirect";
 import { getMyMemberId } from "@/lib/identity";
 import { db } from "@/lib/db";
-import { addPlayerToGame, adjustGap, buyIn, cashOut, countOut, deleteGame, finishGame, recordMove, removeMove, reopenGame, startGame } from "@/lib/pot-db";
+import { addPlayerToGame, adjustGap, buyIn, cashOut, countOut, deleteGame, finishGame, removeMove, reopenGame, startGame } from "@/lib/pot-db";
 
 // The Pot's buttons. Every one checks you're in the group (and the host
 // rules in pot-db.ts), then goes back to the game with a note.
@@ -31,14 +31,6 @@ export async function startGameAction(f: FormData) {
   const r = await startGame(groupId, myId, { name: field(f, "name"), game: field(f, "game"), players: f.getAll("players").map(String).slice(0, 60), newNames: field(f, "newNames").slice(0, 1000) });
   if (!r.ok) redirect(`/groups/${groupId}/pot/new?${new URLSearchParams({ error: r.error })}`);
   redirect(`/groups/${groupId}/pot/${r.id}?started=1`);
-}
-
-export async function recordMoveAction(f: FormData) {
-  const gameId = field(f, "gameId");
-  const { groupId, myId } = await me(await gameGroup(gameId));
-  const kind = field(f, "kind");
-  const r = await recordMove(gameId, myId, { memberId: field(f, "memberId"), kind, amount: field(f, "amount"), note: field(f, "note") });
-  redirect(back(groupId, gameId, r.ok ? { saved: kind, who: field(f, "memberId") } : { error: r.error, who: field(f, "memberId"), kind }));
 }
 
 export async function removeMoveAction(f: FormData) {
@@ -124,4 +116,13 @@ export async function renamePlayerAction(f: FormData) {
   const { renameMember } = await import("@/lib/people");
   const r = await renameMember(groupId, myId, memberId, field(f, "name").slice(0, 60));
   redirect(back(groupId, gameId, r.ok ? { renamed: "1" } : { error: r.error }));
+}
+
+// "Mark all paid" inside a finished game.
+export async function markGamePaidAction(f: FormData) {
+  const gameId = field(f, "gameId");
+  const { groupId, myId } = await me(await gameGroup(gameId));
+  const { markGamePaid } = await import("@/lib/pot-db");
+  const r = await markGamePaid(gameId, myId);
+  redirect(back(groupId, gameId, r.ok ? { allpaid: "1", ...(r.eventId ? { did: r.eventId } : {}) } : { error: r.error }));
 }

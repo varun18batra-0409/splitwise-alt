@@ -2,7 +2,8 @@ import { afterAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { eraseGroups } from "@/lib/purge";
 import { netBalances } from "@/lib/balances";
-import { addPlayerToGame, adjustGap, buyIn, cashOut, countOut, deleteGame, finishGame, inPlay, loadGame, recordMove, removeMove, reopenGame, startGame } from "@/lib/pot-db";
+import { addPlayerToGame, adjustGap, buyIn, cashOut, countOut, deleteGame, finishGame, gamesToSettle, inPlay, loadGame, markGamePaid, recordMove, removeMove, reopenGame, startGame } from "@/lib/pot-db";
+import { undoEvent } from "@/lib/undo";
 import { parsePlayers } from "@/lib/pot";
 
 // The Pot against a real database: a game from start to settle, the gap
@@ -151,5 +152,19 @@ describe("The Pot (real database)", () => {
     expect(await countOut(s.id, a, [{ memberId: d, amount: "1400" }], true)).toEqual({ ok: true, finished: true, gap: false });
     const net = await balances(g.id);
     expect({ a: net[a], b: net[b], c: net[c], d: net[d], n: net[neha] }).toEqual({ a: 60000, b: -30000, c: -20000, d: -10000, n: 0 });
+
+    // Games list: ₹600 still to settle. Dev pays his ₹100; then "Mark all paid" does the rest, and Undo puts it back.
+    const games = await db.potGame.findMany({ where: { id: s.id }, include: { moves: { where: { deletedAt: null } } } });
+    expect(await gamesToSettle(g.id, games)).toEqual({ [s.id]: 60000 });
+    await db.payment.create({ data: { groupId: g.id, fromId: d, toId: a, amount: 10000, createdById: a } });
+    expect(await gamesToSettle(g.id, games)).toEqual({ [s.id]: 50000 });
+    const all = await markGamePaid(s.id, b);
+    if (!all.ok) throw new Error(all.error);
+    expect(await gamesToSettle(g.id, games)).toEqual({ [s.id]: 0 });
+    expect(Object.values(await balances(g.id)).every((v) => v === 0)).toBe(true);
+    expect((await markGamePaid(s.id, b)).ok).toBe(false); // nothing left
+    const u = await undoEvent(all.eventId!, a);
+    expect(u.ok).toBe(true);
+    expect((await balances(g.id))[a]).toBe(50000);
   });
 });

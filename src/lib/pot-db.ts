@@ -2,7 +2,7 @@ import { db } from "./db";
 import { logEvent } from "./events";
 import { formatMoney, parseAmount } from "./money";
 import { payersJson } from "./payers";
-import { isPotGame, parsePlayers, potGameLabel, potResult, potSummary, spreadGap } from "./pot";
+import { isPotGame, parsePlayers, potGameLabel, potResult, potSummary, potTransfers, spreadGap } from "./pot";
 import { cleanNames, sameName } from "./names";
 
 // "The Pot": saving and checking. Anyone in the group can record money taken
@@ -331,4 +331,57 @@ export async function countOut(gameId: string, actorId: string, entries: { membe
   if (missing.length) return { ok: false, error: `Still to count: ${missing.map(name).join(", ")}. Put 0 for anyone who lost it all.` };
   const f = await finishGame(gameId, actorId);
   return f.ok ? { ok: true, finished: true, gap: false } : { ok: true, finished: false, gap: true };
+}
+
+// A finished game's payments: each "Ravi pays Asha ₹300" with what's left to
+// pay since the game finished (or nothing, if they're square in the group
+// anyway), and what's still owed in the whole group.
+type GameLike = { id?: string; players: string; moves: { memberId: string; kind: string; amount: number; deletedAt?: Date | null }[]; finishedAt: Date | null; createdAt: Date };
+
+async function groupMoney(groupId: string) {
+  const { netBalances } = await import("./balances");
+  const [members, expenses, payments] = await Promise.all([
+    db.member.findMany({ where: { groupId }, select: { id: true } }),
+    db.expense.findMany({ where: { groupId, deletedAt: null }, include: { shares: true } }),
+    db.payment.findMany({ where: { groupId, deletedAt: null }, select: { fromId: true, toId: true, amount: true, createdAt: true } }),
+  ]);
+  return { groupNet: netBalances(members.map((m) => m.id), expenses, payments), payments };
+}
+
+function settle(game: GameLike, groupNet: Record<string, number>, payments: { fromId: string; toId: string; amount: number; createdAt: Date }[]) {
+  const since = game.finishedAt ?? game.createdAt;
+  const paid = new Map<string, number>();
+  for (const p of payments) if (p.createdAt >= since) paid.set(`${p.fromId}|${p.toId}`, (paid.get(`${p.fromId}|${p.toId}`) ?? 0) + p.amount);
+  const { lines } = potSummary(parsePlayers(game.players), game.moves.filter((m) => !m.deletedAt));
+  return potTransfers(lines).map((t) => {
+    const left = Math.max(0, t.amount - (paid.get(`${t.from}|${t.to}`) ?? 0));
+    return { ...t, left, done: left === 0 || (groupNet[t.from] ?? 0) >= 0 };
+  });
+}
+
+export async function gameSettlement(groupId: string, game: GameLike) {
+  const { groupNet, payments } = await groupMoney(groupId);
+  const stillOwed = Object.values(groupNet).reduce((s, v) => s + (v > 0 ? v : 0), 0);
+  return { transfers: settle(game, groupNet, payments), groupNet, stillOwed };
+}
+
+// For the games list: what's still to settle in each finished game.
+export async function gamesToSettle(groupId: string, games: (GameLike & { id: string; status: string })[]): Promise<Record<string, number>> {
+  const done = games.filter((g) => g.status === "done");
+  if (!done.length) return {};
+  const { groupNet, payments } = await groupMoney(groupId);
+  return Object.fromEntries(done.map((g) => [g.id, settle(g, groupNet, payments).filter((t) => !t.done).reduce((s, t) => s + t.left, 0)]));
+}
+
+// "Mark all paid" inside a finished game: every line still pending, in one go (with Undo).
+export async function markGamePaid(gameId: string, actorId: string): Promise<Result<{ eventId?: string }>> {
+  const r = await gameFor(gameId, actorId);
+  if (!r.game || !r.g) return { ok: false, error: r.error };
+  if (r.game.status !== "done") return { ok: false, error: "Finish the game first." };
+  const { transfers } = await gameSettlement(r.g.id, r.game);
+  const pick = transfers.filter((t) => !t.done).map((t) => ({ from: t.from, to: t.to, amount: t.left }));
+  if (!pick.length) return { ok: false, error: "Everything in this game is already paid." };
+  const { markAllPaid } = await import("./settle-all");
+  const m = await markAllPaid(r.g.id, actorId, pick, r.game.name, false);
+  return m.ok ? { ok: true, eventId: m.eventId } : m;
 }

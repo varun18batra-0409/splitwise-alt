@@ -8,6 +8,7 @@ import { computeTotals, PAYMENT_METHODS, type PaymentMethod } from "@/lib/conver
 import { buildExpense, chosenMarkupBp, type ExpenseDraft } from "@/lib/expense";
 import { currencyInfo, formatMoney, formatPercent, isSupportedCurrency, parseAmount, parsePercent } from "@/lib/money";
 import { QuickLine } from "./QuickLine";
+import { SpinWheel } from "./SpinWheel";
 import { CurrencyPicker } from "./CurrencyPicker";
 import { expensePairs, payersJson } from "@/lib/payers";
 import { participantsFor, type ForMode, type SplitType } from "@/lib/split";
@@ -389,7 +390,18 @@ export function AddExpenseForm({
       {/* Who paid — visible at the top, one tap to change */}
       {members.length > 1 && (
         <div>
-          <span className={labelClass}>{kind === "refund" ? "Who got the money?" : "Who paid?"}</span>
+          <div className="flex items-start justify-between gap-3">
+            <span className={labelClass}>{kind === "refund" ? "Who got the money?" : "Who paid?"}</span>
+            {kind === "expense" && (
+              <SpinWheel
+                people={members.map((m) => ({ id: m.id, label: who(m.id) }))}
+                onPick={(id) => {
+                  setMultiPay(false);
+                  setPaidById(id);
+                }}
+              />
+            )}
+          </div>
           <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none]">
             {[...members].sort((a, b) => (a.id === myId ? -1 : b.id === myId ? 1 : 0)).map((m) => (
               <Chip

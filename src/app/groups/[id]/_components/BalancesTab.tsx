@@ -6,6 +6,7 @@ import { niceDate } from "@/lib/format";
 import { Avatar } from "@/components/ui";
 import type { GroupView } from "./view";
 import { WhyPanel } from "./WhyPanel";
+import { funTitles } from "@/lib/wrapped";
 
 // Balances answers one question: who owes what, and why.
 // Paying (Mark as paid, Part, Remind, Settle everything) lives on Settle up,
@@ -16,6 +17,8 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
   const before = pairwiseDebtCount(expenses, payments);
   const mine = net[myId] ?? 0;
   const people = group.members.filter((m) => !m.leftAt);
+  // Fun titles (habits, never money rankings): one per person at most.
+  const titles = group.type === "pot" ? [] : funTitles(expenses, people.map((m) => m.id), v.tz, group.currency);
 
   return (
     <div className="space-y-10">
@@ -28,6 +31,11 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
           </p>
           <p className="mt-2 font-display text-xl font-semibold">All square</p>
           <p className="mt-1 text-sm text-gray-500">Nobody owes anybody in this group.</p>
+          {expenses.length > 0 && (
+            <Link href={`/groups/${group.id}/square`} className="mt-4 inline-block rounded-full bg-fg px-4 py-2 text-sm font-semibold text-canvas">
+              Share the moment 🎉
+            </Link>
+          )}
         </div>
       ) : (
         <section className="rounded-2xl border border-line px-4 py-4">
@@ -67,6 +75,14 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
                     <Avatar name={m.name} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">{m.id === myId ? `${m.name} (you)` : m.name}</span>
+                      {(() => {
+                        const t = titles.find((x) => x.memberId === m.id);
+                        return t ? (
+                          <span className="mb-0.5 mt-0.5 inline-block rounded-full bg-fg/[0.07] px-2 py-0.5 text-[11px] font-semibold text-fg/80" title={t.why} data-title={t.title}>
+                            {t.emoji} {t.title}
+                          </span>
+                        ) : null;
+                      })()}
                       <span className="block truncate text-xs text-gray-400">
                         {foreign || eq(b) || (theirs.length ? `${theirs.length} payment${theirs.length === 1 ? "" : "s"} to settle` : "settled up")}
                       </span>

@@ -73,9 +73,14 @@ export function ChartsTab({ v }: { v: GroupView }) {
               ))}
             </ul>
           )}
-          <Link href={`/groups/${group.id}/report`} className="text-sm font-semibold text-fg underline underline-offset-4">
-            {group.type === "trip" ? "Trip report, to share" : "Group report, to share"} ›
-          </Link>
+          <div className="flex flex-wrap gap-x-5 gap-y-2">
+            <Link href={`/groups/${group.id}/wrapped`} className="text-sm font-semibold text-fg underline underline-offset-4">
+              🎬 Watch the Wrapped ›
+            </Link>
+            <Link href={`/groups/${group.id}/report`} className="text-sm font-semibold text-fg underline underline-offset-4">
+              {group.type === "trip" ? "Trip report, to share" : "Group report, to share"} ›
+            </Link>
+          </div>
         </section>
       )}
       <HBarChart title="Spending by category" data={catData} total={money(spent)} />

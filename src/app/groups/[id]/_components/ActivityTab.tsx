@@ -12,6 +12,8 @@ import { ActivityRow } from "@/components/ActivityRow";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { Line } from "./Line";
 import { payersOf } from "@/lib/payers";
+import { REACTIONS, reactionSummary } from "@/lib/reactions";
+import { reactAction } from "@/app/reaction-actions";
 import type { GroupEvent, GroupView } from "./view";
 
 const PAID_WITH: Record<string, string> = { card: "Card", cash: "Cash", bank: "Bank / UPI" };
@@ -27,7 +29,7 @@ const whenIn = (tz: string) => {
 // Busy groups show the latest PAGE items first, with "Show more".
 const PAGE = 60;
 
-export function ActivityTab({ v, filter = {}, shown = PAGE, openId }: { v: GroupView; filter?: ActivityFilter; shown?: number; openId?: string }) {
+export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = [] }: { v: GroupView; filter?: ActivityFilter; shown?: number; openId?: string; reactions?: { expenseId: string; memberId: string; emoji: string }[] }) {
   const { group, myId, nameOf, money, expenseById, eventById, tz } = v;
   const when = whenIn(tz);
   const all = buildActivity(group.expenses, group.payments, myId, group.events);
@@ -240,13 +242,43 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId }: { v: Group
               const foreign = e.originalCurrency !== e.baseCurrency;
               const deleted = Boolean(e.deletedAt);
               const orig = foreign ? originalShares(e) : [];
+              const reacted = reactionSummary(reactions.filter((r) => r.expenseId === e.id), myId);
               return (
                 <li key={item.id} id={`item-${item.id}`} className="scroll-mt-20">
                   <details open={openId === item.id}>
                     <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
                       <ActivityRow item={item} currency={group.currency} nameOf={nameOf} motion="once" />
+                      {reacted.counts.length > 0 && (
+                        <span className="-mt-2 mb-2 ml-[3.25rem] flex gap-1.5" data-reactions={reacted.counts.map((c) => `${c.emoji}${c.count}`).join(" ")}>
+                          {reacted.counts.map((c) => (
+                            <span key={c.emoji} className={`rounded-full px-1.5 py-0.5 text-xs tabular-nums ${reacted.mine === c.emoji ? "bg-fg/15" : "bg-fg/[0.06]"}`}>
+                              {c.emoji}
+                              {c.count > 1 ? ` ${c.count}` : ""}
+                            </span>
+                          ))}
+                        </span>
+                      )}
                     </summary>
                     <div className="mb-3 ml-[3.25rem] space-y-1.5 rounded-xl bg-mist p-3 text-sm text-gray-600">
+                      {/* React: one tap (tap yours again to take it back). */}
+                      {!deleted && (
+                        <div className="-mx-1 mb-1 flex flex-wrap gap-1" role="group" aria-label="React">
+                          {REACTIONS.map((emoji) => (
+                            <form key={emoji} action={reactAction}>
+                              <input type="hidden" name="expenseId" value={e.id} />
+                              <input type="hidden" name="emoji" value={emoji} />
+                              <button
+                                type="submit"
+                                aria-pressed={reacted.mine === emoji}
+                                aria-label={`React ${emoji}`}
+                                className={`flex h-9 w-9 items-center justify-center rounded-full text-lg transition-transform active:scale-90 ${reacted.mine === emoji ? "bg-fg/15 ring-1 ring-fg/30" : "bg-canvas/60"}`}
+                              >
+                                {emoji}
+                              </button>
+                            </form>
+                          ))}
+                        </div>
+                      )}
                       <Line label="Date" value={niceDate(dayKey(expenseDate(e), tz))} />
                       <Line label="Category" value={cat.label} />
                       {e.notes && <p className="whitespace-pre-line rounded-lg bg-white/[0.03] px-3 py-2 text-gray-600">📝 {e.notes}</p>}

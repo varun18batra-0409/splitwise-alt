@@ -549,3 +549,14 @@ html.lp-opened .lp-open {
 @media (prefers-reduced-motion: reduce) {
   .lp-mo { animation: none !important; }
 }
+
+/* Stories: the bar for the story on screen fills over its time. */
+@keyframes lp-story-bar {
+  from { width: 0; }
+  to { width: 100%; }
+}
+.lp-story-bar {
+  animation-name: lp-story-bar;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
