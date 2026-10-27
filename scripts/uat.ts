@@ -1993,8 +1993,10 @@ async function main() {
     await V.getByRole("button", { name: "Farewell", exact: true }).click();
     assert((await V.locator('input[name="title"]').inputValue()).includes("Farewell"), "the quick pick didn't fill the name");
     await V.locator('input[name="amount"]').fill("500");
-    await V.locator('input[name="upiId"]').fill("varun@okicici");
+    // In rupees (the hosted copy is opened from a US machine, so it starts in dollars).
     await V.getByText("More options").click();
+    await V.locator('select[name="currency"]').selectOption("INR");
+    await V.locator('input[name="upiId"]').fill("varun@okicici");
     await V.locator('textarea[name="names"]').fill("Zoya\nKabir");
     await V.getByRole("group", { name: "Your Loopin friends" }).getByRole("button", { name: /Asha/ }).click();
     await V.getByRole("button", { name: "Make the link" }).click();
