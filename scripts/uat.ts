@@ -1224,14 +1224,14 @@ async function main() {
     await V.waitForURL(/\/welcome/);
     return `${imgs} photos on the guide (${sizes})`;
   });
-  await step(null, "Help", "The 1-minute tour has 7 slides, one for flats & couples and one for card nights (The Pot), and none says “no sign-up”", async () => {
+  await step(null, "Help", "The 1-minute tour has 9 slides: flats & couples, card nights (The Pot), stories and the passport, and none says “no sign-up”", async () => {
     const { ctx, page } = await person(browser);
     await go(page, "/welcome");
     const seen: string[] = [];
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 9; i++) {
       seen.push((await page.locator("main").innerText()).replace(/\s+/g, " "));
       const next = page.getByRole("button", { name: /Next/ });
-      if (i < 6) {
+      if (i < 8) {
         await next.click();
         await page.waitForTimeout(500);
       }
@@ -1239,6 +1239,8 @@ async function main() {
     const all = seen.join(" ");
     assert(/Bills on repeat/.test(all), "no flats & couples slide");
     assert(/The Pot keeps score/.test(all), "no card-night slide");
+    assert(/as stories/.test(all), "no stories slide");
+    assert(/a stamp/.test(all), "no passport slide");
     assert(!/no sign-up/i.test(all), "a slide still says “no sign-up”");
     await ctx.close();
   });

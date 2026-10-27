@@ -51,7 +51,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
         </span>
         <span aria-hidden className="text-gray-400">›</span>
       </Link>
-      <PassportBook name={account.name} stats={p.stats} milestones={p.milestones} pages={stampPages(p.stamps, p.been)} index={p.index} />
+      <PassportBook name={account.name} stats={p.stats} milestones={p.milestones} pages={stampPages(p.stamps, p.been)} index={p.index} badges={p.badges} />
 
       {!empty && (
         <div className="mt-5">

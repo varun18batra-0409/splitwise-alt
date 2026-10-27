@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { IndexRow, Stamp } from "@/lib/passport";
+import type { Badge, IndexRow, Stamp } from "@/lib/passport";
+import map from "@/generated/map.json";
 
 // The trip passport as a little booklet. A navy cover you tap to open, then
 // pages you swipe like a real passport: the photo page with your counts, the
@@ -24,6 +25,7 @@ type Props = {
   milestones: string[];
   pages: Page[];
   index: IndexRow[];
+  badges?: Badge[];
 };
 
 // The faint security print on every page.
@@ -167,6 +169,24 @@ function StampMark({ s, i }: { s: Stamp; i: number }) {
   );
 }
 
+// The world, with your countries inked in (from trips) and the ones from
+// before Loopin lighter. The map itself is one cached file; each country is
+// drawn by pointing at its shape in it.
+export function WorldMap({ index, className = "mt-2" }: { index: { code: string; name: string; trips: number }[]; className?: string }) {
+  if (!(map as { ok: boolean }).ok) return null;
+  return (
+    <div className={`relative aspect-[2000/1001] w-full ${className}`} data-world-map={index.length}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/world.svg" alt="" aria-hidden className="absolute inset-0 h-full w-full" />
+      <svg viewBox="0 0 2000 1001" className="absolute inset-0 h-full w-full" role="img" aria-label={index.length ? `Countries: ${index.map((r) => r.name).join(", ")}` : "No countries yet"}>
+        {index.map((r) => (
+          <use key={r.code} href={`/world.svg#${r.code}`} fill={r.trips > 0 ? "#2f7d4f" : "#7fb59a"} stroke="#efe8d6" strokeWidth="0.6" />
+        ))}
+      </svg>
+    </div>
+  );
+}
+
 function Sheet({ n, of, children, label }: { n: number; of: number; children: React.ReactNode; label: string }) {
   return (
     <section aria-label={label} aria-roledescription="page" className="relative h-full w-full shrink-0 snap-center overflow-hidden rounded-r-[14px] rounded-l-[4px] text-[#26231d]" style={paper} data-page={n}>
@@ -180,12 +200,12 @@ function Sheet({ n, of, children, label }: { n: number; of: number; children: Re
   );
 }
 
-export function PassportBook({ name, stats, milestones, pages, index }: Props) {
+export function PassportBook({ name, stats, milestones, pages, index, badges = [] }: Props) {
   const [open, setOpen] = useState(false);
   const [gone, setGone] = useState(false); // the cover, once it has swung away
   const [at, setAt] = useState(0);
   const strip = useRef<HTMLDivElement>(null);
-  const total = pages.length + 2;
+  const total = pages.length + 3;
 
   useEffect(() => {
     if (!open) return;
@@ -287,9 +307,29 @@ export function PassportBook({ name, stats, milestones, pages, index }: Props) {
             </div>
           </Sheet>
 
+          {/* Where you've been: the world map and the badges */}
+          <Sheet n={2} of={total} label="Map and badges">
+            <div className="flex h-full flex-col px-5 pb-8 pt-5">
+              <p className="text-[11px] font-semibold tracking-[0.2em] text-[#8a8270]">WHERE YOU’VE BEEN</p>
+              <WorldMap index={index} />
+              <p className="mt-3 text-[11px] font-semibold tracking-[0.2em] text-[#8a8270]">BADGES</p>
+              <ul className="mt-2 grid grid-cols-3 gap-1.5" data-badges>
+                {badges.map((b) => (
+                  <li key={b.id} title={b.why} className={`rounded-[10px] border px-1.5 py-1.5 text-center ${b.earned ? "border-[#2f7d4f]/40 bg-[#2f7d4f]/[0.07]" : "border-[#26231d]/10 opacity-60"}`} data-badge={b.id} data-earned={b.earned ? "1" : "0"}>
+                    <span className={`block text-[20px] leading-none ${b.earned ? "" : "grayscale"}`} aria-hidden>
+                      {b.emoji}
+                    </span>
+                    <span className="mt-0.5 block truncate text-[10.5px] font-bold leading-tight">{b.title}</span>
+                    <span className="block truncate text-[9px] text-[#5c564a]">{b.earned ? b.why : `${b.have} of ${b.need}`}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </Sheet>
+
           {/* The stamp pages */}
           {pages.map((p, k) => (
-            <Sheet key={k} n={k + 2} of={total} label={`${p.title}, page ${k + 1}`}>
+            <Sheet key={k} n={k + 3} of={total} label={`${p.title}, page ${k + 1}`}>
               <p className="absolute left-6 top-4 text-[11px] font-semibold tracking-[0.2em] text-[#8a8270]">{p.title === "Trips" ? "VISAS · STAMPS" : "BEFORE LOOPIN"}</p>
               <div className="absolute inset-x-2 bottom-7 top-12">
                 {p.stamps.map((s, i) => (

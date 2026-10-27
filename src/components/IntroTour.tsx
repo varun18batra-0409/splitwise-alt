@@ -14,8 +14,11 @@ const seen = () => {
 };
 import { useEffect, useMemo, useRef, useState } from "react";
 import { currencyInfo, decimalsOf, formatMoney } from "@/lib/money";
+import photos from "@/generated/photos.json";
 
-// The intro tour, in the visitor's own currency: six swipeable slides (start, balances, currencies, settling, home & couples, undo) that show what Loopin does, each with
+const photo = (slot: string) => (photos as Record<string, { src: string } | undefined>)[slot]?.src;
+
+// The intro tour, in the visitor's own currency: nine swipeable slides (start, balances, currencies, settling, home & couples, card nights, stories, passport, undo) that show what Loopin does, each with
 // a small animated picture. Shown to first-time visitors on the home screen,
 // and any time at /welcome.
 
@@ -245,6 +248,67 @@ function makeSlides(L: Local): Slide[] {
           You pay Ravi <strong className="font-display">{L.m(L.india ? 300 : 30)}</strong> · Meera pays Ravi <strong className="font-display">{L.m(L.india ? 300 : 30)}</strong>
         </p>
       </Card>
+    ),
+  },
+  {
+    id: "stories",
+    title: ["Your trips,", "as stories."],
+    caption: "Home turns your groups into stories: the countdown to a trip, today’s spend while you’re away, last night’s card game. When it’s over, Wrapped tells the trip in posters.",
+    art: (
+      <div className="relative w-full">
+        <svg aria-hidden className="absolute inset-x-0 top-[9px] h-6 w-full" preserveAspectRatio="none" viewBox="0 0 100 10">
+          <path d="M0 1 Q 50 9 100 1" fill="none" stroke="#f4f2ec" strokeOpacity="0.25" strokeWidth="0.4" vectorEffect="non-scaling-stroke" />
+        </svg>
+        <div className="flex justify-center gap-3 pt-1">
+          {(
+            [
+              ["place-goa", L.india ? "Goa" : "Beach", "3 days", -4],
+              ["place-santorini", "Santorini", "Day 2", 3],
+              ["cards-2", "Card night", L.m(L.india ? 600 : 60), -2],
+            ] as const
+          ).map(([slot, label, big, tilt], i) => (
+            <span key={slot} className={`rise rise-${i + 2} relative block pt-2`} style={{ transform: `rotate(${tilt}deg)` }}>
+              <span aria-hidden className="absolute left-1/2 top-0 z-10 h-4 w-2.5 -translate-x-1/2 rounded-[2px] bg-owed shadow-[0_0_10px_rgba(111,227,168,0.6)]" />
+              <span className="block w-[92px] bg-[#f4f1e8] p-[5px] pb-0 shadow-[0_12px_22px_-10px_rgba(0,0,0,0.95)]">
+                <span className="relative block h-[104px] overflow-hidden bg-[#2a2a30]">
+                  {photo(slot) && <img src={photo(slot)} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />}
+                  <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1 pt-4 text-left font-display text-[13px] font-semibold text-[#f7f4ec]">{big}</span>
+                </span>
+                <span className="block truncate px-0.5 pb-1 pt-0.5 text-center font-hand text-[16px] font-bold leading-tight text-[#2a2620]">{label}</span>
+              </span>
+            </span>
+          ))}
+        </div>
+      </div>
+    ),
+  },
+  {
+    id: "passport",
+    title: ["Every trip,", "a stamp."],
+    caption: "Your trip passport fills itself as you travel. Flip through your friends’ passports, see where your group has been together, and share yours to WhatsApp.",
+    art: (
+      <div className="relative w-full overflow-hidden rounded-[18px] px-4 py-5" style={{ backgroundColor: "#efe8d6", backgroundImage: "repeating-linear-gradient(115deg, rgba(38,35,29,0.035) 0 1px, transparent 1px 7px)" }}>
+        <p className="text-[10px] font-semibold tracking-[0.2em] text-[#8a8270]">VISAS · STAMPS</p>
+        <div className="relative mt-2 h-[150px]">
+          {(
+            [
+              ["🇹🇭", "THAILAND", "MAR 2026", "#2b4c7e", "8%", "6%", -8],
+              ["🇮🇹", "ITALY", "JUN 2026", "#a53a3a", "52%", "2%", 6],
+              ["", L.india ? "Goa" : "Austin", "OCT 2026", "#2f7d4f", "30%", "52%", -3],
+            ] as const
+          ).map(([flag, name, when, ink, left, top, tilt], i) => (
+            <span
+              key={name}
+              className={`rise rise-${i + 2} absolute flex flex-col items-center justify-center text-center mix-blend-multiply ${flag ? "h-[96px] w-[96px] rounded-full border-[3px]" : "rounded-[8px] border-[2.5px] px-4 py-2"}`}
+              style={{ left, top, borderColor: ink, color: ink, transform: `rotate(${tilt}deg)`, boxShadow: flag ? `inset 0 0 0 4px #efe8d6, inset 0 0 0 5.5px ${ink}` : undefined }}
+            >
+              {flag ? <span className="text-[24px] leading-none">{flag}</span> : <span className="text-[8px] font-bold tracking-[0.2em]">✈ ARRIVED</span>}
+              <span className="mt-0.5 font-display text-[12px] font-bold tracking-wide">{name}</span>
+              <span className="text-[8px] font-bold tracking-[0.14em]">{when}</span>
+            </span>
+          ))}
+        </div>
+      </div>
     ),
   },
   {

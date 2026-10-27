@@ -1,4 +1,5 @@
 import { countryOf, tripStops } from "./geo";
+import { tripEmoji } from "./countdown";
 
 // Your trip passport, like a real one: every Loopin trip leaves its own stamp
 // (a city stamp for a trip in your home country, a round country stamp for a
@@ -19,6 +20,8 @@ export type Stamp = {
   groupId?: string;
   byHand: boolean;
 };
+// A badge: earned, or how close you are ("2 of 3").
+export type Badge = { id: string; emoji: string; title: string; why: string; earned: boolean; have: number; need: number };
 export type IndexRow = { code: string; name: string; flag: string; home: boolean; trips: number; byHand: boolean; cities: string[] };
 
 // Countries only (cities come from real trips). Older lists may have a city: it's dropped.
@@ -113,7 +116,27 @@ export function buildPassport(trips: PassportTrip[], hand: HandPlace[], home: st
   if (stats.thisYear >= 3) milestones.push(`${stats.thisYear} trips this year 🔥`);
   if (stats.trips >= 10) milestones.push("10 trips club 🏅");
 
-  return { stamps, been, index: rows, stats, milestones };
+  // Badges: about where you go and how, never about money.
+  const mood = (t: PassportTrip) => tripEmoji(`${t.name} ${t.place}`);
+  const count = (f: (t: PassportTrip) => boolean) => started.filter(f).length;
+  const abroadTrips = started.filter((t) => {
+    const stops = tripStops(t.name, t.place, t.country);
+    return stops.some((x) => (x.country || home) && (x.country || home).toUpperCase() !== home);
+  }).length;
+  const badge = (id: string, emoji: string, title: string, why: string, have: number, need: number): Badge => ({ id, emoji, title, why, earned: have >= need, have: Math.min(have, need), need });
+  const badges: Badge[] = [
+    badge("first-abroad", "✈️", "First flight", "A trip abroad with Loopin", abroadTrips, 1),
+    badge("beach", "🏖️", "Beach bum", "3 beach trips", count((t) => mood(t) === "🌴"), 3),
+    badge("hills", "🏔️", "Mountain goat", "3 trips to the hills or snow", count((t) => ["🏔️", "❄️", "🏕️"].includes(mood(t))), 3),
+    badge("city", "🌆", "City slicker", "3 big-city trips", count((t) => mood(t) === "🌆"), 3),
+    badge("cities", "🏙️", "10 cities club", "10 different cities", stats.cities, 10),
+    badge("countries", "🌍", "Globetrotter", "10 countries", rows.length, 10),
+    badge("frequent", "🛫", "Frequent flyer", "5 trips abroad", abroadTrips, 5),
+    badge("year", "🔥", "On a roll", "3 trips in one year", stats.thisYear, 3),
+    badge("trips", "🏅", "10 trips club", "10 trips with Loopin", stats.trips, 10),
+  ];
+
+  return { stamps, been, index: rows, stats, milestones, badges };
 }
 
 // The booklet's pages: a few stamps each, Loopin trips first, then the ones from before.

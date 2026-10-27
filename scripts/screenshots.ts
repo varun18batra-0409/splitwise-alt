@@ -419,6 +419,15 @@ if (!hosted) {
       await p.waitForTimeout(700);
     }, false);
     await shot("118-passport-picture", "/passport/image", undefined, false);
+    await db.account.update({ where: { id: priya.id }, data: { places: JSON.stringify([{ c: "JP" }, { c: "FR" }, { c: "GR" }, { c: "TH" }, { c: "AE" }, { c: "ID" }]) } });
+    await shot("123-friends-passports", "/passport/friends", undefined, false);
+    await shot("124-friend-passport", `/passport/friends/${priya.id}`, async (p) => {
+      await p.getByRole("button", { name: "Open your passport" }).click();
+      await p.waitForTimeout(800);
+      await p.getByRole("button", { name: "Next page" }).click();
+      await p.waitForTimeout(800);
+    }, false);
+    await shot("125-our-passports", `/groups/${pune.id}/passports`, undefined, false);
     await shot("119-story-pot", "/", async (p) => {
       const pot = p.locator("[data-stories] [data-story='pot'] button");
       if (await pot.count()) await pot.first().click();
