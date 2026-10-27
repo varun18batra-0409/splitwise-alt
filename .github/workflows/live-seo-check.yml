@@ -8,6 +8,5 @@ jobs:
     steps:
       - run: |
           s=https://www.loopinapps.com
-          for p in "" signin faq how-it-works settle account api/health; do echo "::notice title=/$p::$(curl -s -o /dev/null -w '%{http_code}' "$s/$p")"; done
-          echo "::notice title=faq-pay::$(curl -s "$s/faq" | grep -c 'UPI, PayPal or Venmo in one tap')"
-          echo "::notice title=help-quickline::$(curl -s "$s/how-it-works" | grep -c 'Type it in one line')"
+          for p in "" signin faq how-it-works settle account passport api/health api/cron/evening; do echo "::notice title=/$p::$(curl -s -o /dev/null -w '%{http_code}' "$s/$p")"; done
+          echo "::notice title=faq-fun::$(curl -s "$s/faq" | grep -c 'trip passport')"
