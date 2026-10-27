@@ -66,7 +66,9 @@ test("every link in the app opens a real screen (no 404s)", async ({ browser }) 
     seen.add(url);
     const res = await page.request.get(url, { maxRedirects: 5 });
     const html = await res.text();
-    if (res.status() >= 400 || /This screen isn’t here any more|That didn’t load/.test(html)) {
+    // A missing screen answers 404 and an error 500 (the page's own words can't be
+    // checked: every page carries the not-found screen ready in case it's needed).
+    if (res.status() >= 400) {
       bad.push(`${url} → ${res.status()}`);
       continue;
     }
