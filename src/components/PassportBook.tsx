@@ -12,7 +12,9 @@ const hash = (s: string) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >
 // Written out by hand, so the phone and the server always agree ("SEP 2026").
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 const month = (d: string) => (/^\d{4}-\d{2}/.test(d) ? `${MONTHS[Number(d.slice(5, 7)) - 1] ?? ""} ${d.slice(0, 4)}` : "");
-const GOLD = "#d8bd7a";
+// The cover in Loopin's own colours: the dark surface, off-white foil, a touch of green.
+const GOLD = "#ece8dc";
+const GREEN = "#6fe3a8";
 const PAPER = "#efe8d6";
 
 type Page = { title: string; stamps: Stamp[] };
@@ -37,9 +39,10 @@ function Emblem({ size = 92 }: { size?: number }) {
     <svg width={size} height={size} viewBox="0 0 100 100" aria-hidden fill="none" stroke={GOLD} strokeWidth="1.6">
       <circle cx="50" cy="50" r="44" />
       <circle cx="50" cy="50" r="36" strokeDasharray="1.5 3" />
-      <path d="M50 10 L57 50 L50 90 L43 50 Z" fill={GOLD} fillOpacity="0.85" />
+      <path d="M50 10 L57 50 L50 90 L43 50 Z" fill={GOLD} fillOpacity="0.9" />
+      <path d="M50 10 L57 50 L43 50 Z" fill={GREEN} />
       <path d="M10 50 L50 43 L90 50 L50 57 Z" fill={GOLD} fillOpacity="0.45" />
-      <circle cx="50" cy="50" r="4" fill="#1d2a44" />
+      <circle cx="50" cy="50" r="4" fill="#16161a" />
     </svg>
   );
 }
@@ -241,8 +244,8 @@ export function PassportBook({ name, stats, milestones, pages, index }: Props) {
             type="button"
             onClick={() => setOpen(true)}
             aria-label="Open your passport"
-            className="absolute inset-0 z-20 flex origin-left flex-col items-center rounded-r-[14px] rounded-l-[4px] bg-[#1d2a44] px-6 pt-12 text-center shadow-[0_24px_40px_-24px_rgba(0,0,0,0.9)] transition-[transform,opacity] duration-[650ms] ease-[cubic-bezier(0.3,0.7,0.2,1)] motion-reduce:transition-none"
-            style={{ transform: open ? "rotateY(-105deg)" : "none", opacity: open ? 0 : 1, color: GOLD, backgroundImage: "radial-gradient(120% 80% at 30% 0%, rgba(255,255,255,0.06), transparent 60%), repeating-linear-gradient(45deg, rgba(0,0,0,0.05) 0 2px, transparent 2px 5px)" }}
+            className="absolute inset-0 z-20 flex origin-left flex-col items-center rounded-r-[14px] rounded-l-[4px] border border-[#2b2b31] bg-[#16161a] px-6 pt-12 text-center shadow-[0_24px_40px_-24px_rgba(0,0,0,0.9)] transition-[transform,opacity] duration-[650ms] ease-[cubic-bezier(0.3,0.7,0.2,1)] motion-reduce:transition-none"
+            style={{ transform: open ? "rotateY(-105deg)" : "none", opacity: open ? 0 : 1, color: GOLD, backgroundImage: "radial-gradient(120% 80% at 30% 0%, rgba(111,227,168,0.07), transparent 55%), repeating-linear-gradient(45deg, rgba(255,255,255,0.018) 0 2px, transparent 2px 5px)" }}
           >
             <span aria-hidden className="absolute inset-y-0 left-0 w-3 bg-[linear-gradient(90deg,rgba(0,0,0,0.35),transparent)]" />
             <span className="font-display text-[15px] font-semibold tracking-[0.32em]">LOOPIN</span>
@@ -250,7 +253,8 @@ export function PassportBook({ name, stats, milestones, pages, index }: Props) {
               <Emblem />
             </span>
             <span className="mt-12 font-display text-[30px] font-semibold tracking-[0.28em]">PASSPORT</span>
-            <span className="mt-2 text-[13px] opacity-80">{name || "Traveller"}</span>
+            <span className="mt-3 h-px w-14" style={{ background: GREEN }} aria-hidden />
+            <span className="mt-3 text-[13px] opacity-80">{name || "Traveller"}</span>
             <span className="mt-auto pb-8 text-sm opacity-70">Tap to open</span>
           </button>
         )}

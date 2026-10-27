@@ -101,7 +101,7 @@ export function SpinWheel({ people, onPick }: { people: { id: string; label: str
               aria-modal="true"
               aria-label="Spin the wheel"
               onClick={(e) => e.stopPropagation()}
-              className="sheet-enter relative w-full max-w-sm overflow-hidden rounded-[28px] border border-[#d8bd7a]/25 bg-[radial-gradient(120%_70%_at_50%_0%,#22304f_0%,#111522_60%,#0c0e15_100%)] px-5 pb-6 pt-6 text-center"
+              className="sheet-enter relative w-full max-w-sm overflow-hidden rounded-[28px] border border-[#d8bd7a]/25 bg-[radial-gradient(120%_70%_at_50%_0%,#24242a_0%,#141417_60%,#0d0d0f_100%)] px-5 pb-6 pt-6 text-center"
               style={{ color: INK }}
             >
               <button type="button" onClick={() => !spinning && setOpen(false)} aria-label="Close" className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full text-xl text-[#f7f4ec]/60 active:bg-white/10">
@@ -116,7 +116,7 @@ export function SpinWheel({ people, onPick }: { people: { id: string; label: str
                 {/* The pointer. */}
                 <svg aria-hidden viewBox="0 0 40 46" className="absolute left-1/2 top-[-10px] z-10 h-[38px] w-[33px] -translate-x-1/2 drop-shadow-[0_4px_6px_rgba(0,0,0,0.6)]">
                   <path d="M20 44 L6 16 A15 15 0 1 1 34 16 Z" fill={GOLD} stroke="#8a6f35" strokeWidth="1.5" />
-                  <circle cx="20" cy="15" r="5" fill="#111522" />
+                  <circle cx="20" cy="15" r="5" fill="#0d0d0f" />
                 </svg>
                 <svg
                   viewBox={`-12 -12 ${2 * r + 24} ${2 * r + 24}`}
@@ -125,7 +125,7 @@ export function SpinWheel({ people, onPick }: { people: { id: string; label: str
                   aria-hidden
                 >
                   {/* The gold rim with its little lights. */}
-                  <circle cx={r} cy={r} r={r + 9} fill="#0c0e15" stroke={GOLD} strokeWidth="3" />
+                  <circle cx={r} cy={r} r={r + 9} fill="#0d0d0f" stroke={GOLD} strokeWidth="3" />
                   {Array.from({ length: 24 }, (_, k) => {
                     const [x, y] = at(k * 15, r + 4.5);
                     return <circle key={k} cx={x} cy={y} r="2" fill={k % 2 ? GOLD : "#fff4d6"} opacity={k % 2 ? 0.7 : 1} />;
@@ -152,7 +152,7 @@ export function SpinWheel({ people, onPick }: { people: { id: string; label: str
                     );
                   })}
                   {/* The hub. */}
-                  <circle cx={r} cy={r} r="24" fill="#111522" stroke={GOLD} strokeWidth="2.5" />
+                  <circle cx={r} cy={r} r="24" fill="#0d0d0f" stroke={GOLD} strokeWidth="2.5" />
                   <circle cx={r} cy={r} r="17" fill="none" stroke={GOLD} strokeOpacity="0.4" strokeWidth="1" />
                   <text x={r} y={r} textAnchor="middle" dominantBaseline="central" fill={GOLD} fontSize="16" fontWeight="700" fontFamily="var(--font-display), serif">
                     L

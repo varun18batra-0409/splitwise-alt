@@ -24,16 +24,18 @@ export async function GET() {
   const when = (d: string) => (d ? `${MONTHS[Number(d.slice(5, 7)) - 1] ?? ""} ${d.slice(0, 4)}` : "BEEN THERE");
   const stamps = [...[...p.stamps].reverse(), ...p.been].slice(0, 9);
   const name = (account.name || "Traveller").slice(0, 22);
-  const GOLD = "#d8bd7a";
+  const GOLD = "#ece8dc"; // off-white foil, in Loopin's own colours
+  const GREEN = "#6fe3a8";
   return new ImageResponse(
     (
-      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", padding: "90px 70px 80px", background: "radial-gradient(120% 60% at 50% 0%, #22304f 0%, #111522 65%)", color: "#efe6cc" }}>
+      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", padding: "90px 70px 80px", background: "radial-gradient(120% 60% at 50% 0%, #1f1f24 0%, #0d0d0f 65%)", color: "#efe6cc" }}>
         {/* The cover, folded open at the top. */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100%", padding: "46px 40px 40px", borderRadius: 36, background: "#1d2a44", border: `3px solid ${GOLD}55`, boxShadow: "0 30px 60px rgba(0,0,0,0.5)" }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100%", padding: "46px 40px 40px", borderRadius: 36, background: "#16161a", border: "3px solid #2b2b31", boxShadow: "0 30px 60px rgba(0,0,0,0.5)" }}>
           <div style={{ display: "flex", fontSize: 30, letterSpacing: 16, color: GOLD }}>LOOPIN</div>
           <div style={{ display: "flex", width: 120, height: 120, marginTop: 26, borderRadius: 999, border: `4px solid ${GOLD}`, alignItems: "center", justifyContent: "center", fontSize: 60, fontWeight: 700, color: GOLD }}>L</div>
           <div style={{ display: "flex", marginTop: 26, fontSize: 64, letterSpacing: 18, color: GOLD, fontWeight: 700 }}>PASSPORT</div>
-          <div style={{ display: "flex", marginTop: 14, fontSize: 44, color: "#efe6cc" }}>{name}</div>
+          <div style={{ display: "flex", width: 90, height: 4, marginTop: 18, background: GREEN, borderRadius: 4 }} />
+          <div style={{ display: "flex", marginTop: 18, fontSize: 44, color: "#efe6cc" }}>{name}</div>
           <div style={{ display: "flex", marginTop: 18, fontSize: 36, color: "#efe6ccbb" }}>
             {p.stats.countries} {p.stats.countries === 1 ? "country" : "countries"} · {p.stats.cities} {p.stats.cities === 1 ? "city" : "cities"} · {p.stats.trips} {p.stats.trips === 1 ? "trip" : "trips"}
           </div>
