@@ -100,6 +100,7 @@ export default async function AddExpensePage({
         tz={tz}
         weights={Object.fromEntries(group.members.filter((m) => !m.leftAt).map((m) => [m.id, m.splitWeight]))}
         splitName={splitNameFor(group.type)}
+        spin={group.type !== "pot"}
       />
     </>
   );

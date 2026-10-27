@@ -4,7 +4,7 @@ import { buildPassport, parseHandPlaces, stampPages } from "@/lib/passport";
 import { buildStories } from "@/lib/home/stories";
 import { squareNumbers } from "@/lib/square";
 import { funTitles, wrapSlides } from "@/lib/wrapped";
-import { reactionSummary } from "@/lib/reactions";
+import { quickReactions, reactionSummary } from "@/lib/reactions";
 import { memoryText, pulseText } from "@/lib/pulse";
 
 describe("Trip passport: where a trip went", () => {
@@ -180,9 +180,12 @@ describe("Trip Wrapped and fun titles", () => {
 describe("Reactions", () => {
   it("counts in a fixed order, and which one is mine", () => {
     expect(reactionSummary([{ emoji: "🔥", memberId: "a" }, { emoji: "😂", memberId: "b" }, { emoji: "🔥", memberId: "c" }], "c")).toEqual({
-      counts: [{ emoji: "😂", count: 1 }, { emoji: "🔥", count: 2 }],
+      counts: [{ emoji: "🔥", count: 2 }, { emoji: "😂", count: 1 }],
       mine: "🔥",
     });
+    // More behind "+", and the group's favourites come first in the quick row.
+    expect(quickReactions([{ emoji: "🍻" }, { emoji: "🍻" }, { emoji: "🔥" }, { emoji: "nope" }])).toEqual(["🍻", "🔥", "😂", "😭", "🙄", "😍"]);
+    expect(quickReactions([])).toEqual(["😂", "🔥", "😭", "🙄", "😍", "👏"]);
     expect(reactionSummary([], "a")).toEqual({ counts: [], mine: "" });
   });
 });

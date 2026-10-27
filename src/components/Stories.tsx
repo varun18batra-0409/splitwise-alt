@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import Link from "./Link";
 import { GroupCover } from "./GroupCover";
 import type { CoverChoice } from "@/lib/covers";
@@ -40,9 +41,8 @@ const POSTER: Record<Story["kind"], string> = {
 };
 
 function Picture({ s, uid, big }: { s: Story; uid: string; big?: boolean }) {
-  if (s.photo)
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={s.photo} alt="" aria-hidden className={`absolute inset-0 h-full w-full object-cover ${big ? "lp-drift" : ""}`} loading={big ? "eager" : "lazy"} decoding="async" />;
+  // Sized for where it shows: a small copy for the polaroid, a sharp one full screen.
+  if (s.photo) return <Image src={s.photo} alt="" aria-hidden fill sizes={big ? "(max-width: 448px) 100vw, 448px" : "96px"} quality={big ? 82 : 70} priority={big} className={`object-cover ${big ? "lp-drift" : ""}`} />;
   if (s.cover) return <GroupCover kind={s.cover.kind as CoverChoice} src={s.cover.src} uid={uid} sizes={big ? "448px" : "80px"} drift={big} />;
   return (
     <span aria-hidden className="absolute inset-0 flex flex-col items-center justify-center px-2 text-center text-[#17150f]" style={{ background: POSTER[s.kind] }}>
@@ -114,8 +114,7 @@ function Slide({ f }: { f: Frame }) {
   if (f.kind === "photo")
     return (
       <>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={f.photo} alt="" aria-hidden className="lp-drift absolute inset-0 h-full w-full object-cover" decoding="async" />
+        <Image src={f.photo} alt="" aria-hidden fill sizes="(max-width: 448px) 100vw, 448px" quality={82} priority className="lp-drift object-cover" />
         <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.5)_0%,transparent_22%,transparent_42%,rgba(0,0,0,0.9)_100%)]" />
         <div className="lp-slide-in pointer-events-none absolute inset-x-0 bottom-[132px] z-20 px-6 text-[#f7f4ec]">
           {f.kicker && <p className="mb-2 inline-block rounded-full bg-[#f7f4ec]/15 px-3 py-1 text-[13px] font-semibold backdrop-blur-sm">{f.kicker}</p>}
@@ -225,12 +224,6 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
     const t = setTimeout(next, DURATION);
     return () => clearTimeout(t);
   }, [at, paused, still, stories.length, next]);
-
-  // Load the next few pictures before they're needed.
-  useEffect(() => {
-    const upcoming = [...frames.slice(at.f + 1), ...(stories[at.s + 1]?.frames ?? [])].filter((f) => f.kind === "photo").slice(0, 3);
-    for (const f of upcoming) if (f.kind === "photo") new Image().src = f.photo;
-  }, [at, frames, stories]);
 
   if (!story) return null;
   const f = frames[Math.min(at.f, frames.length - 1)];

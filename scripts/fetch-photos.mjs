@@ -94,8 +94,10 @@ const got = {};
 for (const [slot, ids] of Object.entries(SLOTS)) {
   for (const id of ids) {
     try {
+      // Story photos fill a phone screen, so they come sharper (1400 wide); group pictures are small.
+      const big = slot.startsWith("place-") || slot.startsWith("cards");
       const url = id.startsWith("photo-")
-        ? `https://images.unsplash.com/${id}?w=${slot.startsWith("cover-") || slot.startsWith("place-") || slot.startsWith("cards") ? 900 : 1280}&q=${slot.startsWith("cover-") || slot.startsWith("place-") || slot.startsWith("cards") ? 70 : 75}&fm=jpg&fit=crop`
+        ? `https://images.unsplash.com/${id}?w=${big ? 1400 : slot.startsWith("cover-") ? 900 : 1280}&q=${big ? 80 : slot.startsWith("cover-") ? 70 : 75}&fm=jpg&fit=crop`
         : `https://unsplash.com/photos/${id}/download?force=true&w=${slot.startsWith("place-") ? 800 : 1280}`;
       const r = await fetch(url, {
         redirect: "follow",

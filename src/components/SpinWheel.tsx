@@ -90,7 +90,9 @@ export function SpinWheel({ people, onPick }: { people: { id: string; label: str
         aria-haspopup="dialog"
         className="flex items-center gap-1.5 rounded-full border border-[#d8bd7a]/50 bg-[linear-gradient(180deg,rgba(216,189,122,0.16),rgba(216,189,122,0.06))] px-3 py-1.5 text-xs font-semibold text-[#e8d29a] active:bg-[#d8bd7a]/20"
       >
-        <WheelIcon size={15} />
+        <span className="motion-safe:animate-[spin_6s_linear_infinite]" aria-hidden>
+          <WheelIcon size={15} />
+        </span>
         Spin for it
       </button>
       {open &&

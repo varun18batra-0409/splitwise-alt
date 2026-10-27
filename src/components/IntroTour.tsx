@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "@/components/Link";
+import Image from "next/image";
 import { GetAppButton } from "./GetApp";
 import { HomeIcon } from "./icons";
 
@@ -271,7 +272,7 @@ function makeSlides(L: Local): Slide[] {
               <span aria-hidden className="absolute left-1/2 top-0 z-10 h-4 w-2.5 -translate-x-1/2 rounded-[2px] bg-owed shadow-[0_0_10px_rgba(111,227,168,0.6)]" />
               <span className="block w-[92px] bg-[#f4f1e8] p-[5px] pb-0 shadow-[0_12px_22px_-10px_rgba(0,0,0,0.95)]">
                 <span className="relative block h-[104px] overflow-hidden bg-[#2a2a30]">
-                  {photo(slot) && <img src={photo(slot)} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />}
+                  {photo(slot) && <Image src={photo(slot)!} alt="" fill sizes="96px" className="object-cover" />}
                   <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1 pt-4 text-left font-display text-[13px] font-semibold text-[#f7f4ec]">{big}</span>
                 </span>
                 <span className="block truncate px-0.5 pb-1 pt-0.5 text-center font-hand text-[16px] font-bold leading-tight text-[#2a2620]">{label}</span>

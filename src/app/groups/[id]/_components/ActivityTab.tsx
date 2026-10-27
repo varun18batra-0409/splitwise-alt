@@ -12,7 +12,7 @@ import { ActivityRow } from "@/components/ActivityRow";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { Line } from "./Line";
 import { payersOf } from "@/lib/payers";
-import { REACTIONS, reactionSummary } from "@/lib/reactions";
+import { ALL_REACTIONS, quickReactions, reactionSummary } from "@/lib/reactions";
 import { reactAction } from "@/app/reaction-actions";
 import type { GroupEvent, GroupView } from "./view";
 
@@ -262,21 +262,39 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                     <div className="mb-3 ml-[3.25rem] space-y-1.5 rounded-xl bg-mist p-3 text-sm text-gray-600">
                       {/* React: one tap (tap yours again to take it back). */}
                       {!deleted && (
-                        <div className="-mx-1 mb-1 flex flex-wrap gap-1" role="group" aria-label="React">
-                          {REACTIONS.map((emoji) => (
-                            <form key={emoji} action={reactAction}>
-                              <input type="hidden" name="expenseId" value={e.id} />
-                              <input type="hidden" name="emoji" value={emoji} />
-                              <button
-                                type="submit"
-                                aria-pressed={reacted.mine === emoji}
-                                aria-label={`React ${emoji}`}
-                                className={`flex h-9 w-9 items-center justify-center rounded-full text-lg transition-transform active:scale-90 ${reacted.mine === emoji ? "bg-fg/15 ring-1 ring-fg/30" : "bg-canvas/60"}`}
-                              >
-                                {emoji}
-                              </button>
-                            </form>
-                          ))}
+                        <div className="-mx-1 mb-1" role="group" aria-label="React">
+                          {(() => {
+                            const btn = (emoji: string) => (
+                              <form key={emoji} action={reactAction}>
+                                <input type="hidden" name="expenseId" value={e.id} />
+                                <input type="hidden" name="emoji" value={emoji} />
+                                <button
+                                  type="submit"
+                                  aria-pressed={reacted.mine === emoji}
+                                  aria-label={`React ${emoji}`}
+                                  className={`flex h-9 w-9 items-center justify-center rounded-full text-lg transition-transform active:scale-90 ${reacted.mine === emoji ? "bg-fg/15 ring-1 ring-fg/30" : "bg-canvas/60"}`}
+                                >
+                                  {emoji}
+                                </button>
+                              </form>
+                            );
+                            const quick = quickReactions(reactions);
+                            // Yours stays in reach even if it isn't one of the quick six.
+                            const row = reacted.mine && !quick.includes(reacted.mine) ? [...quick.slice(0, 5), reacted.mine] : quick;
+                            return (
+                              <div className="relative flex flex-wrap items-center gap-1">
+                                {row.map(btn)}
+                                <details className="group/more static">
+                                  <summary aria-label="More reactions" className="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-full bg-canvas/60 text-lg text-fg/70 group-open/more:bg-fg/15 [&::-webkit-details-marker]:hidden">
+                                    +
+                                  </summary>
+                                  <div className="absolute inset-x-0 top-full z-10 mt-1.5 flex flex-wrap gap-1 rounded-xl border border-line bg-mist p-1.5 shadow-[0_12px_24px_-12px_rgba(0,0,0,0.8)]">
+                                    {ALL_REACTIONS.filter((x) => !row.includes(x)).map(btn)}
+                                  </div>
+                                </details>
+                              </div>
+                            );
+                          })()}
                         </div>
                       )}
                       <Line label="Date" value={niceDate(dayKey(expenseDate(e), tz))} />
