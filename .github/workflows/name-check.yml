@@ -7,12 +7,21 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - run: |
-          names="roamates evensies kahoots tripsquad stampd tallytales splitstory crewbook allsquare evenstevens squarely gallivant pocketcrew groupjar wanderkitty kittyup mateship jaunty togetha passportpals roampal tripstamp crewly squadly evenly kittyapp stampbook wanderly hoppr tabtales"
+          names="roamates evensies kahoots tripsquad stampd tallytales splitstory crewbook allsquare evenstevens squarely gallivant pocketcrew groupjar kittyup mateship togetha passportpals roampal tripstamp crewly squadly stampbook wanderly evenup tabsquad tripjar splitstamp stampwise allsquared roamly togethr crewkitty gullak chumly tallyho squadtab roamtab"
+          q() { # registry RDAP: 404 = nobody has it
+            case "$2" in
+              com) u="https://rdap.verisign.com/com/v1/domain/$1.com";;
+              app) u="https://pubapi.registry.google/rdap/domain/$1.app";;
+              co) u="https://rdap.nic.co/domain/$1.co";;
+              io) u="https://rdap.identitydigital.services/rdap/domain/$1.io";;
+            esac
+            curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$u"
+          }
           out=""
           for n in $names; do
             line="$n:"
             for tld in com app co io; do
-              code=$(curl -s -L -o /dev/null -w '%{http_code}' --max-time 15 "https://rdap.org/domain/$n.$tld")
+              code=$(q $n $tld); sleep 0.4
               case "$code" in 404) s="FREE";; 200) s="taken";; *) s="?$code";; esac
               line="$line $tld=$s"
             done
