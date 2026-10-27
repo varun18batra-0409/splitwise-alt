@@ -1,3 +1,4 @@
+import { Confetti } from "@/components/Confetti";
 import Link from "@/components/Link";
 import { SquareSeal } from "@/components/DrawnIcons";
 import { notFound, redirect } from "next/navigation";
@@ -99,7 +100,7 @@ export default async function GroupSettle({
                 <span className="flex shrink-0 gap-2">
                   <form action={confirmPaymentAction}>
                     <input type="hidden" name="paymentId" value={p.id} />
-                    <button type="submit" className="rounded-full bg-fg px-3.5 py-1.5 text-xs font-semibold text-canvas">
+                    <button type="submit" data-haptic="success" className="rounded-full bg-fg px-3.5 py-1.5 text-xs font-semibold text-canvas">
                       Got it ✓
                     </button>
                   </form>
@@ -124,6 +125,7 @@ export default async function GroupSettle({
 
       {transfers.length === 0 ? (
         <div className="rounded-2xl bg-mist px-4 py-10 text-center">
+          {expenses.length > 0 && <Confetti id={`${group.id}:${expenses.length}:${payments.length}`} />}
           <SquareSeal size={56} className="mx-auto" />
           <p className="mt-3 font-display text-xl font-semibold">All square</p>
           <p className="mt-1 text-sm text-gray-500">Nobody owes anybody here.</p>
@@ -196,7 +198,7 @@ export default async function GroupSettle({
                         className="w-full bg-transparent px-2 py-2.5 text-right text-base tabular-nums outline-none"
                       />
                     </label>
-                    <button type="submit" className="pop shrink-0 bg-fg px-4 py-2.5 text-sm font-semibold text-canvas [--pop-edge:#6e6b63]">
+                    <button type="submit" data-haptic="success" className="pop shrink-0 bg-fg px-4 py-2.5 text-sm font-semibold text-canvas [--pop-edge:#6e6b63]">
                       Mark paid
                     </button>
                   </form>

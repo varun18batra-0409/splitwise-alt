@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { buzz } from "@/lib/haptics";
 
 // In the installed app there's no browser refresh button, so:
 //  - coming back to the app (after 20+ seconds away) loads the latest changes;
@@ -46,7 +47,10 @@ export function AppRefresh() {
     const pullRef = { current: 0 };
     const track = (e: TouchEvent) => {
       onMove(e);
-      if (start.current !== null) pullRef.current = Math.min(1, Math.max(0, (e.touches[0].clientY - start.current) / 90));
+      if (start.current === null) return;
+      const was = pullRef.current;
+      pullRef.current = Math.min(1, Math.max(0, (e.touches[0].clientY - start.current) / 90));
+      if (was < 1 && pullRef.current >= 1) buzz("tap"); // far enough: let go to refresh
     };
     window.addEventListener("touchstart", onStart, { passive: true });
     window.addEventListener("touchmove", track, { passive: true });
@@ -63,11 +67,15 @@ export function AppRefresh() {
   return (
     <div className="pointer-events-none fixed inset-x-0 top-[max(0.5rem,env(safe-area-inset-top))] z-40 flex justify-center">
       <span
-        className={`flex h-9 w-9 items-center justify-center rounded-full border border-line bg-canvas text-fg shadow-lg ${busy ? "animate-spin" : ""}`}
-        style={{ opacity: busy ? 1 : pull, transform: busy ? undefined : `rotate(${pull * 270}deg)` }}
+        className={`flex h-10 w-10 items-center justify-center rounded-full border border-line bg-white text-fg shadow-[0_10px_24px_rgba(0,0,0,0.5)] ${busy ? "animate-spin" : ""}`}
+        style={{ opacity: busy ? 1 : Math.max(0.25, pull), transform: busy ? undefined : `translateY(${pull * 14}px) rotate(${pull * 300}deg) scale(${0.7 + pull * 0.3})` }}
         aria-hidden
+        data-pull-refresh
       >
-        ↻
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M20 12a8 8 0 1 1-2.34-5.66" />
+          <path d="M20 4v5h-5" />
+        </svg>
       </span>
     </div>
   );

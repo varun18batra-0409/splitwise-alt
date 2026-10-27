@@ -74,6 +74,16 @@ const SECTIONS: { title: string; items: QA[] }[] = [
     title: "Splitting and settling",
     items: [
       {
+        q: "Are there shortcuts for my thumb?",
+        a: (
+          <>
+            Yes. Swipe an expense to the left for <strong>Edit</strong> and <strong>Delete</strong> (Undo shows straight after). Drag any
+            sheet down to close it. In stories, hold to pause, swipe sideways to jump to the next one, up to open it and down to close.
+            In the installed app, pull down at the top of a screen to refresh. On Android, the taps that matter give a small buzz.
+          </>
+        ),
+      },
+      {
         q: "How do I split unequally?",
         a: (
           <>

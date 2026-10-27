@@ -6,6 +6,7 @@ import { PushSync } from "@/components/PushControls";
 import { TimeZoneSync } from "@/components/TimeZoneSync";
 import { DoubleTapGuard } from "@/components/DoubleTapGuard";
 import { InstallCapture } from "@/components/GetApp";
+import { Haptics } from "@/components/Haptics";
 import { AppRefresh } from "@/components/AppRefresh";
 import { NavProgress } from "@/components/NavProgress";
 import { Splash } from "@/components/Splash";
@@ -67,6 +68,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <DoubleTapGuard />
         <InstallCapture />
         <AppRefresh />
+        <Haptics />
         <NavProgress />
         <MotionWatch />
       </body>

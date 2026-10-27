@@ -633,3 +633,17 @@ html.lp-opened .lp-open {
 @media (prefers-reduced-motion: reduce) {
   .lp-fan { animation: none; }
 }
+
+/* Confetti when a group goes all square (Confetti.tsx). */
+@keyframes lp-confetti {
+  0% { transform: translate3d(0, -6vh, 0) rotate(0deg); opacity: 1; }
+  80% { opacity: 1; }
+  100% { transform: translate3d(var(--dx, 0px), 104vh, 0) rotate(var(--turn, 720deg)); opacity: 0; }
+}
+.lp-confetti {
+  position: absolute;
+  top: 0;
+  animation-name: lp-confetti;
+  animation-timing-function: cubic-bezier(0.25, 0.55, 0.45, 1);
+  animation-fill-mode: both;
+}

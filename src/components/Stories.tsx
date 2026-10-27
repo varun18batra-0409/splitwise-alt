@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
 import Image from "next/image";
 import Link from "./Link";
+import { buzz } from "@/lib/haptics";
 import { GroupCover } from "./GroupCover";
 import { StoryArt } from "./StoryArt";
 import { Backdrop, TONE } from "./Backdrop";
@@ -11,8 +12,9 @@ import type { Frame, Story } from "@/lib/home/stories";
 
 // Home's stories, as little polaroids pegged on a string. A green peg means
 // you haven't seen it yet. Tap one to open the stories full screen: tap the
-// right side for the next, the left for the one before, swipe down (or Back)
-// to close. Seen stories are remembered on this phone only.
+// right side for the next, the left for the one before, hold to pause,
+// swipe sideways to jump stories, swipe up for the story's button, swipe
+// down (or Back) to close. Seen stories are remembered on this phone only.
 
 const SEEN_KEY = "lp_seen_stories";
 const DURATION = 6000;
@@ -165,7 +167,13 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
   const [at, setAt] = useState({ s: start, f: 0 });
   const [paused, setPaused] = useState(false);
   const [still, setStill] = useState(false); // the phone asks for less motion: no auto-advance
-  const startY = useRef<number | null>(null);
+  // Gestures: hold to pause, drag down to close, swipe sideways for the next or previous story,
+  // swipe up to do the story's one thing. A hold or a swipe never also counts as a tap.
+  const drag = useRef<{ x: number; y: number; t: number; moved: boolean } | null>(null);
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const notATap = useRef(false);
+  const cta = useRef<HTMLAnchorElement>(null);
+  const [dy, setDy] = useState(0);
   const story = stories[at.s];
   const frames = story?.frames.length ? story.frames : [];
 
@@ -188,6 +196,36 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
     [stories],
   );
   const prev = useCallback(() => setAt((x) => (x.f > 0 ? { s: x.s, f: x.f - 1 } : x.s > 0 ? { s: x.s - 1, f: 0 } : x)), []);
+  const tap = (go: () => void) => () => {
+    if (notATap.current) {
+      notATap.current = false;
+      return;
+    }
+    go();
+  };
+  const letGo = (e: PointerEvent<HTMLDivElement> | null) => {
+    clearTimeout(holdTimer.current);
+    const d = drag.current;
+    drag.current = null;
+    setPaused(false);
+    setDy(0);
+    if (!d || !e) return;
+    const mx = e.clientX - d.x;
+    const my = e.clientY - d.y;
+    if (d.moved || Date.now() - d.t > 260) notATap.current = true;
+    if (!d.moved) return;
+    const down = my > 0 && Math.abs(my) > Math.abs(mx);
+    const up = my < 0 && Math.abs(my) > Math.abs(mx);
+    if (down && my > 110) close();
+    else if (up && my < -90) {
+      buzz("tap");
+      cta.current?.click();
+    } else if (Math.abs(mx) > 70 && Math.abs(mx) > Math.abs(my)) {
+      buzz("tap");
+      if (mx < 0) setAt((x) => ({ s: x.s + 1, f: 0 }));
+      else setAt((x) => ({ s: Math.max(0, x.s - 1), f: 0 }));
+    }
+  };
 
   useEffect(() => {
     setStill(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
@@ -226,19 +264,35 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
   // Every slide is dark now (photos, artwork, posters), so the controls are always light.
   const ink = "#f7f4ec";
   return (
-    <div className="fixed inset-0 z-[60] bg-black" role="dialog" aria-modal="true" aria-label={`Story: ${story.headline}`}>
+    <div className="fixed inset-0 z-[60]" style={{ background: `rgba(0,0,0,${dy ? Math.max(0.35, 1 - dy / 500) : 1})` }} role="dialog" aria-modal="true" aria-label={`Story: ${story.headline}`}>
       <div
-        className="relative mx-auto h-full max-w-md overflow-hidden"
+        className="relative mx-auto h-full max-w-md touch-none overflow-hidden"
+        data-story-viewer
+        style={
+          dy
+            ? { transform: `translateY(${dy * 0.85}px) scale(${1 - Math.min(dy, 400) / 1800})`, borderRadius: 24, transition: "none" }
+            : { transition: "transform 240ms cubic-bezier(.2,.9,.25,1), border-radius 240ms" }
+        }
         onPointerDown={(e) => {
-          startY.current = e.clientY;
-          setPaused(true);
+          drag.current = { x: e.clientX, y: e.clientY, t: Date.now(), moved: false };
+          clearTimeout(holdTimer.current);
+          holdTimer.current = setTimeout(() => setPaused(true), 180);
         }}
-        onPointerUp={(e) => {
-          setPaused(false);
-          if (startY.current !== null && e.clientY - startY.current > 90) close();
-          startY.current = null;
+        onPointerMove={(e) => {
+          const d = drag.current;
+          if (!d) return;
+          const mx = e.clientX - d.x;
+          const my = e.clientY - d.y;
+          if (!d.moved && Math.hypot(mx, my) > 10) {
+            d.moved = true;
+            clearTimeout(holdTimer.current);
+            setPaused(true);
+          }
+          if (d.moved && my > 0 && my > Math.abs(mx)) setDy(my);
+          else if (dy) setDy(0);
         }}
-        onPointerCancel={() => setPaused(false)}
+        onPointerUp={letGo}
+        onPointerCancel={() => letGo(null)}
       >
         {f ? <Slide key={`${at.s}-${at.f}`} f={f} uid={`sl-${story.id}-${at.f}`} /> : <Picture s={story} uid={`sv-${story.id}`} big />}
 
@@ -266,16 +320,16 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
         </button>
 
         {/* Tap the left third for back, the rest for next. */}
-        <button type="button" aria-label="Previous" onClick={prev} className="absolute inset-y-0 left-0 z-10 w-1/3" />
-        <button type="button" aria-label="Next" onClick={next} className="absolute inset-y-0 right-0 z-10 w-2/3" />
+        <button type="button" aria-label="Previous" onClick={tap(prev)} className="absolute inset-y-0 left-0 z-10 w-1/3" />
+        <button type="button" aria-label="Next" onClick={tap(next)} className="absolute inset-y-0 right-0 z-10 w-2/3" />
 
         {/* One thing to do next, on every slide. */}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 px-6 pb-[max(28px,env(safe-area-inset-bottom))]">
-          <Link href={story.href} replace className="pop pointer-events-auto relative block px-4 py-3.5 text-center text-base font-semibold [--pop-edge:#6e6b63]" style={{ background: "#f4f1e8", color: "#14130f" }}>
+          <Link ref={cta} href={story.href} replace className="pop pointer-events-auto relative block px-4 py-3.5 text-center text-base font-semibold [--pop-edge:#6e6b63]" style={{ background: "#f4f1e8", color: "#14130f" }}>
             {story.cta}
           </Link>
           <p className="mt-2 text-center text-[11px]" style={{ color: `${ink}99` }}>
-            Tap for more · swipe down to close
+            Hold to pause. Swipe up to open, down to close.
           </p>
         </div>
       </div>

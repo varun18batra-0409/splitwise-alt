@@ -1063,6 +1063,7 @@ export function AddExpenseForm({
       <div className={expenseId ? "" : "flex gap-2.5"}>
         <button
           type="submit"
+          data-haptic="tap"
           onClick={() => {
             againRef.current = false;
             setAgain(false);

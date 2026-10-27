@@ -158,7 +158,7 @@ async function Owes({ s, money, to, from, token, undone }: { s: Shown; money: st
         {step(2, `Tell ${to}`)}
         <form action={iPaidAction}>
           <input type="hidden" name="token" value={token} />
-          <button type="submit" className="pop block w-full bg-owed px-4 py-3.5 text-center text-base font-semibold text-canvas [--pop-edge:#1f6b4a]" data-i-paid>
+          <button type="submit" className="pop block w-full bg-owed px-4 py-3.5 text-center text-base font-semibold text-canvas [--pop-edge:#1f6b4a]" data-i-paid data-haptic="success">
             I’ve paid {money} ✓
           </button>
         </form>
