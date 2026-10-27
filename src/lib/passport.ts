@@ -105,7 +105,7 @@ export function buildPassport(trips: PassportTrip[], hand: HandPlace[], home: st
   // Milestones worth showing off.
   const milestones: string[] = [];
   if (abroad.some((r) => r.trips > 0)) milestones.push("First trip abroad ✈️");
-  if (abroad.length >= 3) milestones.push(`${abroad.length} countries 🌍`);
+  if (abroad.length >= 3) milestones.push(`${abroad.length} countries abroad 🌍`);
   for (const r of rows) for (const city of r.cities) {
     const n = cityTrips.get(`${r.code}|${city.toLowerCase()}`) ?? 0;
     if (n >= 3) milestones.push(`${city} ×${n} 🔁`);

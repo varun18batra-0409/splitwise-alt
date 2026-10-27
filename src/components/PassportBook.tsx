@@ -52,7 +52,7 @@ function StampMark({ s, i }: { s: Stamp; i: number }) {
   const dx = ((h >> 3) % 25) - 12;
   const dy = ((h >> 7) % 21) - 10;
   const pos = { left: `calc(${col * 50 + 25}% + ${dx}px)`, top: `calc(${rowN * 33.3 + 16.6}% + ${dy}px)` };
-  const common = "absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center text-center mix-blend-multiply";
+  const common = "absolute flex flex-col items-center justify-center text-center mix-blend-multiply";
   if (s.kind === "country")
     return (
       <div
@@ -111,15 +111,26 @@ export function PassportBook({ name, stats, milestones, pages, index }: Props) {
     return () => clearTimeout(t);
   }, [open]);
 
+  // Where the arrows aim: follows your swipes once they settle, and quick taps add up.
+  const target = useRef(0);
+  const settle = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const onScroll = () => {
     const el = strip.current;
-    if (el) setAt(Math.round(el.scrollLeft / el.clientWidth));
+    if (!el) return;
+    const k = Math.round(el.scrollLeft / el.clientWidth);
+    setAt(k);
+    clearTimeout(settle.current);
+    settle.current = setTimeout(() => (target.current = k), 160);
   };
-  const go = (k: number) => {
+  const go = (step: number) => {
     const el = strip.current;
-    if (el) el.scrollTo({ left: Math.max(0, Math.min(k, total - 1)) * el.clientWidth, behavior: "smooth" });
+    if (!el) return;
+    clearTimeout(settle.current);
+    target.current = Math.max(0, Math.min(target.current + step, total - 1));
+    setAt(target.current);
+    el.scrollTo({ left: target.current * el.clientWidth, behavior: "smooth" });
   };
-  const mrz = `P<LOOPIN<<${(name || "TRAVELLER").toUpperCase().replace(/[^A-Z]+/g, "<")}`.padEnd(44, "<").slice(0, 44);
+  const mrz = `P<LOOPIN<<${(name || "TRAVELLER").toUpperCase().replace(/[^A-Z]+/g, "<")}`.padEnd(36, "<").slice(0, 36);
 
   return (
     <div className="relative" data-passport>
@@ -166,10 +177,10 @@ export function PassportBook({ name, stats, milestones, pages, index }: Props) {
                 </ul>
               )}
               <p className="mt-auto text-sm text-[#7a7262]">{pages.length ? "Swipe for your stamps ›" : "No stamps yet. Your next trip earns the first one ✈️"}</p>
-              <p aria-hidden className="mt-4 break-all font-mono text-[11px] leading-[1.35] tracking-[0.08em] text-[#5c564a]/80">
+              <p aria-hidden className="mt-4 overflow-hidden whitespace-nowrap font-mono text-[11px] leading-[1.35] tracking-[0.04em] text-[#5c564a]/80">
                 {mrz}
                 <br />
-                {`${String(stats.countries).padStart(2, "0")}C${String(stats.cities).padStart(3, "0")}T${String(stats.trips).padStart(3, "0")}`.padEnd(44, "<")}
+                {`${String(stats.countries).padStart(2, "0")}C${String(stats.cities).padStart(3, "0")}T${String(stats.trips).padStart(3, "0")}`.padEnd(36, "<")}
               </p>
             </div>
           </Sheet>
@@ -234,7 +245,7 @@ export function PassportBook({ name, stats, milestones, pages, index }: Props) {
       {/* Turn the page without swiping, and where you are. */}
       {gone && (
         <div className="mt-3 flex items-center justify-between">
-          <button type="button" onClick={() => go(at - 1)} disabled={at === 0} aria-label="Previous page" className="flex h-10 w-10 items-center justify-center rounded-full border border-line text-lg disabled:opacity-30">
+          <button type="button" onClick={() => go(-1)} disabled={at === 0} aria-label="Previous page" className="flex h-10 w-10 items-center justify-center rounded-full border border-line text-lg disabled:opacity-30">
             ‹
           </button>
           {total <= 8 ? (
@@ -248,7 +259,7 @@ export function PassportBook({ name, stats, milestones, pages, index }: Props) {
               Page {at + 1} of {total}
             </span>
           )}
-          <button type="button" onClick={() => go(at + 1)} disabled={at >= total - 1} aria-label="Next page" className="flex h-10 w-10 items-center justify-center rounded-full border border-line text-lg disabled:opacity-30">
+          <button type="button" onClick={() => go(1)} disabled={at >= total - 1} aria-label="Next page" className="flex h-10 w-10 items-center justify-center rounded-full border border-line text-lg disabled:opacity-30">
             ›
           </button>
         </div>

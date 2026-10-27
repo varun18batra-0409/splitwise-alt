@@ -398,14 +398,20 @@ if (!hosted) {
       await p.getByRole("button", { name: "Open your passport" }).click();
       await p.waitForTimeout(800);
       const pages = await p.locator("[data-page]").count();
-      for (let k = 1; k < pages - 1; k++) await p.getByRole("button", { name: "Next page" }).click();
+      for (let k = 1; k < pages - 1; k++) {
+        await p.getByRole("button", { name: "Next page" }).click();
+        await p.waitForTimeout(150);
+      }
       await p.waitForTimeout(700);
     }, false);
     await shot("112-passport-index", "/passport", async (p) => {
       await p.getByRole("button", { name: "Open your passport" }).click();
       await p.waitForTimeout(800);
       const pages = await p.locator("[data-page]").count();
-      for (let k = 1; k < pages; k++) await p.getByRole("button", { name: "Next page" }).click();
+      for (let k = 1; k < pages; k++) {
+        await p.getByRole("button", { name: "Next page" }).click();
+        await p.waitForTimeout(150);
+      }
       await p.waitForTimeout(700);
     }, false);
     await shot("113-passport-pick", "/passport", async (p) => {

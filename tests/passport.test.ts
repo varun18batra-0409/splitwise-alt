@@ -49,7 +49,7 @@ describe("Trip passport: stamps", () => {
       ["JP", 0, true, ""],
       ["TH", 1, false, "Bangkok/Phuket"],
     ]);
-    expect(p.milestones).toEqual(["First trip abroad ✈️", "3 countries 🌍", "Goa ×3 🔁", "3 trips this year 🔥"]);
+    expect(p.milestones).toEqual(["First trip abroad ✈️", "3 countries abroad 🌍", "Goa ×3 🔁", "3 trips this year 🔥"]);
   });
   it("pages of six: trips first, then Before Loopin", () => {
     const pages = stampPages(p.stamps, p.been, 2);
