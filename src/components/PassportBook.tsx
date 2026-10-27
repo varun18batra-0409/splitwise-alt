@@ -26,6 +26,7 @@ type Props = {
   pages: Page[];
   index: IndexRow[];
   badges?: Badge[];
+  own?: boolean; // your own passport (or a friend's)
 };
 
 // The faint security print on every page.
@@ -200,7 +201,7 @@ function Sheet({ n, of, children, label }: { n: number; of: number; children: Re
   );
 }
 
-export function PassportBook({ name, stats, milestones, pages, index, badges = [] }: Props) {
+export function PassportBook({ name, stats, milestones, pages, index, badges = [], own = true }: Props) {
   const [open, setOpen] = useState(false);
   const [gone, setGone] = useState(false); // the cover, once it has swung away
   const [at, setAt] = useState(0);
@@ -310,7 +311,7 @@ export function PassportBook({ name, stats, milestones, pages, index, badges = [
           {/* Where you've been: the world map and the badges */}
           <Sheet n={2} of={total} label="Map and badges">
             <div className="flex h-full flex-col px-5 pb-8 pt-5">
-              <p className="text-[11px] font-semibold tracking-[0.2em] text-[#8a8270]">WHERE YOU’VE BEEN</p>
+              <p className="text-[11px] font-semibold tracking-[0.2em] text-[#8a8270]">{own ? "WHERE YOU’VE BEEN" : `WHERE ${(name || "THEY").toUpperCase()} HAS BEEN`}</p>
               <WorldMap index={index} />
               <p className="mt-3 text-[11px] font-semibold tracking-[0.2em] text-[#8a8270]">BADGES</p>
               <ul className="mt-2 grid grid-cols-3 gap-1.5" data-badges>
@@ -319,7 +320,7 @@ export function PassportBook({ name, stats, milestones, pages, index, badges = [
                     <span className={`block text-[20px] leading-none ${b.earned ? "" : "grayscale"}`} aria-hidden>
                       {b.emoji}
                     </span>
-                    <span className="mt-0.5 block truncate text-[10.5px] font-bold leading-tight">{b.title}</span>
+                    <span className="mt-0.5 block text-[10px] font-bold leading-[1.15]">{b.title}</span>
                     <span className="block truncate text-[9px] text-[#5c564a]">{b.earned ? b.why : `${b.have} of ${b.need}`}</span>
                   </li>
                 ))}
