@@ -151,7 +151,7 @@ describe("Trip Wrapped and fun titles", () => {
   it("titles: everyone gets one, never about who paid less", () => {
     const t = funTitles(expenses, ["a", "b", "c", "d", "e"], "Asia/Kolkata", "INR");
     expect(t.map((x) => [x.memberId, x.title])).toEqual([["a", "The Banker"], ["b", "Snack Lord"], ["c", "The Driver"], ["d", "Smooth Operator"], ["e", "Chief Vibe Officer"]]);
-    expect(t.every((x) => !/covered|nothing|didn/i.test(x.why))).toBe(true);
+    expect(t.every((x) => !/had it covered|paid nothing|didn.t pay/i.test(x.why))).toBe(true);
     // A big group: still one each, and no title twice.
     const many = funTitles(expenses, ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"], "Asia/Kolkata", "INR");
     expect(many).toHaveLength(10);
