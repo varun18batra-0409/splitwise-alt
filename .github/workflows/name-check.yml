@@ -7,22 +7,11 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - run: |
-          names="squadstamp kittyroam tripsettle wandersquare evenroam crewstamp stampsquad tabwander roamsquare pocketroam squarestamp joyntly crewtally tallycrew splitsail splitsy kinsplit settlr squarr loopsy loopsquad loopora ourtab tabtribe tribetab wandertab tripkitty kittycrew passporty stampora roamora sqwad jollo merrytab splitjoy joysplit miletab milemates stampmates crewmiles wandercrew evenwander squarewise pocketpassport tallyroam roamtally stamptab tabstamp yaaro squadsy tripsy wandersplit splitwander roamsplit"
-          curl -s https://data.iana.org/rdap/dns.json -o dns.json
-          base() { jq -r --arg t "$1" '.services[] | select(.[0] | index($t)) | .[1][0]' dns.json | head -1; }
-          declare -A B; for t in com app co io; do B[$t]=$(base $t); echo "$t -> ${B[$t]}"; done
-          q() { # registry RDAP: 404 = nobody has it
-            curl -s -o /dev/null -w '%{http_code}' --max-time 15 "${B[$2]%/}/domain/$1.$2" || echo "err"
-          }
-          out=""
-          for n in $names; do
-            line="$n:"
-            for tld in com app; do
-              code=$(q $n $tld); sleep 0.4
-              case "$code" in 404) s="FREE";; 200) s="taken";; *) s="?$code";; esac
-              line="$line $tld=$s"
-            done
-            echo "$line"
-            out="$out$line%0A"
-          done
-          echo "::notice title=Domains::$out"
+          curl -sL https://cdn.jsdelivr.net/npm/svgmap@2.20.0/dist/index.js -o m.js
+          ls -la m.js
+          echo "::notice title=size::$(wc -c < m.js)"
+          echo "::notice title=paths::$(grep -o 'mapPaths' m.js | wc -l) $(grep -oE '[A-Z]{2}["]?\s*:\s*\{\s*["]?d["]?\s*:' m.js | head -3 | tr '\n' ' ')"
+          echo "::notice title=sample::$(grep -oE '.{60}AF["]?\s*:\s*\{.{80}' m.js | head -2 | tr '\n' ' ' | sed 's/%/%25/g')"
+          echo "::notice title=count::$(grep -oE '\b[A-Z]{2}["]?\s*:\s*\{\s*["]?d["]?\s*:' m.js | wc -l)"
+          echo "::notice title=viewbox::$(grep -oE 'viewBox[^,;]{0,60}' m.js | head -3 | tr '\n' ' ')"
+          echo "::notice title=license::$(head -c 400 m.js | tr '\n' ' ')"
