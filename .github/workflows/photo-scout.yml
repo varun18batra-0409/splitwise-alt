@@ -12,25 +12,8 @@ jobs:
       - uses: actions/checkout@v4
       - run: sudo apt-get install -y imagemagick >/dev/null 2>&1 || true
       - run: |
-          mkdir -p scout && cd scout
-          q() { python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))" "$1"; }
-          while IFS='|' read -r slot query; do
-            [ -z "$slot" ] && continue
-            slug=$(echo "$query" | tr ' ' '-')
-            curl -sL -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36" -H "Accept-Language: en" "https://unsplash.com/s/photos/$slug?orientation=portrait&license=free" -o "$slot.html"
-            grep -oE 'https://images\.unsplash\.com/photo-[0-9]+-[0-9a-f]+' "$slot.html" | awk '!seen[$0]++' | head -8 | sed 's/$/?ixlib=rb-4.0.3\t-\t-/' > "$slot.tsv"
-            echo "== $slot ($query): $(wc -l < "$slot.tsv") found, html $(wc -c < "$slot.html")"
-            i=0; files=""
-            while IFS=$'\t' read -r raw alt likes; do
-              i=$((i+1)); id=$(echo "$raw" | sed -E 's#https://images.unsplash.com/(photo-[^?]+).*#\1#')
-              echo "$slot $i $id $likes $alt"
-              curl -s "${raw}&w=360&h=480&fit=crop&q=60&fm=jpg" -o "$slot-$i.jpg" && files="$files $slot-$i.jpg"
-              rm -f "$slot.html"
-              convert "$slot-$i.jpg" -gravity south -background black -splice 0x34 -fill white -pointsize 20 -annotate +0+6 "$i ${id:6:22}" "$slot-$i.jpg" 2>/dev/null
-            done < "$slot.tsv"
-            [ -n "$files" ] && montage $files -tile 8x1 -geometry 270x386+4+4 -background '#111' -title "$slot: $query" -fill white -pointsize 22 "sheet-$slot.jpg"
-            rm -f $slot-*.jpg
-          done <<'LIST'
+          mkdir -p scout
+          cat > scout/list.txt <<'LIST'
           place-pune|pune india
           place-lonavala|lonavala monsoon
           place-mumbai|mumbai marine drive
@@ -64,6 +47,21 @@ jobs:
           cover-road-in|india highway road trip mountains
           place-mussoorie|mussoorie hills
           LIST
+          cd scout-tool && npm init -y >/dev/null && npm i playwright@1.48.2 >/dev/null 2>&1 && npx playwright install --with-deps chromium >/dev/null 2>&1
+          node find.cjs ../scout/list.txt && mv found.json ../scout/
+      - run: |
+          cd scout
+          for slot in $(jq -r 'keys[]' found.json); do
+            files=""; i=0
+            for id in $(jq -r --arg s "$slot" '.[$s][].id' found.json); do
+              i=$((i+1))
+              curl -s "https://images.unsplash.com/$id?w=300&h=400&fit=crop&q=60&fm=jpg" -o "$slot-$i.jpg" || continue
+              convert "$slot-$i.jpg" -gravity south -background black -splice 0x30 -fill white -pointsize 18 -annotate +0+5 "$i" "$slot-$i.jpg" 2>/dev/null && files="$files $slot-$i.jpg"
+            done
+            [ -n "$files" ] && montage $files -tile 8x1 -geometry 220x320+3+3 -background '#111' -title "$slot" -fill white -pointsize 20 "sheet-$slot.jpg"
+            rm -f $slot-*.jpg
+          done
+          rm -f *.html *.tsv *.json.bak
       - run: |
           git config user.name scout && git config user.email scout@users.noreply.github.com
           git checkout -B photo-scout
