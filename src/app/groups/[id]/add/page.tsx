@@ -6,7 +6,7 @@ import { PageHeader, primaryButtonClass } from "@/components/ui";
 import { setGroupClosed } from "@/app/actions";
 import { AddExpenseForm } from "@/components/AddExpenseForm";
 import { SheetPage } from "@/components/SheetPage";
-import { coverFor, coverOf } from "@/lib/covers";
+import { coverFor } from "@/lib/covers";
 import { placePhoto } from "@/lib/places";
 import { getTimeZone } from "@/lib/tz";
 import { splitNameFor } from "@/lib/group-types";
@@ -78,13 +78,12 @@ export default async function AddExpensePage({
     ? initialFromExpense(source, { groupMarkupBp: group.cardMarkupBp, groupWeights: weights, tz, today: todayKey(new Date(), tz) }, sp.again ? "again" : "repeat")
     : billInitial;
 
-  const own = coverOf(group) === "own";
   return (
     <SheetPage
       title={`Add to ${group.name}`}
       back={`/groups/${group.id}`}
       cover={coverFor(group)}
-      photo={!own && group.type === "trip" ? placePhoto(group.name)?.src : undefined}
+      photo={group.type === "trip" && !group.cover ? placePhoto(group.name)?.src : undefined}
       uid={group.id}
       letter={group.name}
     >

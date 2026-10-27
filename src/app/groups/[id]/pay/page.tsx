@@ -33,7 +33,7 @@ export default async function RecordPayment({
   const fill = (f: string, t: string, a: number) =>
     `/groups/${group.id}/pay?${new URLSearchParams({ from: f, to: t, amount: toInputAmount(a, group.currency) })}`;
 
-  const chip = "flex items-center gap-2 border border-line px-3 py-2 text-sm has-[:checked]:border-fg has-[:checked]:bg-fg has-[:checked]:font-medium has-[:checked]:text-canvas";
+  const chip = "flex items-center gap-2 rounded-full border border-line bg-mist px-4 py-2 text-sm font-medium has-[:checked]:border-fg has-[:checked]:bg-fg has-[:checked]:font-medium has-[:checked]:text-canvas";
 
   return (
     <>

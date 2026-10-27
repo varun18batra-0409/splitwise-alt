@@ -302,9 +302,10 @@ export default async function Home({
   // The top of Home: the next trip (or the one you're on) in big type over its photo; else your
   // most active group's picture and a greeting.
   const hero = trips[0];
-  const heroGroup = hero?.g ?? byActivity[0];
-  const ownPhoto = heroGroup ? coverOf(heroGroup.group) === "own" : false;
-  const heroPhoto = ownPhoto || !heroGroup || heroGroup.group.type !== "trip" ? undefined : placePhoto(heroGroup.group.name)?.src;
+  // Without a trip coming: the latest group that has a real photo (a trip's place, or one it picked), else a photo of friends.
+  const withPhoto = (g: (typeof open)[number]) => (g.group.type === "trip" && !g.group.cover && placePhoto(g.group.name)) || /^(photo-|own$)/.test(coverOf(g.group));
+  const heroGroup = hero?.g ?? byActivity.find(withPhoto);
+  const heroPhoto = heroGroup && heroGroup.group.type === "trip" && !heroGroup.group.cover ? placePhoto(heroGroup.group.name)?.src : undefined;
   const friends = hero ? crewOf(hero.g).filter((n) => n !== "You").length : 0;
   const heroChip = hero
     ? `${hero.phase.kind === "before" ? "Your next trip" : "On the trip"}${friends ? `, with ${friends === 1 ? "1 friend" : `${friends} friends`}` : ""}`
@@ -829,8 +830,7 @@ function GroupRow({ g, closed, tz }: { g: Awaited<ReturnType<typeof loadOverview
 function GroupLine({ g, tz }: { g: Awaited<ReturnType<typeof loadOverview>>["all"][number]; tz: string }) {
   const b = g.myBalance;
   const people = g.group.members.filter((m) => !m.leftAt);
-  const own = coverOf(g.group) === "own";
-  const photo = !own && g.group.type === "trip" ? placePhoto(g.group.name)?.src : undefined;
+  const photo = g.group.type === "trip" && !g.group.cover ? placePhoto(g.group.name)?.src : undefined;
   return (
     <li>
       <Link href={`/groups/${g.group.id}`} className="flex items-center gap-3.5 py-2.5 active:opacity-80" data-group-line>

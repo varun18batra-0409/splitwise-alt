@@ -383,7 +383,7 @@ export function AddExpenseForm({
           aria-label="Amount"
           autoFocus={!initial?.name}
           size={Math.max(2, amount.length + 1)}
-          className="money mt-2 w-full bg-transparent text-center text-[clamp(52px,17vw,72px)] leading-[1.05] text-fg caret-[var(--color-tint,var(--color-fg))] outline-none placeholder:text-fg/25"
+          className="money mt-2 w-full bg-transparent text-center focus-visible:outline-none text-[clamp(52px,17vw,72px)] leading-[1.05] text-fg caret-[var(--color-tint,var(--color-fg))] outline-none placeholder:text-fg/25"
         />
         {showCurrencies && (
           <div className="w-full text-left">
@@ -1068,7 +1068,7 @@ export function AddExpenseForm({
       )}
 
       {/* Always in reach: the save buttons ride along at the bottom while you scroll the form. */}
-      <div className={`sticky bottom-[max(1rem,env(safe-area-inset-bottom))] z-10 ${expenseId ? "" : "flex gap-2.5"}`}>
+      <div className={`glass-strong sticky bottom-[max(1rem,env(safe-area-inset-bottom))] z-10 -mx-2 rounded-full p-1.5 shadow-[0_18px_40px_-14px_rgba(0,0,0,0.85)] ${expenseId ? "" : "flex gap-1.5"}`}>
         <button
           type="submit"
           data-haptic="tap"

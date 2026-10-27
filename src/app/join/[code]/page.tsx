@@ -9,6 +9,7 @@ import { GoogleG } from "@/components/GoogleG";
 import { googleConfigured } from "@/lib/google";
 import { GroupCover } from "@/components/GroupCover";
 import { coverFor, coverOf } from "@/lib/covers";
+import { placePhoto } from "@/lib/places";
 import { StoryArt } from "@/components/StoryArt";
 import type { StoryKind } from "@/lib/home/stories";
 import { countdownWords, tripPhase } from "@/lib/countdown";
@@ -98,7 +99,10 @@ export default async function JoinPage({
     <>
       {/* The group's picture, edge to edge, with Loopin's name and (for a trip) how soon it leaves. */}
       <div className="relative -mx-5 -mt-[max(1.5rem,env(safe-area-inset-top))] h-[400px] overflow-hidden" aria-hidden>
-        {coverOf(group) !== "plain" ? (
+        {group.type === "trip" && !group.cover && placePhoto(group.name) ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={placePhoto(group.name)!.src} alt="" className="lp-drift absolute inset-0 h-full w-full object-cover" />
+        ) : coverOf(group) !== "plain" ? (
           <GroupCover {...coverFor(group, true)} uid={`join-${group.id}`} sizes="(max-width: 448px) 100vw, 448px" priority drift />
         ) : (
           <StoryArt kind={group.type === "pot" ? "pot" : "trip"} uid={`join-${group.id}`} />

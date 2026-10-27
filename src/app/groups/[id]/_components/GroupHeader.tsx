@@ -3,6 +3,7 @@ import { CalendarClockIcon } from "@/components/DrawnIcons";
 import { BackIcon, ChevronDown, GearIcon, InviteIcon, iconButtonClass } from "@/components/icons";
 import { GroupCover } from "@/components/GroupCover";
 import { avatarTone } from "@/components/ui";
+import { placePhoto } from "@/lib/places";
 import { coverFor, coverOf, type CoverChoice } from "@/lib/covers";
 import type { GroupView } from "./view";
 import { countdownWords, tripPhase } from "@/lib/countdown";
@@ -36,7 +37,7 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
   const switcher = (big: boolean) => (
     <details className="group/switch relative min-w-0 flex-1">
       <summary className="flex cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden">
-        <h1 className={`truncate font-display font-semibold tracking-[-0.02em] ${big ? "text-[clamp(34px,11vw,46px)] leading-[1.05]" : "text-[24px]"}`}>{group.name}</h1>
+        <h1 className={`font-display font-semibold tracking-[-0.02em] ${big ? "line-clamp-2 text-[clamp(32px,10vw,44px)] leading-[1.02]" : "truncate text-[24px]"}`}>{group.name}</h1>
         <span className={`shrink-0 transition-transform group-open/switch:rotate-180 ${big ? "text-fg/80" : "text-gray-400"}`}>
           <ChevronDown size={18} />
         </span>
@@ -97,13 +98,20 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
   const glass = "glass flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full text-fg active:scale-95";
   const type = ({ trip: "Trip", home: "Home", couple: "Couple", pot: "Card nights" } as Record<string, string | undefined>)[group.type];
   const people = group.members.filter((m) => !m.leftAt);
+  // A trip still on its default drawing shows a real photo of the place instead (Thailand → Maya Bay).
+  const placeShot = group.type === "trip" && !group.cover ? placePhoto(group.name)?.src : undefined;
   const names = people.map((m) => (m.id === myId ? "You" : m.name.trim().split(/\s+/)[0]));
   const ordered = [...names.filter((n) => n === "You"), ...names.filter((n) => n !== "You")];
   const crew = ordered.length <= 1 ? ordered.join("") : ordered.length <= 4 ? `${ordered.slice(0, -1).join(", ")} and ${ordered[ordered.length - 1]}` : `${ordered.slice(0, 3).join(", ")} and ${ordered.length - 3} more`;
   return (
     <header className="relative -mx-5 -mt-[max(1.5rem,env(safe-area-inset-top))] mb-5 h-[300px] px-5 pt-[max(1.1rem,env(safe-area-inset-top))]">
       <div aria-hidden className="absolute inset-0 overflow-hidden">
-        <GroupCover {...coverFor(group)} uid={`head-${group.id}`} letter={group.name} sizes="(max-width: 448px) 100vw, 448px" priority drift />
+        {placeShot ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={placeShot} alt="" className="lp-drift absolute inset-0 h-full w-full object-cover" />
+        ) : (
+          <GroupCover {...coverFor(group)} uid={`head-${group.id}`} letter={group.name} sizes="(max-width: 448px) 100vw, 448px" priority drift />
+        )}
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.5)_0%,rgba(0,0,0,0)_30%,rgba(0,0,0,0.18)_55%,var(--color-canvas)_100%)]" />
       </div>
       <div className="relative flex items-center gap-2">

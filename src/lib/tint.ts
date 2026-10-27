@@ -41,7 +41,7 @@ type G = { id?: string; name: string; type: string; cover?: string | null; cover
 function measured(g: G): string | undefined {
   const kind = coverOf(g);
   if (kind === "own") return undefined;
-  if (g.type === "trip") {
+  if (g.type === "trip" && !g.cover) {
     const p = placePhoto(g.name);
     const t = p ? have[p.slot]?.tone : undefined;
     if (t) return t;

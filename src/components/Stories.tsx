@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import Image from "next/image";
+import { createPortal } from "react-dom";
 import Link from "./Link";
 import { buzz } from "@/lib/haptics";
 import { GroupCover } from "./GroupCover";
@@ -83,7 +84,8 @@ export function Stories({ stories, className = "mb-6" }: { stories: Story[]; cla
           );
         })}
       </ul>
-      {open !== null && <Viewer stories={stories} start={open} onSeen={markSeen} onClose={() => setOpen(null)} />}
+      {/* On top of everything (the page's cards and the bottom bar), whatever the strip sits inside. */}
+      {open !== null && createPortal(<Viewer stories={stories} start={open} onSeen={markSeen} onClose={() => setOpen(null)} />, document.body)}
     </section>
   );
 }

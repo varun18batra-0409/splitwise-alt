@@ -100,7 +100,7 @@ export async function readBalances(page: Page, groupPath: string): Promise<Recor
   const out: Record<string, number> = {};
   for (const row of await rows.all()) {
     const name = (await row.locator(".font-medium").first().innerText()).replace(/ \(you\)$/, "").trim();
-    const text = (await row.locator("span.font-display").last().innerText()).replace(/\s+/g, " ");
+    const text = (await row.locator("span.money").last().innerText()).replace(/\s+/g, " ");
     const amount = toPaise(/[\d,]+(\.\d+)?/.exec(text)?.[0] ?? "0"); // "gets ₹600" or "owes EUR 15"
     out[name] = text.startsWith("gets") ? amount : text.startsWith("owes") ? -amount : 0;
   }

@@ -42,7 +42,7 @@ export function GroupSummary({ v, sp, compact }: { v: GroupView; sp: Notices; co
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-sm text-fg/65">{mine > 0 ? "You’re owed" : mine < 0 ? "You owe" : "Your balance"}</p>
-                <p className={`money truncate text-[38px] leading-[1.1] ${mine > 0 ? "text-owed" : mine < 0 ? "text-owe" : ""}`}>{mine === 0 ? "All square" : money(Math.abs(mine))}</p>
+                <p className={`money whitespace-nowrap leading-[1.1] ${amountSize(mine === 0 ? "All square" : money(Math.abs(mine)))} ${mine > 0 ? "text-owed" : mine < 0 ? "text-owe" : ""}`}>{mine === 0 ? "All square" : money(Math.abs(mine))}</p>
               </div>
               {v.transfers.length > 0 && !group.closed && (expenses.length > 0 || v.payments.length > 0) && (
                 <Link href={`/groups/${group.id}/settle`} className="pop flex h-11 shrink-0 items-center bg-fg px-5 text-[15px] font-semibold text-canvas">
@@ -85,4 +85,9 @@ function summaryLine(v: GroupView): string {
   if (toMe.length) return `${list(toMe)} ${toMe.length === 1 ? "owes" : "owe"} you. ${clear}`;
   if (fromMe.length) return `You pay ${list(fromMe)}. ${clear}`;
   return clear;
+}
+
+// The big number shrinks as it gets longer, so it always fits beside Settle up (₹17,618.19 on a small phone).
+function amountSize(text: string): string {
+  return text.length <= 7 ? "text-[38px]" : text.length <= 9 ? "text-[32px]" : text.length <= 11 ? "text-[27px]" : "text-[23px]";
 }

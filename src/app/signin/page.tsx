@@ -53,7 +53,7 @@ export default async function SignIn({
               <BackIcon size={20} />
             </Link>
           )}
-          <p className="-mt-6 font-display text-[clamp(38px,11.5vw,46px)] font-semibold leading-[1.02] tracking-[-0.02em]">
+          <p className="mt-3 font-display text-[clamp(38px,11.5vw,46px)] font-semibold leading-[1.02] tracking-[-0.02em]">
             Split the trip.
             <br />
             Keep the story.

@@ -12,7 +12,7 @@ import { AddExpenseForm } from "@/components/AddExpenseForm";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { PageHeader } from "@/components/ui";
 import { SheetPage } from "@/components/SheetPage";
-import { coverFor, coverOf } from "@/lib/covers";
+import { coverFor } from "@/lib/covers";
 import { placePhoto } from "@/lib/places";
 
 // Edit an expense: everything can change (name, amount, currency, category,
@@ -60,13 +60,12 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
   const savedPayers = parsePayers(e.payers);
   const initial = initialFromExpense(e, { groupMarkupBp: group.cardMarkupBp, groupWeights, tz, today: dayKey(new Date(), tz) }, "edit");
 
-  const own = coverOf(group) === "own";
   return (
     <SheetPage
       title="Edit expense"
       back={back}
       cover={coverFor(group)}
-      photo={!own && group.type === "trip" ? placePhoto(group.name)?.src : undefined}
+      photo={group.type === "trip" && !group.cover ? placePhoto(group.name)?.src : undefined}
       uid={group.id}
       letter={group.name}
     >
