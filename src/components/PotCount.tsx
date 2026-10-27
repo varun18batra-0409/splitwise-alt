@@ -81,6 +81,9 @@ export function PotCount({
                   name={`count_${r.id}`}
                   inputMode="decimal"
                   value={typed[r.id] ?? ""}
+                  placeholder="0"
+                  autoComplete="off"
+                  aria-label={r.name === "You" ? "You have" : `${r.name} has`}
                   onChange={(e) => {
                     const v2 = e.target.value;
                     setTyped((t) => ({ ...t, [r.id]: v2 }));
