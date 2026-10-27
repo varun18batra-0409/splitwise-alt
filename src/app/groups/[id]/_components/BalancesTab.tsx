@@ -1,5 +1,4 @@
 import Link from "@/components/Link";
-import { TitleIcon } from "@/components/TitleIcon";
 import { PassportIcon, PeoplePassportsIcon, SquareSeal } from "@/components/DrawnIcons";
 import { pairwiseDebtCount } from "@/lib/settle";
 import { Notice } from "@/components/Notice";
@@ -48,23 +47,21 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
         </section>
       )}
 
-      {/* Everyone's fun title, as a row of little cards. */}
+      {/* Everyone's title: a quiet list, like credits at the end of a film. */}
       {titles.length > 0 && (
         <section aria-label="Fun titles">
           <h2 className="font-display text-lg font-semibold tracking-tight">Titles</h2>
           <p className="mb-3 text-sm text-gray-500">Earned on this {group.type === "trip" ? "trip" : "group"} so far.</p>
-          <ul className="-mx-5 flex snap-x gap-3 overflow-x-auto px-5 pb-2 [scrollbar-width:none]" data-titles>
-            {titles.map((t, k) => {
+          <ul className="divide-y divide-line rounded-[20px] border border-line px-4" data-titles>
+            {titles.map((t) => {
               const m = group.members.find((x) => x.id === t.memberId);
-              const tint = ["#6fe3a8", "#d8bd7a", "#9cc8ec", "#f2a07b", "#b9a6ef", "#e6a7c8"][k % 6];
               return (
-                <li key={t.memberId} className="w-[148px] shrink-0 snap-start rounded-[18px] border border-line bg-mist px-3.5 pb-3.5 pt-3" style={{ boxShadow: `inset 0 3px 0 ${tint}` }} data-title-card={t.title}>
-                  <TitleIcon title={t.title} size={42} accent={tint} />
-                  <span className="mt-2 block font-display text-[16px] font-semibold leading-tight">{t.title}</span>
-                  <span className="mt-1 block truncate text-sm font-semibold" style={{ color: tint }}>
-                    {m ? (m.id === myId ? "You" : m.name.split(" ")[0]) : "Someone"}
-                  </span>
-                  <span className="mt-1 block text-xs leading-snug text-gray-500">{t.why}</span>
+                <li key={t.memberId} className="py-3" data-title-card={t.title}>
+                  <p className="flex items-baseline justify-between gap-3">
+                    <span className="font-display text-[15px] italic text-fg/90">{t.title}</span>
+                    <span className="shrink-0 text-[13px] font-semibold text-fg/70">{m ? (m.id === myId ? "You" : m.name.split(" ")[0]) : "Someone"}</span>
+                  </p>
+                  <p className="mt-0.5 text-xs leading-snug text-gray-500">{t.why}</p>
                 </li>
               );
             })}
