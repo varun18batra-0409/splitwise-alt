@@ -129,7 +129,7 @@ export async function moveOut(
       // 1. Bills: their share only for the days they stayed (none for later months).
       for (const r of p.resplit) {
         await tx.expenseShare.deleteMany({ where: { expenseId: r.e.id } });
-        await tx.expense.update({ where: { id: r.e.id }, data: { splitType: "exact", forMode: "selected", editedAt: new Date(), shares: { create: r.shares } } });
+        await tx.expense.update({ where: { id: r.e.id }, data: { splitType: "exact", forMode: "selected", editedAt: new Date(), shares: { create: r.shares.map((s) => ({ memberId: s.memberId, amount: s.amount })) } } });
         await logEvent(tx, {
           groupId,
           actorId,

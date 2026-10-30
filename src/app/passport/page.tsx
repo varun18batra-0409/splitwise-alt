@@ -1,3 +1,8 @@
+import { db } from "@/lib/db";
+import { SendPostcardCard } from "@/components/postcards/SendCard";
+import { PostcardFront } from "@/components/postcards/Card";
+import { POSTCARD_FONTS_URL } from "@/lib/postcards/catalog";
+import { cardProps } from "@/lib/postcards/view";
 import { headers } from "next/headers";
 import { PeoplePassportsIcon } from "@/components/DrawnIcons";
 import Link from "@/components/Link";
@@ -38,6 +43,8 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
   // Changes whenever the passport does, so a shared picture is never an old one.
   const version = `${p.stats.countries}-${p.stats.cities}-${p.stamps.length}-${p.been.length}-${(account.name || "").length}`;
   const home = countryOf(p.home);
+  const cards = await db.postcard.findMany({ where: { toId: account.id }, orderBy: { createdAt: "desc" }, take: 3 });
+  const unread = await db.postcard.count({ where: { toId: account.id, readAt: null } });
   const hand = parseHandPlaces(account.places);
   const empty = p.stamps.length + p.been.length === 0;
 
@@ -61,6 +68,27 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
           <ShareSheet image={`/passport/image?v=${version}`} fileName="loopin-passport.png" title="Share your passport" words={`My Loopin passport: ${[p.stats.countries ? `${p.stats.countries} ${p.stats.countries === 1 ? "country" : "countries"}` : "", p.stats.cities ? `${p.stats.cities} ${p.stats.cities === 1 ? "city" : "cities"}` : ""].filter(Boolean).join(", ") || "my first stamps"} and counting ✈️`} label="Share my passport" />
         </div>
       )}
+
+      {/* Postcards: the ones people sent you, and a way to send one. */}
+      <section aria-label="Postcards" className="mt-8">
+        <div className="mb-3 flex items-baseline justify-between">
+          <h2 className="font-display text-lg font-semibold tracking-tight">Postcards</h2>
+          <Link href="/postcards" className="text-sm font-semibold text-fg/70 underline underline-offset-4">
+            {cards.length ? `See all${unread ? `, ${unread} new` : ""}` : "Open"}
+          </Link>
+        </div>
+        {cards.length > 0 ? (
+          <Link href="/postcards" className="relative mb-4 block h-[150px]" aria-label="Your postcards">
+            <link rel="stylesheet" href={POSTCARD_FONTS_URL} precedence="default" />
+            {cards.slice(0, 3).map((c, i) => (
+              <span key={c.id} className={`absolute w-[56%] ${["left-0 top-2 -rotate-[5deg]", "left-[22%] top-0 rotate-[3deg]", "right-0 top-5 -rotate-[2deg]"][i]}`}>
+                <PostcardFront {...cardProps(c, "", "UTC").front} />
+              </span>
+            ))}
+          </Link>
+        ) : null}
+        <SendPostcardCard href="/postcards/new" front="print:beach" words="" line={cards.length ? "Send one back, or to anyone you’ve shared a group with." : "Warm notes to people you’ve shared a group with."} />
+      </section>
 
       {p.unplaced.length > 0 && (
         <section className="mt-6 rounded-2xl border border-line px-4 py-3.5">
