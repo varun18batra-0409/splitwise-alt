@@ -5,6 +5,9 @@ import { loadGroup, loadSwitchList } from "@/lib/group-data";
 import { db } from "@/lib/db";
 import { canUndo } from "@/lib/undo";
 import { UndoBar } from "@/components/UndoBar";
+import { SendPostcardCard } from "@/components/postcards/SendCard";
+import { placePhoto } from "@/lib/places";
+import { placeOf } from "@/lib/countdown";
 import { buildGroupView } from "./_components/view";
 import { getTimeZone } from "@/lib/tz";
 import { GroupHeader } from "./_components/GroupHeader";
@@ -181,6 +184,14 @@ export default async function GroupPage({
         ))}
       </nav>
 
+      {(tab === "activity" || tab === "month" || tab === "games") && (
+        <SendPostcardCard
+          href={`/postcards/new?group=${group.id}`}
+          front={group.type === "trip" && !group.cover && placePhoto(group.name) ? `photo:${placePhoto(group.name)!.src}` : group.type === "pot" ? "print:cards" : group.type === "home" || group.type === "couple" ? "print:home" : "print:beach"}
+          words={group.type === "trip" ? placeOf(group.name) : ""}
+          className="mb-6"
+        />
+      )}
       {tab === "activity" && (
         <ActivityTab
           v={v}

@@ -570,3 +570,36 @@ model PayLink {
   @@unique([groupId, fromId, toId])
   @@index([groupId])
 }
+
+// A postcard: a warm note from one person to another they've shared a group with. The front is a
+// photo (Loopin's place photos, or their own) or a designed print; the back is the message in
+// handwriting, a stamp, a free-text address and a postmark. One row per person it went to.
+model Postcard {
+  id          String    @id @default(cuid())
+  fromId      String // account
+  toId        String // account
+  groupId     String    @default("") // the group it was sent from ("" = from the passport)
+  front       String // "print:beach" | "photo:/photos/place-goa.jpg" | "own"
+  photoId     String    @default("") // PostcardPhoto, when front = "own"
+  words       String    @default("") // the lettering on the front ("" = none)
+  lettering   String    @default("classic")
+  message     String
+  hand        String    @default("caveat")
+  stamp       String    @default("t:airmail")
+  paper       String    @default("cream")
+  address     String    @default("[]") // up to three free-text lines, JSON
+  place       String    @default("") // on the postmark
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+  @@index([toId, createdAt])
+  @@index([fromId, createdAt])
+}
+
+// The sender's own photo for a postcard front (made small on the phone). Shared by the copies of
+// one postcard sent to several people; only the sender and those people can see it.
+model PostcardPhoto {
+  id        String   @id @default(cuid())
+  data      Bytes
+  type      String   @default("image/webp")
+  createdAt DateTime @default(now())
+}
