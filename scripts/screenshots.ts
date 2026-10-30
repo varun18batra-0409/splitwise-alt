@@ -418,6 +418,41 @@ if (!hosted) {
       }
       await p.waitForTimeout(700);
     }, false);
+    // Postcards: one from Meera (received, a Goa photo), one sent back (a print), the composer.
+    const meera = await db.account.create({ data: { email: `shots-meera-${Date.now()}@uat.loopin.test`, name: "Meera" } });
+    await db.member.create({ data: { groupId: lona.id, name: "Meera", accountId: meera.id, claimedAt: new Date() } });
+    const got = await db.postcard.create({
+      data: { fromId: meera.id, toId: acc.id, groupId: lona.id, front: "photo:/photos/place-goa.jpg", words: "Goa", lettering: "classic", message: "Wish you were here. The beach shack turned out to be the fancy dinner, Ravi lost every hand at cards, and we watched the sun go down three evenings in a row. Same time next year?", hand: "caveat", stamp: "c:IN", paper: "cream", address: JSON.stringify(["Varun", "the flat that never has milk", "Bengaluru"]), place: "Goa" },
+    });
+    await db.postcard.create({
+      data: { fromId: acc.id, toId: meera.id, groupId: lona.id, front: "print:hills", words: "Lonavala", lettering: "italic", message: "Thank you for planning all of it.", hand: "homemade", stamp: "t:mountains", paper: "airmail", address: JSON.stringify(["Meera", "", ""]), place: "Lonavala" },
+    });
+    await shot("128-postcard-received", `/postcards/${got.id}`, async (p) => {
+      await p.waitForTimeout(1200);
+    }, false);
+    await shot("129-postcard-back", `/postcards/${got.id}`, async (p) => {
+      await p.locator("[data-postcard-flip]").click();
+      await p.waitForTimeout(1300);
+    }, false);
+    await shot("130-postcards-shelf", "/postcards", async (p) => {
+      await p.waitForTimeout(1000);
+    });
+    await shot("131-postcard-compose", `/postcards/new?group=${lona.id}`, async (p) => {
+      await p.waitForTimeout(1200);
+    }, false);
+    await shot("132-postcard-compose-back", `/postcards/new?group=${lona.id}`, async (p) => {
+      await p.getByRole("tab", { name: "Back" }).click();
+      await p.getByRole("textbox", { name: "Your message" }).fill("Remember the bus that never came? Best wrong turn ever. Same time next year?");
+      await p.waitForTimeout(1300);
+    }, false);
+    await shot("133-postcard-compose-send", `/postcards/new?group=${lona.id}`, async (p) => {
+      await p.getByRole("tab", { name: "Send" }).click();
+      await p.waitForTimeout(600);
+    }, false);
+    await shot("134-passport-postcards", "/passport", async (p) => {
+      await p.getByRole("region", { name: "Postcards" }).scrollIntoViewIfNeeded();
+      await p.waitForTimeout(1000);
+    }, false);
     await shot("118-passport-picture", "/passport/image", undefined, false);
     await shot("118d-passport-share-sheet", "/passport", async (p) => {
       await p.getByRole("button", { name: "Share my passport" }).first().click();
