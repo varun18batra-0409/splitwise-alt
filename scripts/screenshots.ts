@@ -449,6 +449,11 @@ if (!hosted) {
       await p.getByRole("tab", { name: "Send" }).click();
       await p.waitForTimeout(600);
     }, false);
+    await shot("130b-postcard-front-colour", `/postcards/new?group=${lona.id}`, async (p) => {
+      await p.getByRole("button", { name: "Gold words" }).click();
+      await p.locator("[data-tones]").scrollIntoViewIfNeeded();
+      await p.waitForTimeout(1200);
+    }, false);
     await shot("132b-postcard-colours", `/postcards/new?group=${lona.id}`, async (p) => {
       await p.getByRole("tab", { name: "Back" }).click();
       await p.getByRole("textbox", { name: "Your message" }).fill("Remember the bus that never came? Best wrong turn ever. Same time next year?");

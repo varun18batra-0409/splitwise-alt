@@ -1,4 +1,4 @@
-import { handOf, inkColor, paperTones, letteringOf, postmarkSvg, printSvg, stampSvg, WAVES_SVG } from "@/lib/postcards/catalog";
+import { handOf, inkColor, paperTones, letteringOf, toneOf, postmarkSvg, printSvg, stampSvg, WAVES_SVG } from "@/lib/postcards/catalog";
 
 // A postcard, front and back, drawn at any width (sizes are in "cqw": a share of the card's width),
 // so the same card works as a thumbnail, full screen, and as the picture sent on WhatsApp.
@@ -6,10 +6,11 @@ import { handOf, inkColor, paperTones, letteringOf, postmarkSvg, printSvg, stamp
 const GRAIN =
   "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .2 0 0 0 0 .16 0 0 0 0 .1 0 0 0 .55 0'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>\")";
 
-export type FrontProps = { front: string; photo?: string; words: string; lettering: string; k: string; className?: string };
+export type FrontProps = { front: string; photo?: string; words: string; lettering: string; tone?: string; k: string; className?: string };
 
-export function PostcardFront({ front, photo, words, lettering, k, className = "" }: FrontProps) {
+export function PostcardFront({ front, photo, words, lettering, tone = "white", k, className = "" }: FrontProps) {
   const l = letteringOf(lettering);
+  const t = toneOf(tone);
   const print = front.startsWith("print:") ? front.slice(6) : "";
   const img = !print ? photo || (front.startsWith("photo:") ? front.slice(6) : "") : "";
   const long = words.length > 11;
@@ -21,11 +22,11 @@ export function PostcardFront({ front, photo, words, lettering, k, className = "
         // eslint-disable-next-line @next/next/no-img-element
         <img src={img} alt="" className="absolute inset-0 h-full w-full object-cover [filter:saturate(1.06)_contrast(1.04)]" data-front-photo />
       ) : null}
-      {img && words && <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0)_45%,rgba(0,0,0,0.42)_100%)]" />}
+      {img && words && !t.dark && <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0)_45%,rgba(0,0,0,0.42)_100%)]" />}
       <span aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.2] mix-blend-multiply" style={{ backgroundImage: GRAIN }} />
       <span aria-hidden className="pointer-events-none absolute inset-[3.2%] border border-white/60" />
       {words && (
-        <div className="pointer-events-none absolute inset-x-[6%] bottom-[9%] text-center [text-shadow:0_2px_18px_rgba(0,0,0,0.35)]" data-front-words>
+        <div className="pointer-events-none absolute inset-x-[6%] bottom-[9%] text-center" style={{ color: t.c, textShadow: t.dark ? "0 1px 14px rgba(255,255,255,0.45)" : "0 2px 18px rgba(0,0,0,0.35)" }} data-front-words data-tone={t.id}>
           <div className="font-sans text-[2.1cqw] font-semibold uppercase tracking-[0.34em] opacity-95">Greetings from</div>
           <div
             className="leading-[0.95]"

@@ -23,8 +23,10 @@ test("Postcards: write from a group, the other person receives it, turns it over
   // Front: a print instead of the photo, then the back.
   await A.getByRole("button", { name: "Print: Mountains" }).click();
   await expect(A.locator("[data-postcard-front] [data-print-svg]").first()).toBeVisible();
+  await A.getByRole("button", { name: "Gold words" }).click();
   await A.getByRole("tab", { name: "Back" }).click();
   await A.getByRole("button", { name: "Same time next year?" }).click();
+  await A.getByRole("button", { name: "Bottle green ink" }).click();
   await A.getByRole("textbox", { name: "Your message" }).fill("Wish you were here. The beach shack was the fancy dinner.");
   await A.getByRole("tab", { name: "Send" }).click();
   await A.locator("[data-recipient='Ravi']").click();
@@ -40,6 +42,7 @@ test("Postcards: write from a group, the other person receives it, turns it over
   await R.goto(path);
   await settled(R);
   const flip = R.locator("[data-postcard-flip]");
+  await expect(R.locator("[data-front-words]").first()).toHaveAttribute("data-tone", "gold");
   await expect(flip).toHaveAttribute("data-postcard-flip", "front");
   await flip.click();
   await expect(flip).toHaveAttribute("data-postcard-flip", "back");
