@@ -91,6 +91,14 @@ export const PAPERS = [
   { id: "blush", name: "Blush", g: ["#faefe9", "#f1dfd6", "#e8d0c4"] },
   { id: "sky", name: "Sky", g: ["#eef3f6", "#dde7ee", "#cfdce6"] },
   { id: "dusk", name: "Dusk", g: ["#ece8f1", "#ddd6e6", "#cfc6db"] },
+  { id: "parchment", name: "Parchment", g: ["#f6ead0", "#e8d4ac", "#d6bc8c"] },
+  { id: "aged", name: "Aged", g: ["#f1e4c8", "#ddc79c", "#c4a774"] },
+  { id: "linen", name: "Linen", g: ["#f7f3ea", "#ece4d4", "#e0d5c0"] },
+  { id: "butter", name: "Butter", g: ["#fbf3d6", "#f2e4b0", "#e7d494"] },
+  { id: "mint", name: "Mint", g: ["#eef7f0", "#d9ecdf", "#c6e0ce"] },
+  { id: "lavender", name: "Lavender", g: ["#f3eff8", "#e4dcef", "#d5cae5"] },
+  { id: "rose", name: "Rose", g: ["#fbecee", "#f1d6da", "#e6c0c6"] },
+  { id: "stone", name: "Stone", g: ["#efeeeb", "#dedcd6", "#cdcac2"] },
 ] as const;
 export const paperOf = (id: string) => PAPERS.find((p) => p.id === id)?.id ?? "cream";
 export const paperTones = (id: string) => (PAPERS.find((p) => p.id === id) ?? PAPERS[0]).g;

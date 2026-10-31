@@ -72,6 +72,14 @@ export const SEAL_COLOURS = [
   { id: "navy", name: "Navy", hi: "#6a88c8", mid: "#1f3366", lo: "#0b1430" },
   { id: "forest", name: "Forest", hi: "#6aa67e", mid: "#255c3c", lo: "#0c2717" },
   { id: "black", name: "Black", hi: "#777777", mid: "#262626", lo: "#050505" },
+  { id: "plum", name: "Plum", hi: "#a56a9a", mid: "#5a2350", lo: "#260a22" },
+  { id: "sapphire", name: "Sapphire", hi: "#6fa0e8", mid: "#1d4fa0", lo: "#0a1f4a" },
+  { id: "teal", name: "Teal", hi: "#6cc0bc", mid: "#1f6e6a", lo: "#0a2e2c" },
+  { id: "olive", name: "Olive", hi: "#b5b36a", mid: "#6b6a2a", lo: "#2c2b0c" },
+  { id: "ochre", name: "Ochre", hi: "#f2cd6e", mid: "#c08a1e", lo: "#5a3c08" },
+  { id: "copper", name: "Copper", hi: "#ffc4a0", mid: "#b5643a", lo: "#4e230e", metal: true },
+  { id: "rosegold", name: "Rose gold", hi: "#ffe0d8", mid: "#c98c80", lo: "#6a3a33", metal: true },
+  { id: "pearl", name: "Pearl", hi: "#ffffff", mid: "#e6e0d4", lo: "#9a9282", metal: true },
 ] as const;
 export const SEAL_DESIGNS = [
   { id: "initial", name: "Your initial" },
