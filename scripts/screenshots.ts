@@ -487,7 +487,7 @@ if (!hosted) {
       await p.getByRole("textbox", { name: "Your message" }).fill("Remember the bus that never came? Best wrong turn ever.");
       await p.getByRole("button", { name: "Wax seal" }).click();
       await p.getByRole("button", { name: "Customs label" }).click();
-      await p.getByRole("button", { name: "Gold wax" }).click();
+      await p.getByRole("button", { name: "Gold wax", exact: true }).click();
       await p.getByRole("button", { name: "Seal design: Crest" }).click();
       await p.locator("[data-seal-picker]").scrollIntoViewIfNeeded();
       await p.waitForTimeout(1200);
