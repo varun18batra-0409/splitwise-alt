@@ -362,7 +362,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
           </div>
 
           <span className={label}>Paper</span>
-          <div className="-mx-5 flex gap-3 overflow-x-auto px-5 pb-2 pt-1 [scrollbar-width:none]" data-papers>
+          <div className="-mx-5 grid auto-cols-[54px] grid-flow-col grid-rows-2 gap-x-3 gap-y-3 overflow-x-auto px-5 pb-2 pt-1 [scrollbar-width:none]" data-papers>
             {PAPERS.map((p) => {
               const [a, b, c] = paperTones(p.id);
               return (
@@ -390,23 +390,23 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
           {touches.includes("seal") && (
             <div className="mt-4 rounded-[20px] border border-line bg-mist/60 px-4 py-4" data-seal-picker>
               <span className="mb-3 block text-[13px] font-semibold text-fg/55">Wax colour</span>
-              <div className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+              <div className="grid grid-cols-5 gap-x-1 gap-y-3" data-wax-colours>
                 {SEAL_COLOURS.map((c) => {
                   const on = seal.split(":")[0] === c.id;
                   return (
-                    <button key={c.id} type="button" onClick={() => setSeal(`${c.id}:${seal.split(":")[1] || "initial"}`)} aria-label={`${c.name} wax`} aria-pressed={on} className="flex w-[52px] shrink-0 flex-col items-center gap-1">
+                    <button key={c.id} type="button" onClick={() => setSeal(`${c.id}:${seal.split(":")[1] || "initial"}`)} aria-label={`${c.name} wax`} aria-pressed={on} className="flex min-w-0 flex-col items-center gap-1">
                       <span aria-hidden className={`block w-[44px] rounded-full transition-transform active:scale-90 [&>svg]:h-auto [&>svg]:w-full ${on ? "outline outline-2 outline-offset-2 outline-fg" : ""}`} dangerouslySetInnerHTML={{ __html: waxSeal(`${c.id}:${seal.split(":")[1] || "initial"}`, firstOf(myName), `pc${c.id}`) }} />
-                      <span className={`text-[10.5px] ${on ? "text-fg" : "text-fg/50"}`}>{c.name}</span>
+                      <span className={`truncate text-[10.5px] ${on ? "text-fg" : "text-fg/50"}`}>{c.name}</span>
                     </button>
                   );
                 })}
               </div>
-              <span className="mb-3 mt-4 block text-[13px] font-semibold text-fg/55">Design</span>
-              <div className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+              <span className="mb-3 mt-5 block text-[13px] font-semibold text-fg/55">Design</span>
+              <div className="grid grid-cols-3 gap-x-1 gap-y-3" data-wax-designs>
                 {SEAL_DESIGNS.map((d) => {
                   const on = (seal.split(":")[1] || "initial") === d.id;
                   return (
-                    <button key={d.id} type="button" onClick={() => setSeal(`${seal.split(":")[0] || "crimson"}:${d.id}`)} aria-label={`Seal design: ${d.name}`} aria-pressed={on} className="flex w-[60px] shrink-0 flex-col items-center gap-1">
+                    <button key={d.id} type="button" onClick={() => setSeal(`${seal.split(":")[0] || "crimson"}:${d.id}`)} aria-label={`Seal design: ${d.name}`} aria-pressed={on} className="flex min-w-0 flex-col items-center gap-1">
                       <span aria-hidden className={`block w-[48px] rounded-full transition-transform active:scale-90 [&>svg]:h-auto [&>svg]:w-full ${on ? "outline outline-2 outline-offset-2 outline-fg" : ""}`} dangerouslySetInnerHTML={{ __html: waxSeal(`${seal.split(":")[0] || "crimson"}:${d.id}`, firstOf(myName), `pd${d.id}`) }} />
                       <span className={`text-center text-[10.5px] leading-tight ${on ? "text-fg" : "text-fg/50"}`}>{d.name}</span>
                     </button>

@@ -31,7 +31,7 @@ test("Postcards: write from a group, the other person receives it, turns it over
   await A.getByRole("button", { name: "Same time next year?" }).click();
   await A.getByRole("button", { name: "Bottle green ink" }).click();
   await A.getByRole("button", { name: "Wax seal" }).click();
-  await A.getByRole("button", { name: "Gold wax" }).click();
+  await A.getByRole("button", { name: "Gold wax", exact: true }).click();
   await A.getByRole("button", { name: "Seal design: Fleur-de-lis" }).click();
   await expect(A.getByRole("button", { name: "Seal design: Fleur-de-lis" })).toHaveAttribute("aria-pressed", "true");
   await A.getByRole("textbox", { name: "Your message" }).fill("Wish you were here. The beach shack was the fancy dinner.");
