@@ -7,7 +7,9 @@ import { allow } from "@/lib/rate-limit";
 import { MAX_PHOTO_BYTES, photoType } from "@/lib/covers";
 import { getTimeZone } from "@/lib/tz";
 import { cleanLook, cleanSeal, cleanTouches, reactionOf, wordsAtOf, wordsSizeOf } from "@/lib/postcards/looks";
-import { isPrint, isSitePhoto, isStampId, rareOpen, HANDS, LETTERINGS, paperOf, inkOf, toneOf } from "@/lib/postcards/catalog";
+import { headers } from "next/headers";
+import { visitorRegion } from "@/lib/region";
+import { isPrint, isSitePhoto, isStampId, rareFor, rareOpen, HANDS, LETTERINGS, paperOf, inkOf, toneOf } from "@/lib/postcards/catalog";
 import { canSendTo } from "@/lib/postcards/people";
 import { deliverNotes } from "@/lib/account-notes";
 
@@ -51,7 +53,8 @@ export async function sendPostcardAction(f: FormData) {
 
   let stamp = isStampId(field(f, "stamp", 20)) ? field(f, "stamp", 20) : "t:airmail";
   // A rare stamp only while it's on issue (a card being sent again keeps it if the original had it).
-  if (stamp.startsWith("r:") && !rareOpen(stamp)) {
+  const home = (me!.homeCountry || visitorRegion(await headers()).country || "IN").toUpperCase();
+  if (stamp.startsWith("r:") && !(rareOpen(stamp) && rareFor(stamp, home))) {
     const kept = field(f, "from", 40) ? await db.postcard.findFirst({ where: { id: field(f, "from", 40), fromId: me.id, stamp }, select: { id: true } }) : null;
     if (!kept) stamp = "t:airmail";
   }

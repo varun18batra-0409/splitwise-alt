@@ -192,6 +192,11 @@ export const THEME_STAMP_IDS = Object.keys(THEMES).map((t) => `t:${t}`);
 
 // Extra stamp art for the rare stamps (same 76×80 box as the others).
 const MORE_ICONS: Record<string, string> = {
+  lantern: `<path d="M38 14 v6 M30 20 h16 M26 26 q12 -8 24 0 q4 16 0 32 q-12 8 -24 0 q-4 -16 0 -32Z M26 26 q12 6 24 0 M26 58 q12 -6 24 0 M38 20 v46 M31 24 q-3 18 0 38 M45 24 q3 18 0 38 M34 66 h8 M38 66 v6" stroke="var(--ink)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
+  blossom: `<path d="M12 64 Q30 50 40 30 M24 56 q8 -2 12 -10 M34 42 q8 0 12 -8" stroke="var(--ink)" stroke-width="1.6" fill="none" stroke-linecap="round"/>${[[46, 30], [52, 46], [30, 26], [58, 24]].map(([x, y]) => [0, 72, 144, 216, 288].map((a) => `<ellipse cx="${x}" cy="${y - 5}" rx="2.6" ry="4.4" transform="rotate(${a} ${x} ${y})" stroke="var(--ink)" stroke-width="1" fill="var(--tint)"/>`).join("") + `<circle cx="${x}" cy="${y}" r="1.4" fill="var(--ink)"/>`).join("")}`,
+  leaf: `<path d="M38 16 L42 28 L52 22 L50 34 L62 34 L54 44 L60 50 L46 52 L48 62 L38 56 L28 62 L30 52 L16 50 L22 44 L14 34 L26 34 L24 22 L34 28Z M38 56 V72" stroke="var(--ink)" stroke-width="1.5" fill="none" stroke-linejoin="round" stroke-linecap="round"/>`,
+  pretzel: `<path d="M38 60 C22 64 14 52 18 40 C22 26 38 24 40 36 C42 48 26 54 24 62 M38 60 C54 64 62 52 58 40 C54 26 38 24 36 36 C34 48 50 54 52 62" stroke="var(--ink)" stroke-width="2.4" fill="none" stroke-linecap="round"/><path d="M20 70 h36" stroke="var(--ink)"/>`,
+  mask: `<path d="M14 34 Q38 24 62 34 Q62 52 50 54 Q42 54 38 46 Q34 54 26 54 Q14 52 14 34Z" stroke="var(--ink)" stroke-width="1.6" fill="none" stroke-linejoin="round"/><path d="M22 38 q5 -4 10 0 q-5 4 -10 0Z M44 38 q5 -4 10 0 q-5 4 -10 0Z" stroke="var(--ink)" stroke-width="1.2" fill="var(--ink)"/><path d="M58 30 q6 -14 2 -20 M60 30 q10 -10 10 -18 M14 34 l-4 22" stroke="var(--ink)" stroke-width="1.2" fill="none" stroke-linecap="round"/>`,
   diya: `<path d="M16 50 q22 20 44 0 Z" stroke="var(--ink)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M38 24 q-8 11 0 21 q8 -10 0 -21Z" fill="var(--ink)" opacity=".85"/><path d="M38 33 q-3 5 0 9 q3 -4 0 -9Z" fill="var(--tint)"/><path d="M24 66 h28" stroke="var(--ink)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
   firework: `<path d="M43.0 36.0 L58.0 36.0 M42.3 38.5 L55.3 46.0 M40.5 40.3 L48.0 53.3 M38.0 41.0 L38.0 56.0 M35.5 40.3 L28.0 53.3 M33.7 38.5 L20.7 46.0 M33.0 36.0 L18.0 36.0 M33.7 33.5 L20.7 26.0 M35.5 31.7 L28.0 18.7 M38.0 31.0 L38.0 16.0 M40.5 31.7 L48.0 18.7 M42.3 33.5 L55.3 26.0" stroke="var(--ink)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="38" cy="36" r="2" fill="var(--ink)"/><path d="M61.0 36.0 L63.0 36.0 M57.9 47.5 L59.7 48.5 M49.5 55.9 L50.5 57.7 M38.0 59.0 L38.0 61.0 M26.5 55.9 L25.5 57.7 M18.1 47.5 L16.3 48.5 M15.0 36.0 L13.0 36.0 M18.1 24.5 L16.3 23.5 M26.5 16.1 L25.5 14.3 M38.0 13.0 L38.0 11.0 M49.5 16.1 L50.5 14.3 M57.9 24.5 L59.7 23.5" stroke="var(--ink)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M38 60 v10" stroke="var(--ink)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
   kite: `<path d="M38 14 L56 36 L38 58 L20 36Z M38 14 V58 M20 36 H56" stroke="var(--ink)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M38 58 q-6 6 0 10 q6 4 0 9" stroke="var(--ink)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M34 63 l3 1 -3 2Z M40 70 l-3 1 3 2Z" fill="var(--ink)"/>`,
@@ -205,27 +210,50 @@ const MORE_ICONS: Record<string, string> = {
 // ---------- Rare stamps ----------
 // Limited issues: each can only be put on a card during its window (month-day, India time), then it's
 // gone until next year. Any card you send or get with one adds it to your stamp album.
-type Rare = StampDef & { from: string; to: string; when: string };
+// `where`: only for people whose home is one of these countries; `not`: everyone except these.
+type Rare = StampDef & { from: string; to: string; when: string; where?: string[]; not?: string[] };
 export const RARE: Record<string, Rare> = {
   newyear: { icon: "firework", ink: "#8a6a1f", tint: "#f5ecd6", value: "₹100", name: "New Year", from: "12-27", to: "01-07", when: "New Year week" },
-  kites: { icon: "kite", ink: "#b0402a", tint: "#f8e4da", value: "₹14", name: "Kite day", from: "01-10", to: "01-16", when: "mid January" },
+  kites: { icon: "kite", ink: "#b0402a", tint: "#f8e4da", value: "₹14", name: "Kite day", from: "01-10", to: "01-16", when: "mid January", where: ["IN"] },
   valentine: { icon: "heart", ink: "#9b2335", tint: "#f6dfe2", value: "₹14", name: "Valentine", from: "02-07", to: "02-15", when: "Valentine’s week" },
-  holi: { icon: "splash", ink: "#7a3a8a", tint: "#f1e2f3", value: "₹20", name: "Holi", from: "03-10", to: "03-25", when: "Holi" },
-  summer: { icon: "sun", ink: "#b0661a", tint: "#f8ead6", value: "₹12", name: "Summer hols", from: "05-01", to: "06-10", when: "May and early June" },
-  monsoon: { icon: "umbrella", ink: "#2a5a7a", tint: "#dde9f0", value: "₹11", name: "Monsoon", from: "07-01", to: "08-31", when: "July and August" },
-  diwali: { icon: "diya", ink: "#a5561a", tint: "#f8e7d2", value: "₹51", name: "Diwali", from: "10-25", to: "11-12", when: "Diwali" },
+  holi: { icon: "splash", ink: "#7a3a8a", tint: "#f1e2f3", value: "₹20", name: "Holi", from: "03-10", to: "03-25", when: "Holi", where: ["IN", "NP"] },
+  summer: { icon: "sun", ink: "#b0661a", tint: "#f8ead6", value: "₹12", name: "Summer hols", from: "05-01", to: "06-10", when: "May and early June", not: ["AU", "NZ", "ZA", "AR", "BR", "CL", "UY"] },
+  monsoon: { icon: "umbrella", ink: "#2a5a7a", tint: "#dde9f0", value: "₹11", name: "Monsoon", from: "07-01", to: "08-31", when: "July and August", where: ["IN", "LK", "BD", "NP"] },
+  diwali: { icon: "diya", ink: "#a5561a", tint: "#f8e7d2", value: "₹51", name: "Diwali", from: "10-25", to: "11-12", when: "Diwali", where: ["IN", "NP", "SG", "MY", "LK", "MU", "FJ"] },
   christmas: { icon: "star", ink: "#1f5a3e", tint: "#dfece3", value: "₹25", name: "Christmas", from: "12-18", to: "12-26", when: "Christmas week" },
-  winter: { icon: "snowflake", ink: "#2f4f7a", tint: "#e2e9f3", value: "₹8", name: "Winter", from: "12-01", to: "02-28", when: "December to February" },
+  winter: { icon: "snowflake", ink: "#2f4f7a", tint: "#e2e9f3", value: "₹8", name: "Winter", from: "12-01", to: "02-28", when: "December to February", not: ["AU", "NZ", "ZA", "AR", "BR", "CL", "UY"] },
+  lunar: { icon: "lantern", ink: "#a3262d", tint: "#f8e2d8", value: "$1", name: "Lunar New Year", from: "01-25", to: "02-20", when: "Lunar New Year", where: ["CN", "HK", "TW", "SG", "MY", "VN", "KR", "ID"] },
+  hanami: { icon: "blossom", ink: "#9a3a5a", tint: "#f7e4ea", value: "¥110", name: "Hanami", from: "03-20", to: "04-15", when: "cherry blossom season", where: ["JP"] },
+  songkran: { icon: "splash", ink: "#1f6a8a", tint: "#dfeef4", value: "฿15", name: "Songkran", from: "04-10", to: "04-17", when: "Songkran", where: ["TH"] },
+  carnival: { icon: "mask", ink: "#6a2a8a", tint: "#efe2f4", value: "R$3", name: "Carnaval", from: "02-01", to: "03-05", when: "Carnival season", where: ["BR"] },
+  bastille: { icon: "firework", ink: "#1f3f8a", tint: "#e2e8f5", value: "1,39€", name: "14 Juillet", from: "07-10", to: "07-16", when: "Bastille Day week", where: ["FR"] },
+  oktoberfest: { icon: "pretzel", ink: "#6a4a1f", tint: "#f2e9d6", value: "0,95€", name: "Oktoberfest", from: "09-18", to: "10-05", when: "Oktoberfest", where: ["DE", "AT"] },
+  thanksgiving: { icon: "leaf", ink: "#9a4a1a", tint: "#f6e6d4", value: "$0.73", name: "Thanksgiving", from: "11-20", to: "11-30", when: "Thanksgiving week", where: ["US"] },
+  summersouth: { icon: "sun", ink: "#b0661a", tint: "#f8ead6", value: "$1.50", name: "Summer hols", from: "12-15", to: "01-31", when: "December and January", where: ["AU", "NZ", "ZA", "AR", "BR", "CL", "UY"] },
 };
 export const RARE_STAMP_IDS = Object.keys(RARE).map((r) => `r:${r}`);
 const mdIn = (tz: string, d: Date) => new Intl.DateTimeFormat("en-CA", { month: "2-digit", day: "2-digit", timeZone: tz }).format(d).replace("/", "-");
 export function rareOpen(id: string, now = new Date(), tz = "Asia/Kolkata"): boolean {
-  const r = RARE[id.replace(/^r:/, "")];
+  const r = RARE[baseStamp(id).replace(/^r:/, "")];
   if (!r) return false;
   const md = mdIn(tz, now);
   return r.from <= r.to ? md >= r.from && md <= r.to : md >= r.from || md <= r.to;
 }
-export const openRareStamps = (now = new Date()) => RARE_STAMP_IDS.filter((id) => rareOpen(id, now));
+// Is this rare stamp issued where you live? (No home known: the ones for everyone.)
+export function rareFor(id: string, home = ""): boolean {
+  const r = RARE[baseStamp(id).slice(2)];
+  if (!r) return false;
+  const cc = home.toUpperCase();
+  if (r.where) return r.where.includes(cc);
+  if (r.not) return !r.not.includes(cc);
+  return true;
+}
+export const rareStampsFor = (home = "") => RARE_STAMP_IDS.filter((id) => rareFor(id, home));
+export const openRareStamps = (now = new Date(), home = "") => rareStampsFor(home).filter((id) => rareOpen(id, now));
+
+// A stamp can carry the sender's country ("t:beach@US"), so its value is in their own money.
+export const baseStamp = (id: string) => id.split("@")[0];
+export const withHome = (id: string, home = "") => (id.startsWith("c:") || !home || home.toUpperCase() === "IN" || !COUNTRY[home.toUpperCase()] ? id : `${baseStamp(id)}@${home.toUpperCase()}`);
 export const COUNTRY_STAMP_IDS = Object.keys(COUNTRY).map((c) => `c:${c}`);
 
 // "c:TH" (a country) or "t:beach" (a theme). Any country without a drawn landmark still gets a stamp:
@@ -238,10 +266,22 @@ export function stampDef(id: string, year = new Date().getFullYear()): StampDef 
     const d = COUNTRY[code] ?? { icon: "plane", ink: "#2f4f6f", tint: "#e4e9ef", value: "AIR" };
     return { ...d, name: short, year };
   }
-  if (id.startsWith("r:") && RARE[id.slice(2)]) return { ...RARE[id.slice(2)], year };
-  return THEMES[id.slice(2)] ?? THEMES.airmail;
+  const [base, cc] = id.split("@");
+  const local = cc && COUNTRY[cc] ? COUNTRY[cc].value : "";
+  if (base.startsWith("r:") && RARE[base.slice(2)]) {
+    const r = RARE[base.slice(2)];
+    // Stamps issued in one place keep that place's money; the ones for everyone take the sender's.
+    return { ...r, value: !r.where && local ? local : r.value, year };
+  }
+  const t = THEMES[base.slice(2)] ?? THEMES.airmail;
+  return local ? { ...t, value: local } : t;
 }
-export const isStampId = (id: string) => /^c:[A-Z]{2}$/.test(id) || (id.startsWith("t:") && id.slice(2) in THEMES) || (id.startsWith("r:") && id.slice(2) in RARE);
+export const isStampId = (id: string) => {
+  const [base, cc] = id.split("@");
+  if (cc !== undefined && !(/^[A-Z]{2}$/.test(cc) && COUNTRY[cc])) return false;
+  if (/^c:[A-Z]{2}$/.test(base)) return cc === undefined;
+  return (base.startsWith("t:") && base.slice(2) in THEMES) || (base.startsWith("r:") && base.slice(2) in RARE);
+};
 
 // The stamp as a standalone SVG (76×92), drawn like an engraved (intaglio) stamp: white perforated
 // margin, a picture panel of fine engraved lines with a light vignette, the landmark in ink, the value
