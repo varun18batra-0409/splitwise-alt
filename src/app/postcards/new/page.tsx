@@ -82,6 +82,7 @@ export default async function NewPostcardPage({ searchParams }: { searchParams: 
         wordsAt: again.wordsAt,
         wordsSize: again.wordsSize,
         touches: again.touches,
+        seal: again.seal,
         message: again.message,
         hand: again.hand,
         paper: again.paper,

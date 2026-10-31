@@ -7,7 +7,7 @@ import { face } from "@/components/postcards/PostcardView";
 import { shrink } from "@/components/OwnPhoto";
 import { avatarTone } from "@/components/ui";
 import { buzz } from "@/lib/haptics";
-import { LOOKS, PLACES, TOUCHES, lookCss } from "@/lib/postcards/looks";
+import { LOOKS, PLACES, SEAL_COLOURS, SEAL_DESIGNS, TOUCHES, lookCss, waxSeal } from "@/lib/postcards/looks";
 import { COUNTRY_STAMP_IDS, HANDS, INKS, TONES, LETTERINGS, OPENERS, PAPERS, paperTones, PRINTS, THEME_STAMP_IDS, printSvg, stampSvg } from "@/lib/postcards/catalog";
 import { sendPostcardAction } from "@/app/postcard-actions";
 import type { PostcardGroup } from "@/lib/postcards/people";
@@ -31,6 +31,7 @@ type Props = {
     wordsAt?: string;
     wordsSize?: number;
     touches?: string;
+    seal?: string;
     message?: string;
     hand?: string;
     paper?: string;
@@ -57,6 +58,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
   const [wordsAt, setWordsAt] = useState(defaults.wordsAt ?? "bottom");
   const [wordsSize, setWordsSize] = useState(defaults.wordsSize ?? 100);
   const [touches, setTouches] = useState<string[]>((defaults.touches ?? "").split(",").filter(Boolean));
+  const [seal, setSeal] = useState(defaults.seal ?? "crimson:initial");
   const [message, setMessage] = useState(defaults.message ?? "");
   const [hand, setHand] = useState(defaults.hand ?? "caveat");
   const [stamp, setStamp] = useState(defaults.stamp);
@@ -83,7 +85,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
   const toggleTouch = (id: string) => setTouches((t) => (t.includes(id) ? t.filter((x) => x !== id) : [...t, id]));
 
   const frontProps = { front, photo: front === "own" ? own?.url : undefined, words, lettering, tone, look, wordsAt, wordsSize, touches: touchList, k: "cf" };
-  const backProps = { message: message || "Your words here…", hand, stamp, paper, ink, touches: touchList, address, place: defaults.place, date, from: firstOf(myName) || "Me", k: "cb" };
+  const backProps = { message: message || "Your words here…", hand, stamp, paper, ink, touches: touchList, seal, address, place: defaults.place, date, from: firstOf(myName) || "Me", k: "cb" };
 
   async function pickPhoto(file?: File) {
     if (!file) return;
@@ -120,6 +122,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
       <input type="hidden" name="wordsAt" value={wordsAt} />
       <input type="hidden" name="wordsSize" value={wordsSize} />
       <input type="hidden" name="touches" value={touchList} />
+      <input type="hidden" name="seal" value={seal} />
       <input type="hidden" name="opensOn" value={opensOn} />
       <input type="hidden" name="words" value={words} />
       <input type="hidden" name="lettering" value={lettering} />
@@ -222,9 +225,9 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
           )}
 
           <span className={label}>Lettering</span>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5" data-letterings>
             {LETTERINGS.map((l) => (
-              <button key={l.id} type="button" className={chip(lettering === l.id)} onClick={() => setLettering(l.id)} style={{ fontFamily: `'${l.family}', serif`, fontStyle: l.italic ? "italic" : undefined, fontSize: l.caps ? 16 : 15, fontWeight: 400 }}>
+              <button key={l.id} type="button" className={`${chip(lettering === l.id)} !h-8 !px-3`} onClick={() => setLettering(l.id)} style={{ fontFamily: `'${l.family}', serif`, fontStyle: l.italic ? "italic" : undefined, fontSize: l.caps ? 13 : 14, fontWeight: 400 }}>
                 {l.name}
               </button>
             ))}
@@ -383,6 +386,35 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
               </button>
             ))}
           </div>
+
+          {touches.includes("seal") && (
+            <div className="mt-4 rounded-[20px] border border-line bg-mist/60 px-4 py-4" data-seal-picker>
+              <span className="mb-3 block text-[13px] font-semibold text-fg/55">Wax colour</span>
+              <div className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+                {SEAL_COLOURS.map((c) => {
+                  const on = seal.split(":")[0] === c.id;
+                  return (
+                    <button key={c.id} type="button" onClick={() => setSeal(`${c.id}:${seal.split(":")[1] || "initial"}`)} aria-label={`${c.name} wax`} aria-pressed={on} className="flex w-[52px] shrink-0 flex-col items-center gap-1">
+                      <span aria-hidden className={`block w-[44px] rounded-full transition-transform active:scale-90 [&>svg]:h-auto [&>svg]:w-full ${on ? "outline outline-2 outline-offset-2 outline-fg" : ""}`} dangerouslySetInnerHTML={{ __html: waxSeal(`${c.id}:${seal.split(":")[1] || "initial"}`, firstOf(myName), `pc${c.id}`) }} />
+                      <span className={`text-[10.5px] ${on ? "text-fg" : "text-fg/50"}`}>{c.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <span className="mb-3 mt-4 block text-[13px] font-semibold text-fg/55">Design</span>
+              <div className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+                {SEAL_DESIGNS.map((d) => {
+                  const on = (seal.split(":")[1] || "initial") === d.id;
+                  return (
+                    <button key={d.id} type="button" onClick={() => setSeal(`${seal.split(":")[0] || "crimson"}:${d.id}`)} aria-label={`Seal design: ${d.name}`} aria-pressed={on} className="flex w-[60px] shrink-0 flex-col items-center gap-1">
+                      <span aria-hidden className={`block w-[48px] rounded-full transition-transform active:scale-90 [&>svg]:h-auto [&>svg]:w-full ${on ? "outline outline-2 outline-offset-2 outline-fg" : ""}`} dangerouslySetInnerHTML={{ __html: waxSeal(`${seal.split(":")[0] || "crimson"}:${d.id}`, firstOf(myName), `pd${d.id}`) }} />
+                      <span className={`text-center text-[10.5px] leading-tight ${on ? "text-fg" : "text-fg/50"}`}>{d.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <span className={label}>Address (write anything)</span>
           <div className="space-y-2">

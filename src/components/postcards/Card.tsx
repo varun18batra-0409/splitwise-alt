@@ -1,4 +1,4 @@
-import { lookCss, touchesOn, wordsAtOf, wordsSizeOf } from "@/lib/postcards/looks";
+import { lookCss, touchesOn, waxSeal, wordsAtOf, wordsSizeOf } from "@/lib/postcards/looks";
 import { handOf, inkColor, paperTones, letteringOf, toneOf, postmarkSvg, printSvg, stampSvg, WAVES_SVG } from "@/lib/postcards/catalog";
 
 // A postcard, front and back, drawn at any width (sizes are in "cqw": a share of the card's width),
@@ -63,6 +63,7 @@ export type BackProps = {
   paper: string;
   ink?: string;
   touches?: string;
+  seal?: string;
   address: string[];
   place: string;
   date: string;
@@ -71,7 +72,7 @@ export type BackProps = {
   className?: string;
 };
 
-export function PostcardBack({ message, hand, stamp, paper, ink = "navy", touches = "", address, place, date, from, k, className = "" }: BackProps) {
+export function PostcardBack({ message, hand, stamp, paper, ink = "navy", touches = "", seal = "", address, place, date, from, k, className = "" }: BackProps) {
   const h = handOf(hand);
   const pen = { fontFamily: `'${h.family}', cursive`, color: inkColor(ink) };
   const [p0, p1, p2] = paperTones(paper);
@@ -94,7 +95,7 @@ export function PostcardBack({ message, hand, stamp, paper, ink = "navy", touche
           </span>
         ))}
       </div>
-      <Touches list={touchesOn(touches, "back")} k={k} />
+      <Touches list={touchesOn(touches, "back")} k={k} seal={seal} initial={from} />
       <span aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.14] mix-blend-multiply" style={{ backgroundImage: GRAIN }} />
     </>
   );
@@ -112,7 +113,7 @@ export function PostcardBack({ message, hand, stamp, paper, ink = "navy", touche
   );
 }
 
-function Touches({ list, k }: { list: ReturnType<typeof touchesOn>; k: string }) {
+function Touches({ list, k, seal = "", initial = "" }: { list: ReturnType<typeof touchesOn>; k: string; seal?: string; initial?: string }) {
   return (
     <>
       {list.map((t) => (
@@ -122,7 +123,7 @@ function Touches({ list, k }: { list: ReturnType<typeof touchesOn>; k: string })
           data-touch={t.id}
           className="pointer-events-none absolute drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.35)] [&>svg]:h-auto [&>svg]:w-full"
           style={{ left: `${t.x * 100}%`, top: `${t.y * 100}%`, width: `${t.w * 100}%`, transform: `rotate(${t.rot}deg)` }}
-          dangerouslySetInnerHTML={{ __html: t.svg.replaceAll('id="stouch"', `id="st${k}"`).replaceAll("url(#stouch)", `url(#st${k})`) }}
+          dangerouslySetInnerHTML={{ __html: t.id === "seal" ? waxSeal(seal, initial, `t${k}`) : t.svg.replace(/id="([a-z]+)"/g, `id="$1${k}"`).replace(/#([a-z]+)\)/g, `#$1${k})`).replace(/href="#([a-z]+)"/g, `href="#$1${k}"`) }}
         />
       ))}
     </>

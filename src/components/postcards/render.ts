@@ -1,6 +1,6 @@
 "use client";
 
-import { lookCss, touchesOn, wordsAtOf, wordsSizeOf } from "@/lib/postcards/looks";
+import { lookCss, touchesOn, waxSeal, wordsAtOf, wordsSizeOf } from "@/lib/postcards/looks";
 import { handOf, inkColor, paperTones, letteringOf, toneOf, postmarkSvg, printSvg, stampSvg, WAVES_SVG } from "@/lib/postcards/catalog";
 import type { BackProps, FrontProps } from "./Card";
 
@@ -26,9 +26,9 @@ function cover(ctx: CanvasRenderingContext2D, im: HTMLImageElement, x: number, y
   const ih = im.height * s;
   ctx.drawImage(im, x + (w - iw) / 2, y + (h - ih) / 2, iw, ih);
 }
-async function touches(ctx: CanvasRenderingContext2D, raw: string | undefined, side: "front" | "back", ox: number, oy: number, w: number, h: number) {
+async function touches(ctx: CanvasRenderingContext2D, raw: string | undefined, side: "front" | "back", ox: number, oy: number, w: number, h: number, seal = "", initial = "") {
   for (const t of touchesOn(raw, side)) {
-    const im = await svgImage(t.svg);
+    const im = await svgImage(t.id === "seal" ? waxSeal(seal, initial, "x") : t.svg);
     const tw = w * t.w;
     const th = tw * (im.height / im.width || 1);
     ctx.save();
@@ -213,7 +213,7 @@ export async function drawBack(p: BackProps): Promise<Blob> {
     ctx.fillText(p.address[i] ?? "", X(0.6), ly - 4, w * 0.34);
     ctx.textBaseline = "top";
   }
-  await touches(ctx, p.touches, "back", ox, oy, w, h);
+  await touches(ctx, p.touches, "back", ox, oy, w, h, p.seal ?? "", p.from);
   grain(ctx, W, H, 0.08);
   return new Promise((res) => cv.toBlob((b) => res(b!), "image/jpeg", 0.92));
 }
