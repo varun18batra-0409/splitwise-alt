@@ -88,7 +88,19 @@ export const SEAL_DESIGNS = [
   { id: "heart", name: "Heart" },
   { id: "star", name: "Star" },
   { id: "xo", name: "XO" },
+  { id: "rose", name: "Rose" },
+  { id: "crown", name: "Crown" },
+  { id: "laurel", name: "Laurel" },
+  { id: "compass", name: "Compass" },
+  { id: "anchor", name: "Anchor" },
+  { id: "key", name: "Key" },
+  { id: "moon", name: "Moon" },
+  { id: "plane", name: "Airmail" },
+  { id: "bee", name: "Bee" },
+  { id: "infinity", name: "Forever" },
 ] as const;
+// Designs drawn as engraved lines (the rest are lettering).
+const LINE_DESIGNS = new Set(["fleur", "heart", "star", "rose", "crown", "laurel", "compass", "anchor", "key", "moon", "plane", "bee", "infinity"]);
 export function sealOf(spec: string): { colour: string; design: string } {
   const [c, d] = String(spec || "").split(":");
   return { colour: SEAL_COLOURS.some((x) => x.id === c) ? c : "crimson", design: SEAL_DESIGNS.some((x) => x.id === d) ? d : "initial" };
@@ -106,6 +118,26 @@ function sealArt(design: string, glyph: string, ring: string): string {
       return '<path d="M50 27 C45 34 44 42 50 51 C56 42 55 34 50 27Z M48.5 51 C44 44 36 43 33 47 C31 51 35 55 39 53 C36 52 36 49 39 48 C43 47 46 50 47.5 53Z M51.5 51 C56 44 64 43 67 47 C69 51 65 55 61 53 C64 52 64 49 61 48 C57 47 54 50 52.5 53Z M40 53.5 H60 V57 H40Z M48 57 H52 L53 68 H47Z M44 68 H56" stroke-width="1.2" stroke-linejoin="round"/>';
     case "heart":
       return '<path d="M50 70 C36 59 29 51 29 42 C29 35 34 31 40 31 C45 31 48 34 50 38 C52 34 55 31 60 31 C66 31 71 35 71 42 C71 51 64 59 50 70Z" stroke-width="1.6"/>';
+    case "rose":
+      return '<path d="M50 47 a3 3 0 1 1 3 3 a6.5 6.5 0 1 1 -6.5 -6.5 a10 10 0 1 1 10 10 a13 13 0 0 1 -13 -13" stroke-width="1.5" stroke-linecap="round"/><path d="M50 60 V72 M50 66 q-7 -1 -9 -6 q6 0 9 6 M50 69 q7 -1 9 -6 q-6 0 -9 6" stroke-width="1.4" stroke-linecap="round"/>';
+    case "crown":
+      return '<path d="M32 62 L29 39 L40 49 L50 32 L60 49 L71 39 L68 62Z M32 67 H68" stroke-width="1.6" stroke-linejoin="round"/><circle cx="29" cy="37" r="2"/><circle cx="50" cy="30" r="2"/><circle cx="71" cy="37" r="2"/><path d="M40 57 h20" stroke-width="1"/>';
+    case "laurel":
+      return '<path d="M44 70 C30 62 28 44 38 31 M56 70 C70 62 72 44 62 31" stroke-width="1.4" stroke-linecap="round"/><path d="M35 62 q-7 -1 -9 -7 q7 0 9 7 M32 52 q-7 -3 -7 -9 q7 2 7 9 M33 42 q-5 -5 -3 -11 q5 4 3 11 M65 62 q7 -1 9 -7 q-7 0 -9 7 M68 52 q7 -3 7 -9 q-7 2 -7 9 M67 42 q5 -5 3 -11 q-5 4 -3 11" stroke-width="1.2"/><path d="M44 70 L56 70" stroke-width="1.2"/>';
+    case "compass":
+      return '<circle cx="50" cy="50" r="21" stroke-width="1.1"/><path d="M50 27 L54.5 50 L50 73 L45.5 50Z M27 50 L50 45.5 L73 50 L50 54.5Z" stroke-width="1.3" stroke-linejoin="round"/><path d="M50 27 L54.5 50 L45.5 50Z" stroke-width="2.2"/><circle cx="50" cy="50" r="1.8"/>';
+    case "anchor":
+      return '<circle cx="50" cy="31" r="4" stroke-width="1.6"/><path d="M50 35 V70 M41 43 H59 M31 57 C33 66 41 70 50 70 C59 70 67 66 69 57 M28 60 L31 56 L35 59 M72 60 L69 56 L65 59" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>';
+    case "key":
+      return '<circle cx="36" cy="50" r="8.5" stroke-width="1.8"/><circle cx="36" cy="50" r="3.5" stroke-width="1.2"/><path d="M44.5 50 H72 M64 50 V58 M69 50 V56" stroke-width="2" stroke-linecap="round"/>';
+    case "moon":
+      return '<path d="M56 29 A22 22 0 1 0 64 66 A17 17 0 1 1 56 29Z" stroke-width="1.6" stroke-linejoin="round"/><path d="M63 38 l1.4 3.4 l3.6 .3 l-2.8 2.3 l.9 3.5 l-3.1 -1.9 l-3.1 1.9 l.9 -3.5 l-2.8 -2.3 l3.6 -.3Z" stroke-width="1"/>';
+    case "plane":
+      return '<path d="M28 52 L72 34 L62 66 L52 56 Z M52 56 L72 34 M52 56 L50 66 L56 60" stroke-width="1.6" stroke-linejoin="round"/><path d="M30 64 q6 -3 12 0" stroke-width="1" stroke-dasharray="2 2"/>';
+    case "bee":
+      return '<ellipse cx="50" cy="54" rx="9" ry="13" stroke-width="1.6"/><path d="M41.5 50 H58.5 M41 56 H59 M42.5 62 H57.5" stroke-width="1.3"/><circle cx="50" cy="38" r="4" stroke-width="1.5"/><path d="M41 47 C30 38 30 30 38 31 C44 32 45 40 44 46 M59 47 C70 38 70 30 62 31 C56 32 55 40 56 46 M48 35 l-3 -5 M52 35 l3 -5" stroke-width="1.3" stroke-linecap="round"/>';
+    case "infinity":
+      return '<path d="M50 50 C44 40 30 40 30 50 C30 60 44 60 50 50 C56 40 70 40 70 50 C70 60 56 60 50 50Z" stroke-width="2.2"/>';
     case "star":
       return '<path d="M50 28 L55.6 43.2 L71.6 43.6 L58.9 53.4 L63.4 69 L50 59.8 L36.6 69 L41.1 53.4 L28.4 43.6 L44.4 43.2Z" stroke-width="1.4" stroke-linejoin="round"/>';
     case "xo":
@@ -125,7 +157,7 @@ export function waxSeal(spec: string, initial: string, k: string, glyphOverride?
   const art = sealArt(glyphOverride ? "initial" : design, glyph, "WITH LOVE \u2726 LOOPIN POST \u2726 ").replaceAll("__RING__", `${id}r`);
   const metal = "metal" in c && c.metal;
   // The design twice: a dark copy a touch lower (the pressed edge) and a light copy a touch higher.
-  const emboss = (fill: string, op: number, dy: number) => `<g transform="translate(0 ${dy})" fill="${design === "fleur" || design === "heart" || design === "star" ? "none" : fill}" stroke="${design === "fleur" || design === "heart" || design === "star" ? fill : "none"}" opacity="${op}">${art}</g>`;
+  const emboss = (fill: string, op: number, dy: number) => `<g transform="translate(0 ${dy})" fill="${LINE_DESIGNS.has(design) ? "none" : fill}" stroke="${LINE_DESIGNS.has(design) ? fill : "none"}" opacity="${op}">${art}</g>`;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><defs><radialGradient id="${id}a" cx="36%" cy="30%" r="80%"><stop offset="0" stop-color="${c.hi}"/><stop offset=".42" stop-color="${c.mid}"/><stop offset="1" stop-color="${c.lo}"/></radialGradient><radialGradient id="${id}b" cx="62%" cy="68%" r="70%"><stop offset="0" stop-color="${c.hi}" stop-opacity="${metal ? 0.55 : 0.25}"/><stop offset=".55" stop-color="${c.mid}" stop-opacity="0"/></radialGradient><radialGradient id="${id}c" cx="50%" cy="50%" r="50%"><stop offset=".78" stop-color="${c.mid}"/><stop offset=".93" stop-color="${c.lo}"/><stop offset="1" stop-color="${c.hi}" stop-opacity=".6"/></radialGradient></defs><path d="${BLOB}" fill="url(#${id}a)"/><path d="${BLOB}" fill="url(#${id}b)"/><circle cx="50" cy="50" r="31.5" fill="url(#${id}c)"/><circle cx="50" cy="50" r="31.5" fill="none" stroke="${c.lo}" stroke-opacity=".55" stroke-width="1.6"/><path d="M24 40 A28 28 0 0 1 60 22" fill="none" stroke="${c.hi}" stroke-opacity="${metal ? 0.8 : 0.45}" stroke-width="1.4" stroke-linecap="round"/>${emboss(c.lo, 0.75, 0.9)}${emboss(c.hi, metal ? 0.85 : 0.6, -0.7)}<ellipse cx="33" cy="25" rx="11" ry="4.5" fill="#fff" opacity="${metal ? 0.42 : 0.2}" transform="rotate(-32 33 25)"/></svg>`;
 }
 const seal = (glyph: string, k: string) => waxSeal("crimson:initial", glyph, k, glyph);
