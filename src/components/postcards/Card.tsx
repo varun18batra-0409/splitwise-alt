@@ -1,3 +1,4 @@
+import { lookCss, touchesOn, wordsAtOf, wordsSizeOf } from "@/lib/postcards/looks";
 import { handOf, inkColor, paperTones, letteringOf, toneOf, postmarkSvg, printSvg, stampSvg, WAVES_SVG } from "@/lib/postcards/catalog";
 
 // A postcard, front and back, drawn at any width (sizes are in "cqw": a share of the card's width),
@@ -6,27 +7,36 @@ import { handOf, inkColor, paperTones, letteringOf, toneOf, postmarkSvg, printSv
 const GRAIN =
   "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .2 0 0 0 0 .16 0 0 0 0 .1 0 0 0 .55 0'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>\")";
 
-export type FrontProps = { front: string; photo?: string; words: string; lettering: string; tone?: string; k: string; className?: string };
+export type FrontProps = { front: string; photo?: string; words: string; lettering: string; tone?: string; look?: string; wordsAt?: string; wordsSize?: number; touches?: string; k: string; className?: string };
 
-export function PostcardFront({ front, photo, words, lettering, tone = "white", k, className = "" }: FrontProps) {
+export function PostcardFront({ front, photo, words, lettering, tone = "white", look = "", wordsAt = "bottom", wordsSize = 100, touches = "", k, className = "" }: FrontProps) {
   const l = letteringOf(lettering);
   const t = toneOf(tone);
+  const at = wordsAtOf(wordsAt);
+  const scale = wordsSizeOf(wordsSize) / 100;
+  const filter = lookCss(look);
   const print = front.startsWith("print:") ? front.slice(6) : "";
   const img = !print ? photo || (front.startsWith("photo:") ? front.slice(6) : "") : "";
   const long = words.length > 11;
   return (
     <div className={`relative aspect-[3/2] overflow-hidden rounded-[3px] bg-[#e9e2d4] text-white shadow-[0_1px_0_rgba(255,255,255,0.35)_inset,0_24px_48px_-18px_rgba(0,0,0,0.85),0_6px_14px_-6px_rgba(0,0,0,0.6)] [container-type:inline-size] ${className}`} data-postcard-front>
       {print ? (
-        <div aria-hidden className="absolute inset-0 [&>svg]:h-full [&>svg]:w-full" data-print-svg dangerouslySetInnerHTML={{ __html: printSvg(print, k) }} />
+        <div aria-hidden className="absolute inset-0 [&>svg]:h-full [&>svg]:w-full" style={{ filter }} data-print-svg dangerouslySetInnerHTML={{ __html: printSvg(print, k) }} />
       ) : img ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={img} alt="" className="absolute inset-0 h-full w-full object-cover [filter:saturate(1.06)_contrast(1.04)]" data-front-photo />
+        <img src={img} alt="" className="absolute inset-0 h-full w-full object-cover" style={{ filter: filter === "none" ? "saturate(1.06) contrast(1.04)" : filter }} data-front-photo data-look={look || "none"} />
       ) : null}
-      {img && words && !t.dark && <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0)_45%,rgba(0,0,0,0.42)_100%)]" />}
+      {img && words && !t.dark && (
+        <span
+          aria-hidden
+          className="absolute inset-0"
+          style={{ background: at === "top" ? "linear-gradient(0deg,rgba(0,0,0,0) 45%,rgba(0,0,0,0.42) 100%)" : at === "middle" ? "radial-gradient(80% 60% at 50% 50%,rgba(0,0,0,0.3),rgba(0,0,0,0) 75%)" : "linear-gradient(180deg,rgba(0,0,0,0) 45%,rgba(0,0,0,0.42) 100%)" }}
+        />
+      )}
       <span aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.2] mix-blend-multiply" style={{ backgroundImage: GRAIN }} />
       <span aria-hidden className="pointer-events-none absolute inset-[3.2%] border border-white/60" />
       {words && (
-        <div className="pointer-events-none absolute inset-x-[6%] bottom-[9%] text-center" style={{ color: t.c, textShadow: t.dark ? "0 1px 14px rgba(255,255,255,0.45)" : "0 2px 18px rgba(0,0,0,0.35)" }} data-front-words data-tone={t.id}>
+        <div className={`pointer-events-none absolute inset-x-[6%] text-center ${at === "top" ? "top-[9%]" : at === "middle" ? "top-1/2 -translate-y-1/2" : "bottom-[9%]"}`} data-words-at={at} style={{ color: t.c, textShadow: t.dark ? "0 1px 14px rgba(255,255,255,0.45)" : "0 2px 18px rgba(0,0,0,0.35)" }} data-front-words data-tone={t.id}>
           <div className="font-sans text-[2.1cqw] font-semibold uppercase tracking-[0.34em] opacity-95">Greetings from</div>
           <div
             className="leading-[0.95]"
@@ -34,13 +44,14 @@ export function PostcardFront({ front, photo, words, lettering, tone = "white", 
               fontFamily: `'${l.family}', Georgia, serif`,
               fontStyle: l.italic ? "italic" : undefined,
               letterSpacing: l.caps ? "0.06em" : "-0.01em",
-              fontSize: `${l.caps ? (long ? 11 : 15) : long ? 9.5 : 13.5}cqw`,
+              fontSize: `${(l.caps ? (long ? 11 : 15) : long ? 9.5 : 13.5) * scale}cqw`,
             }}
           >
             {words}
           </div>
         </div>
       )}
+      <Touches list={touchesOn(touches, "front")} k={k} />
     </div>
   );
 }
@@ -51,6 +62,7 @@ export type BackProps = {
   stamp: string;
   paper: string;
   ink?: string;
+  touches?: string;
   address: string[];
   place: string;
   date: string;
@@ -59,7 +71,7 @@ export type BackProps = {
   className?: string;
 };
 
-export function PostcardBack({ message, hand, stamp, paper, ink = "navy", address, place, date, from, k, className = "" }: BackProps) {
+export function PostcardBack({ message, hand, stamp, paper, ink = "navy", touches = "", address, place, date, from, k, className = "" }: BackProps) {
   const h = handOf(hand);
   const pen = { fontFamily: `'${h.family}', cursive`, color: inkColor(ink) };
   const [p0, p1, p2] = paperTones(paper);
@@ -82,6 +94,7 @@ export function PostcardBack({ message, hand, stamp, paper, ink = "navy", addres
           </span>
         ))}
       </div>
+      <Touches list={touchesOn(touches, "back")} k={k} />
       <span aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.14] mix-blend-multiply" style={{ backgroundImage: GRAIN }} />
     </>
   );
@@ -96,5 +109,22 @@ export function PostcardBack({ message, hand, stamp, paper, ink = "navy", addres
         inner
       )}
     </div>
+  );
+}
+
+function Touches({ list, k }: { list: ReturnType<typeof touchesOn>; k: string }) {
+  return (
+    <>
+      {list.map((t) => (
+        <span
+          key={t.id}
+          aria-hidden
+          data-touch={t.id}
+          className="pointer-events-none absolute drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.35)] [&>svg]:h-auto [&>svg]:w-full"
+          style={{ left: `${t.x * 100}%`, top: `${t.y * 100}%`, width: `${t.w * 100}%`, transform: `rotate(${t.rot}deg)` }}
+          dangerouslySetInnerHTML={{ __html: t.svg.replaceAll('id="stouch"', `id="st${k}"`).replaceAll("url(#stouch)", `url(#st${k})`) }}
+        />
+      ))}
+    </>
   );
 }

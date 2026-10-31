@@ -24,9 +24,13 @@ test("Postcards: write from a group, the other person receives it, turns it over
   await A.getByRole("button", { name: "Print: Mountains" }).click();
   await expect(A.locator("[data-postcard-front] [data-print-svg]").first()).toBeVisible();
   await A.getByRole("button", { name: "Gold words" }).click();
+  await A.getByRole("button", { name: "Look: Golden hour" }).click();
+  await A.getByRole("button", { name: "Tape" }).click();
+  await expect(A.locator("[data-postcard-front] [data-touch='tape']").first()).toBeVisible();
   await A.getByRole("tab", { name: "Back" }).click();
   await A.getByRole("button", { name: "Same time next year?" }).click();
   await A.getByRole("button", { name: "Bottle green ink" }).click();
+  await A.getByRole("button", { name: "Wax seal" }).click();
   await A.getByRole("textbox", { name: "Your message" }).fill("Wish you were here. The beach shack was the fancy dinner.");
   await A.getByRole("tab", { name: "Send" }).click();
   await A.locator("[data-recipient='Ravi']").click();
@@ -47,10 +51,40 @@ test("Postcards: write from a group, the other person receives it, turns it over
   await flip.click();
   await expect(flip).toHaveAttribute("data-postcard-flip", "back");
   await expect(R.locator("[data-back-message]")).toContainText("fancy dinner");
+  await expect(R.locator("[data-postcard-back] [data-touch='seal']").first()).toBeAttached();
   await expect(R.getByRole("link", { name: "Write back" })).toBeVisible();
+  // Ravi presses a wax seal back; Asha sees it on her card.
+  await R.getByRole("button", { name: "Seal: Miss you" }).click();
+  await R.waitForURL(/sealed=1/);
+  await expect(R.locator("[data-reaction='miss']")).toBeVisible();
   await R.goto("/postcards");
   await settled(R);
   await expect(R.locator("[data-postcard-item]")).toHaveCount(1);
+  await A.goto(path);
+  await settled(A);
+  await expect(A.locator("[data-reaction='miss']")).toContainText("Miss you");
+
+  // Asha sends the same card again, sealed until a day ahead: everything comes back filled in.
+  await A.locator("[data-send-again]").click();
+  await A.waitForURL(/\/postcards\/new\?from=/);
+  await settled(A);
+  await A.getByRole("tab", { name: "Back" }).click();
+  await expect(A.getByRole("textbox", { name: "Your message" })).toHaveValue(/fancy dinner/);
+  await A.getByRole("tab", { name: "Send" }).click();
+  await A.getByRole("button", { name: "A year from today" }).click();
+  await expect(A.locator("[data-sealed-note]")).toBeVisible();
+  await A.locator("[data-recipient='Ravi']").click();
+  await A.getByRole("button", { name: "Send to 1 person" }).click();
+  await A.waitForURL(/\/postcards\/[a-z0-9]+\?sent=1/);
+  const sealedPath = new URL(A.url()).pathname;
+  expect(sealedPath).not.toBe(path);
+  await R.goto(sealedPath);
+  await settled(R);
+  await expect(R.locator("[data-sealed]")).toBeVisible();
+  await expect(R.locator("[data-back-message]")).toHaveCount(0);
+  await R.goto("/postcards/stamps");
+  await settled(R);
+  await expect(R.locator("[data-album-count]")).toContainText("of 9 collected");
 
   // Someone who isn't the sender or the receiver gets nothing.
   const stranger = await signUp("Zed", testEmail("pc-zed"));

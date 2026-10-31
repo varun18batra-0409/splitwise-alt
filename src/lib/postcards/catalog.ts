@@ -39,6 +39,17 @@ export const LETTERINGS: Lettering[] = [
   { id: "italic", name: "Italic", family: "Playfair Display", italic: true },
   { id: "poster", name: "Poster", family: "Bebas Neue", caps: true },
   { id: "bold", name: "Bold", family: "Abril Fatface" },
+  { id: "editorial", name: "Editorial", family: "Fraunces" },
+  { id: "elegant", name: "Elegant", family: "Cormorant Garamond", italic: true },
+  { id: "vogue", name: "Vogue", family: "Bodoni Moda", italic: true },
+  { id: "riviera", name: "Riviera", family: "Italiana" },
+  { id: "roman", name: "Roman", family: "Cinzel", caps: true },
+  { id: "deco", name: "Deco", family: "Josefin Sans", caps: true },
+  { id: "condensed", name: "Condensed", family: "Oswald", caps: true },
+  { id: "slab", name: "Slab", family: "Alfa Slab One" },
+  { id: "retro", name: "Retro", family: "Yeseva One" },
+  { id: "typewriter", name: "Typewriter", family: "Special Elite" },
+  { id: "script", name: "Script", family: "Great Vibes" },
 ];
 export const letteringOf = (id: string) => LETTERINGS.find((l) => l.id === id) ?? LETTERINGS[0];
 
@@ -56,12 +67,18 @@ export const HANDS: { id: string; family: string; size: number }[] = [
   { id: "parisienne", family: "Parisienne", size: 1.05 },
   { id: "reenie", family: "Reenie Beanie", size: 1.2 },
   { id: "patrick", family: "Patrick Hand", size: 0.98 },
+  { id: "indie", family: "Indie Flower", size: 0.95 },
+  { id: "shadows", family: "Shadows Into Light", size: 1.02 },
+  { id: "gochi", family: "Gochi Hand", size: 0.98 },
+  { id: "delafield", family: "Mrs Saint Delafield", size: 1.3 },
+  { id: "allura", family: "Allura", size: 1.22 },
+  { id: "grace", family: "Covered By Your Grace", size: 1.1 },
 ];
 export const handOf = (id: string) => HANDS.find((h) => h.id === id) ?? HANDS[0];
 
 // Google Fonts for the lettering and handwriting (loaded only on postcard screens).
 export const POSTCARD_FONTS_URL =
-  "https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Playfair+Display:ital,wght@1,500&family=Bebas+Neue&family=Abril+Fatface&family=Caveat:wght@500&family=Homemade+Apple&family=Kalam&family=Dancing+Script:wght@500&family=Sacramento&family=La+Belle+Aurore&family=Nothing+You+Could+Do&family=Cedarville+Cursive&family=Satisfy&family=Parisienne&family=Reenie+Beanie&family=Patrick+Hand&display=swap";
+  "https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Playfair+Display:ital,wght@1,500&family=Bebas+Neue&family=Abril+Fatface&family=Caveat:wght@500&family=Homemade+Apple&family=Kalam&family=Dancing+Script:wght@500&family=Sacramento&family=La+Belle+Aurore&family=Nothing+You+Could+Do&family=Cedarville+Cursive&family=Satisfy&family=Parisienne&family=Reenie+Beanie&family=Patrick+Hand&family=Fraunces:wght@600&family=Cormorant+Garamond:ital,wght@1,500&family=Bodoni+Moda:ital,wght@1,500&family=Italiana&family=Cinzel:wght@600&family=Josefin+Sans:wght@600&family=Oswald:wght@500&family=Alfa+Slab+One&family=Yeseva+One&family=Special+Elite&family=Great+Vibes&family=Indie+Flower&family=Shadows+Into+Light&family=Gochi+Hand&family=Mrs+Saint+Delafield&family=Allura&family=Covered+By+Your+Grace&display=swap";
 
 // ---------- Paper ----------
 // Each paper is three tones of one card stock (lit corner, middle, edge). Airmail is cream inside a striped border.
@@ -163,6 +180,44 @@ const THEMES: Record<string, StampDef> = {
   home: { icon: "home", ink: "#6a4a3a", tint: "#f0e6de", value: "₹3", name: "Home" },
 };
 export const THEME_STAMP_IDS = Object.keys(THEMES).map((t) => `t:${t}`);
+
+
+// Extra stamp art for the rare stamps (same 76×80 box as the others).
+const MORE_ICONS: Record<string, string> = {
+  diya: `<path d="M16 50 q22 20 44 0 Z" stroke="var(--ink)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M38 24 q-8 11 0 21 q8 -10 0 -21Z" fill="var(--ink)" opacity=".85"/><path d="M38 33 q-3 5 0 9 q3 -4 0 -9Z" fill="var(--tint)"/><path d="M24 66 h28" stroke="var(--ink)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
+  firework: `<path d="M43.0 36.0 L58.0 36.0 M42.3 38.5 L55.3 46.0 M40.5 40.3 L48.0 53.3 M38.0 41.0 L38.0 56.0 M35.5 40.3 L28.0 53.3 M33.7 38.5 L20.7 46.0 M33.0 36.0 L18.0 36.0 M33.7 33.5 L20.7 26.0 M35.5 31.7 L28.0 18.7 M38.0 31.0 L38.0 16.0 M40.5 31.7 L48.0 18.7 M42.3 33.5 L55.3 26.0" stroke="var(--ink)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="38" cy="36" r="2" fill="var(--ink)"/><path d="M61.0 36.0 L63.0 36.0 M57.9 47.5 L59.7 48.5 M49.5 55.9 L50.5 57.7 M38.0 59.0 L38.0 61.0 M26.5 55.9 L25.5 57.7 M18.1 47.5 L16.3 48.5 M15.0 36.0 L13.0 36.0 M18.1 24.5 L16.3 23.5 M26.5 16.1 L25.5 14.3 M38.0 13.0 L38.0 11.0 M49.5 16.1 L50.5 14.3 M57.9 24.5 L59.7 23.5" stroke="var(--ink)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M38 60 v10" stroke="var(--ink)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
+  kite: `<path d="M38 14 L56 36 L38 58 L20 36Z M38 14 V58 M20 36 H56" stroke="var(--ink)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M38 58 q-6 6 0 10 q6 4 0 9" stroke="var(--ink)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M34 63 l3 1 -3 2Z M40 70 l-3 1 3 2Z" fill="var(--ink)"/>`,
+  splash: `<circle cx="30" cy="34" r="11" stroke="var(--ink)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="46" cy="34" r="11" stroke="var(--ink)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="38" cy="48" r="11" stroke="var(--ink)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="20" cy="56" r="2" fill="var(--ink)"/><circle cx="58" cy="58" r="2.4" fill="var(--ink)"/><circle cx="56" cy="18" r="1.8" fill="var(--ink)"/><circle cx="18" cy="20" r="1.4" fill="var(--ink)"/>`,
+  sun: `<circle cx="38" cy="40" r="11" stroke="var(--ink)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M53.0 40.0 L60.0 40.0 M51.0 47.5 L57.1 51.0 M45.5 53.0 L49.0 59.1 M38.0 55.0 L38.0 62.0 M30.5 53.0 L27.0 59.1 M25.0 47.5 L18.9 51.0 M23.0 40.0 L16.0 40.0 M25.0 32.5 L18.9 29.0 M30.5 27.0 L27.0 20.9 M38.0 25.0 L38.0 18.0 M45.5 27.0 L49.0 20.9 M51.0 32.5 L57.1 29.0" stroke="var(--ink)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 70 h56" stroke="var(--ink)"/>`,
+  umbrella: `<path d="M16 42 q22 -30 44 0 q-5.5 -5 -11 0 q-5.5 -5 -11 0 q-5.5 -5 -11 0 q-5.5 -5 -11 0Z" stroke="var(--ink)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M38 42 v20 q0 5 -5 5 q-4 0 -4 -4" stroke="var(--ink)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M38 12 v4" stroke="var(--ink)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 52 l-2 5 M26 56 l-2 5 M54 52 l-2 5 M60 60 l-2 5" stroke="var(--ink)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
+  star: `<path d="M38.0 18.0 L42.7 31.5 L57.0 31.8 L45.6 40.5 L49.8 54.2 L38.0 46.0 L26.2 54.2 L30.4 40.5 L19.0 31.8 L33.3 31.5Z" stroke="var(--ink)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M38 64 v6 M30 70 h16" stroke="var(--ink)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M17.0 20.0 L20.0 20.0 M16.0 21.0 L16.0 24.0 M15.0 20.0 L12.0 20.0 M16.0 19.0 L16.0 16.0 M61.0 24.0 L64.0 24.0 M60.0 25.0 L60.0 28.0 M59.0 24.0 L56.0 24.0 M60.0 23.0 L60.0 20.0" stroke="var(--ink)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
+  snowflake: `<path d="M38.0 40.0 L60.0 40.0 M38.0 40.0 L49.0 59.1 M38.0 40.0 L27.0 59.1 M38.0 40.0 L16.0 40.0 M38.0 40.0 L27.0 20.9 M38.0 40.0 L49.0 20.9" stroke="var(--ink)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M38 24 l-5 -5 M38 24 l5 -5 M38 56 l-5 5 M38 56 l5 5 M24 32 l-7 -1 M24 32 l-2 -7 M52 48 l7 1 M52 48 l2 7 M52 32 l7 -1 M52 32 l2 -7 M24 48 l-7 1 M24 48 l-2 7" stroke="var(--ink)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
+};
+
+// ---------- Rare stamps ----------
+// Limited issues: each can only be put on a card during its window (month-day, India time), then it's
+// gone until next year. Any card you send or get with one adds it to your stamp album.
+type Rare = StampDef & { from: string; to: string; when: string };
+export const RARE: Record<string, Rare> = {
+  newyear: { icon: "firework", ink: "#8a6a1f", tint: "#f5ecd6", value: "₹100", name: "New Year", from: "12-27", to: "01-07", when: "New Year week" },
+  kites: { icon: "kite", ink: "#b0402a", tint: "#f8e4da", value: "₹14", name: "Kite day", from: "01-10", to: "01-16", when: "mid January" },
+  valentine: { icon: "heart", ink: "#9b2335", tint: "#f6dfe2", value: "₹14", name: "Valentine", from: "02-07", to: "02-15", when: "Valentine’s week" },
+  holi: { icon: "splash", ink: "#7a3a8a", tint: "#f1e2f3", value: "₹20", name: "Holi", from: "03-10", to: "03-25", when: "Holi" },
+  summer: { icon: "sun", ink: "#b0661a", tint: "#f8ead6", value: "₹12", name: "Summer hols", from: "05-01", to: "06-10", when: "May and early June" },
+  monsoon: { icon: "umbrella", ink: "#2a5a7a", tint: "#dde9f0", value: "₹11", name: "Monsoon", from: "07-01", to: "08-31", when: "July and August" },
+  diwali: { icon: "diya", ink: "#a5561a", tint: "#f8e7d2", value: "₹51", name: "Diwali", from: "10-25", to: "11-12", when: "Diwali" },
+  christmas: { icon: "star", ink: "#1f5a3e", tint: "#dfece3", value: "₹25", name: "Christmas", from: "12-18", to: "12-26", when: "Christmas week" },
+  winter: { icon: "snowflake", ink: "#2f4f7a", tint: "#e2e9f3", value: "₹8", name: "Winter", from: "12-01", to: "02-28", when: "December to February" },
+};
+export const RARE_STAMP_IDS = Object.keys(RARE).map((r) => `r:${r}`);
+const mdIn = (tz: string, d: Date) => new Intl.DateTimeFormat("en-CA", { month: "2-digit", day: "2-digit", timeZone: tz }).format(d).replace("/", "-");
+export function rareOpen(id: string, now = new Date(), tz = "Asia/Kolkata"): boolean {
+  const r = RARE[id.replace(/^r:/, "")];
+  if (!r) return false;
+  const md = mdIn(tz, now);
+  return r.from <= r.to ? md >= r.from && md <= r.to : md >= r.from || md <= r.to;
+}
+export const openRareStamps = (now = new Date()) => RARE_STAMP_IDS.filter((id) => rareOpen(id, now));
 export const COUNTRY_STAMP_IDS = Object.keys(COUNTRY).map((c) => `c:${c}`);
 
 // "c:TH" (a country) or "t:beach" (a theme). Any country without a drawn landmark still gets a stamp:
@@ -175,9 +230,10 @@ export function stampDef(id: string, year = new Date().getFullYear()): StampDef 
     const d = COUNTRY[code] ?? { icon: "plane", ink: "#2f4f6f", tint: "#e4e9ef", value: "AIR" };
     return { ...d, name: short, year };
   }
+  if (id.startsWith("r:") && RARE[id.slice(2)]) return { ...RARE[id.slice(2)], year };
   return THEMES[id.slice(2)] ?? THEMES.airmail;
 }
-export const isStampId = (id: string) => /^c:[A-Z]{2}$/.test(id) || (id.startsWith("t:") && id.slice(2) in THEMES);
+export const isStampId = (id: string) => /^c:[A-Z]{2}$/.test(id) || (id.startsWith("t:") && id.slice(2) in THEMES) || (id.startsWith("r:") && id.slice(2) in RARE);
 
 // The stamp as a standalone SVG (76×92): perforated edge, tinted paper, ink frame, landmark, value, name.
 export function stampSvg(id: string, k = "s"): string {
@@ -186,10 +242,11 @@ export function stampSvg(id: string, k = "s"): string {
   const holes: string[] = [];
   for (let x = 4; x <= 72; x += 8) holes.push(`<circle cx="${x}" cy="0" r="2.6"/><circle cx="${x}" cy="92" r="2.6"/>`);
   for (let y = 4; y <= 88; y += 8) holes.push(`<circle cx="0" cy="${y}" r="2.6"/><circle cx="76" cy="${y}" r="2.6"/>`);
-  const icon = (ICONS as Record<string, string>)[d.icon] ?? ICONS.plane;
+  const icon = ({ ...ICONS, ...MORE_ICONS } as Record<string, string>)[d.icon] ?? ICONS.plane;
+  const rare = id.startsWith("r:");
   const art = icon.replaceAll("var(--ink)", d.ink).replaceAll("var(--tint)", d.tint);
   const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;");
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 76 92" width="76" height="92"><defs><mask id="${m}"><rect width="76" height="92" fill="#fff"/><g fill="#000">${holes.join("")}</g></mask></defs><g mask="url(#${m})"><rect width="76" height="92" fill="#fbf8f1"/><rect x="6" y="6" width="64" height="80" fill="${d.tint}" stroke="${d.ink}" stroke-width="1"/><g transform="translate(0 6)">${art}</g><text x="66" y="17" text-anchor="end" font-family="Georgia, 'Times New Roman', serif" font-size="11" font-weight="700" fill="${d.ink}">${esc(d.value)}</text><text x="38" y="82" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="6.2" letter-spacing="1.3" font-weight="700" fill="${d.ink}">${esc(d.name.toUpperCase())}</text>${d.year ? `<text x="10" y="17" font-family="Georgia, serif" font-size="6" fill="${d.ink}" opacity=".8">${d.year}</text>` : ""}</g></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 76 92" width="76" height="92"><defs><mask id="${m}"><rect width="76" height="92" fill="#fff"/><g fill="#000">${holes.join("")}</g></mask></defs><g mask="url(#${m})"><rect width="76" height="92" fill="#fbf8f1"/><rect x="6" y="6" width="64" height="80" fill="${d.tint}" stroke="${d.ink}" stroke-width="1"/>${rare ? `<rect x="8.5" y="8.5" width="59" height="75" fill="none" stroke="#b8913a" stroke-width="1.2"/><rect x="10.5" y="10.5" width="55" height="71" fill="none" stroke="#b8913a" stroke-width=".5"/>` : ""}<g transform="translate(0 6)">${art}</g><text x="66" y="17" text-anchor="end" font-family="Georgia, 'Times New Roman', serif" font-size="11" font-weight="700" fill="${d.ink}">${esc(d.value)}</text><text x="38" y="82" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="6.2" letter-spacing="1.3" font-weight="700" fill="${d.ink}">${esc(d.name.toUpperCase())}</text>${d.year ? `<text x="10" y="17" font-family="Georgia, serif" font-size="6" fill="${d.ink}" opacity=".8">${d.year}</text>` : ""}</g></svg>`;
 }
 
 // The round postmark: the place around the edge, the date in the middle.

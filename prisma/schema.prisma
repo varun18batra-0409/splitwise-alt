@@ -589,12 +589,21 @@ model Postcard {
   stamp       String    @default("t:airmail")
   paper       String    @default("cream")
   ink         String    @default("navy")
+  look        String    @default("") // photo look, "golden:70" ("" = natural)
+  wordsAt     String    @default("bottom") // top | middle | bottom
+  wordsSize   Int       @default(100) // % of the normal size
+  touches     String    @default("") // finishing touches, comma-separated ids
+  opensAt     DateTime? // sealed until this moment (null = open now)
+  openNoted   Boolean   @default(false) // told the person it's open
+  reaction    String    @default("") // their wax-seal reply
+  reactedAt   DateTime?
   address     String    @default("[]") // up to three free-text lines, JSON
   place       String    @default("") // on the postmark
   readAt      DateTime?
   createdAt   DateTime  @default(now())
   @@index([toId, createdAt])
   @@index([fromId, createdAt])
+  @@index([opensAt, openNoted])
 }
 
 // The sender's own photo for a postcard front (made small on the phone). Shared by the copies of
