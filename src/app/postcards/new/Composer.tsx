@@ -8,7 +8,7 @@ import { shrink } from "@/components/OwnPhoto";
 import { avatarTone } from "@/components/ui";
 import { buzz } from "@/lib/haptics";
 import { LOOKS, PLACES, SEAL_COLOURS, SEAL_DESIGNS, TOUCHES, lookCss, waxSeal } from "@/lib/postcards/looks";
-import { COUNTRY_STAMP_IDS, HANDS, INKS, TONES, LETTERINGS, OPENERS, PAPERS, paperTones, PRINTS, THEME_STAMP_IDS, printSvg, stampSvg } from "@/lib/postcards/catalog";
+import { COUNTRY_STAMP_IDS, HANDS, INKS, TONES, LETTERINGS, OPENERS, PAPERS, paperTones, PRINTS, THEME_STAMP_IDS, printSvg, stampSvg, withHome } from "@/lib/postcards/catalog";
 import { sendPostcardAction } from "@/app/postcard-actions";
 import type { PostcardGroup } from "@/lib/postcards/people";
 
@@ -40,13 +40,14 @@ type Props = {
     ownPhoto?: { id: string; url: string };
   };
   rare: { id: string; until: string }[];
+  home: string;
   myName: string;
   date: string;
 };
 
 // Write a postcard: the card itself stays on top and turns as you go (front, then back), with the
 // choices underneath. Send goes to the people you tick.
-export function Composer({ groupId, groups, photos, words: wordOptions, defaults, rare, myName, date }: Props) {
+export function Composer({ groupId, groups, photos, words: wordOptions, defaults, rare, home, myName, date }: Props) {
   const [tab, setTab] = useState<"front" | "back" | "send">("front");
   const [front, setFront] = useState(defaults.front);
   const [own, setOwn] = useState<{ url: string; data: string } | null>(defaults.ownPhoto ? { url: defaults.ownPhoto.url, data: "" } : null);
@@ -79,7 +80,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
   // With one person picked, the first address line is their name (until you type your own).
   const address = addr[0] || to.length !== 1 ? addr : [firstOf(everyone.get(to[0]) ?? ""), addr[1], addr[2]];
   const rareIds = rare.map((r) => r.id);
-  const stampList = useMemo(() => [...new Set([...rareIds, stamp, ...COUNTRY_STAMP_IDS, ...THEME_STAMP_IDS])], [stamp, rareIds.join()]); // eslint-disable-line react-hooks/exhaustive-deps
+  const stampList = useMemo(() => [...new Set([...rareIds, stamp, ...COUNTRY_STAMP_IDS, ...THEME_STAMP_IDS.map((t) => withHome(t, home))])], [stamp, home, rareIds.join()]); // eslint-disable-line react-hooks/exhaustive-deps
   const [lookId, lookAmt] = [look.split(":")[0] || "none", Number(look.split(":")[1] ?? 100)];
   const touchList = touches.join(",");
   const toggleTouch = (id: string) => setTouches((t) => (t.includes(id) ? t.filter((x) => x !== id) : [...t, id]));
@@ -390,11 +391,11 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
           {touches.includes("seal") && (
             <div className="mt-4 rounded-[20px] border border-line bg-mist/60 px-4 py-4" data-seal-picker>
               <span className="mb-3 block text-[13px] font-semibold text-fg/55">Wax colour</span>
-              <div className="grid grid-cols-5 gap-x-1 gap-y-3" data-wax-colours>
+              <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 pt-1 [scrollbar-width:none]" data-wax-colours>
                 {SEAL_COLOURS.map((c) => {
                   const on = seal.split(":")[0] === c.id;
                   return (
-                    <button key={c.id} type="button" onClick={() => setSeal(`${c.id}:${seal.split(":")[1] || "initial"}`)} aria-label={`${c.name} wax`} aria-pressed={on} className="flex min-w-0 flex-col items-center gap-1">
+                    <button key={c.id} type="button" onClick={() => setSeal(`${c.id}:${seal.split(":")[1] || "initial"}`)} aria-label={`${c.name} wax`} aria-pressed={on} className="flex w-[58px] shrink-0 flex-col items-center gap-1">
                       <span aria-hidden className={`block w-[44px] rounded-full transition-transform active:scale-90 [&>svg]:h-auto [&>svg]:w-full ${on ? "outline outline-2 outline-offset-2 outline-fg" : ""}`} dangerouslySetInnerHTML={{ __html: waxSeal(`${c.id}:${seal.split(":")[1] || "initial"}`, firstOf(myName), `pc${c.id}`) }} />
                       <span className={`truncate text-[10.5px] ${on ? "text-fg" : "text-fg/50"}`}>{c.name}</span>
                     </button>
@@ -402,11 +403,11 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
                 })}
               </div>
               <span className="mb-3 mt-5 block text-[13px] font-semibold text-fg/55">Design</span>
-              <div className="grid grid-cols-3 gap-x-1 gap-y-3" data-wax-designs>
+              <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 pt-1 [scrollbar-width:none]" data-wax-designs>
                 {SEAL_DESIGNS.map((d) => {
                   const on = (seal.split(":")[1] || "initial") === d.id;
                   return (
-                    <button key={d.id} type="button" onClick={() => setSeal(`${seal.split(":")[0] || "crimson"}:${d.id}`)} aria-label={`Seal design: ${d.name}`} aria-pressed={on} className="flex min-w-0 flex-col items-center gap-1">
+                    <button key={d.id} type="button" onClick={() => setSeal(`${seal.split(":")[0] || "crimson"}:${d.id}`)} aria-label={`Seal design: ${d.name}`} aria-pressed={on} className="flex w-[58px] shrink-0 flex-col items-center gap-1">
                       <span aria-hidden className={`block w-[48px] rounded-full transition-transform active:scale-90 [&>svg]:h-auto [&>svg]:w-full ${on ? "outline outline-2 outline-offset-2 outline-fg" : ""}`} dangerouslySetInnerHTML={{ __html: waxSeal(`${seal.split(":")[0] || "crimson"}:${d.id}`, firstOf(myName), `pd${d.id}`) }} />
                       <span className={`text-center text-[10.5px] leading-tight ${on ? "text-fg" : "text-fg/50"}`}>{d.name}</span>
                     </button>
@@ -487,7 +488,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
 }
 
 function stampLabel(id: string) {
-  const n = id.replace(/^r:/, "");
+  const n = id.replace(/^r:/, "").split("@")[0];
   return n.charAt(0).toUpperCase() + n.slice(1);
 }
 

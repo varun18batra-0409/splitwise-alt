@@ -5,7 +5,9 @@ import { getAccount } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
 import { PageHeader } from "@/components/ui";
 import { PostcardFront } from "@/components/postcards/Card";
-import { POSTCARD_FONTS_URL, openRareStamps, stampSvg } from "@/lib/postcards/catalog";
+import { headers } from "next/headers";
+import { visitorRegion } from "@/lib/region";
+import { POSTCARD_FONTS_URL, openRareStamps, stampSvg, withHome } from "@/lib/postcards/catalog";
 import { cardProps } from "@/lib/postcards/view";
 import { SealedEnvelope, SealMark } from "@/components/postcards/Sealed";
 
@@ -23,6 +25,8 @@ export default async function PostcardsPage() {
   const ids = [...new Set([...got.map((p) => p.fromId), ...sent.map((p) => p.toId)])];
   const names = new Map((ids.length ? await db.account.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } }) : []).map((a) => [a.id, a.name.trim().split(/\s+/)[0] || "A friend"]));
   const now = new Date();
+  const home = (me.homeCountry || visitorRegion(await headers()).country || "IN").toUpperCase();
+  const onIssue = openRareStamps(now, home);
   const short = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: tz });
   const tilt = ["-rotate-[2deg]", "rotate-[1.5deg]", "-rotate-[1deg]", "rotate-[2.5deg]"];
   const shelf = (list: typeof got, who: (p: (typeof got)[number]) => string, label: string) => (
@@ -50,10 +54,10 @@ export default async function PostcardsPage() {
         Write a postcard
       </Link>
       <Link href="/postcards/stamps" className="-mt-5 mb-9 flex items-center gap-4 rounded-[20px] border border-line px-5 py-4 active:opacity-90" data-stamp-album-link>
-        <span aria-hidden className="w-9 shrink-0 rotate-[-4deg] drop-shadow-[0_2px_3px_rgba(0,0,0,0.4)] [&>svg]:h-auto [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: stampSvg(openRareStamps()[0] ?? "r:newyear", "alb") }} />
+        <span aria-hidden className="w-9 shrink-0 rotate-[-4deg] drop-shadow-[0_2px_3px_rgba(0,0,0,0.4)] [&>svg]:h-auto [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: stampSvg(withHome(onIssue[0] ?? "r:newyear", home), "alb") }} />
         <span className="min-w-0 flex-1">
           <span className="block font-display text-[17px] font-semibold">Stamp album</span>
-          <span className="block text-[13px] text-fg/55">{openRareStamps().length ? "A limited stamp is on issue now" : "Rare stamps you’ve collected"}</span>
+          <span className="block text-[13px] text-fg/55">{onIssue.length ? "A limited stamp is on issue now" : "Rare stamps you’ve collected"}</span>
         </span>
         <span aria-hidden className="text-xl">›</span>
       </Link>

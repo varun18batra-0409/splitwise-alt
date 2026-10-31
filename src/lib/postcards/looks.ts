@@ -66,9 +66,9 @@ export const SEAL_COLOURS = [
   { id: "scarlet", name: "Scarlet", hi: "#f0634e", mid: "#c0281c", lo: "#6a1108" },
   { id: "burgundy", name: "Burgundy", hi: "#a3405c", mid: "#5e1428", lo: "#2c0712" },
   { id: "blush", name: "Blush", hi: "#f4c4c2", mid: "#c97c84", lo: "#7a3d45" },
-  { id: "gold", name: "Gold", hi: "#fff1b8", mid: "#c9a24a", lo: "#5e4512", metal: true },
+  { id: "gold", name: "Gold", hi: "#f7dc84", mid: "#b98b2c", lo: "#4e360a", metal: true },
   { id: "bronze", name: "Bronze", hi: "#f2c08c", mid: "#a0632f", lo: "#45260e", metal: true },
-  { id: "silver", name: "Silver", hi: "#ffffff", mid: "#a9adb3", lo: "#3e4248", metal: true },
+  { id: "silver", name: "Silver", hi: "#f2f4f6", mid: "#9a9fa6", lo: "#33373c", metal: true },
   { id: "navy", name: "Navy", hi: "#6a88c8", mid: "#1f3366", lo: "#0b1430" },
   { id: "forest", name: "Forest", hi: "#6aa67e", mid: "#255c3c", lo: "#0c2717" },
   { id: "black", name: "Black", hi: "#777777", mid: "#262626", lo: "#050505" },
@@ -88,7 +88,19 @@ export const SEAL_DESIGNS = [
   { id: "heart", name: "Heart" },
   { id: "star", name: "Star" },
   { id: "xo", name: "XO" },
+  { id: "rose", name: "Rose" },
+  { id: "crown", name: "Crown" },
+  { id: "laurel", name: "Laurel" },
+  { id: "compass", name: "Compass" },
+  { id: "anchor", name: "Anchor" },
+  { id: "key", name: "Key" },
+  { id: "moon", name: "Moon" },
+  { id: "plane", name: "Airmail" },
+  { id: "bee", name: "Bee" },
+  { id: "infinity", name: "Forever" },
 ] as const;
+// Designs drawn as engraved lines (the rest are lettering).
+const LINE_DESIGNS = new Set(["fleur", "heart", "star", "rose", "crown", "laurel", "compass", "anchor", "key", "moon", "plane", "bee", "infinity"]);
 export function sealOf(spec: string): { colour: string; design: string } {
   const [c, d] = String(spec || "").split(":");
   return { colour: SEAL_COLOURS.some((x) => x.id === c) ? c : "crimson", design: SEAL_DESIGNS.some((x) => x.id === d) ? d : "initial" };
@@ -98,7 +110,7 @@ export const cleanSeal = (spec: string) => {
   return `${s.colour}:${s.design}`;
 };
 
-const BLOB = "M90.5 44.3 Q92.1 50.0 90.8 55.8 Q89.5 61.6 88.2 67.6 Q86.8 73.7 81.8 77.2 Q76.7 80.8 72.3 85.1 Q67.9 89.3 62.0 90.6 Q56.0 91.9 49.7 94.3 Q43.3 96.7 36.4 95.9 Q29.4 95.1 26.4 87.9 Q23.4 80.7 18.8 76.9 Q14.1 73.1 12.5 67.3 Q10.9 61.5 10.0 55.7 Q9.1 50.0 9.1 44.0 Q9.1 38.0 10.8 31.9 Q12.4 25.8 17.8 22.4 Q23.1 19.0 27.0 13.5 Q30.9 8.1 37.3 7.4 Q43.8 6.8 50.1 6.0 Q56.5 5.1 62.2 7.8 Q68.0 10.5 72.9 14.2 Q77.8 17.9 83.0 21.7 Q88.3 25.4 88.6 32.0 Q89.0 38.5 90.5 44.3 Z";
+const BLOB = "M94.3 46.5 Q94.7 50.0 94.4 53.5 Q94.0 57.0 93.0 60.3 Q92.1 63.7 91.1 67.1 Q90.1 70.4 89.6 74.4 Q89.1 78.4 85.1 79.8 Q81.2 81.2 77.8 82.4 Q74.4 83.6 71.7 85.5 Q69.0 87.3 65.9 88.4 Q62.8 89.4 59.6 89.8 Q56.4 90.2 53.2 89.5 Q50.0 88.9 46.9 88.8 Q43.9 88.8 40.7 88.5 Q37.6 88.2 34.0 88.3 Q30.4 88.5 27.0 87.5 Q23.6 86.4 20.6 84.4 Q17.6 82.4 13.7 80.8 Q9.8 79.2 9.8 74.9 Q9.8 70.5 10.0 66.7 Q10.1 63.0 10.2 59.6 Q10.4 56.3 10.9 53.1 Q11.3 50.0 11.5 47.0 Q11.7 43.9 11.5 40.7 Q11.3 37.4 12.4 34.4 Q13.5 31.4 14.9 28.4 Q16.2 25.5 18.3 23.0 Q20.4 20.4 23.1 18.5 Q25.7 16.6 28.2 14.4 Q30.8 12.2 33.1 8.8 Q35.5 5.4 39.3 5.7 Q43.0 5.9 46.5 5.7 Q50.0 5.5 53.5 5.7 Q57.0 5.9 60.2 7.4 Q63.4 8.9 66.1 10.9 Q68.9 13.0 71.0 15.6 Q73.1 18.2 74.9 20.7 Q76.8 23.2 79.3 25.0 Q81.9 26.9 84.2 29.1 Q86.5 31.4 88.6 34.1 Q90.7 36.8 92.3 39.9 Q93.8 43.1 94.3 46.5 Z";
 const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;");
 function sealArt(design: string, glyph: string, ring: string): string {
   switch (design) {
@@ -106,6 +118,26 @@ function sealArt(design: string, glyph: string, ring: string): string {
       return '<path d="M50 27 C45 34 44 42 50 51 C56 42 55 34 50 27Z M48.5 51 C44 44 36 43 33 47 C31 51 35 55 39 53 C36 52 36 49 39 48 C43 47 46 50 47.5 53Z M51.5 51 C56 44 64 43 67 47 C69 51 65 55 61 53 C64 52 64 49 61 48 C57 47 54 50 52.5 53Z M40 53.5 H60 V57 H40Z M48 57 H52 L53 68 H47Z M44 68 H56" stroke-width="1.2" stroke-linejoin="round"/>';
     case "heart":
       return '<path d="M50 70 C36 59 29 51 29 42 C29 35 34 31 40 31 C45 31 48 34 50 38 C52 34 55 31 60 31 C66 31 71 35 71 42 C71 51 64 59 50 70Z" stroke-width="1.6"/>';
+    case "rose":
+      return '<path d="M50 47 a3 3 0 1 1 3 3 a6.5 6.5 0 1 1 -6.5 -6.5 a10 10 0 1 1 10 10 a13 13 0 0 1 -13 -13" stroke-width="1.5" stroke-linecap="round"/><path d="M50 60 V72 M50 66 q-7 -1 -9 -6 q6 0 9 6 M50 69 q7 -1 9 -6 q-6 0 -9 6" stroke-width="1.4" stroke-linecap="round"/>';
+    case "crown":
+      return '<path d="M32 62 L29 39 L40 49 L50 32 L60 49 L71 39 L68 62Z M32 67 H68" stroke-width="1.6" stroke-linejoin="round"/><circle cx="29" cy="37" r="2"/><circle cx="50" cy="30" r="2"/><circle cx="71" cy="37" r="2"/><path d="M40 57 h20" stroke-width="1"/>';
+    case "laurel":
+      return '<path d="M44 70 C30 62 28 44 38 31 M56 70 C70 62 72 44 62 31" stroke-width="1.4" stroke-linecap="round"/><path d="M35 62 q-7 -1 -9 -7 q7 0 9 7 M32 52 q-7 -3 -7 -9 q7 2 7 9 M33 42 q-5 -5 -3 -11 q5 4 3 11 M65 62 q7 -1 9 -7 q-7 0 -9 7 M68 52 q7 -3 7 -9 q-7 2 -7 9 M67 42 q5 -5 3 -11 q-5 4 -3 11" stroke-width="1.2"/><path d="M44 70 L56 70" stroke-width="1.2"/>';
+    case "compass":
+      return '<circle cx="50" cy="50" r="21" stroke-width="1.1"/><path d="M50 27 L54.5 50 L50 73 L45.5 50Z M27 50 L50 45.5 L73 50 L50 54.5Z" stroke-width="1.3" stroke-linejoin="round"/><path d="M50 27 L54.5 50 L45.5 50Z" stroke-width="2.2"/><circle cx="50" cy="50" r="1.8"/>';
+    case "anchor":
+      return '<circle cx="50" cy="31" r="4" stroke-width="1.6"/><path d="M50 35 V70 M41 43 H59 M31 57 C33 66 41 70 50 70 C59 70 67 66 69 57 M28 60 L31 56 L35 59 M72 60 L69 56 L65 59" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>';
+    case "key":
+      return '<circle cx="36" cy="50" r="8.5" stroke-width="1.8"/><circle cx="36" cy="50" r="3.5" stroke-width="1.2"/><path d="M44.5 50 H72 M64 50 V58 M69 50 V56" stroke-width="2" stroke-linecap="round"/>';
+    case "moon":
+      return '<path d="M56 29 A22 22 0 1 0 64 66 A17 17 0 1 1 56 29Z" stroke-width="1.6" stroke-linejoin="round"/><path d="M63 38 l1.4 3.4 l3.6 .3 l-2.8 2.3 l.9 3.5 l-3.1 -1.9 l-3.1 1.9 l.9 -3.5 l-2.8 -2.3 l3.6 -.3Z" stroke-width="1"/>';
+    case "plane":
+      return '<path d="M28 52 L72 34 L62 66 L52 56 Z M52 56 L72 34 M52 56 L50 66 L56 60" stroke-width="1.6" stroke-linejoin="round"/><path d="M30 64 q6 -3 12 0" stroke-width="1" stroke-dasharray="2 2"/>';
+    case "bee":
+      return '<ellipse cx="50" cy="54" rx="9" ry="13" stroke-width="1.6"/><path d="M41.5 50 H58.5 M41 56 H59 M42.5 62 H57.5" stroke-width="1.3"/><circle cx="50" cy="38" r="4" stroke-width="1.5"/><path d="M41 47 C30 38 30 30 38 31 C44 32 45 40 44 46 M59 47 C70 38 70 30 62 31 C56 32 55 40 56 46 M48 35 l-3 -5 M52 35 l3 -5" stroke-width="1.3" stroke-linecap="round"/>';
+    case "infinity":
+      return '<path d="M50 50 C44 40 30 40 30 50 C30 60 44 60 50 50 C56 40 70 40 70 50 C70 60 56 60 50 50Z" stroke-width="2.2"/>';
     case "star":
       return '<path d="M50 28 L55.6 43.2 L71.6 43.6 L58.9 53.4 L63.4 69 L50 59.8 L36.6 69 L41.1 53.4 L28.4 43.6 L44.4 43.2Z" stroke-width="1.4" stroke-linejoin="round"/>';
     case "xo":
@@ -122,11 +154,17 @@ export function waxSeal(spec: string, initial: string, k: string, glyphOverride?
   const c = SEAL_COLOURS.find((x) => x.id === colour)!;
   const id = `w${k.replace(/[^a-z0-9]/gi, "")}`;
   const glyph = glyphOverride ?? ((initial || "L").trim().charAt(0).toUpperCase() || "L");
-  const art = sealArt(glyphOverride ? "initial" : design, glyph, "WITH LOVE \u2726 LOOPIN POST \u2726 ").replaceAll("__RING__", `${id}r`);
+  const shown = glyphOverride ? "initial" : design;
+  const art = sealArt(shown, glyph, "WITH LOVE \u2726 LOOPIN POST \u2726 ").replaceAll("__RING__", `${id}r`);
   const metal = "metal" in c && c.metal;
-  // The design twice: a dark copy a touch lower (the pressed edge) and a light copy a touch higher.
-  const emboss = (fill: string, op: number, dy: number) => `<g transform="translate(0 ${dy})" fill="${design === "fleur" || design === "heart" || design === "star" ? "none" : fill}" stroke="${design === "fleur" || design === "heart" || design === "star" ? fill : "none"}" opacity="${op}">${art}</g>`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><defs><radialGradient id="${id}a" cx="36%" cy="30%" r="80%"><stop offset="0" stop-color="${c.hi}"/><stop offset=".42" stop-color="${c.mid}"/><stop offset="1" stop-color="${c.lo}"/></radialGradient><radialGradient id="${id}b" cx="62%" cy="68%" r="70%"><stop offset="0" stop-color="${c.hi}" stop-opacity="${metal ? 0.55 : 0.25}"/><stop offset=".55" stop-color="${c.mid}" stop-opacity="0"/></radialGradient><radialGradient id="${id}c" cx="50%" cy="50%" r="50%"><stop offset=".78" stop-color="${c.mid}"/><stop offset=".93" stop-color="${c.lo}"/><stop offset="1" stop-color="${c.hi}" stop-opacity=".6"/></radialGradient></defs><path d="${BLOB}" fill="url(#${id}a)"/><path d="${BLOB}" fill="url(#${id}b)"/><circle cx="50" cy="50" r="31.5" fill="url(#${id}c)"/><circle cx="50" cy="50" r="31.5" fill="none" stroke="${c.lo}" stroke-opacity=".55" stroke-width="1.6"/><path d="M24 40 A28 28 0 0 1 60 22" fill="none" stroke="${c.hi}" stroke-opacity="${metal ? 0.8 : 0.45}" stroke-width="1.4" stroke-linecap="round"/>${emboss(c.lo, 0.75, 0.9)}${emboss(c.hi, metal ? 0.85 : 0.6, -0.7)}<ellipse cx="33" cy="25" rx="11" ry="4.5" fill="#fff" opacity="${metal ? 0.42 : 0.2}" transform="rotate(-32 33 25)"/></svg>`;
+  const lines = LINE_DESIGNS.has(shown);
+  // Real wax, lit from the top left: a height map (puddle, sunken pressed disc, raised rim and
+  // design) is turned into light and shade with SVG lighting, then tinted with the wax colour.
+  const height = `<path d="${BLOB}" fill="url(#${id}e)"/><circle cx="50" cy="50" r="31" fill="#7a7a7a"/><circle cx="50" cy="50" r="31" fill="none" stroke="#d8d8d8" stroke-width="3.2"/><circle cx="50" cy="50" r="27.5" fill="none" stroke="#9a9a9a" stroke-width=".8"/><g fill="${lines ? "none" : "#d0d0d0"}" stroke="${lines ? "#d0d0d0" : "none"}">${lines ? art.replace(/stroke-width="([0-9.]+)"/g, (_, w) => `stroke-width="${Math.max(2.2, Number(w) * 1.5)}"`) : art}</g>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><defs><radialGradient id="${id}e" cx="50%" cy="50%" r="50%"><stop offset=".55" stop-color="#e6e6e6"/><stop offset=".86" stop-color="#bdbdbd"/><stop offset="1" stop-color="#5a5a5a"/></radialGradient><radialGradient id="${id}t" cx="40%" cy="34%" r="75%"><stop offset="0" stop-color="${c.hi}"/><stop offset=".5" stop-color="${c.mid}"/><stop offset="1" stop-color="${c.lo}"/></radialGradient><filter id="${id}f" x="-5%" y="-5%" width="110%" height="110%" color-interpolation-filters="sRGB"><feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0" result="h0"/><feGaussianBlur in="h0" stdDeviation="1.1" result="h"/><feDiffuseLighting in="h" surfaceScale="${metal ? 5 : 6}" diffuseConstant="1.05" lighting-color="#ffffff" result="diff"><feDistantLight azimuth="225" elevation="${metal ? 50 : 42}"/></feDiffuseLighting><feSpecularLighting in="h" surfaceScale="${metal ? 5 : 6}" specularConstant="${metal ? 1.3 : 0.75}" specularExponent="${metal ? 14 : 26}" lighting-color="#ffffff" result="spec"><feDistantLight azimuth="225" elevation="${metal ? 48 : 40}"/></feSpecularLighting><feComposite in="spec" in2="SourceAlpha" operator="in" result="spec2"/><feComposite in="diff" in2="SourceAlpha" operator="in" result="light"/></filter><filter id="${id}s" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur in="SourceAlpha" stdDeviation="1.6"/><feOffset dx="1.2" dy="2"/><feComponentTransfer><feFuncA type="linear" slope=".45"/></feComponentTransfer></filter><mask id="${id}m"><path d="${BLOB}" fill="#fff"/></mask></defs><path d="${BLOB}" filter="url(#${id}s)"/><g mask="url(#${id}m)"><rect width="100" height="100" fill="url(#${id}t)"/><g style="mix-blend-mode:multiply" filter="url(#${id}f)">${height}</g><g style="mix-blend-mode:screen" opacity="${metal ? 0.85 : 0.55}"><g filter="url(#${id}g)">${height}</g></g></g></svg>`.replace(
+    "</filter><filter id=\"" + id + "s\"",
+    `</filter><filter id="${id}g" x="-5%" y="-5%" width="110%" height="110%" color-interpolation-filters="sRGB"><feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0" result="h0"/><feGaussianBlur in="h0" stdDeviation="1.1" result="h"/><feSpecularLighting in="h" surfaceScale="${metal ? 5 : 6}" specularConstant="${metal ? 1.3 : 0.8}" specularExponent="${metal ? 14 : 28}" lighting-color="#ffffff"><feDistantLight azimuth="225" elevation="${metal ? 48 : 40}"/></feSpecularLighting><feComposite in2="SourceAlpha" operator="in"/></filter><filter id="${id}s"`,
+  );
 }
 const seal = (glyph: string, k: string) => waxSeal("crimson:initial", glyph, k, glyph);
 
@@ -193,7 +231,7 @@ export const TOUCHES: Touch[] = [
     y: 0.08,
     w: 0.27,
     rot: 6,
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 110" width="220" height="110"><defs><mask id="tkm"><rect width="220" height="110" fill="#fff"/><circle cx="160" cy="0" r="7" fill="#000"/><circle cx="160" cy="110" r="7" fill="#000"/></mask></defs><g mask="url(#tkm)"><rect width="220" height="110" rx="4" fill="#e9d9b4"/><rect x="7" y="7" width="206" height="96" rx="2" fill="none" stroke="#7a4a2a" stroke-width="1.2"/><path d="M160 10 V100" stroke="#7a4a2a" stroke-dasharray="3 3"/><text x="18" y="30" font-family="Georgia, serif" font-size="10" letter-spacing="2.5" fill="#7a4a2a">INDIAN RAILWAYS</text><text x="18" y="58" font-family="Georgia, serif" font-size="21" font-weight="700" fill="#4a2a18">SECOND CLASS</text><text x="18" y="80" font-family="Arial, sans-serif" font-size="9" letter-spacing="1.5" fill="#7a4a2a">ONE WAY · VALID FOR ONE JOURNEY</text><text x="18" y="94" font-family="Courier New, monospace" font-size="9" fill="#7a4a2a">No. 04817</text><text x="190" y="62" text-anchor="middle" font-family="Georgia, serif" font-size="13" font-weight="700" fill="#a3322a" transform="rotate(-90 190 58)">ADMIT ONE</text></g></svg>`,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 110" width="220" height="110"><defs><mask id="tkm"><rect width="220" height="110" fill="#fff"/><circle cx="160" cy="0" r="7" fill="#000"/><circle cx="160" cy="110" r="7" fill="#000"/></mask></defs><g mask="url(#tkm)"><rect width="220" height="110" rx="4" fill="#e9d9b4"/><rect x="7" y="7" width="206" height="96" rx="2" fill="none" stroke="#7a4a2a" stroke-width="1.2"/><path d="M160 10 V100" stroke="#7a4a2a" stroke-dasharray="3 3"/><text x="18" y="30" font-family="Georgia, serif" font-size="10" letter-spacing="2.5" fill="#7a4a2a">STATE RAILWAYS</text><text x="18" y="58" font-family="Georgia, serif" font-size="21" font-weight="700" fill="#4a2a18">SECOND CLASS</text><text x="18" y="80" font-family="Arial, sans-serif" font-size="9" letter-spacing="1.5" fill="#7a4a2a">ONE WAY · VALID FOR ONE JOURNEY</text><text x="18" y="94" font-family="Courier New, monospace" font-size="9" fill="#7a4a2a">No. 04817</text><text x="190" y="62" text-anchor="middle" font-family="Georgia, serif" font-size="13" font-weight="700" fill="#a3322a" transform="rotate(-90 190 58)">ADMIT ONE</text></g></svg>`,
   },
   {
     id: "lovestamp",
