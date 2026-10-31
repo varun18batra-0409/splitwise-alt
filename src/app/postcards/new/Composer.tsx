@@ -290,7 +290,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
 
           <span className={label}>Finishing touches</span>
           <div className="flex flex-wrap gap-2" data-touches-front>
-            {TOUCHES.filter((t) => t.side === "front").map((t) => (
+            {TOUCHES.filter((t) => t.side === "front" && !t.hidden).map((t) => (
               <button key={t.id} type="button" className={chip(touches.includes(t.id))} aria-pressed={touches.includes(t.id)} onClick={() => toggleTouch(t.id)}>
                 {t.name}
               </button>
@@ -380,7 +380,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
 
           <span className={label}>Finishing touches</span>
           <div className="flex flex-wrap gap-2" data-touches-back>
-            {TOUCHES.filter((t) => t.side === "back").map((t) => (
+            {TOUCHES.filter((t) => t.side === "back" && !t.hidden).map((t) => (
               <button key={t.id} type="button" className={chip(touches.includes(t.id))} aria-pressed={touches.includes(t.id)} onClick={() => toggleTouch(t.id)}>
                 {t.name}
               </button>

@@ -235,18 +235,25 @@ export function stampDef(id: string, year = new Date().getFullYear()): StampDef 
 }
 export const isStampId = (id: string) => /^c:[A-Z]{2}$/.test(id) || (id.startsWith("t:") && id.slice(2) in THEMES) || (id.startsWith("r:") && id.slice(2) in RARE);
 
-// The stamp as a standalone SVG (76×92): perforated edge, tinted paper, ink frame, landmark, value, name.
+// The stamp as a standalone SVG (76×92), drawn like an engraved (intaglio) stamp: white perforated
+// margin, a picture panel of fine engraved lines with a light vignette, the landmark in ink, the value
+// in a solid cartouche, the name reversed out of an ink banner, and a slight unevenness to the ink.
 export function stampSvg(id: string, k = "s"): string {
   const d = stampDef(id);
   const m = `m${k.replace(/[^a-z0-9]/gi, "")}`;
   const holes: string[] = [];
-  for (let x = 4; x <= 72; x += 8) holes.push(`<circle cx="${x}" cy="0" r="2.6"/><circle cx="${x}" cy="92" r="2.6"/>`);
-  for (let y = 4; y <= 88; y += 8) holes.push(`<circle cx="0" cy="${y}" r="2.6"/><circle cx="76" cy="${y}" r="2.6"/>`);
+  for (let x = 4; x <= 72; x += 6) holes.push(`<circle cx="${x}" cy="0" r="2.1"/><circle cx="${x}" cy="92" r="2.1"/>`);
+  for (let y = 4; y <= 88; y += 6) holes.push(`<circle cx="0" cy="${y}" r="2.1"/><circle cx="76" cy="${y}" r="2.1"/>`);
   const icon = ({ ...ICONS, ...MORE_ICONS } as Record<string, string>)[d.icon] ?? ICONS.plane;
   const rare = id.startsWith("r:");
-  const art = icon.replaceAll("var(--ink)", d.ink).replaceAll("var(--tint)", d.tint);
+  const art = icon.replaceAll("var(--ink)", d.ink).replaceAll("var(--tint)", d.tint).replaceAll('stroke-width="1.6"', 'stroke-width="1.35"').replaceAll('stroke-width="1.5"', 'stroke-width="1.3"');
   const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;");
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 76 92" width="76" height="92"><defs><mask id="${m}"><rect width="76" height="92" fill="#fff"/><g fill="#000">${holes.join("")}</g></mask></defs><g mask="url(#${m})"><rect width="76" height="92" fill="#fbf8f1"/><rect x="6" y="6" width="64" height="80" fill="${d.tint}" stroke="${d.ink}" stroke-width="1"/>${rare ? `<rect x="8.5" y="8.5" width="59" height="75" fill="none" stroke="#b8913a" stroke-width="1.2"/><rect x="10.5" y="10.5" width="55" height="71" fill="none" stroke="#b8913a" stroke-width=".5"/>` : ""}<g transform="translate(0 6)">${art}</g><text x="66" y="17" text-anchor="end" font-family="Georgia, 'Times New Roman', serif" font-size="11" font-weight="700" fill="${d.ink}">${esc(d.value)}</text><text x="38" y="82" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="6.2" letter-spacing="1.3" font-weight="700" fill="${d.ink}">${esc(d.name.toUpperCase())}</text>${d.year ? `<text x="10" y="17" font-family="Georgia, serif" font-size="6" fill="${d.ink}" opacity=".8">${d.year}</text>` : ""}</g></svg>`;
+  const gold = "#a8842f";
+  const rule = rare ? gold : d.ink;
+  const vw = Math.max(13, Math.min(30, d.value.length * 4.2 + 4));
+  const name = d.name.toUpperCase();
+  const nameSize = name.length > 12 ? 4.6 : name.length > 9 ? 5.2 : 5.8;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 76 92" width="76" height="92"><defs><mask id="${m}"><rect width="76" height="92" fill="#fff"/><g fill="#000">${holes.join("")}</g></mask><pattern id="${m}l" width="2" height="1.5" patternUnits="userSpaceOnUse"><path d="M0 .75 H2" stroke="${d.ink}" stroke-width=".42"/></pattern><radialGradient id="${m}v" cx="50%" cy="46%" r="62%"><stop offset=".25" stop-color="${d.tint}" stop-opacity=".96"/><stop offset=".7" stop-color="${d.tint}" stop-opacity=".55"/><stop offset="1" stop-color="${d.tint}" stop-opacity="0"/></radialGradient><filter id="${m}f" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="1.4" numOctaves="2" seed="3" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale=".7"/></filter><filter id="${m}g"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="8"/><feColorMatrix values="0 0 0 0 .5 0 0 0 0 .45 0 0 0 0 .38 0 0 0 .22 0"/><feComposite in2="SourceGraphic" operator="in"/></filter></defs><g mask="url(#${m})"><rect width="76" height="92" fill="#fbf9f3"/><g filter="url(#${m}f)"><rect x="5" y="5" width="66" height="82" fill="${d.tint}"/><rect x="9" y="9" width="58" height="59" fill="url(#${m}l)" opacity=".5"/><rect x="9" y="9" width="58" height="59" fill="url(#${m}v)"/><rect x="9" y="50" width="58" height="18" fill="url(#${m}l)" opacity=".55"/><g transform="translate(8.6 7.2) scale(.78)"><g opacity=".13">${art.replace(/stroke-width="[0-9.]+"/g, 'stroke-width="5.5"')}</g><g opacity=".14" transform="translate(1.4 1.4)">${art}</g>${art}</g><rect x="5" y="5" width="66" height="82" fill="none" stroke="${rule}" stroke-width="1.5"/><rect x="7.3" y="7.3" width="61.4" height="77.4" fill="none" stroke="${rule}" stroke-width=".45"/><rect x="9" y="9" width="58" height="59" fill="none" stroke="${d.ink}" stroke-width=".7"/><rect x="9" y="70" width="58" height="13" fill="${d.ink}"/><rect x="10.2" y="71.2" width="55.6" height="10.6" fill="none" stroke="${d.tint}" stroke-width=".35" opacity=".7"/><text x="38" y="78.6" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="${nameSize}" letter-spacing="1.1" font-weight="700" fill="${d.tint}">${esc(name)}</text><rect x="${67 - vw}" y="9" width="${vw}" height="10.5" fill="${d.ink}"/><text x="${67 - vw / 2}" y="16.7" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="7.4" font-weight="700" fill="${d.tint}">${esc(d.value)}</text>${d.year ? `<text x="11.5" y="15.6" font-family="Georgia, serif" font-size="4.6" letter-spacing=".4" fill="${d.ink}" opacity=".85">${d.year}</text>` : ""}${rare ? `<text x="38" y="86.2" text-anchor="middle" font-family="Georgia, serif" font-size="2.6" letter-spacing="1.2" fill="${gold}">LIMITED ISSUE</text>` : ""}</g><rect width="76" height="92" filter="url(#${m}g)" opacity=".9"/></g></svg>`;
 }
 
 // The round postmark: the place around the edge, the date in the middle.

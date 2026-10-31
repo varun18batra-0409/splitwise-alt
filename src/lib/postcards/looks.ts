@@ -56,7 +56,7 @@ export const wordsSizeOf = (n: unknown) => {
 
 // ---------- Finishing touches ----------
 // Each is drawn on one side of the card, at a fixed spot (shares of the card's width/height).
-export type Touch = { id: string; name: string; side: "front" | "back"; x: number; y: number; w: number; rot: number; svg: string };
+export type Touch = { id: string; name: string; side: "front" | "back"; x: number; y: number; w: number; rot: number; svg: string; hidden?: boolean };
 
 // ---------- Wax seals ----------
 // A pressed wax seal: an uneven puddle of wax with drips, the pressed disc, and the design embossed
@@ -159,6 +159,7 @@ export const TOUCHES: Touch[] = [
   {
     id: "corners",
     name: "Photo corners",
+    hidden: true, // retired from the picker; kept so cards that have them still show them
     side: "front",
     x: 0,
     y: 0,
@@ -205,6 +206,56 @@ export const TOUCHES: Touch[] = [
     w: 0.22,
     rot: -6,
     svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" width="200" height="60"><g opacity=".78"><rect x="3" y="3" width="194" height="54" rx="4" fill="none" stroke="#b0322f" stroke-width="3.5"/><text x="100" y="40" text-anchor="middle" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="27" font-weight="900" letter-spacing="5" fill="#b0322f">EXPRESS</text></g></svg>`,
+  },
+  {
+    id: "luggage",
+    name: "Luggage tag",
+    side: "front",
+    x: 0.74,
+    y: 0.5,
+    w: 0.2,
+    rot: 12,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 200" width="120" height="200"><path d="M60 4 C40 4 34 14 34 30" fill="none" stroke="#7a5a3a" stroke-width="2.4" stroke-linecap="round"/><path d="M18 40 L44 22 H76 L102 40 V188 a6 6 0 0 1 -6 6 H24 a6 6 0 0 1 -6 -6Z" fill="#e6cf9e" stroke="#9a7a4a" stroke-width="1.2"/><circle cx="60" cy="40" r="7" fill="#f6ecd2" stroke="#9a7a4a" stroke-width="2"/><g font-family="Georgia, serif" fill="#5a3a22"><text x="60" y="72" text-anchor="middle" font-size="10" letter-spacing="2.4">PASSENGER</text><path d="M30 98 H90 M30 124 H90 M30 150 H90" stroke="#9a7a4a" stroke-width=".9"/><text x="30" y="94" font-size="7.5" letter-spacing="1.4">NAME</text><text x="30" y="120" font-size="7.5" letter-spacing="1.4">FROM</text><text x="30" y="146" font-size="7.5" letter-spacing="1.4">TO</text><text x="60" y="178" text-anchor="middle" font-size="13" font-style="italic" font-weight="700" fill="#a3322a">Bon voyage</text></g></svg>`,
+  },
+  {
+    id: "sticker",
+    name: "Hotel sticker",
+    side: "front",
+    x: 0.05,
+    y: 0.06,
+    w: 0.24,
+    rot: -9,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 130" width="200" height="130"><ellipse cx="100" cy="65" rx="96" ry="61" fill="#1f4a5a"/><ellipse cx="100" cy="65" rx="88" ry="53" fill="none" stroke="#e8c97a" stroke-width="2"/><ellipse cx="100" cy="65" rx="84" ry="49" fill="none" stroke="#e8c97a" stroke-width=".7"/><text x="100" y="46" text-anchor="middle" font-family="Georgia, serif" font-size="10" letter-spacing="4" fill="#e8c97a">GRAND</text><text x="100" y="76" text-anchor="middle" font-family="Georgia, serif" font-style="italic" font-size="28" font-weight="700" fill="#f6ecd2">Hotel</text><text x="100" y="96" text-anchor="middle" font-family="Georgia, serif" font-size="8" letter-spacing="3.5" fill="#e8c97a">EST. 1924 ✦ BY THE SEA</text><ellipse cx="100" cy="65" rx="96" ry="61" fill="#fff" opacity=".06"/></svg>`,
+  },
+  {
+    id: "customs",
+    name: "Customs label",
+    side: "back",
+    x: 0.07,
+    y: 0.66,
+    w: 0.26,
+    rot: 3,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 110" width="200" height="110"><rect width="200" height="110" fill="#cfe3c4"/><rect x="5" y="5" width="190" height="100" fill="none" stroke="#2f5a34" stroke-width="1.4"/><text x="100" y="24" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="800" letter-spacing="2" fill="#2f5a34">CUSTOMS · DOUANE</text><text x="100" y="38" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" letter-spacing="1.5" fill="#2f5a34">MAY BE OPENED OFFICIALLY</text><path d="M12 46 H188" stroke="#2f5a34"/><g font-family="Arial, sans-serif" font-size="8.5" fill="#2f5a34"><rect x="16" y="56" width="8" height="8" fill="none" stroke="#2f5a34"/><text x="30" y="63">Gift</text><path d="M17 59 l2.5 3 l5 -6" stroke="#a3322a" stroke-width="1.8" fill="none"/><rect x="72" y="56" width="8" height="8" fill="none" stroke="#2f5a34"/><text x="86" y="63">Memories</text><path d="M73 59 l2.5 3 l5 -6" stroke="#a3322a" stroke-width="1.8" fill="none"/><text x="16" y="86">Contents: one postcard, warm wishes</text><text x="16" y="99">Value: priceless</text></g></svg>`,
+  },
+  {
+    id: "arrived",
+    name: "Arrival stamp",
+    side: "back",
+    x: 0.66,
+    y: 0.38,
+    w: 0.22,
+    rot: 9,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 90" width="140" height="90"><g fill="none" stroke="#2a4f8a" stroke-opacity=".8"><rect x="4" y="4" width="132" height="82" rx="14" stroke-width="3"/><rect x="11" y="11" width="118" height="68" rx="9" stroke-width="1"/></g><g font-family="Arial, Helvetica, sans-serif" fill="#2a4f8a" fill-opacity=".8" text-anchor="middle"><text x="70" y="32" font-size="9" letter-spacing="3">IMMIGRATION</text><text x="70" y="55" font-size="20" font-weight="800" letter-spacing="3">ARRIVED</text><text x="70" y="71" font-size="8" letter-spacing="2.5">✈ ADMITTED ✈</text></g></svg>`,
+  },
+  {
+    id: "coffee",
+    name: "Coffee ring",
+    side: "back",
+    x: 0.03,
+    y: 0.2,
+    w: 0.3,
+    rot: 0,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="160" height="160"><g fill="none" stroke="#8a5a2a"><circle cx="80" cy="80" r="62" stroke-width="5" stroke-opacity=".14"/><path d="M28 60 A58 58 0 0 1 132 68" stroke-width="2.4" stroke-opacity=".2"/><path d="M40 128 A60 60 0 0 0 138 92" stroke-width="1.6" stroke-opacity=".18"/></g><circle cx="80" cy="80" r="58" fill="#8a5a2a" opacity=".035"/></svg>`,
   },
 ];
 export const cleanTouches = (raw: string) =>
