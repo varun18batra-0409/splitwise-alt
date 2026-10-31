@@ -78,6 +78,20 @@ export const PAPERS = [
 export const paperOf = (id: string) => PAPERS.find((p) => p.id === id)?.id ?? "cream";
 export const paperTones = (id: string) => (PAPERS.find((p) => p.id === id) ?? PAPERS[0]).g;
 
+// ---------- Colour of the words on the front ----------
+export const TONES = [
+  { id: "white", name: "White", c: "#ffffff", dark: false },
+  { id: "cream", name: "Cream", c: "#f6ead0", dark: false },
+  { id: "gold", name: "Gold", c: "#f2c66d", dark: false },
+  { id: "coral", name: "Coral", c: "#ff9a7a", dark: false },
+  { id: "sea", name: "Sea glass", c: "#a9e4d6", dark: false },
+  { id: "sky", name: "Sky", c: "#a8cdf5", dark: false },
+  { id: "red", name: "Postbox red", c: "#c8312b", dark: true },
+  { id: "navy", name: "Navy", c: "#1d2a52", dark: true },
+  { id: "black", name: "Black", c: "#141414", dark: true },
+] as const;
+export const toneOf = (id: string) => TONES.find((t) => t.id === id) ?? TONES[0];
+
 // ---------- Ink ----------
 export const INKS = [
   { id: "navy", name: "Midnight", c: "#2b2a5a" },

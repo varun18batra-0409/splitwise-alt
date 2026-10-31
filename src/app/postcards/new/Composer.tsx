@@ -6,7 +6,7 @@ import { PostcardBack, PostcardFront } from "@/components/postcards/Card";
 import { shrink } from "@/components/OwnPhoto";
 import { avatarTone } from "@/components/ui";
 import { buzz } from "@/lib/haptics";
-import { COUNTRY_STAMP_IDS, HANDS, INKS, LETTERINGS, OPENERS, PAPERS, paperTones, PRINTS, THEME_STAMP_IDS, printSvg, stampSvg } from "@/lib/postcards/catalog";
+import { COUNTRY_STAMP_IDS, HANDS, INKS, TONES, LETTERINGS, OPENERS, PAPERS, paperTones, PRINTS, THEME_STAMP_IDS, printSvg, stampSvg } from "@/lib/postcards/catalog";
 import { sendPostcardAction } from "@/app/postcard-actions";
 import type { PostcardGroup } from "@/lib/postcards/people";
 
@@ -29,6 +29,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
   const [words, setWords] = useState(defaults.words);
   const [custom, setCustom] = useState(false);
   const [lettering, setLettering] = useState("classic");
+  const [tone, setTone] = useState("white");
   const [message, setMessage] = useState("");
   const [hand, setHand] = useState("caveat");
   const [stamp, setStamp] = useState(defaults.stamp);
@@ -49,7 +50,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
   const address = addr[0] || to.length !== 1 ? addr : [firstOf(everyone.get(to[0]) ?? ""), addr[1], addr[2]];
   const stampList = useMemo(() => [...new Set([stamp, ...COUNTRY_STAMP_IDS, ...THEME_STAMP_IDS])], [stamp]);
 
-  const frontProps = { front, photo: front === "own" ? own?.url : undefined, words, lettering, k: "cf" };
+  const frontProps = { front, photo: front === "own" ? own?.url : undefined, words, lettering, tone, k: "cf" };
   const backProps = { message: message || "Your words here…", hand, stamp, paper, ink, address, place: defaults.place, date, from: firstOf(myName) || "Me", k: "cb" };
 
   async function pickPhoto(file?: File) {
@@ -83,6 +84,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
       {front === "own" && own && <input type="hidden" name="photo" value={own.data} />}
       <input type="hidden" name="words" value={words} />
       <input type="hidden" name="lettering" value={lettering} />
+      <input type="hidden" name="tone" value={tone} />
       <input type="hidden" name="hand" value={hand} />
       <input type="hidden" name="stamp" value={stamp} />
       <input type="hidden" name="paper" value={paper} />
@@ -185,6 +187,15 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
             {LETTERINGS.map((l) => (
               <button key={l.id} type="button" className={chip(lettering === l.id)} onClick={() => setLettering(l.id)} style={{ fontFamily: `'${l.family}', serif`, fontStyle: l.italic ? "italic" : undefined, fontSize: l.caps ? 16 : 15, fontWeight: 400 }}>
                 {l.name}
+              </button>
+            ))}
+          </div>
+          <span className={label}>Colour</span>
+          <div className="-mx-5 flex gap-3 overflow-x-auto px-5 pb-2 pt-1 [scrollbar-width:none]" data-tones>
+            {TONES.map((t) => (
+              <button key={t.id} type="button" onClick={() => setTone(t.id)} aria-label={`${t.name} words`} aria-pressed={tone === t.id} data-tone-choice={t.id} className="flex shrink-0 flex-col items-center gap-1.5">
+                <span aria-hidden className={`block size-9 rounded-full border border-white/15 shadow-[inset_0_-3px_6px_rgba(0,0,0,0.25)] transition-transform active:scale-95 ${tone === t.id ? "outline outline-2 outline-offset-[3px] outline-fg" : ""}`} style={{ background: t.c }} />
+                <span className={`text-[11px] ${tone === t.id ? "text-fg" : "text-fg/50"}`}>{t.name}</span>
               </button>
             ))}
           </div>

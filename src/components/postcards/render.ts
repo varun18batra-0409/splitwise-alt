@@ -1,6 +1,6 @@
 "use client";
 
-import { handOf, inkColor, paperTones, letteringOf, postmarkSvg, printSvg, stampSvg, WAVES_SVG } from "@/lib/postcards/catalog";
+import { handOf, inkColor, paperTones, letteringOf, toneOf, postmarkSvg, printSvg, stampSvg, WAVES_SVG } from "@/lib/postcards/catalog";
 import type { BackProps, FrontProps } from "./Card";
 
 // The postcard as two pictures (1500 × 1000), drawn on the phone with the same fonts and art as on
@@ -72,7 +72,8 @@ export async function drawFront(p: FrontProps): Promise<Blob> {
   const img = !print ? p.photo || (p.front.startsWith("photo:") ? p.front.slice(6) : "") : "";
   if (print) cover(ctx, await svgImage(printSvg(print, "x")), 0, 0, W, H);
   else if (img) cover(ctx, await loadImage(img), 0, 0, W, H);
-  if (img && p.words) {
+  const t = toneOf(p.tone ?? "white");
+  if (img && p.words && !t.dark) {
     const g = ctx.createLinearGradient(0, H * 0.45, 0, H);
     g.addColorStop(0, "rgba(0,0,0,0)");
     g.addColorStop(1, "rgba(0,0,0,0.42)");
@@ -88,9 +89,9 @@ export async function drawFront(p: FrontProps): Promise<Blob> {
     const long = p.words.length > 11;
     const size = (W * (l.caps ? (long ? 11 : 15) : long ? 9.5 : 13.5)) / 100;
     await document.fonts.load(`${l.italic ? "italic " : ""}${Math.round(size)}px "${l.family}"`).catch(() => {});
-    ctx.fillStyle = "#fff";
+    ctx.fillStyle = t.c;
     ctx.textAlign = "center";
-    ctx.shadowColor = "rgba(0,0,0,0.35)";
+    ctx.shadowColor = t.dark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.35)";
     ctx.shadowBlur = 30;
     ctx.font = `600 ${Math.round(W * 0.021)}px system-ui, sans-serif`;
     const base = H * 0.91;

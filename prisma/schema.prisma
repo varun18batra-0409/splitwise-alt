@@ -583,6 +583,7 @@ model Postcard {
   photoId     String    @default("") // PostcardPhoto, when front = "own"
   words       String    @default("") // the lettering on the front ("" = none)
   lettering   String    @default("classic")
+  tone        String    @default("white") // colour of the words on the front
   message     String
   hand        String    @default("caveat")
   stamp       String    @default("t:airmail")
