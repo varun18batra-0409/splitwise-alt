@@ -593,6 +593,7 @@ model Postcard {
   wordsAt     String    @default("bottom") // top | middle | bottom
   wordsSize   Int       @default(100) // % of the normal size
   touches     String    @default("") // finishing touches, comma-separated ids
+  seal        String    @default("crimson:initial") // wax seal colour:design
   opensAt     DateTime? // sealed until this moment (null = open now)
   openNoted   Boolean   @default(false) // told the person it's open
   reaction    String    @default("") // their wax-seal reply

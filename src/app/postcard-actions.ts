@@ -6,7 +6,7 @@ import { getAccount } from "@/lib/identity";
 import { allow } from "@/lib/rate-limit";
 import { MAX_PHOTO_BYTES, photoType } from "@/lib/covers";
 import { getTimeZone } from "@/lib/tz";
-import { cleanLook, cleanTouches, reactionOf, wordsAtOf, wordsSizeOf } from "@/lib/postcards/looks";
+import { cleanLook, cleanSeal, cleanTouches, reactionOf, wordsAtOf, wordsSizeOf } from "@/lib/postcards/looks";
 import { isPrint, isSitePhoto, isStampId, rareOpen, HANDS, LETTERINGS, paperOf, inkOf, toneOf } from "@/lib/postcards/catalog";
 import { canSendTo } from "@/lib/postcards/people";
 import { deliverNotes } from "@/lib/account-notes";
@@ -81,7 +81,8 @@ export async function sendPostcardAction(f: FormData) {
     look: cleanLook(field(f, "look", 20)),
     wordsAt: wordsAtOf(field(f, "wordsAt", 10)),
     wordsSize: wordsSizeOf(field(f, "wordsSize", 5)),
-    touches: cleanTouches(field(f, "touches", 80)),
+    touches: cleanTouches(field(f, "touches", 120)),
+    seal: cleanSeal(field(f, "seal", 30)),
     opensAt,
     tone: toneOf(field(f, "tone", 20)).id,
     message,
