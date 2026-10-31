@@ -422,10 +422,13 @@ if (!hosted) {
     const meera = await db.account.create({ data: { email: `shots-meera-${Date.now()}@uat.loopin.test`, name: "Meera" } });
     await db.member.create({ data: { groupId: lona.id, name: "Meera", accountId: meera.id, claimedAt: new Date() } });
     const got = await db.postcard.create({
-      data: { fromId: meera.id, toId: acc.id, groupId: lona.id, front: "photo:/photos/place-goa.jpg", words: "Goa", lettering: "classic", message: "Wish you were here. The beach shack turned out to be the fancy dinner, Ravi lost every hand at cards, and we watched the sun go down three evenings in a row. Same time next year?", hand: "caveat", stamp: "c:IN", paper: "cream", address: JSON.stringify(["Varun", "the flat that never has milk", "Bengaluru"]), place: "Goa" },
+      data: { fromId: meera.id, toId: acc.id, groupId: lona.id, front: "photo:/photos/place-goa.jpg", words: "Goa", lettering: "classic", message: "Wish you were here. The beach shack turned out to be the fancy dinner, Ravi lost every hand at cards, and we watched the sun go down three evenings in a row. Same time next year?", hand: "caveat", stamp: "c:IN", paper: "cream", look: "golden:70", touches: "seal,flower", address: JSON.stringify(["Varun", "the flat that never has milk", "Bengaluru"]), place: "Goa" },
     });
     await db.postcard.create({
-      data: { fromId: acc.id, toId: meera.id, groupId: lona.id, front: "print:hills", words: "Lonavala", lettering: "italic", message: "Thank you for planning all of it.", hand: "homemade", stamp: "t:mountains", paper: "airmail", address: JSON.stringify(["Meera", "", ""]), place: "Lonavala" },
+      data: { fromId: acc.id, toId: meera.id, groupId: lona.id, front: "print:hills", words: "Lonavala", lettering: "italic", message: "Thank you for planning all of it.", hand: "homemade", stamp: "t:mountains", paper: "airmail", address: JSON.stringify(["Meera", "", ""]), place: "Lonavala", reaction: "miss", reactedAt: new Date() },
+    });
+    const sealedCard = await db.postcard.create({
+      data: { fromId: meera.id, toId: acc.id, groupId: lona.id, front: "print:beach", words: "Goa", message: "Open this on New Year's.", stamp: "r:newyear", opensAt: new Date(Date.now() + 60 * 86_400_000), address: "[]", place: "Goa" },
     });
     await shot("128-postcard-received", `/postcards/${got.id}`, async (p) => {
       await p.waitForTimeout(1200);
@@ -434,6 +437,16 @@ if (!hosted) {
       await p.locator("[data-postcard-flip]").click();
       await p.waitForTimeout(1300);
     }, false);
+    await shot("129b-postcard-seal-back", `/postcards/${got.id}`, async (p) => {
+      await p.getByRole("region", { name: "Seal it back" }).scrollIntoViewIfNeeded();
+      await p.waitForTimeout(800);
+    }, false);
+    await shot("129c-postcard-sealed", `/postcards/${sealedCard.id}`, async (p) => {
+      await p.waitForTimeout(900);
+    }, false);
+    await shot("129d-stamp-album", "/postcards/stamps", async (p) => {
+      await p.waitForTimeout(900);
+    });
     await shot("130-postcards-shelf", "/postcards", async (p) => {
       await p.waitForTimeout(1000);
     });
@@ -453,6 +466,21 @@ if (!hosted) {
       await p.getByRole("button", { name: "Gold words" }).click();
       await p.locator("[data-tones]").scrollIntoViewIfNeeded();
       await p.waitForTimeout(1200);
+    }, false);
+    await shot("131b-postcard-looks", `/postcards/new?group=${lona.id}`, async (p) => {
+      await p.getByRole("button", { name: "Look: Faded 70s" }).click();
+      await p.getByRole("button", { name: "Top", exact: true }).click();
+      await p.getByRole("button", { name: "Pressed flower" }).click();
+      await p.locator("[data-looks]").scrollIntoViewIfNeeded();
+      await p.waitForTimeout(1300);
+    }, false);
+    await shot("133b-postcard-sealed-choice", `/postcards/new?group=${lona.id}`, async (p) => {
+      await p.getByRole("tab", { name: "Back" }).click();
+      await p.getByRole("textbox", { name: "Your message" }).fill("Open this on New Year's.");
+      await p.getByRole("tab", { name: "Send" }).click();
+      await p.getByRole("button", { name: "New Year’s Day" }).click();
+      await p.locator("[data-opens]").scrollIntoViewIfNeeded();
+      await p.waitForTimeout(800);
     }, false);
     await shot("132b-postcard-colours", `/postcards/new?group=${lona.id}`, async (p) => {
       await p.getByRole("tab", { name: "Back" }).click();

@@ -1,5 +1,6 @@
 "use client";
 
+import { lookCss, touchesOn, wordsAtOf, wordsSizeOf } from "@/lib/postcards/looks";
 import { handOf, inkColor, paperTones, letteringOf, toneOf, postmarkSvg, printSvg, stampSvg, WAVES_SVG } from "@/lib/postcards/catalog";
 import type { BackProps, FrontProps } from "./Card";
 
@@ -24,6 +25,21 @@ function cover(ctx: CanvasRenderingContext2D, im: HTMLImageElement, x: number, y
   const iw = im.width * s;
   const ih = im.height * s;
   ctx.drawImage(im, x + (w - iw) / 2, y + (h - ih) / 2, iw, ih);
+}
+async function touches(ctx: CanvasRenderingContext2D, raw: string | undefined, side: "front" | "back", ox: number, oy: number, w: number, h: number) {
+  for (const t of touchesOn(raw, side)) {
+    const im = await svgImage(t.svg);
+    const tw = w * t.w;
+    const th = tw * (im.height / im.width || 1);
+    ctx.save();
+    ctx.translate(ox + w * t.x + tw / 2, oy + h * t.y + th / 2);
+    ctx.rotate((t.rot * Math.PI) / 180);
+    ctx.shadowColor = "rgba(0,0,0,0.35)";
+    ctx.shadowBlur = 5;
+    ctx.shadowOffsetY = 2;
+    ctx.drawImage(im, -tw / 2, -th / 2, tw, th);
+    ctx.restore();
+  }
 }
 function grain(ctx: CanvasRenderingContext2D, w: number, h: number, alpha: number) {
   const g = document.createElement("canvas");
@@ -70,13 +86,17 @@ export async function drawFront(p: FrontProps): Promise<Blob> {
   ctx.fillRect(0, 0, W, H);
   const print = p.front.startsWith("print:") ? p.front.slice(6) : "";
   const img = !print ? p.photo || (p.front.startsWith("photo:") ? p.front.slice(6) : "") : "";
+  const f = lookCss(p.look ?? "");
+  if (f !== "none") ctx.filter = f;
   if (print) cover(ctx, await svgImage(printSvg(print, "x")), 0, 0, W, H);
   else if (img) cover(ctx, await loadImage(img), 0, 0, W, H);
+  ctx.filter = "none";
+  const at = wordsAtOf(p.wordsAt ?? "bottom");
   const t = toneOf(p.tone ?? "white");
   if (img && p.words && !t.dark) {
-    const g = ctx.createLinearGradient(0, H * 0.45, 0, H);
-    g.addColorStop(0, "rgba(0,0,0,0)");
-    g.addColorStop(1, "rgba(0,0,0,0.42)");
+    const g = at === "top" ? ctx.createLinearGradient(0, H * 0.55, 0, 0) : at === "middle" ? ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W * 0.6) : ctx.createLinearGradient(0, H * 0.45, 0, H);
+    g.addColorStop(0, at === "middle" ? "rgba(0,0,0,0.3)" : "rgba(0,0,0,0)");
+    g.addColorStop(1, at === "middle" ? "rgba(0,0,0,0)" : "rgba(0,0,0,0.42)");
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
   }
@@ -87,20 +107,22 @@ export async function drawFront(p: FrontProps): Promise<Blob> {
   if (p.words) {
     const l = letteringOf(p.lettering);
     const long = p.words.length > 11;
-    const size = (W * (l.caps ? (long ? 11 : 15) : long ? 9.5 : 13.5)) / 100;
+    const size = ((W * (l.caps ? (long ? 11 : 15) : long ? 9.5 : 13.5)) / 100) * (wordsSizeOf(p.wordsSize ?? 100) / 100);
     await document.fonts.load(`${l.italic ? "italic " : ""}${Math.round(size)}px "${l.family}"`).catch(() => {});
     ctx.fillStyle = t.c;
     ctx.textAlign = "center";
     ctx.shadowColor = t.dark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.35)";
     ctx.shadowBlur = 30;
     ctx.font = `600 ${Math.round(W * 0.021)}px system-ui, sans-serif`;
-    const base = H * 0.91;
+    const base = at === "top" ? H * 0.09 + size * 1.7 : at === "middle" ? H / 2 + size * 0.45 : H * 0.91;
     // "GREETINGS FROM", letter-spaced by hand (canvas has no letter-spacing everywhere).
     const kick = "GREETINGS FROM".split("").join(String.fromCharCode(0x200a, 0x200a));
     ctx.fillText(kick, W / 2, base - size * 0.95);
     ctx.font = `${l.italic ? "italic " : ""}${Math.round(size)}px "${l.family}", Georgia, serif`;
     ctx.fillText(p.words, W / 2, base);
+    ctx.shadowColor = "transparent";
   }
+  await touches(ctx, p.touches, "front", 0, 0, W, H);
   return new Promise((res) => cv.toBlob((b) => res(b!), "image/jpeg", 0.92));
 }
 
@@ -191,6 +213,7 @@ export async function drawBack(p: BackProps): Promise<Blob> {
     ctx.fillText(p.address[i] ?? "", X(0.6), ly - 4, w * 0.34);
     ctx.textBaseline = "top";
   }
+  await touches(ctx, p.touches, "back", ox, oy, w, h);
   grain(ctx, W, H, 0.08);
   return new Promise((res) => cv.toBlob((b) => res(b!), "image/jpeg", 0.92));
 }
