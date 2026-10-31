@@ -449,9 +449,17 @@ if (!hosted) {
       await p.getByRole("tab", { name: "Send" }).click();
       await p.waitForTimeout(600);
     }, false);
-    await shot("134-passport-postcards", "/passport", async (p) => {
-      await p.getByRole("region", { name: "Postcards" }).scrollIntoViewIfNeeded();
-      await p.waitForTimeout(1000);
+    await shot("132b-postcard-colours", `/postcards/new?group=${lona.id}`, async (p) => {
+      await p.getByRole("tab", { name: "Back" }).click();
+      await p.getByRole("textbox", { name: "Your message" }).fill("Remember the bus that never came? Best wrong turn ever. Same time next year?");
+      await p.getByRole("button", { name: "Sepia ink" }).click();
+      await p.getByRole("button", { name: "Sage paper" }).click();
+      await p.locator("[data-papers]").scrollIntoViewIfNeeded();
+      await p.waitForTimeout(1300);
+    }, false);
+    await shot("134-account-postcards", "/account", async (p) => {
+      await p.locator("[data-postcards-link]").scrollIntoViewIfNeeded();
+      await p.waitForTimeout(800);
     }, false);
     await shot("118-passport-picture", "/passport/image", undefined, false);
     await shot("118d-passport-share-sheet", "/passport", async (p) => {

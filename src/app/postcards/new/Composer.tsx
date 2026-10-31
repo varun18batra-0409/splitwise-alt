@@ -6,7 +6,7 @@ import { PostcardBack, PostcardFront } from "@/components/postcards/Card";
 import { shrink } from "@/components/OwnPhoto";
 import { avatarTone } from "@/components/ui";
 import { buzz } from "@/lib/haptics";
-import { COUNTRY_STAMP_IDS, HANDS, LETTERINGS, OPENERS, PAPERS, PRINTS, THEME_STAMP_IDS, printSvg, stampSvg } from "@/lib/postcards/catalog";
+import { COUNTRY_STAMP_IDS, HANDS, INKS, LETTERINGS, OPENERS, PAPERS, paperTones, PRINTS, THEME_STAMP_IDS, printSvg, stampSvg } from "@/lib/postcards/catalog";
 import { sendPostcardAction } from "@/app/postcard-actions";
 import type { PostcardGroup } from "@/lib/postcards/people";
 
@@ -33,6 +33,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
   const [hand, setHand] = useState("caveat");
   const [stamp, setStamp] = useState(defaults.stamp);
   const [paper, setPaper] = useState("cream");
+  const [ink, setInk] = useState("navy");
   const [to, setTo] = useState<string[]>(defaults.to);
   const [addr, setAddr] = useState<string[]>(["", "", ""]);
   const [photoState, setPhotoState] = useState("");
@@ -49,7 +50,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
   const stampList = useMemo(() => [...new Set([stamp, ...COUNTRY_STAMP_IDS, ...THEME_STAMP_IDS])], [stamp]);
 
   const frontProps = { front, photo: front === "own" ? own?.url : undefined, words, lettering, k: "cf" };
-  const backProps = { message: message || "Your words here…", hand, stamp, paper, address, place: defaults.place, date, from: firstOf(myName) || "Me", k: "cb" };
+  const backProps = { message: message || "Your words here…", hand, stamp, paper, ink, address, place: defaults.place, date, from: firstOf(myName) || "Me", k: "cb" };
 
   async function pickPhoto(file?: File) {
     if (!file) return;
@@ -85,6 +86,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
       <input type="hidden" name="hand" value={hand} />
       <input type="hidden" name="stamp" value={stamp} />
       <input type="hidden" name="paper" value={paper} />
+      <input type="hidden" name="ink" value={ink} />
       <input type="hidden" name="place" value={defaults.place} />
       <input type="hidden" name="message" value={message} />
       {address.map((a, i) => (
@@ -211,7 +213,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
               rows={5}
               placeholder="Write something they’ll want to keep…"
               className="w-full resize-none rounded-[20px] border border-line bg-[#f4eee2] px-4 py-3 text-[19px] leading-snug text-[#2b2a5a] outline-none placeholder:text-[#2b2a5a]/40"
-              style={{ fontFamily: `'${HANDS.find((h) => h.id === hand)?.family}', cursive` }}
+              style={{ fontFamily: `'${HANDS.find((h) => h.id === hand)?.family}', cursive`, color: INKS.find((i) => i.id === ink)?.c }}
             />
           </label>
           <p className="mt-1 text-right text-xs text-fg/40">{message.length}/500</p>
@@ -234,13 +236,31 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
             ))}
           </div>
 
-          <span className={label}>Paper</span>
-          <div className="flex gap-2">
-            {PAPERS.map((p) => (
-              <button key={p.id} type="button" className={chip(paper === p.id)} onClick={() => setPaper(p.id)}>
-                {p.name}
+          <span className={label}>Ink</span>
+          <div className="-mx-5 flex gap-3 overflow-x-auto px-5 pb-2 pt-1 [scrollbar-width:none]" data-inks>
+            {INKS.map((i) => (
+              <button key={i.id} type="button" onClick={() => setInk(i.id)} aria-label={`${i.name} ink`} aria-pressed={ink === i.id} data-ink-choice={i.id} className="flex shrink-0 flex-col items-center gap-1.5">
+                <span aria-hidden className={`block size-9 rounded-full shadow-[inset_0_-3px_6px_rgba(0,0,0,0.35),inset_0_2px_3px_rgba(255,255,255,0.18)] transition-transform active:scale-95 ${ink === i.id ? "outline outline-2 outline-offset-[3px] outline-fg" : ""}`} style={{ background: i.c }} />
+                <span className={`text-[11px] ${ink === i.id ? "text-fg" : "text-fg/50"}`}>{i.name}</span>
               </button>
             ))}
+          </div>
+
+          <span className={label}>Paper</span>
+          <div className="-mx-5 flex gap-3 overflow-x-auto px-5 pb-2 pt-1 [scrollbar-width:none]" data-papers>
+            {PAPERS.map((p) => {
+              const [a, b, c] = paperTones(p.id);
+              return (
+                <button key={p.id} type="button" onClick={() => setPaper(p.id)} aria-label={`${p.name} paper`} aria-pressed={paper === p.id} data-paper-choice={p.id} className="flex shrink-0 flex-col items-center gap-1.5">
+                  <span
+                    aria-hidden
+                    className={`block h-9 w-[54px] rounded-[3px] shadow-[0_3px_8px_-3px_rgba(0,0,0,0.6)] transition-transform active:scale-95 ${paper === p.id ? "outline outline-2 outline-offset-[3px] outline-fg" : ""}`}
+                    style={{ background: p.id === "airmail" ? `repeating-linear-gradient(-45deg,#c8453a 0 5px,${a} 5px 10px,#2f5fa7 10px 15px,${a} 15px 20px)` : `radial-gradient(120% 90% at 0% 0%,${a},${b} 70%,${c})` }}
+                  />
+                  <span className={`text-[11px] ${paper === p.id ? "text-fg" : "text-fg/50"}`}>{p.name}</span>
+                </button>
+              );
+            })}
           </div>
 
           <span className={label}>Address (write anything)</span>

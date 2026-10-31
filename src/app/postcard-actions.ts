@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { getAccount } from "@/lib/identity";
 import { allow } from "@/lib/rate-limit";
 import { MAX_PHOTO_BYTES, photoType } from "@/lib/covers";
-import { isPrint, isSitePhoto, isStampId, HANDS, LETTERINGS, paperOf } from "@/lib/postcards/catalog";
+import { isPrint, isSitePhoto, isStampId, HANDS, LETTERINGS, paperOf, inkOf } from "@/lib/postcards/catalog";
 import { canSendTo } from "@/lib/postcards/people";
 import { deliverNotes } from "@/lib/account-notes";
 
@@ -57,6 +57,7 @@ export async function sendPostcardAction(f: FormData) {
     hand,
     stamp,
     paper: paperOf(field(f, "paper", 20)),
+    ink: inkOf(field(f, "ink", 20)),
     address: JSON.stringify(address),
     place: field(f, "place", 24).trim(),
   };

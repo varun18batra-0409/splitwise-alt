@@ -587,6 +587,7 @@ model Postcard {
   hand        String    @default("caveat")
   stamp       String    @default("t:airmail")
   paper       String    @default("cream")
+  ink         String    @default("navy")
   address     String    @default("[]") // up to three free-text lines, JSON
   place       String    @default("") // on the postmark
   readAt      DateTime?
