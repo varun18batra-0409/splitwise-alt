@@ -64,12 +64,32 @@ export const POSTCARD_FONTS_URL =
   "https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Playfair+Display:ital,wght@1,500&family=Bebas+Neue&family=Abril+Fatface&family=Caveat:wght@500&family=Homemade+Apple&family=Kalam&family=Dancing+Script:wght@500&family=Sacramento&family=La+Belle+Aurore&family=Nothing+You+Could+Do&family=Cedarville+Cursive&family=Satisfy&family=Parisienne&family=Reenie+Beanie&family=Patrick+Hand&display=swap";
 
 // ---------- Paper ----------
+// Each paper is three tones of one card stock (lit corner, middle, edge). Airmail is cream inside a striped border.
 export const PAPERS = [
-  { id: "cream", name: "Cream" },
-  { id: "airmail", name: "Airmail" },
-  { id: "kraft", name: "Kraft" },
+  { id: "cream", name: "Cream", g: ["#fbf7ef", "#f1e8d7", "#eadfca"] },
+  { id: "ivory", name: "Ivory", g: ["#fdfcf8", "#f6f3ea", "#ece7da"] },
+  { id: "airmail", name: "Airmail", g: ["#fbf7ef", "#f1e8d7", "#eadfca"] },
+  { id: "kraft", name: "Kraft", g: ["#e3cfae", "#d2b98f", "#c8ad80"] },
+  { id: "sage", name: "Sage", g: ["#eef1e6", "#dfe5d3", "#d2dac3"] },
+  { id: "blush", name: "Blush", g: ["#faefe9", "#f1dfd6", "#e8d0c4"] },
+  { id: "sky", name: "Sky", g: ["#eef3f6", "#dde7ee", "#cfdce6"] },
+  { id: "dusk", name: "Dusk", g: ["#ece8f1", "#ddd6e6", "#cfc6db"] },
 ] as const;
 export const paperOf = (id: string) => PAPERS.find((p) => p.id === id)?.id ?? "cream";
+export const paperTones = (id: string) => (PAPERS.find((p) => p.id === id) ?? PAPERS[0]).g;
+
+// ---------- Ink ----------
+export const INKS = [
+  { id: "navy", name: "Midnight", c: "#2b2a5a" },
+  { id: "blue", name: "Royal blue", c: "#24489a" },
+  { id: "black", name: "Black", c: "#1f1d1a" },
+  { id: "sepia", name: "Sepia", c: "#6b3f22" },
+  { id: "green", name: "Bottle green", c: "#1f5a44" },
+  { id: "oxblood", name: "Oxblood", c: "#7a2230" },
+  { id: "violet", name: "Violet", c: "#4f2f78" },
+] as const;
+export const inkOf = (id: string) => (INKS.find((i) => i.id === id) ?? INKS[0]).id;
+export const inkColor = (id: string) => (INKS.find((i) => i.id === id) ?? INKS[0]).c;
 
 // ---------- Warm openers ----------
 export const OPENERS = [

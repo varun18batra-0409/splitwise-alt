@@ -37,7 +37,7 @@ export default async function PostcardPage({ params, searchParams }: { params: P
       <PageHeader title={mine ? `To ${first(to?.name)}` : `From ${first(from?.name)}`} back="/postcards" />
       {sent && (
         <Notice params={["sent"]} className="mb-5">
-          Sent{Number(sent) > 1 ? ` to ${Number(sent)} people` : ""}. It’s waiting in their passport.
+          Sent{Number(sent) > 1 ? ` to ${Number(sent)} people` : ""}. It’s waiting in their postcards.
         </Notice>
       )}
       <p className="-mt-3 mb-8 text-center font-display text-[26px] font-semibold leading-tight tracking-tight" data-postcard-title>

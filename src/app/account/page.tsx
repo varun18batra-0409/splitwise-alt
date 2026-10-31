@@ -17,6 +17,7 @@ import { savePayWays } from "@/app/pay-actions";
 export default async function AccountPage({ searchParams }: { searchParams: Promise<{ name?: string; groups?: string; pay?: string; payError?: string }> }) {
   const { name: nameState, groups: renamed, pay: payState, payError } = await searchParams;
   const account = await getAccount();
+  const postcardsNew = account ? await db.postcard.count({ where: { toId: account.id, readAt: null } }) : 0;
   const groups = await loadMyGroups(await getMemberships());
   const admins = (process.env.ADMIN_EMAIL ?? "").split(",").map((s) => s.trim().toLowerCase());
   const isAdmin = Boolean(account && admins.includes(account.email));
@@ -105,6 +106,19 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           <span className="min-w-0 flex-1">
             <span className="block font-display text-lg font-semibold">Your trip passport</span>
             <span className="block text-sm text-gray-500">A stamp for every place you’ve been</span>
+          </span>
+          <span aria-hidden className="text-xl">›</span>
+        </Link>
+      )}
+      {/* Postcards: their own row, right below the passport. */}
+      {account && (
+        <Link href="/postcards" className="mt-3 flex items-center gap-4 rounded-[20px] border border-line bg-white px-5 py-4 text-fg active:opacity-90" data-postcards-link>
+          <span aria-hidden className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-[#e9b9a0]/45 bg-[radial-gradient(circle_at_30%_25%,rgba(233,185,160,0.16),transparent_70%)] text-[#f0c9b2]">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="1.5" /><path d="M12 8v8M15 9h3.5v3.5H15zM5.5 10h4M5.5 13h4" /></svg>
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-display text-lg font-semibold">Your postcards</span>
+            <span className="block text-sm text-gray-500">{postcardsNew ? `${postcardsNew} new · ` : ""}Warm notes to people you’ve shared a group with</span>
           </span>
           <span aria-hidden className="text-xl">›</span>
         </Link>

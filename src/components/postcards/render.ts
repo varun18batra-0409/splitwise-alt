@@ -1,6 +1,6 @@
 "use client";
 
-import { handOf, letteringOf, postmarkSvg, printSvg, stampSvg, WAVES_SVG } from "@/lib/postcards/catalog";
+import { handOf, inkColor, paperTones, letteringOf, postmarkSvg, printSvg, stampSvg, WAVES_SVG } from "@/lib/postcards/catalog";
 import type { BackProps, FrontProps } from "./Card";
 
 // The postcard as two pictures (1500 × 1000), drawn on the phone with the same fonts and art as on
@@ -130,15 +130,10 @@ export async function drawBack(p: BackProps): Promise<Blob> {
     h = H - oy * 2;
   }
   const g = ctx.createRadialGradient(ox, oy, 0, ox, oy, w * 1.2);
-  if (p.paper === "kraft") {
-    g.addColorStop(0, "#e3cfae");
-    g.addColorStop(0.7, "#d2b98f");
-    g.addColorStop(1, "#c8ad80");
-  } else {
-    g.addColorStop(0, "#fbf7ef");
-    g.addColorStop(0.7, "#f1e8d7");
-    g.addColorStop(1, "#eadfca");
-  }
+  const [p0, p1, p2] = paperTones(p.paper);
+  g.addColorStop(0, p0);
+  g.addColorStop(0.7, p1);
+  g.addColorStop(1, p2);
   ctx.fillStyle = g;
   ctx.fillRect(ox, oy, w, h);
   const X = (f: number) => ox + w * f;
@@ -174,7 +169,7 @@ export async function drawBack(p: BackProps): Promise<Blob> {
   const hand = handOf(p.hand);
   const fs = Math.round(w * 0.041 * hand.size);
   await document.fonts.load(`${fs}px "${hand.family}"`).catch(() => {});
-  ctx.fillStyle = "#2b2a5a";
+  ctx.fillStyle = inkColor(p.ink ?? "navy");
   ctx.font = `${fs}px "${hand.family}", cursive`;
   const lines = wrap(ctx, p.message, w * 0.47);
   lines.push("", `— ${p.from}`);
@@ -190,7 +185,7 @@ export async function drawBack(p: BackProps): Promise<Blob> {
     const ly = Y(0.89) - (2 - i) * (as * 1.15 + w * 0.026);
     ctx.fillStyle = "#bfb39b";
     ctx.fillRect(X(0.6), ly, w * 0.34, 2);
-    ctx.fillStyle = "#2b2a5a";
+    ctx.fillStyle = inkColor(p.ink ?? "navy");
     ctx.textBaseline = "bottom";
     ctx.fillText(p.address[i] ?? "", X(0.6), ly - 4, w * 0.34);
     ctx.textBaseline = "top";

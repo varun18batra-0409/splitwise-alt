@@ -1,4 +1,4 @@
-import { handOf, letteringOf, postmarkSvg, printSvg, stampSvg, WAVES_SVG } from "@/lib/postcards/catalog";
+import { handOf, inkColor, paperTones, letteringOf, postmarkSvg, printSvg, stampSvg, WAVES_SVG } from "@/lib/postcards/catalog";
 
 // A postcard, front and back, drawn at any width (sizes are in "cqw": a share of the card's width),
 // so the same card works as a thumbnail, full screen, and as the picture sent on WhatsApp.
@@ -49,6 +49,7 @@ export type BackProps = {
   hand: string;
   stamp: string;
   paper: string;
+  ink?: string;
   address: string[];
   place: string;
   date: string;
@@ -57,12 +58,13 @@ export type BackProps = {
   className?: string;
 };
 
-export function PostcardBack({ message, hand, stamp, paper, address, place, date, from, k, className = "" }: BackProps) {
+export function PostcardBack({ message, hand, stamp, paper, ink = "navy", address, place, date, from, k, className = "" }: BackProps) {
   const h = handOf(hand);
-  const pen = { fontFamily: `'${h.family}', cursive`, color: "#2b2a5a" };
+  const pen = { fontFamily: `'${h.family}', cursive`, color: inkColor(ink) };
+  const [p0, p1, p2] = paperTones(paper);
   const inner = (
     <>
-      <span aria-hidden className="absolute inset-0" style={{ background: paper === "kraft" ? "radial-gradient(120% 90% at 0% 0%,#e3cfae,#d2b98f 70%,#c8ad80)" : "radial-gradient(120% 90% at 0% 0%,#fbf7ef,#f1e8d7 70%,#eadfca)" }} />
+      <span aria-hidden className="absolute inset-0" style={{ background: `radial-gradient(120% 90% at 0% 0%,${p0},${p1} 70%,${p2})` }} />
       <span className="absolute left-[6%] top-[7%] font-display text-[2.6cqw] uppercase tracking-[0.42em] text-[#6c6455]">Post card</span>
       <span aria-hidden className="absolute bottom-[10%] left-[56%] top-[22%] w-px bg-[#bfb39b]" />
       <div className="absolute bottom-[8%] left-[6%] top-[19%] w-[47%] overflow-hidden whitespace-pre-line leading-[1.28]" style={{ ...pen, fontSize: `${4.1 * h.size}cqw` }} data-back-message>
