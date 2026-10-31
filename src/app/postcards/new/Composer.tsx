@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { PostcardBack, PostcardFront } from "@/components/postcards/Card";
+import { face } from "@/components/postcards/PostcardView";
 import { shrink } from "@/components/OwnPhoto";
 import { avatarTone } from "@/components/ui";
 import { buzz } from "@/lib/haptics";
@@ -140,10 +141,10 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
       <div className="sticky top-[max(0.5rem,env(safe-area-inset-top))] z-20 -mx-1 pb-3">
         <button type="button" onClick={() => setTab(showBack ? "front" : "back")} aria-label={showBack ? "Show the front" : "Show the back"} className="block w-full [perspective:1600px]" data-composer-card={showBack ? "back" : "front"}>
           <div className="relative transition-transform duration-[800ms] ease-[cubic-bezier(.2,.8,.2,1)] [transform-style:preserve-3d] motion-reduce:transition-none" style={{ transform: showBack ? "rotateY(180deg)" : "none" }}>
-            <div className="[backface-visibility:hidden]">
+            <div className="[backface-visibility:hidden]" style={face(!showBack)}>
               <PostcardFront {...frontProps} />
             </div>
-            <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
+            <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]" style={face(showBack)}>
               <PostcardBack {...backProps} />
             </div>
           </div>

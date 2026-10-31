@@ -4,6 +4,10 @@ import { useState } from "react";
 import { PostcardBack, PostcardFront, type BackProps, type FrontProps } from "./Card";
 import { buzz } from "@/lib/haptics";
 
+// Each side is shown only while it faces you (switching halfway through the turn), so a side never
+// shows through mirrored, even where a browser ignores backface-visibility.
+export const face = (shown: boolean) => ({ visibility: shown ? ("visible" as const) : ("hidden" as const), transition: "visibility 0s linear 0.4s" });
+
 // A postcard you can turn over (tap, or the button), and send on as two pictures.
 export function PostcardFlip({ front, back, className = "", start = "front" }: { front: FrontProps; back: BackProps; className?: string; start?: "front" | "back" }) {
   const [over, setOver] = useState(start === "back");
@@ -19,10 +23,10 @@ export function PostcardFlip({ front, back, className = "", start = "front" }: {
       data-postcard-flip={over ? "back" : "front"}
     >
       <div className="relative transition-transform duration-[900ms] ease-[cubic-bezier(.2,.8,.2,1)] [transform-style:preserve-3d] motion-reduce:transition-none" style={{ transform: over ? "rotateY(180deg)" : "none" }}>
-        <div className="[backface-visibility:hidden]">
+        <div className="[backface-visibility:hidden]" style={face(!over)}>
           <PostcardFront {...front} />
         </div>
-        <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
+        <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]" style={face(over)}>
           <PostcardBack {...back} />
         </div>
       </div>
