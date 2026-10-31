@@ -4,7 +4,7 @@ import { signUp } from "../helpers/auth";
 import { allowTestCopy, contextFor, createGroup, joinGroup, settled } from "../helpers/app";
 
 // Postcards: Asha writes one from the group to Ravi (they share a group); Ravi finds it in his
-// passport, opens it, turns it over and can write back. Someone else can't open it.
+// postcards (below the passport), opens it, turns it over and can write back. Someone else can't open it.
 test("Postcards: write from a group, the other person receives it, turns it over, a stranger can't see it", async ({ browser }) => {
   test.setTimeout(150_000);
   const asha = await signUp("Asha", testEmail("pc-asha"));
@@ -31,12 +31,12 @@ test("Postcards: write from a group, the other person receives it, turns it over
   await A.getByRole("button", { name: "Send to 1 person" }).click();
   await A.waitForURL(/\/postcards\/[a-z0-9]+\?sent=1/);
   const path = new URL(A.url()).pathname;
-  await expect(A.getByText(/Sent\. It’s waiting in their passport/)).toBeVisible();
+  await expect(A.getByText(/Sent\. It’s waiting in their postcards/)).toBeVisible();
 
   // Ravi: in his passport and on his shelf, marked new; opening it shows the message on the back.
-  await R.goto("/passport");
+  await R.goto("/account");
   await settled(R);
-  await expect(R.getByRole("region", { name: "Postcards" })).toContainText("1 new");
+  await expect(R.locator("[data-postcards-link]")).toContainText("1 new");
   await R.goto(path);
   await settled(R);
   const flip = R.locator("[data-postcard-flip]");
