@@ -2250,7 +2250,7 @@ async function main() {
 
   await step(V, "Fun", "Share my passport sends one picture of the open booklet (details, map, every stamp), and nothing else", async () => {
     await go(V, "/passport");
-    await V.getByRole("button", { name: "Share my passport" }).first().click();
+    await V.getByRole("button", { name: "WhatsApp & more" }).first().click();
     const sheet = V.getByRole("dialog", { name: "Share your passport" });
     await sheet.getByText("WhatsApp", { exact: true }).waitFor();
     assert((await sheet.locator("[data-album-preview]").count()) === 0, "still offers an album of several pictures");

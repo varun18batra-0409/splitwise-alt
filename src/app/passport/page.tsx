@@ -11,6 +11,7 @@ import { parseHandPlaces, stampPages } from "@/lib/passport";
 import { removePlaceAction, setHomeCountryAction, setPassportShareAction } from "@/app/passport-actions";
 import { ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/components/ui";
 import { ShareSheet } from "@/components/ShareSheet";
+import { Notice } from "@/components/Notice";
 import { PassportBook } from "@/components/PassportBook";
 import { CountryPicker } from "@/components/CountryPicker";
 
@@ -19,7 +20,7 @@ export const metadata = { title: "Your trip passport", robots: { index: false } 
 // Your trip passport: a booklet with a stamp for every trip (cities at home,
 // countries abroad), plus countries from before Loopin, stamped lighter.
 
-export default async function PassportPage({ searchParams }: { searchParams: Promise<{ error?: string; added?: string; shared?: string }> }) {
+export default async function PassportPage({ searchParams }: { searchParams: Promise<{ error?: string; added?: string; shared?: string; sent?: string }> }) {
   const sp = await searchParams;
   const account = await getAccount();
   if (!account)
@@ -45,6 +46,11 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
     <>
       <PageHeader title="Trip passport" back="/account" />
       {sp.error && <ErrorNote>{sp.error.slice(0, 120)}</ErrorNote>}
+      {sp.sent && (
+        <Notice params={["sent"]} className="mb-4">
+          Sent to {Number(sp.sent) === 1 ? "1 person" : `${Number(sp.sent)} people`} in Loopin.
+        </Notice>
+      )}
 
       <Link href="/passport/friends" className="mb-4 flex items-center gap-3 rounded-2xl border border-line px-4 py-3 active:bg-mist" data-friends-link>
         <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-owed/40 text-owed"><PeoplePassportsIcon size={18} /></span>
@@ -58,7 +64,12 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
 
       {!empty && (
         <div className="mt-5">
-          <ShareSheet image={`/passport/image?v=${version}`} fileName="loopin-passport.png" title="Share your passport" words={`My Loopin passport: ${[p.stats.countries ? `${p.stats.countries} ${p.stats.countries === 1 ? "country" : "countries"}` : "", p.stats.cities ? `${p.stats.cities} ${p.stats.cities === 1 ? "city" : "cities"}` : ""].filter(Boolean).join(", ") || "my first stamps"} and counting ✈️`} label="Share my passport" />
+          <div className="grid grid-cols-2 gap-3">
+            <Link href="/passport/send" className="pop flex h-12 items-center justify-center bg-fg text-[15px] font-semibold text-canvas" data-passport-send>
+              Send in Loopin
+            </Link>
+          <ShareSheet image={`/passport/image?v=${version}`} fileName="loopin-passport.png" title="Share your passport" words={`My Loopin passport: ${[p.stats.countries ? `${p.stats.countries} ${p.stats.countries === 1 ? "country" : "countries"}` : "", p.stats.cities ? `${p.stats.cities} ${p.stats.cities === 1 ? "city" : "cities"}` : ""].filter(Boolean).join(", ") || "my first stamps"} and counting ✈️`} label="WhatsApp & more" />
+          </div>
         </div>
       )}
 

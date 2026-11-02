@@ -114,6 +114,16 @@ export const TONES = [
   { id: "red", name: "Postbox red", c: "#c8312b", dark: true },
   { id: "navy", name: "Navy", c: "#1d2a52", dark: true },
   { id: "black", name: "Black", c: "#141414", dark: true },
+  { id: "ivory", name: "Ivory", c: "#fffbef", dark: false },
+  { id: "blush", name: "Blush", c: "#f8c9cc", dark: false },
+  { id: "peach", name: "Peach", c: "#ffc79a", dark: false },
+  { id: "sunflower", name: "Sunflower", c: "#ffd54a", dark: false },
+  { id: "mint", name: "Mint", c: "#b8f0cf", dark: false },
+  { id: "lilac", name: "Lilac", c: "#d4c2f5", dark: false },
+  { id: "teal", name: "Teal", c: "#145a5a", dark: true },
+  { id: "forest", name: "Forest", c: "#1e4a2e", dark: true },
+  { id: "plum", name: "Plum", c: "#4a1d44", dark: true },
+  { id: "chocolate", name: "Chocolate", c: "#3e2516", dark: true },
 ] as const;
 export const toneOf = (id: string) => TONES.find((t) => t.id === id) ?? TONES[0];
 
@@ -126,6 +136,16 @@ export const INKS = [
   { id: "green", name: "Bottle green", c: "#1f5a44" },
   { id: "oxblood", name: "Oxblood", c: "#7a2230" },
   { id: "violet", name: "Violet", c: "#4f2f78" },
+  { id: "teal", name: "Teal", c: "#145e63" },
+  { id: "turquoise", name: "Turquoise", c: "#1d7f8c" },
+  { id: "emerald", name: "Emerald", c: "#17704a" },
+  { id: "olive", name: "Olive", c: "#4f5520" },
+  { id: "brown", name: "Walnut", c: "#4a2c1a" },
+  { id: "burnt", name: "Burnt orange", c: "#a24a14" },
+  { id: "crimson", name: "Crimson", c: "#9b1b30" },
+  { id: "plum", name: "Plum", c: "#5b1f52" },
+  { id: "slate", name: "Slate", c: "#3b4652" },
+  { id: "indigo", name: "Indigo", c: "#2e2a7a" },
 ] as const;
 export const inkOf = (id: string) => (INKS.find((i) => i.id === id) ?? INKS[0]).id;
 export const inkColor = (id: string) => (INKS.find((i) => i.id === id) ?? INKS[0]).c;

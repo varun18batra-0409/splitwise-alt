@@ -86,7 +86,7 @@ export function PostcardBack({ message, hand, stamp, paper, ink = "navy", touche
         <span className="mt-[0.4em] block">— {from}</span>
       </div>
       <div aria-hidden className="absolute right-[5%] top-[30%] w-[34%] opacity-40 [&>svg]:h-auto [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: WAVES_SVG }} />
-      <div aria-hidden className="absolute right-[15%] top-[10%] w-[15%] rotate-[-12deg] opacity-55 [&>svg]:h-auto [&>svg]:w-full" data-postmark dangerouslySetInnerHTML={{ __html: postmarkSvg(place || "Loopin", date, k) }} />
+      <div aria-hidden className="absolute right-[21.5%] top-[9%] w-[14.5%] rotate-[-12deg] opacity-60 [&>svg]:h-auto [&>svg]:w-full" data-postmark dangerouslySetInnerHTML={{ __html: postmarkSvg(place || "Loopin", date, k) }} />
       <div aria-hidden className="absolute right-[6%] top-[7%] w-[13.5%] rotate-[2deg] drop-shadow-[0_1px_1.5px_rgba(0,0,0,0.35)] [&>svg]:h-auto [&>svg]:w-full" data-stamp-svg dangerouslySetInnerHTML={{ __html: stampSvg(stamp, k) }} />
       <div className="absolute bottom-[11%] left-[60%] right-[6%] flex flex-col gap-[2.6cqw]" style={{ ...pen, fontSize: `${3.7 * h.size}cqw` }} data-back-address>
         {[0, 1, 2].map((i) => (

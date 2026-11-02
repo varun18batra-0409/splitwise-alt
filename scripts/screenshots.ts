@@ -514,7 +514,7 @@ if (!hosted) {
     }, false);
     await shot("118-passport-picture", "/passport/image", undefined, false);
     await shot("118d-passport-share-sheet", "/passport", async (p) => {
-      await p.getByRole("button", { name: "Share my passport" }).first().click();
+      await p.getByRole("button", { name: "WhatsApp & more" }).first().click();
       await p.waitForTimeout(800);
     }, false);
     await db.account.update({ where: { id: priya.id }, data: { places: JSON.stringify([{ c: "JP" }, { c: "FR" }, { c: "GR" }, { c: "TH" }, { c: "AE" }, { c: "ID" }]) } });
