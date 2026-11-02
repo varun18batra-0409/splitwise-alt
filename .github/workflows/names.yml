@@ -1,0 +1,20 @@
+name: Name check
+on: push
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check .com and app stores
+        run: |
+          out=""
+          while read n; do
+            [ -z "$n" ] && continue
+            code=$(curl -s -o /dev/null -w "%{http_code}" "https://rdap.verisign.com/com/v1/domain/$n.com")
+            dom=$([ "$code" = "404" ] && echo FREE || echo taken)
+            ios=$(curl -s "https://itunes.apple.com/search?term=$n&entity=software&limit=50" | python3 -c "import sys,json,re;n=sys.argv[1];r=json.load(sys.stdin).get('results',[]);print(sum(1 for a in r if re.sub(r'[^a-z]','',a.get('trackName','').lower()).startswith(n)))" "$n")
+            gp=$(curl -s -A "Mozilla/5.0" "https://play.google.com/store/search?q=$n&c=apps&hl=en" | python3 -c "import sys,re;n=sys.argv[1];t=sys.stdin.read().lower();t=re.sub(r'[^a-z]','',t);print(t.count(n))" "$n")
+            out="$out$n.com=$dom ios=$ios play=$gp%0A"
+            sleep 1
+          done < names.txt
+          echo "::notice title=Names::$out"
