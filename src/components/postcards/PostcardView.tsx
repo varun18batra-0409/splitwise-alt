@@ -67,10 +67,10 @@ export function PostcardShare({ front, back, name }: { front: FrontProps; back: 
         <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
           <path d="M12 3v12M7 8l5-5 5 5M5 14v6h14v-6" />
         </svg>
-        {busy ? "Making the pictures…" : "Send on WhatsApp"}
+        {busy ? "Making the pictures…" : "WhatsApp & more"}
       </button>
       <p className="mt-2 text-center text-xs text-fg/45" role="status">
-        {note || "Goes as two pictures: the front, then the back."}
+        {note || "WhatsApp and other apps get two pictures: the front, then the back."}
       </p>
     </div>
   );

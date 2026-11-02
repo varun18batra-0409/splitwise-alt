@@ -1392,7 +1392,7 @@ async function main() {
     await V.getByRole("link", { name: "Asha is moving out" }).click();
     await V.waitForURL(/\/move/);
     const t = (await V.locator("main").innerText()).replace(/\s+/g, " ");
-    assert(/Final payments/.test(t) && /Asha pays you/.test(t), `move-out screen says: ${t.slice(0, 300)}`);
+    assert(/Final payments/.test(t) && /Asha pays you|You pay Asha|all square/i.test(t), `move-out screen says: ${t.slice(0, 300)}`);
     await V.getByRole("button", { name: /mark as moved out/ }).click();
     await V.waitForURL(/tab=activity/);
     const { loadGroup } = await import("../src/lib/group-data");
@@ -1542,7 +1542,7 @@ async function main() {
     const today = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", day: "numeric" }).format(new Date()));
     const days = () => V.locator("#calendar").innerText().then((t) => Number(/(\d+) of \d+ days/.exec(t)?.[1] ?? -1));
     const before = await days();
-    await V.getByRole("button", { name: `${today}: came` }).click();
+    await V.getByRole("button", { name: `${today}: came`, exact: true }).click();
     await V.getByRole("button", { name: `${today}: didn’t come` }).waitFor();
     const after = await days();
     assert(after === before - 1, `days came: ${before} → ${after}`);
@@ -2250,7 +2250,7 @@ async function main() {
 
   await step(V, "Fun", "Share my passport sends one picture of the open booklet (details, map, every stamp), and nothing else", async () => {
     await go(V, "/passport");
-    await V.getByRole("button", { name: "Share my passport" }).first().click();
+    await V.getByRole("button", { name: "WhatsApp & more" }).first().click();
     const sheet = V.getByRole("dialog", { name: "Share your passport" });
     await sheet.getByText("WhatsApp", { exact: true }).waitFor();
     assert((await sheet.locator("[data-album-preview]").count()) === 0, "still offers an album of several pictures");

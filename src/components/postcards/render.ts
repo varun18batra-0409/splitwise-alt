@@ -175,7 +175,7 @@ export async function drawBack(p: BackProps): Promise<Blob> {
   ctx.globalAlpha = 0.55;
   const pm = await svgImage(postmarkSvg(p.place || "Loopin", p.date, "x"));
   ctx.save();
-  ctx.translate(X(0.775), Y(0.21));
+  ctx.translate(X(0.713), Y(0.2));
   ctx.rotate((-12 * Math.PI) / 180);
   ctx.drawImage(pm, -w * 0.075, -w * 0.075, w * 0.15, w * 0.15);
   ctx.restore();
