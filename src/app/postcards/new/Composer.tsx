@@ -227,7 +227,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
 
           <span className={label}>Lettering</span>
           <div className="flex flex-wrap gap-1.5" data-letterings>
-            {LETTERINGS.map((l) => (
+            {LETTERINGS.filter((l) => !l.hidden || l.id === lettering).map((l) => (
               <button key={l.id} type="button" className={`${chip(lettering === l.id)} !h-8 !px-3`} onClick={() => setLettering(l.id)} style={{ fontFamily: `'${l.family}', serif`, fontStyle: l.italic ? "italic" : undefined, fontSize: l.caps ? 13 : 14, fontWeight: 400 }}>
                 {l.name}
               </button>
