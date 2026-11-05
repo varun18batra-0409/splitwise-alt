@@ -428,7 +428,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
                   next[i] = e.target.value.slice(0, i === 0 ? 15 : 20);
                   setAddr(next);
                 }}
-                placeholder={["Their name", "the flat that never has milk", "Bengaluru"][i]}
+                placeholder={["Their name", "Flat 4B, Rose Villa", "Bengaluru"][i]}
                 maxLength={i === 0 ? 15 : 20}
                 aria-label={`Address line ${i + 1}`}
                 className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-base outline-none focus:border-fg/40"
