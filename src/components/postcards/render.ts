@@ -210,7 +210,16 @@ export async function drawBack(p: BackProps): Promise<Blob> {
     ctx.fillRect(X(0.6), ly, w * 0.34, 2);
     ctx.fillStyle = inkColor(p.ink ?? "navy");
     ctx.textBaseline = "bottom";
-    ctx.fillText(p.address[i] ?? "", X(0.6), ly - 4, w * 0.34);
+    // Shrink a long line until it fits the space (no squashing).
+    const line = p.address[i] ?? "";
+    let fsz = as;
+    ctx.font = `${fsz}px "${hand.family}", cursive`;
+    while (fsz > as * 0.5 && ctx.measureText(line).width > w * 0.34) {
+      fsz -= 1;
+      ctx.font = `${fsz}px "${hand.family}", cursive`;
+    }
+    ctx.fillText(line, X(0.6), ly - 4);
+    ctx.font = `${as}px "${hand.family}", cursive`;
     ctx.textBaseline = "top";
   }
   await touches(ctx, p.touches, "back", ox, oy, w, h, p.seal ?? "", p.from);
