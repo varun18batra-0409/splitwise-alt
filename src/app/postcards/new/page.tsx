@@ -33,8 +33,11 @@ export default async function NewPostcardPage({ searchParams }: { searchParams: 
       </>
     );
 
-  // Sending a card again: one you sent, with everything it had (pick new people for it).
-  const again = sp.from ? await db.postcard.findFirst({ where: { id: sp.from, fromId: me.id } }) : null;
+  // Reusing a card: one you sent comes back with everything it had; one you were sent comes back
+  // with its look only (front, colours, stamp, seal, paper), never their words or their own photo.
+  const found = sp.from ? await db.postcard.findFirst({ where: { id: sp.from, OR: [{ fromId: me.id }, { toId: me.id, OR: [{ opensAt: null }, { opensAt: { lte: new Date() } }] }] } }) : null;
+  const theirs = Boolean(found && found.fromId !== me.id);
+  const again = found && theirs ? { ...found, message: "", address: "[]", place: "", front: found.front === "own" ? "print:beach" : found.front, photoId: found.front === "own" ? "" : found.photoId, groupId: "" } : found;
   if (again && !sp.group && again.groupId) sp.group = again.groupId;
   const g = sp.group
     ? await db.group.findFirst({ where: { id: sp.group, deletedAt: null, members: { some: { accountId: me.id } } }, select: { id: true, name: true, type: true, tripPlace: true, tripCountry: true } })
@@ -73,7 +76,7 @@ export default async function NewPostcardPage({ searchParams }: { searchParams: 
   }
   const reused = again
     ? {
-        from: again.id,
+        from: theirs ? "" : again.id,
         front: again.front,
         words: again.words,
         stamp: again.stamp,
@@ -98,7 +101,7 @@ export default async function NewPostcardPage({ searchParams }: { searchParams: 
   return (
     <>
       <link rel="stylesheet" href={POSTCARD_FONTS_URL} precedence="default" />
-      <PageHeader title={again ? "Send it again" : "Write a postcard"} back={again ? `/postcards/${again.id}` : g ? `/groups/${g.id}` : "/postcards"} />
+      <PageHeader title={again ? "Reuse this card" : "Write a postcard"} back={again ? `/postcards/${again.id}` : g ? `/groups/${g.id}` : "/postcards"} />
       {sp.error && <ErrorNote>{sp.error}</ErrorNote>}
       <Composer
         groupId={g?.id ?? ""}

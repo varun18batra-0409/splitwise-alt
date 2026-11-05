@@ -111,12 +111,12 @@ export default async function PostcardPage({ params, searchParams }: { params: P
         )}
         {mine && (
           <Link href={`/postcards/new?from=${p.id}`} className="pop flex h-12 items-center justify-center bg-fg text-[15px] font-semibold text-canvas" data-send-again>
-            Send in Loopin to someone else
+            Reuse this card for someone else
           </Link>
         )}
         {!mine && !shut && (
-          <Link href="/postcards/new" className="flex h-12 items-center justify-center rounded-full border border-fg/18 text-[15px] font-semibold active:scale-[0.97]" data-send-new>
-            Send a postcard in Loopin
+          <Link href={`/postcards/new?from=${p.id}`} className="flex h-12 items-center justify-center rounded-full border border-fg/18 text-[15px] font-semibold active:scale-[0.97]" data-send-new>
+            Send this design to someone else
           </Link>
         )}
         {!shut || mine ? <PostcardShare front={c.front} back={c.back} name={`postcard-${p.id.slice(-6)}`} /> : null}
