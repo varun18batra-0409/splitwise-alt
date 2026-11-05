@@ -33,23 +33,34 @@ export function printSvg(id: string, k: string): string {
 }
 
 // ---------- Lettering on the front ----------
-export type Lettering = { id: string; name: string; family: string; italic?: boolean; caps?: boolean };
+export type Lettering = { id: string; name: string; family: string; italic?: boolean; caps?: boolean; hidden?: boolean };
 export const LETTERINGS: Lettering[] = [
   { id: "classic", name: "Classic", family: "DM Serif Display" },
   { id: "italic", name: "Italic", family: "Playfair Display", italic: true },
   { id: "poster", name: "Poster", family: "Bebas Neue", caps: true },
   { id: "bold", name: "Bold", family: "Abril Fatface" },
-  { id: "editorial", name: "Editorial", family: "Fraunces" },
-  { id: "elegant", name: "Elegant", family: "Cormorant Garamond", italic: true },
-  { id: "vogue", name: "Vogue", family: "Bodoni Moda", italic: true },
+  { id: "editorial", name: "Editorial", family: "Fraunces", hidden: true },
+  { id: "elegant", name: "Elegant", family: "Cormorant Garamond", italic: true, hidden: true },
+  { id: "vogue", name: "Vogue", family: "Bodoni Moda", italic: true, hidden: true },
   { id: "riviera", name: "Riviera", family: "Italiana" },
   { id: "roman", name: "Roman", family: "Cinzel", caps: true },
   { id: "deco", name: "Deco", family: "Josefin Sans", caps: true },
-  { id: "condensed", name: "Condensed", family: "Oswald", caps: true },
+  { id: "condensed", name: "Condensed", family: "Oswald", caps: true, hidden: true },
   { id: "slab", name: "Slab", family: "Alfa Slab One" },
-  { id: "retro", name: "Retro", family: "Yeseva One" },
+  { id: "retro", name: "Retro", family: "Yeseva One", hidden: true },
   { id: "typewriter", name: "Typewriter", family: "Special Elite" },
   { id: "script", name: "Script", family: "Great Vibes" },
+  // Hidden ones above stay so cards that used them still show them; these replace them.
+  { id: "artdeco", name: "Art Deco", family: "Limelight" },
+  { id: "engraved", name: "Engraved", family: "Fredericka the Great" },
+  { id: "woodtype", name: "Wood type", family: "Holtwood One SC", caps: true },
+  { id: "signpainter", name: "Sign painter", family: "Yellowtail" },
+  { id: "bollywood", name: "Retro script", family: "Shrikhand" },
+  { id: "sport", name: "Vintage sport", family: "Playball" },
+  { id: "collegiate", name: "Collegiate", family: "Graduate", caps: true },
+  { id: "neon", name: "Neon", family: "Monoton", caps: true },
+  { id: "blackletter", name: "Old English", family: "UnifrakturMaguntia" },
+  { id: "stencil", name: "Stencil", family: "Stardos Stencil", caps: true },
 ];
 export const letteringOf = (id: string) => LETTERINGS.find((l) => l.id === id) ?? LETTERINGS[0];
 
@@ -78,7 +89,7 @@ export const handOf = (id: string) => HANDS.find((h) => h.id === id) ?? HANDS[0]
 
 // Google Fonts for the lettering and handwriting (loaded only on postcard screens).
 export const POSTCARD_FONTS_URL =
-  "https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Playfair+Display:ital,wght@1,500&family=Bebas+Neue&family=Abril+Fatface&family=Caveat:wght@500&family=Homemade+Apple&family=Kalam&family=Dancing+Script:wght@500&family=Sacramento&family=La+Belle+Aurore&family=Nothing+You+Could+Do&family=Cedarville+Cursive&family=Satisfy&family=Parisienne&family=Reenie+Beanie&family=Patrick+Hand&family=Fraunces:wght@600&family=Cormorant+Garamond:ital,wght@1,500&family=Bodoni+Moda:ital,wght@1,500&family=Italiana&family=Cinzel:wght@600&family=Josefin+Sans:wght@600&family=Oswald:wght@500&family=Alfa+Slab+One&family=Yeseva+One&family=Special+Elite&family=Great+Vibes&family=Indie+Flower&family=Shadows+Into+Light&family=Gochi+Hand&family=Mrs+Saint+Delafield&family=Allura&family=Covered+By+Your+Grace&display=swap";
+  "https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Playfair+Display:ital,wght@1,500&family=Bebas+Neue&family=Abril+Fatface&family=Caveat:wght@500&family=Homemade+Apple&family=Kalam&family=Dancing+Script:wght@500&family=Sacramento&family=La+Belle+Aurore&family=Nothing+You+Could+Do&family=Cedarville+Cursive&family=Satisfy&family=Parisienne&family=Reenie+Beanie&family=Patrick+Hand&family=Fraunces:wght@600&family=Cormorant+Garamond:ital,wght@1,500&family=Bodoni+Moda:ital,wght@1,500&family=Italiana&family=Cinzel:wght@600&family=Josefin+Sans:wght@600&family=Oswald:wght@500&family=Alfa+Slab+One&family=Yeseva+One&family=Special+Elite&family=Great+Vibes&family=Indie+Flower&family=Shadows+Into+Light&family=Gochi+Hand&family=Mrs+Saint+Delafield&family=Allura&family=Covered+By+Your+Grace&family=Limelight&family=Fredericka+the+Great&family=Holtwood+One+SC&family=Yellowtail&family=Shrikhand&family=Playball&family=Graduate&family=Monoton&family=UnifrakturMaguntia&family=Stardos+Stencil:wght@700&display=swap";
 
 // ---------- Paper ----------
 // Each paper is three tones of one card stock (lit corner, middle, edge). Airmail is cream inside a striped border.

@@ -90,8 +90,9 @@ export function PostcardBack({ message, hand, stamp, paper, ink = "navy", touche
       <div aria-hidden className="absolute right-[6%] top-[7%] w-[13.5%] rotate-[2deg] drop-shadow-[0_1px_1.5px_rgba(0,0,0,0.35)] [&>svg]:h-auto [&>svg]:w-full" data-stamp-svg dangerouslySetInnerHTML={{ __html: stampSvg(stamp, k) }} />
       <div className="absolute bottom-[11%] left-[60%] right-[6%] flex flex-col gap-[2.6cqw]" style={{ ...pen, fontSize: `${3.7 * h.size}cqw` }} data-back-address>
         {[0, 1, 2].map((i) => (
-          <span key={i} className="block min-h-[1.15em] overflow-hidden text-ellipsis whitespace-nowrap border-b border-[#bfb39b] pb-px">
-            {address[i] ?? ""}
+          <span key={i} className="block min-h-[1.15em] overflow-hidden whitespace-nowrap border-b border-[#bfb39b] pb-px">
+            {/* Longer lines get smaller writing so the whole line fits (about 12 letters at full size). */}
+            <span style={{ fontSize: `${Math.max(0.55, Math.min(1, 12 / Math.max(1, (address[i] ?? "").length)))}em` }}>{address[i] ?? ""}</span>
           </span>
         ))}
       </div>

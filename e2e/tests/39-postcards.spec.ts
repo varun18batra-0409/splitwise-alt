@@ -60,6 +60,12 @@ test("Postcards: write from a group, the other person receives it, turns it over
   await R.getByRole("button", { name: "Seal: Miss you" }).click();
   await R.waitForURL(/sealed=1/);
   await expect(R.locator("[data-reaction='miss']")).toBeVisible();
+  // Ravi can reuse the design (not Asha's words) for someone else.
+  await R.locator("[data-send-new]").click();
+  await R.waitForURL(/\/postcards\/new\?from=/);
+  await settled(R);
+  await R.getByRole("tab", { name: "Back" }).click();
+  await expect(R.getByRole("textbox", { name: "Your message" })).toHaveValue("");
   await R.goto("/postcards");
   await settled(R);
   await expect(R.locator("[data-postcard-item]")).toHaveCount(1);
