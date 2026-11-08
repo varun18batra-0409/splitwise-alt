@@ -425,11 +425,11 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
                 value={address[i]}
                 onChange={(e) => {
                   const next = [...address];
-                  next[i] = e.target.value.slice(0, 20);
+                  next[i] = e.target.value.slice(0, 25);
                   setAddr(next);
                 }}
                 placeholder={["Their name", "Flat 4B, Rose Villa", "Bengaluru"][i]}
-                maxLength={20}
+                maxLength={25}
                 aria-label={`Address line ${i + 1}`}
                 className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-base outline-none focus:border-fg/40"
               />

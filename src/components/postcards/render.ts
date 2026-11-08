@@ -214,7 +214,7 @@ export async function drawBack(p: BackProps): Promise<Blob> {
     const line = p.address[i] ?? "";
     let fsz = as;
     ctx.font = `${fsz}px "${hand.family}", cursive`;
-    while (fsz > as * 0.35 && ctx.measureText(line).width > w * 0.34) {
+    while (fsz > as * 0.3 && ctx.measureText(line).width > w * 0.34) {
       fsz -= 1;
       ctx.font = `${fsz}px "${hand.family}", cursive`;
     }
