@@ -92,7 +92,7 @@ export function PostcardBack({ message, hand, stamp, paper, ink = "navy", touche
         {[0, 1, 2].map((i) => (
           <span key={i} className="block min-h-[1.15em] overflow-hidden whitespace-nowrap border-b border-[#bfb39b] pb-px">
             {/* Longer lines get smaller writing so the whole line fits (about 12 letters at full size). */}
-            <span style={{ fontSize: `${Math.max(0.55, Math.min(1, 12 / Math.max(1, (address[i] ?? "").length)))}em` }}>{address[i] ?? ""}</span>
+            <span style={{ fontSize: `${Math.max(0.4, Math.min(1, 10 / Math.max(1, (address[i] ?? "").length)))}em` }}>{address[i] ?? ""}</span>
           </span>
         ))}
       </div>
