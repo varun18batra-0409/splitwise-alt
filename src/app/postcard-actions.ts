@@ -72,7 +72,7 @@ export async function sendPostcardAction(f: FormData) {
   }
   const hand = HANDS.some((h) => h.id === field(f, "hand", 20)) ? field(f, "hand", 20) : "caveat";
   const lettering = LETTERINGS.some((l) => l.id === field(f, "lettering", 20)) ? field(f, "lettering", 20) : "classic";
-  const address = [0, 1, 2].map((i) => field(f, `addr${i}`, i === 0 ? 15 : 20).trim());
+  const address = [0, 1, 2].map((i) => field(f, `addr${i}`, 20).trim());
   const groupId = field(f, "groupId", 40);
   const data = {
     fromId: me.id,
