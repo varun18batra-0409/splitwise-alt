@@ -1,13 +1,12 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
-import Link from "@/components/Link";
 import { db } from "@/lib/db";
 import { getAccount } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
 import { visitorRegion } from "@/lib/region";
 import { countryOf, tripStops } from "@/lib/geo";
 import { photoSet, placePhotos } from "@/lib/places";
-import { PageHeader, ErrorNote, primaryButtonClass } from "@/components/ui";
+import { PageHeader, ErrorNote } from "@/components/ui";
 import { POSTCARD_FONTS_URL, RARE, baseStamp, isSitePhoto, openRareStamps, postDate, withHome } from "@/lib/postcards/catalog";
 import { postcardPeople } from "@/lib/postcards/people";
 import { Composer } from "./Composer";
@@ -22,16 +21,6 @@ export default async function NewPostcardPage({ searchParams }: { searchParams: 
   const me = await getAccount();
   if (!me) redirect(`/signin?back=${encodeURIComponent(back)}`);
   const groups = await postcardPeople(me.id);
-  if (!groups.length)
-    return (
-      <>
-        <PageHeader title="Write a postcard" back="/postcards" />
-        <p className="text-fg/70">Postcards go to people you’ve shared a group with. Invite someone to a group first, and once they’ve joined you can send them one.</p>
-        <Link href="/groups/new" className={`mt-6 ${primaryButtonClass}`}>
-          Start a group
-        </Link>
-      </>
-    );
 
   // Reusing a card: one you sent comes back with everything it had; one you were sent comes back
   // with its look only (front, colours, stamp, seal, paper), never their words or their own photo.
@@ -87,6 +76,7 @@ export default async function NewPostcardPage({ searchParams }: { searchParams: 
         wordsSize: again.wordsSize,
         touches: again.touches,
         seal: again.seal,
+        signoff: theirs ? "" : again.signoff,
         message: again.message,
         hand: again.hand,
         paper: again.paper,

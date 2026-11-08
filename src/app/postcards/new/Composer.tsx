@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { PostcardBack, PostcardFront } from "@/components/postcards/Card";
-import { face } from "@/components/postcards/PostcardView";
+import { PostcardShare, face } from "@/components/postcards/PostcardView";
 import { shrink } from "@/components/OwnPhoto";
 import { avatarTone } from "@/components/ui";
 import { buzz } from "@/lib/haptics";
@@ -32,6 +32,7 @@ type Props = {
     wordsSize?: number;
     touches?: string;
     seal?: string;
+    signoff?: string;
     message?: string;
     hand?: string;
     paper?: string;
@@ -61,6 +62,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
   const [touches, setTouches] = useState<string[]>((defaults.touches ?? "").split(",").filter(Boolean));
   const [seal, setSeal] = useState(defaults.seal ?? "crimson:initial");
   const [message, setMessage] = useState(defaults.message ?? "");
+  const [signoff, setSignoff] = useState(defaults.signoff ?? "");
   const [hand, setHand] = useState(defaults.hand ?? "caveat");
   const [stamp, setStamp] = useState(defaults.stamp);
   const [paper, setPaper] = useState(defaults.paper ?? "cream");
@@ -86,7 +88,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
   const toggleTouch = (id: string) => setTouches((t) => (t.includes(id) ? t.filter((x) => x !== id) : [...t, id]));
 
   const frontProps = { front, photo: front === "own" ? own?.url : undefined, words, lettering, tone, look, wordsAt, wordsSize, touches: touchList, k: "cf" };
-  const backProps = { message: message || "Your words here…", hand, stamp, paper, ink, touches: touchList, seal, address, place: defaults.place, date, from: firstOf(myName) || "Me", k: "cb" };
+  const backProps = { message: message || "Your words here…", hand, stamp, paper, ink, touches: touchList, seal, address, place: defaults.place, date, from: signoff.trim() || firstOf(myName) || "Me", k: "cb" };
 
   async function pickPhoto(file?: File) {
     if (!file) return;
@@ -124,6 +126,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
       <input type="hidden" name="wordsSize" value={wordsSize} />
       <input type="hidden" name="touches" value={touchList} />
       <input type="hidden" name="seal" value={seal} />
+      <input type="hidden" name="signoff" value={signoff.trim()} />
       <input type="hidden" name="opensOn" value={opensOn} />
       <input type="hidden" name="words" value={words} />
       <input type="hidden" name="lettering" value={lettering} />
@@ -435,8 +438,19 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
               />
             ))}
           </div>
+          <span className={label}>Signed</span>
+          <input
+            value={signoff}
+            onChange={(e) => setSignoff(e.target.value.slice(0, 25))}
+            maxLength={25}
+            placeholder={firstOf(myName) || "Your name"}
+            aria-label="Signed"
+            data-signoff
+            className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-base outline-none focus:border-fg/40"
+          />
+          <p className="mt-1.5 text-xs text-fg/45">How it’s signed at the end: your name, a nickname, “Mom &amp; Dad”, anything.</p>
           <button type="button" onClick={() => setTab("send")} disabled={!message.trim()} className="pop mt-8 flex h-12 w-full items-center justify-center bg-fg text-[15px] font-semibold text-canvas disabled:opacity-50">
-            {message.trim() ? "Next: who it’s for" : "Write a few words first"}
+            {message.trim() ? "Next: send it" : "Write a few words first"}
           </button>
         </section>
       )}
@@ -444,6 +458,14 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
       {tab === "send" && (
         <section aria-label="Send to">
           {!message.trim() && <p className="mt-6 rounded-[18px] bg-mist px-4 py-3 text-sm text-fg/70">Write a few words on the back first.</p>}
+          {message.trim() && (
+            <div className="mt-6 rounded-[20px] border border-line bg-mist/60 px-4 py-4" data-whatsapp-anyone>
+              <p className="mb-3 text-[15px] font-semibold">Send to anyone on WhatsApp</p>
+              <PostcardShare front={frontProps} back={backProps} name="postcard" />
+            </div>
+          )}
+          <p className="mt-7 text-[15px] font-semibold">Or send it in Loopin</p>
+          {groups.length === 0 && <p className="mt-2 text-sm leading-relaxed text-fg/60">In Loopin, postcards go to friends you share a group with. Invite someone to a group and they’ll show here.</p>}
           {groups.map((g) => {
             const all = g.people.every((p) => to.includes(p.id));
             return (
@@ -479,9 +501,9 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
               </div>
             );
           })}
-          <OpensOn value={opensOn} onChange={setOpensOn} label={label} chip={chip} />
+          {groups.length > 0 && <OpensOn value={opensOn} onChange={setOpensOn} label={label} chip={chip} />}
           <p className="mt-5 text-xs leading-relaxed text-fg/45">Only people who joined Loopin show here. Names typed into a group for someone not on Loopin can’t get postcards.</p>
-          <Send count={to.length} ready={Boolean(message.trim())} />
+          {groups.length > 0 && <Send count={to.length} ready={Boolean(message.trim())} />}
         </section>
       )}
     </form>
