@@ -35,6 +35,7 @@ test("Postcards: write from a group, the other person receives it, turns it over
   await A.getByRole("button", { name: "Seal design: Fleur-de-lis" }).click();
   await expect(A.getByRole("button", { name: "Seal design: Fleur-de-lis" })).toHaveAttribute("aria-pressed", "true");
   await A.getByRole("textbox", { name: "Your message" }).fill("Wish you were here. The beach shack was the fancy dinner.");
+  await A.locator("[data-signoff]").fill("Asha & the gang");
   await A.getByRole("tab", { name: "Send" }).click();
   await A.locator("[data-recipient='Ravi']").click();
   await A.getByRole("button", { name: "Send to 1 person" }).click();
@@ -54,6 +55,7 @@ test("Postcards: write from a group, the other person receives it, turns it over
   await flip.click();
   await expect(flip).toHaveAttribute("data-postcard-flip", "back");
   await expect(R.locator("[data-back-message]")).toContainText("fancy dinner");
+  await expect(R.locator("[data-postcard-back]").first()).toContainText("Asha & the gang");
   await expect(R.locator("[data-postcard-back] [data-touch='seal']").first()).toBeAttached();
   await expect(R.getByRole("link", { name: "Write back" })).toBeVisible();
   // Ravi presses a wax seal back; Asha sees it on her card.

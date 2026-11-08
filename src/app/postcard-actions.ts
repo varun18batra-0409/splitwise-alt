@@ -86,6 +86,7 @@ export async function sendPostcardAction(f: FormData) {
     wordsSize: wordsSizeOf(field(f, "wordsSize", 5)),
     touches: cleanTouches(field(f, "touches", 120)),
     seal: cleanSeal(field(f, "seal", 30)),
+    signoff: field(f, "signoff", 25).trim(),
     opensAt,
     tone: toneOf(field(f, "tone", 20)).id,
     message,
