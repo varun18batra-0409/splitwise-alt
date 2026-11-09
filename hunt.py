@@ -7,19 +7,18 @@ font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 allData = {}
 for slot, q in Q.items():
     rows = []
-    for page in (1, 2):
-        url = "https://unsplash.com/napi/search/photos?" + urllib.parse.urlencode({"query": q, "per_page": 20, "page": page})
-        try:
-            d = json.load(urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=30))
-        except Exception as e:
-            print(slot, "search failed", e); break
-        for r in d.get("results", []):
-            if r.get("premium") or r.get("plus"): continue
-            raw = r["urls"]["raw"]
-            m = re.search(r"(photo-[0-9]+-[0-9a-f]+)", raw)
-            if not m: continue
-            rows.append({"id": m.group(1), "alt": r.get("alt_description") or r.get("description") or "", "w": r["width"], "h": r["height"]})
-        if len(rows) >= 16: break
+    slug = urllib.parse.quote(q.lower().replace(" ", "-"))
+    try:
+        html = urllib.request.urlopen(urllib.request.Request(f"https://unsplash.com/s/photos/{slug}", headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124 Safari/537.36", "Accept": "text/html", "Accept-Language": "en"}), timeout=30).read().decode("utf-8", "ignore")
+    except Exception as e:
+        print(slot, "search failed", e); html = ""
+    seen = set()
+    for tag in re.findall(r"<img[^>]+>", html):
+        m = re.search(r'src="https://images\.unsplash\.com/(photo-[0-9]+-[0-9a-f]+)', tag)
+        if not m or m.group(1) in seen: continue
+        alt = re.search(r'alt="([^"]*)"', tag)
+        seen.add(m.group(1))
+        rows.append({"id": m.group(1), "alt": (alt.group(1) if alt else "")})
     rows = rows[:16]
     allData[slot] = rows
     tiles = []
