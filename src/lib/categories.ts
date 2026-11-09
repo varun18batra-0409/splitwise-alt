@@ -38,7 +38,7 @@ export const CATEGORIES: Category[] = [
     id: "shopping", label: "Bags & Bling", short: "Bags & Bling", emoji: "🛍️",
     words: ["shopping", "amazon", "flipkart", "myntra", "ajio", "meesho", "nykaa", "decathlon", "ikea", "croma",
       "clothes", "shirt", "tshirt", "jeans", "dress", "shoe", "gift", "souvenir", "mall", "market", "electronics",
-      "sim card", "sim",
+      "sim card", "sim", "fridge", "refrigerator", "washing machine", "microwave", "mattress", "appliance", "tv", "television", "furniture", "sofa", "curtains",
       "purchase", "bought", "buy", "store", "shop", "boutique", "outlet", "duty free", "dutyfree", "perfume", "cosmetics", "makeup", "jewellery", "jewelry", "sunglasses", "bag", "backpack", "luggage", "suitcase", "trolley bag", "phone case", "charger", "power bank", "headphones", "earphones", "book", "stationery", "toy", "decor", "furniture", "h&m", "zara", "uniqlo", "westside", "pantaloons", "shoppers stop", "tata cliq", "nike", "adidas", "puma", "apple store", "handicraft", "saree", "sari", "kurta", "lehenga", "jacket", "sweater", "hoodie", "cap", "hat", "slippers", "sandals", "sneakers", "umbrella", "raincoat", "sunscreen", "toiletries", "gadget", "phone", "laptop"],
   },
   {
@@ -54,12 +54,12 @@ export const CATEGORIES: Category[] = [
       "trip", "sightseeing", "boat", "cruise", "trek", "snorkel", "snorkeling", "diving", "scuba", "rafting",
       "paragliding", "go karting", "gokarting", "adventure", "spa", "massage", "show", "movie", "cinema", "film",
       "pvr", "inox", "bookmyshow", "book my show", "concert", "party", "club", "bowling", "game", "gaming", "event",
-      "cover charge", "activity", "excursion", "safari",
+      "cover charge", "activity", "excursion", "safari", "guide", "poker", "buy-in", "buy in", "buyin", "teen patti", "casino",
       "entry fee", "entry ticket", "admission", "day pass", "theme park", "water park", "amusement park", "wonderla", "imagica", "disney", "universal studios", "legoland", "aquarium", "gallery", "exhibition", "monument", "taj mahal", "heritage", "tour guide", "boat ride", "jet ski", "banana ride", "parasailing", "bungee", "zipline", "zip line", "skydiving", "hot air balloon", "camel ride", "elephant ride", "horse ride", "ski", "skiing", "snowboard", "surfing", "kayak", "kayaking", "canoe", "hiking", "hike", "climbing", "yoga class", "workshop", "lesson", "match", "stadium", "ipl", "cricket", "football", "golf", "casino", "karaoke", "escape room", "arcade", "laser tag", "paintball", "nightclub", "festival", "fest", "gig", "standup", "stand-up", "comedy", "theatre", "theater", "opera", "photoshoot", "sauna", "sightseeing tour", "city tour", "safari jeep"],
   },
   {
     id: "bills", label: "Bills & Bits", short: "Bills & Bits", emoji: "💡",
-    words: ["rent", "room rent", "house rent", "flat rent", "electricity", "electric", "light bill", "water bill",
+    words: ["rent", "room rent", "house rent", "flat rent", "electricity", "electric", "light bill", "water bill", "tanker", "water tanker", "water can", "travel insurance", "plumber", "electrician", "carpenter", "repair",
       "gas bill", "gas", "lpg", "cylinder", "wifi", "internet", "broadband", "recharge", "jio", "airtel", "dth",
       "phone bill", "mobile bill", "maintenance", "society", "maid", "cook", "laundry", "dry clean", "ironing",
       "subscription", "netflix", "prime", "spotify", "hotstar", "youtube premium", "emi", "insurance", "bill",
