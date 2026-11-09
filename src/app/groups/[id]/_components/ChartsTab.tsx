@@ -145,15 +145,15 @@ function PersonByCategory({ rows, money }: { rows: { id: string; name: string; t
                 <span key={p.id} className="h-full" style={{ width: `${(p.amount / r.total) * 100}%`, background: CAT_COLOUR[p.id] ?? CAT_COLOUR.other }} />
               ))}
             </div>
-            <ul className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5">
+            <ul className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2.5">
               {r.parts.map((p) => (
                 <li key={p.id}>
-                  <Link href={p.href} className="flex items-center justify-between gap-2 text-[13px] active:opacity-70">
-                    <span className="flex min-w-0 items-center gap-1.5">
+                  <Link href={p.href} className="block text-[13px] leading-tight active:opacity-70">
+                    <span className="flex items-center gap-1.5">
                       <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ background: CAT_COLOUR[p.id] ?? CAT_COLOUR.other }} />
-                      <span className="truncate text-fg/75">{p.label}</span>
+                      <span className="whitespace-nowrap text-fg/60">{p.label}</span>
                     </span>
-                    <span className="shrink-0 tabular-nums text-fg/90">{money(p.amount)}</span>
+                    <span className="mt-0.5 block pl-3.5 tabular-nums text-fg/90">{money(p.amount)}</span>
                   </Link>
                 </li>
               ))}

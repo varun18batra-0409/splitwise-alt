@@ -140,8 +140,8 @@ export default async function SearchPage({
       href: grain === "w" ? href({ w: k, m: null, y: null, p: "w" }) : grain === "m" ? href({ m: k, w: null, y: null, p: "m" }) : href({ y: k, m: null, w: null, p: "y" }),
     })),
     selected: ins.selected,
-    categories: ins.categories,
-    bills: billRows.map((b) => {
+    categories: cat ? [] : ins.categories,
+    bills: (cat ? [] : billRows).map((b) => {
       const g = groups.find((x) => x.group.id === b.groupId)!;
       const money = (n: number) => formatMoney(n, g.group.currency);
       const next = nextDueDay(b, new Date());
