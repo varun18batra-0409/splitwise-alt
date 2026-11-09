@@ -162,3 +162,80 @@ export function countdownNudge(g: { id: string; name: string }, daysLeft: number
   if (!lines) return null;
   return lines[pick(`${g.id}:${daysLeft}`, lines.length)](placeOf(g.name), tripEmoji(g.name));
 }
+
+// ---------- The countdown card's words, by how far away the trip is ----------
+// Each stage of the countdown has its own small heading and one-liner, in several versions. With
+// a few trips on Home, trips at the same stage get different versions (never the same words twice
+// on one screen), and each trip's words move on day by day. "Boarding" only appears in the last days.
+export type CountdownStage = "far" | "w60" | "w45" | "w30" | "w14" | "w7" | "w3" | "w1" | "today" | "first" | "during" | "last";
+
+export function countdownStage(p: TripPhase): CountdownStage | null {
+  if (p.kind === "before") return p.days > 60 ? "far" : p.days > 45 ? "w60" : p.days > 30 ? "w45" : p.days > 14 ? "w30" : p.days > 7 ? "w14" : p.days > 3 ? "w7" : p.days > 1 ? "w3" : "w1";
+  if (p.kind === "today") return "today";
+  if (p.kind === "during") return p.day <= 1 ? "first" : p.day >= p.of ? "last" : "during";
+  return null;
+}
+
+type Quip = (place: string, e: string) => string;
+const STAGE: Record<CountdownStage, { kickers: string[]; quips: Quip[] }> = {
+  far: {
+    kickers: ["Save the date", "On the horizon", "Locked in", "Something to look forward to", "Future plans", "Coming up", "Dream mode"],
+    quips: [(p, e) => `${p} is officially on the calendar ${e}`, (p) => `Plenty of time to over-plan ${p}`, () => `Start the savings jar now`, (p) => `${p}: the group chat's favourite word`, () => `Screenshot this. It's happening.`, (p) => `Daydreaming about ${p} is allowed`, () => `Early birds book the best stays`],
+  },
+  w60: {
+    kickers: ["Two months out", "Mark the calendar", "It's getting real", "Plans in motion", "Countdown on", "Not long now", "The wait begins"],
+    quips: [(p, e) => `Two months to ${p} ${e}`, () => `Book the stays before they're gone`, () => `Time to start the group playlist`, (p) => `${p}: who's sorting the tickets?`, () => `Leave applied? Asking for the group`, () => `Moodboard season starts now`, () => `Plans now, receipts later`],
+  },
+  w45: {
+    kickers: ["Six-ish weeks", "Getting closer", "Halfway there", "Plans taking shape", "Countdown mode", "Almost a month", "Heating up"],
+    quips: [(p, e) => `Six weeks to ${p} ${e}`, () => `Book the fun stuff now`, () => `Tickets, stays, plans: who's on what?`, (p) => `${p} is closer than you think`, () => `Time to send the moodboard`, () => `Budget talk now saves fights later`, () => `Someone make the shared packing list`],
+  },
+  w30: {
+    kickers: ["Under a month", "It's close", "Weeks, not months", "Getting excited", "Countdown is real", "Nearly there", "Final stretch begins"],
+    quips: [(p, e) => `Less than a month to ${p} ${e}`, () => `Outfit planning: officially open`, () => `Start saving the reels you'll recreate`, (p) => `${p} weather check: daily now`, () => `Manifesting zero delays`, () => `The packing list won't write itself`, () => `Add bookings now, settle later`],
+  },
+  w14: {
+    kickers: ["Two weeks", "Almost time", "Nearly here", "So close", "The home stretch", "Pack-list time", "Days, not weeks"],
+    quips: [(p, e) => `Two weeks to ${p} ${e}`, () => `The fight for the aux begins`, () => `Your camera roll is about to fill up`, (p) => `${p} outfits: decided?`, () => `Who's booking what? Sort it now`, () => `Chargers, adapters, snacks`, () => `Out-of-office message: drafted`],
+  },
+  w7: {
+    kickers: ["This time next week", "Boarding soon", "One week", "Final countdown", "Almost packing", "Nearly go-time", "So, so close"],
+    quips: [(p, e) => `A week to ${p} ${e}`, () => `Sunscreen, chargers, ID. Check.`, () => `The group chat is getting loud`, (p) => `${p} mode: loading…`, () => `Vibes: packed. Bag: not yet.`, () => `Do-not-disturb mode is loading`, () => `Sleep now. You won't on the trip.`],
+  },
+  w3: {
+    kickers: ["Boarding soon", "Bags out", "Any minute now", "Pack tonight", "Last few sleeps", "Final checks", "Nearly there"],
+    quips: [(p, e) => `A few sleeps to ${p} ${e}`, () => `Pack now, thank yourself later`, () => `Someone check the weather. Not it.`, () => `Tickets downloaded? Offline too?`, (p) => `${p} playlist: finalised`, () => `Plan the outfits, skip the overthinking`, () => `Charge every power bank you own`],
+  },
+  w1: {
+    kickers: ["Boarding tomorrow", "Tomorrow!", "One sleep", "Last night at home", "Almost go-time", "T-minus one day", "Set the alarm"],
+    quips: [(p, e) => `${p} tomorrow ${e}`, () => `Charge everything. Find your ID.`, () => `Sleep. You won't, but try.`, () => `Set two alarms. Maybe three.`, (p) => `${p} is one sleep away`, () => `Bags by the door`, () => `Who's got the tickets? Check twice.`],
+  },
+  today: {
+    kickers: ["Boarding today", "It's go day", "Today's the day", "Wheels up", "We're off", "Departure day", "Here we go"],
+    quips: [(p, e) => `It's ${p} day ${e}`, () => `Phone, wallet, ID, charger`, () => `Add the first expense from the road`, (p) => `${p}, here you come`, () => `Holiday mode: on`, () => `The group photo starts now`, () => `Out of office. Officially.`],
+  },
+  first: {
+    kickers: ["Day one", "Just landed", "First day", "Settling in", "Arrived", "It's begun", "Day one energy"],
+    quips: [(p, e) => `Day one in ${p} ${e}`, () => `Add as you go, settle at the end`, () => `First meal on the trip: legendary`, (p) => `${p} looks good on you`, () => `Unpack later. Explore now.`, () => `Receipts in, worries out`, () => `Group photo before anyone's tired`],
+  },
+  during: {
+    kickers: ["On the trip", "Living it", "Mid-trip", "Out exploring", "Holiday mode", "In the moment", "Away we are"],
+    quips: [(p, e) => `Still in ${p} ${e}`, () => `Keep the receipts coming`, () => `Who's carrying the team today?`, () => `Add it now, settle it later`, (p) => `${p} hits different today`, () => `Sleep is optional on holiday`, () => `Your camera roll says it all`],
+  },
+  last: {
+    kickers: ["Last day", "Final day", "One more day", "Make it count", "Closing night", "Wrap-up day", "Last hurrah"],
+    quips: [(p, e) => `Last day in ${p} ${e}`, () => `Make it count`, () => `Settle up before everyone scatters`, () => `One last group photo`, (p) => `Goodbye ${p}, for now`, () => `Stories and Wrapped coming soon`, () => `Pack slowly. Leave slower.`],
+  },
+};
+
+// The card's small heading and one-liner. `slot`: this trip's place among the trips at the same
+// stage on one screen (0, 1, 2…), so each gets its own version.
+export function countdownCard(name: string, p: TripPhase, slot = 0): { kicker: string; quip: string } | null {
+  const stage = countdownStage(p);
+  if (!stage) return null;
+  const s = STAGE[stage];
+  const turn = p.kind === "before" ? p.days : p.kind === "during" ? p.day : 0; // moves on each day
+  const k = (slot + turn) % s.kickers.length;
+  const q = (slot + turn) % s.quips.length;
+  return { kicker: s.kickers[k], quip: s.quips[q](placeOf(name), tripEmoji(name)) };
+}

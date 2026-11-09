@@ -37,7 +37,7 @@ export type Story = {
 type Pic = { photo?: string; photos?: string[]; cover?: { kind: string; src?: string } };
 export type StoryInput = {
   now: Date;
-  trips: ({ id: string; name: string; phase: TripPhase; people: number; crew?: string[]; mood?: "beach" | "hills" | "city" | "any"; today?: { spent: string; count: number; top?: string; biggest?: { what: string; amount: string } } } & Pic)[];
+  trips: ({ id: string; name: string; phase: TripPhase; people: number; stop?: { city?: string; country?: string; countryName?: string; flag?: string }; crew?: string[]; mood?: "beach" | "hills" | "city" | "any"; today?: { spent: string; count: number; top?: string; biggest?: { what: string; amount: string } } } & Pic)[];
   games: { id: string; groupId: string; name: string; winner: string; won: string; youWon?: string; finishedAt: Date; table?: { name: string; net: string; up: boolean; even: boolean; share: number }[]; pays?: string[]; toSettle?: string; photos?: string[] }[];
   squared: ({ id: string; name: string; at: Date; spent?: string; payments?: number; people?: number } & Pic)[];
   collections: { id: string; code: string; title: string; paid: number; people: number; in?: string; target?: string; paidNames?: string[]; dueNames?: string[] }[];
@@ -63,7 +63,7 @@ function tripFrames(t: StoryInput["trips"][number]): Frame[] {
   const photos = t.photos?.length ? t.photos : t.photo ? [t.photo] : [];
   // Lines for this place, this kind of trip and this crew; a fresh set each day, written for the place, not the photo.
   const dayKey = p.kind === "before" ? `b${p.days}` : p.kind === "during" ? `d${p.day}` : "t";
-  const caps = storyLines({ place: placeSlot(t.name), mood: t.mood, people: t.people, seed: `${t.id}-${dayKey}` });
+  const caps = storyLines({ place: placeSlot(`${t.name} ${t.stop?.city ?? ""}`), country: t.stop?.country, countryName: t.stop?.countryName, flag: t.stop?.flag, city: t.stop?.city, mood: t.mood, people: t.people, seed: `${t.id}-${dayKey}` });
   const cap = (k: number) => caps[k % Math.max(1, caps.length)] ?? ["", ""];
   const photo = (k: number, kicker: string | undefined, head: string, line?: string): Frame | null => (photos.length ? { kind: "photo", photo: photos[k % photos.length], kicker, head, line } : null);
   const crew: Frame | null = t.crew && t.crew.length > 1 ? { kind: "list", tone: "sky", kicker: "The crew", rows: t.crew.slice(0, 8).map((n) => ({ label: n })), line: t.crew.length > 8 ? `and ${t.crew.length - 8} more` : `${t.crew.length} of you. Dangerous.` } : null;

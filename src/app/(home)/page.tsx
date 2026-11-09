@@ -31,6 +31,8 @@ import { myCollections, progress } from "@/lib/collect";
 import { countdownWords, placeOf, tripPhase, type TripPhase } from "@/lib/countdown";
 import { todayKey } from "@/lib/dates";
 import { TakeOff, TripCountdown } from "@/components/TripCountdown";
+import { countdownCard, countdownStage } from "@/lib/countdown";
+import { countryOf, tripStops } from "@/lib/geo";
 import { ShareCountdown } from "@/components/ShareCountdown";
 import { HomeHero } from "@/components/HomeHero";
 import { TripRow } from "@/components/TripRow";
@@ -218,6 +220,11 @@ export default async function Home({
       people: t.g.group.members.filter((m) => !m.leftAt).length,
       crew: crewOf(t.g),
       mood: moodOf(t.g.group.name),
+      stop: (() => {
+        const st = tripStops(t.g.group.name, t.g.group.tripPlace ?? "", t.g.group.tripCountry ?? "")[0];
+        const c = st?.country ? countryOf(st.country) : undefined;
+        return st ? { city: st.city || undefined, country: st.country || undefined, countryName: c?.name, flag: c?.flag } : undefined;
+      })(),
       today: t.phase.kind === "before" ? undefined : todayIn(t.g),
     })),
     games: games.map((gm, k) => {
@@ -307,8 +314,20 @@ export default async function Home({
   const heroGroup = hero?.g ?? byActivity.find(withPhoto);
   const heroPhoto = heroGroup && heroGroup.group.type === "trip" && !heroGroup.group.cover ? placePhoto(heroGroup.group.name)?.src : undefined;
   const friends = hero ? crewOf(hero.g).filter((n) => n !== "You").length : 0;
+  // Trips at the same stage of the countdown each get their own words (slot 0, 1, 2… in that stage).
+  const stageSlot = new Map<string, number>();
+  {
+    const seen = new Map<string, number>();
+    for (const t of trips) {
+      const st = countdownStage(t.phase) ?? "none";
+      const n = seen.get(st) ?? 0;
+      stageSlot.set(t.g.group.id, n);
+      seen.set(st, n + 1);
+    }
+  }
+  const heroCard = hero ? countdownCard(hero.g.group.name, hero.phase, stageSlot.get(hero.g.group.id) ?? 0) : null;
   const heroChip = hero
-    ? `${hero.phase.kind === "before" ? "Your next trip" : "On the trip"}${friends ? `, with ${friends === 1 ? "1 friend" : `${friends} friends`}` : ""}`
+    ? `${heroCard?.kicker ?? (hero.phase.kind === "before" ? "Your next trip" : "On the trip")}${friends ? `, with ${friends === 1 ? "1 friend" : `${friends} friends`}` : ""}`
     : "";
   const words: ReturnType<typeof heroWords> = hero ? heroWords(hero.g.group.name, hero.phase) : { small: greeting(new Date(), tz, account?.name) };
 
@@ -545,7 +564,7 @@ export default async function Home({
               </div>
               <TripRow>
                 {trips.slice(1).map((t) => (
-                  <TripCountdown key={t.g.group.id} group={t.g.group} phase={t.phase} />
+                  <TripCountdown key={t.g.group.id} group={t.g.group} phase={t.phase} slot={stageSlot.get(t.g.group.id) ?? 0} />
                 ))}
               </TripRow>
             </section>

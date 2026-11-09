@@ -59,6 +59,92 @@ const PLACE: Record<string, Line[]> = {
   varanasi: [["Har Har Mahadev", "Ghats, aarti, kachori breakfast"], ["Local tip", "A boat at dawn on the Ganga"], ["Food check", "Banarasi paan, once"]],
 };
 
+
+// For any country in the world: a hello, the local money and one local thing to try, for the places
+// people travel to most. Every other country still gets lines built from its name and flag.
+const FLAVOUR: Record<string, { hi: string; money: string; thing?: string }> = {
+  TH: { hi: "Sawasdee", money: "baht", thing: "Mango sticky rice, at least once a day" },
+  ID: { hi: "Selamat pagi", money: "rupiah", thing: "Nasi goreng for breakfast, lunch or both" },
+  VN: { hi: "Xin chào", money: "dong", thing: "Banh mi from a street cart" },
+  MY: { hi: "Selamat datang", money: "ringgit", thing: "Nasi lemak and teh tarik" },
+  SG: { hi: "Hello lah", money: "Singapore dollars", thing: "Chilli crab, then a hawker centre" },
+  JP: { hi: "Konnichiwa", money: "yen", thing: "Konbini snacks count as a meal" },
+  KR: { hi: "Annyeong", money: "won", thing: "Korean BBQ, then karaoke" },
+  CN: { hi: "Nǐ hǎo", money: "yuan", thing: "Dumplings, as many as you can carry" },
+  HK: { hi: "Neih hou", money: "Hong Kong dollars", thing: "Dim sum for breakfast" },
+  TW: { hi: "Nǐ hǎo", money: "Taiwan dollars", thing: "Night market bubble tea" },
+  PH: { hi: "Kumusta", money: "pesos", thing: "Mango shake by the beach" },
+  LK: { hi: "Ayubowan", money: "rupees", thing: "Kottu roti, every night" },
+  NP: { hi: "Namaste", money: "Nepali rupees", thing: "Momos, obviously" },
+  BT: { hi: "Kuzuzangpo", money: "ngultrum", thing: "Ema datshi, if you like it hot" },
+  MV: { hi: "Assalaamu alaikum", money: "rufiyaa", thing: "Fresh tuna, every way" },
+  AE: { hi: "Marhaba", money: "dirhams", thing: "Shawarma at midnight" },
+  QA: { hi: "Marhaba", money: "riyals", thing: "Souq Waqif after dark" },
+  OM: { hi: "Marhaba", money: "rials", thing: "Shuwa and Omani halwa" },
+  SA: { hi: "Marhaba", money: "riyals", thing: "Kabsa with the whole crew" },
+  BH: { hi: "Marhaba", money: "dinars", thing: "Machboos and karak chai" },
+  TR: { hi: "Merhaba", money: "lira", thing: "Turkish breakfast takes two hours" },
+  EG: { hi: "Ahlan", money: "Egyptian pounds", thing: "Koshari, the national comfort food" },
+  GB: { hi: "Cheers", money: "pounds", thing: "A Sunday roast, then a pub" },
+  IE: { hi: "Dia duit", money: "euros", thing: "A pint and live music" },
+  FR: { hi: "Bonjour", money: "euros", thing: "Croissant first, questions later" },
+  IT: { hi: "Ciao", money: "euros", thing: "Gelato counts as lunch" },
+  ES: { hi: "Hola", money: "euros", thing: "Tapas crawl, dinner at 10pm" },
+  PT: { hi: "Olá", money: "euros", thing: "Pastel de nata, warm" },
+  DE: { hi: "Hallo", money: "euros", thing: "Pretzels and a beer garden" },
+  NL: { hi: "Hallo", money: "euros", thing: "Stroopwafels and a bike ride" },
+  CH: { hi: "Grüezi", money: "Swiss francs", thing: "Fondue is a whole evening" },
+  AT: { hi: "Servus", money: "euros", thing: "Apfelstrudel and coffee" },
+  GR: { hi: "Yassou", money: "euros", thing: "Gyros on the go" },
+  CZ: { hi: "Ahoj", money: "koruna", thing: "Trdelník in the old town" },
+  HU: { hi: "Szia", money: "forint", thing: "Langos and the thermal baths" },
+  PL: { hi: "Cześć", money: "złoty", thing: "Pierogi, every filling" },
+  HR: { hi: "Bok", money: "euros", thing: "Seafood by the Adriatic" },
+  IS: { hi: "Halló", money: "Icelandic krónur", thing: "Hot dogs and hot springs" },
+  NO: { hi: "Hei", money: "Norwegian kroner", thing: "Fjord views, waffles after" },
+  SE: { hi: "Hej", money: "Swedish kronor", thing: "Fika: coffee and a cinnamon bun" },
+  DK: { hi: "Hej", money: "Danish kroner", thing: "Smørrebrød and a canal walk" },
+  FI: { hi: "Moi", money: "euros", thing: "Sauna, then a cold dip" },
+  US: { hi: "Hey there", money: "dollars", thing: "A diner breakfast, bottomless coffee" },
+  CA: { hi: "Hello, eh", money: "Canadian dollars", thing: "Poutine, no regrets" },
+  MX: { hi: "Hola", money: "pesos", thing: "Tacos al pastor from a street stand" },
+  BR: { hi: "Olá", money: "reais", thing: "Açaí bowls and a beach day" },
+  AR: { hi: "Hola", money: "pesos", thing: "Steak and Malbec" },
+  PE: { hi: "Hola", money: "soles", thing: "Ceviche, as fresh as it gets" },
+  AU: { hi: "G'day", money: "Australian dollars", thing: "Flat white and a beach walk" },
+  NZ: { hi: "Kia ora", money: "NZ dollars", thing: "Fish and chips by the water" },
+  ZA: { hi: "Howzit", money: "rand", thing: "A braai, if you're invited" },
+  KE: { hi: "Jambo", money: "Kenyan shillings", thing: "Safari at sunrise" },
+  TZ: { hi: "Jambo", money: "Tanzanian shillings", thing: "Zanzibar spice tour" },
+  MA: { hi: "Salam", money: "dirhams", thing: "Mint tea in the medina" },
+  MU: { hi: "Bonzour", money: "Mauritian rupees", thing: "Dholl puri on the go" },
+  KH: { hi: "Suostei", money: "riel (and dollars)", thing: "Fish amok and Angkor at dawn" },
+  LA: { hi: "Sabaidee", money: "kip", thing: "Slow boat down the Mekong" },
+  MM: { hi: "Mingalaba", money: "kyat", thing: "Tea-shop breakfast" },
+  KZ: { hi: "Sálem", money: "tenge", thing: "Mountains just outside the city" },
+  GE: { hi: "Gamarjoba", money: "lari", thing: "Khachapuri, the cheesy boat" },
+  AZ: { hi: "Salam", money: "manat", thing: "Tea with jam in the old city" },
+  RU: { hi: "Privet", money: "roubles", thing: "Blini with everything" },
+  IN: { hi: "Namaste", money: "rupees", thing: "Chai at every stop" },
+};
+
+// Lines for any country (and its city, when Loopin knows it), built from its name, flag and flavour.
+function worldLines(country?: string | null, city?: string | null, countryName?: string | null, flag?: string | null): Line[] {
+  const out: Line[] = [];
+  const f = country ? FLAVOUR[country.toUpperCase()] : undefined;
+  const name = countryName ?? "";
+  if (city) out.push(["City mode", `${city} by day, ${city} by night`], ["Explore", `Get a little lost in ${city}. On purpose.`]);
+  if (name && country?.toUpperCase() !== "IN") out.push(["New stamp", `${name} ${flag ?? ""}: one more for the passport`.trim()]);
+  if (f) {
+    out.push(["Say it", `Learn one word: “${f.hi}”`]);
+    if (country?.toUpperCase() !== "IN") out.push(["Local tip", `Carry a little ${f.money} for the small stuff`]);
+    if (f.thing) out.push(["Food check", f.thing]);
+  } else if (name) {
+    out.push(["Food check", `Eat where the locals eat in ${name}`], ["Local tip", "Carry a little local cash for the small stuff"]);
+  }
+  return out;
+}
+
 // When the place isn't one Loopin knows: by the kind of trip.
 const MOOD: Record<"beach" | "hills" | "city" | "any", Line[]> = {
   beach: [["Forecast", "100% chance of flip-flops 🩴"], ["Packing list", "Sunscreen. More sunscreen. A hat you'll lose."], ["Beach rules", "Coconut water counts as hydration"], ["Plot twist", "The beach shack is the fancy dinner"]],
@@ -89,8 +175,10 @@ function pick<T>(list: T[], seed: string, n: number): T[] {
 }
 
 // The lines for one trip story: the place's own first, then the kind of trip, then the crew.
-export function storyLines(o: { place?: string | null; mood?: "beach" | "hills" | "city" | "any"; people: number; seed: string; n?: number }): Line[] {
-  const own = (o.place && PLACE[o.place.replace(/^place-/, "")]) || [];
+export function storyLines(o: { place?: string | null; country?: string | null; countryName?: string | null; flag?: string | null; city?: string | null; mood?: "beach" | "hills" | "city" | "any"; people: number; seed: string; n?: number }): Line[] {
+  // The place's own hand-written lines, else lines for its city and country (any country in the world).
+  const handWritten = (o.place && PLACE[o.place.replace(/^place-/, "")]) || [];
+  const own = handWritten.length ? handWritten : worldLines(o.country, o.city, o.countryName, o.flag);
   const mood = MOOD[o.mood ?? "any"];
   const n = o.n ?? 4;
   // Up to 3 about the place, then the trip's kind, then one about the crew.

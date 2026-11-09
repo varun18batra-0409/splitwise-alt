@@ -1,7 +1,7 @@
 import Link from "@/components/Link";
 import { Polaroid } from "./Polaroid";
 import { ShareCountdown } from "./ShareCountdown";
-import { countdownWords, placeOf, tripEmoji, type TripPhase } from "@/lib/countdown";
+import { countdownCard, countdownWords, placeOf, tripEmoji, type TripPhase } from "@/lib/countdown";
 import { coverFor } from "@/lib/covers";
 import { placePhoto } from "@/lib/places";
 
@@ -12,9 +12,10 @@ import { placePhoto } from "@/lib/places";
 
 type Group = { id: string; name: string; type: string; cover: string; coverAt: Date | null; members: { id: string; name: string; leftAt: Date | null }[] };
 
-export function TripCountdown({ group, phase }: { group: Group; phase: TripPhase }) {
+export function TripCountdown({ group, phase, slot = 0 }: { group: Group; phase: TripPhase; slot?: number }) {
   const w = countdownWords(group.name, phase);
   if (!w) return null;
+  const c = countdownCard(group.name, phase, slot);
   const people = group.members.filter((m) => !m.leftAt);
   const days = phase.kind === "before" ? phase.days : 0;
   const tone = phase.kind !== "before" ? "now" : days <= 7 ? "close" : days <= 30 ? "soon" : "far";
@@ -51,7 +52,7 @@ export function TripCountdown({ group, phase }: { group: Group; phase: TripPhase
         {/* The count */}
         <div className="flex min-w-0 flex-1 flex-col justify-center py-4 pl-3.5 pr-3">
           <div className="flex items-center gap-2">
-            <p className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-fg/45">{phase.kind === "during" ? "On the trip" : "Boarding in"}</p>
+            <p className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-fg/45">{c?.kicker ?? (phase.kind === "during" ? "On the trip" : "Coming up")}</p>
             {phase.kind !== "during" && <TakeOff className={bigColor} />}
           </div>
           <p className="mt-1 flex flex-wrap items-baseline gap-x-2">
@@ -60,8 +61,8 @@ export function TripCountdown({ group, phase }: { group: Group; phase: TripPhase
             </span>
             <span className="font-hand text-[22px] font-bold leading-none text-fg/80">{w.small}</span>
           </p>
-          <p className="mt-1.5 line-clamp-2 text-sm font-medium leading-snug" data-countdown-line>
-            {w.line}
+          <p className="mt-1.5 line-clamp-2 text-sm font-medium leading-snug" data-countdown-line data-countdown-quip>
+            {c?.quip ?? w.line}
           </p>
           {withWho && <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-fg/45">with {withWho}</p>}
           <div className="mt-3 flex items-center gap-3">
