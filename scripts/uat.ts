@@ -1225,14 +1225,14 @@ async function main() {
     await V.waitForURL(/\/welcome/);
     return `${imgs} photos on the guide (${sizes})`;
   });
-  await step(null, "Help", "The 1-minute tour has 9 slides: flats & couples, card nights (The Pot), stories and the passport, and none says “no sign-up”", async () => {
+  await step(null, "Help", "The 1-minute tour has 10 slides: flats & couples, card nights (The Pot), stories, the passport and postcards, and none says “no sign-up”", async () => {
     const { ctx, page } = await person(browser);
     await go(page, "/welcome");
     const seen: string[] = [];
-    for (let i = 0; i < 9; i++) {
+    for (let i = 0; i < 10; i++) {
       seen.push((await page.locator("main").innerText()).replace(/\s+/g, " "));
       const next = page.getByRole("button", { name: /Next/ });
-      if (i < 8) {
+      if (i < 9) {
         await next.click();
         await page.waitForTimeout(500);
       }
@@ -1242,12 +1242,36 @@ async function main() {
     assert(/The Pot keeps score/.test(all), "no card-night slide");
     assert(/as stories/.test(all), "no stories slide");
     assert(/a stamp/.test(all), "no passport slide");
+    assert(/Send a postcard/.test(all), "no postcards slide");
     assert(!/no sign-up/i.test(all), "a slide still says “no sign-up”");
+    await ctx.close();
+  });
+  await step(null, "Help", "The tour moves like stories: tap the right side for next, the left side to go back, and Back / Next buttons at the bottom", async () => {
+    const { ctx, page } = await person(browser);
+    await go(page, "/welcome");
+    const at = async () => (await page.locator("[data-tour-at]").innerText()).trim();
+    assert((await at()).startsWith("1 /"), `starts at ${await at()}`);
+    assert(await page.locator("[data-tour-back]").isDisabled(), "Back works on the first slide");
+    const box = (await page.locator("[data-tour-slide='cheers']").boundingBox())!;
+    await page.mouse.click(box.x + box.width * 0.85, box.y + box.height * 0.5);
+    await page.waitForTimeout(700);
+    assert((await at()).startsWith("2 /"), `tap right → ${await at()}`);
+    const box2 = (await page.locator("[data-tour-slide='owes']").boundingBox())!;
+    await page.mouse.click(box2.x + box2.width * 0.85, box2.y + box2.height * 0.5);
+    await page.waitForTimeout(700);
+    assert((await at()).startsWith("3 /"), `tap right again → ${await at()}`);
+    const box3 = (await page.locator("[data-tour-slide='currency']").boundingBox())!;
+    await page.mouse.click(box3.x + box3.width * 0.12, box3.y + box3.height * 0.5);
+    await page.waitForTimeout(700);
+    assert((await at()).startsWith("2 /"), `tap left → ${await at()}`);
+    await page.locator("[data-tour-back]").click();
+    await page.waitForTimeout(700);
+    assert((await at()).startsWith("1 /"), `Back → ${await at()}`);
     await ctx.close();
   });
   await step(V, "Help", "The guide has Flatmates, Couples, the trip report, stories, Wrapped, the passport and Splitwise, with real app screens that load", async () => {
     await go(V, "/how-it-works");
-    for (const h of ["Flatmates: the flat runs itself", "Couples: your split, not 50/50", "Trip over? The trip in numbers", "Home, told as stories", "Trip over? Watch the Wrapped", "Your trip passport", "Coming from another app?"]) await V.getByRole("heading", { name: h }).waitFor();
+    for (const h of ["Flatmates: the flat runs itself", "Couples: your split, not 50/50", "Trip over? The trip in numbers", "Home, told as stories", "Trip over? Watch the Wrapped", "Your trip passport", "Postcards, sealed and stamped", "Coming from another app?"]) await V.getByRole("heading", { name: h }).waitFor();
     assert(!(await V.getByText("Recurring bills are coming soon").count()), "still says recurring bills are coming soon");
     for (const id of ["trips", "home", "couples"]) {
       await V.locator(`#${id}`).scrollIntoViewIfNeeded();

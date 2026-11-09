@@ -22,7 +22,7 @@ import photos from "@/generated/photos.json";
 
 const photo = (slot: string) => (photos as Record<string, { src: string } | undefined>)[slot]?.src;
 
-// The intro tour, in the visitor's own currency: nine swipeable slides (start, balances, currencies, settling, home & couples, card nights, stories, passport, undo) that show what Loopin does, each with
+// The intro tour, in the visitor's own currency: ten swipeable slides (start, balances, currencies, settling, home & couples, card nights, stories, passport, postcards, undo) that show what Loopin does, each with
 // a small animated picture. Shown to first-time visitors on the home screen,
 // and any time at /welcome.
 
@@ -70,6 +70,36 @@ function Cheers() {
             {t}
           </span>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// A postcard on the table: the photo side slightly turned, the back peeking
+// out with a stamp and a wax seal.
+function PostcardArt({ place, slot }: { place: string; slot: string }) {
+  const src = photo(slot);
+  return (
+    <div className="relative h-[190px] w-full max-w-[300px]">
+      <div className="rise absolute right-1 top-0 h-[150px] w-[220px] rotate-[5deg] bg-[#f3eee2] p-3 shadow-[0_18px_30px_-14px_rgba(0,0,0,0.95)]">
+        <div className="absolute bottom-3 left-[52%] top-3 w-px bg-[#d8d0bd]" />
+        <div className="absolute right-3 top-3 h-[46px] w-[38px] bg-[#e9e1cc] p-[3px] [mask-image:radial-gradient(circle_at_2px_2px,transparent_1.6px,#000_1.8px)] [mask-size:5px_5px] [mask-position:-2px_-2px]">
+          <div className="h-full w-full border border-[#7b2d26] bg-[repeating-linear-gradient(0deg,rgba(123,45,38,0.18)_0_1px,transparent_1px_3px)]" />
+        </div>
+        <div className="absolute right-12 top-5 h-9 w-9 rounded-full border border-[#5b5a63]/60" />
+        <div className="absolute bottom-6 right-3 space-y-2.5">
+          <div className="h-px w-20 bg-[#cfc6b1]" />
+          <div className="h-px w-20 bg-[#cfc6b1]" />
+          <div className="h-px w-14 bg-[#cfc6b1]" />
+        </div>
+        <p className="absolute left-3 top-4 w-[44%] font-hand text-[15px] font-bold leading-tight text-[#2b3a67]">Wish you were here. Same time next year?</p>
+        <span className="absolute bottom-3 left-8 h-9 w-9 rounded-full bg-[radial-gradient(circle_at_35%_30%,#c44a3d,#7d1d16_70%)] shadow-[0_3px_6px_rgba(0,0,0,0.45)]" />
+      </div>
+      <div className="rise rise-3 absolute bottom-0 left-1 h-[132px] w-[196px] -rotate-[6deg] bg-[#f4f1e8] p-[6px] shadow-[0_20px_34px_-14px_rgba(0,0,0,0.95)]">
+        <div className="relative h-full w-full overflow-hidden bg-[#2a2a30]">
+          {src && <Image src={src} alt="" fill sizes="200px" className="object-cover" />}
+          <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-2 pb-1.5 pt-6 font-display text-[22px] font-semibold leading-none text-[#f7f4ec]">{place}</span>
+        </div>
       </div>
     </div>
   );
@@ -305,6 +335,12 @@ function makeSlides(L: Local): Slide[] {
     ),
   },
   {
+    id: "postcards",
+    title: ["Wish you were here.", "Send a postcard."],
+    caption: "Turn a trip photo into a postcard with a real-looking stamp, a wax seal and your own words. Send it in Loopin or on WhatsApp, or seal it to open on a day you choose.",
+    art: <PostcardArt place={L.india ? "Goa" : "Lisbon"} slot={L.india ? "place-goa" : "place-santorini"} />,
+  },
+  {
     id: "undo",
     title: ["Oops?", "Undo anything."],
     caption: "Anyone can fix a mistake. Every change is kept in the history and everyone in the group is told.",
@@ -405,6 +441,13 @@ export function IntroTour({
             className="tour-slide flex w-full shrink-0 snap-center flex-col px-5"
             data-active={i === active}
             aria-hidden={i !== active}
+            data-tour-slide={s.id}
+            onClick={(e) => {
+              // Like stories: tap the right side for the next slide, the left side to go back.
+              const r = e.currentTarget.getBoundingClientRect();
+              if (e.clientX - r.left < r.width * 0.4) go(Math.max(0, active - 1));
+              else if (!last) go(active + 1);
+            }}
           >
             <h1 className="font-display text-[40px] font-semibold leading-[1.05] tracking-tight">
               {s.title[0]}
@@ -422,9 +465,23 @@ export function IntroTour({
         <Link href={startHref} onClick={seen} className="pop block w-full bg-fg px-4 py-4 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63]">
           {cta}
         </Link>
-        <button type="button" onClick={() => go(last ? 0 : active + 1)} className="block w-full py-2 text-center text-sm font-medium text-gray-600">
-          {last ? "↺ See it again" : "Next →"}
-        </button>
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => go(active - 1)}
+            disabled={active === 0}
+            className="rounded-full px-4 py-2 text-sm font-medium text-gray-600 active:bg-mist disabled:opacity-0"
+            data-tour-back
+          >
+            ← Back
+          </button>
+          <span className="text-xs tabular-nums text-gray-400" data-tour-at>
+            {active + 1} / {slides.length}
+          </span>
+          <button type="button" onClick={() => go(last ? 0 : active + 1)} className="rounded-full px-4 py-2 text-sm font-medium text-fg active:bg-mist" data-tour-next>
+            {last ? "↺ See it again" : "Next →"}
+          </button>
+        </div>
         {signInHref && (
           <Link href={signInHref} className="block text-center text-xs text-gray-500">
             Save your groups to your email · <span className="font-medium text-fg underline underline-offset-4">Sign up or sign in</span>
