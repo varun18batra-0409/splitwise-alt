@@ -277,6 +277,10 @@ if (!hosted) {
   }, false);
   await page.setViewportSize({ width: 390, height: 844 });
   await shot("77-group-countdown", `/groups/${goa.id}`, undefined, false);
+  await shot("77b-group-weather", `/groups/${goa.id}`, async (p) => {
+    await p.locator("[data-trip-weather] summary").click();
+    await p.waitForTimeout(400);
+  }, false);
   await shot("78-countdown-image", `/groups/${goa.id}/countdown-image`, undefined, false);
   await shot("79-settings-trip-dates", `/groups/${goa.id}/settings#trip`, undefined, false);
   await db.group.update({ where: { id: goa.id }, data: { tripStart: ist(3), tripEnd: ist(6) } });
@@ -530,6 +534,10 @@ if (!hosted) {
       await p.waitForTimeout(800);
     }, false);
     await shot("125-our-passports", `/groups/${pune.id}/passports`, undefined, false);
+    await shot("125b-our-passports-only-you", `/groups/${pune.id}/passports`, async (p) => {
+      await p.locator("[data-compare-tab='you']").click();
+      await p.waitForTimeout(300);
+    }, false);
     await shot("119-story-pot", "/", async (p) => {
       const pot = p.locator("[data-stories] [data-story='pot'] button");
       if (await pot.count()) await pot.first().click();

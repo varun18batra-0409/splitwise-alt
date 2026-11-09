@@ -27,6 +27,7 @@ const FALLBACK = {
   "place-bali-2": "from-teal-950 to-emerald-900",
   "place-japan-2": "from-rose-950 to-stone-900",
   "cards-2": "from-emerald-950 to-stone-900",
+  "place-goa-4": "from-orange-900 to-rose-950",
 };
 const pic = (slot: Slot) => (photos as Record<string, { src: string } | undefined>)[slot]?.src;
 
@@ -362,6 +363,24 @@ export default async function HowItWorks() {
         <Screens
           a={{ src: "/guide/passport-stamps.webp", alt: "Passport stamps on a page", caption: "Your stamps" }}
           b={{ src: "/guide/friends-passports.webp", alt: "Friends' passports: everyone you've shared a group with and their flags", caption: "Friends’ passports" }}
+        />
+      </Section>
+
+      <div id="postcards" className="scroll-mt-4" />
+      <Section slot="place-goa-4" title="Postcards, sealed and stamped">
+        <p>
+          Turn any trip photo into a <strong>postcard</strong>. Pick the paper, the ink, the lettering and a look for the photo, add finishing
+          touches (pressed flowers, tape, a luggage tag), and close it with a <strong>wax seal</strong> in your colour. Every card gets a real-looking
+          stamp, with special limited stamps around festivals where you live.
+        </p>
+        <Steps
+          items={[
+            <><strong>Send it anywhere.</strong> In Loopin to anyone you share a group with, or on WhatsApp to anyone at all.</>,
+            <><strong>Seal it for later.</strong> Choose a day it opens: New Year’s Day, a month from now, a year from today.</>,
+            <><strong>Write back.</strong> Press a wax seal back on a card you got, or reply with your own.</>,
+            <><strong>Reuse a design.</strong> Send the same card to someone else, or borrow the look of one you received.</>,
+            <><strong>Stamp album.</strong> Every stamp you send or get is kept: You → Your postcards → Stamp album.</>,
+          ]}
         />
       </Section>
 

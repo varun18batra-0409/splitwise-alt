@@ -15,6 +15,11 @@ import { loadOverview } from "@/lib/overview";
 import { buildActivity, dayLabel } from "@/lib/activity";
 import { formatMoney } from "@/lib/money";
 import { HomeBanner } from "@/components/HomeBanner";
+import { HighlightCard } from "@/components/HighlightCard";
+import { homeHighlights } from "@/lib/home/highlights";
+import { usesFahrenheit } from "@/lib/climate";
+import { parseHandPlaces } from "@/lib/passport";
+import { nextDueDay } from "@/lib/home/bills";
 import { GroupCover } from "@/components/GroupCover";
 import { Polaroid } from "@/components/Polaroid";
 import { coverFor, coverOf } from "@/lib/covers";
@@ -331,6 +336,59 @@ export default async function Home({
     ? `${heroCard?.kicker ?? (hero.phase.kind === "before" ? "Your next trip" : "On the trip")}${friends ? `, with ${friends === 1 ? "1 friend" : `${friends} friends`}` : ""}`
     : "";
   const words: ReturnType<typeof heroWords> = hero ? heroWords(hero.g.group.name, hero.phase) : { small: greeting(new Date(), tz, account?.name) };
+
+  // The sliding cards at the top (4 to 7), picked for what's useful right now.
+  const stopsOf = (g: (typeof all)[number]) => tripStops(g.group.name, g.group.tripPlace ?? "", g.group.tripCountry ?? "");
+  const homeCountry = (account?.homeCountry || region.country || "IN").toUpperCase();
+  const [postcardsNew, billRows] = await Promise.all([
+    account ? db.postcard.count({ where: { toId: account.id, readAt: null } }) : Promise.resolve(0),
+    db.bill.findMany({ where: { groupId: { in: open.map((g) => g.group.id) }, deletedAt: null, paused: false }, take: 20 }),
+  ]);
+  const highlights = homeHighlights({
+    trips: trips.map((t) => {
+      const ph = placePhotos(t.g.group.name, t.g.group.tripPlace, 2);
+      return {
+        id: t.g.group.id,
+        name: placeOf(t.g.group.name),
+        phase: t.phase,
+        start: t.g.group.tripStart,
+        end: t.g.group.tripEnd || null,
+        stops: stopsOf(t.g),
+        photo: ph[0],
+        photo2: ph[1],
+        todaySpent: t.phase.kind === "before" ? undefined : todayIn(t.g).spent || undefined,
+      };
+    }),
+    justBack: open
+      .filter((g) => g.group.type === "trip" && g.group.tripStart && g.expenses.length > 0)
+      .map((g) => ({ g, ended: daysBetween(g.group.tripEnd || g.group.tripStart, today) }))
+      .filter(({ ended }) => ended >= 1 && ended <= 14)
+      .sort((a, b) => a.ended - b.ended)
+      .map(({ g, ended }) => ({
+        id: g.group.id,
+        name: placeOf(g.group.name),
+        endedDaysAgo: ended,
+        payments: g.transfers.length,
+        photo: placePhotos(g.group.name, g.group.tripPlace, 1)[0],
+        abroad: stopsOf(g).some((s) => s.country && s.country !== homeCountry),
+      })),
+    hasMonth: Boolean(month),
+    season,
+    postcardsNew,
+    billsDue: billRows.flatMap((b) => {
+      const due = nextDueDay(b, new Date());
+      const g = open.find((x) => x.group.id === b.groupId);
+      if (!due || !g || b.nature === "daily") return [];
+      return [{ groupId: b.groupId, billId: b.id, name: b.name, group: g.group.name, inDays: daysBetween(today, due), amount: b.nature === "fixed" && b.amount ? formatMoney(b.amount, g.group.currency) : "" }];
+    }),
+    passportCountries: new Set([
+      ...(account ? parseHandPlaces(account.places).map((p) => p.c) : []),
+      ...all.filter((g) => g.group.type === "trip" && g.group.tripStart && g.group.tripStart <= today).flatMap((g) => stopsOf(g).map((s) => s.country)),
+      homeCountry,
+    ].filter(Boolean)).size,
+    groups: open.length,
+    fahrenheit: usesFahrenheit(region.country),
+  });
 
   // First visit: show what Loopin does instead of an empty screen.
   const tourSeen = (await cookies()).get("lp_tour")?.value === "1";
@@ -681,24 +739,14 @@ export default async function Home({
           )}
 
           <div className="mt-8">
-          {/* The sliding cards: your month, a seasonal idea, bringing a group over. */}
+          {/* The sliding cards, picked for you: the trip you're on, the next trip's weather and what's on there,
+              a trip just over, postcards waiting, a bill due, your month, a festival where you live. */}
             <HomeBanner>
-              {season && (
-                <div className="relative flex h-[268px] flex-col overflow-hidden bg-[#120a10] px-5 pb-12 pt-5">
-                  <div className="absolute inset-y-0 left-[38%] w-[75%]">
-                    <GroupCover kind={coverOf({ cover: season.cover })} uid={`season-${season.id}`} />
-                  </div>
-                  <div aria-hidden className="absolute inset-0 bg-[linear-gradient(90deg,#120a10_32%,rgba(18,10,16,0)_78%)]" />
-                  <p className="relative text-sm text-[#ffc93c]">{season.eyebrow}</p>
-                  <p className="relative mt-1 max-w-[62%] font-display text-[26px] font-semibold leading-[1.1]">{season.title}</p>
-                  <p className="relative mt-auto max-w-[58%] text-[13px] leading-snug text-gray-700">{season.text}</p>
-                  <Link href={season.href} className={`relative mt-3 ${bannerButton}`}>
-                    {season.button}
-                  </Link>
-                </div>
-              )}
+              {highlights.map((h) =>
+                h.kind === "month" ? (
+                  month && (
+                    <div key="month">
 
-              {month && (
                 <div className="relative flex h-[268px] flex-col overflow-hidden bg-[radial-gradient(90%_90%_at_90%_10%,#4a2c16_0%,transparent_60%),linear-gradient(160deg,#24170f_0%,#121014_75%)] px-5 pb-12 pt-5">
                   <p aria-hidden className="absolute -right-3 -top-6 font-display text-[150px] font-semibold leading-none text-fg/[0.06]">
                     {month.name.slice(0, 3)}
@@ -728,33 +776,11 @@ export default async function Home({
                     See {month.name}
                   </Link>
                 </div>
-              )}
-
-              {open.length <= 3 && (
-                <div className="relative flex h-[268px] flex-col overflow-hidden bg-[radial-gradient(80%_90%_at_100%_100%,#17403a_0%,transparent_65%),linear-gradient(160deg,#10201f_0%,#0e1213_75%)] px-5 pb-12 pt-5">
-                  <div aria-hidden className="absolute right-7 top-7 flex h-[92px] w-[72px] -rotate-[10deg] flex-col gap-[7px] rounded-md bg-[#e9e5da] px-2.5 py-3 shadow-xl shadow-black/50">
-                    <span className="h-1 rounded bg-[#b9b3a5]" />
-                    <span className="h-1 w-2/3 rounded bg-[#b9b3a5]" />
-                    <span className="h-1 rounded bg-[#b9b3a5]" />
-                    <span className="h-1 w-1/2 rounded bg-[#b9b3a5]" />
-                  </div>
-                  <div aria-hidden className="absolute right-3 top-12 flex h-[92px] w-[72px] rotate-[8deg] flex-col gap-[7px] rounded-md bg-fg px-2.5 py-3 shadow-xl shadow-black/50">
-                    <span className="h-1 rounded bg-[#c9c3b5]" />
-                    <span className="h-1 w-3/5 rounded bg-[#c9c3b5]" />
-                    <span className="h-1 rounded bg-[#c9c3b5]" />
-                    <span className="mt-auto flex h-5 w-5 items-center justify-center self-end rounded-full bg-meter-up">
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M5 12.5l4.5 4.5L19 7.5" />
-                      </svg>
-                    </span>
-                  </div>
-                  <p className="relative text-sm text-[#8fd9c4]">Switching to Loopin?</p>
-                  <p className="relative mt-1 max-w-[62%] font-display text-[26px] font-semibold leading-[1.1]">Coming from another app?</p>
-                  <p className="relative mt-auto max-w-[60%] text-[13px] leading-snug text-gray-700">Bring a group over in about a minute. Same balances.</p>
-                  <Link href="/switching" className={`relative mt-3 ${bannerButton}`}>
-                    Bring a group over
-                  </Link>
-                </div>
+                    </div>
+                  )
+                ) : (
+                  <HighlightCard key={h.id} h={h} />
+                ),
               )}
             </HomeBanner>
           </div>
