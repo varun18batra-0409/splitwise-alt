@@ -17,11 +17,11 @@ export const CATEGORIES: Category[] = [
       "sushi", "nashta", "khana", "tiffin", "chicken", "mutton", "paneer", "pork", "fish", "seafood", "lassi",
       "drink", "beer", "wine", "whisky", "whiskey", "vodka", "rum", "gin", "tequila", "shot", "cocktail",
       "alcohol", "liquor", "daru", "booze", "bar", "pub", "brewery", "theka", "juice", "smoothie", "soda",
-      "supper", "bite", "bites", "eatery", "canteen", "bistro", "diner", "brasserie", "trattoria", "taco", "burrito", "kebab", "kabab", "shawarma", "falafel", "pasta", "salad", "soup", "curry", "chaat", "pani puri", "golgappa", "vada pav", "pav bhaji", "samosa", "pakora", "bhel", "kulfi", "gelato", "waffle", "pancake", "bagel", "croissant", "doughnut", "donut", "fries", "nachos", "steak", "dim sum", "dumpling", "hot pot", "naan", "roti", "tandoori", "subway", "burger king", "taco bell", "chipotle", "dunkin", "costa", "ccd", "cafe coffee day", "chaayos", "third wave", "blue tokai", "barista", "domino", "papa johns", "nandos", "pret", "greggs", "deliveroo", "doordash", "grubhub", "foodpanda", "talabat", "just eat", "drinks", "mocktail", "champagne", "prosecco", "sake", "soju", "toddy", "feni", "hookah", "sheesha", "shisha", "water bottle", "mineral water", "coke", "pepsi", "red bull", "energy drink", "milkshake", "shake", "bubble tea", "boba", "beverage", "refreshment", "eat", "eating", "ate", "feast", "treat", "dinner party", "barbecue night", "food court", "chips", "crisps", "popcorn", "water", "drinking water"],
+      "supper", "bite", "bites", "room service", "mess", "happy hour", "crab", "prawn", "prawns", "lobster", "oyster", "oysters", "in-n-out", "five guys", "wagamama", "tim hortons", "mcd", "behrouz", "bikanervala", "mithai", "falooda", "tapas", "pint", "pints", "old monk", "hawker", "hawker centre", "frappe", "energy drink", "monster energy", "red bull", "eatery", "canteen", "bistro", "diner", "brasserie", "trattoria", "taco", "burrito", "kebab", "kabab", "shawarma", "falafel", "pasta", "salad", "soup", "curry", "chaat", "pani puri", "golgappa", "vada pav", "pav bhaji", "samosa", "pakora", "bhel", "kulfi", "gelato", "waffle", "pancake", "bagel", "croissant", "doughnut", "donut", "fries", "nachos", "steak", "dim sum", "dumpling", "hot pot", "naan", "roti", "tandoori", "subway", "burger king", "taco bell", "chipotle", "dunkin", "costa", "ccd", "cafe coffee day", "chaayos", "third wave", "blue tokai", "barista", "domino", "papa johns", "nandos", "pret", "greggs", "deliveroo", "doordash", "grubhub", "foodpanda", "talabat", "just eat", "drinks", "mocktail", "champagne", "prosecco", "sake", "soju", "toddy", "feni", "hookah", "sheesha", "shisha", "water bottle", "mineral water", "coke", "pepsi", "red bull", "energy drink", "milkshake", "shake", "bubble tea", "boba", "beverage", "refreshment", "eat", "eating", "ate", "feast", "treat", "dinner party", "barbecue night", "food court", "chips", "crisps", "popcorn", "water", "drinking water"],
   },
   {
     id: "transport", label: "Wheels & Wings", short: "Wheels & Wings", emoji: "🚕",
-    words: ["uber", "ola", "rapido", "grab", "bolt", "taxi", "cab", "auto", "rickshaw", "tuk tuk", "tuktuk",
+    words: ["uber", "ola", "rapido", "grab", "bolt", "gojek", "funicular", "oyster card", "octopus card", "metro card", "driver", "driver bata", "bata", "chauffeur", "tempo traveller", "tempo", "innova", "ertiga", "hotel pickup", "airport pickup", "airport drop", "subway ride", "subway ticket", "jeep", "taxi", "cab", "auto", "rickshaw", "tuk tuk", "tuktuk",
       "metro", "bts", "mrt", "bus", "redbus", "train", "irctc", "petrol", "diesel", "fuel", "cng", "ev charging",
       "parking", "toll", "fastag", "ride", "scooty", "scooter", "bike rental", "car rental", "flight", "airline",
       "airport", "air ticket", "airfare", "air fare", "plane", "rail", "railway", "boat", "rental car", "car hire", "indigo", "vistara", "air india", "akasa", "spicejet", "airasia", "ferry", "transfer",
@@ -30,20 +30,20 @@ export const CATEGORIES: Category[] = [
   },
   {
     id: "accommodation", label: "Beds & Bunks", short: "Beds & Bunks", emoji: "🏨",
-    words: ["hotel", "airbnb", "hostel", "zostel", "resort", "stay", "room", "oyo", "treebo", "fabhotels", "agoda",
+    words: ["hotel", "airbnb", "hostel", "treehouse", "tree house", "extra bed", "ryokan", "service apartment", "serviced apartment", "vivanta", "taj hotel", "itc hotel", "zostel", "resort", "stay", "room", "oyo", "treebo", "fabhotels", "agoda",
       "booking.com", "goibibo", "homestay", "villa", "lodge", "guesthouse", "guest house", "accommodation", "booking",
-      "staying", "overnight", "night stay", "check in", "checkin", "check-in", "checkout", "check out", "room charges", "room service", "suite", "inn", "motel", "b&b", "bnb", "bed and breakfast", "campsite", "camping", "camp", "tent", "glamping", "cottage", "cabin", "chalet", "bungalow", "farmhouse", "farm stay", "farmstay", "haveli", "dharamshala", "dharmshala", "paying guest", "dorm", "dormitory", "bunk", "houseboat", "vrbo", "expedia", "hotels.com", "makemytrip", "mmt", "cleartrip", "easemytrip", "yatra", "trivago", "hostelworld", "taj hotel", "vivanta", "oberoi", "trident", "itc hotel", "leela", "marriott", "jw marriott", "ritz", "sheraton", "westin", "hyatt", "hilton", "conrad", "holiday inn", "crowne plaza", "radisson", "novotel", "ibis", "sofitel", "lemon tree", "ginger hotel", "fortune hotel", "club mahindra", "mahindra resort", "moustache hostel", "the hosteller", "gostops", "zo rooms", "fab hotel", "fabhotel", "lodging", "accomodation", "rooms", "nights", "night"],
+      "staying", "overnight", "night stay", "check in", "checkin", "check-in", "checkout", "check out", "room charges", "suite", "inn", "motel", "b&b", "bnb", "bed and breakfast", "campsite", "camping", "camp", "tent", "glamping", "cottage", "cabin", "chalet", "bungalow", "farmhouse", "farm stay", "farmstay", "haveli", "dharamshala", "dharmshala", "paying guest", "dorm", "dormitory", "bunk", "houseboat", "vrbo", "expedia", "hotels.com", "makemytrip", "mmt", "cleartrip", "easemytrip", "yatra", "trivago", "hostelworld", "taj hotel", "vivanta", "oberoi", "trident", "itc hotel", "leela", "marriott", "jw marriott", "ritz", "sheraton", "westin", "hyatt", "hilton", "conrad", "holiday inn", "crowne plaza", "radisson", "novotel", "ibis", "sofitel", "lemon tree", "ginger hotel", "fortune hotel", "club mahindra", "mahindra resort", "moustache hostel", "the hosteller", "gostops", "zo rooms", "fab hotel", "fabhotel", "lodging", "accomodation", "rooms", "nights", "night"],
   },
   {
     id: "shopping", label: "Bags & Bling", short: "Bags & Bling", emoji: "🛍️",
     words: ["shopping", "amazon", "flipkart", "myntra", "ajio", "meesho", "nykaa", "decathlon", "ikea", "croma",
       "clothes", "shirt", "tshirt", "jeans", "dress", "shoe", "gift", "souvenir", "mall", "market", "electronics",
-      "sim card", "sim", "fridge", "refrigerator", "washing machine", "microwave", "mattress", "appliance", "tv", "television", "furniture", "sofa", "curtains",
-      "purchase", "bought", "buy", "store", "shop", "boutique", "outlet", "duty free", "dutyfree", "perfume", "cosmetics", "makeup", "jewellery", "jewelry", "sunglasses", "bag", "backpack", "luggage", "suitcase", "trolley bag", "phone case", "charger", "power bank", "headphones", "earphones", "book", "stationery", "toy", "decor", "furniture", "h&m", "zara", "uniqlo", "westside", "pantaloons", "shoppers stop", "tata cliq", "nike", "adidas", "puma", "apple store", "handicraft", "saree", "sari", "kurta", "lehenga", "jacket", "sweater", "hoodie", "cap", "hat", "slippers", "sandals", "sneakers", "umbrella", "raincoat", "sunscreen", "toiletries", "gadget", "phone", "laptop"],
+      "sim card", "sim", "esim", "e-sim", "reliance digital", "keychain", "keychains", "magnet", "magnets", "swimwear", "bedsheet", "bedsheets", "pillow", "pillows", "purifier", "water purifier", "kitchen", "utensils", "mixer", "mixer grinder", "plant", "plants", "pashmina", "night market", "decor", "fridge", "refrigerator", "washing machine", "microwave", "mattress", "appliance", "tv", "television", "furniture", "sofa", "curtains",
+      "purchase", "bought", "buy", "store", "shop", "boutique", "outlet", "duty free", "dutyfree", "perfume", "cosmetics", "makeup", "jewellery", "jewelry", "sunglasses", "bag", "backpack", "luggage", "suitcase", "trolley bag", "phone case", "charger", "power bank", "headphones", "earphones", "book", "stationery", "toy", "decor", "furniture", "h&m", "zara", "uniqlo", "westside", "pantaloons", "shoppers stop", "tata cliq", "nike", "adidas", "puma", "apple store", "handicraft", "saree", "sari", "kurta", "lehenga", "jacket", "sweater", "hoodie", "cap", "hat", "slippers", "sandals", "sneakers", "umbrella", "raincoat", "sunscreen", "gadget", "phone", "laptop"],
   },
   {
     id: "groceries", label: "Pantry Run", short: "Pantry Run", emoji: "🛒",
-    words: ["grocery", "groceries", "vegetable", "veggies", "sabzi", "fruit", "milk", "egg", "bread", "atta", "rice",
+    words: ["grocery", "groceries", "nature's basket", "natures basket", "familymart", "family mart", "lawson", "meat", "toiletries", "vegetable", "veggies", "sabzi", "fruit", "milk", "egg", "bread", "atta", "rice",
       "dal", "kirana", "supermarket", "blinkit", "zepto", "bigbasket", "big basket", "jiomart", "amazon fresh",
       "instamart", "dmart", "reliance fresh", "7-eleven", "7 eleven", "seven eleven",
       "vegetables", "veg", "onion", "tomato", "potato", "aloo", "pyaz", "flour", "oil", "ghee", "sugar", "salt", "masala", "spices", "curd", "dahi", "butter", "cheese", "eggs", "household", "cleaning supplies", "detergent", "soap", "shampoo", "toothpaste", "tissue", "toilet paper", "dishwash", "harpic", "natures basket", "more supermarket", "spencers", "star bazaar", "ratnadeep", "walmart", "costco", "tesco", "sainsbury", "aldi", "lidl", "whole foods", "trader joe", "kroger", "safeway", "coles", "woolworths", "fairprice", "lulu", "carrefour", "provisions", "ration", "general store", "swiggy instamart", "dunzo", "bb daily", "milkbasket", "country delight", "water can", "bisleri", "grocery run"],
@@ -54,12 +54,12 @@ export const CATEGORIES: Category[] = [
       "trip", "sightseeing", "boat", "cruise", "trek", "snorkel", "snorkeling", "diving", "scuba", "rafting",
       "paragliding", "go karting", "gokarting", "adventure", "spa", "massage", "show", "movie", "cinema", "film",
       "pvr", "inox", "bookmyshow", "book my show", "concert", "party", "club", "bowling", "game", "gaming", "event",
-      "cover charge", "activity", "excursion", "safari", "guide", "poker", "buy-in", "buy in", "buyin", "teen patti", "casino",
+      "cover charge", "activity", "excursion", "safari", "disneyland", "disney land", "banana boat", "jeep safari", "elephant camp", "island hopping", "cooking class", "class", "workshop", "lift pass", "ski pass", "light and sound", "picnic", "guide", "poker", "buy-in", "buy in", "buyin", "teen patti", "casino",
       "entry fee", "entry ticket", "admission", "day pass", "theme park", "water park", "amusement park", "wonderla", "imagica", "disney", "universal studios", "legoland", "aquarium", "gallery", "exhibition", "monument", "taj mahal", "heritage", "tour guide", "boat ride", "jet ski", "banana ride", "parasailing", "bungee", "zipline", "zip line", "skydiving", "hot air balloon", "camel ride", "elephant ride", "horse ride", "ski", "skiing", "snowboard", "surfing", "kayak", "kayaking", "canoe", "hiking", "hike", "climbing", "yoga class", "workshop", "lesson", "match", "stadium", "ipl", "cricket", "football", "golf", "casino", "karaoke", "escape room", "arcade", "laser tag", "paintball", "nightclub", "festival", "fest", "gig", "standup", "stand-up", "comedy", "theatre", "theater", "opera", "photoshoot", "sauna", "sightseeing tour", "city tour", "safari jeep"],
   },
   {
     id: "bills", label: "Bills & Bits", short: "Bills & Bits", emoji: "💡",
-    words: ["rent", "room rent", "house rent", "flat rent", "electricity", "electric", "light bill", "water bill", "tanker", "water tanker", "water can", "travel insurance", "plumber", "electrician", "carpenter", "repair",
+    words: ["rent", "room rent", "house rent", "flat rent", "electricity", "electric", "light bill", "water bill", "driver salary", "apple music", "icloud", "google one", "ac service", "forex", "forex charges", "bank charges", "cable tv", "garbage", "newspaper", "newspaper bill", "tanker", "water tanker", "water can", "travel insurance", "plumber", "electrician", "carpenter", "repair",
       "gas bill", "gas", "lpg", "cylinder", "wifi", "internet", "broadband", "recharge", "jio", "airtel", "dth",
       "phone bill", "mobile bill", "maintenance", "society", "maid", "cook", "laundry", "dry clean", "ironing",
       "subscription", "netflix", "prime", "spotify", "hotstar", "youtube premium", "emi", "insurance", "bill",
@@ -94,7 +94,7 @@ const KEYWORDS = CATEGORIES.flatMap((c) =>
 // Where you were rather than what you bought: these lose to any other word.
 // General buying and place words ("buy", "shop", "store", "night") also only decide when nothing else does:
 // "Buy groceries" is Pantry Run, "Store" alone is Bags & Bling.
-const WEAK = new Set(["market", "mall", "buy", "bought", "purchase", "store", "shop", "night", "nights", "rooms", "drop", "pickup", "pick up", "water", "fees", "car", "bike", "eat", "eating", "ate", "treat", "match", "lesson", "phone"]);
+const WEAK = new Set(["night market", "class", "kitchen", "driver", "tempo", "jeep", "plant", "plants", "market", "mall", "buy", "bought", "purchase", "store", "shop", "night", "nights", "rooms", "drop", "pickup", "pick up", "water", "fees", "car", "bike", "eat", "eating", "ate", "treat", "match", "lesson", "phone"]);
 
 // Single words long enough to be worth typo-matching ("dinner", "petrol", "groceries").
 const FUZZY = KEYWORDS.filter((k) => /^[a-z]+$/.test(k.word) && k.word.length >= 4);
@@ -142,8 +142,9 @@ export function analyzeName(name: string): CategoryGuess {
   //    Place words ("market", "mall") only decide when nothing else does:
   //    "Night market dinner" is Food, "Mall" alone is Shopping.
   let best: { category: string; index: number; length: number } | null = null;
+  let strong = false;
   for (const k of [...KEYWORDS.filter((k) => !WEAK.has(k.word)), ...KEYWORDS.filter((k) => WEAK.has(k.word))]) {
-    if (best && WEAK.has(k.word)) break;
+    if (strong && WEAK.has(k.word)) break; // weak words only compete with each other
     const m = k.re.exec(text);
     if (!m) continue;
     const better =
@@ -151,6 +152,7 @@ export function analyzeName(name: string): CategoryGuess {
       m.index < best.index ||
       (m.index === best.index && (m[0].length > best.length || (m[0].length === best.length && ORDER.get(k.category)! < ORDER.get(best.category)!)));
     if (better) best = { category: k.category, index: m.index, length: m[0].length };
+    if (best && !WEAK.has(k.word)) strong = true;
   }
   // 2. Words split by a space that belong together ("Air bnb", "Big Basket").
   const wordHits = [...text.matchAll(/[A-Za-z]+/g)];
@@ -198,7 +200,16 @@ export function analyzeName(name: string): CategoryGuess {
   const bestIsWeak = best !== null && WEAK.has(text.slice(best.index, best.index + best.length).toLowerCase().replace(/(es|s)$/, ""));
   const category =
     (typoFirst ? typo!.category : null) ?? (bestIsWeak ? (joinedCategory ?? typo?.category) : null) ?? best?.category ?? joinedCategory ?? typo?.category ?? "other";
-  return typo ? { category, suggestion: typo.suggestion } : { category };
+  // What the words around it say about the buying: something "to take home" is
+  // a souvenir; "1 kg", "from the market" is shopping for the kitchen.
+  const ctx =
+    /\b(to take (it )?(home|back)|to bring (it )?(home|back)|for (mum|mom|dad|family|friends) back home)\b/i.test(text)
+      ? "shopping"
+      : /\b\d+(\.\d+)?\s?(kg|kgs|gm|gms|g|litre|litres|liter|liters|ltr|l|dozen)\b|\bfrom (the )?(market|mandi|sabzi ?wala|supermarket|kirana)\b/i.test(text) && ["food", "other", "shopping"].includes(category)
+        ? "groceries"
+        : null;
+  const final = ctx ?? category;
+  return typo ? { category: final, suggestion: typo.suggestion } : { category: final };
 }
 
 export function guessCategory(description: string): string {
