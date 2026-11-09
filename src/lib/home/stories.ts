@@ -1,4 +1,6 @@
 import type { TripPhase } from "../countdown";
+import { placeSlot } from "../places";
+import { storyLines } from "./story-lines";
 
 // Home's stories: the moments in your groups, not the numbers. A trip coming
 // up (or happening now), last night's card game, a group that just got all
@@ -55,49 +57,24 @@ function tripLine(p: TripPhase, people: number): string {
   return "Mark it in your calendar";
 }
 
-// Little captions for the place's photos, by the kind of trip.
-const CAPTIONS: Record<"beach" | "hills" | "city" | "any", [string, string][]> = {
-  beach: [
-    ["Forecast", "100% chance of flip-flops 🩴"],
-    ["Packing list", "Sunscreen. More sunscreen. A hat you'll lose."],
-    ["Golden hour", "Somebody's taking 400 photos of this sunset"],
-    ["Plot twist", "The beach shack is the fancy dinner"],
-  ],
-  hills: [
-    ["Forecast", "Cold enough for two hoodies 🧣"],
-    ["Packing list", "Warm socks. Maggi. A speaker for the drive."],
-    ["Spotted", "Chai at 2,000 metres hits different ☕"],
-    ["Plot twist", "Nobody packed the charger"],
-  ],
-  city: [
-    ["Forecast", "High chance of street food 🌮"],
-    ["Packing list", "Comfy shoes. You will walk 20,000 steps."],
-    ["After dark", "The city looks better at night. So do the bills."],
-    ["Plot twist", "Someone gets lost. It's always the same someone"],
-  ],
-  any: [
-    ["Forecast", "Good times, with a chance of receipts 🧾"],
-    ["Packing list", "Charger, passport, snacks. In that order."],
-    ["Spotted", "The group chat, already planning outfits"],
-    ["Plot twist", "Loopin keeps the maths. You keep the memories"],
-  ],
-};
-
 function tripFrames(t: StoryInput["trips"][number]): Frame[] {
   const p = t.phase;
   const where = place(t.name);
   const photos = t.photos?.length ? t.photos : t.photo ? [t.photo] : [];
-  const caps = CAPTIONS[t.mood ?? "any"];
+  // Lines for this place, this kind of trip and this crew; a fresh set each day, written for the place, not the photo.
+  const dayKey = p.kind === "before" ? `b${p.days}` : p.kind === "during" ? `d${p.day}` : "t";
+  const caps = storyLines({ place: placeSlot(t.name), mood: t.mood, people: t.people, seed: `${t.id}-${dayKey}` });
+  const cap = (k: number) => caps[k % Math.max(1, caps.length)] ?? ["", ""];
   const photo = (k: number, kicker: string | undefined, head: string, line?: string): Frame | null => (photos.length ? { kind: "photo", photo: photos[k % photos.length], kicker, head, line } : null);
   const crew: Frame | null = t.crew && t.crew.length > 1 ? { kind: "list", tone: "sky", kicker: "The crew", rows: t.crew.slice(0, 8).map((n) => ({ label: n })), line: t.crew.length > 8 ? `and ${t.crew.length - 8} more` : `${t.crew.length} of you. Dangerous.` } : null;
   const out: (Frame | null)[] = [];
   if (p.kind === "before") {
     out.push(photo(0, p.days === 1 ? "Tomorrow" : `In ${p.days} days`, where, tripLine(p, t.people)));
     out.push({ kind: "poster", tone: "sun", kicker: p.days === 1 ? "Sleeps to go" : "Sleeps to go", big: String(p.days), line: p.days <= 3 ? "Not that anyone's counting 👀" : "Someone has a countdown on their lock screen" });
-    out.push(photo(1, caps[0][0], caps[0][1]));
+    out.push(photo(1, cap(0)[0], cap(0)[1]));
     out.push(crew);
-    out.push(photo(2, caps[1][0], caps[1][1]));
-    out.push(photo(3, caps[2][0], caps[2][1], "Add bookings now, sort the money later"));
+    out.push(photo(2, cap(1)[0], cap(1)[1]));
+    out.push(photo(3, cap(2)[0], cap(2)[1], "Add bookings now, sort the money later"));
   } else {
     const d = t.today;
     out.push(photo(0, p.kind === "today" ? "Today" : `Day ${p.kind === "during" ? p.day : 1}`, p.kind === "today" ? `${where} starts today` : `${where}, day ${p.kind === "during" ? p.day : 1}`, tripLine(p, t.people)));
@@ -107,10 +84,10 @@ function tripFrames(t: StoryInput["trips"][number]): Frame[] {
         : { kind: "poster", tone: "coral", kicker: "Spent today", big: "Nothing", line: "Suspiciously quiet… 👀" },
     );
     if (d?.top) out.push({ kind: "poster", tone: "mint", kicker: "Carrying the team today", big: d.top, line: "Somebody buy them a drink 🍹" });
-    out.push(photo(1, caps[2][0], caps[2][1]));
+    out.push(photo(1, cap(0)[0], cap(0)[1]));
     if (d?.biggest) out.push({ kind: "poster", tone: "pink", kicker: "Biggest bill today", big: d.biggest.amount, line: d.biggest.what });
     out.push(crew);
-    out.push(photo(2, caps[3][0], caps[3][1], "Add it now, settle it later"));
+    out.push(photo(2, cap(1)[0], cap(1)[1], "Add it now, settle it later"));
   }
   const frames = out.filter((f): f is Frame => Boolean(f)).slice(0, 6);
   return frames.length ? frames : [{ kind: "poster", tone: "sky", kicker: where, big: p.kind === "before" ? `${p.days} days` : "Today", line: tripLine(p, t.people) }];
