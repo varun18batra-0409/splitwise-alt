@@ -46,15 +46,15 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
   const most = [...visible].sort((a, b) => b.codes.length - a.codes.length)[0];
   if (most && visible.length > 1 && most.codes.length > (visible.find((x) => x !== most)?.codes.length ?? 0))
     lines.push(`🧭 Most travelled: ${most.mine ? "you" : first(most.m.name)}, ${most.codes.length} ${most.codes.length === 1 ? "country" : "countries"}`);
-  if (visible.length > 1) {
-    const only = together.find((c) => visible.filter((p) => p.codes.includes(c)).length === 1);
-    if (only) {
-      const who = visible.find((p) => p.codes.includes(only))!;
-      lines.push(`✨ Only ${who.mine ? "you have" : `${first(who.m.name)} has`} been to ${countryOf(only)?.name} ${countryOf(only)?.flag}`);
-    }
-    const shared = together.filter((c) => visible.filter((p) => p.codes.includes(c)).length === visible.length);
-    if (shared.length) lines.push(`🤝 All of you have been to ${shared.slice(0, 3).map((c) => countryOf(c)?.name).join(", ")}`);
-  }
+  // Every country only one of you has been to, person by person, and the ones you've all been to.
+  const onlyBy =
+    visible.length > 1
+      ? [...visible]
+          .sort((a, b) => Number(b.mine) - Number(a.mine))
+          .map((p) => ({ p, codes: together.filter((c) => p.codes.includes(c) && visible.filter((x) => x.codes.includes(c)).length === 1) }))
+          .filter((r) => r.codes.length > 0)
+      : [];
+  const shared = visible.length > 1 ? together.filter((c) => visible.filter((p) => p.codes.includes(c)).length === visible.length) : [];
   const back = `/groups/${id}`;
   const order = [...people].sort((a, b) => Number(b.mine) - Number(a.mine) || Number(Boolean(a.m.leftAt)) - Number(Boolean(b.m.leftAt)) || b.codes.length - a.codes.length);
   return (
@@ -81,6 +81,16 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
               <li key={l}>{l}</li>
             ))}
           </ul>
+        )}
+        {(shared.length > 0 || onlyBy.length > 0) && (
+          <div className="mt-5 space-y-3" data-passport-compare>
+            {shared.length > 0 && (
+              <CountryRow title={`🤝 All of you (${shared.length})`} codes={shared} />
+            )}
+            {onlyBy.map(({ p, codes }) => (
+              <CountryRow key={p.m.id} title={`✨ Only ${p.mine ? "you" : first(p.m.name)} (${codes.length})`} codes={codes} data-only={p.mine ? "you" : first(p.m.name)} />
+            ))}
+          </div>
         )}
         {together.length === 0 && <p className="mt-2 text-sm text-gray-500">No stamps yet. Finish a trip together, or add the countries you’ve been to on your passport.</p>}
       </section>
@@ -122,5 +132,22 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
       </ul>
       <p className="mt-4 text-center text-xs text-gray-400">Trips still happening stay hidden until they’re over.</p>
     </>
+  );
+}
+
+// A titled row of countries: flag and name, all of them (they wrap).
+function CountryRow({ title, codes, ...rest }: { title: string; codes: string[]; "data-only"?: string }) {
+  return (
+    <div className="rounded-[16px] bg-mist/60 px-3.5 py-3" {...rest}>
+      <p className="mb-2 text-[13px] font-semibold text-fg/80">{title}</p>
+      <ul className="flex flex-wrap gap-1.5">
+        {codes.map((c) => (
+          <li key={c} className="flex items-center gap-1 rounded-full border border-line bg-canvas/40 px-2.5 py-1 text-[12.5px] text-fg/85">
+            <span aria-hidden>{countryOf(c)?.flag}</span>
+            {countryOf(c)?.name ?? c}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
