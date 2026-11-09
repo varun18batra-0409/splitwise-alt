@@ -11,7 +11,7 @@ export function InviteFriends({ name, className = "" }: { name?: string | null; 
   const [copied, setCopied] = useState(false);
   async function share() {
     const url = `${location.origin}/`;
-    const text = `${name ? `${name.split(" ")[0]} here. ` : ""}I use Loopin to split costs with friends: trips, flats, dinners. Free, no ads. Join me:`;
+    const text = `Hey! ${name ? `${name.split(" ")[0]} here. ` : ""}I use Loopin with friends for trips, flats and dinners ✨ Splitting is easy, settling takes one tap, and every trip turns into stories, postcards and a passport. Come join me 👇`;
     try {
       if (navigator.share) {
         await navigator.share({ title: "Loopin", text, url });

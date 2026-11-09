@@ -15,19 +15,21 @@ import { CopyButton } from "@/components/CollectBits";
 import { GroupCover } from "@/components/GroupCover";
 import { coverFor } from "@/lib/covers";
 
-// The WhatsApp invite, worded for the kind of group.
-function inviteMessage(type: string, name: string, link: string): string {
-  const lead =
+// The WhatsApp invite, worded for the kind of group: warm, short, and about why it's nice to be in,
+// not about the app. The link shows its own picture card underneath.
+function inviteMessage(type: string, name: string, link: string, from: string): string {
+  const who = from ? `${from} invited you` : "You’re invited";
+  const body =
     type === "trip"
-      ? `Join our trip “${name}” on Loopin: we split everything as we go, and get the whole trip back as stories after.`
+      ? `✈️ ${who} to *${name}* on Loopin\n\nAdd what you spend as we go, settle in one tap at the end, and get the whole trip back as stories, postcards and a stamp in your passport.`
       : type === "home"
-        ? `Join “${name}” on Loopin, for rent, bills and the shopping list. Nobody keeps a spreadsheet again.`
+        ? `🏠 ${who} to *${name}* on Loopin\n\nRent, bills and groceries in one place. Everyone sees their share, nobody has to chase anyone.`
         : type === "couple"
-          ? `Join “${name}” on Loopin, so we always know who’s ahead.`
+          ? `💛 ${who} to *${name}* on Loopin\n\nOur shared money, sorted. One number, no awkward maths.`
           : type === "pot"
-            ? `Join “${name}” on Loopin for card night: buy-ins, the pot, and who pays whom at the end.`
-            : `Join “${name}” on Loopin so we can split expenses, settle in one tap.`;
-  return `${lead}\n\nTap to join (30 seconds, no password):\n${link}`;
+            ? `🃏 ${who} to *${name}* on Loopin\n\nBuy-ins, the pot and who pays whom at the end, all in one place.`
+            : `👋 ${who} to *${name}* on Loopin\n\nAdd what you spend, see who owes what, settle in one tap.`;
+  return `${body}\n\nTap to join 👇\n${link}`;
 }
 
 // Add people. Nobody can be added by just typing a name:
@@ -59,7 +61,8 @@ export default async function AddPeoplePage({
   const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
   const link = `${proto}://${host}/join/${group.inviteCode}`;
   const qr = await QRCode.toString(link, { type: "svg", margin: 1, errorCorrectionLevel: "M", color: { dark: "#0d0d0f", light: "#f4f2ec" } });
-  const whatsapp = whatsappLink(inviteMessage(group.type, group.name, link));
+  const myFirst = (group.members.find((m) => m.id === myId)?.name ?? "").trim().split(/\s+/)[0] ?? "";
+  const whatsapp = whatsappLink(inviteMessage(group.type, group.name, link, myFirst));
 
   const active = group.members.filter((m) => !m.leftAt);
   const justDid = sp.did ? group.events.find((e) => e.id === sp.did) : undefined;
