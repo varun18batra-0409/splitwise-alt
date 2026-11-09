@@ -1,0 +1,13 @@
+name: Photo hunt
+on: { push: { branches: [photo-hunt] } }
+permissions: { contents: write }
+jobs:
+  hunt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install pillow && python3 hunt.py
+      - run: |
+          cd out && git init -q && git checkout -q -b photo-hunt-out && git add -A
+          git -c user.name=bot -c user.email=bot@users.noreply.github.com commit -qm sheets
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" photo-hunt-out
