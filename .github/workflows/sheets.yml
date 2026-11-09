@@ -1,5 +1,7 @@
 name: Photo sheets
 on: push
+permissions:
+  contents: write
 jobs:
   sheets:
     runs-on: ubuntu-latest
@@ -24,5 +26,8 @@ jobs:
           fs.writeFileSync("out/slots.txt", slots.join("\n"));
           JS
           node sheet.mjs
-      - uses: actions/upload-artifact@v4
-        with: { name: sheets, path: out }
+      - name: Save sheets to a branch
+        run: |
+          cd out && git init -q && git checkout -q -b photo-sheets-out && git add -A
+          git -c user.email=ci@example.com -c user.name=ci commit -qm sheets
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" photo-sheets-out
