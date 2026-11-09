@@ -447,6 +447,10 @@ if (!hosted) {
     await shot("129d-stamp-album", "/postcards/stamps", async (p) => {
       await p.waitForTimeout(900);
     });
+    await shot("150-category-food", "/search?c=food", async (p) => {
+      await p.locator("[data-category-filter]").waitFor();
+      await p.waitForTimeout(600);
+    });
     await shot("130-postcards-shelf", "/postcards", async (p) => {
       await p.waitForTimeout(1000);
     });

@@ -21,6 +21,7 @@ export type InsightsData = {
   categories: { id: string; amount: number }[]; // for the selected bar, biggest first
   bills: { id: string; href: string; name: string; group: string; amount: string; when: string; emoji: string }[];
   link: (over: { v?: string; p?: string }) => string;
+  catHref?: (id: string) => string; // all the expenses in one category
 };
 
 // ₹30K, ₹1.2L, $4.5K: short enough for the chart's scale.
@@ -186,7 +187,8 @@ export function Insights({ d }: { d: InsightsData }) {
               const cat = getCategory(c.id);
               const pct = totalCat > 0 ? Math.round((Math.max(0, c.amount) / totalCat) * 100) : 0;
               return (
-                <li key={c.id} className="flex items-center gap-3">
+                <li key={c.id}>
+                  <Link href={d.catHref ? d.catHref(c.id) : "#"} className="lp-press -mx-2 flex items-center gap-3 rounded-[14px] px-2 py-1 active:bg-mist" data-category-link={c.id}>
                   <ExpenseGlyph title="" category={c.id} />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline justify-between gap-2 text-sm">
@@ -203,6 +205,8 @@ export function Insights({ d }: { d: InsightsData }) {
                       />
                     </span>
                   </span>
+                  <span aria-hidden className="text-fg/35">›</span>
+                  </Link>
                 </li>
               );
             })}
