@@ -1,8 +1,9 @@
+import Link from "@/components/Link";
 // Simple, accessible charts drawn with plain HTML (no chart library).
 // Single-series charts use the one accent colour; every bar carries its value
 // as text, and a table view is one tap away for screen readers and exact numbers.
 
-export type BarDatum = { key: string; label: string; value: number; valueText: string; icon?: React.ReactNode };
+export type BarDatum = { key: string; label: string; value: number; valueText: string; icon?: React.ReactNode; href?: string };
 
 // Horizontal bars: comparing amounts between categories or people.
 export function HBarChart({ title, data, total }: { title: string; data: BarDatum[]; total?: string }) {
@@ -16,16 +17,7 @@ export function HBarChart({ title, data, total }: { title: string; data: BarDatu
       <ul className="space-y-3">
         {data.map((d) => (
           <li key={d.key} title={`${d.label}: ${d.valueText}`}>
-            <div className="mb-1 flex justify-between gap-3 text-sm">
-              <span className="flex min-w-0 items-center gap-2">
-                {d.icon}
-                <span className="truncate">{d.label}</span>
-              </span>
-              <span className="shrink-0 tabular-nums text-gray-500">{d.valueText}</span>
-            </div>
-            <div className="h-2 rounded-full bg-mist">
-              <div className="h-2 rounded-r-[4px] rounded-l-full bg-meter-up" style={{ width: `${Math.max(2, (d.value / max) * 100)}%` }} />
-            </div>
+            <BarRow d={d} max={max} />
           </li>
         ))}
       </ul>
@@ -79,5 +71,32 @@ function TableView({ data }: { data: BarDatum[] }) {
         </tbody>
       </table>
     </details>
+  );
+}
+
+function BarRow({ d, max }: { d: BarDatum; max: number }) {
+  const body = (
+    <>
+      <div className="mb-1 flex justify-between gap-3 text-sm">
+        <span className="flex min-w-0 items-center gap-2">
+          {d.icon}
+          <span className="truncate">{d.label}</span>
+        </span>
+        <span className="shrink-0 tabular-nums text-gray-500">
+          {d.valueText}
+          {d.href && <span aria-hidden className="ml-1.5 text-fg/35">›</span>}
+        </span>
+      </div>
+      <div className="h-2 rounded-full bg-mist">
+        <div className="h-2 rounded-r-[4px] rounded-l-full bg-meter-up" style={{ width: `${Math.max(2, (d.value / max) * 100)}%` }} />
+      </div>
+    </>
+  );
+  return d.href ? (
+    <Link href={d.href} className="lp-press -mx-2 block rounded-[12px] px-2 py-1 active:bg-mist" data-category-link={d.key}>
+      {body}
+    </Link>
+  ) : (
+    body
   );
 }

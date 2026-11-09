@@ -17,17 +17,21 @@ import { ActivityRow } from "@/components/ActivityRow";
 import { itemHref } from "@/lib/paths";
 import { PageHeader } from "@/components/ui";
 import { SearchIcon } from "@/components/icons";
+import { ExpenseGlyph } from "@/components/ExpenseGlyph";
+import { getCategory, isCategory } from "@/lib/categories";
 
 // Search everything: type words, tap a month or a year, narrow to one group.
 // The recap on top sums up whatever the filters picked.
 export default async function SearchPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; g?: string; y?: string; m?: string; w?: string; v?: string; p?: string }>;
+  searchParams: Promise<{ q?: string; g?: string; y?: string; m?: string; w?: string; v?: string; p?: string; c?: string }>;
 }) {
   const sp = await searchParams;
   const tz = await getTimeZone();
   const q = (sp.q ?? "").slice(0, 80);
+  // One category only (tapped from "Where it went" or a group's charts).
+  const cat = sp.c && isCategory(sp.c) ? sp.c : undefined;
   const period = cleanPeriod(sp.y, sp.m, sp.w);
   const all = await loadMyGroups(await getMemberships());
   const groupId = all.some((g) => g.group.id === sp.g) ? sp.g : undefined;
@@ -37,7 +41,9 @@ export default async function SearchPage({
     const names = new Map(g.group.members.map((m) => [m.id, m.id === g.myId ? "You" : m.name]));
     const nameOf = (id: string) => names.get(id) ?? "Someone";
     const searchName = (id: string) => (id === g.myId ? `${g.group.members.find((m) => m.id === id)?.name ?? ""} you` : nameOf(id));
-    const items = filterActivity(buildActivity(g.expenses, g.payments, g.myId), { q }, searchName);
+    const items = filterActivity(buildActivity(g.expenses, g.payments, g.myId), { q }, searchName).filter(
+      (item) => !cat || (item.kind === "expense" && getCategory(item.category).id === cat),
+    );
     return items.map((item) => ({ item, g, nameOf }));
   });
   const { months, years } = periodsOf(rows.map((r) => r.item.date), tz);
@@ -60,9 +66,11 @@ export default async function SearchPage({
   const view: "share" | "spent" = sp.v === "spent" ? "spent" : "share";
   const grain: Grain = sp.p === "w" || sp.p === "m" || sp.p === "y" ? sp.p : period.week ? "w" : period.year ? "y" : "m";
 
-  const href = (over: { g?: string | null; y?: string | null; m?: string | null; w?: string | null; v?: string; p?: string }) => {
+  const href = (over: { g?: string | null; y?: string | null; m?: string | null; w?: string | null; v?: string; p?: string; c?: string | null }) => {
     const p = new URLSearchParams();
     if (q) p.set("q", q);
+    const c = over.c === undefined ? cat : over.c;
+    if (c) p.set("c", c);
     const g = over.g === undefined ? groupId : over.g;
     if (g) p.set("g", g);
     const w = over.w === undefined ? period.week : over.w;
@@ -132,8 +140,8 @@ export default async function SearchPage({
       href: grain === "w" ? href({ w: k, m: null, y: null, p: "w" }) : grain === "m" ? href({ m: k, w: null, y: null, p: "m" }) : href({ y: k, m: null, w: null, p: "y" }),
     })),
     selected: ins.selected,
-    categories: ins.categories,
-    bills: billRows.map((b) => {
+    categories: cat ? [] : ins.categories,
+    bills: (cat ? [] : billRows).map((b) => {
       const g = groups.find((x) => x.group.id === b.groupId)!;
       const money = (n: number) => formatMoney(n, g.group.currency);
       const next = nextDueDay(b, new Date());
@@ -151,6 +159,7 @@ export default async function SearchPage({
       };
     }),
     link: (over) => href({ v: over.v, p: over.p, ...(over.p ? { w: null, m: null, y: null } : {}) }),
+    catHref: (id) => href({ c: id }),
   };
   const chip = (on: boolean) =>
     `shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-sm ${on ? "border-fg bg-fg font-medium text-canvas" : "border-line text-gray-600 active:bg-mist"}`;
@@ -169,7 +178,7 @@ export default async function SearchPage({
   const results = (
     <>
       <h2 className="mb-3 mt-2 font-display text-lg font-semibold tracking-tight">
-        {q ? <>Results for “{q}”</> : "All expenses"}
+        {q ? <>Results for “{q}”</> : cat ? getCategory(cat).label : "All expenses"}
         {q && (
           <Link href={clearHref} className="ml-2 font-sans text-sm font-normal text-gray-500 underline underline-offset-4">
             clear
@@ -263,6 +272,7 @@ export default async function SearchPage({
         {period.month && <input type="hidden" name="m" value={period.month} />}
         {period.year && <input type="hidden" name="y" value={period.year} />}
         {view !== "share" && <input type="hidden" name="v" value={view} />}
+        {cat && <input type="hidden" name="c" value={cat} />}
         {(sp.p === "w" || sp.p === "m" || sp.p === "y") && <input type="hidden" name="p" value={sp.p} />}
         <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
           <SearchIcon size={18} />
@@ -277,7 +287,21 @@ export default async function SearchPage({
           className="w-full rounded-full border border-line bg-mist py-3 pl-11 pr-4 text-base text-fg outline-none placeholder:text-gray-400 focus:border-accent"
         />
       </form>
-      {q ? (
+      {cat && (
+        <div className="mb-6 flex items-center gap-3 rounded-[20px] border border-line bg-mist/60 px-4 py-3" data-category-filter={cat}>
+          <ExpenseGlyph title="" category={cat} size={34} />
+          <span className="min-w-0 flex-1">
+            <span className="block font-display text-[17px] font-semibold">{getCategory(cat).label}</span>
+            <span className="block text-[13px] text-fg/60">
+              {shown.filter((r) => r.item.kind === "expense").length} expenses{groupId ? ` in ${groups[0].group.name}` : " across your groups"}
+            </span>
+          </span>
+          <Link href={href({ c: null })} className="shrink-0 rounded-full border border-line px-3 py-1.5 text-sm text-fg/70 active:bg-mist" aria-label="Show all categories">
+            All ✕
+          </Link>
+        </div>
+      )}
+      {q || cat ? (
         <>
           <section className="mb-10">{results}</section>
           {chart}

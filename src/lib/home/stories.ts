@@ -1,4 +1,7 @@
 import type { TripPhase } from "../countdown";
+import { placeSlot } from "../places";
+import { storyLines } from "./story-lines";
+import { lineForPhoto } from "./photo-tags";
 
 // Home's stories: the moments in your groups, not the numbers. A trip coming
 // up (or happening now), last night's card game, a group that just got all
@@ -35,7 +38,7 @@ export type Story = {
 type Pic = { photo?: string; photos?: string[]; cover?: { kind: string; src?: string } };
 export type StoryInput = {
   now: Date;
-  trips: ({ id: string; name: string; phase: TripPhase; people: number; crew?: string[]; mood?: "beach" | "hills" | "city" | "any"; today?: { spent: string; count: number; top?: string; biggest?: { what: string; amount: string } } } & Pic)[];
+  trips: ({ id: string; name: string; phase: TripPhase; people: number; month?: number; stop?: { city?: string; country?: string; countryName?: string; flag?: string }; crew?: string[]; mood?: "beach" | "hills" | "city" | "any"; today?: { spent: string; count: number; top?: string; biggest?: { what: string; amount: string } } } & Pic)[];
   games: { id: string; groupId: string; name: string; winner: string; won: string; youWon?: string; finishedAt: Date; table?: { name: string; net: string; up: boolean; even: boolean; share: number }[]; pays?: string[]; toSettle?: string; photos?: string[] }[];
   squared: ({ id: string; name: string; at: Date; spent?: string; payments?: number; people?: number } & Pic)[];
   collections: { id: string; code: string; title: string; paid: number; people: number; in?: string; target?: string; paidNames?: string[]; dueNames?: string[] }[];
@@ -55,49 +58,44 @@ function tripLine(p: TripPhase, people: number): string {
   return "Mark it in your calendar";
 }
 
-// Little captions for the place's photos, by the kind of trip.
-const CAPTIONS: Record<"beach" | "hills" | "city" | "any", [string, string][]> = {
-  beach: [
-    ["Forecast", "100% chance of flip-flops 🩴"],
-    ["Packing list", "Sunscreen. More sunscreen. A hat you'll lose."],
-    ["Golden hour", "Somebody's taking 400 photos of this sunset"],
-    ["Plot twist", "The beach shack is the fancy dinner"],
-  ],
-  hills: [
-    ["Forecast", "Cold enough for two hoodies 🧣"],
-    ["Packing list", "Warm socks. Maggi. A speaker for the drive."],
-    ["Spotted", "Chai at 2,000 metres hits different ☕"],
-    ["Plot twist", "Nobody packed the charger"],
-  ],
-  city: [
-    ["Forecast", "High chance of street food 🌮"],
-    ["Packing list", "Comfy shoes. You will walk 20,000 steps."],
-    ["After dark", "The city looks better at night. So do the bills."],
-    ["Plot twist", "Someone gets lost. It's always the same someone"],
-  ],
-  any: [
-    ["Forecast", "Good times, with a chance of receipts 🧾"],
-    ["Packing list", "Charger, passport, snacks. In that order."],
-    ["Spotted", "The group chat, already planning outfits"],
-    ["Plot twist", "Loopin keeps the maths. You keep the memories"],
-  ],
-};
-
 function tripFrames(t: StoryInput["trips"][number]): Frame[] {
   const p = t.phase;
   const where = place(t.name);
   const photos = t.photos?.length ? t.photos : t.photo ? [t.photo] : [];
-  const caps = CAPTIONS[t.mood ?? "any"];
+  // Lines for this place, this kind of trip and this crew; a fresh set each day, written for the place, not the photo.
+  const dayKey = p.kind === "before" ? `b${p.days}` : p.kind === "during" ? `d${p.day}` : "t";
+  const caps = storyLines({ month: t.month, place: placeSlot(`${t.name} ${t.stop?.city ?? ""}`), country: t.stop?.country, countryName: t.stop?.countryName, flag: t.stop?.flag, city: t.stop?.city, mood: t.mood, people: t.people, seed: `${t.id}-${dayKey}` });
+  // A slide's words: a line that fits its photo when we know what's in it (a sunset line on a
+  // sunset), else the next line about the place, the season or the crew. Never the same line twice.
+  const used = new Set<string>();
+  let nextCap = 0;
+  const cap = (k: number, photoIndex?: number): [string, string] => {
+    const src = photoIndex != null && photos.length ? photos[photoIndex % photos.length] : undefined;
+    const fit = src ? lineForPhoto(src, k + t.id.length, used) : null;
+    let pickd: [string, string] = fit ?? ["", ""];
+    if (!fit) {
+      for (let i = 0; i < caps.length; i++) {
+        const c = caps[(nextCap + i) % caps.length];
+        if (!used.has(c[1])) {
+          pickd = c;
+          nextCap = (nextCap + i + 1) % caps.length;
+          break;
+        }
+      }
+    }
+    used.add(pickd[1]);
+    return pickd;
+  };
   const photo = (k: number, kicker: string | undefined, head: string, line?: string): Frame | null => (photos.length ? { kind: "photo", photo: photos[k % photos.length], kicker, head, line } : null);
   const crew: Frame | null = t.crew && t.crew.length > 1 ? { kind: "list", tone: "sky", kicker: "The crew", rows: t.crew.slice(0, 8).map((n) => ({ label: n })), line: t.crew.length > 8 ? `and ${t.crew.length - 8} more` : `${t.crew.length} of you. Dangerous.` } : null;
   const out: (Frame | null)[] = [];
   if (p.kind === "before") {
     out.push(photo(0, p.days === 1 ? "Tomorrow" : `In ${p.days} days`, where, tripLine(p, t.people)));
     out.push({ kind: "poster", tone: "sun", kicker: p.days === 1 ? "Sleeps to go" : "Sleeps to go", big: String(p.days), line: p.days <= 3 ? "Not that anyone's counting 👀" : "Someone has a countdown on their lock screen" });
-    out.push(photo(1, caps[0][0], caps[0][1]));
+    { const c = cap(0, 1); out.push(photo(1, c[0], c[1])); }
     out.push(crew);
-    out.push(photo(2, caps[1][0], caps[1][1]));
-    out.push(photo(3, caps[2][0], caps[2][1], "Add bookings now, sort the money later"));
+    { const c = cap(1, 2); out.push(photo(2, c[0], c[1])); }
+    { const c = cap(2, 3); out.push(photo(3, c[0], c[1], "Add bookings now, sort the money later")); }
   } else {
     const d = t.today;
     out.push(photo(0, p.kind === "today" ? "Today" : `Day ${p.kind === "during" ? p.day : 1}`, p.kind === "today" ? `${where} starts today` : `${where}, day ${p.kind === "during" ? p.day : 1}`, tripLine(p, t.people)));
@@ -107,10 +105,10 @@ function tripFrames(t: StoryInput["trips"][number]): Frame[] {
         : { kind: "poster", tone: "coral", kicker: "Spent today", big: "Nothing", line: "Suspiciously quiet… 👀" },
     );
     if (d?.top) out.push({ kind: "poster", tone: "mint", kicker: "Carrying the team today", big: d.top, line: "Somebody buy them a drink 🍹" });
-    out.push(photo(1, caps[2][0], caps[2][1]));
+    { const c = cap(0, 1); out.push(photo(1, c[0], c[1])); }
     if (d?.biggest) out.push({ kind: "poster", tone: "pink", kicker: "Biggest bill today", big: d.biggest.amount, line: d.biggest.what });
     out.push(crew);
-    out.push(photo(2, caps[3][0], caps[3][1], "Add it now, settle it later"));
+    { const c = cap(1, 2); out.push(photo(2, c[0], c[1], "Add it now, settle it later")); }
   }
   const frames = out.filter((f): f is Frame => Boolean(f)).slice(0, 6);
   return frames.length ? frames : [{ kind: "poster", tone: "sky", kicker: where, big: p.kind === "before" ? `${p.days} days` : "Today", line: tripLine(p, t.people) }];

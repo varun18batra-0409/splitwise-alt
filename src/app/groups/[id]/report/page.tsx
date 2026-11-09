@@ -50,6 +50,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
             <ul className="mt-6 space-y-3">
               {r.categories.slice(0, 4).map((c) => (
                 <li key={c.id}>
+                  <Link href={`/search?g=${group.id}&c=${c.id}`} className="block active:opacity-80" data-category-link={c.id}>
                   <div className="flex justify-between text-sm">
                     <span className="flex items-center gap-2">
                       <ExpenseGlyph title="" category={c.id} size={20} className="rounded-[6px]!" />
@@ -62,6 +63,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
                   <div className="mt-1 h-1.5 rounded-full bg-line">
                     <div className="meter-bar h-1.5 origin-left rounded-full bg-owed" style={{ width: `${Math.max(2, c.pct)}%` }} />
                   </div>
+                  </Link>
                 </li>
               ))}
               {/* The rest, so the lines add up to the total. */}

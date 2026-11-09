@@ -16,7 +16,8 @@ export const CATEGORIES: Category[] = [
       "takeaway", "dine", "dining", "buffet", "barbeque", "barbecue", "bbq", "street food", "pad thai", "pho", "ramen",
       "sushi", "nashta", "khana", "tiffin", "chicken", "mutton", "paneer", "pork", "fish", "seafood", "lassi",
       "drink", "beer", "wine", "whisky", "whiskey", "vodka", "rum", "gin", "tequila", "shot", "cocktail",
-      "alcohol", "liquor", "daru", "booze", "bar", "pub", "brewery", "theka", "juice", "smoothie", "soda"],
+      "alcohol", "liquor", "daru", "booze", "bar", "pub", "brewery", "theka", "juice", "smoothie", "soda",
+      "supper", "bite", "bites", "eatery", "canteen", "bistro", "diner", "brasserie", "trattoria", "taco", "burrito", "kebab", "kabab", "shawarma", "falafel", "pasta", "salad", "soup", "curry", "chaat", "pani puri", "golgappa", "vada pav", "pav bhaji", "samosa", "pakora", "bhel", "kulfi", "gelato", "waffle", "pancake", "bagel", "croissant", "doughnut", "donut", "fries", "nachos", "steak", "dim sum", "dumpling", "hot pot", "naan", "roti", "tandoori", "subway", "burger king", "taco bell", "chipotle", "dunkin", "costa", "ccd", "cafe coffee day", "chaayos", "third wave", "blue tokai", "barista", "domino", "papa johns", "nandos", "pret", "greggs", "deliveroo", "doordash", "grubhub", "foodpanda", "talabat", "just eat", "drinks", "mocktail", "champagne", "prosecco", "sake", "soju", "toddy", "feni", "hookah", "sheesha", "shisha", "water bottle", "mineral water", "coke", "pepsi", "red bull", "energy drink", "milkshake", "shake", "bubble tea", "boba", "beverage", "refreshment", "eat", "eating", "ate", "feast", "treat", "dinner party", "barbecue night", "food court", "chips", "crisps", "popcorn", "water", "drinking water"],
   },
   {
     id: "transport", label: "Wheels & Wings", short: "Wheels & Wings", emoji: "🚕",
@@ -24,24 +25,28 @@ export const CATEGORIES: Category[] = [
       "metro", "bts", "mrt", "bus", "redbus", "train", "irctc", "petrol", "diesel", "fuel", "cng", "ev charging",
       "parking", "toll", "fastag", "ride", "scooty", "scooter", "bike rental", "car rental", "flight", "airline",
       "airport", "air ticket", "airfare", "air fare", "plane", "rail", "railway", "boat", "rental car", "car hire", "indigo", "vistara", "air india", "akasa", "spicejet", "airasia", "ferry", "transfer",
-      "travel"],
+      "travel",
+      "fare", "cab fare", "taxi fare", "lyft", "careem", "blablacar", "zoomcar", "revv", "yulu", "bounce", "vogo", "namma yatri", "blusmart", "blu smart", "meru", "savaari", "local train", "sleeper", "tatkal", "vande bharat", "shatabdi", "rajdhani", "volvo", "ksrtc", "msrtc", "apsrtc", "tsrtc", "gsrtc", "hrtc", "greyhound", "flixbus", "megabus", "amtrak", "eurostar", "eurail", "shinkansen", "jr pass", "oyster", "tube", "underground", "tram", "cable car", "ropeway", "gondola", "helicopter", "chopper", "jeep", "car", "bike", "motorbike", "royal enfield", "activa", "gas station", "petrol pump", "charging", "emirates", "qatar airways", "etihad", "lufthansa", "british airways", "american airlines", "southwest", "ryanair", "easyjet", "singapore airlines", "thai airways", "vietjet", "scoot", "jetstar", "baggage", "excess baggage", "car wash", "car service", "puncture", "tyre", "tire", "valet", "commute", "drop", "pickup", "pick up", "airport drop", "airport pickup", "shuttle", "driver fare", "fuel", "gas refill"],
   },
   {
     id: "accommodation", label: "Beds & Bunks", short: "Beds & Bunks", emoji: "🏨",
     words: ["hotel", "airbnb", "hostel", "zostel", "resort", "stay", "room", "oyo", "treebo", "fabhotels", "agoda",
-      "booking.com", "goibibo", "homestay", "villa", "lodge", "guesthouse", "guest house", "accommodation", "booking"],
+      "booking.com", "goibibo", "homestay", "villa", "lodge", "guesthouse", "guest house", "accommodation", "booking",
+      "staying", "overnight", "night stay", "check in", "checkin", "check-in", "checkout", "check out", "room charges", "room service", "suite", "inn", "motel", "b&b", "bnb", "bed and breakfast", "campsite", "camping", "camp", "tent", "glamping", "cottage", "cabin", "chalet", "bungalow", "farmhouse", "farm stay", "farmstay", "haveli", "dharamshala", "dharmshala", "paying guest", "dorm", "dormitory", "bunk", "houseboat", "vrbo", "expedia", "hotels.com", "makemytrip", "mmt", "cleartrip", "easemytrip", "yatra", "trivago", "hostelworld", "taj hotel", "vivanta", "oberoi", "trident", "itc hotel", "leela", "marriott", "jw marriott", "ritz", "sheraton", "westin", "hyatt", "hilton", "conrad", "holiday inn", "crowne plaza", "radisson", "novotel", "ibis", "sofitel", "lemon tree", "ginger hotel", "fortune hotel", "club mahindra", "mahindra resort", "moustache hostel", "the hosteller", "gostops", "zo rooms", "fab hotel", "fabhotel", "lodging", "accomodation", "rooms", "nights", "night"],
   },
   {
     id: "shopping", label: "Bags & Bling", short: "Bags & Bling", emoji: "🛍️",
     words: ["shopping", "amazon", "flipkart", "myntra", "ajio", "meesho", "nykaa", "decathlon", "ikea", "croma",
       "clothes", "shirt", "tshirt", "jeans", "dress", "shoe", "gift", "souvenir", "mall", "market", "electronics",
-      "sim card", "sim"],
+      "sim card", "sim",
+      "purchase", "bought", "buy", "store", "shop", "boutique", "outlet", "duty free", "dutyfree", "perfume", "cosmetics", "makeup", "jewellery", "jewelry", "sunglasses", "bag", "backpack", "luggage", "suitcase", "trolley bag", "phone case", "charger", "power bank", "headphones", "earphones", "book", "stationery", "toy", "decor", "furniture", "h&m", "zara", "uniqlo", "westside", "pantaloons", "shoppers stop", "tata cliq", "nike", "adidas", "puma", "apple store", "handicraft", "saree", "sari", "kurta", "lehenga", "jacket", "sweater", "hoodie", "cap", "hat", "slippers", "sandals", "sneakers", "umbrella", "raincoat", "sunscreen", "toiletries", "gadget", "phone", "laptop"],
   },
   {
     id: "groceries", label: "Pantry Run", short: "Pantry Run", emoji: "🛒",
     words: ["grocery", "groceries", "vegetable", "veggies", "sabzi", "fruit", "milk", "egg", "bread", "atta", "rice",
       "dal", "kirana", "supermarket", "blinkit", "zepto", "bigbasket", "big basket", "jiomart", "amazon fresh",
-      "instamart", "dmart", "reliance fresh", "7-eleven", "7 eleven", "seven eleven"],
+      "instamart", "dmart", "reliance fresh", "7-eleven", "7 eleven", "seven eleven",
+      "vegetables", "veg", "onion", "tomato", "potato", "aloo", "pyaz", "flour", "oil", "ghee", "sugar", "salt", "masala", "spices", "curd", "dahi", "butter", "cheese", "eggs", "household", "cleaning supplies", "detergent", "soap", "shampoo", "toothpaste", "tissue", "toilet paper", "dishwash", "harpic", "natures basket", "more supermarket", "spencers", "star bazaar", "ratnadeep", "walmart", "costco", "tesco", "sainsbury", "aldi", "lidl", "whole foods", "trader joe", "kroger", "safeway", "coles", "woolworths", "fairprice", "lulu", "carrefour", "provisions", "ration", "general store", "swiggy instamart", "dunzo", "bb daily", "milkbasket", "country delight", "water can", "bisleri", "grocery run"],
   },
   {
     id: "activities", label: "Thrills & Tickets", short: "Thrills & Tickets", emoji: "🎟️",
@@ -49,7 +54,8 @@ export const CATEGORIES: Category[] = [
       "trip", "sightseeing", "boat", "cruise", "trek", "snorkel", "snorkeling", "diving", "scuba", "rafting",
       "paragliding", "go karting", "gokarting", "adventure", "spa", "massage", "show", "movie", "cinema", "film",
       "pvr", "inox", "bookmyshow", "book my show", "concert", "party", "club", "bowling", "game", "gaming", "event",
-      "cover charge", "activity", "excursion", "safari"],
+      "cover charge", "activity", "excursion", "safari",
+      "entry fee", "entry ticket", "admission", "day pass", "theme park", "water park", "amusement park", "wonderla", "imagica", "disney", "universal studios", "legoland", "aquarium", "gallery", "exhibition", "monument", "taj mahal", "heritage", "tour guide", "boat ride", "jet ski", "banana ride", "parasailing", "bungee", "zipline", "zip line", "skydiving", "hot air balloon", "camel ride", "elephant ride", "horse ride", "ski", "skiing", "snowboard", "surfing", "kayak", "kayaking", "canoe", "hiking", "hike", "climbing", "yoga class", "workshop", "lesson", "match", "stadium", "ipl", "cricket", "football", "golf", "casino", "karaoke", "escape room", "arcade", "laser tag", "paintball", "nightclub", "festival", "fest", "gig", "standup", "stand-up", "comedy", "theatre", "theater", "opera", "photoshoot", "sauna", "sightseeing tour", "city tour", "safari jeep"],
   },
   {
     id: "bills", label: "Bills & Bits", short: "Bills & Bits", emoji: "💡",
@@ -57,7 +63,8 @@ export const CATEGORIES: Category[] = [
       "gas bill", "gas", "lpg", "cylinder", "wifi", "internet", "broadband", "recharge", "jio", "airtel", "dth",
       "phone bill", "mobile bill", "maintenance", "society", "maid", "cook", "laundry", "dry clean", "ironing",
       "subscription", "netflix", "prime", "spotify", "hotstar", "youtube premium", "emi", "insurance", "bill",
-      "utilities", "visa"],
+      "utilities", "visa",
+      "electricity bill", "power bill", "bescom", "msedcl", "tata power", "adani electricity", "torrent power", "bses", "piped gas", "mgl", "igl", "postpaid", "prepaid", "mobile recharge", "data pack", "vodafone", "bsnl", "act fibernet", "hathway", "excitel", "tata play", "dish tv", "deposit", "security deposit", "brokerage", "society maintenance", "property tax", "municipal", "water tax", "house help", "driver salary", "nanny", "cleaner", "cleaning service", "urban company", "urbanclap", "plumber", "electrician", "carpenter", "repair", "servicing", "pest control", "dry cleaning", "laundromat", "gym", "membership", "fees", "school fees", "tuition", "doctor", "medicine", "medicines", "pharmacy", "chemist", "hospital", "clinic", "medical", "apollo", "1mg", "pharmeasy", "dentist", "health insurance", "premium", "loan", "credit card bill", "tax", "gst", "challan", "penalty", "bank charges", "convenience fee", "visa fee", "passport fee", "courier", "postage", "water bill"],
   },
   { id: "other", label: "Odds & Ends", short: "Odds & Ends", emoji: "📦", words: [] },
 ];
@@ -80,11 +87,14 @@ const KEYWORDS = CATEGORIES.flatMap((c) =>
     word,
     category: c.id,
     // whole words only, allowing plurals: "beers", "buses"
-    re: new RegExp(`(?<![a-z0-9])${escape(word)}(?:s|es)?(?![a-z0-9])`, "i"),
+    // also "staying", "rented", "booked" for words of 4+ letters
+    re: new RegExp(`(?<![a-z0-9])${escape(word)}(?:s|es${word.length >= 4 && /[a-z]$/.test(word) ? "|ing|ed|d" : ""})?(?![a-z0-9])`, "i"),
   })),
 );
 // Where you were rather than what you bought: these lose to any other word.
-const WEAK = new Set(["market", "mall"]);
+// General buying and place words ("buy", "shop", "store", "night") also only decide when nothing else does:
+// "Buy groceries" is Pantry Run, "Store" alone is Bags & Bling.
+const WEAK = new Set(["market", "mall", "buy", "bought", "purchase", "store", "shop", "night", "nights", "rooms", "drop", "pickup", "pick up", "water", "fees", "car", "bike", "eat", "eating", "ate", "treat", "match", "lesson", "phone"]);
 
 // Single words long enough to be worth typo-matching ("dinner", "petrol", "groceries").
 const FUZZY = KEYWORDS.filter((k) => /^[a-z]+$/.test(k.word) && k.word.length >= 4);
@@ -97,7 +107,7 @@ const COMMON = new Set([
   "tall", "card", "cart", "care", "sale", "same", "lake", "make", "take", "fake", "line", "fine", "mine", "nine",
   "wine", "dine", "time", "home", "come", "some", "game", "came", "name", "part", "port", "post", "past", "fast",
   "last", "mast", "show", "slow", "snow", "stay", "star", "stop", "shop", "ship", "trap", "tram", "team", "tram",
-  "cash", "paid", "pain", "rain", "gain", "main", "maid", "mail", "said", "sold", "gold", "cold", "hold", "told",
+  "cash", "cards", "cardz", "data", "paid", "pain", "rain", "gain", "main", "maid", "mail", "said", "sold", "gold", "cold", "hold", "told",
   "with", "from", "this", "that", "they", "them", "then", "than", "when", "what", "were", "here", "there", "share",
   "split", "total", "extra", "other", "misc", "money", "bank", "card", "pay", "payment", "refund", "back", "food",
 ]);

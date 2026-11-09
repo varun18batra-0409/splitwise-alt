@@ -183,3 +183,30 @@ describe("categories cope with typos and suggest the right spelling", () => {
     expect(editDistance("grocries", "groceries")).toBe(1);
   });
 });
+
+describe("categories pick the right one from everyday words", () => {
+  it("knows stays, hotels and booking sites", async () => {
+    const { guessCategory } = await import("@/lib/categories");
+    for (const n of ["Stay", "Hotel", "Staying at Taj Hotel", "2 nights stay", "Airbnb Goa", "Marriott", "Hostel beds", "Resort", "Homestay Manali", "Camping tent", "MakeMyTrip hotel"]) expect(guessCategory(n), n).toBe("accommodation");
+  });
+  it("keeps rent, bills and health in Bills & Bits", async () => {
+    const { guessCategory } = await import("@/lib/categories");
+    for (const n of ["Room rent", "Rent", "Electricity bill", "Wifi", "Medicines", "Doctor", "Gym membership"]) expect(guessCategory(n), n).toBe("bills");
+  });
+  it("travel, food, groceries, shopping and activities", async () => {
+    const { guessCategory } = await import("@/lib/categories");
+    const cases: [string, string][] = [
+      ["Cab to airport", "transport"], ["Train tickets", "transport"], ["Scooty rental", "transport"], ["Car wash", "transport"],
+      ["Lunch at the mall", "food"], ["Drinks", "food"], ["Shawarma", "food"], ["Water", "food"],
+      ["Buy groceries", "groceries"], ["Milk and eggs", "groceries"],
+      ["Store", "shopping"], ["Sunglasses", "shopping"],
+      ["Taj Mahal entry", "activities"], ["Water park", "activities"], ["Boat ride", "activities"],
+      ["Misc", "other"],
+    ];
+    for (const [n, c] of cases) expect(guessCategory(n), n).toBe(c);
+  });
+  it("doesn't 'correct' ordinary words", async () => {
+    const { analyzeName } = await import("@/lib/categories");
+    for (const n of ["Cards", "Data", "Cash", "Goa trip"]) expect(analyzeName(n).suggestion, n).toBeUndefined();
+  });
+});

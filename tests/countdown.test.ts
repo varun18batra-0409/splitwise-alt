@@ -60,3 +60,22 @@ describe("Trip countdown", () => {
     expect(cleanTripDates("2030-01-01", "", "2026-10-22").ok).toBe(false);
   });
 });
+
+describe("countdown card words by stage", () => {
+  it("says 'Boarding' only in the last days", async () => {
+    const { countdownCard } = await import("@/lib/countdown");
+    for (const d of [39, 50, 70, 20, 10]) for (let s = 0; s < 7; s++) expect(countdownCard("Goa trip", { kind: "before", days: d }, s)!.kicker, `${d}/${s}`).not.toMatch(/Boarding/);
+  });
+  it("gives trips at the same stage different words on one screen", async () => {
+    const { countdownCard } = await import("@/lib/countdown");
+    const k = [0, 1, 2, 3, 4, 5, 6].map((s) => countdownCard("Goa trip", { kind: "before", days: 20 }, s)!.kicker);
+    expect(new Set(k).size).toBe(7);
+  });
+  it("knows the stages", async () => {
+    const { countdownStage } = await import("@/lib/countdown");
+    expect(countdownStage({ kind: "before", days: 39 })).toBe("w45");
+    expect(countdownStage({ kind: "before", days: 3 })).toBe("w3");
+    expect(countdownStage({ kind: "during", day: 1, of: 4 })).toBe("first");
+    expect(countdownStage({ kind: "during", day: 4, of: 4 })).toBe("last");
+  });
+});
