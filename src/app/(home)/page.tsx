@@ -220,6 +220,7 @@ export default async function Home({
       people: t.g.group.members.filter((m) => !m.leftAt).length,
       crew: crewOf(t.g),
       mood: moodOf(t.g.group.name),
+      month: t.g.group.tripStart ? Number(t.g.group.tripStart.slice(5, 7)) - 1 : undefined,
       stop: (() => {
         const st = tripStops(t.g.group.name, t.g.group.tripPlace ?? "", t.g.group.tripCountry ?? "")[0];
         const c = st?.country ? countryOf(st.country) : undefined;

@@ -23,3 +23,18 @@ describe("story lines write themselves", () => {
     }
   });
 });
+
+describe("story slides match their photos", () => {
+  it("puts a sunset line on a sunset and a houseboat line on a houseboat", async () => {
+    const { lineForPhoto } = await import("@/lib/home/photo-tags");
+    const used = new Set<string>();
+    expect(lineForPhoto("/photos/place-goa-4.jpg", 0, used)?.[0]).toMatch(/Golden hour|Sunset/);
+    expect(lineForPhoto("/photos/place-kerala.jpg", 0, used)?.[1]).toMatch(/backwaters/);
+    expect(lineForPhoto("/photos/place-somewhere-new.jpg", 0, used)).toBeNull();
+  });
+  it("adds a line for the time of year", async () => {
+    const { storyLines } = await import("@/lib/home/story-lines");
+    expect(storyLines({ month: 6, place: null, country: "IN", mood: "any", people: 3, seed: "x" }).some(([k]) => /Monsoon|Rain/.test(k))).toBe(true);
+    expect(storyLines({ month: 0, place: null, country: "AU", mood: "any", people: 3, seed: "x" }).some(([k]) => /Summer|Long days/.test(k))).toBe(true);
+  });
+});

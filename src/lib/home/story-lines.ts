@@ -125,6 +125,45 @@ const FLAVOUR: Record<string, { hi: string; money: string; thing?: string }> = {
   GE: { hi: "Gamarjoba", money: "lari", thing: "Khachapuri, the cheesy boat" },
   AZ: { hi: "Salam", money: "manat", thing: "Tea with jam in the old city" },
   RU: { hi: "Privet", money: "roubles", thing: "Blini with everything" },
+  BE: { hi: "Hallo", money: "euros", thing: "Waffles, fries and chocolate. In any order." },
+  LU: { hi: "Moien", money: "euros" },
+  MC: { hi: "Bonjour", money: "euros", thing: "People-watching by the harbour" },
+  MT: { hi: "Merħba", money: "euros", thing: "Pastizzi, warm from the oven" },
+  CY: { hi: "Yassou", money: "euros", thing: "Halloumi, grilled, everywhere" },
+  SI: { hi: "Živjo", money: "euros", thing: "Lake Bled cream cake" },
+  SK: { hi: "Ahoj", money: "euros" },
+  EE: { hi: "Tere", money: "euros", thing: "A walk through Tallinn's old town" },
+  LV: { hi: "Sveiki", money: "euros" },
+  LT: { hi: "Labas", money: "euros" },
+  RO: { hi: "Bună", money: "lei", thing: "Sarmale and a castle visit" },
+  BG: { hi: "Zdravei", money: "lev", thing: "Banitsa for breakfast" },
+  RS: { hi: "Zdravo", money: "dinars", thing: "Ćevapi and a late night out" },
+  ME: { hi: "Zdravo", money: "euros", thing: "The Bay of Kotor at golden hour" },
+  AL: { hi: "Përshëndetje", money: "lek", thing: "Byrek and the Riviera" },
+  JO: { hi: "Marhaba", money: "dinars", thing: "Petra at dawn, mansaf after" },
+  IL: { hi: "Shalom", money: "shekels", thing: "Hummus, still warm" },
+  LB: { hi: "Marhaba", money: "Lebanese pounds", thing: "Mezze that never ends" },
+  PK: { hi: "Assalam o alaikum", money: "rupees", thing: "Karahi, straight from the pan" },
+  BD: { hi: "Nomoskar", money: "taka", thing: "Hilsa, if it's the season" },
+  UZ: { hi: "Salom", money: "som", thing: "Plov from the big pot" },
+  MN: { hi: "Sain baina uu", money: "tögrög", thing: "A night in a ger" },
+  NG: { hi: "Hello", money: "naira", thing: "Jollof rice. Pick a side." },
+  GH: { hi: "Akwaaba", money: "cedis", thing: "Jollof and kelewele" },
+  ET: { hi: "Selam", money: "birr", thing: "A coffee ceremony" },
+  RW: { hi: "Muraho", money: "Rwandan francs", thing: "Gorilla trek, if you're lucky" },
+  UG: { hi: "Oli otya", money: "Ugandan shillings", thing: "A rolex. The street-food kind." },
+  SC: { hi: "Bonzour", money: "Seychelles rupees", thing: "Creole curry by the sea" },
+  CU: { hi: "Hola", money: "pesos", thing: "Old cars and live son music" },
+  CO: { hi: "Hola", money: "pesos", thing: "Arepas and very good coffee" },
+  CL: { hi: "Hola", money: "pesos", thing: "Empanadas and a glass of red" },
+  EC: { hi: "Hola", money: "dollars", thing: "The Galápagos, if you can" },
+  CR: { hi: "Pura vida", money: "colones", thing: "Gallo pinto for breakfast" },
+  PA: { hi: "Hola", money: "balboas (and dollars)", thing: "Watch a ship cross the canal" },
+  DO: { hi: "Hola", money: "pesos", thing: "Beach, bachata, repeat" },
+  JM: { hi: "Wah gwaan", money: "Jamaican dollars", thing: "Jerk chicken by the beach" },
+  FJ: { hi: "Bula", money: "Fijian dollars", thing: "Kava with the locals" },
+  CK: { hi: "Kia orana", money: "NZ dollars" },
+  PF: { hi: "Ia ora na", money: "francs", thing: "Overwater everything" },
   IN: { hi: "Namaste", money: "rupees", thing: "Chai at every stop" },
 };
 
@@ -153,6 +192,21 @@ const MOOD: Record<"beach" | "hills" | "city" | "any", Line[]> = {
   any: [["Forecast", "Good times, with a chance of receipts 🧾"], ["Packing list", "Charger, ID, snacks. In that order."], ["Spotted", "The group chat, already planning outfits"], ["Plot twist", "Loopin keeps the maths. You keep the memories"]],
 };
 
+// About the time of year: monsoon where there's a monsoon, and winter or summer by hemisphere.
+const MONSOON = new Set(["IN", "LK", "BD", "NP", "TH", "VN", "KH", "LA", "MM", "PH"]);
+const SOUTH = new Set(["AU", "NZ", "ZA", "AR", "BR", "CL", "UY", "PY", "FJ", "MU", "SC", "MG", "NA", "BW", "PE", "BO"]);
+function seasonLines(month?: number | null, country?: string | null): Line[] {
+  if (month == null || month < 0) return [];
+  const cc = (country ?? "IN").toUpperCase();
+  const south = SOUTH.has(cc);
+  const m = south ? (month + 6) % 12 : month; // flip the seasons south of the equator
+  if (MONSOON.has(cc) && month >= 5 && month <= 8) return [["Monsoon mode", "Pack a raincoat. And a backup raincoat."], ["Rain check", "Everything's greener in the rain"]];
+  if (m === 11 || m <= 1) return [["Winter trip", "Layers, layers, layers"], ["Cosy season", "Hot drinks, warm jackets, early nights (not)"]];
+  if (m >= 2 && m <= 4) return [["Spring trip", "Perfect weather, no excuses"], ["Fresh season", "Long days, light bags"]];
+  if (m >= 5 && m <= 7) return [["Summer trip", "Sunscreen is a personality now"], ["Long days", "The sun sets late. So do you."]];
+  return [["Autumn trip", "Sweater weather and golden light"], ["Shoulder season", "Fewer crowds, better deals"]];
+}
+
 // About the people: two of you, a few, or a whole squad.
 function crewLines(people: number): Line[] {
   if (people <= 2) return [["Just you two", "Table for two, every night 💛"], ["Couple goals", "One splits the bill, one picks the place"]];
@@ -175,15 +229,17 @@ function pick<T>(list: T[], seed: string, n: number): T[] {
 }
 
 // The lines for one trip story: the place's own first, then the kind of trip, then the crew.
-export function storyLines(o: { place?: string | null; country?: string | null; countryName?: string | null; flag?: string | null; city?: string | null; mood?: "beach" | "hills" | "city" | "any"; people: number; seed: string; n?: number }): Line[] {
+export function storyLines(o: { month?: number | null; place?: string | null; country?: string | null; countryName?: string | null; flag?: string | null; city?: string | null; mood?: "beach" | "hills" | "city" | "any"; people: number; seed: string; n?: number }): Line[] {
   // The place's own hand-written lines, else lines for its city and country (any country in the world).
   const handWritten = (o.place && PLACE[o.place.replace(/^place-/, "")]) || [];
   const own = handWritten.length ? handWritten : worldLines(o.country, o.city, o.countryName, o.flag);
   const mood = MOOD[o.mood ?? "any"];
   const n = o.n ?? 4;
   // Up to 3 about the place, then the trip's kind, then one about the crew.
-  const placeLines = pick(own, o.seed, Math.min(3, own.length));
   const crew = pick(crewLines(o.people), `${o.seed}c`, 1);
-  const rest = pick(mood, `${o.seed}m`, Math.max(0, n - placeLines.length - crew.length));
-  return [...placeLines, ...rest, ...crew].slice(0, n);
+  const season = pick(seasonLines(o.month, o.country), `${o.seed}s`, 1);
+  const room = Math.max(1, n - crew.length - season.length);
+  const placeLines = pick(own, o.seed, Math.min(room, own.length));
+  const rest = pick(mood, `${o.seed}m`, Math.max(0, room - placeLines.length));
+  return [...placeLines, ...season, ...rest, ...crew].slice(0, n);
 }
