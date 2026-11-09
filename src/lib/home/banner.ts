@@ -81,6 +81,54 @@ const SEASONS: (Omit<Season, "href"> & { from: string; to: string; name: string;
     text: "One group for the turkey, the drinks and the trip home.", button: "Start a group", cover: "dinner", name: "Friendsgiving", type: "other", countries: ["US"],
   },
   {
+    id: "holi-2027", from: "2027-03-06", to: "2027-03-22", eyebrow: "Holi is on 22 Mar", title: "A Holi weekend away?",
+    text: "One group for the colours, the gujiya and the trip: split as you go.", button: "Start a trip", cover: "photo-friends", name: "Holi weekend", type: "trip", countries: ["IN"],
+  },
+  {
+    id: "summer-in", from: "04-15", to: "05-25", eyebrow: "Summer holidays", title: "Escaping the heat?",
+    text: "Hills, beaches or abroad: one trip group, everyone square by the time you’re back.", button: "Plan a trip", cover: "mountain", name: "Summer trip", type: "trip", countries: ["IN"],
+  },
+  {
+    id: "monsoon-in", from: "06-20", to: "08-20", eyebrow: "Monsoon weekends", title: "A rainy-day getaway?",
+    text: "Lonavala, Coorg, a waterfall drive: split the villa, the fuel and the chai.", button: "Plan a weekend", cover: "mountain", name: "Monsoon weekend", type: "trip", countries: ["IN"],
+  },
+  {
+    id: "diwali-2027", from: "2027-10-10", to: "2027-10-29", eyebrow: "Diwali is on 29 Oct 🪔", title: "Diwali card night?",
+    text: "Teen Patti or Poker: The Pot keeps count of who took what, who won and who pays whom.", button: "Start a Pot", cover: "cards", name: "Diwali card night", type: "pot", countries: ["IN"],
+  },
+  {
+    id: "lunar-2027", from: "2027-01-20", to: "2027-02-06", eyebrow: "Lunar New Year is on 6 Feb", title: "Reunion dinner?",
+    text: "The dinner, the hongbao run, the trip home: one group, split fairly.", button: "Start a group", cover: "dinner", name: "Reunion dinner", type: "other", countries: ["SG", "HK", "TW", "MY", "VN", "KR", "CN"],
+  },
+  {
+    id: "eid-2027", from: "2027-02-24", to: "2027-03-10", eyebrow: "Eid is coming", title: "Eid get-together?",
+    text: "The feast, the gifts, the trip to family: one group for all of it.", button: "Start a group", cover: "dinner", name: "Eid get-together", type: "other", countries: ["AE", "SA", "QA", "KW", "BH", "OM", "EG", "MY", "ID", "TR", "PK", "BD"],
+  },
+  {
+    id: "easter-2027", from: "2027-03-10", to: "2027-03-28", eyebrow: "Easter is on 28 Mar", title: "Long weekend away?",
+    text: "Four days off: one group for the cottage, the train and the chocolate.", button: "Plan a trip", cover: "mountain", name: "Easter weekend", type: "trip", countries: ["GB", "IE", "AU", "NZ", "DE", "FR", "IT", "ES", "NL", "AT", "CH"],
+  },
+  {
+    id: "spring-break", from: "03-01", to: "03-25", eyebrow: "Spring break", title: "Spring break trip?",
+    text: "Flights, the rental and the late nights: one group, no maths on the beach.", button: "Plan a trip", cover: "beach", name: "Spring break", type: "trip", countries: ["US", "CA"],
+  },
+  {
+    id: "july4", from: "06-20", to: "07-04", eyebrow: "The Fourth is coming", title: "Fourth of July cookout?",
+    text: "Burgers, fireworks and the cooler: split it before the sparklers.", button: "Start a group", cover: "dinner", name: "Fourth of July", type: "other", countries: ["US"],
+  },
+  {
+    id: "summer-north", from: "06-01", to: "08-15", eyebrow: "Summer’s here", title: "Summer trip?",
+    text: "A villa, a road trip or a festival: one group, split as you go.", button: "Plan a trip", cover: "beach", name: "Summer trip", type: "trip", countries: ["GB", "IE", "DE", "FR", "IT", "ES", "NL", "PT", "AT", "CH", "SE", "NO", "DK", "FI", "PL", "CA"],
+  },
+  {
+    id: "summer-south", from: "01-02", to: "02-20", eyebrow: "Summer’s here", title: "Beach weekend?",
+    text: "The house, the fuel and the barbecue: one group, everyone square by Monday.", button: "Plan a trip", cover: "beach", name: "Beach weekend", type: "trip", countries: ["AU", "NZ", "ZA", "AR", "CL", "BR"],
+  },
+  {
+    id: "thanksgiving-2027", from: "2027-11-01", to: "2027-11-25", eyebrow: "Thanksgiving is on Nov 25", title: "Friendsgiving?",
+    text: "One group for the turkey, the drinks and the trip home.", button: "Start a group", cover: "dinner", name: "Friendsgiving", type: "other", countries: ["US"],
+  },
+  {
     id: "christmas", from: "12-01", to: "12-24", eyebrow: "Christmas is coming", title: "Holiday plans?",
     text: "Secret Santa, a trip or a big dinner: one group, split fairly.", button: "Start a group", cover: "photo-snow", name: "Holidays", type: "other",
   },

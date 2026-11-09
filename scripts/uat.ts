@@ -870,6 +870,18 @@ async function main() {
     await V.getByRole("heading", { name: "Your groups" }).waitFor();
     await V.getByRole("navigation", { name: "Main" }).waitFor();
   });
+  await step(V, "Home", "The sliding cards at the top: 4 to 7 of them, no two the same, each with words and a button that goes somewhere", async () => {
+    await go(V, "/");
+    const slides = V.locator('[aria-roledescription="slide"]');
+    const n = await slides.count();
+    assert(n >= 4 && n <= 7, `${n} cards`);
+    const texts = await slides.evaluateAll((els) => els.map((e) => (e as HTMLElement).innerText.replace(/\s+/g, " ").trim()));
+    assert(new Set(texts).size === texts.length, `the same card twice: ${texts.join(" / ")}`);
+    for (const t of texts) assert(t.length > 30, `a card with almost nothing on it: “${t}”`);
+    const hrefs = await slides.locator("a").evaluateAll((els) => els.map((e) => e.getAttribute("href") ?? ""));
+    assert(hrefs.length >= n && hrefs.every((h) => h.startsWith("/")), `buttons: ${hrefs.join(" ")}`);
+    return texts.map((t) => t.slice(0, 60)).join(" · ");
+  });
   await step(V, "Home", "Tapping an expense in Latest opens it in its group, expanded, with Edit or delete", async () => {
     await go(V, "/");
     const latest = V.locator("section").filter({ has: V.getByRole("heading", { name: "Latest" }) });
