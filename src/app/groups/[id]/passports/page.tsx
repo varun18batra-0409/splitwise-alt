@@ -1,3 +1,4 @@
+import { PassportCompare } from "@/components/PassportCompare";
 import { notFound, redirect } from "next/navigation";
 import Link from "@/components/Link";
 import { db } from "@/lib/db";
@@ -55,6 +56,7 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
           .filter((r) => r.codes.length > 0)
       : [];
   const shared = visible.length > 1 ? together.filter((c) => visible.filter((p) => p.codes.includes(c)).length === visible.length) : [];
+  const c3 = (code: string) => ({ code, flag: countryOf(code)?.flag ?? "", name: shortName(code) });
   const back = `/groups/${id}`;
   const order = [...people].sort((a, b) => Number(b.mine) - Number(a.mine) || Number(Boolean(a.m.leftAt)) - Number(Boolean(b.m.leftAt)) || b.codes.length - a.codes.length);
   return (
@@ -70,11 +72,6 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
             <WorldMap className="" index={together.map((c) => ({ code: c, name: countryOf(c)?.name ?? c, trips: 1 }))} />
           </div>
         )}
-        {together.length > 0 && (
-          <p className="mt-2 text-[22px] leading-snug tracking-[0.06em]" aria-label={together.map((c) => countryOf(c)?.name).join(", ")}>
-            {together.map((c) => countryOf(c)?.flag).join(" ")}
-          </p>
-        )}
         {lines.length > 0 && (
           <ul className="mt-4 space-y-1.5 text-sm text-fg/85">
             {lines.map((l) => (
@@ -82,15 +79,14 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
             ))}
           </ul>
         )}
-        {(shared.length > 0 || onlyBy.length > 0) && (
-          <div className="mt-5 space-y-3" data-passport-compare>
-            {shared.length > 0 && (
-              <CountryRow title={`🤝 All of you (${shared.length})`} codes={shared} />
-            )}
-            {onlyBy.map(({ p, codes }) => (
-              <CountryRow key={p.m.id} title={`✨ Only ${p.mine ? "you" : first(p.m.name)} (${codes.length})`} codes={codes} data-only={p.mine ? "you" : first(p.m.name)} />
-            ))}
-          </div>
+        {together.length > 0 && (
+          <PassportCompare
+            sets={[
+              { key: "all", label: "Everywhere", countries: together.map(c3) },
+              ...(shared.length > 0 ? [{ key: "shared", label: visible.length === 2 ? "Both of you" : "All of you", countries: shared.map(c3) }] : []),
+              ...onlyBy.map(({ p, codes }) => ({ key: p.mine ? "you" : p.m.id, label: `Only ${p.mine ? "you" : first(p.m.name)}`, countries: codes.map(c3) })),
+            ]}
+          />
         )}
         {together.length === 0 && <p className="mt-2 text-sm text-gray-500">No stamps yet. Finish a trip together, or add the countries you’ve been to on your passport.</p>}
       </section>
@@ -135,19 +131,6 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
   );
 }
 
-// A titled row of countries: flag and name, all of them (they wrap).
-function CountryRow({ title, codes, ...rest }: { title: string; codes: string[]; "data-only"?: string }) {
-  return (
-    <div className="rounded-[16px] bg-mist/60 px-3.5 py-3" {...rest}>
-      <p className="mb-2 text-[13px] font-semibold text-fg/80">{title}</p>
-      <ul className="flex flex-wrap gap-1.5">
-        {codes.map((c) => (
-          <li key={c} className="flex items-center gap-1 rounded-full border border-line bg-canvas/40 px-2.5 py-1 text-[12.5px] text-fg/85">
-            <span aria-hidden>{countryOf(c)?.flag}</span>
-            {countryOf(c)?.name ?? c}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
+// Short enough to sit under a flag.
+const SHORT: Record<string, string> = { AE: "UAE", GB: "UK", US: "USA", VA: "Vatican", BA: "Bosnia", CZ: "Czechia", KR: "S. Korea", KP: "N. Korea", DO: "Dominican Rep.", CD: "DR Congo", CF: "C. African Rep.", ZA: "S. Africa", NZ: "N. Zealand", SA: "Saudi", PG: "Papua NG", TT: "Trinidad", AG: "Antigua", KN: "St Kitts", VC: "St Vincent", LC: "St Lucia", MK: "N. Macedonia", BO: "Bolivia", LA: "Laos", RU: "Russia", TZ: "Tanzania", VN: "Vietnam", SY: "Syria", IR: "Iran", MD: "Moldova", PS: "Palestine", TW: "Taiwan" };
+const shortName = (code: string) => SHORT[code] ?? countryOf(code)?.name ?? code;

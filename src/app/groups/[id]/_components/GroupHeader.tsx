@@ -6,8 +6,10 @@ import { avatarTone } from "@/components/ui";
 import { placePhoto } from "@/lib/places";
 import { coverFor, coverOf, type CoverChoice } from "@/lib/covers";
 import type { GroupView } from "./view";
-import { countdownWords, tripPhase } from "@/lib/countdown";
+import { countdownWords, placeOf, tripPhase } from "@/lib/countdown";
 import { todayKey } from "@/lib/dates";
+import { climateFor, tripMonth, weatherWords } from "@/lib/climate";
+import { tripStops } from "@/lib/geo";
 
 type SwitchItem = { id: string; name: string; pic?: { kind: CoverChoice; src?: string } };
 
@@ -33,6 +35,34 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
         </span>
       </Link>
     ) : null;
+
+  // The usual weather there on the trip's dates: from two months out until it ends.
+  const weather = (() => {
+    if (group.type !== "trip" || group.closed || !group.tripStart || !phase || phase.kind === "after") return null;
+    if (phase.kind === "before" && phase.days > 60) return null;
+    const stop = tripStops(group.name, group.tripPlace ?? "", group.tripCountry ?? "")[0];
+    const c = stop ? climateFor(stop.city, stop.country, tripMonth(group.tripStart, group.tripEnd)) : null;
+    if (!c) return null;
+    const w = weatherWords(c, group.currency === "USD");
+    const f = (n: number) => `${group.currency === "USD" ? Math.round((n * 9) / 5 + 32) : n}°`;
+    const icon = w.icon === "rain" ? "🌧" : w.icon === "snow" ? "❄️" : w.icon === "cloud" ? "⛅" : "☀️";
+    const month = new Date(Date.UTC(2026, tripMonth(group.tripStart, group.tripEnd), 15)).toLocaleString("en-GB", { month: "long", timeZone: "UTC" });
+    return { pill: `${icon} ${f(c.hi)} / ${f(c.lo)}`, where: stop.city || placeOf(group.name), month, w };
+  })();
+  const weatherPill = weather && (
+    <details className="group/wx relative" data-trip-weather>
+      <summary className="glass inline-block cursor-pointer list-none rounded-full px-3 py-1 text-[13px] font-semibold [&::-webkit-details-marker]:hidden">{weather.pill}</summary>
+      <div className="absolute left-0 top-full z-30 mt-2 w-72 max-w-[calc(100vw-2.5rem)] rounded-2xl border border-line bg-white p-4 text-sm shadow-2xl shadow-black/60">
+        <p className="text-xs text-gray-400">
+          {weather.where} in {weather.month}, usually
+        </p>
+        <p className="mt-1 font-semibold">{weather.w.temps.replace(/^Usually /, "").replace(/^\w/, (x) => x.toUpperCase())}</p>
+        <p className="mt-1 text-fg/80">{weather.w.sky}</p>
+        <p className="mt-2 text-fg/80">{weather.w.tip}</p>
+        <p className="mt-3 text-[11px] text-gray-400">Long-term averages for the month, not a forecast.</p>
+      </div>
+    </details>
+  );
 
   const switcher = (big: boolean) => (
     <details className="group/switch relative min-w-0 flex-1">
@@ -127,13 +157,14 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
         </Link>
       </div>
       <div className="absolute inset-x-5 bottom-1">
-        <p className="mb-2 flex flex-wrap gap-1.5">
+        <div className="mb-2 flex flex-wrap gap-1.5">
           <span className="glass inline-block rounded-full px-3 py-1 text-[13px] font-semibold">
             {type ? `${type} with ` : ""}
             {people.length} {people.length === 1 ? "person" : "people"}
           </span>
           {tripPill}
-        </p>
+          {weatherPill}
+        </div>
         <div className="flex [text-shadow:0_2px_18px_rgba(0,0,0,0.35)]">{switcher(true)}</div>
         <Link href={`/groups/${group.id}/people`} className="mt-2.5 flex items-center gap-2.5 active:opacity-80" aria-label={`Everyone in ${group.name}: ${ordered.join(", ")}`}>
           <span className="flex" aria-hidden>
