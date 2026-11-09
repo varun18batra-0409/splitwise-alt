@@ -1,0 +1,28 @@
+name: Photo sheets
+on: push
+jobs:
+  sheets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm i --no-save sharp@0.33.5
+      - run: node scripts/fetch-photos.mjs > /dev/null
+      - name: Make sheets
+        run: |
+          cat > sheet.mjs <<'JS'
+          import sharp from "sharp"; import fs from "node:fs";
+          const got = JSON.parse(fs.readFileSync("src/generated/photos.json","utf8"));
+          const slots = Object.keys(got).filter(s=>s.startsWith("place-")||s.startsWith("cover-")||["sunset","friends","hero","roadtrip","dinner","market","train","home"].includes(s)).sort();
+          fs.mkdirSync("out",{recursive:true}); const W=300,H=220, cols=4, per=16;
+          for (let p=0;p*per<slots.length;p++){ const part=slots.slice(p*per,(p+1)*per); const rows=Math.ceil(part.length/cols);
+            const tiles=await Promise.all(part.map(async(s,i)=>{const img=await sharp("public"+got[s].src).resize(W,H,{fit:"cover"}).toBuffer();
+              const label=Buffer.from(`<svg width="${W}" height="26"><rect width="100%" height="100%" fill="black"/><text x="6" y="18" font-size="16" fill="white" font-family="sans-serif">${s}</text></svg>`);
+              return [{input:img,left:(i%cols)*W,top:Math.floor(i/cols)*(H+26)},{input:label,left:(i%cols)*W,top:Math.floor(i/cols)*(H+26)+H}];}));
+            await sharp({create:{width:cols*W,height:rows*(H+26),channels:3,background:"#222"}}).composite(tiles.flat()).jpeg({quality:72}).toFile(`out/sheet-${String(p).padStart(2,"0")}.jpg`);}
+          fs.writeFileSync("out/slots.txt", slots.join("\n"));
+          JS
+          node sheet.mjs
+      - uses: actions/upload-artifact@v4
+        with: { name: sheets, path: out }
