@@ -15,7 +15,7 @@ export function ShareInvite({ code, groupName }: { code: string; groupName: stri
   async function share() {
     if (navigator.share) {
       try {
-        await navigator.share({ title: groupName, text: `You’re invited to “${groupName}” on Loopin. Tap to join:`, url: link });
+        await navigator.share({ title: groupName, text: `✨ You’re invited to “${groupName}” on Loopin. Tap to join 👇`, url: link });
         return;
       } catch {
         // person closed the share sheet — fall through to copy

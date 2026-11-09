@@ -153,7 +153,7 @@ export function ContactInvite({ groupId, groupName, link }: { groupId: string; g
   const [msg, setMsg] = useState("");
   useEffect(() => setPicker(contactsApi() !== null), []);
 
-  const text = (first: string) => `Hi${first ? ` ${first}` : ""}! Join “${groupName}” on Loopin so we can split expenses: ${link}`;
+  const text = (first: string) => `Hi${first ? ` ${first}` : ""}! 👋 I’ve added you to “${groupName}” on Loopin. Tap to join and see your share 👇\n${link}`;
 
   async function pick() {
     const api = contactsApi();

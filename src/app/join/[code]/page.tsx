@@ -53,7 +53,7 @@ export async function generateMetadata({ params }: { params: Promise<{ code: str
   const robots = { index: false, follow: false };
   if (!group || group.deletedAt) return { title: "Join on Loopin", robots };
   const title = `You’re invited to ${group.name}`;
-  const description = "Join on Loopin: split everything, settle in one tap. Free, no ads.";
+  const description = "Tap to join. Split as you go, settle in one tap, keep the memories.";
   return { title, description, robots, openGraph: { title, description, images: [{ url: `/join/${code}/card`, width: 1200, height: 630 }] }, twitter: { card: "summary_large_image", title, description } };
 }
 
