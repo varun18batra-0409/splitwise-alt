@@ -1,0 +1,212 @@
+[
+ {
+  "id": "FIN-01a",
+  "scenario": "₹4,000 split equally between 4",
+  "expected": "{\"A\":100000,\"B\":100000,\"C\":100000,\"D\":100000}",
+  "actual": "{\"A\":100000,\"B\":100000,\"C\":100000,\"D\":100000}",
+  "pass": true
+ },
+ {
+  "id": "FIN-01b",
+  "scenario": "Balances after ₹4,000 paid by A",
+  "expected": "{\"A\":300000,\"B\":-100000,\"C\":-100000,\"D\":-100000}",
+  "actual": "{\"A\":300000,\"B\":-100000,\"C\":-100000,\"D\":-100000}",
+  "pass": true
+ },
+ {
+  "id": "FIN-01c",
+  "scenario": "Settle up for FIN-01",
+  "expected": "[{\"from\":\"B\",\"to\":\"A\",\"amount\":100000},{\"from\":\"C\",\"to\":\"A\",\"amount\":100000},{\"from\":\"D\",\"to\":\"A\",\"amount\":100000}]",
+  "actual": "[{\"from\":\"B\",\"to\":\"A\",\"amount\":100000},{\"from\":\"C\",\"to\":\"A\",\"amount\":100000},{\"from\":\"D\",\"to\":\"A\",\"amount\":100000}]",
+  "pass": true
+ },
+ {
+  "id": "FIN-01d",
+  "scenario": "Everyone square after the 3 settle-up payments",
+  "expected": "{\"A\":0,\"B\":0,\"C\":0,\"D\":0}",
+  "actual": "{\"A\":0,\"B\":0,\"C\":0,\"D\":0}",
+  "pass": true
+ },
+ {
+  "id": "FIN-02",
+  "scenario": "₹100 split equally between 3 (rounding)",
+  "expected": "{\"A\":3334,\"B\":3333,\"C\":3333}",
+  "actual": "{\"A\":3334,\"B\":3333,\"C\":3333}",
+  "pass": true
+ },
+ {
+  "id": "FIN-03a",
+  "scenario": "₹10 paid by C, equal 3",
+  "expected": "{\"A\":-334,\"B\":-333,\"C\":667}",
+  "actual": "{\"A\":-334,\"B\":-333,\"C\":667}",
+  "pass": true
+ },
+ {
+  "id": "FIN-03b",
+  "scenario": "Square after settle (₹10/3)",
+  "expected": "{\"A\":0,\"B\":0,\"C\":0}",
+  "actual": "{\"A\":0,\"B\":0,\"C\":0}",
+  "pass": true
+ },
+ {
+  "id": "FIN-04",
+  "scenario": "Two payers (A ₹2,000, B ₹1,000), equal 3",
+  "expected": "{\"A\":100000,\"B\":0,\"C\":-100000}",
+  "actual": "{\"A\":100000,\"B\":0,\"C\":-100000}",
+  "pass": true
+ },
+ {
+  "id": "FIN-05a",
+  "scenario": "Exact split ₹2,500 (1,000/500/1,000)",
+  "expected": "{\"A\":100000,\"B\":50000,\"C\":100000}",
+  "actual": "{\"A\":100000,\"B\":50000,\"C\":100000}",
+  "pass": true
+ },
+ {
+  "id": "FIN-05b",
+  "scenario": "Balances for FIN-05 (C paid)",
+  "expected": "{\"A\":-100000,\"B\":-50000,\"C\":150000}",
+  "actual": "{\"A\":-100000,\"B\":-50000,\"C\":150000}",
+  "pass": true
+ },
+ {
+  "id": "FIN-05c",
+  "scenario": "Exact split that doesn't add up is refused",
+  "expected": "false",
+  "actual": "false",
+  "pass": true
+ },
+ {
+  "id": "FIN-06a",
+  "scenario": "40% / 35% / 25% of ₹1,000",
+  "expected": "{\"A\":40000,\"B\":35000,\"C\":25000}",
+  "actual": "{\"A\":40000,\"B\":35000,\"C\":25000}",
+  "pass": true
+ },
+ {
+  "id": "FIN-06b",
+  "scenario": "Percentages adding to 90% are refused",
+  "expected": "false",
+  "actual": "false",
+  "pass": true
+ },
+ {
+  "id": "FIN-07",
+  "scenario": "Shares 2:1:1 of ₹1,000",
+  "expected": "{\"A\":50000,\"B\":25000,\"C\":25000}",
+  "actual": "{\"A\":50000,\"B\":25000,\"C\":25000}",
+  "pass": true
+ },
+ {
+  "id": "FIN-08",
+  "scenario": "33.34/33.33/33.33% of ₹100 adds to exactly ₹100",
+  "expected": "10000",
+  "actual": "10000",
+  "pass": true
+ },
+ {
+  "id": "FIN-09",
+  "scenario": "Two expenses + a part payment",
+  "expected": "{\"A\":210000,\"B\":-20000,\"C\":-90000,\"D\":-100000}",
+  "actual": "{\"A\":210000,\"B\":-20000,\"C\":-90000,\"D\":-100000}",
+  "pass": true
+ },
+ {
+  "id": "FIN-10",
+  "scenario": "₹900 money back received by A, shared by 3",
+  "expected": "{\"A\":-60000,\"B\":30000,\"C\":30000}",
+  "actual": "{\"A\":-60000,\"B\":30000,\"C\":30000}",
+  "pass": true
+ },
+ {
+  "id": "FIN-11a",
+  "scenario": "THB 1,200 at 2.55 → ₹3,060.00",
+  "expected": "306000",
+  "actual": "306000",
+  "pass": true
+ },
+ {
+  "id": "FIN-11b",
+  "scenario": "3% card fee on ₹3,060 → ₹91.80",
+  "expected": "9180",
+  "actual": "9180",
+  "pass": true
+ },
+ {
+  "id": "FIN-11c",
+  "scenario": "USD 19.99 at 83.4567 → ₹1,668.30 (rounded half up)",
+  "expected": "166830",
+  "actual": "166830",
+  "pass": true
+ },
+ {
+  "id": "FIN-11d",
+  "scenario": "JPY 5,000 at 0.56 → ₹2,800.00 (JPY has no decimals)",
+  "expected": "280000",
+  "actual": "280000",
+  "pass": true
+ },
+ {
+  "id": "FIN-12a",
+  "scenario": "1,000 random groups: balances always sum to zero and settle-up clears everyone",
+  "expected": "0",
+  "actual": "0",
+  "pass": true
+ },
+ {
+  "id": "FIN-12b",
+  "scenario": "Settle-up never needs more than people − 1 payments",
+  "expected": "true",
+  "actual": "true",
+  "pass": true
+ },
+ {
+  "id": "FIN-13a",
+  "scenario": "'₹ 1,23,456.78' → 12345678 paise",
+  "expected": "12345678",
+  "actual": "12345678",
+  "pass": true
+ },
+ {
+  "id": "FIN-13b",
+  "scenario": "'12,50' (comma decimal) → ₹12.50",
+  "expected": "1250",
+  "actual": "1250",
+  "pass": true
+ },
+ {
+  "id": "FIN-13c",
+  "scenario": "'0', '-50', 'abc', '1e3', '' are refused",
+  "expected": "[null,null,null,null,null]",
+  "actual": "[null,null,null,null,null]",
+  "pass": true
+ },
+ {
+  "id": "FIN-13d",
+  "scenario": "'10.555' (3 decimals) refused for INR",
+  "expected": "null",
+  "actual": "null",
+  "pass": true
+ },
+ {
+  "id": "FIN-13e",
+  "scenario": "₹2 crore is the most one expense can be; more is refused",
+  "expected": "[2000000000,null]",
+  "actual": "[2000000000,null]",
+  "pass": true
+ },
+ {
+  "id": "FIN-13f",
+  "scenario": "JPY '1500.5' refused (no decimals)",
+  "expected": "null",
+  "actual": "null",
+  "pass": true
+ },
+ {
+  "id": "FIN-14",
+  "scenario": "Formats: ₹1,23,456.78 / ₹500 / $1,234.50 / THB 1,200",
+  "expected": "[\"₹1,23,456.78\",\"₹500\",\"$1,234.50\",\"THB 1,200\"]",
+  "actual": "[\"₹1,23,456.78\",\"₹500\",\"$1,234.50\",\"THB 1,200\"]",
+  "pass": true
+ }
+]
