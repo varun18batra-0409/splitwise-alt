@@ -42,5 +42,8 @@
     "@types/web-push": "^3.6.4",
     "@types/nodemailer": "^7.0.0",
     "@playwright/test": "^1.51.1"
+  },
+  "overrides": {
+    "zod": "^4.6.6"
   }
 }
