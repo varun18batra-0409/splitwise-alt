@@ -13,6 +13,7 @@ jobs:
         with:
           node-version: 22
       - run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - run: npm audit fix --package-lock-only --ignore-scripts || true
       - name: Security check of the packages
         run: npm audit --omit=dev --json > audit.json || true; node -e "const a=require('./audit.json');const m=a.metadata&&a.metadata.vulnerabilities||{};console.log('::notice title=npm audit::'+JSON.stringify(m))"
       - run: |
