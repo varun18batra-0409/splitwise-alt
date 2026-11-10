@@ -128,8 +128,16 @@ async function main() {
     for (const path of ["/", g, `${g}?tab=balances`, `${g}/settle`, `${g}/invite`, `${g}/people`, `${g}/settings`, `${g}/report`]) {
       await go(P, path);
       const w = await P.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-      if (w > 2) wide.push(`${path.replace(g, "/groups/:id")} +${w}px`);
+      if (w > 2) {
+        // Name the widest things that stick out past the screen's right edge.
+        const culprits = await P.evaluate(() => [...document.querySelectorAll("body *")].map((el) => ({ el, r: el.getBoundingClientRect() })).filter((x) => x.r.right > window.innerWidth + 2 && x.r.width > 0).sort((a, b) => a.r.width - b.r.width).slice(0, 3)
+          .map((x) => `${x.el.tagName.toLowerCase()}${x.el.getAttribute("name") ? `[name=${x.el.getAttribute("name")}]` : ""}.${(x.el.getAttribute("class") || "").split(" ").slice(0, 4).join(".")} w=${Math.round(x.r.width)} "${(x.el.textContent || "").trim().slice(0, 30)}"`));
+        wide.push(`${path.replace(g, "/groups/:id")} +${w}px (${culprits.join(" | ")})`);
+      }
     }
+    await go(P, `${g}/report`);
+    const broken = await P.evaluate(() => [...document.querySelectorAll(".tabular-nums, .money")].filter((el) => /₹/.test(el.textContent || "") && (el.getClientRects().length > 1 || (el as HTMLElement).offsetHeight > (parseFloat(getComputedStyle(el).lineHeight) || 99) * 1.6)).map((el) => (el.textContent || "").trim()).slice(0, 5));
+    if (broken.length) wide.push(`amounts split over two lines on /report: ${broken.join(", ")}`);
     return { ok: wide.length === 0, actual: wide.length ? wide.join("; ") : "No sideways scroll", page: P };
   });
 
