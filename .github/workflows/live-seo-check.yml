@@ -16,3 +16,22 @@ jobs:
           codes=""; for p in / /signin /faq /how-it-works /privacy /terms /settle /account /passport /postcards /join/NOTAREALCODE /groups/not-a-real-group /api/cron/daily /api/unsubscribe; do codes="$codes $p=$(curl -s -o /dev/null -w '%{http_code}' $s$p)"; done; echo "::notice title=Status::$codes"
           echo "::notice title=Headers::$(curl -s -D - -o /dev/null "$s/signin" | tr -d '\r' | grep -iE '^(x-frame|strict-transport|referrer-policy|x-content-type|permissions-policy)' | cut -c1-70 | tr '\n' '|')"
           echo "::notice title=Postcard font CSS::$(curl -s -o /dev/null -w '%{http_code}' 'https://fonts.googleapis.com/css2?family=Caveat')"
+      - run: npm i --no-save playwright@1.56.1 >/dev/null 2>&1 && npx playwright install --with-deps chromium >/dev/null 2>&1
+      - run: |
+          cat > c.cjs <<'JS'
+          const { chromium } = require('playwright');
+          (async () => {
+            const b = await chromium.launch(); const out = [];
+            for (const p of ['/', '/signin', '/how-it-works', '/faq', '/privacy']) {
+              const pg = await b.newPage({ viewport: { width: 390, height: 844 } }); const errs = [];
+              pg.on('console', m => { if (m.type() === 'error') errs.push(m.text().slice(0, 120)); });
+              pg.on('pageerror', e => errs.push('pageerror ' + String(e).slice(0, 120)));
+              await pg.goto('https://www.loopinapps.com' + p, { waitUntil: 'networkidle' });
+              const hydrated = await pg.evaluate(() => !!document.querySelector('[data-nextjs-scroll-focus-boundary], body') && typeof window.next !== 'undefined');
+              out.push(`${p}: ${errs.filter(e => /Content Security|CSP|Refused/.test(e)).length} CSP errors, ${errs.length} console errors, Next running=${hydrated}`);
+              await pg.close();
+            }
+            console.log('::notice title=Live browser::' + out.join(' | ')); await b.close();
+          })();
+          JS
+          node c.cjs
