@@ -16,7 +16,6 @@ jobs:
       fail-fast: false
       matrix:
         part:
-          - { name: checks, browsers: "chromium", configs: "" }
           - { name: crawl-chromium-phone, browsers: "chromium", configs: "chromium-phone" }
           - { name: crawl-chromium-sizes, browsers: "chromium", configs: "chromium-small-phone,chromium-tablet,chromium-desktop" }
           - { name: crawl-webkit, browsers: "webkit", configs: "webkit-phone,webkit-desktop" }

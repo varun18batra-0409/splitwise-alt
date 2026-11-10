@@ -63,6 +63,8 @@ async function main() {
     versions[c.key] = `${c.engine.name()} ${browser.version()}`;
     const ctx = await browser.newContext({ viewport: { width: c.w, height: c.h }, isMobile: c.engine !== firefox && c.mobile, hasTouch: c.mobile, deviceScaleFactor: c.shot === "full" ? 2 : 1, colorScheme: "dark", locale: "en-IN", timezoneId: "Asia/Kolkata" });
     await ctx.addCookies([cookie, { name: "lp_tour", value: "1", url: base }]);
+    // tsx keeps function names with a __name() helper that doesn't exist inside the page.
+    await ctx.addInitScript("window.__name = (f) => f;");
     for (const [sid, path] of routes) {
       const page: Page = await ctx.newPage();
       const consoleErrors: string[] = [];
