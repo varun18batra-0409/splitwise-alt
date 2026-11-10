@@ -696,10 +696,11 @@ body:has([data-tint]) {
 
 /* Small text links and buttons get a thumb-sized tap area (at least ~36 px tall)
    without changing how they look or where they sit. */
-:is(a.underline, button.underline, summary, .hit):not(.absolute):not(.fixed):not(.sticky) {
+/* Opt-in (.hit) on links that stand alone, so a tap area never overlaps a neighbour. */
+.hit:not(.absolute):not(.fixed):not(.sticky) {
   position: relative;
 }
-:is(a.underline, button.underline, summary, .hit)::after {
+.hit::after {
   content: "";
   position: absolute;
   inset: -8px -4px;
