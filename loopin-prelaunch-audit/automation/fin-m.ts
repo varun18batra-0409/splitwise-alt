@@ -155,6 +155,8 @@ const gid = (g: string) => g.split("/").pop()!;
 // One case: run fn; each check() compares a value with the hand-worked answer.
 async function tc(id: string, scenario: string, fn: (check: (what: string, expected: string, actual: string) => void) => Promise<{ page: Page; adapted?: string } | void>) {
   const row: Row = { id, scenario, checks: [], status: "Pass", error: "", evidence: "", adapted: "" };
+  // Throwaway copy only: start each case with fresh request limits (the script makes ~25 groups and ~60 joins from one machine).
+  await db.rateLimit.deleteMany({});
   rows.push(row);
   const check = (what: string, expected: string, actual: string) => {
     row.checks.push({ what, expected, actual, pass: expected === actual });
@@ -284,7 +286,7 @@ async function main() {
     const b = await balances(PA, g);
     check("Balances", "Anil +₹1931.25 · Bina −₹643.75 · Chet −₹643.75 · Dina −₹643.75", show(b, [A, B, C, D]));
     const t = (await PA.locator("main").innerText()).replace(/\s+/g, " ");
-    check("THB amounts shown without the card fee (THB 250 each)", "true", String(/(THB|฿) ?250/.test(t)));
+    check("THB amounts shown without the card fee (THB 250 each)", "true", String((t.match(/THB part: owes 250\b/g) ?? []).length === 3 && /owed THB 750\b/.test(t)));
     return { page: PA };
   });
   await tc("FIN-M10", "THB 400 cash at 2.5 has no card fee", async (check) => {

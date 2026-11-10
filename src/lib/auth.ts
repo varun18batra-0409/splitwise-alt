@@ -30,6 +30,10 @@ export async function requestLoginCode(rawEmail: string, ip: string, origin: str
   if (!testing && (!(await allow(`code-ip:${ip}`, 8, 15 * 60, now)) || !(await allow(`code-email:${email}`, 4, 15 * 60, now)))) {
     return { ok: false, error: "Too many codes asked for. Wait 15 minutes and try again." };
   }
+  // At most 12 codes a day for one address (5 tries each): guessing a code stays hopeless.
+  if (!testing && !(await allow(`code-email-day:${email}`, 12, 86_400, now))) {
+    return { ok: false, error: "Too many codes asked for today. Try again tomorrow, or use Continue with Google." };
+  }
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
   await db.loginCode.create({
     data: { email, codeHash: hashLoginCode(email, code), expiresAt: new Date(now.getTime() + CODE_MINUTES * 60_000) },

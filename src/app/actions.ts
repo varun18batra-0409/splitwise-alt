@@ -35,6 +35,7 @@ import { getTimeZone } from "@/lib/tz";
 import { dayKey } from "@/lib/dates";
 import { importSplitwise } from "@/lib/splitwise-import";
 import { isGroupAdmin } from "@/lib/group-admin";
+import { hasLeft, LEFT_ERROR } from "@/lib/active";
 
 
 export async function createGroup(formData: FormData) {
@@ -429,6 +430,7 @@ export async function recordPayment(formData: FormData) {
   const ids = group.members.map((m) => m.id);
   const myId = await getMyMemberId(group.id);
   if (!myId || !ids.includes(myId)) redirect("/private");
+  if (await hasLeft(group.id, myId)) redirect(`/groups/${group.id}?tab=balances&error=${encodeURIComponent(LEFT_ERROR)}`);
   if (!ids.includes(fromId) || !ids.includes(toId) || fromId === toId) redirect(`/groups/${group.id}?tab=balances`);
   if (group.closed || group.deletedAt) redirect(`/groups/${group.id}`);
   if (!Number.isSafeInteger(amount) || amount <= 0 || amount > 2_000_000_000) redirect(`/groups/${group.id}?tab=balances`);
@@ -465,6 +467,7 @@ export async function setGroupClosed(formData: FormData) {
   if (!group) redirect("/");
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  if (await hasLeft(group.id, myId)) redirect(`/groups/${group.id}?error=${encodeURIComponent(LEFT_ERROR)}`);
 
   let did = "";
   if (group.closed !== closed) {
@@ -511,6 +514,7 @@ export async function settleAcrossGroups(formData: FormData) {
     const myId = memberships[String(p.groupId)];
     const data = myId ? await loadGroup(String(p.groupId), { events: false }) : null;
     if (!data || !myId) redirect("/settle?settle=error");
+    if (data.group.deletedAt || data.group.closed || (await hasLeft(data.group.id, myId))) redirect("/settle?settle=changed");
     const ok = data.transfers.some((t) => t.from === p.fromId && t.to === p.toId && t.amount === p.amount) && (p.fromId === myId || p.toId === myId);
     if (!ok) redirect("/settle?settle=changed"); // balances moved since the page loaded
     checked.push({ ...p, currency: data.group.currency, names: new Map(data.group.members.map((m) => [m.id, m.name])), needsOk: needsOkFor(data.group.members.find((m) => m.id === p.toId), myId) });
@@ -553,6 +557,7 @@ export async function recordCustomPayment(formData: FormData) {
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
   if (group.closed) redirect(`/groups/${group.id}`);
+  if (await hasLeft(group.id, myId)) redirect(`/groups/${group.id}?tab=balances&error=${encodeURIComponent(LEFT_ERROR)}`);
 
   const back = (error: string) =>
     redirect(

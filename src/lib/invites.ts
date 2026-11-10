@@ -2,6 +2,12 @@ import { db } from "./db";
 import { logEvent } from "./events";
 import { cleanEmail } from "./auth";
 import { sendMail } from "./mail";
+import { allow } from "./rate-limit";
+
+// Invite and "added you" emails one person can send in a day. The whole app's
+// daily email allowance is small, so one person (or a spammer) can't use it up.
+export const INVITE_EMAILS_PER_DAY = 20;
+const inviteMailOk = (actor: { id: string; accountId?: string | null }) => allow(`invite-mail:${actor.accountId || actor.id}`, INVITE_EMAILS_PER_DAY, 86_400);
 
 // Adding people to a group. Nobody can be added by just typing a name:
 //  - people already on Loopin (signed up with email) can be added directly;
@@ -78,7 +84,7 @@ export async function addRegistered(groupId: string, actorId: string, accountId:
   const { memberId, eventId } = await db.$transaction(async (tx) => {
     const m = existing
       ? await tx.member.update({ where: { id: existing.id }, data: { leftAt: null } })
-      : await tx.member.create({ data: { name, groupId, accountId, claimedAt: new Date(), splitWeight: group.joinWeight } });
+      : await tx.member.create({ data: { name, groupId, accountId, claimedAt: new Date(), splitWeight: group.joinWeight, addedBy: actorId } });
     const eventId = await logEvent(tx, {
       groupId,
       actorId,
@@ -90,7 +96,7 @@ export async function addRegistered(groupId: string, actorId: string, accountId:
     return { memberId: m.id, eventId };
   });
   await copyPushTo(accountId, memberId);
-  const email = () => sendMail(
+  const email = async () => (await inviteMailOk(actor)) && sendMail(
     account.email,
     `${actor.name} added you to ${group.name} on Loopin`,
     `${actor.name} added you to “${group.name}” on Loopin.\n\nOpen it: ${origin}/groups/${groupId}`,
@@ -105,7 +111,7 @@ export async function addRegistered(groupId: string, actorId: string, accountId:
 // Invite people by email. Someone already on Loopin is added straight away;
 // everyone else gets a link and joins after verifying their email.
 export async function inviteByEmail(groupId: string, actorId: string, rawEmails: string, origin: string, opts: { later?: (job: () => Promise<unknown>) => void } = {}) {
-  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true, name: true } } } });
+  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true, name: true, accountId: true } } } });
   const actor = group?.members.find((m) => m.id === actorId);
   if (!group || !actor) return { added: [] as string[], invited: [] as string[], bad: [] as string[] };
   const parts = [...new Set(rawEmails.split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean))].slice(0, 20);
@@ -129,6 +135,10 @@ export async function inviteByEmail(groupId: string, actorId: string, rawEmails:
       update: { invitedById: actorId, acceptedAt: null, createdAt: new Date() },
     });
     const link = `${origin}/join/${group.inviteCode}?e=${encodeURIComponent(email)}`;
+    if (!(await inviteMailOk(actor))) {
+      bad.push(`${email} (you've sent ${INVITE_EMAILS_PER_DAY} invite emails today; share the invite link instead)`);
+      continue;
+    }
     const sent = await sendMail(
       email,
       `${actor.name} invited you to ${group.name} on Loopin`,
@@ -166,6 +176,7 @@ export async function inviteToClaim(groupId: string, actorId: string, memberId: 
     update: { invitedById: actorId, acceptedAt: null, createdAt: new Date() },
   });
   const link = `${origin}/join/${group.inviteCode}?${new URLSearchParams({ e: email, as: member.id })}`;
+  if (!(await inviteMailOk(actor))) return { ok: false, error: `You've sent ${INVITE_EMAILS_PER_DAY} invite emails today. Share the group's invite link instead.` };
   const sent = await sendMail(
     email,
     `${actor.name} added you to ${group.name} on Loopin`,

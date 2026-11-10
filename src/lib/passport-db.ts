@@ -45,7 +45,8 @@ export async function passportFriends(accountId: string) {
   const mine = await db.member.findMany({ where: { accountId, group: { deletedAt: null } }, select: { groupId: true }, take: 500 });
   if (!mine.length) return [];
   const others = await db.member.findMany({
-    where: { groupId: { in: mine.map((m) => m.groupId) }, accountId: { not: null, notIn: [accountId] } },
+    // Someone added straight in by another person counts once they've opened that group.
+    where: { groupId: { in: mine.map((m) => m.groupId) }, accountId: { not: null, notIn: [accountId] }, OR: [{ addedBy: "" }, { seenAt: { not: null } }] },
     select: { accountId: true, name: true, groupId: true, group: { select: { name: true } } },
     take: 3000,
   });
@@ -63,7 +64,7 @@ export async function passportFriends(accountId: string) {
 export async function canSeePassport(viewerAccountId: string, ownerAccountId: string) {
   if (viewerAccountId === ownerAccountId) return { ok: true as const, owner: await db.account.findUnique({ where: { id: ownerAccountId } }), name: undefined as string | undefined };
   const shared = await db.member.findFirst({
-    where: { accountId: ownerAccountId, group: { deletedAt: null, members: { some: { accountId: viewerAccountId } } } },
+    where: { accountId: ownerAccountId, OR: [{ addedBy: "" }, { seenAt: { not: null } }], group: { deletedAt: null, members: { some: { accountId: viewerAccountId } } } },
     select: { name: true },
   });
   if (!shared) return { ok: false as const, reason: "stranger" as const, name: undefined as string | undefined };

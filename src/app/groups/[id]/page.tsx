@@ -87,6 +87,8 @@ export default async function GroupPage({
   // at once (each is a trip to the database; one after another they add up).
   const memberships = await getMemberships();
   const myId = memberships[id];
+  // The first time someone added by another person opens the group (their passport is shared from now on).
+  if (myId) await db.member.updateMany({ where: { id: myId, groupId: id, addedBy: { not: "" }, seenAt: null }, data: { seenAt: new Date() } }).catch(() => undefined);
   if (!myId) {
     const exists = await db.group.findFirst({ where: { id, deletedAt: null }, select: { id: true } });
     if (!exists) notFound();

@@ -1,4 +1,5 @@
 import { parsePayers } from "./payers";
+import { LEFT_ERROR } from "./active";
 import { db } from "./db";
 import { withRetry } from "./once";
 import { diffExpense, expenseState, logEvent, parseUndo, type UndoPayload } from "./events";
@@ -95,6 +96,7 @@ async function undoOnce(eventId: string, actorId: string | undefined): Promise<U
   });
   if (!group) return { ok: false, error: "This group no longer exists." };
   if (!actorId || !group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can undo its changes." };
+  if (group.members.find((m) => m.id === actorId)?.leftAt) return { ok: false, error: LEFT_ERROR };
 
   const check = canUndo(ev, group.events);
   if (!check.ok) return { ok: false, error: check.reason };
