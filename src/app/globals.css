@@ -67,6 +67,10 @@ body {
   /* A very long word (a group name with no spaces, a long email) wraps instead of pushing the page sideways. */
   overflow-wrap: anywhere;
 }
+/* …but an amount never breaks in the middle ("₹30" / "0"). */
+.tabular-nums {
+  overflow-wrap: normal;
+}
 
 ::selection {
   background: var(--color-fg);
