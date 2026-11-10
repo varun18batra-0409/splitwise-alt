@@ -8,13 +8,6 @@ jobs:
     steps:
       - run: |
           s=https://www.loopinapps.com
-          for p in "" signin faq how-it-works settle account passport passport/friends passport/friends/abcdefghij p/AAAAAAAAAAAAAAAAAAAAAA passport/album passport/image photos/place-pune.jpg photos/place-lonavala.jpg photos/place-amritsar.jpg photos/place-kolkata.jpg credits og-fonts/display-600.woff api/health api/cron/evening; do line="$line /$p=$(curl -s -o /dev/null -w '%{http_code}' "$s/$p")"; done; echo "::notice title=Status::$line"
-          echo "::notice title=faq-booklet::$(curl -s "$s/faq" | grep -c 'A little booklet')"
-          echo "::notice title=passport-image::$(curl -s -o /dev/null -w '%{http_code}' "$s/passport/image")"
-          echo "::notice title=Headers home::$(curl -sI "$s/" | grep -iE '^(strict-transport|content-security|x-frame|referrer-policy|permissions-policy|x-content-type|cache-control|server):' | tr -d '\r' | tr '\n' ' ')"
-          echo "::notice title=Headers api::$(curl -sI "$s/api/health" | grep -iE '^(strict-transport|content-security|x-frame|access-control)' | tr -d '\r' | tr '\n' ' ')"
-          echo "::notice title=TLS::$(curl -sv -o /dev/null "$s/" 2>&1 | grep -E 'SSL connection using|expire date' | tr '\n' ' ')"
-          echo "::notice title=Bill reading::$(curl -s "$s/api/health" | grep -o '"billReading":[a-z]*')"
-          echo "::notice title=Receipt outsider::$(curl -s -o /dev/null -w '%{http_code}' "$s/api/receipt/abcdefghijkl") post=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$s/api/receipt?group=abcdefghijkl")"
-          echo "::notice title=Guide mentions::scan=$(curl -s "$s/how-it-works" | grep -c 'Scan a bill') items=$(curl -s "$s/how-it-works" | grep -c 'Items</strong>') privacy-ai=$(curl -s "$s/privacy" | grep -c 'Anthropic')"
-          echo "::notice title=keep-warm::$(curl -s -o /dev/null -w '%{time_total}' $s/api/health)s"
+          echo "::notice title=HEAD home::$(curl -sI "$s/" | tr -d '\r' | cut -c1-120 | tr '\n' '|')"
+          echo "::notice title=GET home::$(curl -s -D - -o /dev/null "$s/" | tr -d '\r' | cut -c1-120 | tr '\n' '|')"
+          echo "::notice title=GET signin::$(curl -s -D - -o /dev/null "$s/signin" | tr -d '\r' | grep -iE 'content-security|x-frame|strict' | cut -c1-60 | tr '\n' '|')"
