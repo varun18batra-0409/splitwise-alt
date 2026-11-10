@@ -220,7 +220,7 @@ async function main() {
     await go(X, new URL(X.url()).pathname);
     await X.getByLabel("Email addresses to invite").fill(vEmail);
     await X.getByRole("button", { name: "Invite", exact: true }).click();
-    await X.waitForLoadState("load");
+    await X.waitForURL(/[?&](added|invited|error)=/, { timeout: 30_000 });
     const added = await db.member.count({ where: { accountId: acc.id, group: { name: "Totally normal group" } } });
     if (!added) return { ok: null, actual: "Vicky wasn't added (invite didn't add an existing account); check not meaningful", page: X };
     await go(X, "/passport/friends");
