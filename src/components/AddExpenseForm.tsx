@@ -97,7 +97,7 @@ export function AddExpenseForm({
   const [keepSavedRate, setKeepSavedRate] = useState(Boolean(initial && initial.currency !== baseCurrency && initial.rate));
 
   // 5–7: who paid, who it was for, how to split
-  const [showPeople, setShowPeople] = useState(false);
+  const [showPeople, setShowPeople] = useState(Boolean(initialItems?.length)); // editing a split by item: open on the items
   const [paidById, setPaidById] = useState(initial?.paidById ?? myId);
   const [multiPay, setMultiPay] = useState(Boolean(initial?.multiPay));
   const [kind, setKind] = useState<"expense" | "refund">(initial?.kind ?? "expense");

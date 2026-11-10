@@ -17,8 +17,12 @@ const email = (n: string) => `${n.toLowerCase()}-${stamp}@fin.loopin.test`;
 const minor = (t: string) => Math.round(parseFloat(t.replace(/[^\d.]/g, "")) * 100);
 const rs = (p: number) => `${p < 0 ? "−" : p > 0 ? "+" : ""}₹${(Math.abs(p) / 100).toFixed(2)}`;
 
+// Some screens keep a request open (photos, background refresh), so "network idle" may never come:
+// wait for the page to load, give it a moment to settle, and move on.
 async function go(page: Page, path: string) {
-  await page.goto(base + path, { waitUntil: "networkidle" });
+  await page.goto(base + path, { waitUntil: "load", timeout: 45_000 });
+  await page.waitForLoadState("networkidle", { timeout: 4_000 }).catch(() => undefined);
+  await page.waitForTimeout(300);
 }
 
 async function signup(page: Page, name: string) {
@@ -185,7 +189,7 @@ async function main() {
   for (const w of [A, B, C, D]) {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "en-IN", timezoneId: "Asia/Kolkata" });
     pages[w] = await ctx.newPage();
-    pages[w].setDefaultTimeout(20_000);
+    pages[w].setDefaultTimeout(30_000);
     pages[w].on("dialog", (d) => d.accept());
     await signup(pages[w], w);
   }
