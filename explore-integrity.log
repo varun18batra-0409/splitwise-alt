@@ -1,0 +1,23 @@
+
+[1m[46m RUN [49m[22m [36mv3.2.7 [39m[90m/home/runner/work/splitwise-alt/splitwise-alt[39m
+
+ [32m✓[39m tests/explore-integrity.test.ts[2m > [22mDEF-039: someone who left can't change the group[2m > [22mcan't delete or restore an expense[32m 3[2mms[22m[39m
+ [32m✓[39m tests/explore-integrity.test.ts[2m > [22mDEF-039: someone who left can't change the group[2m > [22mcan't delete a payment[32m 2[2mms[22m[39m
+ [32m✓[39m tests/explore-integrity.test.ts[2m > [22mDEF-039: someone who left can't change the group[2m > [22mcan't undo the group's changes[32m 2[2mms[22m[39m
+ [32m✓[39m tests/explore-integrity.test.ts[2m > [22mDEF-039: someone who left can't change the group[2m > [22mcan't rename people or change the group's name[32m 3[2mms[22m[39m
+ [32m✓[39m tests/explore-integrity.test.ts[2m > [22mDEF-039: someone who left can't change the group[2m > [22mcan't settle everything and close[32m 4[2mms[22m[39m
+ [32m✓[39m tests/explore-integrity.test.ts[2m > [22mDEF-039: someone who left can't change the group[2m > [22mcan't mark someone else as left[32m 2[2mms[22m[39m
+ [32m✓[39m tests/explore-integrity.test.ts[2m > [22mDEF-039: someone who left can't change the group[2m > [22mthe group is unchanged, and they can still rejoin themselves[32m 10[2mms[22m[39m
+ [32m✓[39m tests/explore-integrity.test.ts[2m > [22mcurrencies with 3 decimals and with none[2m > [22mKWD: 10.125 between 3 is exactly 3.375 each; a 4th decimal is refused[32m 26[2mms[22m[39m
+ [32m✓[39m tests/explore-integrity.test.ts[2m > [22mcurrencies with 3 decimals and with none[2m > [22mKWD: 10 between 3 leaves no fils behind[32m 10[2mms[22m[39m
+ [32m✓[39m tests/explore-integrity.test.ts[2m > [22mcurrencies with 3 decimals and with none[2m > [22mJPY group, ₹1,000 at 1.8 = ¥1,800; ¥1,800 between 7 adds up exactly[32m 12[2mms[22m[39m
+ [32m✓[39m tests/explore-integrity.test.ts[2m > [22mcurrencies with 3 decimals and with none[2m > [22mchanging a group from INR to KWD keeps balances adding up to zero[32m 33[2mms[22m[39m
+ [32m✓[39m tests/explore-integrity.test.ts[2m > [22ma long random mix keeps the books straight[2m > [22m400 random changes: balances always add up to zero and match a recount[33m 2245[2mms[22m[39m
+ [32m✓[39m tests/explore-integrity.test.ts[2m > [22mDEF-040: one person can't use up the day's emails[2m > [22mafter 20 invite emails in a day, more are refused with a clear note[32m 181[2mms[22m[39m
+ [32m✓[39m tests/explore-integrity.test.ts[2m > [22mDEF-041: being added by someone doesn't open your passport to them[2m > [22mtheir passport stays hidden until they open the group[32m 60[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m14 passed[39m[22m[90m (14)[39m
+[2m   Start at [22m 19:05:20
+[2m   Duration [22m 3.16s[2m (transform 247ms, setup 0ms, collect 336ms, tests 2.66s, environment 0ms, prepare 41ms)[22m
+
