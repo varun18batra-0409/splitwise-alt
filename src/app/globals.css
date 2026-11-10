@@ -693,3 +693,18 @@ html.lp-opened .lp-open {
 body:has([data-tint]) {
   background: transparent;
 }
+
+/* Small text links and buttons get a thumb-sized tap area (at least ~36 px tall)
+   without changing how they look or where they sit. */
+/* Opt-in (.hit) on links that stand alone, so a tap area never overlaps a neighbour. */
+.hit:not(.absolute):not(.fixed):not(.sticky) {
+  position: relative;
+}
+.hit::after {
+  content: "";
+  position: absolute;
+  inset: -8px -4px;
+}
+.hit-lg::after {
+  inset: -18px 0;
+}

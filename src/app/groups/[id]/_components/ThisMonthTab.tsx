@@ -112,7 +112,7 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
         <section>
           <div className="mb-1 flex items-baseline justify-between">
             <h2 className={h2}>Coming up</h2>
-            <Link href={`/groups/${group.id}?tab=bills`} className="text-sm text-gray-500">
+            <Link href={`/groups/${group.id}?tab=bills`} className="hit text-sm text-gray-500">
               All bills
             </Link>
           </div>

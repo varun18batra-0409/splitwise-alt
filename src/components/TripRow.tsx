@@ -37,7 +37,7 @@ export function TripRow({ children }: { children: React.ReactNode }) {
             onClick={() => go(i)}
             aria-label={`Show trip ${i + 1}`}
             aria-current={i === at}
-            className="flex h-6 items-center px-0.5"
+            className="flex h-8 items-center px-1"
           >
             <span className={`block h-1.5 rounded-full transition-all ${i === at ? "w-4 bg-fg/70" : "w-1.5 bg-fg/25"}`} />
           </button>
