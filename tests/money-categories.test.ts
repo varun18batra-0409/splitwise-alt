@@ -191,7 +191,12 @@ describe("categories pick the right one from everyday words", () => {
   });
   it("keeps rent, bills and health in Bills & Bits", async () => {
     const { guessCategory } = await import("@/lib/categories");
-    for (const n of ["Room rent", "Rent", "Electricity bill", "Wifi", "Medicines", "Doctor", "Gym membership"]) expect(guessCategory(n), n).toBe("bills");
+    for (const n of ["Room rent", "Rent", "Electricity bill", "Wifi", "Medicines", "Doctor", "Gym membership", "Water tanker", "Water bill", "Travel insurance", "Plumber"]) expect(guessCategory(n), n).toBe("bills");
+  });
+  it("guides and card nights are Thrills & Tickets; appliances are Bags & Bling", async () => {
+    const { guessCategory } = await import("@/lib/categories");
+    for (const n of ["Guide", "Poker buy-in", "Teen Patti night", "Casino"]) expect(guessCategory(n), n).toBe("activities");
+    for (const n of ["Fridge", "Washing machine", "Microwave", "Mattress"]) expect(guessCategory(n), n).toBe("shopping");
   });
   it("travel, food, groceries, shopping and activities", async () => {
     const { guessCategory } = await import("@/lib/categories");

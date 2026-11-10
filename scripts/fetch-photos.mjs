@@ -88,311 +88,35 @@ const MORE = {
 };
 for (const [slot, ids] of Object.entries(MORE)) ids.forEach((id, i) => (SLOTS[`${slot}-${i + 2}`] = [id]));
 
-// Indian places from Wikimedia Commons (free licences that ask for credit: the
-// photographer and licence are listed on the Photo credits page).
-const COMMONS = {
- "place-amritsar": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7c/Golden_Temple%2C_Amritsar_03.jpg/1280px-Golden_Temple%2C_Amritsar_03.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Bernard Gagnon",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Golden_Temple,_Amritsar_03.jpg"
- },
- "place-amritsar-2": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/63/Golden_Temple_nighttime.jpg/1280px-Golden_Temple_nighttime.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Marsmux",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Golden_Temple_nighttime.jpg"
- },
- "place-alibaug": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/9b/Alibaug_beach_sun_set_scene.jpg/1280px-Alibaug_beach_sun_set_scene.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Gayatri Priyadarshini",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Alibaug_beach_sun_set_scene.jpg"
- },
- "place-alibaug-2": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/08/Alibaug_Beach.jpg/1280px-Alibaug_Beach.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Rishi Darak",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Alibaug_Beach.jpg"
- },
- "place-ahmedabad": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6d/Jama_Masjid%2C_Ahmedabad_01.jpg/1280px-Jama_Masjid%2C_Ahmedabad_01.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Bernard Gagnon",
-  "license": "CC BY-SA 3.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Jama_Masjid,_Ahmedabad_01.jpg"
- },
- "place-chikmagalur": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/9c/Baba_Budangiri%2C_Chikmagalur_%282024%29_74.jpg/1280px-Baba_Budangiri%2C_Chikmagalur_%282024%29_74.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Gpkp",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Baba_Budangiri,_Chikmagalur_(2024)_74.jpg"
- },
- "place-chikmagalur-2": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1c/Baba_Budangiri%2C_Chikmagalur_%282024%29_44.jpg/1280px-Baba_Budangiri%2C_Chikmagalur_%282024%29_44.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Gpkp",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Baba_Budangiri,_Chikmagalur_(2024)_44.jpg"
- },
- "place-coorg": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/52/Rural_Road_Honnammana_Kere_Coorg_Apr24_A7C_10461.jpg/1280px-Rural_Road_Honnammana_Kere_Coorg_Apr24_A7C_10461.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "<a href=\"https://upload.wikimedia.org/wikipedia/commons/5/52/Rural_Road_Honnamma",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Rural_Road_Honnammana_Kere_Coorg_Apr24_A7C_10461.jpg"
- },
- "place-coorg-2": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/30/Paddy_Hills_Inakanahalli_Coorg_Nov24_A7CR_04454.jpg/1280px-Paddy_Hills_Inakanahalli_Coorg_Nov24_A7CR_04454.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Timothy A. Gonsalves",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Paddy_Hills_Inakanahalli_Coorg_Nov24_A7CR_04454.jpg"
- },
- "place-darjeeling": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/45/Tea_plantation_Darjeeling.JPG/1280px-Tea_plantation_Darjeeling.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Joydeep",
-  "license": "CC BY-SA 3.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Tea_plantation_Darjeeling.JPG"
- },
- "place-darjeeling-2": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4a/Darjeeling%2C_India%2C_Tea_plantations_on_hills.jpg/1280px-Darjeeling%2C_India%2C_Tea_plantations_on_hills.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Vyacheslav Argenberg",
-  "license": "CC BY 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Darjeeling,_India,_Tea_plantations_on_hills.jpg"
- },
- "place-delhi": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/37/India_Gate_2014-11-01.jpg/1280px-India_Gate_2014-11-01.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Nikhilb239",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:India_Gate_2014-11-01.jpg"
- },
- "place-delhi-2": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/02/20191203_Jama_Masjid%2C_Delhi_0707_6468_DxO.jpg/1280px-20191203_Jama_Masjid%2C_Delhi_0707_6468_DxO.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Jakub Hałun",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:20191203_Jama_Masjid,_Delhi_0707_6468_DxO.jpg"
- },
- "place-gokarna": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/25/PXL_20260103_054657562.MP_Paradise_beach_gokarna_Paradise_Beach_Trail%2C_Gokarna%2C_Karnataka_581326_24.jpg/1280px-PXL_20260103_054657562.MP_Paradise_beach_gokarna_Paradise_Beach_Trail%2C_Gokarna%2C_Karnataka_581326_24.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Sourabh.biswas003",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:PXL_20260103_054657562.MP_Paradise_beach_gokarna_Paradise_Beach_Trail,_Gokarna,_Karnataka_581326_24.jpg"
- },
- "place-gokarna-2": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d3/PXL_20260103_054657562.MP_Paradise_beach_gokarna_Paradise_Beach_Trail%2C_Gokarna%2C_Karnataka_581326_15.jpg/1280px-PXL_20260103_054657562.MP_Paradise_beach_gokarna_Paradise_Beach_Trail%2C_Gokarna%2C_Karnataka_581326_15.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Sourabh.biswas003",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:PXL_20260103_054657562.MP_Paradise_beach_gokarna_Paradise_Beach_Trail,_Gokarna,_Karnataka_581326_15.jpg"
- },
- "place-hampi": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8d/Krishna_Pushkarani_-_Hampi_Ruins.jpg/1280px-Krishna_Pushkarani_-_Hampi_Ruins.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Dey.sandip",
-  "license": "CC BY-SA 3.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Krishna_Pushkarani_-_Hampi_Ruins.jpg"
- },
- "place-hampi-2": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/dd/Hampi%2C_India%2C_Lotus_Mahal.jpg/1280px-Hampi%2C_India%2C_Lotus_Mahal.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Vyacheslav Argenberg",
-  "license": "CC BY 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Hampi,_India,_Lotus_Mahal.jpg"
- },
- "place-hyderabad": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c8/Charminar_Hyderabad_111.jpg/1280px-Charminar_Hyderabad_111.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Joydeep",
-  "license": "CC BY-SA 3.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Charminar_Hyderabad_111.jpg"
- },
- "place-jaisalmer": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e9/Jaisalmer-Hotel_Desert_Tulip-26-2018-gje.jpg/1280px-Jaisalmer-Hotel_Desert_Tulip-26-2018-gje.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Gerd Eichmann",
-  "license": "CC BY 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Jaisalmer-Hotel_Desert_Tulip-26-2018-gje.jpg"
- },
- "place-jaisalmer-2": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/52/Dawn_of_Thar_desert.jpg/1280px-Dawn_of_Thar_desert.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Dashrath09",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Dawn_of_Thar_desert.jpg"
- },
- "place-kashmir": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e1/Dal_Lake_Hazratbal_Srinagar.jpg/1280px-Dal_Lake_Hazratbal_Srinagar.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Suhail Skindar Sofi",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Dal_Lake_Hazratbal_Srinagar.jpg"
- },
- "place-kashmir-2": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c4/Mobile_fruit_seller_on_shikara_in_Dal_lake_%2C_Srinagar_%2CKashmir.jpg/1280px-Mobile_fruit_seller_on_shikara_in_Dal_lake_%2C_Srinagar_%2CKashmir.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Harvinder Chandigarh",
-  "license": "CC BY 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Mobile_fruit_seller_on_shikara_in_Dal_lake_,_Srinagar_,Kashmir.jpg"
- },
- "place-kodaikanal": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/55/Kodaikanal_Lake_View.JPG/1280px-Kodaikanal_Lake_View.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Marcus334",
-  "license": "CC BY-SA 3.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Kodaikanal_Lake_View.JPG"
- },
- "place-kolkata": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a1/Howrah_Bridge_Kolkata_Photography_by_Argha_Mallick_02.jpg/1280px-Howrah_Bridge_Kolkata_Photography_by_Argha_Mallick_02.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Arghamallick5151",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Howrah_Bridge_Kolkata_Photography_by_Argha_Mallick_02.jpg"
- },
- "place-kutch": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ec/Rann_of_Kutch_-_White_Desert_2.jpg/1280px-Rann_of_Kutch_-_White_Desert_2.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Superfast1111",
-  "license": "CC BY-SA 3.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Rann_of_Kutch_-_White_Desert_2.jpg"
- },
- "place-lonavala": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f0/The_giant_fort_of_Visapur%21.jpg/1280px-The_giant_fort_of_Visapur%21.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Sumedh.dorwat",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:The_giant_fort_of_Visapur!.jpg"
- },
- "place-lonavala-2": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8c/Lohagad_Fort_Maharashtra.jpg/1280px-Lohagad_Fort_Maharashtra.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Rucksacktales",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Lohagad_Fort_Maharashtra.jpg"
- },
- "place-mahabaleshwar": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7c/Sunset_Dhom_Lake%2C_Mahabaleshwar_03.jpg/1280px-Sunset_Dhom_Lake%2C_Mahabaleshwar_03.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Rangan Datta Wiki",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Sunset_Dhom_Lake,_Mahabaleshwar_03.jpg"
- },
- "place-matheran": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5d/Monsoon_Majesty_Over_the_Western_Ghats.jpg/1280px-Monsoon_Majesty_Over_the_Western_Ghats.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Slizzygod",
-  "license": "CC0",
-  "page": "https://commons.wikimedia.org/wiki/File:Monsoon_Majesty_Over_the_Western_Ghats.jpg"
- },
- "place-matheran-2": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/90/Tea_plantations%2C_Chembra_peak%2C_Western_Ghats_Kerala.jpg/1280px-Tea_plantations%2C_Chembra_peak%2C_Western_Ghats_Kerala.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "ShilpiC17",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Tea_plantations,_Chembra_peak,_Western_Ghats_Kerala.jpg"
- },
- "place-mumbai": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5c/Marine_Lines_Mumbai_2021.jpg/1280px-Marine_Lines_Mumbai_2021.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Dr Vikramjit Kakati",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Marine_Lines_Mumbai_2021.jpg"
- },
- "place-mumbai-2": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2a/Taj_Hotel_Mumbai_Marine_Drive_Photo_by_Chirag_Lad.jpg/1280px-Taj_Hotel_Mumbai_Marine_Drive_Photo_by_Chirag_Lad.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Chiragslad",
-  "license": "CC0",
-  "page": "https://commons.wikimedia.org/wiki/File:Taj_Hotel_Mumbai_Marine_Drive_Photo_by_Chirag_Lad.jpg"
- },
- "place-mussoorie": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0c/Mussoorie_the_nature_walk.jpg/1280px-Mussoorie_the_nature_walk.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Vishaldkapoor",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Mussoorie_the_nature_walk.jpg"
- },
- "place-mysore": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7c/Mysore_palace_front_view_001.jpg/1280px-Mysore_palace_front_view_001.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "<td valig",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Mysore_palace_front_view_001.jpg"
- },
- "place-mysore-2": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/de/Mysore_palace_gate.jpg/1280px-Mysore_palace_gate.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "<td valig",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Mysore_palace_gate.jpg"
- },
- "place-nainital": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ab/Nainital_Lake_02.jpg/1280px-Nainital_Lake_02.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Slyronit",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Nainital_Lake_02.jpg"
- },
- "place-nainital-2": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a4/View_of_Nainital_lake_from_Snow_View_Point.jpg/1280px-View_of_Nainital_lake_from_Snow_View_Point.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Slyronit",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:View_of_Nainital_lake_from_Snow_View_Point.jpg"
- },
- "place-ooty": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d8/Fields_Hazy_Mountains_Marlimund_Ooty_Nilgiris_Aug25_A7CR_07258.jpg/1280px-Fields_Hazy_Mountains_Marlimund_Ooty_Nilgiris_Aug25_A7CR_07258.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Timothy A. Gonsalves",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Fields_Hazy_Mountains_Marlimund_Ooty_Nilgiris_Aug25_A7CR_07258.jpg"
- },
- "place-pondicherry": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/bb/French_Quarter%2C_Pondicherry_%285%29_%2836845125313%29.jpg/1280px-French_Quarter%2C_Pondicherry_%285%29_%2836845125313%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Richard Mortel from Riyadh, Saudi Arabia",
-  "license": "CC BY 2.0",
-  "page": "https://commons.wikimedia.org/wiki/File:French_Quarter,_Pondicherry_(5)_(36845125313).jpg"
- },
- "place-pondicherry-2": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/26/Windows_of_Pondicherry_-_White_wall%2C_Green_coloured_window_and_grills_%283%29.jpg/1280px-Windows_of_Pondicherry_-_White_wall%2C_Green_coloured_window_and_grills_%283%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "iMahesh",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Windows_of_Pondicherry_-_White_wall,_Green_coloured_window_and_grills_(3).jpg"
- },
- "place-pune": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c1/Khandoba_temple_Pune.jpg/1280px-Khandoba_temple_Pune.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "PKharote",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Khandoba_temple_Pune.jpg"
- },
- "place-sikkim": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/eb/View_of_Gangtok_city_from_Ropeway.jpg/1280px-View_of_Gangtok_city_from_Ropeway.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Subhrajyoti07",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:View_of_Gangtok_city_from_Ropeway.jpg"
- },
- "place-sikkim-2": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6f/View_of_Gangtok_City_from_Crown_Prince_Tenzing_Kunzang_Namgyal_Walkway.jpg/1280px-View_of_Gangtok_City_from_Crown_Prince_Tenzing_Kunzang_Namgyal_Walkway.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Subhrajyoti07",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:View_of_Gangtok_City_from_Crown_Prince_Tenzing_Kunzang_Namgyal_Walkway.jpg"
- },
- "place-udaipur": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/07/Taj_Lake_Palace_Udaipur_from_City_Palace.jpg/1280px-Taj_Lake_Palace_Udaipur_from_City_Palace.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Navneet Sharma",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Taj_Lake_Palace_Udaipur_from_City_Palace.jpg"
- },
- "place-udaipur-2": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/dd/Lake_Pichola_at_sunset%2C_Udaipur%2C_Rajasthan%2C_India.jpg/1280px-Lake_Pichola_at_sunset%2C_Udaipur%2C_Rajasthan%2C_India.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "UnpetitproleX",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Lake_Pichola_at_sunset,_Udaipur,_Rajasthan,_India.jpg"
- },
- "place-varanasi": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3a/Varanasi_Munshi_Ghat3.jpg/1280px-Varanasi_Munshi_Ghat3.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Marcin Białek",
-  "license": "CC BY-SA 3.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Varanasi_Munshi_Ghat3.jpg"
- },
- "place-varanasi-2": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6b/Varanasi_2010_Ahilyabai_Ghat.jpg/1280px-Varanasi_2010_Ahilyabai_Ghat.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Marcin Białek",
-  "license": "CC BY-SA 3.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Varanasi_2010_Ahilyabai_Ghat.jpg"
- },
- "place-corbett": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/ca/Elephants_Grass_Sal_Dhikala_Corbett_Reserve_Dec2019_R16_02266.jpg/1280px-Elephants_Grass_Sal_Dhikala_Corbett_Reserve_Dec2019_R16_02266.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Timothy Gonsalves",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Elephants_Grass_Sal_Dhikala_Corbett_Reserve_Dec2019_R16_02266.jpg"
- },
- "place-corbett-2": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cc/Morning_Mist_Dhikala_Corbett_Reserve_Dec2019_R16_02285.jpg/1280px-Morning_Mist_Dhikala_Corbett_Reserve_Dec2019_R16_02285.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Timothy Gonsalves",
-  "license": "CC BY-SA 4.0",
-  "page": "https://commons.wikimedia.org/wiki/File:Morning_Mist_Dhikala_Corbett_Reserve_Dec2019_R16_02285.jpg"
- },
- "cover-road-in": {
-  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/60/A_Road_To_Heaven_%28234761269%29.jpeg/1280px-A_Road_To_Heaven_%28234761269%29.jpeg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-  "by": "Mann Mishra",
-  "license": "CC BY 3.0",
-  "page": "https://commons.wikimedia.org/wiki/File:A_Road_To_Heaven_(234761269).jpeg"
- }
+// Indian places: free Unsplash photos, each picked by looking at it (first is the
+// place's main photo, the rest place-x-2, place-x-3…).
+const INDIA = {
+  "place-amritsar": ["photo-1623059508779-2542c6e83753", "photo-1517427677506-ade074eb1432"],
+  "place-alibaug": ["photo-1610535791915-4d14316afc43", "photo-1613994306009-0e40e759159b"],
+  "place-coorg": ["photo-1560357647-62a43d9897bb", "photo-1599922760936-e840fa373d8d"],
+  "place-darjeeling": ["photo-1671711847762-b8308b444a42", "photo-1622308644420-b20142dc993c"],
+  "place-delhi": ["photo-1587474260584-136574528ed5", "photo-1597040663342-45b6af3d91a5"],
+  "place-gokarna": ["photo-1576440742053-8820cffa7bae", "photo-1617467053978-276d9d4d5d11"],
+  "place-hampi": ["photo-1722934804353-0d9f6a55ab5e", "photo-1616606484004-5ef3cc46e39d"],
+  "place-hyderabad": ["photo-1787044050216-19d30c0aeaf5", "photo-1696941515998-d83f24967aca"],
+  "place-jaisalmer": ["photo-1654245363109-b873bb61b2fa", "photo-1709620220232-12ecd7ca33a8"],
+  "place-kashmir": ["photo-1715457573748-8e8a70b2c1be", "photo-1598091383021-15ddea10925d"],
+  "place-kolkata": ["photo-1536421469767-80559bb6f5e1", "photo-1558431382-27e303142255"],
+  "place-kutch": ["photo-1669015881702-951de590db31"],
+  "place-lonavala": ["photo-1589286875480-743411b84f53", "photo-1582041545006-a561d82524d9"],
+  "place-mumbai": ["photo-1595658658481-d53d3f999875", "photo-1785768569545-a0b75d68006f"],
+  "place-mussoorie": ["photo-1713026665246-843d870d1cdc"],
+  "place-mysore": ["photo-1600112356915-089abb8fc71a", "photo-1659126574791-13313aa424bd"],
+  "place-ooty": ["photo-1638886540342-240980f60d25", "photo-1707655315272-33a54a771068"],
+  "place-pondicherry": ["photo-1772633634752-7b7611e839fc", "photo-1621831714462-bec8edc4d0ec"],
+  "place-pune": ["photo-1760034588108-987757454c18"],
+  "place-sikkim": ["photo-1600402808924-9c591a6dace8", "photo-1634400001131-d04275db2076"],
+  "place-udaipur": ["photo-1589901164570-f9de6556e1c1", "photo-1615836245337-f5b9b2303f10"],
+  "place-varanasi": ["photo-1561359313-0639aad49ca6", "photo-1561361058-c24cecae35ca"],
+  "place-corbett": ["photo-1653545607843-3411d02bc569"],
+  "cover-road-in": ["photo-1651338794013-cdfa3745abe5"],
 };
-for (const [slot, c] of Object.entries(COMMONS)) SLOTS[slot] = [c.url];
+for (const [slot, ids] of Object.entries(INDIA)) ids.forEach((id, i) => (SLOTS[i ? `${slot}-${i + 1}` : slot] = [id]));
 
 // The photo's own colour, so a group's screens can be tinted to match it: the average of its most
 // colourful, mid-bright spots (sky, sea, sand, stone), measured on a tiny 12×12 copy.
@@ -454,5 +178,4 @@ for (const [slot, ids] of Object.entries(SLOTS)) {
 mkdirSync("src/generated", { recursive: true });
 writeFileSync("src/generated/photos.json", JSON.stringify(got, null, 2));
 // Credits for the photos that need them (only the ones that downloaded).
-writeFileSync("src/generated/photo-credits.json", JSON.stringify(Object.fromEntries(Object.entries(COMMONS).filter(([slot]) => got[slot]).map(([slot, c]) => [slot, { by: c.by, license: c.license, page: c.page }])), null, 2));
 console.log(`photos: ${Object.keys(got).length}/${Object.keys(SLOTS).length} ready`);
