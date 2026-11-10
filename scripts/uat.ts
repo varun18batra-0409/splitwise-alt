@@ -724,8 +724,7 @@ async function main() {
     await go(V, `${g}/pay`);
     await V.locator("label", { hasText: "Asha" }).first().click();
     const target = V.locator("label[data-to]", { hasText: "Asha" });
-    const op = await target.evaluate((el) => getComputedStyle(el).opacity);
-    assert(Number(op) < 0.5, `“Asha → Asha” is not greyed out (opacity ${op})`);
+    assert(!(await target.isVisible()), "“Asha → Asha” is still offered under Paid to");
     // Even if forced, the server says no.
     await V.evaluate(() => {
       const r = document.querySelector<HTMLInputElement>('label[data-to] input[name="toId"]');
