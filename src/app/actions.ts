@@ -5,7 +5,7 @@ import { RedirectType } from "next/navigation";
 import { cleanCover } from "@/lib/covers";
 import { redirect } from "@/lib/fresh-redirect";
 import { db } from "@/lib/db";
-import { forgetThisPhone, getAccount, getMemberships, getMyMemberId, keepGroupsDropAccount, setMyMemberId, signInAs } from "@/lib/identity";
+import { forgetThisPhone, getAccount, getMemberships, getMyMemberId, keepGroupsDropAccount, setMyMemberId, signInAs, signOutOtherPhones } from "@/lib/identity";
 import { deleteAccount, requestLoginCode, verifyLoginCode } from "@/lib/auth";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { headers } from "next/headers";
@@ -34,6 +34,7 @@ import { after } from "next/server";
 import { getTimeZone } from "@/lib/tz";
 import { dayKey } from "@/lib/dates";
 import { importSplitwise } from "@/lib/splitwise-import";
+import { isGroupAdmin } from "@/lib/group-admin";
 
 
 export async function createGroup(formData: FormData) {
@@ -217,7 +218,7 @@ export async function joinAsNew(formData: FormData) {
 
 // Saves a new expense — or changes an existing one — then goes back to the group page.
 export async function addExpense(
-  input: SaveExpenseInput & { again?: boolean; billRun?: { billId: string; period: string } },
+  input: SaveExpenseInput & { again?: boolean; billRun?: { billId: string; period: string }; receiptId?: string },
 ): Promise<{ error: string; duplicateOf?: { id: string; description: string; amount: number; by: string; when: string } }> {
   if (!(await allow(`expense:${(await originAndIp()).ip}`, 300, 3600))) return { error: "Too many changes in a short time. Wait a few minutes." };
   // Fetch (and cache) today's rate before saving, so the save itself never waits on the internet.
@@ -231,6 +232,15 @@ export async function addExpense(
       ? await addWaitingBill(input, me, getRate, input.billRun, requestKey)
       : await saveExpense(input, me, getRate, { ignoreDoubleTap: true, requestKey, checkDuplicate: true });
   if (!result.ok) return { error: result.error, duplicateOf: result.duplicateOf };
+  // A bill photo taken while adding: it now belongs to this expense (one per expense).
+  if (me && result.id && typeof input.receiptId === "string" && /^[A-Za-z0-9_-]{6,40}$/.test(input.receiptId)) {
+    const r = await db.receipt.findFirst({ where: { id: input.receiptId, groupId: input.groupId, expenseId: "" }, select: { id: true } });
+    if (r)
+      await db.$transaction([
+        db.receipt.deleteMany({ where: { groupId: input.groupId, expenseId: result.id } }),
+        db.receipt.update({ where: { id: r.id }, data: { expenseId: result.id } }),
+      ]);
+  }
   // Budgets: a nudge at 80% and when one goes over (after the reply is sent).
   after(() => checkBudgets(input.groupId).catch(() => []));
   // "Save & add another": straight back to a fresh form with the same people and split.
@@ -363,6 +373,7 @@ export async function updateGroupSettings(formData: FormData) {
 
   const currency = String(formData.get("currency") ?? group.currency);
   if (currency !== group.currency) {
+    if (!(await isGroupAdmin(group.id, myId))) redirect(`${back}?error=admin`);
     if (!isSupportedCurrency(currency)) redirect(`${back}?error=currency`);
     // With money already in the group, confirm the conversion rate first.
     if (group._count.expenses + group._count.payments > 0) redirect(`${back}?convert=${currency}`);
@@ -381,6 +392,7 @@ export async function convertGroupCurrency(formData: FormData) {
   if (!group) redirect("/");
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  if (!(await isGroupAdmin(group.id, myId))) redirect(`/groups/${group.id}/settings?error=admin`);
   const r = await changeGroupCurrency(group.id, myId, currency, rate);
   if (!r.ok) redirect(`/groups/${group.id}/settings?convert=${currency}&error=${encodeURIComponent(r.error)}`);
   redirect(`/groups/${group.id}?saved=settings${r.eventId ? `&did=${r.eventId}` : ""}`);
@@ -561,6 +573,8 @@ export async function recordCustomPayment(formData: FormData) {
   redirect(did ? `${done}&did=${did}` : done);
 }
 
+const ADMIN_ONLY = "Only the person who started the group can do that.";
+
 // People screen: rename, remove (never used), leave / rejoin.
 async function peopleContext(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
@@ -584,12 +598,15 @@ export async function renamePerson(formData: FormData) {
 
 export async function removePerson(formData: FormData) {
   const { groupId, memberId, myId } = await peopleContext(formData);
+  if (!(await isGroupAdmin(groupId, myId))) backToPeople(groupId, { ok: false, error: ADMIN_ONLY });
   if (await isMemberUsed(memberId)) backToPeople(groupId, { ok: false, error: "They’re already part of expenses or payments. They can leave instead, once settled up." });
   backToPeople(groupId, await removeMembers(groupId, myId, [memberId], false));
 }
 
 export async function setPersonLeft(formData: FormData) {
   const { groupId, memberId, myId } = await peopleContext(formData);
+  // You can always leave or rejoin yourself; marking someone else as left is for whoever looks after the group.
+  if (memberId !== myId && formData.get("left") === "1" && !(await isGroupAdmin(groupId, myId))) backToPeople(groupId, { ok: false, error: ADMIN_ONLY });
   backToPeople(groupId, await setMemberLeft(groupId, myId, memberId, formData.get("left") === "1"));
 }
 
@@ -697,6 +714,11 @@ export async function saveMyName(formData: FormData) {
   redirect(`/account?name=saved&groups=${changed}`);
 }
 
+export async function signOutOtherPhonesAction() {
+  const ok = await signOutOtherPhones();
+  redirect(ok ? "/account?others=out#other-phones" : "/signin");
+}
+
 export async function signOutThisPhone() {
   await forgetThisPhone();
   redirect("/");
@@ -719,6 +741,7 @@ export async function deleteGroup(formData: FormData) {
   if (!group || group.deletedAt) redirect("/");
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  if (!(await isGroupAdmin(group.id, myId))) redirect(`/groups/${group.id}/settings?error=admin`);
   await db.$transaction(async (tx) => {
     await tx.group.update({ where: { id: group.id }, data: { deletedAt: new Date(), deletedById: myId } });
     await logEvent(tx, { groupId: group.id, actorId: myId, kind: "group_deleted", text: "deleted the group (it can be restored for 30 days)" });

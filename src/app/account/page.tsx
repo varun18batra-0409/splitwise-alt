@@ -1,7 +1,7 @@
 import Link from "@/components/Link";
 import { CompassIcon, PeoplePassportsIcon } from "@/components/DrawnIcons";
 import { InviteFriends } from "@/components/InviteFriends";
-import { deleteMyAccount, removeMyPasskey, saveMyName, signOutThisPhone } from "@/app/actions";
+import { deleteMyAccount, removeMyPasskey, saveMyName, signOutOtherPhonesAction, signOutThisPhone } from "@/app/actions";
 import { db } from "@/lib/db";
 import { sameName } from "@/lib/names";
 import { listPasskeys } from "@/lib/passkeys";
@@ -12,10 +12,13 @@ import { loadMyGroups } from "@/lib/group-data";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { PageHeader, inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
 import { savePayWays } from "@/app/pay-actions";
+import { headers } from "next/headers";
+import { visitorRegion } from "@/lib/region";
 
 // You: signed-in email (optional), sign out, delete your data, privacy.
-export default async function AccountPage({ searchParams }: { searchParams: Promise<{ name?: string; groups?: string; pay?: string; payError?: string }> }) {
-  const { name: nameState, groups: renamed, pay: payState, payError } = await searchParams;
+export default async function AccountPage({ searchParams }: { searchParams: Promise<{ name?: string; groups?: string; pay?: string; payError?: string; others?: string }> }) {
+  const { name: nameState, groups: renamed, pay: payState, payError, others } = await searchParams;
+  const signedOutOthers = others === "out";
   const account = await getAccount();
   const postcardsNew = account ? await db.postcard.count({ where: { toId: account.id, readAt: null } }) : 0;
   const groups = await loadMyGroups(await getMemberships());
@@ -152,10 +155,15 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             </p>
           )}
           <form action={savePayWays} className="mt-4 space-y-3">
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-gray-600">UPI ID (India)</span>
-              <input name="upiId" defaultValue={account.upiId} maxLength={120} placeholder="e.g. asha@okicici" autoComplete="off" autoCapitalize="none" spellCheck={false} className={inputClass} />
-            </label>
+            {/* UPI only works in India: shown there, or to anyone who already saved one. */}
+            {(account.upiId || ((account.homeCountry || visitorRegion(await headers()).country || "IN").toUpperCase() === "IN")) ? (
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-gray-600">UPI ID (India)</span>
+                <input name="upiId" defaultValue={account.upiId} maxLength={120} placeholder="e.g. asha@okicici" autoComplete="off" autoCapitalize="none" spellCheck={false} className={inputClass} />
+              </label>
+            ) : (
+              <input type="hidden" name="upiId" value="" data-upi-hidden="1" />
+            )}
             <label className="block">
               <span className="mb-1 block text-sm font-medium text-gray-600">PayPal, Venmo, Cash App, Revolut or Monzo link</span>
               <input name="payLink" defaultValue={account.payLink} maxLength={300} placeholder="e.g. paypal.me/asha or venmo.com/u/asha" autoComplete="off" autoCapitalize="none" spellCheck={false} className={inputClass} />
@@ -207,6 +215,20 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
               Sign out
             </ConfirmButton>
           </form>
+          <h2 className="mb-1 mt-8 text-base font-semibold" id="other-phones">
+            Sign out on all other phones
+          </h2>
+          <p className="mb-4 text-sm text-gray-500">Lost a phone, or signed in somewhere you shouldn’t stay? Every other phone and browser is signed out. This one stays signed in.</p>
+          {signedOutOthers && (
+            <p className="mb-4 rounded-xl bg-mist px-4 py-3 text-sm" role="status" data-signed-out-others>
+              Done. Every other phone has been signed out.
+            </p>
+          )}
+          <form action={signOutOtherPhonesAction}>
+            <ConfirmButton message="Sign out on every other phone and browser?" className={secondaryButtonClass}>
+              Sign out other phones
+            </ConfirmButton>
+          </form>
         </section>
       )}
 
@@ -224,7 +246,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         {account && (
           <form action={deleteMyAccount}>
             <ConfirmButton
-              message="Delete your sign-in and email? Your groups stay on this phone and in each group’s history."
+              message="Delete your sign-in, email, postcards and passkeys? Your groups stay on this phone and in each group’s history."
               className="w-full rounded-full border border-red-500/40 px-5 py-3.5 text-center text-base font-medium text-red-400 active:bg-red-500/10"
             >
               Delete my email &amp; sign-in

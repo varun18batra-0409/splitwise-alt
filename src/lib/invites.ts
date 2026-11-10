@@ -129,8 +129,8 @@ export async function inviteByEmail(groupId: string, actorId: string, rawEmails:
     const sent = await sendMail(
       email,
       `${actor.name} invited you to ${group.name} on Loopin`,
-      `${actor.name} invited you to split expenses in “${group.name}” on Loopin.\n\nJoin here: ${link}\n\nLoopin is free, with no ads.`,
-      `<div style="font-family:system-ui,sans-serif;max-width:440px"><p style="font-size:16px"><strong>${esc(actor.name)}</strong> invited you to split expenses in <strong>${esc(group.name)}</strong> on Loopin.</p><p><a href="${link}" style="display:inline-block;background:#0d0d0f;color:#f4f2ec;padding:12px 18px;text-decoration:none;font-weight:600">Join ${esc(group.name)}</a></p><p style="font-size:13px;color:#777">Loopin is free, with no ads.</p></div>`,
+      `${actor.name} invited you to split expenses in “${group.name}” on Loopin.\n\nJoin here: ${link}`,
+      `<div style="font-family:system-ui,sans-serif;max-width:440px"><p style="font-size:16px"><strong>${esc(actor.name)}</strong> invited you to split expenses in <strong>${esc(group.name)}</strong> on Loopin.</p><p><a href="${link}" style="display:inline-block;background:#0d0d0f;color:#f4f2ec;padding:12px 18px;text-decoration:none;font-weight:600">Join ${esc(group.name)}</a></p></div>`,
     );
     if (sent) invited.push(email);
     else bad.push(`${email} (the email couldn’t be sent; share the invite link instead)`);
@@ -165,8 +165,8 @@ export async function inviteToClaim(groupId: string, actorId: string, memberId: 
   const sent = await sendMail(
     email,
     `${actor.name} added you to ${group.name} on Loopin`,
-    `${actor.name} added you as “${member.name}” in “${group.name}” on Loopin. Tap to join and see your share:\n\n${link}\n\nLoopin is free, with no ads.`,
-    `<div style="font-family:system-ui,sans-serif;max-width:440px"><p style="font-size:16px"><strong>${esc(actor.name)}</strong> added you as <strong>${esc(member.name)}</strong> in <strong>${esc(group.name)}</strong> on Loopin.</p><p><a href="${link}" style="display:inline-block;background:#0d0d0f;color:#f4f2ec;padding:12px 18px;text-decoration:none;font-weight:600">Join as ${esc(member.name)}</a></p><p style="font-size:13px;color:#777">Loopin is free, with no ads.</p></div>`,
+    `${actor.name} added you as “${member.name}” in “${group.name}” on Loopin. Tap to join and see your share:\n\n${link}`,
+    `<div style="font-family:system-ui,sans-serif;max-width:440px"><p style="font-size:16px"><strong>${esc(actor.name)}</strong> added you as <strong>${esc(member.name)}</strong> in <strong>${esc(group.name)}</strong> on Loopin.</p><p><a href="${link}" style="display:inline-block;background:#0d0d0f;color:#f4f2ec;padding:12px 18px;text-decoration:none;font-weight:600">Join as ${esc(member.name)}</a></p></div>`,
   );
   if (!sent) return { ok: false, error: "The email couldn’t be sent. Share the group’s invite link instead." };
   await logEvent(db, { groupId, actorId, kind: "member_invited", text: `invited ${member.name} (${email}) to join` });

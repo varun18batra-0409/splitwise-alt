@@ -16,7 +16,7 @@ test("sign out of this phone, sign back in: your groups come back", async ({ bro
 
   await page.goto("/account");
   await settled(page);
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await page.waitForURL((u) => u.pathname === "/");
   await page.goto("/");
   await expect(page.getByText(name)).toHaveCount(0);
@@ -26,6 +26,35 @@ test("sign out of this phone, sign back in: your groups come back", async ({ bro
   await settled(page);
   await expect(page.getByText(name).first()).toBeVisible();
   await ctx.close();
+});
+
+test("sign out other phones: the other phone loses your groups, this one keeps them", async ({ browser }) => {
+  const email = testEmail("two-phones");
+  const user = await signUp("Tara", email);
+  const lost = await contextFor(browser, user);
+  const kept = await contextFor(browser, user);
+  const a = await lost.newPage();
+  const b = await kept.newPage();
+  const name = groupName("Two phones");
+  await createGroup(b, name);
+  await a.goto("/");
+  await settled(a);
+  await expect(a.getByText(name).first()).toBeVisible();
+
+  await b.goto("/account");
+  await settled(b);
+  await b.getByRole("button", { name: "Sign out other phones" }).click();
+  await b.waitForURL(/others=out/);
+  await expect(b.locator("[data-signed-out-others]")).toBeVisible();
+
+  await a.goto("/");
+  await settled(a);
+  await expect(a.getByText(name)).toHaveCount(0);
+  await b.goto("/");
+  await settled(b);
+  await expect(b.getByText(name).first()).toBeVisible();
+  await lost.close();
+  await kept.close();
 });
 
 test("someone outside a group sees “Private group” (no name, no join code), and can’t download it", async ({ browser, page, context }) => {
@@ -73,7 +102,7 @@ test("fingerprint / face: turn it on, sign out, sign back in with one touch, rem
   await page.reload();
   await expect(page.getByRole("button", { name: "Remove" })).toHaveCount(1);
 
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await page.waitForURL((u) => u.pathname === "/");
   await page.goto("/signin");
   await settled(page);

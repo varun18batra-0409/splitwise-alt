@@ -90,6 +90,12 @@ export function Insights({ d }: { d: InsightsData }) {
                 </span>
               ) : change === null ? (
                 <span className="text-fg/45">Nothing to compare with yet</span>
+              ) : Math.abs(change) > 300 && before !== null ? (
+                // A tiny last month makes percentages silly (▲5534%): show the two amounts instead.
+                <span className="text-fg/55" data-insights-compare="amounts">
+                  {approx}
+                  {formatMoney(before, d.currency)} in {bucketLabel(d.bars[i - 1].key, d.grain)}
+                </span>
               ) : (
                 <span className={change > 0 ? "text-owe" : change < 0 ? "text-owed" : "text-fg/55"}>
                   {change > 0 ? "▲" : change < 0 ? "▼" : "•"} {Math.abs(change)}%{" "}

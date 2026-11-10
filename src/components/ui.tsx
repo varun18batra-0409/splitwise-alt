@@ -22,7 +22,7 @@ export function PageHeader({
           <BackIcon size={20} />
         </Link>
       )}
-      <h1 className="min-w-0 flex-1 truncate font-display text-[28px] font-semibold leading-tight tracking-[-0.02em]">{title}</h1>
+      <h1 className="min-w-0 flex-1 line-clamp-2 break-words font-display text-[28px] font-semibold leading-tight tracking-[-0.02em]">{title}</h1>
       {action && (
         <Link href={action.href} aria-label={action.label} className={iconButtonClass}>
           {action.icon}

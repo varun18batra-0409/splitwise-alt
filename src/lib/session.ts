@@ -1,11 +1,16 @@
 // "Who you are" on this phone, kept in one signed cookie so it can't be
-// edited or forged: { m: { groupId: memberId }, a?: accountId }.
+// edited or forged: { m: { groupId: memberId }, a?: accountId, v?: the
+// account's sign-in version (bumped by "sign out on all other phones"),
+// t?: when it was issued (days since 1970, for renewal) }.
 // Works in both the server and the edge middleware (Web Crypto only).
 
 export const SESSION_COOKIE = "sw_me";
-export const SESSION_MAX_AGE = 60 * 60 * 24 * 365 * 5; // five years
+export const SESSION_MAX_AGE = 60 * 60 * 24 * 365; // one year, renewed while the phone keeps using Loopin
+export const SESSION_RENEW_DAYS = 30; // re-issued (another year) once it's this old
 
-export type Session = { m: Record<string, string>; a?: string };
+export type Session = { m: Record<string, string>; a?: string; v?: number; t?: number };
+
+export const today = (now = Date.now()) => Math.floor(now / 86_400_000);
 
 const enc = new TextEncoder();
 
@@ -45,7 +50,12 @@ function clean(v: unknown): Session | null {
   for (const [g, id] of Object.entries(o.m as Record<string, unknown>)) {
     if (typeof id === "string" && g.length < 64 && id.length < 64) m[g] = id;
   }
-  return typeof o.a === "string" && o.a.length < 64 ? { m, a: o.a } : { m };
+  const out: Session = { m };
+  if (typeof o.a === "string" && o.a.length < 64) out.a = o.a;
+  const extra = v as { v?: unknown; t?: unknown };
+  if (typeof extra.v === "number" && Number.isInteger(extra.v)) out.v = extra.v;
+  if (typeof extra.t === "number" && Number.isInteger(extra.t)) out.t = extra.t;
+  return out;
 }
 
 export async function encodeSession(s: Session): Promise<string> {

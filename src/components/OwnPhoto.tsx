@@ -126,7 +126,7 @@ function toBlob(c: HTMLCanvasElement, type: string, q: number): Promise<Blob | n
   return new Promise((res) => c.toBlob(res, type, q));
 }
 
-async function load(file: File): Promise<{ source: CanvasImageSource; width: number; height: number }> {
+export async function load(file: File): Promise<{ source: CanvasImageSource; width: number; height: number }> {
   try {
     const b = await createImageBitmap(file, { imageOrientation: "from-image" });
     return { source: b, width: b.width, height: b.height };

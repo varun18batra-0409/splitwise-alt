@@ -5,7 +5,7 @@ import { getAccount } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
 import { todayKey } from "@/lib/dates";
 import { visitorRegion } from "@/lib/region";
-import { loadPassport } from "@/lib/passport-db";
+import { celebrateMarks, loadPassport } from "@/lib/passport-db";
 import { COUNTRIES, countryOf } from "@/lib/geo";
 import { parseHandPlaces, stampPages } from "@/lib/passport";
 import { removePlaceAction, setHomeCountryAction, setPassportShareAction } from "@/app/passport-actions";
@@ -41,6 +41,8 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
   const home = countryOf(p.home);
   const hand = parseHandPlaces(account.places);
   const empty = p.stamps.length + p.been.length === 0;
+  // A moment just reached (10 countries, a new continent): shown once here, and in Alerts.
+  const moment = await celebrateMarks(account, p.marks);
 
   return (
     <>
@@ -50,6 +52,13 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
         <Notice params={["sent"]} className="mb-4">
           Sent to {Number(sp.sent) === 1 ? "1 person" : `${Number(sp.sent)} people`} in Loopin.
         </Notice>
+      )}
+
+      {moment && (
+        <section className="mb-4 rounded-[20px] border border-owed/30 bg-owed/[0.06] px-5 py-4" role="status" data-passport-moment={moment.id}>
+          <p className="font-display text-xl font-semibold tracking-tight">{moment.title}</p>
+          <p className="mt-1 text-sm text-gray-500">{moment.body.replace(/ Open (it|your passport) to see.*$/, "")}</p>
+        </section>
       )}
 
       <Link href="/passport/friends" className="mb-4 flex items-center gap-3 rounded-2xl border border-line px-4 py-3 active:bg-mist" data-friends-link>
@@ -68,7 +77,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
             <Link href="/passport/send" className="pop flex h-12 items-center justify-center bg-fg text-[15px] font-semibold text-canvas" data-passport-send>
               Send in Loopin
             </Link>
-          <ShareSheet image={`/passport/image?v=${version}`} fileName="loopin-passport.png" title="Share your passport" words={`My Loopin passport: ${[p.stats.countries ? `${p.stats.countries} ${p.stats.countries === 1 ? "country" : "countries"}` : "", p.stats.cities ? `${p.stats.cities} ${p.stats.cities === 1 ? "city" : "cities"}` : ""].filter(Boolean).join(", ") || "my first stamps"} and counting ✈️`} label="WhatsApp & more" />
+          <ShareSheet image={`/passport/image?v=${version}`} fileName="loopin-passport.png" title="Share your passport" words={`My Loopin passport: ${[p.stats.countries ? `${p.stats.countries} ${p.stats.countries === 1 ? "country" : "countries"}` : "", p.stats.cities ? `${p.stats.cities} ${p.stats.cities === 1 ? "city" : "cities"}` : ""].filter(Boolean).join(", ") || "my first stamps"} and counting ✈️`} label="Share" />
           </div>
         </div>
       )}
@@ -107,7 +116,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
                 <form action={removePlaceAction} className="flex items-center gap-1.5 rounded-full border border-line py-1 pl-3 pr-1 text-sm">
                   <input type="hidden" name="country" value={h.c} />
                   {countryOf(h.c)?.flag} {countryOf(h.c)?.name}
-                  <button type="submit" aria-label={`Remove ${countryOf(h.c)?.name}`} className="flex h-6 w-6 items-center justify-center rounded-full text-gray-400 active:bg-mist">
+                  <button type="submit" aria-label={`Remove ${countryOf(h.c)?.name}`} className="-my-2.5 -ml-2 -mr-1.5 flex h-11 w-11 items-center justify-center rounded-full text-gray-400 active:bg-mist">
                     ✕
                   </button>
                 </form>

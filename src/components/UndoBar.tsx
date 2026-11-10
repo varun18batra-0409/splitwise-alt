@@ -39,7 +39,7 @@ export function UndoBar({
             {redo ? "Redo" : "Undo"}
           </button>
         </form>
-        <button type="button" onClick={() => setVisible(false)} aria-label="Dismiss" className="shrink-0 px-1 text-lg leading-none text-gray-400">
+        <button type="button" onClick={() => setVisible(false)} aria-label="Dismiss" className="-my-2 -mr-3 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xl leading-none text-gray-400 active:bg-mist">
           ×
         </button>
       </div>

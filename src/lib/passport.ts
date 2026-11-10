@@ -1,5 +1,6 @@
 import { countryOf, tripStops } from "./geo";
 import { tripEmoji } from "./countdown";
+import { continentOf } from "./continents";
 
 // Your trip passport, like a real one: every Loopin trip leaves its own stamp
 // (a city stamp for a trip in your home country, a round country stamp for a
@@ -103,12 +104,19 @@ export function buildPassport(trips: PassportTrip[], hand: HandPlace[], home: st
     abroad: abroad.length,
     trips: started.length,
     thisYear: new Set(started.filter((t) => t.start.startsWith(year)).map((t) => t.groupId)).size,
+    continents: new Set(rows.map((r) => continentOf(r.code)).filter(Boolean)).size,
   };
+  const marks = passportMarks(stats, abroad.some((r) => r.trips > 0 || r.byHand));
 
   // Milestones worth showing off.
   const milestones: string[] = [];
   if (abroad.some((r) => r.trips > 0)) milestones.push("First trip abroad ✈️");
-  if (abroad.length >= 3) milestones.push(`${abroad.length} countries abroad 🌍`);
+  const top = (ladder: Mark["ladder"]) => marks.filter((m) => m.ladder === ladder).pop();
+  const countriesMark = top("countries");
+  if (countriesMark) milestones.push(countriesMark.chip);
+  else if (abroad.length >= 3) milestones.push(`${abroad.length} countries abroad 🌍`);
+  const continentsMark = top("continents");
+  if (continentsMark && continentsMark.n >= 3) milestones.push(continentsMark.chip);
   for (const r of rows) for (const city of r.cities) {
     const n = cityTrips.get(`${r.code}|${city.toLowerCase()}`) ?? 0;
     if (n >= 3) milestones.push(`${city} ×${n} 🔁`);
@@ -136,7 +144,37 @@ export function buildPassport(trips: PassportTrip[], hand: HandPlace[], home: st
     badge("trips", "🏅", "10 trips club", "10 trips with Loopin", stats.trips, 10),
   ];
 
-  return { stamps, been, index: rows, stats, milestones, badges };
+  return { stamps, been, index: rows, stats, milestones, badges, marks };
+}
+
+// Passport moments: crossing 5, 10, 25… countries, a new continent, 10 cities.
+// Each has an id so it's celebrated once (an alert), never again. Never about money.
+export type Mark = { id: string; ladder: "abroad" | "countries" | "continents" | "cities" | "trips"; n: number; chip: string; title: string; body: string };
+const LADDERS = {
+  countries: [5, 10, 15, 20, 25, 30, 40, 50, 75, 100],
+  continents: [2, 3, 4, 5, 6, 7],
+  cities: [10, 25, 50, 100],
+  trips: [5, 10, 25, 50, 100],
+};
+export function passportMarks(stats: { countries: number; continents: number; cities: number; trips: number }, beenAbroad: boolean): Mark[] {
+  const out: Mark[] = [];
+  if (beenAbroad) out.push({ id: "abroad-1", ladder: "abroad", n: 1, chip: "Been abroad ✈️", title: "✈️ Your first stamp from abroad", body: "Your passport has its first country beyond home. Open it to see the stamp." });
+  for (const n of LADDERS.countries.filter((x) => stats.countries >= x))
+    out.push({ id: `countries-${n}`, ladder: "countries", n, chip: `${n} countries 🌍`, title: `🌍 ${n} countries`, body: `Your passport just reached ${n} countries. Open it to see every stamp.` });
+  for (const n of LADDERS.continents.filter((x) => stats.continents >= x))
+    out.push({ id: `continents-${n}`, ladder: "continents", n, chip: `${n} continents 🧭`, title: n === 7 ? "🧭 All seven continents" : `🧭 ${n} continents`, body: n === 7 ? "Every continent on Earth. Very few passports can say that." : `You’ve now been to ${n} continents. Your map is filling in.` });
+  for (const n of LADDERS.cities.filter((x) => stats.cities >= x))
+    out.push({ id: `cities-${n}`, ladder: "cities", n, chip: `${n} cities 🏙️`, title: `🏙️ ${n} cities`, body: `${n} different cities on your Loopin trips. Open your passport to see them all.` });
+  for (const n of LADDERS.trips.filter((x) => stats.trips >= x))
+    out.push({ id: `trips-${n}`, ladder: "trips", n, chip: `${n} trips 🏅`, title: `🏅 ${n} trips with Loopin`, body: `That’s ${n} trips split and settled. Here’s to the next one.` });
+  return out;
+}
+
+// Of the moments just reached, the one worth an alert: the rarest (continents,
+// then countries, then the rest), the biggest number first.
+export function newestMark(marks: Mark[], seen: Set<string>): Mark | undefined {
+  const rank = { continents: 0, countries: 1, abroad: 2, cities: 3, trips: 4 } as const;
+  return marks.filter((m) => !seen.has(m.id)).sort((a, b) => rank[a.ladder] - rank[b.ladder] || b.n - a.n)[0];
 }
 
 // The booklet's pages: a few stamps each, one passport: trip stamps first, then

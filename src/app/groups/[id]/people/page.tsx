@@ -7,6 +7,7 @@ import { loadGroup } from "@/lib/group-data";
 import { canUndo } from "@/lib/undo";
 import { formatMoney } from "@/lib/money";
 import { invitePersonByEmail, removePerson, renamePerson, setPersonLeft } from "@/app/actions";
+import { pickAdmin } from "@/lib/group-admin";
 import { Notice } from "@/components/Notice";
 import { Avatar, ErrorNote, PageHeader, inputClass } from "@/components/ui";
 import { ConfirmButton } from "@/components/ConfirmButton";
@@ -42,6 +43,9 @@ export default async function PeoplePage({
   const money = (m: number) => formatMoney(Math.abs(m), group.currency);
   const active = group.members.filter((m) => !m.leftAt);
   const left = group.members.filter((m) => m.leftAt);
+  // Removing people or marking them as left is for the person who looks after the group.
+  const admin = pickAdmin(group.members);
+  const isAdmin = admin?.id === myId;
   const justDid = sp.did ? group.events.find((x) => x.id === sp.did) : undefined;
   const nameOf = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");
   const small = "border border-line px-3 py-2 text-sm font-medium text-fg active:bg-mist disabled:opacity-40";
@@ -128,6 +132,10 @@ export default async function PeoplePage({
                   {me ? "Rejoin the group" : `Bring ${m.name} back`}
                 </button>
               </form>
+            ) : !me && !isAdmin ? (
+              <p className="text-xs text-gray-400" data-admin-only="people">
+                Only {admin?.name ?? "the person who started the group"}, who looks after this group, can remove people or mark them as left.
+              </p>
             ) : !used.has(m.id) && !me ? (
               <form action={removePerson}>
                 {hidden}

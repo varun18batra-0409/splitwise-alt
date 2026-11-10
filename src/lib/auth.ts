@@ -83,9 +83,19 @@ export async function verifyLoginCode(rawEmail: string, rawCode: string, now = n
 export async function deleteAccount(accountId: string) {
   const acc = await db.account.findUnique({ where: { id: accountId } });
   if (!acc) return;
+  // Postcards they sent or received go with them, and so do their photos
+  // (unless another remaining card still uses the same photo).
+  const cards = await db.postcard.findMany({ where: { OR: [{ fromId: accountId }, { toId: accountId }] }, select: { id: true, photoId: true } });
+  const photoIds = [...new Set(cards.map((c) => c.photoId).filter(Boolean))];
+  const stillUsed = photoIds.length
+    ? new Set((await db.postcard.findMany({ where: { photoId: { in: photoIds }, id: { notIn: cards.map((c) => c.id) } }, select: { photoId: true } })).map((c) => c.photoId))
+    : new Set<string>();
   await db.$transaction([
     db.member.updateMany({ where: { accountId }, data: { accountId: null } }),
     db.loginCode.deleteMany({ where: { email: acc.email } }),
+    db.postcard.deleteMany({ where: { id: { in: cards.map((c) => c.id) } } }),
+    db.postcardPhoto.deleteMany({ where: { id: { in: photoIds.filter((p) => !stillUsed.has(p)) } } }),
+    db.passkey.deleteMany({ where: { accountId } }),
     // Collections they organised hold other people's names under their account: they go too.
     db.collection.deleteMany({ where: { accountId } }),
     db.accountNote.deleteMany({ where: { accountId } }),

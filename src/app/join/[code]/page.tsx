@@ -220,7 +220,7 @@ export default async function JoinPage({
         </>
       )}
 
-      <p className="mt-8 text-center text-xs text-gray-400">Free, no ads. Loopin keeps count; it never touches your money.</p>
+      <p className="mt-8 text-center text-xs text-gray-400">Loopin keeps count. It never touches your money.</p>
       <GetAppButton variant="card" className="mt-6" />
     </>
   );

@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { MAX_PHOTO_BYTES, photoType } from "@/lib/covers";
+import { stripImageMetadata } from "@/lib/strip-meta";
 
 // A group's own photo: shown only to people in the group; anyone in it can
 // replace it. The phone makes the photo small before sending it.
@@ -37,13 +38,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const bytes = new Uint8Array(await req.arrayBuffer());
   if (bytes.length > MAX_PHOTO_BYTES) return Response.json({ ok: false, error: "That photo is too big." }, { status: 413 });
   const type = photoType(bytes);
+  const clean = stripImageMetadata(bytes); // no camera details or location
   if (!type) return Response.json({ ok: false, error: "Pick a photo (JPEG, PNG or WebP)." }, { status: 415 });
   const now = new Date();
   await db.$transaction([
     db.groupPhoto.upsert({
       where: { groupId: id },
-      create: { groupId: id, data: bytes, type, createdById: me.id, updatedAt: now },
-      update: { data: bytes, type, createdById: me.id, updatedAt: now },
+      create: { groupId: id, data: clean, type, createdById: me.id, updatedAt: now },
+      update: { data: clean, type, createdById: me.id, updatedAt: now },
     }),
     db.group.update({ where: { id }, data: { cover: "own", coverAt: now } }),
   ]);

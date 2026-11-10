@@ -415,7 +415,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
                   <form action={removeMoveAction}>
                     <input type="hidden" name="gameId" value={game.id} />
                     <input type="hidden" name="moveId" value={m.id} />
-                    <ConfirmButton message="Take this off the list?" className="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 active:bg-mist">
+                    <ConfirmButton message="Take this off the list?" className="-my-1.5 flex h-11 w-11 items-center justify-center rounded-full text-gray-400 active:bg-mist">
                       <span aria-label="Take it off">✕</span>
                     </ConfirmButton>
                   </form>

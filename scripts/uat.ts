@@ -8,7 +8,7 @@
 // Needs the app running on :3000. Writes uat/report.md (+ a screenshot of each
 // failure) into the screenshots folder. Never fails the build by itself: the
 // report says what passed and what didn't.
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { base, bypass, hosted, withBypass } from "./hosted";
@@ -319,6 +319,16 @@ async function main() {
     await R.waitForURL(new RegExp(invite));
     await R.getByRole("button", { name: /^Join / }).click();
     await R.waitForURL(new RegExp(`${g}$`));
+  });
+  await step(A, "Joining", "Only Varun, who started the group, can delete it, change its currency or remove people: Asha sees a calm note instead", async () => {
+    await go(A, `${g}/settings`);
+    await A.locator('[data-admin-only="delete"]').waitFor();
+    const t = (await A.locator("main").innerText()).replace(/\s+/g, " ");
+    assert(/Only Varun, who looks after this group/.test(t), `settings says: ${t.slice(0, 300)}`);
+    assert((await A.getByRole("button", { name: /Delete (this )?group/i }).count()) === 0, "Asha is offered Delete group");
+    assert((await A.locator('select[name="currency"]').count()) === 0, "Asha can change the currency");
+    await go(V, `${g}/settings`);
+    assert((await V.locator("[data-admin-only]").count()) === 0, "Varun (the starter) sees the admin-only note");
   });
   await step(V, "Joining", "Invite by email: Zoe gets an email, is listed as “Invited”, and is NOT a member yet", async () => {
     await go(V, `${g}/invite`);
@@ -1126,7 +1136,7 @@ async function main() {
   });
   await step(A, "Account", "Sign out of this phone, sign back in: all groups come back", async () => {
     await go(A, "/account");
-    await A.getByRole("button", { name: "Sign out" }).click();
+    await A.getByRole("button", { name: "Sign out", exact: true }).click();
     await A.waitForURL(base + "/");
     await go(A, "/signin");
     await signup(A, "Asha", email("asha"));
@@ -1856,7 +1866,7 @@ async function main() {
     await page.getByText(/Android phone|This device|Mac|Windows computer/).first().waitFor();
     const keys = await db.passkey.count({ where: { accountId: (await db.account.findUniqueOrThrow({ where: { email: email("pia") } })).id } });
     assert(keys === 1, `passkeys saved: ${keys}`);
-    await page.getByRole("button", { name: "Sign out" }).click();
+    await page.getByRole("button", { name: "Sign out", exact: true }).click();
     await page.waitForURL(base + "/");
     await go(page, "/signin");
     await page.getByRole("button", { name: /Sign in with fingerprint or face/ }).click();
@@ -1876,6 +1886,47 @@ async function main() {
     const e = await db.expense.findFirstOrThrow({ where: { groupId: g.split("/").pop()!, description: "Boat ride" }, include: { shares: { include: { member: true } } } });
     const got = Object.fromEntries(e.shares.map((x) => [x.member.name, x.amount]));
     assert(got.Varun === 40000 && got.Asha === 20000 && got.Ravi === 20000 && got.Zoe === 20000 && got.Rohit === 20000, `shares saved as ${JSON.stringify(got)}`);
+  });
+  await step(V, "Add", "Split by item: ₹1,180 bar bill, Pizza ₹600 for Varun and Asha, Beer ₹400 for Asha → tax and tip shared by what each had: Varun ₹354, Asha ₹826", async () => {
+    const o = { me: "Varun" as Person, name: "Bar bill", amount: "1180" };
+    await go(V, `${g}/add`);
+    await fillExpense(V, o);
+    await V.getByRole("button", { name: /Custom/ }).click();
+    await V.getByRole("button", { name: "Items", exact: true }).click();
+    const box = V.locator("[data-item-split]");
+    await box.getByLabel("Item 1", { exact: true }).fill("Pizza");
+    await box.getByLabel("Item 1 price").fill("600");
+    const first = box.getByRole("group", { name: "Who had item 1" });
+    await first.getByRole("button", { name: "You", exact: true }).click();
+    await first.getByRole("button", { name: "Asha", exact: true }).click();
+    await box.getByRole("button", { name: /Add item/ }).click();
+    await box.getByLabel("Item 2", { exact: true }).fill("Beer");
+    await box.getByLabel("Item 2 price").fill("400");
+    await box.getByRole("group", { name: "Who had item 2" }).getByRole("button", { name: "Asha", exact: true }).click();
+    const t = (await box.locator("[data-item-result]").innerText()).replace(/\s+/g, " ");
+    assert(/354/.test(t) && /826/.test(t) && /180/.test(t), `item split shows: ${t}`);
+    await save(V, o);
+    const e = await db.expense.findFirstOrThrow({ where: { groupId: g.split("/").pop()!, description: "Bar bill" }, include: { shares: { include: { member: true } } } });
+    const got = Object.fromEntries(e.shares.filter((x) => x.amount).map((x) => [x.member.name, x.amount]));
+    assert(JSON.stringify(got) === JSON.stringify({ Varun: 35400, Asha: 82600 }) || (got.Varun === 35400 && got.Asha === 82600 && Object.keys(got).length === 2), `item split saved as ${JSON.stringify(got)}`);
+    assert(/By item: Pizza .*600.* \(Varun, Asha\); Beer .*400.* \(Asha\)/.test(e.notes ?? ""), `notes: ${e.notes}`);
+  });
+  await step(V, "Add", "A bill photo stays with the expense: Asha can open it, and someone outside the group can't", async () => {
+    const o = { me: "Varun" as Person, name: "Lunch bill", amount: "500" };
+    await go(V, `${g}/add`);
+    await V.locator("[data-bill-scan] input[type=file]").setInputFiles({ name: "bill.png", mimeType: "image/png", buffer: readFileSync("public/icon-512.png") });
+    await V.getByRole("button", { name: "Remove the bill photo" }).waitFor();
+    await fillExpense(V, o);
+    await save(V, o);
+    const e = await db.expense.findFirstOrThrow({ where: { groupId: g.split("/").pop()!, description: "Lunch bill" } });
+    const r = await db.receipt.findFirst({ where: { expenseId: e.id } });
+    assert(r, "the bill photo wasn't kept with the expense");
+    const seen = await A.request.get(`${base}/api/receipt/${r!.id}`, { headers: bypass });
+    assert(seen.status() === 200 && /^image\//.test(seen.headers()["content-type"] ?? ""), `Asha got ${seen.status()}`);
+    const x = await person(browser);
+    const outside = await x.page.request.get(`${base}/api/receipt/${r!.id}`, { headers: bypass });
+    assert(outside.status() === 404, `someone outside the group got ${outside.status()}`);
+    await x.ctx.close();
   });
 
   await step(null, "Sign in", "A wrong code is refused with a clear message, and the right one still works", async () => {
@@ -2286,7 +2337,7 @@ async function main() {
 
   await step(V, "Fun", "Share my passport sends one picture of the open booklet (details, map, every stamp), and nothing else", async () => {
     await go(V, "/passport");
-    await V.getByRole("button", { name: "WhatsApp & more" }).first().click();
+    await V.getByRole("button", { name: "Share", exact: true }).first().click();
     const sheet = V.getByRole("dialog", { name: "Share your passport" });
     await sheet.getByText("WhatsApp", { exact: true }).waitFor();
     assert((await sheet.locator("[data-album-preview]").count()) === 0, "still offers an album of several pictures");

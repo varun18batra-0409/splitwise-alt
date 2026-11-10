@@ -3,6 +3,7 @@ import { db } from "./db";
 import { isSupportedCurrency } from "./money";
 import { logEvent } from "./events";
 import { MAX_PHOTO_BYTES, cleanCover, photoType } from "./covers";
+import { stripImageMetadata } from "./strip-meta";
 import { cleanTripDates } from "./countdown";
 import { dayKey, DEFAULT_TIME_ZONE } from "./dates";
 import { countryOf } from "./geo";
@@ -37,7 +38,7 @@ export async function createGroupFor(account: { id: string }, input: NewGroupInp
   if (photo && photoKind) {
     const now = new Date();
     await db.$transaction([
-      db.groupPhoto.create({ data: { groupId: group.id, data: photo, type: photoKind, createdById: group.members[0].id, updatedAt: now } }),
+      db.groupPhoto.create({ data: { groupId: group.id, data: stripImageMetadata(photo), type: photoKind, createdById: group.members[0].id, updatedAt: now } }),
       db.group.update({ where: { id: group.id }, data: { cover: "own", coverAt: now } }),
     ]);
   }

@@ -62,7 +62,7 @@ export function CountryPicker({ added, home = "" }: { added: string[]; home?: st
             >
               <div className="flex items-center justify-between px-5 pb-2 pt-4">
                 <p className="font-display text-xl font-semibold">Countries you’ve been to</p>
-                <button type="button" onClick={() => setOpen(false)} aria-label="Close" className="flex h-9 w-9 items-center justify-center rounded-full text-xl text-fg/60 active:bg-mist">
+                <button type="button" onClick={() => setOpen(false)} aria-label="Close" className="-mr-2 flex h-11 w-11 items-center justify-center rounded-full text-xl text-fg/60 active:bg-mist">
                   ×
                 </button>
               </div>

@@ -488,7 +488,7 @@ export default async function Home({
           {/* Start screen: nothing here yet. */}
           <section className="glass relative z-10 rounded-[26px] px-5 pb-5 pt-6 text-fg">
             <h1 className="font-display text-[32px] font-semibold leading-tight tracking-tight">Let’s get you started</h1>
-            <p className="mt-2 text-fg/65">Split costs with friends, flatmates or your partner. Free, no ads.</p>
+            <p className="mt-2 text-fg/65">Split costs with friends, flatmates or your partner, and keep the memories.</p>
             <div className="mt-6 space-y-3">
               <Link href="/groups/new" className="pop block bg-fg px-4 py-3.5 text-center font-semibold text-canvas">
                 Create a group

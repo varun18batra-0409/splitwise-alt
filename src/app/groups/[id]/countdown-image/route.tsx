@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
 import { todayKey } from "@/lib/dates";
-import { countdownWords, placeOf, tripEmoji, tripPhase } from "@/lib/countdown";
+import { countdownCard, countdownWords, placeOf, tripEmoji, tripPhase } from "@/lib/countdown";
 import { photoData } from "@/lib/share-photo";
 
 // The countdown as a story-sized picture (1080 × 1920) for WhatsApp status or
@@ -31,6 +31,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const TAG = ["#6fe3a8", "#ffab6b", "#7cc4ff", "#ff8fc7", "#b79cff", "#ffd66b"];
   const hot = phase.kind !== "before" || phase.days <= 7;
   const sub = phase.kind === "before" ? `${words.small} · ${placeOf(group.name)}` : words.small;
+  // The same stage words as the app ("Plans taking shape" a month out; "Boarding" only in the last week).
+  const kicker = (countdownCard(group.name, phase, 0)?.kicker ?? "The countdown").toUpperCase();
 
   return new ImageResponse(
     (
@@ -46,7 +48,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
           background: "radial-gradient(90% 60% at 80% 10%, #4a3020 0%, #121014 70%)",
         }}
       >
-        <div style={{ fontSize: 34, letterSpacing: 12, color: "#a9a395" }}>BOARDING SOON</div>
+        <div style={{ fontSize: 34, letterSpacing: 12, color: "#a9a395" }}>{kicker}</div>
         {/* The polaroid */}
         <div style={{ marginTop: 70, display: "flex", flexDirection: "column", background: "#f4f1e8", padding: "22px 22px 0", transform: "rotate(-3deg)", boxShadow: "0 40px 80px rgba(0,0,0,0.6)" }}>
           <div style={{ width: 720, height: 620, display: "flex", overflow: "hidden", background: "linear-gradient(160deg, #2c4a52 0%, #d9895a 100%)" }}>

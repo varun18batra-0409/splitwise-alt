@@ -42,7 +42,7 @@ export function ListTab({ v, items, usual, notice }: { v: GroupView; items: Item
         <form action={listRemove}>
           {hidden("groupId", group.id)}
           {hidden("itemId", i.id)}
-          <button type="submit" aria-label={`Remove ${i.text}`} className="px-2 py-3 text-lg leading-none text-gray-400">
+          <button type="submit" aria-label={`Remove ${i.text}`} className="-mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xl leading-none text-gray-400 active:bg-mist">
             ×
           </button>
         </form>

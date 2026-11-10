@@ -9,10 +9,12 @@ import { computeTotals, PAYMENT_METHODS, type PaymentMethod } from "@/lib/conver
 import { buildExpense, chosenMarkupBp, type ExpenseDraft } from "@/lib/expense";
 import { currencyInfo, formatMoney, formatPercent, isSupportedCurrency, parseAmount, parsePercent } from "@/lib/money";
 import { QuickLine } from "./QuickLine";
+import { BillScan, type ScannedBill } from "./BillScan";
 import { SpinWheel } from "./SpinWheel";
 import { CurrencyPicker } from "./CurrencyPicker";
 import { expensePairs, payersJson } from "@/lib/payers";
 import { participantsFor, type ForMode, type SplitType } from "@/lib/split";
+import { splitByItems } from "@/lib/item-split";
 import { niceDate, rateText } from "@/lib/format";
 import { dayKey, todayKey } from "@/lib/dates";
 import { inputClass, primaryButtonClass } from "./ui";
@@ -44,6 +46,7 @@ export function AddExpenseForm({
   splitName = "Group split",
   spin = true,
   billRun,
+  ai = false,
 }: {
   groupId: string;
   baseCurrency: string;
@@ -57,6 +60,7 @@ export function AddExpenseForm({
   splitName?: string; // "Our split" (couple), "Flat split" (home)…
   spin?: boolean; // Spin for it (every group but card nights)
   billRun?: { billId: string; period: string }; // "Enter amount" for a waiting bill
+  ai?: boolean; // bill reading and spoken lines are switched on (an Anthropic key is set)
 }) {
   const memberIds = useMemo(() => members.map((m) => m.id), [members]);
   const nameOf = (id: string) => members.find((m) => m.id === id)?.name ?? "?";
@@ -114,6 +118,11 @@ export function AddExpenseForm({
   const [shares, setShares] = useState<Record<string, string>>(initial?.shares ?? groupShares ?? {});
   const [exact, setExact] = useState<Record<string, string>>(initial?.exact ?? {});
   const [percent, setPercent] = useState<Record<string, string>>(initial?.percent ?? {});
+  // Split by item: each line on the bill to the people who had it; tax and tip shared by what each had.
+  const [byItem, setByItem] = useState(false);
+  const [receiptId, setReceiptId] = useState(""); // a bill photo to keep with this expense
+  const [scannedItems, setScannedItems] = useState(0); // lines read off a scanned bill
+  const [items, setItems] = useState<{ k: number; name: string; amount: string; people: string[] }[]>([{ k: 1, name: "", amount: "", people: [] }]);
 
   const [showOnly, setShowOnly] = useState(false);
   const [showFx, setShowFx] = useState(false); // currency details (rate, card fee, calculation)
@@ -243,8 +252,16 @@ export function AddExpenseForm({
   const category = getCategory(pickedCategory ?? nameCheck.category);
   const [dismissedTypo, setDismissedTypo] = useState("");
   const typo = nameCheck.suggestion && nameCheck.suggestion.wrong !== dismissedTypo ? nameCheck.suggestion : null;
+  const digits = currencyInfo(currency).decimals;
+  const itemSplit = byItem
+    ? splitByItems(
+        items.map((x) => ({ name: x.name, amount: parseAmount(x.amount, currency) ?? (x.amount.trim() ? -1 : 0), people: x.people })),
+        parseAmount(amount, currency) ?? 0,
+      )
+    : null;
+  const itemExact = itemSplit?.ok ? Object.fromEntries(Object.entries(itemSplit.amounts).map(([id, m]) => [id, (m / 10 ** digits).toFixed(digits)])) : {};
   const draft: ExpenseDraft = {
-    amount, currency, paidById, forMode, selected, onePersonId, splitType, exact, percent, shares,
+    amount, currency, paidById, forMode: byItem ? "everyone" : forMode, selected, onePersonId, splitType: byItem ? "exact" : splitType, exact: byItem ? itemExact : exact, percent, shares,
     kind, multiPay, payers, paymentMethod, markupChoice, markupCustom,
   };
   const ctx = { memberIds, baseCurrency, groupMarkupBp, rate: effectiveRate };
@@ -267,7 +284,7 @@ export function AddExpenseForm({
 
   // Running total for custom amounts / percentages.
   const remaining = (() => {
-    if (participants.length < 2 || splitType === "equal" || splitType === "shares" || !totals.originalAmount) return null;
+    if (byItem || participants.length < 2 || splitType === "equal" || splitType === "shares" || !totals.originalAmount) return null;
     if (splitType === "exact") {
       const typed = participants.reduce((s, id) => s + (parseAmount(exact[id] ?? "", currency) ?? 0), 0);
       const left = totals.originalAmount - typed;
@@ -283,7 +300,9 @@ export function AddExpenseForm({
   const splitSummary =
     participants.length <= 1
       ? "100% to them"
-      : splitType === "equal"
+      : byItem
+        ? "by item"
+        : splitType === "equal"
         ? "split equally"
         : splitType === "exact"
           ? "custom amounts"
@@ -308,10 +327,40 @@ export function AddExpenseForm({
   const [dup, setDup] = useState<{ id: string; description: string; amount: number; by: string; when: string } | null>(null);
   const allowDupRef = useRef(false);
   const formRef = useRef<HTMLFormElement>(null);
+  // What a scanned bill says: the shop, the total, the day and its lines (for split by item).
+  function fillFromBill(b: ScannedBill) {
+    if (b.merchant && !name.trim()) setName(b.merchant);
+    const code = b.currency && isSupportedCurrency(b.currency) ? b.currency : currency;
+    if (code !== currency) chooseCurrency(code);
+    if (b.total) setAmount(String(b.total));
+    if (b.date && b.date <= today && b.date >= `${Number(today.slice(0, 4)) - 1}${today.slice(4)}`) {
+      setDate(b.date);
+      if (b.date !== today) setShowDate(true);
+    }
+    if (b.items.length) {
+      setItems(b.items.map((x, i) => ({ k: i + 1, name: x.name, amount: String(x.price), people: [] })));
+      setScannedItems(b.items.length);
+    }
+  }
+  // The bill's items go in the notes, so everyone can see how it was split.
+  function withItems(text: string) {
+    if (!itemSplit?.ok) return text;
+    const list = items
+      .filter((x) => x.name.trim() || x.amount.trim())
+      .map((x) => `${x.name.trim() || "Item"} ${orig(parseAmount(x.amount, currency) ?? 0)} (${x.people.length === memberIds.length && memberIds.length > 2 ? "everyone" : x.people.map((id) => nameOf(id)).join(", ")})`)
+      .join("; ");
+    const extra = itemSplit.extra ? ` Tax, service and tip ${orig(itemSplit.extra)}, shared by what each had.` : "";
+    return [text.trim(), `By item: ${list}.${extra}`].filter(Boolean).join("\n").slice(0, 500);
+  }
   function save(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setDup(null);
+    if (itemSplit && !itemSplit.ok) {
+      setError(itemSplit.error);
+      setShowPeople(true);
+      return;
+    }
     if (!preview.ok) {
       setError(preview.error);
       if (/person|amounts|percent/i.test(preview.error)) setShowPeople(true);
@@ -320,7 +369,7 @@ export function AddExpenseForm({
     if (!expenseId) rememberSplit();
     startSaving(async () => {
       try {
-        const res = await addExpense({ ...draft, billRun, again: againRef.current, allowDuplicate: allowDupRef.current, requestKey, groupId, name, notes, baseVersion: initial?.version, category: category.id, expenseId, date, rateMode: usingManualRate ? "manual" : keepSavedRate ? "keep" : "auto", manualRate });
+        const res = await addExpense({ ...draft, billRun, again: againRef.current, allowDuplicate: allowDupRef.current, requestKey, groupId, name, notes: withItems(notes), receiptId: receiptId || undefined, baseVersion: initial?.version, category: category.id, expenseId, date, rateMode: usingManualRate ? "manual" : keepSavedRate ? "keep" : "auto", manualRate });
         if (res?.duplicateOf) setDup(res.duplicateOf);
         else if (res?.error) setError(res.error);
       } catch (err) {
@@ -423,14 +472,38 @@ export function AddExpenseForm({
         )}
       </div>
 
+      {/* A photo of the bill: kept with the expense, and (when reading is on) fills the form in. */}
+      {!billRun && (
+        <div>
+          <BillScan groupId={groupId} read={ai && !expenseId} onAttach={setReceiptId} onRead={fillFromBill} />
+          {scannedItems > 1 && !byItem && members.length > 1 && (
+            <button
+              type="button"
+              onClick={() => {
+                setByItem(true);
+                setShowPeople(true);
+                setShowOnly(false);
+              }}
+              className="mt-1 flex min-h-11 items-center gap-2 text-sm font-medium text-owed"
+              data-split-by-item
+            >
+              {scannedItems} items on the bill · split by item ›
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Quick line: "Dinner 2400 Ravi paid split with Asha Meera" fills the form below. */}
       {!expenseId && members.length > 1 && (
         <QuickLine
+          groupId={groupId}
+          ai={ai}
           members={members.map((m) => ({ id: m.id, name: m.name }))}
           myId={myId}
           who={who}
           currency={currency}
-          onFill={(q) => {
+          onFill={(q, extra) => {
+            if (extra?.currency && extra.currency !== currency && isSupportedCurrency(extra.currency)) chooseCurrency(extra.currency);
             if (q.name) setName(q.name);
             if (q.amount) setAmount(q.amount);
             if (q.paidById) {
@@ -920,10 +993,108 @@ export function AddExpenseForm({
                     { id: "exact", label: "Amounts" },
                     { id: "percent", label: "%" },
                     { id: "shares", label: "Shares" },
+                    { id: "items", label: "Items" },
                   ]}
-                  value={splitType}
-                  onChange={(v) => setSplitType(v as SplitType)}
+                  value={byItem ? "items" : splitType}
+                  onChange={(v) => {
+                    setByItem(v === "items");
+                    if (v !== "items") setSplitType(v as SplitType);
+                  }}
                 />
+                {byItem && (
+                  <div className="mt-3 space-y-2.5" data-item-split>
+                    {items.map((it, i) => {
+                      const set = (patch: Partial<typeof it>) => setItems((list) => list.map((x) => (x.k === it.k ? { ...x, ...patch } : x)));
+                      const all = memberIds.every((id) => it.people.includes(id));
+                      return (
+                        <div key={it.k} className="rounded-2xl border border-line px-3 pb-3 pt-1.5">
+                          <div className="flex items-center gap-2">
+                            <input
+                              value={it.name}
+                              onChange={(e) => set({ name: e.target.value })}
+                              placeholder={i === 0 ? "e.g. Pizza" : "Item"}
+                              aria-label={`Item ${i + 1}`}
+                              maxLength={40}
+                              className="min-w-0 flex-1 bg-transparent py-2 outline-none"
+                            />
+                            <span className="flex w-28 shrink-0 items-center rounded-xl border border-line px-2.5 focus-within:border-accent">
+                              <span className="text-xs text-gray-400">{currency}</span>
+                              <input
+                                inputMode="decimal"
+                                placeholder="0"
+                                value={it.amount}
+                                onChange={(e) => set({ amount: e.target.value })}
+                                aria-label={`Item ${i + 1} price`}
+                                className="w-full bg-transparent py-2 text-right tabular-nums outline-none"
+                              />
+                            </span>
+                            {items.length > 1 && (
+                              <button
+                                type="button"
+                                aria-label={`Remove item ${i + 1}`}
+                                onClick={() => setItems((list) => list.filter((x) => x.k !== it.k))}
+                                className="-mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xl leading-none text-gray-400 active:bg-mist"
+                              >
+                                ×
+                              </button>
+                            )}
+                          </div>
+                          <div className="mt-1.5 flex flex-wrap gap-1.5" role="group" aria-label={`Who had item ${i + 1}`}>
+                            {members.length > 2 && (
+                              <button
+                                type="button"
+                                aria-pressed={all}
+                                onClick={() => set({ people: all ? [] : [...memberIds] })}
+                                className={`min-h-9 rounded-full border px-3.5 text-[13px] font-medium ${all ? "border-fg bg-fg text-canvas" : "border-line text-fg/75"}`}
+                              >
+                                Everyone
+                              </button>
+                            )}
+                            {members.map((m) => {
+                              const on = it.people.includes(m.id);
+                              return (
+                                <button
+                                  key={m.id}
+                                  type="button"
+                                  aria-pressed={on}
+                                  onClick={() => set({ people: on ? it.people.filter((x) => x !== m.id) : [...it.people, m.id] })}
+                                  className={`min-h-9 rounded-full border px-3.5 text-[13px] font-medium ${on ? "border-fg bg-fg text-canvas" : "border-line text-fg/75"}`}
+                                >
+                                  {who(m.id)}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      onClick={() => setItems((list) => [...list, { k: Math.max(0, ...list.map((x) => x.k)) + 1, name: "", amount: "", people: [] }])}
+                      className="flex min-h-11 items-center gap-2 text-sm font-medium text-fg"
+                    >
+                      <span className="text-lg leading-none">＋</span> Add item
+                    </button>
+                    {itemSplit && (itemSplit.ok ? (
+                      <div className="rounded-2xl bg-mist px-4 py-3 text-sm" data-item-result>
+                        <p className="text-gray-500">
+                          Items {orig(itemSplit.itemsTotal)}
+                          {itemSplit.extra > 0 && ` · tax, service & tip ${orig(itemSplit.extra)}, shared by what each had`}
+                        </p>
+                        <ul className="mt-2 space-y-1">
+                          {memberIds.filter((id) => itemSplit.amounts[id]).map((id) => (
+                            <li key={id} className="flex justify-between">
+                              <span>{who(id)}</span>
+                              <span className="money tabular-nums font-semibold">{orig(itemSplit.amounts[id])}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : (
+                      (items.some((x) => x.amount.trim()) || amount.trim()) && <p className="text-sm text-gray-500" data-item-hint>{itemSplit.error}</p>
+                    ))}
+                  </div>
+                )}
                 {splitType === "shares" && (
                   <ul className="mt-3 divide-y divide-line">
                     {participants.map((id) => {
@@ -1116,7 +1287,7 @@ function Segmented({
           type="button"
           onClick={() => onChange(o.id)}
           aria-pressed={o.id === value}
-          className={`rounded-full py-2 text-sm font-semibold ${o.id === value ? "bg-fg text-canvas" : "text-fg/55"}`}
+          className={`rounded-full py-2 font-semibold ${options.length > 4 ? "px-0.5 text-[13px]" : "text-sm"} ${o.id === value ? "bg-fg text-canvas" : "text-fg/55"}`}
         >
           {o.label}
         </button>
