@@ -4,6 +4,7 @@
 // Expected values are the hand-worked answers from the UAT workbook, typed in
 // here; they are not computed from Loopin's own code. Writes
 // audit-out/fin-m.json and a screenshot per case into audit-out/evidence.
+import { writeFileSync } from "node:fs";
 import { chromium, type Browser, type Page } from "playwright";
 import { OUT, save as saveJson, db, base } from "./common";
 
@@ -379,8 +380,10 @@ async function main() {
     check("Everyone ₹0 after both are marked paid", "Anil ₹0.00 · Bina ₹0.00 · Chet ₹0.00 · Dina ₹0.00", show(b, [A, B, C, D]));
     return { page: PA };
   });
+  let gSquare = "";
   await tc("FIN-M17", "₹10 between 3 then settle: nobody left with a paisa", async (check) => {
     const g = await group("FIN M17", [B, C]);
+    gSquare = g;
     await add(g, { me: A, name: "Chai", amount: "10", payer: C });
     const b0 = await balances(PA, g);
     check("Before settling (₹3.33/₹3.34 shares)", "true", String(b0[C] === 667 || b0[C] === 666));
@@ -519,6 +522,16 @@ async function main() {
     return { page: PA };
   });
 
+  // Share pictures with ₹ amounts (DEF-032): saved so the ₹ can be looked at.
+  const shots: { name: string; status: number; type: string }[] = [];
+  for (const [name, path] of [["square-image", `${gSquare}/square-image`], ["wrapped-image", `${gs}/wrapped-image`], ["countdown-image", `${gs}/countdown-image`]] as const) {
+    if (!path.startsWith("/groups/")) continue;
+    const r = await PA.request.get(base + path).catch(() => null);
+    const type = r?.headers()["content-type"] ?? "";
+    if (r && r.ok() && /^image\//.test(type)) writeFileSync(`${OUT}/evidence/share-${name}.png`, await r.body());
+    shots.push({ name, status: r?.status() ?? 0, type });
+  }
+  saveJson("share-images.json", shots);
   await browser.close();
   saveJson("fin-m.json", rows);
   const pass = rows.filter((r) => r.status === "Pass").length;
