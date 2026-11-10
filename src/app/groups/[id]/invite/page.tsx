@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
 import { invitePeople } from "@/app/actions";
 import { canUndo } from "@/lib/undo";
-import { Avatar, ErrorNote, PageHeader, inputClass } from "@/components/ui";
+import { Avatar, ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/components/ui";
 import { ShareInvite } from "@/components/ShareInvite";
 import { ContactInvite, PeopleSearch } from "@/components/AddPeople";
 import { UndoBar } from "@/components/UndoBar";
@@ -54,6 +54,17 @@ export default async function AddPeoplePage({
   if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  // Someone who left keeps the history, but not the invite link.
+  if (group.members.find((m) => m.id === myId)?.leftAt)
+    return (
+      <>
+        <PageHeader title="Add people" back={`/groups/${group.id}`} />
+        <p className="mb-6 text-gray-600" data-left-member>You left this group, so you can’t invite people to it. Rejoin it from People first.</p>
+        <a href={`/groups/${group.id}/people`} className={primaryButtonClass}>
+          Go to People
+        </a>
+      </>
+    );
   const invites = await db.invite.findMany({ where: { groupId: group.id, acceptedAt: null }, orderBy: { createdAt: "desc" } });
 
   const h = await headers();

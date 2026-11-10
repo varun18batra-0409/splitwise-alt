@@ -2,7 +2,7 @@ import Link from "@/components/Link";
 import { notFound, redirect } from "next/navigation";
 import { getMyMemberId } from "@/lib/identity";
 import { loadGroup } from "@/lib/group-data";
-import { formatMoney, toInputAmount } from "@/lib/money";
+import { formatMoney, parseAmount, toInputAmount } from "@/lib/money";
 import { recordCustomPayment } from "@/app/actions";
 import { newRequestKey } from "@/lib/once";
 import { ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/components/ui";
@@ -14,11 +14,11 @@ export default async function RecordPayment({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ from?: string; to?: string; amount?: string; error?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; amount?: string; error?: string; owes?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
-  const data = await loadGroup(id);
+  const data = await loadGroup(id, { events: false });
   if (!data) notFound();
   const { group, transfers, net } = data;
   const myId = await getMyMemberId(group.id);
@@ -33,6 +33,14 @@ export default async function RecordPayment({
   const fill = (f: string, t: string, a: number) =>
     `/groups/${group.id}/pay?${new URLSearchParams({ from: f, to: t, amount: toInputAmount(a, group.currency) })}`;
 
+  const owes = /^\d{1,12}$/.test(sp.owes ?? "") ? Number(sp.owes) : null;
+  const typed = parseAmount(sp.amount ?? "", group.currency);
+  const overWarning =
+    owes !== null && typed !== null && typed > owes
+      ? owes === 0
+        ? `${nameOf(from)} ${from === myId ? "don’t" : "doesn’t"} owe anything right now. Recording ${money(typed)} will mean ${to ? nameOf(to).replace(/^You$/, "you") : "they"} owe${to === myId ? "" : "s"} it back.`
+        : `That’s more than ${from === myId ? "you owe" : `${nameOf(from)} owes`} (${money(owes)}). Recording ${money(typed)} will flip the balance the other way.`
+      : "";
   const chip = "flex items-center gap-2 rounded-full border border-line bg-mist px-4 py-2 text-sm font-medium has-[:checked]:border-fg has-[:checked]:bg-fg has-[:checked]:font-medium has-[:checked]:text-canvas";
 
   return (
@@ -85,7 +93,7 @@ export default async function RecordPayment({
               <label key={m.id} className={chip} data-to={m.id}>
                 <input type="radio" name="toId" value={m.id} defaultChecked={m.id === to} className="sr-only" required />
                 {m.id === myId ? "You" : m.name}
-                {net[m.id] > 0 && <span className="text-xs opacity-60">{m.id === myId ? "get" : "gets"} {money(net[m.id])}</span>}
+                {net[m.id] > 0 && <span className="text-xs opacity-80">{m.id === myId ? "get" : "gets"} {money(net[m.id])}</span>}
               </label>
             ))}
           </div>
@@ -97,6 +105,16 @@ export default async function RecordPayment({
           <span className="mt-2 block text-xs text-gray-400">Full or part. You can record the rest later.</span>
         </label>
 
+        {/* Asked once when the amount is more than the payer owes (an extra zero is a common slip). */}
+        {overWarning && (
+          <div role="alert" className="rounded-2xl border border-[#5a3a20] bg-owe-soft px-4 py-3 text-sm" data-over-warning>
+            <p>{overWarning}</p>
+            <label className="mt-3 flex min-h-11 items-center gap-3 font-medium">
+              <input type="checkbox" name="over" value="1" required className="h-5 w-5 accent-[var(--color-accent)]" />
+              Yes, record it anyway
+            </label>
+          </div>
+        )}
         <button type="submit" className={primaryButtonClass}>
           Record payment
         </button>

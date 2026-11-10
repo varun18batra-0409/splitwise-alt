@@ -108,7 +108,8 @@ model Expense {
   paidById    String // the payer (with several, the one who paid most)
   paidBy      Member         @relation("PaidBy", fields: [paidById], references: [id])
   createdAt   DateTime       @default(now())
-  shares      ExpenseShare[] // one line per person; receipt items can hang off this later
+  shares      ExpenseShare[] // one line per person
+  items       ExpenseItem[] // split by item: the bill's lines (the shares above are what they add up to)
 
   spentAt     DateTime? // the day it was spent (chosen when adding); empty = the day it was added
   createdById String    @default("") // who added it
@@ -469,6 +470,7 @@ model GroupPhoto {
   type        String   @default("image/webp")
   createdById String   @default("")
   updatedAt   DateTime @default(now())
+  blobKey     String   @default("") // where the photo lives in file storage (Vercel Blob); empty = in `data`
 }
 
 // "Collect": one person gathers money from many (a class gift, a farewell,
@@ -620,6 +622,7 @@ model PostcardPhoto {
   data      Bytes
   type      String   @default("image/webp")
   createdAt DateTime @default(now())
+  blobKey     String   @default("") // where the photo lives in file storage (Vercel Blob); empty = in `data`
 }
 
 // A photo of a bill, kept with the expense it belongs to. Only people in the
@@ -635,4 +638,26 @@ model Receipt {
   createdById String   @default("")
   createdAt   DateTime @default(now())
   @@index([groupId, expenseId])
+  blobKey     String   @default("") // where the photo lives in file storage (Vercel Blob); empty = in `data`
+}
+
+// People who asked not to get Loopin's invite and "you were added" emails
+// (sign-in codes still go out: they ask for those themselves).
+model EmailOptOut {
+  email     String   @id
+  createdAt DateTime @default(now())
+}
+
+// Split by item: one line of the bill, in the expense's own currency, and who had it.
+// The expense's shares are worked out from these (tax/tip shared by what each had);
+// kept so editing reopens the items.
+model ExpenseItem {
+  id        String  @id @default(cuid())
+  expenseId String
+  expense   Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  position  Int     @default(0)
+  name      String
+  amount    Int // minor units of the expense's currency
+  people    String  @default("[]") // JSON member ids
+  @@index([expenseId])
 }

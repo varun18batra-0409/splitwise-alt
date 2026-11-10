@@ -8,14 +8,15 @@ import { spentAmount } from "./payers";
 const active = <T extends { deletedAt: Date | null }>(rows: T[]) => rows.filter((r) => !r.deletedAt);
 
 // Loads a group with everything needed for balances, Smart Settle and history.
-export async function loadGroup(id: string) {
+// `events: false` skips the history (up to 500 rows) for screens that only need balances.
+export async function loadGroup(id: string, opts: { events?: boolean } = {}) {
   const group = await db.group.findUnique({
     where: { id },
     include: {
       members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
       expenses: { orderBy: { createdAt: "desc" }, include: { shares: true } },
       payments: { orderBy: { createdAt: "desc" } },
-      events: { orderBy: { createdAt: "desc" }, take: 500 },
+      events: { orderBy: { createdAt: "desc" }, take: opts.events === false ? 0 : 500 },
     },
   });
   if (!group || group.deletedAt) return null;

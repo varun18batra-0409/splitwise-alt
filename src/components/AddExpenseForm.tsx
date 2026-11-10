@@ -47,6 +47,8 @@ export function AddExpenseForm({
   spin = true,
   billRun,
   ai = false,
+  existingReceiptId,
+  initialItems,
 }: {
   groupId: string;
   baseCurrency: string;
@@ -61,6 +63,8 @@ export function AddExpenseForm({
   spin?: boolean; // Spin for it (every group but card nights)
   billRun?: { billId: string; period: string }; // "Enter amount" for a waiting bill
   ai?: boolean; // bill reading and spoken lines are switched on (an Anthropic key is set)
+  existingReceiptId?: string; // editing: the bill photo already kept with this expense
+  initialItems?: { name: string; amount: string; people: string[] }[]; // editing an expense split by item
 }) {
   const memberIds = useMemo(() => members.map((m) => m.id), [members]);
   const nameOf = (id: string) => members.find((m) => m.id === id)?.name ?? "?";
@@ -119,10 +123,12 @@ export function AddExpenseForm({
   const [exact, setExact] = useState<Record<string, string>>(initial?.exact ?? {});
   const [percent, setPercent] = useState<Record<string, string>>(initial?.percent ?? {});
   // Split by item: each line on the bill to the people who had it; tax and tip shared by what each had.
-  const [byItem, setByItem] = useState(false);
+  const [byItem, setByItem] = useState(Boolean(initialItems?.length));
   const [receiptId, setReceiptId] = useState(""); // a bill photo to keep with this expense
   const [scannedItems, setScannedItems] = useState(0); // lines read off a scanned bill
-  const [items, setItems] = useState<{ k: number; name: string; amount: string; people: string[] }[]>([{ k: 1, name: "", amount: "", people: [] }]);
+  const [items, setItems] = useState<{ k: number; name: string; amount: string; people: string[] }[]>(
+    initialItems?.length ? initialItems.map((x, i) => ({ k: i + 1, ...x })) : [{ k: 1, name: "", amount: "", people: [] }],
+  );
 
   const [showOnly, setShowOnly] = useState(false);
   const [showFx, setShowFx] = useState(false); // currency details (rate, card fee, calculation)
@@ -350,7 +356,9 @@ export function AddExpenseForm({
       .map((x) => `${x.name.trim() || "Item"} ${orig(parseAmount(x.amount, currency) ?? 0)} (${x.people.length === memberIds.length && memberIds.length > 2 ? "everyone" : x.people.map((id) => nameOf(id)).join(", ")})`)
       .join("; ");
     const extra = itemSplit.extra ? ` Tax, service and tip ${orig(itemSplit.extra)}, shared by what each had.` : "";
-    return [text.trim(), `By item: ${list}.${extra}`].filter(Boolean).join("\n").slice(0, 500);
+    // An earlier "By item" line (when editing) is replaced, not repeated.
+    const own = text.split("\n").filter((l) => !l.startsWith("By item: ")).join("\n").trim();
+    return [own, `By item: ${list}.${extra}`].filter(Boolean).join("\n").slice(0, 500);
   }
   function save(e: React.FormEvent) {
     e.preventDefault();
@@ -369,7 +377,7 @@ export function AddExpenseForm({
     if (!expenseId) rememberSplit();
     startSaving(async () => {
       try {
-        const res = await addExpense({ ...draft, billRun, again: againRef.current, allowDuplicate: allowDupRef.current, requestKey, groupId, name, notes: withItems(notes), receiptId: receiptId || undefined, baseVersion: initial?.version, category: category.id, expenseId, date, rateMode: usingManualRate ? "manual" : keepSavedRate ? "keep" : "auto", manualRate });
+        const res = await addExpense({ ...draft, billRun, again: againRef.current, allowDuplicate: allowDupRef.current, requestKey, groupId, name, notes: withItems(notes), receiptId: receiptId || undefined, items: byItem && itemSplit?.ok ? items.filter((x) => x.name.trim() || x.amount.trim()).map((x) => ({ name: x.name.trim() || "Item", amount: parseAmount(x.amount, currency) ?? 0, people: x.people })) : [], baseVersion: initial?.version, category: category.id, expenseId, date, rateMode: usingManualRate ? "manual" : keepSavedRate ? "keep" : "auto", manualRate });
         if (res?.duplicateOf) setDup(res.duplicateOf);
         else if (res?.error) setError(res.error);
       } catch (err) {
@@ -475,7 +483,7 @@ export function AddExpenseForm({
       {/* A photo of the bill: kept with the expense, and (when reading is on) fills the form in. */}
       {!billRun && (
         <div>
-          <BillScan groupId={groupId} read={ai && !expenseId} onAttach={setReceiptId} onRead={fillFromBill} />
+          <BillScan groupId={groupId} read={ai && !expenseId} onAttach={setReceiptId} onRead={fillFromBill} existingId={existingReceiptId} />
           {scannedItems > 1 && !byItem && members.length > 1 && (
             <button
               type="button"

@@ -10,7 +10,8 @@ const CSP = [
   "font-src 'self' data: https://fonts.gstatic.com",
   "img-src 'self' data: blob: https:",
   "media-src 'self' blob:",
-  "connect-src 'self'",
+  // Postcard letterings: the browser fetches Google Fonts' stylesheet and font files.
+  "connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com",
   "worker-src 'self' blob:",
   "manifest-src 'self'",
   "object-src 'none'",

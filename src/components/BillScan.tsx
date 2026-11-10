@@ -20,7 +20,9 @@ export function BillScan({
   read,
   onRead,
   onAttach,
+  existingId,
 }: {
+  existingId?: string; // editing: the photo already kept (shown with Replace / Remove)
   groupId: string;
   read: boolean; // fill the form in from the photo
   onRead: (bill: ScannedBill) => void;
@@ -30,6 +32,7 @@ export function BillScan({
   const [state, setState] = useState<"idle" | "busy" | "done">("idle");
   const [note, setNote] = useState("");
   const [thumb, setThumb] = useState("");
+  const [kept, setKept] = useState(Boolean(existingId)); // the current photo is still attached
 
   async function pick(file: File | undefined) {
     if (!file) return;
@@ -42,6 +45,7 @@ export function BillScan({
       if (!r.ok || !r.id) throw new Error(r.error || "Couldn’t add that photo. Try again.");
       if (thumb) URL.revokeObjectURL(thumb);
       setThumb(URL.createObjectURL(blob));
+      setKept(false);
       onAttach(r.id);
       if (r.bill) onRead(r.bill);
       setNote(r.bill ? (r.bill.total ? "Filled in from the bill. Check it, then save." : "Read the bill, but not its total. Type the amount.") : r.note || "Photo attached.");
@@ -56,6 +60,27 @@ export function BillScan({
 
   return (
     <div className="-mt-1" data-bill-scan>
+      {kept && existingId && state !== "done" && (
+        <div className="flex items-center gap-3 rounded-2xl border border-line p-2" data-bill-current>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={`/api/receipt/${existingId}`} alt="The bill" className="h-12 w-12 shrink-0 rounded-xl object-cover" />
+          <p className="min-w-0 flex-1 text-sm text-gray-500">The bill</p>
+          <button type="button" onClick={() => input.current?.click()} className="min-h-11 px-2 text-sm font-medium text-fg">
+            Replace
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setKept(false);
+              onAttach("remove");
+              setNote("The photo will be removed when you save.");
+            }}
+            className="min-h-11 px-2 text-sm font-medium text-fg/70"
+          >
+            Remove
+          </button>
+        </div>
+      )}
       <input ref={input} type="file" accept="image/*" className="hidden" onChange={(e) => pick(e.target.files?.[0])} aria-label="Bill photo" />
       {state === "done" && thumb ? (
         <div className="flex items-center gap-3 rounded-2xl border border-line p-2 pr-1">
@@ -77,7 +102,7 @@ export function BillScan({
             ×
           </button>
         </div>
-      ) : (
+      ) : kept && existingId ? null : (
         <>
           <button
             type="button"

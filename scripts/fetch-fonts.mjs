@@ -8,6 +8,9 @@ const FONTS = {
   "display-700": "https://cdn.jsdelivr.net/npm/@fontsource/fraunces@5/files/fraunces-latin-700-normal.woff",
   "sans-500": "https://cdn.jsdelivr.net/npm/@fontsource/inter@5/files/inter-latin-500-normal.woff",
   "sans-700": "https://cdn.jsdelivr.net/npm/@fontsource/inter@5/files/inter-latin-700-normal.woff",
+  // Currency signs the latin set leaves out (₹ is U+20B9): used when a font lacks them.
+  "sans-ext-500": "https://cdn.jsdelivr.net/npm/@fontsource/inter@5/files/inter-latin-ext-500-normal.woff",
+  "sans-ext-700": "https://cdn.jsdelivr.net/npm/@fontsource/inter@5/files/inter-latin-ext-700-normal.woff",
 };
 mkdirSync("public/og-fonts", { recursive: true });
 const got = {};

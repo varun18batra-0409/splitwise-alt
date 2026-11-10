@@ -126,6 +126,8 @@ async function memberContext(groupId: string) {
   const myId = await getMyMemberId(group.id);
   const me = myId ? await db.member.findFirst({ where: { id: myId, groupId: group.id } }) : null;
   if (!me) redirect("/private");
+  // Adding and inviting people is for people still in the group.
+  if (me.leftAt) redirect(`/groups/${group.id}/people?error=${encodeURIComponent("You left this group. Rejoin it to add or invite people.")}`);
   return { group, me };
 }
 
@@ -218,7 +220,7 @@ export async function joinAsNew(formData: FormData) {
 
 // Saves a new expense — or changes an existing one — then goes back to the group page.
 export async function addExpense(
-  input: SaveExpenseInput & { again?: boolean; billRun?: { billId: string; period: string }; receiptId?: string },
+  input: SaveExpenseInput & { again?: boolean; billRun?: { billId: string; period: string }; receiptId?: string; items?: { name: string; amount: number; people: string[] }[] },
 ): Promise<{ error: string; duplicateOf?: { id: string; description: string; amount: number; by: string; when: string } }> {
   if (!(await allow(`expense:${(await originAndIp()).ip}`, 300, 3600))) return { error: "Too many changes in a short time. Wait a few minutes." };
   // Fetch (and cache) today's rate before saving, so the save itself never waits on the internet.
@@ -233,13 +235,28 @@ export async function addExpense(
       : await saveExpense(input, me, getRate, { ignoreDoubleTap: true, requestKey, checkDuplicate: true });
   if (!result.ok) return { error: result.error, duplicateOf: result.duplicateOf };
   // A bill photo taken while adding: it now belongs to this expense (one per expense).
+  const dropReceipts = async (expenseId: string) => {
+    const old = await db.receipt.findMany({ where: { groupId: input.groupId, expenseId }, select: { blobKey: true } });
+    await db.receipt.deleteMany({ where: { groupId: input.groupId, expenseId } });
+    const { removePhotos } = await import("@/lib/photo-store");
+    await removePhotos(old.map((o) => o.blobKey));
+  };
+  if (me && result.id && input.receiptId === "remove") await dropReceipts(result.id);
+  // Split by item: keep the bill's lines so editing reopens them (none = not split by item).
+  if (me && result.id && Array.isArray(input.items)) {
+    const ids = new Set((await db.member.findMany({ where: { groupId: input.groupId }, select: { id: true } })).map((m) => m.id));
+    const lines = input.items
+      .slice(0, 40)
+      .filter((x) => x && typeof x.name === "string" && Number.isSafeInteger(x.amount) && x.amount > 0 && Array.isArray(x.people))
+      .map((x, i) => ({ expenseId: result.id, position: i, name: x.name.slice(0, 40), amount: x.amount, people: JSON.stringify([...new Set(x.people.filter((p) => typeof p === "string" && ids.has(p)))]) }));
+    await db.$transaction([db.expenseItem.deleteMany({ where: { expenseId: result.id } }), ...(lines.length ? [db.expenseItem.createMany({ data: lines })] : [])]);
+  }
   if (me && result.id && typeof input.receiptId === "string" && /^[A-Za-z0-9_-]{6,40}$/.test(input.receiptId)) {
     const r = await db.receipt.findFirst({ where: { id: input.receiptId, groupId: input.groupId, expenseId: "" }, select: { id: true } });
-    if (r)
-      await db.$transaction([
-        db.receipt.deleteMany({ where: { groupId: input.groupId, expenseId: result.id } }),
-        db.receipt.update({ where: { id: r.id }, data: { expenseId: result.id } }),
-      ]);
+    if (r) {
+      await dropReceipts(result.id);
+      await db.receipt.update({ where: { id: r.id }, data: { expenseId: result.id } });
+    }
   }
   // Budgets: a nudge at 80% and when one goes over (after the reply is sent).
   after(() => checkBudgets(input.groupId).catch(() => []));
@@ -330,11 +347,12 @@ export async function updateGroupSettings(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const group = await db.group.findUnique({
     where: { id: groupId },
-    include: { members: { select: { id: true } }, _count: { select: { expenses: true, payments: true } } },
+    include: { members: { select: { id: true, leftAt: true } }, _count: { select: { expenses: true, payments: true } } },
   });
   if (!group) redirect("/");
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  if (group.members.find((m) => m.id === myId)?.leftAt) redirect(`/groups/${group.id}/people`); // left: read-only
 
   const back = `/groups/${group.id}/settings`;
 
@@ -491,7 +509,7 @@ export async function settleAcrossGroups(formData: FormData) {
 
   for (const p of parts) {
     const myId = memberships[String(p.groupId)];
-    const data = myId ? await loadGroup(String(p.groupId)) : null;
+    const data = myId ? await loadGroup(String(p.groupId), { events: false }) : null;
     if (!data || !myId) redirect("/settle?settle=error");
     const ok = data.transfers.some((t) => t.from === p.fromId && t.to === p.toId && t.amount === p.amount) && (p.fromId === myId || p.toId === myId);
     if (!ok) redirect("/settle?settle=changed"); // balances moved since the page loaded
@@ -549,6 +567,14 @@ export async function recordCustomPayment(formData: FormData) {
   if (fromId === toId) back("Pick two different people.");
   const amount = parseAmount(amountText, group.currency);
   if (amount === null || amount <= 0) back("Enter a valid amount, like 500 or 99.50.");
+  // More than they owe (often a typo with an extra zero): ask once before saving.
+  if (!potGame && !fromSettle && formData.get("over") !== "1") {
+    const { loadGroup } = await import("@/lib/group-data");
+    const data = await loadGroup(group.id, { events: false });
+    const owes = Math.max(0, -(data?.net[fromId] ?? 0));
+    if (amount! > owes)
+      redirect(`/groups/${group.id}/pay?${new URLSearchParams({ from: fromId, to: toId, amount: amountText, owes: String(owes) })}`);
+  }
   const done = potGame ? `/groups/${group.id}/pot/${potGame}?paid=1` : fromSettle ? `/groups/${group.id}/settle?paid=1` : `/groups/${group.id}?tab=balances&paid=1`;
   const key = cleanKey(formData.get("rid"));
   if ((await previousResult(key)) !== null || (await isDoubleTap(group.id, fromId, toId, amount!, myId))) redirect(done);

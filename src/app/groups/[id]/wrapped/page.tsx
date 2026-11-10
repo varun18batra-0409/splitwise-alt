@@ -14,7 +14,7 @@ export const metadata = { title: "Wrapped", robots: { index: false } };
 // everyone's award. Made for trips, works for any group.
 export default async function WrappedPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const data = await loadGroup(id);
+  const data = await loadGroup(id, { events: false });
   if (!data) notFound();
   const { group, expenses, transfers } = data;
   const myId = await getMyMemberId(group.id);

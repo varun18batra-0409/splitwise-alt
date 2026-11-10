@@ -23,12 +23,14 @@ function sameSecret(given: string | null, secret: string) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-// Each part runs on its own: one failing doesn't stop the rest.
+// Each part runs on its own: one failing doesn't stop the rest (failures go in the admin's daily check).
+let failed: string[] = [];
 async function part<T>(name: string, fn: () => Promise<T>): Promise<T | { error: string }> {
   try {
     return await fn();
   } catch (err) {
     console.error(`daily job: ${name} failed`, String(err).slice(0, 300));
+    failed.push(name);
     return { error: "failed" };
   }
 }
@@ -43,6 +45,7 @@ export async function GET(req: Request) {
     return Response.json({ error: "Too many runs" }, { status: 429 });
   }
   const now = new Date();
+  failed = [];
   const bills = await part("bills", () => runAllBills(now));
   // Phone nudges never go out in the night, even if the job is started early.
   const hour = Number(new Intl.DateTimeFormat("en-GB", { timeZone: DEFAULT_TIME_ZONE, hour: "2-digit", hourCycle: "h23" }).format(now));
@@ -74,8 +77,20 @@ export async function GET(req: Request) {
   await part("cleanup-notes", async () => (await db.accountNote.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - 90 * 86_400_000) } } })).count);
   await part("cleanup-mail", async () => (await db.notifyLog.deleteMany({ where: { key: { startsWith: "mail-failed:" }, createdAt: { lt: new Date(now.getTime() - 30 * 86_400_000) } } })).count);
   // Bill photos taken while adding an expense that was never saved: gone after a day.
-  await part("cleanup-receipts", async () => (await db.receipt.deleteMany({ where: { expenseId: "", createdAt: { lt: new Date(now.getTime() - 86_400_000) } } })).count);
+  await part("cleanup-receipts", async () => {
+    const where = { expenseId: "", createdAt: { lt: new Date(now.getTime() - 86_400_000) } };
+    const old = await db.receipt.findMany({ where, select: { blobKey: true }, take: 2000 });
+    const n = (await db.receipt.deleteMany({ where })).count;
+    const { removePhotos } = await import("@/lib/photo-store");
+    await removePhotos(old.map((o) => o.blobKey));
+    return n;
+  });
+  // Photos saved before file storage was connected move over, a few each day.
+  await part("move-photos", async () => (await import("@/lib/photo-store")).movePhotosToBlob(60));
   // Groups deleted more than 30 days ago (past their restore window) are erased for good.
   const groupsErased = await part("erase-deleted-groups", () => eraseExpiredGroups(now));
-  return Response.json({ ok: true, bills, reminders, countdowns, memories, postcardsOpened, budgetAlerts, summaries, speedLogsRemoved, groupsErased });
+  // The admin's email when something needs a look (failed parts, errors, emails not sent, orphan rows).
+  const { sendOpsDigest } = await import("@/lib/ops-digest");
+  const check = await sendOpsDigest(now, failed).catch(() => ({ sent: false, reason: "digest failed" }));
+  return Response.json({ ok: true, bills, reminders, countdowns, memories, postcardsOpened, budgetAlerts, summaries, speedLogsRemoved, groupsErased, check });
 }

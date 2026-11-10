@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { allow, clientIp } from "@/lib/rate-limit";
@@ -15,8 +16,18 @@ function dbRegion(): string {
   return m ? m[1] : host.endsWith(".turso.io") ? "turso (region not in address)" : "other";
 }
 
+// The details (regions, timings, which features are on) only for the operator's
+// own checks (Authorization: Bearer CRON_SECRET); everyone else gets "ok".
+function isOperator(auth: string | null) {
+  const secret = process.env.CRON_SECRET;
+  if (!secret || !auth) return false;
+  const a = Buffer.from(auth), b = Buffer.from(`Bearer ${secret}`);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 export async function GET() {
-  if (!(await allow(`health:${clientIp(await headers())}`, 30, 3600))) {
+  const h = await headers();
+  if (!(await allow(`health:${clientIp(h)}`, 30, 3600))) {
     return Response.json({ error: "Too many checks" }, { status: 429 });
   }
   const rounds: number[] = [];
@@ -29,6 +40,7 @@ export async function GET() {
   await db.group.count();
   const countMs = Math.round(performance.now() - t);
   const sorted = [...rounds].sort((a, b) => a - b);
+  if (!isOperator(h.get("authorization"))) return Response.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
   return Response.json(
     {
       ok: true,

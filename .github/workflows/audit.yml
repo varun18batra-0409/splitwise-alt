@@ -16,6 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         part:
+          - { name: checks, browsers: "chromium", configs: "" }
           - { name: crawl-chromium-phone, browsers: "chromium", configs: "chromium-phone" }
     env:
       TURSO_DATABASE_URL: file:/tmp/audit.db
@@ -28,7 +29,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install
+      - run: npm ci
       - run: npm install --no-save tsx@4.19.2 axe-core@4.10.2
       - name: Browser cache
         uses: actions/cache@v4
@@ -70,11 +71,15 @@ jobs:
         if: matrix.part.name == 'checks'
         timeout-minutes: 15
         run: npx tsx loopin-prelaunch-audit/automation/negative.ts 2>&1 | tail -20 || true
+      - name: Financial cases FIN-M01 to FIN-M24 (four people tapping through the app)
+        if: matrix.part.name == 'checks'
+        timeout-minutes: 30
+        run: npx tsx loopin-prelaunch-audit/automation/fin-m.ts 2>&1 | tee fin-m.log | tail -40 || true
       - name: Save results
         if: always()
         run: |
           mkdir -p audit-out
-          cp money.log server.log audit-out/ 2>/dev/null || true
+          cp money.log fin-m.log server.log audit-out/ 2>/dev/null || true
           grep -iE "error|⨯|exception" server.log | grep -v ExperimentalWarning | tail -200 > audit-out/server-errors.log || true
           cd audit-out
           echo '{"git":{"deploymentEnabled":false}}' > vercel.json

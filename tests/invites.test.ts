@@ -48,12 +48,11 @@ describe("adding people", () => {
     expect(freeName([], "  ")).toBe("Friend");
   });
 
-  it("finds friends by name, but strangers only by their exact email", async () => {
+  it("finds friends by name; a stranger's email reveals nothing (the screen offers a neutral Add for any email)", async () => {
     const ms = { [g1]: meG1, [g2]: meG2 };
     expect((await searchPeople(ms, g2, "joe")).map((f) => f.name)).toEqual(["Joey"]);
     expect(await searchPeople(ms, g2, "sheld")).toEqual([]); // not someone I know
-    const exact = await searchPeople(ms, g2, mail("sheldon"));
-    expect(exact.map((f) => [f.name, f.known])).toEqual([["Sheldon", false]]);
+    expect(await searchPeople(ms, g2, mail("sheldon"))).toEqual([]); // no "Sheldon is on Loopin" by email
     expect(await searchPeople(ms, g2, "chandler")).toEqual([]); // never suggests yourself
   });
 

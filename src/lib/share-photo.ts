@@ -18,7 +18,9 @@ export async function photoData(group: { id: string; name: string; cover: string
     if (kind === "own") {
       const p = await db.groupPhoto.findUnique({ where: { groupId: group.id } });
       if (!p || (p.type !== "image/jpeg" && p.type !== "image/png")) return null; // the picture maker reads JPEG and PNG
-      return `data:${p.type};base64,${Buffer.from(p.data).toString("base64")}`;
+      const { readPhoto } = await import("./photo-store");
+      const bytes = await readPhoto(p);
+      return bytes ? `data:${p.type};base64,${Buffer.from(bytes).toString("base64")}` : null;
     }
     const src = isPhoto(kind) ? photoSrc(kind) : null;
     if (!src) return null;

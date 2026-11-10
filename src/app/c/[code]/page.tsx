@@ -185,7 +185,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
           </span>
           <span className="font-semibold tabular-nums">
             {money(p.collected)}
-            {p.target > 0 && <span className="font-normal text-fg/45"> of {money(p.target)}</span>}
+            {p.target > 0 && <span className="font-normal text-fg/60"> of {money(p.target)}</span>}
           </span>
         </p>
       </section>

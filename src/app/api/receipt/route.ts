@@ -30,7 +30,9 @@ export async function POST(req: Request) {
   const type = photoType(bytes);
   if (!type) return Response.json({ ok: false, error: "Pick a photo (JPEG, PNG or WebP)." }, { status: 415 });
   const clean = stripImageMetadata(bytes);
-  const saved = await db.receipt.create({ data: { groupId, data: clean, type, createdById: me.id }, select: { id: true } });
+  const { storePhoto } = await import("@/lib/photo-store");
+  const stored = await storePhoto("receipt", clean, type);
+  const saved = await db.receipt.create({ data: { groupId, data: stored.data, blobKey: stored.blobKey, type, createdById: me.id }, select: { id: true } });
 
   if (url.searchParams.get("read") !== "1") return Response.json({ ok: true, id: saved.id });
   const blocked = await aiAllowed(me.accountId ?? me.id);

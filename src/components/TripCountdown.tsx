@@ -52,7 +52,7 @@ export function TripCountdown({ group, phase, slot = 0 }: { group: Group; phase:
         {/* The count */}
         <div className="flex min-w-0 flex-1 flex-col justify-center py-4 pl-3.5 pr-3">
           <div className="flex items-center gap-2">
-            <p className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-fg/45">{c?.kicker ?? (phase.kind === "during" ? "On the trip" : "Coming up")}</p>
+            <p className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-fg/60">{c?.kicker ?? (phase.kind === "during" ? "On the trip" : "Coming up")}</p>
             {phase.kind !== "during" && <TakeOff className={bigColor} />}
           </div>
           <p className="mt-1 flex flex-wrap items-baseline gap-x-2">
@@ -64,7 +64,7 @@ export function TripCountdown({ group, phase, slot = 0 }: { group: Group; phase:
           <p className="mt-1.5 line-clamp-2 text-sm font-medium leading-snug" data-countdown-line data-countdown-quip>
             {c?.quip ?? w.line}
           </p>
-          {withWho && <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-fg/45">with {withWho}</p>}
+          {withWho && <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-fg/60">with {withWho}</p>}
           <div className="mt-3 flex items-center gap-3">
             <ShareCountdown groupId={group.id} line={w.line} />
           </div>

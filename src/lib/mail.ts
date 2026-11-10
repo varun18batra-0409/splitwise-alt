@@ -38,8 +38,19 @@ function transport() {
 // `signInCode`: sign-in codes always get through first. Everything else
 // (invites, "you were added") stops a little before the daily ceiling, so a
 // burst of invites can never lock people out of signing in.
-export async function sendMail(to: string, subject: string, text: string, html: string, opts: { signInCode?: boolean } = {}): Promise<boolean> {
+export async function sendMail(to: string, subject: string, text: string, html: string, opts: { signInCode?: boolean; optOut?: boolean } = {}): Promise<boolean> {
   if (!mailConfigured()) return false;
+  // Invites and "you were added": skipped for people who unsubscribed, and carry an unsubscribe link.
+  let list: { unsubscribe: { url: string; comment: string } } | undefined;
+  if (opts.optOut) {
+    const { db } = await import("./db");
+    if (await db.emailOptOut.findUnique({ where: { email: to.trim().toLowerCase() } }).catch(() => null)) return true;
+    const { unsubscribeUrl } = await import("./unsubscribe");
+    const url = await unsubscribeUrl(to);
+    list = { unsubscribe: { url, comment: "Stop Loopin invite emails" } };
+    text += `\n\n—\nDon’t want emails like this? ${url}`;
+    html += `<p style="font-family:system-ui,sans-serif;font-size:12px;color:#888;margin-top:28px">Don’t want emails like this? <a href="${url}" style="color:#888">Stop them</a>.</p>`;
+  }
   if (isTestAddress(to) && !outbox()) {
     if (!testCopy()) return true; // live app: never sent, never stored
     const { db } = await import("./db");
@@ -68,7 +79,14 @@ export async function sendMail(to: string, subject: string, text: string, html: 
     return false;
   }
   if (!(await allow(`mail:to:${to.toLowerCase()}`, 10, 86_400))) return false; // one address can't be flooded
-  const message = { from: process.env.MAIL_FROM ?? `Loopin <${process.env.SMTP_USER}>`, to, subject, text, html };
+  const message = {
+    from: process.env.MAIL_FROM ?? `Loopin <${process.env.SMTP_USER}>`,
+    to,
+    subject,
+    text,
+    html,
+    ...(list ? { list, headers: { "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } } : {}),
+  };
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       await transport().sendMail(message);
