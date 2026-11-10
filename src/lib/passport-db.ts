@@ -72,3 +72,46 @@ export async function canSeePassport(viewerAccountId: string, ownerAccountId: st
   if (owner.passportShare === "private") return { ok: false as const, reason: "private" as const, name: shared.name as string | undefined };
   return { ok: true as const, owner, name: shared.name as string | undefined };
 }
+
+// New passport moments (5 countries, a new continent…) become one alert, with a
+// phone notification if they get those. Each moment is celebrated once. Accounts
+// from before this existed start from what they already have, without an alert.
+const MARKS_FROM = Date.UTC(2026, 10, 11);
+export async function celebrateMarks(account: { id: string; createdAt: Date; passportMarks: string }, marks: { id: string; title: string; body: string; ladder: string; n: number }[]) {
+  try {
+    const { newestMark } = await import("./passport");
+    const fresh = account.passportMarks === "";
+    const seen = new Set(account.passportMarks.split(" ").filter((x) => x && x !== "-"));
+    const ids = marks.map((m) => m.id);
+    if (ids.every((id) => seen.has(id)) && !fresh) return null;
+    const next = [...new Set([...seen, ...ids])].join(" ") || "-";
+    // Claim the change first, so two phones opening the passport at once alert once.
+    const claimed = await db.account.updateMany({ where: { id: account.id, passportMarks: account.passportMarks }, data: { passportMarks: next } });
+    if (!claimed.count || (fresh && account.createdAt.getTime() < MARKS_FROM)) return null;
+    const mark = newestMark(marks as Parameters<typeof newestMark>[0], seen);
+    if (!mark) return null;
+    const { deliverNotes } = await import("./account-notes");
+    await deliverNotes([{ accountIds: [account.id], kind: "passport_mark", title: mark.title, body: mark.body, url: "/passport", tag: `passport:${mark.id}` }]);
+    return mark;
+  } catch {
+    return null; // a celebration must never break the page that found it
+  }
+}
+
+// Evening check: everyone on a trip that started in the last two days (a
+// started trip is a new stamp). Also run when someone adds countries by hand.
+export async function celebrateRecentTrips(today: string, yesterday: string) {
+  const members = await db.member.findMany({
+    where: { accountId: { not: null }, leftAt: null, group: { type: "trip", deletedAt: null, tripStart: { in: [today, yesterday] } } },
+    select: { accountId: true },
+    take: 2000,
+  });
+  let sent = 0;
+  for (const id of [...new Set(members.map((m) => m.accountId!))]) {
+    const a = await db.account.findUnique({ where: { id } });
+    if (!a) continue;
+    const p = await loadPassport(a, a.homeCountry || "IN", today);
+    if (await celebrateMarks(a, p.marks)) sent++;
+  }
+  return sent;
+}

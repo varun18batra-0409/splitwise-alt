@@ -1887,6 +1887,30 @@ async function main() {
     const got = Object.fromEntries(e.shares.map((x) => [x.member.name, x.amount]));
     assert(got.Varun === 40000 && got.Asha === 20000 && got.Ravi === 20000 && got.Zoe === 20000 && got.Rohit === 20000, `shares saved as ${JSON.stringify(got)}`);
   });
+  await step(V, "Add", "Split by item: ₹1,180 bar bill, Pizza ₹600 for Varun and Asha, Beer ₹400 for Asha → tax and tip shared by what each had: Varun ₹354, Asha ₹826", async () => {
+    const o = { me: "Varun" as Person, name: "Bar bill", amount: "1180" };
+    await go(V, `${g}/add`);
+    await fillExpense(V, o);
+    await V.getByRole("button", { name: /Custom/ }).click();
+    await V.getByRole("button", { name: "Items", exact: true }).click();
+    const box = V.locator("[data-item-split]");
+    await box.getByLabel("Item 1", { exact: true }).fill("Pizza");
+    await box.getByLabel("Item 1 price").fill("600");
+    const first = box.getByRole("group", { name: "Who had item 1" });
+    await first.getByRole("button", { name: "You", exact: true }).click();
+    await first.getByRole("button", { name: "Asha", exact: true }).click();
+    await box.getByRole("button", { name: /Add item/ }).click();
+    await box.getByLabel("Item 2", { exact: true }).fill("Beer");
+    await box.getByLabel("Item 2 price").fill("400");
+    await box.getByRole("group", { name: "Who had item 2" }).getByRole("button", { name: "Asha", exact: true }).click();
+    const t = (await box.locator("[data-item-result]").innerText()).replace(/\s+/g, " ");
+    assert(/354/.test(t) && /826/.test(t) && /180/.test(t), `item split shows: ${t}`);
+    await save(V, o);
+    const e = await db.expense.findFirstOrThrow({ where: { groupId: g.split("/").pop()!, description: "Bar bill" }, include: { shares: { include: { member: true } } } });
+    const got = Object.fromEntries(e.shares.filter((x) => x.amount).map((x) => [x.member.name, x.amount]));
+    assert(JSON.stringify(got) === JSON.stringify({ Varun: 35400, Asha: 82600 }) || (got.Varun === 35400 && got.Asha === 82600 && Object.keys(got).length === 2), `item split saved as ${JSON.stringify(got)}`);
+    assert(/By item: Pizza .*600.* \(Varun, Asha\); Beer .*400.* \(Asha\)/.test(e.notes ?? ""), `notes: ${e.notes}`);
+  });
 
   await step(null, "Sign in", "A wrong code is refused with a clear message, and the right one still works", async () => {
     const { ctx, page } = await person(browser);

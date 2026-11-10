@@ -182,7 +182,7 @@ export default async function HowItWorks() {
           items={[
             <>Tap the <strong>＋</strong> at the bottom.</>,
             <>Pick <strong>who paid</strong>, type what it was and how much. Loopin tags it for you (🍽️ Bites &amp; Sips, 🚕 Wheels &amp; Wings, 🏨 Beds &amp; Bunks…).</>,
-            <>Choose how to split: <strong>Everyone equally</strong>, <strong>Only some</strong> people, or <strong>Custom</strong> (exact amounts, % or shares, like 2 : 1 for a bigger room).</>,
+            <>Choose how to split: <strong>Everyone equally</strong>, <strong>Only some</strong> people, or <strong>Custom</strong> (exact amounts, % or shares, like 2 : 1 for a bigger room). <strong>Items</strong> splits a restaurant bill line by line: each dish to whoever had it, tax and tip shared by what each had.</>,
           ]}
         />
         <p>Change the date if it wasn’t today, and add a note if it helps (“Sam paid the tip”). Next time, Loopin starts with the same split you used last.</p>
@@ -355,6 +355,7 @@ export default async function HowItWorks() {
         <Steps
           items={[
             <><strong>Friends’ passports.</strong> Anyone you’ve shared a group with, even an old flat or a finished trip: You → Friends’ passports.</>,
+            <><strong>Moments.</strong> Your 5th country, a new continent, 10 cities: each one shows up in Alerts, once.</>,
             <><strong>Our passports.</strong> Inside any group: where you’ve all been together, with every flag.</>,
             <><strong>Empty passport?</strong> Nudge them. They’ll see it in Alerts, never as a push or email.</>,
             <><strong>Private when you want.</strong> Switch yours to Only me. Trips still happening stay hidden until they’re over.</>,

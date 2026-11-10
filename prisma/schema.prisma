@@ -228,6 +228,9 @@ model Account {
   passportShare String @default("groups")
   // Bumped by "Sign out on all other phones": cookies carrying an older number stop working.
   sessionVersion Int @default(0)
+  // Passport moments already celebrated ("countries-10 continents-3"); "-" = none yet.
+  // Empty = never checked: older accounts start from what they have, silently.
+  passportMarks String @default("")
 }
 
 // Notifications for a person rather than a group (Collect: "Asha added you",
