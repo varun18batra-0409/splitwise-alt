@@ -59,7 +59,7 @@ export function HomeHero({
           {chip}
         </span>
       )}
-      <span className={`block font-display font-medium leading-none tracking-[-0.02em] ${big ? "mt-4 text-[30px]" : "mt-4 text-[clamp(34px,10vw,42px)] font-semibold leading-[1.04]"}`}>{small}</span>
+      <span className={`block font-display font-medium leading-none tracking-[-0.02em] [text-shadow:0_2px_18px_rgba(0,0,0,0.55),0_1px_3px_rgba(0,0,0,0.35)] ${big ? "mt-4 text-[30px]" : "mt-4 text-[clamp(34px,10vw,42px)] font-semibold leading-[1.04]"}`}>{small}</span>
       {big && (
         <span className={`block font-display font-semibold leading-[0.92] tracking-[-0.03em] [text-shadow:0_4px_30px_rgba(0,0,0,0.35)] ${size}`} data-hero-big>
           {big}
@@ -75,7 +75,7 @@ export function HomeHero({
         ) : cover ? (
           <GroupCover kind={cover.kind} src={cover.src} uid={`hero-${uid}`} letter={letter} sizes="(max-width: 448px) 100vw, 448px" priority drift />
         ) : null}
-        <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(13,13,15,0.6)_0%,rgba(13,13,15,0)_24%,rgba(13,13,15,0.12)_46%,rgba(13,13,15,0.86)_80%,#0d0d0f_100%)]" />
+        <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(13,13,15,0.6)_0%,rgba(13,13,15,0.14)_24%,rgba(13,13,15,0.22)_46%,rgba(13,13,15,0.86)_80%,#0d0d0f_100%)]" />
       </div>
       <div className="absolute inset-x-0 top-0 px-5 pt-[max(1.1rem,env(safe-area-inset-top))]">{header}</div>
       <div className={`absolute inset-x-5 ${tall ? "top-[118px]" : "top-[104px]"} text-fg`}>
