@@ -70,6 +70,7 @@ export default async function RecordPayment({
         <style>
           {people
             .filter((m) => /^[\w-]+$/.test(m.id))
+            // The payer can't also be the one paid: their chip is shown inactive (WCAG 1.4.3 exempts inactive controls).
             .map((m) => `form:has(input[name="fromId"][value="${m.id}"]:checked) label[data-to="${m.id}"]{opacity:.3;pointer-events:none}`)
             .join("")}
         </style>

@@ -18,6 +18,9 @@ jobs:
         part:
           - { name: checks, browsers: "chromium", configs: "" }
           - { name: crawl-chromium-phone, browsers: "chromium", configs: "chromium-phone" }
+          - { name: crawl-chromium-sizes, browsers: "chromium", configs: "chromium-small-phone,chromium-tablet,chromium-desktop" }
+          - { name: crawl-firefox, browsers: "firefox", configs: "firefox-phone,firefox-desktop" }
+          - { name: crawl-webkit-phone, browsers: "webkit", configs: "webkit-phone" }
     env:
       TURSO_DATABASE_URL: file:/tmp/audit.db
       MAIL_OUTBOX: "1"

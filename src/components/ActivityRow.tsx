@@ -60,7 +60,7 @@ export function ActivityRow({
   if (item.kind === "payment") {
     const to = nameOf(item.toId);
     return (
-      <div className={`flex items-center gap-3.5 py-3.5 ${deleted ? "opacity-60" : ""}`}>
+      <div className={`flex items-center gap-3.5 py-3.5 ${deleted ? "opacity-[.85]" : ""}`}>
         <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-owed/[0.12] text-owed ring-1 ring-inset ring-owed/15">
           <SettleIcon size={18} />
         </span>
@@ -113,7 +113,7 @@ export function ActivityRow({
   const o = item.original;
   const shown = (orig: number, base: number) => (o ? formatMoney(orig, o.currency) : money(base));
   return (
-    <div className={`flex items-center gap-3.5 py-3.5 ${deleted ? "opacity-60" : ""}`}>
+    <div className={`flex items-center gap-3.5 py-3.5 ${deleted ? "opacity-[.85]" : ""}`}>
       <ExpenseGlyph title={item.title} category={item.category} motion={deleted ? undefined : motion} delay={delay} label={cat.label} />
       <div className="min-w-0 flex-1">
         <p className="flex min-w-0 items-center gap-1.5" title={cat.label}>
