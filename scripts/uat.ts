@@ -8,7 +8,7 @@
 // Needs the app running on :3000. Writes uat/report.md (+ a screenshot of each
 // failure) into the screenshots folder. Never fails the build by itself: the
 // report says what passed and what didn't.
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { base, bypass, hosted, withBypass } from "./hosted";
@@ -1910,6 +1910,23 @@ async function main() {
     const got = Object.fromEntries(e.shares.filter((x) => x.amount).map((x) => [x.member.name, x.amount]));
     assert(JSON.stringify(got) === JSON.stringify({ Varun: 35400, Asha: 82600 }) || (got.Varun === 35400 && got.Asha === 82600 && Object.keys(got).length === 2), `item split saved as ${JSON.stringify(got)}`);
     assert(/By item: Pizza .*600.* \(Varun, Asha\); Beer .*400.* \(Asha\)/.test(e.notes ?? ""), `notes: ${e.notes}`);
+  });
+  await step(V, "Add", "A bill photo stays with the expense: Asha can open it, and someone outside the group can't", async () => {
+    const o = { me: "Varun" as Person, name: "Lunch bill", amount: "500" };
+    await go(V, `${g}/add`);
+    await V.locator("[data-bill-scan] input[type=file]").setInputFiles({ name: "bill.png", mimeType: "image/png", buffer: readFileSync("public/icon-512.png") });
+    await V.getByRole("button", { name: "Remove the bill photo" }).waitFor();
+    await fillExpense(V, o);
+    await save(V, o);
+    const e = await db.expense.findFirstOrThrow({ where: { groupId: g.split("/").pop()!, description: "Lunch bill" } });
+    const r = await db.receipt.findFirst({ where: { expenseId: e.id } });
+    assert(r, "the bill photo wasn't kept with the expense");
+    const seen = await A.request.get(`${base}/api/receipt/${r!.id}`, { headers: bypass });
+    assert(seen.status() === 200 && /^image\//.test(seen.headers()["content-type"] ?? ""), `Asha got ${seen.status()}`);
+    const x = await person(browser);
+    const outside = await x.page.request.get(`${base}/api/receipt/${r!.id}`, { headers: bypass });
+    assert(outside.status() === 404, `someone outside the group got ${outside.status()}`);
+    await x.ctx.close();
   });
 
   await step(null, "Sign in", "A wrong code is refused with a clear message, and the right one still works", async () => {

@@ -185,6 +185,11 @@ export default async function HowItWorks() {
             <>Choose how to split: <strong>Everyone equally</strong>, <strong>Only some</strong> people, or <strong>Custom</strong> (exact amounts, % or shares, like 2 : 1 for a bigger room). <strong>Items</strong> splits a restaurant bill line by line: each dish to whoever had it, tax and tip shared by what each had.</>,
           ]}
         />
+        <p>
+          <strong>Got the bill?</strong> Tap <strong>Scan a bill</strong> and Loopin reads the shop, total, date and every line, ready to split
+          by item. The photo stays with the expense for everyone in the group. <strong>Hands full?</strong> Tap the mic and say it: “Dinner 2400,
+          Ravi paid, everyone except Dev.” Or type it in one line. Nothing saves until you tap Save.
+        </p>
         <p>Change the date if it wasn’t today, and add a note if it helps (“Sam paid the tip”). Next time, Loopin starts with the same split you used last.</p>
         <p>
           <strong>Two people paid?</strong> Choose <strong>More than one</strong> payer. <strong>Got money back</strong> (a refund, a returned

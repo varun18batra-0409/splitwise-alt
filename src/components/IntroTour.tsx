@@ -135,7 +135,7 @@ function makeSlides(L: Local): Slide[] {
   {
     id: "owes",
     title: ["See who owes who.", "At a glance."],
-    caption: "Every expense shows what it means for you. Balances update the moment anyone adds something.",
+    caption: "Snap the bill, say it, or type it in one line, and Loopin fills it in. Every expense shows what it means for you, the moment anyone adds it.",
     art: (
       <Card>
         <p className="rise text-xs text-gray-400">{L.india ? "Goa weekend" : "Lake weekend"}</p>

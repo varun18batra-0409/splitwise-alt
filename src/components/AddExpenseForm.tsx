@@ -9,6 +9,7 @@ import { computeTotals, PAYMENT_METHODS, type PaymentMethod } from "@/lib/conver
 import { buildExpense, chosenMarkupBp, type ExpenseDraft } from "@/lib/expense";
 import { currencyInfo, formatMoney, formatPercent, isSupportedCurrency, parseAmount, parsePercent } from "@/lib/money";
 import { QuickLine } from "./QuickLine";
+import { BillScan, type ScannedBill } from "./BillScan";
 import { SpinWheel } from "./SpinWheel";
 import { CurrencyPicker } from "./CurrencyPicker";
 import { expensePairs, payersJson } from "@/lib/payers";
@@ -45,6 +46,7 @@ export function AddExpenseForm({
   splitName = "Group split",
   spin = true,
   billRun,
+  ai = false,
 }: {
   groupId: string;
   baseCurrency: string;
@@ -58,6 +60,7 @@ export function AddExpenseForm({
   splitName?: string; // "Our split" (couple), "Flat split" (home)…
   spin?: boolean; // Spin for it (every group but card nights)
   billRun?: { billId: string; period: string }; // "Enter amount" for a waiting bill
+  ai?: boolean; // bill reading and spoken lines are switched on (an Anthropic key is set)
 }) {
   const memberIds = useMemo(() => members.map((m) => m.id), [members]);
   const nameOf = (id: string) => members.find((m) => m.id === id)?.name ?? "?";
@@ -117,6 +120,8 @@ export function AddExpenseForm({
   const [percent, setPercent] = useState<Record<string, string>>(initial?.percent ?? {});
   // Split by item: each line on the bill to the people who had it; tax and tip shared by what each had.
   const [byItem, setByItem] = useState(false);
+  const [receiptId, setReceiptId] = useState(""); // a bill photo to keep with this expense
+  const [scannedItems, setScannedItems] = useState(0); // lines read off a scanned bill
   const [items, setItems] = useState<{ k: number; name: string; amount: string; people: string[] }[]>([{ k: 1, name: "", amount: "", people: [] }]);
 
   const [showOnly, setShowOnly] = useState(false);
@@ -322,6 +327,21 @@ export function AddExpenseForm({
   const [dup, setDup] = useState<{ id: string; description: string; amount: number; by: string; when: string } | null>(null);
   const allowDupRef = useRef(false);
   const formRef = useRef<HTMLFormElement>(null);
+  // What a scanned bill says: the shop, the total, the day and its lines (for split by item).
+  function fillFromBill(b: ScannedBill) {
+    if (b.merchant && !name.trim()) setName(b.merchant);
+    const code = b.currency && isSupportedCurrency(b.currency) ? b.currency : currency;
+    if (code !== currency) chooseCurrency(code);
+    if (b.total) setAmount(String(b.total));
+    if (b.date && b.date <= today && b.date >= `${Number(today.slice(0, 4)) - 1}${today.slice(4)}`) {
+      setDate(b.date);
+      if (b.date !== today) setShowDate(true);
+    }
+    if (b.items.length) {
+      setItems(b.items.map((x, i) => ({ k: i + 1, name: x.name, amount: String(x.price), people: [] })));
+      setScannedItems(b.items.length);
+    }
+  }
   // The bill's items go in the notes, so everyone can see how it was split.
   function withItems(text: string) {
     if (!itemSplit?.ok) return text;
@@ -349,7 +369,7 @@ export function AddExpenseForm({
     if (!expenseId) rememberSplit();
     startSaving(async () => {
       try {
-        const res = await addExpense({ ...draft, billRun, again: againRef.current, allowDuplicate: allowDupRef.current, requestKey, groupId, name, notes: withItems(notes), baseVersion: initial?.version, category: category.id, expenseId, date, rateMode: usingManualRate ? "manual" : keepSavedRate ? "keep" : "auto", manualRate });
+        const res = await addExpense({ ...draft, billRun, again: againRef.current, allowDuplicate: allowDupRef.current, requestKey, groupId, name, notes: withItems(notes), receiptId: receiptId || undefined, baseVersion: initial?.version, category: category.id, expenseId, date, rateMode: usingManualRate ? "manual" : keepSavedRate ? "keep" : "auto", manualRate });
         if (res?.duplicateOf) setDup(res.duplicateOf);
         else if (res?.error) setError(res.error);
       } catch (err) {
@@ -452,14 +472,38 @@ export function AddExpenseForm({
         )}
       </div>
 
+      {/* A photo of the bill: kept with the expense, and (when reading is on) fills the form in. */}
+      {!billRun && (
+        <div>
+          <BillScan groupId={groupId} read={ai && !expenseId} onAttach={setReceiptId} onRead={fillFromBill} />
+          {scannedItems > 1 && !byItem && members.length > 1 && (
+            <button
+              type="button"
+              onClick={() => {
+                setByItem(true);
+                setShowPeople(true);
+                setShowOnly(false);
+              }}
+              className="mt-1 flex min-h-11 items-center gap-2 text-sm font-medium text-owed"
+              data-split-by-item
+            >
+              {scannedItems} items on the bill · split by item ›
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Quick line: "Dinner 2400 Ravi paid split with Asha Meera" fills the form below. */}
       {!expenseId && members.length > 1 && (
         <QuickLine
+          groupId={groupId}
+          ai={ai}
           members={members.map((m) => ({ id: m.id, name: m.name }))}
           myId={myId}
           who={who}
           currency={currency}
-          onFill={(q) => {
+          onFill={(q, extra) => {
+            if (extra?.currency && extra.currency !== currency && isSupportedCurrency(extra.currency)) chooseCurrency(extra.currency);
             if (q.name) setName(q.name);
             if (q.amount) setAmount(q.amount);
             if (q.paidById) {

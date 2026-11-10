@@ -31,7 +31,8 @@ const whenIn = (tz: string) => {
 // Busy groups show the latest PAGE items first, with "Show more".
 const PAGE = 60;
 
-export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = [] }: { v: GroupView; filter?: ActivityFilter; shown?: number; openId?: string; reactions?: { expenseId: string; memberId: string; emoji: string }[] }) {
+export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = [], receipts = [] }: { v: GroupView; filter?: ActivityFilter; shown?: number; openId?: string; reactions?: { expenseId: string; memberId: string; emoji: string }[]; receipts?: { id: string; expenseId: string }[] }) {
+  const receiptOf = new Map(receipts.map((r) => [r.expenseId, r.id]));
   const { group, myId, nameOf, money, expenseById, eventById, tz } = v;
   const when = whenIn(tz);
   const all = buildActivity(group.expenses, group.payments, myId, group.events);
@@ -349,6 +350,14 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                       <Line label="Date" value={niceDate(dayKey(expenseDate(e), tz))} />
                       <Line label="Category" value={cat.label} />
                       {e.notes && <p className="whitespace-pre-line rounded-lg bg-white/[0.03] px-3 py-2 text-gray-600">📝 {e.notes}</p>}
+                      {receiptOf.has(e.id) && (
+                        <a href={`/api/receipt/${receiptOf.get(e.id)}`} target="_blank" rel="noopener" className="flex items-center gap-3 rounded-lg bg-white/[0.03] p-2 pr-3 text-sm text-gray-600 active:bg-mist" data-receipt-link>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={`/api/receipt/${receiptOf.get(e.id)}`} alt="" loading="lazy" className="h-12 w-12 shrink-0 rounded-md object-cover" />
+                          <span className="flex-1">The bill</span>
+                          <span aria-hidden className="text-gray-400">›</span>
+                        </a>
+                      )}
                       {foreign && (
                         <>
                           <Line label="Original expense" value={formatMoney(e.originalAmount, e.originalCurrency)} />

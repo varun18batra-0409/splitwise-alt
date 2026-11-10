@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { aiReady } from "@/lib/ai";
 import { db } from "@/lib/db";
 import { Notice } from "@/components/Notice";
 import { getMyMemberId } from "@/lib/identity";
@@ -110,6 +111,7 @@ export default async function AddExpensePage({
         weights={Object.fromEntries(group.members.filter((m) => !m.leftAt).map((m) => [m.id, m.splitWeight]))}
         splitName={splitNameFor(group.type)}
         spin={group.type !== "pot"}
+        ai={aiReady()}
       />
     </SheetPage>
   );

@@ -4,7 +4,7 @@ import { RESTORE_DAYS } from "./group-data";
 // Deleted groups: anyone in them can restore them for 30 days (RESTORE_DAYS).
 // After that, the daily job erases them for good, as the privacy page says:
 // the group, its people, expenses, payments, history, bills, list, budgets,
-// goals and deposit. Groups that were only closed are never touched.
+// goals, deposit, photos and receipts. Groups that were only closed are never touched.
 
 export async function eraseExpiredGroups(now = new Date(), limit = 100): Promise<number> {
   const before = new Date(now.getTime() - RESTORE_DAYS * 86_400_000);
@@ -36,6 +36,7 @@ export async function eraseGroups(ids: string[]) {
     db.depositShare.deleteMany({ where: { deposit: inG } }),
     db.deposit.deleteMany({ where: inG }),
     db.groupPhoto.deleteMany({ where: inG }),
+    db.receipt.deleteMany({ where: inG }),
     db.potMove.deleteMany({ where: { game: inG } }),
     db.potGame.deleteMany({ where: inG }),
     db.member.deleteMany({ where: inG }),

@@ -16,6 +16,7 @@ export default function Privacy() {
         <li>Group names, people’s names (as typed in the group), expenses, notes, payments and the change history.</li>
         <li>Phone numbers only if someone adds them when inviting from contacts.</li>
         <li>A group’s own photo, if someone in the group adds one. It’s made small on the phone first, and only people in that group can see it.</li>
+        <li>A photo of a bill, if someone adds one to an expense. Camera details and location are removed, and only people in that group can see it.</li>
         <li>Your email and name, from signing up (or from Google, if you use Continue with Google). We use the email to sign you in and to tell you about your groups. Nothing else.</li>
         <li>If you turn on fingerprint / face sign-in, a key your phone made for Loopin. Your fingerprint or face never leaves your phone.</li>
         <li>A small cookie on your phone that remembers which person you are in each group.</li>
@@ -46,6 +47,10 @@ export default function Privacy() {
       <h2 className={h}>Where it’s kept</h2>
       <p className={p}>
         The app runs on Vercel and the data is stored with Turso. Encrypted backups are kept for a short time in case something goes wrong.
+      </p>
+      <p className={`mt-2 ${p}`}>
+        When you scan a bill, or say or type an expense Loopin’s phone-side reading can’t follow, that photo or line (and the first names in the
+        group) is sent to Anthropic’s Claude to read it. Anthropic doesn’t use it to train its models. Speaking uses your phone’s own voice typing.
       </p>
 
       <h2 className={h}>Questions</h2>

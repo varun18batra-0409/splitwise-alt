@@ -621,3 +621,18 @@ model PostcardPhoto {
   type      String   @default("image/webp")
   createdAt DateTime @default(now())
 }
+
+// A photo of a bill, kept with the expense it belongs to. Only people in the
+// group can see it. Uploaded while adding (expenseId empty until it's saved);
+// ones never saved are cleared after a day. Camera details and location are
+// removed before it's stored.
+model Receipt {
+  id          String   @id @default(cuid())
+  groupId     String
+  expenseId   String   @default("")
+  data        Bytes
+  type        String   @default("image/jpeg")
+  createdById String   @default("")
+  createdAt   DateTime @default(now())
+  @@index([groupId, expenseId])
+}

@@ -218,7 +218,7 @@ export async function joinAsNew(formData: FormData) {
 
 // Saves a new expense — or changes an existing one — then goes back to the group page.
 export async function addExpense(
-  input: SaveExpenseInput & { again?: boolean; billRun?: { billId: string; period: string } },
+  input: SaveExpenseInput & { again?: boolean; billRun?: { billId: string; period: string }; receiptId?: string },
 ): Promise<{ error: string; duplicateOf?: { id: string; description: string; amount: number; by: string; when: string } }> {
   if (!(await allow(`expense:${(await originAndIp()).ip}`, 300, 3600))) return { error: "Too many changes in a short time. Wait a few minutes." };
   // Fetch (and cache) today's rate before saving, so the save itself never waits on the internet.
@@ -232,6 +232,15 @@ export async function addExpense(
       ? await addWaitingBill(input, me, getRate, input.billRun, requestKey)
       : await saveExpense(input, me, getRate, { ignoreDoubleTap: true, requestKey, checkDuplicate: true });
   if (!result.ok) return { error: result.error, duplicateOf: result.duplicateOf };
+  // A bill photo taken while adding: it now belongs to this expense (one per expense).
+  if (me && result.id && typeof input.receiptId === "string" && /^[A-Za-z0-9_-]{6,40}$/.test(input.receiptId)) {
+    const r = await db.receipt.findFirst({ where: { id: input.receiptId, groupId: input.groupId, expenseId: "" }, select: { id: true } });
+    if (r)
+      await db.$transaction([
+        db.receipt.deleteMany({ where: { groupId: input.groupId, expenseId: result.id } }),
+        db.receipt.update({ where: { id: r.id }, data: { expenseId: result.id } }),
+      ]);
+  }
   // Budgets: a nudge at 80% and when one goes over (after the reply is sent).
   after(() => checkBudgets(input.groupId).catch(() => []));
   // "Save & add another": straight back to a fresh form with the same people and split.
