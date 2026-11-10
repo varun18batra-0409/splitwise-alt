@@ -8,6 +8,11 @@ jobs:
     steps:
       - run: |
           s=https://www.loopinapps.com
-          echo "::notice title=HEAD home::$(curl -sI "$s/" | tr -d '\r' | cut -c1-120 | tr '\n' '|')"
-          echo "::notice title=GET home::$(curl -s -D - -o /dev/null "$s/" | tr -d '\r' | cut -c1-120 | tr '\n' '|')"
-          echo "::notice title=GET signin::$(curl -s -D - -o /dev/null "$s/signin" | tr -d '\r' | grep -iE 'content-security|x-frame|strict' | cut -c1-60 | tr '\n' '|')"
+          csp=$(curl -s -D - -o /dev/null "$s/" | tr -d '\r' | grep -i '^content-security-policy:')
+          echo "::notice title=CSP script-src::$(echo "$csp" | tr ';' '\n' | grep -E 'script-src' | sed -E "s/nonce-[A-Za-z0-9+/=]+/nonce-…/" | head -1)"
+          echo "::notice title=CSP fonts::$(echo "$csp" | tr ';' '\n' | grep -E 'connect-src|font-src|style-src' | tr '\n' '|')"
+          n=$(curl -s "$s/" | grep -o '<script[^>]*nonce="[^"]*"' | wc -l); echo "::notice title=Scripts with nonce on /::$n"
+          echo "::notice title=Health (public)::$(curl -s $s/api/health)"
+          codes=""; for p in / /signin /faq /how-it-works /privacy /terms /settle /account /passport /postcards /join/NOTAREALCODE /groups/not-a-real-group /api/cron/daily /api/unsubscribe; do codes="$codes $p=$(curl -s -o /dev/null -w '%{http_code}' $s$p)"; done; echo "::notice title=Status::$codes"
+          echo "::notice title=Headers::$(curl -s -D - -o /dev/null "$s/signin" | tr -d '\r' | grep -iE '^(x-frame|strict-transport|referrer-policy|x-content-type|permissions-policy)' | cut -c1-70 | tr '\n' '|')"
+          echo "::notice title=Postcard font CSS::$(curl -s -o /dev/null -w '%{http_code}' 'https://fonts.googleapis.com/css2?family=Caveat')"
