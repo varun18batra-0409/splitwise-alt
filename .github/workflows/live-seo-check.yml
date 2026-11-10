@@ -8,7 +8,7 @@ jobs:
     steps:
       - run: |
           s=https://www.loopinapps.com
-          for p in "" signin faq how-it-works settle account passport passport/friends passport/friends/abcdefghij p/AAAAAAAAAAAAAAAAAAAAAA passport/album passport/image photos/place-pune.jpg photos/place-lonavala.jpg og-fonts/display-600.woff api/health api/cron/evening; do line="$line /$p=$(curl -s -o /dev/null -w '%{http_code}' "$s/$p")"; done; echo "::notice title=Status::$line"
+          for p in "" signin faq how-it-works settle account passport passport/friends passport/friends/abcdefghij p/AAAAAAAAAAAAAAAAAAAAAA passport/album passport/image photos/place-pune.jpg photos/place-lonavala.jpg photos/place-amritsar.jpg photos/place-kolkata.jpg credits og-fonts/display-600.woff api/health api/cron/evening; do line="$line /$p=$(curl -s -o /dev/null -w '%{http_code}' "$s/$p")"; done; echo "::notice title=Status::$line"
           echo "::notice title=faq-booklet::$(curl -s "$s/faq" | grep -c 'A little booklet')"
           echo "::notice title=passport-image::$(curl -s -o /dev/null -w '%{http_code}' "$s/passport/image")"
           echo "::notice title=Headers home::$(curl -sI "$s/" | grep -iE '^(strict-transport|content-security|x-frame|referrer-policy|permissions-policy|x-content-type|cache-control|server):' | tr -d '\r' | tr '\n' ' ')"
