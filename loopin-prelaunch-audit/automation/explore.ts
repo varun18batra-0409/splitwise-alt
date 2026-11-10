@@ -128,8 +128,23 @@ async function main() {
     for (const path of ["/", g, `${g}?tab=balances`, `${g}/settle`, `${g}/invite`, `${g}/people`, `${g}/settings`, `${g}/report`]) {
       await go(P, path);
       const w = await P.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-      if (w > 2) wide.push(`${path.replace(g, "/groups/:id")} +${w}px`);
+      if (w > 2) {
+        // Name the widest things that stick out past the screen's right edge.
+        const culprits = await P.evaluate(() => [...document.querySelectorAll("body *")].map((el) => ({ el, r: el.getBoundingClientRect() }))
+          .filter((x) => {
+            if (x.r.right <= window.innerWidth + 2 || x.r.width === 0) return false;
+            // Skip anything inside a box that clips or scrolls sideways (it can't widen the page).
+            for (let a = x.el.parentElement; a && a !== document.body; a = a.parentElement) { const o = getComputedStyle(a).overflowX; if (o !== "visible") return false; }
+            return true;
+          })
+          .sort((a, b) => b.r.right - a.r.right).slice(0, 3)
+          .map((x) => `${x.el.tagName.toLowerCase()}${x.el.getAttribute("name") ? `[name=${x.el.getAttribute("name")}]` : ""}.${(x.el.getAttribute("class") || "").split(" ").slice(0, 4).join(".")} w=${Math.round(x.r.width)} "${(x.el.textContent || "").trim().slice(0, 30)}"`));
+        wide.push(`${path.replace(g, "/groups/:id")} +${w}px (${culprits.join(" | ")})`);
+      }
     }
+    await go(P, `${g}/report`);
+    const broken = await P.evaluate(() => [...document.querySelectorAll(".tabular-nums, .money")].filter((el) => /₹/.test(el.textContent || "") && new Set([...el.getClientRects()].map((r) => Math.round(r.top / 4))).size > 1).map((el) => (el.textContent || "").trim()).slice(0, 5));
+    if (broken.length) wide.push(`amounts split over two lines on /report: ${broken.join(", ")}`);
     return { ok: wide.length === 0, actual: wide.length ? wide.join("; ") : "No sideways scroll", page: P };
   });
 
@@ -212,7 +227,7 @@ async function main() {
     await go(X, new URL(X.url()).pathname);
     await X.getByLabel("Email addresses to invite").fill(vEmail);
     await X.getByRole("button", { name: "Invite", exact: true }).click();
-    await X.waitForLoadState("load");
+    await X.waitForURL(/[?&](added|invited|error)=/, { timeout: 30_000 });
     const added = await db.member.count({ where: { accountId: acc.id, group: { name: "Totally normal group" } } });
     if (!added) return { ok: null, actual: "Vicky wasn't added (invite didn't add an existing account); check not meaningful", page: X };
     await go(X, "/passport/friends");
