@@ -11,7 +11,8 @@
       "screenshots-*": false,
       "schema-plan": false,
       "phase*": false,
-      "speed-report": false
+      "speed-report": false,
+      "lockfile-*": false
     }
   },
   "crons": [
