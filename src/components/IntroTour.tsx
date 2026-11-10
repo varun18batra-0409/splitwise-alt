@@ -414,7 +414,7 @@ export function IntroTour({
           >
             <HomeIcon size={18} />
           </a>
-          <Link href={startHref} onClick={seen} className="py-1 text-sm text-gray-500">
+          <Link href={startHref} onClick={seen} className="hit -my-1 px-1 py-2.5 text-sm text-gray-500">
             Skip
           </Link>
         </span>
@@ -429,7 +429,7 @@ export function IntroTour({
             aria-selected={i === active}
             aria-label={`Slide ${i + 1}`}
             onClick={() => go(i)}
-            className={`h-1 flex-1 rounded-full transition-colors ${i <= active ? "bg-fg" : "bg-gray-300"}`}
+            className={`hit hit-lg h-1 flex-1 rounded-full transition-colors ${i <= active ? "bg-fg" : "bg-gray-300"}`}
           />
         ))}
       </div>

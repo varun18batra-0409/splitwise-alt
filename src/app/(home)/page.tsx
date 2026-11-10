@@ -721,7 +721,7 @@ export default async function Home({
             <section className="mt-8">
               <div className="mb-1 flex items-center justify-between">
                 <h2 className="font-display text-lg font-semibold tracking-tight">Latest</h2>
-                <Link href="/search" className="text-sm text-gray-500">
+                <Link href="/search" className="hit text-sm text-gray-500">
                   See all ›
                 </Link>
               </div>
