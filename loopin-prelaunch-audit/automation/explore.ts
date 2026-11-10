@@ -209,6 +209,7 @@ async function main() {
     await X.locator('select[name="currency"]').selectOption("INR");
     await X.getByRole("button", { name: /Create group/ }).click();
     await X.waitForURL(/\/invite\?new=1/);
+    await go(X, new URL(X.url()).pathname);
     await X.getByLabel("Email addresses to invite").fill(vEmail);
     await X.getByRole("button", { name: "Invite", exact: true }).click();
     await X.waitForLoadState("load");
