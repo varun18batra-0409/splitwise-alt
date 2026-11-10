@@ -67,6 +67,14 @@ body {
   /* A very long word (a group name with no spaces, a long email) wraps instead of pushing the page sideways. */
   overflow-wrap: anywhere;
 }
+/* A fieldset otherwise grows to fit its widest line (e.g. a long name in a list), widening the page. */
+fieldset {
+  min-width: 0;
+}
+/* …but an amount never breaks in the middle ("₹30" / "0"). */
+.tabular-nums {
+  overflow-wrap: normal;
+}
 
 ::selection {
   background: var(--color-fg);
