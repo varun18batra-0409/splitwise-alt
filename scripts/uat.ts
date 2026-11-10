@@ -320,6 +320,16 @@ async function main() {
     await R.getByRole("button", { name: /^Join / }).click();
     await R.waitForURL(new RegExp(`${g}$`));
   });
+  await step(A, "Joining", "Only Varun, who started the group, can delete it, change its currency or remove people: Asha sees a calm note instead", async () => {
+    await go(A, `${g}/settings`);
+    await A.locator('[data-admin-only="delete"]').waitFor();
+    const t = (await A.locator("main").innerText()).replace(/\s+/g, " ");
+    assert(/Only Varun, who looks after this group/.test(t), `settings says: ${t.slice(0, 300)}`);
+    assert((await A.getByRole("button", { name: /Delete (this )?group/i }).count()) === 0, "Asha is offered Delete group");
+    assert((await A.locator('select[name="currency"]').count()) === 0, "Asha can change the currency");
+    await go(V, `${g}/settings`);
+    assert((await V.locator("[data-admin-only]").count()) === 0, "Varun (the starter) sees the admin-only note");
+  });
   await step(V, "Joining", "Invite by email: Zoe gets an email, is listed as “Invited”, and is NOT a member yet", async () => {
     await go(V, `${g}/invite`);
     await V.getByLabel("Email addresses to invite").fill(email("zoe"));
@@ -2286,7 +2296,7 @@ async function main() {
 
   await step(V, "Fun", "Share my passport sends one picture of the open booklet (details, map, every stamp), and nothing else", async () => {
     await go(V, "/passport");
-    await V.getByRole("button", { name: "WhatsApp & more" }).first().click();
+    await V.getByRole("button", { name: "Share", exact: true }).first().click();
     const sheet = V.getByRole("dialog", { name: "Share your passport" });
     await sheet.getByText("WhatsApp", { exact: true }).waitFor();
     assert((await sheet.locator("[data-album-preview]").count()) === 0, "still offers an album of several pictures");

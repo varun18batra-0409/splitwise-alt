@@ -24,7 +24,7 @@ export default function OpenGraphImage() {
         <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
           <div style={{ fontSize: 108, fontWeight: 700, letterSpacing: -3 }}>loopin</div>
           <div style={{ fontSize: 44, marginTop: 18, color: "#e8e3d8" }}>Split trips, flats & couple life.</div>
-          <div style={{ fontSize: 30, marginTop: 26, color: "#9d9a92", fontFamily: "sans-serif" }}>Free · no ads · any currency · Android & iPhone</div>
+          <div style={{ fontSize: 30, marginTop: 26, color: "#9d9a92", fontFamily: "sans-serif" }}>Split as you go · settle in one tap · any currency</div>
         </div>
         <div style={{ position: "relative", width: 300, height: 300, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <svg width="300" height="300" viewBox="0 0 120 120" style={{ position: "absolute", top: 0, left: 0 }}>

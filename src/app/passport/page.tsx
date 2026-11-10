@@ -68,7 +68,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
             <Link href="/passport/send" className="pop flex h-12 items-center justify-center bg-fg text-[15px] font-semibold text-canvas" data-passport-send>
               Send in Loopin
             </Link>
-          <ShareSheet image={`/passport/image?v=${version}`} fileName="loopin-passport.png" title="Share your passport" words={`My Loopin passport: ${[p.stats.countries ? `${p.stats.countries} ${p.stats.countries === 1 ? "country" : "countries"}` : "", p.stats.cities ? `${p.stats.cities} ${p.stats.cities === 1 ? "city" : "cities"}` : ""].filter(Boolean).join(", ") || "my first stamps"} and counting ✈️`} label="WhatsApp & more" />
+          <ShareSheet image={`/passport/image?v=${version}`} fileName="loopin-passport.png" title="Share your passport" words={`My Loopin passport: ${[p.stats.countries ? `${p.stats.countries} ${p.stats.countries === 1 ? "country" : "countries"}` : "", p.stats.cities ? `${p.stats.cities} ${p.stats.cities === 1 ? "city" : "cities"}` : ""].filter(Boolean).join(", ") || "my first stamps"} and counting ✈️`} label="Share" />
           </div>
         </div>
       )}
@@ -107,7 +107,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
                 <form action={removePlaceAction} className="flex items-center gap-1.5 rounded-full border border-line py-1 pl-3 pr-1 text-sm">
                   <input type="hidden" name="country" value={h.c} />
                   {countryOf(h.c)?.flag} {countryOf(h.c)?.name}
-                  <button type="submit" aria-label={`Remove ${countryOf(h.c)?.name}`} className="flex h-6 w-6 items-center justify-center rounded-full text-gray-400 active:bg-mist">
+                  <button type="submit" aria-label={`Remove ${countryOf(h.c)?.name}`} className="-my-2.5 -ml-2 -mr-1.5 flex h-11 w-11 items-center justify-center rounded-full text-gray-400 active:bg-mist">
                     ✕
                   </button>
                 </form>

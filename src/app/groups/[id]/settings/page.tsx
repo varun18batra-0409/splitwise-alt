@@ -11,6 +11,7 @@ import { getRate } from "@/lib/rate-cache";
 import { niceDate } from "@/lib/format";
 import Link from "@/components/Link";
 import { CurrencySelect } from "@/components/CurrencySelect";
+import { pickAdmin } from "@/lib/group-admin";
 import { CoverPicker } from "@/components/CoverPicker";
 import { TripDates } from "@/components/TripDates";
 import { WhereTo } from "@/components/WhereTo";
@@ -24,6 +25,7 @@ const ERRORS: Record<string, string> = {
   markup: "Enter a markup between 0% and 20%, like 3.5.",
   currency: "Pick a currency from the list.",
   name: "Give the group a name.",
+  admin: "Only the person who started the group can do that.",
 };
 
 // Group settings: name, currency (converting existing amounts if needed),
@@ -40,7 +42,7 @@ export default async function GroupSettings({
   const group = await db.group.findUnique({
     where: { id },
     include: {
-      members: { select: { id: true, name: true, leftAt: true, splitWeight: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
+      members: { select: { id: true, name: true, leftAt: true, splitWeight: true, claimedAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
       expenses: { where: { deletedAt: null }, select: { amount: true } },
       _count: { select: { expenses: true, payments: true } },
     },
@@ -50,6 +52,10 @@ export default async function GroupSettings({
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
 
   const isPreset = PRESETS.includes(group.cardMarkupBp);
+  // Deleting the group and changing its currency are for the person who started it.
+  const admin = pickAdmin(group.members);
+  const isAdmin = admin?.id === myId;
+  const adminNote = `Only ${admin?.name ?? "the person who started the group"}, who looks after this group, can change this.`;
   const active = group.members.filter((m) => !m.leftAt);
   const prefs = parseNotify((await db.member.findUnique({ where: { id: myId }, select: { notify: true } }))?.notify);
 
@@ -135,7 +141,16 @@ export default async function GroupSettings({
             Balances are shown in this.
             {group._count.expenses + group._count.payments > 0 && " Changing it converts existing amounts (you’ll confirm the rate)."}
           </p>
-          <CurrencySelect name="currency" defaultValue={group.currency} />
+          {isAdmin ? (
+            <CurrencySelect name="currency" defaultValue={group.currency} />
+          ) : (
+            <>
+              <input type="hidden" name="currency" value={group.currency} />
+              <p className="rounded-xl bg-mist px-4 py-3 text-sm" data-admin-only="currency">
+                <strong>{group.currency}</strong> · {adminNote}
+              </p>
+            </>
+          )}
         </fieldset>
 
         <label className="block">
@@ -345,6 +360,11 @@ export default async function GroupSettings({
       <section className="mt-8">
         <h3 className="mb-1 text-base font-semibold">Delete this group</h3>
         <p className="mb-4 text-sm text-gray-500">For everyone. Anyone in it can restore it for 30 days.</p>
+        {!isAdmin ? (
+          <p className="rounded-xl bg-mist px-4 py-3 text-sm text-gray-600" data-admin-only="delete">
+            Only {admin?.name ?? "the person who started the group"}, who started it, can delete this group.
+          </p>
+        ) : (
         <form action={deleteGroup}>
           <input type="hidden" name="groupId" value={group.id} />
           <ConfirmButton
@@ -354,6 +374,7 @@ export default async function GroupSettings({
             Delete group
           </ConfirmButton>
         </form>
+        )}
       </section>
     </>
   );

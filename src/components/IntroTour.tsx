@@ -129,7 +129,7 @@ function makeSlides(L: Local): Slide[] {
   {
     id: "cheers",
     title: ["Split it.", "Cheers."],
-    caption: "Free, no ads. Make a group for a trip, a flat, the two of you, or a class gift. Friends join from a link, a QR code or an email in 30 seconds. No password.",
+    caption: "Make a group for a trip, a flat, the two of you, or a class gift. Friends join from a link, a QR code or an email in 30 seconds. No password.",
     art: <Cheers />,
   },
   {

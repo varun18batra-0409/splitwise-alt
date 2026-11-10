@@ -226,6 +226,8 @@ model Account {
   places      String @default("[]")
   // Who can open your passport from a group: "groups" (people you share a group with) or "private".
   passportShare String @default("groups")
+  // Bumped by "Sign out on all other phones": cookies carrying an older number stop working.
+  sessionVersion Int @default(0)
 }
 
 // Notifications for a person rather than a group (Collect: "Asha added you",
