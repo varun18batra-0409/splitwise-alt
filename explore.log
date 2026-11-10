@@ -1,0 +1,13 @@
+✓ EXP-01 Script in a group name, a person's name and an expense name never runs (11 group screens + Home, Alerts, Search) → No script ran on any screen; names shown as text
+✓ EXP-02 The public join page for that group (not signed in) shows the name as text → __x=undefined; title=You’re invited to Goa"><img src=x onerror="window.__x=1"><script>window.__x=2< · Loopin
+✓ EXP-03 Invite and share-picture endpoints with a hostile group name answer without errors → /join/:code/card 200 image/png; /groups/:id/square-image 200 image/png; /groups/:id/countdown-image 404 text/plain;charset=UTF-8; /groups/:id/wrapped-image 200 
+✗ EXP-04 A 60-letter group name with no spaces on a 360 px phone: no sideways scroll on 8 screens → /groups/:id +78px (); /groups/:id/settle +131px (); /groups/:id/people +54px (a.flex.h-10.w-10.shrink-0 w=40 "" | svg. w=20 "" | p.text-sm.text-gray-500 w=354 "
+✗ EXP-05 Someone who left the group opens an expense and taps Delete → The expense WAS deleted by someone who had left
+✓ EXP-06 Someone who left records a payment on the payment screen → No payment saved
+✗ EXP-07 One person sends 25 invite emails in a row → 25 of 25 invite emails queued
+✗ EXP-08 A stranger who knows your email adds you to their group, then opens Friends’ passports → The stranger can see Vicky's countries
+✗ EXP-09 Keyboard only on Add expense: every stop shows where focus is → 1 of 30 stops without a visible ring: Amount
+✓ EXP-10 A big group (40 people, 2,000 expenses, 300 payments): server time for the group, Balances and Settle up → /groups/:big 200 715 ms; /groups/:big?tab=balances 200 1273 ms; /groups/:big/settle 200 632 ms; / 200 541 ms; balances add up to 0
+✓ EXP-11 Guessing a sign-in code: 6 wrong tries, then the right one → ? / That code isn't right / That code isn't right / That code isn't right / That code isn't right / That code isn't right; right code afterwards: refused
+✓ EXP-12 What a stranger with the invite link sees before joining → loopin You’re invited to join, 2 people so far SupercalifragilisticexpialidociousSupercalifragilisticexpial A B Anil and Bo<svg are in Split as you go: Any curr
+EXPLORE: 7 pass, 5 fail, 0 info

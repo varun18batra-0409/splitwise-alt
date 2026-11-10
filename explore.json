@@ -1,0 +1,110 @@
+[
+ {
+  "id": "EXP-01",
+  "area": "Security",
+  "what": "Script in a group name, a person's name and an expense name never runs (11 group screens + Home, Alerts, Search)",
+  "expected": "No pop-ups; window.__x stays unset; names shown as plain text",
+  "actual": "No script ran on any screen; names shown as text",
+  "status": "Pass",
+  "evidence": "evidence/EXP-01.png"
+ },
+ {
+  "id": "EXP-02",
+  "area": "Security",
+  "what": "The public join page for that group (not signed in) shows the name as text",
+  "expected": "No pop-up; page title is the literal text",
+  "actual": "__x=undefined; title=You’re invited to Goa\"><img src=x onerror=\"window.__x=1\"><script>window.__x=2< · Loopin",
+  "status": "Pass",
+  "evidence": "evidence/EXP-02.png"
+ },
+ {
+  "id": "EXP-03",
+  "area": "Security",
+  "what": "Invite and share-picture endpoints with a hostile group name answer without errors",
+  "expected": "Pictures render (200, image/png) or are refused (404), never 500",
+  "actual": "/join/:code/card 200 image/png; /groups/:id/square-image 200 image/png; /groups/:id/countdown-image 404 text/plain;charset=UTF-8; /groups/:id/wrapped-image 200 image/png",
+  "status": "Pass",
+  "evidence": ""
+ },
+ {
+  "id": "EXP-04",
+  "area": "Responsive",
+  "what": "A 60-letter group name with no spaces on a 360 px phone: no sideways scroll on 8 screens",
+  "expected": "No page wider than the screen",
+  "actual": "/groups/:id +78px (); /groups/:id/settle +131px (); /groups/:id/people +54px (a.flex.h-10.w-10.shrink-0 w=40 \"\" | svg. w=20 \"\" | p.text-sm.text-gray-500 w=354 \"3 people in Supercalifragilist\"); /groups/:id/settings +23px (fieldset. w=363 \"SharesEveryone pays 1 share un\" | p.mb-3.text-sm.text-gray-500 w=363 \"Everyone pays 1 share unless y\" | ul.divide-y.divide-line.rounded-2xl.border w=363 \"Anil (you)Bo<svg onload=\"windo\"); /groups/:id/report +34px ()",
+  "status": "Fail",
+  "evidence": "evidence/EXP-04.png"
+ },
+ {
+  "id": "EXP-05",
+  "area": "Security",
+  "what": "Someone who left the group opens an expense and taps Delete",
+  "expected": "Refused: “You left this group…”; the expense stays",
+  "actual": "The expense WAS deleted by someone who had left",
+  "status": "Fail",
+  "evidence": "evidence/EXP-05.png"
+ },
+ {
+  "id": "EXP-06",
+  "area": "Security",
+  "what": "Someone who left records a payment on the payment screen",
+  "expected": "Refused; no payment saved",
+  "actual": "No payment saved",
+  "status": "Pass",
+  "evidence": "evidence/EXP-06.png"
+ },
+ {
+  "id": "EXP-07",
+  "area": "Abuse",
+  "what": "One person sends 25 invite emails in a row",
+  "expected": "After 20 in a day, the rest are refused with a clear note (the app's whole daily email allowance is small)",
+  "actual": "25 of 25 invite emails queued",
+  "status": "Fail",
+  "evidence": "evidence/EXP-07.png"
+ },
+ {
+  "id": "EXP-08",
+  "area": "Privacy",
+  "what": "A stranger who knows your email adds you to their group, then opens Friends’ passports",
+  "expected": "Your passport isn't shown to them until you open that group",
+  "actual": "The stranger can see Vicky's countries",
+  "status": "Fail",
+  "evidence": "evidence/EXP-08.png"
+ },
+ {
+  "id": "EXP-09",
+  "area": "Accessibility",
+  "what": "Keyboard only on Add expense: every stop shows where focus is",
+  "expected": "Each focused control has a visible focus ring",
+  "actual": "1 of 30 stops without a visible ring: Amount",
+  "status": "Fail",
+  "evidence": "evidence/EXP-09.png"
+ },
+ {
+  "id": "EXP-10",
+  "area": "Performance",
+  "what": "A big group (40 people, 2,000 expenses, 300 payments): server time for the group, Balances and Settle up",
+  "expected": "Each under 3 s on the test machine",
+  "actual": "/groups/:big 200 715 ms; /groups/:big?tab=balances 200 1273 ms; /groups/:big/settle 200 632 ms; / 200 541 ms; balances add up to 0",
+  "status": "Pass",
+  "evidence": "evidence/EXP-10.png"
+ },
+ {
+  "id": "EXP-11",
+  "area": "Security",
+  "what": "Guessing a sign-in code: 6 wrong tries, then the right one",
+  "expected": "Refused after 5 wrong tries; a new code is needed",
+  "actual": "? / That code isn't right / That code isn't right / That code isn't right / That code isn't right / That code isn't right; right code afterwards: refused",
+  "status": "Pass",
+  "evidence": "evidence/EXP-11.png"
+ },
+ {
+  "id": "EXP-12",
+  "area": "Privacy",
+  "what": "What a stranger with the invite link sees before joining",
+  "expected": "Group name and first names only; no money",
+  "actual": "loopin You’re invited to join, 2 people so far SupercalifragilisticexpialidociousSupercalifragilisticexpial A B Anil and Bo<svg are in Split as you go: Any currency, card fees included, one tap to add Stories & Wrapped: The trip, told in slides when it’s over A trip passport: A stamp in everyone’s p",
+  "status": "Pass",
+  "evidence": "evidence/EXP-12.png"
+ }
+]

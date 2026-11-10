@@ -1,0 +1,186 @@
+
+[1m[46m RUN [49m[22m [36mv3.2.7 [39m[90m/home/runner/work/splitwise-alt/splitwise-alt[39m
+
+ [31m×[39m tests/explore-integrity.test.ts[2m > [22mDEF-039: someone who left can't change the group[2m > [22mcan't delete or restore an expense[32m 13[2mms[22m[39m
+[31m   → expected true to be false // Object.is equality[39m
+ [31m×[39m tests/explore-integrity.test.ts[2m > [22mDEF-039: someone who left can't change the group[2m > [22mcan't delete a payment[32m 5[2mms[22m[39m
+[31m   → expected true to be false // Object.is equality[39m
+ [32m✓[39m tests/explore-integrity.test.ts[2m > [22mDEF-039: someone who left can't change the group[2m > [22mcan't undo the group's changes[32m 2[2mms[22m[39m
+ [31m×[39m tests/explore-integrity.test.ts[2m > [22mDEF-039: someone who left can't change the group[2m > [22mcan't rename people or change the group's name[32m 5[2mms[22m[39m
+[31m   → expected true to be false // Object.is equality[39m
+ [31m×[39m tests/explore-integrity.test.ts[2m > [22mDEF-039: someone who left can't change the group[2m > [22mcan't settle everything and close[32m 8[2mms[22m[39m
+[31m   → expected true to be false // Object.is equality[39m
+ [31m×[39m tests/explore-integrity.test.ts[2m > [22mDEF-039: someone who left can't change the group[2m > [22mcan't mark someone else as left[32m 7[2mms[22m[39m
+[31m   → expected true to be false // Object.is equality[39m
+ [31m×[39m tests/explore-integrity.test.ts[2m > [22mDEF-039: someone who left can't change the group[2m > [22mthe group is unchanged, and they can still rejoin themselves[32m 1[2mms[22m[39m
+[31m   → expected 2026-11-10T19:01:03.426Z to be null[39m
+ [32m✓[39m tests/explore-integrity.test.ts[2m > [22mcurrencies with 3 decimals and with none[2m > [22mKWD: 10.125 between 3 is exactly 3.375 each; a 4th decimal is refused[32m 29[2mms[22m[39m
+ [32m✓[39m tests/explore-integrity.test.ts[2m > [22mcurrencies with 3 decimals and with none[2m > [22mKWD: 10 between 3 leaves no fils behind[32m 9[2mms[22m[39m
+ [32m✓[39m tests/explore-integrity.test.ts[2m > [22mcurrencies with 3 decimals and with none[2m > [22mJPY group, ₹1,000 at 1.8 = ¥1,800; ¥1,800 between 7 adds up exactly[32m 12[2mms[22m[39m
+ [32m✓[39m tests/explore-integrity.test.ts[2m > [22mcurrencies with 3 decimals and with none[2m > [22mchanging a group from INR to KWD keeps balances adding up to zero[32m 33[2mms[22m[39m
+ [32m✓[39m tests/explore-integrity.test.ts[2m > [22ma long random mix keeps the books straight[2m > [22m400 random changes: balances always add up to zero and match a recount[33m 2210[2mms[22m[39m
+ [31m×[39m tests/explore-integrity.test.ts[2m > [22mDEF-040: one person can't use up the day's emails[2m > [22mafter 20 invite emails in a day, more are refused with a clear note[32m 58[2mms[22m[39m
+[31m   → expected +0 to be 5 // Object.is equality[39m
+ [31m×[39m tests/explore-integrity.test.ts[2m > [22mDEF-041: being added by someone doesn't open your passport to them[2m > [22mtheir passport stays hidden until they open the group[32m 60[2mms[22m[39m
+[31m   → expected true to be false // Object.is equality[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 8 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m tests/explore-integrity.test.ts[2m > [22mDEF-039: someone who left can't change the group[2m > [22mcan't delete or restore an expense
+[31m[1mAssertionError[22m: expected true to be false // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- false[39m
+[31m+ true[39m
+
+[36m [2m❯[22m tests/explore-integrity.test.ts:[2m53:56[22m[39m
+    [90m 51| [39m  })[33m;[39m
+    [90m 52| [39m  [34mit[39m([32m"can't delete or restore an expense"[39m[33m,[39m [35masync[39m () [33m=>[39m {
+    [90m 53| [39m    [34mexpect[39m(([35mawait[39m [34msetExpenseDeleted[39m(exp[33m,[39m c[33m,[39m [35mtrue[39m))[33m.[39mok)[33m.[39m[34mtoBe[39m([35mfalse[39m)[33m;[39m
+    [90m   | [39m                                                       [31m^[39m
+    [90m 54| [39m  })[33m;[39m
+    [90m 55| [39m  [34mit[39m([32m"can't delete a payment"[39m[33m,[39m [35masync[39m () [33m=>[39m {
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/explore-integrity.test.ts[2m > [22mDEF-039: someone who left can't change the group[2m > [22mcan't delete a payment
+[31m[1mAssertionError[22m: expected true to be false // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- false[39m
+[31m+ true[39m
+
+[36m [2m❯[22m tests/explore-integrity.test.ts:[2m56:56[22m[39m
+    [90m 54| [39m  })[33m;[39m
+    [90m 55| [39m  [34mit[39m([32m"can't delete a payment"[39m[33m,[39m [35masync[39m () [33m=>[39m {
+    [90m 56| [39m    [34mexpect[39m(([35mawait[39m [34msetPaymentDeleted[39m(pay[33m,[39m c[33m,[39m [35mtrue[39m))[33m.[39mok)[33m.[39m[34mtoBe[39m([35mfalse[39m)[33m;[39m
+    [90m   | [39m                                                       [31m^[39m
+    [90m 57| [39m  })[33m;[39m
+    [90m 58| [39m  [34mit[39m([32m"can't undo the group's changes"[39m[33m,[39m [35masync[39m () [33m=>[39m {
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/8]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/explore-integrity.test.ts[2m > [22mDEF-039: someone who left can't change the group[2m > [22mcan't rename people or change the group's name
+[31m[1mAssertionError[22m: expected true to be false // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- false[39m
+[31m+ true[39m
+
+[36m [2m❯[22m tests/explore-integrity.test.ts:[2m62:56[22m[39m
+    [90m 60| [39m  })[33m;[39m
+    [90m 61| [39m  [34mit[39m([32m"can't rename people or change the group's name"[39m[33m,[39m [35masync[39m () [33m=>[39m {
+    [90m 62| [39m    [34mexpect[39m(([35mawait[39m [34mrenameMember[39m([33mG[39m[33m,[39m c[33m,[39m a[33m,[39m [32m"Hacked"[39m))[33m.[39mok)[33m.[39m[34mtoBe[39m([35mfalse[39m)[33m;[39m
+    [90m   | [39m                                                       [31m^[39m
+    [90m 63| [39m    expect((await updateGroupBasics(G, c, { name: "Renamed by someone …
+    [90m 64| [39m  })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/8]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/explore-integrity.test.ts[2m > [22mDEF-039: someone who left can't change the group[2m > [22mcan't settle everything and close
+[31m[1mAssertionError[22m: expected true to be false // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- false[39m
+[31m+ true[39m
+
+[36m [2m❯[22m tests/explore-integrity.test.ts:[2m67:73[22m[39m
+    [90m 65| [39m  [34mit[39m([32m"can't settle everything and close"[39m[33m,[39m [35masync[39m () [33m=>[39m {
+    [90m 66| [39m    [35mconst[39m data [33m=[39m ([35mawait[39m [34mloadGroup[39m([33mG[39m))[33m![39m[33m;[39m
+    [90m 67| [39m    expect((await settleAllAndClose(G, c, planKey(data.transfers))).ok…
+    [90m   | [39m                                                                        [31m^[39m
+    [90m 68| [39m  })[33m;[39m
+    [90m 69| [39m  [34mit[39m([32m"can't mark someone else as left"[39m[33m,[39m [35masync[39m () [33m=>[39m {
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/8]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/explore-integrity.test.ts[2m > [22mDEF-039: someone who left can't change the group[2m > [22mcan't mark someone else as left
+[31m[1mAssertionError[22m: expected true to be false // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- false[39m
+[31m+ true[39m
+
+[36m [2m❯[22m tests/explore-integrity.test.ts:[2m70:53[22m[39m
+    [90m 68| [39m  })[33m;[39m
+    [90m 69| [39m  [34mit[39m([32m"can't mark someone else as left"[39m[33m,[39m [35masync[39m () [33m=>[39m {
+    [90m 70| [39m    [34mexpect[39m(([35mawait[39m [34msetMemberLeft[39m([33mG[39m[33m,[39m c[33m,[39m b[33m,[39m [35mtrue[39m))[33m.[39mok)[33m.[39m[34mtoBe[39m([35mfalse[39m)[33m;[39m
+    [90m   | [39m                                                    [31m^[39m
+    [90m 71| [39m  })[33m;[39m
+    [90m 72| [39m  it("the group is unchanged, and they can still rejoin themselves", a…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/8]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/explore-integrity.test.ts[2m > [22mDEF-039: someone who left can't change the group[2m > [22mthe group is unchanged, and they can still rejoin themselves
+[31m[1mAssertionError[22m: expected 2026-11-10T19:01:03.426Z to be null[39m
+
+[32m- Expected:[39m 
+null
+
+[31m+ Received:[39m 
+2026-11-10T19:01:03.426Z
+
+[36m [2m❯[22m tests/explore-integrity.test.ts:[2m74:25[22m[39m
+    [90m 72| [39m  it("the group is unchanged, and they can still rejoin themselves", a…
+    [90m 73| [39m    const e = await db.expense.findUniqueOrThrow({ where: { id: exp } …
+    [90m 74| [39m    [34mexpect[39m(e[33m.[39mdeletedAt)[33m.[39m[34mtoBeNull[39m()[33m;[39m
+    [90m   | [39m                        [31m^[39m
+    [90m 75| [39m    expect((await db.payment.findUniqueOrThrow({ where: { id: pay } })…
+    [90m 76| [39m    expect((await db.group.findUniqueOrThrow({ where: { id: G } })).na…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/8]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/explore-integrity.test.ts[2m > [22mDEF-040: one person can't use up the day's emails[2m > [22mafter 20 invite emails in a day, more are refused with a clear note
+[31m[1mAssertionError[22m: expected +0 to be 5 // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 5[39m
+[31m+ 0[39m
+
+[36m [2m❯[22m tests/explore-integrity.test.ts:[2m201:27[22m[39m
+    [90m199| [39m    const second = await inviteByEmail(g.id, g.m("A"), emails.slice(20…
+    [90m200| [39m    const capped = [...first.bad, ...second.bad].filter((b) => /invite…
+    [90m201| [39m    [34mexpect[39m(capped[33m.[39mlength)[33m.[39m[34mtoBe[39m([34m5[39m)[33m;[39m
+    [90m   | [39m                          [31m^[39m
+    [90m202| [39m    expect(capped.every((b) => emails.slice(INVITE_EMAILS_PER_DAY).som…
+    [90m203| [39m  })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/8]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m tests/explore-integrity.test.ts[2m > [22mDEF-041: being added by someone doesn't open your passport to them[2m > [22mtheir passport stays hidden until they open the group
+[31m[1mAssertionError[22m: expected true to be false // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- false[39m
+[31m+ true[39m
+
+[36m [2m❯[22m tests/explore-integrity.test.ts:[2m218:65[22m[39m
+    [90m216| [39m      const r = await addRegistered(g.id, g.m("Stan"), victim.id, "htt…
+    [90m217| [39m      [34mexpect[39m(r[33m.[39mok)[33m.[39m[34mtoBe[39m([35mtrue[39m)[33m;[39m
+    [90m218| [39m      expect((await canSeePassport(stranger.id, victim.id)).ok).toBe(f…
+    [90m   | [39m                                                                [31m^[39m
+    [90m219| [39m      expect((await passportFriends(stranger.id)).some((f) => f.accoun…
+    [90m220| [39m      // Victim opens the group once: from then on it's a shared group…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/8]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m8 failed[39m[22m[2m | [22m[1m[32m6 passed[39m[22m[90m (14)[39m
+[2m   Start at [22m 19:01:02
+[2m   Duration [22m 3.19s[2m (transform 309ms, setup 0ms, collect 427ms, tests 2.53s, environment 0ms, prepare 65ms)[22m
+
