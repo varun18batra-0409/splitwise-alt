@@ -1,0 +1,25 @@
+✓ FIN-M01 Equal split ₹1,000 between A, B, C (rounding)  
+✓ FIN-M02 Exact amounts ₹2,500 paid by C: A ₹1,000, B ₹500, C ₹1,000  
+✓ FIN-M03 Percentages 40/35/25 of ₹1,000 paid by B  
+✓ FIN-M04 Shares 2:1:1 of ₹1,200  
+✓ FIN-M05 Two payers: ₹3,000, A paid ₹2,000 and B ₹1,000, equal between 3  
+✓ FIN-M06 Only some: ₹400 taxi for A and B  
+✓ FIN-M07 For one person: ₹300 ticket just for C  
+✓ FIN-M08 Money back: hotel refunds ₹900 to A, shared by 3  
+✓ FIN-M09 THB 1,000 by card at 2.5 with 3% card fee, equal 4  
+✓ FIN-M10 THB 400 cash at 2.5 has no card fee  
+✓ FIN-M11 Sequence: two expenses and a part payment  
+✓ FIN-M12 Edit E1 from ₹4,000 to ₹2,000; balances recalculate  
+✓ FIN-M13 Delete E2, then restore it  
+✓ FIN-M14 Overpayment: record ₹5,000 when D owes ₹500  
+✓ FIN-M15 Part payment ₹200 of ₹500  
+✓ FIN-M16 Smart Settle suggests the fewest payments  
+✓ FIN-M17 ₹10 between 3 then settle: nobody left with a paisa  
+✓ FIN-M18 Split by item ₹1,180  
+✓ FIN-M19 Settle across groups nets into one payment  
+✓ FIN-M20 Typing amounts: commas, decimals, too many decimals  
+✓ FIN-M21 Largest allowed amount  
+✓ FIN-M22 Couple 55/45 split  
+✓ FIN-M23 Custom 2% card fee  
+✓ FIN-M24 USD with 4-decimal rate rounds half-up  
+FIN-M: 24 pass, 0 fail of 24

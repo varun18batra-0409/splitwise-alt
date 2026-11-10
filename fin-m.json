@@ -1,0 +1,542 @@
+[
+ {
+  "id": "FIN-M01",
+  "scenario": "Equal split ₹1,000 between A, B, C (rounding)",
+  "checks": [
+   {
+    "what": "A gets ₹666.66 or ₹666.67 (one person carries the extra paisa)",
+    "expected": "true",
+    "actual": "true",
+    "pass": true
+   },
+   {
+    "what": "B and C each owe ₹333.33 or ₹333.34",
+    "expected": "true",
+    "actual": "true",
+    "pass": true
+   },
+   {
+    "what": "Balances add up to ₹0",
+    "expected": "0",
+    "actual": "0",
+    "pass": true
+   },
+   {
+    "what": "Shares add up to exactly ₹1,000",
+    "expected": "100000",
+    "actual": "100000",
+    "pass": true
+   },
+   {
+    "what": "B's group screen says B owes ₹333.33/₹333.34",
+    "expected": "true",
+    "actual": "true",
+    "pass": true
+   }
+  ],
+  "status": "Pass",
+  "error": "",
+  "evidence": "evidence/FIN-M01.png",
+  "adapted": ""
+ },
+ {
+  "id": "FIN-M02",
+  "scenario": "Exact amounts ₹2,500 paid by C: A ₹1,000, B ₹500, C ₹1,000",
+  "checks": [
+   {
+    "what": "Balances",
+    "expected": "Anil −₹1000.00 · Bina −₹500.00 · Chet +₹1500.00",
+    "actual": "Anil −₹1000.00 · Bina −₹500.00 · Chet +₹1500.00",
+    "pass": true
+   }
+  ],
+  "status": "Pass",
+  "error": "",
+  "evidence": "evidence/FIN-M02.png",
+  "adapted": ""
+ },
+ {
+  "id": "FIN-M03",
+  "scenario": "Percentages 40/35/25 of ₹1,000 paid by B",
+  "checks": [
+   {
+    "what": "Balances",
+    "expected": "Anil −₹400.00 · Bina +₹650.00 · Chet −₹250.00",
+    "actual": "Anil −₹400.00 · Bina +₹650.00 · Chet −₹250.00",
+    "pass": true
+   }
+  ],
+  "status": "Pass",
+  "error": "",
+  "evidence": "evidence/FIN-M03.png",
+  "adapted": ""
+ },
+ {
+  "id": "FIN-M04",
+  "scenario": "Shares 2:1:1 of ₹1,200",
+  "checks": [
+   {
+    "what": "Balances",
+    "expected": "Anil +₹600.00 · Bina −₹300.00 · Chet −₹300.00",
+    "actual": "Anil +₹600.00 · Bina −₹300.00 · Chet −₹300.00",
+    "pass": true
+   }
+  ],
+  "status": "Pass",
+  "error": "",
+  "evidence": "evidence/FIN-M04.png",
+  "adapted": ""
+ },
+ {
+  "id": "FIN-M05",
+  "scenario": "Two payers: ₹3,000, A paid ₹2,000 and B ₹1,000, equal between 3",
+  "checks": [
+   {
+    "what": "Balances",
+    "expected": "Anil +₹1000.00 · Bina ₹0.00 · Chet −₹1000.00",
+    "actual": "Anil +₹1000.00 · Bina ₹0.00 · Chet −₹1000.00",
+    "pass": true
+   }
+  ],
+  "status": "Pass",
+  "error": "",
+  "evidence": "evidence/FIN-M05.png",
+  "adapted": ""
+ },
+ {
+  "id": "FIN-M06",
+  "scenario": "Only some: ₹400 taxi for A and B",
+  "checks": [
+   {
+    "what": "Balances",
+    "expected": "Anil +₹200.00 · Bina −₹200.00 · Chet ₹0.00",
+    "actual": "Anil +₹200.00 · Bina −₹200.00 · Chet ₹0.00",
+    "pass": true
+   }
+  ],
+  "status": "Pass",
+  "error": "",
+  "evidence": "evidence/FIN-M06.png",
+  "adapted": ""
+ },
+ {
+  "id": "FIN-M07",
+  "scenario": "For one person: ₹300 ticket just for C",
+  "checks": [
+   {
+    "what": "Balances",
+    "expected": "Anil +₹300.00 · Bina ₹0.00 · Chet −₹300.00",
+    "actual": "Anil +₹300.00 · Bina ₹0.00 · Chet −₹300.00",
+    "pass": true
+   }
+  ],
+  "status": "Pass",
+  "error": "",
+  "evidence": "evidence/FIN-M07.png",
+  "adapted": ""
+ },
+ {
+  "id": "FIN-M08",
+  "scenario": "Money back: hotel refunds ₹900 to A, shared by 3",
+  "checks": [
+   {
+    "what": "Balances",
+    "expected": "Anil −₹600.00 · Bina +₹300.00 · Chet +₹300.00",
+    "actual": "Anil −₹600.00 · Bina +₹300.00 · Chet +₹300.00",
+    "pass": true
+   }
+  ],
+  "status": "Pass",
+  "error": "",
+  "evidence": "evidence/FIN-M08.png",
+  "adapted": ""
+ },
+ {
+  "id": "FIN-M09",
+  "scenario": "THB 1,000 by card at 2.5 with 3% card fee, equal 4",
+  "checks": [
+   {
+    "what": "Total shown on the form",
+    "expected": "true",
+    "actual": "true",
+    "pass": true
+   },
+   {
+    "what": "Balances",
+    "expected": "Anil +₹1931.25 · Bina −₹643.75 · Chet −₹643.75 · Dina −₹643.75",
+    "actual": "Anil +₹1931.25 · Bina −₹643.75 · Chet −₹643.75 · Dina −₹643.75",
+    "pass": true
+   },
+   {
+    "what": "THB amounts shown without the card fee (THB 250 each)",
+    "expected": "true",
+    "actual": "true",
+    "pass": true
+   }
+  ],
+  "status": "Pass",
+  "error": "",
+  "evidence": "evidence/FIN-M09.png",
+  "adapted": ""
+ },
+ {
+  "id": "FIN-M10",
+  "scenario": "THB 400 cash at 2.5 has no card fee",
+  "checks": [
+   {
+    "what": "Balances",
+    "expected": "Anil +₹750.00 · Bina −₹250.00 · Chet −₹250.00 · Dina −₹250.00",
+    "actual": "Anil +₹750.00 · Bina −₹250.00 · Chet −₹250.00 · Dina −₹250.00",
+    "pass": true
+   }
+  ],
+  "status": "Pass",
+  "error": "",
+  "evidence": "evidence/FIN-M10.png",
+  "adapted": ""
+ },
+ {
+  "id": "FIN-M11",
+  "scenario": "Sequence: two expenses and a part payment",
+  "checks": [
+   {
+    "what": "Balances",
+    "expected": "Anil +₹2100.00 · Bina −₹200.00 · Chet −₹900.00 · Dina −₹1000.00",
+    "actual": "Anil +₹2100.00 · Bina −₹200.00 · Chet −₹900.00 · Dina −₹1000.00",
+    "pass": true
+   },
+   {
+    "what": "Sum is ₹0",
+    "expected": "0",
+    "actual": "0",
+    "pass": true
+   }
+  ],
+  "status": "Pass",
+  "error": "",
+  "evidence": "evidence/FIN-M11.png",
+  "adapted": "C's ₹500 is recorded with “Record a different payment” (C → A ₹500) rather than by editing the amount on a Settle card; same payment either way."
+ },
+ {
+  "id": "FIN-M12",
+  "scenario": "Edit E1 from ₹4,000 to ₹2,000; balances recalculate",
+  "checks": [
+   {
+    "what": "Balances",
+    "expected": "Anil +₹600.00 · Bina +₹300.00 · Chet −₹400.00 · Dina −₹500.00",
+    "actual": "Anil +₹600.00 · Bina +₹300.00 · Chet −₹400.00 · Dina −₹500.00",
+    "pass": true
+   },
+   {
+    "what": "D sees “You owe ₹500”",
+    "expected": "true",
+    "actual": "true",
+    "pass": true
+   }
+  ],
+  "status": "Pass",
+  "error": "",
+  "evidence": "evidence/FIN-M12.png",
+  "adapted": ""
+ },
+ {
+  "id": "FIN-M13",
+  "scenario": "Delete E2, then restore it",
+  "checks": [
+   {
+    "what": "After delete (hand-worked: without Snacks)",
+    "expected": "Anil +₹1000.00 · Bina −₹500.00 · Chet ₹0.00 · Dina −₹500.00",
+    "actual": "Anil +₹1000.00 · Bina −₹500.00 · Chet ₹0.00 · Dina −₹500.00",
+    "pass": true
+   },
+   {
+    "what": "After restore (back to FIN-M12)",
+    "expected": "Anil +₹600.00 · Bina +₹300.00 · Chet −₹400.00 · Dina −₹500.00",
+    "actual": "Anil +₹600.00 · Bina +₹300.00 · Chet −₹400.00 · Dina −₹500.00",
+    "pass": true
+   }
+  ],
+  "status": "Pass",
+  "error": "",
+  "evidence": "evidence/FIN-M13.png",
+  "adapted": ""
+ },
+ {
+  "id": "FIN-M14",
+  "scenario": "Overpayment: record ₹5,000 when D owes ₹500",
+  "checks": [
+   {
+    "what": "A warning appears before saving",
+    "expected": "true",
+    "actual": "true",
+    "pass": true
+   },
+   {
+    "what": "Nothing saved before confirming",
+    "expected": "1",
+    "actual": "1",
+    "pass": true
+   },
+   {
+    "what": "After confirming: balance flips",
+    "expected": "Anil −₹4400.00 · Bina +₹300.00 · Chet −₹400.00 · Dina +₹4500.00",
+    "actual": "Anil −₹4400.00 · Bina +₹300.00 · Chet −₹400.00 · Dina +₹4500.00",
+    "pass": true
+   }
+  ],
+  "status": "Pass",
+  "error": "",
+  "evidence": "evidence/FIN-M14.png",
+  "adapted": ""
+ },
+ {
+  "id": "FIN-M15",
+  "scenario": "Part payment ₹200 of ₹500",
+  "checks": [
+   {
+    "what": "Balances",
+    "expected": "Anil +₹1300.00 · Bina −₹500.00 · Chet −₹500.00 · Dina −₹300.00",
+    "actual": "Anil +₹1300.00 · Bina −₹500.00 · Chet −₹500.00 · Dina −₹300.00",
+    "pass": true
+   }
+  ],
+  "status": "Pass",
+  "error": "",
+  "evidence": "evidence/FIN-M15.png",
+  "adapted": "Run in its own group (A paid ₹2,000 for 4, so D owed ₹500) because FIN-M14 had already flipped D's balance in the sequence group."
+ },
+ {
+  "id": "FIN-M16",
+  "scenario": "Smart Settle suggests the fewest payments",
+  "checks": [
+   {
+    "what": "Starting balances",
+    "expected": "Anil +₹1000.00 · Bina −₹500.00 · Chet ₹0.00 · Dina −₹500.00",
+    "actual": "Anil +₹1000.00 · Bina −₹500.00 · Chet ₹0.00 · Dina −₹500.00",
+    "pass": true
+   },
+   {
+    "what": "Exactly 2 payments suggested (B → A ₹500, D → A ₹500)",
+    "expected": "2 true",
+    "actual": "2 true",
+    "pass": true
+   },
+   {
+    "what": "Everyone ₹0 after both are marked paid",
+    "expected": "Anil ₹0.00 · Bina ₹0.00 · Chet ₹0.00 · Dina ₹0.00",
+    "actual": "Anil ₹0.00 · Bina ₹0.00 · Chet ₹0.00 · Dina ₹0.00",
+    "pass": true
+   }
+  ],
+  "status": "Pass",
+  "error": "",
+  "evidence": "evidence/FIN-M16.png",
+  "adapted": ""
+ },
+ {
+  "id": "FIN-M17",
+  "scenario": "₹10 between 3 then settle: nobody left with a paisa",
+  "checks": [
+   {
+    "what": "Before settling (₹3.33/₹3.34 shares)",
+    "expected": "true",
+    "actual": "true",
+    "pass": true
+   },
+   {
+    "what": "All ₹0.00",
+    "expected": "Anil ₹0.00 · Bina ₹0.00 · Chet ₹0.00",
+    "actual": "Anil ₹0.00 · Bina ₹0.00 · Chet ₹0.00",
+    "pass": true
+   }
+  ],
+  "status": "Pass",
+  "error": "",
+  "evidence": "evidence/FIN-M17.png",
+  "adapted": ""
+ },
+ {
+  "id": "FIN-M18",
+  "scenario": "Split by item ₹1,180",
+  "checks": [
+   {
+    "what": "Form shows A ₹354, B ₹826, extras ₹180",
+    "expected": "true",
+    "actual": "true",
+    "pass": true
+   },
+   {
+    "what": "Balances",
+    "expected": "Anil +₹826.00 · Bina −₹826.00",
+    "actual": "Anil +₹826.00 · Bina −₹826.00",
+    "pass": true
+   },
+   {
+    "what": "Notes list the items and the shared extras",
+    "expected": "true",
+    "actual": "true",
+    "pass": true
+   }
+  ],
+  "status": "Pass",
+  "error": "",
+  "evidence": "evidence/FIN-M18.png",
+  "adapted": ""
+ },
+ {
+  "id": "FIN-M19",
+  "scenario": "Settle across groups nets into one payment",
+  "checks": [
+   {
+    "what": "One line: B pays A ₹200",
+    "expected": "true",
+    "actual": "true",
+    "pass": true
+   },
+   {
+    "what": "Group X square",
+    "expected": "Anil ₹0.00 · Bina ₹0.00",
+    "actual": "Anil ₹0.00 · Bina ₹0.00",
+    "pass": true
+   },
+   {
+    "what": "Group Y square",
+    "expected": "Anil ₹0.00 · Bina ₹0.00",
+    "actual": "Anil ₹0.00 · Bina ₹0.00",
+    "pass": true
+   }
+  ],
+  "status": "Pass",
+  "error": "",
+  "evidence": "evidence/FIN-M19.png",
+  "adapted": "Card text: “A You pay Anil ₹2,553.08 FIN M19 Y: Anil pays you ₹300 Settle only here FIN M19 X: you pay ₹500 Settle only here FIN M18”"
+ },
+ {
+  "id": "FIN-M20",
+  "scenario": "Typing amounts: commas, decimals, too many decimals",
+  "checks": [
+   {
+    "what": "“1,23,456.78” saves as ₹1,23,456.78",
+    "expected": "12345678",
+    "actual": "12345678",
+    "pass": true
+   },
+   {
+    "what": "“12,50” is treated as ₹12.50",
+    "expected": "1250",
+    "actual": "1250",
+    "pass": true
+   },
+   {
+    "what": "“10.555” refused with a message",
+    "expected": "true",
+    "actual": "true",
+    "pass": true
+   },
+   {
+    "what": "JPY 1500.5 refused (yen has no decimals)",
+    "expected": "true",
+    "actual": "true",
+    "pass": true
+   }
+  ],
+  "status": "Pass",
+  "error": "",
+  "evidence": "evidence/FIN-M20.png",
+  "adapted": "Messages seen: “Enter a valid amount, like 250 or 99.50.” / “Enter a valid amount, like 250 or 99.50.”. The 1,23,456.78 and 12,50 cases are checked by what is saved, not by the on-screen echo."
+ },
+ {
+  "id": "FIN-M21",
+  "scenario": "Largest allowed amount",
+  "checks": [
+   {
+    "what": "₹2,00,00,000 saves",
+    "expected": "2000000000",
+    "actual": "2000000000",
+    "pass": true
+   },
+   {
+    "what": "₹2,00,00,000.01 refused with a message",
+    "expected": "true",
+    "actual": "true",
+    "pass": true
+   }
+  ],
+  "status": "Pass",
+  "error": "",
+  "evidence": "evidence/FIN-M21.png",
+  "adapted": "The first expense is kept rather than deleted before the second try (the limit is per expense). Message: “Enter a valid amount, like 250 or 99.50.”"
+ },
+ {
+  "id": "FIN-M22",
+  "scenario": "Couple 55/45 split",
+  "checks": [
+   {
+    "what": "“Our split 55 / 45” preselected",
+    "expected": "true",
+    "actual": "true",
+    "pass": true
+   },
+   {
+    "what": "B owes ₹450",
+    "expected": "Anil +₹450.00 · Bina −₹450.00",
+    "actual": "Anil +₹450.00 · Bina −₹450.00",
+    "pass": true
+   }
+  ],
+  "status": "Pass",
+  "error": "",
+  "evidence": "evidence/FIN-M22.png",
+  "adapted": "B joins from the couple's invite link."
+ },
+ {
+  "id": "FIN-M23",
+  "scenario": "Custom 2% card fee",
+  "checks": [
+   {
+    "what": "Balances",
+    "expected": "Anil +₹1912.50 · Bina −₹637.50 · Chet −₹637.50 · Dina −₹637.50",
+    "actual": "Anil +₹1912.50 · Bina −₹637.50 · Chet −₹637.50 · Dina −₹637.50",
+    "pass": true
+   }
+  ],
+  "status": "Pass",
+  "error": "",
+  "evidence": "evidence/FIN-M23.png",
+  "adapted": ""
+ },
+ {
+  "id": "FIN-M24",
+  "scenario": "USD with 4-decimal rate rounds half-up",
+  "checks": [
+   {
+    "what": "Total shown ₹1,668.30",
+    "expected": "true",
+    "actual": "true",
+    "pass": true
+   },
+   {
+    "what": "A gets ₹1,251.22 or ₹1,251.23",
+    "expected": "true",
+    "actual": "true",
+    "pass": true
+   },
+   {
+    "what": "Others owe ₹417.07 or ₹417.08",
+    "expected": "true",
+    "actual": "true",
+    "pass": true
+   },
+   {
+    "what": "Sum is ₹0",
+    "expected": "0",
+    "actual": "0",
+    "pass": true
+   }
+  ],
+  "status": "Pass",
+  "error": "",
+  "evidence": "evidence/FIN-M24.png",
+  "adapted": ""
+ }
+]

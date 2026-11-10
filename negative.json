@@ -1,0 +1,253 @@
+[
+ {
+  "id": "NEG-01",
+  "scenario": "Amount left empty",
+  "input": {
+   "name": "Audit empty amount",
+   "amount": ""
+  },
+  "saved": 0,
+  "url": "/groups/:id/add",
+  "userSees": "Enter a valid amount, like 250 or 99.50.",
+  "note": "",
+  "evidence": "evidence/negative__NEG-01.png"
+ },
+ {
+  "id": "NEG-02",
+  "scenario": "Negative amount",
+  "input": {
+   "name": "Audit negative",
+   "amount": "-50"
+  },
+  "saved": 0,
+  "url": "/groups/:id/add",
+  "userSees": "Enter a valid amount, like 250 or 99.50.",
+  "note": "",
+  "evidence": "evidence/negative__NEG-02.png"
+ },
+ {
+  "id": "NEG-03",
+  "scenario": "Letters as amount",
+  "input": {
+   "name": "Audit letters",
+   "amount": "abc"
+  },
+  "saved": 0,
+  "url": "/groups/:id/add",
+  "userSees": "Enter a valid amount, like 250 or 99.50.",
+  "note": "",
+  "evidence": "evidence/negative__NEG-03.png"
+ },
+ {
+  "id": "NEG-04",
+  "scenario": "Zero amount",
+  "input": {
+   "name": "Audit zero",
+   "amount": "0"
+  },
+  "saved": 0,
+  "url": "/groups/:id/add",
+  "userSees": "Enter a valid amount, like 250 or 99.50.",
+  "note": "",
+  "evidence": "evidence/negative__NEG-04.png"
+ },
+ {
+  "id": "NEG-05",
+  "scenario": "Huge amount (₹999 crore)",
+  "input": {
+   "name": "Audit huge",
+   "amount": "9999999999"
+  },
+  "saved": 0,
+  "url": "/groups/:id/add",
+  "userSees": "Enter a valid amount, like 250 or 99.50.",
+  "note": "",
+  "evidence": "evidence/negative__NEG-05.png"
+ },
+ {
+  "id": "NEG-06",
+  "scenario": "Script typed into the name",
+  "input": {
+   "name": "<img src=x onerror=alert(1)>Audit XSS",
+   "amount": "120"
+  },
+  "saved": 1,
+  "url": "/groups/:id?tab=activity&did=cmwb0ho6d001t1zqz9aoiz54e",
+  "userSees": "Delete | Delete | Delete | Delete | Delete | Delete | Delete | Delete | Delete | Delete",
+  "note": "",
+  "evidence": "evidence/negative__NEG-06.png"
+ },
+ {
+  "id": "NEG-07",
+  "scenario": "Very long name (300 letters)",
+  "input": {
+   "name": "Audit long xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "amount": "50"
+  },
+  "saved": 0,
+  "url": "/groups/:id?tab=activity&did=cmwb0hqg100241zqzt2nmcehh",
+  "userSees": "Delete | Delete | Delete | Delete | Delete | Delete | Delete | Delete | Delete | Delete | Delete",
+  "note": "",
+  "evidence": "evidence/negative__NEG-07.png"
+ },
+ {
+  "id": "NEG-08",
+  "scenario": "Emoji and accents in the name",
+  "input": {
+   "name": "Audit café 🍕 naïve",
+   "amount": "75"
+  },
+  "saved": 1,
+  "url": "/groups/:id?tab=activity&did=cmwb0hsne002f1zqzzlhiknre",
+  "userSees": "Delete | Delete | Delete | Delete | Delete | Delete | Delete | Delete | Delete | Delete | Delete | Delete",
+  "note": "",
+  "evidence": "evidence/negative__NEG-08.png"
+ },
+ {
+  "id": "NEG-09",
+  "scenario": "Double-tap on Save",
+  "input": {
+   "name": "Audit double tap",
+   "amount": "200"
+  },
+  "saved": 1,
+  "url": "/groups/:id?tab=activity&did=cmwb0huwg002q1zqzvsbc66et",
+  "userSees": "Delete | Delete | Delete | Delete | Delete | Delete | Delete | Delete | Delete | Delete | Delete | Delete | Delete",
+  "note": "",
+  "evidence": "evidence/negative__NEG-09.png"
+ },
+ {
+  "id": "NEG-10",
+  "scenario": "Save with no internet",
+  "input": {
+   "name": "Audit offline",
+   "amount": "300"
+  },
+  "saved": 0,
+  "url": "/groups/:id/add",
+  "userSees": "Couldn’t reach Loopin. Check your connection and tap Save again.",
+  "note": "",
+  "evidence": "evidence/negative__NEG-10.png"
+ },
+ {
+  "id": "NEG-11",
+  "scenario": "Session cookie lost before saving",
+  "input": {
+   "name": "Audit no session",
+   "amount": "90"
+  },
+  "saved": 0,
+  "url": "/groups/:id/add",
+  "userSees": "Please join this group first.",
+  "note": "",
+  "evidence": "evidence/negative__NEG-11.png"
+ },
+ {
+  "id": "NEG-06b",
+  "scenario": "Script name shown back as plain text in Activity (no script ran)",
+  "shownAsText": true,
+  "dialogsFired": 0,
+  "evidence": "evidence/negative__NEG-06b.png"
+ },
+ {
+  "id": "NEG-12",
+  "scenario": "New group screen opens (name field present)",
+  "hasName": 0,
+  "evidence": "evidence/negative__NEG-12.png"
+ },
+ {
+  "id": "NEG-13",
+  "scenario": "Invite link that doesn't exist / expired",
+  "status": 404,
+  "url": "/join/EXPIRED00",
+  "userSees": "This screen isn’t here any more It may have been deleted. Taking you Home… Go to Home",
+  "evidence": "evidence/negative__NEG-13.png"
+ },
+ {
+  "id": "NEG-14",
+  "scenario": "Edit link for an expense that doesn't exist",
+  "status": 404,
+  "url": "/groups/cmwb05z8200001zp7m01lbknm/expenses/not-a-real-expense/edit",
+  "userSees": "",
+  "evidence": "evidence/negative__NEG-14.png"
+ },
+ {
+  "id": "NEG-15",
+  "scenario": "Group link that doesn't exist",
+  "status": 404,
+  "url": "/groups/not-a-real-group",
+  "userSees": "This screen isn’t here any more It may have been deleted. Taking you Home… Go to Home Home Recap Settle Alerts",
+  "evidence": "evidence/negative__NEG-15.png"
+ },
+ {
+  "id": "NEG-16",
+  "scenario": "Collection link that doesn't exist",
+  "status": 404,
+  "url": "/c/NOPE1234",
+  "userSees": "This screen isn’t here any more It may have been deleted. Taking you Home… Go to Home",
+  "evidence": "evidence/negative__NEG-16.png"
+ },
+ {
+  "id": "NEG-17",
+  "scenario": "Payment link that doesn't exist",
+  "status": 200,
+  "url": "/p/not-a-real-token",
+  "userSees": "loopin No sign-in needed This link has done its job Payment links last 30 days and stop once you’re square. If you still owe something, ask for a fresh reminde",
+  "evidence": "evidence/negative__NEG-17.png"
+ },
+ {
+  "id": "NEG-18",
+  "scenario": "Postcard link that doesn't exist",
+  "status": 200,
+  "url": "/signin",
+  "userSees": "loopin Manali Jaipur Goa, all square Split the trip. Keep the story. Add costs as you go, settle up with UPI in one tap, and get every trip back as stories a",
+  "evidence": "evidence/negative__NEG-18.png"
+ },
+ {
+  "id": "NEG-19",
+  "scenario": "Slow internet (3 s per page): feedback while waiting",
+  "msToArrive": 4023,
+  "evidence": "evidence/negative__NEG-19-during.png"
+ },
+ {
+  "id": "NEG-20",
+  "scenario": "Open/refresh Home with no internet",
+  "userSees": "You’re offline Loopin needs the internet. Check your connection and try again.",
+  "evidence": "evidence/negative__NEG-20.png"
+ },
+ {
+  "id": "NEG-21",
+  "scenario": "Bill photo that isn't a picture (a text file)",
+  "status": 415,
+  "expectedStatus": 415,
+  "stored": 0,
+  "userSees": "{\"ok\":false,\"error\":\"Pick a photo (JPEG, PNG or WebP).\"}"
+ },
+ {
+  "id": "NEG-22",
+  "scenario": "Bill photo over the 1.5 MB limit",
+  "status": 413,
+  "expectedStatus": 413,
+  "stored": 0,
+  "userSees": "{\"ok\":false,\"error\":\"That photo is too big.\"}"
+ },
+ {
+  "id": "NEG-23",
+  "scenario": "Split by item: items (₹800) more than the bill (₹500)",
+  "saved": 0,
+  "userSees": "The items add up to more than the bill. Check the prices or the total.",
+  "evidence": "evidence/negative__NEG-23.png"
+ },
+ {
+  "id": "NEG-24",
+  "scenario": "Two phones edit the same expense (₹600 → ₹700 on one, ₹900 on the other, older screen)",
+  "finalAmount": 70000,
+  "userSees": "You changed this expense a moment ago. Go back and open it again to see the latest version.",
+  "evidence": "evidence/negative__NEG-24.png"
+ },
+ {
+  "id": "NEG-XSS-DIALOGS",
+  "scenario": "Browser alert pop-ups fired during all tests (should be 0)",
+  "dialogsFired": 0
+ }
+]

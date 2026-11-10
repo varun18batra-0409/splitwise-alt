@@ -1,0 +1,2249 @@
+[
+ {
+  "who": "anonymous",
+  "kind": "page",
+  "path": "/groups/:id",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "page",
+  "path": "/groups/:id?tab=balances",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "page",
+  "path": "/groups/:id/add",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "page",
+  "path": "/groups/:id/people",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "page",
+  "path": "/groups/:id/settings",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "page",
+  "path": "/groups/:id/settle",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "page",
+  "path": "/groups/:id/report",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "page",
+  "path": "/groups/:id/wrapped",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "page",
+  "path": "/groups/:id/passports",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "page",
+  "path": "/groups/:id/invite",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "page",
+  "path": "/groups/:id/pay",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "page",
+  "path": "/groups/:id/square",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "page",
+  "path": "/groups/:id/expenses/:id/edit",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "page",
+  "path": "/groups/:id/passport/:id",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "page",
+  "path": "/postcards/:id",
+  "status": 200,
+  "finalPath": "/signin",
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "page",
+  "path": "/passport/friends/:id",
+  "status": 200,
+  "finalPath": "/signin",
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "page",
+  "path": "/search?g=:id",
+  "status": 200,
+  "finalPath": "/search",
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "api",
+  "path": "/groups/:id/export",
+  "status": 403,
+  "type": "text/plain",
+  "bytes": 22,
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "api",
+  "path": "/groups/:id/countdown-image",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "api",
+  "path": "/groups/:id/square-image",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "api",
+  "path": "/groups/:id/wrapped-image",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "api",
+  "path": "/groups/:id/remind",
+  "status": 303,
+  "bytes": 0,
+  "location": "/private",
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "api",
+  "path": "/api/group-photo/:id",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "api",
+  "path": "/api/my-data",
+  "status": 401,
+  "type": "text/plain",
+  "bytes": 14,
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "api",
+  "path": "/api/unread",
+  "status": 200,
+  "type": "application/json",
+  "bytes": 7,
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "api",
+  "path": "/api/people?g=:id",
+  "status": 200,
+  "type": "application/json",
+  "bytes": 2,
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "api",
+  "path": "/api/receipt/:id",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "api",
+  "path": "/passport/image",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "api",
+  "path": "/api/cron/daily",
+  "status": 401,
+  "type": "application/json",
+  "bytes": 23,
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "api",
+  "path": "/api/cron/evening",
+  "status": 401,
+  "type": "application/json",
+  "bytes": 23,
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "api",
+  "path": "/api/health",
+  "status": 200,
+  "type": "application/json",
+  "bytes": 11,
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "api",
+  "path": "/api/move",
+  "status": 307,
+  "bytes": 0,
+  "location": "/",
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "api",
+  "path": "/api/arrive",
+  "status": 303,
+  "bytes": 0,
+  "location": "/",
+  "leaked": []
+ },
+ {
+  "who": "anonymous",
+  "kind": "api-post",
+  "path": "/api/speed",
+  "status": 204
+ },
+ {
+  "who": "anonymous",
+  "kind": "api-post",
+  "path": "/api/push",
+  "status": 400
+ },
+ {
+  "who": "anonymous",
+  "kind": "api-post",
+  "path": "/api/receipt?group=:id (bill photo upload)",
+  "status": 403,
+  "stored": 0
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "page",
+  "path": "/groups/:id",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "page",
+  "path": "/groups/:id?tab=balances",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "page",
+  "path": "/groups/:id/add",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "page",
+  "path": "/groups/:id/people",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "page",
+  "path": "/groups/:id/settings",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "page",
+  "path": "/groups/:id/settle",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "page",
+  "path": "/groups/:id/report",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "page",
+  "path": "/groups/:id/wrapped",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "page",
+  "path": "/groups/:id/passports",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "page",
+  "path": "/groups/:id/invite",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "page",
+  "path": "/groups/:id/pay",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "page",
+  "path": "/groups/:id/square",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "page",
+  "path": "/groups/:id/expenses/:id/edit",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "page",
+  "path": "/groups/:id/passport/:id",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "page",
+  "path": "/postcards/:id",
+  "status": 200,
+  "finalPath": "/signin",
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "page",
+  "path": "/passport/friends/:id",
+  "status": 200,
+  "finalPath": "/signin",
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "page",
+  "path": "/search?g=:id",
+  "status": 200,
+  "finalPath": "/search",
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "api",
+  "path": "/groups/:id/export",
+  "status": 403,
+  "type": "text/plain",
+  "bytes": 22,
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "api",
+  "path": "/groups/:id/countdown-image",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "api",
+  "path": "/groups/:id/square-image",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "api",
+  "path": "/groups/:id/wrapped-image",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "api",
+  "path": "/groups/:id/remind",
+  "status": 303,
+  "bytes": 0,
+  "location": "/private",
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "api",
+  "path": "/api/group-photo/:id",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "api",
+  "path": "/api/my-data",
+  "status": 401,
+  "type": "text/plain",
+  "bytes": 14,
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "api",
+  "path": "/api/unread",
+  "status": 200,
+  "type": "application/json",
+  "bytes": 7,
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "api",
+  "path": "/api/people?g=:id",
+  "status": 200,
+  "type": "application/json",
+  "bytes": 2,
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "api",
+  "path": "/api/receipt/:id",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "api",
+  "path": "/passport/image",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "api",
+  "path": "/api/cron/daily",
+  "status": 401,
+  "type": "application/json",
+  "bytes": 23,
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "api",
+  "path": "/api/cron/evening",
+  "status": 401,
+  "type": "application/json",
+  "bytes": 23,
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "api",
+  "path": "/api/health",
+  "status": 200,
+  "type": "application/json",
+  "bytes": 11,
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "api",
+  "path": "/api/move",
+  "status": 307,
+  "bytes": 0,
+  "location": "/",
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "api",
+  "path": "/api/arrive",
+  "status": 303,
+  "bytes": 0,
+  "location": "/",
+  "leaked": []
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "api-post",
+  "path": "/api/speed",
+  "status": 204
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "api-post",
+  "path": "/api/push",
+  "status": 400
+ },
+ {
+  "who": "forged_cookie",
+  "kind": "api-post",
+  "path": "/api/receipt?group=:id (bill photo upload)",
+  "status": 403,
+  "stored": 0
+ },
+ {
+  "who": "other_group_member",
+  "kind": "page",
+  "path": "/groups/:id",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "other_group_member",
+  "kind": "page",
+  "path": "/groups/:id?tab=balances",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "other_group_member",
+  "kind": "page",
+  "path": "/groups/:id/add",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "other_group_member",
+  "kind": "page",
+  "path": "/groups/:id/people",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "other_group_member",
+  "kind": "page",
+  "path": "/groups/:id/settings",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "other_group_member",
+  "kind": "page",
+  "path": "/groups/:id/settle",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "other_group_member",
+  "kind": "page",
+  "path": "/groups/:id/report",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "other_group_member",
+  "kind": "page",
+  "path": "/groups/:id/wrapped",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "other_group_member",
+  "kind": "page",
+  "path": "/groups/:id/passports",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "other_group_member",
+  "kind": "page",
+  "path": "/groups/:id/invite",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "other_group_member",
+  "kind": "page",
+  "path": "/groups/:id/pay",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "other_group_member",
+  "kind": "page",
+  "path": "/groups/:id/square",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "other_group_member",
+  "kind": "page",
+  "path": "/groups/:id/expenses/:id/edit",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "other_group_member",
+  "kind": "page",
+  "path": "/groups/:id/passport/:id",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "other_group_member",
+  "kind": "page",
+  "path": "/postcards/:id",
+  "status": 200,
+  "finalPath": "/signin",
+  "leaked": []
+ },
+ {
+  "who": "other_group_member",
+  "kind": "page",
+  "path": "/passport/friends/:id",
+  "status": 200,
+  "finalPath": "/signin",
+  "leaked": []
+ },
+ {
+  "who": "other_group_member",
+  "kind": "page",
+  "path": "/search?g=:id",
+  "status": 200,
+  "finalPath": "/search",
+  "leaked": [
+   "Asha"
+  ]
+ },
+ {
+  "who": "other_group_member",
+  "kind": "api",
+  "path": "/groups/:id/export",
+  "status": 403,
+  "type": "text/plain",
+  "bytes": 22,
+  "leaked": []
+ },
+ {
+  "who": "other_group_member",
+  "kind": "api",
+  "path": "/groups/:id/countdown-image",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "other_group_member",
+  "kind": "api",
+  "path": "/groups/:id/square-image",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "other_group_member",
+  "kind": "api",
+  "path": "/groups/:id/wrapped-image",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "other_group_member",
+  "kind": "api",
+  "path": "/groups/:id/remind",
+  "status": 303,
+  "bytes": 0,
+  "location": "/private",
+  "leaked": []
+ },
+ {
+  "who": "other_group_member",
+  "kind": "api",
+  "path": "/api/group-photo/:id",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "other_group_member",
+  "kind": "api",
+  "path": "/api/my-data",
+  "status": 200,
+  "type": "text/csv",
+  "bytes": 1335,
+  "leaked": [
+   "Asha"
+  ]
+ },
+ {
+  "who": "other_group_member",
+  "kind": "api",
+  "path": "/api/unread",
+  "status": 200,
+  "type": "application/json",
+  "bytes": 7,
+  "leaked": []
+ },
+ {
+  "who": "other_group_member",
+  "kind": "api",
+  "path": "/api/people?g=:id",
+  "status": 200,
+  "type": "application/json",
+  "bytes": 2,
+  "leaked": []
+ },
+ {
+  "who": "other_group_member",
+  "kind": "api",
+  "path": "/api/receipt/:id",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "other_group_member",
+  "kind": "api",
+  "path": "/passport/image",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "other_group_member",
+  "kind": "api",
+  "path": "/api/cron/daily",
+  "status": 401,
+  "type": "application/json",
+  "bytes": 23,
+  "leaked": []
+ },
+ {
+  "who": "other_group_member",
+  "kind": "api",
+  "path": "/api/cron/evening",
+  "status": 401,
+  "type": "application/json",
+  "bytes": 23,
+  "leaked": []
+ },
+ {
+  "who": "other_group_member",
+  "kind": "api",
+  "path": "/api/health",
+  "status": 200,
+  "type": "application/json",
+  "bytes": 11,
+  "leaked": []
+ },
+ {
+  "who": "other_group_member",
+  "kind": "api",
+  "path": "/api/move",
+  "status": 307,
+  "bytes": 0,
+  "location": "/",
+  "leaked": []
+ },
+ {
+  "who": "other_group_member",
+  "kind": "api",
+  "path": "/api/arrive",
+  "status": 303,
+  "bytes": 0,
+  "location": "/",
+  "leaked": []
+ },
+ {
+  "who": "other_group_member",
+  "kind": "api-post",
+  "path": "/api/speed",
+  "status": 204
+ },
+ {
+  "who": "other_group_member",
+  "kind": "api-post",
+  "path": "/api/push",
+  "status": 400
+ },
+ {
+  "who": "other_group_member",
+  "kind": "api-post",
+  "path": "/api/receipt?group=:id (bill photo upload)",
+  "status": 403,
+  "stored": 0
+ },
+ {
+  "who": "member_who_left",
+  "kind": "page",
+  "path": "/groups/:id",
+  "status": 200,
+  "finalPath": "/groups/:id",
+  "leaked": [
+   "Thailand trip",
+   "Asha",
+   "Meera",
+   "Ravi"
+  ]
+ },
+ {
+  "who": "member_who_left",
+  "kind": "page",
+  "path": "/groups/:id?tab=balances",
+  "status": 200,
+  "finalPath": "/groups/:id",
+  "leaked": [
+   "Thailand trip",
+   "Asha",
+   "Meera",
+   "Ravi"
+  ]
+ },
+ {
+  "who": "member_who_left",
+  "kind": "page",
+  "path": "/groups/:id/add",
+  "status": 200,
+  "finalPath": "/groups/:id/add",
+  "leaked": [
+   "Thailand trip"
+  ]
+ },
+ {
+  "who": "member_who_left",
+  "kind": "page",
+  "path": "/groups/:id/people",
+  "status": 200,
+  "finalPath": "/groups/:id/people",
+  "leaked": [
+   "Thailand trip",
+   "Asha",
+   "Dev",
+   "Meera",
+   "Ravi"
+  ]
+ },
+ {
+  "who": "member_who_left",
+  "kind": "page",
+  "path": "/groups/:id/settings",
+  "status": 200,
+  "finalPath": "/groups/:id/people",
+  "leaked": [
+   "Thailand trip",
+   "Asha",
+   "Dev",
+   "Meera",
+   "Ravi"
+  ]
+ },
+ {
+  "who": "member_who_left",
+  "kind": "page",
+  "path": "/groups/:id/settle",
+  "status": 200,
+  "finalPath": "/groups/:id/settle",
+  "leaked": [
+   "Thailand trip",
+   "Asha",
+   "Meera",
+   "Ravi"
+  ]
+ },
+ {
+  "who": "member_who_left",
+  "kind": "page",
+  "path": "/groups/:id/report",
+  "status": 200,
+  "finalPath": "/groups/:id/report",
+  "leaked": [
+   "Thailand trip",
+   "Asha",
+   "Meera",
+   "Ravi"
+  ]
+ },
+ {
+  "who": "member_who_left",
+  "kind": "page",
+  "path": "/groups/:id/wrapped",
+  "status": 200,
+  "finalPath": "/groups/:id/wrapped",
+  "leaked": [
+   "Thailand trip"
+  ]
+ },
+ {
+  "who": "member_who_left",
+  "kind": "page",
+  "path": "/groups/:id/passports",
+  "status": 200,
+  "finalPath": "/groups/:id/passports",
+  "leaked": [
+   "Thailand trip",
+   "Asha",
+   "Dev",
+   "Meera",
+   "Ravi"
+  ]
+ },
+ {
+  "who": "member_who_left",
+  "kind": "page",
+  "path": "/groups/:id/invite",
+  "status": 200,
+  "finalPath": "/groups/:id/invite",
+  "leaked": []
+ },
+ {
+  "who": "member_who_left",
+  "kind": "page",
+  "path": "/groups/:id/pay",
+  "status": 200,
+  "finalPath": "/groups/:id/pay",
+  "leaked": [
+   "Asha",
+   "Meera",
+   "Ravi"
+  ]
+ },
+ {
+  "who": "member_who_left",
+  "kind": "page",
+  "path": "/groups/:id/square",
+  "status": 200,
+  "finalPath": "/groups/:id/square",
+  "leaked": [
+   "Thailand trip"
+  ]
+ },
+ {
+  "who": "member_who_left",
+  "kind": "page",
+  "path": "/groups/:id/expenses/:id/edit",
+  "status": 200,
+  "finalPath": "/groups/:id/expenses/:id/edit",
+  "leaked": [
+   "Asha",
+   "Meera",
+   "Ravi"
+  ]
+ },
+ {
+  "who": "member_who_left",
+  "kind": "page",
+  "path": "/groups/:id/passport/:id",
+  "status": 200,
+  "finalPath": "/groups/:id/passport/:id",
+  "leaked": [
+   "Ravi"
+  ]
+ },
+ {
+  "who": "member_who_left",
+  "kind": "page",
+  "path": "/postcards/:id",
+  "status": 200,
+  "finalPath": "/signin",
+  "leaked": []
+ },
+ {
+  "who": "member_who_left",
+  "kind": "page",
+  "path": "/passport/friends/:id",
+  "status": 200,
+  "finalPath": "/signin",
+  "leaked": []
+ },
+ {
+  "who": "member_who_left",
+  "kind": "page",
+  "path": "/search?g=:id",
+  "status": 200,
+  "finalPath": "/search",
+  "leaked": [
+   "Asha",
+   "Meera",
+   "Ravi"
+  ]
+ },
+ {
+  "who": "member_who_left",
+  "kind": "api",
+  "path": "/groups/:id/export",
+  "status": 200,
+  "type": "text/csv",
+  "bytes": 1595,
+  "leaked": [
+   "Asha",
+   "Dev",
+   "Meera",
+   "Ravi"
+  ]
+ },
+ {
+  "who": "member_who_left",
+  "kind": "api",
+  "path": "/groups/:id/countdown-image",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "member_who_left",
+  "kind": "api",
+  "path": "/groups/:id/square-image",
+  "status": 200,
+  "type": "image/png",
+  "bytes": 4000,
+  "leaked": []
+ },
+ {
+  "who": "member_who_left",
+  "kind": "api",
+  "path": "/groups/:id/wrapped-image",
+  "status": 200,
+  "type": "image/png",
+  "bytes": 4000,
+  "leaked": []
+ },
+ {
+  "who": "member_who_left",
+  "kind": "api",
+  "path": "/groups/:id/remind",
+  "status": 303,
+  "bytes": 0,
+  "location": "/groups/cmwb05z8200001zp7m01lbknm/settle",
+  "leaked": []
+ },
+ {
+  "who": "member_who_left",
+  "kind": "api",
+  "path": "/api/group-photo/:id",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "member_who_left",
+  "kind": "api",
+  "path": "/api/my-data",
+  "status": 200,
+  "type": "text/csv",
+  "bytes": 1410,
+  "leaked": [
+   "Thailand trip",
+   "Asha",
+   "Meera",
+   "Ravi"
+  ]
+ },
+ {
+  "who": "member_who_left",
+  "kind": "api",
+  "path": "/api/unread",
+  "status": 200,
+  "type": "application/json",
+  "bytes": 7,
+  "leaked": []
+ },
+ {
+  "who": "member_who_left",
+  "kind": "api",
+  "path": "/api/people?g=:id",
+  "status": 200,
+  "type": "application/json",
+  "bytes": 2,
+  "leaked": []
+ },
+ {
+  "who": "member_who_left",
+  "kind": "api",
+  "path": "/api/receipt/:id",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "member_who_left",
+  "kind": "api",
+  "path": "/passport/image",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "member_who_left",
+  "kind": "api",
+  "path": "/api/cron/daily",
+  "status": 401,
+  "type": "application/json",
+  "bytes": 23,
+  "leaked": []
+ },
+ {
+  "who": "member_who_left",
+  "kind": "api",
+  "path": "/api/cron/evening",
+  "status": 401,
+  "type": "application/json",
+  "bytes": 23,
+  "leaked": []
+ },
+ {
+  "who": "member_who_left",
+  "kind": "api",
+  "path": "/api/health",
+  "status": 200,
+  "type": "application/json",
+  "bytes": 11,
+  "leaked": []
+ },
+ {
+  "who": "member_who_left",
+  "kind": "api",
+  "path": "/api/move",
+  "status": 307,
+  "bytes": 0,
+  "location": "/",
+  "leaked": []
+ },
+ {
+  "who": "member_who_left",
+  "kind": "api",
+  "path": "/api/arrive",
+  "status": 303,
+  "bytes": 0,
+  "location": "/",
+  "leaked": []
+ },
+ {
+  "who": "member_who_left",
+  "kind": "api-post",
+  "path": "/api/speed",
+  "status": 204
+ },
+ {
+  "who": "member_who_left",
+  "kind": "api-post",
+  "path": "/api/push",
+  "status": 400
+ },
+ {
+  "who": "member_who_left",
+  "kind": "api-post",
+  "path": "/api/receipt?group=:id (bill photo upload)",
+  "status": 403,
+  "stored": 0
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "page",
+  "path": "/groups/:id",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "page",
+  "path": "/groups/:id?tab=balances",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "page",
+  "path": "/groups/:id/add",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "page",
+  "path": "/groups/:id/people",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "page",
+  "path": "/groups/:id/settings",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "page",
+  "path": "/groups/:id/settle",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "page",
+  "path": "/groups/:id/report",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "page",
+  "path": "/groups/:id/wrapped",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "page",
+  "path": "/groups/:id/passports",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "page",
+  "path": "/groups/:id/invite",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "page",
+  "path": "/groups/:id/pay",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "page",
+  "path": "/groups/:id/square",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "page",
+  "path": "/groups/:id/expenses/:id/edit",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "page",
+  "path": "/groups/:id/passport/:id",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "page",
+  "path": "/postcards/:id",
+  "status": 404,
+  "finalPath": "/postcards/:id",
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "page",
+  "path": "/passport/friends/:id",
+  "status": 200,
+  "finalPath": "/passport/friends/:id",
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "page",
+  "path": "/search?g=:id",
+  "status": 200,
+  "finalPath": "/search",
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "api",
+  "path": "/groups/:id/export",
+  "status": 403,
+  "type": "text/plain",
+  "bytes": 22,
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "api",
+  "path": "/groups/:id/countdown-image",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "api",
+  "path": "/groups/:id/square-image",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "api",
+  "path": "/groups/:id/wrapped-image",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "api",
+  "path": "/groups/:id/remind",
+  "status": 303,
+  "bytes": 0,
+  "location": "/private",
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "api",
+  "path": "/api/group-photo/:id",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "api",
+  "path": "/api/my-data",
+  "status": 200,
+  "type": "text/csv",
+  "bytes": 300,
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "api",
+  "path": "/api/unread",
+  "status": 200,
+  "type": "application/json",
+  "bytes": 7,
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "api",
+  "path": "/api/people?g=:id",
+  "status": 200,
+  "type": "application/json",
+  "bytes": 2,
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "api",
+  "path": "/api/receipt/:id",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "api",
+  "path": "/passport/image",
+  "status": 200,
+  "type": "image/png",
+  "bytes": 4000,
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "api",
+  "path": "/api/cron/daily",
+  "status": 401,
+  "type": "application/json",
+  "bytes": 23,
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "api",
+  "path": "/api/cron/evening",
+  "status": 401,
+  "type": "application/json",
+  "bytes": 23,
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "api",
+  "path": "/api/health",
+  "status": 200,
+  "type": "application/json",
+  "bytes": 11,
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "api",
+  "path": "/api/move",
+  "status": 307,
+  "bytes": 0,
+  "location": "/",
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "api",
+  "path": "/api/arrive",
+  "status": 303,
+  "bytes": 0,
+  "location": "/",
+  "leaked": []
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "api-post",
+  "path": "/api/speed",
+  "status": 204
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "api-post",
+  "path": "/api/push",
+  "status": 400
+ },
+ {
+  "who": "signed_in_stranger",
+  "kind": "api-post",
+  "path": "/api/receipt?group=:id (bill photo upload)",
+  "status": 403,
+  "stored": 0
+ },
+ {
+  "who": "real_member",
+  "kind": "page",
+  "path": "/groups/:id",
+  "status": 200,
+  "finalPath": "/groups/:id",
+  "leaked": [
+   "Thailand trip",
+   "Asha",
+   "Meera",
+   "Ravi"
+  ]
+ },
+ {
+  "who": "real_member",
+  "kind": "page",
+  "path": "/groups/:id?tab=balances",
+  "status": 200,
+  "finalPath": "/groups/:id",
+  "leaked": [
+   "Thailand trip",
+   "Asha",
+   "Meera",
+   "Ravi"
+  ]
+ },
+ {
+  "who": "real_member",
+  "kind": "page",
+  "path": "/groups/:id/add",
+  "status": 200,
+  "finalPath": "/groups/:id/add",
+  "leaked": [
+   "Thailand trip",
+   "Asha",
+   "Meera",
+   "Ravi"
+  ]
+ },
+ {
+  "who": "real_member",
+  "kind": "page",
+  "path": "/groups/:id/people",
+  "status": 200,
+  "finalPath": "/groups/:id/people",
+  "leaked": [
+   "Thailand trip",
+   "Asha",
+   "Dev",
+   "Meera",
+   "Ravi"
+  ]
+ },
+ {
+  "who": "real_member",
+  "kind": "page",
+  "path": "/groups/:id/settings",
+  "status": 200,
+  "finalPath": "/groups/:id/settings",
+  "leaked": [
+   "Asha",
+   "Meera",
+   "Ravi"
+  ]
+ },
+ {
+  "who": "real_member",
+  "kind": "page",
+  "path": "/groups/:id/settle",
+  "status": 200,
+  "finalPath": "/groups/:id/settle",
+  "leaked": [
+   "Thailand trip",
+   "Asha",
+   "Meera",
+   "Ravi"
+  ]
+ },
+ {
+  "who": "real_member",
+  "kind": "page",
+  "path": "/groups/:id/report",
+  "status": 200,
+  "finalPath": "/groups/:id/report",
+  "leaked": [
+   "Thailand trip",
+   "Asha",
+   "Meera",
+   "Ravi"
+  ]
+ },
+ {
+  "who": "real_member",
+  "kind": "page",
+  "path": "/groups/:id/wrapped",
+  "status": 200,
+  "finalPath": "/groups/:id/wrapped",
+  "leaked": [
+   "Thailand trip"
+  ]
+ },
+ {
+  "who": "real_member",
+  "kind": "page",
+  "path": "/groups/:id/passports",
+  "status": 200,
+  "finalPath": "/groups/:id/passports",
+  "leaked": [
+   "Thailand trip",
+   "Asha",
+   "Dev",
+   "Meera",
+   "Ravi"
+  ]
+ },
+ {
+  "who": "real_member",
+  "kind": "page",
+  "path": "/groups/:id/invite",
+  "status": 200,
+  "finalPath": "/groups/:id/invite",
+  "leaked": [
+   "Thailand trip",
+   "Asha",
+   "Dev",
+   "Meera",
+   "Ravi"
+  ]
+ },
+ {
+  "who": "real_member",
+  "kind": "page",
+  "path": "/groups/:id/pay",
+  "status": 200,
+  "finalPath": "/groups/:id/pay",
+  "leaked": [
+   "Asha",
+   "Meera",
+   "Ravi"
+  ]
+ },
+ {
+  "who": "real_member",
+  "kind": "page",
+  "path": "/groups/:id/square",
+  "status": 200,
+  "finalPath": "/groups/:id/square",
+  "leaked": [
+   "Thailand trip"
+  ]
+ },
+ {
+  "who": "real_member",
+  "kind": "page",
+  "path": "/groups/:id/expenses/:id/edit",
+  "status": 200,
+  "finalPath": "/groups/:id/expenses/:id/edit",
+  "leaked": [
+   "Asha",
+   "Meera",
+   "Ravi"
+  ]
+ },
+ {
+  "who": "real_member",
+  "kind": "page",
+  "path": "/groups/:id/passport/:id",
+  "status": 200,
+  "finalPath": "/groups/:id/passport/:id",
+  "leaked": [
+   "Ravi"
+  ]
+ },
+ {
+  "who": "real_member",
+  "kind": "page",
+  "path": "/postcards/:id",
+  "status": 200,
+  "finalPath": "/signin",
+  "leaked": []
+ },
+ {
+  "who": "real_member",
+  "kind": "page",
+  "path": "/passport/friends/:id",
+  "status": 200,
+  "finalPath": "/signin",
+  "leaked": []
+ },
+ {
+  "who": "real_member",
+  "kind": "page",
+  "path": "/search?g=:id",
+  "status": 200,
+  "finalPath": "/search",
+  "leaked": [
+   "Asha",
+   "Meera",
+   "Ravi"
+  ]
+ },
+ {
+  "who": "real_member",
+  "kind": "api",
+  "path": "/groups/:id/export",
+  "status": 200,
+  "type": "text/csv",
+  "bytes": 1595,
+  "leaked": [
+   "Asha",
+   "Dev",
+   "Meera",
+   "Ravi"
+  ]
+ },
+ {
+  "who": "real_member",
+  "kind": "api",
+  "path": "/groups/:id/countdown-image",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 12,
+  "leaked": []
+ },
+ {
+  "who": "real_member",
+  "kind": "api",
+  "path": "/groups/:id/square-image",
+  "status": 200,
+  "type": "image/png",
+  "bytes": 4000,
+  "leaked": []
+ },
+ {
+  "who": "real_member",
+  "kind": "api",
+  "path": "/groups/:id/wrapped-image",
+  "status": 200,
+  "type": "image/png",
+  "bytes": 4000,
+  "leaked": []
+ },
+ {
+  "who": "real_member",
+  "kind": "api",
+  "path": "/groups/:id/remind",
+  "status": 303,
+  "bytes": 0,
+  "location": "/groups/cmwb05z8200001zp7m01lbknm/settle",
+  "leaked": []
+ },
+ {
+  "who": "real_member",
+  "kind": "api",
+  "path": "/api/group-photo/:id",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "real_member",
+  "kind": "api",
+  "path": "/api/my-data",
+  "status": 200,
+  "type": "text/csv",
+  "bytes": 1510,
+  "leaked": [
+   "Thailand trip",
+   "Asha",
+   "Meera",
+   "Ravi"
+  ]
+ },
+ {
+  "who": "real_member",
+  "kind": "api",
+  "path": "/api/unread",
+  "status": 200,
+  "type": "application/json",
+  "bytes": 7,
+  "leaked": []
+ },
+ {
+  "who": "real_member",
+  "kind": "api",
+  "path": "/api/people?g=:id",
+  "status": 200,
+  "type": "application/json",
+  "bytes": 2,
+  "leaked": []
+ },
+ {
+  "who": "real_member",
+  "kind": "api",
+  "path": "/api/receipt/:id",
+  "status": 200,
+  "type": "image/png",
+  "bytes": 8,
+  "leaked": []
+ },
+ {
+  "who": "real_member",
+  "kind": "api",
+  "path": "/passport/image",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "real_member",
+  "kind": "api",
+  "path": "/api/cron/daily",
+  "status": 401,
+  "type": "application/json",
+  "bytes": 23,
+  "leaked": []
+ },
+ {
+  "who": "real_member",
+  "kind": "api",
+  "path": "/api/cron/evening",
+  "status": 401,
+  "type": "application/json",
+  "bytes": 23,
+  "leaked": []
+ },
+ {
+  "who": "real_member",
+  "kind": "api",
+  "path": "/api/health",
+  "status": 200,
+  "type": "application/json",
+  "bytes": 11,
+  "leaked": []
+ },
+ {
+  "who": "real_member",
+  "kind": "api",
+  "path": "/api/move",
+  "status": 307,
+  "bytes": 0,
+  "location": "/",
+  "leaked": []
+ },
+ {
+  "who": "real_member",
+  "kind": "api",
+  "path": "/api/arrive",
+  "status": 303,
+  "bytes": 0,
+  "location": "/",
+  "leaked": []
+ },
+ {
+  "who": "real_member",
+  "kind": "api-post",
+  "path": "/api/speed",
+  "status": 204
+ },
+ {
+  "who": "real_member",
+  "kind": "api-post",
+  "path": "/api/push",
+  "status": 400
+ },
+ {
+  "who": "real_member",
+  "kind": "api-post",
+  "path": "/api/receipt?group=:id (bill photo upload)",
+  "status": 200,
+  "stored": 1
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "page",
+  "path": "/groups/:id",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "page",
+  "path": "/groups/:id?tab=balances",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "page",
+  "path": "/groups/:id/add",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "page",
+  "path": "/groups/:id/people",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "page",
+  "path": "/groups/:id/settings",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "page",
+  "path": "/groups/:id/settle",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "page",
+  "path": "/groups/:id/report",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "page",
+  "path": "/groups/:id/wrapped",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "page",
+  "path": "/groups/:id/passports",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "page",
+  "path": "/groups/:id/invite",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "page",
+  "path": "/groups/:id/pay",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "page",
+  "path": "/groups/:id/square",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "page",
+  "path": "/groups/:id/expenses/:id/edit",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "page",
+  "path": "/groups/:id/passport/:id",
+  "status": 200,
+  "finalPath": "/private",
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "page",
+  "path": "/postcards/:id",
+  "status": 200,
+  "finalPath": "/signin",
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "page",
+  "path": "/passport/friends/:id",
+  "status": 200,
+  "finalPath": "/signin",
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "page",
+  "path": "/search?g=:id",
+  "status": 200,
+  "finalPath": "/search",
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "api",
+  "path": "/groups/:id/export",
+  "status": 403,
+  "type": "text/plain",
+  "bytes": 22,
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "api",
+  "path": "/groups/:id/countdown-image",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "api",
+  "path": "/groups/:id/square-image",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "api",
+  "path": "/groups/:id/wrapped-image",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "api",
+  "path": "/groups/:id/remind",
+  "status": 303,
+  "bytes": 0,
+  "location": "/private",
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "api",
+  "path": "/api/group-photo/:id",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "api",
+  "path": "/api/my-data",
+  "status": 401,
+  "type": "text/plain",
+  "bytes": 14,
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "api",
+  "path": "/api/unread",
+  "status": 200,
+  "type": "application/json",
+  "bytes": 7,
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "api",
+  "path": "/api/people?g=:id",
+  "status": 200,
+  "type": "application/json",
+  "bytes": 2,
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "api",
+  "path": "/api/receipt/:id",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "api",
+  "path": "/passport/image",
+  "status": 404,
+  "type": "text/plain",
+  "bytes": 9,
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "api",
+  "path": "/api/cron/daily",
+  "status": 401,
+  "type": "application/json",
+  "bytes": 23,
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "api",
+  "path": "/api/cron/evening",
+  "status": 401,
+  "type": "application/json",
+  "bytes": 23,
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "api",
+  "path": "/api/health",
+  "status": 200,
+  "type": "application/json",
+  "bytes": 11,
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "api",
+  "path": "/api/move",
+  "status": 307,
+  "bytes": 0,
+  "location": "/",
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "api",
+  "path": "/api/arrive",
+  "status": 303,
+  "bytes": 0,
+  "location": "/",
+  "leaked": []
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "api-post",
+  "path": "/api/speed",
+  "status": 204
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "api-post",
+  "path": "/api/push",
+  "status": 400
+ },
+ {
+  "who": "signed_out_elsewhere",
+  "kind": "api-post",
+  "path": "/api/receipt?group=:id (bill photo upload)",
+  "status": 403,
+  "stored": 0
+ },
+ {
+  "who": "anonymous",
+  "kind": "rate-limit",
+  "path": "/signin (12 code requests, same email)",
+  "status": "200,200,200,200,200,200,200,200,200,200,200,200",
+  "emailsQueued": 12
+ }
+]

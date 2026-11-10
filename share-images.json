@@ -1,0 +1,17 @@
+[
+ {
+  "name": "square-image",
+  "status": 200,
+  "type": "image/png"
+ },
+ {
+  "name": "wrapped-image",
+  "status": 200,
+  "type": "image/png"
+ },
+ {
+  "name": "countdown-image",
+  "status": 404,
+  "type": "text/plain;charset=UTF-8"
+ }
+]

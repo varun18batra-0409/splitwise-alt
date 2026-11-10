@@ -1,0 +1,29 @@
+== GET /
+HTTP/1.1 200 OK
+content-security-policy: default-src 'self'; script-src 'self' 'nonce-MWM5ZDI2Y2UtYzQ3My00MDkwLTk1ZGYtOTVlZjcxMGVmZDVi' 'strict-dynamic'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self' https://accounts.google.com; frame-ancestors 'none'
+X-Frame-Options: DENY
+X-Content-Type-Options: nosniff
+Referrer-Policy: strict-origin-when-cross-origin
+Permissions-Policy: camera=(self), microphone=(self), geolocation=(), payment=(), usb=(), interest-cohort=()
+Strict-Transport-Security: max-age=63072000; includeSubDomains
+== GET /signin
+HTTP/1.1 200 OK
+content-security-policy: default-src 'self'; script-src 'self' 'nonce-MDM1YjhkZGEtMDU4Yi00ZjRkLTlkNmEtY2EwMGM1NjFlYjdj' 'strict-dynamic'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self' https://accounts.google.com; frame-ancestors 'none'
+X-Frame-Options: DENY
+X-Content-Type-Options: nosniff
+Referrer-Policy: strict-origin-when-cross-origin
+Permissions-Policy: camera=(self), microphone=(self), geolocation=(), payment=(), usb=(), interest-cohort=()
+Strict-Transport-Security: max-age=63072000; includeSubDomains
+== GET /privacy
+HTTP/1.1 200 OK
+content-security-policy: default-src 'self'; script-src 'self' 'nonce-NmMxMzlkNmUtZDM5MC00ZmUzLWE1NjItMmZlODU0MjQ3MDBj' 'strict-dynamic'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self' https://accounts.google.com; frame-ancestors 'none'
+X-Frame-Options: DENY
+X-Content-Type-Options: nosniff
+Referrer-Policy: strict-origin-when-cross-origin
+Permissions-Policy: camera=(self), microphone=(self), geolocation=(), payment=(), usb=(), interest-cohort=()
+Strict-Transport-Security: max-age=63072000; includeSubDomains
+== GET /api/health (no key)
+{"ok":true}
+== GET /api/health (operator key)
+{"ok":true,"appRegion":"local","dbRegion":"other","roundTripMs":[0,0,0,0,0],"medianMs":0,"countMs":1,"billReading":false}
+scripts carrying the page nonce on /: 34
