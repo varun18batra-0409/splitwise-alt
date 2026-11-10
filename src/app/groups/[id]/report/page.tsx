@@ -17,7 +17,7 @@ export const metadata = { title: "Trip report" };
 export default async function ReportPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const myId = await getMyMemberId(id);
-  const data = await loadGroup(id);
+  const data = await loadGroup(id, { events: false });
   if (!data) notFound();
   if (!myId || !data.group.members.some((m) => m.id === myId)) redirect("/private");
   const { group, expenses, transfers } = data;

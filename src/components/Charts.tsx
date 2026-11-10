@@ -84,7 +84,7 @@ function BarRow({ d, max }: { d: BarDatum; max: number }) {
         </span>
         <span className="shrink-0 tabular-nums text-gray-500">
           {d.valueText}
-          {d.href && <span aria-hidden className="ml-1.5 text-fg/35">›</span>}
+          {d.href && <span aria-hidden className="ml-1.5 text-fg/60">›</span>}
         </span>
       </div>
       <div className="h-2 rounded-full bg-mist">

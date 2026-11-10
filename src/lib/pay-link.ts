@@ -57,7 +57,7 @@ export async function readPayLink(token: string, now = new Date()): Promise<PayL
   if (!TOKEN.test(token)) return { kind: "gone" };
   const link = await db.payLink.findUnique({ where: { token } });
   if (!link || link.expiresAt < now) return { kind: "gone" };
-  const data = await loadGroup(link.groupId);
+  const data = await loadGroup(link.groupId, { events: false });
   if (!data) return { kind: "gone" };
   const { group, transfers, payments } = data;
   const from = group.members.find((m) => m.id === link.fromId);

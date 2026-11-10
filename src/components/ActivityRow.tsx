@@ -7,11 +7,11 @@ import { GearIcon, SettleIcon } from "./icons";
 // Right-hand side: what it meant for you. The amount first (bold), what it is
 // underneath; rows that weren't yours stay quiet.
 function Effect({ label, amount, sub, cls }: { label: string; amount?: string; sub?: string; cls: string }) {
-  if (!amount) return <span className="shrink-0 text-right text-[12px] leading-tight text-fg/35">{label}</span>;
+  if (!amount) return <span className="shrink-0 text-right text-[12px] leading-tight text-fg/60">{label}</span>;
   return (
     <span className="shrink-0 text-right leading-tight">
       <span className={`block text-[15px] font-semibold tabular-nums tracking-tight ${cls}`}>{amount}</span>
-      <span className="mt-0.5 block text-[11px] text-fg/40">
+      <span className="mt-0.5 block text-[11px] text-fg/60">
         {label}
         {sub && <span className="tabular-nums"> · {sub}</span>}
       </span>
@@ -19,7 +19,7 @@ function Effect({ label, amount, sub, cls }: { label: string; amount?: string; s
   );
 }
 
-const meta = "mt-0.5 truncate text-[13px] text-fg/45";
+const meta = "mt-0.5 truncate text-[13px] text-fg/60";
 
 // One line of history: an expense, a settle-up payment or a group change,
 // and what it meant for you. Deleted items stay visible, crossed out.
@@ -60,7 +60,7 @@ export function ActivityRow({
   if (item.kind === "payment") {
     const to = nameOf(item.toId);
     return (
-      <div className={`flex items-center gap-3.5 py-3.5 ${deleted ? "opacity-60" : ""}`}>
+      <div className={`flex items-center gap-3.5 py-3.5 ${deleted ? "opacity-[.85]" : ""}`}>
         <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-owed/[0.12] text-owed ring-1 ring-inset ring-owed/15">
           <SettleIcon size={18} />
         </span>
@@ -113,14 +113,14 @@ export function ActivityRow({
   const o = item.original;
   const shown = (orig: number, base: number) => (o ? formatMoney(orig, o.currency) : money(base));
   return (
-    <div className={`flex items-center gap-3.5 py-3.5 ${deleted ? "opacity-60" : ""}`}>
+    <div className={`flex items-center gap-3.5 py-3.5 ${deleted ? "opacity-[.85]" : ""}`}>
       <ExpenseGlyph title={item.title} category={item.category} motion={deleted ? undefined : motion} delay={delay} label={cat.label} />
       <div className="min-w-0 flex-1">
         <p className="flex min-w-0 items-center gap-1.5" title={cat.label}>
           <span className={`truncate text-[15px] font-semibold tracking-tight ${deleted ? "line-through decoration-gray-400" : ""}`}>{item.title}</span>
           {item.refund && <span className="shrink-0 rounded-md bg-owed/[0.14] px-1.5 py-[3px] text-[10px] font-semibold uppercase leading-none tracking-wide text-owed">Back</span>}
           {item.notes && (
-            <svg aria-label="Has notes" role="img" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-fg/35">
+            <svg aria-label="Has notes" role="img" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-fg/60">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8" />
             </svg>
           )}

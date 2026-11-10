@@ -2,6 +2,12 @@ import { db } from "./db";
 import { logEvent } from "./events";
 import { cleanEmail } from "./auth";
 import { sendMail } from "./mail";
+import { allow } from "./rate-limit";
+
+// Invite and "added you" emails one person can send in a day. The whole app's
+// daily email allowance is small, so one person (or a spammer) can't use it up.
+export const INVITE_EMAILS_PER_DAY = 20;
+const inviteMailOk = (actor: { id: string; accountId?: string | null }) => allow(`invite-mail:${actor.accountId || actor.id}`, INVITE_EMAILS_PER_DAY, 86_400);
 
 // Adding people to a group. Nobody can be added by just typing a name:
 //  - people already on Loopin (signed up with email) can be added directly;
@@ -39,7 +45,9 @@ export async function searchPeople(memberships: Record<string, string>, groupId:
   const out: Found[] = known
     .filter((a) => a.email.includes(q) || nameOfAccount(a).toLowerCase().includes(q))
     .map((a) => ({ accountId: a.id, name: nameOfAccount(a), email: a.email, inGroup: inGroup.has(a.id), known: true }));
-  if (exact && !out.some((f) => f.email === exact.email)) out.push({ accountId: exact.id, name: nameOfAccount(exact), email: exact.email, inGroup: inGroup.has(exact.id), known: false });
+  // A full email of someone you share nothing with is not looked up here: the screen offers the same
+  // "Add" for any email (on Loopin → added; not yet → invited), so nobody can check who has an account.
+  void exact;
   // Don't offer the person searching (they're already in the group).
   return out.filter((f) => f.accountId !== me?.accountId).slice(0, 8);
 }
@@ -76,7 +84,7 @@ export async function addRegistered(groupId: string, actorId: string, accountId:
   const { memberId, eventId } = await db.$transaction(async (tx) => {
     const m = existing
       ? await tx.member.update({ where: { id: existing.id }, data: { leftAt: null } })
-      : await tx.member.create({ data: { name, groupId, accountId, claimedAt: new Date(), splitWeight: group.joinWeight } });
+      : await tx.member.create({ data: { name, groupId, accountId, claimedAt: new Date(), splitWeight: group.joinWeight, addedBy: actorId } });
     const eventId = await logEvent(tx, {
       groupId,
       actorId,
@@ -88,11 +96,12 @@ export async function addRegistered(groupId: string, actorId: string, accountId:
     return { memberId: m.id, eventId };
   });
   await copyPushTo(accountId, memberId);
-  const email = () => sendMail(
+  const email = async () => (await inviteMailOk(actor)) && sendMail(
     account.email,
     `${actor.name} added you to ${group.name} on Loopin`,
     `${actor.name} added you to “${group.name}” on Loopin.\n\nOpen it: ${origin}/groups/${groupId}`,
     `<div style="font-family:system-ui,sans-serif;max-width:440px"><p style="font-size:16px"><strong>${esc(actor.name)}</strong> added you to <strong>${esc(group.name)}</strong> on Loopin.</p><p><a href="${origin}/groups/${groupId}" style="display:inline-block;background:#0d0d0f;color:#f4f2ec;padding:12px 18px;text-decoration:none;font-weight:600">Open ${esc(group.name)}</a></p></div>`,
+    { optOut: true },
   );
   if (opts.later) opts.later(email);
   else await email();
@@ -102,7 +111,7 @@ export async function addRegistered(groupId: string, actorId: string, accountId:
 // Invite people by email. Someone already on Loopin is added straight away;
 // everyone else gets a link and joins after verifying their email.
 export async function inviteByEmail(groupId: string, actorId: string, rawEmails: string, origin: string, opts: { later?: (job: () => Promise<unknown>) => void } = {}) {
-  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true, name: true } } } });
+  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true, name: true, accountId: true } } } });
   const actor = group?.members.find((m) => m.id === actorId);
   if (!group || !actor) return { added: [] as string[], invited: [] as string[], bad: [] as string[] };
   const parts = [...new Set(rawEmails.split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean))].slice(0, 20);
@@ -126,11 +135,16 @@ export async function inviteByEmail(groupId: string, actorId: string, rawEmails:
       update: { invitedById: actorId, acceptedAt: null, createdAt: new Date() },
     });
     const link = `${origin}/join/${group.inviteCode}?e=${encodeURIComponent(email)}`;
+    if (!(await inviteMailOk(actor))) {
+      bad.push(`${email} (you've sent ${INVITE_EMAILS_PER_DAY} invite emails today; share the invite link instead)`);
+      continue;
+    }
     const sent = await sendMail(
       email,
       `${actor.name} invited you to ${group.name} on Loopin`,
       `${actor.name} invited you to split expenses in “${group.name}” on Loopin.\n\nJoin here: ${link}`,
       `<div style="font-family:system-ui,sans-serif;max-width:440px"><p style="font-size:16px"><strong>${esc(actor.name)}</strong> invited you to split expenses in <strong>${esc(group.name)}</strong> on Loopin.</p><p><a href="${link}" style="display:inline-block;background:#0d0d0f;color:#f4f2ec;padding:12px 18px;text-decoration:none;font-weight:600">Join ${esc(group.name)}</a></p></div>`,
+      { optOut: true },
     );
     if (sent) invited.push(email);
     else bad.push(`${email} (the email couldn’t be sent; share the invite link instead)`);
@@ -162,11 +176,13 @@ export async function inviteToClaim(groupId: string, actorId: string, memberId: 
     update: { invitedById: actorId, acceptedAt: null, createdAt: new Date() },
   });
   const link = `${origin}/join/${group.inviteCode}?${new URLSearchParams({ e: email, as: member.id })}`;
+  if (!(await inviteMailOk(actor))) return { ok: false, error: `You've sent ${INVITE_EMAILS_PER_DAY} invite emails today. Share the group's invite link instead.` };
   const sent = await sendMail(
     email,
     `${actor.name} added you to ${group.name} on Loopin`,
     `${actor.name} added you as “${member.name}” in “${group.name}” on Loopin. Tap to join and see your share:\n\n${link}`,
     `<div style="font-family:system-ui,sans-serif;max-width:440px"><p style="font-size:16px"><strong>${esc(actor.name)}</strong> added you as <strong>${esc(member.name)}</strong> in <strong>${esc(group.name)}</strong> on Loopin.</p><p><a href="${link}" style="display:inline-block;background:#0d0d0f;color:#f4f2ec;padding:12px 18px;text-decoration:none;font-weight:600">Join as ${esc(member.name)}</a></p></div>`,
+    { optOut: true },
   );
   if (!sent) return { ok: false, error: "The email couldn’t be sent. Share the group’s invite link instead." };
   await logEvent(db, { groupId, actorId, kind: "member_invited", text: `invited ${member.name} (${email}) to join` });

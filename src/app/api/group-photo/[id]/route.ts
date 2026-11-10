@@ -4,6 +4,7 @@ import { getMyMemberId } from "@/lib/identity";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { MAX_PHOTO_BYTES, photoType } from "@/lib/covers";
 import { stripImageMetadata } from "@/lib/strip-meta";
+import { readPhoto, removePhotos, storePhoto } from "@/lib/photo-store";
 
 // A group's own photo: shown only to people in the group; anyone in it can
 // replace it. The phone makes the photo small before sending it.
@@ -18,9 +19,10 @@ async function memberOf(groupId: string) {
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const [me, photo] = await Promise.all([memberOf(id), db.groupPhoto.findUnique({ where: { groupId: id } })]);
-  if (!me || !photo) return new Response("Not found", { status: 404, headers: { "Cache-Control": "private, no-store" } });
+  const bytes = photo ? await readPhoto(photo) : null;
+  if (!me || !photo || !bytes) return new Response("Not found", { status: 404, headers: { "Cache-Control": "private, no-store" } });
   // The address carries the photo's version (?v=…), so the phone can keep it for good.
-  return new Response(new Uint8Array(photo.data), {
+  return new Response(new Uint8Array(bytes), {
     headers: { "Content-Type": photo.type, "Cache-Control": "private, max-age=31536000, immutable", "X-Content-Type-Options": "nosniff" },
   });
 }
@@ -41,13 +43,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const clean = stripImageMetadata(bytes); // no camera details or location
   if (!type) return Response.json({ ok: false, error: "Pick a photo (JPEG, PNG or WebP)." }, { status: 415 });
   const now = new Date();
+  const old = await db.groupPhoto.findUnique({ where: { groupId: id }, select: { blobKey: true } });
+  const stored = await storePhoto("group", clean, type);
   await db.$transaction([
     db.groupPhoto.upsert({
       where: { groupId: id },
-      create: { groupId: id, data: clean, type, createdById: me.id, updatedAt: now },
-      update: { data: clean, type, createdById: me.id, updatedAt: now },
+      create: { groupId: id, data: stored.data, blobKey: stored.blobKey, type, createdById: me.id, updatedAt: now },
+      update: { data: stored.data, blobKey: stored.blobKey, type, createdById: me.id, updatedAt: now },
     }),
     db.group.update({ where: { id }, data: { cover: "own", coverAt: now } }),
   ]);
+  await removePhotos([old?.blobKey]);
   return Response.json({ ok: true });
 }

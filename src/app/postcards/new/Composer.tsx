@@ -329,7 +329,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
               style={{ fontFamily: `'${HANDS.find((h) => h.id === hand)?.family}', cursive`, color: INKS.find((i) => i.id === ink)?.c }}
             />
           </label>
-          <p className="mt-1 text-right text-xs text-fg/40">{message.length}/500</p>
+          <p className="mt-1 text-right text-xs text-fg/60">{message.length}/500</p>
 
           <span className={label}>Handwriting</span>
           <div className="-mx-5 flex gap-2 overflow-x-auto px-5 [scrollbar-width:none]" data-hands>
@@ -448,7 +448,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
             data-signoff
             className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-base outline-none focus:border-fg/40"
           />
-          <p className="mt-1.5 text-xs text-fg/45">How it’s signed at the end: your name, a nickname, “Mom &amp; Dad”, anything.</p>
+          <p className="mt-1.5 text-xs text-fg/60">How it’s signed at the end: your name, a nickname, “Mom &amp; Dad”, anything.</p>
           <button type="button" onClick={() => setTab("send")} disabled={!message.trim()} className="pop mt-8 flex h-12 w-full items-center justify-center bg-fg text-[15px] font-semibold text-canvas disabled:opacity-50">
             {message.trim() ? "Next: send it" : "Write a few words first"}
           </button>
@@ -502,7 +502,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
             );
           })}
           {groups.length > 0 && <OpensOn value={opensOn} onChange={setOpensOn} label={label} chip={chip} />}
-          <p className="mt-5 text-xs leading-relaxed text-fg/45">Only people who joined Loopin show here. Names typed into a group for someone not on Loopin can’t get postcards.</p>
+          <p className="mt-5 text-xs leading-relaxed text-fg/60">Only people who joined Loopin show here. Names typed into a group for someone not on Loopin can’t get postcards.</p>
           {groups.length > 0 && <Send count={to.length} ready={Boolean(message.trim())} />}
         </section>
       )}

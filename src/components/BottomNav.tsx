@@ -8,7 +8,7 @@ import { BellIcon, ChartIcon, HomeIcon, PlusIcon, SettleIcon } from "./icons";
 // The bar at the bottom of every main screen, floating as a frosted pill: Home, Recap, ＋, Settle, Alerts.
 // Inside a group, Search / ＋ / Settle work on that group.
 // Hidden on forms (adding, editing, paying, joining) so it never gets in the way.
-const HIDE = [/^\/join/, /^\/groups\/new$/, /\/add$/, /^\/add$/, /\/edit$/, /\/pay$/, /^\/signin/, /^\/welcome$/, /^\/collect\//, /^\/c\//, /^\/postcards\/new/];
+const HIDE = [/^\/join/, /^\/groups\/new$/, /\/add$/, /^\/add$/, /\/edit$/, /\/pay$/, /^\/signin/, /^\/welcome$/, /^\/collect\//, /^\/c\//, /^\/p\//, /^\/postcards\/new/];
 
 export function BottomNav() {
   const path = usePathname();
@@ -39,7 +39,7 @@ export function BottomNav() {
       href={it.href}
       aria-current={it.on ? "page" : undefined}
       aria-label={it.badge ? `${it.label}, ${it.badge} new` : it.label}
-      className={`relative flex flex-1 flex-col items-center gap-[3px] py-1 text-[11px] font-semibold transition-colors ${it.on ? "text-fg" : "text-fg/45"}`}
+      className={`relative flex flex-1 flex-col items-center gap-[3px] py-1 text-[11px] font-semibold transition-colors ${it.on ? "text-fg" : "text-fg/75"}`}
     >
       {it.icon}
       <span>{it.label}</span>

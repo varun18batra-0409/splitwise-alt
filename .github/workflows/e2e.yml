@@ -42,7 +42,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install
+      - run: npm ci
       # The browsers, kept between runs: downloading them sometimes hangs on GitHub's machines.
       - name: Browser cache
         uses: actions/cache@v4
@@ -126,7 +126,7 @@ jobs:
           [ -n "$VERCEL_AUTOMATION_BYPASS_SECRET" ] || missing="$missing VERCEL_AUTOMATION_BYPASS_SECRET"
           [ -z "$missing" ] || { echo "::error title=Missing GitHub secrets::$missing"; exit 1; }
           [ "$TURSO_DATABASE_URL" != "$LIVE_TURSO_DATABASE_URL" ] || { echo "::error title=Stopped::The staging database is the LIVE database."; exit 1; }
-      - run: npm install
+      - run: npm ci
       # The browsers, kept between runs: downloading them sometimes hangs on GitHub's machines.
       - name: Browser cache
         uses: actions/cache@v4

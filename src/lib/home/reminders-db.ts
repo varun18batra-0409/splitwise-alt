@@ -13,7 +13,7 @@ export async function sendReminders(now = new Date()) {
   const groups = await db.group.findMany({ where: { type: "home", reminders: true, deletedAt: null, closed: false }, select: { id: true } });
   const input: ReminderGroup[] = [];
   for (const { id } of groups) {
-    const data = await loadGroup(id);
+    const data = await loadGroup(id, { events: false });
     if (!data) continue;
     const bills = await billStatuses(id, now);
     input.push({

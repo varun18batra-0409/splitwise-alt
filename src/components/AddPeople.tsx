@@ -115,13 +115,13 @@ export function PeopleSearch({ groupId }: { groupId: string }) {
             <li className="flex items-center gap-3 px-3 py-2.5">
               <span className="min-w-0 flex-1 text-sm">
                 <span className="block truncate">{q.trim()}</span>
-                <span className="block text-xs text-gray-400">Not on Loopin yet</span>
+                <span className="block text-xs text-gray-400">Added if they’re on Loopin, otherwise emailed an invite</span>
               </span>
               <form action={invitePeople}>
                 <input type="hidden" name="groupId" value={groupId} />
                 <input type="hidden" name="emails" value={q.trim()} />
-                <button type="submit" className="shrink-0 border border-line px-3 py-1.5 text-sm font-medium text-fg active:bg-mist rounded-full">
-                  Send invite
+                <button type="submit" className="pop shrink-0 bg-fg px-3 py-1.5 text-sm font-semibold text-canvas [--pop-edge:#6e6b63]" data-add-by-email>
+                  Add
                 </button>
               </form>
             </li>

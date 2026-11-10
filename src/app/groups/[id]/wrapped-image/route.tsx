@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const myId = await getMyMemberId(id);
-  const data = myId ? await loadGroup(id) : null;
+  const data = myId ? await loadGroup(id, { events: false }) : null;
   if (!data || !myId || !data.group.members.some((m) => m.id === myId)) return new Response("Not found", { status: 404, headers: { "Cache-Control": "private, no-store" } });
   const { group, expenses, transfers } = data;
   const people = group.members.filter((m) => !m.leftAt).map((m) => ({ id: m.id, name: m.name }));
@@ -32,28 +32,28 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const tile = (accent: string, top: string, big: string, small: string) => (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, borderRadius: 34, padding: "30px 32px 34px", background: "#18181c", border: `2px solid ${accent}55` }}>
       <div style={{ display: "flex", fontSize: 24, letterSpacing: 5, fontWeight: 700, color: accent }}>{top.toUpperCase()}</div>
-      <div style={{ display: "flex", marginTop: 12, fontSize: 54, fontWeight: 700, lineHeight: 1.05, fontFamily: "Display" }}>{big}</div>
+      <div style={{ display: "flex", marginTop: 12, fontSize: 54, fontWeight: 700, lineHeight: 1.05, fontFamily: "Display, SansExt" }}>{big}</div>
       <div style={{ display: "flex", marginTop: 8, fontSize: 30, color: MUTE }}>{small}</div>
     </div>
   );
   return new ImageResponse(
     (
-      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", padding: "100px 70px 80px", color: FG, fontFamily: "Sans", background: "radial-gradient(90% 45% at 90% 0%, rgba(216,189,122,0.22), rgba(13,13,15,0) 70%), radial-gradient(80% 40% at 0% 100%, rgba(111,227,168,0.12), rgba(13,13,15,0) 70%), linear-gradient(170deg, #1a1a1f 0%, #0d0d0f 75%)" }}>
+      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", padding: "100px 70px 80px", color: FG, fontFamily: "Sans, SansExt", background: "radial-gradient(90% 45% at 90% 0%, rgba(216,189,122,0.22), rgba(13,13,15,0) 70%), radial-gradient(80% 40% at 0% 100%, rgba(111,227,168,0.12), rgba(13,13,15,0) 70%), linear-gradient(170deg, #1a1a1f 0%, #0d0d0f 75%)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 44 }}>
           <div style={{ display: "flex", background: "#f4f1e8", padding: "14px 14px 46px", transform: "rotate(-5deg)", boxShadow: "0 26px 50px rgba(0,0,0,0.6)" }}>
             <div style={{ width: 330, height: 300, display: "flex", overflow: "hidden", background: "#24242a" }}>
-              {photo ? <img src={photo} width={330} height={300} style={{ objectFit: "cover" }} alt="" /> : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 64, fontFamily: "Display", color: "#d8bd7a" }}>Wrapped</div>}
+              {photo ? <img src={photo} width={330} height={300} style={{ objectFit: "cover" }} alt="" /> : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 64, fontFamily: "Display, SansExt", color: "#d8bd7a" }}>Wrapped</div>}
             </div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", flexShrink: 1 }}>
             <div style={{ display: "flex", fontSize: 24, letterSpacing: 8, color: "#d8bd7a", fontWeight: 700 }}>LOOPIN · WRAPPED</div>
-            <div style={{ display: "flex", marginTop: 14, fontSize: 72, fontWeight: 700, lineHeight: 1.02, fontFamily: "Display" }}>{group.name.slice(0, 22)}</div>
+            <div style={{ display: "flex", marginTop: 14, fontSize: 72, fontWeight: 700, lineHeight: 1.02, fontFamily: "Display, SansExt" }}>{group.name.slice(0, 22)}</div>
           </div>
         </div>
         {total && (
           <div style={{ display: "flex", flexDirection: "column", marginTop: 70 }}>
             <div style={{ display: "flex", fontSize: 26, letterSpacing: 6, color: "#d8bd7a", fontWeight: 700 }}>TOGETHER WE SPENT</div>
-            <div style={{ display: "flex", marginTop: 8, fontSize: total.amount.length > 11 ? 130 : 160, fontWeight: 700, lineHeight: 1, letterSpacing: -4, fontFamily: "Display" }}>{total.amount}</div>
+            <div style={{ display: "flex", marginTop: 8, fontSize: total.amount.length > 11 ? 130 : 160, fontWeight: 700, lineHeight: 1, letterSpacing: -4, fontFamily: "Display, SansExt" }}>{total.amount}</div>
             <div style={{ display: "flex", marginTop: 12, fontSize: 38, color: MUTE }}>About {total.each} each</div>
           </div>
         )}
@@ -73,7 +73,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
                     <path d={titleIconPath(a.title)} stroke="#b9a6ef" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
                   </g>
                 </svg>
-                <span style={{ fontFamily: "Display", fontWeight: 700 }}>{a.title}</span>
+                <span style={{ fontFamily: "Display, SansExt", fontWeight: 700 }}>{a.title}</span>
                 <span style={{ color: MUTE }}>{name(a.memberId)}</span>
               </div>
             ))}

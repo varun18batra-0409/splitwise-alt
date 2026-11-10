@@ -87,6 +87,8 @@ export default async function GroupPage({
   // at once (each is a trip to the database; one after another they add up).
   const memberships = await getMemberships();
   const myId = memberships[id];
+  // The first time someone added by another person opens the group (their passport is shared from now on).
+  if (myId) await db.member.updateMany({ where: { id: myId, groupId: id, addedBy: { not: "" }, seenAt: null }, data: { seenAt: new Date() } }).catch(() => undefined);
   if (!myId) {
     const exists = await db.group.findFirst({ where: { id, deletedAt: null }, select: { id: true } });
     if (!exists) notFound();
@@ -177,7 +179,7 @@ export default async function GroupPage({
             key={t.id}
             href={`/groups/${group.id}?tab=${t.id}`}
             aria-current={t.id === tab ? "page" : undefined}
-            className={`relative shrink-0 whitespace-nowrap pb-3 pt-1 text-[15px] font-semibold transition-colors ${t.id === tab ? "text-fg" : "text-fg/45"}`}
+            className={`relative shrink-0 whitespace-nowrap pb-3 pt-1 text-[15px] font-semibold transition-colors ${t.id === tab ? "text-fg" : "text-fg/60"}`}
           >
             {t.label}
             {t.id === tab && <span aria-hidden className="absolute inset-x-0 -bottom-px h-[2px] rounded-full bg-[var(--color-tint,var(--color-fg))]" />}

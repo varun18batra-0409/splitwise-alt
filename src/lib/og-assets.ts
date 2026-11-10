@@ -13,6 +13,9 @@ export async function loadOgFonts(origin: string): Promise<OgFont[]> {
     ["display-700", "Display", 700],
     ["sans-500", "Sans", 500],
     ["sans-700", "Sans", 700],
+    // ₹ and other currency signs: the picture maker falls back to these for any glyph the others lack.
+    ["sans-ext-500", "SansExt", 500],
+    ["sans-ext-700", "SansExt", 700],
   ];
   await Promise.all(
     want.map(async ([key, name, weight]) => {

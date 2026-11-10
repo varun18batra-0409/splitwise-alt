@@ -33,7 +33,7 @@ jobs:
           [ -n "$VERCEL_AUTOMATION_BYPASS_SECRET" ] || { echo "::error title=Staging::VERCEL_AUTOMATION_BYPASS_SECRET is missing"; exit 1; }
           [ "$TURSO_DATABASE_URL" != "$LIVE_URL" ] || { echo "::error title=Staging::The staging database is the LIVE database. Stopping."; exit 1; }
           echo "::notice title=Staging::settings present; staging database is not the live one"
-      - run: npm install
+      - run: npm ci
       - run: npm install --no-save tsx@4.19.2 # Playwright itself comes with @playwright/test (one version for everything)
       # The browsers, kept between runs: downloading them sometimes hangs on GitHub's machines.
       - name: Browser cache

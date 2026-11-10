@@ -69,7 +69,7 @@ export function PostcardShare({ front, back, name }: { front: FrontProps; back: 
         </svg>
         {busy ? "Making the pictures…" : "WhatsApp & more"}
       </button>
-      <p className="mt-2 text-center text-xs text-fg/45" role="status">
+      <p className="mt-2 text-center text-xs text-fg/60" role="status">
         {note || "WhatsApp and other apps get two pictures: the front, then the back."}
       </p>
     </div>

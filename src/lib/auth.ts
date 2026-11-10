@@ -30,6 +30,10 @@ export async function requestLoginCode(rawEmail: string, ip: string, origin: str
   if (!testing && (!(await allow(`code-ip:${ip}`, 8, 15 * 60, now)) || !(await allow(`code-email:${email}`, 4, 15 * 60, now)))) {
     return { ok: false, error: "Too many codes asked for. Wait 15 minutes and try again." };
   }
+  // At most 12 codes a day for one address (5 tries each): guessing a code stays hopeless.
+  if (!testing && !(await allow(`code-email-day:${email}`, 12, 86_400, now))) {
+    return { ok: false, error: "Too many codes asked for today. Try again tomorrow, or use Continue with Google." };
+  }
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
   await db.loginCode.create({
     data: { email, codeHash: hashLoginCode(email, code), expiresAt: new Date(now.getTime() + CODE_MINUTES * 60_000) },
@@ -90,6 +94,7 @@ export async function deleteAccount(accountId: string) {
   const stillUsed = photoIds.length
     ? new Set((await db.postcard.findMany({ where: { photoId: { in: photoIds }, id: { notIn: cards.map((c) => c.id) } }, select: { photoId: true } })).map((c) => c.photoId))
     : new Set<string>();
+  const goneFiles = (await db.postcardPhoto.findMany({ where: { id: { in: photoIds.filter((p) => !stillUsed.has(p)) } }, select: { blobKey: true } })).map((p) => p.blobKey);
   await db.$transaction([
     db.member.updateMany({ where: { accountId }, data: { accountId: null } }),
     db.loginCode.deleteMany({ where: { email: acc.email } }),
@@ -102,4 +107,6 @@ export async function deleteAccount(accountId: string) {
     db.collectionEntry.updateMany({ where: { accountId }, data: { accountId: "" } }),
     db.account.delete({ where: { id: accountId } }),
   ]);
+  const { removePhotos } = await import("./photo-store");
+  await removePhotos(goneFiles);
 }

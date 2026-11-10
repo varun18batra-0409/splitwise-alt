@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { hasLeft, LEFT_ERROR } from "./active";
 import { buildExpense, type ExpenseDraft } from "./expense";
 import { getCategory, guessCategory, isCategory } from "./categories";
 import { formatMoney, isSupportedCurrency } from "./money";
@@ -255,6 +256,7 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
   if (!actingMemberId || !expense.group.members.some((m) => m.id === actingMemberId)) {
     return { ok: false, error: "Only people in this group can delete or restore its expenses." };
   }
+  if (await hasLeft(expense.groupId, actingMemberId)) return { ok: false, error: LEFT_ERROR };
   if (expense.group.deletedAt) return { ok: false, error: "This group was deleted." };
   if (expense.group.closed) return { ok: false, error: "This group is closed. Reopen it to change expenses." };
   if (Boolean(expense.deletedAt) === deleted) return { ok: true, id: expense.id };
@@ -296,6 +298,7 @@ async function setPaymentDeletedOnce(paymentId: string, actingMemberId: string |
   if (!actingMemberId || !payment.group.members.some((m) => m.id === actingMemberId)) {
     return { ok: false, error: "Only people in this group can delete its payments." };
   }
+  if (await hasLeft(payment.groupId, actingMemberId)) return { ok: false, error: LEFT_ERROR };
   if (payment.group.deletedAt) return { ok: false, error: "This group was deleted." };
   if (payment.group.closed) return { ok: false, error: "This group is closed. Reopen it to change payments." };
   if (Boolean(payment.deletedAt) === deleted) return { ok: true, id: payment.id };

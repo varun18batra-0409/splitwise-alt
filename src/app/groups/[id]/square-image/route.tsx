@@ -3,6 +3,7 @@ import { loadGroup } from "@/lib/group-data";
 import { getMyMemberId } from "@/lib/identity";
 import { formatMoney } from "@/lib/money";
 import { photoData } from "@/lib/share-photo";
+import { loadOgFonts } from "@/lib/og-assets";
 import { squareNumbers } from "@/lib/square";
 
 // "All square" as a story-sized picture (1080 × 1920) for WhatsApp status or
@@ -12,12 +13,13 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const myId = await getMyMemberId(id);
-  const data = myId ? await loadGroup(id) : null;
+  const data = myId ? await loadGroup(id, { events: false }) : null;
   if (!data || !data.group.members.some((m) => m.id === myId)) return new Response("Not found", { status: 404, headers: { "Cache-Control": "private, no-store" } });
   const { group, expenses, payments } = data;
   const people = group.members.filter((m) => !m.leftAt);
   const n = squareNumbers({ expenses, payments, people: people.length, tripStart: group.tripStart, tripEnd: group.tripEnd });
-  const photo = await photoData(group, new URL(req.url).origin);
+  const origin = new URL(req.url).origin;
+  const [photo, fonts] = await Promise.all([photoData(group, origin), loadOgFonts(origin)]);
   const stats: [string, string][] = [
     [formatMoney(n.spent, group.currency), "spent together"],
     [String(n.expenses), n.expenses === 1 ? "expense" : "expenses"],
@@ -25,7 +27,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   ];
   return new ImageResponse(
     (
-      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", padding: "150px 90px 110px", color: "#f4f2ec", background: "radial-gradient(100% 60% at 20% 0%, #2f8a62 0%, #0c1511 72%)" }}>
+      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", padding: "150px 90px 110px", color: "#f4f2ec", fontFamily: "Sans, SansExt", background: "radial-gradient(100% 60% at 20% 0%, #2f8a62 0%, #0c1511 72%)" }}>
         <div style={{ display: "flex", flexDirection: "column", background: "#f4f1e8", padding: "22px 22px 0", transform: "rotate(-3deg)", boxShadow: "0 40px 80px rgba(0,0,0,0.6)" }}>
           <div style={{ width: 700, height: 600, display: "flex", overflow: "hidden", background: "linear-gradient(160deg, #1f6b4a 0%, #6fe3a8 100%)" }}>
             {photo ? <img src={photo} width={700} height={600} style={{ objectFit: "cover" }} alt="" /> : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 260 }}>🎉</div>}
@@ -45,6 +47,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         <div style={{ marginTop: "auto", display: "flex", fontSize: 32, letterSpacing: 4, color: "#77736a" }}>made with loopin</div>
       </div>
     ),
-    { width: 1080, height: 1920, emoji: "twemoji", headers: { "Cache-Control": "private, max-age=300" } },
+    { width: 1080, height: 1920, emoji: "twemoji", fonts: fonts.length ? fonts : undefined, headers: { "Cache-Control": "private, max-age=300" } },
   );
 }

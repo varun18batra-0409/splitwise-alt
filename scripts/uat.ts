@@ -352,12 +352,37 @@ async function main() {
     await Z.getByRole("button", { name: /^Join / }).click();
     await Z.waitForURL(new RegExp(`${g}$`));
   });
+  await step(V, "Joining", "Invite emails carry an unsubscribe link: one tap stops them, and the next invite to that address isn't sent", async () => {
+    await go(V, `${g}/invite`);
+    await V.getByLabel("Email addresses to invite").fill(email("optout"));
+    await V.getByRole("button", { name: "Invite", exact: true }).click();
+    await V.waitForURL(/invited=/);
+    const row = await db.outbox.findFirst({ where: { to: email("optout") }, orderBy: { createdAt: "desc" } });
+    const link = /https?:\/\/\S+\/api\/unsubscribe\?\S+/.exec(row?.text ?? "")?.[0];
+    assert(link, "no unsubscribe link in the invite email");
+    const u = new URL(link);
+    const page = await V.request.get(`${base}${u.pathname}${u.search}`, { headers: bypass });
+    assert(/Stop invite emails\?/.test(await page.text()), "unsubscribe page didn't ask first");
+    const forged = await V.request.post(`${base}${u.pathname}?e=${encodeURIComponent(email("optout"))}&s=wrongsignature`, { headers: bypass });
+    assert(/doesn’t work/.test(await forged.text()), "a forged unsubscribe link worked");
+    const done = await V.request.post(`${base}${u.pathname}${u.search}`, { headers: bypass });
+    assert(/Done/.test(await done.text()), "unsubscribe didn't finish");
+    const before = await db.outbox.count({ where: { to: email("optout") } });
+    await db.invite.deleteMany({ where: { email: email("optout") } });
+    await go(V, `${g}/invite`);
+    await V.getByLabel("Email addresses to invite").fill(email("optout"));
+    await V.getByRole("button", { name: "Invite", exact: true }).click();
+    await V.waitForURL(/invited=|error=/);
+    assert((await db.outbox.count({ where: { to: email("optout") } })) === before, "an invite was emailed after unsubscribing");
+  });
   await step(V, "Joining", "Add people shows everyone as “On Loopin ✓” and no pending invites", async () => {
     await go(V, `${g}/invite`);
     const t = (await V.locator("main ul").last().innerText()).replace(/\s+/g, " ");
     const n = (t.match(/On Loopin ✓/g) ?? []).length;
     assert(n === 4, `statuses: ${t}`);
-    assert((await V.getByText("Invited · waiting to join").count()) === 0, "Zoe's invite still pending");
+    // Zoe joined, so her invite is gone (the unsubscribe test's address stays invited: it never joins).
+    const pending = (await V.locator("main").innerText()).replace(/\s+/g, " ");
+    assert(!pending.includes(email("zoe")), "Zoe's invite still pending");
     return `${n} verified members`;
   });
   await step(V, "Joining", "Contacts option is there (share sheet when the phone can't pick contacts)", async () => {
@@ -683,12 +708,23 @@ async function main() {
     payments.push({ from: "Zoe", to: "Asha", amount: 5000, active: true, key: "manual" });
     return checkBalances(V, g);
   });
+  await step(V, "Settle", "Paying more than owed (an extra zero) asks first and saves nothing until confirmed", async () => {
+    await go(V, `${g}/pay`);
+    await V.locator("label", { hasText: "Zoe" }).first().click();
+    await V.locator("label[data-to]", { hasText: "Asha" }).click();
+    await V.locator('input[name="amount"]').fill("50000");
+    const before = await db.payment.count({ where: { groupId: g.split("/").pop()!, deletedAt: null } });
+    await V.getByRole("button", { name: "Record payment" }).click();
+    await V.locator("[data-over-warning]").waitFor();
+    const t = (await V.locator("[data-over-warning]").innerText()).replace(/\s+/g, " ");
+    assert(/more than Zoe owes/.test(t), `warning says: ${t}`);
+    assert((await db.payment.count({ where: { groupId: g.split("/").pop()!, deletedAt: null } })) === before, "a payment was saved before confirming");
+  });
   await step(V, "Settle", "You can't record paying yourself", async () => {
     await go(V, `${g}/pay`);
     await V.locator("label", { hasText: "Asha" }).first().click();
     const target = V.locator("label[data-to]", { hasText: "Asha" });
-    const op = await target.evaluate((el) => getComputedStyle(el).opacity);
-    assert(Number(op) < 0.5, `“Asha → Asha” is not greyed out (opacity ${op})`);
+    assert(!(await target.isVisible()), "“Asha → Asha” is still offered under Paid to");
     // Even if forced, the server says no.
     await V.evaluate(() => {
       const r = document.querySelector<HTMLInputElement>('label[data-to] input[name="toId"]');
@@ -848,7 +884,7 @@ async function main() {
   });
 
   // ===== 8. Everything else people do =====
-  await step(V, "Add people", "Search by name only finds friends; a stranger is found only by exact email, then added", async () => {
+  await step(V, "Add people", "Search by name only finds friends; a full email gets the same neutral Add (no account revealed) and adds a stranger who is on Loopin", async () => {
     const x = await person(browser);
     await go(x.page, "/signin?mode=signup");
     await signup(x.page, "Sheldon", email("sheldon"));
@@ -857,8 +893,11 @@ async function main() {
     await V.getByLabel("Search people on Loopin").fill("Sheldon");
     await V.getByText(/Not someone you share a group with/).waitFor();
     await V.getByLabel("Search people on Loopin").fill(email("sheldon"));
-    await V.getByText("On Loopin ✓").first().waitFor();
-    await V.getByRole("button", { name: "Add", exact: true }).first().click();
+    // The same neutral row for any email (nobody can check who has an account); on Loopin → added straight away.
+    await V.locator("[data-add-by-email]").waitFor();
+    const results = (await V.locator("ul").filter({ has: V.locator("[data-add-by-email]") }).innerText()).replace(/\s+/g, " ");
+    assert(!/On Loopin/.test(results) && /Added if they’re on Loopin/.test(results), `a stranger's account was revealed by their email: ${results}`);
+    await V.locator("[data-add-by-email]").click();
     await V.waitForURL(/added=Sheldon/);
   });
   await step(A, "Alerts", "Asha sees an unread alert badge and Varun's changes in Alerts", async () => {
@@ -1445,6 +1484,12 @@ async function main() {
     const data = (await loadGroup(homeId()))!;
     const asha = data.group.members.find((m) => m.name === "Asha")!;
     assert(asha.leftAt, "Asha isn't marked as moved out");
+    // Someone who left keeps the history but not the invite link or settings.
+    await go(A, `${gh}/invite`);
+    await A.locator("[data-left-member]").waitFor();
+    assert(!/\/join\//.test(await A.locator("main").innerText()), "a person who moved out still sees the invite link");
+    await go(A, `${gh}/settings`);
+    assert(/\/people/.test(A.url()), `settings stayed open for a person who moved out: ${A.url()}`);
     const sum = Object.values(data.net).reduce((a, b) => a + b, 0);
     assert(sum === 0 && data.net[asha.id] === 0, `net ${JSON.stringify(data.net)}`);
   });
@@ -1910,6 +1955,14 @@ async function main() {
     const got = Object.fromEntries(e.shares.filter((x) => x.amount).map((x) => [x.member.name, x.amount]));
     assert(JSON.stringify(got) === JSON.stringify({ Varun: 35400, Asha: 82600 }) || (got.Varun === 35400 && got.Asha === 82600 && Object.keys(got).length === 2), `item split saved as ${JSON.stringify(got)}`);
     assert(/By item: Pizza .*600.* \(Varun, Asha\); Beer .*400.* \(Asha\)/.test(e.notes ?? ""), `notes: ${e.notes}`);
+    // Editing reopens the items (not just the amounts), and saving again doesn't repeat the notes line.
+    await go(V, `${g}/expenses/${e.id}/edit`);
+    await V.locator("[data-item-split]").waitFor();
+    assert((await V.getByLabel("Item 1", { exact: true }).inputValue()) === "Pizza", "editing didn't reopen the items");
+    await V.getByRole("button", { name: /Save/ }).first().click();
+    await V.waitForURL(/tab=activity/);
+    const again = await db.expense.findUniqueOrThrow({ where: { id: e.id } });
+    assert((again.notes.match(/By item:/g) ?? []).length === 1, `notes repeated the items: ${again.notes}`);
   });
   await step(V, "Add", "A bill photo stays with the expense: Asha can open it, and someone outside the group can't", async () => {
     const o = { me: "Varun" as Person, name: "Lunch bill", amount: "500" };
@@ -1927,6 +1980,18 @@ async function main() {
     const outside = await x.page.request.get(`${base}/api/receipt/${r!.id}`, { headers: bypass });
     assert(outside.status() === 404, `someone outside the group got ${outside.status()}`);
     await x.ctx.close();
+  });
+  await step(V, "Edit", "Editing shows the bill photo already kept, with Replace and Remove; Remove takes it off when saved", async () => {
+    const e = await db.expense.findFirstOrThrow({ where: { groupId: g.split("/").pop()!, description: "Lunch bill" } });
+    await go(V, `${g}/expenses/${e.id}/edit`);
+    const current = V.locator("[data-bill-current]");
+    await current.waitFor();
+    await current.getByRole("button", { name: "Replace" }).waitFor();
+    await current.getByRole("button", { name: "Remove" }).click();
+    await V.getByText("The photo will be removed when you save.").waitFor();
+    await V.getByRole("button", { name: "Save changes" }).click();
+    await V.waitForURL(/tab=activity/);
+    assert(!(await db.receipt.findFirst({ where: { expenseId: e.id } })), "the bill photo is still attached after Remove + save");
   });
 
   await step(null, "Sign in", "A wrong code is refused with a clear message, and the right one still works", async () => {

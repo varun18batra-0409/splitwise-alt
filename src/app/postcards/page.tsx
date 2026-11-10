@@ -38,7 +38,7 @@ export default async function PostcardsPage() {
             {p.reaction && <SealMark id={p.reaction} k={`s${p.id}`} className="absolute -bottom-3 -right-2 w-[24%] rotate-[10deg]" />}
           </Link>
           <p className="mt-2.5 flex items-center gap-1.5 truncate text-[13px] text-fg/70">
-            {label === "Received" && !p.readAt && <span aria-label="New" className="h-2 w-2 shrink-0 rounded-full bg-owed" />}
+            {label === "Received" && !p.readAt && <span className="h-2 w-2 shrink-0 rounded-full bg-owed"><span className="sr-only">New</span></span>}
             {who(p)}
           </p>
         </li>

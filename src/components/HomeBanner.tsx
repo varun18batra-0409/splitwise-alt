@@ -71,7 +71,7 @@ export function HomeBanner({ children, seconds = 5 }: { children: React.ReactNod
                   hold();
                   show(i);
                 }}
-                className="flex h-8 w-[22px] items-center justify-center"
+                className="flex h-8 w-[26px] items-center justify-center"
               >
                 <span className={`block h-1.5 rounded-full transition-all duration-300 ${i === at ? "w-[18px] bg-fg" : "w-1.5 bg-fg/35"}`} />
               </button>

@@ -3,6 +3,7 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { chromium, webkit, type Page } from "playwright";
 import { SESSION_COOKIE, encodeSession } from "../src/lib/session";
+import { guessCategory } from "../src/lib/categories";
 
 import { base, hosted, signInOnTestCopy, withBypass } from "./hosted";
 const demo = JSON.parse(readFileSync(".demo.json", "utf8"));
@@ -331,7 +332,7 @@ if (!hosted) {
     const spent = (description: string, amount: number, paidById: string) =>
       db.expense.create({
         data: {
-          groupId: pune.id, description, amount, splitType: "equal", forMode: "everyone", category: "food", paidById,
+          groupId: pune.id, description, amount, splitType: "equal", forMode: "everyone", category: guessCategory(description), paidById,
           originalAmount: amount, originalCurrency: "INR", baseCurrency: "INR", convertedAmount: amount, createdById: paidById, spentAt: new Date(),
           shares: { create: [v, pr, n].map((memberId) => ({ memberId, amount: amount / 3 })) },
         },

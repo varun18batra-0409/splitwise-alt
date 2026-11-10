@@ -24,7 +24,7 @@ export function PassportCompare({ sets }: { sets: CompareSet[] }) {
             data-compare-tab={s.key}
             className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-[13px] ${s.key === set.key ? "border-fg bg-fg font-semibold text-canvas" : "border-line text-fg/70 active:bg-mist"}`}
           >
-            {s.label} <span className={s.key === set.key ? "text-canvas/60" : "text-fg/40"}>{s.countries.length}</span>
+            {s.label} <span className={s.key === set.key ? "text-canvas/60" : "text-fg/60"}>{s.countries.length}</span>
           </button>
         ))}
       </div>

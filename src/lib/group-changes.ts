@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { hasLeft, LEFT_ERROR } from "./active";
 import { logEvent } from "./events";
 import { formatMoney, formatPercent, isSupportedCurrency } from "./money";
 import { parseRate } from "./conversion";
@@ -15,6 +16,7 @@ export async function updateGroupBasics(
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (!group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can change it." };
+  if (await hasLeft(groupId, actorId)) return { ok: false, error: LEFT_ERROR };
   const name = changes.name?.trim().replace(/\s+/g, " ").slice(0, 60);
   if (changes.name !== undefined && !name) return { ok: false, error: "Give the group a name." };
 
@@ -71,6 +73,7 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
   });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (!group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can change it." };
+  if (await hasLeft(groupId, actorId)) return { ok: false, error: LEFT_ERROR };
   if (!isSupportedCurrency(newCurrency)) return { ok: false, error: "Pick a currency from the list." };
   if (newCurrency === group.currency) return { ok: true };
   const hasMoney = group.expenses.length > 0 || group.payments.length > 0;

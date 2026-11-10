@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import localFont from "next/font/local";
 import "./globals.css";
 import { BottomNav } from "@/components/BottomNav";
@@ -50,14 +51,16 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // The page's one-time script key (set by middleware): only scripts carrying it may run.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <html lang="en" className={`${fraunces.variable} ${caveat.variable} ${instrument.variable}`} suppressHydrationWarning>
       <head>
         {/* Opening the app: the opening screen stays at least 1.5 seconds (and until the app is ready), once per visit. */}
-        <script dangerouslySetInnerHTML={{ __html: OPENING }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: OPENING }} />
         {/* What Loopin is, for search engines (a free web app on Android and iPhone). */}
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(APP_INFO) }} />
+        <script type="application/ld+json" nonce={nonce} dangerouslySetInnerHTML={{ __html: JSON.stringify(APP_INFO) }} />
       </head>
       <body className="antialiased">
         <div className="lp-open" aria-hidden>

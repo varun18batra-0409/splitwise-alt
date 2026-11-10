@@ -50,6 +50,8 @@ export default async function GroupSettings({
   if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  // Someone who left can still read the group, but not change it.
+  if (group.members.find((m) => m.id === myId)?.leftAt) redirect(`/groups/${group.id}/people?error=${encodeURIComponent("You left this group. Rejoin it to change its settings.")}`);
 
   const isPreset = PRESETS.includes(group.cardMarkupBp);
   // Deleting the group and changing its currency are for the person who started it.
@@ -142,7 +144,7 @@ export default async function GroupSettings({
             {group._count.expenses + group._count.payments > 0 && " Changing it converts existing amounts (you’ll confirm the rate)."}
           </p>
           {isAdmin ? (
-            <CurrencySelect name="currency" defaultValue={group.currency} />
+            <CurrencySelect name="currency" defaultValue={group.currency} label="Group currency" />
           ) : (
             <>
               <input type="hidden" name="currency" value={group.currency} />
@@ -229,13 +231,15 @@ export default async function GroupSettings({
         <input type="hidden" name="groupId" value={group.id} />
         <label className="block">
           <span className="mb-2 block text-base font-semibold">Group type</span>
+          {/* Just the name in the box (a long hint was cut off on phones); the current type's hint sits under it. */}
           <select name="type" defaultValue={group.type} className={inputClass}>
             {GROUP_TYPES.map((t) => (
               <option key={t.id} value={t.id}>
-                {t.label} · {t.hint}
+                {t.label}
               </option>
             ))}
           </select>
+          <span className="mt-1.5 block text-xs text-gray-500">{GROUP_TYPES.find((t) => t.id === group.type)?.hint}</span>
         </label>
         <fieldset>
           <legend className="mb-1 text-base font-semibold">{group.type === "couple" ? "Each person’s %" : "Shares"}</legend>
