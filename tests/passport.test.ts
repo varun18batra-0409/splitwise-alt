@@ -42,7 +42,7 @@ describe("Trip passport: stamps", () => {
     expect(p.stamps.some((s) => s.code === "IT" && !s.byHand)).toBe(true);
   });
   it("counts places once, not stamps", () => {
-    expect(p.stats).toEqual({ cities: 4, countries: 4, abroad: 3, trips: 5, thisYear: 3 });
+    expect(p.stats).toEqual({ cities: 4, countries: 4, abroad: 3, trips: 5, thisYear: 3, continents: 2 });
     expect(p.index.map((r) => [r.code, r.trips, r.byHand, r.cities.join("/")])).toEqual([
       ["IN", 3, false, "Goa"],
       ["IT", 1, true, "Rome"],

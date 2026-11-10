@@ -116,7 +116,7 @@ export function buildPassport(trips: PassportTrip[], hand: HandPlace[], home: st
   if (countriesMark) milestones.push(countriesMark.chip);
   else if (abroad.length >= 3) milestones.push(`${abroad.length} countries abroad 🌍`);
   const continentsMark = top("continents");
-  if (continentsMark) milestones.push(continentsMark.chip);
+  if (continentsMark && continentsMark.n >= 3) milestones.push(continentsMark.chip);
   for (const r of rows) for (const city of r.cities) {
     const n = cityTrips.get(`${r.code}|${city.toLowerCase()}`) ?? 0;
     if (n >= 3) milestones.push(`${city} ×${n} 🔁`);
