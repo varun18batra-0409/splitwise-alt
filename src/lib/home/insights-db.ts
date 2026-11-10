@@ -77,7 +77,7 @@ export async function sendMonthlySummaries(now = new Date()) {
   let sent = 0;
   for (const { id } of groups) {
     if (!(await claimOnce(`summary:${id}:${last}`))) continue;
-    const data = await loadGroup(id);
+    const data = await loadGroup(id, { events: false });
     if (!data) continue;
     const history = await varyingHistory(id);
     const jump = utilityJumps(history, last)[0];

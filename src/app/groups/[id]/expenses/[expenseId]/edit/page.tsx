@@ -14,6 +14,7 @@ import { PageHeader } from "@/components/ui";
 import { SheetPage } from "@/components/SheetPage";
 import { coverFor } from "@/lib/covers";
 import { placePhoto } from "@/lib/places";
+import { currencyInfo } from "@/lib/money";
 
 // Edit an expense: everything can change (name, amount, currency, category,
 // who paid, who it was for, how it's split). Anyone in the group can; the change
@@ -39,6 +40,15 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
 
   const back = `/groups/${group.id}?tab=activity`;
   const receipt = await db.receipt.findFirst({ where: { groupId: group.id, expenseId: e.id }, select: { id: true } });
+  const savedItems = await db.expenseItem.findMany({ where: { expenseId: e.id }, orderBy: { position: "asc" } });
+  const digits = currencyInfo(e.originalCurrency).decimals;
+  const initialItems = savedItems.map((x) => {
+    let people: string[] = [];
+    try {
+      people = JSON.parse(x.people);
+    } catch {}
+    return { name: x.name, amount: (x.amount / 10 ** digits).toFixed(digits), people: people.filter((p) => typeof p === "string") };
+  });
   const blocked =
     e.deletedAt
         ? "This expense was deleted. Restore it from the Activity list to change it."
@@ -81,6 +91,7 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
         tz={tz}
         expenseId={e.id}
         existingReceiptId={receipt?.id}
+        initialItems={initialItems.length ? initialItems : undefined}
         initial={initial}
         weights={groupWeights}
         splitName={splitNameFor(group.type)}

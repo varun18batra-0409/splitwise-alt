@@ -220,7 +220,7 @@ export async function joinAsNew(formData: FormData) {
 
 // Saves a new expense — or changes an existing one — then goes back to the group page.
 export async function addExpense(
-  input: SaveExpenseInput & { again?: boolean; billRun?: { billId: string; period: string }; receiptId?: string },
+  input: SaveExpenseInput & { again?: boolean; billRun?: { billId: string; period: string }; receiptId?: string; items?: { name: string; amount: number; people: string[] }[] },
 ): Promise<{ error: string; duplicateOf?: { id: string; description: string; amount: number; by: string; when: string } }> {
   if (!(await allow(`expense:${(await originAndIp()).ip}`, 300, 3600))) return { error: "Too many changes in a short time. Wait a few minutes." };
   // Fetch (and cache) today's rate before saving, so the save itself never waits on the internet.
@@ -242,6 +242,15 @@ export async function addExpense(
     await removePhotos(old.map((o) => o.blobKey));
   };
   if (me && result.id && input.receiptId === "remove") await dropReceipts(result.id);
+  // Split by item: keep the bill's lines so editing reopens them (none = not split by item).
+  if (me && result.id && Array.isArray(input.items)) {
+    const ids = new Set((await db.member.findMany({ where: { groupId: input.groupId }, select: { id: true } })).map((m) => m.id));
+    const lines = input.items
+      .slice(0, 40)
+      .filter((x) => x && typeof x.name === "string" && Number.isSafeInteger(x.amount) && x.amount > 0 && Array.isArray(x.people))
+      .map((x, i) => ({ expenseId: result.id, position: i, name: x.name.slice(0, 40), amount: x.amount, people: JSON.stringify([...new Set(x.people.filter((p) => typeof p === "string" && ids.has(p)))]) }));
+    await db.$transaction([db.expenseItem.deleteMany({ where: { expenseId: result.id } }), ...(lines.length ? [db.expenseItem.createMany({ data: lines })] : [])]);
+  }
   if (me && result.id && typeof input.receiptId === "string" && /^[A-Za-z0-9_-]{6,40}$/.test(input.receiptId)) {
     const r = await db.receipt.findFirst({ where: { id: input.receiptId, groupId: input.groupId, expenseId: "" }, select: { id: true } });
     if (r) {
@@ -500,7 +509,7 @@ export async function settleAcrossGroups(formData: FormData) {
 
   for (const p of parts) {
     const myId = memberships[String(p.groupId)];
-    const data = myId ? await loadGroup(String(p.groupId)) : null;
+    const data = myId ? await loadGroup(String(p.groupId), { events: false }) : null;
     if (!data || !myId) redirect("/settle?settle=error");
     const ok = data.transfers.some((t) => t.from === p.fromId && t.to === p.toId && t.amount === p.amount) && (p.fromId === myId || p.toId === myId);
     if (!ok) redirect("/settle?settle=changed"); // balances moved since the page loaded
@@ -561,7 +570,7 @@ export async function recordCustomPayment(formData: FormData) {
   // More than they owe (often a typo with an extra zero): ask once before saving.
   if (!potGame && !fromSettle && formData.get("over") !== "1") {
     const { loadGroup } = await import("@/lib/group-data");
-    const data = await loadGroup(group.id);
+    const data = await loadGroup(group.id, { events: false });
     const owes = Math.max(0, -(data?.net[fromId] ?? 0));
     if (amount! > owes)
       redirect(`/groups/${group.id}/pay?${new URLSearchParams({ from: fromId, to: toId, amount: amountText, owes: String(owes) })}`);

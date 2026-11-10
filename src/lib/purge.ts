@@ -27,6 +27,7 @@ export async function eraseGroups(ids: string[]) {
   await db.$transaction([
     db.reaction.deleteMany({ where: { memberId: { in: memberIds } } }),
     db.expenseShare.deleteMany({ where: { expense: inG } }),
+    db.expenseItem.deleteMany({ where: { expense: inG } }),
     db.expense.deleteMany({ where: inG }),
     db.payment.deleteMany({ where: inG }),
     db.groupEvent.deleteMany({ where: inG }),

@@ -108,7 +108,8 @@ model Expense {
   paidById    String // the payer (with several, the one who paid most)
   paidBy      Member         @relation("PaidBy", fields: [paidById], references: [id])
   createdAt   DateTime       @default(now())
-  shares      ExpenseShare[] // one line per person; receipt items can hang off this later
+  shares      ExpenseShare[] // one line per person
+  items       ExpenseItem[] // split by item: the bill's lines (the shares above are what they add up to)
 
   spentAt     DateTime? // the day it was spent (chosen when adding); empty = the day it was added
   createdById String    @default("") // who added it
@@ -645,4 +646,18 @@ model Receipt {
 model EmailOptOut {
   email     String   @id
   createdAt DateTime @default(now())
+}
+
+// Split by item: one line of the bill, in the expense's own currency, and who had it.
+// The expense's shares are worked out from these (tax/tip shared by what each had);
+// kept so editing reopens the items.
+model ExpenseItem {
+  id        String  @id @default(cuid())
+  expenseId String
+  expense   Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  position  Int     @default(0)
+  name      String
+  amount    Int // minor units of the expense's currency
+  people    String  @default("[]") // JSON member ids
+  @@index([expenseId])
 }

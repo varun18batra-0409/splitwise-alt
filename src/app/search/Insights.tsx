@@ -155,9 +155,10 @@ export function Insights({ d }: { d: InsightsData }) {
         </div>
 
         {/* The bars, with a light scale behind them */}
+        {/* A group, not an image: each bar is its own link (an image can't hold links). */}
         <div
-          role="img"
-          aria-label={d.bars.map((b) => `${bucketLabel(b.key, d.grain)}: ${formatMoney(Math.max(0, b.value), d.currency)}`).join(", ")}
+          role="group"
+          aria-label="Spending over time (tap a bar to open that period)"
           className="relative mt-5 h-[168px] pl-11"
         >
           {[1, 0.5, 0].map((f) => (

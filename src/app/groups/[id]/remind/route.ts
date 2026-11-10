@@ -15,7 +15,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const url = new URL(req.url);
   const fromId = url.searchParams.get("from") ?? "";
   const home = new URL(`/groups/${id}/settle`, url.origin);
-  const data = await loadGroup(id);
+  const data = await loadGroup(id, { events: false });
   const myId = data ? await getMyMemberId(id) : undefined;
   if (!data || !myId || !data.group.members.some((m) => m.id === myId)) return Response.redirect(new URL("/private", url.origin), 303);
   const { group, transfers } = data;

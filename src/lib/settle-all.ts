@@ -21,7 +21,7 @@ export async function settleAllAndClose(groupId: string, actorId: string, expect
 }
 
 async function settleAllOnce(groupId: string, actorId: string, expectedPlan: string): Promise<Result> {
-  const data = await loadGroup(groupId);
+  const data = await loadGroup(groupId, { events: false });
   if (!data) return { ok: false, error: "This group no longer exists." };
   const { group, transfers } = data;
   if (!group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can do this." };
@@ -95,7 +95,7 @@ export async function markAllPaid(groupId: string, actorId: string, pickIn: Pick
   if ((await previousResult(key)) !== null) return { ok: true };
   try {
     return await withRetry(async () => {
-    const data = await loadGroup(groupId);
+    const data = await loadGroup(groupId, { events: false });
     if (!data) return { ok: false, error: "This group no longer exists." };
     const { group, transfers } = data;
     if (!group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can do this." };

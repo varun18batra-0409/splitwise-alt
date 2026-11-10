@@ -14,7 +14,7 @@ import { Confetti } from "@/components/Confetti";
 // "All square": nobody owes anybody. A moment worth sharing, not just a zero.
 export default async function SquarePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const data = await loadGroup(id);
+  const data = await loadGroup(id, { events: false });
   if (!data) notFound();
   const { group, expenses, payments, transfers } = data;
   const myId = await getMyMemberId(group.id);

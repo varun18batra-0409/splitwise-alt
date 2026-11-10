@@ -1953,6 +1953,14 @@ async function main() {
     const got = Object.fromEntries(e.shares.filter((x) => x.amount).map((x) => [x.member.name, x.amount]));
     assert(JSON.stringify(got) === JSON.stringify({ Varun: 35400, Asha: 82600 }) || (got.Varun === 35400 && got.Asha === 82600 && Object.keys(got).length === 2), `item split saved as ${JSON.stringify(got)}`);
     assert(/By item: Pizza .*600.* \(Varun, Asha\); Beer .*400.* \(Asha\)/.test(e.notes ?? ""), `notes: ${e.notes}`);
+    // Editing reopens the items (not just the amounts), and saving again doesn't repeat the notes line.
+    await go(V, `${g}/expenses/${e.id}/edit`);
+    await V.locator("[data-item-split]").waitFor();
+    assert((await V.getByLabel("Item 1", { exact: true }).inputValue()) === "Pizza", "editing didn't reopen the items");
+    await V.getByRole("button", { name: /Save/ }).first().click();
+    await V.waitForURL(/tab=activity/);
+    const again = await db.expense.findUniqueOrThrow({ where: { id: e.id } });
+    assert((again.notes.match(/By item:/g) ?? []).length === 1, `notes repeated the items: ${again.notes}`);
   });
   await step(V, "Add", "A bill photo stays with the expense: Asha can open it, and someone outside the group can't", async () => {
     const o = { me: "Varun" as Person, name: "Lunch bill", amount: "500" };
