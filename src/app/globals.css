@@ -64,6 +64,8 @@ html {
 body {
   background: var(--color-canvas);
   color: var(--color-fg);
+  /* A very long word (a group name with no spaces, a long email) wraps instead of pushing the page sideways. */
+  overflow-wrap: anywhere;
 }
 
 ::selection {
@@ -103,6 +105,7 @@ body {
     font-weight: 600;
     letter-spacing: -0.03em;
     font-variant-numeric: tabular-nums;
+    overflow-wrap: normal; /* an amount never breaks in the middle */
   }
 }
 
