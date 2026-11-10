@@ -1136,7 +1136,7 @@ async function main() {
   });
   await step(A, "Account", "Sign out of this phone, sign back in: all groups come back", async () => {
     await go(A, "/account");
-    await A.getByRole("button", { name: "Sign out" }).click();
+    await A.getByRole("button", { name: "Sign out", exact: true }).click();
     await A.waitForURL(base + "/");
     await go(A, "/signin");
     await signup(A, "Asha", email("asha"));
@@ -1866,7 +1866,7 @@ async function main() {
     await page.getByText(/Android phone|This device|Mac|Windows computer/).first().waitFor();
     const keys = await db.passkey.count({ where: { accountId: (await db.account.findUniqueOrThrow({ where: { email: email("pia") } })).id } });
     assert(keys === 1, `passkeys saved: ${keys}`);
-    await page.getByRole("button", { name: "Sign out" }).click();
+    await page.getByRole("button", { name: "Sign out", exact: true }).click();
     await page.waitForURL(base + "/");
     await go(page, "/signin");
     await page.getByRole("button", { name: /Sign in with fingerprint or face/ }).click();
