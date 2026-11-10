@@ -14,5 +14,7 @@ jobs:
           echo "::notice title=Headers home::$(curl -sI "$s/" | grep -iE '^(strict-transport|content-security|x-frame|referrer-policy|permissions-policy|x-content-type|cache-control|server):' | tr -d '\r' | tr '\n' ' ')"
           echo "::notice title=Headers api::$(curl -sI "$s/api/health" | grep -iE '^(strict-transport|content-security|x-frame|access-control)' | tr -d '\r' | tr '\n' ' ')"
           echo "::notice title=TLS::$(curl -sv -o /dev/null "$s/" 2>&1 | grep -E 'SSL connection using|expire date' | tr '\n' ' ')"
-          for n in loopinapps.com send.loopinapps.com resend._domainkey.loopinapps.com _dmarc.loopinapps.com mail.loopinapps.com; do echo "::notice title=DNS $n::TXT=$(dig +short TXT $n | tr '\n' ' ') MX=$(dig +short MX $n | tr '\n' ' ')"; done
+          echo "::notice title=Bill reading::$(curl -s "$s/api/health" | grep -o '"billReading":[a-z]*')"
+          echo "::notice title=Receipt outsider::$(curl -s -o /dev/null -w '%{http_code}' "$s/api/receipt/abcdefghijkl") post=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$s/api/receipt?group=abcdefghijkl")"
+          echo "::notice title=Guide mentions::scan=$(curl -s "$s/how-it-works" | grep -c 'Scan a bill') items=$(curl -s "$s/how-it-works" | grep -c 'Items</strong>') privacy-ai=$(curl -s "$s/privacy" | grep -c 'Anthropic')"
           echo "::notice title=keep-warm::$(curl -s -o /dev/null -w '%{time_total}' $s/api/health)s"
