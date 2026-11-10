@@ -50,6 +50,10 @@ model Group {
   budgets    Budget[]
   goals      Goal[]
   deposit    Deposit?
+  invites    Invite[]
+  payLinks   PayLink[]
+  photo      GroupPhoto?
+  receipts   Receipt[]
 }
 
 model Member {
@@ -72,6 +76,9 @@ model Member {
   paymentsSent Payment[]      @relation("PaymentFrom")
   paymentsRecv Payment[]      @relation("PaymentTo")
   pushSubscriptions PushSubscription[]
+  reactions    Reaction[]
+  payLinksFrom PayLink[] @relation("PayLinkFrom")
+  payLinksTo   PayLink[] @relation("PayLinkTo")
 
 
   // Added later: kept at the end so the online database can simply add the columns.
@@ -113,6 +120,7 @@ model Expense {
   paidBy      Member         @relation("PaidBy", fields: [paidById], references: [id])
   createdAt   DateTime       @default(now())
   shares      ExpenseShare[] // one line per person
+  reactions   Reaction[]
   items       ExpenseItem[] // split by item: the bill's lines (the shares above are what they add up to)
 
   spentAt     DateTime? // the day it was spent (chosen when adding); empty = the day it was added
@@ -236,6 +244,10 @@ model Account {
   // Passport moments already celebrated ("countries-10 continents-3"); "-" = none yet.
   // Empty = never checked: older accounts start from what they have, silently.
   passportMarks String @default("")
+  passkeys      Passkey[]
+  notes         AccountNote[]
+  postcardsSent Postcard[] @relation("PostcardFrom")
+  postcardsRecv Postcard[] @relation("PostcardTo")
 }
 
 // Notifications for a person rather than a group (Collect: "Asha added you",
@@ -243,6 +255,7 @@ model Account {
 model AccountNote {
   id        String    @id @default(cuid())
   accountId String
+  account   Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
   kind      String // "collect_added" | "collect_reminder" | "collect_paid" | "collect_ticked"
   title     String
   body      String
@@ -257,6 +270,7 @@ model AccountNote {
 model Invite {
   id          String    @id @default(cuid())
   groupId     String
+  group       Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
   email       String
   invitedById String
   createdAt   DateTime  @default(now())
@@ -455,6 +469,7 @@ model SpeedLog {
 model Passkey {
   id         String    @id // the credential id (base64url)
   accountId  String
+  account    Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
   publicKey  String // base64url
   counter    Int       @default(0)
   transports String    @default("") // comma-separated hints, e.g. "internal,hybrid"
@@ -466,10 +481,10 @@ model Passkey {
 
 // A group's own photo (picked on a phone, made small there first: about
 // 100–300 KB). Shown only to people in the group. One per group; a new one
-// replaces it. A plain id (no database link) so the online database can
-// simply add the table.
+// replaces it. Goes with its group.
 model GroupPhoto {
   groupId     String   @id
+  group       Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
   data        Bytes
   type        String   @default("image/webp")
   createdById String   @default("")
@@ -558,7 +573,9 @@ model PotMove {
 model Reaction {
   id        String   @id @default(cuid())
   expenseId String
+  expense   Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
   memberId  String
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
   emoji     String
   createdAt DateTime @default(now())
   @@unique([expenseId, memberId])
@@ -572,8 +589,11 @@ model PayLink {
   id          String   @id @default(cuid())
   token       String   @unique
   groupId     String
+  group       Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
   fromId      String // who owes (the one who taps "I've paid")
+  from        Member   @relation("PayLinkFrom", fields: [fromId], references: [id], onDelete: Cascade)
   toId        String // who's owed (the one who sent the reminder)
+  to          Member   @relation("PayLinkTo", fields: [toId], references: [id], onDelete: Cascade)
   createdById String
   paymentId   String   @default("") // the last payment made through it (for undo)
   createdAt   DateTime @default(now())
@@ -588,7 +608,9 @@ model PayLink {
 model Postcard {
   id          String    @id @default(cuid())
   fromId      String // account
+  from        Account   @relation("PostcardFrom", fields: [fromId], references: [id], onDelete: Cascade)
   toId        String // account
+  to          Account   @relation("PostcardTo", fields: [toId], references: [id], onDelete: Cascade)
   groupId     String    @default("") // the group it was sent from ("" = from the passport)
   front       String // "print:beach" | "photo:/photos/place-goa.jpg" | "own"
   photoId     String    @default("") // PostcardPhoto, when front = "own"
@@ -636,6 +658,7 @@ model PostcardPhoto {
 model Receipt {
   id          String   @id @default(cuid())
   groupId     String
+  group       Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
   expenseId   String   @default("")
   data        Bytes
   type        String   @default("image/jpeg")
