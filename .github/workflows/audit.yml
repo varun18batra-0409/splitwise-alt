@@ -71,6 +71,15 @@ jobs:
         if: matrix.part.name == 'checks'
         timeout-minutes: 15
         run: npx tsx loopin-prelaunch-audit/automation/negative.ts 2>&1 | tail -20 || true
+      - name: Response headers and public health check (DEF-021, DEF-026, DEF-033)
+        if: matrix.part.name == 'checks'
+        run: |
+          mkdir -p audit-out
+          { for u in / /signin /privacy; do echo "== GET $u"; curl -s -D - -o /dev/null "http://localhost:3000$u" | grep -iE "^(HTTP|content-security-policy|x-frame-options|referrer-policy|permissions-policy|strict-transport|x-content-type)"; done
+            echo "== GET /api/health (no key)"; curl -s http://localhost:3000/api/health; echo
+            echo "== GET /api/health (operator key)"; curl -s -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/health | head -c 400; echo; } > audit-out/headers.txt 2>&1
+          n=$(curl -s http://localhost:3000/ | grep -o '<script[^>]*nonce="[^"]*"' | wc -l); echo "scripts carrying the page nonce on /: $n" >> audit-out/headers.txt
+          cat audit-out/headers.txt
       - name: Financial cases FIN-M01 to FIN-M24 (four people tapping through the app)
         if: matrix.part.name == 'checks'
         timeout-minutes: 30
