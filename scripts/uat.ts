@@ -1982,6 +1982,18 @@ async function main() {
     assert(outside.status() === 404, `someone outside the group got ${outside.status()}`);
     await x.ctx.close();
   });
+  await step(V, "Edit", "Editing shows the bill photo already kept, with Replace and Remove; Remove takes it off when saved", async () => {
+    const e = await db.expense.findFirstOrThrow({ where: { groupId: g.split("/").pop()!, description: "Lunch bill" } });
+    await go(V, `${g}/expenses/${e.id}/edit`);
+    const current = V.locator("[data-bill-current]");
+    await current.waitFor();
+    await current.getByRole("button", { name: "Replace" }).waitFor();
+    await current.getByRole("button", { name: "Remove" }).click();
+    await V.getByText("The photo will be removed when you save.").waitFor();
+    await V.getByRole("button", { name: "Save changes" }).click();
+    await V.waitForURL(/tab=activity/);
+    assert(!(await db.receipt.findFirst({ where: { expenseId: e.id } })), "the bill photo is still attached after Remove + save");
+  });
 
   await step(null, "Sign in", "A wrong code is refused with a clear message, and the right one still works", async () => {
     const { ctx, page } = await person(browser);
