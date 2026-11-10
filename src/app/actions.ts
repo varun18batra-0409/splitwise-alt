@@ -235,14 +235,19 @@ export async function addExpense(
       : await saveExpense(input, me, getRate, { ignoreDoubleTap: true, requestKey, checkDuplicate: true });
   if (!result.ok) return { error: result.error, duplicateOf: result.duplicateOf };
   // A bill photo taken while adding: it now belongs to this expense (one per expense).
-  if (me && result.id && input.receiptId === "remove") await db.receipt.deleteMany({ where: { groupId: input.groupId, expenseId: result.id } });
+  const dropReceipts = async (expenseId: string) => {
+    const old = await db.receipt.findMany({ where: { groupId: input.groupId, expenseId }, select: { blobKey: true } });
+    await db.receipt.deleteMany({ where: { groupId: input.groupId, expenseId } });
+    const { removePhotos } = await import("@/lib/photo-store");
+    await removePhotos(old.map((o) => o.blobKey));
+  };
+  if (me && result.id && input.receiptId === "remove") await dropReceipts(result.id);
   if (me && result.id && typeof input.receiptId === "string" && /^[A-Za-z0-9_-]{6,40}$/.test(input.receiptId)) {
     const r = await db.receipt.findFirst({ where: { id: input.receiptId, groupId: input.groupId, expenseId: "" }, select: { id: true } });
-    if (r)
-      await db.$transaction([
-        db.receipt.deleteMany({ where: { groupId: input.groupId, expenseId: result.id } }),
-        db.receipt.update({ where: { id: r.id }, data: { expenseId: result.id } }),
-      ]);
+    if (r) {
+      await dropReceipts(result.id);
+      await db.receipt.update({ where: { id: r.id }, data: { expenseId: result.id } });
+    }
   }
   // Budgets: a nudge at 80% and when one goes over (after the reply is sent).
   after(() => checkBudgets(input.groupId).catch(() => []));

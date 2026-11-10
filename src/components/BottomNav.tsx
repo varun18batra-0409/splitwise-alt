@@ -39,7 +39,7 @@ export function BottomNav() {
       href={it.href}
       aria-current={it.on ? "page" : undefined}
       aria-label={it.badge ? `${it.label}, ${it.badge} new` : it.label}
-      className={`relative flex flex-1 flex-col items-center gap-[3px] py-1 text-[11px] font-semibold transition-colors ${it.on ? "text-fg" : "text-fg/45"}`}
+      className={`relative flex flex-1 flex-col items-center gap-[3px] py-1 text-[11px] font-semibold transition-colors ${it.on ? "text-fg" : "text-fg/60"}`}
     >
       {it.icon}
       <span>{it.label}</span>

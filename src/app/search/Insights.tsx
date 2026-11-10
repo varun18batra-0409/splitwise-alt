@@ -85,11 +85,11 @@ export function Insights({ d }: { d: InsightsData }) {
             </p>
             <p className="mt-2 text-xs">
               {running ? (
-                <span className="text-fg/45">
+                <span className="text-fg/60">
                   So far{before !== null && before > 0 ? ` · ${lastWord.toLowerCase()} ${approx}${formatMoney(before, d.currency)}` : ""}
                 </span>
               ) : change === null ? (
-                <span className="text-fg/45">Nothing to compare with yet</span>
+                <span className="text-fg/60">Nothing to compare with yet</span>
               ) : Math.abs(change) > 300 && before !== null ? (
                 // A tiny last month makes percentages silly (▲5534%): show the two amounts instead.
                 <span className="text-fg/55" data-insights-compare="amounts">
@@ -99,7 +99,7 @@ export function Insights({ d }: { d: InsightsData }) {
               ) : (
                 <span className={change > 0 ? "text-owe" : change < 0 ? "text-owed" : "text-fg/55"}>
                   {change > 0 ? "▲" : change < 0 ? "▼" : "•"} {Math.abs(change)}%{" "}
-                  <span className="text-fg/45">vs {bucketLabel(d.bars[i - 1].key, d.grain)}</span>
+                  <span className="text-fg/60">vs {bucketLabel(d.bars[i - 1].key, d.grain)}</span>
                 </span>
               )}
             </p>
@@ -162,7 +162,7 @@ export function Insights({ d }: { d: InsightsData }) {
         >
           {[1, 0.5, 0].map((f) => (
             <div key={f} aria-hidden className="absolute inset-x-0 flex items-center" style={{ bottom: `${f * 140 + 22}px` }}>
-              <span className="w-10 shrink-0 text-right text-[10px] tabular-nums text-fg/35">{compact(Math.round(top * f), d.currency)}</span>
+              <span className="w-10 shrink-0 text-right text-[10px] tabular-nums text-fg/60">{compact(Math.round(top * f), d.currency)}</span>
               <span className="ml-1 h-px flex-1 border-t border-dashed border-fg/10" />
             </div>
           ))}
@@ -176,7 +176,7 @@ export function Insights({ d }: { d: InsightsData }) {
                     className={`lp-bar-up w-full max-w-[30px] rounded-full ${on ? "bg-meter-up shadow-[0_0_22px_-4px_rgba(37,169,111,0.8)]" : "bg-fg/[0.13] group-active:bg-fg/25"}`}
                     style={{ height: `${h}px` }}
                   />
-                  <span className={`mt-2 h-3 whitespace-nowrap text-[10px] leading-3 tracking-tight ${on ? "font-semibold text-fg" : "text-fg/40"}`}>{bucketLabel(b.key, d.grain)}</span>
+                  <span className={`mt-2 h-3 whitespace-nowrap text-[10px] leading-3 tracking-tight ${on ? "font-semibold text-fg" : "text-fg/60"}`}>{bucketLabel(b.key, d.grain)}</span>
                 </Link>
               );
             })}
@@ -201,7 +201,7 @@ export function Insights({ d }: { d: InsightsData }) {
                       <span className="truncate font-medium">{cat.label}</span>
                       <span className="shrink-0 tabular-nums text-fg/80">
                         {approx}
-                        {formatMoney(Math.max(0, c.amount), d.currency)} <span className="text-xs text-fg/40">· {pct}%</span>
+                        {formatMoney(Math.max(0, c.amount), d.currency)} <span className="text-xs text-fg/60">· {pct}%</span>
                       </span>
                     </span>
                     <span className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-fg/[0.07]">
@@ -211,7 +211,7 @@ export function Insights({ d }: { d: InsightsData }) {
                       />
                     </span>
                   </span>
-                  <span aria-hidden className="text-fg/35">›</span>
+                  <span aria-hidden className="text-fg/60">›</span>
                   </Link>
                 </li>
               );

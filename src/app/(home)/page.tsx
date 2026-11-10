@@ -619,7 +619,7 @@ export default async function Home({
             <section className="mt-8" aria-label="More trips">
               <div className="mb-3 flex items-baseline justify-between">
                 <h2 className="font-display text-[22px] font-semibold tracking-tight">Also coming up</h2>
-                {trips.length > 2 && <span className="text-xs text-fg/40">Swipe for more</span>}
+                {trips.length > 2 && <span className="text-xs text-fg/60">Swipe for more</span>}
               </div>
               <TripRow>
                 {trips.slice(1).map((t) => (
@@ -703,7 +703,7 @@ export default async function Home({
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[15px] tracking-tight">{a.text}</span>
-                        {a.sub && <span className="mt-0.5 block truncate text-[12px] text-fg/40">{a.sub}</span>}
+                        {a.sub && <span className="mt-0.5 block truncate text-[12px] text-fg/60">{a.sub}</span>}
                       </span>
                       {a.amount && (
                         <span className={`shrink-0 text-[15px] font-semibold tabular-nums tracking-tight ${a.tone === "owe" ? "text-owe" : "text-owed"}`}>{a.amount}</span>
@@ -895,10 +895,10 @@ function GroupLine({ g, tz }: { g: Awaited<ReturnType<typeof loadOverview>>["all
           </span>
         </span>
         <span className="shrink-0 text-right leading-tight">
-          <span className={`money block text-[17px] ${b > 0 ? "text-owed" : b < 0 ? "text-owe" : "text-fg/40"}`}>
+          <span className={`money block text-[17px] ${b > 0 ? "text-owed" : b < 0 ? "text-owe" : "text-fg/60"}`}>
             {b > 0 ? `+${formatMoney(b, g.group.currency)}` : b < 0 ? `−${formatMoney(-b, g.group.currency)}` : "Settled"}
           </span>
-          {b !== 0 && <span className="block text-[11px] text-fg/45">{b > 0 ? "you’re owed" : "you owe"}</span>}
+          {b !== 0 && <span className="block text-[11px] text-fg/60">{b > 0 ? "you’re owed" : "you owe"}</span>}
         </span>
       </Link>
     </li>

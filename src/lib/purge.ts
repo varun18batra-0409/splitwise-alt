@@ -19,6 +19,11 @@ export async function eraseExpiredGroups(now = new Date(), limit = 100): Promise
 export async function eraseGroups(ids: string[]) {
   const inG = { groupId: { in: ids } };
   const memberIds = (await db.member.findMany({ where: inG, select: { id: true } })).map((m) => m.id);
+  // Photo files in file storage go too (group picture and bill photos).
+  const files = [
+    ...(await db.groupPhoto.findMany({ where: inG, select: { blobKey: true } })),
+    ...(await db.receipt.findMany({ where: inG, select: { blobKey: true } })),
+  ].map((f) => f.blobKey);
   await db.$transaction([
     db.reaction.deleteMany({ where: { memberId: { in: memberIds } } }),
     db.expenseShare.deleteMany({ where: { expense: inG } }),
@@ -42,4 +47,6 @@ export async function eraseGroups(ids: string[]) {
     db.member.deleteMany({ where: inG }),
     db.group.deleteMany({ where: { id: { in: ids } } }),
   ]);
+  const { removePhotos } = await import("./photo-store");
+  await removePhotos(files);
 }

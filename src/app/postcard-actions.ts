@@ -43,7 +43,9 @@ export async function sendPostcardAction(f: FormData) {
     const bytes = b64 ? new Uint8Array(Buffer.from(b64, "base64")) : new Uint8Array();
     const type = photoType(bytes);
     if (!type || bytes.length > MAX_PHOTO_BYTES) fail("That photo didn’t work. Try another one.");
-    photoId = (await db.postcardPhoto.create({ data: { data: Buffer.from(stripImageMetadata(bytes)), type: type! } })).id;
+    const { storePhoto } = await import("@/lib/photo-store");
+    const stored = await storePhoto("postcard", stripImageMetadata(bytes), type!);
+    photoId = (await db.postcardPhoto.create({ data: { data: stored.data, blobKey: stored.blobKey, type: type! } })).id;
   } else if (front.startsWith("print:")) {
     if (!isPrint(front.slice(6))) front = "print:beach";
   } else if (!(front.startsWith("photo:") && isSitePhoto(front.slice(6)))) {

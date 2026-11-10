@@ -469,6 +469,7 @@ model GroupPhoto {
   type        String   @default("image/webp")
   createdById String   @default("")
   updatedAt   DateTime @default(now())
+  blobKey     String   @default("") // where the photo lives in file storage (Vercel Blob); empty = in `data`
 }
 
 // "Collect": one person gathers money from many (a class gift, a farewell,
@@ -620,6 +621,7 @@ model PostcardPhoto {
   data      Bytes
   type      String   @default("image/webp")
   createdAt DateTime @default(now())
+  blobKey     String   @default("") // where the photo lives in file storage (Vercel Blob); empty = in `data`
 }
 
 // A photo of a bill, kept with the expense it belongs to. Only people in the
@@ -635,6 +637,7 @@ model Receipt {
   createdById String   @default("")
   createdAt   DateTime @default(now())
   @@index([groupId, expenseId])
+  blobKey     String   @default("") // where the photo lives in file storage (Vercel Blob); empty = in `data`
 }
 
 // People who asked not to get Loopin's invite and "you were added" emails

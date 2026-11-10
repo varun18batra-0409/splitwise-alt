@@ -37,8 +37,10 @@ export async function createGroupFor(account: { id: string }, input: NewGroupInp
   });
   if (photo && photoKind) {
     const now = new Date();
+    const { storePhoto } = await import("./photo-store");
+    const stored = await storePhoto("group", stripImageMetadata(photo), photoKind);
     await db.$transaction([
-      db.groupPhoto.create({ data: { groupId: group.id, data: stripImageMetadata(photo), type: photoKind, createdById: group.members[0].id, updatedAt: now } }),
+      db.groupPhoto.create({ data: { groupId: group.id, data: stored.data, blobKey: stored.blobKey, type: photoKind, createdById: group.members[0].id, updatedAt: now } }),
       db.group.update({ where: { id: group.id }, data: { cover: "own", coverAt: now } }),
     ]);
   }

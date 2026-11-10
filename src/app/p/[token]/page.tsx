@@ -27,7 +27,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 function Mark({ tone }: { tone: "ok" | "wait" | "rest" }) {
-  const ring = tone === "ok" ? "text-owed" : tone === "wait" ? "text-[#d8bd7a]" : "text-fg/40";
+  const ring = tone === "ok" ? "text-owed" : tone === "wait" ? "text-[#d8bd7a]" : "text-fg/60";
   return (
     <span aria-hidden className={`lp-pop-in relative mx-auto flex h-16 w-16 items-center justify-center rounded-full ${ring}`}>
       <svg viewBox="0 0 64 64" className="absolute inset-0 h-full w-full" fill="none" stroke="currentColor" strokeWidth="2">
