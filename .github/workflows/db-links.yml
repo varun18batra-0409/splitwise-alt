@@ -1,0 +1,66 @@
+# DEF-010 database links: plan (read-only), rehearsal on a throwaway copy, or
+# the live change. The mode is the first word of db-links-mode.txt. Runs only
+# on the audit-fk branch. A rehearsal copy never leaves this machine and is
+# deleted at the end; logs show counts only.
+name: DB links
+on:
+  push:
+    branches: [audit-fk]
+jobs:
+  links:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Secrets present
+        run: |
+          [ -n "$TURSO_DATABASE_URL" ] && [ -n "$TURSO_AUTH_TOKEN" ] || { echo "::error title=Stopped::database secrets missing"; exit 1; }
+          echo "MODE=$(head -1 db-links-mode.txt | awk '{print $1}')" >> "$GITHUB_ENV"
+      - name: Plan (read-only)
+        if: env.MODE == 'plan'
+        run: |
+          set -o pipefail
+          node scripts/db-links.mjs --plan 2>&1 | tee out.log
+          cat > /tmp/p.mjs <<'JS'
+          import { createClient } from "@libsql/client";
+          const c = createClient({ url: "file:/tmp/probe.db" });
+          console.log("Local file default PRAGMA foreign_keys:", (await c.execute("PRAGMA foreign_keys")).rows[0][0]);
+          JS
+          cp /tmp/p.mjs ./p.mjs && node p.mjs | tee -a out.log
+      - name: Rehearsal on a throwaway copy of the live data
+        if: env.MODE == 'rehearse'
+        run: |
+          set -euo pipefail
+          node scripts/backup.mjs "$RUNNER_TEMP/b.json" | tee out.log
+          node scripts/restore.mjs "$RUNNER_TEMP/b.json" "file:$RUNNER_TEMP/copy.db" | tail -2 | tee -a out.log
+          rm -f "$RUNNER_TEMP/b.json"
+          TURSO_DATABASE_URL="file:$RUNNER_TEMP/copy.db" node scripts/db-links.mjs --apply 2>&1 | tee -a out.log
+          TURSO_DATABASE_URL="file:$RUNNER_TEMP/copy.db" node scripts/db-links.mjs --plan 2>&1 | tail -1 | tee -a out.log
+          TURSO_DATABASE_URL="file:$RUNNER_TEMP/copy.db" node scripts/turso-sync.mjs --plan 2>&1 | tail -3 | sed 's/^/turso-sync plan: /' | tee -a out.log
+          cat > p.mjs <<'JS'
+          import { createClient } from "@libsql/client";
+          const c = createClient({ url: process.argv[2] });
+          await c.execute("PRAGMA foreign_keys = ON");
+          try { await c.execute("INSERT INTO Reaction (id, expenseId, memberId, emoji) VALUES ('fk-test', 'no-such-expense', 'no-such-member', 'x')"); console.log("Link test: NOT refused (problem)"); }
+          catch (e) { console.log("Link test: a reaction on a missing expense is refused:", String(e.message).slice(0, 80)); }
+          JS
+          node p.mjs "file:$RUNNER_TEMP/copy.db" | tee -a out.log
+          rm -f "$RUNNER_TEMP"/copy.db*
+      - name: Apply to the live database
+        if: env.MODE == 'apply'
+        run: |
+          set -o pipefail
+          node scripts/db-links.mjs --apply 2>&1 | tee out.log
+      - name: Report
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP"/copy.db* "$RUNNER_TEMP"/b.json
+          [ -f out.log ] || exit 0
+          echo "::notice title=DB links ${{ env.MODE }}::$(grep -vE '^(✓|CREATE|INSERT|DROP|ALTER|  |\)|--- SQL|SELECT|FROM)' out.log | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g' | cut -c1-4000)"
