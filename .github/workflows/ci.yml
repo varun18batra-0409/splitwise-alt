@@ -23,7 +23,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install
+      - run: npm ci
+      # Known problems in the packages the live app uses (shown on every run; a critical one stops the build).
+      - name: Package security check
+        run: |
+          npm audit --omit=dev --json > audit.json || true
+          echo "::notice title=npm audit::$(node -e "const a=require('./audit.json');console.log(JSON.stringify((a.metadata||{}).vulnerabilities||{}))")"
+          npm audit --omit=dev --audit-level=critical
       - run: npm run db:setup
       - name: Tests
         run: |
@@ -60,7 +66,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install
+      - run: npm ci
       - run: npm install --no-save tsx@4.19.2 # Playwright itself comes with @playwright/test (one version for everything)
       # The browsers, kept between runs: downloading them sometimes hangs on GitHub's machines.
       - name: Browser cache
