@@ -146,10 +146,10 @@ describe("a long random mix keeps the books straight", () => {
           : {};
         r = await saveExpense(base(g.id, pick(ids), { amount, name: `F${i}`, allowDuplicate: true, ...over }), me, rate("2.5734"));
       } else if (op < 0.55) {
-        const list = await db.expense.findMany({ where: { groupId: g.id, deletedAt: null }, select: { id: true, updatedAt: true } });
+        const list = await db.expense.findMany({ where: { groupId: g.id, deletedAt: null }, select: { id: true, editedAt: true, createdAt: true } });
         if (list.length) {
           const e = pick(list);
-          r = await saveExpense(base(g.id, pick(ids), { expenseId: e.id, amount, name: `E${i}`, rateMode: "keep", baseVersion: e.updatedAt.toISOString(), allowDuplicate: true }), me, rate());
+          r = await saveExpense(base(g.id, pick(ids), { expenseId: e.id, amount, name: `E${i}`, rateMode: "keep", baseVersion: (e.editedAt ?? e.createdAt).toISOString(), allowDuplicate: true }), me, rate());
         }
       } else if (op < 0.68) {
         const list = await db.expense.findMany({ where: { groupId: g.id }, select: { id: true, deletedAt: true } });
