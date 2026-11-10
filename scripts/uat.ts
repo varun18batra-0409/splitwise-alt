@@ -380,7 +380,9 @@ async function main() {
     const t = (await V.locator("main ul").last().innerText()).replace(/\s+/g, " ");
     const n = (t.match(/On Loopin ✓/g) ?? []).length;
     assert(n === 4, `statuses: ${t}`);
-    assert((await V.getByText("Invited · waiting to join").count()) === 0, "Zoe's invite still pending");
+    // Zoe joined, so her invite is gone (the unsubscribe test's address stays invited: it never joins).
+    const pending = (await V.locator("main").innerText()).replace(/\s+/g, " ");
+    assert(!pending.includes(email("zoe")), "Zoe's invite still pending");
     return `${n} verified members`;
   });
   await step(V, "Joining", "Contacts option is there (share sheet when the phone can't pick contacts)", async () => {
@@ -894,7 +896,8 @@ async function main() {
     await V.getByLabel("Search people on Loopin").fill(email("sheldon"));
     // The same neutral row for any email (nobody can check who has an account); on Loopin → added straight away.
     await V.locator("[data-add-by-email]").waitFor();
-    assert((await V.getByText("On Loopin ✓").count()) === 0, "a stranger's account was revealed by their email");
+    const results = (await V.locator("ul").filter({ has: V.locator("[data-add-by-email]") }).innerText()).replace(/\s+/g, " ");
+    assert(!/On Loopin/.test(results) && /Added if they’re on Loopin/.test(results), `a stranger's account was revealed by their email: ${results}`);
     await V.locator("[data-add-by-email]").click();
     await V.waitForURL(/added=Sheldon/);
   });
