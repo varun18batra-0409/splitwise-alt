@@ -1,0 +1,60 @@
+# Exploratory validation (test only): runs new scenarios on a throwaway copy of
+# Loopin on GitHub's machine (local database file, emails kept in the database,
+# never sent). Never touches the live app, its database or Vercel. Results go
+# to audit-out-explore-<before|after> (not deployable, never merged).
+name: Exploratory validation
+on:
+  push:
+    branches: ["audit-explore-*"]
+jobs:
+  explore:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    env:
+      TURSO_DATABASE_URL: file:/tmp/audit.db
+      MAIL_OUTBOX: "1"
+      CRON_SECRET: audit-only-not-a-real-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm install --no-save tsx@4.19.2
+      - name: Browsers
+        run: bash scripts/ci-browsers.sh chromium
+      - name: New integrity tests (database level)
+        run: |
+          mkdir -p audit-out
+          env -u TURSO_DATABASE_URL -u MAIL_OUTBOX npm run db:setup > /dev/null 2>&1 || true
+          env -u TURSO_DATABASE_URL -u MAIL_OUTBOX npx vitest run tests/explore-integrity.test.ts --reporter=verbose 2>&1 | tee audit-out/explore-integrity.log | tail -60 || true
+      - name: Throwaway database, build, demo data
+        run: |
+          set -o pipefail
+          npx prisma db push --skip-generate
+          cp prisma/dev.db /tmp/audit.db
+          npm run vercel-build 2>&1 | tail -20
+          npx tsx scripts/seed-demo.ts
+      - name: Start the app
+        run: |
+          (npm run start > server.log 2>&1 &)
+          npx --yes wait-on@8.0.1 -t 90000 http://localhost:3000/api/health
+      - name: Exploratory screens and abuse checks
+        timeout-minutes: 25
+        run: npx tsx loopin-prelaunch-audit/automation/explore.ts 2>&1 | tee audit-out/explore.log | tail -40 || true
+      - name: Save results
+        if: always()
+        run: |
+          mkdir -p audit-out
+          cp server.log audit-out/ 2>/dev/null || true
+          grep -iE "error|⨯|exception" server.log | grep -v ExperimentalWarning | tail -200 > audit-out/server-errors.log || true
+          part=${GITHUB_REF_NAME#audit-}
+          cd audit-out
+          echo '{"git":{"deploymentEnabled":false}}' > vercel.json
+          git init -q -b out
+          git config user.name "github-actions"; git config user.email "github-actions@users.noreply.github.com"
+          git add . && git commit -qm "Explore results ${part} ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "out:audit-out-${part}"
+          echo "::notice title=Explore ${part}::$(grep -E '^(EXPLORE|.*Tests .*passed|.*Tests .*failed)' explore.log explore-integrity.log 2>/dev/null | tr '\n' ' ')"
