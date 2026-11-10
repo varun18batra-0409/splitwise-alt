@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { hasLeft, LEFT_ERROR } from "./active";
 import { db } from "./db";
 import { isSupportedCurrency } from "./money";
 import { logEvent } from "./events";
@@ -58,6 +59,7 @@ export async function setTripDates(groupId: string, actorId: string, start: stri
   const g = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
   if (!g || g.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (!g.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can change it." };
+  if (await hasLeft(groupId, actorId)) return { ok: false, error: LEFT_ERROR };
   const r = cleanTripDates(start, end, today);
   if (!r.ok) return r;
   if (r.start === g.tripStart && r.end === g.tripEnd) return { ok: true };
@@ -94,6 +96,7 @@ export async function updateSharing(
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (!group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can change this." };
+  if (await hasLeft(groupId, actorId)) return { ok: false, error: LEFT_ERROR };
   const type: GroupType = isGroupType(input.type) ? input.type : (group.type as GroupType);
   const active = group.members.filter((m) => !m.leftAt);
   const shownAsPercent = group.type === "couple";

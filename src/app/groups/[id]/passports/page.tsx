@@ -22,18 +22,19 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
   if (!myId) redirect("/private");
   const group = await db.group.findUnique({
     where: { id },
-    select: { id: true, name: true, deletedAt: true, members: { select: { id: true, name: true, accountId: true, claimedAt: true, leftAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
+    select: { id: true, name: true, deletedAt: true, members: { select: { id: true, name: true, accountId: true, claimedAt: true, leftAt: true, addedBy: true, seenAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
   });
   if (!group || group.deletedAt || !group.members.some((m) => m.id === myId)) notFound();
   const today = todayKey(new Date(), await getTimeZone());
-  type Person = { m: { id: string; name: string; accountId: string | null; claimedAt: Date | null; leftAt: Date | null }; mine: boolean; state: "notOnLoopin" | "private" | "open" | "empty"; codes: string[]; cities: number };
+  type Person = { m: { id: string; name: string; accountId: string | null; claimedAt: Date | null; leftAt: Date | null; addedBy: string; seenAt: Date | null }; mine: boolean; state: "notOnLoopin" | "private" | "open" | "empty"; codes: string[]; cities: number };
   const people: Person[] = await Promise.all(
     group.members.map(async (m): Promise<Person> => {
       const mine = m.id === myId;
       if (!m.accountId) return { m, mine, state: "notOnLoopin", codes: [], cities: 0 };
       const a = await db.account.findUnique({ where: { id: m.accountId }, select: { id: true, homeCountry: true, places: true, passportShare: true } });
       if (!a) return { m, mine, state: "notOnLoopin", codes: [], cities: 0 };
-      if (!mine && a.passportShare === "private") return { m, mine, state: "private", codes: [], cities: 0 };
+      // Added by someone else and not opened the group yet: their passport isn't shared here yet.
+      if (!mine && (a.passportShare === "private" || (m.addedBy && !m.seenAt))) return { m, mine, state: "private", codes: [], cities: 0 };
       const p = await loadPassport(a, "", today, { forFriend: !mine });
       const codes = p.index.map((r) => r.code);
       return { m, mine, state: codes.length ? "open" : "empty", codes, cities: p.stats.cities };

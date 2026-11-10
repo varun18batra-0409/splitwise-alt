@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { hasLeft, LEFT_ERROR } from "./active";
 import { claimKey, isDuplicateKey, previousResult, withRetry } from "./once";
 import { loadGroup } from "./group-data";
 import { logEvent } from "./events";
@@ -25,6 +26,7 @@ async function settleAllOnce(groupId: string, actorId: string, expectedPlan: str
   if (!data) return { ok: false, error: "This group no longer exists." };
   const { group, transfers } = data;
   if (!group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can do this." };
+  if (await hasLeft(groupId, actorId)) return { ok: false, error: LEFT_ERROR };
   if (group.closed) return { ok: false, error: "This group is already closed." };
   if (planKey(transfers) !== expectedPlan) return { ok: false, error: "Balances changed since you opened this. Check the updated list and try again." };
 
@@ -66,6 +68,7 @@ export async function applySettleAll(groupId: string, actorId: string, paymentId
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (!group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can do this." };
+  if (await hasLeft(groupId, actorId)) return { ok: false, error: LEFT_ERROR };
   if (!apply && !group.closed) return { ok: false, error: "The group was reopened since, so this can’t be undone. Delete the payments one by one instead." };
   if (apply && group.closed) return { ok: false, error: "The group is already closed." };
   const eventId = await db.$transaction(async (tx) => {
@@ -99,6 +102,7 @@ export async function markAllPaid(groupId: string, actorId: string, pickIn: Pick
     if (!data) return { ok: false, error: "This group no longer exists." };
     const { group, transfers } = data;
     if (!group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can do this." };
+  if (await hasLeft(groupId, actorId)) return { ok: false, error: LEFT_ERROR };
     if (group.closed) return { ok: false, error: "This group is closed. Reopen it to record payments." };
     // Worked out here, in the write queue, so two people tapping at once can't both record it.
     const pick = typeof pickIn === "function" ? await pickIn() : pickIn;
@@ -141,6 +145,7 @@ export async function setPaymentsDeleted(groupId: string, actorId: string, payme
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (!group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can do this." };
+  if (await hasLeft(groupId, actorId)) return { ok: false, error: LEFT_ERROR };
   if (group.closed) return { ok: false, error: "This group is closed. Reopen it to change payments." };
   const eventId = await db.$transaction(async (tx) => {
     await tx.payment.updateMany({ where: { id: { in: paymentIds }, groupId }, data: deleted ? { deletedAt: new Date(), deletedById: actorId } : { deletedAt: null, deletedById: null } });

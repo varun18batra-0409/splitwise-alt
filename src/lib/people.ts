@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { LEFT_ERROR } from "./active";
 import { netBalances } from "./balances";
 import { logEvent } from "./events";
 import { cleanNames, sameName } from "./names";
@@ -38,6 +39,9 @@ export async function setMember(
   });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (!group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can change it." };
+  // Someone who left can only rejoin themselves (undo checks the person undoing).
+  const rejoiningSelf = memberId === actorId && data.leftAt === null && data.name === undefined;
+  if (!undoing && !rejoiningSelf && group.members.find((x) => x.id === actorId)?.leftAt) return { ok: false, error: LEFT_ERROR };
   const m = group.members.find((x) => x.id === memberId);
   if (!m) return { ok: false, error: "That person is no longer in the group." };
   const who = memberId === actorId ? "themselves" : m.name;

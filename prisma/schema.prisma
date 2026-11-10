@@ -78,6 +78,10 @@ model Member {
   notify    String   @default("") // phone notifications for this group: JSON {off, expenses, edits, payments, people}; "" = all on
   splitWeight Int    @default(100) // the group's own split: hundredths of a share (1.2 shares = 120; a couple's 55/45 = 55)
   joinedFrom  DateTime? // moved in mid-month: their first month's bills are shared from this day
+  // Added straight in by someone else (not joined themselves): their passport stays
+  // hidden from that group until they first open it (seenAt).
+  addedBy   String   @default("")
+  seenAt    DateTime?
   @@unique([groupId, name])
   @@index([accountId])
 }
