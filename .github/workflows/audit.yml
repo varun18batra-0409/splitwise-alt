@@ -1,0 +1,89 @@
+# Pre-launch audit: runs only on the "audit-run" branch, against a throwaway
+# copy of Loopin on GitHub's machine (local database file, emails kept in the
+# database, never sent). Never touches the live app, its database or Vercel.
+# Results go to branches audit-out-<part> (not deployable, never merged).
+name: Pre-launch audit
+on:
+  push:
+    branches: [audit-run]
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        part:
+          - { name: checks, browsers: "chromium", configs: "" }
+          - { name: crawl-chromium-phone, browsers: "chromium", configs: "chromium-phone" }
+          - { name: crawl-chromium-sizes, browsers: "chromium", configs: "chromium-small-phone,chromium-tablet,chromium-desktop" }
+          - { name: crawl-webkit, browsers: "webkit", configs: "webkit-phone,webkit-desktop" }
+          - { name: crawl-firefox, browsers: "firefox", configs: "firefox-phone,firefox-desktop" }
+    env:
+      TURSO_DATABASE_URL: file:/tmp/audit.db
+      MAIL_OUTBOX: "1"
+      CRON_SECRET: audit-only-not-a-real-secret
+      GOOGLE_CLIENT_ID: audit-test.apps.googleusercontent.com
+      GOOGLE_CLIENT_SECRET: audit-not-a-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm install --no-save tsx@4.19.2 axe-core@4.10.2
+      - name: Browser cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-audit-${{ matrix.part.browsers }}-${{ hashFiles('package.json') }}
+      - name: Browsers
+        timeout-minutes: 20
+        run: bash scripts/ci-browsers.sh ${{ matrix.part.browsers }}
+      - name: Money checks (no database)
+        if: matrix.part.name == 'checks'
+        run: npx tsx loopin-prelaunch-audit/automation/money.ts 2>&1 | tee money.log || true
+      - name: Throwaway database, build, demo data
+        run: |
+          set -o pipefail
+          npx prisma db push --skip-generate
+          cp prisma/dev.db /tmp/audit.db
+          npm run vercel-build 2>&1 | tail -30
+          npx tsx scripts/seed-demo.ts
+      - name: Start the app
+        run: |
+          (npm run start > server.log 2>&1 &)
+          npx --yes wait-on@8.0.1 -t 90000 http://localhost:3000/api/health
+      - name: More demo data (postcards, collections, pay links)
+        if: matrix.part.name == 'checks' || matrix.part.name == 'crawl-chromium-phone'
+        timeout-minutes: 25
+        run: npx tsx scripts/screenshots.ts > shots.log 2>&1 || true
+      - name: Crawl screens
+        if: matrix.part.configs != ''
+        timeout-minutes: 40
+        env:
+          AUDIT_CONFIGS: ${{ matrix.part.configs }}
+        run: npx tsx loopin-prelaunch-audit/automation/crawl.ts 2>&1 | tail -40 || true
+      - name: Access control
+        if: matrix.part.name == 'checks'
+        timeout-minutes: 15
+        run: npx tsx loopin-prelaunch-audit/automation/access.ts 2>&1 | tail -20 || true
+      - name: Failure cases
+        if: matrix.part.name == 'checks'
+        timeout-minutes: 15
+        run: npx tsx loopin-prelaunch-audit/automation/negative.ts 2>&1 | tail -20 || true
+      - name: Save results
+        if: always()
+        run: |
+          mkdir -p audit-out
+          cp money.log server.log audit-out/ 2>/dev/null || true
+          grep -iE "error|⨯|exception" server.log | grep -v ExperimentalWarning | tail -200 > audit-out/server-errors.log || true
+          cd audit-out
+          echo '{"git":{"deploymentEnabled":false}}' > vercel.json
+          git init -q -b out
+          git config user.name "github-actions"; git config user.email "github-actions@users.noreply.github.com"
+          git add . && git commit -qm "Audit results ${{ matrix.part.name }} ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "out:audit-out-${{ matrix.part.name }}"
+          echo "::notice title=Audit ${{ matrix.part.name }}::$(ls | tr '\n' ' ') $(ls evidence 2>/dev/null | wc -l) screenshots"
