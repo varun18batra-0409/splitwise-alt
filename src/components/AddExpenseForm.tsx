@@ -440,7 +440,7 @@ export function AddExpenseForm({
           aria-label="Amount"
           autoFocus={!initial?.name}
           size={Math.max(2, amount.length + 1)}
-          className="money mt-2 w-full bg-transparent text-center focus-visible:outline-none text-[clamp(52px,17vw,72px)] leading-[1.05] text-fg caret-[var(--color-tint,var(--color-fg))] outline-none placeholder:text-fg/25"
+          className="money mt-2 w-full bg-transparent text-center focus-visible:outline-none focus-visible:shadow-[inset_0_-1px_0_0_rgb(244_242_236/0.22)] text-[clamp(52px,17vw,72px)] leading-[1.05] text-fg caret-[var(--color-tint,var(--color-fg))] outline-none placeholder:text-fg/25"
         />
         {showCurrencies && (
           <div className="w-full text-left">
