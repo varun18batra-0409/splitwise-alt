@@ -38,6 +38,7 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
   }
 
   const back = `/groups/${group.id}?tab=activity`;
+  const receipt = await db.receipt.findFirst({ where: { groupId: group.id, expenseId: e.id }, select: { id: true } });
   const blocked =
     e.deletedAt
         ? "This expense was deleted. Restore it from the Activity list to change it."
@@ -79,6 +80,7 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
         myId={myId}
         tz={tz}
         expenseId={e.id}
+        existingReceiptId={receipt?.id}
         initial={initial}
         weights={groupWeights}
         splitName={splitNameFor(group.type)}

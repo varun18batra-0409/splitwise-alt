@@ -11,8 +11,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const r = await db.receipt.findUnique({ where: { id } });
   if (!r) return no();
   const myId = await getMyMemberId(r.groupId);
-  const me = myId ? await db.member.findFirst({ where: { id: myId, groupId: r.groupId, group: { deletedAt: null } }, select: { id: true } }) : null;
+  const me = myId ? await db.member.findFirst({ where: { id: myId, groupId: r.groupId, group: { deletedAt: null } }, select: { id: true, leftAt: true } }) : null;
   if (!me) return no();
+  // Someone who left sees the bills from their time in the group, not newer ones.
+  if (me.leftAt && r.createdAt > me.leftAt) return no();
   return new Response(new Uint8Array(r.data), {
     headers: { "Content-Type": r.type, "Cache-Control": "private, max-age=31536000, immutable", "X-Content-Type-Options": "nosniff" },
   });

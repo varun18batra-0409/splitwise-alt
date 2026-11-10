@@ -39,7 +39,9 @@ export async function searchPeople(memberships: Record<string, string>, groupId:
   const out: Found[] = known
     .filter((a) => a.email.includes(q) || nameOfAccount(a).toLowerCase().includes(q))
     .map((a) => ({ accountId: a.id, name: nameOfAccount(a), email: a.email, inGroup: inGroup.has(a.id), known: true }));
-  if (exact && !out.some((f) => f.email === exact.email)) out.push({ accountId: exact.id, name: nameOfAccount(exact), email: exact.email, inGroup: inGroup.has(exact.id), known: false });
+  // A full email of someone you share nothing with is not looked up here: the screen offers the same
+  // "Add" for any email (on Loopin → added; not yet → invited), so nobody can check who has an account.
+  void exact;
   // Don't offer the person searching (they're already in the group).
   return out.filter((f) => f.accountId !== me?.accountId).slice(0, 8);
 }
@@ -93,6 +95,7 @@ export async function addRegistered(groupId: string, actorId: string, accountId:
     `${actor.name} added you to ${group.name} on Loopin`,
     `${actor.name} added you to “${group.name}” on Loopin.\n\nOpen it: ${origin}/groups/${groupId}`,
     `<div style="font-family:system-ui,sans-serif;max-width:440px"><p style="font-size:16px"><strong>${esc(actor.name)}</strong> added you to <strong>${esc(group.name)}</strong> on Loopin.</p><p><a href="${origin}/groups/${groupId}" style="display:inline-block;background:#0d0d0f;color:#f4f2ec;padding:12px 18px;text-decoration:none;font-weight:600">Open ${esc(group.name)}</a></p></div>`,
+    { optOut: true },
   );
   if (opts.later) opts.later(email);
   else await email();
@@ -131,6 +134,7 @@ export async function inviteByEmail(groupId: string, actorId: string, rawEmails:
       `${actor.name} invited you to ${group.name} on Loopin`,
       `${actor.name} invited you to split expenses in “${group.name}” on Loopin.\n\nJoin here: ${link}`,
       `<div style="font-family:system-ui,sans-serif;max-width:440px"><p style="font-size:16px"><strong>${esc(actor.name)}</strong> invited you to split expenses in <strong>${esc(group.name)}</strong> on Loopin.</p><p><a href="${link}" style="display:inline-block;background:#0d0d0f;color:#f4f2ec;padding:12px 18px;text-decoration:none;font-weight:600">Join ${esc(group.name)}</a></p></div>`,
+      { optOut: true },
     );
     if (sent) invited.push(email);
     else bad.push(`${email} (the email couldn’t be sent; share the invite link instead)`);
@@ -167,6 +171,7 @@ export async function inviteToClaim(groupId: string, actorId: string, memberId: 
     `${actor.name} added you to ${group.name} on Loopin`,
     `${actor.name} added you as “${member.name}” in “${group.name}” on Loopin. Tap to join and see your share:\n\n${link}`,
     `<div style="font-family:system-ui,sans-serif;max-width:440px"><p style="font-size:16px"><strong>${esc(actor.name)}</strong> added you as <strong>${esc(member.name)}</strong> in <strong>${esc(group.name)}</strong> on Loopin.</p><p><a href="${link}" style="display:inline-block;background:#0d0d0f;color:#f4f2ec;padding:12px 18px;text-decoration:none;font-weight:600">Join as ${esc(member.name)}</a></p></div>`,
+    { optOut: true },
   );
   if (!sent) return { ok: false, error: "The email couldn’t be sent. Share the group’s invite link instead." };
   await logEvent(db, { groupId, actorId, kind: "member_invited", text: `invited ${member.name} (${email}) to join` });

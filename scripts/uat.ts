@@ -352,6 +352,29 @@ async function main() {
     await Z.getByRole("button", { name: /^Join / }).click();
     await Z.waitForURL(new RegExp(`${g}$`));
   });
+  await step(V, "Joining", "Invite emails carry an unsubscribe link: one tap stops them, and the next invite to that address isn't sent", async () => {
+    await go(V, `${g}/invite`);
+    await V.getByLabel("Email addresses to invite").fill(email("optout"));
+    await V.getByRole("button", { name: "Invite", exact: true }).click();
+    await V.waitForURL(/invited=/);
+    const row = await db.outbox.findFirst({ where: { to: email("optout") }, orderBy: { createdAt: "desc" } });
+    const link = /https?:\/\/\S+\/api\/unsubscribe\?\S+/.exec(row?.text ?? "")?.[0];
+    assert(link, "no unsubscribe link in the invite email");
+    const u = new URL(link);
+    const page = await V.request.get(`${base}${u.pathname}${u.search}`, { headers: bypass });
+    assert(/Stop invite emails\?/.test(await page.text()), "unsubscribe page didn't ask first");
+    const forged = await V.request.post(`${base}${u.pathname}?e=${encodeURIComponent(email("optout"))}&s=wrongsignature`, { headers: bypass });
+    assert(/doesn’t work/.test(await forged.text()), "a forged unsubscribe link worked");
+    const done = await V.request.post(`${base}${u.pathname}${u.search}`, { headers: bypass });
+    assert(/Done/.test(await done.text()), "unsubscribe didn't finish");
+    const before = await db.outbox.count({ where: { to: email("optout") } });
+    await db.invite.deleteMany({ where: { email: email("optout") } });
+    await go(V, `${g}/invite`);
+    await V.getByLabel("Email addresses to invite").fill(email("optout"));
+    await V.getByRole("button", { name: "Invite", exact: true }).click();
+    await V.waitForURL(/invited=|error=/);
+    assert((await db.outbox.count({ where: { to: email("optout") } })) === before, "an invite was emailed after unsubscribing");
+  });
   await step(V, "Joining", "Add people shows everyone as “On Loopin ✓” and no pending invites", async () => {
     await go(V, `${g}/invite`);
     const t = (await V.locator("main ul").last().innerText()).replace(/\s+/g, " ");
@@ -683,6 +706,18 @@ async function main() {
     payments.push({ from: "Zoe", to: "Asha", amount: 5000, active: true, key: "manual" });
     return checkBalances(V, g);
   });
+  await step(V, "Settle", "Paying more than owed (an extra zero) asks first and saves nothing until confirmed", async () => {
+    await go(V, `${g}/pay`);
+    await V.locator("label", { hasText: "Zoe" }).first().click();
+    await V.locator("label[data-to]", { hasText: "Asha" }).click();
+    await V.locator('input[name="amount"]').fill("50000");
+    const before = await db.payment.count({ where: { groupId: g.split("/").pop()!, deletedAt: null } });
+    await V.getByRole("button", { name: "Record payment" }).click();
+    await V.locator("[data-over-warning]").waitFor();
+    const t = (await V.locator("[data-over-warning]").innerText()).replace(/\s+/g, " ");
+    assert(/more than Zoe owes/.test(t), `warning says: ${t}`);
+    assert((await db.payment.count({ where: { groupId: g.split("/").pop()!, deletedAt: null } })) === before, "a payment was saved before confirming");
+  });
   await step(V, "Settle", "You can't record paying yourself", async () => {
     await go(V, `${g}/pay`);
     await V.locator("label", { hasText: "Asha" }).first().click();
@@ -848,7 +883,7 @@ async function main() {
   });
 
   // ===== 8. Everything else people do =====
-  await step(V, "Add people", "Search by name only finds friends; a stranger is found only by exact email, then added", async () => {
+  await step(V, "Add people", "Search by name only finds friends; a full email gets the same neutral Add (no account revealed) and adds a stranger who is on Loopin", async () => {
     const x = await person(browser);
     await go(x.page, "/signin?mode=signup");
     await signup(x.page, "Sheldon", email("sheldon"));
@@ -857,8 +892,10 @@ async function main() {
     await V.getByLabel("Search people on Loopin").fill("Sheldon");
     await V.getByText(/Not someone you share a group with/).waitFor();
     await V.getByLabel("Search people on Loopin").fill(email("sheldon"));
-    await V.getByText("On Loopin ✓").first().waitFor();
-    await V.getByRole("button", { name: "Add", exact: true }).first().click();
+    // The same neutral row for any email (nobody can check who has an account); on Loopin → added straight away.
+    await V.locator("[data-add-by-email]").waitFor();
+    assert((await V.getByText("On Loopin ✓").count()) === 0, "a stranger's account was revealed by their email");
+    await V.locator("[data-add-by-email]").click();
     await V.waitForURL(/added=Sheldon/);
   });
   await step(A, "Alerts", "Asha sees an unread alert badge and Varun's changes in Alerts", async () => {
@@ -1445,6 +1482,12 @@ async function main() {
     const data = (await loadGroup(homeId()))!;
     const asha = data.group.members.find((m) => m.name === "Asha")!;
     assert(asha.leftAt, "Asha isn't marked as moved out");
+    // Someone who left keeps the history but not the invite link or settings.
+    await go(A, `${gh}/invite`);
+    await A.locator("[data-left-member]").waitFor();
+    assert(!/\/join\//.test(await A.locator("main").innerText()), "a person who moved out still sees the invite link");
+    await go(A, `${gh}/settings`);
+    assert(/\/people/.test(A.url()), `settings stayed open for a person who moved out: ${A.url()}`);
     const sum = Object.values(data.net).reduce((a, b) => a + b, 0);
     assert(sum === 0 && data.net[asha.id] === 0, `net ${JSON.stringify(data.net)}`);
   });

@@ -263,7 +263,7 @@ export function PassportBook({ name, stats, milestones, pages, index, badges = [
         <span aria-hidden className="absolute inset-y-2 left-1 right-[-5px] rounded-r-[14px] bg-[#d9d1bc]" />
         <span aria-hidden className="absolute inset-y-1 left-0.5 right-[-2.5px] rounded-r-[14px] bg-[#e5dec9]" />
 
-        <div ref={strip} onScroll={onScroll} className="relative flex h-full snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Passport pages" tabIndex={open ? 0 : -1}>
+        <div ref={strip} onScroll={onScroll} className="relative flex h-full snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Passport pages" tabIndex={0}>
           {/* The photo page */}
           <Sheet n={1} of={total} label="Your details">
             <div className="flex h-full flex-col px-6 pb-8 pt-6">

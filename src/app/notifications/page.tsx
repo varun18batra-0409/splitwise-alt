@@ -67,8 +67,8 @@ export default async function Notifications() {
         <form action={setCollectPush} className="-mt-2 mb-6 flex items-center gap-3 rounded-2xl border border-line px-4 py-3">
           <input type="hidden" name="on" value={account.collectPush ? "0" : "1"} />
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-medium">Collections on this phone</span>
-            <span className="block text-xs text-gray-400">Added to one, reminders, payments ticked or checked. Always listed here.</span>
+            <span className="block text-sm font-medium">Personal alerts on this phone</span>
+            <span className="block text-xs text-gray-400">Collections (added, reminders, payments) and passport moments. Always listed here too.</span>
           </span>
           <button
             type="submit"

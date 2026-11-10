@@ -50,7 +50,7 @@ export default function Privacy() {
       </p>
       <p className={`mt-2 ${p}`}>
         When you scan a bill, or say or type an expense Loopin’s phone-side reading can’t follow, that photo or line (and the first names in the
-        group) is sent to Anthropic’s Claude to read it. Anthropic doesn’t use it to train its models. Speaking uses your phone’s own voice typing.
+        group) is sent to Anthropic’s Claude to read it. Anthropic doesn’t use it to train its models. Speaking uses your browser’s voice typing (Google’s service in Chrome, Apple’s in Safari); Loopin only receives the words.
       </p>
 
       <h2 className={h}>Questions</h2>

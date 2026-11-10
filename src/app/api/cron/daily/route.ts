@@ -23,12 +23,14 @@ function sameSecret(given: string | null, secret: string) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-// Each part runs on its own: one failing doesn't stop the rest.
+// Each part runs on its own: one failing doesn't stop the rest (failures go in the admin's daily check).
+let failed: string[] = [];
 async function part<T>(name: string, fn: () => Promise<T>): Promise<T | { error: string }> {
   try {
     return await fn();
   } catch (err) {
     console.error(`daily job: ${name} failed`, String(err).slice(0, 300));
+    failed.push(name);
     return { error: "failed" };
   }
 }
@@ -43,6 +45,7 @@ export async function GET(req: Request) {
     return Response.json({ error: "Too many runs" }, { status: 429 });
   }
   const now = new Date();
+  failed = [];
   const bills = await part("bills", () => runAllBills(now));
   // Phone nudges never go out in the night, even if the job is started early.
   const hour = Number(new Intl.DateTimeFormat("en-GB", { timeZone: DEFAULT_TIME_ZONE, hour: "2-digit", hourCycle: "h23" }).format(now));
@@ -77,5 +80,8 @@ export async function GET(req: Request) {
   await part("cleanup-receipts", async () => (await db.receipt.deleteMany({ where: { expenseId: "", createdAt: { lt: new Date(now.getTime() - 86_400_000) } } })).count);
   // Groups deleted more than 30 days ago (past their restore window) are erased for good.
   const groupsErased = await part("erase-deleted-groups", () => eraseExpiredGroups(now));
-  return Response.json({ ok: true, bills, reminders, countdowns, memories, postcardsOpened, budgetAlerts, summaries, speedLogsRemoved, groupsErased });
+  // The admin's email when something needs a look (failed parts, errors, emails not sent, orphan rows).
+  const { sendOpsDigest } = await import("@/lib/ops-digest");
+  const check = await sendOpsDigest(now, failed).catch(() => ({ sent: false, reason: "digest failed" }));
+  return Response.json({ ok: true, bills, reminders, countdowns, memories, postcardsOpened, budgetAlerts, summaries, speedLogsRemoved, groupsErased, check });
 }

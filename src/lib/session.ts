@@ -79,3 +79,17 @@ export async function decodeSession(raw: string | undefined | null): Promise<Ses
     return null;
   }
 }
+
+// A short signature for links that must not be forged (e.g. unsubscribe):
+// "purpose:value" signed with the same secret. Verify with the same text.
+export async function signText(text: string): Promise<string> {
+  const sig = new Uint8Array(await crypto.subtle.sign("HMAC", await key(), enc.encode(`text:${text}`)));
+  return toB64url(sig).slice(0, 32);
+}
+export async function verifyText(text: string, sig: string): Promise<boolean> {
+  const want = await signText(text);
+  if (typeof sig !== "string" || sig.length !== want.length) return false;
+  let diff = 0;
+  for (let i = 0; i < want.length; i++) diff |= want.charCodeAt(i) ^ sig.charCodeAt(i);
+  return diff === 0;
+}

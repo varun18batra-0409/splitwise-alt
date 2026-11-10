@@ -636,3 +636,10 @@ model Receipt {
   createdAt   DateTime @default(now())
   @@index([groupId, expenseId])
 }
+
+// People who asked not to get Loopin's invite and "you were added" emails
+// (sign-in codes still go out: they ask for those themselves).
+model EmailOptOut {
+  email     String   @id
+  createdAt DateTime @default(now())
+}

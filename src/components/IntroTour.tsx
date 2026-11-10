@@ -434,7 +434,7 @@ export function IntroTour({
         ))}
       </div>
 
-      <div ref={track} className="no-scrollbar -mx-5 mt-8 flex flex-1 snap-x snap-mandatory overflow-x-auto">
+      <div ref={track} tabIndex={0} aria-label="Tour slides" className="no-scrollbar -mx-5 mt-8 flex flex-1 snap-x snap-mandatory overflow-x-auto">
         {slides.map((s, i) => (
           <section
             key={s.id}

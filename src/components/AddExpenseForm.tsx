@@ -47,6 +47,7 @@ export function AddExpenseForm({
   spin = true,
   billRun,
   ai = false,
+  existingReceiptId,
 }: {
   groupId: string;
   baseCurrency: string;
@@ -61,6 +62,7 @@ export function AddExpenseForm({
   spin?: boolean; // Spin for it (every group but card nights)
   billRun?: { billId: string; period: string }; // "Enter amount" for a waiting bill
   ai?: boolean; // bill reading and spoken lines are switched on (an Anthropic key is set)
+  existingReceiptId?: string; // editing: the bill photo already kept with this expense
 }) {
   const memberIds = useMemo(() => members.map((m) => m.id), [members]);
   const nameOf = (id: string) => members.find((m) => m.id === id)?.name ?? "?";
@@ -475,7 +477,7 @@ export function AddExpenseForm({
       {/* A photo of the bill: kept with the expense, and (when reading is on) fills the form in. */}
       {!billRun && (
         <div>
-          <BillScan groupId={groupId} read={ai && !expenseId} onAttach={setReceiptId} onRead={fillFromBill} />
+          <BillScan groupId={groupId} read={ai && !expenseId} onAttach={setReceiptId} onRead={fillFromBill} existingId={existingReceiptId} />
           {scannedItems > 1 && !byItem && members.length > 1 && (
             <button
               type="button"
