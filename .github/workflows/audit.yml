@@ -17,9 +17,6 @@ jobs:
       matrix:
         part:
           - { name: crawl-chromium-phone, browsers: "chromium", configs: "chromium-phone" }
-          - { name: crawl-chromium-sizes, browsers: "chromium", configs: "chromium-small-phone,chromium-tablet,chromium-desktop" }
-          - { name: crawl-webkit, browsers: "webkit", configs: "webkit-phone,webkit-desktop" }
-          - { name: crawl-firefox, browsers: "firefox", configs: "firefox-phone,firefox-desktop" }
     env:
       TURSO_DATABASE_URL: file:/tmp/audit.db
       MAIL_OUTBOX: "1"

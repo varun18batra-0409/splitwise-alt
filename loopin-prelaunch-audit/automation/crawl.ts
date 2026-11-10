@@ -114,7 +114,7 @@ async function main() {
           const r = await page.evaluate(async () => {
             // @ts-expect-error injected
             const out = await window.axe.run(document, { resultTypes: ["violations"] });
-            return out.violations.map((v: { id: string; impact: string; nodes: unknown[]; help: string }) => ({ id: v.id, impact: v.impact, count: v.nodes.length, help: v.help }));
+            return out.violations.map((v: { id: string; impact: string; nodes: { target: unknown; html: string; any?: { data?: { fgColor?: string; bgColor?: string; contrastRatio?: number } }[] }[]; help: string }) => ({ id: v.id, impact: v.impact, count: v.nodes.length, help: v.help, nodes: v.nodes.slice(0, 40).map((n) => ({ target: JSON.stringify(n.target).slice(0, 160), html: n.html.slice(0, 200), fg: n.any?.[0]?.data?.fgColor, bg: n.any?.[0]?.data?.bgColor, ratio: n.any?.[0]?.data?.contrastRatio })) }));
           });
           row.axe = r;
         }
