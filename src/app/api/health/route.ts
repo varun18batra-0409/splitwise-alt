@@ -37,6 +37,7 @@ export async function GET() {
       roundTripMs: rounds,
       medianMs: sorted[2],
       countMs,
+      billReading: Boolean(process.env.ANTHROPIC_API_KEY), // switched on or not (never the key)
     },
     { headers: { "Cache-Control": "no-store" } },
   );
