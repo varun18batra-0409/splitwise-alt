@@ -66,7 +66,7 @@ async function main() {
   const A = await ctx(), B = await ctx(), C = await ctx(), S = await ctx(360);
   for (const p of [A, B, C, S]) p.on("dialog", (d) => { dialogs.push(d.message()); d.dismiss().catch(() => undefined); });
   await signup(A, "Anil");
-  await signup(B, HOSTILE_NAME);
+  await signup(B, HOSTILE_NAME, email("bo"));
   await signup(C, "Chet");
 
   // A group whose name and people try to run script.
