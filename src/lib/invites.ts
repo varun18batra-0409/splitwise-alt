@@ -101,8 +101,9 @@ export const memberOfToken = (token: string) => (token.includes(".") ? token.spl
 export const inviteMemberId = (inv: { memberId: string; token: string }) => inv.memberId || memberOfToken(inv.token);
 
 // "ravi.kumar@gmail.com" → "Ravi Kumar" (the same for everyone, so it says nothing about whether they have an account).
+// Parts that are only digits are dropped ("zoe-1794422699068@x" → "Zoe"); "ravi.kumar88" keeps its 88.
 export function nameFromEmail(email: string): string {
-  const words = email.split("@")[0].replace(/[._+\-]+/g, " ").trim().split(/\s+/).filter(Boolean);
+  const words = email.split("@")[0].replace(/[._+\-]+/g, " ").trim().split(/\s+/).filter((w) => w && !/^\d+$/.test(w));
   return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ").slice(0, 36) || "Friend";
 }
 

@@ -15,6 +15,7 @@ import { base, bypass, hosted, withBypass } from "./hosted";
 import { chromium, type Browser, type BrowserContext, type Page, type Route } from "playwright";
 import { db } from "../src/lib/db";
 import { netBalances } from "../src/lib/balances";
+import { nameFromEmail } from "../src/lib/invites";
 
 const out = "screenshots/uat";
 mkdirSync(out, { recursive: true });
@@ -352,7 +353,7 @@ async function main() {
     await V.waitForURL(/invited=/);
     await V.locator("[data-invited-title]").waitFor();
     await V.getByText("Invited · hasn’t joined yet").first().waitFor();
-    assert((await db.member.count({ where: { groupId: g.split("/").pop()!, accountId: null, name: { startsWith: "Uat Zoe" } } })) === 1, "no name row for Zoe");
+    assert((await db.member.count({ where: { groupId: g.split("/").pop()!, accountId: null, name: nameFromEmail(email("zoe")) } })) === 1, "no name row for Zoe");
   });
   await step(Z, "Joining", "Zoe taps the link in her email, verifies, and joins as the name she was added with", async () => {
     const mailRow = await mailTo(email("zoe"), { subject: { contains: "added you to" } });
@@ -389,13 +390,18 @@ async function main() {
     await V.getByRole("button", { name: "Invite", exact: true }).click();
     await V.waitForURL(/invited=|error=/);
     assert((await db.outbox.count({ where: { to: email("optout") } })) === before, "an invite was emailed after unsubscribing");
+    // Adding by email put an "Optout" name in the group. Take it (and its invitations) out again so the group keeps its 4 people.
+    const gid = g.split("/").pop()!;
+    await db.invite.deleteMany({ where: { groupId: gid, email: email("optout") } });
+    await db.member.deleteMany({ where: { groupId: gid, accountId: null, name: nameFromEmail(email("optout")) } });
+    assert((await db.member.count({ where: { groupId: gid, name: nameFromEmail(email("optout")) } })) === 0, "the Optout name is still in the group");
   });
   await step(V, "Joining", "Add people shows everyone as “On Loopin ✓” and no pending invites", async () => {
     await go(V, `${g}/invite`);
     const t = (await V.locator("main ul").last().innerText()).replace(/\s+/g, " ");
     const n = (t.match(/On Loopin ✓/g) ?? []).length;
     assert(n === 4, `statuses: ${t}`);
-    // Zoe joined, so her invite is gone (the unsubscribe test's address stays invited: it never joins).
+    // Zoe joined, so her invite is gone (the unsubscribe test's name and invitation were removed again).
     const pending = (await V.locator("main").innerText()).replace(/\s+/g, " ");
     assert(!pending.includes(email("zoe")), "Zoe's invite still pending");
     return `${n} verified members`;
@@ -1071,21 +1077,23 @@ async function main() {
     await V.getByLabel("New name for Asha K").fill("Asha");
     await clickAndWait(V, V.getByRole("button", { name: "Rename" }).first());
   });
-  await step(V, "People", "Mark someone settled as left, then bring them back", async () => {
+  await step(V, "People", "Remove someone settled up (the admin removes; they show under Removed), then bring them back", async () => {
     await go(V, `${g2}/people`);
     await V.locator("details summary").filter({ hasText: "Asha" }).first().click();
-    await clickAndWait(V, V.getByRole("button", { name: "Mark Asha as left" }));
+    await clickAndWait(V, V.getByRole("button", { name: "Remove Asha" })); // the confirm is accepted by the dialog handler
     await go(V, `${g2}/people`);
-    await V.getByText("Left the group").first().waitFor();
+    await V.locator("[data-removed-section]").waitFor();
+    assert((await V.locator("[data-removed-section]").getByText("Removed from the group").count()) === 1, "Asha isn't shown as removed");
+    assert((await V.getByText("Left the group", { exact: true }).count()) === 0, "a removed person is shown as having left");
     await V.locator("details summary").filter({ hasText: "Asha" }).first().click();
     await clickAndWait(V, V.getByRole("button", { name: "Bring Asha back" }));
     await go(V, `${g2}/people`);
-    assert((await V.getByText("Left the group").count()) === 0, "Asha still shows as left");
+    assert((await V.locator("[data-removed-section]").count()) === 0, "Asha still shows as removed");
   });
   await step(V, "People", "Remove someone who isn't in any expense (Sheldon)", async () => {
     await go(V, `${g3}/people`);
     await V.locator("details summary").filter({ hasText: "Sheldon" }).first().click();
-    await clickAndWait(V, V.getByRole("button", { name: "Remove from group" }));
+    await clickAndWait(V, V.getByRole("button", { name: "Remove Sheldon" })); // the confirm is accepted by the dialog handler
     await go(V, `${g3}/people`);
     assert((await V.getByText("Sheldon").count()) === 0, "Sheldon still listed");
   });
