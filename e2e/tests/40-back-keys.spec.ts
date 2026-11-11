@@ -48,6 +48,9 @@ test("Back button: the same amount twice is two payments; a used key is refused"
   await form.getByRole("button", { name: "Mark paid" }).click();
   await expect.poll(payments).toBe(2);
   expect(await db.payment.count({ where: { groupId, amount: 10000, deletedAt: null } })).toBe(2);
+  // Let the save finish its own move to "paid" before going anywhere (Safari otherwise interrupts the next page).
+  await R.waitForURL(/paid=1/);
+  await settled(R);
 
   // A saved copy of the screen coming back (pageshow, persisted) makes a fresh key; an ordinary pageshow does not.
   await R.goto(`${g.path}/settle`);
