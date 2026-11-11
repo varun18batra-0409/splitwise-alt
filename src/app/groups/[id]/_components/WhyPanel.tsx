@@ -67,7 +67,7 @@ export function WhyPanel({ v, memberId, open }: { v: GroupView; memberId: string
                   )}
                   <span className="truncate">{l.kind === "expense" ? l.label : l.label.replace(/ them$/, isMe ? " you" : ` ${v.nameOf(memberId)}`)}</span>
                 </span>
-                <span className="block truncate text-xs text-gray-400">
+                <span className="block text-xs leading-snug text-gray-400">
                   {dayLabel(l.date, now, tz)}
                   {l.kind === "expense" && (l.paid ? ` · paid ${money(l.paid)}` : "")}
                   {l.kind === "expense" && l.share ? ` · share ${money(l.share)}` : ""}

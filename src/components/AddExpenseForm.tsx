@@ -544,7 +544,7 @@ export function AddExpenseForm({
             id="expense-name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Dinner at the night market"
+            placeholder="e.g. Beach dinner"
             autoComplete="off"
             maxLength={80}
             autoFocus={Boolean(initial?.name)}

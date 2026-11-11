@@ -23,7 +23,9 @@ export function PotBuyIn({
   allTicked,
   quick,
   currency,
+  rid,
 }: {
+  rid: string;
   gameId: string;
   players: { id: string; name: string; note: string }[];
   allTicked: boolean;
@@ -47,6 +49,7 @@ export function PotBuyIn({
   return (
     <form action={buyInAction} className="space-y-3.5" data-allow-repeat="1" aria-label="Buy in">
       <input type="hidden" name="gameId" value={gameId} />
+      <input type="hidden" name="rid" value={rid} />
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="font-display text-lg font-semibold tracking-tight">{allTicked ? "Buy in" : "Buy in / top up"}</h2>
         <span className="flex gap-3 text-xs font-semibold text-accent">

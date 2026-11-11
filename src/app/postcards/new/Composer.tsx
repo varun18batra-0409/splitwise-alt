@@ -376,7 +376,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
                     className={`block h-9 w-[54px] rounded-[3px] shadow-[0_3px_8px_-3px_rgba(0,0,0,0.6)] transition-transform active:scale-95 ${paper === p.id ? "outline outline-2 outline-offset-[3px] outline-fg" : ""}`}
                     style={{ background: p.id === "airmail" ? `repeating-linear-gradient(-45deg,#c8453a 0 5px,${a} 5px 10px,#2f5fa7 10px 15px,${a} 15px 20px)` : `radial-gradient(120% 90% at 0% 0%,${a},${b} 70%,${c})` }}
                   />
-                  <span className={`text-[11px] ${paper === p.id ? "text-fg" : "text-fg/50"}`}>{p.name}</span>
+                  <span className={`nobreak text-[11px] ${paper === p.id ? "text-fg" : "text-fg/50"}`}>{p.name}</span>
                 </button>
               );
             })}

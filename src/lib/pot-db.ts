@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { isDuplicateKey, previousResult } from "./once";
 import { logEvent } from "./events";
 import { formatMoney, parseAmount } from "./money";
 import { payersJson } from "./payers";
@@ -272,7 +273,7 @@ export function inPlay(players: string[], moves: { memberId: string; kind: strin
 
 // Buy-in: the same amount from the pot for each player picked (everyone at the
 // start, or just the ones topping up).
-export async function buyIn(gameId: string, actorId: string, input: { memberIds: string[]; amount: string; note?: string }): Promise<Result<{ count: number }>> {
+export async function buyIn(gameId: string, actorId: string, input: { memberIds: string[]; amount: string; note?: string; requestKey?: string }): Promise<Result<{ count: number }>> {
   const r = await gameFor(gameId, actorId);
   if (!r.game || !r.g) return { ok: false, error: r.error };
   const { game, g } = r;
@@ -284,13 +285,18 @@ export async function buyIn(gameId: string, actorId: string, input: { memberIds:
   if (!who.length) return { ok: false, error: "Pick who’s taking money." };
   const players = parsePlayers(game.players);
   const note = cleanNote(input.note ?? "");
-  // A double tap: the same buy-in for the same people by the same person seconds ago.
-  const recent = await db.potMove.findMany({ where: { gameId, kind: "take", amount, createdById: actorId, deletedAt: null, createdAt: { gt: new Date(Date.now() - 10_000) } }, select: { memberId: true } });
-  if (recent.length && who.every((id) => recent.some((m) => m.memberId === id))) return { ok: true, count: who.length };
-  await db.$transaction([
-    db.potMove.createMany({ data: who.map((memberId) => ({ gameId, memberId, kind: "take", amount, note, createdById: actorId })) }),
-    ...(who.every((id) => players.includes(id)) ? [] : [db.potGame.update({ where: { id: gameId }, data: { players: JSON.stringify([...new Set([...players, ...who])]) } })]),
-  ]);
+  // The same form sent twice (a double tap) adds it once.
+  if (input.requestKey && (await previousResult(input.requestKey)) !== null) return { ok: true, count: who.length };
+  try {
+    await db.$transaction([
+      ...(input.requestKey ? [db.requestKey.create({ data: { key: input.requestKey, result: "buyin" } })] : []),
+      db.potMove.createMany({ data: who.map((memberId) => ({ gameId, memberId, kind: "take", amount, note, createdById: actorId })) }),
+      ...(who.every((id) => players.includes(id)) ? [] : [db.potGame.update({ where: { id: gameId }, data: { players: JSON.stringify([...new Set([...players, ...who])]) } })]),
+    ]);
+  } catch (err) {
+    if (isDuplicateKey(err)) return { ok: true, count: who.length };
+    throw err;
+  }
   return { ok: true, count: who.length };
 }
 

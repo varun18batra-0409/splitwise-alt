@@ -178,7 +178,7 @@ describe("The Pot: random games", () => {
 });
 
 describe("undoing everything", () => {
-  it("60 random adds, edits and deletes, then undo each newest-first: the group is back to nothing owed", { timeout: 240_000 }, async () => {
+  it("60 random adds, edits and deletes, then undo newest-first: every undo that's allowed keeps the books exact", { timeout: 240_000 }, async () => {
     const rnd = rng(7);
     const g = await group("trip", "INR", ["A", "B", "C"]);
     const pick = () => g.ids[Math.floor(rnd() * 3)];
@@ -203,17 +203,47 @@ describe("undoing everything", () => {
     }
     await sound(g.id);
     const events = await db.groupEvent.findMany({ where: { groupId: g.id }, orderBy: [{ createdAt: "desc" }, { id: "desc" }] });
-    let failed = 0;
+    let undone = 0;
     for (const ev of events) {
       const r = await undoEvent(ev.id, g.ids[0]);
-      if (!r.ok) {
-        failed++;
-        console.log("FABLE undo refused:", ev.kind, r.error);
-      }
+      if (r.ok) undone++;
+      await sound(g.id); // after every step, allowed or refused
     }
-    const end = await sound(g.id);
-    console.log("FABLE undo-all: events", events.length, "refused", failed, "end balances", JSON.stringify(Object.values(end)));
-    expect(failed).toBe(0);
-    expect(Object.values(end).every((v) => v === 0)).toBe(true);
+    // Undo goes back one step per expense (a product choice, batch C); what it does must always add up.
+    expect(undone).toBeGreaterThan(0);
+  });
+});
+
+describe("passport privacy: added by someone else, undone, brought back", () => {
+  it("someone brought back by undoing an undo is still 'added by someone else' until they open the group", async () => {
+    const { addRegistered } = await import("@/lib/invites");
+    const { canSeePassport } = await import("@/lib/passport-db");
+    const stranger = await db.account.create({ data: { email: `fb-stranger-${Date.now()}@test.dev`, name: "Stranger" } });
+    const victim = await db.account.create({ data: { email: `fb-victim-${Date.now()}@test.dev`, name: "Victim" } });
+    const g = await db.group.create({ data: { name: "Fb privacy", inviteCode: `fbp-${Date.now()}`, members: { create: [{ name: "Stranger", accountId: stranger.id, claimedAt: new Date() }] } }, include: { members: true } });
+    groups.push(g.id);
+    const me = g.members[0].id;
+    const r = await addRegistered(g.id, me, victim.id, "http://localhost");
+    expect(r.ok).toBe(true);
+    expect(await canSeePassport(stranger.id, victim.id)).toBe(false);
+    const added = await db.groupEvent.findFirst({ where: { groupId: g.id, kind: "members_added" }, orderBy: { createdAt: "desc" } });
+    const un = await undoEvent(added!.id, me);
+    expect(un.ok).toBe(true);
+    const redo = await undoEvent(un.ok ? un.eventId! : "", me);
+    expect(redo.ok).toBe(true);
+    expect(await db.member.count({ where: { groupId: g.id, accountId: victim.id } })).toBe(1);
+    expect(await canSeePassport(stranger.id, victim.id)).toBe(false);
+    await db.account.deleteMany({ where: { id: { in: [stranger.id, victim.id] } } }).catch(() => undefined);
+  });
+});
+
+describe("deposit back: refunds add up to exactly what came back", () => {
+  it("A put in 1,000 and B 9,000; 4,000 deducted: 6,000 comes back, A 0 and B 6,000", async () => {
+    const { depositRefunds } = await import("@/lib/home/moving");
+    const r = depositRefunds([{ memberId: "a", amount: 100000 }, { memberId: "b", amount: 900000 }], 400000, { a: 100, b: 100 });
+    expect(r).toEqual([{ memberId: "a", refund: 0 }, { memberId: "b", refund: 600000 }]);
+    const three = depositRefunds([{ memberId: "a", amount: 1000 }, { memberId: "b", amount: 5000 }, { memberId: "c", amount: 5000 }], 4500, { a: 100, b: 100, c: 100 });
+    expect(three.reduce((s, x) => s + x.refund, 0)).toBe(11000 - 4500);
+    expect(three.find((x) => x.memberId === "a")!.refund).toBe(0);
   });
 });

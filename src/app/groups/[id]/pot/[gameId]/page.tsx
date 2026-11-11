@@ -243,6 +243,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
             allTicked={totals.taken === 0}
             quick={quick}
             currency={group.currency}
+            rid={newRequestKey()}
           />
         </section>
       )}

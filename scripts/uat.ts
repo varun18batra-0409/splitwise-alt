@@ -1079,7 +1079,7 @@ async function main() {
     if (!debtor) return "everyone settled (skipped)";
     await go(V, `${g}/people`);
     await V.locator("details summary").filter({ hasText: debtor }).first().click();
-    assert(await V.getByRole("button", { name: `Mark ${debtor} as left` }).isDisabled(), "leave button isn't disabled");
+    assert(await V.locator("details[open]").getByRole("button", { name: "Settle up first" }).isDisabled(), "leave button isn't disabled");
     return `${debtor} can't leave while owing`;
   });
   await step(V, "Edit", "Change who paid on an expense: balances move by exactly that amount", async () => {
