@@ -47,6 +47,7 @@ export type HighlightInput = {
   postcardsNew: number;
   billsDue: { groupId: string; billId: string; name: string; group: string; inDays: number; amount: string }[];
   passportCountries: number;
+  passportAbroad?: number; // of those, outside your home country
   groups: number;
   fahrenheit?: boolean;
   max?: number;
@@ -203,7 +204,10 @@ export function homeHighlights(x: HighlightInput): Highlight[] {
       tone: "paper",
       eyebrow: "Your trip passport",
       title: x.passportCountries > 1 ? `${x.passportCountries} countries and counting` : "Where have you been?",
-      text: x.passportCountries > 1 ? "Flip through your stamps, or see where your friends have been." : "Tick the countries you’ve been to and get your stamps.",
+      text:
+        x.passportCountries > 1
+          ? `${x.passportAbroad !== undefined && x.passportAbroad < x.passportCountries ? `${x.passportAbroad} abroad, plus home. ` : ""}Flip through your stamps, or see where your friends have been.`
+          : "Tick the countries you’ve been to and get your stamps.",
       button: "Open your passport",
       href: "/passport",
       art: "passport",

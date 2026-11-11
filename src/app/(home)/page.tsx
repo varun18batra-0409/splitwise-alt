@@ -344,6 +344,15 @@ export default async function Home({
     account ? db.postcard.count({ where: { toId: account.id, readAt: null, OR: [{ opensAt: null }, { opensAt: { lte: new Date() } }] } }) : Promise.resolve(0),
     db.bill.findMany({ where: { groupId: { in: open.map((g) => g.group.id) }, deletedAt: null, paused: false }, take: 20 }),
   ]);
+  // The same count as the passport: countries with a stamp or a tick (home only if it has one).
+  const passportSet = new Set(
+    [
+      ...(account ? parseHandPlaces(account.places).map((p) => p.c) : []),
+      ...all
+        .filter((g) => g.group.type === "trip" && !g.group.deletedAt && (g.group.tripStart ? g.group.tripStart <= today : g.expenses.some((e) => !e.deletedAt)))
+        .flatMap((g) => stopsOf(g).map((s) => s.country || homeCountry)),
+    ].filter(Boolean),
+  );
   const highlights = homeHighlights({
     trips: trips.map((t) => {
       const ph = placePhotos(t.g.group.name, t.g.group.tripPlace, 2);
@@ -381,13 +390,9 @@ export default async function Home({
       if (!due || !g || b.nature === "daily") return [];
       return [{ groupId: b.groupId, billId: b.id, name: b.name, group: g.group.name, inDays: daysBetween(today, due), amount: b.nature === "fixed" && b.amount ? formatMoney(b.amount, g.group.currency) : "" }];
     }),
-    // The same count as the passport: countries with a stamp or a tick (home only if it has one).
-    passportCountries: new Set([
-      ...(account ? parseHandPlaces(account.places).map((p) => p.c) : []),
-      ...all
-        .filter((g) => g.group.type === "trip" && !g.group.deletedAt && (g.group.tripStart ? g.group.tripStart <= today : g.expenses.some((e) => !e.deletedAt)))
-        .flatMap((g) => stopsOf(g).map((s) => s.country || homeCountry)),
-    ].filter(Boolean)).size,
+    passportCountries: passportSet.size,
+    // Said alongside, so "23 countries" next to a list of 22 abroad makes sense.
+    passportAbroad: [...passportSet].filter((c) => c !== homeCountry).length,
     groups: open.length,
     fahrenheit: usesFahrenheit(region.country),
   });
