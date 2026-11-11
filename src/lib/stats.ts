@@ -64,3 +64,29 @@ export function computeStats(d: StatsInput, now = new Date()) {
     deletedGroups: d.groups.length - live.length,
   };
 }
+
+// "Who are the signed-in people?" on the owner's private Stats page. Newest first.
+// The email is partly hidden (enough for the owner to recognise it, not to copy it from a screen-share).
+export function maskEmail(email: string): string {
+  const [user, domain = ""] = email.split("@");
+  const keep = user.length <= 2 ? user.slice(0, 1) : user.slice(0, 2);
+  return `${keep}•••@${domain}`;
+}
+
+export type SignedInPerson = { id: string; name: string; email: string; since: Date; groups: number };
+
+export function signedInPeople(
+  accounts: { id: string; email: string; name: string; createdAt: Date }[],
+  members: { groupId: string; accountId: string | null; leftAt: Date | null; removedAt: Date | null }[],
+  liveGroupIds: Set<string>,
+): SignedInPerson[] {
+  const groups = new Map<string, Set<string>>();
+  for (const m of members) {
+    if (!m.accountId || m.leftAt || m.removedAt || !liveGroupIds.has(m.groupId)) continue;
+    if (!groups.has(m.accountId)) groups.set(m.accountId, new Set());
+    groups.get(m.accountId)!.add(m.groupId);
+  }
+  return accounts
+    .map((a) => ({ id: a.id, name: a.name.trim(), email: maskEmail(a.email), since: a.createdAt, groups: groups.get(a.id)?.size ?? 0 }))
+    .sort((a, b) => b.since.getTime() - a.since.getTime());
+}
