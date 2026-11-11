@@ -1,12 +1,14 @@
 import Link from "@/components/Link";
 import { verifyCode } from "@/app/actions";
 import { PageHeader, primaryButtonClass } from "@/components/ui";
+import { safePath } from "@/lib/paths";
 
 // Where the link in the sign-in email lands. It asks for one tap instead of
 // signing in straight away, so email scanners that open links can't use up
 // the code before you do.
-export default async function VerifyLink({ searchParams }: { searchParams: Promise<{ e?: string; c?: string }> }) {
-  const { e = "", c = "" } = await searchParams;
+export default async function VerifyLink({ searchParams }: { searchParams: Promise<{ e?: string; c?: string; b?: string }> }) {
+  const { e = "", c = "", b = "" } = await searchParams;
+  const back = safePath(b || "/");
   const email = e.slice(0, 254);
   const code = c.replace(/\D/g, "").slice(0, 6);
 
@@ -21,7 +23,7 @@ export default async function VerifyLink({ searchParams }: { searchParams: Promi
           <form action={verifyCode}>
             <input type="hidden" name="email" value={email} />
             <input type="hidden" name="code" value={code} />
-            <input type="hidden" name="back" value="/" />
+            <input type="hidden" name="back" value={back} />
             <button type="submit" className={primaryButtonClass}>
               Yes, sign me in
             </button>

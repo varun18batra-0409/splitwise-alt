@@ -316,6 +316,8 @@ model ErrorLog {
   path      String   @default("")
   message   String
   digest    String   @default("")
+
+  @@index([createdAt])
 }
 
 // Makes saving safe to retry: each form carries a one-time key, saved in the

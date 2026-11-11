@@ -25,7 +25,7 @@ export function BillScan({
   existingId?: string; // editing: the photo already kept (shown with Replace / Remove)
   groupId: string;
   read: boolean; // fill the form in from the photo
-  onRead: (bill: ScannedBill) => void;
+  onRead: (bill: ScannedBill) => string | void;
   onAttach: (receiptId: string) => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
@@ -47,8 +47,8 @@ export function BillScan({
       setThumb(URL.createObjectURL(blob));
       setKept(false);
       onAttach(r.id);
-      if (r.bill) onRead(r.bill);
-      setNote(r.bill ? (r.bill.total ? "Filled in from the bill. Check it, then save." : "Read the bill, but not its total. Type the amount.") : r.note || "Photo attached.");
+      const extra = r.bill ? onRead(r.bill) : "";
+      setNote(`${r.bill ? (r.bill.total ? "Filled in from the bill. Check it, then save." : "Read the bill, but not its total. Type the amount.") : r.note || "Photo attached."}${extra ? ` ${extra}` : ""}`);
       setState("done");
     } catch (err) {
       setNote(err instanceof Error ? err.message : "Couldn’t add that photo. Try again.");

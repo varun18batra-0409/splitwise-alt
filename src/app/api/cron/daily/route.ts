@@ -64,6 +64,8 @@ export async function GET(req: Request) {
   const summaries = daytime ? await part("summaries", () => sendMonthlySummaries(now)) : { sent: 0, skipped: "night" };
   // Speed numbers are kept two weeks.
   const speedLogsRemoved = await part("cleanup", async () => (await db.speedLog.deleteMany({ where: { at: { lt: new Date(now.getTime() - 14 * 86_400_000) } } })).count);
+  // Error records are kept 30 days, as the privacy page says.
+  await part("cleanup-errors", async () => (await db.errorLog.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - 30 * 86_400_000) } } })).count);
   await part("cleanup-move", async () => (await db.requestKey.deleteMany({ where: { key: { startsWith: "move:" }, createdAt: { lt: new Date(now.getTime() - 86_400_000) } } })).count);
   // Housekeeping, so these small tables never grow without end: used-up sign-in
   // codes, finished rate-limit windows, unused passkey challenges, and the
@@ -79,10 +81,18 @@ export async function GET(req: Request) {
   // Bill photos taken while adding an expense that was never saved: gone after a day.
   await part("cleanup-receipts", async () => {
     const where = { expenseId: "", createdAt: { lt: new Date(now.getTime() - 86_400_000) } };
-    const old = await db.receipt.findMany({ where, select: { blobKey: true }, take: 2000 });
-    const n = (await db.receipt.deleteMany({ where })).count;
+    // Exactly the rows whose files are removed, in batches: never a row deleted
+    // without its file (that would leave the photo behind with nothing pointing at it).
     const { removePhotos } = await import("@/lib/photo-store");
-    await removePhotos(old.map((o) => o.blobKey));
+    let n = 0;
+    for (let round = 0; round < 10; round++) {
+      const batch = await db.receipt.findMany({ where, select: { id: true, blobKey: true }, take: 500 });
+      if (!batch.length) break;
+      await removePhotos(batch.map((o) => o.blobKey));
+      // Still unattached at this moment (one attached meanwhile is kept).
+      n += (await db.receipt.deleteMany({ where: { id: { in: batch.map((o) => o.id) }, expenseId: "" } })).count;
+      if (batch.length < 500) break;
+    }
     return n;
   });
   // Photos saved before file storage was connected move over, a few each day.

@@ -37,7 +37,8 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
 
       {all.length === 0 ? (
         <p className="rounded-[22px] bg-mist px-4 py-8 text-center text-sm text-gray-500">
-          No groups yet. <Link href="/groups/new" className="text-fg underline underline-offset-4">Create one</Link>.
+          Once you add shared costs, you’ll see who to pay here.{" "}
+          <Link href="/groups/new" className="text-fg underline underline-offset-4">Create a group</Link>, or open an invite link from a friend.
         </p>
       ) : settleItems.length === 0 ? (
         <div className="rounded-[26px] bg-mist px-5 py-10 text-center">

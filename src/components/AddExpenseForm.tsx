@@ -236,12 +236,14 @@ export function AddExpenseForm({
     };
   }, [currency, baseCurrency, foreign, keepSavedRate, initial]);
 
-  function chooseCurrency(code: string) {
+  // remember = also the group's starting currency next time (a pick by hand, not a scanned bill).
+  function chooseCurrency(code: string, remember = true) {
     setCurrency(code);
     setKeepSavedRate(false);
     setShowCurrencies(false);
     setRateMode("auto");
     setManualRate("");
+    if (!remember) return;
     try {
       localStorage.setItem(storageKey, code);
     } catch {
@@ -334,10 +336,13 @@ export function AddExpenseForm({
   const allowDupRef = useRef(false);
   const formRef = useRef<HTMLFormElement>(null);
   // What a scanned bill says: the shop, the total, the day and its lines (for split by item).
-  function fillFromBill(b: ScannedBill) {
+  function fillFromBill(b: ScannedBill): string | void {
     if (b.merchant && !name.trim()) setName(b.merchant);
     const code = b.currency && isSupportedCurrency(b.currency) ? b.currency : currency;
-    if (code !== currency) chooseCurrency(code);
+    // A bill in another currency switches this expense only, and says so: a misread
+    // currency would otherwise change the amount a lot without anyone noticing.
+    const switched = code !== currency ? `The bill looks like it's in ${code}, so the currency changed from ${currency}. Change it back if that's wrong.` : "";
+    if (switched) chooseCurrency(code, false);
     if (b.total) setAmount(String(b.total));
     if (b.date && b.date <= today && b.date >= `${Number(today.slice(0, 4)) - 1}${today.slice(4)}`) {
       setDate(b.date);
@@ -347,6 +352,7 @@ export function AddExpenseForm({
       setItems(b.items.map((x, i) => ({ k: i + 1, name: x.name, amount: String(x.price), people: [] })));
       setScannedItems(b.items.length);
     }
+    return switched;
   }
   // The bill's items go in the notes, so everyone can see how it was split.
   function withItems(text: string) {

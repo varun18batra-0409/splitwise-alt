@@ -18,9 +18,15 @@ async function memberOf(groupId: string) {
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [me, photo] = await Promise.all([memberOf(id), db.groupPhoto.findUnique({ where: { groupId: id } })]);
+  // Who's asking comes first: nothing is read from storage for anyone else.
+  // Someone who left still sees the group's picture on its (read-only) pages.
+  const myId = await getMyMemberId(id);
+  const me = myId ? await db.member.findFirst({ where: { id: myId, groupId: id, group: { deletedAt: null } }, select: { id: true } }) : null;
+  const notFound = () => new Response("Not found", { status: 404, headers: { "Cache-Control": "private, no-store" } });
+  if (!me) return notFound();
+  const photo = await db.groupPhoto.findUnique({ where: { groupId: id } });
   const bytes = photo ? await readPhoto(photo) : null;
-  if (!me || !photo || !bytes) return new Response("Not found", { status: 404, headers: { "Cache-Control": "private, no-store" } });
+  if (!photo || !bytes) return notFound();
   // The address carries the photo's version (?v=…), so the phone can keep it for good.
   return new Response(new Uint8Array(bytes), {
     headers: { "Content-Type": photo.type, "Cache-Control": "private, max-age=31536000, immutable", "X-Content-Type-Options": "nosniff" },

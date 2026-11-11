@@ -21,7 +21,7 @@ export function hashLoginCode(email: string, code: string): string {
 
 export type CodeResult = { ok: true } | { ok: false; error: string };
 
-export async function requestLoginCode(rawEmail: string, ip: string, origin: string, now = new Date()): Promise<CodeResult> {
+export async function requestLoginCode(rawEmail: string, ip: string, origin: string, now = new Date(), back = "/"): Promise<CodeResult> {
   const email = cleanEmail(rawEmail);
   if (!email) return { ok: false, error: "Enter a valid email address." };
   if (!mailConfigured()) return { ok: false, error: "Email sign-in isn't switched on yet. Try again later." };
@@ -38,7 +38,8 @@ export async function requestLoginCode(rawEmail: string, ip: string, origin: str
   await db.loginCode.create({
     data: { email, codeHash: hashLoginCode(email, code), expiresAt: new Date(now.getTime() + CODE_MINUTES * 60_000) },
   });
-  const link = `${origin}/signin/verify?e=${encodeURIComponent(email)}&c=${code}`;
+  // Where they were going (an invite, a group) comes along, so opening the email elsewhere still lands there.
+  const link = `${origin}/signin/verify?e=${encodeURIComponent(email)}&c=${code}${back && back !== "/" && back.startsWith("/") && !back.startsWith("//") ? `&b=${encodeURIComponent(back.slice(0, 200))}` : ""}`;
   const sent = await sendMail(
     email,
     `${code} is your Loopin code`,

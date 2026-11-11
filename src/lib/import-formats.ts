@@ -284,7 +284,10 @@ export function parseGenericCsv(text: string, map: ColumnMap, currency: string):
       if (!who.length) who = names.map((_, i) => i);
       spreadEqually(Math.abs(amount), who).forEach(([i, a]) => (nets[i] -= a));
     }
-    const payment = /payment|settle|transfer|reimburs|paid back/i.test(cell(r, map.type)) && who.length === 1;
+    const looksPayment = /payment|settle|transfer|reimburs|paid back/i.test(cell(r, map.type));
+    // A payment goes to one person; without a column saying who, it can't be read (never turned into a shared expense).
+    if (looksPayment && who.length !== 1) return skipped.push({ line, reason: "it’s a payment, but the file doesn’t say who it went to" });
+    const payment = looksPayment && who.length === 1;
     // A negative amount is money back: everything flips.
     const signed = amount < 0 ? nets.map((x) => -x) : nets;
     if (signed.every((x) => x === 0)) return skipped.push({ line, reason: "it didn’t change anyone’s balance" });

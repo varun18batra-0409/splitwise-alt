@@ -225,14 +225,14 @@ describe("passport privacy: added by someone else, undone, brought back", () => 
     const me = g.members[0].id;
     const r = await addRegistered(g.id, me, victim.id, "http://localhost");
     expect(r.ok).toBe(true);
-    expect(await canSeePassport(stranger.id, victim.id)).toBe(false);
+    expect((await canSeePassport(stranger.id, victim.id)).ok).toBe(false);
     const added = await db.groupEvent.findFirst({ where: { groupId: g.id, kind: "members_added" }, orderBy: { createdAt: "desc" } });
     const un = await undoEvent(added!.id, me);
     expect(un.ok).toBe(true);
     const redo = await undoEvent(un.ok ? un.eventId! : "", me);
     expect(redo.ok).toBe(true);
     expect(await db.member.count({ where: { groupId: g.id, accountId: victim.id } })).toBe(1);
-    expect(await canSeePassport(stranger.id, victim.id)).toBe(false);
+    expect((await canSeePassport(stranger.id, victim.id)).ok).toBe(false);
     await db.account.deleteMany({ where: { id: { in: [stranger.id, victim.id] } } }).catch(() => undefined);
   });
 });

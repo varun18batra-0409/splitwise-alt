@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import { placeOf } from "@/lib/countdown";
 import { inputClass } from "./ui";
 
@@ -5,6 +8,8 @@ import { inputClass } from "./ui";
 // because the dates are what start the countdown for everyone.
 export function TripDates({ name, start = "", end = "", titleClass = "text-sm font-medium text-gray-600" }: { name: string; start?: string; end?: string; titleClass?: string }) {
   const place = placeOf(name.trim()) || "Goa";
+  // The end can't be picked before the start (the phone's date picker greys those days out).
+  const [from, setFrom] = useState(start);
   return (
     <div id="trip" className="scroll-mt-6">
       <span className={`mb-2 block ${titleClass}`}>When’s the trip?</span>
@@ -15,11 +20,11 @@ export function TripDates({ name, start = "", end = "", titleClass = "text-sm fo
       <span className="grid grid-cols-2 gap-3">
         <label className="block">
           <span className="mb-1 block text-xs text-gray-400">Starts</span>
-          <input name="tripStart" type="date" defaultValue={start} className={inputClass} />
+          <input name="tripStart" type="date" defaultValue={start} onChange={(e) => setFrom(e.target.value)} className={inputClass} />
         </label>
         <label className="block">
           <span className="mb-1 block text-xs text-gray-400">Ends (if you know)</span>
-          <input name="tripEnd" type="date" defaultValue={end} className={inputClass} />
+          <input name="tripEnd" type="date" defaultValue={end} min={from || undefined} className={inputClass} />
         </label>
       </span>
     </div>
