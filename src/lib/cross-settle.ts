@@ -88,7 +88,9 @@ export function crossSettle(
 // Each group's part is exact (in that group's own currency). Only the combined
 // total can be converted, so only the total carries ≈.
 export function crossPreview(item: CrossItem, common: string): { lines: string[]; total: string; text: string; button: string } {
-  const lines = item.parts.map((p) => `${p.groupName}: ${p.iPay ? `you pay ${item.name} ${formatMoney(p.amount, p.currency)}` : `${item.name} pays you ${formatMoney(p.amount, p.currency)}`}`);
+  // A fixed order, whatever order the groups loaded in: what you pay first, then what you get, each by group name.
+  const parts = [...item.parts].sort((a, b) => Number(b.iPay) - Number(a.iPay) || a.groupName.localeCompare(b.groupName));
+  const lines = parts.map((p) => `${p.groupName}: ${p.iPay ? `you pay ${item.name} ${formatMoney(p.amount, p.currency)}` : `${item.name} pays you ${formatMoney(p.amount, p.currency)}`}`);
   const amount = `${item.converted ? "≈ " : ""}${formatMoney(Math.abs(item.net), common)}`;
   const total = item.net < 0 ? `Together: you pay ${item.name} ${amount}` : item.net > 0 ? `Together: ${item.name} pays you ${amount}` : `Together: you and ${item.name} are even`;
   const n = item.parts.length;
