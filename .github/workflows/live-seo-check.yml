@@ -19,12 +19,12 @@ jobs:
           echo "::notice title=Private API caching::$(curl -s -D - -o /dev/null -X POST "$s/api/speed" | tr -d '\r' | grep -i '^cache-control:')"
           echo "::notice title=Signed-out verify link::$(curl -s "$s/signin/verify?e=a%40example.com&c=123456" | grep -o 'Only continue if you asked for this code' | head -1)"
           echo "::notice title=Postcard font CSS::$(curl -s -o /dev/null -w '%{http_code}' 'https://fonts.googleapis.com/css2?family=Caveat')"
-      - run: npm i --no-save playwright@1.56.1 >/dev/null 2>&1 && npx playwright install --with-deps chromium >/dev/null 2>&1
+      - run: npm i --no-save playwright@1.56.1 >/dev/null 2>&1
       - run: |
           cat > c.cjs <<'JS'
           const { chromium } = require('playwright');
           (async () => {
-            const b = await chromium.launch(); const out = [];
+            const b = await chromium.launch({ channel: 'chrome' }); // the runner's own Chrome (no browser download) const out = [];
             for (const p of ['/', '/signin', '/how-it-works', '/faq', '/privacy']) {
               const pg = await b.newPage({ viewport: { width: 390, height: 844 } }); const errs = [];
               pg.on('console', m => { if (m.type() === 'error') errs.push(m.text().slice(0, 120)); });
