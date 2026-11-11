@@ -115,7 +115,10 @@ export function parseAmount(input: string, currency = "INR"): number | null {
 // Why an amount was refused, in words people can act on.
 export function amountError(input: string, currency = "INR"): string {
   const d = decimalsOf(currency);
-  const t = input.replace(/[₹$€£¥฿\s]/g, "").replace(/,/g, "");
+  // Read the comma exactly as parseAmount does, so the message matches the reason.
+  let raw = input.replace(/[₹$€£¥฿\s]/g, "");
+  if (/^\d+,\d{1,2}$/.test(raw)) raw = raw.replace(",", ".");
+  const t = raw.replace(/,/g, "");
   const m = /^(\d*)(?:\.(\d*))?$/.exec(t);
   if (!t || !m || (m[1] === "" && !m[2])) return d ? `Enter the amount as a number, like 250 or 99.${"5".padEnd(d, "0")}.` : "Enter the amount as a whole number, like 1500.";
   if ((m[2] ?? "").length > d) return d === 0 ? `${currency} amounts are whole numbers: no decimals.` : `Use no more than ${d} decimal place${d === 1 ? "" : "s"}.`;

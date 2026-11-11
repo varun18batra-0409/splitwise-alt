@@ -29,6 +29,8 @@ jobs:
         run: |
           npm audit --omit=dev --json > audit.json || true
           echo "::notice title=npm audit::$(node -e "const a=require('./audit.json');console.log(JSON.stringify((a.metadata||{}).vulnerabilities||{}))")"
+          # Each advisory by name, so it can be checked one by one (where it's used, fix or mitigation).
+          echo "::notice title=npm audit details::$(node -e "const a=require('./audit.json');const v=a.vulnerabilities||{};console.log(Object.values(v).map(x=>x.name+' ('+x.severity+(x.isDirect?', direct':', via '+[].concat(x.via).map(y=>typeof y==='string'?y:y.title+' '+(y.range||'')).join('; '))+'; fix: '+(x.fixAvailable===true?'yes':x.fixAvailable&&x.fixAvailable.name?x.fixAvailable.name+'@'+x.fixAvailable.version+(x.fixAvailable.isSemVerMajor?' (major)':''):'none')+')').join(' | '))")"
           npm audit --omit=dev --audit-level=critical
       - run: npm run db:setup
       - name: Tests
