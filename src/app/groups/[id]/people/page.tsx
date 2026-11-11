@@ -55,11 +55,17 @@ export default async function PeoplePage({
   // Removing people or marking them as left is for the person who looks after the group.
   const admin = pickAdmin(group.members);
   const isAdmin = admin?.id === myId;
-  // Names with an invitation still waiting: who it went to is shown to whoever may cancel it (the admin, or the person who sent it).
-  const waiting = new Map<string, { email: string; mayCancel: boolean }>();
+  // Names with an invitation still waiting. Who it went to is shown to whoever may cancel it (the admin, or a person who sent one);
+  // the Invite box on such a name is for the admin or the person who sent it, so nobody else can re-point it to their own address.
+  const waiting = new Map<string, { email: string; by: string; mayCancel: boolean; mayInvite: boolean }>();
+  const openFor = new Map<string, { email: string; invitedById: string }[]>();
   for (const i of await db.invite.findMany({ where: { groupId: group.id, acceptedAt: null, declinedAt: null }, orderBy: { createdAt: "desc" } })) {
     const row = inviteMemberId(i);
-    if (row && !waiting.has(row)) waiting.set(row, { email: i.email, mayCancel: isAdmin || i.invitedById === myId });
+    if (row) openFor.set(row, [...(openFor.get(row) ?? []), { email: i.email, invitedById: i.invitedById }]);
+  }
+  for (const [row, list] of openFor) {
+    const by = group.members.find((m) => m.id === list[0].invitedById)?.name ?? "someone";
+    waiting.set(row, { email: list[0].email, by, mayCancel: isAdmin || list.some((i) => i.invitedById === myId), mayInvite: isAdmin || list.every((i) => i.invitedById === myId) });
   }
   const justDid = sp.did ? group.events.find((x) => x.id === sp.did) : undefined;
   const nameOf = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");
@@ -104,7 +110,9 @@ export default async function PeoplePage({
             {!m.accountId && !m.claimedAt && !m.leftAt && waiting.has(m.id) && (
               <div className="space-y-2" data-invited-row>
                 <p className="text-sm text-gray-500">
-                  Invited{waiting.get(m.id)!.mayCancel ? ` at ${waiting.get(m.id)!.email}` : ""}. Wrong address, or they sign in with another one? Cancel the invitation, or invite a different email below.
+                  {waiting.get(m.id)!.mayCancel
+                    ? `Invited at ${waiting.get(m.id)!.email}. Wrong address, or they sign in with another one? Cancel the invitation${waiting.get(m.id)!.mayInvite ? ", or invite a different email below" : ""}.`
+                    : `Invited by ${waiting.get(m.id)!.by}. They can change it if the address is wrong.`}
                 </p>
                 {waiting.get(m.id)!.mayCancel && (
                   <form action={cancelInvite}>
@@ -116,7 +124,7 @@ export default async function PeoplePage({
                 )}
               </div>
             )}
-            {!m.accountId && !m.claimedAt && !m.leftAt && (
+            {!m.accountId && !m.claimedAt && !m.leftAt && (!waiting.has(m.id) || waiting.get(m.id)!.mayInvite) && (
               <form action={invitePersonByEmail} className="space-y-2">
                 <input type="hidden" name="groupId" value={group.id} />
                 <input type="hidden" name="memberId" value={m.id} />
