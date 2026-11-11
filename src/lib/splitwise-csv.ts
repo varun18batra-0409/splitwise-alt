@@ -244,16 +244,51 @@ export function mapCategory(swCategory: string, description: string): string {
   return guessCategory(description);
 }
 
-// One-line summary for the preview screen.
-export function previewText(p: Extract<SwParsed, { ok: true }>): { expenses: number; payments: number; balances: { name: string; text: string }[] } {
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// The first and last day in the file, the way people say it: "1 Oct – 5 Oct 2026", "30 Dec 2026 – 2 Jan 2027",
+// or one day "1 Oct 2026". "" when no line has a readable date.
+export function dateRangeText(dates: string[]): string {
+  const days = dates.filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+  if (!days.length) return "";
+  const part = (d: string) => ({ y: d.slice(0, 4), m: MONTHS[Number(d.slice(5, 7)) - 1] ?? "", d: String(Number(d.slice(8, 10))) });
+  const a = part(days[0]);
+  const b = part(days[days.length - 1]);
+  if (days[0] === days[days.length - 1]) return `${a.d} ${a.m} ${a.y}`;
+  return a.y === b.y ? `${a.d} ${a.m} – ${b.d} ${b.m} ${b.y}` : `${a.d} ${a.m} ${a.y} – ${b.d} ${b.m} ${b.y}`;
+}
+
+export type PreviewBalance = {
+  name: string;
+  net: number; // minor units: positive = gets money back, negative = owes
+  tone: "owed" | "owe" | "even";
+  amount: string; // formatMoney of the size, "" when square
+  text: string; // "gets back ₹300", "owes ₹100" or "all square"
+};
+
+// What the preview screen shows before importing: who is in the file, when it covers, how much is in it, and where each person ends up.
+export function previewText(p: Extract<SwParsed, { ok: true }>): {
+  expenses: number;
+  payments: number;
+  counts: string; // "2 expenses and 1 payment"
+  range: string; // "1 Oct – 5 Oct 2026" or ""
+  people: string[];
+  balances: PreviewBalance[];
+} {
   const plans = p.rows.map(planRow);
   const net = balancesOf(plans, p.people.length);
+  const expenses = plans.filter((x) => x.type === "expense").length;
+  const payments = plans.filter((x) => x.type === "payment").length;
   return {
-    expenses: plans.filter((x) => x.type === "expense").length,
-    payments: plans.filter((x) => x.type === "payment").length,
-    balances: p.people.map((name, i) => ({
-      name,
-      text: net[i] === 0 ? "all square" : net[i] > 0 ? `gets back ${formatMoney(net[i], p.currency)}` : `owes ${formatMoney(-net[i], p.currency)}`,
-    })),
+    expenses,
+    payments,
+    counts: `${expenses} ${expenses === 1 ? "expense" : "expenses"} and ${payments} ${payments === 1 ? "payment" : "payments"}`,
+    range: dateRangeText(p.rows.map((r) => r.date)),
+    people: p.people,
+    balances: p.people.map((name, i) => {
+      const n = net[i];
+      const amount = n === 0 ? "" : formatMoney(Math.abs(n), p.currency);
+      return { name, net: n, tone: n === 0 ? "even" : n > 0 ? "owed" : "owe", amount, text: n === 0 ? "all square" : n > 0 ? `gets back ${amount}` : `owes ${amount}` };
+    }),
   };
 }

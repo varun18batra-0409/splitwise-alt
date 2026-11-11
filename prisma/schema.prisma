@@ -92,6 +92,7 @@ model Member {
   // Taken out of the group by someone else (leftAt is set too): they can't rejoin on their own.
   removedAt DateTime?
   removedById String @default("")
+  timeZone  String   @default("") // this person's time zone from their phone (e.g. "Europe/London"); "" = not known yet. An account's own zone wins.
   @@unique([groupId, name])
   @@index([accountId])
 }
@@ -253,6 +254,7 @@ model Account {
   notes         AccountNote[]
   postcardsSent Postcard[] @relation("PostcardFrom")
   postcardsRecv Postcard[] @relation("PostcardTo")
+  timeZone String @default("") // time zone from the phone (e.g. "America/Los_Angeles"): nudges arrive in the daytime there. "" = not known yet.
 }
 
 // Notifications for a person rather than a group (Collect: "Asha added you",

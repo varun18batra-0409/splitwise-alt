@@ -1995,6 +1995,9 @@ async function main() {
     ].join("\n");
     await V.getByLabel("Spreadsheet to import").setInputFiles({ name: "manali-trip_2026-10-20_export.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
     await V.getByText("Found 2 expenses and 1 payment in INR").waitFor();
+    await V.getByText("1 Sep – 4 Sep 2026").waitFor();
+    await V.getByText("gets back ₹1,100").waitFor();
+    await V.getByText("owes ₹1,800").waitFor();
     await V.getByText("✓ Matches the file’s own balances").waitFor();
     assert((await V.getByRole("radio", { name: "Varun", exact: true }).getAttribute("aria-checked")) === "true", "you weren't picked from your name");
     assert((await V.locator('input[name="groupName"]').inputValue()) === "Manali trip", "group name not taken from the file name");
