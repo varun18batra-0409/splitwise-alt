@@ -5,47 +5,13 @@ import { GetAppButton } from "@/components/GetApp";
 import { db } from "@/lib/db";
 import { getAccount, getMemberships } from "@/lib/identity";
 import { joinAsExisting, joinAsNew } from "@/app/actions";
-import { Avatar, ErrorNote, avatarTone, inputClass, primaryButtonClass } from "@/components/ui";
+import { Avatar, ErrorNote, inputClass, primaryButtonClass } from "@/components/ui";
 import { GoogleG } from "@/components/GoogleG";
 import { googleConfigured } from "@/lib/google";
-import { GroupCover } from "@/components/GroupCover";
-import { coverFor, coverOf } from "@/lib/covers";
-import { placePhoto } from "@/lib/places";
-import { StoryArt } from "@/components/StoryArt";
-import type { StoryKind } from "@/lib/home/stories";
-import { countdownWords, tripPhase } from "@/lib/countdown";
-import { todayKey } from "@/lib/dates";
-import { getTimeZone } from "@/lib/tz";
+import { coverFor } from "@/lib/covers";
+import { Polaroid } from "@/components/Polaroid";
+import { memberOfToken } from "@/lib/invites";
 import type { Metadata } from "next";
-
-// What a group of this kind gets you, in three cards.
-const PERKS: Record<string, { title: string; line: string; art: StoryKind }[]> = {
-  trip: [
-    { title: "Split as you go", line: "Any currency, card fees included, one tap to add", art: "trip" },
-    { title: "Stories & Wrapped", line: "The trip, told in slides when it’s over", art: "wrapped" },
-    { title: "A trip passport", line: "A stamp in everyone’s passport", art: "memory" },
-  ],
-  home: [
-    { title: "Bills on repeat", line: "Rent and Wi-Fi add themselves each month", art: "collect" },
-    { title: "Pay in one tap", line: "UPI opens with the amount filled in", art: "square" },
-    { title: "The shopping list", line: "Add what’s low, tick what you bought", art: "memory" },
-  ],
-  couple: [
-    { title: "Your split, not 50/50", line: "By income, if you like", art: "square" },
-    { title: "Savings goals", line: "Bali in March, counted together", art: "trip" },
-    { title: "Who’s ahead", line: "One number for the month", art: "collect" },
-  ],
-  pot: [
-    { title: "Buy in with a tap", line: "Who took what from the pot", art: "pot" },
-    { title: "Who pays whom", line: "Worked out when the game ends", art: "square" },
-    { title: "The night, as a story", line: "Winners, losers, bragging rights", art: "wrapped" },
-  ],
-  other: [
-    { title: "Split any way", line: "Equally, some of you, or exact amounts", art: "collect" },
-    { title: "Pay in one tap", line: "UPI opens with the amount filled in", art: "square" },
-    { title: "Stories", line: "Your groups, told as stories on Home", art: "trip" },
-  ],
-};
 
 // The preview WhatsApp shows for an invite link: the group's name, never anyone's money.
 export async function generateMetadata({ params }: { params: Promise<{ code: string }> }): Promise<Metadata> {
@@ -107,71 +73,32 @@ export default async function JoinPage({
   if (mine && !mine.leftAt && (!account || mine.accountId === account.id)) redirect(`/groups/${group.id}`);
 
   const active = group.members.filter((m) => !m.leftAt);
-  const verified = active.filter((m) => m.accountId);
   const unclaimed = active.filter((m) => !m.accountId && !m.claimedAt);
+  // Invited by email (this account's own invitation): say who by, and offer the name they were added as.
+  const invite = account ? await db.invite.findUnique({ where: { groupId_email: { groupId: group.id, email: account.email } } }) : null;
+  const waiting = invite && !invite.acceptedAt ? invite : null;
+  const invitedBy = waiting ? group.members.find((m) => m.id === waiting.invitedById)?.name : undefined;
   // Invited by email to take over a name: offer that name first.
-  const asMember = unclaimed.find((m) => m.id === asId) ?? null;
+  const asMember = unclaimed.find((m) => m.id === asId) ?? (waiting ? unclaimed.find((m) => m.id === memberOfToken(waiting.token)) : undefined) ?? null;
   const backQ = new URLSearchParams({ ...(invitedEmail ? { e: invitedEmail } : {}), ...(asMember ? { as: asMember.id } : {}) }).toString();
   const back = `/join/${code}${backQ ? `?${backQ}` : ""}`;
 
-  const kind = group.type === "trip" ? "Trip" : group.type === "home" ? "Home" : group.type === "couple" ? "Couple" : group.type === "pot" ? "The Pot" : "Group";
-  const phase = group.type === "trip" && group.tripStart ? tripPhase(group.tripStart, group.tripEnd, todayKey(new Date(), await getTimeZone())) : null;
-  const countdown = phase ? countdownWords(group.name, phase) : null;
-  const firsts = verified.map((m) => m.name.trim().split(/\s+/)[0]);
-  const whoIn = firsts.length === 0 ? "" : firsts.length === 1 ? `${firsts[0]} is in` : firsts.length === 2 ? `${firsts[0]} and ${firsts[1]} are in` : `${firsts.slice(0, 2).join(", ")} and ${firsts.length - 2} more are in`;
-  const perks = PERKS[group.type] ?? PERKS.other;
+  const kind = group.type === "trip" ? "A trip" : group.type === "home" ? "A home" : group.type === "couple" ? "A couple" : group.type === "pot" ? "A card night" : "A group";
 
   return (
     <>
-      {/* The group's picture, edge to edge, with Loopin's name and (for a trip) how soon it leaves. */}
-      <div className="relative -mx-5 -mt-[max(1.5rem,env(safe-area-inset-top))] h-[400px] overflow-hidden" aria-hidden>
-        {group.type === "trip" && !group.cover && placePhoto(group.name) ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={placePhoto(group.name)!.src} alt="" className="lp-drift absolute inset-0 h-full w-full object-cover" />
-        ) : coverOf(group) !== "plain" ? (
-          <GroupCover {...coverFor(group, true)} uid={`join-${group.id}`} sizes="(max-width: 448px) 100vw, 448px" priority drift />
-        ) : (
-          <StoryArt kind={group.type === "pot" ? "pot" : "trip"} uid={`join-${group.id}`} />
-        )}
-        <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(13,13,15,0.5)_0%,rgba(13,13,15,0)_26%,rgba(13,13,15,0.3)_62%,#0d0d0f_100%)]" />
-      </div>
-      <div className="absolute inset-x-0 top-0 mx-auto flex max-w-md items-center justify-between px-5 pt-[max(1.2rem,env(safe-area-inset-top))]">
-        <span className="font-display text-[26px] font-semibold leading-none tracking-tight [text-shadow:0_2px_12px_rgba(0,0,0,0.4)]">loopin</span>
-        {countdown && <span className="glass rounded-full px-3 py-1.5 text-[13px] font-semibold">{countdown.line}</span>}
-      </div>
-
-      {/* The invitation itself, on frosted glass over the picture: who's in, and what you get. */}
-      <section className="glass relative z-10 -mt-[150px] mb-7 rounded-[30px] px-5 pb-5 pt-5 text-fg" data-join-card>
-        <p className="text-[15px] text-fg/70">
-          You’re invited to join, {active.length} {active.length === 1 ? "person" : "people"} so far
+      {/* The invitation: a neutral card. No names and no amounts until you join. */}
+      <header className="mb-6">
+        <span className="font-display text-[26px] font-semibold leading-none tracking-tight">loopin</span>
+      </header>
+      <section className="text-center" data-join-card>
+        <Polaroid cover={coverFor(group, true)} uid={`join-${group.id}`} letter={group.name} caption={group.name} photoClass="h-[200px]" className="mx-auto w-[250px] -rotate-2" captionClass="text-[22px]" sizes="250px" />
+        <p className="mt-7 text-sm text-fg/60">{invitedBy ? `${invitedBy} invited you to` : "You’re invited to"}</p>
+        <h1 className="mt-1 font-display text-[clamp(32px,10vw,40px)] font-semibold leading-[1.05] tracking-[-0.02em]">{group.name}</h1>
+        <p className="mt-1 text-sm text-fg/60">
+          {kind} · {active.length} {active.length === 1 ? "person" : "people"}
         </p>
-        <h1 className="lp-slide-in mt-1.5 font-display text-[clamp(38px,12vw,52px)] font-semibold leading-[1.02] tracking-[-0.02em]">{group.name}</h1>
-        {firsts.length > 0 && (
-          <span className="mt-3.5 flex items-center gap-2.5">
-            <span className="flex">
-              {firsts.slice(0, 4).map((n, i) => (
-                <span key={i} className={`lp-pop-in flex h-8 w-8 items-center justify-center rounded-full border-2 border-[#1c1c20] text-[12px] font-bold ${i ? "-ml-2" : ""} ${avatarTone(n)}`} style={{ animationDelay: `${200 + i * 90}ms` }}>
-                  {n.charAt(0).toUpperCase()}
-                </span>
-              ))}
-            </span>
-            <span className="text-sm text-fg/75">{whoIn}</span>
-          </span>
-        )}
-        <span aria-hidden className="mb-4 mt-5 block h-px bg-fg/10" />
-        <ul aria-label="What you get" className="space-y-2.5">
-          {perks.map((k, i) => (
-            <li key={k.title} className="lp-card flex items-start gap-2.5 text-[14.5px] leading-snug" style={{ animationDelay: `${120 + i * 90}ms` }}>
-              <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-owed)" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" className="mt-px shrink-0">
-                <path d="M5 12.5l4.5 4.5L19 7.5" />
-              </svg>
-              <span>
-                <span className="font-semibold">{k.title}</span>
-                <span className="text-fg/60">: {k.line}</span>
-              </span>
-            </li>
-          ))}
-        </ul>
+        <p className="mx-auto mt-5 max-w-[19rem] text-sm leading-relaxed text-fg/70">Join to see who’s in, what’s been spent and who owes what.</p>
       </section>
 
       {error === "busy" && <ErrorNote>Too many joins from here in the last hour. Wait a bit and try again.</ErrorNote>}
@@ -223,10 +150,11 @@ export default async function JoinPage({
             <p className="text-center text-xs text-gray-400">Joining as {account.email}</p>
           </form>
 
+          {/* Names stay out of sight until you ask: the page above shows none. */}
           {unclaimed.length > 0 && (
-            <section className="mt-10">
-              <h2 className="mb-1 text-sm font-medium text-gray-600">Already added to this group by name?</h2>
-              <p className="mb-3 text-xs text-gray-400">Tap your name to take it over, so its expenses are yours.</p>
+            <details className="mt-10" data-claim-names>
+              <summary className="cursor-pointer text-sm font-medium text-gray-600">Already added to this group by name?</summary>
+              <p className="mb-3 mt-1 text-xs text-gray-400">Tap your name to take it over, so its expenses are yours.</p>
               <ul className="space-y-2">
                 {unclaimed.map((m) => (
                   <li key={m.id}>
@@ -241,11 +169,12 @@ export default async function JoinPage({
                   </li>
                 ))}
               </ul>
-            </section>
+            </details>
           )}
         </>
       )}
 
+      <p className="mt-6 text-center text-[13px] text-fg/50" data-join-footnote>No names or amounts are shown before you join.</p>
       <p className="mt-8 text-center text-xs text-gray-400">Loopin keeps count. It never touches your money.</p>
       <GetAppButton variant="card" className="mt-6" />
     </>

@@ -4,18 +4,19 @@ import { logEvent } from "./events";
 import { cleanEmail } from "./auth";
 import { sendMail } from "./mail";
 import { allow } from "./rate-limit";
+import { deliverNotes } from "./account-notes";
+import { randomBytes } from "node:crypto";
 
 // Invite and "added you" emails one person can send in a day. The whole app's
 // daily email allowance is small, so one person (or a spammer) can't use it up.
 export const INVITE_EMAILS_PER_DAY = 20;
 const inviteMailOk = (actor: { id: string; accountId?: string | null }) => allow(`invite-mail:${actor.accountId || actor.id}`, INVITE_EMAILS_PER_DAY, 86_400);
 
-// Adding people to a group. Nobody can be added by just typing a name:
-//  - people already on Loopin (signed up with email) can be added directly;
-//  - anyone else gets an invitation (email, or a link sent from contacts) and
-//    becomes a member only after they verify their email and accept.
+// Adding people to a group. Someone added by email (or found by name on Loopin) is in the group at
+// once as a name, so they can be split with, and is invited: they see the group on their own
+// phone only after they verify their email and tap Join.
 
-export type Found = { accountId: string; name: string; email: string; inGroup: boolean; known: boolean };
+export type Found = { accountId: string; name: string; email: string; inGroup: boolean; known: boolean; invited: boolean };
 
 const nameOfAccount = (a: { name: string; email: string }) => a.name.trim() || a.email.split("@")[0];
 
@@ -48,9 +49,11 @@ export async function searchPeople(memberships: Record<string, string>, groupId:
   ]);
   const inGroup = new Set(groupRows.map((m) => m.accountId!));
   const known = await db.account.findMany({ where: { id: { in: knownRows.map((r) => r.accountId!) } } });
-  const out: Found[] = known
-    .filter((a) => a.email.includes(q) || nameOfAccount(a).toLowerCase().includes(q))
-    .map((a) => ({ accountId: a.id, name: nameOfAccount(a), email: a.email, inGroup: inGroup.has(a.id), known: true }));
+  const shown = known.filter((a) => a.email.includes(q) || nameOfAccount(a).toLowerCase().includes(q));
+  // Already invited to this group and not joined yet: shown as "Invited".
+  const waiting = shown.length ? await db.invite.findMany({ where: { groupId, acceptedAt: null, declinedAt: null, email: { in: shown.map((a) => a.email) } }, select: { email: true } }) : [];
+  const invitedEmails = new Set(waiting.map((i) => i.email));
+  const out: Found[] = shown.map((a) => ({ accountId: a.id, name: nameOfAccount(a), email: a.email, inGroup: inGroup.has(a.id), known: true, invited: invitedEmails.has(a.email) }));
   // A full email of someone you share nothing with is not looked up here: the screen offers the same
   // "Add" for any email (on Loopin → added; not yet → invited), so nobody can check who has an account.
   void exact;
@@ -71,94 +74,148 @@ export async function copyPushTo(accountId: string, memberId: string) {
   }
 }
 
-type Result = { ok: true; memberId: string; eventId: string; name: string } | { ok: false; error: string };
+type Result = { ok: true; memberId: string; eventId: string; name: string; email: string } | { ok: false; error: string };
 
-// Add someone who's already on Loopin. They're told by email (and by phone
-// notification if they turned those on).
-// `later`: send the "you were added" email after the reply (so adding is instant).
-export async function addRegistered(groupId: string, actorId: string, accountId: string, origin: string, opts: { later?: (job: () => Promise<unknown>) => void } = {}): Promise<Result> {
-  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: true } });
+// ---- Invitations ----
+//
+// Adding someone by email puts them in the group AT ONCE as a name only (so they can be split with
+// straight away, exactly like a friend added by name), and invites them: an Invite row with its own
+// token, an email, and (if the email belongs to an account) a note in their Alerts and a phone push.
+// They only see the group once they tap Join (see invitations.ts).
+//
+// The adder gets the same reply whether or not the email is on Loopin, so nobody can use this to
+// find out who has an account. The token starts with the id of the name row it is for.
+
+export const newInviteToken = (memberId: string) => `${memberId}.${randomBytes(18).toString("base64url")}`;
+export const memberOfToken = (token: string) => (token.includes(".") ? token.split(".")[0] : "");
+
+// "ravi.kumar@gmail.com" → "Ravi Kumar" (the same for everyone, so it says nothing about whether they have an account).
+export function nameFromEmail(email: string): string {
+  const words = email.split("@")[0].replace(/[._+\-]+/g, " ").trim().split(/\s+/).filter(Boolean);
+  return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ").slice(0, 36) || "Friend";
+}
+
+type InviteGroup = { id: string; name: string; inviteCode: string; joinWeight: number; members: { id: string; name: string; accountId: string | null; leftAt: Date | null }[] };
+type Actor = { id: string; name: string; accountId?: string | null };
+type Later = (job: () => Promise<unknown>) => void;
+
+// One person: the name row, the Invite, the email (and the note for someone on Loopin). Sent after the reply when `later` is given.
+async function inviteOne(
+  group: InviteGroup,
+  actor: Actor,
+  email: string,
+  wantedName: string,
+  o: { origin: string; account: { id: string } | null; mail: boolean; later?: Later },
+): Promise<{ memberId: string; eventId: string; name: string }> {
+  const prior = await db.invite.findUnique({ where: { groupId_email: { groupId: group.id, email } } });
+  // Asked again before they joined: the same name row, a fresh invitation.
+  const kept = prior && !prior.acceptedAt && prior.token ? group.members.find((m) => m.id === memberOfToken(prior.token) && !m.accountId && !m.leftAt) : undefined;
+  const name = kept ? kept.name : freeName(group.members.map((m) => m.name), wantedName);
+  const { memberId, eventId } = await db.$transaction(async (tx) => {
+    let memberId = kept?.id ?? "";
+    let eventId = "";
+    if (!kept) {
+      const m = await tx.member.create({ data: { name, groupId: group.id, splitWeight: group.joinWeight } });
+      memberId = m.id;
+      eventId = await logEvent(tx, { groupId: group.id, actorId: actor.id, kind: "members_added", text: `added ${name} to the group`, undo: { type: "members_remove", memberIds: [m.id] } });
+    }
+    const token = kept && prior?.token ? prior.token : newInviteToken(memberId);
+    await tx.invite.upsert({
+      where: { groupId_email: { groupId: group.id, email } },
+      create: { groupId: group.id, email, invitedById: actor.id, token },
+      update: { invitedById: actor.id, acceptedAt: null, declinedAt: null, createdAt: new Date(), token },
+    });
+    return { memberId, eventId };
+  });
+
+  const link = `${o.origin}/join/${group.inviteCode}?${new URLSearchParams({ e: email, as: memberId })}`;
+  const job = async () => {
+    if (o.mail) {
+      await sendMail(
+        email,
+        `${actor.name} added you to ${group.name} on Loopin`,
+        `${actor.name} added you to “${group.name}” on Loopin.\n\nJoin here: ${link}`,
+        `<div style="font-family:system-ui,sans-serif;max-width:440px"><p style="font-size:16px"><strong>${esc(actor.name)}</strong> added you to <strong>${esc(group.name)}</strong> on Loopin.</p><p><a href="${link}" style="display:inline-block;background:#0d0d0f;color:#f4f2ec;padding:12px 18px;text-decoration:none;font-weight:600">Join ${esc(group.name)}</a></p></div>`,
+        { optOut: true },
+      );
+    }
+    if (o.account) {
+      await deliverNotes([{ accountIds: [o.account.id], kind: "group_invite", title: `${actor.name} added you to ${group.name}`, body: "Tap to join, or choose Not now.", url: `/groups/${group.id}`, tag: `invite-${group.id}` }]);
+    }
+  };
+  if (o.later) o.later(job);
+  else await job();
+  return { memberId, eventId, name };
+}
+
+async function loadInviteGroup(groupId: string, actorId: string) {
+  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true, name: true, accountId: true, leftAt: true, removedAt: true } } } });
+  const actor = group?.members.find((m) => m.id === actorId);
+  return { group, actor };
+}
+
+// Add someone who's already on Loopin (found by name among people you share a group with).
+// They're in the group at once as a name and invited, like an email add.
+// `later`: send the email and note after the reply (so adding is instant).
+export async function addRegistered(groupId: string, actorId: string, accountId: string, origin: string, opts: { later?: Later } = {}): Promise<Result> {
+  const { group, actor } = await loadInviteGroup(groupId, actorId);
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
-  const actor = group.members.find((m) => m.id === actorId);
-  if (!actor) return { ok: false, error: "Only people in this group can add others." };
+  if (!actor || actor.leftAt) return { ok: false, error: "Only people in this group can add others." };
   const account = await db.account.findUnique({ where: { id: accountId } });
   if (!account) return { ok: false, error: "That person isn't on Loopin." };
   const existing = group.members.find((m) => m.accountId === accountId);
   if (existing && !existing.leftAt) return { ok: false, error: `${existing.name} is already in this group.` };
+  if (existing?.removedAt) return { ok: false, error: `${existing.name} was removed from this group. Only the person who looks after it can bring them back.` };
 
-  const name = existing ? existing.name : freeName(group.members.map((m) => m.name), nameOfAccount(account));
-  const { memberId, eventId } = await db.$transaction(async (tx) => {
-    const m = existing
-      ? await tx.member.update({ where: { id: existing.id }, data: { leftAt: null } })
-      : await tx.member.create({ data: { name, groupId, accountId, claimedAt: new Date(), splitWeight: group.joinWeight, addedBy: actorId } });
-    const eventId = await logEvent(tx, {
-      groupId,
-      actorId,
-      kind: "members_added",
-      text: `added ${name} to the group`,
-      undo: existing ? undefined : { type: "members_remove", memberIds: [m.id] },
+  if (existing) {
+    // Someone who left on their own and is added back: back in, as before.
+    const { eventId } = await db.$transaction(async (tx) => {
+      await tx.member.update({ where: { id: existing.id }, data: { leftAt: null } });
+      const eventId = await logEvent(tx, { groupId, actorId, kind: "members_added", text: `added ${existing.name} to the group` });
+      return { eventId };
     });
-    await tx.invite.updateMany({ where: { groupId, email: account.email, acceptedAt: null }, data: { acceptedAt: new Date() } });
-    return { memberId: m.id, eventId };
-  });
-  await copyPushTo(accountId, memberId);
-  const email = async () => (await inviteMailOk(actor)) && sendMail(
-    account.email,
-    `${actor.name} added you to ${group.name} on Loopin`,
-    `${actor.name} added you to “${group.name}” on Loopin.\n\nOpen it: ${origin}/groups/${groupId}`,
-    `<div style="font-family:system-ui,sans-serif;max-width:440px"><p style="font-size:16px"><strong>${esc(actor.name)}</strong> added you to <strong>${esc(group.name)}</strong> on Loopin.</p><p><a href="${origin}/groups/${groupId}" style="display:inline-block;background:#0d0d0f;color:#f4f2ec;padding:12px 18px;text-decoration:none;font-weight:600">Open ${esc(group.name)}</a></p></div>`,
-    { optOut: true },
-  );
-  if (opts.later) opts.later(email);
-  else await email();
-  return { ok: true, memberId, eventId, name };
+    await copyPushTo(accountId, existing.id);
+    return { ok: true, memberId: existing.id, eventId, name: existing.name, email: account.email };
+  }
+  const mail = await inviteMailOk(actor);
+  const r = await inviteOne(group, actor, account.email, nameOfAccount(account), { origin, account, mail, later: opts.later });
+  return { ok: true, ...r, email: account.email };
 }
 
-// Invite people by email. Someone already on Loopin is added straight away;
-// everyone else gets a link and joins after verifying their email.
-export async function inviteByEmail(groupId: string, actorId: string, rawEmails: string, origin: string, opts: { later?: (job: () => Promise<unknown>) => void } = {}) {
-  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true, name: true, accountId: true } } } });
-  const actor = group?.members.find((m) => m.id === actorId);
-  if (!group || !actor) return { added: [] as string[], invited: [] as string[], bad: [] as string[] };
+// Invite people by email. Everyone typed (valid) gets the same reply: they're in the group as a name
+// and an invitation went out. Only a badly typed address is an error. Someone who is already in the
+// group, or yourself, gets the same reply and nothing is sent.
+export async function inviteByEmail(groupId: string, actorId: string, rawEmails: string, origin: string, opts: { later?: Later } = {}) {
+  const { group, actor } = await loadInviteGroup(groupId, actorId);
+  const people: { name: string; email: string }[] = [];
+  const bad: string[] = [];
+  const eventIds: string[] = [];
+  if (!group || group.deletedAt || !actor || actor.leftAt) return { people, bad, eventIds };
   const parts = [...new Set(rawEmails.split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean))].slice(0, 20);
-  const added: string[] = [], invited: string[] = [], bad: string[] = [];
   for (const p of parts) {
     const email = cleanEmail(p);
     if (!email) {
       bad.push(p);
       continue;
     }
-    const account = await db.account.findUnique({ where: { email } });
-    if (account) {
-      const r = await addRegistered(groupId, actorId, account.id, origin, opts);
-      if (r.ok) added.push(r.name);
-      else bad.push(`${email} (${r.error})`);
-      continue;
-    }
-    await db.invite.upsert({
-      where: { groupId_email: { groupId, email } },
-      create: { groupId, email, invitedById: actorId },
-      update: { invitedById: actorId, acceptedAt: null, createdAt: new Date() },
-    });
-    const link = `${origin}/join/${group.inviteCode}?e=${encodeURIComponent(email)}`;
-    if (!(await inviteMailOk(actor))) {
+    // Charged for every address, so the allowance says nothing about who is on Loopin.
+    const mail = await inviteMailOk(actor);
+    if (!mail) {
       bad.push(`${email} (you've sent ${INVITE_EMAILS_PER_DAY} invite emails today; share the invite link instead)`);
       continue;
     }
-    const sent = await sendMail(
-      email,
-      `${actor.name} invited you to ${group.name} on Loopin`,
-      `${actor.name} invited you to split expenses in “${group.name}” on Loopin.\n\nJoin here: ${link}`,
-      `<div style="font-family:system-ui,sans-serif;max-width:440px"><p style="font-size:16px"><strong>${esc(actor.name)}</strong> invited you to split expenses in <strong>${esc(group.name)}</strong> on Loopin.</p><p><a href="${link}" style="display:inline-block;background:#0d0d0f;color:#f4f2ec;padding:12px 18px;text-decoration:none;font-weight:600">Join ${esc(group.name)}</a></p></div>`,
-      { optOut: true },
-    );
-    if (sent) invited.push(email);
-    else bad.push(`${email} (the email couldn’t be sent; share the invite link instead)`);
+    const wanted = nameFromEmail(email);
+    const account = await db.account.findUnique({ where: { email } });
+    // Already in the group (or removed from it), or you: the same reply, nothing sent.
+    if (account && group.members.some((m) => m.accountId === account.id)) {
+      people.push({ name: wanted, email });
+      continue;
+    }
+    const r = await inviteOne(group, actor, email, wanted, { origin, account, mail, later: opts.later });
+    people.push({ name: r.name, email });
+    if (r.eventId) eventIds.push(r.eventId);
   }
-  if (invited.length) {
-    await logEvent(db, { groupId, actorId, kind: "member_invited", text: `invited ${invited.join(", ")} by email` });
-  }
-  return { added, invited, bad };
+  return { people, bad, eventIds };
 }
 
 function esc(s: string) {

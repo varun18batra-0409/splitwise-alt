@@ -2,7 +2,7 @@ import { parsePayers } from "./payers";
 import { LEFT_ERROR } from "./active";
 import { db } from "./db";
 import { withRetry } from "./once";
-import { diffExpense, expenseState, logEvent, parseUndo, type UndoPayload } from "./events";
+import { diffExpense, expenseState, logEvent, parseUndo, touchedByExpense, type UndoPayload } from "./events";
 import { setExpenseDeleted, setPaymentDeleted } from "./save-expense";
 import { formatPercent } from "./money";
 import { setMember } from "./people";
@@ -201,6 +201,7 @@ async function revertExpense(expenseId: string, before: Parameters<typeof expens
       details: changes,
       expenseId,
       undo: { type: "expense_revert", expenseId, before: current },
+      touches: touchedByExpense(current, before),
     });
   });
   return { ok: true, eventId };

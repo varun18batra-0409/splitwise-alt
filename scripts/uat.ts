@@ -85,6 +85,21 @@ const stamp = Date.now();
 const noCronKey = hosted && !process.env.CRON_SECRET;
 const cronAuth = (): Record<string, string> => (process.env.CRON_SECRET ? { authorization: `Bearer ${process.env.CRON_SECRET}` } : {});
 const email = (n: string) => `${n}-${stamp}@uat.loopin.test`;
+// Someone added to a group by name is invited: they are in the group at once as a name, and see it on their own Home only after tapping Join.
+async function tapJoin(page: Page, groupName: string, groupPath: string) {
+  await go(page, "/");
+  await page.locator("[data-invitation]").filter({ hasText: groupName }).getByRole("button", { name: "Join", exact: true }).click();
+  await page.waitForURL(new RegExp(`${groupPath}$`));
+}
+// Emails are sent just after the screen changes: wait for one.
+async function mailTo(to: string, where: { subject?: { contains: string } } = {}) {
+  for (let i = 0; i < 40; i++) {
+    const row = await db.outbox.findFirst({ where: { to, ...where }, orderBy: { createdAt: "desc" } });
+    if (row) return row;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  return null;
+}
 
 // Sign up / sign in on the email screen; the code is read from the test outbox.
 async function signup(page: Page, name: string, address: string, emailFilled = false) {
@@ -330,17 +345,17 @@ async function main() {
     await go(V, `${g}/settings`);
     assert((await V.locator("[data-admin-only]").count()) === 0, "Varun (the starter) sees the admin-only note");
   });
-  await step(V, "Joining", "Invite by email: Zoe gets an email, is listed as “Invited”, and is NOT a member yet", async () => {
+  await step(V, "Joining", "Add by email: Zoe is in the group at once as a name (“Invited · hasn’t joined yet”) and gets an invitation email", async () => {
     await go(V, `${g}/invite`);
     await V.getByLabel("Email addresses to invite").fill(email("zoe"));
     await V.getByRole("button", { name: "Invite", exact: true }).click();
     await V.waitForURL(/invited=/);
-    await V.getByText("Invited · waiting to join").waitFor();
-    const members = (await V.locator("main ul").last().innerText()).replace(/\s+/g, " ");
-    assert(!/Zoe/.test(members), `Zoe is already a member: ${members}`);
+    await V.locator("[data-invited-title]").waitFor();
+    await V.getByText("Invited · hasn’t joined yet").first().waitFor();
+    assert((await db.member.count({ where: { groupId: g.split("/").pop()!, accountId: null, name: { startsWith: "Uat Zoe" } } })) === 1, "no name row for Zoe");
   });
-  await step(Z, "Joining", "Zoe taps the link in her email, verifies, and joins", async () => {
-    const mailRow = await db.outbox.findFirst({ where: { to: email("zoe"), subject: { contains: "invited you" } }, orderBy: { createdAt: "desc" } });
+  await step(Z, "Joining", "Zoe taps the link in her email, verifies, and joins as the name she was added with", async () => {
+    const mailRow = await mailTo(email("zoe"), { subject: { contains: "added you to" } });
     assert(mailRow, "no invite email for Zoe");
     const link = /https?:\/\/\S+\/join\/\S+/.exec(mailRow.text)?.[0];
     assert(link, "no link in the email");
@@ -349,7 +364,7 @@ async function main() {
     assert((await Z.locator('input[name="email"]').inputValue()) === email("zoe"), "email not filled in from the invite");
     await signup(Z, "Zoe", email("zoe"), true);
     await Z.waitForURL(/\/join\//);
-    await Z.getByRole("button", { name: /^Join / }).click();
+    await Z.getByRole("button", { name: /^Continue as / }).click();
     await Z.waitForURL(new RegExp(`${g}$`));
   });
   await step(V, "Joining", "Invite emails carry an unsubscribe link: one tap stops them, and the next invite to that address isn't sent", async () => {
@@ -357,7 +372,7 @@ async function main() {
     await V.getByLabel("Email addresses to invite").fill(email("optout"));
     await V.getByRole("button", { name: "Invite", exact: true }).click();
     await V.waitForURL(/invited=/);
-    const row = await db.outbox.findFirst({ where: { to: email("optout") }, orderBy: { createdAt: "desc" } });
+    const row = await mailTo(email("optout"));
     const link = /https?:\/\/\S+\/api\/unsubscribe\?\S+/.exec(row?.text ?? "")?.[0];
     assert(link, "no unsubscribe link in the invite email");
     const u = new URL(link);
@@ -760,7 +775,8 @@ async function main() {
     // Asha is a friend from the first group: search by name and add.
     await V.getByLabel("Search people on Loopin").fill("Asha");
     await V.getByRole("button", { name: "Add", exact: true }).first().click();
-    await V.waitForURL(/added=/);
+    await V.waitForURL(/invited=/);
+    await tapJoin(A, name, path);
     return path;
   };
   await step(V, "Across groups", "Two more groups with Asha: she owes ₹500 in one, Varun owes ₹300 in the other", async () => {
@@ -804,7 +820,7 @@ async function main() {
     gc = new URL(V.url()).pathname.replace(/\/invite$/, "");
     await V.getByLabel("Search people on Loopin").fill("Asha");
     await V.getByRole("button", { name: "Add", exact: true }).first().click();
-    await V.waitForURL(/added=/);
+    await V.waitForURL(/invited=/);
     const ws = await db.member.findMany({ where: { groupId: gc.split("/").pop()! }, orderBy: { createdAt: "asc" } });
     assert(ws.map((m) => m.splitWeight).join("/") === "55/45", `weights are ${ws.map((m) => m.splitWeight).join("/")}`);
   });
@@ -884,7 +900,7 @@ async function main() {
   });
 
   // ===== 8. Everything else people do =====
-  await step(V, "Add people", "Search by name only finds friends; a full email gets the same neutral Add (no account revealed) and adds a stranger who is on Loopin", async () => {
+  await step(V, "Add people", "Search by name only finds friends; a full email gets the same neutral Add (no account revealed) and puts a stranger who is on Loopin in the group as an invited name", async () => {
     const x = await person(browser);
     await go(x.page, "/signin?mode=signup");
     await signup(x.page, "Sheldon", email("sheldon"));
@@ -896,9 +912,10 @@ async function main() {
     // The same neutral row for any email (nobody can check who has an account); on Loopin → added straight away.
     await V.locator("[data-add-by-email]").waitFor();
     const results = (await V.locator("ul").filter({ has: V.locator("[data-add-by-email]") }).innerText()).replace(/\s+/g, " ");
-    assert(!/On Loopin/.test(results) && /Added if they’re on Loopin/.test(results), `a stranger's account was revealed by their email: ${results}`);
+    assert(!/On Loopin/.test(results) && /In the group now, and emailed an invitation/.test(results), `a stranger's account was revealed by their email: ${results}`);
     await V.locator("[data-add-by-email]").click();
-    await V.waitForURL(/added=Sheldon/);
+    await V.waitForURL(/invited=/);
+    await V.locator("[data-invited-title]").waitFor();
   });
   await step(A, "Alerts", "Asha sees an unread alert badge and Varun's changes in Alerts", async () => {
     await go(A, "/");
@@ -1129,11 +1146,17 @@ async function main() {
     await go(V, "/notifications");
     await V.getByText("Notifications on this phone").first().waitFor();
   });
-  await step(V, "Add people", "Inviting the email of someone already on Loopin adds them straight away", async () => {
+  await step(V, "Add people", "Adding the email of someone already on Loopin gets the same reply as any email; they see an invitation on Home and in Alerts", async () => {
     await go(V, `${g2}/invite`);
     await V.getByLabel("Email addresses to invite").fill(email("ravi"));
     await V.getByRole("button", { name: "Invite", exact: true }).click();
-    await V.waitForURL(/added=Ravi/);
+    await V.waitForURL(/invited=/);
+    await V.locator("[data-invited-title]").waitFor();
+    await V.getByText(/We’ve sent an invitation to/).waitFor();
+    await go(R, "/");
+    await R.locator("[data-invitation]").filter({ hasText: "UAT Flat" }).getByRole("button", { name: "Not now", exact: true }).waitFor();
+    await go(R, "/notifications");
+    await R.locator("[data-invitation]").filter({ hasText: "UAT Flat" }).waitFor();
   });
   await step(null, "Privacy", "A stranger opening a group's address sees “Private group”: no name, no join link", async () => {
     const x = await person(browser);
@@ -1365,7 +1388,8 @@ async function main() {
     gh = new URL(V.url()).pathname.replace(/\/invite$/, "");
     await V.getByLabel("Search people on Loopin").fill("Asha");
     await V.getByRole("button", { name: "Add", exact: true }).first().click();
-    await V.waitForURL(/added=/);
+    await V.waitForURL(/invited=/);
+    await tapJoin(A, "UAT Flat 402", gh);
     await go(V, gh);
     const current = await V.locator('a[aria-current="page"]').filter({ hasText: /This month|Bills|List|Activity|Balances/ }).first().innerText();
     assert(current.trim() === "This month", `opened on “${current}”`);
@@ -1490,6 +1514,10 @@ async function main() {
     assert(!/\/join\//.test(await A.locator("main").innerText()), "a person who moved out still sees the invite link");
     await go(A, `${gh}/settings`);
     assert(/\/people/.test(A.url()), `settings stayed open for a person who moved out: ${A.url()}`);
+    // And sees the group only up to the day they left: the banner, and no This month / Bills / List tabs.
+    await go(A, gh);
+    await A.locator("[data-left-banner]").waitFor();
+    for (const t of ["This month", "Bills", "List"]) assert((await A.getByRole("link", { name: t, exact: true }).count()) === 0, `a person who moved out sees the ${t} tab`);
     const sum = Object.values(data.net).reduce((a, b) => a + b, 0);
     assert(sum === 0 && data.net[asha.id] === 0, `net ${JSON.stringify(data.net)}`);
   });

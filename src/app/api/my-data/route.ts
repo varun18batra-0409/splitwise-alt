@@ -3,6 +3,7 @@ import { getAccount, getMemberships } from "@/lib/identity";
 import { myDataCsv } from "@/lib/csv";
 import { getTimeZone } from "@/lib/tz";
 import { dayKey } from "@/lib/dates";
+import { readableWhere } from "@/lib/left-view-db";
 
 // "Download all my data" (Account): one CSV with every group I'm in on this
 // phone or account. Only ever my own groups; nothing for a stranger.
@@ -15,16 +16,26 @@ export async function GET() {
     where: { id: { in: ids }, deletedAt: null },
     orderBy: { createdAt: "asc" },
     include: {
-      members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true } },
-      expenses: { include: { shares: true } },
-      payments: true,
+      members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true, removedAt: true } },
     },
   });
   const tz = await getTimeZone();
   const now = new Date();
   const body = myDataCsv(
     account ? { email: account.email, name: account.name ?? "", createdAt: account.createdAt } : null,
-    groups.filter((g) => g.members.some((m) => m.id === memberships[g.id])).map((g) => ({ ...g, myId: memberships[g.id] })),
+    await Promise.all(
+      groups
+        .filter((g) => g.members.some((m) => m.id === memberships[g.id]))
+        .map(async (g) => {
+          // Groups I left (or was removed from): only what I'm allowed to see there, like on screen.
+          const scope = await readableWhere(g.id, g.members.find((m) => m.id === memberships[g.id])!);
+          const [expenses, payments] = await Promise.all([
+            db.expense.findMany({ where: { groupId: g.id, ...(scope ? { AND: [scope.expenses] } : {}) }, include: { shares: true } }),
+            db.payment.findMany({ where: { groupId: g.id, ...(scope ? { AND: [scope.payments] } : {}) } }),
+          ]);
+          return { ...g, expenses, payments, myId: memberships[g.id] };
+        }),
+    ),
     now,
     tz,
   );

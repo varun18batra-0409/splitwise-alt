@@ -6,7 +6,7 @@ import { InviteIcon, SearchIcon } from "./icons";
 import { reportSpeed } from "./speedReport";
 import { whatsappLink } from "@/lib/whatsapp";
 
-type Found = { accountId: string; name: string; email: string; inGroup: boolean; known: boolean };
+type Found = { accountId: string; name: string; email: string; inGroup: boolean; known: boolean; invited?: boolean };
 const isEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(s.trim());
 
 // 1. Search people already on Loopin (friends you share a group with by name,
@@ -94,6 +94,8 @@ export function PeopleSearch({ groupId }: { groupId: string }) {
               </span>
               {f.inGroup ? (
                 <span className="shrink-0 text-xs text-gray-400">In group</span>
+              ) : f.invited ? (
+                <span className="shrink-0 text-xs text-gray-400" data-invited-chip>Invited</span>
               ) : (
                 <form action={addPerson} onSubmit={() => cache.current.clear()}>
                   <input type="hidden" name="groupId" value={groupId} />
@@ -115,7 +117,7 @@ export function PeopleSearch({ groupId }: { groupId: string }) {
             <li className="flex items-center gap-3 px-3 py-2.5">
               <span className="min-w-0 flex-1 text-sm">
                 <span className="block truncate">{q.trim()}</span>
-                <span className="block text-xs text-gray-400">Added if they’re on Loopin, otherwise emailed an invite</span>
+                <span className="block text-xs text-gray-400">In the group now, and emailed an invitation</span>
               </span>
               <form action={invitePeople}>
                 <input type="hidden" name="groupId" value={groupId} />

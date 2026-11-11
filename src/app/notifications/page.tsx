@@ -9,6 +9,8 @@ import { getTimeZone } from "@/lib/tz";
 import { parseDetails } from "@/lib/events";
 import { PageHeader } from "@/components/ui";
 import { PushToggle } from "@/components/PushControls";
+import { InvitationCard } from "@/components/InvitationCard";
+import { loadInvitations } from "@/lib/invitations";
 
 const ICON: Record<string, string> = {
   expense_added: "＋",
@@ -47,7 +49,7 @@ const ICON: Record<string, string> = {
 // Opening this page marks them as read.
 export default async function Notifications() {
   const [memberships, tz, account] = await Promise.all([getMemberships(), getTimeZone(), getAccount()]);
-  const [{ items }, notes] = await Promise.all([loadNotifications(memberships, 100), account ? loadNotes(account.id, 50) : Promise.resolve([])]);
+  const [{ items }, notes, invitations] = await Promise.all([loadNotifications(memberships, 100), account ? loadNotes(account.id, 50) : Promise.resolve([]), loadInvitations(account)]);
   await Promise.all([markNotificationsSeen(memberships), account ? markNotesSeen(account.id) : null]);
 
   // Group changes and personal notes (Collect) together, newest first.
@@ -80,6 +82,13 @@ export default async function Notifications() {
             <span className={`absolute top-1 h-5 w-5 rounded-full bg-canvas transition-all ${account.collectPush ? "left-6" : "left-1"}`} />
           </button>
         </form>
+      )}
+      {invitations.length > 0 && (
+        <div className="mb-6 space-y-3" data-invitations>
+          {invitations.map((inv) => (
+            <InvitationCard key={inv.key} inv={inv} />
+          ))}
+        </div>
       )}
       {rows.length === 0 ? (
         <p className="rounded-2xl bg-mist px-4 py-10 text-center text-sm text-gray-600">

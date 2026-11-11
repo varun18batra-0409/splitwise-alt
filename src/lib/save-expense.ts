@@ -4,7 +4,7 @@ import { buildExpense, type ExpenseDraft } from "./expense";
 import { getCategory, guessCategory, isCategory } from "./categories";
 import { formatMoney, isSupportedCurrency } from "./money";
 import { cleanRateText, parseRate, PAYMENT_METHODS } from "./conversion";
-import { diffExpense, expenseState, logEvent, type ExpenseSnapshot } from "./events";
+import { diffExpense, expenseState, logEvent, touchedByExpense, type ExpenseSnapshot } from "./events";
 import type { RateAnswer } from "./rate-cache";
 import { dayKey, parseDay } from "./dates";
 import { claimKey, isDuplicateKey, previousResult, withRetry } from "./once";
@@ -308,6 +308,8 @@ async function saveExpenseOnce(
       details: changes,
       expenseId: existing.id,
       undo: { type: "expense_revert", expenseId: existing.id, before: expenseState(existing) },
+      // Only the people whose money in or share changed (a leaver sees the change only if it touched them).
+      touches: touchedByExpense(existing, { paidById: fields.paidById, amount: fields.amount, payers: fields.payers, kind: fields.kind, shares: e.shares }),
     });
    });
   } catch (err) {

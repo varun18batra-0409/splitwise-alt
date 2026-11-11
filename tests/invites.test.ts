@@ -2,8 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { addRegistered, freeName, inviteByEmail, searchPeople } from "@/lib/invites";
 
-// Adding people: only real (signed-up) people can be added directly; everyone
-// else gets an invitation. Name search only finds people you already know.
+// Adding people: everyone added by email (or found by name) is in the group at once as a name and
+// is invited; their account is linked only when they join. The adder gets the same reply whether or
+// not the email is on Loopin. Name search only finds people you already know.
 
 const stamp = Date.now();
 const mail = (n: string) => `${n}-${stamp}@example.com`;
@@ -56,39 +57,87 @@ describe("adding people", () => {
     expect(await searchPeople(ms, g2, "chandler")).toEqual([]); // never suggests yourself
   });
 
-  it("adds someone on Loopin straight away, with a notification and an email", async () => {
+  // REVERSED ON PURPOSE (Batch B): adding someone used to put their account straight into the group.
+  // Now they are in the group at once as a NAME ONLY (so they can be split with) and are invited;
+  // the account is linked only when they tap Join (see tests/invitations.test.ts).
+  it("adding someone on Loopin by name puts a name in the group at once and invites them; their account isn't on the row", async () => {
     const r = await addRegistered(g2, meG2, joey, "https://loopin.test");
     expect(r.ok && r.name).toBe("Joey");
-    const m = await db.member.findFirst({ where: { groupId: g2, accountId: joey } });
-    expect(m?.claimedAt).not.toBeNull();
+    const m = await db.member.findFirstOrThrow({ where: { groupId: g2, name: "Joey" } });
+    expect(m.accountId).toBeNull();
+    expect(m.claimedAt).toBeNull();
+    expect(m.addedBy).toBe(""); // a plain name, like a friend added by name
+    const inv = await db.invite.findFirstOrThrow({ where: { groupId: g2, email: mail("joey") } });
+    expect(inv.token.startsWith(`${m.id}.`)).toBe(true);
+    expect(inv.acceptedAt).toBeNull();
+    expect(inv.declinedAt).toBeNull();
     const ev = await db.groupEvent.findFirst({ where: { groupId: g2, kind: "members_added" } });
     expect(ev?.text).toBe("added Joey to the group");
     expect(await db.outbox.count({ where: { to: mail("joey"), subject: { contains: "added you to Euro trip" } } })).toBe(1);
+    expect(await db.accountNote.count({ where: { accountId: joey, kind: "group_invite" } })).toBe(1);
+    // Asked again before he joined: the same name, a fresh invitation (no second Joey).
     const again = await addRegistered(g2, meG2, joey, "https://loopin.test");
-    expect(again).toEqual({ ok: false, error: "Joey is already in this group." });
+    expect(again.ok).toBe(true);
+    expect(await db.member.count({ where: { groupId: g2, name: { startsWith: "Joey" } } })).toBe(1);
+    // Search shows him as "Invited", not "In group".
     const ms = { [g1]: meG1, [g2]: meG2 };
-    expect((await searchPeople(ms, g2, "joe"))[0].inGroup).toBe(true);
+    const found = (await searchPeople(ms, g2, "joe"))[0];
+    expect(found.inGroup).toBe(false);
+    expect(found.invited).toBe(true);
   });
 
-  it("emails an invitation to people not on Loopin; they are NOT members until they join", async () => {
-    const r = await inviteByEmail(g2, meG2, `${mail("circuit")}, not-an-email, ${mail("rancho")}`, "https://loopin.test");
-    expect(r.invited).toEqual([mail("circuit")]);
-    expect(r.added).toEqual(["Rancho"]); // already on Loopin: added directly
-    expect(r.bad).toEqual(["not-an-email"]);
-    expect(await db.member.count({ where: { groupId: g2 } })).toBe(3); // Chandler, Joey, Rancho
-    expect(await db.invite.count({ where: { groupId: g2, email: mail("circuit"), acceptedAt: null } })).toBe(1);
-    const sent = await db.outbox.findFirst({ where: { to: mail("circuit") } });
-    expect(sent?.text).toContain(`/join/euro-${stamp}?e=`);
+  it("an email gets the same reply whether it is on Loopin, unknown, already in the group, or your own", async () => {
+    // Sheldon is already a real member of the group.
+    await db.member.create({ data: { groupId: g2, name: "Sheldon", accountId: stranger, claimedAt: new Date() } });
+    const before = await db.member.count({ where: { groupId: g2 } });
+    const cases = {
+      registered: mail("rancho"), // on Loopin
+      unknown: mail("circuit"), // nobody
+      existing: mail("sheldon"), // already in the group
+      own: mail("me"), // the person adding
+    };
+    const reply: Record<string, Awaited<ReturnType<typeof inviteByEmail>>> = {};
+    for (const [k, email] of Object.entries(cases)) reply[k] = await inviteByEmail(g2, meG2, email, "https://loopin.test");
+    // The same shape for all four: one person listed under the email typed, nothing refused.
+    for (const [k, r] of Object.entries(reply)) {
+      expect(r.bad, k).toEqual([]);
+      expect(r.people.length, k).toBe(1);
+      expect(r.people[0].email, k).toBe(cases[k as keyof typeof cases]);
+      // The name comes from the email only (never from the account), so it says nothing about who has one.
+      expect(r.people[0].name, k).toMatch(/^[A-Z][a-z]+ \d+$/);
+    }
+    // A name row for the two new people only.
+    expect(await db.member.count({ where: { groupId: g2 } })).toBe(before + 2);
+    for (const k of ["registered", "unknown"] as const) {
+      const m = await db.member.findFirstOrThrow({ where: { groupId: g2, name: reply[k].people[0].name } });
+      expect(m.accountId).toBeNull();
+      expect(await db.invite.count({ where: { groupId: g2, email: cases[k], acceptedAt: null } })).toBe(1);
+    }
+    // Nothing is sent to someone who is already in, or to yourself.
+    for (const k of ["existing", "own"] as const) {
+      expect(await db.invite.count({ where: { groupId: g2, email: cases[k] } }), k).toBe(0);
+      expect(await db.outbox.count({ where: { to: cases[k], subject: { contains: "Euro trip" } } }), k).toBe(0);
+    }
+    // The invitation email goes to both new people; the Alerts note + phone push only to the one with an account.
+    for (const k of ["registered", "unknown"] as const) expect(await db.outbox.count({ where: { to: cases[k], subject: { contains: "added you to Euro trip" } } }), k).toBe(1);
+    expect(await db.accountNote.count({ where: { accountId: rancho, kind: "group_invite" } })).toBe(1);
+    expect(await db.accountNote.count({ where: { kind: "group_invite", accountId: { in: [stranger] } } })).toBe(0);
+    const sent = await db.outbox.findFirstOrThrow({ where: { to: cases.unknown } });
+    expect(sent.text).toContain(`/join/euro-${stamp}?e=`);
+    // Only a badly typed address is an error.
+    const bad = await inviteByEmail(g2, meG2, "not-an-email", "https://loopin.test");
+    expect(bad.bad).toEqual(["not-an-email"]);
+    expect(bad.people).toEqual([]);
   });
 
-  it("says so when an invitation email couldn't be sent (instead of claiming it went)", async () => {
+  it("an invitation is still in place when the email couldn't be sent (the person is in the group either way)", async () => {
     const before = process.env.MAIL_OUTBOX;
     process.env.MAIL_OUTBOX = "0"; // no mail set up in tests → sending fails
     try {
       const r = await inviteByEmail(g2, meG2, mail("nomail"), "https://loopin.test");
-      expect(r.invited).toEqual([]);
-      expect(r.bad[0]).toContain(mail("nomail"));
-      expect(r.bad[0]).toContain("share the invite link");
+      expect(r.bad).toEqual([]);
+      expect(r.people.map((p) => p.email)).toEqual([mail("nomail")]);
+      expect(await db.invite.count({ where: { groupId: g2, email: mail("nomail") } })).toBe(1);
     } finally {
       process.env.MAIL_OUTBOX = before;
     }

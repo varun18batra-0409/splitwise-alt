@@ -204,7 +204,9 @@ describe("DEF-040: one person can't use up the day's emails", () => {
 });
 
 describe("DEF-041: being added by someone doesn't open your passport to them", () => {
-  it("their passport stays hidden until they open the group", async () => {
+  // Changed in Batch B: adding someone now only puts a name in the group and invites them, so their
+  // passport stays hidden until they tap Join (before, until they opened the group).
+  it("their passport stays hidden until they join", async () => {
     const { addRegistered } = await import("@/lib/invites");
     const { canSeePassport, passportFriends } = await import("@/lib/passport-db");
     const s = Date.now();
@@ -217,8 +219,12 @@ describe("DEF-041: being added by someone doesn't open your passport to them", (
       expect(r.ok).toBe(true);
       expect((await canSeePassport(stranger.id, victim.id)).ok).toBe(false);
       expect((await passportFriends(stranger.id)).some((f) => f.accountId === victim.id)).toBe(false);
-      // Victim opens the group once: from then on it's a shared group like any other.
-      await db.member.updateMany({ where: { groupId: g.id, accountId: victim.id }, data: { seenAt: new Date() } });
+      // Victim taps Join: from then on it's a shared group like any other.
+      const { acceptInvitation, loadInvitations } = await import("@/lib/invitations");
+      const victimAccount = { id: victim.id, name: victim.name, email: victim.email };
+      const inv = await loadInvitations(victimAccount);
+      expect(inv.length).toBe(1);
+      expect((await acceptInvitation(victimAccount, inv[0].key)).ok).toBe(true);
       expect((await canSeePassport(stranger.id, victim.id)).ok).toBe(true);
     } finally {
       await db.account.deleteMany({ where: { id: { in: [victim.id, stranger.id] } } });

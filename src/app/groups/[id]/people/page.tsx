@@ -28,7 +28,7 @@ export default async function PeoplePage({
 }) {
   const { id } = await params;
   const sp = await searchParams;
-  const data = await loadGroup(id);
+  const data = await loadGroup(id, { viewer: await getMyMemberId(id) });
   if (!data) notFound();
   const { group, net } = data;
   const myId = await getMyMemberId(group.id);

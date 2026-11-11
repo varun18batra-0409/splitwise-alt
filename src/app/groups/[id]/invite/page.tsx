@@ -16,6 +16,17 @@ import { whatsappLink } from "@/lib/whatsapp";
 import { CopyButton } from "@/components/CollectBits";
 import { GroupCover } from "@/components/GroupCover";
 import { coverFor } from "@/lib/covers";
+import { memberOfToken } from "@/lib/invites";
+
+// "invited" in the address: who was just added, as [name, email] pairs.
+function justInvited(raw: string | undefined): [string, string][] {
+  try {
+    const v = JSON.parse(raw ?? "[]");
+    return Array.isArray(v) ? v.filter((x): x is [string, string] => Array.isArray(x) && typeof x[0] === "string" && typeof x[1] === "string").slice(0, 20).map(([n, e]) => [n.slice(0, 60), e.slice(0, 120)]) : [];
+  } catch {
+    return [];
+  }
+}
 
 // The WhatsApp invite, worded for the kind of group: warm, short, and about why it's nice to be in,
 // not about the app. The link shows its own picture card underneath.
@@ -37,15 +48,16 @@ function inviteMessage(type: string, name: string, link: string, from: string): 
 // Add people. Nobody can be added by just typing a name:
 //  1. people already on Loopin (search by name or email, one tap to add);
 //  2. invite from your contacts (WhatsApp / SMS / email);
-//  3. invite by email;
-//  plus the group's link and QR code. Invited people become members only after
-//  they sign up with their email and accept.
+//  3. add by email;
+//  plus the group's link and QR code. Someone added by email is in the group at
+//  once as a name (so they can be split with) and is invited; they see the group
+//  themselves only after they sign up with their email and tap Join.
 export default async function AddPeoplePage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ new?: string; added?: string; invited?: string; error?: string; did?: string; undone?: string; newlink?: string }>;
+  searchParams: Promise<{ new?: string; invited?: string; error?: string; did?: string; undone?: string; newlink?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -68,6 +80,9 @@ export default async function AddPeoplePage({
       </>
     );
   const invites = await db.invite.findMany({ where: { groupId: group.id, acceptedAt: null }, orderBy: { createdAt: "desc" } });
+  // Invited people already show in the list below as names; only invitations with no name row of their own are listed apart.
+  const invitedRows = new Set(invites.map((i) => memberOfToken(i.token)).filter(Boolean));
+  const looseInvites = invites.filter((i) => !group.members.some((m) => m.id === memberOfToken(i.token)));
 
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
@@ -106,8 +121,13 @@ export default async function AddPeoplePage({
       )}
       {sp.error && <ErrorNote>{sp.error}</ErrorNote>}
       {sp.newlink && <Notice tone="success" params={["newlink"]} className="mb-4">New invite link ready. The old one no longer works.</Notice>}
-      {sp.added && !sp.undone && <Notice tone="success" params={["added"]} className="mb-4">Added {sp.added}. They’ve been notified.</Notice>}
-      {sp.invited && <Notice params={["invited"]} className="mb-4">Invite sent to {sp.invited}. They’ll join once they accept.</Notice>}
+      {!sp.undone &&
+        justInvited(sp.invited).map(([name, email]) => (
+          <Notice key={email} tone="success" params={["invited"]} className="mb-4">
+            <span className="block font-semibold" data-invited-title>{name} is in the group</span>
+            <span className="block text-sm">You can add {name} to expenses now. We’ve sent an invitation to {email} so they can see the group on their phone.</span>
+          </Notice>
+        ))}
 
       {/* The fastest way in: the group's own invite, straight to WhatsApp. */}
       <section aria-label="Invite link" className="vault relative mb-6 overflow-hidden rounded-[24px]" data-invite-card>
@@ -170,7 +190,7 @@ export default async function AddPeoplePage({
       </section>
 
       <section className={`mt-3 ${box}`}>
-        {step(ico("M4 6h16v12H4ZM4 7l8 6 8-6"), "By email", "We email them a link to join")}
+        {step(ico("M4 6h16v12H4ZM4 7l8 6 8-6"), "By email", "They’re in the group now, and we email them an invitation")}
         <form action={invitePeople} className="flex gap-2">
           <input type="hidden" name="groupId" value={group.id} />
           <input name="emails" type="text" inputMode="email" autoComplete="off" required placeholder="friend@example.com" aria-label="Email addresses to invite" className={inputClass} />
@@ -178,14 +198,14 @@ export default async function AddPeoplePage({
             Invite
           </button>
         </form>
-        <p className="mt-1.5 text-xs text-gray-400">Several? Separate them with commas.</p>
+        <p className="mt-1.5 text-xs text-gray-400">Several? Separate them with commas. Everyone you add by email gets the same message, whether or not they’re on Loopin yet.</p>
       </section>
 
-      {invites.length > 0 && (
+      {looseInvites.length > 0 && (
         <>
           <p className="mb-2 mt-8 text-sm text-gray-500">Invited · waiting to join</p>
           <ul className="divide-y divide-line rounded-2xl border border-line">
-            {invites.map((i) => (
+            {looseInvites.map((i) => (
               <li key={i.id} className="flex items-center gap-3 px-4 py-3">
                 <span className="min-w-0 flex-1 truncate text-sm">{i.email}</span>
                 <span className="shrink-0 rounded-full bg-mist px-2.5 py-1 text-xs text-gray-500">Invited</span>
@@ -206,7 +226,9 @@ export default async function AddPeoplePage({
             ? { text: "Left", cls: "bg-mist text-gray-500" }
             : m.accountId
               ? { text: "On Loopin ✓", cls: "bg-owed/15 text-owed" }
-              : { text: "Not on Loopin yet", cls: "bg-mist text-gray-500" };
+              : invitedRows.has(m.id)
+                ? { text: "Invited · hasn’t joined yet", cls: "bg-mist text-gray-500" }
+                : { text: "Not on Loopin yet", cls: "bg-mist text-gray-500" };
           return (
             <li key={m.id} className="flex items-center gap-3 px-4 py-3.5">
               <Avatar name={m.name} />

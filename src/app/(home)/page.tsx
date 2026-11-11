@@ -12,6 +12,8 @@ import { PasskeyOffer } from "@/components/Passkeys";
 
 import { countAllUnread, loadDeletedGroups } from "@/lib/group-data";
 import { loadOverview } from "@/lib/overview";
+import { loadInvitations } from "@/lib/invitations";
+import { InvitationCard } from "@/components/InvitationCard";
 import { buildActivity, dayLabel } from "@/lib/activity";
 import { formatMoney } from "@/lib/money";
 import { HomeBanner } from "@/components/HomeBanner";
@@ -74,12 +76,14 @@ export default async function Home({
   const { closed: justClosed, did, g: didGroup, undone, error, deleted, signedin, moved, collection } = await searchParams;
   const [tz, memberships] = await Promise.all([getTimeZone(), getMemberships()]);
   // Independent reads, all at once.
-  const [overview, unread, deletedGroups, account, collections] = await Promise.all([
+  const [overview, unread, deletedGroups, account, collections, invitations] = await Promise.all([
     loadOverview(memberships),
     getAccount().then((a) => countAllUnread(memberships, a?.id)),
     loadDeletedGroups(memberships),
     getAccount(),
     getAccount().then((a) => (a ? myCollections(a.id) : [])),
+    // Groups someone added you to, waiting for Join or Not now.
+    getAccount().then((a) => loadInvitations(a)),
   ]);
   const { all, open, closed, owedLines, oweLines, common, netCommon, netLines, netValue, settleItems, toCommon } = overview;
 
@@ -399,7 +403,7 @@ export default async function Home({
 
   // First visit: show what Loopin does instead of an empty screen.
   const tourSeen = (await cookies()).get("lp_tour")?.value === "1";
-  if (all.length === 0 && deletedGroups.length === 0 && collections.length === 0 && !error && !notice && !tourSeen) return <IntroTour signInHref="/signin" currency={region.currency} india={region.india} />;
+  if (all.length === 0 && deletedGroups.length === 0 && collections.length === 0 && invitations.length === 0 && !error && !notice && !tourSeen) return <IntroTour signInHref="/signin" currency={region.currency} india={region.india} />;
 
   return (
     <>
@@ -473,6 +477,15 @@ export default async function Home({
       >
         <Stories stories={stories} className="mb-4" />
       </HomeHero>
+
+      {/* Someone added you to a group: it isn't in your groups until you tap Join. */}
+      {invitations.length > 0 && (
+        <div className="mb-6 space-y-3" data-invitations>
+          {invitations.map((inv) => (
+            <InvitationCard key={inv.key} inv={inv} />
+          ))}
+        </div>
+      )}
 
       {/* New here (one group or none, no expenses yet): a gentle pointer to the 1-minute tour. */}
       {open.length <= 1 && open.every((g) => g.expenses.length === 0) && (

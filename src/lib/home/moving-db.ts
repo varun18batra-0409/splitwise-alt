@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { logEvent, expenseState, type MoveOutUndo } from "../events";
+import { logEvent, expenseState, touchedByExpense, type MoveOutUndo } from "../events";
 import { netBalances } from "../balances";
 import { formatMoney, parseAmount } from "../money";
 import { claimKey, fingerprintOf, isDuplicateKey, keyState, STALE_KEY_ERROR } from "../once";
@@ -208,6 +208,7 @@ export async function moveOut(
           details: [`${leaver.name}’s share: ${money(r.e.shares.find((s) => s.memberId === leaver.id)?.amount ?? 0)} → ${money(r.shares.find((s) => s.memberId === leaver.id)?.amount ?? 0)} (moved out ${niceDate(input.lastDay)})`],
           expenseId: r.e.id,
           undo: { type: "expense_revert", expenseId: r.e.id, before: expenseState(r.e) },
+          touches: touchedByExpense(r.e, { ...r.e, shares: r.shares }),
         });
       }
       // 1b. Their share of this month's daily bills, for the days they were there: an expense with only them

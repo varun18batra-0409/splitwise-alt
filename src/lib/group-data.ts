@@ -2,15 +2,20 @@ import { db } from "./db";
 import { coverFor } from "./covers";
 import { netBalances } from "./balances";
 import { smartSettle } from "./settle";
-import { spentAmount } from "./payers";
+import { payerIds, spentAmount } from "./payers";
 import { canRestoreGroup } from "./group-admin";
+import { leaverCut, ownShareDetails, scopeBalances, scopeForLeaver, type LeaverCut } from "./left-view";
+import { leaverEvents, touchedAfter } from "./left-view-db";
 
 // Deleted expenses and payments stay in the database (and in history) but never count.
 const active = <T extends { deletedAt: Date | null }>(rows: T[]) => rows.filter((r) => !r.deletedAt);
 
 // Loads a group with everything needed for balances, Smart Settle and history.
 // `events: false` skips the history (up to 500 rows) for screens that only need balances.
-export async function loadGroup(id: string, opts: { events?: boolean } = {}) {
+// `viewer`: the person looking. If they left (or were removed) they get the view they're allowed:
+// the group up to the day they left plus later changes to their own share, and only their own
+// balance (from the full ledger). Leave it out for money writes and the daily job: they use everything.
+export async function loadGroup(id: string, opts: { events?: boolean; viewer?: string } = {}) {
   const group = await db.group.findUnique({
     where: { id },
     include: {
@@ -25,7 +30,28 @@ export async function loadGroup(id: string, opts: { events?: boolean } = {}) {
   const expenses = active(group.expenses);
   const payments = active(group.payments);
   const net = netBalances(memberIds, expenses, payments);
-  return { group, expenses, payments, net, transfers: smartSettle(net) };
+  const transfers = smartSettle(net);
+  const me = opts.viewer ? group.members.find((m) => m.id === opts.viewer) : undefined;
+  const cut = me ? leaverCut(me) : null;
+  if (!me || !cut) return { group, expenses, payments, net, transfers, leaver: null as LeaverCut | null };
+
+  const { before, after } = await leaverEvents(id, cut.leftAt, opts.events === false ? 0 : 500);
+  const scoped = scopeForLeaver({ expenses: group.expenses, payments: group.payments, events: [...after, ...before] }, me.id, cut.leftAt);
+  const mine = scopeBalances(net, transfers, me.id);
+  return {
+    group: {
+      ...group,
+      expenses: scoped.expenses,
+      payments: scoped.payments,
+      // Changes made after they left show only what happened to their own share.
+      events: opts.events === false ? [] : scoped.events.slice(0, 500).map((ev) => (ev.createdAt.getTime() > cut.leftAt.getTime() ? { ...ev, details: ownShareDetails(ev.details, me.name) } : ev)),
+    },
+    expenses: active(scoped.expenses),
+    payments: active(scoped.payments),
+    net: mine.net,
+    transfers: mine.transfers,
+    leaver: cut as LeaverCut | null,
+  };
 }
 
 // For the home screen: every group this phone belongs to, with my balance in each.
@@ -33,25 +59,48 @@ export async function loadMyGroups(memberships: Record<string, string>) {
   const groups = await db.group.findMany({
     where: { id: { in: Object.keys(memberships) }, deletedAt: null },
     include: {
-      members: { select: { id: true, name: true, phone: true, leftAt: true, accountId: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
+      members: { select: { id: true, name: true, phone: true, leftAt: true, removedAt: true, accountId: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
       expenses: { include: { shares: true }, orderBy: { createdAt: "desc" } },
       payments: { orderBy: { createdAt: "desc" } },
     },
     orderBy: { createdAt: "desc" },
   });
-  return groups
-    .filter((g) => g.members.some((m) => m.id === memberships[g.id]))
-    .map((g) => {
+  const mine = groups.filter((g) => g.members.some((m) => m.id === memberships[g.id]));
+  return Promise.all(
+    mine.map(async (g) => {
       const myId = memberships[g.id];
-      const expenses = active(g.expenses);
-      const payments = active(g.payments);
-      const net = netBalances(g.members.map((m) => m.id), expenses, payments);
-      const lastActivity = [g.expenses[0]?.createdAt, g.payments[0]?.createdAt, g.createdAt]
+      const full = active(g.expenses);
+      const fullPayments = active(g.payments);
+      const net = netBalances(g.members.map((m) => m.id), full, fullPayments);
+      const transfers = smartSettle(net);
+      // Someone who left sees the group up to that day (plus later changes to their own share); their balance is the full one.
+      const cut = leaverCut(g.members.find((m) => m.id === myId)!);
+      let rows = { expenses: g.expenses, payments: g.payments };
+      if (cut) {
+        const touched = await touchedAfter(g.id, myId, cut.leftAt);
+        const upTo = cut.leftAt.getTime();
+        const myExpense = (e: (typeof g.expenses)[number]) => e.paidById === myId || e.shares.some((s) => s.memberId === myId) || payerIds(e).includes(myId);
+        rows = {
+          expenses: g.expenses.filter((e) => e.createdAt.getTime() <= upTo || myExpense(e) || touched.expenseIds.includes(e.id)),
+          payments: g.payments.filter((p) => p.createdAt.getTime() <= upTo || p.fromId === myId || p.toId === myId || touched.paymentIds.includes(p.id)),
+        };
+      }
+      const expenses = cut ? active(rows.expenses) : full;
+      const payments = cut ? active(rows.payments) : fullPayments;
+      const lastActivity = [rows.expenses[0]?.createdAt, rows.payments[0]?.createdAt, g.createdAt]
         .filter((d): d is Date => Boolean(d))
         .sort((a, b) => b.getTime() - a.getTime())[0];
       const spent = expenses.reduce((s, e) => s + spentAmount(e), 0);
-      return { group: g, expenses, payments, myId, net, transfers: smartSettle(net), myBalance: net[myId] ?? 0, lastActivity, spent };
-    });
+      const shown = cut ? scopeBalances(net, transfers, myId) : { net, transfers };
+      return { group: g, expenses, payments, myId, net: shown.net, transfers: shown.transfers, myBalance: net[myId] ?? 0, lastActivity, spent, leaver: cut };
+    }),
+  );
+}
+
+// Alerts for someone who left: what happened up to that day, plus later changes that touched their share.
+function leaverEventScope(m: { id: string; leftAt: Date | null; removedAt: Date | null }) {
+  const cut = leaverCut(m);
+  return cut ? { OR: [{ createdAt: { lte: cut.leftAt } }, { touches: { contains: m.id } }] } : {};
 }
 
 // Notifications: things other people did in my groups since I last looked.
@@ -64,7 +113,7 @@ export async function loadNotifications(memberships: Record<string, string>, lim
   if (valid.length === 0) return { items: [], unread: 0 };
 
   const events = await db.groupEvent.findMany({
-    where: { OR: valid.map((m) => ({ groupId: m.groupId, actorId: { not: m.id } })) },
+    where: { OR: valid.map((m) => ({ groupId: m.groupId, actorId: { not: m.id }, ...leaverEventScope(m) })) },
     orderBy: { createdAt: "desc" },
     take: limit,
   });
@@ -72,8 +121,10 @@ export async function loadNotifications(memberships: Record<string, string>, lim
   const actors = await db.member.findMany({ where: { id: { in: actorIds } }, select: { id: true, name: true } });
   const byGroup = new Map(valid.map((m) => [m.groupId, m]));
 
-  const items = events.map((e) => {
-    const me = byGroup.get(e.groupId)!;
+  const items = events.map((raw) => {
+    const me = byGroup.get(raw.groupId)!;
+    const cut = leaverCut(me);
+    const e = cut && raw.createdAt.getTime() > cut.leftAt.getTime() ? { ...raw, details: ownShareDetails(raw.details, me.name) } : raw;
     const seen = me.seenEventsAt ?? me.createdAt;
     return {
       event: e,
@@ -85,7 +136,7 @@ export async function loadNotifications(memberships: Record<string, string>, lim
   });
 
   const unread = await db.groupEvent.count({
-    where: { OR: valid.map((m) => ({ groupId: m.groupId, actorId: { not: m.id }, createdAt: { gt: m.seenEventsAt ?? m.createdAt } })) },
+    where: { OR: valid.map((m) => ({ groupId: m.groupId, actorId: { not: m.id }, createdAt: { gt: m.seenEventsAt ?? m.createdAt }, ...leaverEventScope(m) })) },
   });
   return { items, unread };
 }
@@ -95,11 +146,11 @@ export async function loadNotifications(memberships: Record<string, string>, lim
 export async function countUnread(memberships: Record<string, string>): Promise<number> {
   const ids = Object.values(memberships);
   if (!ids.length) return 0;
-  const members = await db.member.findMany({ where: { id: { in: ids } }, select: { id: true, groupId: true, seenEventsAt: true, createdAt: true } });
+  const members = await db.member.findMany({ where: { id: { in: ids } }, select: { id: true, groupId: true, seenEventsAt: true, createdAt: true, leftAt: true, removedAt: true } });
   const valid = members.filter((m) => memberships[m.groupId] === m.id);
   if (!valid.length) return 0;
   return db.groupEvent.count({
-    where: { OR: valid.map((m) => ({ groupId: m.groupId, actorId: { not: m.id }, createdAt: { gt: m.seenEventsAt ?? m.createdAt } })) },
+    where: { OR: valid.map((m) => ({ groupId: m.groupId, actorId: { not: m.id }, createdAt: { gt: m.seenEventsAt ?? m.createdAt }, ...leaverEventScope(m) })) },
   });
 }
 

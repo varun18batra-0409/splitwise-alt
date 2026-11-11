@@ -38,6 +38,7 @@ import { importSplitwise } from "@/lib/splitwise-import";
 import { canRestoreGroup, isGroupAdmin } from "@/lib/group-admin";
 import { hasLeft, LEFT_ERROR } from "@/lib/active";
 import { joinExisting, joinNew, newInviteLink, type JoinFail } from "@/lib/join";
+import { acceptInvitation, declineInvitation } from "@/lib/invitations";
 
 
 export async function createGroup(formData: FormData) {
@@ -148,25 +149,25 @@ async function memberContext(groupId: string) {
 }
 
 // Live suggestions while typing in "Add people".
-// Add someone who's already on Loopin.
+// Add someone who's already on Loopin (in the group at once as a name, and invited).
 export async function addPerson(formData: FormData) {
   const { group, me } = await memberContext(String(formData.get("groupId") ?? ""));
   const { origin, ip } = await originAndIp();
   if (!(await allow(`add-person:${ip}`, 60, 3600))) redirect(`/groups/${group.id}/invite?error=${encodeURIComponent("Too many adds from here. Wait a bit.")}`);
   const r = await addRegistered(group.id, me.id, String(formData.get("accountId") ?? ""), origin, { later: (job) => after(job) });
-  const q = r.ok ? new URLSearchParams({ added: r.name, did: r.eventId }) : new URLSearchParams({ error: r.error });
+  const q = r.ok ? new URLSearchParams({ invited: JSON.stringify([[r.name, r.email]]), ...(r.eventId ? { did: r.eventId } : {}) }) : new URLSearchParams({ error: r.error });
   redirect(`/groups/${group.id}/invite?${q}`);
 }
 
-// Invite by email (people already on Loopin are added straight away).
+// Invite by email: they are in the group at once as a name, and invited.
 export async function invitePeople(formData: FormData) {
   const { group, me } = await memberContext(String(formData.get("groupId") ?? ""));
   const { origin, ip } = await originAndIp();
   if (!(await allow(`invite:${ip}`, 40, 3600))) redirect(`/groups/${group.id}/invite?error=${encodeURIComponent("Too many invites from here. Wait a bit.")}`);
   const r = await inviteByEmail(group.id, me.id, String(formData.get("emails") ?? ""), origin, { later: (job) => after(job) });
   const q = new URLSearchParams();
-  if (r.added.length) q.set("added", r.added.join(", "));
-  if (r.invited.length) q.set("invited", r.invited.join(", "));
+  if (r.people.length) q.set("invited", JSON.stringify(r.people.map((p) => [p.name, p.email])));
+  if (r.eventIds.length === 1) q.set("did", r.eventIds[0]);
   if (r.bad.length) q.set("error", `Couldn’t invite: ${r.bad.join(", ")}`);
   redirect(`/groups/${group.id}/invite?${q}`);
 }
@@ -213,6 +214,22 @@ export async function joinAsNew(formData: FormData) {
   const group = await db.group.findUnique({ where: { inviteCode: code }, select: { id: true } });
   if (!group) redirect(`/join/${code}`);
   await finishJoin(group.id, r.memberId, account.id, account.email);
+}
+
+// The Join / Not now buttons on an invitation (Home, Alerts and the group's own screen).
+export async function answerInvitation(formData: FormData) {
+  const account = await getAccount();
+  if (!account) redirect("/signin");
+  const key = String(formData.get("key") ?? "").slice(0, 200);
+  const join = formData.get("answer") === "join";
+  if (join) {
+    const r = await acceptInvitation(account, key);
+    if (!r.ok) redirect(`/?error=${encodeURIComponent(r.error)}`);
+    await setMyMemberId(r.groupId, r.memberId);
+    redirect(`/groups/${r.groupId}`);
+  }
+  await declineInvitation(account, key);
+  redirect("/");
 }
 
 // Add people → "Make a new invite link": the old link (and email invites not yet accepted) stop working.

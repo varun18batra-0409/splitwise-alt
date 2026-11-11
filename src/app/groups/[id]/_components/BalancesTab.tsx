@@ -19,7 +19,8 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
   const mine = net[myId] ?? 0;
   const people = group.members.filter((m) => !m.leftAt);
   // Fun titles (habits, never money rankings): one per person at most.
-  const titles = group.type === "pot" ? [] : funTitles(expenses, people.map((m) => m.id), v.tz, group.currency);
+  const leaver = v.leaver;
+  const titles = group.type === "pot" || leaver ? [] : funTitles(expenses, people.map((m) => m.id), v.tz, group.currency);
 
   return (
     <div className="space-y-10">
@@ -29,7 +30,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
         <div className="rounded-2xl bg-mist px-4 py-8 text-center">
           <SquareSeal size={56} className="mx-auto" />
           <p className="mt-3 font-display text-xl font-semibold">All square</p>
-          <p className="mt-1 text-sm text-gray-500">Nobody owes anybody in this group.</p>
+          <p className="mt-1 text-sm text-gray-500">{leaver ? "You don’t owe anyone here, and no one owes you." : "Nobody owes anybody in this group."}</p>
           {expenses.length > 0 && (
             <Link href={`/groups/${group.id}/square`} className="mt-4 inline-block rounded-full bg-fg px-4 py-2 text-sm font-semibold text-canvas">
               Share the moment
@@ -73,15 +74,16 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
       <section>
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="font-display text-lg font-semibold tracking-tight">By person</h2>
-          <Link href={`/groups/${group.id}/passports`} className="inline-flex min-h-11 shrink-0 items-center text-sm font-semibold underline underline-offset-4" data-our-passports>
+          {!leaver && <Link href={`/groups/${group.id}/passports`} className="inline-flex min-h-11 shrink-0 items-center text-sm font-semibold underline underline-offset-4" data-our-passports>
             <span className="inline-flex items-center gap-1.5">
               <PeoplePassportsIcon size={16} /> Our passports
             </span>
-          </Link>
+          </Link>}
         </div>
-        <p className="mb-3 text-sm text-gray-500">Tap anyone to see why.</p>
+        <p className="mb-3 text-sm text-gray-500">{leaver ? "Tap to see why." : "Tap anyone to see why."}</p>
         <ul className="divide-y divide-line border-y border-line">
-          {group.members.filter((m) => !m.leftAt || (net[m.id] ?? 0) !== 0).map((m) => {
+          {/* Someone who left sees only their own line. */}
+          {group.members.filter((m) => (leaver ? m.id === myId : !m.leftAt || (net[m.id] ?? 0) !== 0)).map((m) => {
             const b = net[m.id] ?? 0;
             const theirs = transfers.filter((t) => t.from === m.id || t.to === m.id);
             // Their part of the spending in each foreign currency, said plainly.

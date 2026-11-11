@@ -187,6 +187,8 @@ model GroupEvent {
   undoneAt  DateTime? // set once someone undoes it
   undoneById String?
   createdAt DateTime @default(now())
+  // Added later: kept at the end so the online database can simply add the column.
+  touches   String   @default("") // member ids whose balance this change moved, comma-separated (expense and payment changes); "" = not recorded
 
   @@index([groupId, createdAt])
   @@index([expenseId])
@@ -278,6 +280,9 @@ model Invite {
   invitedById String
   createdAt   DateTime  @default(now())
   acceptedAt  DateTime?
+  // Added later: kept at the end so the online database can simply add the columns.
+  token       String    @default("") // random code for this one invitation (the Join / Not now buttons and the invite link)
+  declinedAt  DateTime? // "Not now": the card is hidden, the name row stays
 
   @@unique([groupId, email])
 }

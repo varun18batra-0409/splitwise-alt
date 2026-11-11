@@ -18,7 +18,7 @@ export default async function RecordPayment({
 }) {
   const { id } = await params;
   const sp = await searchParams;
-  const data = await loadGroup(id, { events: false });
+  const data = await loadGroup(id, { events: false, viewer: await getMyMemberId(id) });
   if (!data) notFound();
   const { group, transfers, net } = data;
   const myId = await getMyMemberId(group.id);

@@ -272,7 +272,9 @@ describe("undoing everything", () => {
 });
 
 describe("passport privacy: added by someone else, undone, brought back", () => {
-  it("someone brought back by undoing an undo is still 'added by someone else' until they open the group", async () => {
+  // Changed in Batch B: being added now puts a NAME in the group (no account on the row) and sends an
+  // invitation, so there is nothing of theirs to show until they tap Join.
+  it("someone brought back by undoing an undo is still just a name, with nothing of theirs shared", async () => {
     const { addRegistered } = await import("@/lib/invites");
     const { canSeePassport } = await import("@/lib/passport-db");
     const stranger = await db.account.create({ data: { email: `fb-stranger-${Date.now()}@test.dev`, name: "Stranger" } });
@@ -288,7 +290,8 @@ describe("passport privacy: added by someone else, undone, brought back", () => 
     expect(un.ok).toBe(true);
     const redo = await undoEvent(un.ok ? un.eventId! : "", me);
     expect(redo.ok).toBe(true);
-    expect(await db.member.count({ where: { groupId: g.id, accountId: victim.id } })).toBe(1);
+    expect(await db.member.count({ where: { groupId: g.id, name: "Victim" } })).toBe(1);
+    expect(await db.member.count({ where: { groupId: g.id, accountId: victim.id } })).toBe(0); // the account is not on the row
     expect((await canSeePassport(stranger.id, victim.id)).ok).toBe(false);
     await db.account.deleteMany({ where: { id: { in: [stranger.id, victim.id] } } }).catch(() => undefined);
   });

@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
 import { csvFileName, groupCsv } from "@/lib/csv";
 import { getTimeZone } from "@/lib/tz";
+import { readableWhere } from "@/lib/left-view-db";
 
 // Download the group's expenses and payments as a CSV file (members only).
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -9,9 +10,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const group = await db.group.findUnique({
     where: { id },
     include: {
-      members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true } },
-      expenses: { include: { shares: true } },
-      payments: true,
+      members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true, removedAt: true } },
     },
   });
   if (!group || group.deletedAt) return new Response("Not found", { status: 404 });
@@ -21,7 +20,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const left = group.members.find((m) => m.id === myId)?.leftAt;
   if (left && Date.now() - left.getTime() > 30 * 86_400_000) return new Response("You left this group more than 30 days ago.", { status: 403 });
 
-  const body = groupCsv(group, group.members, group.expenses, group.payments, await getTimeZone());
+  // Someone who left (or was removed) gets the same view as on screen: up to the day they left, plus later changes to their own share.
+  const scope = await readableWhere(group.id, group.members.find((m) => m.id === myId)!);
+  const [expenses, payments] = await Promise.all([
+    db.expense.findMany({ where: { groupId: group.id, ...(scope ? { AND: [scope.expenses] } : {}) }, include: { shares: true } }),
+    db.payment.findMany({ where: { groupId: group.id, ...(scope ? { AND: [scope.payments] } : {}) } }),
+  ]);
+  const body = groupCsv(group, group.members, expenses, payments, await getTimeZone());
   return new Response(body, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
