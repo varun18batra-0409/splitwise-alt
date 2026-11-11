@@ -87,7 +87,6 @@ export function AddExpenseForm({
   const openBill = useRef<(() => void) | null>(null); // "Scan a bill" opens the photo picker inside BillScan
   const [quickStart, setQuickStart] = useState<{ n: number; speak: boolean } | null>(null); // "Speak" / "Type a line"
   const quickOk = !expenseId && members.length > 1;
-  const multiLabel = kind === "refund" ? "More than one person got it" : "More than one person paid";
   const [pickedCategory, setPickedCategory] = useState<string | null>(initial?.category || null); // null (or "") = smart guess from the name
   const [currency, setCurrency] = useState(initial?.currency ?? baseCurrency);
   const [showCurrencies, setShowCurrencies] = useState(false);
@@ -109,6 +108,7 @@ export function AddExpenseForm({
   const [paidById, setPaidById] = useState(initial?.paidById ?? myId);
   const [multiPay, setMultiPay] = useState(Boolean(initial?.multiPay));
   const [kind, setKind] = useState<"expense" | "refund">(initial?.kind ?? "expense");
+  const multiLabel = kind === "refund" ? "More than one person got it" : "More than one person paid";
   const [payers, setPayers] = useState<Record<string, string>>(initial?.payers ?? {});
   const [forMode, setForMode] = useState<ForMode>(initial?.forMode ?? "everyone");
   const [selected, setSelected] = useState<string[]>(initial?.selected ?? memberIds);
