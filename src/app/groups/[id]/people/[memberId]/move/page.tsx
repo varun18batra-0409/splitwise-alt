@@ -10,6 +10,7 @@ import { dayKey } from "@/lib/dates";
 import { getTimeZone } from "@/lib/tz";
 import { FreshKey } from "@/components/FreshKey";
 import { addMonths } from "@/lib/home/month";
+import { leaverOf } from "@/lib/left-view-db";
 
 const monthLabel = (period: string) => new Date(`${period}-15T12:00:00Z`).toLocaleDateString("en-IN", { month: "short", timeZone: "UTC" });
 
@@ -28,13 +29,15 @@ export default async function MoveOutPage({
   if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  // Someone who left (or was removed) reads the group only on its main screen, up to the day they left.
+  if (await leaverOf(myId)) redirect(`/groups/${group.id}`);
   const leaver = group.members.find((m) => m.id === memberId && !m.leftAt);
   if (!leaver) notFound();
 
   const tz = await getTimeZone();
   const today = dayKey(new Date(), tz);
   const lastDay = /^\d{4}-\d{2}-\d{2}$/.test(sp.day ?? "") ? sp.day! : today;
-  const p = await moveOutPreview(group.id, leaver.id, lastDay);
+  const p = await moveOutPreview(group.id, leaver.id, lastDay, new Date(), myId);
   const money = (n: number) => formatMoney(n, group.currency);
   const name = (mid: string) => (mid === myId ? "you" : group.members.find((m) => m.id === mid)?.name ?? "someone");
   const Name = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");

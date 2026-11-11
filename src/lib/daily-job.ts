@@ -5,7 +5,7 @@ import { sendMonthlySummaries } from "./home/insights-db";
 import { sendMemoryLane, sendTripCountdowns } from "./countdown-db";
 import { noteOpenedPostcards } from "./postcards/open-db";
 import { db } from "./db";
-import { DEFAULT_TIME_ZONE } from "./dates";
+import { DEFAULT_TIME_ZONE, dayKey } from "./dates";
 
 // The parts of the daily job that send things or add bills. Every one of them
 // claims its work per group (or per bill month) before doing it, so any of them
@@ -24,12 +24,49 @@ export function makeStop(budgetMs = DAILY_BUDGET_MS, nowMs: () => number = Date.
 
 export type PartsReport = { results: Record<string, unknown>; deferred: string[] };
 
+// The parts, in the order they run.
+export const PART_NAMES = ["bills", "reminders", "countdowns", "budgets", "summaries", "memories", "postcards", "blob-trash"] as const;
+
+// What the morning run could not finish is written down (one NotifyLog row per part, for that day), so the
+// evening catch-up runs exactly those parts and nothing else: it must not send first-time nudges at 21:30
+// that the morning run had already done or had no reason to send. Rows are small and removed after a week.
+const deferredPrefix = (today: string) => `daily-deferred:${today}:`;
+
+export async function recordDeferred(now: Date, parts: string[]): Promise<void> {
+  const today = dayKey(now, DEFAULT_TIME_ZONE);
+  for (const part of new Set(parts)) {
+    if (!(PART_NAMES as readonly string[]).includes(part)) continue;
+    await db.notifyLog.create({ data: { key: `${deferredPrefix(today)}${part}`, state: "done", createdAt: now } }).catch(() => undefined); // already noted
+  }
+}
+
+export async function deferredToday(now: Date): Promise<string[]> {
+  const prefix = deferredPrefix(dayKey(now, DEFAULT_TIME_ZONE));
+  const rows = await db.notifyLog.findMany({ where: { key: { startsWith: prefix } }, select: { key: true } });
+  const noted = new Set(rows.map((r) => r.key.slice(prefix.length)));
+  return PART_NAMES.filter((p) => noted.has(p));
+}
+
+// The evening catch-up: run only the parts the morning left undone (nothing deferred = nothing at all).
+// A part that gets through is crossed off; the groups it already did are not repeated (their own claims).
+export async function runDeferredParts(now: Date, stop: () => boolean, failed: string[]): Promise<PartsReport> {
+  const todo = await deferredToday(now);
+  if (!todo.length) return { results: {}, deferred: [] };
+  const report = await runClaimedParts(now, stop, failed, todo);
+  const today = dayKey(now, DEFAULT_TIME_ZONE);
+  const finished = todo.filter((p) => !report.deferred.includes(p) && !failed.includes(p));
+  if (finished.length) await db.notifyLog.deleteMany({ where: { key: { in: finished.map((p) => `${deferredPrefix(today)}${p}`) } } }).catch(() => undefined);
+  return report;
+}
+
 // Each part runs on its own: one failing doesn't stop the rest. A part that
 // can't start (time is short) or that stops early is listed as deferred.
-export async function runClaimedParts(now: Date, stop: () => boolean, failed: string[]): Promise<PartsReport> {
+// `only`: run just these parts (the evening catch-up).
+export async function runClaimedParts(now: Date, stop: () => boolean, failed: string[], only?: readonly string[]): Promise<PartsReport> {
   const results: Record<string, unknown> = {};
   const deferred: string[] = [];
   const part = async (name: string, fn: () => Promise<unknown>) => {
+    if (only && !only.includes(name)) return;
     if (stop()) {
       deferred.push(name);
       results[name] = { deferred: true };
@@ -48,7 +85,8 @@ export async function runClaimedParts(now: Date, stop: () => boolean, failed: st
   // Phone nudges never go out in the night, even if the job is started early.
   const hour = Number(new Intl.DateTimeFormat("en-GB", { timeZone: DEFAULT_TIME_ZONE, hour: "2-digit", hourCycle: "h23" }).format(now));
   const daytime = hour >= 6 && hour < 22;
-  const night = async () => ({ sent: 0, skipped: "night" });
+  // (Not sent at night, so it counts as left for later.)
+  const night = async () => ({ sent: 0, skipped: "night", deferred: true });
 
   await part("bills", () => runAllBills(now, stop));
   await part("reminders", () => (daytime ? sendReminders(now, stop) : night()));

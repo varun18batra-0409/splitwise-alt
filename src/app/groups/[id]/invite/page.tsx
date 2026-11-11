@@ -16,7 +16,7 @@ import { whatsappLink } from "@/lib/whatsapp";
 import { CopyButton } from "@/components/CollectBits";
 import { GroupCover } from "@/components/GroupCover";
 import { coverFor } from "@/lib/covers";
-import { memberOfToken } from "@/lib/invites";
+import { inviteMemberId } from "@/lib/invites";
 
 // "invited" in the address: who was just added, as [name, email] pairs.
 function justInvited(raw: string | undefined): [string, string][] {
@@ -81,8 +81,8 @@ export default async function AddPeoplePage({
     );
   const invites = await db.invite.findMany({ where: { groupId: group.id, acceptedAt: null }, orderBy: { createdAt: "desc" } });
   // Invited people already show in the list below as names; only invitations with no name row of their own are listed apart.
-  const invitedRows = new Set(invites.map((i) => memberOfToken(i.token)).filter(Boolean));
-  const looseInvites = invites.filter((i) => !group.members.some((m) => m.id === memberOfToken(i.token)));
+  const invitedRows = new Set(invites.map((i) => inviteMemberId(i)).filter(Boolean));
+  const looseInvites = invites.filter((i) => !group.members.some((m) => m.id === inviteMemberId(i)));
 
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";

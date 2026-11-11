@@ -10,7 +10,7 @@ const { db } = await import("@/lib/db");
 const { claimJob, finishJob } = await import("@/lib/push");
 const { sendReminders } = await import("@/lib/home/reminders-db");
 const { saveExpense } = await import("@/lib/save-expense");
-const { makeStop, runClaimedParts, DAILY_BUDGET_MS } = await import("@/lib/daily-job");
+const { makeStop, runClaimedParts, runDeferredParts, recordDeferred, deferredToday, DAILY_BUDGET_MS } = await import("@/lib/daily-job");
 
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const MIN = 60_000;
@@ -132,5 +132,105 @@ describe("reminders, one flat at a time", () => {
     await sendReminders(new Date(T0.getTime() + 24 * MIN));
     expect(sentTo(f1)).toBe(1);
     expect(sentTo(f2)).toBe(1);
+  });
+
+  // ---- Audit fixes ----
+
+  it("deploy day: the old whole-day claim is already done, so no flat is sent the same reminders again", async () => {
+    const f = await flat("legacy");
+    const day = new Date("2026-11-16T04:00:00Z"); // a Monday, 9:30 India time
+    const legacy = "reminders:2026-11-16";
+    keys.push(legacy);
+    await db.notifyLog.create({ data: { key: legacy } }); // made by the old code: state reads as done
+    mocks.sendPushTo.mockClear();
+    const r = await sendReminders(day);
+    expect(r).toMatchObject({ sent: 0, skipped: true, deferred: false });
+    expect(sentTo(f)).toBe(0);
+    expect(await db.notifyLog.findUnique({ where: { key: `reminders:2026-11-16:${f.id}` } })).toBeNull(); // nothing claimed either
+
+    // Without the old row the same day works as usual: one nudge for this flat.
+    await db.notifyLog.delete({ where: { key: legacy } });
+    await sendReminders(day);
+    expect(sentTo(f)).toBe(1);
+  });
+});
+
+describe("the evening catch-up only finishes what the morning left", () => {
+  const rate = async () => ({ ok: true as const, rate: "1", date: "2026-11-23" });
+  async function flat(tag: string) {
+    const g = await db.group.create({
+      data: { name: `Flat ${tag} ${stamp}`, type: "home", reminders: true, currency: "INR", inviteCode: `cd-${tag}-${stamp}`, members: { create: [{ name: "X" }, { name: "Y" }] } },
+      include: { members: true },
+    });
+    groupIds.push(g.id);
+    const x = g.members.find((m) => m.name === "X")!.id;
+    const y = g.members.find((m) => m.name === "Y")!.id;
+    const r = await saveExpense(
+      { groupId: g.id, name: "Rent", category: "", amount: "1000", currency: "INR", paidById: x, forMode: "everyone", selected: [], onePersonId: "", splitType: "equal", exact: {}, percent: {}, paymentMethod: "cash", markupChoice: "group", markupCustom: "", rateMode: "auto", manualRate: "" },
+      x,
+      rate,
+    );
+    if (!r.ok) throw new Error(r.error);
+    return { id: g.id, x, y };
+  }
+  const sentTo = (f: { x: string; y: string }) => mocks.sendPushTo.mock.calls.filter((c) => c[0].includes(f.y) || c[0].includes(f.x)).length;
+  const evening = new Date("2026-11-23T16:00:00Z"); // Monday 21:30 India time
+  const noteKey = (part: string) => `daily-deferred:2026-11-23:${part}`;
+  const never = () => false;
+
+  it("nothing was deferred in the morning: the evening does nothing at all (no first-time nudge at 21:30)", async () => {
+    const quiet = new Date("2026-11-17T16:00:00Z"); // a day with no morning note
+    const f = await flat("quiet");
+    mocks.sendPushTo.mockClear();
+    const failed: string[] = [];
+    const r = await runDeferredParts(quiet, never, failed);
+    expect(r).toEqual({ results: {}, deferred: [] });
+    expect(failed).toEqual([]);
+    expect(sentTo(f)).toBe(0);
+    expect(mocks.sendPushTo).not.toHaveBeenCalled();
+  });
+
+  it("the morning ran out of time before reminders: the evening runs reminders only, for the flat not done yet, and crosses it off", async () => {
+    const done = await flat("morning-done");
+    const left = await flat("not-yet");
+    // The morning already did the first flat.
+    const k = `reminders:2026-11-23:${done.id}`;
+    expect(await claimJob(k, new Date("2026-11-23T00:30:00Z"))).toBe(true);
+    await finishJob(k);
+    await recordDeferred(new Date("2026-11-23T00:31:00Z"), ["reminders", "not-a-part"]);
+    keys.push(noteKey("reminders"));
+    expect(await deferredToday(evening)).toEqual(["reminders"]); // unknown names are not written down
+
+    mocks.sendPushTo.mockClear();
+    const failed: string[] = [];
+    const r = await runDeferredParts(evening, never, failed);
+    expect(Object.keys(r.results)).toEqual(["reminders"]); // bills, countdowns, summaries, memories… were not run
+    expect(r.deferred).toEqual([]);
+    expect(sentTo(done)).toBe(0); // not repeated
+    expect(sentTo(left)).toBe(1); // the one the morning missed
+    expect(await deferredToday(evening)).toEqual([]); // finished: crossed off
+
+    // A second evening run has nothing left to do.
+    mocks.sendPushTo.mockClear();
+    expect(await runDeferredParts(evening, never, failed)).toEqual({ results: {}, deferred: [] });
+    expect(mocks.sendPushTo).not.toHaveBeenCalled();
+  });
+
+  it("the evening is short of time too: the part stays on the list for next time, and nothing is sent", async () => {
+    await recordDeferred(new Date("2026-11-23T00:31:00Z"), ["countdowns"]);
+    keys.push(noteKey("countdowns"));
+    mocks.sendPushTo.mockClear();
+    const r = await runDeferredParts(evening, () => true, []);
+    expect(r.deferred).toEqual(["countdowns"]);
+    expect(await deferredToday(evening)).toEqual(["countdowns"]);
+    expect(mocks.sendPushTo).not.toHaveBeenCalled();
+  });
+
+  it("the morning run notes what it deferred or failed (and the night skip counts as left for later)", async () => {
+    const failed: string[] = [];
+    const night = new Date("2026-11-24T18:00:00Z"); // 23:30 India time: no phone nudges
+    const r = await runClaimedParts(night, never, failed, ["reminders", "summaries"]);
+    expect(Object.keys(r.results)).toEqual(["reminders", "summaries"]);
+    expect(r.deferred).toEqual(["reminders", "summaries"]);
   });
 });

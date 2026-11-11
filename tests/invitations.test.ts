@@ -149,7 +149,7 @@ describe("an email invitation: Not now", () => {
 describe("added straight in the old way (account on the row, never opened the group)", () => {
   async function legacy(label: string, used: boolean) {
     const t = await trip(label);
-    const pat = await account("Pat");
+    const pat = await account(`Pat${label}`);
     const row = await db.member.create({ data: { groupId: t.g.id, name: "Pat", accountId: pat.id, claimedAt: new Date(), addedBy: t.ashaId } });
     if (used) await dinner(t.g.id, t.ashaId, [t.ashaId, t.meeraId, row.id]);
     return { ...t, pat, row };

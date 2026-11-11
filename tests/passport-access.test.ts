@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
-import { canSeePassport, passportFriends } from "@/lib/passport-db";
+import { canSeePassport, passportFriends, passportRoster } from "@/lib/passport-db";
 
 // Who may open whose passport. The rule: both people have really joined a group
 // that still exists (leaving later doesn't matter), and the owner hasn't hidden it.
@@ -141,5 +141,47 @@ describe("passport friends list", () => {
     const friend = await account("Friend12");
     await group("fp", [{ account: viewer }, { account: friend, added: true }]);
     expect((await passportFriends(viewer.id)).map((f) => f.accountId)).not.toContain(friend.id);
+  });
+});
+
+// "Our passports" for one group follows the same rule as canSeePassport.
+describe("our passports page: who may open it and who is listed", () => {
+  const row = (id: string, extra: { addedBy?: string; seenAt?: Date | null; removedAt?: Date | null } = {}) => ({ id, addedBy: "", seenAt: null as Date | null, removedAt: null as Date | null, ...extra });
+  const members = [
+    row("asha"),
+    row("sam"),
+    row("pending", { addedBy: "asha" }), // added by Asha, never opened the group
+    row("seen", { addedBy: "asha", seenAt: new Date() }), // added by Asha, has opened it since
+    row("removed", { removedAt: new Date() }),
+  ];
+
+  it("a joined viewer sees everyone who joined (and themselves), not the pending or the removed", () => {
+    expect(passportRoster(members, "sam")!.map((m) => m.id)).toEqual(["asha", "sam", "seen"]);
+  });
+
+  it("a pending viewer, a removed viewer, or someone not in the group is sent away (null)", () => {
+    expect(passportRoster(members, "pending")).toBeNull();
+    expect(passportRoster(members, "removed")).toBeNull();
+    expect(passportRoster(members, "nobody")).toBeNull();
+  });
+
+  it("someone who left on their own is still listed and still allowed (leaving doesn't count)", () => {
+    // (leftAt isn't part of the rule: a person who left has addedBy empty and no removedAt)
+    expect(passportRoster([row("asha"), row("ravi")], "asha")!.map((m) => m.id)).toEqual(["asha", "ravi"]);
+    expect(passportRoster([row("asha"), row("ravi")], "ravi")).not.toBeNull();
+  });
+
+  it("agrees with canSeePassport for a real group: a removed viewer is a stranger there too", async () => {
+    const owner = await account("Owner13");
+    const viewer = await account("Viewer13");
+    const g = await group("roster", [{ account: owner }, { account: viewer }]);
+    expect((await canSeePassport(viewer.id, owner.id)).ok).toBe(true);
+    const rows = await db.member.findMany({ where: { groupId: g.id }, select: { id: true, accountId: true, addedBy: true, seenAt: true, removedAt: true } });
+    const v = rows.find((m) => m.accountId === viewer.id)!;
+    expect(passportRoster(rows, v.id)).not.toBeNull();
+    await db.member.update({ where: { id: v.id }, data: { removedAt: new Date(), leftAt: new Date() } });
+    expect(await canSeePassport(viewer.id, owner.id)).toMatchObject({ ok: false, reason: "stranger" });
+    const after = await db.member.findMany({ where: { groupId: g.id }, select: { id: true, accountId: true, addedBy: true, seenAt: true, removedAt: true } });
+    expect(passportRoster(after, v.id)).toBeNull();
   });
 });

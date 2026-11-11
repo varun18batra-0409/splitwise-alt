@@ -30,6 +30,7 @@ import { ActivityRow } from "@/components/ActivityRow";
 import { itemHref } from "@/lib/paths";
 import { restoreGroup } from "@/app/actions";
 import { db } from "@/lib/db";
+import { leaverOf } from "@/lib/left-view-db";
 import { canUndo } from "@/lib/undo";
 import { UndoBar } from "@/components/UndoBar";
 import { PersonIcon, iconButtonClass } from "@/components/icons";
@@ -89,7 +90,7 @@ export default async function Home({
 
   // Undo bar after a change made from the home screen (e.g. closing a group).
   let undoBar: { text: string; groupId: string; eventId: string } | null = null;
-  if (did && didGroup && memberships[didGroup]) {
+  if (did && didGroup && memberships[didGroup] && !(await leaverOf(memberships[didGroup]))) {
     const ev = await db.groupEvent.findFirst({ where: { id: did, groupId: didGroup } });
     // Only changes from then on matter for whether it can still be undone.
     const events = ev ? await db.groupEvent.findMany({ where: { groupId: didGroup, createdAt: { gte: ev.createdAt } } }) : [];

@@ -44,7 +44,7 @@ export default async function GroupSettings({
   const group = await db.group.findUnique({
     where: { id },
     include: {
-      members: { select: { id: true, name: true, leftAt: true, splitWeight: true, claimedAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
+      members: { select: { id: true, name: true, leftAt: true, splitWeight: true, claimedAt: true, addedBy: true, seenAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
       expenses: { where: { deletedAt: null }, select: { amount: true } },
       _count: { select: { expenses: true, payments: true } },
     },

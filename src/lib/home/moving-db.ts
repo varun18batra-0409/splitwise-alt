@@ -117,7 +117,8 @@ function checkDay(lastDay: string, now: Date): string | null {
   return null;
 }
 
-export async function moveOutPreview(groupId: string, leaverId: string, lastDay: string, now = new Date()) {
+// `actorId`: who is confirming it. They take over the leaver's bills if they are staying, exactly as moveOut does.
+export async function moveOutPreview(groupId: string, leaverId: string, lastDay: string, now = new Date(), actorId = "") {
   const flat = await loadFlat(groupId);
   if (!flat || flat.deletedAt) return { ok: false, error: "This group no longer exists." } as Fail;
   if (!flat.members.some((m) => m.id === leaverId && !m.leftAt)) return { ok: false, error: "That person isn’t in the flat." } as Fail;
@@ -129,7 +130,7 @@ export async function moveOutPreview(groupId: string, leaverId: string, lastDay:
   // Daily bills this month: their share for the days they were there, charged now if they tick "Add it now".
   const offers = await dailyOffers(flat, leaverId, lastDay);
   const others = flat.members.filter((m) => !m.leftAt && m.id !== leaverId);
-  const heir = others[0]?.id ?? "";
+  const heir = others.find((m) => m.id === actorId)?.id ?? others[0]?.id ?? "";
   const charges = offers.filter((o) => !o.d.unsupported).map((o) => ({ payerId: prechargePayer(o.bill, o.period, leaverId, others.map((m) => m.id), heir), amount: o.d.amount }));
   const withDaily = charges.length ? plan(flat, leaverId, lastDay, bills, charges).payments : p.payments;
   return {

@@ -6,7 +6,7 @@ import { InviteIcon, SearchIcon } from "./icons";
 import { reportSpeed } from "./speedReport";
 import { whatsappLink } from "@/lib/whatsapp";
 
-type Found = { accountId: string; name: string; email: string; inGroup: boolean; known: boolean; invited?: boolean };
+type Found = { accountId: string; name: string; email: string; inGroup: boolean; known: boolean; invited?: boolean; removed?: boolean; mayAdd?: boolean };
 const isEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(s.trim());
 
 // 1. Search people already on Loopin (friends you share a group with by name,
@@ -94,6 +94,8 @@ export function PeopleSearch({ groupId }: { groupId: string }) {
               </span>
               {f.inGroup ? (
                 <span className="shrink-0 text-xs text-gray-400">In group</span>
+              ) : f.removed && f.mayAdd === false ? (
+                <span className="shrink-0 text-xs text-gray-400" data-removed-chip>Removed</span>
               ) : f.invited ? (
                 <span className="shrink-0 text-xs text-gray-400" data-invited-chip>Invited</span>
               ) : (
@@ -101,7 +103,7 @@ export function PeopleSearch({ groupId }: { groupId: string }) {
                   <input type="hidden" name="groupId" value={groupId} />
                   <input type="hidden" name="accountId" value={f.accountId} />
                   <button type="submit" className="pop shrink-0 bg-fg px-3 py-1.5 text-sm font-semibold text-canvas [--pop-edge:#6e6b63]">
-                    Add
+                    {f.removed ? "Bring back" : "Add"}
                   </button>
                 </form>
               )}

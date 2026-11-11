@@ -137,6 +137,33 @@ export async function removePhotos(keys: (string | null | undefined)[]) {
   await flushPhotoDeletes();
 }
 
+// Put a new photo in a group's picture, only if the picture is still the one we saw (`seen`: its updatedAt, or null
+// if there was none). The file to delete is the one the row points at right now, read inside the same step: a move
+// of the old photo to file storage may have changed its key since we looked, and that must not leave a file behind.
+// Returns false (nothing changed) if someone else's photo got there first.
+export async function replaceGroupPhoto(
+  groupId: string,
+  seen: { updatedAt: Date } | null,
+  data: { data: Uint8Array<ArrayBuffer>; blobKey: string; type: string; createdById: string; updatedAt: Date },
+  now: Date,
+): Promise<boolean> {
+  const { db } = await import("./db");
+  return db.$transaction(async (tx) => {
+    let oldKey = "";
+    if (seen) {
+      const current = await tx.groupPhoto.findUnique({ where: { groupId }, select: { blobKey: true } });
+      oldKey = current?.blobKey ?? "";
+      const r = await tx.groupPhoto.updateMany({ where: { groupId, updatedAt: seen.updatedAt }, data });
+      if (r.count !== 1) return false;
+    } else {
+      await tx.groupPhoto.create({ data: { groupId, ...data } });
+    }
+    await tx.group.update({ where: { id: groupId }, data: { cover: "own", coverAt: now } });
+    await queuePhotoDeletes(tx, [oldKey]); // the old file, in the same step that replaces it
+    return true;
+  });
+}
+
 // Photos saved before file storage was connected: moved over a few at a time
 // by the daily job (the database copy is cleared once the file copy exists).
 export async function movePhotosToBlob(limit = 40): Promise<number> {

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { buyInAction } from "@/app/pot-actions";
 import { formatMoney, parseAmount } from "@/lib/money";
-import { useRequestKey } from "./FreshKey";
+import { useRequestKey } from "./FreshKeyInput";
 
 // Buy-in: tick who's taking money (everyone, at the start), one amount, one
 // tap. What's on screen is what's saved; if the save comes back with a
@@ -49,7 +49,7 @@ export function PotBuyIn({
   return (
     <form action={buyInAction} className="space-y-3.5" data-allow-repeat="1" aria-label="Buy in">
       <input type="hidden" name="gameId" value={gameId} />
-      <input type="hidden" name="rid" value={rid} />
+      <input type="hidden" name="rid" value={rid} suppressHydrationWarning />
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="font-display text-lg font-semibold tracking-tight">{allTicked ? "Buy in" : "Buy in / top up"}</h2>
         <span className="flex gap-3 text-xs font-semibold text-accent">

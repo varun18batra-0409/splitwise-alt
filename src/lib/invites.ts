@@ -5,6 +5,8 @@ import { cleanEmail } from "./auth";
 import { sendMail } from "./mail";
 import { allow } from "./rate-limit";
 import { deliverNotes } from "./account-notes";
+import { groupAdminId } from "./group-admin";
+import { setMember } from "./people";
 import { randomBytes } from "node:crypto";
 
 // Invite and "added you" emails one person can send in a day. The whole app's
@@ -16,7 +18,9 @@ const inviteMailOk = (actor: { id: string; accountId?: string | null }) => allow
 // once as a name, so they can be split with, and is invited: they see the group on their own
 // phone only after they verify their email and tap Join.
 
-export type Found = { accountId: string; name: string; email: string; inGroup: boolean; known: boolean; invited: boolean };
+// `removed`: the admin took this person out of the group. Only the admin may bring them back, so for
+// everyone else the screen shows "Removed" and no Add (`mayAdd` false).
+export type Found = { accountId: string; name: string; email: string; inGroup: boolean; known: boolean; invited: boolean; removed: boolean; mayAdd: boolean };
 
 const nameOfAccount = (a: { name: string; email: string }) => a.name.trim() || a.email.split("@")[0];
 
@@ -36,8 +40,9 @@ export async function searchPeople(memberships: Record<string, string>, groupId:
   if (q.length < 2) return [];
   const email = cleanEmail(q);
   // Everything at once (each is a trip to the database).
-  const [groupRows, knownRows, exact, me] = await Promise.all([
-    db.member.findMany({ where: { groupId, accountId: { not: null }, leftAt: null }, select: { accountId: true } }),
+  const [groupRows, knownRows, exact, me, adminId] = await Promise.all([
+    // Everyone with an account in this group, including people who left or were removed (a removed person is never offered an Add).
+    db.member.findMany({ where: { groupId, accountId: { not: null } }, select: { accountId: true, leftAt: true, removedAt: true } }),
     // People you share a group with, both really joined (someone added straight in who hasn't opened it isn't offered yet).
     db.member.findMany({
       where: { groupId: { in: Object.keys(memberships) }, accountId: { not: null }, ...JOINED, group: { members: { some: { id: { in: Object.values(memberships) }, ...JOINED } } } },
@@ -46,14 +51,17 @@ export async function searchPeople(memberships: Record<string, string>, groupId:
     }),
     email ? db.account.findUnique({ where: { email } }) : Promise.resolve(null),
     db.member.findUnique({ where: { id: memberships[groupId] ?? "" }, select: { accountId: true } }),
+    groupAdminId(groupId),
   ]);
-  const inGroup = new Set(groupRows.map((m) => m.accountId!));
+  const inGroup = new Set(groupRows.filter((m) => !m.leftAt && !m.removedAt).map((m) => m.accountId!));
+  const removedIn = new Set(groupRows.filter((m) => m.removedAt).map((m) => m.accountId!));
+  const iAmAdmin = Boolean(adminId) && adminId === memberships[groupId];
   const known = await db.account.findMany({ where: { id: { in: knownRows.map((r) => r.accountId!) } } });
   const shown = known.filter((a) => a.email.includes(q) || nameOfAccount(a).toLowerCase().includes(q));
   // Already invited to this group and not joined yet: shown as "Invited".
   const waiting = shown.length ? await db.invite.findMany({ where: { groupId, acceptedAt: null, declinedAt: null, email: { in: shown.map((a) => a.email) } }, select: { email: true } }) : [];
   const invitedEmails = new Set(waiting.map((i) => i.email));
-  const out: Found[] = shown.map((a) => ({ accountId: a.id, name: nameOfAccount(a), email: a.email, inGroup: inGroup.has(a.id), known: true, invited: invitedEmails.has(a.email) }));
+  const out: Found[] = shown.map((a) => ({ accountId: a.id, name: nameOfAccount(a), email: a.email, inGroup: inGroup.has(a.id), known: true, invited: invitedEmails.has(a.email), removed: removedIn.has(a.id), mayAdd: !removedIn.has(a.id) || iAmAdmin }));
   // A full email of someone you share nothing with is not looked up here: the screen offers the same
   // "Add" for any email (on Loopin → added; not yet → invited), so nobody can check who has an account.
   void exact;
@@ -84,10 +92,13 @@ type Result = { ok: true; memberId: string; eventId: string; name: string; email
 // They only see the group once they tap Join (see invitations.ts).
 //
 // The adder gets the same reply whether or not the email is on Loopin, so nobody can use this to
-// find out who has an account. The token starts with the id of the name row it is for.
+// find out who has an account. The token is random; the name row it is for is the invitation's own memberId.
 
-export const newInviteToken = (memberId: string) => `${memberId}.${randomBytes(18).toString("base64url")}`;
+export const newInviteToken = () => randomBytes(18).toString("base64url");
+// Older tokens (only ever made in tests) started with the name row's id: "<memberId>.<random>".
 export const memberOfToken = (token: string) => (token.includes(".") ? token.split(".")[0] : "");
+// The name row an invitation is for.
+export const inviteMemberId = (inv: { memberId: string; token: string }) => inv.memberId || memberOfToken(inv.token);
 
 // "ravi.kumar@gmail.com" → "Ravi Kumar" (the same for everyone, so it says nothing about whether they have an account).
 export function nameFromEmail(email: string): string {
@@ -95,7 +106,7 @@ export function nameFromEmail(email: string): string {
   return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ").slice(0, 36) || "Friend";
 }
 
-type InviteGroup = { id: string; name: string; inviteCode: string; joinWeight: number; members: { id: string; name: string; accountId: string | null; leftAt: Date | null }[] };
+type InviteGroup = { id: string; name: string; inviteCode: string; joinWeight: number; members: { id: string; name: string; accountId: string | null; leftAt: Date | null; removedAt?: Date | null }[] };
 type Actor = { id: string; name: string; accountId?: string | null };
 type Later = (job: () => Promise<unknown>) => void;
 
@@ -109,7 +120,7 @@ async function inviteOne(
 ): Promise<{ memberId: string; eventId: string; name: string }> {
   const prior = await db.invite.findUnique({ where: { groupId_email: { groupId: group.id, email } } });
   // Asked again before they joined: the same name row, a fresh invitation.
-  const kept = prior && !prior.acceptedAt && prior.token ? group.members.find((m) => m.id === memberOfToken(prior.token) && !m.accountId && !m.leftAt) : undefined;
+  const kept = prior && !prior.acceptedAt && prior.token ? group.members.find((m) => m.id === inviteMemberId(prior) && !m.accountId && !m.leftAt && !m.removedAt) : undefined;
   const name = kept ? kept.name : freeName(group.members.map((m) => m.name), wantedName);
   const { memberId, eventId } = await db.$transaction(async (tx) => {
     let memberId = kept?.id ?? "";
@@ -119,11 +130,11 @@ async function inviteOne(
       memberId = m.id;
       eventId = await logEvent(tx, { groupId: group.id, actorId: actor.id, kind: "members_added", text: `added ${name} to the group`, undo: { type: "members_remove", memberIds: [m.id] } });
     }
-    const token = kept && prior?.token ? prior.token : newInviteToken(memberId);
+    const token = kept && prior?.token ? prior.token : newInviteToken();
     await tx.invite.upsert({
       where: { groupId_email: { groupId: group.id, email } },
-      create: { groupId: group.id, email, invitedById: actor.id, token },
-      update: { invitedById: actor.id, acceptedAt: null, declinedAt: null, createdAt: new Date(), token },
+      create: { groupId: group.id, email, invitedById: actor.id, token, memberId },
+      update: { invitedById: actor.id, acceptedAt: null, declinedAt: null, createdAt: new Date(), token, memberId },
     });
     return { memberId, eventId };
   });
@@ -154,6 +165,10 @@ async function loadInviteGroup(groupId: string, actorId: string) {
   return { group, actor };
 }
 
+const isAdmin = async (groupId: string, memberId: string) => (await groupAdminId(groupId)) === memberId;
+// The admin brings back someone they removed (leftAt, removedAt and removedById are all cleared together).
+const bringBack = (groupId: string, actorId: string, memberId: string) => setMember(groupId, actorId, memberId, { leftAt: null });
+
 // Add someone who's already on Loopin (found by name among people you share a group with).
 // They're in the group at once as a name and invited, like an email add.
 // `later`: send the email and note after the reply (so adding is instant).
@@ -164,8 +179,15 @@ export async function addRegistered(groupId: string, actorId: string, accountId:
   const account = await db.account.findUnique({ where: { id: accountId } });
   if (!account) return { ok: false, error: "That person isn't on Loopin." };
   const existing = group.members.find((m) => m.accountId === accountId);
+  // Taken out by the person who looks after the group: only they can bring them back, by any route.
+  if (existing?.removedAt) {
+    if (!(await isAdmin(groupId, actorId))) return { ok: false, error: `Only the person who looks after the group can bring ${existing.name} back.` };
+    const back = await bringBack(groupId, actorId, existing.id);
+    if (!back.ok) return back;
+    await copyPushTo(accountId, existing.id);
+    return { ok: true, memberId: existing.id, eventId: back.eventId ?? "", name: existing.name, email: account.email };
+  }
   if (existing && !existing.leftAt) return { ok: false, error: `${existing.name} is already in this group.` };
-  if (existing?.removedAt) return { ok: false, error: `${existing.name} was removed from this group. Only the person who looks after it can bring them back.` };
 
   if (existing) {
     // Someone who left on their own and is added back: back in, as before.
@@ -207,7 +229,16 @@ export async function inviteByEmail(groupId: string, actorId: string, rawEmails:
     const wanted = nameFromEmail(email);
     const account = await db.account.findUnique({ where: { email } });
     // Already in the group (or removed from it), or you: the same reply, nothing sent.
-    if (account && group.members.some((m) => m.accountId === account.id)) {
+    const already = account ? group.members.find((m) => m.accountId === account.id) : undefined;
+    if (account && already) {
+      // The same quiet reply for everyone. Only the person who looks after the group can bring back someone they removed.
+      if (already.removedAt && (await isAdmin(groupId, actorId))) {
+        const back = await bringBack(groupId, actorId, already.id);
+        if (back.ok) {
+          await copyPushTo(account.id, already.id);
+          if (back.eventId) eventIds.push(back.eventId);
+        }
+      }
       people.push({ name: wanted, email });
       continue;
     }
@@ -230,7 +261,7 @@ export async function inviteToClaim(groupId: string, actorId: string, memberId: 
   if (!email) return { ok: false, error: "Enter an email address, like name@gmail.com." };
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: true } });
   const actor = group?.members.find((m) => m.id === actorId && !m.leftAt);
-  const member = group?.members.find((m) => m.id === memberId && !m.leftAt);
+  const member = group?.members.find((m) => m.id === memberId && !m.leftAt && !m.removedAt);
   if (!group || group.deletedAt || !actor) return { ok: false, error: "Only people in this group can invite." };
   if (!member || member.accountId || member.claimedAt) return { ok: false, error: "That person is already on Loopin." };
   await db.invite.upsert({

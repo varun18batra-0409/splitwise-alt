@@ -7,6 +7,7 @@ import { saveBudgets } from "@/app/bill-actions";
 import { BUDGET_CATEGORIES } from "@/lib/home/budgets";
 import { getCategory } from "@/lib/categories";
 import { toInputAmount } from "@/lib/money";
+import { leaverOf } from "@/lib/left-view-db";
 
 // Monthly budgets: an amount per category (blank = no budget).
 export default async function BudgetsPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
@@ -16,6 +17,8 @@ export default async function BudgetsPage({ params, searchParams }: { params: Pr
   if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  // Someone who left (or was removed) reads the group only on its main screen, up to the day they left.
+  if (await leaverOf(myId)) redirect(`/groups/${group.id}`);
   const amountOf = (c: string) => {
     const b = group.budgets.find((x) => x.category === c);
     return b ? toInputAmount(b.amount, group.currency) : "";

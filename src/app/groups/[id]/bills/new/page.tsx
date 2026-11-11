@@ -4,6 +4,7 @@ import { getMyMemberId } from "@/lib/identity";
 import { PageHeader } from "@/components/ui";
 import { BillForm } from "@/components/BillForm";
 import { splitNameFor, weightsLabel } from "@/lib/group-types";
+import { leaverOf } from "@/lib/left-view-db";
 
 export default async function NewBillPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
   const { id } = await params;
@@ -15,6 +16,8 @@ export default async function NewBillPage({ params, searchParams }: { params: Pr
   if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  // Someone who left (or was removed) reads the group only on its main screen, up to the day they left.
+  if (await leaverOf(myId)) redirect(`/groups/${group.id}`);
   return (
     <>
       <PageHeader title="Add a regular bill" back={`/groups/${group.id}?tab=bills`} />

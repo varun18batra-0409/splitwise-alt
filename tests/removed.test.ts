@@ -133,6 +133,48 @@ describe("removed by the admin", () => {
   });
 });
 
+describe("the admin can turn 'left' into 'removed'", () => {
+  it("Sam left on his own; Asha removes him: removedAt and removedById are set, the day he left is kept, and he can no longer rejoin himself", async () => {
+    const f = await flat("m");
+    expect((await setMemberLeft(f.groupId, f.sam, f.sam, true)).ok).toBe(true);
+    const left = await db.member.findUniqueOrThrow({ where: { id: f.sam } });
+    expect(left.removedAt).toBeNull();
+    const r = await setMemberLeft(f.groupId, f.asha, f.sam, true);
+    expect(r.ok).toBe(true);
+    const row = await db.member.findUniqueOrThrow({ where: { id: f.sam } });
+    expect(row.removedAt).not.toBeNull();
+    expect(row.removedById).toBe(f.asha);
+    expect(row.leftAt?.getTime()).toBe(left.leftAt?.getTime()); // still the day he left
+    const ev = await db.groupEvent.findFirstOrThrow({ where: { groupId: f.groupId, text: "removed Sam from the group" } });
+    expect(ev.kind).toBe("member_left");
+    // He can't rejoin himself, or with the link.
+    expect(await setMemberLeft(f.groupId, f.sam, f.sam, false)).toEqual({ ok: false, error: "Asha removed you from this group. Ask them to invite you again." });
+    expect(await joinNew(f.code, f.accounts.sam, "Sam")).toEqual({ ok: false, reason: "removed", adminName: "Asha" });
+  });
+
+  it("only the admin can do it: Ravi can't take out Sam", async () => {
+    const f = await flat("n");
+    await setMemberLeft(f.groupId, f.sam, f.sam, true);
+    const r = await setMemberLeft(f.groupId, f.ravi, f.sam, true);
+    expect(r).toEqual({ ok: false, error: "Only the person who looks after this group can remove people." });
+    expect((await db.member.findUniqueOrThrow({ where: { id: f.sam } })).removedAt).toBeNull();
+  });
+
+  it("undoing it puts him back to 'left' (not in, not removed); removing someone already removed changes nothing", async () => {
+    const f = await flat("o");
+    await setMemberLeft(f.groupId, f.sam, f.sam, true);
+    const before = (await db.member.findUniqueOrThrow({ where: { id: f.sam } })).leftAt!;
+    const r = await setMemberLeft(f.groupId, f.asha, f.sam, true);
+    if (!r.ok || !r.eventId) throw new Error("no event");
+    expect(await setMemberLeft(f.groupId, f.asha, f.sam, true)).toEqual({ ok: true }); // already removed
+    expect((await undoEvent(r.eventId, f.asha)).ok).toBe(true);
+    const row = await db.member.findUniqueOrThrow({ where: { id: f.sam } });
+    expect(row.removedAt).toBeNull();
+    expect(row.removedById).toBe("");
+    expect(row.leftAt?.getTime()).toBe(before.getTime()); // left, as before
+  });
+});
+
 describe("a new invite link", () => {
   it("the old link stops working and the new one works; only the admin can make it", async () => {
     const f = await flat("h");

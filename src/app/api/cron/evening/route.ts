@@ -2,14 +2,15 @@ import { timingSafeEqual } from "node:crypto";
 import { headers } from "next/headers";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { sendDayPulse } from "@/lib/countdown-db";
-import { makeStop, runClaimedParts } from "@/lib/daily-job";
+import { makeStop, runDeferredParts } from "@/lib/daily-job";
 
 // The evening job (Vercel Cron, 21:30 India time): the day-end pulse for trips
 // happening today, and passport moments for trips that just started. Safe to
 // run more than once: each trip gets one pulse a day, each moment one alert.
-// It is also the catch-up for the morning job: if that ran out of time, or a
-// group's nudge was left half-done, the same parts run again here and only do
-// what is still undone (every group is claimed first, so nothing is sent twice).
+// It is also the catch-up for the morning job: the morning run writes down the parts it
+// could not finish, and only those parts run again here (for the groups not already done:
+// every group is claimed first, so nothing is sent twice). If nothing was left, it does nothing,
+// so no first-time nudge goes out at 21:30.
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
@@ -33,7 +34,7 @@ export async function GET(req: Request) {
     const moments = await celebrateRecentTrips(day(now), day(new Date(now.getTime() - 86_400_000))).catch(() => 0);
     // Catch-up for the morning job (never fails the evening job).
     const failed: string[] = [];
-    const catchUp = await runClaimedParts(now, stop, failed).catch(() => ({ results: {}, deferred: ["all"] }));
+    const catchUp = await runDeferredParts(now, stop, failed).catch(() => ({ results: {}, deferred: ["all"] }));
     return Response.json({ ok: true, pulse, moments, catchUp: catchUp.results, deferred: catchUp.deferred, failed });
   } catch (err) {
     console.error("evening job failed", String(err).slice(0, 300));

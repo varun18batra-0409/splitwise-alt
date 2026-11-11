@@ -10,6 +10,7 @@ import { niceDate } from "@/lib/format";
 import { dayKey } from "@/lib/dates";
 import { getTimeZone } from "@/lib/tz";
 import { FreshKey } from "@/components/FreshKey";
+import { leaverOf } from "@/lib/left-view-db";
 
 // A savings goal ("new" to start one): the ring, what a month gets you there,
 // and "I set money aside". The money stays in people's own accounts.
@@ -26,6 +27,8 @@ export default async function GoalPage({
   if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  // Someone who left (or was removed) reads the group only on its main screen, up to the day they left.
+  if (await leaverOf(myId)) redirect(`/groups/${group.id}`);
   const money = (n: number) => formatMoney(n, group.currency);
   const tz = await getTimeZone();
 

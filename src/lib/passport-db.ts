@@ -1,9 +1,20 @@
 import { db } from "./db";
-import { JOINED } from "./membership";
+import { JOINED, isPending } from "./membership";
 import { buildPassport, parseHandPlaces, type PassportTrip } from "./passport";
 
 // Someone the admin removed stops counting for passport sharing (both ways); someone who left on their own still counts.
 const COUNTS = { ...JOINED, removedAt: null };
+
+// "Our passports" for one group: who is listed, from the viewer's side. The same rule as canSeePassport:
+// the viewer must have really joined and not been removed (else null: the screen sends them away), and the
+// list holds only people who have really joined and were not removed (plus the viewer). Someone who
+// left on their own still counts. Hiding a passport ("private") is decided per person by the screen.
+type RosterMember = { id: string; addedBy: string; seenAt: Date | null; removedAt: Date | null };
+export function passportRoster<T extends RosterMember>(members: T[], viewerId: string): T[] | null {
+  const me = members.find((m) => m.id === viewerId);
+  if (!me || isPending(me) || me.removedAt) return null;
+  return members.filter((m) => m.id === viewerId || (!isPending(m) && !m.removedAt));
+}
 
 // Your passport, from every trip group you're in (any phone you signed in on).
 export async function loadPassport(account: { id: string; homeCountry: string; places: string }, fallbackHome: string, today: string, opts: { forFriend?: boolean } = {}) {

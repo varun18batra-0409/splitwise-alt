@@ -15,6 +15,10 @@ export async function sendReminders(now = new Date(), stop: () => boolean = () =
   const groups = await db.group.findMany({ where: { type: "home", reminders: true, deletedAt: null, closed: false }, select: { id: true }, orderBy: { id: "asc" } });
   let sent = 0;
   let deferred = false;
+  // The day this was deployed, the old whole-day claim ("reminders:<day>") may already be done: those reminders
+  // went out, so no flat is sent them a second time under the new per-flat claims.
+  const wholeDay = await db.notifyLog.findUnique({ where: { key: `reminders:${today}` }, select: { state: true } });
+  if (wholeDay?.state === "done") return { sent: 0, skipped: true, deferred: false };
   for (const { id } of groups) {
     if (stop()) { deferred = true; break; }
     const key = `reminders:${today}:${id}`;

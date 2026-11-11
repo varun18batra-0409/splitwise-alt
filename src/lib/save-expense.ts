@@ -11,6 +11,7 @@ import { claimKey, isDuplicateKey, previousResult, withRetry } from "./once";
 import { parsePayers, payersJson, payersLabel } from "./payers";
 import { findLikelyDuplicate } from "./duplicates";
 import { queuePhotoDeletes } from "./photo-store";
+import { parsePrepaid } from "./home/moving";
 import type { Prisma } from "@prisma/client";
 
 export type SaveExpenseInput = ExpenseDraft & {
@@ -65,6 +66,7 @@ export async function saveExpense(
 
 class Clash extends Error {}
 class ReceiptGone extends Error {}
+class MonthAdded extends Error {}
 
 type CleanAttach = { lines?: { position: number; name: string; amount: number; people: string }[]; receipt?: string };
 
@@ -341,7 +343,20 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
   if (expense.group.closed) return { ok: false, error: "This group is closed. Reopen it to change expenses." };
   if (Boolean(expense.deletedAt) === deleted) return { ok: true, id: expense.id };
 
-  const eventId = await db.$transaction(async (tx) => {
+  let eventId: string;
+  try {
+   eventId = await db.$transaction(async (tx) => {
+    // A move-out daily charge can't come back once that month's bill was added without it (it would be counted twice).
+    if (!deleted) {
+      const bills = await tx.bill.findMany({ where: { groupId: expense.groupId, prepaid: { contains: expense.id } }, select: { id: true, name: true, prepaid: true } });
+      for (const b of bills) {
+        for (const [period, list] of Object.entries(parsePrepaid(b.prepaid))) {
+          if (!list.some((x) => x.e === expense.id)) continue;
+          const run = await tx.billRun.findUnique({ where: { billId_period: { billId: b.id, period } }, select: { status: true } });
+          if (run?.status === "added") throw new MonthAdded(b.name);
+        }
+      }
+    }
     // Only if it's still in the state we saw (two taps at once change it once).
     const changed = await tx.expense.updateMany({
       where: { id: expense.id, deletedAt: deleted ? null : { not: null } },
@@ -356,7 +371,11 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
       expenseId: expense.id,
       undo: { type: deleted ? "expense_restore" : "expense_delete", expenseId: expense.id },
     });
-  });
+   });
+  } catch (err) {
+    if (err instanceof MonthAdded) return { ok: false, error: `This month’s ${err.message} was already added, so this charge can’t come back. Add it again by hand if needed.` };
+    throw err;
+  }
   return { ok: true, id: expense.id, eventId: eventId || undefined };
 }
 

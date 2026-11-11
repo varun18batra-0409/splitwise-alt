@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { copyPushTo, memberOfToken } from "./invites";
+import { copyPushTo, inviteMemberId } from "./invites";
 import { joinExisting, joinNew, type JoinFail, type JoinOk } from "./join";
 
 // Invitations from the invitee's side: the Join / Not now cards on Home and Alerts and the
@@ -7,7 +7,7 @@ import { joinExisting, joinNew, type JoinFail, type JoinOk } from "./join";
 //
 // Two kinds of invitation look the same to the invitee:
 //  - new: someone invited their email. The group already holds a name-only row for them (the Invite
-//    carries a token that starts with that row's id). Join links the row to their account.
+//    carries that row's id). Join links the row to their account.
 //  - older: someone added them straight in before invitations existed (their row has an account,
 //    addedBy set and seenAt empty). Join sets seenAt. Not now takes the account off the row, so it
 //    becomes a plain name again.
@@ -51,7 +51,7 @@ export async function loadInvitations(account: Account | null): Promise<Invitati
     const g = i.group;
     // Already in, or taken out of, that group: nothing to answer.
     if (mine(g)) continue;
-    const memberId = g.members.find((m) => m.id === memberOfToken(i.token) && !m.accountId && !m.leftAt)?.id ?? "";
+    const memberId = g.members.find((m) => m.id === inviteMemberId(i) && !m.accountId && !m.leftAt)?.id ?? "";
     // Their name was taken out of the group again (or taken by someone else): nothing to answer any more.
     if (!memberId) continue;
     out.push({
@@ -94,7 +94,7 @@ export async function acceptInvitation(account: Account, key: string): Promise<A
   const inv = key ? await db.invite.findFirst({ where: { token: key, email: account.email }, include: { group: { select: { id: true, inviteCode: true, deletedAt: true } } } }) : null;
   if (!inv || inv.group.deletedAt) return { ok: false, error: GONE };
   const code = inv.group.inviteCode;
-  const memberId = memberOfToken(inv.token);
+  const memberId = inviteMemberId(inv);
   // Link their name row if it is still free; otherwise join as themselves (a new row, with their own name).
   let r: JoinOk | JoinFail = memberId ? await joinExisting(code, account, memberId) : { ok: false, reason: "claimed" };
   if (!r.ok && r.reason === "claimed") r = await joinNew(code, account, account.name);
@@ -125,6 +125,6 @@ export async function declineInvitation(account: Account, key: string): Promise<
   const inv = key ? await db.invite.findFirst({ where: { token: key, email: account.email } }) : null;
   if (!inv) return { ok: false, error: GONE };
   await db.invite.update({ where: { id: inv.id }, data: { declinedAt: new Date() } });
-  return { ok: true, groupId: inv.groupId, memberId: memberOfToken(inv.token) };
+  return { ok: true, groupId: inv.groupId, memberId: inviteMemberId(inv) };
 }
 

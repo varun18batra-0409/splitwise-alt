@@ -71,7 +71,13 @@ export async function setMember(
 
   if (data.leftAt !== undefined) {
     const leaving = data.leftAt !== null;
-    if (leaving === (m.leftAt !== null)) return { ok: true };
+    const alreadyLeft = m.leftAt !== null;
+    // Someone who left on their own, now taken out by the person who looks after the group: "left" becomes "removed".
+    const promoting = leaving && alreadyLeft && !m.removedAt && memberId !== actorId && !undoing && data.removedAt === undefined;
+    if (promoting && !(await isGroupAdmin(groupId, actorId))) return { ok: false, error: "Only the person who looks after this group can remove people." };
+    // Removed state after this change: removing sets it, bringing back clears it (even if leftAt was somehow already empty), otherwise unchanged.
+    const wantRemoved = promoting ? true : data.removedAt !== undefined ? Boolean(data.removedAt) : !leaving ? false : m.removedAt !== null;
+    if (leaving === alreadyLeft && wantRemoved === (m.removedAt !== null)) return { ok: true };
     if (!leaving && m.removedAt && !undoing) {
       // Removed by the admin: they can't come back on their own, and only the admin can bring them back.
       if (memberId === actorId) {
@@ -80,7 +86,7 @@ export async function setMember(
       }
       if (!(await isGroupAdmin(groupId, actorId))) return { ok: false, error: "Only the person who looks after this group can bring back someone they removed." };
     }
-    if (leaving) {
+    if (leaving && !alreadyLeft) {
       const net = netBalances(group.members.map((x) => x.id), group.expenses, group.payments)[memberId] ?? 0;
       if (net !== 0) {
         const amount = formatMoney(Math.abs(net), group.currency);
@@ -90,7 +96,7 @@ export async function setMember(
       }
     }
     // Someone else taking a person out is a removal (an undo spells it out in its data instead).
-    const removing = leaving && memberId !== actorId && !undoing && data.removedAt === undefined;
+    const removing = (leaving && !alreadyLeft && memberId !== actorId && !undoing && data.removedAt === undefined) || promoting;
     const removal: { removedAt?: Date | null; removedById?: string } = removing
       ? { removedAt: new Date(), removedById: actorId }
       : data.removedAt !== undefined
@@ -98,8 +104,10 @@ export async function setMember(
         : !leaving && m.removedAt
           ? { removedAt: null, removedById: "" }
           : {};
+    // Taking out someone who had already left keeps the day they left.
+    const leftAtNext = leaving ? (promoting ? m.leftAt! : new Date(data.leftAt!)) : null;
     const eventId = await db.$transaction(async (tx) => {
-      await tx.member.update({ where: { id: memberId }, data: { leftAt: leaving ? new Date(data.leftAt!) : null, ...removal } });
+      await tx.member.update({ where: { id: memberId }, data: { leftAt: leftAtNext, ...removal } });
       return logEvent(tx, {
         groupId,
         actorId,
@@ -112,10 +120,10 @@ export async function setMember(
           memberId,
           data: leaving
             ? removal.removedAt
-              ? { leftAt: null, removedAt: null, removedById: "" }
+              ? { leftAt: alreadyLeft ? m.leftAt!.toISOString() : null, removedAt: null, removedById: "" }
               : { leftAt: null }
             : m.removedAt
-              ? { leftAt: m.leftAt!.toISOString(), removedAt: m.removedAt.toISOString(), removedById: m.removedById }
+              ? { leftAt: (m.leftAt ?? m.removedAt).toISOString(), removedAt: m.removedAt.toISOString(), removedById: m.removedById }
               : { leftAt: m.leftAt!.toISOString() },
         },
       });
@@ -123,6 +131,16 @@ export async function setMember(
     return { ok: true, eventId };
   }
   return { ok: true };
+}
+
+// The People screen's three lists. Everyone is in exactly one: in the group, left on their own, or removed by the
+// admin (a removed person is listed only under Removed, whatever their "left" mark says).
+export function groupPeople<T extends { leftAt: Date | null; removedAt: Date | null }>(members: T[]): { active: T[]; left: T[]; removed: T[] } {
+  return {
+    active: members.filter((m) => !m.leftAt && !m.removedAt),
+    left: members.filter((m) => m.leftAt && !m.removedAt),
+    removed: members.filter((m) => m.removedAt),
+  };
 }
 
 // True once someone is part of any expense or payment (so they can only leave, not be removed).

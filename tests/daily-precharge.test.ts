@@ -7,6 +7,7 @@ import { runBillsForGroup } from "@/lib/home/bills-db";
 import { loadGroup } from "@/lib/group-data";
 import { undoEvent } from "@/lib/undo";
 import { allocateByWeights } from "@/lib/split";
+import { setExpenseDeleted } from "@/lib/save-expense";
 
 // Daily bills (milk, water cans) when someone moves out part-way through the month.
 // A daily bill is added once its month is over, shared by whoever is still in the flat.
@@ -274,5 +275,126 @@ describe("moving out with a daily bill, end to end", () => {
     const runRow = await db.billRun.findUniqueOrThrow({ where: { billId_period: { billId: g.billId, period: "2026-11" } } });
     expect(runRow).toMatchObject({ status: "skipped", reason: "covered" });
     expect(await db.expense.count({ where: { groupId: g.groupId, description: "Milk" } })).toBe(0);
+  });
+});
+
+// ---------- Audit fixes: the charge as it is now, who is credited, and the preview ----------
+
+describe("the move-out charge after it was changed, and who is credited for it", () => {
+  const chargeOf = (groupId: string) => db.expense.findFirstOrThrow({ where: { groupId, description: { contains: "share" } }, include: { shares: true } });
+
+  it("the charge was edited 20800 → 15000: the month-end bill takes off 15000 (not the 20800 written down): 139200 − 15000 = 124200 = 62100 + 62100; every balance adds to 0", async () => {
+    const f = await flat("edited", { rate: 4800, split: equal, missed: JSON.stringify({ "2026-11": [5] }) });
+    const now = new Date("2026-11-14T06:00:00Z");
+    expect((await moveOut(f.groupId, f.asha, { leaverId: f.ravi, lastDay: "2026-11-14", addDaily: true, requestKey: key("edited") }, now)).ok).toBe(true);
+    const pre = await chargeOf(f.groupId);
+    expect(pre.amount).toBe(20800);
+    // Someone corrects the charge to 15000 (the amount and Ravi's share together).
+    await db.expense.update({ where: { id: pre.id }, data: { amount: 15000, originalAmount: 15000, convertedAmount: 15000, shares: { updateMany: { where: { memberId: f.ravi }, data: { amount: 15000 } } } } });
+
+    expect((await runBillsForGroup(f.groupId, monthEnd)).added).toBe(1);
+    const milk = await db.expense.findFirstOrThrow({ where: { groupId: f.groupId, description: "Milk" }, include: { shares: true } });
+    expect(milk.amount).toBe(124200); // 29 days × 4800 = 139200, less 15000
+    expect(Object.fromEntries(milk.shares.map((x) => [x.memberId, x.amount]))).toEqual({ [f.asha]: 62100, [f.meera]: 62100 });
+    expect(milk.notes).toContain("₹150"); // the note names what was really taken off
+    expect(milk.notes).not.toContain("₹208");
+
+    // Asha paid both: +15000 (the charge) +124200 (Milk) −62100 (her share) −20800 (Ravi's payment at move-out) = 56300.
+    // Ravi: −15000 + 20800 = +5800 (he paid 20800 and the charge became 15000). Meera: −62100.
+    const net = (await loadGroup(f.groupId))!.net;
+    expect(net[f.asha]).toBe(56300);
+    expect(net[f.ravi]).toBe(5800);
+    expect(net[f.meera]).toBe(-62100);
+    expect(sum(Object.values(net))).toBe(0);
+  });
+
+  it("a charge edited up to the whole month's cost (30 × ₹1 = 3000) skips the month-end bill as 'covered'", async () => {
+    const f = await flat("cover", { rate: 100, split: equal });
+    const now = new Date("2026-11-14T06:00:00Z");
+    expect((await moveOut(f.groupId, f.asha, { leaverId: f.ravi, lastDay: "2026-11-14", addDaily: true, requestKey: key("cover") }, now)).ok).toBe(true);
+    const pre = await chargeOf(f.groupId);
+    await db.expense.update({ where: { id: pre.id }, data: { amount: 3000, originalAmount: 3000, convertedAmount: 3000, shares: { updateMany: { where: { memberId: f.ravi }, data: { amount: 3000 } } } } });
+    await runBillsForGroup(f.groupId, monthEnd);
+    expect(await db.billRun.findUniqueOrThrow({ where: { billId_period: { billId: f.billId, period: "2026-11" } } })).toMatchObject({ status: "skipped", reason: "covered" });
+  });
+
+  it("deleted, then the month is added, then restore is refused with a plain sentence and nothing changes", async () => {
+    const f = await flat("restore", { rate: 4800, split: equal, missed: JSON.stringify({ "2026-11": [5] }) });
+    const now = new Date("2026-11-14T06:00:00Z");
+    expect((await moveOut(f.groupId, f.asha, { leaverId: f.ravi, lastDay: "2026-11-14", addDaily: true, requestKey: key("restore") }, now)).ok).toBe(true);
+    const pre = await chargeOf(f.groupId);
+    expect((await setExpenseDeleted(pre.id, f.asha, true)).ok).toBe(true);
+    // The month is added without it: the whole month, 139200 = 69600 + 69600.
+    await runBillsForGroup(f.groupId, monthEnd);
+    const milk = await db.expense.findFirstOrThrow({ where: { groupId: f.groupId, description: "Milk" } });
+    expect(milk.amount).toBe(139200);
+    const r = await setExpenseDeleted(pre.id, f.asha, false);
+    expect(r).toEqual({ ok: false, error: "This month’s Milk was already added, so this charge can’t come back. Add it again by hand if needed." });
+    expect((await db.expense.findUniqueOrThrow({ where: { id: pre.id } })).deletedAt).not.toBeNull();
+  });
+
+  it("deleted and restored BEFORE the month is added is fine, and counts again: the month-end bill is 118400", async () => {
+    const f = await flat("restore-early", { rate: 4800, split: equal, missed: JSON.stringify({ "2026-11": [5] }) });
+    const now = new Date("2026-11-14T06:00:00Z");
+    expect((await moveOut(f.groupId, f.asha, { leaverId: f.ravi, lastDay: "2026-11-14", addDaily: true, requestKey: key("restore-early") }, now)).ok).toBe(true);
+    const pre = await chargeOf(f.groupId);
+    expect((await setExpenseDeleted(pre.id, f.asha, true)).ok).toBe(true);
+    expect((await setExpenseDeleted(pre.id, f.asha, false)).ok).toBe(true);
+    await runBillsForGroup(f.groupId, monthEnd);
+    expect((await db.expense.findFirstOrThrow({ where: { groupId: f.groupId, description: "Milk" } })).amount).toBe(118400);
+  });
+
+  it("the payer changed before month end (Asha → Meera): the charge is credited to Meera too, shares unchanged; Meera is credited the whole month (20800 + 118400 = 139200); balances add to 0", async () => {
+    const f = await flat("payer", { rate: 4800, split: equal, missed: JSON.stringify({ "2026-11": [5] }) });
+    const now = new Date("2026-11-14T06:00:00Z");
+    expect((await moveOut(f.groupId, f.asha, { leaverId: f.ravi, lastDay: "2026-11-14", addDaily: true, requestKey: key("payer") }, now)).ok).toBe(true);
+    expect((await chargeOf(f.groupId)).paidById).toBe(f.asha); // chosen at move-out
+    await db.bill.update({ where: { id: f.billId }, data: { payer: f.meera } }); // Meera pays Milk from now on
+
+    await runBillsForGroup(f.groupId, monthEnd);
+    const milk = await db.expense.findFirstOrThrow({ where: { groupId: f.groupId, description: "Milk" }, include: { shares: true } });
+    expect(milk.paidById).toBe(f.meera);
+    expect(milk.amount).toBe(118400);
+    const pre = await chargeOf(f.groupId);
+    expect(pre.paidById).toBe(f.meera);
+    expect(pre.payers).toBe("");
+    expect(pre.shares.map((x) => [x.memberId, x.amount])).toEqual([[f.ravi, 20800]]); // still only Ravi's
+    expect(pre.amount + milk.amount).toBe(139200);
+
+    // Asha: −59200 (Milk share) −20800 (Ravi's payment at move-out) = −80000. Meera: +20800 +118400 −59200 = +80000. Ravi: −20800 +20800 = 0.
+    const net = (await loadGroup(f.groupId))!.net;
+    expect(net[f.asha]).toBe(-80000);
+    expect(net[f.meera]).toBe(80000);
+    expect(net[f.ravi]).toBe(0);
+    expect(sum(Object.values(net))).toBe(0);
+  });
+
+  it("when the payer stays the same nothing about the charge changes", async () => {
+    const f = await flat("same-payer", { rate: 4800, split: equal });
+    const now = new Date("2026-11-14T06:00:00Z");
+    expect((await moveOut(f.groupId, f.asha, { leaverId: f.ravi, lastDay: "2026-11-14", addDaily: true, requestKey: key("same-payer") }, now)).ok).toBe(true);
+    await runBillsForGroup(f.groupId, monthEnd);
+    expect((await chargeOf(f.groupId)).paidById).toBe(f.asha);
+    expect(sum(Object.values((await loadGroup(f.groupId))!.net))).toBe(0);
+  });
+});
+
+describe("the move-out preview names the same payee as the real move-out", () => {
+  it("Ravi paid Milk; Meera (not the first one left, Asha) confirms: the preview and the move-out both say Ravi pays Meera 20800", async () => {
+    const f = await flat("heir", { rate: 4800, split: equal, missed: JSON.stringify({ "2026-11": [5] }) });
+    await db.bill.update({ where: { id: f.billId }, data: { payer: f.ravi } }); // the leaver paid it, so it goes to whoever confirms
+    const now = new Date("2026-11-14T06:00:00Z");
+    const p = await moveOutPreview(f.groupId, f.ravi, "2026-11-14", now, f.meera);
+    if (!p.ok) throw new Error(p.error);
+    expect(p.paymentsWithDaily).toEqual([{ from: f.ravi, to: f.meera, amount: 20800 }]);
+    // Without saying who confirms, the first remaining person (Asha) is assumed, as before.
+    const guess = await moveOutPreview(f.groupId, f.ravi, "2026-11-14", now);
+    if (!guess.ok) throw new Error(guess.error);
+    expect(guess.paymentsWithDaily).toEqual([{ from: f.ravi, to: f.asha, amount: 20800 }]);
+
+    const r = await moveOut(f.groupId, f.meera, { leaverId: f.ravi, lastDay: "2026-11-14", addDaily: true, requestKey: key("heir") }, now);
+    expect(r).toEqual({ ok: true, payments: p.paymentsWithDaily });
+    const pre = await db.expense.findFirstOrThrow({ where: { groupId: f.groupId, description: { contains: "share" } } });
+    expect(pre.paidById).toBe(f.meera);
   });
 });

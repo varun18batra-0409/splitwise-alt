@@ -211,7 +211,8 @@ export async function addGoalEntry(formData: FormData) {
     await me(groupId),
     goalId,
     String(formData.get("amount") ?? ""),
-    cleanKey(formData.get("rid")) ?? `goal-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+    // No usable key (the field was empty): none, so the server's double-tap guard applies instead of a made-up key.
+    cleanKey(formData.get("rid")),
   );
   redirect(`/groups/${groupId}/goals/${goalId}${r.ok ? "?added=1" : `?error=${encodeURIComponent(r.error)}`}`);
 }

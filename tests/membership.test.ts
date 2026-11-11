@@ -46,6 +46,37 @@ describe("pickAdmin skips pending people", () => {
   });
 });
 
+describe("the settings page names the right person who looks after the group", () => {
+  // The page reads its members with a fixed list of columns. That list must hold addedBy and seenAt,
+  // or a force-added person (claimedAt set, never opened the group) is named as the admin.
+  const settingsSelect = { id: true, name: true, leftAt: true, splitWeight: true, claimedAt: true, addedBy: true, seenAt: true } as const;
+  it("a pending person created before the real admin is skipped, with the columns the page reads", async () => {
+    const tag = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const g = await db.group.create({
+      data: {
+        name: `Settings admin ${tag}`, inviteCode: `sa-${tag}`,
+        members: {
+          create: [
+            { name: "Forced", claimedAt: d, addedBy: "someone", seenAt: null, createdAt: new Date("2026-11-01T00:00:00Z") }, // put in, never opened it
+            { name: "Starter", claimedAt: d, createdAt: new Date("2026-11-01T00:00:01Z") }, // really joined
+          ],
+        },
+      },
+    });
+    try {
+      const rows = await db.member.findMany({ where: { groupId: g.id }, select: settingsSelect, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
+      expect(pickAdmin(rows)?.name).toBe("Starter");
+      // The page and groupAdminId agree.
+      expect((await groupAdminId(g.id)) === rows.find((m) => m.name === "Starter")!.id).toBe(true);
+      // With the old list (no addedBy / seenAt) the pending person would have been named.
+      const old = rows.map(({ addedBy, seenAt, ...rest }) => { void addedBy; void seenAt; return rest; });
+      expect(pickAdmin(old)?.name).toBe("Forced");
+    } finally {
+      await db.group.delete({ where: { id: g.id } });
+    }
+  });
+});
+
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 let groupId = "";
 const ids: Record<string, string> = {};

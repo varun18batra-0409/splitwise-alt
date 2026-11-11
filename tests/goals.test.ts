@@ -55,4 +55,19 @@ describe("saving towards a goal", () => {
     await addGoalEntryFor(groupId, riya, goalId, "100", `goal3-${Date.now()}-abcdefgh`);
     expect(await db.groupEvent.count({ where: { groupId, text: { contains: "reached" } } })).toBe(1);
   });
+
+  it("an empty key counts as no key: a double tap within seconds is kept once, a different amount is a different entry", async () => {
+    const before = await db.goalEntry.count({ where: { goalId } });
+    const keysBefore = await db.requestKey.count({ where: { result: goalId } });
+    expect((await addGoalEntryFor(groupId, riya, goalId, "250", "")).ok).toBe(true);
+    expect((await addGoalEntryFor(groupId, riya, goalId, "250", undefined)).ok).toBe(true); // the second tap
+    expect(await db.goalEntry.count({ where: { goalId } })).toBe(before + 1);
+    expect((await addGoalEntryFor(groupId, riya, goalId, "300", "")).ok).toBe(true);
+    expect(await db.goalEntry.count({ where: { goalId } })).toBe(before + 2);
+    // The same amount from someone else is their own entry.
+    expect((await addGoalEntryFor(groupId, you, goalId, "250", "")).ok).toBe(true);
+    expect(await db.goalEntry.count({ where: { goalId } })).toBe(before + 3);
+    // No made-up key was stored for any of it.
+    expect(await db.requestKey.count({ where: { result: goalId } })).toBe(keysBefore);
+  });
 });

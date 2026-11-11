@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { saveExpense, type SaveExpenseInput } from "@/lib/save-expense";
 import { markAllPaid } from "@/lib/settle-all";
-import { claimKey, fingerprintOf, keyState, KEY_FRESH_MS, STALE_KEY_ERROR } from "@/lib/once";
+import { claimKey, cleanKey, fingerprintOf, keyState, KEY_FRESH_MS, newRequestKey, STALE_KEY_ERROR } from "@/lib/once";
 import type { RateAnswer } from "@/lib/rate-cache";
 
 // The Back button can bring back a form holding a key that was already used.
@@ -106,5 +106,26 @@ describe("the same key reused (Back button)", () => {
     expect(await keyState(K, fingerprintOf("anything"), oldTime)).toEqual({ state: "done", result: "r2" });
     expect(await keyState(newKey("none"), fingerprintOf("a"))).toEqual({ state: "new" });
     expect(await keyState(undefined, fingerprintOf("a"))).toEqual({ state: "new" });
+  });
+});
+
+// The form carries a real key from the first byte of the page (the server makes it; the browser swaps it for a
+// fresh one once the screen is up). So a form sent before the screen has finished loading still works.
+describe("submitting with the server-made key", () => {
+  it("the key the server puts in the page is one the actions accept, and a different one each time", () => {
+    const k = newRequestKey();
+    expect(cleanKey(k)).toBe(k);
+    expect(newRequestKey()).not.toBe(k);
+  });
+
+  it("a payment sent with it is recorded once; the same form sent again is not recorded twice", async () => {
+    const K = newRequestKey();
+    keys.push(K);
+    const before = await payments();
+    const pick = [{ from: a, to: b, amount: 20000 }];
+    expect((await markAllPaid(groupId, a, pick, "", false, cleanKey(K))).ok).toBe(true);
+    expect(await payments()).toBe(before + 1);
+    expect((await markAllPaid(groupId, a, pick, "", false, cleanKey(K))).ok).toBe(true);
+    expect(await payments()).toBe(before + 1);
   });
 });

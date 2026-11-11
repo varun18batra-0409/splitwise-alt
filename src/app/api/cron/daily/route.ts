@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { eraseExpiredGroups } from "@/lib/purge";
-import { makeStop, runClaimedParts } from "@/lib/daily-job";
+import { PART_NAMES, makeStop, recordDeferred, runClaimedParts } from "@/lib/daily-job";
 
 // The daily job (Vercel Cron, 06:00 India time): adds the bills that are due.
 // Safe to run more than once — every bill month is added at most once, and every
@@ -55,6 +55,8 @@ export async function GET(req: Request) {
   // Bills, reminders, countdowns, budgets, summaries, memories, postcards, photo-file clean-up.
   const main = await runClaimedParts(now, stop, failed);
   deferred.push(...main.deferred);
+  // Write down what is left (ran out of time, failed, or waiting for the day) for the evening catch-up.
+  await recordDeferred(now, [...main.deferred, ...failed.filter((f) => (PART_NAMES as readonly string[]).includes(f))]).catch(() => undefined);
   // Speed numbers are kept two weeks.
   const speedLogsRemoved = await part("cleanup", async () => (await db.speedLog.deleteMany({ where: { at: { lt: new Date(now.getTime() - 14 * 86_400_000) } } })).count);
   // Error records are kept 30 days, as the privacy page says.
@@ -71,6 +73,7 @@ export async function GET(req: Request) {
   await part("cleanup-collections", async () => (await db.collection.deleteMany({ where: { deletedAt: { lt: new Date(now.getTime() - 30 * 86_400_000) } } })).count);
   await part("cleanup-notes", async () => (await db.accountNote.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - 90 * 86_400_000) } } })).count);
   await part("cleanup-mail", async () => (await db.notifyLog.deleteMany({ where: { key: { startsWith: "mail-failed:" }, createdAt: { lt: new Date(now.getTime() - 30 * 86_400_000) } } })).count);
+  await part("cleanup-deferred", async () => (await db.notifyLog.deleteMany({ where: { key: { startsWith: "daily-deferred:" }, createdAt: { lt: new Date(now.getTime() - 7 * 86_400_000) } } })).count);
   // Bill photos taken while adding an expense that was never saved: gone after a day.
   await part("cleanup-receipts", async () => {
     const where = { expenseId: "", createdAt: { lt: new Date(now.getTime() - 86_400_000) } };

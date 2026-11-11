@@ -10,7 +10,7 @@ import { GoogleG } from "@/components/GoogleG";
 import { googleConfigured } from "@/lib/google";
 import { coverFor } from "@/lib/covers";
 import { Polaroid } from "@/components/Polaroid";
-import { memberOfToken } from "@/lib/invites";
+import { inviteMemberId } from "@/lib/invites";
 import type { Metadata } from "next";
 
 // The preview WhatsApp shows for an invite link: the group's name, never anyone's money.
@@ -79,7 +79,7 @@ export default async function JoinPage({
   const waiting = invite && !invite.acceptedAt ? invite : null;
   const invitedBy = waiting ? group.members.find((m) => m.id === waiting.invitedById)?.name : undefined;
   // Invited by email to take over a name: offer that name first.
-  const asMember = unclaimed.find((m) => m.id === asId) ?? (waiting ? unclaimed.find((m) => m.id === memberOfToken(waiting.token)) : undefined) ?? null;
+  const asMember = unclaimed.find((m) => m.id === asId) ?? (waiting ? unclaimed.find((m) => m.id === inviteMemberId(waiting)) : undefined) ?? null;
   const backQ = new URLSearchParams({ ...(invitedEmail ? { e: invitedEmail } : {}), ...(asMember ? { as: asMember.id } : {}) }).toString();
   const back = `/join/${code}${backQ ? `?${backQ}` : ""}`;
 

@@ -16,6 +16,7 @@ import { InviteIcon, iconButtonClass } from "@/components/icons";
 import { UndoBar } from "@/components/UndoBar";
 import { StaysGoes } from "@/components/StaysGoes";
 import { leaveText, removeText } from "@/lib/leave-text";
+import { groupPeople } from "@/lib/people";
 
 // Everyone in the group: fix a name, remove someone (the admin) or
 // leave / bring back. Every change notifies the others and can be undone.
@@ -43,10 +44,9 @@ export default async function PeoplePage({
   for (const p of group.payments) used.add(p.fromId).add(p.toId);
 
   const money = (m: number) => formatMoney(Math.abs(m), group.currency);
-  const active = group.members.filter((m) => !m.leftAt);
-  const left = group.members.filter((m) => m.leftAt && !m.removedAt);
-  // Taken out by whoever looks after the group: kept in the history, can't rejoin on their own.
-  const removed = group.members.filter((m) => m.removedAt);
+  // Taken out by whoever looks after the group ("removed"): kept in the history, can't rejoin on their own.
+  // Everyone is listed once (a removed person only under Removed).
+  const { active, left, removed } = groupPeople(group.members);
   // Removing people or marking them as left is for the person who looks after the group.
   const admin = pickAdmin(group.members);
   const isAdmin = admin?.id === myId;
@@ -144,13 +144,25 @@ export default async function PeoplePage({
                 </p>
               )
             ) : m.leftAt ? (
-              <form action={setPersonLeft}>
-                {hidden}
-                <input type="hidden" name="left" value="0" />
-                <button type="submit" className={small}>
-                  {me ? "Rejoin the group" : `Bring ${m.name} back`}
-                </button>
-              </form>
+              <div className="space-y-4">
+                <form action={setPersonLeft}>
+                  {hidden}
+                  <input type="hidden" name="left" value="0" />
+                  <button type="submit" className={small}>
+                    {me ? "Rejoin the group" : `Bring ${m.name} back`}
+                  </button>
+                </form>
+                {/* Someone who left on their own can still be taken out by whoever looks after the group (then they can't rejoin by themselves). */}
+                {isAdmin && !me && (
+                  <form action={removePerson} data-remove-left>
+                    {hidden}
+                    <StaysGoes text={removeText(m.name)} />
+                    <ConfirmButton message={`Remove ${m.name} from ${group.name}? They won’t be able to rejoin on their own.`} className={small}>
+                      Remove {m.name}
+                    </ConfirmButton>
+                  </form>
+                )}
+              </div>
             ) : !me && !isAdmin ? (
               <p className="text-xs text-gray-400" data-admin-only="people">
                 Only {admin?.name ?? "the person who started the group"}, who looks after this group, can remove people.

@@ -283,6 +283,7 @@ model Invite {
   // Added later: kept at the end so the online database can simply add the columns.
   token       String    @default("") // random code for this one invitation (the Join / Not now buttons and the invite link)
   declinedAt  DateTime? // "Not now": the card is hidden, the name row stays
+  memberId    String    @default("") // the name-only row this invitation is for (the token itself is random)
 
   @@unique([groupId, email])
 }

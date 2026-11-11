@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@vercel/blob", () => ({ put: mocks.put, del: mocks.del, get: vi.fn(async () => null) }));
 
 const { db } = await import("@/lib/db");
-const { flushPhotoDeletes, movePhotosToBlob, queuePhotoDeletes, removePhotos, trashDelay } = await import("@/lib/photo-store");
+const { flushPhotoDeletes, movePhotosToBlob, queuePhotoDeletes, removePhotos, replaceGroupPhoto, trashDelay } = await import("@/lib/photo-store");
 const { eraseGroups } = await import("@/lib/purge");
 
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -212,5 +212,39 @@ describe("moving an old photo to file storage", () => {
     }
     expect(await db.receipt.findUnique({ where: { id: r.id } })).toBeNull();
     expect((await db.blobTrash.findMany()).map((x) => x.key)).toContain(putKeyFor(mine));
+  });
+});
+
+describe("replacing the group photo while the old one is moved to file storage", () => {
+  const newPhoto = (createdById: string, key: string) => ({ data: new Uint8Array(new ArrayBuffer(0)), blobKey: key, type: "image/webp", createdById, updatedAt: new Date("2026-11-02T10:00:00Z") });
+
+  it("the old photo was moved after we looked (its key was empty then): the moved file is the one queued, so nothing is left behind", async () => {
+    const g = await makeGroup("replace-moved");
+    const t0 = new Date("2026-11-01T10:00:00Z");
+    await db.groupPhoto.create({ data: { groupId: g.id, data: new Uint8Array([1, 2, 3]), blobKey: "", updatedAt: t0 } });
+    // We looked (key empty, version t0); then the daily move copied it to file storage without changing its version.
+    await db.groupPhoto.update({ where: { groupId: g.id }, data: { data: new Uint8Array(), blobKey: `group/moved-${stamp}` } });
+    const ok = await replaceGroupPhoto(g.id, { updatedAt: t0 }, newPhoto("m1", `group/new-${stamp}`), new Date("2026-11-02T10:00:00Z"));
+    expect(ok).toBe(true);
+    const row = (await db.groupPhoto.findUnique({ where: { groupId: g.id } }))!;
+    expect(row.blobKey).toBe(`group/new-${stamp}`);
+    expect((await db.blobTrash.findMany()).map((r) => r.key)).toEqual([`group/moved-${stamp}`]);
+  });
+
+  it("someone else's photo got there first: ours is refused, theirs is untouched and nothing is queued", async () => {
+    const g = await makeGroup("replace-lost");
+    const t0 = new Date("2026-11-01T10:00:00Z");
+    await db.groupPhoto.create({ data: { groupId: g.id, data: new Uint8Array(), blobKey: `group/theirs-${stamp}`, updatedAt: new Date("2026-11-01T10:05:00Z") } });
+    const ok = await replaceGroupPhoto(g.id, { updatedAt: t0 }, newPhoto("m1", `group/ours-${stamp}`), new Date());
+    expect(ok).toBe(false);
+    expect((await db.groupPhoto.findUnique({ where: { groupId: g.id } }))!.blobKey).toBe(`group/theirs-${stamp}`);
+    expect(await db.blobTrash.count()).toBe(0);
+  });
+
+  it("a group with no photo yet gets ours and nothing is queued", async () => {
+    const g = await makeGroup("replace-first");
+    expect(await replaceGroupPhoto(g.id, null, newPhoto("m1", `group/first-${stamp}`), new Date())).toBe(true);
+    expect((await db.groupPhoto.findUnique({ where: { groupId: g.id } }))!.blobKey).toBe(`group/first-${stamp}`);
+    expect(await db.blobTrash.count()).toBe(0);
   });
 });

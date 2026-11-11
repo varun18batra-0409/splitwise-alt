@@ -15,6 +15,7 @@ import { SheetPage } from "@/components/SheetPage";
 import { coverFor } from "@/lib/covers";
 import { placePhoto } from "@/lib/places";
 import { currencyInfo } from "@/lib/money";
+import { expenseAccess } from "@/lib/left-view-db";
 
 // Edit an expense: everything can change (name, amount, currency, category,
 // who paid, who it was for, how it's split). Anyone in the group can; the change
@@ -29,6 +30,11 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
   const myId = await getMyMemberId(group.id);
   const tz = await getTimeZone();
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+
+  // Someone who left (or was removed) can't change anything, and can't open an expense the group added without them.
+  const access = await expenseAccess(group.id, myId, expenseId);
+  if (access === "hidden") notFound();
+  if (access === "visible") redirect(`/groups/${group.id}?tab=activity&open=${encodeURIComponent(expenseId)}`);
 
   const e = await db.expense.findFirst({ where: { id: expenseId, groupId: group.id }, include: { shares: true } });
   if (!e) notFound();

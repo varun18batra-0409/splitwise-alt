@@ -10,7 +10,7 @@ import { WhereTo } from "./WhereTo";
 import { GroupCover } from "./GroupCover";
 import { coverOf, isCoverChoice, type CoverChoice } from "@/lib/covers";
 import { inputClass, primaryButtonClass, secondaryButtonClass } from "./ui";
-import { useRequestKey } from "./FreshKey";
+import { useRequestKey } from "./FreshKeyInput";
 import Link from "./Link";
 
 const ICONS: Record<GroupType, React.ReactNode> = {
@@ -60,7 +60,7 @@ export function NewGroupForm({
   return (
     <form action={createGroup}>
       <input type="hidden" name="type" value={type} />
-      <input type="hidden" name="rid" value={rid} />
+      <input type="hidden" name="rid" value={rid} suppressHydrationWarning />
       <input type="hidden" name="ratio" value={type === "couple" ? ratio : 50} />
 
       <div hidden={step !== 1} className="space-y-7">

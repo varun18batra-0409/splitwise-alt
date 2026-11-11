@@ -2,7 +2,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { loadGroup, loadNotifications } from "@/lib/group-data";
 import { leaverCut, scopeBalances, scopeForLeaver, ownShareDetails } from "@/lib/left-view";
-import { readableWhere } from "@/lib/left-view-db";
+import { expenseAccess, leaverOf, readableWhere } from "@/lib/left-view-db";
 import { netBalances } from "@/lib/balances";
 import { logEvent, touchedByExpense } from "@/lib/events";
 import { groupCsv } from "@/lib/csv";
@@ -273,5 +273,44 @@ describe("what a leaver sees always adds up to what they are owed", () => {
       expect(part[leaver], `seed ${seed}`).toBe(whole[leaver]);
       expect(Object.values(whole).reduce((n, x) => n + x, 0), `seed ${seed}`).toBe(0);
     }
+  });
+});
+
+// Direct-address pages (an expense's own page, a bill photo, Bills, Budgets, Goals, the move-out screen…)
+// use these two questions, so a leaver can't open by address what the group screen doesn't show them.
+describe("opening things by address after leaving", () => {
+  it("leaverOf: still in the group = null; left (or removed) = the day they left", async () => {
+    const s = await ledger("addr-who");
+    expect(await leaverOf(s.A)).toBeNull();
+    expect(await leaverOf(s.R)).toMatchObject({ removed: false });
+    expect((await leaverOf(s.R))!.leftAt.getTime()).toBe(at("12", "12:00").getTime());
+    expect(await leaverOf(undefined)).toBeNull();
+    expect(await leaverOf("no-such-member")).toBeNull();
+    await db.member.update({ where: { id: s.M }, data: { removedAt: at("13"), removedById: s.A } });
+    expect(await leaverOf(s.M)).toMatchObject({ removed: true });
+  });
+
+  it("R opens Dinner (he is in it, and it was there when he left) but Taxi is not found; A opens both; a removed person gets the same rule", async () => {
+    const s = await ledger("addr-exp");
+    expect(await expenseAccess(s.g.id, s.A, s.dinner.id)).toBe("member");
+    expect(await expenseAccess(s.g.id, s.A, s.taxi.id)).toBe("member");
+    expect(await expenseAccess(s.g.id, s.R, s.dinner.id)).toBe("visible");
+    expect(await expenseAccess(s.g.id, s.R, s.taxi.id)).toBe("hidden");
+    // A later change that puts R in Taxi makes it his to see.
+    await db.expenseShare.create({ data: { expenseId: s.taxi.id, memberId: s.R, amount: 0 } });
+    expect(await expenseAccess(s.g.id, s.R, s.taxi.id)).toBe("visible");
+    // Removed (and not marked left): the same view.
+    await db.member.update({ where: { id: s.M }, data: { removedAt: at("12", "12:00"), removedById: s.A, leftAt: null } });
+    expect(await expenseAccess(s.g.id, s.M, s.taxi.id)).toBe("visible"); // M paid Taxi: it is his
+    expect(await expenseAccess(s.g.id, s.M, s.dinner.id)).toBe("visible"); // M is in Dinner
+  });
+
+  it("looking never moves a balance: the full ledger is the same before and after", async () => {
+    const s = await ledger("addr-bal");
+    const before = (await loadGroup(s.g.id))!.net;
+    await expenseAccess(s.g.id, s.R, s.taxi.id);
+    await leaverOf(s.R);
+    expect((await loadGroup(s.g.id))!.net).toEqual(before);
+    expect(Object.values(before).reduce((n, x) => n + x, 0)).toBe(0);
   });
 });

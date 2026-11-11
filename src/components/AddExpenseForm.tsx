@@ -10,7 +10,7 @@ import { buildExpense, chosenMarkupBp, type ExpenseDraft } from "@/lib/expense";
 import { currencyInfo, formatMoney, formatPercent, isSupportedCurrency, parseAmount, parsePercent } from "@/lib/money";
 import { QuickLine } from "./QuickLine";
 import { BillScan, type ScannedBill } from "./BillScan";
-import { useRequestKey } from "./FreshKey";
+import { useRequestKey } from "./FreshKeyInput";
 import { SpinWheel } from "./SpinWheel";
 import { CurrencyPicker } from "./CurrencyPicker";
 import { expensePairs, payersJson } from "@/lib/payers";

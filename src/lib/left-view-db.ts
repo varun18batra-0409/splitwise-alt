@@ -34,3 +34,20 @@ export async function leaverEvents(groupId: string, cut: Date, take: number) {
   return { before, after };
 }
 
+
+// Is this member someone who left or was removed? (null = still in the group.) Sub-pages that show a group's
+// expenses, payments, bills or history use this: a leaver is sent back to the group, which shows what they may see.
+export async function leaverOf(memberId: string | null | undefined) {
+  if (!memberId) return null;
+  const m = await db.member.findUnique({ where: { id: memberId }, select: { leftAt: true, removedAt: true } });
+  return m ? leaverCut(m) : null;
+}
+
+// How this member stands with one expense: "member" (still in the group: reads everything), "visible" (they left,
+// and the leaver view includes it) or "hidden" (they left, and the group added it without them).
+export async function expenseAccess(groupId: string, memberId: string, expenseId: string): Promise<"member" | "visible" | "hidden"> {
+  const m = await db.member.findUnique({ where: { id: memberId }, select: { id: true, leftAt: true, removedAt: true } });
+  const scope = m ? await readableWhere(groupId, m) : null;
+  if (!scope) return "member";
+  return (await db.expense.count({ where: { id: expenseId, groupId, AND: [scope.expenses] } })) > 0 ? "visible" : "hidden";
+}
