@@ -90,7 +90,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
           <ul className="mt-2 space-y-1.5">
             {p.unplaced.slice(0, 8).map((t) => (
               <li key={t.groupId}>
-                <Link href={`/groups/${t.groupId}/settings#where`} className="text-sm font-medium text-fg underline underline-offset-4">
+                <Link href={`/groups/${t.groupId}/settings#where`} className="inline-flex min-h-11 items-center text-sm font-medium text-fg underline underline-offset-4">
                   {t.name}: add where
                 </Link>
               </li>

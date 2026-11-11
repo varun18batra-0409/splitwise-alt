@@ -1,5 +1,8 @@
 "use server";
 
+import { SITE_URL } from "@/lib/site";
+import { isGroupAdmin } from "@/lib/group-admin";
+
 import { redirect } from "@/lib/fresh-redirect";
 import { billCommand, saveBillFor, saveSettleRulesFor, toggleMissedDayFor } from "@/lib/home/bill-setup";
 import { addListItem, buyListItems, goingShopping, removeListItem, toggleListItem } from "@/lib/home/list-db";
@@ -153,7 +156,12 @@ export async function moveOutAction(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const leaverId = String(formData.get("leaverId") ?? "");
   const lastDay = String(formData.get("lastDay") ?? "");
-  const r = await moveOut(groupId, await me(groupId), {
+  const myId = await me(groupId);
+  // You can move yourself out; moving someone else out is for whoever looks after the flat.
+  if (myId && leaverId !== myId && !(await isGroupAdmin(groupId, myId))) {
+    redirect(`/groups/${groupId}/people/${leaverId}/move?day=${encodeURIComponent(lastDay)}&error=${encodeURIComponent("Only the person moving out, or whoever looks after this flat, can do this.")}`);
+  }
+  const r = await moveOut(groupId, myId, {
     leaverId,
     lastDay,
     depositTo: String(formData.get("depositTo") ?? "") || undefined,
@@ -233,5 +241,6 @@ export async function tripFromGoal(formData: FormData) {
 async function originOf() {
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
+  if (process.env.VERCEL_ENV === "production") return { origin: SITE_URL };
   return { origin: `${h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https")}://${host}` };
 }

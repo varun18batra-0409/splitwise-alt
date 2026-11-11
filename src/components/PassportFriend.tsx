@@ -13,7 +13,7 @@ export function Locked() {
         </p>
         <p className="mt-2 font-semibold">You can’t open this passport</p>
         <p className="mt-1 text-sm text-gray-500">You can see the passports of people you share a group with.</p>
-        <Link href="/passport/friends" className="mt-5 inline-block text-sm font-semibold underline underline-offset-4">
+        <Link href="/passport/friends" className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold underline underline-offset-4">
           Friends’ passports
         </Link>
       </div>

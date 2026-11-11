@@ -182,6 +182,7 @@ export default async function AddPeoplePage({
 
       <p className="mb-2 mt-8 text-sm text-gray-500">
         In the group · {active.length} {active.length === 1 ? "person" : "people"}
+        {group.members.length > active.length ? ` (and ${group.members.length - active.length} who left)` : ""}
       </p>
       <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line">
         {group.members.map((m) => {
@@ -190,7 +191,7 @@ export default async function AddPeoplePage({
             ? { text: "Left", cls: "bg-mist text-gray-500" }
             : m.accountId
               ? { text: "On Loopin ✓", cls: "bg-owed/15 text-owed" }
-              : { text: "Not verified", cls: "bg-mist text-gray-500" };
+              : { text: "Not on Loopin yet", cls: "bg-mist text-gray-500" };
           return (
             <li key={m.id} className="flex items-center gap-3 px-4 py-3.5">
               <Avatar name={m.name} />
@@ -204,7 +205,7 @@ export default async function AddPeoplePage({
         })}
       </ul>
       {group.members.some((m) => !m.accountId && !m.leftAt) && (
-        <p className="mt-3 text-xs text-gray-400">“Not verified”: added by name before invitations. They can claim their name from the group link after signing up.</p>
+        <p className="mt-3 text-xs text-gray-400">“Not on Loopin yet”: added by name. They can take over their name from the group link after signing up.</p>
       )}
 
       {justDid && canUndo(justDid, group.events).ok && (

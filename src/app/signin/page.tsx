@@ -58,7 +58,7 @@ export default async function SignIn({
             <br />
             Keep the story.
           </p>
-          <p className="mt-3 text-[16px] leading-relaxed text-fg/65">Add costs as you go, settle up with UPI in one tap, and get every trip back as stories and stamps.</p>
+          <p className="mt-3 text-[16px] leading-relaxed text-fg/65">Split costs for trips, flats and couples, see who owes what, and record payments as you settle. Loopin keeps track; it never moves money.</p>
           <h1 className="mb-3 mt-7 text-[15px] font-semibold text-fg/80">Continue to Loopin</h1>
         </>
       )}
@@ -151,7 +151,7 @@ export default async function SignIn({
         <Link href="/terms" className="underline underline-offset-4">
           Terms
         </Link>
-        . We only use your email to sign you in:{" "}
+        . We use your email to sign you in and for group notifications you can turn off:{" "}
         <Link href="/privacy" className="underline underline-offset-4">
           Privacy
         </Link>

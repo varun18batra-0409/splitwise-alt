@@ -36,7 +36,7 @@ export default async function BudgetsPage({ params, searchParams }: { params: Pr
                   <ExpenseGlyph title="" category={c} size={34} />
                   <span className="flex-1">{cat.label}</span>
                   <span className="flex w-32 items-center rounded-xl border border-line px-3 focus-within:border-accent">
-                    <span className="text-xs text-gray-400">{group.currency}</span>
+                    <span className="nobreak shrink-0 text-xs text-gray-400">{group.currency}</span>
                     <input name={`b_${c}`} inputMode="decimal" defaultValue={amountOf(c)} placeholder="—" aria-label={`${cat.label} budget`} className="w-full bg-transparent py-2 text-right outline-none" />
                   </span>
                 </label>

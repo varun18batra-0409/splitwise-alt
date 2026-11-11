@@ -31,7 +31,7 @@ export function ShareInvite({ code, groupName }: { code: string; groupName: stri
   }
 
   return (
-    <button type="button" onClick={share} className="block w-full rounded-none border border-line px-4 py-3 text-center text-sm font-semibold text-fg active:bg-mist" data-share-invite>
+    <button type="button" onClick={share} className="block w-full rounded-full border border-line px-4 py-3 text-center text-sm font-semibold text-fg active:bg-mist" data-share-invite>
       {copied ? "Link copied" : "More ways to share"}
     </button>
   );

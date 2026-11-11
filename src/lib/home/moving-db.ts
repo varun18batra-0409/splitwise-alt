@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { logEvent, expenseState } from "../events";
+import { logEvent, expenseState, type MoveOutUndo } from "../events";
 import { netBalances } from "../balances";
 import { formatMoney, parseAmount } from "../money";
 import { claimKey, isDuplicateKey, previousResult } from "../once";
@@ -126,6 +126,16 @@ export async function moveOut(
   try {
     await db.$transaction(async (tx) => {
       await claimKey(tx, input.requestKey, "moved");
+      // Claim the move-out first: if two people confirm it at the same moment,
+      // only the first one goes through (the second finds them already gone).
+      const claimed = await tx.member.updateMany({ where: { id: leaver.id, leftAt: null }, data: { leftAt: new Date(`${input.lastDay}T12:00:00Z`) } });
+      if (claimed.count !== 1) throw new Error("ALREADY_MOVED");
+      // The bills as they are now: an edit made meanwhile isn't overwritten.
+      for (const r of p.resplit) {
+        const now2 = await tx.expense.findUnique({ where: { id: r.e.id }, select: { amount: true, deletedAt: true, shares: { select: { memberId: true, amount: true } } } });
+        const sharesOf = (xs: { memberId: string; amount: number }[]) => xs.map((x) => `${x.memberId}:${x.amount}`).sort().join("|");
+        if (!now2 || now2.deletedAt || now2.amount !== r.e.amount || sharesOf(now2.shares) !== sharesOf(r.e.shares)) throw new Error("BILLS_CHANGED");
+      }
       // 1. Bills: their share only for the days they stayed (none for later months).
       for (const r of p.resplit) {
         await tx.expenseShare.deleteMany({ where: { expenseId: r.e.id } });
@@ -153,12 +163,19 @@ export async function moveOut(
         });
       }
       // 3. Their deposit: handed to whoever moves in, or kept on record until the lease ends.
+      const undoInfo: MoveOutUndo = { bills: [] };
       const dep = flat.deposit?.shares.find((s) => s.memberId === leaver.id && s.status === "held");
       if (dep && depositTo) {
         await tx.depositShare.update({ where: { id: dep.id }, data: { status: "transferred", toMemberId: depositTo, updatedAt: new Date() } });
         const existing = flat.deposit!.shares.find((s) => s.memberId === depositTo);
-        if (existing) await tx.depositShare.update({ where: { id: existing.id }, data: { amount: existing.status === "held" ? existing.amount + dep.amount : dep.amount, status: "held", updatedAt: new Date() } });
-        else await tx.depositShare.create({ data: { depositId: flat.deposit!.id, memberId: depositTo, amount: dep.amount } });
+        if (existing) {
+          const amount = existing.status === "held" ? existing.amount + dep.amount : dep.amount;
+          await tx.depositShare.update({ where: { id: existing.id }, data: { amount, status: "held", updatedAt: new Date() } });
+          undoInfo.deposit = { leaverShareId: dep.id, receiverShareId: existing.id, created: false, receiverBefore: { amount: existing.amount, status: existing.status }, receiverAfter: { amount, status: "held" } };
+        } else {
+          const made = await tx.depositShare.create({ data: { depositId: flat.deposit!.id, memberId: depositTo, amount: dep.amount } });
+          undoInfo.deposit = { leaverShareId: dep.id, receiverShareId: made.id, created: true, receiverBefore: { amount: 0, status: "held" }, receiverAfter: { amount: dep.amount, status: "held" } };
+        }
       }
       // 4. Bills they paid go to someone still here; they leave any rotation.
       const bills2 = await tx.bill.findMany({ where: { groupId, deletedAt: null } });
@@ -181,10 +198,12 @@ export async function moveOut(
         if (split.ids?.includes(leaver.id)) data.split = JSON.stringify({ ...split, ids: split.ids.filter((x) => x !== leaver.id) });
         // Their percentage or fixed amount can't just vanish: back to the flat's own split.
         if ((split.mode === "percent" && split.pct?.[leaver.id]) || (split.mode === "amounts" && split.amt?.[leaver.id])) data.split = JSON.stringify({ mode: "group" });
-        if (Object.keys(data).length) await tx.bill.update({ where: { id: b.id }, data });
+        if (Object.keys(data).length) {
+          await tx.bill.update({ where: { id: b.id }, data });
+          undoInfo.bills.push({ id: b.id, before: { payer: b.payer, rotation: b.rotation, split: b.split }, after: { payer: data.payer ?? b.payer, rotation: data.rotation ?? b.rotation, split: data.split ?? b.split } });
+        }
       }
-      // 5. Moved out.
-      await tx.member.update({ where: { id: leaver.id }, data: { leftAt: new Date(`${input.lastDay}T12:00:00Z`) } });
+      // 5. Moved out (set at the start, when it was claimed).
       await logEvent(tx, {
         groupId,
         actorId,
@@ -195,11 +214,14 @@ export async function moveOut(
           ...p.payments.map((t) => `${name(t.from)} paid ${name(t.to)} ${money(t.amount)}`),
           ...(dep && depositTo ? [`Deposit ${money(dep.amount)} taken over by ${name(depositTo)}`] : []),
         ],
-        undo: { type: "member_set", memberId: leaver.id, data: { leftAt: null } },
+        undo: { type: "member_set", memberId: leaver.id, data: { leftAt: null }, moveOut: undoInfo },
       });
     });
   } catch (err) {
     if (isDuplicateKey(err)) return { ok: true, payments: [] };
+    const msg = String((err as Error)?.message ?? err);
+    if (msg.includes("ALREADY_MOVED")) return { ok: false, error: `${leaver.name} has already moved out.` };
+    if (msg.includes("BILLS_CHANGED")) return { ok: false, error: "A bill changed just now. Check it and try again." };
     throw err;
   }
   return { ok: true, payments: p.payments };
@@ -250,20 +272,90 @@ export async function returnDepositFor(groupId: string, actorId: string, deducti
   if (deductions === null || deductions < 0) return { ok: false, error: "Enter the deductions as a number, like 8000." };
   const held = flat.deposit.shares.filter((s) => s.status === "held");
   if (!held.length) return { ok: false, error: "Nothing is held any more." };
+  const heldTotal = held.reduce((x, h) => x + h.amount, 0);
+  if (deductions > heldTotal) return { ok: false, error: `The deductions are more than the deposit held (${formatMoney(heldTotal, flat.currency)}). Check the amount.` };
   const weights = Object.fromEntries(flat.members.map((m) => [m.id, m.splitWeight]));
   const refunds = depositRefunds(held, deductions, weights);
-  await db.$transaction(async (tx) => {
-    for (const h of held) {
-      const back = refunds.find((r) => r.memberId === h.memberId)?.refund ?? 0;
-      await tx.depositShare.update({ where: { id: h.id }, data: { status: "returned", returnedAmount: back, updatedAt: new Date() } });
-    }
-    await logEvent(tx, {
-      groupId,
-      actorId,
-      kind: "bill_changed",
-      text: `marked the deposit as returned${deductions ? ` (${formatMoney(deductions, flat.currency)} deducted)` : ""}`,
-      details: refunds.map((r) => `${flat.members.find((m) => m.id === r.memberId)?.name} gets back ${formatMoney(r.refund, flat.currency)}`),
+  try {
+    await db.$transaction(async (tx) => {
+      for (const h of held) {
+        const back = refunds.find((r) => r.memberId === h.memberId)?.refund ?? 0;
+        // Only a share still held as it was read: if a move-out (or its undo)
+        // changed it at the same moment, nothing is returned twice.
+        const done = await tx.depositShare.updateMany({ where: { id: h.id, status: "held", amount: h.amount }, data: { status: "returned", returnedAmount: back, updatedAt: new Date() } });
+        if (done.count !== 1) throw new Error("DEPOSIT_CHANGED");
+      }
+      const still = await tx.depositShare.count({ where: { depositId: flat.deposit!.id, status: "held" } });
+      if (still) throw new Error("DEPOSIT_CHANGED");
+      await logEvent(tx, {
+        groupId,
+        actorId,
+        kind: "bill_changed",
+        text: `marked the deposit as returned${deductions ? ` (${formatMoney(deductions, flat.currency)} deducted)` : ""}`,
+        details: refunds.map((r) => `${flat.members.find((m) => m.id === r.memberId)?.name} gets back ${formatMoney(r.refund, flat.currency)}`),
+      });
     });
-  });
+  } catch (err) {
+    if (String((err as Error)?.message ?? err).includes("DEPOSIT_CHANGED")) return { ok: false, error: "The deposit changed just now. Check it and try again." };
+    throw err;
+  }
   return { ok: true };
+}
+
+// Undo a move-out: they're back in the flat, and the bills they paid or took
+// turns on, and the deposit they handed over, go back as they were. A bill
+// changed since keeps its newer settings; a deposit changed since (returned,
+// handed on) blocks the undo, so money is never put in two places.
+export async function undoMoveOut(groupId: string, actorId: string, memberId: string, info: MoveOutUndo): Promise<{ ok: true; eventId: string } | Fail> {
+  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: true } });
+  if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
+  const m = group.members.find((x) => x.id === memberId);
+  if (!m) return { ok: false, error: "That person is no longer in the group." };
+  if (!m.leftAt) return { ok: false, error: `${m.name} is already back in the flat.` };
+  try {
+    const eventId = await db.$transaction(async (tx) => {
+      if (info.deposit) {
+        const d = info.deposit;
+        const leaverShare = await tx.depositShare.findUnique({ where: { id: d.leaverShareId } });
+        const receiver = await tx.depositShare.findUnique({ where: { id: d.receiverShareId } });
+        if (
+          !leaverShare || leaverShare.status !== "transferred" ||
+          !receiver || receiver.memberId !== leaverShare.toMemberId || receiver.amount !== d.receiverAfter.amount || receiver.status !== d.receiverAfter.status
+        ) throw new Error("DEPOSIT_CHANGED");
+        await tx.depositShare.update({ where: { id: leaverShare.id }, data: { status: "held", toMemberId: "", updatedAt: new Date() } });
+        if (d.created) await tx.depositShare.delete({ where: { id: receiver.id } });
+        else await tx.depositShare.update({ where: { id: receiver.id }, data: { amount: d.receiverBefore.amount, status: d.receiverBefore.status, updatedAt: new Date() } });
+      }
+      let kept = 0;
+      for (const b of info.bills) {
+        const now = await tx.bill.findUnique({ where: { id: b.id }, select: { payer: true, rotation: true, split: true, deletedAt: true } });
+        if (!now || now.deletedAt) continue;
+        if (now.payer !== b.after.payer || now.rotation !== b.after.rotation || now.split !== b.after.split) {
+          kept++;
+          continue;
+        }
+        await tx.bill.update({ where: { id: b.id }, data: b.before });
+      }
+      await tx.member.update({ where: { id: memberId }, data: { leftAt: null } });
+      return logEvent(tx, {
+        groupId,
+        actorId,
+        kind: "member_rejoined",
+        text: `${memberId === actorId ? "moved back in" : `brought ${m.name} back into the flat`} (undo)`,
+        details: [
+          ...(info.bills.length - kept > 0 ? ["Bills they paid or took turns on are back as they were"] : []),
+          ...(kept ? [`${kept} bill${kept === 1 ? "" : "s"} changed since kept the newer settings`] : []),
+          ...(info.deposit ? ["Their deposit is back with them"] : []),
+        ],
+        // No redo from here: moving out again hands over bills and the deposit,
+        // which only the move-out screen does properly.
+      });
+    });
+    return { ok: true, eventId };
+  } catch (err) {
+    if (String((err as Error)?.message ?? err).includes("DEPOSIT_CHANGED")) {
+      return { ok: false, error: "The deposit changed since the move-out (returned or handed on), so this can’t be undone. Change the deposit back first." };
+    }
+    throw err;
+  }
 }

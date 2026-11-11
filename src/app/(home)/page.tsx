@@ -341,9 +341,18 @@ export default async function Home({
   const stopsOf = (g: (typeof all)[number]) => tripStops(g.group.name, g.group.tripPlace ?? "", g.group.tripCountry ?? "");
   const homeCountry = (account?.homeCountry || region.country || "IN").toUpperCase();
   const [postcardsNew, billRows] = await Promise.all([
-    account ? db.postcard.count({ where: { toId: account.id, readAt: null } }) : Promise.resolve(0),
+    account ? db.postcard.count({ where: { toId: account.id, readAt: null, OR: [{ opensAt: null }, { opensAt: { lte: new Date() } }] } }) : Promise.resolve(0),
     db.bill.findMany({ where: { groupId: { in: open.map((g) => g.group.id) }, deletedAt: null, paused: false }, take: 20 }),
   ]);
+  // The same count as the passport: countries with a stamp or a tick (home only if it has one).
+  const passportSet = new Set(
+    [
+      ...(account ? parseHandPlaces(account.places).map((p) => p.c) : []),
+      ...all
+        .filter((g) => g.group.type === "trip" && !g.group.deletedAt && (g.group.tripStart ? g.group.tripStart <= today : g.expenses.some((e) => !e.deletedAt)))
+        .flatMap((g) => stopsOf(g).map((s) => s.country || homeCountry)),
+    ].filter(Boolean),
+  );
   const highlights = homeHighlights({
     trips: trips.map((t) => {
       const ph = placePhotos(t.g.group.name, t.g.group.tripPlace, 2);
@@ -381,11 +390,9 @@ export default async function Home({
       if (!due || !g || b.nature === "daily") return [];
       return [{ groupId: b.groupId, billId: b.id, name: b.name, group: g.group.name, inDays: daysBetween(today, due), amount: b.nature === "fixed" && b.amount ? formatMoney(b.amount, g.group.currency) : "" }];
     }),
-    passportCountries: new Set([
-      ...(account ? parseHandPlaces(account.places).map((p) => p.c) : []),
-      ...all.filter((g) => g.group.type === "trip" && g.group.tripStart && g.group.tripStart <= today).flatMap((g) => stopsOf(g).map((s) => s.country)),
-      homeCountry,
-    ].filter(Boolean)).size,
+    passportCountries: passportSet.size,
+    // Said alongside, so "23 countries" next to a list of 22 abroad makes sense.
+    passportAbroad: [...passportSet].filter((c) => c !== homeCountry).length,
     groups: open.length,
     fahrenheit: usesFahrenheit(region.country),
   });
@@ -633,7 +640,7 @@ export default async function Home({
           <section className="mt-8" aria-label="Your groups">
             <div className="mb-1 flex items-baseline justify-between">
               <h2 className="font-display text-[22px] font-semibold tracking-tight">Your groups</h2>
-              <Link href="/groups/new" className="flex items-center gap-1 text-sm font-semibold text-fg/85 underline decoration-fg/30 underline-offset-4">
+              <Link href="/groups/new" className="flex min-h-11 items-center gap-1 text-sm font-semibold text-fg/85 underline decoration-fg/30 underline-offset-4">
                 New group
               </Link>
             </div>

@@ -80,7 +80,7 @@ export function AddExpenseForm({
   const [showDate, setShowDate] = useState(false);
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [showNotes, setShowNotes] = useState(Boolean(initial?.notes));
-  const [pickedCategory, setPickedCategory] = useState<string | null>(initial?.category ?? null); // null = smart guess
+  const [pickedCategory, setPickedCategory] = useState<string | null>(initial?.category || null); // null (or "") = smart guess from the name
   const [currency, setCurrency] = useState(initial?.currency ?? baseCurrency);
   const [showCurrencies, setShowCurrencies] = useState(false);
   const [showCategories, setShowCategories] = useState(false);
@@ -236,12 +236,14 @@ export function AddExpenseForm({
     };
   }, [currency, baseCurrency, foreign, keepSavedRate, initial]);
 
-  function chooseCurrency(code: string) {
+  // remember = also the group's starting currency next time (a pick by hand, not a scanned bill).
+  function chooseCurrency(code: string, remember = true) {
     setCurrency(code);
     setKeepSavedRate(false);
     setShowCurrencies(false);
     setRateMode("auto");
     setManualRate("");
+    if (!remember) return;
     try {
       localStorage.setItem(storageKey, code);
     } catch {
@@ -334,10 +336,13 @@ export function AddExpenseForm({
   const allowDupRef = useRef(false);
   const formRef = useRef<HTMLFormElement>(null);
   // What a scanned bill says: the shop, the total, the day and its lines (for split by item).
-  function fillFromBill(b: ScannedBill) {
+  function fillFromBill(b: ScannedBill): string | void {
     if (b.merchant && !name.trim()) setName(b.merchant);
     const code = b.currency && isSupportedCurrency(b.currency) ? b.currency : currency;
-    if (code !== currency) chooseCurrency(code);
+    // A bill in another currency switches this expense only, and says so: a misread
+    // currency would otherwise change the amount a lot without anyone noticing.
+    const switched = code !== currency ? `The bill looks like it's in ${code}, so the currency changed from ${currency}. Change it back if that's wrong.` : "";
+    if (switched) chooseCurrency(code, false);
     if (b.total) setAmount(String(b.total));
     if (b.date && b.date <= today && b.date >= `${Number(today.slice(0, 4)) - 1}${today.slice(4)}`) {
       setDate(b.date);
@@ -347,6 +352,7 @@ export function AddExpenseForm({
       setItems(b.items.map((x, i) => ({ k: i + 1, name: x.name, amount: String(x.price), people: [] })));
       setScannedItems(b.items.length);
     }
+    return switched;
   }
   // The bill's items go in the notes, so everyone can see how it was split.
   function withItems(text: string) {
@@ -384,7 +390,7 @@ export function AddExpenseForm({
         // Going to the group afterwards is Next.js's own signal: let it through.
         if (String((err as { digest?: string })?.digest ?? "").startsWith("NEXT_")) throw err;
         // No signal, or the server hiccuped. Saving again is safe (this form's key means it's only ever added once).
-        setError("Couldn’t reach Loopin. Check your connection and tap Save again.");
+        setError("We couldn’t confirm this saved. What you typed is still here: tap Save again when you’re back online. It won’t be added twice.");
       }
     });
   }
@@ -544,7 +550,7 @@ export function AddExpenseForm({
             id="expense-name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Dinner at the night market"
+            placeholder="e.g. Beach dinner"
             autoComplete="off"
             maxLength={80}
             autoFocus={Boolean(initial?.name)}
@@ -660,7 +666,7 @@ export function AddExpenseForm({
                   <li key={m.id} className="flex items-center gap-3 py-2">
                     <span className="flex-1">{who(m.id)}</span>
                     <span className="flex w-36 items-center rounded-xl border border-line px-3 focus-within:border-accent">
-                      <span className="text-xs text-gray-400">{currency}</span>
+                      <span className="nobreak shrink-0 text-xs text-gray-400">{currency}</span>
                       <input
                         inputMode="decimal"
                         placeholder="0"
@@ -766,7 +772,7 @@ export function AddExpenseForm({
                 <label className="flex items-center gap-2">
                   <span className="shrink-0 text-gray-600">1 {currency} =</span>
                   <span className="flex flex-1 items-center rounded-xl border border-gray-200 bg-white px-3 focus-within:border-accent">
-                    <span className="text-gray-400">{baseCurrency === "INR" ? "₹" : baseCurrency}</span>
+                    <span className="nobreak shrink-0 text-gray-400">{baseCurrency === "INR" ? "₹" : baseCurrency}</span>
                     <input
                       value={manualRate}
                       onChange={(e) => setManualRate(e.target.value)}
@@ -1026,7 +1032,7 @@ export function AddExpenseForm({
                               className="min-w-0 flex-1 bg-transparent py-2 outline-none"
                             />
                             <span className="flex w-28 shrink-0 items-center rounded-xl border border-line px-2.5 focus-within:border-accent">
-                              <span className="text-xs text-gray-400">{currency}</span>
+                              <span className="nobreak shrink-0 text-xs text-gray-400">{currency}</span>
                               <input
                                 inputMode="decimal"
                                 placeholder="0"
@@ -1137,7 +1143,7 @@ export function AddExpenseForm({
                       <li key={id} className="flex items-center gap-3 py-2">
                         <span className="flex-1">{who(id)}</span>
                         <span className="flex w-36 items-center rounded-xl border border-gray-200 px-3 focus-within:border-accent">
-                          {splitType === "exact" && <span className="text-xs text-gray-400">{currency}</span>}
+                          {splitType === "exact" && <span className="nobreak shrink-0 text-xs text-gray-400">{currency}</span>}
                           <input
                             inputMode="decimal"
                             placeholder="0"
@@ -1288,14 +1294,14 @@ function Segmented({
   onChange: (id: string) => void;
 }) {
   return (
-    <div className="grid gap-1 rounded-full bg-mist p-1" style={{ gridTemplateColumns: `repeat(${options.length}, 1fr)` }}>
+    <div className="grid gap-1 rounded-full bg-mist p-1" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(max-content, 1fr))` }}>
       {options.map((o) => (
         <button
           key={o.id}
           type="button"
           onClick={() => onChange(o.id)}
           aria-pressed={o.id === value}
-          className={`rounded-full py-2 font-semibold ${options.length > 4 ? "px-0.5 text-[13px]" : "text-sm"} ${o.id === value ? "bg-fg text-canvas" : "text-fg/55"}`}
+          className={`nobreak rounded-full py-2 font-semibold ${options.length > 4 ? "px-0.5 text-[13px]" : "text-sm"} ${o.id === value ? "bg-fg text-canvas" : "text-fg/55"}`}
         >
           {o.label}
         </button>

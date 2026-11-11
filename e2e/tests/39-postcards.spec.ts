@@ -2,6 +2,7 @@ import { test, expect } from "../fixtures";
 import { testEmail, groupName } from "../env";
 import { signUp } from "../helpers/auth";
 import { allowTestCopy, contextFor, createGroup, joinGroup, settled } from "../helpers/app";
+import { addExpense } from "../helpers/expense";
 
 // Postcards: Asha writes one from the group to Ravi (they share a group); Ravi finds it in his
 // postcards (below the passport), opens it, turns it over and can write back. Someone else can't open it.
@@ -14,7 +15,8 @@ test("Postcards: write from a group, the other person receives it, turns it over
   const g = await createGroup(A, groupName("Goa trip"), "Trip");
   await joinGroup(R, g.invite, g.path);
 
-  // The group offers it.
+  // The group offers it, once something has happened in it (an empty group shows how to start instead).
+  await addExpense(A, g.path, { name: "Beach shack lunch", amount: "800" });
   await A.goto(g.path);
   await settled(A);
   await A.locator("[data-send-postcard]").first().click();

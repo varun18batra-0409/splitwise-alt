@@ -187,14 +187,6 @@ export default async function GroupPage({
         ))}
       </nav>
 
-      {(tab === "activity" || tab === "month" || tab === "games") && (
-        <SendPostcardCard
-          href={`/postcards/new?group=${group.id}`}
-          front={group.type === "trip" && !group.cover && placePhoto(group.name) ? `photo:${placePhoto(group.name)!.src}` : group.type === "pot" ? "print:cards" : group.type === "home" || group.type === "couple" ? "print:home" : "print:beach"}
-          words={group.type === "trip" ? placeOf(group.name) : ""}
-          className="mb-6"
-        />
-      )}
       {tab === "activity" && (
         <ActivityTab
           v={v}
@@ -230,6 +222,16 @@ export default async function GroupPage({
       {tab === "games" && <GamesTab v={v} games={games} toSettle={toSettle} />}
       {tab === "balances" && <BalancesTab v={v} paid={sp.paid === "1"} why={sp.why} />}
       {tab === "charts" && <ChartsTab v={v} />}
+
+      {/* Below the group's own content, never above it; not while searching or before anything was added. */}
+      {(tab === "activity" || tab === "month" || tab === "games") && group.expenses.length > 0 && !sp.q && !sp.cat && !sp.who && !sp.type && (
+        <SendPostcardCard
+          href={`/postcards/new?group=${group.id}`}
+          front={group.type === "trip" && !group.cover && placePhoto(group.name) ? `photo:${placePhoto(group.name)!.src}` : group.type === "pot" ? "print:cards" : group.type === "home" || group.type === "couple" ? "print:home" : "print:beach"}
+          words={group.type === "trip" ? placeOf(group.name) : ""}
+          className="mt-8"
+        />
+      )}
 
       {showUndo && (
         <UndoBar

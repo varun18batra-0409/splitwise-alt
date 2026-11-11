@@ -50,7 +50,28 @@ export function leaverPayments(net: Record<string, number>, leaverId: string): T
 
 // The deposit coming back: deductions (painting, repairs) shared by weight;
 // each person gets back what they put in, less their part (never below zero).
+// If someone's part of the deductions is more than they put in, the rest is
+// shared among the others, so the refunds always add up to exactly what came back.
 export function depositRefunds(shares: Share[], deductions: number, weights: Record<string, number>): { memberId: string; refund: number }[] {
-  const cut = deductions > 0 ? allocateByWeights(deductions, shares.map((s) => ({ memberId: s.memberId, weight: weights[s.memberId] ?? 100 }))) : [];
-  return shares.map((s) => ({ memberId: s.memberId, refund: Math.max(0, s.amount - (cut.find((c) => c.memberId === s.memberId)?.amount ?? 0)) }));
+  const total = shares.reduce((x, s) => x + Math.max(0, s.amount), 0);
+  let left = Math.min(Math.max(0, deductions), total);
+  const cut = new Map<string, number>();
+  let open = shares.filter((s) => s.amount > 0);
+  while (left > 0 && open.length) {
+    let entries = open.map((s) => ({ memberId: s.memberId, weight: weights[s.memberId] ?? 100 }));
+    if (entries.every((e) => e.weight <= 0)) entries = open.map((s) => ({ memberId: s.memberId, weight: s.amount }));
+    const parts = allocateByWeights(left, entries);
+    left = 0;
+    const next: Share[] = [];
+    for (const s of open) {
+      const room = s.amount - (cut.get(s.memberId) ?? 0);
+      const want = parts.find((p) => p.memberId === s.memberId)?.amount ?? 0;
+      const take = Math.min(room, want);
+      cut.set(s.memberId, (cut.get(s.memberId) ?? 0) + take);
+      left += want - take;
+      if (room - take > 0) next.push(s);
+    }
+    open = next;
+  }
+  return shares.map((s) => ({ memberId: s.memberId, refund: Math.max(0, s.amount - (cut.get(s.memberId) ?? 0)) }));
 }

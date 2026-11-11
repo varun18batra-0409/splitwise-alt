@@ -1,5 +1,6 @@
 "use server";
 
+import { SITE_URL } from "@/lib/site";
 import { RedirectType } from "next/navigation";
 
 import { cleanCover } from "@/lib/covers";
@@ -10,7 +11,7 @@ import { deleteAccount, requestLoginCode, verifyLoginCode } from "@/lib/auth";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { headers } from "next/headers";
 import { cleanNames, sameName } from "@/lib/names";
-import { isSupportedCurrency, parseAmount, parsePercent } from "@/lib/money";
+import { amountError, isSupportedCurrency, parseAmount, parsePercent } from "@/lib/money";
 import { getRate, type RateAnswer } from "@/lib/rate-cache";
 import { cleanRateText } from "@/lib/conversion";
 import { deletePayment, saveExpense, setExpenseDeleted, setPaymentDeleted, type SaveExpenseInput } from "@/lib/save-expense";
@@ -18,7 +19,7 @@ import { removeMembers, undoEvent } from "@/lib/undo";
 import { isMemberUsed, renameMember, setMemberLeft } from "@/lib/people";
 import { settleAllAndClose } from "@/lib/settle-all";
 import { vapidKeys } from "@/lib/push";
-import { changeGroupCurrency, updateGroupBasics } from "@/lib/group-changes";
+import { changeGroupCurrency, hasOtherMoney, loadOtherMoney, updateGroupBasics } from "@/lib/group-changes";
 import { logEvent } from "@/lib/events";
 import { countryOf } from "@/lib/geo";
 import { needsOkFor } from "@/lib/payment-ok";
@@ -49,7 +50,16 @@ export async function createGroup(formData: FormData) {
   const yourName = cleanNames([String(formData.get("yourName") ?? account.name ?? "")])[0];
   if (!groupName || !yourName) redirect("/groups/new?error=missing");
   if (!account.name) await db.account.update({ where: { id: account.id }, data: { name: yourName } });
+  // The same form sent twice (double tap, slow network) makes one group.
+  const rid = cleanKey(formData.get("rid"));
+  if (rid) {
+    const prev = await previousResult(rid);
+    if (prev !== null) redirect(prev ? `/groups/${prev}` : "/");
+    const claimed = await db.requestKey.create({ data: { key: rid, result: "" } }).then(() => true, (e) => (isDuplicateKey(e) ? false : Promise.reject(e)));
+    if (!claimed) redirect("/");
+  }
 
+  // If making the group fails, free the key so trying again works (not a silent trip Home).
   const group = await createGroupFor(account, {
     type: String(formData.get("type") ?? "other"),
     name: groupName,
@@ -62,7 +72,11 @@ export async function createGroup(formData: FormData) {
     tripPlace: String(formData.get("tripPlace") ?? ""),
     tripCountry: String(formData.get("tripCountry") ?? ""),
     photo: photoFrom(formData.get("photo")),
+  }).catch(async (err) => {
+    if (rid) await db.requestKey.deleteMany({ where: { key: rid, result: "" } }).catch(() => undefined);
+    throw err;
   });
+  if (rid) await db.requestKey.update({ where: { key: rid }, data: { result: group.id } }).catch(() => undefined);
   const me = group.members[0];
   await setMyMemberId(group.id, me.id);
   await copyPushTo(account.id, me.id);
@@ -192,7 +206,8 @@ export async function joinAsExisting(formData: FormData) {
 // Join as yourself (your verified account).
 export async function joinAsNew(formData: FormData) {
   const code = String(formData.get("code") ?? "");
-  if (!(await allow(`join:${(await originAndIp()).ip}`, 30, 3600))) redirect(`/join/${code}?error=busy`);
+  // Generous per network: a whole party can join on one venue's Wi-Fi.
+  if (!(await allow(`join:${(await originAndIp()).ip}`, 120, 3600))) redirect(`/join/${code}?error=busy`);
   const { group, account } = await joinContext(code);
   const mine = group.members.find((m) => m.accountId === account.id);
   if (mine) {
@@ -395,7 +410,8 @@ export async function updateGroupSettings(formData: FormData) {
     if (!(await isGroupAdmin(group.id, myId))) redirect(`${back}?error=admin`);
     if (!isSupportedCurrency(currency)) redirect(`${back}?error=currency`);
     // With money already in the group, confirm the conversion rate first.
-    if (group._count.expenses + group._count.payments > 0) redirect(`${back}?convert=${currency}`);
+    // (Bills, budgets, goals, a deposit or card games count as money too.)
+    if (group._count.expenses + group._count.payments > 0 || hasOtherMoney(await loadOtherMoney(group.id, group.settleMin))) redirect(`${back}?convert=${currency}`);
     const c = await changeGroupCurrency(group.id, myId, currency, "1");
     if (c.ok && c.eventId) redirect(`/groups/${group.id}?saved=settings&did=${c.eventId}`);
   }
@@ -436,7 +452,7 @@ export async function recordPayment(formData: FormData) {
   if (!Number.isSafeInteger(amount) || amount <= 0 || amount > 2_000_000_000) redirect(`/groups/${group.id}?tab=balances`);
 
   const key = cleanKey(formData.get("rid"));
-  if ((await previousResult(key)) !== null || (await isDoubleTap(group.id, fromId, toId, amount, myId))) redirect(`/groups/${group.id}?tab=balances&paid=1`);
+  if ((await previousResult(key)) !== null || (!key && (await isDoubleTap(group.id, fromId, toId, amount, myId)))) redirect(`/groups/${group.id}?tab=balances&paid=1`);
   const names = await db.member.findMany({ where: { id: { in: [fromId, toId] } }, select: { id: true, name: true, accountId: true, claimedAt: true } });
   const nameOf = (id: string) => names.find((n) => n.id === id)?.name ?? "Someone";
   let did = "";
@@ -571,7 +587,7 @@ export async function recordCustomPayment(formData: FormData) {
   if (!nameOf(fromId) || !nameOf(toId)) back("Pick who paid and who they paid.");
   if (fromId === toId) back("Pick two different people.");
   const amount = parseAmount(amountText, group.currency);
-  if (amount === null || amount <= 0) back("Enter a valid amount, like 500 or 99.50.");
+  if (amount === null || amount <= 0) back(amountError(amountText, group.currency));
   // More than they owe (often a typo with an extra zero): ask once before saving.
   if (!potGame && !fromSettle && formData.get("over") !== "1") {
     const { loadGroup } = await import("@/lib/group-data");
@@ -582,7 +598,7 @@ export async function recordCustomPayment(formData: FormData) {
   }
   const done = potGame ? `/groups/${group.id}/pot/${potGame}?paid=1` : fromSettle ? `/groups/${group.id}/settle?paid=1` : `/groups/${group.id}?tab=balances&paid=1`;
   const key = cleanKey(formData.get("rid"));
-  if ((await previousResult(key)) !== null || (await isDoubleTap(group.id, fromId, toId, amount!, myId))) redirect(done);
+  if ((await previousResult(key)) !== null || (!key && (await isDoubleTap(group.id, fromId, toId, amount!, myId)))) redirect(done);
 
   let did = "";
   try {
@@ -680,7 +696,9 @@ async function originAndIp() {
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
   const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-  return { origin: `${proto}://${host}`, ip: clientIp(h) };
+  // Links in emails always point at the real site in production, never at
+  // whatever address the request claimed to come from.
+  return { origin: process.env.VERCEL_ENV === "production" ? SITE_URL : `${proto}://${host}`, ip: clientIp(h) };
 }
 
 export async function requestCode(formData: FormData) {
@@ -689,7 +707,7 @@ export async function requestCode(formData: FormData) {
   const { origin, ip } = await originAndIp();
   const name = cleanNames([String(formData.get("name") ?? "")])[0] ?? "";
   const mode = formData.get("mode") === "signup" ? "signup" : "";
-  const r = await requestLoginCode(email, ip, origin);
+  const r = await requestLoginCode(email, ip, origin, new Date(), back);
   const q = new URLSearchParams({ e: email.trim().toLowerCase(), back });
   if (name) q.set("n", name);
   if (mode) q.set("mode", mode);
@@ -745,12 +763,27 @@ export async function saveMyName(formData: FormData) {
   redirect(`/account?name=saved&groups=${changed}`);
 }
 
-export async function signOutOtherPhonesAction() {
+export async function signOutOtherPhonesAction(formData?: FormData) {
+  // Other phones stop getting notifications too; this one keeps them.
+  const account = await getAccount();
+  if (account) {
+    const keep = String(formData?.get("endpoint") ?? "");
+    const members = await db.member.findMany({ where: { accountId: account.id }, select: { id: true } });
+    await db.pushSubscription
+      .deleteMany({ where: { memberId: { in: members.map((m) => m.id) }, ...(keep ? { endpoint: { not: keep } } : {}) } })
+      .catch(() => undefined);
+  }
   const ok = await signOutOtherPhones();
   redirect(ok ? "/account?others=out#other-phones" : "/signin");
 }
 
-export async function signOutThisPhone() {
+export async function signOutThisPhone(formData?: FormData) {
+  // This phone stops getting notifications for the groups it was signed in to.
+  const endpoint = String(formData?.get("endpoint") ?? "");
+  if (endpoint.startsWith("https://") && endpoint.length < 1000) {
+    const memberIds = Object.values(await getMemberships());
+    if (memberIds.length) await db.pushSubscription.deleteMany({ where: { endpoint, memberId: { in: memberIds } } }).catch(() => undefined);
+  }
   await forgetThisPhone();
   redirect("/");
 }
@@ -787,6 +820,8 @@ export async function restoreGroup(formData: FormData) {
   if (!group || !group.deletedAt) redirect("/");
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/");
+  // Bringing a deleted group back is for whoever deleted it or looks after it, and not for someone who left.
+  if ((await hasLeft(group.id, myId)) || (group.deletedById !== myId && !(await isGroupAdmin(group.id, myId)))) redirect("/");
   await db.$transaction(async (tx) => {
     await tx.group.update({ where: { id: group.id }, data: { deletedAt: null, deletedById: "" } });
     await logEvent(tx, { groupId: group.id, actorId: myId, kind: "group_restored", text: "restored the group" });
@@ -795,6 +830,8 @@ export async function restoreGroup(formData: FormData) {
 }
 
 // The same payment recorded by the same person seconds ago = a double tap.
+// Only used when the form carries no request key: with one, a real second
+// payment of the same amount (two part-payments) is kept.
 async function isDoubleTap(groupId: string, fromId: string, toId: string, amount: number, createdById: string): Promise<boolean> {
   const recent = await db.payment.findFirst({
     where: { groupId, fromId, toId, amount, createdById, deletedAt: null, createdAt: { gt: new Date(Date.now() - 20_000) } },

@@ -1,4 +1,4 @@
-import { decimalsOf, MAX_MINOR, parseAmount } from "./money";
+import { amountError, decimalsOf, MAX_MINOR, parseAmount } from "./money";
 
 // Currency conversion and card markup, done with exact whole-number maths
 // (BigInt) so there are no floating-point rounding surprises.
@@ -93,7 +93,7 @@ export function computeTotals(args: {
   markupBp: number; // the markup chosen (group default or override)
 }): Totals {
   const originalAmount = parseAmount(args.amount, args.currency);
-  if (originalAmount === null) return { ok: false, error: "Enter a valid amount, like 250 or 99.50.", originalAmount };
+  if (originalAmount === null) return { ok: false, error: amountError(args.amount, args.currency), originalAmount };
 
   const same = args.currency === args.baseCurrency;
   if (!same && !parseRate(args.rate)) {

@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { isDuplicateKey, previousResult } from "./once";
 import { logEvent } from "./events";
 import { formatMoney, parseAmount } from "./money";
 import { payersJson } from "./payers";
@@ -86,7 +87,7 @@ export async function addPlayerToGame(gameId: string, actorId: string, raw: stri
 
 // Start a game: its name, Poker or Teen Patti, and who's playing (at least two).
 // `newNames`: players who aren't in the group yet, added by name.
-export async function startGame(groupId: string, actorId: string, input: { name: string; game: string; players: string[]; newNames?: string }, today = new Date()): Promise<Result<{ id: string }>> {
+export async function startGame(groupId: string, actorId: string, input: { name: string; game: string; players: string[]; newNames?: string }, today = new Date(), tz = "Asia/Kolkata"): Promise<Result<{ id: string }>> {
   let r = await groupFor(groupId, actorId);
   if (!r.g) return { ok: false, error: r.error };
   if (r.g.type !== "pot") return { ok: false, error: "Games are for Pot groups." };
@@ -99,7 +100,8 @@ export async function startGame(groupId: string, actorId: string, input: { name:
   const active = new Set(r.g.members.filter((m) => !m.leftAt).map((m) => m.id));
   const players = [...new Set([...input.players, ...named.ids].filter((p) => active.has(p)))];
   if (players.length < 2) return { ok: false, error: "Pick at least two players." };
-  const when = today.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  // The day where the players are (not the server's clock): a game at 1 am is still that night's date for them.
+  const when = today.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: tz });
   const name = String(input.name ?? "").trim().replace(/\s+/g, " ").slice(0, 60) || `${potGameLabel(game)} · ${when}`;
   const created = await db.potGame.create({ data: { groupId, name, game, players: JSON.stringify(players), hostId: actorId } });
   await logEvent(db, { groupId, actorId, kind: "pot_started", text: `started a game: ${name} (${potGameLabel(game)}, ${players.length} players)` });
@@ -178,7 +180,15 @@ export async function finishGame(gameId: string, actorId: string): Promise<Resul
   const res = potResult(lines);
   const name = (id: string) => g.members.find((m) => m.id === id)?.name ?? "Someone";
   const now = new Date();
-  await db.$transaction(async (tx) => {
+  const done = await db.$transaction(async (tx) => {
+    // Claim the game first: if two finishes arrive at once, only one adds the result.
+    const claimed = await tx.potGame.updateMany({ where: { id: gameId, status: "open" }, data: { status: "done", finishedAt: now } });
+    if (claimed.count !== 1) return false;
+    // The game as it is now, inside this claim: a buy-in recorded meanwhile can't be left out.
+    const fresh = await tx.potMove.findMany({ where: { gameId, deletedAt: null } });
+    // Exactly the same lines as the result was worked out from (not just the same totals).
+    const sig = (ms: { id: string; memberId: string; amount: number; kind: string }[]) => ms.map((m) => `${m.id}:${m.memberId}:${m.kind}:${m.amount}`).sort().join("|");
+    if (sig(fresh) !== sig(game.moves)) throw new Error("POT_CHANGED");
     let resultId = "";
     if (res.total > 0) {
       const e = await tx.expense.create({
@@ -205,8 +215,14 @@ export async function finishGame(gameId: string, actorId: string): Promise<Resul
     }
     const won = res.winners.map((w) => `${name(w.memberId)} won ${formatMoney(w.amount, g.currency)}`).join(", ");
     await logEvent(tx, { groupId: g.id, actorId, kind: "pot_finished", text: `finished ${game.name}: ${won || "everyone broke even"}`, ...(resultId ? { expenseId: resultId } : {}) });
-    await tx.potGame.update({ where: { id: gameId }, data: { status: "done", finishedAt: now, resultId } });
+    await tx.potGame.update({ where: { id: gameId }, data: { resultId } });
+    return true;
+  }).catch((err) => {
+    if (String(err?.message ?? err).includes("POT_CHANGED")) return "changed" as const;
+    throw err;
   });
+  if (done === "changed") return { ok: false, error: "Someone just changed this game. Check the amounts and finish again." };
+  if (!done) return { ok: false, error: "This game is already finished." };
   return { ok: true };
 }
 
@@ -259,7 +275,7 @@ export function inPlay(players: string[], moves: { memberId: string; kind: strin
 
 // Buy-in: the same amount from the pot for each player picked (everyone at the
 // start, or just the ones topping up).
-export async function buyIn(gameId: string, actorId: string, input: { memberIds: string[]; amount: string; note?: string }): Promise<Result<{ count: number }>> {
+export async function buyIn(gameId: string, actorId: string, input: { memberIds: string[]; amount: string; note?: string; requestKey?: string }): Promise<Result<{ count: number }>> {
   const r = await gameFor(gameId, actorId);
   if (!r.game || !r.g) return { ok: false, error: r.error };
   const { game, g } = r;
@@ -271,10 +287,18 @@ export async function buyIn(gameId: string, actorId: string, input: { memberIds:
   if (!who.length) return { ok: false, error: "Pick who’s taking money." };
   const players = parsePlayers(game.players);
   const note = cleanNote(input.note ?? "");
-  await db.$transaction([
-    db.potMove.createMany({ data: who.map((memberId) => ({ gameId, memberId, kind: "take", amount, note, createdById: actorId })) }),
-    ...(who.every((id) => players.includes(id)) ? [] : [db.potGame.update({ where: { id: gameId }, data: { players: JSON.stringify([...new Set([...players, ...who])]) } })]),
-  ]);
+  // The same form sent twice (a double tap) adds it once.
+  if (input.requestKey && (await previousResult(input.requestKey)) !== null) return { ok: true, count: who.length };
+  try {
+    await db.$transaction([
+      ...(input.requestKey ? [db.requestKey.create({ data: { key: input.requestKey, result: "buyin" } })] : []),
+      db.potMove.createMany({ data: who.map((memberId) => ({ gameId, memberId, kind: "take", amount, note, createdById: actorId })) }),
+      ...(who.every((id) => players.includes(id)) ? [] : [db.potGame.update({ where: { id: gameId }, data: { players: JSON.stringify([...new Set([...players, ...who])]) } })]),
+    ]);
+  } catch (err) {
+    if (isDuplicateKey(err)) return { ok: true, count: who.length };
+    throw err;
+  }
   return { ok: true, count: who.length };
 }
 

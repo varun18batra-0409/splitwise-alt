@@ -7,6 +7,9 @@ import { setExpenseDeleted, setPaymentDeleted } from "./save-expense";
 import { formatPercent } from "./money";
 import { setMember } from "./people";
 import { applySettleAll, setPaymentsDeleted } from "./settle-all";
+import { loadOtherMoney, sameOtherMoney, writeOtherMoney } from "./group-changes";
+import { isGroupAdmin } from "./group-admin";
+import { undoMoveOut } from "./home/moving-db";
 
 // Undo any change in a group. Undoing is itself a logged change that everyone
 // is notified about, and it can be undone too ("redo").
@@ -31,6 +34,8 @@ type EventLike = {
 const MONEY_KINDS = new Set([
   "expense_added", "expense_edited", "expense_deleted", "expense_restored",
   "payment_recorded", "payment_deleted", "payment_restored", "currency_changed", "group_settled_closed",
+  // Card games and bills add or remove money too.
+  "pot_finished", "pot_reopened", "pot_deleted", "bill_changed",
 ]);
 
 // Close and reopen are one setting; members added/removed are one list.
@@ -98,9 +103,22 @@ async function undoOnce(eventId: string, actorId: string | undefined): Promise<U
   if (!actorId || !group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can undo its changes." };
   if (group.members.find((m) => m.id === actorId)?.leftAt) return { ok: false, error: LEFT_ERROR };
 
+  if (group.deletedAt) return { ok: false, error: "This group was deleted. Restore it first." };
+
   const check = canUndo(ev, group.events);
   if (!check.ok) return { ok: false, error: check.reason };
   const payload = parseUndo(ev.undo)!;
+
+  // What only the person who looks after the group can do on the main screens
+  // (currency, removing or marking someone else as left) can't be done through Undo either,
+  // except by whoever made that change in the first place.
+  const adminOnly =
+    payload.type === "currency_restore" ||
+    ((payload.type === "members_remove" || payload.type === "members_restore") && ev.actorId !== actorId) ||
+    (payload.type === "member_set" && "leftAt" in payload.data && payload.memberId !== actorId && ev.actorId !== actorId);
+  if (adminOnly && !(await isGroupAdmin(group.id, actorId))) {
+    return { ok: false, error: "Only the person who looks after this group can undo that." };
+  }
 
   // Claim the undo first (only if nobody did it yet), so a repeated tap or
   // two people at once can never undo the same change twice.
@@ -143,6 +161,7 @@ async function apply(p: UndoPayload, groupId: string, actorId: string, originalT
     case "payments_set":
       return fromResult(await setPaymentsDeleted(groupId, actorId, p.paymentIds, p.deleted));
     case "member_set":
+      if (p.moveOut && p.data.leftAt === null) return fromResult(await undoMoveOut(groupId, actorId, p.memberId, p.moveOut));
       return fromResult(await setMember(groupId, actorId, p.memberId, p.data, true));
   }
 }
@@ -252,15 +271,26 @@ async function restoreCurrency(groupId: string, actorId: string, p: Extract<Undo
       shares: e.shares.map((s) => ({ id: s.id, amount: s.amount })),
     })),
     payments: g.payments.map((x) => ({ id: x.id, amount: x.amount })),
+    other: await loadOtherMoney(groupId, g.settleMin),
+    ...(p.other ? { after: p.other } : {}),
   };
+  // Bills, budgets, goals, the deposit and card games don't all leave a history
+  // entry when they change, so compare them with what the currency change left.
+  // Anything added, removed or changed since → putting the old amounts back
+  // would mix currencies or lose money, so refuse.
+  if (p.after && current.other && !sameOtherMoney(current.other, p.after)) {
+    return { ok: false, error: "Bills, budgets, goals, the deposit or a card game changed after the currency change, so it can’t be undone safely. Change the currency again instead." };
+  }
   const eventId = await db.$transaction(async (tx) => {
+    // Rows removed since (a card game's result after it was reopened) are skipped.
     for (const e of p.expenses) {
       const { shares, id, ...fields } = e;
-      await tx.expense.update({ where: { id }, data: fields });
-      for (const s of shares) await tx.expenseShare.update({ where: { id: s.id }, data: { amount: s.amount } });
+      await tx.expense.updateMany({ where: { id }, data: fields });
+      for (const s of shares) await tx.expenseShare.updateMany({ where: { id: s.id }, data: { amount: s.amount } });
     }
-    for (const x of p.payments) await tx.payment.update({ where: { id: x.id }, data: { amount: x.amount } });
-    await tx.group.update({ where: { id: groupId }, data: { currency: p.currency } });
+    for (const x of p.payments) await tx.payment.updateMany({ where: { id: x.id }, data: { amount: x.amount } });
+    if (p.other) await writeOtherMoney(tx, p.other);
+    await tx.group.update({ where: { id: groupId }, data: { currency: p.currency, ...(p.other ? { settleMin: p.other.settleMin } : {}) } });
     return logEvent(tx, {
       groupId,
       actorId,
@@ -304,6 +334,10 @@ export async function removeMembers(groupId: string, actorId: string, memberIds:
           splitWeight: m.splitWeight,
           notify: m.notify,
           joinedFrom: m.joinedFrom?.toISOString() ?? null,
+          // Kept so that bringing someone back can't turn "added by someone
+          // else, never opened the group" into "joined themselves" (passport privacy).
+          addedBy: m.addedBy,
+          seenAt: m.seenAt?.toISOString() ?? null,
         })),
       },
     });
@@ -331,6 +365,13 @@ async function restoreMembers(groupId: string, actorId: string, members: Extract
           ...(m.splitWeight ? { splitWeight: m.splitWeight } : {}),
           ...(m.notify ? { notify: m.notify } : {}),
           ...(m.joinedFrom ? { joinedFrom: new Date(m.joinedFrom) } : {}),
+          // Changes saved before addedBy was kept: someone with a sign-in is
+          // treated as added by whoever brings them back, until they open the group.
+          ...(accountId
+            ? m.addedBy !== undefined
+              ? { addedBy: m.addedBy, seenAt: m.seenAt ? new Date(m.seenAt) : null }
+              : { addedBy: actorId }
+            : {}),
         },
       });
     }

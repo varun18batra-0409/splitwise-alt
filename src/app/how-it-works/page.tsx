@@ -251,10 +251,10 @@ export default async function HowItWorks() {
       </Section>
 
       <div id="settle" className="scroll-mt-4" />
-      <Section slot="sunset" kicker="5 · Settle" title="Settle up with the fewest payments">
+      <Section slot="sunset" kicker="5 · Settle" title="Settle up with fewer payments">
         <Steps
           items={[
-            <>In a group, tap <strong>Settle up</strong>. Loopin shows the fewest payments that clear everything.</>,
+            <>In a group, tap <strong>Settle up</strong>. Loopin shows a short list of payments that clears everything.</>,
             <>Paid in full? Tap <strong>Mark paid</strong>. Paid part? Change the amount first.</>,
             <>Your friend added their UPI ID or PayPal / Venmo link? A <strong>Pay</strong> button opens the app with the amount filled in.</>,
             <>Someone owes you? Tap <strong>Remind</strong>: WhatsApp opens with a friendly note, your UPI ID and an <strong>I’ve paid</strong> link. They pay and tap it, no app or sign-in needed.</>,
@@ -320,7 +320,7 @@ export default async function HowItWorks() {
             <><strong>Cash out, or swap a player.</strong> Someone leaving early taps <strong>Cash out</strong> with what they have. A new player can take the seat right there: just a name and their buy-in.</>,
             <><strong>Count the money.</strong> At the end, one table: type what each player has in front of them (0 if they lost it all). It shows who’s up or down as you type, and whether it adds up.</>,
             <><strong>It has to add up.</strong> If money is missing, or more came back than was taken, the game can’t finish until you find it, or the host fixes the difference (spread over everyone, or on one person) with a reason.</>,
-            <><strong>Calculate & settle.</strong> The host taps it and gets the fewest payments to square up (“Meera pays Ravi {india ? "₹300" : "$30"}”). The result goes into the group’s balances, so Settle up works as always. Every game stays in the history.</>,
+            <><strong>Calculate & settle.</strong> The host taps it and gets a short list of payments to square up (“Meera pays Ravi {india ? "₹300" : "$30"}”). The result goes into the group’s balances, so Settle up works as always. Every game stays in the history.</>,
           ]}
         />
         <p>Loopin only keeps count, like a notebook at the table. It doesn’t run the game, track chips or bets, or hold or move any money.</p>

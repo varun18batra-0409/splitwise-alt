@@ -76,7 +76,7 @@ export function PotCount({
                 {net === null ? "" : net > 0 ? <span className="text-owed">+{money(net)}</span> : net < 0 ? <span className="text-owe">−{money(-net)}</span> : <span className="text-gray-500">even</span>}
               </span>
               <span className="flex w-28 shrink-0 items-center gap-1 rounded-xl border border-line bg-mist px-2.5 focus-within:border-accent">
-                <span className="text-xs text-gray-400">{currency}</span>
+                <span className="nobreak shrink-0 text-xs text-gray-400">{currency}</span>
                 <input
                   name={`count_${r.id}`}
                   inputMode="decimal"

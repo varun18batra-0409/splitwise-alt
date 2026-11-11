@@ -99,14 +99,18 @@ export function cleanBill(raw: Record<string, unknown> | null): ReadBill | null 
   return { merchant: String(raw.merchant ?? "").trim().slice(0, 60), total, currency, date, items, extras: num(raw.extras) ?? 0 };
 }
 
-// Fast model first; the stronger one only if there's no total.
+// Fast model first; the stronger one only if it read a bill but found no total.
 export async function readBill(image: Uint8Array, type: string): Promise<ReadBill | null> {
   const content: Content[] = [
     { type: "image", source: { type: "base64", media_type: type, data: Buffer.from(image).toString("base64") } },
     { type: "text", text: "Read this bill." },
   ];
-  const first = cleanBill(await call<Record<string, unknown>>(FAST, BILL_SYSTEM, content, BILL_TOOL, 1500));
+  const raw = await call<Record<string, unknown>>(FAST, BILL_SYSTEM, content, BILL_TOOL, 1500);
+  const first = cleanBill(raw);
   if (first?.total) return first;
+  // The stronger model only when the fast one did read a bill but found no total:
+  // not for a photo that isn't a bill, and not after a failed call (each is a paid call).
+  if (!raw || raw.is_bill === false) return null;
   return cleanBill(await call<Record<string, unknown>>(STRONG, BILL_SYSTEM, content, BILL_TOOL, 1500)) ?? first;
 }
 

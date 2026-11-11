@@ -96,7 +96,7 @@ export function ListTab({ v, items, usual, notice }: { v: GroupView; items: Item
             {hidden("groupId", group.id)}
             {hidden("rid", newRequestKey())}
             <span className="flex flex-1 items-center gap-2 rounded-xl border border-line bg-mist px-3 focus-within:border-accent">
-              <span className="text-sm text-gray-400">{group.currency}</span>
+              <span className="nobreak shrink-0 text-sm text-gray-400">{group.currency}</span>
               <input name="amount" required inputMode="decimal" aria-label="What it cost" placeholder="0" className="w-full bg-transparent py-3 font-display text-xl outline-none" />
             </span>
             <button type="submit" className="pop shrink-0 bg-fg px-4 text-sm font-semibold text-canvas [--pop-edge:#6e6b63]">
@@ -136,7 +136,7 @@ export function ListTab({ v, items, usual, notice }: { v: GroupView; items: Item
 
       <form action={listGoingShopping} className="mt-6">
         {hidden("groupId", group.id)}
-        <button type="submit" className="text-sm font-medium text-fg underline underline-offset-4">
+        <button type="submit" className="inline-flex min-h-11 items-center text-sm font-medium text-fg underline underline-offset-4">
           Going shopping? Tell {group.type === "couple" ? "your partner" : "the flat"}
         </button>
       </form>

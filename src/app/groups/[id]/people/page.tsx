@@ -48,7 +48,7 @@ export default async function PeoplePage({
   const isAdmin = admin?.id === myId;
   const justDid = sp.did ? group.events.find((x) => x.id === sp.did) : undefined;
   const nameOf = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");
-  const small = "border border-line px-3 py-2 text-sm font-medium text-fg active:bg-mist disabled:opacity-40";
+  const small = "rounded-full border border-line px-4 py-2 text-sm font-medium text-fg active:bg-mist disabled:opacity-40";
 
   const Person = ({ m }: { m: (typeof group.members)[number] }) => {
     const me = m.id === myId;
@@ -149,7 +149,7 @@ export default async function PeoplePage({
                 {hidden}
                 <input type="hidden" name="left" value="1" />
                 <button type="submit" disabled={bal !== 0} className={small}>
-                  {me ? "Leave group" : `Mark ${m.name} as left`}
+                  {bal !== 0 ? "Settle up first" : me ? "Leave group" : `Mark ${m.name} as left`}
                 </button>
                 <p className="mt-2 text-xs text-gray-400">
                   {bal !== 0

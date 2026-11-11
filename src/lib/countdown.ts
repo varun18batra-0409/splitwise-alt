@@ -14,6 +14,20 @@ const toMs = (d: string) => Date.UTC(Number(d.slice(0, 4)), Number(d.slice(5, 7)
 const isDay = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d) && new Date(toMs(d)).toISOString().slice(0, 10) === d;
 export const daysBetween = (from: string, to: string) => Math.round((toMs(to) - toMs(from)) / DAY);
 
+// Trip dates the way people say them: "12–16 Nov", "30 Nov – 3 Dec",
+// "30 Dec 2026 – 2 Jan 2027", or one day "12 Nov 2026".
+export function tripRange(start: string, end: string): string {
+  if (!isDay(start)) return "";
+  const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const part = (d: string) => ({ y: d.slice(0, 4), m: MON[Number(d.slice(5, 7)) - 1], d: String(Number(d.slice(8, 10))) });
+  const a = part(start);
+  if (!end || !isDay(end) || end === start) return `${a.d} ${a.m} ${a.y}`;
+  const b = part(end);
+  if (a.y !== b.y) return `${a.d} ${a.m} ${a.y} – ${b.d} ${b.m} ${b.y}`;
+  if (a.m !== b.m) return `${a.d} ${a.m} – ${b.d} ${b.m} ${b.y}`;
+  return `${a.d}–${b.d} ${b.m} ${b.y}`;
+}
+
 // Checks dates typed in the form: a real start day, an end on or after it, a trip of at most 60 days.
 export function cleanTripDates(start: string, end: string, today: string): { ok: true; start: string; end: string } | { ok: false; error: string } {
   const s = start.trim();

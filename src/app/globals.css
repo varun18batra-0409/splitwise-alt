@@ -75,6 +75,17 @@ fieldset {
 .tabular-nums {
   overflow-wrap: normal;
 }
+/* …and nor does a short label: a currency code beside an amount box, a
+   toggle, a chip ("THB", not "TH" over "B"). */
+.nobreak {
+  overflow-wrap: normal;
+  white-space: nowrap;
+}
+/* Toggle and tab labels are fixed short words: break between words only. */
+[role="radiogroup"] > *,
+[role="tablist"] > * {
+  overflow-wrap: normal;
+}
 
 ::selection {
   background: var(--color-fg);

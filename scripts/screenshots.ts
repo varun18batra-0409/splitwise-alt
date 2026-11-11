@@ -255,6 +255,7 @@ if (!hosted) {
   await shot("91-home-share-sheet", "/", async (p) => {
     await p.getByRole("region", { name: "Trip countdown", exact: true }).first().getByRole("button", { name: "Share" }).click();
     await p.getByRole("dialog", { name: "Share the countdown" }).waitFor();
+    await p.waitForTimeout(400); // the sheet slides up and fades in (220 ms): take the picture once it's there
   }, false);
   // A second trip further out: Home turns the countdown into a row to swipe.
   await db.group.create({

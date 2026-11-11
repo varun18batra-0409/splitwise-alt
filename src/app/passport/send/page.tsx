@@ -51,7 +51,7 @@ export default async function SendPassportPage({ searchParams }: { searchParams:
           </button>
         </form>
       )}
-      <Link href="/passport" className="mt-4 block text-center text-sm text-fg/60 underline underline-offset-4">
+      <Link href="/passport" className="mt-2 flex min-h-11 items-center justify-center text-sm text-fg/60 underline underline-offset-4">
         Not now
       </Link>
     </>

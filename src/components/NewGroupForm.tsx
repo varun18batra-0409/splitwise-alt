@@ -44,6 +44,9 @@ export function NewGroupForm({
   const [ownSrc, setOwnSrc] = useState("");
   const [step, setStep] = useState<1 | 2>(1);
   const [name, setName] = useState(initialName);
+  const [you, setYou] = useState(yourName);
+  // One key per visit to this form: a double tap or a retry makes one group, not two.
+  const [rid] = useState(() => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`));
   const [mode, setMode] = useState<"equal" | "income" | "custom">("equal");
   const [mine, setMine] = useState("");
   const [theirs, setTheirs] = useState("");
@@ -56,6 +59,7 @@ export function NewGroupForm({
   return (
     <form action={createGroup}>
       <input type="hidden" name="type" value={type} />
+      <input type="hidden" name="rid" value={rid} />
       <input type="hidden" name="ratio" value={type === "couple" ? ratio : 50} />
 
       <div hidden={step !== 1} className="space-y-7">
@@ -131,7 +135,7 @@ export function NewGroupForm({
         {type === "trip" && <WhereTo name={name} optional />}
         <label className="block">
           <span className="mb-2 block text-sm font-medium text-gray-600">Your name in this group</span>
-          <input name="yourName" required defaultValue={yourName} placeholder="Your name" autoComplete="given-name" className={inputClass} />
+          <input name="yourName" required value={you} onChange={(e) => setYou(e.target.value)} placeholder="Your name" autoComplete="given-name" className={inputClass} />
         </label>
         <label className="block">
           <span className="mb-2 block text-sm font-medium text-gray-600">
@@ -141,7 +145,7 @@ export function NewGroupForm({
         </label>
 
         {type === "couple" ? (
-          <button type="button" disabled={!name.trim()} onClick={() => setStep(2)} className={primaryButtonClass}>
+          <button type="button" disabled={!name.trim() || !you.trim()} onClick={() => setStep(2)} className={primaryButtonClass}>
             Next
           </button>
         ) : (

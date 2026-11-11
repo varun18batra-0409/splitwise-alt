@@ -60,7 +60,7 @@ export default async function Notifications() {
 
   return (
     <>
-      <PageHeader title="Notifications" back="/" />
+      <PageHeader title="Alerts" back="/" />
       <PushToggle />
       {account && (
         // Collect notifications (being added, reminders, payments checked, people ticking): on the phone or not.

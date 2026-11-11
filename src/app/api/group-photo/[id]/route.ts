@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { MAX_PHOTO_BYTES, photoType } from "@/lib/covers";
-import { stripImageMetadata } from "@/lib/strip-meta";
+import { cleanPhoto } from "@/lib/strip-meta";
 import { readPhoto, removePhotos, storePhoto } from "@/lib/photo-store";
 
 // A group's own photo: shown only to people in the group; anyone in it can
@@ -18,9 +18,15 @@ async function memberOf(groupId: string) {
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [me, photo] = await Promise.all([memberOf(id), db.groupPhoto.findUnique({ where: { groupId: id } })]);
+  // Who's asking comes first: nothing is read from storage for anyone else.
+  // Someone who left still sees the group's picture on its (read-only) pages.
+  const myId = await getMyMemberId(id);
+  const me = myId ? await db.member.findFirst({ where: { id: myId, groupId: id, group: { deletedAt: null } }, select: { id: true } }) : null;
+  const notFound = () => new Response("Not found", { status: 404, headers: { "Cache-Control": "private, no-store" } });
+  if (!me) return notFound();
+  const photo = await db.groupPhoto.findUnique({ where: { groupId: id } });
   const bytes = photo ? await readPhoto(photo) : null;
-  if (!me || !photo || !bytes) return new Response("Not found", { status: 404, headers: { "Cache-Control": "private, no-store" } });
+  if (!photo || !bytes) return notFound();
   // The address carries the photo's version (?v=…), so the phone can keep it for good.
   return new Response(new Uint8Array(bytes), {
     headers: { "Content-Type": photo.type, "Cache-Control": "private, max-age=31536000, immutable", "X-Content-Type-Options": "nosniff" },
@@ -40,8 +46,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const bytes = new Uint8Array(await req.arrayBuffer());
   if (bytes.length > MAX_PHOTO_BYTES) return Response.json({ ok: false, error: "That photo is too big." }, { status: 413 });
   const type = photoType(bytes);
-  const clean = stripImageMetadata(bytes); // no camera details or location
   if (!type) return Response.json({ ok: false, error: "Pick a photo (JPEG, PNG or WebP)." }, { status: 415 });
+  const clean = cleanPhoto(bytes); // no camera details or location
+  if (!clean) return Response.json({ ok: false, error: "We couldn’t check that photo for hidden details (like where it was taken). Try another one, or a screenshot of it." }, { status: 415 });
   const now = new Date();
   const old = await db.groupPhoto.findUnique({ where: { groupId: id }, select: { blobKey: true } });
   const stored = await storePhoto("group", clean, type);

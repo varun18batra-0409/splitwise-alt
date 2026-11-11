@@ -31,7 +31,7 @@ describe("Trip countdown (real database)", () => {
     expect(r.ok).toBe(true);
     expect(await db.group.findUnique({ where: { id: g.id }, select: { tripStart: true, tripEnd: true } })).toEqual({ tripStart: "2026-11-03", tripEnd: "2026-11-07" });
     const ev = await db.groupEvent.findFirst({ where: { groupId: g.id, kind: "trip_dates_set" } });
-    expect(ev?.text).toBe("set the trip dates: 3 Nov 2026 – 7 Nov 2026");
+    expect(ev?.text).toBe("set the trip dates: 3–7 Nov 2026");
     expect((await setTripDates(g.id, "someone-else", "2026-11-04", "", "2026-10-22")).ok).toBe(false);
   });
 

@@ -135,7 +135,7 @@ export function ShareCountdown({ groupId, line, className }: { groupId: string; 
               </button>
             </div>
             {/* Instagram and the rest: a small link, so the choice is simply WhatsApp or Loopin. */}
-            <button type="button" onClick={more} disabled={busy !== ""} className="mt-3 w-full text-center text-xs font-semibold text-fg/50 underline disabled:opacity-60">
+            <button type="button" onClick={more} disabled={busy !== ""} className="mt-1 min-h-11 w-full text-center text-xs font-semibold text-fg/50 underline disabled:opacity-60">
               {busy === "more" ? "Getting the picture…" : "Other apps (Instagram…) or save the picture"}
             </button>
             {note && (

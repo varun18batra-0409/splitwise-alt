@@ -66,4 +66,42 @@ describe("Smart Settle across groups (real database)", () => {
       expect(g!.transfers).toEqual([]);
     }
   });
+  // FIN-M19 from the outside review: the exact case, in two brand-new groups
+  // only (no other groups in the mix). Group X: Asha owes me ₹500. Group Y:
+  // I owe Asha ₹300. Expected by hand: one payment, Asha pays me ₹200.
+  it("FIN-M19: ₹500 one way and ₹300 the other nets to one ₹200 payment", async () => {
+    const x = await makeGroup("X");
+    const y = await makeGroup("Y");
+    await db.expense.create({
+      data: { groupId: x.id, description: "Taxi", amount: 100000, splitType: "equal", paidById: x.me, createdById: x.me,
+        originalAmount: 100000, convertedAmount: 100000, shares: { create: [{ memberId: x.me, amount: 50000 }, { memberId: x.asha, amount: 50000 }] } },
+    });
+    await db.expense.create({
+      data: { groupId: y.id, description: "Lunch", amount: 60000, splitType: "equal", paidById: y.asha, createdById: y.asha,
+        originalAmount: 60000, convertedAmount: 60000, shares: { create: [{ memberId: y.me, amount: 30000 }, { memberId: y.asha, amount: 30000 }] } },
+    });
+    const mine = await loadMyGroups({ [x.id]: x.me, [y.id]: y.me });
+    expect(mine).toHaveLength(2);
+    const { items } = crossSettle(
+      mine.map((g) => ({ groupId: g.group.id, groupName: g.group.name, currency: g.group.currency, myId: g.myId, members: g.group.members, transfers: g.transfers })),
+      "INR",
+      () => null,
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0].net).toBe(20000); // + means they pay me: Asha pays me ₹200
+    expect(items[0].parts).toHaveLength(2);
+    const px = items[0].parts.find((p) => p.groupId === x.id)!;
+    const py = items[0].parts.find((p) => p.groupId === y.id)!;
+    expect([px.fromId, px.toId, px.amount]).toEqual([x.asha, x.me, 50000]);
+    expect([py.fromId, py.toId, py.amount]).toEqual([y.me, y.asha, 30000]);
+
+    for (const p of items[0].parts) {
+      await db.payment.create({ data: { groupId: p.groupId, fromId: p.fromId, toId: p.toId, amount: p.amount, createdById: x.me } });
+    }
+    for (const gid of [x.id, y.id]) {
+      const g = await loadGroup(gid);
+      expect(Object.values(g!.net).every((v) => v === 0)).toBe(true);
+      expect(g!.transfers).toEqual([]);
+    }
+  });
 });

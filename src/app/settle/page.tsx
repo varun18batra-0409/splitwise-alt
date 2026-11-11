@@ -37,7 +37,8 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
 
       {all.length === 0 ? (
         <p className="rounded-[22px] bg-mist px-4 py-8 text-center text-sm text-gray-500">
-          No groups yet. <Link href="/groups/new" className="text-fg underline underline-offset-4">Create one</Link>.
+          Once you add shared costs, you’ll see who to pay here.{" "}
+          <Link href="/groups/new" className="text-fg underline underline-offset-4">Create a group</Link>, or open an invite link from a friend.
         </p>
       ) : settleItems.length === 0 ? (
         <div className="rounded-[26px] bg-mist px-5 py-10 text-center">
@@ -56,7 +57,8 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
                 <ul className="lp-rise space-y-2.5">
                   {list.map((it) => {
                     const amt = (n: number) => `${it.converted ? "≈ " : ""}${formatMoney(Math.abs(n), common)}`;
-                    const biggest = [...it.parts].sort((a, b) => b.amount - a.amount)[0];
+                    // Remind about a part where they owe you (never one where you're the one paying).
+                    const biggest = [...it.parts].filter((p) => !p.iPay).sort((a, b) => b.amount - a.amount)[0];
                     return (
                       <li
                         key={it.key}

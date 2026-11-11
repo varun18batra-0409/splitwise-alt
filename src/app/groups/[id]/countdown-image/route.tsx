@@ -5,6 +5,7 @@ import { getTimeZone } from "@/lib/tz";
 import { todayKey } from "@/lib/dates";
 import { countdownCard, countdownWords, placeOf, tripEmoji, tripPhase } from "@/lib/countdown";
 import { photoData } from "@/lib/share-photo";
+import { loadOgFonts } from "@/lib/og-assets";
 
 // The countdown as a story-sized picture (1080 × 1920) for WhatsApp status or
 // Instagram: the trip's photo as a polaroid, the big number, and who's going.
@@ -22,7 +23,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const words = phase ? countdownWords(group.name, phase) : null;
   if (!phase || !words) return new Response("No countdown", { status: 404, headers: { "Cache-Control": "private, no-store" } });
 
-  const photo = await photoData(group, new URL(req.url).origin);
+  // Loopin's own typefaces (Fraunces for the big words), like the app and the other share pictures.
+  const [photo, fonts] = await Promise.all([photoData(group, new URL(req.url).origin), loadOgFonts(new URL(req.url).origin)]);
   const names = group.members.map((m) => m.name.split(" ")[0]);
   // Everyone going (a big group wraps onto a few lines; only past 16 people is the rest counted).
   // Everyone going, each as a little name tag (a very big group wraps onto more rows).
@@ -45,6 +47,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
           alignItems: "center",
           padding: "120px 90px 110px",
           color: "#f4f2ec",
+          fontFamily: "Sans, SansExt",
           background: "radial-gradient(90% 60% at 80% 10%, #4a3020 0%, #121014 70%)",
         }}
       >
@@ -61,11 +64,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
               </div>
             )}
           </div>
-          <div style={{ display: "flex", padding: "18px 6px 30px", fontSize: 56, color: "#26231d" }}>{group.name.slice(0, 28)}</div>
+          <div style={{ display: "flex", padding: "18px 6px 30px", fontSize: 56, color: "#26231d", fontFamily: "Display, SansExt", fontWeight: 600 }}>{group.name.slice(0, 28)}</div>
         </div>
         {/* The count */}
-        <div style={{ marginTop: 90, display: "flex", fontSize: words.big.length > 3 ? 190 : 300, fontWeight: 700, lineHeight: 1, color: hot ? "#ffab6b" : "#6fe3a8", letterSpacing: -8 }}>{words.big}</div>
-        <div style={{ marginTop: 20, display: "flex", fontSize: 64, color: "#f4f2ec" }}>{sub}</div>
+        <div style={{ marginTop: 90, display: "flex", fontSize: words.big.length > 3 ? 190 : 300, fontWeight: 700, lineHeight: 1, fontFamily: "Display, SansExt", color: hot ? "#ffab6b" : "#6fe3a8", letterSpacing: -8 }}>{words.big}</div>
+        <div style={{ marginTop: 20, display: "flex", fontSize: 64, color: "#f4f2ec", fontFamily: "Display, SansExt", fontWeight: 600 }}>{sub}</div>
         <div style={{ marginTop: 34, display: "flex", flexWrap: "wrap", justifyContent: "center", maxWidth: 920, gap: small ? 12 : 16 }}>
           {shown.map((n, i) => (
             <div
@@ -84,6 +87,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       </div>
     ),
     // Kept on the phone for a few minutes, so opening Share and tapping WhatsApp is instant.
-    { ...size, emoji: "twemoji", headers: { "Cache-Control": "private, max-age=300" } },
+    { ...size, emoji: "twemoji", fonts: fonts.length ? fonts : undefined, headers: { "Cache-Control": "private, max-age=300" } },
   );
 }

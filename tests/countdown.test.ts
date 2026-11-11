@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { afterTripNudge, cleanTripDates, countdownNudge, countdownWords, placeOf, tripEmoji, tripPhase } from "@/lib/countdown";
+import { afterTripNudge, cleanTripDates, tripRange, countdownNudge, countdownWords, placeOf, tripEmoji, tripPhase } from "@/lib/countdown";
 
 describe("Trip countdown", () => {
   it("before, the day itself, during and after", () => {
@@ -77,5 +77,12 @@ describe("countdown card words by stage", () => {
     expect(countdownStage({ kind: "before", days: 3 })).toBe("w3");
     expect(countdownStage({ kind: "during", day: 1, of: 4 })).toBe("first");
     expect(countdownStage({ kind: "during", day: 4, of: 4 })).toBe("last");
+  });
+  it("dates in words, the way people say them", () => {
+    expect(tripRange("2026-11-12", "2026-11-16")).toBe("12–16 Nov 2026");
+    expect(tripRange("2026-11-30", "2026-12-03")).toBe("30 Nov – 3 Dec 2026");
+    expect(tripRange("2026-12-30", "2027-01-02")).toBe("30 Dec 2026 – 2 Jan 2027");
+    expect(tripRange("2026-11-12", "")).toBe("12 Nov 2026");
+    expect(tripRange("2026-11-12", "2026-11-12")).toBe("12 Nov 2026");
   });
 });

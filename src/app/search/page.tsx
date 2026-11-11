@@ -237,7 +237,14 @@ export default async function SearchPage({
 
       {shown.length === 0 ? (
         <p className="rounded-2xl bg-mist px-4 py-8 text-center text-sm text-gray-500">
-          {all.length === 0 ? "Join or create a group first." : "No matches. Try other words or another month."}
+          {all.length === 0 ? (
+            <>
+              Your spending will show here after your first expense.{" "}
+              <Link href="/groups/new" className="text-fg underline underline-offset-4">Create a group</Link>, or open an invite link from a friend.
+            </>
+          ) : (
+            "No matches. Try other words or another month."
+          )}
         </p>
       ) : (
         <div className="space-y-6">
@@ -304,7 +311,8 @@ export default async function SearchPage({
       {q || cat ? (
         <>
           <section className="mb-10">{results}</section>
-          {chart}
+          {/* While searching words, only the results: a spending chart there reads as the search's total. */}
+          {!q && chart}
         </>
       ) : (
         <>

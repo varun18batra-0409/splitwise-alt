@@ -41,6 +41,12 @@ export function plain(minor: number, currency: string): string {
   return (minor / 10 ** d).toFixed(d);
 }
 
+// The Type column. Read back by the importer, so money back and card-game
+// results stay what they were when a Loopin spreadsheet is brought in again.
+export function typeLabel(kind?: string | null): string {
+  return kind === "refund" ? "Money back" : kind === "pot" ? "Card game" : "Expense";
+}
+
 export function groupCsv(
   group: { name: string; currency: string },
   members: Member[],
@@ -70,7 +76,7 @@ export function groupCsv(
     rows.push({
       date,
       cells: [
-        dayKey(date, tz), e.kind === "refund" ? "Money back" : "Expense", e.description, e.notes ?? "", getCategory(e.category).label, paidByCell(e), plain(sign(e) * e.amount, cur),
+        dayKey(date, tz), typeLabel(e.kind), e.description, e.notes ?? "", getCategory(e.category).label, paidByCell(e), plain(sign(e) * e.amount, cur),
         foreign ? plain(e.originalAmount, e.originalCurrency) : "", foreign ? e.originalCurrency : "", foreign ? e.exchangeRate : "",
         e.markupAmount ? plain(e.markupAmount, cur) : "", e.paymentMethod, e.deletedAt ? "Deleted" : "",
         ...members.map((m) => {
@@ -136,7 +142,7 @@ export function myDataCsv(
         group: g.name,
         date,
         cells: [
-          g.name, g.type, dayKey(date, tz), e.kind === "refund" ? "Money back" : "Expense", e.description, e.notes ?? "", getCategory(e.category).label,
+          g.name, g.type, dayKey(date, tz), typeLabel(e.kind), e.description, e.notes ?? "", getCategory(e.category).label,
           list.length > 1 ? list.map((p) => `${name(p.memberId)} ${plain(p.amount, cur)}`).join(" + ") : name(list[0].memberId),
           plain(sign * e.amount, cur), cur, mine ? plain(sign * mine, cur) : "", plain(sign * (paidMine - mine), cur),
           foreign ? plain(e.originalAmount, e.originalCurrency) : "", foreign ? e.originalCurrency : "", status(e.deletedAt),

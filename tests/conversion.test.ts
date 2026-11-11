@@ -87,3 +87,22 @@ describe("rates as exact text", () => {
     expect(t.ok).toBe(false);
   });
 });
+
+// UAT-REV-07 / FIN-M24: a true tie, worked by hand. $1.00 at 1.0050 is
+// exactly 1.005 → rounds half up to 1.01; its neighbours go the plain way.
+describe("rounding at an exact half", () => {
+  it("1.00 × 1.0050 = 1.01, and the neighbours either side", () => {
+    expect(convertAmount(100, "USD", "EUR", "1.0050")).toBe(101); // 100.5 cents → 101
+    expect(convertAmount(100, "USD", "EUR", "1.0049")).toBe(100); // 100.49 → 100
+    expect(convertAmount(100, "USD", "EUR", "1.0051")).toBe(101); // 100.51 → 101
+    expect(convertAmount(300, "USD", "EUR", "1.0050")).toBe(302); // 301.5 → 302
+  });
+  it("into a currency with no decimals (yen), a half yen rounds up", () => {
+    expect(convertAmount(1, "USD", "JPY", "150.5")).toBe(2); // $0.01 × 150.5 = ¥1.505 → ¥2
+    expect(convertAmount(1, "USD", "JPY", "149.5")).toBe(1); // ¥1.495 → ¥1
+  });
+  it("card fee at an exact half paisa rounds up", () => {
+    expect(markupAmountOf(100, 50)).toBe(1); // 0.5% of 100 paise = 0.5 → 1
+    expect(markupAmountOf(99, 50)).toBe(0); // 0.495 → 0
+  });
+});

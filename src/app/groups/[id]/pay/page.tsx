@@ -38,8 +38,8 @@ export default async function RecordPayment({
   const overWarning =
     owes !== null && typed !== null && typed > owes
       ? owes === 0
-        ? `${nameOf(from)} ${from === myId ? "don’t" : "doesn’t"} owe anything right now. Recording ${money(typed)} will mean ${to ? nameOf(to).replace(/^You$/, "you") : "they"} owe${to === myId ? "" : "s"} it back.`
-        : `That’s more than ${from === myId ? "you owe" : `${nameOf(from)} owes`} (${money(owes)}). Recording ${money(typed)} will flip the balance the other way.`
+        ? `${nameOf(from)} ${from === myId ? "don’t" : "doesn’t"} owe anything in this group right now. Recording ${money(typed)} will leave ${from === myId ? "you" : nameOf(from)} owed money by the group.`
+        : `That’s more than ${from === myId ? "you owe" : `${nameOf(from)} owes`} in this group (${money(owes)}). Recording ${money(typed)} will leave ${from === myId ? "you" : nameOf(from)} owed money by the group.`
       : "";
   const chip = "flex items-center gap-2 rounded-full border border-line bg-mist px-4 py-2 text-sm font-medium has-[:checked]:border-fg has-[:checked]:bg-fg has-[:checked]:font-medium has-[:checked]:text-canvas";
 

@@ -1,6 +1,7 @@
 import Link from "@/components/Link";
 import { CompassIcon, PeoplePassportsIcon } from "@/components/DrawnIcons";
 import { InviteFriends } from "@/components/InviteFriends";
+import { PushEndpointField } from "@/components/PushEndpointField";
 import { deleteMyAccount, removeMyPasskey, saveMyName, signOutOtherPhonesAction, signOutThisPhone } from "@/app/actions";
 import { db } from "@/lib/db";
 import { sameName } from "@/lib/names";
@@ -20,7 +21,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const { name: nameState, groups: renamed, pay: payState, payError, others } = await searchParams;
   const signedOutOthers = others === "out";
   const account = await getAccount();
-  const postcardsNew = account ? await db.postcard.count({ where: { toId: account.id, readAt: null } }) : 0;
+  const postcardsNew = account ? await db.postcard.count({ where: { toId: account.id, readAt: null, OR: [{ opensAt: null }, { opensAt: { lte: new Date() } }] } }) : 0;
   const groups = await loadMyGroups(await getMemberships());
   const admins = (process.env.ADMIN_EMAIL ?? "").split(",").map((s) => s.trim().toLowerCase());
   const isAdmin = Boolean(account && admins.includes(account.email));
@@ -94,7 +95,9 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         <section className="vault rounded-[20px] px-5 py-5 text-fg">
           <p className="font-display text-xl font-semibold">Not signed in</p>
           <p className="mt-2 text-sm text-fg/60">
-            Your groups live on this phone. Optionally save them to your email so a new phone — or the installed app — can get them back.
+            {groups.length
+              ? "These groups are only on this phone. Save them to your email before you switch phones, so a new phone or the installed app can get them back."
+              : "Sign in to see your groups on any phone, or to start one."}
           </p>
           <Link href="/signin?back=/account" className={`mt-5 ${primaryButtonClass}`}>
             Sign in or sign up
@@ -211,6 +214,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           <h2 className="mb-1 text-base font-semibold">Sign out of this phone</h2>
           <p className="mb-4 text-sm text-gray-500">This phone forgets your groups. They stay safe in your email — sign in again to get them back.</p>
           <form action={signOutThisPhone}>
+            <PushEndpointField />
             <ConfirmButton message="Sign out of this phone?" className={secondaryButtonClass}>
               Sign out
             </ConfirmButton>
@@ -225,6 +229,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             </p>
           )}
           <form action={signOutOtherPhonesAction}>
+            <PushEndpointField />
             <ConfirmButton message="Sign out on every other phone and browser?" className={secondaryButtonClass}>
               Sign out other phones
             </ConfirmButton>
@@ -262,13 +267,13 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
       )}
 
       <p className="mt-10 text-center text-sm">
-        <Link href="/how-it-works" className="mr-4 text-gray-500 underline underline-offset-4">
+        <Link href="/how-it-works" className="mr-4 inline-flex min-h-11 items-center text-gray-500 underline underline-offset-4">
           How Loopin works
         </Link>
-        <Link href="/faq" className="mr-4 text-gray-500 underline underline-offset-4">
+        <Link href="/faq" className="mr-4 inline-flex min-h-11 items-center text-gray-500 underline underline-offset-4">
           FAQ
         </Link>
-        <Link href="/terms" className="text-gray-500 underline underline-offset-4">
+        <Link href="/terms" className="inline-flex min-h-11 items-center text-gray-500 underline underline-offset-4">
           Terms
         </Link>
       </p>

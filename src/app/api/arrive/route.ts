@@ -9,6 +9,13 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   const to = safePath(req.nextUrl.searchParams.get("to"));
+  // Already signed in here: never switch who that is through a link (someone
+  // could send you a pass for their own account). The pass is left unused.
+  if (req.cookies.get(SESSION_COOKIE)?.value) {
+    const res = NextResponse.redirect(new URL(to, req.url), 303);
+    res.headers.set("Cache-Control", "no-store");
+    return res;
+  }
   const pass = await redeemMovePass(req.nextUrl.searchParams.get("t")).catch(() => null);
   const dest = new URL(to, req.url);
   if (pass) dest.searchParams.set("moved", "1");

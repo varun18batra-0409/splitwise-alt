@@ -42,7 +42,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
             <span className="block font-display text-lg font-semibold text-fg">
               {transfers.length} {transfers.length === 1 ? "payment clears" : "payments clear"} everything
             </span>
-            {before > transfers.length ? `Instead of ${before}, thanks to Smart Settle.` : "The fewest payments possible."}
+            {before > transfers.length ? `Instead of ${before}, thanks to Smart Settle.` : "As few payments as it takes."}
           </p>
         </section>
       )}
@@ -73,7 +73,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
       <section>
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="font-display text-lg font-semibold tracking-tight">By person</h2>
-          <Link href={`/groups/${group.id}/passports`} className="shrink-0 text-sm font-semibold underline underline-offset-4" data-our-passports>
+          <Link href={`/groups/${group.id}/passports`} className="inline-flex min-h-11 shrink-0 items-center text-sm font-semibold underline underline-offset-4" data-our-passports>
             <span className="inline-flex items-center gap-1.5">
               <PeoplePassportsIcon size={16} /> Our passports
             </span>

@@ -13,7 +13,7 @@ const SECTIONS: { title: string; items: QA[] }[] = [
     items: [
       {
         q: "What is Loopin?",
-        a: "A free way to split costs with friends on a trip, flatmates at home, or the two of you as a couple. Everyone adds what they paid, Loopin keeps the balances, and works out the fewest payments to settle up.",
+        a: "A free way to split costs with friends on a trip, flatmates at home, or the two of you as a couple. Everyone adds what they paid, Loopin keeps the balances, and works out a short list of payments to settle up.",
       },
       {
         q: "Is it really free? Any limits or ads?",
@@ -21,7 +21,7 @@ const SECTIONS: { title: string; items: QA[] }[] = [
       },
       {
         q: "Do my friends need to sign up?",
-        a: "Yes, with an email (or Google), once. It takes about 30 seconds and there’s no password. It means everyone in a group is a real person, notifications reach the right phone, and friends can find each other.",
+        a: "Yes, with an email (or Google), once. It takes about 30 seconds and there’s no password. It means everyone in a group has a checked email, notifications reach the right phone, and friends can find each other.",
       },
       {
         q: "How do I sign in without a password?",
@@ -95,7 +95,7 @@ const SECTIONS: { title: string; items: QA[] }[] = [
       },
       {
         q: "Can I just type an expense?",
-        a: "Yes. Tap Type it in one line and write it the way you’d say it: “Dinner 2400 Ravi paid split with Asha Meera” or “Cab 600 except Dev”. Loopin fills in the form for you to check. Nothing saves until you tap Save, and it all happens on your phone, with no AI.",
+        a: "Yes. Tap Type it in one line and write it the way you’d say it: “Dinner 2400 Ravi paid split with Asha Meera” or “Cab 600 except Dev”. Loopin fills in the form for you to check. Nothing saves until you tap Save. Simple lines are read on your phone; a line it can’t follow is sent to Anthropic’s Claude to read, with the group’s first names, and you check the result before saving.",
       },
       {
         q: "Two people paid, or we got money back?",
@@ -107,7 +107,7 @@ const SECTIONS: { title: string; items: QA[] }[] = [
       },
       {
         q: "How does Settle up work? Does Loopin move money?",
-        a: "Settle up shows the fewest payments that clear everything, even across all your groups at once. You pay each other however you like, then tap Mark paid. Loopin only records payments; it never holds or moves money and never asks for bank details.",
+        a: "Settle up shows a short list of payments that clears everything, even across all your groups at once. You pay each other however you like, then tap Mark paid. Loopin only records payments; it never holds or moves money and never asks for bank details.",
       },
       {
         q: "Can people pay me with UPI, PayPal or Venmo in one tap?",

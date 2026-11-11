@@ -145,7 +145,8 @@ export function wrapSlides(g: {
   slides.push({ kind: "intro", headline: `${g.name}, wrapped`, line: `${days > 1 ? `${days} days, ` : ""}${g.people.length} of you, ${spentOnes.length} expenses`, emoji: "🎬" });
   if (!spentOnes.length) return { slides, awards: [], total };
   const paidBy = new Map<string, number>();
-  for (const e of spentOnes) for (const p of payersOf(e)) paidBy.set(p.memberId, (paidBy.get(p.memberId) ?? 0) + p.amount);
+  // Net of money back, like the headline total, so the payers add up to it.
+  for (const e of expenses) for (const p of payersOf(e)) paidBy.set(p.memberId, (paidBy.get(p.memberId) ?? 0) + (e.kind === "refund" ? -p.amount : p.amount));
   const paidSum = [...paidBy.values()].reduce((s, n) => s + n, 0) || 1;
   const each = money(Math.round(total / Math.max(1, g.people.length)));
   slides.push({
@@ -157,8 +158,8 @@ export function wrapSlides(g: {
   });
 
   const cats = new Map<string, number>();
-  for (const e of spentOnes) cats.set(e.category, (cats.get(e.category) ?? 0) + e.amount);
-  const ranked = [...cats].sort((a, b) => b[1] - a[1]);
+  for (const e of expenses) cats.set(e.category, (cats.get(e.category) ?? 0) + (e.kind === "refund" ? -e.amount : e.amount));
+  const ranked = [...cats].filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
   if (ranked.length && total > 0) {
     const [id, amt] = ranked[0];
     const c = getCategory(id);

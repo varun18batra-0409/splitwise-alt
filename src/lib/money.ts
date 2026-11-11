@@ -112,6 +112,22 @@ export function parseAmount(input: string, currency = "INR"): number | null {
   return total;
 }
 
+// Why an amount was refused, in words people can act on.
+export function amountError(input: string, currency = "INR"): string {
+  const d = decimalsOf(currency);
+  // Read the comma exactly as parseAmount does, so the message matches the reason.
+  let raw = input.replace(/[₹$€£¥฿\s]/g, "");
+  if (/^\d+,\d{1,2}$/.test(raw)) raw = raw.replace(",", ".");
+  const t = raw.replace(/,/g, "");
+  const m = /^(\d*)(?:\.(\d*))?$/.exec(t);
+  if (!t || !m || (m[1] === "" && !m[2])) return d ? `Enter the amount as a number, like 250 or 99.${"5".padEnd(d, "0")}.` : "Enter the amount as a whole number, like 1500.";
+  if ((m[2] ?? "").length > d) return d === 0 ? `${currency} amounts are whole numbers: no decimals.` : `Use no more than ${d} decimal place${d === 1 ? "" : "s"}.`;
+  const whole = Number(m[1] || "0") * 10 ** d + Number((m[2] ?? "").padEnd(d, "0") || "0");
+  if (whole <= 0) return "The amount has to be more than zero.";
+  if (whole > MAX_MINOR) return `The most one expense can be is ${formatMoney(MAX_MINOR, currency)}.`;
+  return d ? "Enter the amount as a number, like 250 or 99.50." : "Enter the amount as a whole number, like 1500.";
+}
+
 // "33.33" → 3333 "basis points" (hundredths of a percent). 100% = 10000.
 export function parsePercent(input: string): number | null {
   const s = input.replace(/[%\s]/g, "");

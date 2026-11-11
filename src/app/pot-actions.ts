@@ -3,6 +3,8 @@
 import { redirect } from "@/lib/fresh-redirect";
 import { getMyMemberId } from "@/lib/identity";
 import { db } from "@/lib/db";
+import { cleanKey } from "@/lib/once";
+import { getTimeZone } from "@/lib/tz";
 import { addPlayerToGame, adjustGap, buyIn, cashOut, countOut, deleteGame, finishGame, removeMove, reopenGame, startGame } from "@/lib/pot-db";
 
 // The Pot's buttons. Every one checks you're in the group (and the host
@@ -28,7 +30,7 @@ const back = (groupId: string, gameId: string, q: Record<string, string>) => `/g
 
 export async function startGameAction(f: FormData) {
   const { groupId, myId } = await me(field(f, "groupId"));
-  const r = await startGame(groupId, myId, { name: field(f, "name"), game: field(f, "game"), players: f.getAll("players").map(String).slice(0, 60), newNames: field(f, "newNames").slice(0, 1000) });
+  const r = await startGame(groupId, myId, { name: field(f, "name"), game: field(f, "game"), players: f.getAll("players").map(String).slice(0, 60), newNames: field(f, "newNames").slice(0, 1000) }, new Date(), await getTimeZone());
   if (!r.ok) redirect(`/groups/${groupId}/pot/new?${new URLSearchParams({ error: r.error })}`);
   redirect(`/groups/${groupId}/pot/${r.id}?started=1`);
 }
@@ -81,7 +83,7 @@ export async function addPlayerAction(f: FormData) {
 export async function buyInAction(f: FormData) {
   const gameId = field(f, "gameId");
   const { groupId, myId } = await me(await gameGroup(gameId));
-  const r = await buyIn(gameId, myId, { memberIds: f.getAll("memberIds").map(String).slice(0, 60), amount: field(f, "amount"), note: field(f, "note") });
+  const r = await buyIn(gameId, myId, { memberIds: f.getAll("memberIds").map(String).slice(0, 60), amount: field(f, "amount"), note: field(f, "note"), requestKey: cleanKey(f.get("rid")) });
   redirect(back(groupId, gameId, r.ok ? { bought: String(r.count) } : { error: r.error }));
 }
 
