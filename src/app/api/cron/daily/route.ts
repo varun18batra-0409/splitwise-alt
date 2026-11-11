@@ -83,18 +83,24 @@ export async function GET(req: Request) {
     const where = { expenseId: "", createdAt: { lt: new Date(now.getTime() - 86_400_000) } };
     // Exactly the rows whose files are removed, in batches: never a row deleted
     // without its file (that would leave the photo behind with nothing pointing at it).
-    const { removePhotos } = await import("@/lib/photo-store");
+    const { queuePhotoDeletes } = await import("@/lib/photo-store");
     let n = 0;
     for (let round = 0; round < 10; round++) {
       const batch = await db.receipt.findMany({ where, select: { id: true, blobKey: true }, take: 500 });
       if (!batch.length) break;
-      await removePhotos(batch.map((o) => o.blobKey));
-      // Still unattached at this moment (one attached meanwhile is kept).
-      n += (await db.receipt.deleteMany({ where: { id: { in: batch.map((o) => o.id) }, expenseId: "" } })).count;
+      // The rows go and their files' keys go on the to-delete list in the same step
+      // (still unattached at this moment: one attached meanwhile is kept, and its key is not queued).
+      n += await db.$transaction(async (tx) => {
+        const mine = await tx.receipt.findMany({ where: { id: { in: batch.map((o) => o.id) }, expenseId: "" }, select: { id: true, blobKey: true } });
+        await queuePhotoDeletes(tx, mine.map((o) => o.blobKey));
+        return (await tx.receipt.deleteMany({ where: { id: { in: mine.map((o) => o.id) }, expenseId: "" } })).count;
+      });
       if (batch.length < 500) break;
     }
     return n;
   });
+  // Photo files that couldn't be deleted before are tried again (each waits longer after every failure).
+  const photoTrash = await part("blob-trash", async () => (await import("@/lib/photo-store")).flushPhotoDeletes(200, now));
   // Photos saved before file storage was connected move over, a few each day.
   await part("move-photos", async () => (await import("@/lib/photo-store")).movePhotosToBlob(60));
   // Groups deleted more than 30 days ago (past their restore window) are erased for good.
@@ -102,5 +108,5 @@ export async function GET(req: Request) {
   // The admin's email when something needs a look (failed parts, errors, emails not sent, orphan rows).
   const { sendOpsDigest } = await import("@/lib/ops-digest");
   const check = await sendOpsDigest(now, failed).catch(() => ({ sent: false, reason: "digest failed" }));
-  return Response.json({ ok: true, bills, reminders, countdowns, memories, postcardsOpened, budgetAlerts, summaries, speedLogsRemoved, groupsErased, check });
+  return Response.json({ ok: true, photoTrash, bills, reminders, countdowns, memories, postcardsOpened, budgetAlerts, summaries, speedLogsRemoved, groupsErased, check });
 }

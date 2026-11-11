@@ -3,6 +3,7 @@ import { getCategory } from "../categories";
 import { formatMoney } from "../money";
 import { dayKey, DEFAULT_TIME_ZONE } from "../dates";
 import { claimOnce, sendPushTo } from "../push";
+import { isPending } from "../membership";
 import { loadGroup } from "../group-data";
 import { addMonths, daysInMonth, monthKey } from "./month";
 import { monthSummary } from "./summary";
@@ -82,7 +83,7 @@ export async function sendMonthlySummaries(now = new Date()) {
     const history = await varyingHistory(id);
     const jump = utilityJumps(history, last)[0];
     const money = (n: number) => formatMoney(n, data.group.currency);
-    for (const m of data.group.members.filter((x) => !x.leftAt)) {
+    for (const m of data.group.members.filter((x) => !x.leftAt && !isPending(x))) {
       const s = monthSummary(data.expenses, m.id, last, DEFAULT_TIME_ZONE);
       if (s.total <= 0) break;
       const text = monthlySummaryText(

@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { JOINED } from "./membership";
 import { logEvent } from "./events";
 import { cleanEmail } from "./auth";
 import { sendMail } from "./mail";
@@ -36,7 +37,12 @@ export async function searchPeople(memberships: Record<string, string>, groupId:
   // Everything at once (each is a trip to the database).
   const [groupRows, knownRows, exact, me] = await Promise.all([
     db.member.findMany({ where: { groupId, accountId: { not: null }, leftAt: null }, select: { accountId: true } }),
-    db.member.findMany({ where: { groupId: { in: Object.keys(memberships) }, accountId: { not: null } }, select: { accountId: true }, distinct: ["accountId"] }),
+    // People you share a group with, both really joined (someone added straight in who hasn't opened it isn't offered yet).
+    db.member.findMany({
+      where: { groupId: { in: Object.keys(memberships) }, accountId: { not: null }, ...JOINED, group: { members: { some: { id: { in: Object.values(memberships) }, ...JOINED } } } },
+      select: { accountId: true },
+      distinct: ["accountId"],
+    }),
     email ? db.account.findUnique({ where: { email } }) : Promise.resolve(null),
     db.member.findUnique({ where: { id: memberships[groupId] ?? "" }, select: { accountId: true } }),
   ]);

@@ -7,6 +7,7 @@ import { getTimeZone } from "@/lib/tz";
 import { todayKey } from "@/lib/dates";
 import { loadPassport } from "@/lib/passport-db";
 import { countryOf } from "@/lib/geo";
+import { isPending } from "@/lib/membership";
 import { Avatar, PageHeader } from "@/components/ui";
 import { WorldMap } from "@/components/PassportBook";
 import map from "@/generated/map.json";
@@ -34,7 +35,7 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
       const a = await db.account.findUnique({ where: { id: m.accountId }, select: { id: true, homeCountry: true, places: true, passportShare: true } });
       if (!a) return { m, mine, state: "notOnLoopin", codes: [], cities: 0 };
       // Added by someone else and not opened the group yet: their passport isn't shared here yet.
-      if (!mine && (a.passportShare === "private" || (m.addedBy && !m.seenAt))) return { m, mine, state: "private", codes: [], cities: 0 };
+      if (!mine && (a.passportShare === "private" || isPending(m))) return { m, mine, state: "private", codes: [], cities: 0 };
       const p = await loadPassport(a, "", today, { forFriend: !mine });
       const codes = p.index.map((r) => r.code);
       return { m, mine, state: codes.length ? "open" : "empty", codes, cities: p.stats.cities };

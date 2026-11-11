@@ -96,7 +96,9 @@ export async function deleteAccount(accountId: string) {
     ? new Set((await db.postcard.findMany({ where: { photoId: { in: photoIds }, id: { notIn: cards.map((c) => c.id) } }, select: { photoId: true } })).map((c) => c.photoId))
     : new Set<string>();
   const goneFiles = (await db.postcardPhoto.findMany({ where: { id: { in: photoIds.filter((p) => !stillUsed.has(p)) } }, select: { blobKey: true } })).map((p) => p.blobKey);
+  const { photoTrashOps, flushPhotoDeletes } = await import("./photo-store");
   await db.$transaction([
+    ...(await photoTrashOps(goneFiles)),
     db.member.updateMany({ where: { accountId }, data: { accountId: null } }),
     db.loginCode.deleteMany({ where: { email: acc.email } }),
     db.postcard.deleteMany({ where: { id: { in: cards.map((c) => c.id) } } }),
@@ -108,6 +110,5 @@ export async function deleteAccount(accountId: string) {
     db.collectionEntry.updateMany({ where: { accountId }, data: { accountId: "" } }),
     db.account.delete({ where: { id: accountId } }),
   ]);
-  const { removePhotos } = await import("./photo-store");
-  await removePhotos(goneFiles);
+  await flushPhotoDeletes();
 }

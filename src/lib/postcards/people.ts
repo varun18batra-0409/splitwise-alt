@@ -1,14 +1,16 @@
 import { db } from "@/lib/db";
+import { JOINED } from "@/lib/membership";
 
 // Who you can send a postcard to: everyone who has a Loopin account and has been in a group with you
 // (open or closed, card nights included; even if one of you left). Never a name that was only typed
-// into a group, and never a deleted group. Grouped by group, most recent first; each person once overall.
+// into a group, and never a deleted group. Both of you must have really joined: someone added
+// straight in who hasn't opened the group yet isn't offered (and can't be sent to) until they do. Grouped by group, most recent first; each person once overall.
 export type PostcardGroup = { id: string; name: string; type: string; people: { id: string; name: string }[] };
 
 export async function postcardPeople(accountId: string): Promise<PostcardGroup[]> {
   const mine = await db.member.findMany({
-    where: { accountId, group: { deletedAt: null } },
-    select: { group: { select: { id: true, name: true, type: true, createdAt: true, members: { where: { accountId: { not: null } }, select: { accountId: true, name: true } } } } },
+    where: { accountId, ...JOINED, group: { deletedAt: null } },
+    select: { group: { select: { id: true, name: true, type: true, createdAt: true, members: { where: { accountId: { not: null }, ...JOINED }, select: { accountId: true, name: true } } } } },
   });
   const groups = mine.map((m) => m.group).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   const accountIds = [...new Set(groups.flatMap((g) => g.members.map((m) => m.accountId!)).filter((id) => id !== accountId))];

@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { JOINED } from "./membership";
 import { buildPassport, parseHandPlaces, type PassportTrip } from "./passport";
 
 // Your passport, from every trip group you're in (any phone you signed in on).
@@ -59,11 +60,12 @@ export async function loadPassport(account: { id: string; homeCountry: string; p
 // Everyone you've shared a group with at some point (they may have left since),
 // who's on Loopin: the people whose passports you can open. Deleted groups don't count.
 export async function passportFriends(accountId: string) {
-  const mine = await db.member.findMany({ where: { accountId, group: { deletedAt: null } }, select: { groupId: true }, take: 500 });
+  // (Your own row must be joined too: a group someone added you to but you never opened shows you nobody.)
+  const mine = await db.member.findMany({ where: { accountId, ...JOINED, group: { deletedAt: null } }, select: { groupId: true }, take: 500 });
   if (!mine.length) return [];
   const others = await db.member.findMany({
     // Someone added straight in by another person counts once they've opened that group.
-    where: { groupId: { in: mine.map((m) => m.groupId) }, accountId: { not: null, notIn: [accountId] }, OR: [{ addedBy: "" }, { seenAt: { not: null } }] },
+    where: { groupId: { in: mine.map((m) => m.groupId) }, accountId: { not: null, notIn: [accountId] }, ...JOINED },
     select: { accountId: true, name: true, groupId: true, group: { select: { name: true } } },
     take: 3000,
   });
@@ -77,11 +79,12 @@ export async function passportFriends(accountId: string) {
 }
 
 // May this person open that person's passport? Only if they've shared a group
-// (not deleted), and the owner lets people in their groups see it.
+// (not deleted) and both really joined it (neither is still "added by someone, never opened it";
+// leaving later doesn't matter), and the owner lets people in their groups see it.
 export async function canSeePassport(viewerAccountId: string, ownerAccountId: string) {
   if (viewerAccountId === ownerAccountId) return { ok: true as const, owner: await db.account.findUnique({ where: { id: ownerAccountId } }), name: undefined as string | undefined };
   const shared = await db.member.findFirst({
-    where: { accountId: ownerAccountId, OR: [{ addedBy: "" }, { seenAt: { not: null } }], group: { deletedAt: null, members: { some: { accountId: viewerAccountId } } } },
+    where: { accountId: ownerAccountId, ...JOINED, group: { deletedAt: null, members: { some: { accountId: viewerAccountId, ...JOINED } } } },
     select: { name: true },
   });
   if (!shared) return { ok: false as const, reason: "stranger" as const, name: undefined as string | undefined };

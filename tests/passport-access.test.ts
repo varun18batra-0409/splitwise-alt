@@ -1,0 +1,145 @@
+import { afterAll, describe, expect, it } from "vitest";
+import { db } from "@/lib/db";
+import { canSeePassport, passportFriends } from "@/lib/passport-db";
+
+// Who may open whose passport. The rule: both people have really joined a group
+// that still exists (leaving later doesn't matter), and the owner hasn't hidden it.
+// "Joined" = nobody else added them, or they've opened the group since.
+
+const stamp = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+const accountIds: string[] = [];
+const groupIds: string[] = [];
+
+async function account(name: string, extra: { passportShare?: string } = {}) {
+  const a = await db.account.create({ data: { email: `pa-${name}-${stamp}@example.test`, name, ...extra } });
+  accountIds.push(a.id);
+  return a;
+}
+
+type Row = { account: { id: string; name: string }; added?: boolean; seen?: boolean; left?: boolean };
+// One group; each row is a person. `added` = put in by someone else; `seen` = they've since opened it.
+async function group(name: string, rows: Row[], extra: { deletedAt?: Date } = {}) {
+  const g = await db.group.create({
+    data: {
+      name: `${name} ${stamp}`,
+      inviteCode: `pa-${name}-${stamp}`,
+      ...extra,
+      members: {
+        create: rows.map((r) => ({
+          name: r.account.name,
+          accountId: r.account.id,
+          claimedAt: new Date(),
+          addedBy: r.added ? "someone-else" : "",
+          seenAt: r.added && r.seen ? new Date() : null,
+          leftAt: r.left ? new Date() : null,
+        })),
+      },
+    },
+  });
+  groupIds.push(g.id);
+  return g;
+}
+
+afterAll(async () => {
+  await db.group.deleteMany({ where: { id: { in: groupIds } } });
+  await db.account.deleteMany({ where: { id: { in: accountIds } } });
+});
+
+describe("passport access: both must have joined", () => {
+  it("owner joined and viewer joined: allowed", async () => {
+    const owner = await account("Owner1");
+    const viewer = await account("Viewer1");
+    await group("both", [{ account: owner }, { account: viewer }]);
+    const r = await canSeePassport(viewer.id, owner.id);
+    expect(r.ok).toBe(true);
+  });
+
+  it("owner added by someone and never opened the group: a stranger", async () => {
+    const owner = await account("Owner2");
+    const viewer = await account("Viewer2");
+    await group("ownerpending", [{ account: viewer }, { account: owner, added: true }]);
+    const r = await canSeePassport(viewer.id, owner.id);
+    expect(r).toMatchObject({ ok: false, reason: "stranger" });
+  });
+
+  it("viewer added by someone and never opened the group: a stranger", async () => {
+    const owner = await account("Owner3");
+    const viewer = await account("Viewer3");
+    await group("viewerpending", [{ account: owner }, { account: viewer, added: true }]);
+    const r = await canSeePassport(viewer.id, owner.id);
+    expect(r).toMatchObject({ ok: false, reason: "stranger" });
+  });
+
+  it("a pending person is allowed once they open the group (seenAt set)", async () => {
+    const owner = await account("Owner4");
+    const viewer = await account("Viewer4");
+    await group("opens", [{ account: owner }, { account: viewer, added: true }]);
+    expect((await canSeePassport(viewer.id, owner.id)).ok).toBe(false);
+    await db.member.updateMany({ where: { accountId: viewer.id, addedBy: { not: "" } }, data: { seenAt: new Date() } });
+    expect((await canSeePassport(viewer.id, owner.id)).ok).toBe(true);
+  });
+
+  it("the owner has left the group since: still allowed (left counts)", async () => {
+    const owner = await account("Owner5");
+    const viewer = await account("Viewer5");
+    await group("ownerleft", [{ account: owner, left: true }, { account: viewer }]);
+    expect((await canSeePassport(viewer.id, owner.id)).ok).toBe(true);
+  });
+
+  it("the owner chose private: 'private', not a stranger", async () => {
+    const owner = await account("Owner6", { passportShare: "private" });
+    const viewer = await account("Viewer6");
+    await group("private", [{ account: owner }, { account: viewer }]);
+    expect(await canSeePassport(viewer.id, owner.id)).toMatchObject({ ok: false, reason: "private" });
+  });
+
+  it("the only shared group is deleted: a stranger", async () => {
+    const owner = await account("Owner7");
+    const viewer = await account("Viewer7");
+    await group("gone", [{ account: owner }, { account: viewer }], { deletedAt: new Date() });
+    expect(await canSeePassport(viewer.id, owner.id)).toMatchObject({ ok: false, reason: "stranger" });
+  });
+
+  it("joined in different groups only: a stranger (the same group is needed)", async () => {
+    const owner = await account("Owner8");
+    const viewer = await account("Viewer8");
+    const other = await account("Other8");
+    await group("a", [{ account: owner }, { account: other }]);
+    await group("b", [{ account: viewer }, { account: other }]);
+    expect(await canSeePassport(viewer.id, owner.id)).toMatchObject({ ok: false, reason: "stranger" });
+  });
+
+  it("you can always open your own", async () => {
+    const me = await account("Me9");
+    expect((await canSeePassport(me.id, me.id)).ok).toBe(true);
+  });
+});
+
+describe("passport friends list", () => {
+  it("leaves out a person whose only shared group is one where the viewer is pending", async () => {
+    const viewer = await account("Viewer10");
+    const friend = await account("Friend10");
+    await group("vp", [{ account: friend }, { account: viewer, added: true }]);
+    expect((await passportFriends(viewer.id)).map((f) => f.accountId)).not.toContain(friend.id);
+    // Once the viewer opens that group, the friend is listed.
+    await db.member.updateMany({ where: { accountId: viewer.id, addedBy: { not: "" } }, data: { seenAt: new Date() } });
+    expect((await passportFriends(viewer.id)).map((f) => f.accountId)).toContain(friend.id);
+  });
+
+  it("still lists a person through another group where both joined", async () => {
+    const viewer = await account("Viewer11");
+    const friend = await account("Friend11");
+    await group("pend", [{ account: friend }, { account: viewer, added: true }]);
+    await group("real", [{ account: friend }, { account: viewer }]);
+    const list = await passportFriends(viewer.id);
+    const f = list.find((x) => x.accountId === friend.id);
+    expect(f?.groups).toEqual([`real ${stamp}`]); // only the group that counts
+  });
+
+  it("leaves out a person who was added by someone and never opened the group", async () => {
+    const viewer = await account("Viewer12");
+    const friend = await account("Friend12");
+    await group("fp", [{ account: viewer }, { account: friend, added: true }]);
+    expect((await passportFriends(viewer.id)).map((f) => f.accountId)).not.toContain(friend.id);
+  });
+});

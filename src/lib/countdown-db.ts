@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { claimOnce, sendPushTo } from "./push";
+import { JOINED } from "./membership";
 import { dayKey, DEFAULT_TIME_ZONE } from "./dates";
 import { NUDGE_DAYS, afterTripNudge, countdownNudge, daysBetween, placeOf } from "./countdown";
 
@@ -11,7 +12,7 @@ export async function sendTripCountdowns(now = new Date()) {
   const lastDay = dayKey(new Date(now.getTime() + Math.max(...NUDGE_DAYS) * 86_400_000), DEFAULT_TIME_ZONE);
   const trips = await db.group.findMany({
     where: { type: "trip", deletedAt: null, closed: false, tripStart: { gte: today, lte: lastDay } },
-    select: { id: true, name: true, tripStart: true, members: { where: { leftAt: null }, select: { id: true } } },
+    select: { id: true, name: true, tripStart: true, members: { where: { leftAt: null, ...JOINED }, select: { id: true } } },
   });
   let sent = 0;
   for (const g of trips) {
@@ -33,7 +34,7 @@ export async function sendTripCountdowns(now = new Date()) {
       expenses: { some: { deletedAt: null } },
       OR: [{ tripEnd: yesterday }, { tripEnd: "", tripStart: yesterday }],
     },
-    select: { id: true, name: true, members: { where: { leftAt: null }, select: { id: true } } },
+    select: { id: true, name: true, members: { where: { leftAt: null, ...JOINED }, select: { id: true } } },
   });
   for (const g of ended) {
     if (!(await claimOnce(`countdown-after:${g.id}:${yesterday}`))) continue;
@@ -53,7 +54,7 @@ export async function sendDayPulse(now = new Date()) {
   const today = dayKey(now, DEFAULT_TIME_ZONE);
   const trips = await db.group.findMany({
     where: { type: "trip", deletedAt: null, closed: false, tripStart: { lte: today, not: "" } },
-    select: { id: true, name: true, currency: true, tripStart: true, tripEnd: true, members: { where: { leftAt: null }, select: { id: true, name: true } } },
+    select: { id: true, name: true, currency: true, tripStart: true, tripEnd: true, members: { where: { leftAt: null, ...JOINED }, select: { id: true, name: true } } },
   });
   let sent = 0;
   for (const g of trips) {
@@ -89,7 +90,7 @@ export async function sendMemoryLane(now = new Date()) {
   const md = today.slice(4); // "-10-27"
   const trips = await db.group.findMany({
     where: { type: "trip", deletedAt: null, tripStart: { endsWith: md, lt: `${today.slice(0, 4)}-01-01` } },
-    select: { id: true, name: true, tripStart: true, tripEnd: true, members: { where: { leftAt: null }, select: { id: true } } },
+    select: { id: true, name: true, tripStart: true, tripEnd: true, members: { where: { leftAt: null, ...JOINED }, select: { id: true } } },
   });
   let sent = 0;
   for (const g of trips) {
