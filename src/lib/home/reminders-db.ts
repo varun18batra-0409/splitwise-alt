@@ -3,7 +3,7 @@ import { loadGroup } from "../group-data";
 import { claimJob, finishJob, sendPushTo } from "../push";
 import { dayKey, DEFAULT_TIME_ZONE } from "../dates";
 import { addDays } from "../local-time";
-import { coveredByOldRecord, splitByZone, zonesOf } from "../nudge-zones";
+import { coveredByOldRecord, markSentByOldPath, splitByZone, zonesOf } from "../nudge-zones";
 import { billStatuses } from "./bills-db";
 import { payerFor, periodDueOn } from "./bills";
 import { reminderPlan, type ReminderGroup } from "./reminders";
@@ -70,7 +70,10 @@ export async function sendReminders(now = new Date(), stop: () => boolean = () =
         const mine = new Set(legacy);
         for (const r of planFor(today, legacyBills)) {
           const to = r.memberIds.filter((m) => mine.has(m));
-          if (to.length) sent += await sendPushTo(to, r);
+          if (to.length) {
+            sent += await sendPushTo(to, r);
+            await markSentByOldPath(key, to, now);
+          }
         }
       }
       for (const p of zoned) {

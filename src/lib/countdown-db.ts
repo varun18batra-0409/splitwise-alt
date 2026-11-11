@@ -3,7 +3,7 @@ import { claimJob, finishJob, sendPushTo } from "./push";
 import { JOINED } from "./membership";
 import { dayKey, DEFAULT_TIME_ZONE } from "./dates";
 import { addDays } from "./local-time";
-import { coveredByOldRecord, splitByZone, zonesOf } from "./nudge-zones";
+import { coveredByOldRecord, markSentByOldPath, splitByZone, zonesOf } from "./nudge-zones";
 import { NUDGE_DAYS, afterTripNudge, countdownNudge, daysBetween, placeOf } from "./countdown";
 
 // The daily job (morning, India time): nudges to everyone in a trip 60, 45, 30,
@@ -44,6 +44,7 @@ export async function sendTripCountdowns(now = new Date(), stop: () => boolean =
       const key = `countdown:${g.id}:${g.tripStart}:${left}`;
       if (legacyOk && (await claimJob(key, now))) {
         sent += await sendPushTo(legacy, { title: left === 0 ? `${placeOf(g.name)} day!` : g.name, body, url: `/groups/${g.id}`, tag: `countdown:${g.id}` });
+        await markSentByOldPath(key, legacy, now);
         await finishJob(key);
       }
     }
@@ -71,6 +72,7 @@ export async function sendTripCountdowns(now = new Date(), stop: () => boolean =
       const key = `countdown-after:${g.id}:${yesterday}`;
       if (legacyOk && (await claimJob(key, now))) {
         sent += await sendPushTo(legacy, { title: g.name, body: afterTripNudge(g), url: `/groups/${g.id}/settle`, tag: `countdown:${g.id}` });
+        await markSentByOldPath(key, legacy, now);
         await finishJob(key);
       }
     }
@@ -156,6 +158,7 @@ export async function sendMemoryLane(now = new Date(), stop: () => boolean = () 
     const key = `memory:${g.id}:${today}`;
     if (line && legacyOk && (await claimJob(key, now))) {
       sent += await sendPushTo(legacy, line);
+      await markSentByOldPath(key, legacy, now);
       await finishJob(key);
     }
     for (const p of zoned) {

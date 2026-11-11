@@ -79,4 +79,19 @@ describe("billStatuses knows if this month's is recorded", () => {
     expect(await chip("Electricity")).toBe("needs-amount");
     expect(await chip("Wi-Fi")).toBeNull();
   });
+
+  it("a waiting run whose saved reason is a save error (not one the code can work out again) stays Needs a fix, never Add it; an out-of-date known reason is recomputed", async () => {
+    const wait = async (name: string, reason: string) => {
+      const bill = await db.bill.create({ data: { groupId, name, nature: "fixed", amount: 50000, day: 1, startMonth: "2026-11", payer: you, tz } });
+      await db.billRun.create({ data: { billId: bill.id, period: "2026-11", status: "waiting", reason } });
+      const s = (await billStatuses(groupId, nov1)).find((x) => x.bill.name === name)!;
+      return { s, id: billBadge({ nature: s.bill.nature, status: s.status, due: s.due, payerId: s.payerId, reason: s.reason, recordedThisMonth: s.recordedThisMonth, tz, now: nov1 })?.id };
+    };
+    const err = await wait("Save error bill", "Amount is too large");
+    expect(err.s.reason).toBe("Amount is too large");
+    expect(err.id).toBe("needs-fix");
+    const stale = await wait("Stale bill", "someone in the split has left"); // the split is fine now: nothing wrong any more
+    expect(stale.s.reason).toBe("");
+    expect(stale.id).toBe("needs-add");
+  });
 });

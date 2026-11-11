@@ -69,12 +69,21 @@ export async function updateGroupBasics(
   return { ok: true, eventId: lastEventId };
 }
 
+// Thrown inside the write transaction to roll it back with the answer to give.
+class Refused extends Error {
+  constructor(public result: Extract<Result, { ok: false }>) {
+    super("currency change refused");
+  }
+}
+
 // Change the group's currency. Every expense, share and payment is converted
 // at `rate` (1 old = rate new). Original receipt amounts are kept as they were,
 // and every expense's shares still add up exactly.
 // expectEmpty: the caller checked that the group holds no money and so uses rate "1". If money turned up since
 // (an expense added meanwhile), nothing is changed and `needsRate` says the caller must ask for a real rate.
-export async function changeGroupCurrency(groupId: string, actorId: string, newCurrency: string, rate: string, opts?: { expectEmpty?: boolean }): Promise<Result> {
+// `afterRead` is for tests only: it runs after the group has been read and before the write begins (the gap in which
+// someone else can add an expense).
+export async function changeGroupCurrency(groupId: string, actorId: string, newCurrency: string, rate: string, opts?: { expectEmpty?: boolean; afterRead?: () => Promise<void> }): Promise<Result> {
   const group = await db.group.findUnique({
     where: { id: groupId },
     include: { expenses: { include: { shares: true } }, payments: true, members: { select: { id: true } } },
@@ -126,7 +135,25 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
     after: otherAfter, // what was written, so undo can tell if anything changed since
   };
 
+  await opts?.afterRead?.();
+  try {
   const eventId = await db.$transaction(async (tx) => {
+    // The checks above were made before this transaction began. Count again inside it: money that turned up in the
+    // gap would otherwise be left in the old currency (or, for a group thought empty, be converted at rate 1).
+    const [expensesNow, paymentsNow, settleNow] = await Promise.all([
+      tx.expense.count({ where: { groupId } }),
+      tx.payment.count({ where: { groupId } }),
+      tx.group.findUnique({ where: { id: groupId }, select: { settleMin: true, currency: true } }),
+    ]);
+    const otherNow = await loadOtherMoney(groupId, settleNow?.settleMin ?? group.settleMin, tx);
+    if (settleNow && settleNow.currency !== oldCurrency) throw new Refused({ ok: false, error: "The group’s currency was changed just now. Check and try again." });
+    if (opts?.expectEmpty) {
+      if (expensesNow > 0 || paymentsNow > 0 || hasOtherMoney(otherNow)) {
+        throw new Refused({ ok: false, error: "Something was added to the group just now, so the new currency needs a conversion rate.", needsRate: true });
+      }
+    } else if (expensesNow !== group.expenses.length || paymentsNow !== group.payments.length || !sameOtherMoney(otherNow, otherBefore)) {
+      throw new Refused({ ok: false, error: "Something in the group changed just now. Check it and try again." });
+    }
     for (const { e, r } of expenseUpdates) {
       await tx.expense.update({
         where: { id: e.id },
@@ -161,6 +188,10 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
     });
   });
   return { ok: true, eventId };
+  } catch (e) {
+    if (e instanceof Refused) return e.result;
+    throw e;
+  }
 }
 
 // ---------- Money outside expenses and payments ----------
@@ -193,13 +224,13 @@ export function sameOtherMoney(a: OtherMoney, b: OtherMoney): boolean {
   return norm(a) === norm(b);
 }
 
-export async function loadOtherMoney(groupId: string, settleMin: number): Promise<OtherMoney> {
+export async function loadOtherMoney(groupId: string, settleMin: number, c: Db = db): Promise<OtherMoney> {
   const [bills, budgets, goals, deposit, games] = await Promise.all([
-    db.bill.findMany({ where: { groupId }, select: { id: true, amount: true, split: true } }),
-    db.budget.findMany({ where: { groupId }, select: { id: true, amount: true } }),
-    db.goal.findMany({ where: { groupId }, select: { id: true, target: true, entries: { select: { id: true, amount: true } } } }),
-    db.deposit.findUnique({ where: { groupId }, select: { shares: { select: { id: true, amount: true, returnedAmount: true } } } }),
-    db.potGame.findMany({ where: { groupId }, select: { moves: { select: { id: true, amount: true } } } }),
+    c.bill.findMany({ where: { groupId }, select: { id: true, amount: true, split: true } }),
+    c.budget.findMany({ where: { groupId }, select: { id: true, amount: true } }),
+    c.goal.findMany({ where: { groupId }, select: { id: true, target: true, entries: { select: { id: true, amount: true } } } }),
+    c.deposit.findUnique({ where: { groupId }, select: { shares: { select: { id: true, amount: true, returnedAmount: true } } } }),
+    c.potGame.findMany({ where: { groupId }, select: { moves: { select: { id: true, amount: true } } } }),
   ]);
   return {
     settleMin,

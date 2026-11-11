@@ -53,13 +53,17 @@ export function splitProblem(splitJson: string, activeIds: string[]): string {
 
 // Why a waiting bill can't just be added, worked out from how things are NOW (so a problem that has been
 // fixed stops showing): "" = nothing is wrong. A varies bill with "" is waiting for its amount; others can be added.
-export function holdReasonNow(bill: { split: string; nature: string; amount: number }, activeIds: string[], closed: boolean, payer: string | null): string {
+// The reasons the code can work out again. Any other reason saved with the held month (an error from trying to save
+// the expense) is kept as it was, so a form that won't save never shows "Add it".
+export const RECOMPUTABLE_HOLDS = ["group closed", "payer left", "nobody left to share it", "someone in the split has left", "no amount"];
+
+export function holdReasonNow(bill: { split: string; nature: string; amount: number }, activeIds: string[], closed: boolean, payer: string | null, saved = ""): string {
   if (closed) return "group closed";
   if (!payer) return "payer left";
   const problem = splitProblem(bill.split, activeIds);
   if (problem) return problem;
   if (bill.nature === "fixed" && bill.amount <= 0) return "no amount";
-  return "";
+  return saved && !RECOMPUTABLE_HOLDS.includes(saved) ? saved : "";
 }
 
 // How an automatic expense is shared: the group's own split, equally, only
@@ -335,7 +339,7 @@ export async function billStatuses(groupId: string, now = new Date()): Promise<B
       const due = bill.nature === "daily" ? dueKey(waiting.period, "last") : dueKey(waiting.period, bill.day >= 31 ? "last" : bill.day);
       // The reason saved when the month was held can be out of date (the split was fixed since): work it out again.
       const payerId = payerFor(bill, waiting.period, active);
-      return { bill: b as BillRow, status: "waiting", period: waiting.period, due, usual, payerId, reason: holdReasonNow(bill, active, closed, payerId), recordedThisMonth };
+      return { bill: b as BillRow, status: "waiting", period: waiting.period, due, usual, payerId, reason: holdReasonNow(bill, active, closed, payerId, waiting.reason), recordedThisMonth };
     }
     const next = nextDueDay(bill, now);
     if (bill.paused || !next) return { bill: b as BillRow, status: "paused", period: "", due: "", usual, payerId: null, reason: "", recordedThisMonth };

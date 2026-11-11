@@ -141,7 +141,10 @@ export function parseWas(raw: string): SettingsWas | undefined {
 type Verdict = "skip" | "write" | "conflict";
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 // wasValue undefined = no information: write what was sent.
+// What was submitted is already what is saved: nothing to write and nothing to quarrel about (this is also what a retry
+// sees when the first try committed but its answer was lost).
 function verdict(wasValue: unknown, submitted: unknown, current: unknown): Verdict {
+  if (same(submitted, current)) return "skip";
   if (wasValue === undefined) return "write";
   if (same(submitted, wasValue)) return "skip";
   return same(current, wasValue) ? "write" : "conflict";
@@ -243,7 +246,9 @@ async function saveInside(tx: Db, groupId: string, actorId: string, f: SettingsF
   // Sharing: the type and the boxes are one part. Only people the page showed are compared.
   let vSharing: Verdict = "skip";
   if (f.sharing) {
-    if (was?.weights === undefined) vSharing = "write";
+    const submittedIsNow = f.sharing.type === group.type && Object.entries(f.sharing.weights).every(([id, w]) => current.weights?.[id] === w);
+    if (submittedIsNow) vSharing = "skip";
+    else if (was?.weights === undefined) vSharing = "write";
     else {
       const ids = Object.keys(was.weights);
       const mineSame = f.sharing.type === was.type && ids.every((id) => f.sharing!.weights[id] === undefined || f.sharing!.weights[id] === was.weights![id]);

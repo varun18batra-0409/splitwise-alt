@@ -7,7 +7,7 @@ import { isPending } from "../membership";
 import { loadGroup } from "../group-data";
 import { addMonths, daysInMonth, monthKey } from "./month";
 import { addDays } from "../local-time";
-import { coveredByOldRecord, splitByZone, zonesOf } from "../nudge-zones";
+import { coveredByOldRecord, markSentByOldPath, splitByZone, zonesOf } from "../nudge-zones";
 import { monthSummary } from "./summary";
 import { categoryJumps, forecast, monthlySummaryText, sameDayDuplicates, utilityJumps } from "./insights";
 
@@ -125,6 +125,7 @@ export async function sendMonthlySummaries(now = new Date(), stop: () => boolean
         const t = text(m.id, last);
         if (!t) break;
         sent += await sendPushTo([m.id], { ...t, url: `/groups/${id}`, tag: `summary-${id}-${last}` });
+        await markSentByOldPath(key, [m.id], now);
       }
     }
     for (const p of zonedFirst) {

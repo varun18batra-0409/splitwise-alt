@@ -80,13 +80,20 @@ export function serial<T>(fn: () => Promise<T>): Promise<T> {
   return run;
 }
 
+// Only the answers that mean "your change did NOT happen, the database was busy". A timeout or a dropped connection is
+// not one: the change may have committed with only the reply lost, so it is not run a second time blindly.
+export function isPlainlyBusy(err: unknown): boolean {
+  const e = err as { code?: string; message?: string };
+  return e?.code === "P2034" || /SQLITE_BUSY|database is locked/i.test(String(e?.message ?? ""));
+}
+
 // Run `fn`; if the database was busy, wait a moment and run it exactly once more (a second busy answer is passed on).
 // For a whole transaction that re-reads what it checks, so the second try sees what the other change did.
 export async function retryOnceIfBusy<T>(fn: () => Promise<T>, waitMs = 50 + Math.random() * 100): Promise<T> {
   try {
     return await fn();
   } catch (err) {
-    if (!isBusy(err)) throw err;
+    if (!isPlainlyBusy(err)) throw err;
     await new Promise((r) => setTimeout(r, waitMs));
     return fn();
   }

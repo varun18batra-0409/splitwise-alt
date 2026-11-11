@@ -50,7 +50,7 @@ export default async function BillPage({
   // A held month is described from how things are now (the same words as the Bills tab chip).
   const holdOf = (period: string) => {
     const payerId = payerFor(bill, period, active.map((m) => m.id));
-    const reason = holdReasonNow(bill, active.map((m) => m.id), group.closed, payerId);
+    const reason = holdReasonNow(bill, active.map((m) => m.id), group.closed, payerId, bill.runs.find((r) => r.period === period && r.status === "waiting")?.reason ?? "");
     return { reason, hold: billHold({ nature: bill.nature, reason, payerId }) };
   };
   const runLabel: Record<string, string> = { added: "Added", waiting: "Waiting for the amount", skipped: "Skipped", adding: "Adding…" };

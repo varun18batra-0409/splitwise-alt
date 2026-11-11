@@ -17,7 +17,7 @@ const { db } = await import("@/lib/db");
 const { sendReminders } = await import("@/lib/home/reminders-db");
 const { sendTripCountdowns } = await import("@/lib/countdown-db");
 const { cleanTimeZone, isNudgeHour, localDays, localHour, addDays } = await import("@/lib/local-time");
-const { ZONES_LIVE_KEY, coveredByOldRecord, saveTimeZone, zonesLiveAt, zonesOf } = await import("@/lib/nudge-zones");
+const { ZONES_LIVE_KEY, coveredByOldRecord, markSentByOldPath, saveTimeZone, zonesLiveAt, zonesOf } = await import("@/lib/nudge-zones");
 const { runClaimedParts, runDeferredParts, finishDailyRun, markDailyStarted } = await import("@/lib/daily-job");
 const { periodDueOn } = await import("@/lib/home/bills");
 
@@ -28,13 +28,17 @@ const never = () => false;
 const groupIds: string[] = [];
 const accountIds: string[] = [];
 const keys: string[] = [];
+// How many flats have reminders on before this file does anything: it must leave the same number.
+const remindersOnBefore = await db.group.count({ where: { reminders: true } });
 
 afterAll(async () => {
+  keys.push(ZONES_LIVE_KEY);
   await db.notifyLog.deleteMany({ where: { OR: [{ key: { in: keys } }, ...groupIds.map((id) => ({ key: { contains: id } }))] } });
   await db.bill.deleteMany({ where: { groupId: { in: groupIds } } });
   await db.member.deleteMany({ where: { groupId: { in: groupIds } } });
   await db.group.deleteMany({ where: { id: { in: groupIds } } });
   await db.account.deleteMany({ where: { id: { in: accountIds } } });
+  expect(await db.group.count({ where: { reminders: true } })).toBe(remindersOnBefore);
 });
 
 async function account(zone: string) {
@@ -242,6 +246,7 @@ describe("reminders: 'bill due tomorrow' in each person's own time zone (Mon 16 
     expect(logged.map((l) => l.key).sort()).toEqual(
       [
         `reminders:2026-11-16:${g.id}`, // the flat, for the person with no zone
+        `reminders:2026-11-16:${g.id}:sent:${id.Old}`, // who the old path actually sent to
         `reminders:2026-11-15:${g.id}:m:${id.LA}`,
         `reminders:2026-11-16:${g.id}:m:${id.LA}`,
         `reminders:2026-11-16:${g.id}:m:${id.Ind}`,
@@ -321,6 +326,22 @@ describe("periodDueOn: the period whose due date is exactly this day (no databas
     expect(periodDueOn({ ...rule, paused: true }, "2026-11-16")).toBeNull();
     expect(periodDueOn({ ...rule, endMonth: "2026-10" }, "2026-11-16")).toBeNull();
     expect(periodDueOn({ ...rule, nature: "daily" }, "2026-11-30")).toBe("2026-11");
+  });
+
+  it("the 30th in February is due on the last day of February (28 in 2027, 29 in 2028), and not the day before", () => {
+    const feb = { ...rule, day: 30, startMonth: "2027-01" };
+    expect(periodDueOn(feb, "2027-02-28")).toBe("2027-02");
+    expect(periodDueOn(feb, "2027-02-27")).toBeNull();
+    expect(periodDueOn(feb, "2028-02-29")).toBe("2028-02");
+    expect(periodDueOn(feb, "2028-02-28")).toBeNull();
+  });
+
+  it("the 31st in a 30-day month is due on the 30th (April, November), and in a 31-day month on the 31st", () => {
+    const d31 = { ...rule, day: 31, startMonth: "2027-01" };
+    expect(periodDueOn(d31, "2027-04-30")).toBe("2027-04");
+    expect(periodDueOn(d31, "2027-04-29")).toBeNull();
+    expect(periodDueOn(d31, "2027-05-31")).toBe("2027-05");
+    expect(periodDueOn(d31, "2027-05-30")).toBeNull();
   });
 });
 
@@ -413,8 +434,7 @@ describe("M1: the switch-over moment is not after the first run's own old-path r
 describe("L1: a zone 1 to 2.5 hours behind UTC (Azores, UTC-1 in winter) gets one nudge per local day", () => {
   it("the 00:30 UTC run is their night, so it asks for the 16:00 run; over two days there is one nudge per local day", async () => {
     await pinZonesLive();
-    // Only this flat may ask for a later run, so the result below is about the Azores person alone.
-    await db.group.updateMany({ data: { reminders: false } });
+    // Other flats are left alone: everything below is read from the Azores person's own sends.
     const g = await db.group.create({
       data: { name: "Flat Azores", type: "home", currency: "INR", reminders: true, settleDay: 0, inviteCode: `tz-az-${stamp}`, members: { create: [{ name: "Az", timeZone: "Atlantic/Azores" }] } },
       include: { members: true },
@@ -435,7 +455,7 @@ describe("L1: a zone 1 to 2.5 hours behind UTC (Azores, UTC-1 in winter) gets on
       const failed: string[] = [];
       const main = await runClaimedParts(day.morning, never, failed, ["reminders"]);
       expect(dueBodies(az).length).toBe(days.indexOf(day)); // night: nothing new at 00:30 UTC
-      expect(main.deferred).toContain("reminders"); // ... but it asks for the 16:00 run
+      expect(main.deferred).toContain("reminders"); // ... but it asks for the 16:00 run (the Azores person is waiting, whatever else is)
       expect(await finishDailyRun(day.morning, main.deferred)).toBe(true);
       await runDeferredParts(day.evening, never, failed);
     }
@@ -462,7 +482,6 @@ describe("L2: nobody is nudged twice on the day they first send their zone", () 
     });
     groupIds.push(g.id);
     const [x, y] = g.members.map((m) => m.id);
-    keys.push(`tz-first:${x}`);
     for (const m of g.members) await db.bill.create({ data: { groupId: g.id, name: `${m.name}15`, startMonth: "2026-12", day: 15, payer: m.id, nature: "fixed", amount: 100000 } });
     const run1 = new Date("2026-12-14T00:30:00Z"); // Monday: 06:00 India, midnight London
     const run2 = new Date("2026-12-14T16:00:00Z"); // 21:30 India, 16:00 London
@@ -475,6 +494,35 @@ describe("L2: nobody is nudged twice on the day they first send their zone", () 
     await sendReminders(run2, never);
     expect(dueBodies(x)).toEqual(["X15 is due tomorrow."]); // not a second one
     expect(dueBodies(y)).toEqual(["Y15 is due tomorrow."]); // Y never had it: not skipped
+  });
+});
+
+describe("L2b: a zone sent in the gap after the cron starts does not lose the nudge", () => {
+  it("a London member whose first zone arrives 1 second after RUN1 starts gets exactly one nudge across RUN1 and RUN2", async () => {
+    await pinZonesLive();
+    const g = await db.group.create({
+      data: { name: "Flat L2b", type: "home", currency: "INR", reminders: true, settleDay: 0, inviteCode: `tz-l2b-${stamp}`, members: { create: [{ name: "Gap", createdAt: OLD_MEMBER }] } },
+      include: { members: true },
+    });
+    groupIds.push(g.id);
+    const gap = g.members[0].id;
+    await db.bill.create({ data: { groupId: g.id, name: "Gap17", startMonth: "2026-11", day: 17, payer: gap, nature: "fixed", amount: 100000 } });
+    expect(await saveTimeZone("Europe/London", null, [gap], new Date(RUN1.getTime() + 1000))).toBe(true);
+    mocks.sendPushTo.mockClear();
+    await sendReminders(RUN1, never); // London 00:30: night, nothing yet
+    expect(dueBodies(gap)).toEqual([]);
+    await sendReminders(RUN2, never); // London 16:00: day
+    await sendReminders(RUN2, never);
+    expect(dueBodies(gap)).toEqual(["Gap17 is due tomorrow."]);
+  });
+
+  it("only people the old path really sent to are skipped: a mark for one member does not cover another", async () => {
+    const oldKey = `reminders:2026-11-16:marks-${stamp}`;
+    keys.push(oldKey, `${oldKey}:sent:a-${stamp}`);
+    await db.notifyLog.create({ data: { key: oldKey, state: "done" } });
+    await markSentByOldPath(oldKey, [`a-${stamp}`, `a-${stamp}`]); // twice is harmless
+    expect(await coveredByOldRecord(oldKey, RUN2, `a-${stamp}`)).toBe(true);
+    expect(await coveredByOldRecord(oldKey, RUN2, `b-${stamp}`)).toBe(false);
   });
 });
 
@@ -494,6 +542,5 @@ describe("L4: a zone is saved only for people still in the group", () => {
     expect(await saveTimeZone("Asia/Tokyo", null, g.members.map((m) => m.id))).toBe(true);
     const zonesNow = await db.member.findMany({ where: { groupId: g.id }, select: { name: true, timeZone: true }, orderBy: { name: "asc" } });
     expect(zonesNow).toEqual([{ name: "In", timeZone: "Asia/Tokyo" }, { name: "Left", timeZone: "" }, { name: "Removed", timeZone: "" }]);
-    keys.push(...g.members.map((m) => `tz-first:${m.id}`));
   });
 });

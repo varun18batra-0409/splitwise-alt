@@ -4,7 +4,7 @@ import { SITE_URL } from "@/lib/site";
 import { isGroupAdmin } from "@/lib/group-admin";
 
 import { redirect } from "@/lib/fresh-redirect";
-import { billCommand, saveBillFor, saveSettleRulesFor, toggleMissedDayFor } from "@/lib/home/bill-setup";
+import { billCommand, saveBillFor, toggleMissedDayFor } from "@/lib/home/bill-setup";
 import { addListItem, buyListItems, goingShopping, removeListItem, toggleListItem } from "@/lib/home/list-db";
 import { cleanKey } from "@/lib/once";
 import { saveBudgetsFor } from "@/lib/home/budgets-db";
@@ -73,17 +73,6 @@ export async function toggleMissedDay(formData: FormData) {
   const r = await toggleMissedDayFor(groupId, await me(groupId), billId, String(formData.get("period") ?? ""), Number(formData.get("day")));
   if (!r.ok) redirect(`/groups/${groupId}/bills/${billId}?error=${encodeURIComponent(r.error)}`);
   redirect(`/groups/${groupId}/bills/${billId}#calendar`);
-}
-
-export async function saveSettleRules(formData: FormData) {
-  const groupId = String(formData.get("groupId") ?? "");
-  const r = await saveSettleRulesFor(groupId, await me(groupId), {
-    reminders: formData.get("reminders") === "on",
-    settleDay: Number(formData.get("settleDay") ?? 0),
-    settleMin: String(formData.get("settleMin") ?? ""),
-  });
-  if (!r.ok) redirect(`/groups/${groupId}/settings?error=${encodeURIComponent(r.error)}#settling`);
-  redirect(`/groups/${groupId}/settings?saved=settling#settling`);
 }
 
 // ---------- Shopping list ----------

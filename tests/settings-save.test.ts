@@ -420,6 +420,29 @@ describe("Two saves at the same instant", () => {
     expect(calls).toBe(1);
   });
 
+  it("a timeout or a dropped connection is NOT tried again (the first try may have committed); only plainly busy answers are", async () => {
+    for (const msg of ["Socket timeout", "Transaction API error: Transaction already closed: timeout", "write conflict", "deadlock"]) {
+      let calls = 0;
+      await expect(retryOnceIfBusy(async () => { calls++; throw Object.assign(new Error(msg), { code: msg === "Socket timeout" ? "P1008" : "P2028" }); }, 1)).rejects.toThrow(msg);
+      expect(calls).toBe(1);
+    }
+    let calls = 0;
+    expect(await retryOnceIfBusy(async () => (++calls === 1 ? Promise.reject(new Error("SQLITE_BUSY")) : "ok"), 1)).toBe("ok");
+    expect(calls).toBe(2);
+  });
+
+  it("the first save committed but its reply was lost: the same form sent again says ok, with one history line and nothing changed twice", async () => {
+    const g = await mk("other", ["Asha", "Ravi"]);
+    const was = await drawn(g.id);
+    const form = pageForm(was, { name: "Saved twice", weights: { ...was.weights, [g.ids.Ravi]: "2" } });
+    expect((await saveAllSettings(g.id, g.ids.Asha, form, today)).ok).toBe(true);
+    expect(await saveAllSettings(g.id, g.ids.Asha, form, today)).toEqual({ ok: true });
+    expect((await load(g.id)).name).toBe("Saved twice");
+    expect((await weightOf(g.id)).Ravi).toBe(200);
+    expect(await count(g.id, "group_renamed")).toBe(1);
+    expect(await count(g.id, "split_changed")).toBe(1);
+  });
+
   it("the retry sees the other save and gives the normal conflict message (not a 500)", async () => {
     const g = await mk("other", ["Asha", "Ravi"]);
     const was = await drawn(g.id);

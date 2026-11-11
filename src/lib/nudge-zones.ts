@@ -32,24 +32,26 @@ export async function zonesLiveAt(now: Date = new Date()): Promise<Date> {
   }
 }
 
-// Written the first time a person's phone gives us a zone ("tz-first:<member id>"), so we can tell later whether
-// they were still on the old path when their group's nudge went out (see coveredByOldRecord).
-const firstZoneKey = (memberId: string) => `tz-first:${memberId}`;
+// The old (no-zone) path writes "<old key>:sent:<member id>" for each person it actually sent to (markSentByOldPath).
+// That is how we know, later the same day, that someone who has since sent their zone has already had it.
+const sentMarkKey = (oldKey: string, memberId: string) => `${oldKey}:sent:${memberId}`;
 
-// True if this person must not be sent this nudge again, because the old per-group record for it is done and either
-//  - it was finished by the old code (before the switch-over), or
-//  - (when `memberId` is given) this person had no zone when the group's nudge went out and sent their zone only after:
-//    they were in the group's old-path list then, so they already got it. Someone who never got it (they were not in
-//    the group yet, or were already on their own zone) does not match, so nobody's nudge is lost.
+export async function markSentByOldPath(oldKey: string, memberIds: string[], now: Date = new Date()): Promise<void> {
+  for (const id of new Set(memberIds)) {
+    await db.notifyLog.create({ data: { key: sentMarkKey(oldKey, id), state: "done", createdAt: now } }).catch(() => undefined); // already marked
+  }
+}
+
+// True if this person must not be sent this nudge again, because
+//  - the old per-group record for it was finished by the old code (before the switch-over), or
+//  - (when `memberId` is given) the old path really sent it to this person that day, and they have a zone only now.
+// Someone the old path never sent to (not in the group yet, already on their own zone, or at night when it ran)
+// has no mark, so nobody's nudge is lost.
 export async function coveredByOldRecord(oldKey: string, now: Date = new Date(), memberId?: string): Promise<boolean> {
   const row = await db.notifyLog.findUnique({ where: { key: oldKey }, select: { state: true, createdAt: true } });
-  if (row?.state !== "done") return false;
-  if (row.createdAt < (await zonesLiveAt(now))) return true;
+  if (row?.state === "done" && row.createdAt < (await zonesLiveAt(now))) return true;
   if (!memberId) return false;
-  const first = await db.notifyLog.findUnique({ where: { key: firstZoneKey(memberId) }, select: { createdAt: true } });
-  if (!first || first.createdAt <= row.createdAt) return false;
-  const member = await db.member.findUnique({ where: { id: memberId }, select: { createdAt: true } });
-  return !!member && member.createdAt <= row.createdAt;
+  return !!(await db.notifyLog.findUnique({ where: { key: sentMarkKey(oldKey, memberId) }, select: { key: true } }));
 }
 
 // member id -> zone ("" = not known). Never throws (a failure reads as "not known", i.e. today's behaviour).
@@ -93,26 +95,17 @@ export function splitByZone(memberIds: string[], zones: Map<string, string>, now
 // (only those still in them: someone who has left or been removed is not touched).
 // Returns false (and saves nothing) for anything that is not a real zone name.
 //
-// Rolling back or redeploying older code is safe: the old code ignores the zone columns and the "tz-first:" /
+// Rolling back or redeploying older code is safe: the old code ignores the zone columns and the
 // per-person records, and goes back to one nudge per group on India time. People who got a per-person nudge that
 // day may then get the group's nudge once more that day; nothing is lost.
-export async function saveTimeZone(raw: unknown, accountId: string | null, memberIds: string[], now: Date = new Date()): Promise<boolean> {
+export async function saveTimeZone(raw: unknown, accountId: string | null, memberIds: string[], _now: Date = new Date()): Promise<boolean> {
   const tz = cleanTimeZone(raw);
   if (!tz) return false;
   const ids = [...new Set(memberIds)].filter((x) => typeof x === "string" && x).slice(0, 500);
   if (ids.length) {
     const here = { id: { in: ids }, leftAt: null, removedAt: null };
-    // Note who had no zone at all until now (account's or their own), once, for coveredByOldRecord.
-    const blank = await db.member.findMany({ where: { ...here, timeZone: "" }, select: { id: true, accountId: true } });
-    const accIds = [...new Set(blank.map((m) => m.accountId).filter((a): a is string => !!a))];
-    const known = new Set((accIds.length ? await db.account.findMany({ where: { id: { in: accIds }, NOT: { timeZone: "" } }, select: { id: true } }) : []).map((a) => a.id));
-    for (const m of blank) {
-      if (m.accountId && known.has(m.accountId)) continue;
-      await db.notifyLog.create({ data: { key: firstZoneKey(m.id), state: "done", createdAt: now } }).catch(() => undefined); // already noted
-    }
     await db.member.updateMany({ where: { ...here, NOT: { timeZone: tz } }, data: { timeZone: tz } });
   }
-  // After the check above, which looks at the account's zone as it was before this call.
   if (accountId) await db.account.updateMany({ where: { id: accountId, NOT: { timeZone: tz } }, data: { timeZone: tz } });
   return true;
 }
