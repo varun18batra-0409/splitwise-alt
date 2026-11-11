@@ -75,7 +75,7 @@ describe("removed by the admin", () => {
     expect(await joinExisting(f.code, f.accounts.ravi, f.kiran)).toEqual({ ok: false, reason: "removed", adminName: "Asha" });
     const kiran = await db.member.findUniqueOrThrow({ where: { id: f.kiran } });
     expect(kiran.accountId).toBeNull(); // the name wasn't taken
-    expect(await db.member.count({ where: { groupId: f.groupId, accountId: f.accounts.ravi } })).toBe(1); // no second row either
+    expect(await db.member.count({ where: { groupId: f.groupId, accountId: f.accounts.ravi.id } })).toBe(1); // no second row either
   });
 
   it("someone who left on their own rejoins fine, with the link", async () => {
