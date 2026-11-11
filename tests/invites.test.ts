@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
-import { addRegistered, freeName, inviteByEmail, inviteMemberId, inviteRowLabel, newInviteToken, searchPeople } from "@/lib/invites";
+import { addRegistered, freeName, inviteByEmail, inviteMemberId, inviteRowLabel, nameFromEmail, newInviteToken, searchPeople } from "@/lib/invites";
 import { groupPeople, setMemberLeft, setMember } from "@/lib/people";
 
 // Adding people: everyone added by email (or found by name) is in the group at once as a name and
@@ -139,7 +139,8 @@ describe("adding people", () => {
       expect(r.people.length, k).toBe(1);
       expect(r.people[0].email, k).toBe(cases[k as keyof typeof cases]);
       // The name comes from the email only (never from the account), so it says nothing about who has one.
-      expect(r.people[0].name, k).toMatch(/^[A-Z][a-z]+ \d+$/);
+      expect(r.people[0].name, k).toMatch(/^[A-Z][a-z]+( \d+)?$/); // number-only parts of the email are dropped (a " 2" only if the name is taken)
+      expect(r.people[0].name.split(" ")[0].toLowerCase(), k).toBe(k === "own" ? "me" : { registered: "rancho", unknown: "circuit", existing: "sheldon" }[k]);
     }
     // A name row for the two new people only.
     expect(await db.member.count({ where: { groupId: g2 } })).toBe(before + 2);
@@ -202,6 +203,17 @@ describe("inviting someone who was added by name only", () => {
     expect(await inviteToClaim(g.id, me.id, me.id, mail("x"), "https://loopinapps.com")).toEqual({ ok: false, error: "That person is already on Loopin." });
     expect((await inviteToClaim(g.id, me.id, rohit.id, "not-an-email", "https://loopinapps.com")).ok).toBe(false);
     await db.group.delete({ where: { id: g.id } });
+  });
+});
+
+describe("a name made from an email address", () => {
+  it("drops parts that are only digits, keeps digits stuck to a word, and falls back to Friend", () => {
+    expect(nameFromEmail("zoe-1794422699068@uat.loopin.test")).toBe("Zoe");
+    expect(nameFromEmail("ravi.kumar@gmail.com")).toBe("Ravi Kumar");
+    expect(nameFromEmail("ravi.kumar88@gmail.com")).toBe("Ravi Kumar88");
+    expect(nameFromEmail("1234@x.com")).toBe("Friend");
+    expect(nameFromEmail("  @x.com")).toBe("Friend");
+    expect(nameFromEmail("a_12.b+34@x.com")).toBe("A B");
   });
 });
 
