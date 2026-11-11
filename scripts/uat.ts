@@ -1956,7 +1956,7 @@ async function main() {
     await go(V, `${g}/people`);
     const row = V.locator("details").filter({ hasText: "Rohit" }).first();
     await row.getByText("not on Loopin yet").waitFor();
-    await row.locator("summary").click();
+    await row.locator(":scope > summary").click();
     await row.getByLabel("Rohit’s email").fill(email("rohit"));
     await row.getByRole("button", { name: "Invite", exact: true }).click();
     await V.waitForURL(/invited=/);

@@ -139,8 +139,14 @@ async function inviteOne(
   email: string,
   wantedName: string,
   o: { origin: string; account: { id: string } | null; mail: boolean; later?: Later; row?: { id: string; name: string } },
-): Promise<{ memberId: string; eventId: string; name: string }> {
+): Promise<{ memberId: string; eventId: string; name: string } | { error: string }> {
   const prior = await db.invite.findUnique({ where: { groupId_email: { groupId: group.id, email } } });
+  const priorOpen = Boolean(prior && !prior.acceptedAt && !prior.declinedAt);
+  // This email is already invited as another name here: moving it would quietly free that name. Cancel that one first.
+  if (prior && priorOpen && o.row) {
+    const holds = group.members.find((m) => m.id === inviteMemberId(prior) && m.id !== o.row!.id && !m.accountId && !m.leftAt && !m.removedAt);
+    if (holds) return { error: alreadyInvitedAs(holds.name) };
+  }
   // Asked again before they joined: the same name row, a fresh invitation.
   // `row`: someone who left on their own and is added again by email. The invitation is for their own row; Join brings them back.
   const kept = o.row ?? (prior && !prior.acceptedAt && prior.token ? group.members.find((m) => m.id === inviteMemberId(prior) && !m.accountId && !m.leftAt && !m.removedAt) : undefined);
@@ -157,7 +163,8 @@ async function inviteOne(
     await tx.invite.upsert({
       where: { groupId_email: { groupId: group.id, email } },
       create: { groupId: group.id, email, invitedById: actor.id, token, memberId },
-      update: { invitedById: actor.id, acceptedAt: null, declinedAt: null, createdAt: new Date(), token, memberId },
+      // While an invitation is open it stays with whoever sent it first; a new one (after it was closed) belongs to the new sender.
+      update: { invitedById: prior && priorOpen ? prior.invitedById : actor.id, acceptedAt: null, declinedAt: null, createdAt: new Date(), token, memberId },
     });
     return { memberId, eventId };
   });
@@ -188,6 +195,7 @@ async function loadInviteGroup(groupId: string, actorId: string) {
   return { group, actor };
 }
 
+export const alreadyInvitedAs = (name: string) => `That email is already invited as ${name}. Cancel that first.`;
 const isAdmin = async (groupId: string, memberId: string) => (await groupAdminId(groupId)) === memberId;
 // The admin brings back someone they removed (leftAt, removedAt and removedById are all cleared together).
 const bringBack = (groupId: string, actorId: string, memberId: string) => setMember(groupId, actorId, memberId, { leftAt: null });
@@ -225,6 +233,7 @@ export async function addRegistered(groupId: string, actorId: string, accountId:
   const mail = await inviteMailOk(actor);
   const actorAccountId = (await db.member.findUnique({ where: { id: actorId }, select: { accountId: true } }))?.accountId;
   const r = await inviteOne(group, actor, account.email, await shownNameFor(account, actorAccountId), { origin, account, mail, later: opts.later });
+  if ("error" in r) return { ok: false, error: r.error };
   return { ok: true, ...r, email: account.email };
 }
 
@@ -262,12 +271,20 @@ export async function inviteByEmail(groupId: string, actorId: string, rawEmails:
         }
       } else if (already.leftAt) {
         // Left on their own: invited to their own row. Join brings them back (they are not back until they tap it).
-        await inviteOne(group, actor, email, already.name, { origin, account, mail, later: opts.later, row: already });
+        const again = await inviteOne(group, actor, email, already.name, { origin, account, mail, later: opts.later, row: already });
+        if ("error" in again) {
+          bad.push(`${email} (${again.error})`);
+          continue;
+        }
       }
       people.push({ name: wanted, email });
       continue;
     }
     const r = await inviteOne(group, actor, email, wanted, { origin, account, mail, later: opts.later });
+    if ("error" in r) {
+      bad.push(`${email} (${r.error})`);
+      continue;
+    }
     people.push({ name: r.name, email });
   }
   // No Undo bar for any email invite, so the reply looks the same whoever the email belongs to.
@@ -276,6 +293,37 @@ export async function inviteByEmail(groupId: string, actorId: string, rawEmails:
 
 function esc(s: string) {
   return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+}
+
+// Invitations still waiting for this name row (older tokens carried the row id before a dot).
+export async function openInvitesFor(groupId: string, memberId: string) {
+  return db.invite.findMany({
+    where: { groupId, acceptedAt: null, declinedAt: null, OR: [{ memberId }, { token: { startsWith: `${memberId}.` } }] },
+    select: { id: true, email: true, invitedById: true },
+  });
+}
+
+export const CANCEL_NOT_ALLOWED = "Only the person who looks after the group, or the person who sent the invitation, can cancel it.";
+
+// "Cancel invitation": for a name whose invitation went to the wrong address (or the person signs in with another one).
+// Closes the open invitations for the name (all of them for the admin, only their own for the person who sent them); it goes back to being a plain name that "That's me" can take.
+// Only the person who looks after the group or whoever sent the invitation may do it. Nothing about balances changes.
+export async function cancelInvitation(groupId: string, actorId: string, memberId: string): Promise<{ ok: true; cancelled: number } | { ok: false; error: string }> {
+  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true, name: true, leftAt: true, removedAt: true } } } });
+  if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
+  const actor = group.members.find((m) => m.id === actorId);
+  if (!actor || actor.leftAt) return { ok: false, error: "Only people in this group can do this." };
+  const member = group.members.find((m) => m.id === memberId);
+  if (!member) return { ok: false, error: "That name isn't in this group." };
+  const open = await openInvitesFor(groupId, memberId);
+  if (!open.length) return { ok: false, error: "There is no open invitation for that name." };
+  // The admin cancels every open invitation for the name; anyone else only the ones they sent.
+  const admin = await isAdmin(groupId, actorId);
+  const mine = admin ? open : open.filter((i) => i.invitedById === actorId);
+  if (!mine.length) return { ok: false, error: CANCEL_NOT_ALLOWED };
+  const r = await db.invite.updateMany({ where: { id: { in: mine.map((i) => i.id) }, acceptedAt: null, declinedAt: null }, data: { declinedAt: new Date() } });
+  await logEvent(db, { groupId, actorId, kind: "member_invited", text: `cancelled the invitation for ${member.name}` });
+  return { ok: true, cancelled: r.count };
 }
 
 // "Invite by email" for someone added by name only (before email sign-up):
@@ -289,13 +337,36 @@ export async function inviteToClaim(groupId: string, actorId: string, memberId: 
   const member = group?.members.find((m) => m.id === memberId && !m.leftAt && !m.removedAt);
   if (!group || group.deletedAt || !actor) return { ok: false, error: "Only people in this group can invite." };
   if (!member || member.accountId || member.claimedAt) return { ok: false, error: "That person is already on Loopin." };
-  await db.invite.upsert({
-    where: { groupId_email: { groupId, email } },
-    create: { groupId, email, invitedById: actorId },
-    update: { invitedById: actorId, acceptedAt: null, createdAt: new Date() },
-  });
-  const link = `${origin}/join/${group.inviteCode}?${new URLSearchParams({ e: email, as: member.id })}`;
+  // A name that already has an open invitation can be changed by the admin or by the person who sent it (the same people who can
+  // cancel it), not by any member: otherwise anyone could point it at their own address and take the name over.
+  const open = await openInvitesFor(groupId, memberId);
+  const admin = await isAdmin(groupId, actorId);
+  if (open.length && !admin && !open.every((i) => i.invitedById === actorId)) {
+    const by = group.members.find((m) => m.id === open[0].invitedById)?.name ?? "someone";
+    return { ok: false, error: `${member.name} is already invited (by ${by}). Only ${by} or the person who looks after the group can change that.` };
+  }
+  // This email may already be invited as a different name: moving it would quietly free that name.
+  const prior = await db.invite.findUnique({ where: { groupId_email: { groupId, email } } });
+  const priorOpen = Boolean(prior && !prior.acceptedAt && !prior.declinedAt);
+  if (prior && priorOpen && inviteMemberId(prior) !== memberId) {
+    const holds = group.members.find((m) => m.id === inviteMemberId(prior) && !m.accountId && !m.claimedAt && !m.leftAt && !m.removedAt);
+    if (holds) return { ok: false, error: alreadyInvitedAs(holds.name) };
+  }
+  // The daily email allowance is checked before anything changes, so going over it leaves the old invitation as it was.
   if (!(await inviteMailOk(actor))) return { ok: false, error: `You've sent ${INVITE_EMAILS_PER_DAY} invite emails today. Share the group's invite link instead.` };
+  // The invitation is for this one name. Any older open invitation for the same name (a typo, the wrong address) is closed,
+  // so only the newest email can take it. The same email asked again just refreshes its own invitation (and keeps its sender).
+  const older = open.filter((i) => i.email !== email);
+  const sender = prior && priorOpen && inviteMemberId(prior) === memberId ? prior.invitedById : actorId;
+  await db.$transaction([
+    db.invite.updateMany({ where: { id: { in: older.map((i) => i.id) }, acceptedAt: null, declinedAt: null }, data: { declinedAt: new Date() } }),
+    db.invite.upsert({
+      where: { groupId_email: { groupId, email } },
+      create: { groupId, email, invitedById: actorId, memberId },
+      update: { invitedById: sender, acceptedAt: null, declinedAt: null, createdAt: new Date(), memberId },
+    }),
+  ]);
+  const link = `${origin}/join/${group.inviteCode}?${new URLSearchParams({ e: email, as: member.id })}`;
   const sent = await sendMail(
     email,
     `${actor.name} added you to ${group.name} on Loopin`,

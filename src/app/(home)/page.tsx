@@ -32,7 +32,7 @@ import { itemHref } from "@/lib/paths";
 import { restoreGroup } from "@/app/actions";
 import { db } from "@/lib/db";
 import { leaverOf } from "@/lib/left-view-db";
-import { gameVisible } from "@/lib/left-view";
+import { gameVisible, stillIn } from "@/lib/left-view";
 import { canUndo } from "@/lib/undo";
 import { UndoBar } from "@/components/UndoBar";
 import { PersonIcon, iconButtonClass } from "@/components/icons";
@@ -163,14 +163,16 @@ export default async function Home({
   );
   const region = visitorRegion(await headers());
   const season = seasonNow(new Date(), tz, region.country);
-  const byActivity = [...open].sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
+  // Stories about how a group is now (countdown, a year ago, just back, wrapped, hero) skip groups the viewer left.
+  const live = stillIn(open);
+  const byActivity = [...live].sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
   // The balance card's big number (all groups together, or per currency).
   const heroText = netCommon
     ? `${netCommon.converted ? "≈ " : ""}${netCommon.value > 0 ? "+" : netCommon.value < 0 ? "−" : ""}${formatMoney(Math.abs(netCommon.value), common)}`
     : netLines.join(" · ");
   // Trip countdowns: trips with a start day, happening now first, then the soonest (up to a year out).
   const today = todayKey(new Date(), tz);
-  const trips = open
+  const trips = live
     .filter((g) => g.group.type === "trip" && g.group.tripStart)
     .map((g) => ({ g, phase: tripPhase(g.group.tripStart, g.group.tripEnd, today) }))
     .filter((t): t is { g: (typeof open)[number]; phase: TripPhase } => Boolean(t.phase) && t.phase!.kind !== "after" && (t.phase!.kind !== "before" || t.phase!.days <= 365))
@@ -286,7 +288,7 @@ export default async function Home({
           dueNames: c.entries.filter((e) => e.status === "due").map((e) => first(e.name)),
         };
       }),
-    memories: all
+    memories: stillIn(all)
       .filter((g) => g.group.type === "trip" && g.group.tripStart)
       .flatMap((g) => {
         const start = g.group.tripStart;
@@ -310,7 +312,7 @@ export default async function Home({
         ];
       }),
     // A trip that ended in the last two weeks: its Wrapped.
-    wrapped: open
+    wrapped: live
       .filter((g) => g.group.type === "trip" && g.group.tripStart && g.expenses.length >= 3)
       .flatMap((g) => {
         const ended = daysBetween(g.group.tripEnd || g.group.tripStart, today);
@@ -378,7 +380,7 @@ export default async function Home({
         todaySpent: t.phase.kind === "before" ? undefined : todayIn(t.g).spent || undefined,
       };
     }),
-    justBack: open
+    justBack: live
       .filter((g) => g.group.type === "trip" && g.group.tripStart && g.expenses.length > 0)
       .map((g) => ({ g, ended: daysBetween(g.group.tripEnd || g.group.tripStart, today) }))
       .filter(({ ended }) => ended >= 1 && ended <= 14)

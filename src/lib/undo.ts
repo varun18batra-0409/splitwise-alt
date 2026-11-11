@@ -216,7 +216,12 @@ async function revertExpense(expenseId: string, before: Parameters<typeof expens
   const changes = diffExpense(current, before, nameOf);
   const { shares, ...fields } = before;
 
-  const eventId = await db.$transaction(async (tx) => {
+  // Checked again inside the transaction: a bill run could have counted the charge since the first look.
+  let eventId: string;
+  try {
+   eventId = await db.$transaction(async (tx) => {
+    const lockedNow = await chargeLock(tx, e.groupId, expenseId);
+    if (lockedNow) throw new ChargeLockedNow(lockedNow.bill);
     await tx.expenseShare.deleteMany({ where: { expenseId } });
     await tx.expense.update({
       where: { id: expenseId },
@@ -232,9 +237,15 @@ async function revertExpense(expenseId: string, before: Parameters<typeof expens
       undo: { type: "expense_revert", expenseId, before: current },
       touches: touchedByExpense(current, before),
     });
-  });
+   });
+  } catch (err) {
+    if (err instanceof ChargeLockedNow) return { ok: false, error: chargeLockedText(err.message) };
+    throw err;
+  }
   return { ok: true, eventId };
 }
+
+class ChargeLockedNow extends Error {}
 
 // Rename / markup / second currency / close-reopen back to what it was.
 async function applyGroupSettings(

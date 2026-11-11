@@ -32,12 +32,24 @@ export const PART_NAMES = ["bills", "reminders", "countdowns", "budgets", "summa
 // that the morning run had already done or had no reason to send. Rows are small and removed after a week.
 const deferredPrefix = (today: string) => `daily-deferred:${today}:`;
 
-export async function recordDeferred(now: Date, parts: string[]): Promise<void> {
+// Returns true when every part is written down (already being there counts). False when a write failed: the caller
+// must then NOT mark the day finished, so the evening run does everything instead of trusting an incomplete list.
+// `write` is only swapped in tests (to make a write fail).
+type Write = (key: string, now: Date) => Promise<unknown>;
+const writeNote: Write = (key, now) => db.notifyLog.create({ data: { key, state: "done", createdAt: now } });
+
+export async function recordDeferred(now: Date, parts: string[], write: Write = writeNote): Promise<boolean> {
   const today = dayKey(now, DEFAULT_TIME_ZONE);
+  let all = true;
   for (const part of new Set(parts)) {
     if (!(PART_NAMES as readonly string[]).includes(part)) continue;
-    await db.notifyLog.create({ data: { key: `${deferredPrefix(today)}${part}`, state: "done", createdAt: now } }).catch(() => undefined); // already noted
+    try {
+      await write(`${deferredPrefix(today)}${part}`, now);
+    } catch (err) {
+      if ((err as { code?: string } | null)?.code !== "P2002") all = false; // P2002: already noted, which is fine
+    }
   }
+  return all;
 }
 
 // The morning run writes `daily-started:<day>` when it begins and `daily-finished:<day>` when it is through.
@@ -51,6 +63,19 @@ async function note(key: string, now: Date) {
 }
 export const markDailyStarted = (now: Date) => note(startedKey(dayKey(now, DEFAULT_TIME_ZONE)), now);
 export const markDailyFinished = (now: Date) => note(finishedKey(dayKey(now, DEFAULT_TIME_ZONE)), now);
+
+// The end of the morning run: write down what is left, then (only if that worked) mark the day finished.
+// Returns whether the day was marked finished. If any write failed it is not, so the evening runs everything.
+export async function finishDailyRun(now: Date, leftParts: string[], write: Write = writeNote): Promise<boolean> {
+  const recorded = await recordDeferred(now, leftParts, write).catch(() => false);
+  if (!recorded) return false;
+  try {
+    await write(finishedKey(dayKey(now, DEFAULT_TIME_ZONE)), now);
+  } catch (err) {
+    if ((err as { code?: string } | null)?.code !== "P2002") return false;
+  }
+  return true;
+}
 
 export async function dailyState(now: Date): Promise<{ started: boolean; finished: boolean }> {
   const today = dayKey(now, DEFAULT_TIME_ZONE);

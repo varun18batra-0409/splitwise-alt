@@ -434,3 +434,76 @@ describe("joining", () => {
     return r.ok;
   }));
 });
+
+// ---- Round 3 gaps ----
+describe("people who left, and other groups", () => {
+  it("the spreadsheet is refused 30 days after leaving (left and removed people), but not before", async () => {
+    const c = await cast();
+    const w = await world(c, "export-30");
+    const old = new Date(Date.now() - 31 * 86_400_000);
+    await db.member.update({ where: { id: w.rows.lou }, data: { leftAt: old } });
+    await db.member.update({ where: { id: w.rows.rex }, data: { leftAt: old, removedAt: old } });
+    const got: Record<string, number> = {};
+    for (const p of ["left", "removed", "member"] as Persona[]) {
+      await signIn(c, p);
+      got[p] = (await exportRoute.GET(new Request("http://loopin.test/export"), { params: Promise.resolve({ id: w.id }) })).status;
+    }
+    expect(got).toEqual({ left: 403, removed: 403, member: 200 });
+    // Left yesterday (the usual cast): still allowed.
+    await db.member.update({ where: { id: w.rows.lou }, data: { leftAt: yesterday() } });
+    await signIn(c, "left");
+    expect((await exportRoute.GET(new Request("http://loopin.test/export"), { params: Promise.resolve({ id: w.id }) })).status).toBe(200);
+  });
+
+  it("an expense created after someone left is not in their spreadsheet or their view of the group, but the members see it", async () => {
+    const c = await cast();
+    const w = await world(c, "late");
+    const late = `LATE-${stamp}-${++counter}`;
+    await db.expense.create({
+      data: { groupId: w.id, description: late, splitType: "equal", amount: 4000, originalAmount: 4000, convertedAmount: 4000, paidById: w.rows.asha, createdById: w.rows.asha, shares: { create: [{ memberId: w.rows.asha, amount: 2000 }, { memberId: w.rows.meera, amount: 2000 }] } },
+    });
+    const csvFor = async (p: Persona) => {
+      await signIn(c, p);
+      const res = await exportRoute.GET(new Request("http://loopin.test/export"), { params: Promise.resolve({ id: w.id }) });
+      expect(res.status).toBe(200);
+      return res.text();
+    };
+    expect(await csvFor("left")).not.toContain(late);
+    expect(await csvFor("removed")).not.toContain(late);
+    expect(await csvFor("member")).toContain(late);
+    expect(await csvFor("member")).toContain("Seed"); // the older expense is still there for everyone
+
+    const { loadGroup } = await import("@/lib/group-data");
+    const lou = await loadGroup(w.id, { viewer: w.rows.lou });
+    expect(lou?.group.expenses.some((e) => e.description === late)).toBe(false);
+    expect(lou?.expenses.some((e) => e.description === "Seed")).toBe(true);
+    const asha = await loadGroup(w.id, { viewer: w.rows.asha });
+    expect(asha?.expenses.some((e) => e.description === late)).toBe(true);
+  });
+
+  it("someone who left can't bring back another person who left; members can", () => table("bring-back-other", ["admin", "member"], async (_p, w) => {
+    const quin = await db.member.create({ data: { groupId: w.id, name: "Quin", leftAt: yesterday() } });
+    await attempt(() => A.setPersonLeft(form({ groupId: w.id, memberId: quin.id, left: "0" })));
+    return (await db.member.findUniqueOrThrow({ where: { id: quin.id } })).leftAt === null;
+  }, { ledger: false }));
+
+  it("an expense from another group can't be edited or deleted through this group", async () => {
+    const c = await cast();
+    const x = await world(c, "own-group");
+    const y = await world(c, "other-group");
+    await signIn(c, "member"); // Meera is in both groups
+    expect(await actorOf(x)).toBe(x.rows.meera);
+    await attempt(() => A.addExpense(expenseInput(x, { expenseId: y.seed, name: "Hijacked" })));
+    await attempt(() => A.deleteExpense(form({ groupId: x.id, expenseId: y.seed })));
+    await attempt(() => A.restoreExpense(form({ groupId: x.id, expenseId: y.seed })));
+    expect(await db.expense.findUniqueOrThrow({ where: { id: y.seed } })).toMatchObject({ description: "Seed", deletedAt: null });
+    expect(await db.expense.count({ where: { description: "Hijacked" } })).toBe(0);
+    // And a person who is only in group X can't touch group Y's expense at all.
+    const lone = await account("Lone");
+    const solo = await db.group.create({ data: { name: `Solo ${stamp} ${++counter}`, inviteCode: `solo-${counter}-${stamp}`, members: { create: [{ name: "Lone", accountId: lone.id, claimedAt: new Date() }] } } });
+    groupIds.push(solo.id);
+    state.cookie = await encodeSession({ m: {}, a: lone.id, v: 0, t: today() });
+    await attempt(() => A.deleteExpense(form({ groupId: solo.id, expenseId: y.seed })));
+    expect((await db.expense.findUniqueOrThrow({ where: { id: y.seed } })).deletedAt).toBeNull();
+  });
+});
