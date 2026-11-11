@@ -225,3 +225,16 @@ describe("DEF-041: being added by someone doesn't open your passport to them", (
     }
   });
 });
+
+// NEG-07 (outside review): a 300-letter name must save, shortened to 80.
+describe("a very long expense name", () => {
+  it("saves, cut to 80 characters", async () => {
+    const g = await group("Long", "INR", ["A", "B"]);
+    const name = `Audit long ${"x".repeat(290)}`;
+    const r = await saveExpense(base(g.id, g.m("A"), { name, amount: "50" }), g.m("A"), rate());
+    expect(r.ok).toBe(true);
+    const e = await db.expense.findFirstOrThrow({ where: { groupId: g.id } });
+    expect(e.description).toBe(name.slice(0, 80));
+    expect(e.amount).toBe(5000);
+  });
+});

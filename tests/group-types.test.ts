@@ -110,7 +110,8 @@ describe("changing how costs are shared", () => {
 describe("your own photo while making a group", () => {
   it("is saved with the group when picked as the picture; junk or an unpicked photo is ignored", async () => {
     const me = await db.account.findFirstOrThrow({ where: { email: `me-gt-${stamp}@example.com` } });
-    const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, ...new Array(200).fill(7)]);
+    // A well-formed JPEG: start, a JFIF block, the picture data, end.
+    const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x07, 0x4a, 0x46, 0x49, 0x46, 0x00, 0xff, 0xda, 0x00, 0x04, 0x01, 0x02, ...new Array(200).fill(7), 0xff, 0xd9]);
     const withPhoto = await createGroupFor(me, { type: "trip", name: "Goa", yourName: "Varun", currency: "INR", cover: "own", photo: jpeg });
     const junk = await createGroupFor(me, { type: "trip", name: "Goa 2", yourName: "Varun", currency: "INR", cover: "own", photo: new Uint8Array([1, 2, 3, 4, 5]) });
     const notPicked = await createGroupFor(me, { type: "trip", name: "Goa 3", yourName: "Varun", currency: "INR", cover: "mountain", photo: jpeg });
@@ -127,6 +128,13 @@ describe("your own photo while making a group", () => {
     const two = await look(junk.id);
     expect(two.g.cover).toBe("");
     expect(two.photo).toBeNull();
+
+    // A JPEG whose blocks can't be read (so its hidden details can't be checked) is left out too.
+    const broken = await createGroupFor(me, { type: "trip", name: "Goa 4", yourName: "Varun", currency: "INR", cover: "own", photo: new Uint8Array([0xff, 0xd8, 0xff, 0xe0, ...new Array(200).fill(7)]) });
+    made.push(broken.id);
+    const four = await look(broken.id);
+    expect(four.g.cover).toBe("");
+    expect(four.photo).toBeNull();
 
     const three = await look(notPicked.id);
     expect(three.g.cover).toBe("mountain");

@@ -12,7 +12,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { base, bypass, hosted, withBypass } from "./hosted";
-import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
+import { chromium, type Browser, type BrowserContext, type Page, type Route } from "playwright";
 import { db } from "../src/lib/db";
 import { netBalances } from "../src/lib/balances";
 
@@ -1985,6 +1985,46 @@ async function main() {
     const x = await person(browser);
     const outside = await x.page.request.get(`${base}/api/receipt/${r!.id}`, { headers: bypass });
     assert(outside.status() === 404, `someone outside the group got ${outside.status()}`);
+    await x.ctx.close();
+  });
+  // UAT-REV-10 (outside review): on a slow connection, the button says Saving…
+  // and can't be pressed again, and the expense is saved exactly once.
+  await step(V, "Add", "Slow connection: Save shows Saving… and stays off; a second tap adds nothing; saved once", async () => {
+    const o = { me: "Varun" as Person, name: "Slow line chai", amount: "45" };
+    await go(V, `${g}/add`);
+    await fillExpense(V, o);
+    // Every request to the server waits 2.5 s.
+    const slow = async (route: Route) => {
+      if (route.request().method() === "POST") await new Promise((r) => setTimeout(r, 2500));
+      await route.continue();
+    };
+    await V.route("**/*", slow);
+    try {
+      const btn = V.getByRole("button", { name: /^(Save expense|Saving…)$/ });
+      await btn.click();
+      await V.getByRole("button", { name: "Saving…" }).waitFor({ timeout: 2000 });
+      assert(await V.getByRole("button", { name: "Saving…" }).isDisabled(), "the button could still be pressed while saving");
+      await V.getByRole("button", { name: "Saving…" }).click({ force: true, timeout: 1000 }).catch(() => {});
+      const dup = V.getByRole("button", { name: "It’s a different one" });
+      const done = await Promise.race([V.waitForURL(/tab=activity/, { timeout: 20_000 }).then(() => "saved"), dup.waitFor({ timeout: 20_000 }).then(() => "dup")]).catch(() => "timeout");
+      if (done === "dup") {
+        await dup.click();
+        await V.waitForURL(/tab=activity/, { timeout: 20_000 });
+      }
+    } finally {
+      await V.unroute("**/*", slow);
+    }
+    const n = await db.expense.count({ where: { groupId: g.split("/").pop()!, description: "Slow line chai" } });
+    assert(n === 1, `saved ${n} times`);
+  });
+  // NEG-18 (outside review): checked properly this time, signed in and signed out.
+  await step(V, "Postcards", "A postcard link that doesn't exist: signed in → 'This screen isn't here'; signed out → sign-in first", async () => {
+    const r = await V.goto(`${base}/postcards/not-a-real-card`, { waitUntil: "load" });
+    assert(r?.status() === 404, `signed in: status ${r?.status()}`);
+    await V.getByText("This screen isn’t here any more").waitFor();
+    const x = await person(browser);
+    await x.page.goto(`${base}/postcards/not-a-real-card`, { waitUntil: "load" });
+    assert(new URL(x.page.url()).pathname === "/signin", `signed out: ended on ${x.page.url()}`);
     await x.ctx.close();
   });
   await step(V, "Edit", "Editing shows the bill photo already kept, with Replace and Remove; Remove takes it off when saved", async () => {
