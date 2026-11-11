@@ -94,14 +94,14 @@ export async function acceptInvitation(account: Account, key: string): Promise<A
   }
   const inv = key ? await db.invite.findFirst({ where: { token: key, email: account.email }, include: { group: { select: { id: true, inviteCode: true, deletedAt: true } } } }) : null;
   if (!inv || inv.group.deletedAt) return { ok: false, error: GONE };
+  // Closed on purpose (Not now, cancelled by the person who sent it, or replaced by an invitation to another address).
+  if (inv.declinedAt && !inv.acceptedAt) return { ok: false, error: CLOSED };
   const code = inv.group.inviteCode;
   const memberId = inviteMemberId(inv);
-  // The invitation is for one row. If that row is gone (undone) or was removed, the invitation is closed: no joining as someone new instead.
+  // The invitation is for one row. If that row is gone (undone) or was removed, there is nothing to join: no joining as someone new instead.
+  // The invitation itself is left as it is, so if the row comes back (Redo) the card comes back with it.
   const row = memberId ? await db.member.findFirst({ where: { id: memberId, groupId: inv.groupId } }) : null;
-  if (!row || (row.removedAt && row.accountId !== account.id)) {
-    await db.invite.updateMany({ where: { id: inv.id, acceptedAt: null }, data: { declinedAt: new Date() } });
-    return { ok: false, error: CLOSED };
-  }
+  if (!row || (row.removedAt && row.accountId !== account.id)) return { ok: false, error: CLOSED };
   let r: JoinOk | JoinFail;
   if (row.accountId === account.id) {
     // Left on their own and invited back to their own row: joining brings them back (joinNew also refuses a removed person).

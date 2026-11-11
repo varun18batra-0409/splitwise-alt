@@ -255,6 +255,34 @@ function esc(s: string) {
   return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 }
 
+// Invitations still waiting for this name row (older tokens carried the row id before a dot).
+export async function openInvitesFor(groupId: string, memberId: string) {
+  return db.invite.findMany({
+    where: { groupId, acceptedAt: null, declinedAt: null, OR: [{ memberId }, { token: { startsWith: `${memberId}.` } }] },
+    select: { id: true, email: true, invitedById: true },
+  });
+}
+
+export const CANCEL_NOT_ALLOWED = "Only the person who looks after the group, or the person who sent the invitation, can cancel it.";
+
+// "Cancel invitation": for a name whose invitation went to the wrong address (or the person signs in with another one).
+// Closes every open invitation for the name; it goes back to being a plain name that "That's me" can take.
+// Only the person who looks after the group or whoever sent the invitation may do it. Nothing about balances changes.
+export async function cancelInvitation(groupId: string, actorId: string, memberId: string): Promise<{ ok: true; cancelled: number } | { ok: false; error: string }> {
+  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true, name: true, leftAt: true, removedAt: true } } } });
+  if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
+  const actor = group.members.find((m) => m.id === actorId);
+  if (!actor || actor.leftAt) return { ok: false, error: "Only people in this group can do this." };
+  const member = group.members.find((m) => m.id === memberId);
+  if (!member) return { ok: false, error: "That name isn't in this group." };
+  const open = await openInvitesFor(groupId, memberId);
+  if (!open.length) return { ok: false, error: "There is no open invitation for that name." };
+  if (!open.some((i) => i.invitedById === actorId) && !(await isAdmin(groupId, actorId))) return { ok: false, error: CANCEL_NOT_ALLOWED };
+  const r = await db.invite.updateMany({ where: { id: { in: open.map((i) => i.id) }, acceptedAt: null, declinedAt: null }, data: { declinedAt: new Date() } });
+  await logEvent(db, { groupId, actorId, kind: "member_invited", text: `cancelled the invitation for ${member.name}` });
+  return { ok: true, cancelled: r.count };
+}
+
 // "Invite by email" for someone added by name only (before email sign-up):
 // the link opens the group's join page on "Continue as <name>", so their
 // expenses and balance stay theirs.
@@ -266,11 +294,17 @@ export async function inviteToClaim(groupId: string, actorId: string, memberId: 
   const member = group?.members.find((m) => m.id === memberId && !m.leftAt && !m.removedAt);
   if (!group || group.deletedAt || !actor) return { ok: false, error: "Only people in this group can invite." };
   if (!member || member.accountId || member.claimedAt) return { ok: false, error: "That person is already on Loopin." };
-  await db.invite.upsert({
-    where: { groupId_email: { groupId, email } },
-    create: { groupId, email, invitedById: actorId },
-    update: { invitedById: actorId, acceptedAt: null, createdAt: new Date() },
-  });
+  // The invitation is for this one name. Any older open invitation for the same name (a typo, the wrong address) is closed,
+  // so only the newest email can take it. The same email asked again just refreshes its own invitation.
+  const older = (await openInvitesFor(groupId, memberId)).filter((i) => i.email !== email);
+  await db.$transaction([
+    db.invite.updateMany({ where: { id: { in: older.map((i) => i.id) }, acceptedAt: null }, data: { declinedAt: new Date() } }),
+    db.invite.upsert({
+      where: { groupId_email: { groupId, email } },
+      create: { groupId, email, invitedById: actorId, memberId },
+      update: { invitedById: actorId, acceptedAt: null, declinedAt: null, createdAt: new Date(), memberId },
+    }),
+  ]);
   const link = `${origin}/join/${group.inviteCode}?${new URLSearchParams({ e: email, as: member.id })}`;
   if (!(await inviteMailOk(actor))) return { ok: false, error: `You've sent ${INVITE_EMAILS_PER_DAY} invite emails today. Share the group's invite link instead.` };
   const sent = await sendMail(

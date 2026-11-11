@@ -847,6 +847,15 @@ export async function invitePersonByEmail(formData: FormData) {
   redirect(`/groups/${group.id}/people?${r.ok ? new URLSearchParams({ invited: r.email }) : new URLSearchParams({ error: r.error })}`);
 }
 
+// People → a name with an open invitation → Cancel invitation (the admin, or the person who sent it).
+// The name goes back to being a plain name that "That's me" can take. Balances don't change.
+export async function cancelInvite(formData: FormData) {
+  const { group, me } = await memberContext(String(formData.get("groupId") ?? ""));
+  const { cancelInvitation } = await import("@/lib/invites");
+  const r = await cancelInvitation(group.id, me.id, String(formData.get("memberId") ?? ""));
+  redirect(`/groups/${group.id}/people?${r.ok ? new URLSearchParams({ cancelled: "1" }) : new URLSearchParams({ error: r.error })}`);
+}
+
 // You → Fingerprint / face sign-in → Remove (only your own passkeys).
 export async function removeMyPasskey(formData: FormData) {
   const account = await getAccount();

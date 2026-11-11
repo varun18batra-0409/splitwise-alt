@@ -182,7 +182,8 @@ describe("audit 8: Join after the invited name was taken out", () => {
     await signedInAs(lee.id);
     expect(await acceptInvitation(lee, inv.token)).toEqual({ ok: false, error: "This invitation is no longer open." });
     expect(await db.member.count({ where: { groupId: t.g.id, accountId: lee.id } })).toBe(0);
-    expect((await db.invite.findUniqueOrThrow({ where: { id: inv.id } })).declinedAt).not.toBeNull();
+    // Left as it is (not declined): if the name comes back, the invitation comes back with it.
+    expect((await db.invite.findUniqueOrThrow({ where: { id: inv.id } })).declinedAt).toBeNull();
   });
 
   it("name removed: refused the same way", async () => {
@@ -222,7 +223,8 @@ describe("audit 13: older people added straight in", () => {
     const quiet = await account("Quiet13b");
     const payer = await account("Payer13b");
     const usedRow = await db.member.create({ data: { groupId: t.g.id, name: "Used", accountId: used.id, claimedAt: new Date(), addedBy: t.ashaId } });
-    await db.expense.create({ data: { groupId: t.g.id, description: "Tea", splitType: "equal", amount: 1000, originalAmount: 1000, convertedAmount: 1000, paidById: usedRow.id, createdById: usedRow.id, shares: { create: [{ memberId: usedRow.id, amount: 500 }, { memberId: t.ashaId, amount: 500 }] } } });
+    const tea = await db.expense.create({ data: { groupId: t.g.id, description: "Tea", splitType: "equal", amount: 1000, originalAmount: 1000, convertedAmount: 1000, paidById: usedRow.id, createdById: usedRow.id, shares: { create: [{ memberId: usedRow.id, amount: 500 }, { memberId: t.ashaId, amount: 500 }] } } });
+    await db.groupEvent.create({ data: { groupId: t.g.id, actorId: usedRow.id, kind: "expense_added", text: "added Tea", expenseId: tea.id } });
     await signedInAs(used.id);
     expect(await getMemberships()).toEqual({ [t.g.id]: usedRow.id });
     expect((await db.member.findUniqueOrThrow({ where: { id: usedRow.id } })).seenAt).not.toBeNull();
@@ -234,7 +236,8 @@ describe("audit 13: older people added straight in", () => {
 
     // A payment they recorded counts too.
     const payRow = await db.member.create({ data: { groupId: t.g.id, name: "Payer", accountId: payer.id, claimedAt: new Date(), addedBy: t.ashaId } });
-    await db.payment.create({ data: { groupId: t.g.id, fromId: payRow.id, toId: t.ashaId, amount: 100, createdById: payRow.id } });
+    const pay = await db.payment.create({ data: { groupId: t.g.id, fromId: payRow.id, toId: t.ashaId, amount: 100, createdById: payRow.id } });
+    await db.groupEvent.create({ data: { groupId: t.g.id, actorId: payRow.id, kind: "payment_recorded", text: "paid Asha", paymentId: pay.id } });
     await signedInAs(payer.id);
     expect(await getMemberships()).toEqual({ [t.g.id]: payRow.id });
   });

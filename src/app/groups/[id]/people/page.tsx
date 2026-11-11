@@ -6,7 +6,7 @@ import { getMyMemberId } from "@/lib/identity";
 import { loadGroup } from "@/lib/group-data";
 import { canUndo } from "@/lib/undo";
 import { formatMoney } from "@/lib/money";
-import { invitePersonByEmail, removePerson, renamePerson, setPersonLeft } from "@/app/actions";
+import { cancelInvite, invitePersonByEmail, removePerson, renamePerson, setPersonLeft } from "@/app/actions";
 import { pickAdmin } from "@/lib/group-admin";
 import { Notice } from "@/components/Notice";
 import { Avatar, ErrorNote, PageHeader, inputClass } from "@/components/ui";
@@ -18,6 +18,8 @@ import { StaysGoes } from "@/components/StaysGoes";
 import { leaveText, removeText } from "@/lib/leave-text";
 import { groupPeople } from "@/lib/people";
 import { membersAsOf } from "@/lib/left-view";
+import { db } from "@/lib/db";
+import { inviteMemberId } from "@/lib/invites";
 
 // Everyone in the group: fix a name, remove someone (the admin) or
 // leave / bring back. Every change notifies the others and can be undone.
@@ -26,7 +28,7 @@ export default async function PeoplePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; did?: string; undone?: string; invited?: string }>;
+  searchParams: Promise<{ error?: string; did?: string; undone?: string; invited?: string; cancelled?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -53,6 +55,12 @@ export default async function PeoplePage({
   // Removing people or marking them as left is for the person who looks after the group.
   const admin = pickAdmin(group.members);
   const isAdmin = admin?.id === myId;
+  // Names with an invitation still waiting: who it went to is shown to whoever may cancel it (the admin, or the person who sent it).
+  const waiting = new Map<string, { email: string; mayCancel: boolean }>();
+  for (const i of await db.invite.findMany({ where: { groupId: group.id, acceptedAt: null, declinedAt: null }, orderBy: { createdAt: "desc" } })) {
+    const row = inviteMemberId(i);
+    if (row && !waiting.has(row)) waiting.set(row, { email: i.email, mayCancel: isAdmin || i.invitedById === myId });
+  }
   const justDid = sp.did ? group.events.find((x) => x.id === sp.did) : undefined;
   const nameOf = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");
   const small = "rounded-full border border-line px-4 py-2 text-sm font-medium text-fg active:bg-mist disabled:opacity-40";
@@ -92,6 +100,21 @@ export default async function PeoplePage({
               <Link href={`/groups/${group.id}/passport/${m.id}`} className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-xs font-semibold active:bg-mist">
                 <PassportIcon size={14} /> {m.name.trim().split(/\s+/)[0]}’s passport
               </Link>
+            )}
+            {!m.accountId && !m.claimedAt && !m.leftAt && waiting.has(m.id) && (
+              <div className="space-y-2" data-invited-row>
+                <p className="text-sm text-gray-500">
+                  Invited{waiting.get(m.id)!.mayCancel ? ` at ${waiting.get(m.id)!.email}` : ""}. Wrong address, or they sign in with another one? Cancel the invitation, or invite a different email below.
+                </p>
+                {waiting.get(m.id)!.mayCancel && (
+                  <form action={cancelInvite}>
+                    {hidden}
+                    <button type="submit" className={small}>
+                      Cancel invitation
+                    </button>
+                  </form>
+                )}
+              </div>
             )}
             {!m.accountId && !m.claimedAt && !m.leftAt && (
               <form action={invitePersonByEmail} className="space-y-2">
@@ -208,6 +231,11 @@ export default async function PeoplePage({
     <>
       <PageHeader title="People" back={`/groups/${group.id}/settings`} />
       {sp.error && <ErrorNote>{sp.error}</ErrorNote>}
+      {sp.cancelled && (
+        <Notice tone="success" params={["cancelled"]} className="mb-4">
+          Invitation cancelled. The name stays in the group, and can be claimed with “That’s me” or invited again.
+        </Notice>
+      )}
       {sp.invited && (
         <Notice tone="success" params={["invited"]} className="mb-4">
           Invite sent to {sp.invited.slice(0, 80)}. When they join, they take over their name with its expenses.

@@ -115,5 +115,12 @@ export function createdByCut(cut: LeaverCut | null, createdAt: Date): boolean {
   return !cut || createdAt.getTime() <= cut.leftAt.getTime();
 }
 
+// Home's trip countdown, "a year ago today", "just back", wrapped and the top cards are about how a group is NOW (its
+// current people, trip dates and totals). For a group the viewer left or was removed from they would show things
+// they no longer see, so those stories use only the groups the viewer is still in.
+export function stillIn<T extends { leaver?: unknown }>(groups: T[]): T[] {
+  return groups.filter((g) => !g.leaver);
+}
+
 // How long someone who left can still download the group's history.
 export const COPY_DAYS = 30;

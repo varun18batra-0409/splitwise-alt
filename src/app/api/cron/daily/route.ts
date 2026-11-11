@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { eraseExpiredGroups } from "@/lib/purge";
-import { PART_NAMES, makeStop, markDailyFinished, markDailyStarted, recordDeferred, runClaimedParts } from "@/lib/daily-job";
+import { PART_NAMES, makeStop, finishDailyRun, markDailyStarted, runClaimedParts } from "@/lib/daily-job";
 
 // The daily job (Vercel Cron, 06:00 India time): adds the bills that are due.
 // Safe to run more than once — every bill month is added at most once, and every
@@ -58,8 +58,8 @@ export async function GET(req: Request) {
   const main = await runClaimedParts(now, stop, failed);
   deferred.push(...main.deferred);
   // Write down what is left (ran out of time, failed, or waiting for the day) for the evening catch-up.
-  await recordDeferred(now, [...main.deferred, ...failed.filter((f) => (PART_NAMES as readonly string[]).includes(f))]).catch(() => undefined);
-  await markDailyFinished(now).catch(() => undefined);
+  // If writing the list down failed, the day is NOT marked finished: the evening then runs every part (each claims its work first).
+  await finishDailyRun(now, [...main.deferred, ...failed.filter((f) => (PART_NAMES as readonly string[]).includes(f))]);
   // Speed numbers are kept two weeks.
   const speedLogsRemoved = await part("cleanup", async () => (await db.speedLog.deleteMany({ where: { at: { lt: new Date(now.getTime() - 14 * 86_400_000) } } })).count);
   // Error records are kept 30 days, as the privacy page says.

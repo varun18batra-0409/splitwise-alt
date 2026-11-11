@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "@/lib/fresh-redirect";
 import { db } from "@/lib/db";
 import { logEvent } from "@/lib/events";
+import { PAY_LINK_MARK } from "@/lib/membership";
 import { formatMoney } from "@/lib/money";
 import { needsOkFor } from "@/lib/payment-ok";
 import { allow, clientIp } from "@/lib/rate-limit";
@@ -45,7 +46,7 @@ export async function iPaidAction(f: FormData) {
         groupId: s.group.id,
         actorId: s.link.fromId,
         kind: "payment_recorded",
-        text: `paid ${s.toName} ${amountText} (from the reminder link)`,
+        text: `paid ${s.toName} ${amountText} ${PAY_LINK_MARK}`,
         paymentId: p.id,
         undo: { type: "payment_delete", paymentId: p.id },
       });

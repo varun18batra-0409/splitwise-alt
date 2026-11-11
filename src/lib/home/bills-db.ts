@@ -9,6 +9,7 @@ import { joinWeights, parsePrepaid, type Prepaid } from "./moving";
 import { niceDate } from "../format";
 import { previousResult } from "../once";
 import { logEvent, touchedByExpense } from "../events";
+import { REPEAT_BILL_MARK } from "../membership";
 import type { Prisma } from "@prisma/client";
 
 // Recurring bills, database side. The daily job calls runAllBills(); each
@@ -235,7 +236,7 @@ async function runOne(bill: BillRow, group: { id: string; currency: string; clos
 
   const input = billExpenseInput(bill, group.id, group.currency, period, amount, payer, group.members);
   if (note) input.notes = note;
-  const r = await saveExpense(input, payer, sameCurrencyRate, { now, requestKey: key, eventText: `paid ${bill.name} (${formatMoney(amount, group.currency)}) · repeat bill` });
+  const r = await saveExpense(input, payer, sameCurrencyRate, { now, requestKey: key, eventText: `paid ${bill.name} (${formatMoney(amount, group.currency)}) ${REPEAT_BILL_MARK}` });
   if (!r.ok) return wait(r.error.slice(0, 120));
   // Added, and in the same step the move-out charge is credited to this month's payer.
   await db.$transaction(async (tx) => {
