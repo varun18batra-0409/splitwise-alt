@@ -50,6 +50,14 @@ export async function createGroup(formData: FormData) {
   const yourName = cleanNames([String(formData.get("yourName") ?? account.name ?? "")])[0];
   if (!groupName || !yourName) redirect("/groups/new?error=missing");
   if (!account.name) await db.account.update({ where: { id: account.id }, data: { name: yourName } });
+  // The same form sent twice (double tap, slow network) makes one group.
+  const rid = cleanKey(formData.get("rid"));
+  if (rid) {
+    const prev = await previousResult(rid);
+    if (prev !== null) redirect(prev ? `/groups/${prev}` : "/");
+    const claimed = await db.requestKey.create({ data: { key: rid, result: "" } }).then(() => true, (e) => (isDuplicateKey(e) ? false : Promise.reject(e)));
+    if (!claimed) redirect("/");
+  }
 
   const group = await createGroupFor(account, {
     type: String(formData.get("type") ?? "other"),
@@ -64,6 +72,7 @@ export async function createGroup(formData: FormData) {
     tripCountry: String(formData.get("tripCountry") ?? ""),
     photo: photoFrom(formData.get("photo")),
   });
+  if (rid) await db.requestKey.update({ where: { key: rid }, data: { result: group.id } }).catch(() => undefined);
   const me = group.members[0];
   await setMyMemberId(group.id, me.id);
   await copyPushTo(account.id, me.id);
@@ -193,7 +202,8 @@ export async function joinAsExisting(formData: FormData) {
 // Join as yourself (your verified account).
 export async function joinAsNew(formData: FormData) {
   const code = String(formData.get("code") ?? "");
-  if (!(await allow(`join:${(await originAndIp()).ip}`, 30, 3600))) redirect(`/join/${code}?error=busy`);
+  // Generous per network: a whole party can join on one venue's Wi-Fi.
+  if (!(await allow(`join:${(await originAndIp()).ip}`, 120, 3600))) redirect(`/join/${code}?error=busy`);
   const { group, account } = await joinContext(code);
   const mine = group.members.find((m) => m.accountId === account.id);
   if (mine) {

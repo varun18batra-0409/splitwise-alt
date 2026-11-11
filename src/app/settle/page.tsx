@@ -57,7 +57,8 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
                 <ul className="lp-rise space-y-2.5">
                   {list.map((it) => {
                     const amt = (n: number) => `${it.converted ? "≈ " : ""}${formatMoney(Math.abs(n), common)}`;
-                    const biggest = [...it.parts].sort((a, b) => b.amount - a.amount)[0];
+                    // Remind about a part where they owe you (never one where you're the one paying).
+                    const biggest = [...it.parts].filter((p) => !p.iPay).sort((a, b) => b.amount - a.amount)[0];
                     return (
                       <li
                         key={it.key}
