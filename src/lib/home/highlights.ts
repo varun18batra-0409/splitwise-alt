@@ -191,7 +191,7 @@ export function homeHighlights(x: HighlightInput): Highlight[] {
       kind: "card",
       tone: "rose",
       eyebrow: "Postcards",
-      title: "Send someone a postcard",
+      title: "Send a postcard",
       text: "A trip photo, a real-looking stamp and a wax seal. In Loopin or on WhatsApp.",
       button: "Write one",
       href: "/postcards/new",

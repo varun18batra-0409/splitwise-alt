@@ -80,7 +80,7 @@ export function AddExpenseForm({
   const [showDate, setShowDate] = useState(false);
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [showNotes, setShowNotes] = useState(Boolean(initial?.notes));
-  const [pickedCategory, setPickedCategory] = useState<string | null>(initial?.category ?? null); // null = smart guess
+  const [pickedCategory, setPickedCategory] = useState<string | null>(initial?.category || null); // null (or "") = smart guess from the name
   const [currency, setCurrency] = useState(initial?.currency ?? baseCurrency);
   const [showCurrencies, setShowCurrencies] = useState(false);
   const [showCategories, setShowCategories] = useState(false);
@@ -660,7 +660,7 @@ export function AddExpenseForm({
                   <li key={m.id} className="flex items-center gap-3 py-2">
                     <span className="flex-1">{who(m.id)}</span>
                     <span className="flex w-36 items-center rounded-xl border border-line px-3 focus-within:border-accent">
-                      <span className="text-xs text-gray-400">{currency}</span>
+                      <span className="nobreak shrink-0 text-xs text-gray-400">{currency}</span>
                       <input
                         inputMode="decimal"
                         placeholder="0"
@@ -766,7 +766,7 @@ export function AddExpenseForm({
                 <label className="flex items-center gap-2">
                   <span className="shrink-0 text-gray-600">1 {currency} =</span>
                   <span className="flex flex-1 items-center rounded-xl border border-gray-200 bg-white px-3 focus-within:border-accent">
-                    <span className="text-gray-400">{baseCurrency === "INR" ? "₹" : baseCurrency}</span>
+                    <span className="nobreak shrink-0 text-gray-400">{baseCurrency === "INR" ? "₹" : baseCurrency}</span>
                     <input
                       value={manualRate}
                       onChange={(e) => setManualRate(e.target.value)}
@@ -1026,7 +1026,7 @@ export function AddExpenseForm({
                               className="min-w-0 flex-1 bg-transparent py-2 outline-none"
                             />
                             <span className="flex w-28 shrink-0 items-center rounded-xl border border-line px-2.5 focus-within:border-accent">
-                              <span className="text-xs text-gray-400">{currency}</span>
+                              <span className="nobreak shrink-0 text-xs text-gray-400">{currency}</span>
                               <input
                                 inputMode="decimal"
                                 placeholder="0"
@@ -1137,7 +1137,7 @@ export function AddExpenseForm({
                       <li key={id} className="flex items-center gap-3 py-2">
                         <span className="flex-1">{who(id)}</span>
                         <span className="flex w-36 items-center rounded-xl border border-gray-200 px-3 focus-within:border-accent">
-                          {splitType === "exact" && <span className="text-xs text-gray-400">{currency}</span>}
+                          {splitType === "exact" && <span className="nobreak shrink-0 text-xs text-gray-400">{currency}</span>}
                           <input
                             inputMode="decimal"
                             placeholder="0"
@@ -1288,14 +1288,14 @@ function Segmented({
   onChange: (id: string) => void;
 }) {
   return (
-    <div className="grid gap-1 rounded-full bg-mist p-1" style={{ gridTemplateColumns: `repeat(${options.length}, 1fr)` }}>
+    <div className="grid gap-1 rounded-full bg-mist p-1" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(max-content, 1fr))` }}>
       {options.map((o) => (
         <button
           key={o.id}
           type="button"
           onClick={() => onChange(o.id)}
           aria-pressed={o.id === value}
-          className={`rounded-full py-2 font-semibold ${options.length > 4 ? "px-0.5 text-[13px]" : "text-sm"} ${o.id === value ? "bg-fg text-canvas" : "text-fg/55"}`}
+          className={`nobreak rounded-full py-2 font-semibold ${options.length > 4 ? "px-0.5 text-[13px]" : "text-sm"} ${o.id === value ? "bg-fg text-canvas" : "text-fg/55"}`}
         >
           {o.label}
         </button>

@@ -2,7 +2,7 @@
 export const SITE_URL = "https://www.loopinapps.com";
 export const SITE_TITLE = "Loopin — split expenses with friends, flatmates & couples";
 export const SITE_DESCRIPTION =
-  "Free, no-ads app to split bills and shared expenses: trips, flat rent and bills, couples. Any currency, repeat bills, the fewest payments to settle up. Works on Android and iPhone.";
+  "Free, no-ads app to split bills and shared expenses: trips, flat rent and bills, couples. Any currency, repeat bills, fewer payments to settle up. Works on Android and iPhone.";
 
 // Screens that are public and worth finding in search. Everything else is
 // someone's own groups, sign-in or a form, and stays out of search.

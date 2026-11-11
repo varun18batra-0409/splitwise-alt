@@ -1,0 +1,219 @@
+import { afterAll, describe, expect, it } from "vitest";
+import { db } from "@/lib/db";
+import { eraseGroups } from "@/lib/purge";
+import { netBalances } from "@/lib/balances";
+import { saveExpense, setExpenseDeleted, type SaveExpenseInput } from "@/lib/save-expense";
+import { changeGroupCurrency } from "@/lib/group-changes";
+import { undoEvent } from "@/lib/undo";
+import { finishGame, recordMove, reopenGame, startGame } from "@/lib/pot-db";
+import { parsePayers } from "@/lib/payers";
+import type { RateAnswer } from "@/lib/rate-cache";
+
+// Independent review (Fable, 11 Nov 2026): tests written to try to break the
+// books, separately from the earlier audit's scripts. Each test states the
+// behaviour a user would expect; a failure is a finding.
+
+const groups: string[] = [];
+afterAll(async () => {
+  await eraseGroups(groups);
+});
+const rate = (r = "1") => async (): Promise<RateAnswer> => ({ ok: true, rate: r, date: "2026-11-11" });
+const draft = (groupId: string, paidById: string, over: Partial<SaveExpenseInput> = {}): SaveExpenseInput => ({
+  groupId, name: "Dinner", category: "", amount: "900", currency: "INR", paidById, forMode: "everyone",
+  selected: [], onePersonId: "", splitType: "equal", exact: {}, percent: {}, paymentMethod: "cash",
+  markupChoice: "group", markupCustom: "", rateMode: "auto", manualRate: "", ...over,
+});
+async function group(type: string, currency: string, names: string[]) {
+  const g = await db.group.create({
+    data: { name: `Break ${type}`, type, currency, inviteCode: `fb-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, members: { create: names.map((name) => ({ name })) } },
+    include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
+  });
+  groups.push(g.id);
+  return { id: g.id, ids: names.map((n) => g.members.find((m) => m.name === n)!.id) };
+}
+async function books(groupId: string) {
+  const members = await db.member.findMany({ where: { groupId }, select: { id: true } });
+  const [expenses, payments] = await Promise.all([
+    db.expense.findMany({ where: { groupId, deletedAt: null }, include: { shares: true } }),
+    db.payment.findMany({ where: { groupId, deletedAt: null } }),
+  ]);
+  return { net: netBalances(members.map((m) => m.id), expenses, payments), expenses, payments };
+}
+// Every expense's shares (and payers, when more than one) add up to its total, and the group nets to zero.
+async function sound(groupId: string) {
+  const { net, expenses } = await books(groupId);
+  expect(Object.values(net).reduce((s, v) => s + v, 0)).toBe(0);
+  for (const e of expenses) {
+    expect(e.shares.reduce((s, x) => s + x.amount, 0), `shares of ${e.description}`).toBe(e.amount);
+    const p = parsePayers(e.payers);
+    if (p.length) expect(p.reduce((s, x) => s + x.amount, 0), `payers of ${e.description}`).toBe(e.amount);
+  }
+  return net;
+}
+// Small repeatable random numbers (no Math.random, so a failure can be re-run).
+function rng(seed: number) {
+  let s = seed >>> 0;
+  return () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296);
+}
+
+describe("changing the group currency converts everything that holds money", () => {
+  it("a flat's bill, budget, goal, deposit and settle-up minimum follow the new currency, not just the expenses", async () => {
+    const g = await group("home", "INR", ["A", "B"]);
+    const [a, b] = g.ids;
+    expect((await saveExpense(draft(g.id, a, { name: "Groceries", amount: "2400" }), a, rate())).ok).toBe(true);
+    const bill = await db.bill.create({ data: { groupId: g.id, name: "Cook", nature: "fixed", amount: 600000, startMonth: "2026-11", payer: a } });
+    await db.budget.create({ data: { groupId: g.id, category: "food", amount: 1500000 } });
+    const goal = await db.goal.create({ data: { groupId: g.id, name: "Bali", target: 3200000, entries: { create: [{ memberId: a, amount: 500000 }] } } });
+    const dep = await db.deposit.create({ data: { groupId: g.id, shares: { create: [{ memberId: a, amount: 2500000 }, { memberId: b, amount: 2500000 }] } } });
+    await db.group.update({ where: { id: g.id }, data: { settleMin: 10000 } });
+
+    // ₹ → $ at 0.012: ₹6,000 should become $72, not $6,000.
+    const r = await changeGroupCurrency(g.id, a, "USD", "0.012");
+    expect(r.ok).toBe(true);
+    expect((await db.group.findUnique({ where: { id: g.id } }))!.currency).toBe("USD");
+    const exp = await db.expense.findFirst({ where: { groupId: g.id } });
+    expect(exp!.amount).toBe(2880); // the expense is converted: $28.80
+
+    const after = {
+      bill: (await db.bill.findUnique({ where: { id: bill.id } }))!.amount,
+      budget: (await db.budget.findFirst({ where: { groupId: g.id } }))!.amount,
+      goalTarget: (await db.goal.findUnique({ where: { id: goal.id } }))!.target,
+      goalEntry: (await db.goalEntry.findFirst({ where: { goalId: goal.id } }))!.amount,
+      deposit: (await db.depositShare.findFirst({ where: { depositId: dep.id } }))!.amount,
+      settleMin: (await db.group.findUnique({ where: { id: g.id } }))!.settleMin,
+    };
+    console.log("FABLE currency-change, other money after INR→USD at 0.012:", JSON.stringify(after));
+    expect(after).toEqual({ bill: 7200, budget: 18000, goalTarget: 38400, goalEntry: 6000, deposit: 30000, settleMin: 120 });
+  });
+
+  it("an open card game's buy-ins follow the new currency", async () => {
+    const g = await group("pot", "INR", ["A", "B", "C"]);
+    const [a, b, c] = g.ids;
+    const s = await startGame(g.id, a, { name: "", game: "poker", players: [a, b, c] });
+    if (!s.ok) throw new Error(s.error);
+    for (const who of [a, b, c]) expect((await recordMove(s.id, a, { memberId: who, kind: "take", amount: "2000" })).ok).toBe(true);
+    expect((await changeGroupCurrency(g.id, a, "USD", "0.012")).ok).toBe(true);
+    const moves = await db.potMove.findMany({ where: { gameId: s.id } });
+    console.log("FABLE pot buy-ins after INR→USD:", moves.map((m) => m.amount).join(","));
+    expect(moves.every((m) => m.amount === 2400)).toBe(true); // ₹2,000 → $24.00
+  });
+});
+
+describe("currency change and back: nothing drifts", () => {
+  it("INR → USD → undo, then INR → JPY → undo, with foreign, refund and two-payer expenses: books stay sound and return exactly", { timeout: 120_000 }, async () => {
+    const g = await group("trip", "INR", ["A", "B", "C", "D"]);
+    const [a, b, c, d] = g.ids;
+    const add = async (who: string, over: Partial<SaveExpenseInput>) => {
+      const r = await saveExpense(draft(g.id, who, over), who, rate("2.803"));
+      if (!r.ok) throw new Error(r.error);
+    };
+    await add(a, { name: "Flights", amount: "48000.01" });
+    await add(b, { name: "Dinner THB", amount: "3333", currency: "THB", paymentMethod: "card", markupChoice: "custom", markupCustom: "3.5" });
+    await add(c, { name: "Thirds", amount: "100", forMode: "selected", selected: [a, b, c] });
+    await add(d, { name: "Percent", amount: "999.99", splitType: "percent", percent: { [a]: "33.33", [b]: "33.33", [c]: "33.34", [d]: "0" } });
+    await add(a, { name: "Refund", amount: "250.50", kind: "refund" });
+    await add(a, { name: "Two payers", amount: "1001", multiPay: true, payers: { [a]: "500.5", [b]: "500.5" } });
+    await db.payment.create({ data: { groupId: g.id, fromId: d, toId: a, amount: 123457, createdById: d } });
+    const start = await sound(g.id);
+
+    for (const [cur, r] of [["USD", "0.0119"], ["JPY", "1.7731"]] as const) {
+      const ch = await changeGroupCurrency(g.id, a, cur, r);
+      if (!ch.ok) throw new Error(ch.error);
+      await sound(g.id);
+      const un = await undoEvent(ch.eventId!, a);
+      expect(un.ok, `undo ${cur}`).toBe(true);
+      expect(await sound(g.id)).toEqual(start);
+      expect((await db.group.findUnique({ where: { id: g.id } }))!.currency).toBe("INR");
+    }
+  });
+});
+
+describe("The Pot: random games", () => {
+  it("25 random balanced games: each player's result in the group equals what they put back minus what they took; reopening removes it", { timeout: 240_000 }, async () => {
+    const rnd = rng(20261111);
+    const g = await group("pot", "INR", ["A", "B", "C", "D", "E"]);
+    for (let n = 0; n < 25; n++) {
+      const players = g.ids.filter(() => rnd() < 0.8);
+      if (players.length < 2) continue;
+      const before = (await books(g.id)).net;
+      const s = await startGame(g.id, players[0], { name: `G${n}`, game: rnd() < 0.5 ? "poker" : "teenpatti", players });
+      if (!s.ok) throw new Error(s.error);
+      const took: Record<string, number> = {};
+      for (const p of players) {
+        const times = 1 + Math.floor(rnd() * 3);
+        for (let i = 0; i < times; i++) {
+          const amt = (1 + Math.floor(rnd() * 40)) * 50;
+          const r = await recordMove(s.id, players[0], { memberId: p, kind: "take", amount: String(amt) });
+          if (!r.ok) throw new Error(r.error);
+          took[p] = (took[p] ?? 0) + amt * 100;
+        }
+      }
+      // Hand the whole pot back in random pieces (some players get nothing).
+      let left = Object.values(took).reduce((x, y) => x + y, 0);
+      const back: Record<string, number> = {};
+      players.forEach((p, i) => {
+        const part = i === players.length - 1 ? left : Math.floor((left * rnd()) / 100) * 100;
+        back[p] = part;
+        left -= part;
+      });
+      for (const p of players) {
+        if (!back[p]) continue;
+        const r = await recordMove(s.id, players[0], { memberId: p, kind: "return", amount: String(back[p] / 100) });
+        if (!r.ok) throw new Error(r.error);
+      }
+      const fin = await finishGame(s.id, players[0]);
+      if (!fin.ok) throw new Error(`game ${n}: ${fin.error}`);
+      const after = (await books(g.id)).net;
+      expect(Object.values(after).reduce((x, y) => x + y, 0)).toBe(0);
+      for (const id of g.ids) expect(after[id] - before[id], `game ${n} player`).toBe(players.includes(id) ? (back[id] ?? 0) - took[id] : 0);
+      if (rnd() < 0.3) {
+        const re = await reopenGame(s.id, players[0]);
+        if (!re.ok) throw new Error(re.error);
+        expect((await books(g.id)).net).toEqual(before);
+        expect((await finishGame(s.id, players[0])).ok).toBe(true);
+        expect((await books(g.id)).net).toEqual(after);
+      }
+    }
+  });
+});
+
+describe("undoing everything", () => {
+  it("60 random adds, edits and deletes, then undo each newest-first: the group is back to nothing owed", { timeout: 240_000 }, async () => {
+    const rnd = rng(7);
+    const g = await group("trip", "INR", ["A", "B", "C"]);
+    const pick = () => g.ids[Math.floor(rnd() * 3)];
+    const live: string[] = [];
+    for (let i = 0; i < 60; i++) {
+      const roll = rnd();
+      if (roll < 0.55 || live.length === 0) {
+        const who = pick();
+        const r = await saveExpense(draft(g.id, who, { name: `E${i}`, amount: String(1 + Math.floor(rnd() * 99999) / 100), kind: rnd() < 0.15 ? "refund" : "expense" }), who, rate());
+        if (!r.ok) throw new Error(r.error);
+        live.push(r.id);
+      } else if (roll < 0.8) {
+        const id = live[Math.floor(rnd() * live.length)];
+        const who = pick();
+        const r = await saveExpense(draft(g.id, who, { expenseId: id, name: `E${i} edited`, amount: String(1 + Math.floor(rnd() * 99999) / 100), rateMode: "keep" }), who, rate());
+        if (!r.ok) throw new Error(r.error);
+      } else {
+        const id = live.splice(Math.floor(rnd() * live.length), 1)[0];
+        const r = await setExpenseDeleted(id, pick(), true);
+        if (!r.ok) throw new Error(r.error);
+      }
+    }
+    await sound(g.id);
+    const events = await db.groupEvent.findMany({ where: { groupId: g.id }, orderBy: [{ createdAt: "desc" }, { id: "desc" }] });
+    let failed = 0;
+    for (const ev of events) {
+      const r = await undoEvent(ev.id, g.ids[0]);
+      if (!r.ok) {
+        failed++;
+        console.log("FABLE undo refused:", ev.kind, r.error);
+      }
+    }
+    const end = await sound(g.id);
+    console.log("FABLE undo-all: events", events.length, "refused", failed, "end balances", JSON.stringify(Object.values(end)));
+    expect(failed).toBe(0);
+    expect(Object.values(end).every((v) => v === 0)).toBe(true);
+  });
+});

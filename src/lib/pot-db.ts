@@ -178,7 +178,14 @@ export async function finishGame(gameId: string, actorId: string): Promise<Resul
   const res = potResult(lines);
   const name = (id: string) => g.members.find((m) => m.id === id)?.name ?? "Someone";
   const now = new Date();
-  await db.$transaction(async (tx) => {
+  const done = await db.$transaction(async (tx) => {
+    // Claim the game first: if two finishes arrive at once, only one adds the result.
+    const claimed = await tx.potGame.updateMany({ where: { id: gameId, status: "open" }, data: { status: "done", finishedAt: now } });
+    if (claimed.count !== 1) return false;
+    // The game as it is now, inside this claim: a buy-in recorded meanwhile can't be left out.
+    const fresh = await tx.potMove.findMany({ where: { gameId, deletedAt: null } });
+    const again = potSummary(parsePlayers(game.players), fresh);
+    if (!again.totals.balanced || again.totals.taken !== totals.taken) throw new Error("POT_CHANGED");
     let resultId = "";
     if (res.total > 0) {
       const e = await tx.expense.create({
@@ -205,8 +212,14 @@ export async function finishGame(gameId: string, actorId: string): Promise<Resul
     }
     const won = res.winners.map((w) => `${name(w.memberId)} won ${formatMoney(w.amount, g.currency)}`).join(", ");
     await logEvent(tx, { groupId: g.id, actorId, kind: "pot_finished", text: `finished ${game.name}: ${won || "everyone broke even"}`, ...(resultId ? { expenseId: resultId } : {}) });
-    await tx.potGame.update({ where: { id: gameId }, data: { status: "done", finishedAt: now, resultId } });
+    await tx.potGame.update({ where: { id: gameId }, data: { resultId } });
+    return true;
+  }).catch((err) => {
+    if (String(err?.message ?? err).includes("POT_CHANGED")) return "changed" as const;
+    throw err;
   });
+  if (done === "changed") return { ok: false, error: "Someone just changed this game. Check the amounts and finish again." };
+  if (!done) return { ok: false, error: "This game is already finished." };
   return { ok: true };
 }
 
@@ -271,6 +284,9 @@ export async function buyIn(gameId: string, actorId: string, input: { memberIds:
   if (!who.length) return { ok: false, error: "Pick who’s taking money." };
   const players = parsePlayers(game.players);
   const note = cleanNote(input.note ?? "");
+  // A double tap: the same buy-in for the same people by the same person seconds ago.
+  const recent = await db.potMove.findMany({ where: { gameId, kind: "take", amount, createdById: actorId, deletedAt: null, createdAt: { gt: new Date(Date.now() - 10_000) } }, select: { memberId: true } });
+  if (recent.length && who.every((id) => recent.some((m) => m.memberId === id))) return { ok: true, count: who.length };
   await db.$transaction([
     db.potMove.createMany({ data: who.map((memberId) => ({ gameId, memberId, kind: "take", amount, note, createdById: actorId })) }),
     ...(who.every((id) => players.includes(id)) ? [] : [db.potGame.update({ where: { id: gameId }, data: { players: JSON.stringify([...new Set([...players, ...who])]) } })]),

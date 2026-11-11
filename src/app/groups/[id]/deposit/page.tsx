@@ -64,7 +64,7 @@ export default async function DepositPage({
                   <label className="flex items-center gap-3 px-4 py-3">
                     <span className="flex-1">{name(m.id)}</span>
                     <span className="flex w-36 items-center rounded-xl border border-line px-3 focus-within:border-accent">
-                      <span className="text-xs text-gray-400">{group.currency}</span>
+                      <span className="nobreak shrink-0 text-xs text-gray-400">{group.currency}</span>
                       <input name={`d_${m.id}`} inputMode="decimal" defaultValue={amountOf(m.id)} placeholder="0" aria-label={`${m.name}’s deposit`} className="w-full bg-transparent py-2 text-right outline-none" />
                     </span>
                   </label>
@@ -106,7 +106,7 @@ export default async function DepositPage({
           <h2 className="font-semibold">Lease over?</h2>
           <p className="text-sm text-gray-500">Enter anything kept back (painting, repairs). It’s shared the group’s way, and everyone sees what they get back.</p>
           <label className="flex items-center gap-2 rounded-xl border border-line px-3 focus-within:border-accent">
-            <span className="text-xs text-gray-400">{group.currency}</span>
+            <span className="nobreak shrink-0 text-xs text-gray-400">{group.currency}</span>
             <input name="deductions" inputMode="decimal" placeholder="0 deducted" aria-label="Deductions" className="w-full bg-transparent py-3 outline-none" />
           </label>
           <ConfirmButton message="Mark the whole deposit as returned?" className={primaryButtonClass}>

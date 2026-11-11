@@ -44,7 +44,10 @@ export async function sendMail(to: string, subject: string, text: string, html: 
   let list: { unsubscribe: { url: string; comment: string } } | undefined;
   if (opts.optOut) {
     const { db } = await import("./db");
-    if (await db.emailOptOut.findUnique({ where: { email: to.trim().toLowerCase() } }).catch(() => null)) return true;
+    // If the opt-out list can't be checked, an optional email isn't sent (never fail open).
+    const opted = await db.emailOptOut.findUnique({ where: { email: to.trim().toLowerCase() } }).then(Boolean, () => null);
+    if (opted === null) return false;
+    if (opted) return true;
     const { unsubscribeUrl } = await import("./unsubscribe");
     const url = await unsubscribeUrl(to);
     list = { unsubscribe: { url, comment: "Stop Loopin invite emails" } };
@@ -78,7 +81,9 @@ export async function sendMail(to: string, subject: string, text: string, html: 
     await noteFailure("cap");
     return false;
   }
-  if (!(await allow(`mail:to:${to.toLowerCase()}`, 10, 86_400))) return false; // one address can't be flooded
+  // One address can't be flooded. Sign-in codes have their own allowance, so
+  // invitations from other people can never use up someone's sign-in.
+  if (!(await allow(`${opts.signInCode ? "mail:code" : "mail:to"}:${to.toLowerCase()}`, opts.signInCode ? 12 : 10, 86_400))) return false;
   const message = {
     from: process.env.MAIL_FROM ?? `Loopin <${process.env.SMTP_USER}>`,
     to,

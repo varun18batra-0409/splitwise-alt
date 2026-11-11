@@ -136,16 +136,30 @@ export type UndoPayload =
         shares: { id: string; amount: number }[];
       }[];
       payments: { id: string; amount: number }[];
+      // Everything else that holds money in the group's currency (missing in
+      // changes made before these were converted too).
+      other?: OtherMoney;
     }
   | { type: "members_remove"; memberIds: string[] }
   | {
       type: "members_restore";
       // accountId … joinedFrom: missing in changes saved before they were kept.
-      members: { id: string; name: string; phone: string; createdAt: string; accountId?: string | null; claimedAt?: string | null; splitWeight?: number; notify?: string; joinedFrom?: string | null }[];
+      members: { id: string; name: string; phone: string; createdAt: string; accountId?: string | null; claimedAt?: string | null; splitWeight?: number; notify?: string; joinedFrom?: string | null; addedBy?: string; seenAt?: string | null }[];
     }
   | { type: "member_set"; memberId: string; data: { name?: string; leftAt?: string | null } }
   | { type: "settle_all"; paymentIds: string[]; apply: boolean }
   | { type: "payments_set"; paymentIds: string[]; deleted: boolean };
+
+// Money kept outside expenses and payments, in the group's currency.
+export type OtherMoney = {
+  settleMin: number;
+  bills: { id: string; amount: number; split: string }[];
+  budgets: { id: string; amount: number }[];
+  goals: { id: string; target: number }[];
+  goalEntries: { id: string; amount: number }[];
+  depositShares: { id: string; amount: number; returnedAmount: number }[];
+  potMoves: { id: string; amount: number }[];
+};
 
 export function parseUndo(json: string): UndoPayload | null {
   if (!json) return null;

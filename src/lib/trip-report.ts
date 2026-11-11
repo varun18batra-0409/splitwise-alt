@@ -60,6 +60,8 @@ export function tripReport(input: { name: string; type?: string; currency: strin
     const sign = e.kind === "refund" ? -1 : 1;
     const cat = getCategory(e.category).id;
     byCat.set(cat, (byCat.get(cat) ?? 0) + spentAmount(e));
+    // A card game's result is money moving between players, not spending.
+    if (e.kind === "pot") continue;
     for (const p of payersOf(e)) paid.set(p.memberId, (paid.get(p.memberId) ?? 0) + sign * p.amount);
     for (const s of e.shares) share.set(s.memberId, (share.get(s.memberId) ?? 0) + sign * s.amount);
     const d = dayKey(expenseDate(e), tz);
@@ -68,7 +70,7 @@ export function tripReport(input: { name: string; type?: string; currency: strin
   const categories = CATEGORIES.filter((c) => (byCat.get(c.id) ?? 0) > 0)
     .map((c) => ({ id: c.id, label: c.label, emoji: c.emoji, amount: byCat.get(c.id)!, pct: total > 0 ? Math.round((byCat.get(c.id)! * 100) / total) : 0 }))
     .sort((a, b) => b.amount - a.amount);
-  const real = expenses.filter((e) => e.kind !== "refund");
+  const real = expenses.filter((e) => e.kind !== "refund" && e.kind !== "pot");
   const big = real.reduce<Expense | null>((b, e) => (!b || e.amount > b.amount ? e : b), null);
   const top = [...paid.entries()].filter(([, a]) => a > 0).sort((a, b) => b[1] - a[1])[0];
   const busy = [...perDay.entries()].sort((a, b) => b[1] - a[1])[0];
@@ -83,7 +85,7 @@ export function tripReport(input: { name: string; type?: string; currency: strin
     trip: (input.type ?? "trip") === "trip",
     currency: input.currency,
     total,
-    count: expenses.length,
+    count: expenses.filter((e) => e.kind !== "pot").length,
     from,
     to,
     days,

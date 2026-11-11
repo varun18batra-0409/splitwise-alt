@@ -74,7 +74,7 @@ export function PotBuyIn({
       <label className="block">
         <span className="mb-1.5 block text-sm font-medium text-gray-600">How much each</span>
         <span className="flex items-center gap-2 rounded-xl border border-line bg-mist px-4 focus-within:border-accent">
-          <span className="text-sm text-gray-400">{currency}</span>
+          <span className="nobreak shrink-0 text-sm text-gray-400">{currency}</span>
           <input
             name="amount"
             required

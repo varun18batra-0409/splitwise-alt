@@ -68,8 +68,10 @@ export async function loadOverview(memberships: Record<string, string>) {
   const netLines = [...totals].map(([c, t]) => `${t.owed - t.owe >= 0 ? "+" : "−"}${formatMoney(Math.abs(t.owed - t.owe), c)}`);
   const netValue = netCommon ? netCommon.value : [...totals].reduce((a, [, t]) => a + Math.sign(t.owed - t.owe), 0);
 
+  // Only open groups: a closed group can't take payments until it's reopened,
+  // and the balance at the top of Home counts open groups only too.
   const { items: settleItems, skippedGroups } = crossSettle(
-    all.map((g) => ({
+    open.map((g) => ({
       groupId: g.group.id,
       groupName: g.group.name,
       currency: g.group.currency,

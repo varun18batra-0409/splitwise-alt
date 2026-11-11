@@ -44,7 +44,7 @@ export default async function GoalPage({
           <label className="block">
             <span className="mb-2 block text-sm text-gray-500">How much?</span>
             <span className="flex items-center gap-2 rounded-xl border border-line bg-mist px-4 focus-within:border-accent">
-              <span className="text-sm text-gray-400">{group.currency}</span>
+              <span className="nobreak shrink-0 text-sm text-gray-400">{group.currency}</span>
               <input name="target" required inputMode="decimal" placeholder="2,00,000" className="w-full bg-transparent py-3.5 font-display text-xl outline-none" />
             </span>
           </label>
@@ -133,7 +133,7 @@ export default async function GoalPage({
           <input type="hidden" name="goalId" value={goal.id} />
           <input type="hidden" name="rid" value={newRequestKey()} />
           <span className="flex items-center gap-2 rounded-xl border border-line bg-mist px-4 focus-within:border-accent">
-            <span className="text-sm text-gray-400">{group.currency}</span>
+            <span className="nobreak shrink-0 text-sm text-gray-400">{group.currency}</span>
             <input name="amount" required inputMode="decimal" aria-label="Amount set aside" defaultValue={plan.perPerson.find((p) => p.memberId === myId) ? toInputAmount(plan.perPerson.find((p) => p.memberId === myId)!.amount, group.currency) : ""} className="w-full bg-transparent py-3 font-display text-xl outline-none" />
           </span>
           <button type="submit" className={primaryButtonClass}>

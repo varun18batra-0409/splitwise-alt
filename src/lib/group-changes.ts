@@ -1,6 +1,7 @@
 import { db } from "./db";
 import { hasLeft, LEFT_ERROR } from "./active";
-import { logEvent } from "./events";
+import { logEvent, type OtherMoney } from "./events";
+import { allocateByWeights } from "./split";
 import { formatMoney, formatPercent, isSupportedCurrency } from "./money";
 import { parseRate } from "./conversion";
 import { rebaseExpense, rebasePayment } from "./rebase";
@@ -85,6 +86,12 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
   const paymentUpdates = group.payments.map((p) => ({ p, amount: rebasePayment(p.amount, oldCurrency, newCurrency, rate) }));
   if (paymentUpdates.some((x) => x.amount === null || x.amount <= 0)) return { ok: false, error: "That rate makes a payment too small. Check it." };
 
+  // Everything else that holds money: bills, budgets, goals, the deposit, the
+  // smallest payment worth settling and card games. All at the same rate.
+  const otherBefore = await loadOtherMoney(groupId, group.settleMin);
+  const otherAfter = convertOtherMoney(otherBefore, (a) => rebaseSigned(a, oldCurrency, newCurrency, rate));
+  if (!otherAfter) return { ok: false, error: "That rate makes a bill, budget, goal or deposit too small or too large. Check it." };
+
   const totalBefore = group.expenses.filter((e) => !e.deletedAt).reduce((s, e) => s + e.amount, 0);
   const totalAfter = expenseUpdates.filter((x) => !x.e.deletedAt).reduce((s, x) => s + x.r!.amount, 0);
 
@@ -104,6 +111,7 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
       shares: e.shares.map((s) => ({ id: s.id, amount: s.amount })),
     })),
     payments: group.payments.map((p) => ({ id: p.id, amount: p.amount })),
+    other: otherBefore,
   };
 
   const eventId = await db.$transaction(async (tx) => {
@@ -123,7 +131,8 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
       for (const s of r!.shares) await tx.expenseShare.update({ where: { id: s.id }, data: { amount: s.amount } });
     }
     for (const { p, amount } of paymentUpdates) await tx.payment.update({ where: { id: p.id }, data: { amount: amount! } });
-    await tx.group.update({ where: { id: group.id }, data: { currency: newCurrency } });
+    await writeOtherMoney(tx, otherAfter);
+    await tx.group.update({ where: { id: group.id }, data: { currency: newCurrency, settleMin: otherAfter.settleMin } });
     return logEvent(tx, {
       groupId,
       actorId,
@@ -140,4 +149,81 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
     });
   });
   return { ok: true, eventId };
+}
+
+// ---------- Money outside expenses and payments ----------
+
+type Tx = Parameters<Parameters<typeof db.$transaction>[0]>[0];
+
+function rebaseSigned(amount: number, from: string, to: string, rate: string): number | null {
+  if (amount === 0) return 0;
+  const v = rebasePayment(Math.abs(amount), from, to, rate);
+  return v === null ? null : amount < 0 ? -v : v;
+}
+
+export async function loadOtherMoney(groupId: string, settleMin: number): Promise<OtherMoney> {
+  const [bills, budgets, goals, deposit, games] = await Promise.all([
+    db.bill.findMany({ where: { groupId }, select: { id: true, amount: true, split: true } }),
+    db.budget.findMany({ where: { groupId }, select: { id: true, amount: true } }),
+    db.goal.findMany({ where: { groupId }, select: { id: true, target: true, entries: { select: { id: true, amount: true } } } }),
+    db.deposit.findUnique({ where: { groupId }, select: { shares: { select: { id: true, amount: true, returnedAmount: true } } } }),
+    db.potGame.findMany({ where: { groupId }, select: { moves: { select: { id: true, amount: true } } } }),
+  ]);
+  return {
+    settleMin,
+    bills,
+    budgets,
+    goals: goals.map((g) => ({ id: g.id, target: g.target })),
+    goalEntries: goals.flatMap((g) => g.entries),
+    depositShares: deposit?.shares ?? [],
+    potMoves: games.flatMap((g) => g.moves),
+  };
+}
+
+// The same money at a new rate; null if any amount can't be converted. A bill
+// split by fixed amounts is re-shared by weight, so it still adds up exactly.
+export function convertOtherMoney(o: OtherMoney, conv: (amount: number) => number | null): OtherMoney | null {
+  let bad = false;
+  const c = (a: number) => {
+    const v = conv(a);
+    if (v === null) bad = true;
+    return v ?? 0;
+  };
+  const bills = o.bills.map((b) => {
+    const amount = c(b.amount);
+    let split = b.split;
+    try {
+      const s = JSON.parse(b.split) as { mode?: string; amt?: Record<string, number> };
+      if (s.mode === "amounts" && s.amt) {
+        const entries = Object.entries(s.amt).map(([memberId, weight]) => ({ memberId, weight: Math.max(0, Math.round(weight)) }));
+        const total = entries.reduce((x, e) => x + e.weight, 0);
+        const target = total === b.amount ? amount : c(total);
+        const amt = Object.fromEntries(allocateByWeights(target, entries).map((x) => [x.memberId, x.amount]));
+        split = JSON.stringify({ ...s, amt });
+      }
+    } catch {
+      // Not JSON we know: left as it is.
+    }
+    return { id: b.id, amount, split };
+  });
+  const out: OtherMoney = {
+    settleMin: c(o.settleMin),
+    bills,
+    budgets: o.budgets.map((x) => ({ id: x.id, amount: c(x.amount) })),
+    goals: o.goals.map((x) => ({ id: x.id, target: c(x.target) })),
+    goalEntries: o.goalEntries.map((x) => ({ id: x.id, amount: c(x.amount) })),
+    depositShares: o.depositShares.map((x) => ({ id: x.id, amount: c(x.amount), returnedAmount: c(x.returnedAmount) })),
+    potMoves: o.potMoves.map((x) => ({ id: x.id, amount: c(x.amount) })),
+  };
+  return bad ? null : out;
+}
+
+// Rows deleted since are skipped (updateMany), so an old undo never fails on them.
+export async function writeOtherMoney(tx: Tx, o: OtherMoney): Promise<void> {
+  for (const b of o.bills) await tx.bill.updateMany({ where: { id: b.id }, data: { amount: b.amount, split: b.split } });
+  for (const b of o.budgets) await tx.budget.updateMany({ where: { id: b.id }, data: { amount: b.amount } });
+  for (const g of o.goals) await tx.goal.updateMany({ where: { id: g.id }, data: { target: g.target } });
+  for (const e of o.goalEntries) await tx.goalEntry.updateMany({ where: { id: e.id }, data: { amount: e.amount } });
+  for (const d of o.depositShares) await tx.depositShare.updateMany({ where: { id: d.id }, data: { amount: d.amount, returnedAmount: d.returnedAmount } });
+  for (const m of o.potMoves) await tx.potMove.updateMany({ where: { id: m.id }, data: { amount: m.amount } });
 }

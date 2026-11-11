@@ -17,6 +17,9 @@ export async function reactAction(f: FormData) {
   if (!myId) redirect("/private");
   const back = `/groups/${e.groupId}?tab=activity&open=${e.id}#item-${e.id}`;
   if (!isReaction(emoji) || e.deletedAt) redirect(back);
+  // People who left (or a deleted group) can look back, not react.
+  const meRow = await db.member.findUnique({ where: { id: myId }, select: { leftAt: true, group: { select: { deletedAt: true } } } });
+  if (!meRow || meRow.leftAt || meRow.group.deletedAt) redirect(back);
   const had = await db.reaction.findUnique({ where: { expenseId_memberId: { expenseId: e.id, memberId: myId } } });
   if (had?.emoji === emoji) await db.reaction.delete({ where: { id: had.id } });
   else {

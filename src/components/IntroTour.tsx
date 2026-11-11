@@ -64,9 +64,9 @@ function Cheers() {
           </span>
         ))}
       </div>
-      <div className="mt-7 flex gap-2">
+      <div className="mt-7 flex flex-wrap gap-2">
         {["Trips", "Flats", "Couples", "Card nights"].map((t, i) => (
-          <span key={t} className={`rise rise-${i + 2} rounded-full border border-line bg-canvas px-3 py-1 text-xs text-gray-600`}>
+          <span key={t} className={`nobreak rise rise-${i + 2} rounded-full border border-line bg-canvas px-3 py-1 text-xs text-gray-600`}>
             {t}
           </span>
         ))}
@@ -163,7 +163,7 @@ function makeSlides(L: Local): Slide[] {
   },
   {
     id: "currency",
-    title: ["Any currency.", "The real cost."],
+    title: ["Any currency.", "Card fees included."],
     caption: "Live exchange rates, plus your card’s foreign-transaction fee — something most split apps ignore. Balances show in both currencies.",
     art: (
       <Card>
@@ -183,8 +183,8 @@ function makeSlides(L: Local): Slide[] {
   },
   {
     id: "settle",
-    title: ["Fewest payments.", "One tap."],
-    caption: "Smart Settle works out the shortest way to square up, inside a group or across all your groups. Trip over? Share the trip report on WhatsApp.",
+    title: ["Simpler payments.", "One tap."],
+    caption: "Smart Settle cuts down how many payments it takes to square up, inside a group or across all your groups. Trip over? Share the trip report on WhatsApp.",
     art: (
       <Card>
         <svg viewBox="0 -14 240 140" className="h-36 w-full" aria-hidden>
@@ -342,8 +342,8 @@ function makeSlides(L: Local): Slide[] {
   },
   {
     id: "undo",
-    title: ["Oops?", "Undo anything."],
-    caption: "Anyone can fix a mistake. Every change is kept in the history and everyone in the group is told.",
+    title: ["Oops?", "Undo expense mistakes."],
+    caption: "Restore a deleted expense or step back an edit. Every change is kept in the history and everyone in the group is told.",
     art: (
       <Card className="relative">
         <div className="flex items-center gap-3">

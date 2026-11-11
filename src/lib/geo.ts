@@ -215,9 +215,12 @@ export function tripStops(name: string, place = "", country = ""): Stop[] {
     }
     return out;
   };
+  const picked = country.toUpperCase();
+  // A country someone picked always wins over a guess ("UK trip" in Uttarakhand, with India picked).
+  const fits = (list: Stop[]) => (picked ? list.filter((s) => !s.country || s.country === picked).map((s) => ({ ...s, country: picked })) : list);
   if (place.trim()) {
-    const known = from(place);
-    if (known.length) return known.map((s) => (country && !s.country ? { ...s, country } : s));
+    const known = fits(from(place));
+    if (known.length) return known;
     // Places we don't know: as typed, one per comma or "&".
     return place
       .split(/,|&|\+|\band\b/i)
@@ -226,7 +229,7 @@ export function tripStops(name: string, place = "", country = ""): Stop[] {
       .slice(0, 5)
       .map((city) => ({ city: city.slice(0, 30), country: country.toUpperCase() }));
   }
-  const guessed = from(name);
+  const guessed = fits(from(name));
   if (guessed.length) return guessed;
-  return country ? [{ city: "", country: country.toUpperCase() }] : [];
+  return picked ? [{ city: "", country: picked }] : [];
 }

@@ -106,7 +106,7 @@ export default async function GroupSettle({
           </p>
           <p className="mt-1.5 text-[13px] leading-snug text-fg/55">
             {group.name}
-            {transfers.length > 0 && before > transfers.length ? `: the fewest payments, instead of ${before}` : ""}
+            {transfers.length > 0 && before > transfers.length ? `: ${transfers.length} instead of ${before}` : ""}
           </p>
         </div>
       </div>
@@ -239,7 +239,7 @@ export default async function GroupSettle({
                     <input type="hidden" name="back" value="settle" />
                     <input type="hidden" name="rid" value={newRequestKey()} />
                     <label className="flex h-10 min-w-0 flex-1 items-center rounded-full border border-line bg-mist px-3.5 focus-within:border-fg/40">
-                      <span className="shrink-0 text-xs text-gray-400">{group.currency}</span>
+                      <span className="nobreak shrink-0 text-xs text-gray-400">{group.currency}</span>
                       <input
                         name="amount"
                         inputMode="decimal"

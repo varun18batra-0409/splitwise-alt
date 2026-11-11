@@ -42,7 +42,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
             <span className="block font-display text-lg font-semibold text-fg">
               {transfers.length} {transfers.length === 1 ? "payment clears" : "payments clear"} everything
             </span>
-            {before > transfers.length ? `Instead of ${before}, thanks to Smart Settle.` : "The fewest payments possible."}
+            {before > transfers.length ? `Instead of ${before}, thanks to Smart Settle.` : "As few payments as it takes."}
           </p>
         </section>
       )}

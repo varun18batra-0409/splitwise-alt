@@ -184,7 +184,7 @@ export function BillForm({
           {nature === "daily" ? "Price per day" : nature === "varies" ? "Usually (optional)" : "Amount"}
         </span>
         <span className="flex items-center gap-2 rounded-xl border border-line bg-mist px-4 focus-within:border-accent">
-          <span className="text-sm text-gray-400">{currency}</span>
+          <span className="nobreak shrink-0 text-sm text-gray-400">{currency}</span>
           <input
             name="amount"
             inputMode="decimal"
@@ -274,7 +274,7 @@ export function BillForm({
               <label key={m.id} className="flex items-center gap-3 border-b border-line px-4 py-2.5 last:border-b-0">
                 <span className="flex-1">{m.id === myId ? "You" : m.name}</span>
                 <span className="flex w-32 items-center gap-1 rounded-xl border border-line bg-mist px-3 focus-within:border-accent">
-                  {split === "amounts" && <span className="text-xs text-gray-400">{currency}</span>}
+                  {split === "amounts" && <span className="nobreak shrink-0 text-xs text-gray-400">{currency}</span>}
                   <input
                     name={split === "percent" ? `p_${m.id}` : `a_${m.id}`}
                     inputMode="decimal"

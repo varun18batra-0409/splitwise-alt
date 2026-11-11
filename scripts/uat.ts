@@ -677,7 +677,7 @@ async function main() {
     await go(V, `${g}/settle`);
     await settleCards(V).nth(0).locator('input[name="amount"]').fill("0");
     await settleCards(V).nth(0).getByRole("button", { name: "Mark paid" }).click();
-    await V.getByText(/valid amount/).waitFor();
+    await V.getByText(/more than zero|valid amount/).waitFor();
   });
   await step(V, "Settle", "Double-tapping “Mark paid” records it once", async () => {
     await go(V, `${g}/settle`);

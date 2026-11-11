@@ -126,6 +126,15 @@ export async function moveOut(
   try {
     await db.$transaction(async (tx) => {
       await claimKey(tx, input.requestKey, "moved");
+      // Claim the move-out first: if two people confirm it at the same moment,
+      // only the first one goes through (the second finds them already gone).
+      const claimed = await tx.member.updateMany({ where: { id: leaver.id, leftAt: null }, data: { leftAt: new Date(`${input.lastDay}T12:00:00Z`) } });
+      if (claimed.count !== 1) throw new Error("ALREADY_MOVED");
+      // The bills as they are now: an edit made meanwhile isn't overwritten.
+      for (const r of p.resplit) {
+        const now2 = await tx.expense.findUnique({ where: { id: r.e.id }, select: { amount: true, deletedAt: true } });
+        if (!now2 || now2.deletedAt || now2.amount !== r.e.amount) throw new Error("BILLS_CHANGED");
+      }
       // 1. Bills: their share only for the days they stayed (none for later months).
       for (const r of p.resplit) {
         await tx.expenseShare.deleteMany({ where: { expenseId: r.e.id } });
@@ -183,8 +192,7 @@ export async function moveOut(
         if ((split.mode === "percent" && split.pct?.[leaver.id]) || (split.mode === "amounts" && split.amt?.[leaver.id])) data.split = JSON.stringify({ mode: "group" });
         if (Object.keys(data).length) await tx.bill.update({ where: { id: b.id }, data });
       }
-      // 5. Moved out.
-      await tx.member.update({ where: { id: leaver.id }, data: { leftAt: new Date(`${input.lastDay}T12:00:00Z`) } });
+      // 5. Moved out (set at the start, when it was claimed).
       await logEvent(tx, {
         groupId,
         actorId,
@@ -200,6 +208,9 @@ export async function moveOut(
     });
   } catch (err) {
     if (isDuplicateKey(err)) return { ok: true, payments: [] };
+    const msg = String((err as Error)?.message ?? err);
+    if (msg.includes("ALREADY_MOVED")) return { ok: false, error: `${leaver.name} has already moved out.` };
+    if (msg.includes("BILLS_CHANGED")) return { ok: false, error: "A bill changed just now. Check it and try again." };
     throw err;
   }
   return { ok: true, payments: p.payments };
@@ -250,6 +261,8 @@ export async function returnDepositFor(groupId: string, actorId: string, deducti
   if (deductions === null || deductions < 0) return { ok: false, error: "Enter the deductions as a number, like 8000." };
   const held = flat.deposit.shares.filter((s) => s.status === "held");
   if (!held.length) return { ok: false, error: "Nothing is held any more." };
+  const heldTotal = held.reduce((x, h) => x + h.amount, 0);
+  if (deductions > heldTotal) return { ok: false, error: `The deductions are more than the deposit held (${formatMoney(heldTotal, flat.currency)}). Check the amount.` };
   const weights = Object.fromEntries(flat.members.map((m) => [m.id, m.splitWeight]));
   const refunds = depositRefunds(held, deductions, weights);
   await db.$transaction(async (tx) => {

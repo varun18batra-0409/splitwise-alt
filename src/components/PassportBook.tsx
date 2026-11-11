@@ -280,7 +280,7 @@ export function PassportBook({ name, stats, milestones, pages, index, badges = [
                   <div>
                     <dt className="text-[10px] text-[#8a8270]">Places</dt>
                     <dd className="font-semibold tabular-nums" data-passport-stats={`${stats.cities}|${stats.countries}`}>
-                      {[stats.countries ? `${stats.countries} ${stats.countries === 1 ? "country" : "countries"}` : "", stats.cities ? `${stats.cities} ${stats.cities === 1 ? "city" : "cities"}` : ""].filter(Boolean).join(", ") || "Your first stamp is coming"}
+                      {[stats.countries ? `${stats.countries} ${stats.countries === 1 ? "country" : "countries"}${stats.abroad && stats.abroad < stats.countries ? ` (${stats.abroad} abroad)` : ""}` : "", stats.cities ? `${stats.cities} ${stats.cities === 1 ? "city" : "cities"}` : ""].filter(Boolean).join(", ") || "Your first stamp is coming"}
                     </dd>
                   </div>
                   <div>
