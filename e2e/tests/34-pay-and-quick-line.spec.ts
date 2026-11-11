@@ -34,7 +34,7 @@ test("pay buttons, payment tracking and the quick line", async ({ browser }) => 
   // Ravi types it in one line: "Dinner 1000 Asha paid" → the form fills in; he checks and saves.
   await R.goto(`${g.path}/add`);
   await settled(R);
-  await R.getByRole("button", { name: /Type it in one line/ }).click();
+  await R.getByRole("group", { name: "Faster entry" }).getByRole("button", { name: "Type a line" }).click();
   await R.getByLabel("Type the expense in one line").fill("Dinner 1000 Asha paid split with everyone");
   await R.getByRole("button", { name: "Fill", exact: true }).click();
   await expect(R.getByRole("group", { name: "Quick line" }).getByRole("status")).toContainText("Asha paid");

@@ -29,6 +29,7 @@ import { billStatuses } from "@/lib/home/bills-db";
 import { niceDate } from "@/lib/format";
 import { dayKey } from "@/lib/dates";
 import { Notice } from "@/components/Notice";
+import { GroupTypeSheet } from "@/components/GroupTypeSheet";
 import { GamesTab } from "./_components/GamesTab";
 import { gamesToSettle, loadGames } from "@/lib/pot-db";
 
@@ -244,6 +245,9 @@ export default async function GroupPage({
       )}
 
       <LeftFootnote v={v} />
+
+      {/* A brand-new flat, couple or card night: what's special about it, once on this phone. */}
+      {!leaver && active.length === 0 && (group.type === "home" || group.type === "couple" || group.type === "pot") && <GroupTypeSheet groupId={group.id} type={group.type} />}
 
       {showUndo && (
         <UndoBar

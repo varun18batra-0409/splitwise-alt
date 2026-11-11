@@ -36,15 +36,14 @@ import { gameVisible, stillIn } from "@/lib/left-view";
 import { canUndo } from "@/lib/undo";
 import { UndoBar } from "@/components/UndoBar";
 import { PersonIcon, iconButtonClass } from "@/components/icons";
-import { avatarTone } from "@/components/ui";
 import { myCollections, progress } from "@/lib/collect";
 import { countdownWords, placeOf, tripPhase, type TripPhase } from "@/lib/countdown";
 import { todayKey } from "@/lib/dates";
-import { TakeOff, TripCountdown } from "@/components/TripCountdown";
-import { countdownCard, countdownStage } from "@/lib/countdown";
+import { TripCountdown } from "@/components/TripCountdown";
+import { countdownStage } from "@/lib/countdown";
 import { countryOf, tripStops } from "@/lib/geo";
-import { ShareCountdown } from "@/components/ShareCountdown";
-import { HomeHero } from "@/components/HomeHero";
+import { MoneyCard, TripStrip } from "@/components/HomeMoney";
+import { moneyLead, moneyMode, moneySub } from "@/lib/home/money-card";
 import { TripRow } from "@/components/TripRow";
 import { Stories } from "@/components/Stories";
 import { buildStories } from "@/lib/home/stories";
@@ -170,6 +169,16 @@ export default async function Home({
   const heroText = netCommon
     ? `${netCommon.converted ? "≈ " : ""}${netCommon.value > 0 ? "+" : netCommon.value < 0 ? "−" : ""}${formatMoney(Math.abs(netCommon.value), common)}`
     : netLines.join(" · ");
+  const mode = moneyMode({ owedLines: owedLines.length, oweLines: oweLines.length, netValue });
+  // Someone added you to a group: it isn't in your groups until you tap Join.
+  const invitationsBlock =
+    invitations.length > 0 ? (
+      <div className="mb-6 mt-5 space-y-3" data-invitations>
+        {invitations.map((inv) => (
+          <InvitationCard key={inv.key} inv={inv} />
+        ))}
+      </div>
+    ) : null;
   // Trip countdowns: trips with a start day, happening now first, then the soonest (up to a year out).
   const today = todayKey(new Date(), tz);
   const trips = live
@@ -323,14 +332,8 @@ export default async function Home({
         return [{ id: g.group.id, name: g.group.name, endedDaysAgo: ended, photos: placePhotos(g.group.name, g.group.tripPlace, 2), cover: coverFor(g.group), spent: formatMoney(g.spent, g.group.currency), topCategory: top ? getCategory(top[0]).label : undefined }];
       }),
   });
-  // The top of Home: the next trip (or the one you're on) in big type over its photo; else your
-  // most active group's picture and a greeting.
+  // The next trip (or the one you're on): a compact strip under the money card.
   const hero = trips[0];
-  // Without a trip coming: the latest group that has a real photo (a trip's place, or one it picked), else a photo of friends.
-  const withPhoto = (g: (typeof open)[number]) => (g.group.type === "trip" && !g.group.cover && placePhoto(g.group.name)) || /^(photo-|own$)/.test(coverOf(g.group));
-  const heroGroup = hero?.g ?? byActivity.find(withPhoto);
-  const heroPhoto = heroGroup && heroGroup.group.type === "trip" && !heroGroup.group.cover ? placePhoto(heroGroup.group.name)?.src : undefined;
-  const friends = hero ? crewOf(hero.g).filter((n) => n !== "You").length : 0;
   // Trips at the same stage of the countdown each get their own words (slot 0, 1, 2… in that stage).
   const stageSlot = new Map<string, number>();
   {
@@ -342,12 +345,6 @@ export default async function Home({
       seen.set(st, n + 1);
     }
   }
-  const heroCard = hero ? countdownCard(hero.g.group.name, hero.phase, stageSlot.get(hero.g.group.id) ?? 0) : null;
-  const heroChip = hero
-    ? `${heroCard?.kicker ?? (hero.phase.kind === "before" ? "Your next trip" : "On the trip")}${friends ? `, with ${friends === 1 ? "1 friend" : `${friends} friends`}` : ""}`
-    : "";
-  const words: ReturnType<typeof heroWords> = hero ? heroWords(hero.g.group.name, hero.phase) : { small: greeting(new Date(), tz, account?.name) };
-
   // The sliding cards at the top (4 to 7), picked for what's useful right now.
   const stopsOf = (g: (typeof all)[number]) => tripStops(g.group.name, g.group.tripPlace ?? "", g.group.tripCountry ?? "");
   const homeCountry = (account?.homeCountry || region.country || "IN").toUpperCase();
@@ -437,86 +434,30 @@ export default async function Home({
         </Notice>
       )}
 
-      <HomeHero
-        tall={Boolean(hero) || stories.length > 0}
-        photo={heroPhoto}
-        cover={heroGroup ? coverFor(heroGroup.group) : { kind: coverOf({ cover: "photo-friends", type: "other" }) }}
-        uid={heroGroup?.group.id ?? "start"}
-        letter={heroGroup?.group.name}
-        crew={hero ? crewOf(hero.g).filter((n) => n !== "You") : []}
-        chip={hero ? heroChip : undefined}
-        small={words.small}
-        big={
-          words.num !== undefined ? (
-            <>
-              <span data-countdown-big>{words.num}</span> {words.unit}
-            </>
-          ) : (
-            words.big
-          )
-        }
-        bigLength={words.big?.length ?? 0}
-        label={hero ? "Trip countdown" : undefined}
-        countdown={hero ? (hero.phase.kind === "before" ? String(hero.phase.kind === "before" ? hero.phase.days : 0) : hero.phase.kind) : undefined}
-        extra={
-          hero ? (
-            <>
-              {hero.phase.kind === "before" && <TakeOff className="text-fg" />}
-              <ShareCountdown groupId={hero.g.group.id} line={countdownWords(hero.g.group.name, hero.phase)?.line ?? ""} className="glass flex h-9 w-9 items-center justify-center rounded-full text-[0px]" />
-            </>
-          ) : undefined
-        }
-        href={hero ? `/groups/${hero.g.group.id}` : undefined}
-        header={
-          <header className="flex items-center justify-between">
-            <p className="font-display text-[26px] font-semibold leading-none tracking-tight [text-shadow:0_2px_12px_rgba(0,0,0,0.4)]">loopin</p>
-            <div className="flex items-center gap-2">
-              <GetAppButton variant="icon" />
-              <Link href="/how-it-works" aria-label="How Loopin works" className={`glass ${iconButtonClass} text-[17px] font-semibold`}>
-                ?
-              </Link>
-              <Link href="/account" aria-label={account ? `Account: ${account.email}` : "Sign in or account"} className={`relative glass ${iconButtonClass}`}>
-                {account?.name ? <span className="text-[15px] font-bold">{account.name.trim().charAt(0).toUpperCase()}</span> : <PersonIcon size={20} />}
-                {account && <span className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-owed" aria-hidden />}
-              </Link>
-            </div>
-          </header>
-        }
-      >
-        <Stories stories={stories} className="mb-4" />
-      </HomeHero>
+      <header className="mb-5 flex items-center justify-between">
+        <p className="font-display text-[26px] font-semibold leading-none tracking-tight">loopin</p>
+        <div className="flex items-center gap-2">
+          <GetAppButton variant="icon" />
+          <Link href="/how-it-works" aria-label="How Loopin works" className={`glass ${iconButtonClass} text-[17px] font-semibold`}>
+            ?
+          </Link>
+          <Link href="/account" aria-label={account ? `Account: ${account.email}` : "Sign in or account"} className={`relative glass ${iconButtonClass}`}>
+            {account?.name ? <span className="text-[15px] font-bold">{account.name.trim().charAt(0).toUpperCase()}</span> : <PersonIcon size={20} />}
+            {account && <span className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-owed" aria-hidden />}
+          </Link>
+        </div>
+      </header>
 
       {/* Someone added you to a group: it isn't in your groups until you tap Join. */}
-      {invitations.length > 0 && (
-        <div className="mb-6 space-y-3" data-invitations>
-          {invitations.map((inv) => (
-            <InvitationCard key={inv.key} inv={inv} />
-          ))}
-        </div>
-      )}
-
-      {/* New here (one group or none, no expenses yet): a gentle pointer to the 1-minute tour. */}
-      {open.length <= 1 && open.every((g) => g.expenses.length === 0) && (
-        <Link href="/how-it-works" className="mb-6 flex items-center gap-3 rounded-2xl border border-line bg-mist px-4 py-3 text-sm active:bg-line">
-          <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#d8bd7a]/45 text-[#e8d29a]">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M8 5.5v13l10.5-6.5Z" />
-            </svg>
-          </span>
-          <span className="min-w-0 flex-1 leading-snug">
-            <span className="block font-medium text-fg">New to Loopin? See how it works</span>
-            <span className="block text-xs text-gray-400">A one-minute guide</span>
-          </span>
-          <span className="text-gray-400" aria-hidden>›</span>
-        </Link>
-      )}
+      {all.length === 0 && invitationsBlock}
 
       {all.length === 0 ? (
         <>
-          {/* Start screen: nothing here yet. */}
-          <section className="glass relative z-10 rounded-[26px] px-5 pb-5 pt-6 text-fg">
-            <h1 className="font-display text-[32px] font-semibold leading-tight tracking-tight">Let’s get you started</h1>
-            <p className="mt-2 text-fg/65">Split costs with friends, flatmates or your partner, and keep the memories.</p>
+          {/* Start card: nothing here yet. */}
+          <section aria-label="Start" className="vault rounded-[26px] px-5 pb-5 pt-6 text-fg" data-start-card>
+            <p className="text-sm text-fg/60">Welcome to Loopin</p>
+            <h1 className="mt-1 font-display text-[32px] font-semibold leading-[1.08] tracking-tight">Start with one group.</h1>
+            <p className="mt-2 text-fg/65">Add what you paid, and Loopin keeps track of who owes whom.</p>
             <div className="mt-6 space-y-3">
               <Link href="/groups/new" className="pop block bg-fg px-4 py-3.5 text-center font-semibold text-canvas">
                 Create a group
@@ -524,6 +465,29 @@ export default async function Home({
               <JoinByLink />
             </div>
           </section>
+
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <Link href="/switching" className="flex min-h-[76px] flex-col justify-center rounded-2xl border border-line px-4 py-3 active:bg-mist">
+              <span className="text-[13px] text-fg/60">Coming from another app?</span>
+              <span className="mt-0.5 text-sm font-semibold leading-snug">Bring your groups over</span>
+            </Link>
+            <Link href="/how-it-works" className="flex min-h-[76px] flex-col justify-center rounded-2xl border border-line px-4 py-3 active:bg-mist">
+              <span className="text-[13px] text-fg/60">How Loopin works</span>
+              <span className="mt-0.5 text-sm font-semibold leading-snug">Three steps, one minute</span>
+            </Link>
+          </div>
+
+          {!account && (
+            <Link href="/signin" className="mt-4 flex items-center gap-3 rounded-2xl border border-line px-4 py-3.5 active:bg-mist">
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold">Sign up to keep your groups</span>
+                <span className="block text-xs text-fg/60">Get them back on a new phone. Google or your email, no password.</span>
+              </span>
+              <span className="text-gray-400" aria-hidden>
+                ›
+              </span>
+            </Link>
+          )}
 
           <section className="mt-8">
             <h2 className="mb-2 font-display text-lg font-semibold tracking-tight">Quick start</h2>
@@ -552,109 +516,42 @@ export default async function Home({
               </span>
             </Link>
             <PotTeaser className="mt-2" />
-            <Link href="/switching" className="mt-2 flex items-center gap-3 rounded-2xl border border-line px-4 py-3.5 active:bg-mist">
-              <RowIcon d="M12 3v12M7 10l5 5 5-5M4 17v3h16v-3" />
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-medium">Coming from another app?</span>
-                <span className="block text-xs text-gray-400">Bring your groups over, balances and all</span>
-              </span>
-              <span className="text-gray-400" aria-hidden>
-                ›
-              </span>
-            </Link>
           </section>
 
+          {stories.length > 0 && <Stories stories={stories} className="mt-8" />}
           {collections.length > 0 && <CollectionsSection list={collections} />}
-
-          {!account && (
-            <section className="mt-8 rounded-2xl border border-line px-4 py-4">
-              <p className="text-sm font-medium">Already use Loopin, or want your groups on every phone?</p>
-              <Link href="/signin" className="mt-3 block border border-line py-2.5 text-center text-sm font-semibold text-fg active:bg-mist">
-                Sign in or sign up
-              </Link>
-              <p className="mt-2 text-xs text-gray-400">Optional. One step for both: Google or your email, no password.</p>
-            </section>
-          )}
         </>
       ) : (
         <>
-          {/* Your balance across every group: frosted glass over the bottom of the photo. */}
-          <section aria-label="Your balance" className="glass relative z-10 rounded-[26px] px-[18px] pb-4 pt-[18px]" data-balance-card>
-            {owedLines.length === 0 && oweLines.length === 0 ? (
-              <>
-                <p className="text-sm text-fg/60">Across your groups</p>
-                <p className="mt-1 font-display text-[40px] font-semibold leading-none tracking-tight">All square</p>
-                <p className="mt-2 text-sm text-fg/55">Nobody owes anybody. Add an expense and it shows here.</p>
-              </>
-            ) : (
-              <>
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm text-fg/70">
-                    {netValue > 0 ? "Coming back to you" : netValue < 0 ? "You owe, all in" : "It all evens out"}
-                    {netCommon && netCommon.converted ? ` (in ${common})` : ""}
-                  </p>
-                  {settleItems.length > 0 && (
-                    <Link
-                      href="/settle"
-                      aria-label={`Who: ${settleItems.map((it) => (it.net < 0 ? `you owe ${it.name} ${amt(it.net, it.converted)}` : `${it.name} owes you ${amt(it.net, it.converted)}`)).join("; ")}`}
-                      className="flex shrink-0 items-center rounded-full active:opacity-80"
-                    >
-                      {settleItems.slice(0, 3).map((it, k) => (
-                        <span key={it.key} aria-hidden className={`flex h-[26px] w-[26px] items-center justify-center rounded-full border-2 border-[#1c1c20] text-[11px] font-bold ${k ? "-ml-2" : ""} ${avatarTone(it.name)}`}>
-                          {it.name.trim().charAt(0).toUpperCase()}
-                        </span>
-                      ))}
-                      {settleItems.length > 3 && (
-                        <span aria-hidden className="-ml-2 flex h-[26px] items-center rounded-full border-2 border-[#1c1c20] bg-mist px-1.5 text-[11px] font-bold text-fg/80">
-                          +{settleItems.length - 3}
-                        </span>
-                      )}
-                    </Link>
-                  )}
-                </div>
-                <p
-                  className={`money mt-1 whitespace-nowrap leading-[1.1] ${heroText.length <= 9 ? "text-[44px]" : heroText.length <= 12 ? "text-[36px]" : "text-[28px]"} ${netValue > 0 ? "text-owed" : netValue < 0 ? "text-owe" : ""}`}
-                  data-net-balance
-                >
-                  {heroText.replace(/^([≈ ]*)[+−]/, "$1")}
-                </p>
-                <p className="mt-0.5 text-[13px] text-fg/55">
-                  {open.filter((g) => g.myBalance !== 0).length > 1 ? `Across ${open.filter((g) => g.myBalance !== 0).length} groups` : "In one group"}
-                  {settleItems.length > 0 ? `, ${settleItems.length === 1 ? settleItems[0].name : `${settleItems.length} people`}` : ""}
-                </p>
-                {settleItems.length > 0 && (
-                  <div className="mt-4 flex gap-2.5">
-                    <Link href="/settle" className="pop flex h-12 flex-1 items-center justify-center bg-fg text-[15px] font-semibold text-canvas">
-                      Settle up
-                    </Link>
-                    {settleItems.some((it) => it.net > 0) && (
-                      <Link href="/settle#remind" className="flex h-12 flex-1 items-center justify-center gap-2 rounded-full border border-fg/18 bg-fg/[0.07] text-[15px] font-semibold active:scale-[0.97]">
-                        <svg aria-hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M21 3 10 14M21 3l-7 18-4-7-7-4Z" />
-                        </svg>
-                        Remind
-                      </Link>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
-          </section>
+          {/* Money first: the net amount and two equal buttons, inside the first screen of a small phone. */}
+          <MoneyCard
+            lead={`${mode === "square" ? greeting(new Date(), tz, account?.name) : `${greeting(new Date(), tz, account?.name)}. ${moneyLead(mode)}`}${mode !== "square" && netCommon && netCommon.converted ? ` (in ${common})` : ""}`}
+            amount={mode === "square" ? "All square" : heroText.replace(/^([≈ ]*)[+−]/, "$1")}
+            amountClass={mode === "square" ? "text-[40px]" : heroText.length <= 9 ? "text-[44px]" : heroText.length <= 12 ? "text-[36px]" : "text-[28px]"}
+            tone={mode === "owed" ? "owed" : mode === "owe" ? "owe" : "plain"}
+            sub={moneySub({ mode, groups: open.filter((g) => g.myBalance !== 0).length, allGroups: open.length, people: settleItems })}
+            mode={mode}
+          />
 
+          {/* The next trip, or the one you're on: one compact line. */}
+          {hero && <TripStrip groupId={hero.g.group.id} place={placeOf(hero.g.group.name)} phase={hero.phase} going={crewOf(hero.g).length} start={hero.g.group.tripStart} shareLine={countdownWords(hero.g.group.name, hero.phase)?.line ?? ""} />}
 
-          {/* The next trip is the photo at the top; any others, one card at a time (soonest first). */}
-          {trips.length > 1 && (
-            <section className="mt-8" aria-label="More trips">
-              <div className="mb-3 flex items-baseline justify-between">
-                <h2 className="font-display text-[22px] font-semibold tracking-tight">Also coming up</h2>
-                {trips.length > 2 && <span className="text-xs text-fg/60">Swipe for more</span>}
-              </div>
-              <TripRow>
-                {trips.slice(1).map((t) => (
-                  <TripCountdown key={t.g.group.id} group={t.g.group} phase={t.phase} slot={stageSlot.get(t.g.group.id) ?? 0} />
-                ))}
-              </TripRow>
-            </section>
+          {invitationsBlock}
+
+          {/* New here (one group, no expenses yet): a gentle pointer to the 1-minute tour. */}
+          {open.length <= 1 && open.every((g) => g.expenses.length === 0) && (
+            <Link href="/how-it-works" className="mt-5 flex items-center gap-3 rounded-2xl border border-line bg-mist px-4 py-3 text-sm active:bg-line">
+              <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#d8bd7a]/45 text-[#e8d29a]">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8 5.5v13l10.5-6.5Z" />
+                </svg>
+              </span>
+              <span className="min-w-0 flex-1 leading-snug">
+                <span className="block font-medium text-fg">New to Loopin? See how it works</span>
+                <span className="block text-xs text-gray-400">A one-minute guide</span>
+              </span>
+              <span className="text-gray-400" aria-hidden>›</span>
+            </Link>
           )}
 
           {/* Groups: each with its photo, what happened last and where you stand. */}
@@ -706,6 +603,23 @@ export default async function Home({
               </details>
             )}
           </section>
+
+          {/* Any other trips coming up, one card at a time (soonest first). The first one is the strip under the money card. */}
+          {trips.length > 1 && (
+            <section className="mt-8" aria-label="More trips">
+              <div className="mb-3 flex items-baseline justify-between">
+                <h2 className="font-display text-[22px] font-semibold tracking-tight">Also coming up</h2>
+                {trips.length > 2 && <span className="text-xs text-fg/60">Swipe for more</span>}
+              </div>
+              <TripRow>
+                {trips.slice(1).map((t) => (
+                  <TripCountdown key={t.g.group.id} group={t.g.group} phase={t.phase} slot={stageSlot.get(t.g.group.id) ?? 0} />
+                ))}
+              </TripRow>
+            </section>
+          )}
+
+          {stories.length > 0 && <Stories stories={stories} className="mt-8" />}
 
           {collections.length > 0 && <CollectionsSection list={collections} />}
 
@@ -988,19 +902,6 @@ function activeText(d: Date, tz: string): string {
 }
 
 const peopleCount = (n: number) => (n === 1 ? "1 person" : `${n} people`);
-
-// The hero's words for a trip: "Goa in / 12 days", "Goa / tomorrow", "It’s / Goa day", "Goa, / day 3 of 6".
-function heroWords(name: string, p: TripPhase): { small: string; big?: string; num?: string; unit?: string } {
-  const place = placeOf(name);
-  if (p.kind === "before") {
-    if (p.days === 1) return { small: place, big: "tomorrow" };
-    const [num, unit] = p.days <= 7 ? [p.days, "sleeps"] : p.days >= 60 && p.days % 7 === 0 ? [p.days / 7, "weeks"] : [p.days, "days"];
-    return { small: `${place} in`, big: `${num} ${unit}`, num: String(num), unit };
-  }
-  if (p.kind === "today") return { small: "It’s", big: `${place} day` };
-  if (p.kind === "during") return { small: `${place},`, big: `day ${p.day} of ${p.of}` };
-  return { small: place };
-}
 
 function greeting(now: Date, tz: string, name?: string | null): string {
   const h = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: tz }).format(now));

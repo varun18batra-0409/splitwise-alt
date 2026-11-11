@@ -20,6 +20,7 @@ import { splitByItems } from "@/lib/item-split";
 import { niceDate, rateText } from "@/lib/format";
 import { dayKey, todayKey } from "@/lib/dates";
 import { inputClass, primaryButtonClass } from "./ui";
+import { shouldOpenMore } from "@/lib/add-expense-more";
 
 type Member = { id: string; name: string };
 type RateState =
@@ -81,7 +82,12 @@ export function AddExpenseForm({
   const [pickingDate, setPickingDate] = useState(Boolean(initial && initial.date !== today && initial.date !== yesterday));
   const [showDate, setShowDate] = useState(false);
   const [notes, setNotes] = useState(initial?.notes ?? "");
-  const [showNotes, setShowNotes] = useState(Boolean(initial?.notes));
+  // "More" (notes, several payers, spin) is closed unless editing something that already uses it, so nothing is hidden.
+  const [showMore, setShowMore] = useState(shouldOpenMore(initial));
+  const openBill = useRef<(() => void) | null>(null); // "Scan a bill" opens the photo picker inside BillScan
+  const [quickStart, setQuickStart] = useState<{ n: number; speak: boolean } | null>(null); // "Speak" / "Type a line"
+  const quickOk = !expenseId && members.length > 1;
+  const multiLabel = kind === "refund" ? "More than one person got it" : "More than one person paid";
   const [pickedCategory, setPickedCategory] = useState<string | null>(initial?.category || null); // null (or "") = smart guess from the name
   const [currency, setCurrency] = useState(initial?.currency ?? baseCurrency);
   const [showCurrencies, setShowCurrencies] = useState(false);
@@ -505,209 +511,6 @@ export function AddExpenseForm({
         )}
       </div>
 
-      {/* A photo of the bill: kept with the expense, and (when reading is on) fills the form in. */}
-      {!billRun && (
-        <div>
-          <BillScan groupId={groupId} read={ai && !expenseId} onAttach={setReceiptId} onRead={fillFromBill} existingId={existingReceiptId} />
-          {scannedItems > 1 && !byItem && members.length > 1 && (
-            <button
-              type="button"
-              onClick={() => {
-                setByItem(true);
-                setShowPeople(true);
-                setShowOnly(false);
-              }}
-              className="mt-1 flex min-h-11 items-center gap-2 text-sm font-medium text-owed"
-              data-split-by-item
-            >
-              {scannedItems} items on the bill · split by item ›
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Quick line: "Dinner 2400 Ravi paid split with Asha Meera" fills the form below. */}
-      {!expenseId && members.length > 1 && (
-        <QuickLine
-          groupId={groupId}
-          ai={ai}
-          members={members.map((m) => ({ id: m.id, name: m.name }))}
-          myId={myId}
-          who={who}
-          currency={currency}
-          onFill={(q, extra) => {
-            if (extra?.currency && extra.currency !== currency && isSupportedCurrency(extra.currency)) chooseCurrency(extra.currency);
-            if (q.name) setName(q.name);
-            if (q.amount) setAmount(q.amount);
-            if (q.paidById) {
-              setMultiPay(false);
-              setPaidById(q.paidById);
-            }
-            if (q.forIds) {
-              setShowOnly(false);
-              setSplitType("equal");
-              if (q.forIds.length === memberIds.length) setForMode("everyone");
-              else if (q.forIds.length === 1) {
-                setForMode("one");
-                setOnePersonId(q.forIds[0]);
-              } else {
-                setForMode("selected");
-                setSelected(q.forIds);
-              }
-            }
-          }}
-        />
-      )}
-
-      {/* 1. Expense name, with its category as a small tag (used for group reports) */}
-      <div>
-        <label htmlFor="expense-name" className={labelClass}>
-          What was it?
-        </label>
-        <div className="flex gap-2">
-          <input
-            id="expense-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Beach dinner"
-            autoComplete="off"
-            maxLength={80}
-            autoFocus={Boolean(initial?.name)}
-            className={inputClass}
-          />
-          <button
-            type="button"
-            onClick={() => setShowCategories((v) => !v)}
-            aria-label={`Category: ${category.label}${pickedCategory ? "" : " (picked automatically)"}. Tap to change`}
-            title={category.label}
-            className="flex shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-line px-2.5 active:bg-mist"
-          >
-            <ExpenseGlyph title={name} category={category.id} size={26} className="rounded-[8px]!" />
-            <span className="text-[11px] leading-none text-gray-500">
-              {category.short}
-              {!pickedCategory && name.trim() && <span className="text-gray-400"> · auto</span>}
-            </span>
-          </button>
-        </div>
-        {typo && (
-          <p className="mt-2 flex items-center gap-2 text-sm text-gray-500">
-            <span className="min-w-0 truncate">
-              Did you mean <span className="font-medium text-fg">“{typo.right}”</span>?
-            </span>
-            <button
-              type="button"
-              onClick={() => setName((n) => applySuggestion(n, typo))}
-              className="shrink-0 border border-line px-2.5 py-1 text-xs font-semibold text-fg active:bg-mist rounded-full"
-            >
-              Fix
-            </button>
-            <button type="button" onClick={() => setDismissedTypo(typo.wrong)} className="shrink-0 px-1 text-xs text-gray-400">
-              Keep
-            </button>
-          </p>
-        )}
-        {showCategories && (
-          <div className="mt-2 flex flex-wrap gap-2">
-            {CATEGORIES.map((c) => (
-              <Chip
-                key={c.id}
-                on={c.id === category.id}
-                onClick={() => {
-                  setPickedCategory(c.id);
-                  setShowCategories(false);
-                }}
-              >
-                <span className="inline-flex items-center gap-1.5">
-                  <ExpenseGlyph title="" category={c.id} size={18} className="rounded-[6px]!" />
-                  {c.label}
-                </span>
-              </Chip>
-            ))}
-            {pickedCategory && (
-              <Chip
-                on={false}
-                onClick={() => {
-                  setPickedCategory(null);
-                  setShowCategories(false);
-                }}
-              >
-                ✨ Auto
-              </Chip>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Who paid — visible at the top, one tap to change */}
-      {members.length > 1 && (
-        <div>
-          <div className="flex items-start justify-between gap-3">
-            <span className={labelClass}>{kind === "refund" ? "Who got the money?" : "Who paid?"}</span>
-            {kind === "expense" && spin && (
-              <SpinWheel
-                people={members.map((m) => ({ id: m.id, label: who(m.id) }))}
-                onPick={(id) => {
-                  setMultiPay(false);
-                  setPaidById(id);
-                }}
-              />
-            )}
-          </div>
-          <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none]">
-            {[...members].sort((a, b) => (a.id === myId ? -1 : b.id === myId ? 1 : 0)).map((m) => (
-              <Chip
-                key={m.id}
-                on={!multiPay && m.id === paidById}
-                face={m.name}
-                onClick={() => {
-                  setMultiPay(false);
-                  setPaidById(m.id);
-                }}
-              >
-                {who(m.id)}
-              </Chip>
-            ))}
-            <Chip
-              on={multiPay}
-              onClick={() => {
-                setMultiPay(true);
-                // Start from the current payer paying everything, so it already adds up.
-                if (!Object.values(payers).some((v) => v.trim())) setPayers({ [paidById]: amount });
-              }}
-            >
-              More than one
-            </Chip>
-          </div>
-          {multiPay && (
-            <div className="mt-3 rounded-2xl border border-line px-4 py-1">
-              <ul className="divide-y divide-line">
-                {members.map((m) => (
-                  <li key={m.id} className="flex items-center gap-3 py-2">
-                    <span className="flex-1">{who(m.id)}</span>
-                    <span className="flex w-36 items-center rounded-xl border border-line px-3 focus-within:border-accent">
-                      <span className="nobreak shrink-0 text-xs text-gray-400">{currency}</span>
-                      <input
-                        inputMode="decimal"
-                        placeholder="0"
-                        aria-label={`${who(m.id)} paid`}
-                        value={payers[m.id] ?? ""}
-                        onChange={(e) => setPayers((prev) => ({ ...prev, [m.id]: e.target.value }))}
-                        className="w-full bg-transparent py-2 text-right outline-none"
-                      />
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              {payersLeft && (
-                <p className={`pb-2 text-sm ${payersLeft.state === "done" ? "text-accent-dark" : payersLeft.state === "over" ? "text-red-600" : "text-gray-500"}`}>
-                  {payersLeft.text}
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Foreign currency: one summary line; details (rate, card fee, how it adds up) on tap */}
       {foreign && !fxOpen && (
         <button
@@ -892,6 +695,190 @@ export function AddExpenseForm({
             </p>
           )}
         </section>
+      )}
+
+      {/* Faster entry: scan a bill, say it, or type it in one line. Each fills the form below; nothing saves until Save. */}
+      {(!billRun || quickOk) && (
+        <div data-faster-entry>
+          <span className={labelClass}>Faster entry</span>
+          <div role="group" aria-label="Faster entry" className="grid gap-2" style={{ gridTemplateColumns: `repeat(${quickOk ? (billRun ? 2 : 3) : 1}, minmax(0, 1fr))` }}>
+            {!billRun && (
+              <EntryButton onClick={() => openBill.current?.()} label={ai && !expenseId ? "Scan a bill" : "Bill photo"}>
+                <path d="M4 3h16v18l-3-2-2 2-3-2-3 2-2-2-3 2zM8 8h8M8 12h8M8 16h5" />
+              </EntryButton>
+            )}
+            {quickOk && (
+              <EntryButton onClick={() => setQuickStart((q) => ({ n: (q?.n ?? 0) + 1, speak: true }))} label="Speak">
+                <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5 11a7 7 0 0 0 14 0M12 18v3" />
+              </EntryButton>
+            )}
+            {quickOk && (
+              <EntryButton onClick={() => setQuickStart((q) => ({ n: (q?.n ?? 0) + 1, speak: false }))} label="Type a line">
+                <path d="M4 7h16M4 12h10M4 17h7" />
+              </EntryButton>
+            )}
+          </div>
+          {!billRun && (
+            <div className="mt-1">
+              <BillScan groupId={groupId} read={ai && !expenseId} onAttach={setReceiptId} onRead={fillFromBill} existingId={existingReceiptId} openRef={openBill} />
+              {scannedItems > 1 && !byItem && members.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setByItem(true);
+                    setShowPeople(true);
+                    setShowOnly(false);
+                  }}
+                  className="mt-1 flex min-h-11 items-center gap-2 text-sm font-medium text-owed"
+                  data-split-by-item
+                >
+                  {scannedItems} items on the bill · split by item ›
+                </button>
+              )}
+            </div>
+          )}
+          {/* Quick line: "Dinner 2400 Ravi paid split with Asha Meera" fills the form below. */}
+          {quickOk && (
+            <div className="mt-2">
+              <QuickLine
+                groupId={groupId}
+                ai={ai}
+                members={members.map((m) => ({ id: m.id, name: m.name }))}
+                myId={myId}
+                who={who}
+                currency={currency}
+                start={quickStart}
+                onFill={(q, extra) => {
+                  if (extra?.currency && extra.currency !== currency && isSupportedCurrency(extra.currency)) chooseCurrency(extra.currency);
+                  if (q.name) setName(q.name);
+                  if (q.amount) setAmount(q.amount);
+                  if (q.paidById) {
+                    setMultiPay(false);
+                    setPaidById(q.paidById);
+                  }
+                  if (q.forIds) {
+                    setShowOnly(false);
+                    setSplitType("equal");
+                    if (q.forIds.length === memberIds.length) setForMode("everyone");
+                    else if (q.forIds.length === 1) {
+                      setForMode("one");
+                      setOnePersonId(q.forIds[0]);
+                    } else {
+                      setForMode("selected");
+                      setSelected(q.forIds);
+                    }
+                  }
+                }}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 1. Expense name, with its category as a small tag (used for group reports) */}
+      <div>
+        <label htmlFor="expense-name" className={labelClass}>
+          What was it?
+        </label>
+        <div className="flex gap-2">
+          <input
+            id="expense-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Beach dinner"
+            autoComplete="off"
+            maxLength={80}
+            autoFocus={Boolean(initial?.name)}
+            className={inputClass}
+          />
+          <button
+            type="button"
+            onClick={() => setShowCategories((v) => !v)}
+            aria-label={`Category: ${category.label}${pickedCategory ? "" : " (picked automatically)"}. Tap to change`}
+            title={category.label}
+            className="flex shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-line px-2.5 active:bg-mist"
+          >
+            <ExpenseGlyph title={name} category={category.id} size={26} className="rounded-[8px]!" />
+            <span className="text-[11px] leading-none text-gray-500">
+              {category.short}
+              {!pickedCategory && name.trim() && <span className="text-gray-400"> · auto</span>}
+            </span>
+          </button>
+        </div>
+        {typo && (
+          <p className="mt-2 flex items-center gap-2 text-sm text-gray-500">
+            <span className="min-w-0 truncate">
+              Did you mean <span className="font-medium text-fg">“{typo.right}”</span>?
+            </span>
+            <button
+              type="button"
+              onClick={() => setName((n) => applySuggestion(n, typo))}
+              className="shrink-0 border border-line px-2.5 py-1 text-xs font-semibold text-fg active:bg-mist rounded-full"
+            >
+              Fix
+            </button>
+            <button type="button" onClick={() => setDismissedTypo(typo.wrong)} className="shrink-0 px-1 text-xs text-gray-400">
+              Keep
+            </button>
+          </p>
+        )}
+        {showCategories && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {CATEGORIES.map((c) => (
+              <Chip
+                key={c.id}
+                on={c.id === category.id}
+                onClick={() => {
+                  setPickedCategory(c.id);
+                  setShowCategories(false);
+                }}
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <ExpenseGlyph title="" category={c.id} size={18} className="rounded-[6px]!" />
+                  {c.label}
+                </span>
+              </Chip>
+            ))}
+            {pickedCategory && (
+              <Chip
+                on={false}
+                onClick={() => {
+                  setPickedCategory(null);
+                  setShowCategories(false);
+                }}
+              >
+                ✨ Auto
+              </Chip>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Who paid: right under the name, one tap to change. Several payers and Spin for it are under More. */}
+      {members.length > 1 && (
+        <div>
+          <span className={labelClass}>{kind === "refund" ? "Who got the money?" : "Who paid?"}</span>
+          <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none]">
+            {[...members].sort((a, b) => (a.id === myId ? -1 : b.id === myId ? 1 : 0)).map((m) => (
+              <Chip
+                key={m.id}
+                on={!multiPay && m.id === paidById}
+                face={m.name}
+                onClick={() => {
+                  setMultiPay(false);
+                  setPaidById(m.id);
+                }}
+              >
+                {who(m.id)}
+              </Chip>
+            ))}
+          </div>
+          {multiPay && (
+            <button type="button" onClick={() => setShowMore(true)} className="mt-1 min-h-11 text-left text-sm text-gray-500" data-multi-pay-note>
+              More than one person {kind === "refund" ? "got it" : "paid"}. Set the amounts under <span className="font-medium text-fg underline underline-offset-4">More</span>.
+            </button>
+          )}
+        </div>
       )}
 
       {/* How to split: equal for everyone (default), or differently */}
@@ -1201,26 +1188,110 @@ export function AddExpenseForm({
         )}
       </section>
 
-      {/* Notes (optional) */}
-      <div>
-        {showNotes ? (
-          <label className="block">
-            <span className={labelClass}>Notes</span>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              maxLength={500}
-              rows={3}
-              placeholder="e.g. Rahul paid the tip separately"
-              className={`${inputClass} resize-none`}
-            />
-          </label>
-        ) : (
-          <button type="button" onClick={() => setShowNotes(true)} className="flex items-center gap-2 py-1 text-sm font-medium text-fg">
-            <span className="text-lg leading-none">＋</span> Add notes
-          </button>
+      {/* More: the less common options, closed to keep the form short. */}
+      <section aria-label="More" data-more>
+        <button
+          type="button"
+          onClick={() => setShowMore((v) => !v)}
+          aria-expanded={showMore}
+          className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-line px-4 py-3 text-left text-sm font-semibold active:bg-mist"
+        >
+          <span>
+            More
+            {!showMore && (
+              <span className="block text-xs font-normal text-fg/55">
+                Notes{members.length > 1 ? ", several payers" : ""}
+                {members.length > 1 && kind === "expense" && spin ? ", spin for it" : ""}
+              </span>
+            )}
+          </span>
+          <svg aria-hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 text-fg/50 transition-transform ${showMore ? "rotate-180" : ""}`}>
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+        {showMore && (
+          <div className="mt-4 space-y-6">
+            <label className="block">
+              <span className={labelClass}>Notes</span>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                maxLength={500}
+                rows={3}
+                placeholder="e.g. Rahul paid the tip separately"
+                className={`${inputClass} resize-none`}
+              />
+            </label>
+
+            {members.length > 1 && (
+              <div>
+                <div className="flex min-h-11 items-center justify-between gap-3">
+                  <span className="text-sm font-medium text-fg/85">{multiLabel}</span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={multiPay}
+                    aria-label={multiLabel}
+                    onClick={() => {
+                      if (multiPay) {
+                        setMultiPay(false);
+                        return;
+                      }
+                      setMultiPay(true);
+                      // Start from the current payer paying everything, so it already adds up.
+                      if (!Object.values(payers).some((v) => v.trim())) setPayers({ [paidById]: amount });
+                    }}
+                    className={`relative h-7 w-12 shrink-0 rounded-full border transition-colors ${multiPay ? "border-fg bg-fg" : "border-line bg-mist"}`}
+                  >
+                    <span className={`absolute top-0.5 h-5 w-5 rounded-full transition-all ${multiPay ? "left-6 bg-canvas" : "left-0.5 bg-fg/60"}`} />
+                  </button>
+                </div>
+                {multiPay && (
+                  <div className="mt-2 rounded-2xl border border-line px-4 py-1">
+                    <ul className="divide-y divide-line">
+                      {members.map((m) => (
+                        <li key={m.id} className="flex items-center gap-3 py-2">
+                          <span className="flex-1">{who(m.id)}</span>
+                          <span className="flex w-36 items-center rounded-xl border border-line px-3 focus-within:border-accent">
+                            <span className="nobreak shrink-0 text-xs text-gray-400">{currency}</span>
+                            <input
+                              inputMode="decimal"
+                              placeholder="0"
+                              aria-label={`${who(m.id)} paid`}
+                              value={payers[m.id] ?? ""}
+                              onChange={(e) => setPayers((prev) => ({ ...prev, [m.id]: e.target.value }))}
+                              className="w-full bg-transparent py-2 text-right outline-none"
+                            />
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                    {payersLeft && (
+                      <p className={`pb-2 text-sm ${payersLeft.state === "done" ? "text-accent-dark" : payersLeft.state === "over" ? "text-red-600" : "text-gray-500"}`}>
+                        {payersLeft.text}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {members.length > 1 && kind === "expense" && spin && (
+              <div className="flex min-h-11 items-center justify-between gap-3">
+                <span className="text-sm font-medium text-fg/85">Can’t decide who pays?</span>
+                <SpinWheel
+                  roomy
+                  people={members.map((m) => ({ id: m.id, label: who(m.id) }))}
+                  onPick={(id) => {
+                    setMultiPay(false);
+                    setPaidById(id);
+                  }}
+                />
+              </div>
+            )}
+          </div>
         )}
-      </div>
+      </section>
 
       {/* Result: who owes whom for this expense (exactly what will be saved) */}
       {preview.ok && (() => {
@@ -1359,6 +1430,22 @@ function Chip({ on, onClick, children, face }: { on: boolean; onClick: () => voi
         </span>
       )}
       {children}
+    </button>
+  );
+}
+
+// One of the three equal buttons in the Faster entry row.
+function EntryButton({ onClick, label, children }: { onClick: () => void; label: string; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-line bg-mist px-2 text-[13px] font-semibold text-fg/90 transition-transform active:scale-95"
+    >
+      <svg aria-hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+        {children}
+      </svg>
+      <span className="truncate">{label}</span>
     </button>
   );
 }

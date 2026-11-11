@@ -34,7 +34,7 @@ function lines(label: string, max: number): string[] {
   return [first.length > max + 2 ? `${first.slice(0, max + 1)}…` : first, rest.length > max + 2 ? `${rest.slice(0, max + 1)}…` : rest];
 }
 
-export function SpinWheel({ people, onPick }: { people: { id: string; label: string }[]; onPick: (id: string) => void }) {
+export function SpinWheel({ people, onPick, roomy = false }: { people: { id: string; label: string }[]; onPick: (id: string) => void; roomy?: boolean }) {
   const [open, setOpen] = useState(false);
   const [angle, setAngle] = useState(0);
   const [spinning, setSpinning] = useState(false);
@@ -88,7 +88,7 @@ export function SpinWheel({ people, onPick }: { people: { id: string; label: str
         type="button"
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
-        className="flex items-center gap-1.5 rounded-full border border-[#d8bd7a]/50 bg-[linear-gradient(180deg,rgba(216,189,122,0.16),rgba(216,189,122,0.06))] px-3 py-1.5 text-xs font-semibold text-[#e8d29a] active:bg-[#d8bd7a]/20"
+        className={`flex items-center gap-1.5 rounded-full border border-[#d8bd7a]/50 bg-[linear-gradient(180deg,rgba(216,189,122,0.16),rgba(216,189,122,0.06))] font-semibold ${roomy ? "min-h-11 px-4 text-sm" : "px-3 py-1.5 text-xs"} text-[#e8d29a] active:bg-[#d8bd7a]/20`}
       >
         <span className="motion-safe:animate-[spin_6s_linear_infinite]" aria-hidden>
           <WheelIcon size={15} />

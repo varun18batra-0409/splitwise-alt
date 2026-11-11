@@ -36,7 +36,7 @@ export const metadata: Metadata = {
   title: { default: SITE_TITLE, template: "%s · Loopin" },
   description: SITE_DESCRIPTION,
   applicationName: "Loopin",
-  keywords: ["split expenses", "split bills", "Splitwise alternative", "expense sharing app", "trip expenses", "flatmates", "roommates", "couples budget", "group expenses"],
+  keywords: ["split expenses", "split bills", "bill splitting app", "expense sharing app", "trip expenses", "flatmates", "roommates", "couples budget", "group expenses"],
   openGraph: { type: "website", url: SITE_URL, siteName: "Loopin", title: SITE_TITLE, description: SITE_DESCRIPTION, locale: "en_US" },
   twitter: { card: "summary_large_image", title: SITE_TITLE, description: SITE_DESCRIPTION },
   // Google Search Console's "HTML tag" check, if that way is used (set in the hosting settings).

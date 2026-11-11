@@ -1,11 +1,11 @@
 import Link from "@/components/Link";
 import { PageHeader, primaryButtonClass } from "@/components/ui";
 
-export const metadata = { title: "Coming from another app?", description: "Switching from Splitwise or another app? Bring your groups over in a minute, with every expense and the same balances.", alternates: { canonical: "/switching" } };
+export const metadata = { title: "Coming from another app?", description: "Switching from another app? Bring your groups over in a minute, with every expense and the same balances.", alternates: { canonical: "/switching" } };
 
 const POINTS: [string, string][] = [
   ["No limits", "Add as many expenses as you like, every day."],
-  ["Your groups come with you", "Bring a group over from the other app’s spreadsheet export (Splitwise, Tricount, a sheet you kept): every expense, every payment, the same balances."],
+  ["Your groups come with you", "Bring a group over from the other app’s spreadsheet export (any app that can export a spreadsheet, or a sheet you kept): every expense, every payment, the same balances."],
   ["Made for trips abroad", "Spend in any currency. Loopin uses the day’s rate and can add your card’s foreign-transaction fee, so the totals match your bank."],
   ["Flats that run themselves", "Set rent and bills to repeat monthly and Loopin adds them on the day; a shared shopping list turns into one Groceries expense, and moving in or out mid-month is handled."],
   ["Couples, your own split", "55/45 by income, or any split you choose, with a running “who’s ahead” and savings goals."],
@@ -36,7 +36,7 @@ export default function Switching() {
       <h2 className="mt-10 font-display text-[24px] font-semibold">How it works</h2>
       <ol className="mt-3 space-y-2 text-[15px] text-gray-600">
         <li>
-          <b>1.</b> In the other app, export the group as a spreadsheet (CSV). In Splitwise: the group → gear → <b>Export as spreadsheet</b>.
+          <b>1.</b> In the other app, export the group as a spreadsheet (CSV). Look for <b>Export</b> or <b>Download</b> in the group’s settings or menu.
         </li>
         <li>
           <b>2.</b> In Loopin, tap <b>Bring a group over</b> and pick that file. Check the balances, say which person is you.

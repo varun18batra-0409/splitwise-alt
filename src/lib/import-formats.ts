@@ -48,7 +48,7 @@ export function detectFormat(text: string): Detected {
   if (h[0] === "loopin: all your data") {
     return { ok: false, error: "This is Loopin’s “all my data” download, which holds every group. In the group you want, open Settings → Download spreadsheet, and pick that file." };
   }
-  if (["date", "description", "category", "cost", "currency"].every((x, i) => h[i] === x)) return { ok: true, format: "splitwise", label: "Splitwise export" };
+  if (["date", "description", "category", "cost", "currency"].every((x, i) => h[i] === x)) return { ok: true, format: "splitwise", label: "Spreadsheet from another app" };
   if (h[0] === "date" && h[1] === "type" && h[2] === "description" && h[5] === "paid by" && /^amount \(/.test(h[6] ?? "")) {
     return { ok: true, format: "loopin", label: "Loopin spreadsheet" };
   }

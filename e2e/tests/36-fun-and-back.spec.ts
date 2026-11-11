@@ -2,6 +2,7 @@ import { test, expect } from "../fixtures";
 import { testEmail, groupName } from "../env";
 import { signUp } from "../helpers/auth";
 import { addEqualExpense, contextFor, createGroup, joinGroup, settled } from "../helpers/app";
+import { openMore } from "../helpers/expense";
 
 // The fun screens, the way a person moves through them: in, around, and back
 // out with the phone's Back button, plus taking things away again (a country
@@ -98,6 +99,7 @@ test("titles, Wrapped, the passport and a card game: in, around, back out, and d
   // Spin for it on Add expense picks a payer.
   await page.goto(`${trip.path}/add`);
   await settled(page);
+  await openMore(page);
   await page.getByRole("button", { name: /Spin for it/ }).click();
   const wheel = page.getByRole("dialog", { name: "Spin the wheel" });
   await wheel.getByRole("button", { name: "Spin", exact: true }).click();

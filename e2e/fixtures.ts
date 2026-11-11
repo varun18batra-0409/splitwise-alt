@@ -9,6 +9,14 @@ const watched = new WeakSet<BrowserContext>();
 export function watchConsole(ctx: BrowserContext) {
   if (watched.has(ctx)) return;
   watched.add(ctx);
+  // The one-time group-type sheet stays out of the way of tests (the sheet's own test turns it back on).
+  void ctx.addInitScript(() => {
+    try {
+      localStorage.setItem("lp-type-sheet-off", "1");
+    } catch {
+      /* storage blocked */
+    }
+  });
   ctx.on("console", (m) => lines.push(`[${new Date().toISOString()}] ${m.type()}: ${m.text()}`));
   ctx.on("weberror", (e) => lines.push(`[${new Date().toISOString()}] page error: ${e.error().message}`));
   // "Are you sure?" boxes (ConfirmButton) are answered Yes, as a person would.

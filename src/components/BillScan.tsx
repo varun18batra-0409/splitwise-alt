@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { load } from "./OwnPhoto";
 
 export type ScannedBill = {
@@ -21,7 +21,9 @@ export function BillScan({
   onRead,
   onAttach,
   existingId,
+  openRef,
 }: {
+  openRef?: { current: (() => void) | null }; // the form's own "Scan a bill" button opens the photo picker through this
   existingId?: string; // editing: the photo already kept (shown with Replace / Remove)
   groupId: string;
   read: boolean; // fill the form in from the photo
@@ -33,6 +35,13 @@ export function BillScan({
   const [note, setNote] = useState("");
   const [thumb, setThumb] = useState("");
   const [kept, setKept] = useState(Boolean(existingId)); // the current photo is still attached
+  useEffect(() => {
+    if (!openRef) return;
+    openRef.current = () => input.current?.click();
+    return () => {
+      openRef.current = null;
+    };
+  }, [openRef]);
 
   async function pick(file: File | undefined) {
     if (!file) return;
@@ -104,17 +113,25 @@ export function BillScan({
         </div>
       ) : kept && existingId ? null : (
         <>
-          <button
-            type="button"
-            disabled={state === "busy"}
-            onClick={() => input.current?.click()}
-            className="flex min-h-11 items-center gap-2 text-sm font-medium text-fg disabled:opacity-60"
-          >
-            <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 3h16v18l-3-2-2 2-3-2-3 2-2-2-3 2zM8 8h8M8 12h8M8 16h5" />
-            </svg>
-            {state === "busy" ? (read ? "Reading the bill…" : "Adding…") : read ? "Scan a bill" : "Add a bill photo"}
-          </button>
+          {/* With openRef the form has its own "Scan a bill" button in its Faster entry row. */}
+          {!openRef && (
+            <button
+              type="button"
+              disabled={state === "busy"}
+              onClick={() => input.current?.click()}
+              className="flex min-h-11 items-center gap-2 text-sm font-medium text-fg disabled:opacity-60"
+            >
+              <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 3h16v18l-3-2-2 2-3-2-3 2-2-2-3 2zM8 8h8M8 12h8M8 16h5" />
+              </svg>
+              {state === "busy" ? (read ? "Reading the bill…" : "Adding…") : read ? "Scan a bill" : "Add a bill photo"}
+            </button>
+          )}
+          {openRef && state === "busy" && (
+            <p className="text-sm text-gray-500" role="status">
+              {note}
+            </p>
+          )}
           {note && state !== "busy" && (
             <p className="text-sm text-gray-500" role="status">
               {note}

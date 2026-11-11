@@ -125,6 +125,14 @@ async function signup(page: Page, name: string, address: string, emailFilled = f
 
 async function person(browser: Browser): Promise<{ ctx: BrowserContext; page: Page }> {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "en-IN", timezoneId: "Asia/Kolkata", colorScheme: "dark" });
+  // The one-time group-type sheet stays out of the way of the steps (its own step turns it back on).
+  await ctx.addInitScript(() => {
+    try {
+      localStorage.setItem("lp-type-sheet-off", "1");
+    } catch {
+      /* storage blocked */
+    }
+  });
   const page = await ctx.newPage();
   page.on("dialog", (d) => d.accept());
   page.setDefaultTimeout(hosted ? 30_000 : 15_000); // the test copy can be slow to wake up
@@ -236,9 +244,14 @@ async function fillExpense(page: Page, o: AddOpts) {
     for (const [p, v] of Object.entries(s.values)) await page.getByLabel(`${label(p as Person)} shares`).fill(v!);
   }
   if (o.notes) {
-    await page.getByRole("button", { name: /Add notes/ }).click();
+    await openMore(page);
     await page.getByPlaceholder(/Rahul paid the tip/).fill(o.notes);
   }
+}
+// Add expense keeps notes, several payers and Spin for it under "More" (closed unless the expense already uses them).
+async function openMore(page: Page) {
+  const b = page.locator("[data-more] > button");
+  if ((await b.getAttribute("aria-expanded")) !== "true") await b.click();
 }
 async function save(page: Page, o: AddOpts, button = "Save expense") {
   const before = page.url();
@@ -911,7 +924,8 @@ async function main() {
     await go(V, `${gc}/add`);
     await V.locator("#expense-name").fill("Dinner date");
     await V.getByLabel("Amount", { exact: true }).fill("2000");
-    await V.getByRole("button", { name: "More than one" }).click();
+    await openMore(V);
+    await V.getByRole("switch", { name: /More than one person paid/ }).click();
     await V.getByLabel("You paid").fill("1500");
     await V.getByLabel("Asha paid").fill("500");
     await V.getByText(/Adds up to/).first().waitFor();
@@ -1002,12 +1016,33 @@ async function main() {
     await go(A, "/notifications");
     await A.getByText(/added Asha to the group/).first().waitFor();
   });
-  await step(V, "Home", "Home opens on a photo (the next trip, or your latest group), then your balance, Your groups and the bottom bar", async () => {
+  await step(V, "Home", "Home opens on the money card (net amount, Add expense and Settle up), then Your groups and the bottom bar, which keeps its “+”", async () => {
     await go(V, "/");
-    await V.locator("[data-home-hero]").waitFor();
-    await V.getByRole("region", { name: "Your balance" }).getByText(/Coming back to you|You owe, all in|It all evens out|All square/).first().waitFor();
+    const money = V.getByRole("region", { name: "Your money" });
+    await money.getByText(/Coming back to you|You owe|It all evens out|Good (morning|afternoon|evening)/).first().waitFor();
+    await money.locator("[data-net-balance]").waitFor();
+    const second = (await money.locator("[data-money-action]").evaluateAll((els) => els.map((e) => e.getAttribute("data-money-action")))).join(",");
+    assert(/^add,(settle|new-group)$/.test(second), `the money card buttons are ${second}`);
     await V.getByRole("heading", { name: "Your groups" }).waitFor();
-    await V.getByRole("navigation", { name: "Main" }).waitFor();
+    const nav = V.getByRole("navigation", { name: "Main" });
+    await nav.waitFor();
+    assert(await nav.getByRole("link", { name: "Add expense" }).count(), "the bottom bar lost its “+”");
+  });
+  await step(V, "Home", "On a small phone (375×667) the money card with both buttons sits fully inside the first screen; Add expense goes to the group picker or the only group", async () => {
+    const was = V.viewportSize();
+    await V.setViewportSize({ width: 375, height: 667 });
+    await go(V, "/");
+    const card = V.getByRole("region", { name: "Your money" });
+    await card.waitFor();
+    const box = (await card.boundingBox())!;
+    assert(box.y >= 0 && box.y + box.height <= 667, `the money card ends at ${Math.round(box.y + box.height)}px of 667`);
+    for (const b of await card.locator("[data-money-action]").all()) {
+      const bb = (await b.boundingBox())!;
+      assert(bb.height >= 44 && bb.y + bb.height <= 667, `a money button is ${Math.round(bb.height)}px tall, ending at ${Math.round(bb.y + bb.height)}`);
+    }
+    await card.locator("[data-money-action='add']").click();
+    await V.waitForURL((u) => u.pathname === "/add" || /\/groups\/[^/]+\/add$/.test(u.pathname));
+    if (was) await V.setViewportSize(was);
   });
   await step(V, "Home", "The sliding cards at the top: 4 to 7 of them, no two the same, each with words and a button that goes somewhere; no “Coming from another app?” card", async () => {
     await go(V, "/");
@@ -1348,12 +1383,12 @@ async function main() {
     const { ctx, page } = await phone("Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36");
     await go(page, "/");
     await page.getByRole("link", { name: "Home", exact: true }).first().click();
-    await page.getByText("Let’s get you started").waitFor();
-    await page.getByRole("link", { name: "Sign in or sign up" }).first().waitFor();
+    await page.getByRole("heading", { name: "Start with one group." }).waitFor();
+    await page.getByRole("link", { name: /Sign up to keep your groups/ }).first().waitFor();
     // Join with a pasted link
     // (Tapped again if the first tap landed before the page came alive, as a person would.)
     for (let i = 0; i < 4 && !(await page.getByLabel("Invite link").count()); i++) {
-      await page.getByRole("button", { name: "Join with an invite link" }).click();
+      await page.getByRole("button", { name: "I have an invite link" }).click();
       await page.getByLabel("Invite link").waitFor({ timeout: 2_000 }).catch(() => undefined);
     }
     await page.getByLabel("Invite link").fill(`https://getloopin.vercel.app${invite}`);
@@ -1387,25 +1422,28 @@ async function main() {
     await V.waitForURL(/\/welcome/);
     return `${imgs} photos on the guide (${sizes})`;
   });
-  await step(null, "Help", "The 1-minute tour has 10 slides: flats & couples, card nights (The Pot), stories, the passport and postcards, and none says “no sign-up”", async () => {
+  await step(null, "Help", "The 1-minute tour has 4 slides (make a group, add what you paid, see who owes then settle, every trip becomes a story), in words that work outside India, and none says “no sign-up”", async () => {
     const { ctx, page } = await person(browser);
     await go(page, "/welcome");
     const seen: string[] = [];
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 4; i++) {
       seen.push((await page.locator("main").innerText()).replace(/\s+/g, " "));
       const next = page.getByRole("button", { name: /Next/ });
-      if (i < 9) {
+      if (i < 3) {
         await next.click();
         await page.waitForTimeout(500);
       }
     }
+    assert((await page.locator("[data-tour-slide]").count()) === 4, `${await page.locator("[data-tour-slide]").count()} slides, not 4`);
     const all = seen.join(" ");
-    assert(/Bills on repeat/.test(all), "no flats & couples slide");
-    assert(/The Pot keeps score/.test(all), "no card-night slide");
-    assert(/as stories/.test(all), "no stories slide");
-    assert(/a stamp/.test(all), "no passport slide");
-    assert(/Send a postcard/.test(all), "no postcards slide");
+    for (const t of ["Make a group.", "Add what you paid.", "See who owes. Then settle.", "Every trip becomes a story."]) assert(all.includes(t), `no “${t}” slide`);
+    assert(/to the last paisa or cent/.test(all), "the add slide doesn’t say “to the last paisa or cent”");
+    assert(/Pay each other however you like/.test(all), "the settle slide doesn’t say “Pay each other however you like”");
     assert(!/no sign-up/i.test(all), "a slide still says “no sign-up”");
+    assert(!/UPI|Teen Patti|Diwali/i.test(all), "a slide has India-only words");
+    assert(!/splitwise/i.test(all), "a slide names another app");
+    assert(await page.getByText("Create your first group").first().isVisible(), "no “Create your first group”");
+    assert(await page.getByRole("link", { name: "Skip" }).first().isVisible(), "no Skip");
     await ctx.close();
   });
   await step(null, "Help", "The tour moves like stories: tap the right side for next, the left side to go back, and Back / Next buttons at the bottom", async () => {
@@ -1414,15 +1452,15 @@ async function main() {
     const at = async () => (await page.locator("[data-tour-at]").innerText()).trim();
     assert((await at()).startsWith("1 /"), `starts at ${await at()}`);
     assert(await page.locator("[data-tour-back]").isDisabled(), "Back works on the first slide");
-    const box = (await page.locator("[data-tour-slide='cheers']").boundingBox())!;
+    const box = (await page.locator("[data-tour-slide='group']").boundingBox())!;
     await page.mouse.click(box.x + box.width * 0.85, box.y + box.height * 0.5);
     await page.waitForTimeout(700);
     assert((await at()).startsWith("2 /"), `tap right → ${await at()}`);
-    const box2 = (await page.locator("[data-tour-slide='owes']").boundingBox())!;
+    const box2 = (await page.locator("[data-tour-slide='add']").boundingBox())!;
     await page.mouse.click(box2.x + box2.width * 0.85, box2.y + box2.height * 0.5);
     await page.waitForTimeout(700);
     assert((await at()).startsWith("3 /"), `tap right again → ${await at()}`);
-    const box3 = (await page.locator("[data-tour-slide='currency']").boundingBox())!;
+    const box3 = (await page.locator("[data-tour-slide='settle']").boundingBox())!;
     await page.mouse.click(box3.x + box3.width * 0.12, box3.y + box3.height * 0.5);
     await page.waitForTimeout(700);
     assert((await at()).startsWith("2 /"), `tap left → ${await at()}`);
@@ -1431,7 +1469,7 @@ async function main() {
     assert((await at()).startsWith("1 /"), `Back → ${await at()}`);
     await ctx.close();
   });
-  await step(V, "Help", "The guide has Flatmates, Couples, the trip report, stories, Wrapped, the passport and Splitwise, with real app screens that load", async () => {
+  await step(V, "Help", "The guide has Flatmates, Couples, the trip report, stories, Wrapped, the passport and moving over from another app, with real app screens that load", async () => {
     await go(V, "/how-it-works");
     for (const h of ["Flatmates: the flat runs itself", "Couples: your split, not 50/50", "Trip over? The trip in numbers", "Home, told as stories", "Trip over? Watch the Wrapped", "Your trip passport", "Postcards, sealed and stamped", "Coming from another app?"]) await V.getByRole("heading", { name: h }).waitFor();
     assert(!(await V.getByText("Recurring bills are coming soon").count()), "still says recurring bills are coming soon");
@@ -1980,7 +2018,7 @@ async function main() {
     await ctx.close();
   });
 
-  await step(V, "Switching", "“Coming from Splitwise?” → pick the exported file → balances checked → Bring it over: a new group with the same expenses, payments and balances", async () => {
+  await step(V, "Switching", "“Coming from another app?” → pick the exported file → balances checked → Bring it over: a new group with the same expenses, payments and balances", async () => {
     await go(V, "/switching");
     await V.getByRole("heading", { name: /Bring your groups/ }).waitFor();
     await V.getByRole("link", { name: "Bring a group over" }).first().click();
@@ -2298,7 +2336,7 @@ async function main() {
     assert((await V.getByLabel("Amount", { exact: true }).inputValue()).replace(/,/g, "") === "999", "Add it isn't pre-filled with ₹999");
   });
 
-  await step(V, "Switching", "A file that isn't a Splitwise export gets a clear message; a second currency is flagged", async () => {
+  await step(V, "Switching", "A file that isn't a known export gets a clear message; a second currency is flagged", async () => {
     await go(V, "/import");
     await V.getByLabel("Spreadsheet to import").setInputFiles({ name: "notes.csv", mimeType: "text/csv", buffer: Buffer.from("Name,Amount\nTea,20\n") });
     await V.getByRole("region", { name: "Which column is which?" }).waitFor(); // an unknown file: asked which column is which
@@ -2452,10 +2490,10 @@ async function main() {
     assert(await card.locator("[data-takeoff]").count(), "no plane on the countdown");
   });
 
-  await step(V, "Countdown", "A second trip in 30 days: the soonest stays big at the top of Home, the later one shows under “Also coming up”, one card at a time", async () => {
+  await step(V, "Countdown", "A second trip in 30 days: the soonest stays in the countdown strip under the money card, the later one shows under “Also coming up”, one card at a time", async () => {
     await newTrip(V, `UAT Manali trip ${stamp % 1000}`, istDay(30));
     await go(V, "/");
-    assert((await V.locator("[data-home-hero]").getAttribute("data-countdown")) === "10", "the soonest trip isn't at the top");
+    assert((await V.locator("[data-trip-strip]").getAttribute("data-countdown")) === "10", "the soonest trip isn't in the strip under the money card");
     const row = V.locator("[data-trip-row]");
     const days = await row.locator("[data-countdown]").evaluateAll((els) => els.map((e) => e.getAttribute("data-countdown")));
     assert(days[0] === "30", `later trips in the order ${days.join(", ")}`);
@@ -2480,12 +2518,55 @@ async function main() {
 
   await step(V, "Add", "Type it in one line: “Snacks 600 split with everyone” fills the name, amount and split, and nothing saves until Save", async () => {
     await go(V, `${g}/add`);
-    await V.getByRole("button", { name: /Type it in one line/ }).click();
+    await V.getByRole("group", { name: "Faster entry" }).getByRole("button", { name: "Type a line" }).click();
     await V.getByLabel("Type the expense in one line").fill("Snacks 600 split with everyone");
     await V.getByRole("button", { name: "Fill", exact: true }).click();
     assert((await V.locator("#expense-name").inputValue()) === "Snacks", `name is “${await V.locator("#expense-name").inputValue()}”`);
     assert((await V.getByLabel("Amount", { exact: true }).inputValue()) === "600", "amount not filled");
     await V.getByRole("group", { name: "Quick line" }).getByRole("status").filter({ hasText: "Check below" }).waitFor();
+  });
+
+  await step(V, "Add", "Add expense is tidy: the date under the amount, one Faster entry row (Scan a bill · Speak · Type a line), then What was it?, Who paid and the split; notes, several payers and Spin sit under a closed More; the summary line sits above Save", async () => {
+    await go(V, `${g}/add`);
+    await V.getByLabel("Amount", { exact: true }).fill("1200");
+    await V.locator("#expense-name").fill("Beach dinner");
+    const row = V.getByRole("group", { name: "Faster entry" });
+    assert((await row.getByRole("button").allTextContents()).map((t) => t.trim()).join("|").match(/^(Scan a bill|Bill photo)\|Speak\|Type a line$/), "the Faster entry row isn't Scan a bill · Speak · Type a line");
+    const y = async (loc: ReturnType<Page["locator"]>) => (await loc.first().boundingBox())!.y;
+    const order = [await y(V.getByRole("button", { name: /^(Today|Yesterday)/ })), await y(row), await y(V.locator("#expense-name")), await y(V.getByText("Who paid?")), await y(V.getByText("How to split?"))];
+    assert(order.every((v, i) => i === 0 || v > order[i - 1]), `the form order is off: ${order.map(Math.round).join(", ")}`);
+    const more = V.locator("[data-more] > button");
+    assert((await more.getAttribute("aria-expanded")) === "false", "More isn't closed to start with");
+    assert((await V.getByPlaceholder(/Rahul paid the tip/).count()) === 0, "notes are showing while More is closed");
+    await more.click();
+    await V.getByPlaceholder(/Rahul paid the tip/).waitFor();
+    await V.getByRole("switch", { name: /More than one person paid/ }).waitFor();
+    await V.getByRole("button", { name: /Spin for it/ }).waitFor();
+    await V.locator("[data-expense-summary]").waitFor();
+  });
+  await step(V, "Add", "Editing an expense that has notes opens More by itself, so nothing is hidden", async () => {
+    const e = await db.expense.findFirstOrThrow({ where: { groupId: g.split("/").pop()!, deletedAt: null, NOT: { notes: "" } }, orderBy: { createdAt: "desc" } });
+    await go(V, `${g}/expenses/${e.id}/edit`);
+    assert((await V.locator("[data-more] > button").getAttribute("aria-expanded")) === "true", "More is closed on an expense that has notes");
+    await V.getByPlaceholder(/Rahul paid the tip/).waitFor();
+  });
+  await step(null, "Words", "No page says another app’s name: the tour, guide, FAQ, switching and import screens", async () => {
+    const { ctx, page } = await person(browser);
+    for (const path of ["/welcome", "/how-it-works", "/faq", "/switching"]) {
+      await go(page, path);
+      const text = await page.locator("body").innerText();
+      assert(!/splitwise/i.test(text), `${path} still names another app`);
+      assert(!/splitwise/i.test(await page.title()), `${path}: the title names another app`);
+      assert(!/splitwise/i.test((await page.locator('head meta[name="description"]').first().getAttribute("content").catch(() => "")) ?? ""), `${path}: the description names another app`);
+    }
+    await go(page, "/");
+    assert(!/splitwise/i.test((await page.locator('head meta[name="keywords"]').getAttribute("content").catch(() => "")) ?? ""), "the keywords name another app");
+    await ctx.close();
+  });
+  await step(V, "Words", "The import screen gives generic export steps and no other app’s name", async () => {
+    await go(V, "/import");
+    assert(!/splitwise/i.test(await V.locator("body").innerText()), "the import screen names another app");
+    await V.getByText(/In your old app|Your old app/).first().waitFor();
   });
 
   await step(V, "Settle", "Varun adds his UPI ID on the You page; his WhatsApp Remind carries it and an “I’ve paid” link that opens without signing in", async () => {
@@ -2531,6 +2612,7 @@ async function main() {
 
   await step(V, "Fun", "Spin for it: the wheel lands on someone, and they become the payer", async () => {
     await go(V, `${g}/add`);
+    await openMore(V);
     await V.getByRole("button", { name: /Spin for it/ }).click();
     const d = V.getByRole("dialog", { name: "Spin the wheel" });
     await d.getByRole("button", { name: "Spin", exact: true }).click();

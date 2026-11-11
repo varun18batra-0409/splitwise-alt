@@ -175,7 +175,7 @@ export default async function HowItWorks() {
           ["#pot", "Card nights"],
           ["#collect", "Collect money"],
           ["#safe", "Undo & privacy"],
-          ["#splitwise", "From another app"],
+          ["#from-another-app", "From another app"],
         ].map(([href, label]) => (
           <a key={href} href={href} className="rounded-full border border-line px-3 py-1.5 text-gray-600 active:bg-mist">
             {label}
@@ -209,12 +209,12 @@ export default async function HowItWorks() {
         />
         <p>
           <strong>Got the bill?</strong> Tap <strong>Scan a bill</strong> and Loopin reads the shop, total, date and every line, ready to split
-          by item. The photo stays with the expense for everyone in the group. <strong>Hands full?</strong> Tap the mic and say it: “Dinner 2400,
-          Ravi paid, everyone except Dev.” Or tap <strong>Type it in one line</strong>: “Cab 600 except Leo”. Nothing saves until you tap Save.
+          by item. The photo stays with the expense for everyone in the group. <strong>Hands full?</strong> Tap <strong>Speak</strong> and say it: “Dinner 2400,
+          Ravi paid, everyone except Dev.” Or tap <strong>Type a line</strong>: “Cab 600 except Leo”. Nothing saves until you tap Save.
         </p>
         <p>Change the date if it wasn’t today, and add a note if it helps (“Sam paid the tip”). Next time, Loopin starts with the same split you used last.</p>
         <p>
-          <strong>Two people paid?</strong> Choose <strong>More than one</strong> payer. <strong>Got money back</strong> (a refund, a returned
+          <strong>Two people paid?</strong> Open <strong>More</strong> and switch on <strong>More than one person paid</strong>. <strong>Got money back</strong> (a refund, a returned
           item)? Switch to <strong>Money back</strong> and it’s shared the same way. Adding a few in a row? <strong>Save &amp; add another</strong>.
           The same thing again? Open it and tap <strong>Repeat</strong>. Loopin warns you if something looks like a duplicate.
         </p>
@@ -334,7 +334,7 @@ export default async function HowItWorks() {
       <div id="stories" className="scroll-mt-4" />
       <Section slot="place-goa" title="Home, told as stories">
         <p>
-          The top of Home is a row of little polaroids. Each one is a <strong>story</strong> from your groups, a few slides you tap through: the
+          Under your groups on Home is a row of little polaroids. Each one is a <strong>story</strong> from your groups, a few slides you tap through: the
           countdown to a trip with photos of where you’re going and the crew, <strong>today’s spend</strong> while you’re away, last night’s{" "}
           <strong>card game</strong> with everyone’s result and who pays whom, a group that just got <strong>all square</strong>, and a trip from a year ago.
         </p>
@@ -398,7 +398,7 @@ export default async function HowItWorks() {
       <div id="fun" className="scroll-mt-4" />
       <Section slot="place-japan-2" title="Spin for it, titles and reactions">
         <p>
-          Can’t decide who pays tonight? On Add expense, tap <strong>Spin for it</strong> and let the wheel decide. Once a group has a few expenses,
+          Can’t decide who pays tonight? On Add expense, open <strong>More</strong> and tap <strong>Spin for it</strong> and let the wheel decide. Once a group has a few expenses,
           everyone earns a <strong>title</strong> (The Banker, Snack Lord, Night Owl…), and you can react to any expense with 😂 🔥 😭.
         </p>
         <Screens
@@ -426,13 +426,13 @@ export default async function HowItWorks() {
         </p>
       </section>
 
-      <div id="splitwise" className="scroll-mt-4" />
+      <div id="from-another-app" className="scroll-mt-4" />
       <section className="mt-12 space-y-3 text-[15px] leading-relaxed text-gray-600">
         <h2 className="font-display text-[26px] font-semibold tracking-tight text-fg">Coming from another app?</h2>
         <p>
-          Export the group as a spreadsheet (CSV) from the other app (in Splitwise: the group → gear → <strong>Export as spreadsheet</strong>).
-          In Loopin, tap <strong>Bring a group over</strong> and pick that file: every expense and payment comes across. Splitwise files are
-          checked against their own totals; for other apps, you say which column is which.{" "}
+          Export the group as a spreadsheet (CSV) from the other app (look for <strong>Export</strong> or <strong>Download</strong> in the group’s settings or menu).
+          In Loopin, tap <strong>Bring a group over</strong> and pick that file: every expense and payment comes across. Files from some apps are
+          checked against their own totals; for others, you say which column is which.{" "}
           <Link href="/switching" className="underline underline-offset-4">What’s different</Link>
         </p>
       </section>

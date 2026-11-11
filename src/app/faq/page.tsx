@@ -95,7 +95,7 @@ const SECTIONS: { title: string; items: QA[] }[] = [
       },
       {
         q: "Can I just type an expense?",
-        a: "Yes. Tap Type it in one line and write it the way you’d say it: “Dinner 2400 Ravi paid split with Asha Meera” or “Cab 600 except Dev”. Loopin fills in the form for you to check. Nothing saves until you tap Save. Simple lines are read on your phone; a line it can’t follow is sent to Anthropic’s Claude to read, with the group’s first names, and you check the result before saving.",
+        a: "Yes. Tap Type a line (or Speak) and write it the way you’d say it: “Dinner 2400 Ravi paid split with Asha Meera” or “Cab 600 except Dev”. Loopin fills in the form for you to check. Nothing saves until you tap Save. Simple lines are read on your phone; a line it can’t follow is sent to Anthropic’s Claude to read, with the group’s first names, and you check the result before saving.",
       },
       {
         q: "Two people paid, or we got money back?",
@@ -144,7 +144,7 @@ const SECTIONS: { title: string; items: QA[] }[] = [
     title: "Trips and the fun stuff",
     items: [
       {
-        q: "What are the little photos at the top of Home?",
+        q: "What are the little photos on Home?",
         a: "Stories from your groups. Each one is a few slides you tap through: photos of where a trip is going with a countdown and the crew, today’s spend while you’re away, last night’s card game with everyone’s result and who pays whom, a group that just got all square, a collection filling up, and a trip from a year ago. Tap the right side for the next slide, swipe down or press Back to close. A green peg means you haven’t seen it yet.",
       },
       {
@@ -198,11 +198,11 @@ const SECTIONS: { title: string; items: QA[] }[] = [
     title: "Bringing groups over",
     items: [
       {
-        q: "Can I bring my groups over from Splitwise or another app?",
+        q: "Can I bring my groups over from another app?",
         a: (
           <>
             Yes. Export the group as a spreadsheet (CSV) from the other app, then tap <strong>Bring a group over</strong> and pick the file.
-            Splitwise exports and Loopin downloads are read as they are; for anything else, Loopin asks which column is which. Every
+            Exports from some apps and Loopin downloads are read as they are; for anything else, Loopin asks which column is which. Every
             expense and payment comes across, and the other app keeps its copy. <Link href="/import" className={link}>Bring a group over</Link>
           </>
         ),

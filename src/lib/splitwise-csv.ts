@@ -96,7 +96,7 @@ export function parseSplitwiseCsv(text: string): SwParsed {
   if (!HEADER.every((h, i) => head[i]?.toLowerCase() === h) || head.length < 6) {
     return {
       ok: false,
-      error: "This doesn’t look like a Splitwise export. In Splitwise, open the group → Settings (gear) → Export as spreadsheet, then pick that file.",
+      error: "This doesn’t look like a spreadsheet Loopin knows. In your old app, open the group’s settings or menu and export it as a spreadsheet (CSV), then pick that file.",
     };
   }
   const people = head.slice(5).map((p) => p.trim());
