@@ -109,7 +109,8 @@ describe("adding people", () => {
       expect(r.people.length, k).toBe(1);
       expect(r.people[0].email, k).toBe(cases[k as keyof typeof cases]);
       // The name comes from the email only (never from the account), so it says nothing about who has one.
-      expect(r.people[0].name, k).toMatch(/^[A-Z][a-z]+ \d+$/);
+      expect(r.people[0].name, k).toMatch(/^[A-Z][a-z]+( \d+)?$/); // number-only parts of the email are dropped (a " 2" only if the name is taken)
+      expect(r.people[0].name.split(" ")[0].toLowerCase(), k).toBe(k === "own" ? "me" : { registered: "rancho", unknown: "circuit", existing: "sheldon" }[k]);
     }
     // A name row for the two new people only.
     expect(await db.member.count({ where: { groupId: g2 } })).toBe(before + 2);
