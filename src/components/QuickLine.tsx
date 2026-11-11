@@ -19,9 +19,9 @@ export function QuickLine({
   who,
   currency,
   onFill,
-  start,
+  openRef,
 }: {
-  start?: { n: number; speak: boolean } | null; // the form's "Speak" / "Type a line" buttons open this (n changes on every tap)
+  openRef?: { current: ((speak: boolean) => void) | null }; // the form's "Speak" / "Type a line" buttons call this from their own tap
   groupId: string;
   ai?: boolean;
   members: { id: string; name: string }[];
@@ -39,15 +39,21 @@ export function QuickLine({
   const [canSpeak, setCanSpeak] = useState(false);
   const rec = useRef<Recognition | null>(null);
   useEffect(() => setCanSpeak(Boolean(speechApi())), []);
-  // Opened from the form's Faster entry row: "Type a line" shows the box, "Speak" also starts listening.
-  useEffect(() => {
-    if (!start) return;
+  // Opened from the form's Faster entry row: "Type a line" shows the box, "Speak" also starts listening. The form calls this
+  // straight from the tap (phones only allow the microphone to start from a tap, like the camera for Scan a bill).
+  function openFromForm(speak: boolean) {
     setOpen(true);
-    if (!start.speak) return;
+    if (!speak) return;
     if (speechApi()) listen();
     else setNote("This browser can’t listen. Type the line instead.");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [start?.n]);
+  }
+  useEffect(() => {
+    if (!openRef) return;
+    openRef.current = openFromForm;
+    return () => {
+      openRef.current = null;
+    };
+  });
   const example = `Dinner 2400 ${members.find((m) => m.id !== myId)?.name.split(" ")[0] ?? "Ravi"} paid split with everyone`;
 
   async function fill(line = text) {

@@ -27,6 +27,18 @@ test("a new flat shows its two-card sheet once, and “Got it” hides it for go
   await expect(sheet.getByText("Moving in or out")).toBeVisible();
   await expect(sheet.getByRole("link", { name: "Add the first bill" })).toBeVisible();
 
+  // Focus moves into the sheet, and Tab (either way) stays inside it.
+  const inside = () => page.evaluate(() => Boolean(document.activeElement?.closest("[role=dialog]")));
+  expect(await inside()).toBe(true);
+  for (let i = 0; i < 5; i++) {
+    await page.keyboard.press("Tab");
+    expect(await inside()).toBe(true);
+  }
+  for (let i = 0; i < 5; i++) {
+    await page.keyboard.press("Shift+Tab");
+    expect(await inside()).toBe(true);
+  }
+
   await sheet.getByRole("button", { name: "Got it" }).click();
   await expect(sheet).toHaveCount(0);
 

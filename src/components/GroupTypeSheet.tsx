@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "@/components/Link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { markSheetSeen, shouldShowSheet, sheetFor, type SheetCard } from "@/lib/group-type-sheet";
 
 const ICONS: Record<SheetCard["icon"], React.ReactNode> = {
@@ -29,6 +29,8 @@ const ICONS: Record<SheetCard["icon"], React.ReactNode> = {
 export function GroupTypeSheet({ groupId, type }: { groupId: string; type: string }) {
   const sheet = sheetFor(type, groupId);
   const [open, setOpen] = useState(false);
+  const box = useRef<HTMLElement>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
     let show = false;
@@ -49,11 +51,36 @@ export function GroupTypeSheet({ groupId, type }: { groupId: string; type: strin
     setOpen(false);
   }
 
+  // While open: focus moves into the sheet, Tab stays inside it, Escape closes, and focus goes back to where it was.
   useEffect(() => {
     if (!open) return;
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && close();
-    window.addEventListener("keydown", esc);
-    return () => window.removeEventListener("keydown", esc);
+    const before = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    heading.current?.focus({ preventScroll: true });
+    const keys = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        close();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const items = Array.from(box.current?.querySelectorAll<HTMLElement>("a[href], button:not([disabled]), [tabindex]:not([tabindex='-1'])") ?? []);
+      if (items.length === 0) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      const now = document.activeElement;
+      const inside = box.current?.contains(now) ?? false;
+      if (e.shiftKey && (now === first || now === heading.current || !inside)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (now === last || !inside)) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", keys);
+    return () => {
+      window.removeEventListener("keydown", keys);
+      if (before && document.contains(before)) before.focus({ preventScroll: true });
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -61,6 +88,7 @@ export function GroupTypeSheet({ groupId, type }: { groupId: string; type: strin
   return (
     <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60" onClick={close} data-type-sheet={sheet.kind}>
       <section
+        ref={box}
         role="dialog"
         aria-modal="true"
         aria-label={sheet.title}
@@ -68,7 +96,7 @@ export function GroupTypeSheet({ groupId, type }: { groupId: string; type: strin
         className="sheet-enter w-full max-w-md rounded-t-[28px] border border-b-0 border-line bg-white px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3"
       >
         <span aria-hidden className="mx-auto block h-1 w-10 rounded-full bg-fg/20" />
-        <h2 className="mt-4 font-display text-[26px] font-semibold leading-tight tracking-tight">{sheet.title}</h2>
+        <h2 ref={heading} tabIndex={-1} className="mt-4 font-display outline-none text-[26px] font-semibold leading-tight tracking-tight">{sheet.title}</h2>
         <ul className="mt-4 space-y-3">
           {sheet.cards.map((c) => (
             <li key={c.title} className="flex gap-3 rounded-2xl border border-line bg-mist p-4">

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { load } from "./OwnPhoto";
+import { singleFlight } from "@/lib/single-flight";
 
 export type ScannedBill = {
   merchant: string;
@@ -22,7 +23,9 @@ export function BillScan({
   onAttach,
   existingId,
   openRef,
+  onBusy,
 }: {
+  onBusy?: (busy: boolean) => void; // true while a bill is being read, so the form's Scan button can wait
   openRef?: { current: (() => void) | null }; // the form's own "Scan a bill" button opens the photo picker through this
   existingId?: string; // editing: the photo already kept (shown with Replace / Remove)
   groupId: string;
@@ -43,8 +46,21 @@ export function BillScan({
     };
   }, [openRef]);
 
+  useEffect(() => {
+    onBusy?.(state === "busy");
+  }, [state, onBusy]);
+  // One photo at a time: a photo picked while another is still being read is ignored.
+  const latest = useRef(pickNow);
+  latest.current = pickNow;
+  const gate = useRef<((file: File) => Promise<boolean>) | null>(null);
+  if (!gate.current) gate.current = singleFlight((file: File) => latest.current(file));
   async function pick(file: File | undefined) {
     if (!file) return;
+    await gate.current!(file);
+    if (input.current) input.current.value = "";
+  }
+
+  async function pickNow(file: File) {
     setState("busy");
     setNote(read ? "Reading the bill…" : "Adding the photo…");
     try {
@@ -62,8 +78,6 @@ export function BillScan({
     } catch (err) {
       setNote(err instanceof Error ? err.message : "Couldn’t add that photo. Try again.");
       setState("idle");
-    } finally {
-      if (input.current) input.current.value = "";
     }
   }
 

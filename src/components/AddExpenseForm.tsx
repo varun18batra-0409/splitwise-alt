@@ -20,7 +20,7 @@ import { splitByItems } from "@/lib/item-split";
 import { niceDate, rateText } from "@/lib/format";
 import { dayKey, todayKey } from "@/lib/dates";
 import { inputClass, primaryButtonClass } from "./ui";
-import { shouldOpenMore } from "@/lib/add-expense-more";
+import { errorNeedsMore, fasterEntryColumns, shouldOpenMore } from "@/lib/add-expense-more";
 
 type Member = { id: string; name: string };
 type RateState =
@@ -85,8 +85,10 @@ export function AddExpenseForm({
   // "More" (notes, several payers, spin) is closed unless editing something that already uses it, so nothing is hidden.
   const [showMore, setShowMore] = useState(shouldOpenMore(initial));
   const openBill = useRef<(() => void) | null>(null); // "Scan a bill" opens the photo picker inside BillScan
-  const [quickStart, setQuickStart] = useState<{ n: number; speak: boolean } | null>(null); // "Speak" / "Type a line"
+  const openQuick = useRef<((speak: boolean) => void) | null>(null); // "Speak" / "Type a line" open the quick line inside QuickLine, from the tap itself
   const quickOk = !expenseId && members.length > 1;
+  const [scanBusy, setScanBusy] = useState(false); // a bill is being read: the Scan button waits
+  const entryColumns = fasterEntryColumns({ billRun: Boolean(billRun), quickOk, editing: Boolean(expenseId), hasPhoto: Boolean(existingReceiptId) });
   const [pickedCategory, setPickedCategory] = useState<string | null>(initial?.category || null); // null (or "") = smart guess from the name
   const [currency, setCurrency] = useState(initial?.currency ?? baseCurrency);
   const [showCurrencies, setShowCurrencies] = useState(false);
@@ -397,6 +399,7 @@ export function AddExpenseForm({
     if (!preview.ok) {
       setError(preview.error);
       if (/person|amounts|percent/i.test(preview.error)) setShowPeople(true);
+      if (errorNeedsMore(preview.error, multiPay)) setShowMore(true);
       return;
     }
     if (!expenseId) rememberSplit();
@@ -700,27 +703,29 @@ export function AddExpenseForm({
       {/* Faster entry: scan a bill, say it, or type it in one line. Each fills the form below; nothing saves until Save. */}
       {(!billRun || quickOk) && (
         <div data-faster-entry>
-          <span className={labelClass}>Faster entry</span>
-          <div role="group" aria-label="Faster entry" className="grid gap-2" style={{ gridTemplateColumns: `repeat(${quickOk ? (billRun ? 2 : 3) : 1}, minmax(0, 1fr))` }}>
+          {entryColumns > 0 && <span className={labelClass}>Faster entry</span>}
+          {entryColumns > 0 && (
+          <div role="group" aria-label="Faster entry" className="grid gap-2" style={{ gridTemplateColumns: `repeat(${entryColumns}, minmax(0, 1fr))` }}>
             {!billRun && (
-              <EntryButton onClick={() => openBill.current?.()} label={ai && !expenseId ? "Scan a bill" : "Bill photo"}>
+              <EntryButton disabled={scanBusy} onClick={() => openBill.current?.()} label={ai && !expenseId ? "Scan a bill" : "Bill photo"}>
                 <path d="M4 3h16v18l-3-2-2 2-3-2-3 2-2-2-3 2zM8 8h8M8 12h8M8 16h5" />
               </EntryButton>
             )}
             {quickOk && (
-              <EntryButton onClick={() => setQuickStart((q) => ({ n: (q?.n ?? 0) + 1, speak: true }))} label="Speak">
+              <EntryButton onClick={() => openQuick.current?.(true)} label="Speak">
                 <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5 11a7 7 0 0 0 14 0M12 18v3" />
               </EntryButton>
             )}
             {quickOk && (
-              <EntryButton onClick={() => setQuickStart((q) => ({ n: (q?.n ?? 0) + 1, speak: false }))} label="Type a line">
+              <EntryButton onClick={() => openQuick.current?.(false)} label="Type a line">
                 <path d="M4 7h16M4 12h10M4 17h7" />
               </EntryButton>
             )}
           </div>
+          )}
           {!billRun && (
             <div className="mt-1">
-              <BillScan groupId={groupId} read={ai && !expenseId} onAttach={setReceiptId} onRead={fillFromBill} existingId={existingReceiptId} openRef={openBill} />
+              <BillScan groupId={groupId} read={ai && !expenseId} onAttach={setReceiptId} onRead={fillFromBill} existingId={existingReceiptId} openRef={openBill} onBusy={setScanBusy} />
               {scannedItems > 1 && !byItem && members.length > 1 && (
                 <button
                   type="button"
@@ -747,7 +752,7 @@ export function AddExpenseForm({
                 myId={myId}
                 who={who}
                 currency={currency}
-                start={quickStart}
+                openRef={openQuick}
                 onFill={(q, extra) => {
                   if (extra?.currency && extra.currency !== currency && isSupportedCurrency(extra.currency)) chooseCurrency(extra.currency);
                   if (q.name) setName(q.name);
@@ -1225,7 +1230,8 @@ export function AddExpenseForm({
 
             {members.length > 1 && (
               <div>
-                <div className="flex min-h-11 items-center justify-between gap-3">
+                {/* A real label: the whole row (44px tall) is the tap target, words included. */}
+                <label className="flex min-h-11 cursor-pointer items-center justify-between gap-3" data-multi-pay-row>
                   <span className="text-sm font-medium text-fg/85">{multiLabel}</span>
                   <button
                     type="button"
@@ -1245,7 +1251,7 @@ export function AddExpenseForm({
                   >
                     <span className={`absolute top-0.5 h-5 w-5 rounded-full transition-all ${multiPay ? "left-6 bg-canvas" : "left-0.5 bg-fg/60"}`} />
                   </button>
-                </div>
+                </label>
                 {multiPay && (
                   <div className="mt-2 rounded-2xl border border-line px-4 py-1">
                     <ul className="divide-y divide-line">
@@ -1435,17 +1441,19 @@ function Chip({ on, onClick, children, face }: { on: boolean; onClick: () => voi
 }
 
 // One of the three equal buttons in the Faster entry row.
-function EntryButton({ onClick, label, children }: { onClick: () => void; label: string; children: React.ReactNode }) {
+// The icon sits above the label (two lines at most), so "Scan a bill" and "Type a line" fit a 320px phone.
+function EntryButton({ onClick, label, children, disabled }: { onClick: () => void; label: string; children: React.ReactNode; disabled?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-line bg-mist px-2 text-[13px] font-semibold text-fg/90 transition-transform active:scale-95"
+      disabled={disabled}
+      className="flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl border border-line bg-mist px-1.5 py-2 text-center text-xs font-semibold leading-tight text-fg/90 transition-transform active:scale-95 disabled:opacity-60"
     >
-      <svg aria-hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+      <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
         {children}
       </svg>
-      <span className="truncate">{label}</span>
+      <span className="line-clamp-2 max-w-full break-words">{label}</span>
     </button>
   );
 }

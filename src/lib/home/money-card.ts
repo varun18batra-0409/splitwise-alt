@@ -19,16 +19,26 @@ export function moneyButtons(mode: MoneyMode): [MoneyButton, MoneyButton] {
   return [add(true), { label: "Settle up", href: "/settle", bright: false }];
 }
 
-export function moneyLead(mode: MoneyMode): string {
+// Several currencies with no saved rate: each currency keeps its own sign ("+₹500 · −€20"). If they don't all point
+// the same way there is no single "you owe" or "coming back to you", so the card is neutral. Zero amounts don't count.
+export function mixedDirections(netLines: string[]): boolean {
+  const signs = new Set(netLines.filter((l) => /[1-9]/.test(l)).map((l) => (l.trim().startsWith("−") || l.trim().startsWith("-") ? "-" : "+")));
+  return signs.size > 1;
+}
+
+export function moneyLead(mode: MoneyMode, acrossCurrencies = false): string {
+  if (acrossCurrencies) return "Across currencies";
   return mode === "owed" ? "Coming back to you" : mode === "owe" ? "You owe" : mode === "even" ? "It all evens out" : "All square";
 }
 
 // "across 3 groups, from 4 people": groups with something open, and who it is with.
-export function moneySub(x: { mode: MoneyMode; groups: number; allGroups: number; people: { name: string }[] }): string {
-  if (x.mode === "square") return x.allGroups === 1 ? "Nobody owes anybody in your group" : `Nobody owes anybody in your ${x.allGroups} groups`;
+export function moneySub(x: { mode: MoneyMode; groups: number; allGroups: number; people: { name: string; net?: number }[] }): string {
+  if (x.mode === "square") return x.allGroups === 1 ? "Nobody owes anybody in your group" : x.allGroups === 0 ? "Nobody owes anybody" : `Nobody owes anybody in your ${x.allGroups} groups`;
   const where = x.groups > 1 ? `across ${x.groups} groups` : "in one group";
   const dir = x.mode === "owed" ? "from" : x.mode === "owe" ? "to" : "with";
-  const who = x.people.length === 0 ? "" : x.people.length === 1 ? `, ${dir} ${x.people[0].name}` : `, ${dir} ${x.people.length} people`;
+  // Only people on the matching side: "to N people" counts those you owe, "from N people" those who owe you.
+  const people = x.people.filter((p) => p.net === undefined || (x.mode === "owe" ? p.net < 0 : x.mode === "owed" ? p.net > 0 : true));
+  const who = people.length === 0 ? "" : people.length === 1 ? `, ${dir} ${people[0].name}` : `, ${dir} ${people.length} people`;
   return `${where}${who}`;
 }
 

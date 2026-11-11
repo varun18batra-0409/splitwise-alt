@@ -43,7 +43,7 @@ import { TripCountdown } from "@/components/TripCountdown";
 import { countdownStage } from "@/lib/countdown";
 import { countryOf, tripStops } from "@/lib/geo";
 import { MoneyCard, TripStrip } from "@/components/HomeMoney";
-import { moneyLead, moneyMode, moneySub } from "@/lib/home/money-card";
+import { mixedDirections, moneyLead, moneyMode, moneySub } from "@/lib/home/money-card";
 import { TripRow } from "@/components/TripRow";
 import { Stories } from "@/components/Stories";
 import { buildStories } from "@/lib/home/stories";
@@ -169,7 +169,9 @@ export default async function Home({
   const heroText = netCommon
     ? `${netCommon.converted ? "≈ " : ""}${netCommon.value > 0 ? "+" : netCommon.value < 0 ? "−" : ""}${formatMoney(Math.abs(netCommon.value), common)}`
     : netLines.join(" · ");
-  const mode = moneyMode({ owedLines: owedLines.length, oweLines: oweLines.length, netValue });
+  // Several currencies with no saved rate and money going both ways: no single "you owe", so the card stays neutral.
+  const acrossCurrencies = !netCommon && mixedDirections(netLines);
+  const mode = acrossCurrencies ? "even" : moneyMode({ owedLines: owedLines.length, oweLines: oweLines.length, netValue });
   // Someone added you to a group: it isn't in your groups until you tap Join.
   const invitationsBlock =
     invitations.length > 0 ? (
@@ -525,8 +527,8 @@ export default async function Home({
         <>
           {/* Money first: the net amount and two equal buttons, inside the first screen of a small phone. */}
           <MoneyCard
-            lead={`${mode === "square" ? greeting(new Date(), tz, account?.name) : `${greeting(new Date(), tz, account?.name)}. ${moneyLead(mode)}`}${mode !== "square" && netCommon && netCommon.converted ? ` (in ${common})` : ""}`}
-            amount={mode === "square" ? "All square" : heroText.replace(/^([≈ ]*)[+−]/, "$1")}
+            lead={`${mode === "square" ? greeting(new Date(), tz, account?.name) : `${greeting(new Date(), tz, account?.name)}. ${moneyLead(mode, acrossCurrencies)}`}${mode !== "square" && netCommon && netCommon.converted ? ` (in ${common})` : ""}`}
+            amount={mode === "square" ? "All square" : netCommon ? heroText.replace(/^([≈ ]*)[+−]/, "$1") : heroText /* several currencies: each keeps its own sign */}
             amountClass={mode === "square" ? "text-[40px]" : heroText.length <= 9 ? "text-[44px]" : heroText.length <= 12 ? "text-[36px]" : "text-[28px]"}
             tone={mode === "owed" ? "owed" : mode === "owe" ? "owe" : "plain"}
             sub={moneySub({ mode, groups: open.filter((g) => g.myBalance !== 0).length, allGroups: open.length, people: settleItems })}
