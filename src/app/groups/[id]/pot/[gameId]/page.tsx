@@ -16,7 +16,7 @@ import { UndoBar } from "@/components/UndoBar";
 import { canUndo } from "@/lib/undo";
 import { decimalsOf, formatMoney, toInputAmount } from "@/lib/money";
 import { recordCustomPayment } from "@/app/actions";
-import { newRequestKey } from "@/lib/once";
+import { FreshKey } from "@/components/FreshKey";
 import { getTimeZone } from "@/lib/tz";
 
 // One game of The Pot: money taken and put back, live; then who won, who
@@ -109,7 +109,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
                         <input type="hidden" name="toId" value={t.to} />
                         <input type="hidden" name="amount" value={toInputAmount(left, group.currency)} />
                         <input type="hidden" name="back" value={`pot:${game.id}`} />
-                        <input type="hidden" name="rid" value={newRequestKey()} />
+                        <FreshKey name="rid" />
                         <button type="submit" className="rounded-full bg-fg px-3 py-1 text-xs font-semibold text-canvas" aria-label={`Mark paid: ${you(t.from)} ${t.from === myId ? "pay" : "pays"} ${youLow(t.to)}`}>
                           Mark paid
                         </button>
@@ -123,7 +123,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
           {pending.length > 1 && !group.closed && (
             <form action={markGamePaidAction} className="mt-3">
               <input type="hidden" name="gameId" value={game.id} />
-              <input type="hidden" name="rid" value={newRequestKey()} />
+              <FreshKey name="rid" />
               <ConfirmButton message={`Mark all ${pending.length} payments of this game paid? Everyone is told, and you can undo it.`} className={secondaryButtonClass}>
                 Mark all {pending.length} paid
               </ConfirmButton>
@@ -243,7 +243,6 @@ export default async function GamePage({ params, searchParams }: { params: Promi
             allTicked={totals.taken === 0}
             quick={quick}
             currency={group.currency}
-            rid={newRequestKey()}
           />
         </section>
       )}

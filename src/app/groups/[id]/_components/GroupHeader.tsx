@@ -10,6 +10,7 @@ import { countdownWords, placeOf, tripPhase } from "@/lib/countdown";
 import { todayKey } from "@/lib/dates";
 import { climateFor, tripMonth, weatherWords } from "@/lib/climate";
 import { tripStops } from "@/lib/geo";
+import { membersAsOf } from "@/lib/left-view";
 
 type SwitchItem = { id: string; name: string; pic?: { kind: CoverChoice; src?: string } };
 
@@ -127,7 +128,8 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
   // With a picture: it runs edge to edge behind the buttons and the name, fading into the group's tint.
   const glass = "glass flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full text-fg active:scale-95";
   const type = ({ trip: "Trip", home: "Home", couple: "Couple", pot: "Card nights" } as Record<string, string | undefined>)[group.type];
-  const people = group.members.filter((m) => !m.leftAt);
+  // Someone who left sees who was in the group on the day they left, not whoever joined since.
+  const people = (v.leaver ? membersAsOf(group.members, myId, v.leaver.leftAt) : group.members).filter((m) => !m.leftAt);
   // A trip still on its default drawing shows a real photo of the place instead (Thailand → Maya Bay).
   const placeShot = group.type === "trip" && !group.cover ? placePhoto(group.name)?.src : undefined;
   const names = people.map((m) => (m.id === myId ? "You" : m.name.trim().split(/\s+/)[0]));

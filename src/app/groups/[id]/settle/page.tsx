@@ -11,7 +11,7 @@ import { planKey } from "@/lib/settle-all";
 import { canUndo } from "@/lib/undo";
 import { recordCustomPayment, settleEverything } from "@/app/actions";
 import { ConfirmButton } from "@/components/ConfirmButton";
-import { newRequestKey } from "@/lib/once";
+import { FreshKey } from "@/components/FreshKey";
 import { UndoBar } from "@/components/UndoBar";
 import { Avatar, ErrorNote, PageHeader, secondaryButtonClass } from "@/components/ui";
 import { db } from "@/lib/db";
@@ -34,7 +34,7 @@ export default async function GroupSettle({
 }) {
   const { id } = await params;
   const sp = await searchParams;
-  const data = await loadGroup(id);
+  const data = await loadGroup(id, { viewer: await getMyMemberId(id) });
   if (!data) notFound();
   const { group, transfers, expenses, payments } = data;
   const myId = await getMyMemberId(group.id);
@@ -237,7 +237,7 @@ export default async function GroupSettle({
                     <input type="hidden" name="fromId" value={t.from} />
                     <input type="hidden" name="toId" value={t.to} />
                     <input type="hidden" name="back" value="settle" />
-                    <input type="hidden" name="rid" value={newRequestKey()} />
+                    <FreshKey name="rid" />
                     <label className="flex h-10 min-w-0 flex-1 items-center rounded-full border border-line bg-mist px-3.5 focus-within:border-fg/40">
                       <span className="nobreak shrink-0 text-xs text-gray-400">{group.currency}</span>
                       <input
@@ -266,7 +266,7 @@ export default async function GroupSettle({
         <form action={markAllPaidAction} className="mt-4">
           <input type="hidden" name="groupId" value={group.id} />
           <input type="hidden" name="plan" value={planKey(transfers)} />
-          <input type="hidden" name="rid" value={newRequestKey()} />
+          <FreshKey name="rid" />
           <ConfirmButton
             message={`Mark all ${ordered.length} payments paid? The group stays open, everyone is told, and you can undo it.`}
             className="pop block w-full bg-fg px-4 py-3.5 text-center text-[15px] font-semibold text-canvas"

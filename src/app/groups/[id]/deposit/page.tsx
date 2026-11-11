@@ -6,6 +6,7 @@ import { ErrorNote, PageHeader, inputClass, primaryButtonClass, secondaryButtonC
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { returnDeposit, saveDeposit } from "@/app/bill-actions";
 import { formatMoney, toInputAmount } from "@/lib/money";
+import { leaverOf } from "@/lib/left-view-db";
 
 // The flat's security deposit: who put in what, and getting it back.
 // It's kept on record only — never part of the balances.
@@ -25,6 +26,8 @@ export default async function DepositPage({
   if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  // Someone who left (or was removed) reads the group only on its main screen, up to the day they left.
+  if (await leaverOf(myId)) redirect(`/groups/${group.id}`);
   const money = (n: number) => formatMoney(n, group.currency);
   const shares = group.deposit?.shares ?? [];
   const held = shares.filter((s) => s.status === "held");

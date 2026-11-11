@@ -6,7 +6,7 @@ import { getMyMemberId } from "@/lib/identity";
 import { loadGroup } from "@/lib/group-data";
 import { canUndo } from "@/lib/undo";
 import { formatMoney } from "@/lib/money";
-import { invitePersonByEmail, removePerson, renamePerson, setPersonLeft } from "@/app/actions";
+import { cancelInvite, invitePersonByEmail, removePerson, renamePerson, setPersonLeft } from "@/app/actions";
 import { pickAdmin } from "@/lib/group-admin";
 import { Notice } from "@/components/Notice";
 import { Avatar, ErrorNote, PageHeader, inputClass } from "@/components/ui";
@@ -14,19 +14,25 @@ import { ConfirmButton } from "@/components/ConfirmButton";
 import Link from "@/components/Link";
 import { InviteIcon, iconButtonClass } from "@/components/icons";
 import { UndoBar } from "@/components/UndoBar";
+import { StaysGoes } from "@/components/StaysGoes";
+import { leaveText, removeText } from "@/lib/leave-text";
+import { groupPeople } from "@/lib/people";
+import { membersAsOf } from "@/lib/left-view";
+import { db } from "@/lib/db";
+import { inviteMemberId } from "@/lib/invites";
 
-// Everyone in the group: fix a name, remove someone added by mistake, or
+// Everyone in the group: fix a name, remove someone (the admin) or
 // leave / bring back. Every change notifies the others and can be undone.
 export default async function PeoplePage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; did?: string; undone?: string; invited?: string }>;
+  searchParams: Promise<{ error?: string; did?: string; undone?: string; invited?: string; cancelled?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
-  const data = await loadGroup(id);
+  const data = await loadGroup(id, { viewer: await getMyMemberId(id) });
   if (!data) notFound();
   const { group, net } = data;
   const myId = await getMyMemberId(group.id);
@@ -41,11 +47,26 @@ export default async function PeoplePage({
   for (const p of group.payments) used.add(p.fromId).add(p.toId);
 
   const money = (m: number) => formatMoney(Math.abs(m), group.currency);
-  const active = group.members.filter((m) => !m.leftAt);
-  const left = group.members.filter((m) => m.leftAt);
+  // Taken out by whoever looks after the group ("removed"): kept in the history, can't rejoin on their own.
+  // Everyone is listed once (a removed person only under Removed).
+  // Someone who left sees the people as they were on the day they left, and no one else's balance.
+  const leaver = data.leaver;
+  const { active, left, removed } = groupPeople(leaver ? membersAsOf(group.members, myId, leaver.leftAt) : group.members);
   // Removing people or marking them as left is for the person who looks after the group.
   const admin = pickAdmin(group.members);
   const isAdmin = admin?.id === myId;
+  // Names with an invitation still waiting. Who it went to is shown to whoever may cancel it (the admin, or a person who sent one);
+  // the Invite box on such a name is for the admin or the person who sent it, so nobody else can re-point it to their own address.
+  const waiting = new Map<string, { email: string; by: string; mayCancel: boolean; mayInvite: boolean }>();
+  const openFor = new Map<string, { email: string; invitedById: string }[]>();
+  for (const i of await db.invite.findMany({ where: { groupId: group.id, acceptedAt: null, declinedAt: null }, orderBy: { createdAt: "desc" } })) {
+    const row = inviteMemberId(i);
+    if (row) openFor.set(row, [...(openFor.get(row) ?? []), { email: i.email, invitedById: i.invitedById }]);
+  }
+  for (const [row, list] of openFor) {
+    const by = group.members.find((m) => m.id === list[0].invitedById)?.name ?? "someone";
+    waiting.set(row, { email: list[0].email, by, mayCancel: isAdmin || list.some((i) => i.invitedById === myId), mayInvite: isAdmin || list.every((i) => i.invitedById === myId) });
+  }
   const justDid = sp.did ? group.events.find((x) => x.id === sp.did) : undefined;
   const nameOf = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");
   const small = "rounded-full border border-line px-4 py-2 text-sm font-medium text-fg active:bg-mist disabled:opacity-40";
@@ -73,7 +94,7 @@ export default async function PeoplePage({
                 )}
               </span>
               <span className="block text-xs text-gray-400">
-                {m.leftAt ? "Left the group" : bal > 0 ? `gets ${money(bal)}` : bal < 0 ? `owes ${money(bal)}` : "settled up"}
+                {m.removedAt ? "Removed from the group" : m.leftAt ? "Left the group" : leaver && !me ? "—" : bal > 0 ? `gets ${money(bal)}` : bal < 0 ? `owes ${money(bal)}` : "settled up"}
               </span>
             </span>
             <span className="text-sm text-gray-400 group-open/p:hidden">Edit</span>
@@ -86,7 +107,24 @@ export default async function PeoplePage({
                 <PassportIcon size={14} /> {m.name.trim().split(/\s+/)[0]}’s passport
               </Link>
             )}
-            {!m.accountId && !m.claimedAt && !m.leftAt && (
+            {!m.accountId && !m.claimedAt && !m.leftAt && waiting.has(m.id) && (
+              <div className="space-y-2" data-invited-row>
+                <p className="text-sm text-gray-500">
+                  {waiting.get(m.id)!.mayCancel
+                    ? `Invited at ${waiting.get(m.id)!.email}. Wrong address, or they sign in with another one? Cancel the invitation${waiting.get(m.id)!.mayInvite ? ", or invite a different email below" : ""}.`
+                    : `Invited by ${waiting.get(m.id)!.by}. They can change it if the address is wrong.`}
+                </p>
+                {waiting.get(m.id)!.mayCancel && (
+                  <form action={cancelInvite}>
+                    {hidden}
+                    <button type="submit" className={small}>
+                      Cancel invitation
+                    </button>
+                  </form>
+                )}
+              </div>
+            )}
+            {!m.accountId && !m.claimedAt && !m.leftAt && (!waiting.has(m.id) || waiting.get(m.id)!.mayInvite) && (
               <form action={invitePersonByEmail} className="space-y-2">
                 <input type="hidden" name="groupId" value={group.id} />
                 <input type="hidden" name="memberId" value={m.id} />
@@ -124,38 +162,71 @@ export default async function PeoplePage({
               </button>
             </form>
 
-            {m.leftAt ? (
-              <form action={setPersonLeft}>
-                {hidden}
-                <input type="hidden" name="left" value="0" />
-                <button type="submit" className={small}>
-                  {me ? "Rejoin the group" : `Bring ${m.name} back`}
-                </button>
-              </form>
+            {m.removedAt ? (
+              isAdmin && !me ? (
+                <form action={setPersonLeft}>
+                  {hidden}
+                  <input type="hidden" name="left" value="0" />
+                  <button type="submit" className={small}>
+                    Bring {m.name} back
+                  </button>
+                  <p className="mt-2 text-xs text-gray-400">{m.name} can’t rejoin on their own or with the old link.</p>
+                </form>
+              ) : (
+                <p className="text-xs text-gray-400" data-removed-note>
+                  {me ? `${group.members.find((x) => x.id === m.removedById)?.name ?? admin?.name ?? "The person who looks after the group"} removed you from this group. Ask them to invite you again.` : `Only ${admin?.name ?? "the person who looks after the group"} can bring ${m.name} back.`}
+                </p>
+              )
+            ) : m.leftAt ? (
+              <div className="space-y-4">
+                <form action={setPersonLeft}>
+                  {hidden}
+                  <input type="hidden" name="left" value="0" />
+                  <button type="submit" className={small}>
+                    {me ? "Rejoin the group" : `Bring ${m.name} back`}
+                  </button>
+                </form>
+                {/* Someone who left on their own can still be taken out by whoever looks after the group (then they can't rejoin by themselves). */}
+                {isAdmin && !me && (
+                  <form action={removePerson} data-remove-left>
+                    {hidden}
+                    <StaysGoes text={removeText(m.name)} />
+                    <ConfirmButton message={`Remove ${m.name} from ${group.name}? They won’t be able to rejoin on their own.`} className={small}>
+                      Remove {m.name}
+                    </ConfirmButton>
+                  </form>
+                )}
+              </div>
             ) : !me && !isAdmin ? (
               <p className="text-xs text-gray-400" data-admin-only="people">
-                Only {admin?.name ?? "the person who started the group"}, who looks after this group, can remove people or mark them as left.
+                Only {admin?.name ?? "the person who started the group"}, who looks after this group, can remove people.
               </p>
-            ) : !used.has(m.id) && !me ? (
+            ) : !me ? (
               <form action={removePerson}>
                 {hidden}
-                <ConfirmButton message={`Remove ${m.name} from ${group.name}?`} className={small}>
-                  Remove from group
-                </ConfirmButton>
-                <p className="mt-2 text-xs text-gray-400">Not in any expense yet, so they can be removed completely.</p>
+                <StaysGoes text={removeText(m.name)} />
+                {bal !== 0 ? (
+                  <button type="submit" disabled className={small}>
+                    Settle up first
+                  </button>
+                ) : (
+                  <ConfirmButton message={`Remove ${m.name} from ${group.name}? They won’t be able to rejoin on their own.`} className={small}>
+                    Remove {m.name}
+                  </ConfirmButton>
+                )}
+                <p className="mt-2 text-xs text-gray-400">
+                  {bal !== 0 ? `${m.name} must be settled up first (${bal > 0 ? "gets" : "owes"} ${money(bal)}).` : used.has(m.id) || m.accountId ? "They stay in the history. You can bring them back later." : "Not in any expense yet, so they’re removed completely."}
+                </p>
               </form>
             ) : (
               <form action={setPersonLeft}>
                 {hidden}
                 <input type="hidden" name="left" value="1" />
+                <StaysGoes text={leaveText()} />
                 <button type="submit" disabled={bal !== 0} className={small}>
-                  {bal !== 0 ? "Settle up first" : me ? "Leave group" : `Mark ${m.name} as left`}
+                  {bal !== 0 ? "Settle up first" : "Leave group"}
                 </button>
-                <p className="mt-2 text-xs text-gray-400">
-                  {bal !== 0
-                    ? `${me ? "You" : m.name} must be settled up first (${bal > 0 ? "gets" : "owes"} ${money(bal)}).`
-                    : "They stay in the history, but won’t be offered for new expenses. You can bring them back any time."}
-                </p>
+                {bal !== 0 && <p className="mt-2 text-xs text-gray-400">You must be settled up first ({bal > 0 ? "get" : "owe"} {money(bal)}).</p>}
               </form>
             )}
           </div>
@@ -168,6 +239,11 @@ export default async function PeoplePage({
     <>
       <PageHeader title="People" back={`/groups/${group.id}/settings`} />
       {sp.error && <ErrorNote>{sp.error}</ErrorNote>}
+      {sp.cancelled && (
+        <Notice tone="success" params={["cancelled"]} className="mb-4">
+          Invitation cancelled. The name stays in the group, and can be claimed with “That’s me” or invited again.
+        </Notice>
+      )}
       {sp.invited && (
         <Notice tone="success" params={["invited"]} className="mb-4">
           Invite sent to {sp.invited.slice(0, 80)}. When they join, they take over their name with its expenses.
@@ -201,6 +277,17 @@ export default async function PeoplePage({
           <h2 className="mb-2 text-sm font-medium text-gray-500">Left the group</h2>
           <ul className="border-t border-line opacity-80">
             {left.map((m) => (
+              <Person key={m.id} m={m} />
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {removed.length > 0 && (
+        <section className="mt-10" data-removed-section>
+          <h2 className="mb-2 text-sm font-medium text-gray-500">Removed</h2>
+          <ul className="border-t border-line opacity-80">
+            {removed.map((m) => (
               <Person key={m.id} m={m} />
             ))}
           </ul>

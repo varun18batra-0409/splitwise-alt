@@ -12,6 +12,8 @@ import { PasskeyOffer } from "@/components/Passkeys";
 
 import { countAllUnread, loadDeletedGroups } from "@/lib/group-data";
 import { loadOverview } from "@/lib/overview";
+import { loadInvitations } from "@/lib/invitations";
+import { InvitationCard } from "@/components/InvitationCard";
 import { buildActivity, dayLabel } from "@/lib/activity";
 import { formatMoney } from "@/lib/money";
 import { HomeBanner } from "@/components/HomeBanner";
@@ -28,6 +30,8 @@ import { ActivityRow } from "@/components/ActivityRow";
 import { itemHref } from "@/lib/paths";
 import { restoreGroup } from "@/app/actions";
 import { db } from "@/lib/db";
+import { leaverOf } from "@/lib/left-view-db";
+import { gameVisible, stillIn } from "@/lib/left-view";
 import { canUndo } from "@/lib/undo";
 import { UndoBar } from "@/components/UndoBar";
 import { PersonIcon, iconButtonClass } from "@/components/icons";
@@ -74,18 +78,20 @@ export default async function Home({
   const { closed: justClosed, did, g: didGroup, undone, error, deleted, signedin, moved, collection } = await searchParams;
   const [tz, memberships] = await Promise.all([getTimeZone(), getMemberships()]);
   // Independent reads, all at once.
-  const [overview, unread, deletedGroups, account, collections] = await Promise.all([
+  const [overview, unread, deletedGroups, account, collections, invitations] = await Promise.all([
     loadOverview(memberships),
     getAccount().then((a) => countAllUnread(memberships, a?.id)),
     loadDeletedGroups(memberships),
     getAccount(),
     getAccount().then((a) => (a ? myCollections(a.id) : [])),
+    // Groups someone added you to, waiting for Join or Not now.
+    getAccount().then((a) => loadInvitations(a)),
   ]);
   const { all, open, closed, owedLines, oweLines, common, netCommon, netLines, netValue, settleItems, toCommon } = overview;
 
   // Undo bar after a change made from the home screen (e.g. closing a group).
   let undoBar: { text: string; groupId: string; eventId: string } | null = null;
-  if (did && didGroup && memberships[didGroup]) {
+  if (did && didGroup && memberships[didGroup] && !(await leaverOf(memberships[didGroup]))) {
     const ev = await db.groupEvent.findFirst({ where: { id: did, groupId: didGroup } });
     // Only changes from then on matter for whether it can still be undone.
     const events = ev ? await db.groupEvent.findMany({ where: { groupId: didGroup, createdAt: { gte: ev.createdAt } } }) : [];
@@ -110,7 +116,7 @@ export default async function Home({
       .map((it) => ({ key: `owed-${it.key}`, lead: it.name, text: <><span className="font-semibold">{it.name}</span> owes you</>, sub: "Nudge or record it", amount: amt(it.net, it.converted), href: "/settle", tone: "owed" as const })),
     ...(unread > 0 ? [{ key: "unread", lead: "bell", text: <>{unread > 9 ? "9+" : unread} new {unread === 1 ? "update" : "updates"}</>, sub: "In your groups and collections", href: "/notifications" }] : []),
     ...open
-      .filter((g) => g.expenses.length > 0 && g.transfers.length === 0 && g.lastActivity.getTime() < quietSince)
+      .filter((g) => !g.leaver && g.expenses.length > 0 && g.transfers.length === 0 && g.lastActivity.getTime() < quietSince)
       .map((g) => ({ key: `close-${g.group.id}`, lead: "check", text: <>Everyone’s square in <span className="font-semibold">{g.group.name}</span></>, sub: "Close it?", href: `/groups/${g.group.id}/settings#close` })),
   ].slice(0, 4);
 
@@ -133,9 +139,9 @@ export default async function Home({
     deleted === "account"
       ? "Your email and sign-in were deleted. Your groups on this phone are still here."
       : deleted === "group"
-        ? "Group deleted. Anyone in it can restore it below for 30 days."
+        ? "Group deleted. You can restore it below for 30 days."
         : deleted === "gone"
-          ? "That group was deleted. Anyone in it can restore it below for 30 days."
+          ? "That group was deleted. If you started it or look after it, you can restore it below for 30 days."
         : collection === "deleted"
           ? "Collection deleted."
           : moved === "1"
@@ -156,14 +162,16 @@ export default async function Home({
   );
   const region = visitorRegion(await headers());
   const season = seasonNow(new Date(), tz, region.country);
-  const byActivity = [...open].sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
+  // Stories about how a group is now (countdown, a year ago, just back, wrapped, hero) skip groups the viewer left.
+  const live = stillIn(open);
+  const byActivity = [...live].sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
   // The balance card's big number (all groups together, or per currency).
   const heroText = netCommon
     ? `${netCommon.converted ? "≈ " : ""}${netCommon.value > 0 ? "+" : netCommon.value < 0 ? "−" : ""}${formatMoney(Math.abs(netCommon.value), common)}`
     : netLines.join(" · ");
   // Trip countdowns: trips with a start day, happening now first, then the soonest (up to a year out).
   const today = todayKey(new Date(), tz);
-  const trips = open
+  const trips = live
     .filter((g) => g.group.type === "trip" && g.group.tripStart)
     .map((g) => ({ g, phase: tripPhase(g.group.tripStart, g.group.tripEnd, today) }))
     .filter((t): t is { g: (typeof open)[number]; phase: TripPhase } => Boolean(t.phase) && t.phase!.kind !== "after" && (t.phase!.kind !== "before" || t.phase!.days <= 365))
@@ -175,9 +183,11 @@ export default async function Home({
   // Stories: the moments in your groups (a trip coming up, last night's game,
   // a group that just got square, a collection filling up, a year ago today).
   const potIds = open.filter((g) => g.group.type === "pot").map((g) => g.group.id);
-  const games = potIds.length
+  const gameRows = potIds.length
     ? await db.potGame.findMany({ where: { groupId: { in: potIds }, status: "done", deletedAt: null, finishedAt: { gte: new Date(Date.now() - 3 * 86_400_000) } }, include: { moves: { where: { deletedAt: null } } }, take: 10 })
     : [];
+  // Games played after someone left the group aren't theirs to see.
+  const games = gameRows.filter((gm) => gameVisible(open.find((x) => x.group.id === gm.groupId)?.leaver ?? null, gm));
   // What each story shows: the place's photos, the crew, today's numbers, a game's table.
   const first = (n: string) => n.trim().split(/\s+/)[0] || n;
   const crewOf = (g: (typeof open)[number]) => g.group.members.filter((m) => !m.leftAt).map((m) => (m.id === g.myId ? "You" : first(m.name)));
@@ -250,7 +260,7 @@ export default async function Home({
       };
     }),
     squared: open
-      .filter((g) => g.group.type !== "pot" && g.expenses.length > 0 && g.transfers.length === 0 && g.payments.length > 0)
+      .filter((g) => !g.leaver && g.group.type !== "pot" && g.expenses.length > 0 && g.transfers.length === 0 && g.payments.length > 0)
       .map((g) => ({
         id: g.group.id,
         name: g.group.name,
@@ -277,7 +287,7 @@ export default async function Home({
           dueNames: c.entries.filter((e) => e.status === "due").map((e) => first(e.name)),
         };
       }),
-    memories: all
+    memories: stillIn(all)
       .filter((g) => g.group.type === "trip" && g.group.tripStart)
       .flatMap((g) => {
         const start = g.group.tripStart;
@@ -301,7 +311,7 @@ export default async function Home({
         ];
       }),
     // A trip that ended in the last two weeks: its Wrapped.
-    wrapped: open
+    wrapped: live
       .filter((g) => g.group.type === "trip" && g.group.tripStart && g.expenses.length >= 3)
       .flatMap((g) => {
         const ended = daysBetween(g.group.tripEnd || g.group.tripStart, today);
@@ -342,7 +352,8 @@ export default async function Home({
   const homeCountry = (account?.homeCountry || region.country || "IN").toUpperCase();
   const [postcardsNew, billRows] = await Promise.all([
     account ? db.postcard.count({ where: { toId: account.id, readAt: null, OR: [{ opensAt: null }, { opensAt: { lte: new Date() } }] } }) : Promise.resolve(0),
-    db.bill.findMany({ where: { groupId: { in: open.map((g) => g.group.id) }, deletedAt: null, paused: false }, take: 20 }),
+    // A group they left shows no bills.
+    db.bill.findMany({ where: { groupId: { in: open.filter((g) => !g.leaver).map((g) => g.group.id) }, deletedAt: null, paused: false }, take: 20 }),
   ]);
   // The same count as the passport: countries with a stamp or a tick (home only if it has one).
   const passportSet = new Set(
@@ -368,7 +379,7 @@ export default async function Home({
         todaySpent: t.phase.kind === "before" ? undefined : todayIn(t.g).spent || undefined,
       };
     }),
-    justBack: open
+    justBack: live
       .filter((g) => g.group.type === "trip" && g.group.tripStart && g.expenses.length > 0)
       .map((g) => ({ g, ended: daysBetween(g.group.tripEnd || g.group.tripStart, today) }))
       .filter(({ ended }) => ended >= 1 && ended <= 14)
@@ -399,7 +410,7 @@ export default async function Home({
 
   // First visit: show what Loopin does instead of an empty screen.
   const tourSeen = (await cookies()).get("lp_tour")?.value === "1";
-  if (all.length === 0 && deletedGroups.length === 0 && collections.length === 0 && !error && !notice && !tourSeen) return <IntroTour signInHref="/signin" currency={region.currency} india={region.india} />;
+  if (all.length === 0 && deletedGroups.length === 0 && collections.length === 0 && invitations.length === 0 && !error && !notice && !tourSeen) return <IntroTour signInHref="/signin" currency={region.currency} india={region.india} />;
 
   return (
     <>
@@ -473,6 +484,15 @@ export default async function Home({
       >
         <Stories stories={stories} className="mb-4" />
       </HomeHero>
+
+      {/* Someone added you to a group: it isn't in your groups until you tap Join. */}
+      {invitations.length > 0 && (
+        <div className="mb-6 space-y-3" data-invitations>
+          {invitations.map((inv) => (
+            <InvitationCard key={inv.key} inv={inv} />
+          ))}
+        </div>
+      )}
 
       {/* New here (one group or none, no expenses yet): a gentle pointer to the 1-minute tour. */}
       {open.length <= 1 && open.every((g) => g.expenses.length === 0) && (
@@ -795,14 +815,14 @@ export default async function Home({
       )}
 
       {/* Recently deleted groups: tucked away (like Closed groups) and opened with a tap;
-          open on its own right after a delete. Anyone in them can bring them back for 30 days. */}
+          open on its own right after a delete. Whoever deleted them, or looks after them, can bring them back for 30 days. */}
       {deletedGroups.length > 0 && (
         <details className="group/deleted mt-4" open={deleted === "group" || deleted === "gone"}>
           <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-full border border-line px-4 py-2 text-sm text-gray-600 active:bg-mist [&::-webkit-details-marker]:hidden">
             <span className="group-open/deleted:hidden">Recently deleted ({deletedGroups.length})</span>
             <span className="hidden group-open/deleted:inline">Hide recently deleted</span>
           </summary>
-          <p className="mt-2 text-xs text-gray-400">Anyone in these groups can bring them back for 30 days.</p>
+          <p className="mt-2 text-xs text-gray-400">You can bring these back for 30 days.</p>
           <ul className="divide-y divide-line">
             {deletedGroups.map((d) => (
               <li key={d.id} className="flex items-center gap-3 py-3">
@@ -868,7 +888,7 @@ function GroupRow({ g, closed, tz }: { g: Awaited<ReturnType<typeof loadOverview
         <span className="min-w-0 flex-1">
           <span className={`block truncate font-medium ${closed ? "text-gray-500" : ""}`}>{g.group.name}</span>
           <span className="block truncate text-sm text-gray-400">
-            {peopleCount(g.group.members.filter((m) => !m.leftAt).length)}, {closed ? "closed" : activeText(g.lastActivity, tz)}
+            {peopleCount(g.people)}, {closed ? "closed" : activeText(g.lastActivity, tz)}
           </span>
         </span>
         <span className={`shrink-0 text-right text-sm tabular-nums ${b > 0 ? "text-owed" : b < 0 ? "text-owe" : "text-gray-400"}`}>
@@ -882,7 +902,7 @@ function GroupRow({ g, closed, tz }: { g: Awaited<ReturnType<typeof loadOverview
 // A group on Home: its photo, its name, what happened last, and your balance in it.
 function GroupLine({ g, tz }: { g: Awaited<ReturnType<typeof loadOverview>>["all"][number]; tz: string }) {
   const b = g.myBalance;
-  const people = g.group.members.filter((m) => !m.leftAt);
+  const people = { length: g.people };
   const photo = g.group.type === "trip" && !g.group.cover ? placePhoto(g.group.name)?.src : undefined;
   return (
     <li>

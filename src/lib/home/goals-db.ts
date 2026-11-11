@@ -1,7 +1,7 @@
 import { db } from "../db";
 import { logEvent } from "../events";
 import { formatMoney, parseAmount } from "../money";
-import { claimKey, isDuplicateKey, previousResult } from "../once";
+import { claimKey, fingerprintOf, isDuplicateKey, keyState, STALE_KEY_ERROR } from "../once";
 
 type Result = { ok: true; id: string } | { ok: false; error: string };
 
@@ -34,9 +34,21 @@ export async function saveGoalFor(groupId: string, actorId: string, input: { goa
   return { ok: true, id: g.id };
 }
 
+// Without a key (an empty one counts as none), the same person setting aside the same amount for the same
+// goal within this many seconds is taken for a double tap.
+export const GOAL_TAP_SECONDS = 10;
+
+// The stand-in key for a tap that came without one.
+export function tapKey(memberId: string, goalId: string, amount: number, now = Date.now()): string {
+  return `goal-${fingerprintOf("goal-tap", memberId, goalId, amount, Math.floor(now / (GOAL_TAP_SECONDS * 1000)))}`;
+}
+
 // "I set money aside": counted once per tap; reaching the target is noted once.
-export async function addGoalEntryFor(groupId: string, actorId: string, goalId: string, amountText: string, requestKey: string): Promise<Result> {
-  if ((await previousResult(requestKey)) !== null) return { ok: true, id: goalId };
+export async function addGoalEntryFor(groupId: string, actorId: string, goalId: string, amountText: string, requestKey?: string): Promise<Result> {
+  const fp = fingerprintOf("goal-entry", groupId, goalId, amountText.trim());
+  const ks = await keyState(requestKey || undefined, fp);
+  if (ks.state === "stale") return { ok: false, error: STALE_KEY_ERROR };
+  if (ks.state === "done") return { ok: true, id: goalId };
   const goal = await db.goal.findFirst({ where: { id: goalId, groupId, deletedAt: null }, include: { group: true } });
   if (!goal) return { ok: false, error: "That goal no longer exists." };
   const me = await member(groupId, actorId);
@@ -45,7 +57,10 @@ export async function addGoalEntryFor(groupId: string, actorId: string, goalId: 
   if (amount === null || amount === 0) return { ok: false, error: "Enter the amount you set aside." };
   try {
     await db.$transaction(async (tx) => {
-      await claimKey(tx, requestKey, goal.id);
+      // No key from the screen: a key worked out from who, which goal, how much and the current 10 seconds, so two taps
+      // racing each other can only save once (the second one finds the key already taken).
+      await claimKey(tx, requestKey || tapKey(actorId, goal.id, amount), goal.id, requestKey ? fp : "");
+      if (!requestKey && (await tx.goalEntry.count({ where: { goalId: goal.id, memberId: actorId, amount, createdAt: { gt: new Date(Date.now() - GOAL_TAP_SECONDS * 1000) } } })) > 0) return; // a double tap without a key: kept once, answered the same
       await tx.goalEntry.create({ data: { goalId: goal.id, memberId: actorId, amount } });
       const saved = (await tx.goalEntry.aggregate({ where: { goalId: goal.id }, _sum: { amount: true } }))._sum.amount ?? 0;
       const money = (n: number) => formatMoney(n, goal.group.currency);

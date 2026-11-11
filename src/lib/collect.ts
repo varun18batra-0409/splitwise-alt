@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { JOINED } from "./membership";
 import type { Note } from "./account-notes";
 import { cleanNames, sameName } from "./names";
 import { formatMoney, parseAmount } from "./money";
@@ -19,10 +20,10 @@ export type CollectNote = Note;
 
 // People you share a group with who are on Loopin (to add to a collection, for in-app notifications).
 export async function loopinFriends(accountId: string): Promise<{ id: string; name: string }[]> {
-  const mine = await db.member.findMany({ where: { accountId, leftAt: null, group: { deletedAt: null } }, select: { groupId: true } });
+  const mine = await db.member.findMany({ where: { accountId, leftAt: null, ...JOINED, group: { deletedAt: null } }, select: { groupId: true } });
   if (!mine.length) return [];
   const others = await db.member.findMany({
-    where: { groupId: { in: mine.map((m) => m.groupId) }, leftAt: null, accountId: { not: null } },
+    where: { groupId: { in: mine.map((m) => m.groupId) }, leftAt: null, accountId: { not: null }, ...JOINED },
     select: { accountId: true, name: true },
   });
   const ids = [...new Set(others.map((o) => o.accountId!).filter((id) => id !== accountId))];

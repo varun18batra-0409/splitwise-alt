@@ -15,8 +15,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const url = new URL(req.url);
   const fromId = url.searchParams.get("from") ?? "";
   const home = new URL(`/groups/${id}/settle`, url.origin);
-  const data = await loadGroup(id, { events: false });
-  const myId = data ? await getMyMemberId(id) : undefined;
+  const myId = await getMyMemberId(id);
+  // Someone who left reads only their own part of the ledger (their own Smart Settle payments), never the rest.
+  const data = myId ? await loadGroup(id, { events: false, viewer: myId }) : null;
   if (!data || !myId || !data.group.members.some((m) => m.id === myId)) return Response.redirect(new URL("/private", url.origin), 303);
   const { group, transfers } = data;
   const t = transfers.find((x) => x.from === fromId && x.to === myId);

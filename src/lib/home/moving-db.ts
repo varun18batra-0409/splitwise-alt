@@ -1,12 +1,13 @@
 import { db } from "../db";
-import { logEvent, expenseState, type MoveOutUndo } from "../events";
+import { logEvent, expenseState, touchedByExpense, type MoveOutUndo } from "../events";
 import { netBalances } from "../balances";
 import { formatMoney, parseAmount } from "../money";
-import { claimKey, isDuplicateKey, previousResult } from "../once";
+import { claimKey, fingerprintOf, isDuplicateKey, keyState, STALE_KEY_ERROR } from "../once";
 import { niceDate } from "../format";
 import { addMonths, daysInMonth } from "./month";
 import { DEFAULT_TIME_ZONE, dayKey } from "../dates";
-import { depositRefunds, leaverPayments, proRataShares } from "./moving";
+import { addPrepaid, dailyPrecharge, depositRefunds, leaverPayments, parsePrepaid, proRataShares, removePrepaid, type DailyPrecharge } from "./moving";
+import { monthsBetween, payerFor } from "./bills";
 import type { Transfer } from "../settle";
 
 // Moving out, the deposit — database side.
@@ -38,7 +39,50 @@ async function billExpensesFor(flat: Flat, leaverId: string, fromMonth: string) 
 }
 type BillExpense = Awaited<ReturnType<typeof billExpensesFor>>[number];
 
-function plan(flat: Flat, leaverId: string, lastDay: string, bills: BillExpense[]) {
+// Daily bills (milk, water cans) whose month hasn't been added yet: the leaver's share of the
+// days they were there, which would otherwise never reach them (only people still here share the month-end bill).
+type DailyOffer = { bill: Awaited<ReturnType<typeof db.bill.findMany>>[number]; period: string; d: DailyPrecharge };
+async function dailyOffers(flat: Flat, leaverId: string, lastDay: string): Promise<DailyOffer[]> {
+  const period = lastDay.slice(0, 7);
+  const bills = await db.bill.findMany({ where: { groupId: flat.id, nature: "daily", deletedAt: null, paused: false }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
+  const runs = await db.billRun.findMany({ where: { period, billId: { in: bills.map((b) => b.id) } }, select: { billId: true, status: true } });
+  const members = flat.members.map((m) => ({ id: m.id, splitWeight: m.splitWeight, joinedFrom: m.joinedFrom, leftAt: m.leftAt }));
+  const out: DailyOffer[] = [];
+  for (const bill of bills) {
+    if (period < bill.startMonth || (bill.endMonth && period > bill.endMonth) || monthsBetween(bill.startMonth, period) % Math.max(1, bill.every) !== 0) continue;
+    // Already added (the existing re-split handles it), skipped or being added: nothing to charge now.
+    const run = runs.find((r) => r.billId === bill.id);
+    if (run && run.status !== "waiting") continue;
+    if ((parsePrepaid(bill.prepaid)[period] ?? []).some((x) => x.m === leaverId)) continue;
+    const d = dailyPrecharge(bill, period, lastDay, members, leaverId);
+    if (d.unsupported || d.amount > 0) out.push({ bill, period, d });
+  }
+  return out;
+}
+
+// Who pays the precharge expense: the bill's payer once the leaver's bills are handed on (or the heir).
+function prechargePayer(bill: DailyOffer["bill"], period: string, leaverId: string, others: string[], heir: string): string {
+  let rotation: string[] = [];
+  try {
+    const v = JSON.parse(bill.rotation);
+    if (Array.isArray(v)) rotation = v.filter((x): x is string => typeof x === "string" && x !== leaverId);
+  } catch {
+    rotation = [];
+  }
+  const payer = bill.payer === leaverId ? heir : bill.payer;
+  return payerFor({ payer, rotation: JSON.stringify(rotation), startMonth: bill.startMonth, every: bill.every }, period, others) ?? heir;
+}
+
+// "1–14 Nov" (or "5–14 Nov" for someone who moved in on the 5th).
+function stayLabel(lastDay: string, joinedFrom: Date | null): string {
+  const from = joinedFrom && joinedFrom.toISOString().slice(0, 7) === lastDay.slice(0, 7) ? Number(joinedFrom.toISOString().slice(8, 10)) : 1;
+  const month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][Number(lastDay.slice(5, 7)) - 1] ?? "";
+  return `${from}–${Number(lastDay.slice(8, 10))} ${month}`;
+}
+
+type Charge = { payerId: string; amount: number };
+
+function plan(flat: Flat, leaverId: string, lastDay: string, bills: BillExpense[], charges: Charge[] = []) {
   const month = lastDay.slice(0, 7);
   const monthDays = daysInMonth(month);
   const daysStayed = Number(lastDay.slice(8, 10));
@@ -54,9 +98,11 @@ function plan(flat: Flat, leaverId: string, lastDay: string, bills: BillExpense[
   );
   const ids = flat.members.map((m) => m.id);
   const before = netBalances(ids, flat.expenses, flat.payments);
+  // The daily-bill shares charged now: the payer is credited, the leaver owes.
+  const extra = charges.map((c) => ({ paidById: c.payerId, amount: c.amount, shares: [{ memberId: leaverId, amount: c.amount }] }));
   const after = netBalances(
     ids,
-    flat.expenses.map((e) => resplit.find((r) => r.e.id === e.id) ? { ...e, shares: resplit.find((r) => r.e.id === e.id)!.shares } : e),
+    [...flat.expenses.map((e) => resplit.find((r) => r.e.id === e.id) ? { ...e, shares: resplit.find((r) => r.e.id === e.id)!.shares } : e), ...extra],
     flat.payments,
   );
   return { resplit, credit, before, after, payments: leaverPayments(after, leaverId), daysStayed, monthDays };
@@ -71,7 +117,8 @@ function checkDay(lastDay: string, now: Date): string | null {
   return null;
 }
 
-export async function moveOutPreview(groupId: string, leaverId: string, lastDay: string, now = new Date()) {
+// `actorId`: who is confirming it. They take over the leaver's bills if they are staying, exactly as moveOut does.
+export async function moveOutPreview(groupId: string, leaverId: string, lastDay: string, now = new Date(), actorId = "") {
   const flat = await loadFlat(groupId);
   if (!flat || flat.deletedAt) return { ok: false, error: "This group no longer exists." } as Fail;
   if (!flat.members.some((m) => m.id === leaverId && !m.leftAt)) return { ok: false, error: "That person isn’t in the flat." } as Fail;
@@ -80,6 +127,12 @@ export async function moveOutPreview(groupId: string, leaverId: string, lastDay:
   const bills = await billExpensesFor(flat, leaverId, lastDay.slice(0, 7));
   const p = plan(flat, leaverId, lastDay, bills);
   const dep = flat.deposit?.shares.find((s) => s.memberId === leaverId && s.status === "held") ?? null;
+  // Daily bills this month: their share for the days they were there, charged now if they tick "Add it now".
+  const offers = await dailyOffers(flat, leaverId, lastDay);
+  const others = flat.members.filter((m) => !m.leftAt && m.id !== leaverId);
+  const heir = others.find((m) => m.id === actorId)?.id ?? others[0]?.id ?? "";
+  const charges = offers.filter((o) => !o.d.unsupported).map((o) => ({ payerId: prechargePayer(o.bill, o.period, leaverId, others.map((m) => m.id), heir), amount: o.d.amount }));
+  const withDaily = charges.length ? plan(flat, leaverId, lastDay, bills, charges).payments : p.payments;
   return {
     ok: true as const,
     balanceToday: p.before[leaverId] ?? 0,
@@ -93,6 +146,8 @@ export async function moveOutPreview(groupId: string, leaverId: string, lastDay:
       after: r.shares.find((x) => x.memberId === leaverId)?.amount ?? 0,
     })),
     payments: p.payments,
+    daily: offers.map((o) => ({ billId: o.bill.id, name: o.bill.name, days: o.d.days, missed: o.d.missed, amount: o.d.amount, unsupported: o.d.unsupported })),
+    paymentsWithDaily: withDaily,
     daysStayed: p.daysStayed,
     monthDays: p.monthDays,
     deposit: dep ? { amount: dep.amount, heldBy: flat.deposit!.heldBy } : null,
@@ -102,10 +157,13 @@ export async function moveOutPreview(groupId: string, leaverId: string, lastDay:
 export async function moveOut(
   groupId: string,
   actorId: string,
-  input: { leaverId: string; lastDay: string; depositTo?: string; requestKey: string },
+  input: { leaverId: string; lastDay: string; depositTo?: string; addDaily?: boolean; requestKey: string },
   now = new Date(),
 ): Promise<{ ok: true; payments: Transfer[] } | Fail> {
-  if ((await previousResult(input.requestKey)) !== null) return { ok: true, payments: [] };
+  const fp = fingerprintOf("move-out", groupId, input.leaverId, input.lastDay, input.depositTo ?? "", input.addDaily ? "daily" : "");
+  const ks = await keyState(input.requestKey, fp);
+  if (ks.state === "stale") return { ok: false, error: STALE_KEY_ERROR };
+  if (ks.state === "done") return { ok: true, payments: [] };
   const flat = await loadFlat(groupId);
   if (!flat || flat.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (!flat.members.some((m) => m.id === actorId && !m.leftAt)) return { ok: false, error: "Only people in this group can do this." };
@@ -118,14 +176,17 @@ export async function moveOut(
   const depositTo = input.depositTo && others.some((m) => m.id === input.depositTo) ? input.depositTo : "";
 
   const bills = await billExpensesFor(flat, leaver.id, input.lastDay.slice(0, 7));
-  const p = plan(flat, leaver.id, input.lastDay, bills);
+  const heir = others.find((m) => m.id === actorId)?.id ?? others[0].id;
+  // Their share of this month's daily bills, charged now (only if asked: "Add it now").
+  const offers = input.addDaily ? (await dailyOffers(flat, leaver.id, input.lastDay)).filter((o) => !o.d.unsupported && o.d.amount > 0) : [];
+  const charges = offers.map((o) => ({ ...o, payerId: prechargePayer(o.bill, o.period, leaver.id, others.map((m) => m.id), heir) }));
+  const p = plan(flat, leaver.id, input.lastDay, bills, charges.map((c) => ({ payerId: c.payerId, amount: c.d.amount })));
   const name = (id: string) => flat.members.find((m) => m.id === id)?.name ?? "Someone";
   const money = (n: number) => formatMoney(n, flat.currency);
-  const heir = others.find((m) => m.id === actorId)?.id ?? others[0].id;
 
   try {
     await db.$transaction(async (tx) => {
-      await claimKey(tx, input.requestKey, "moved");
+      await claimKey(tx, input.requestKey, "moved", fp);
       // Claim the move-out first: if two people confirm it at the same moment,
       // only the first one goes through (the second finds them already gone).
       const claimed = await tx.member.updateMany({ where: { id: leaver.id, leftAt: null }, data: { leftAt: new Date(`${input.lastDay}T12:00:00Z`) } });
@@ -148,6 +209,45 @@ export async function moveOut(
           details: [`${leaver.name}’s share: ${money(r.e.shares.find((s) => s.memberId === leaver.id)?.amount ?? 0)} → ${money(r.shares.find((s) => s.memberId === leaver.id)?.amount ?? 0)} (moved out ${niceDate(input.lastDay)})`],
           expenseId: r.e.id,
           undo: { type: "expense_revert", expenseId: r.e.id, before: expenseState(r.e) },
+          touches: touchedByExpense(r.e, { ...r.e, shares: r.shares }),
+        });
+      }
+      // 1b. Their share of this month's daily bills, for the days they were there: an expense with only them
+      // in it, written down on the bill so the month-end bill takes it off. The month must still be open.
+      const undoInfo: MoveOutUndo = { bills: [] };
+      for (const c of charges) {
+        const run = await tx.billRun.findUnique({ where: { billId_period: { billId: c.bill.id, period: c.period } }, select: { status: true } });
+        if (run && run.status !== "waiting") throw new Error("BILLS_CHANGED");
+        const label = `${c.bill.name} · ${stayLabel(input.lastDay, leaver.joinedFrom)} (${leaver.name}’s share)`;
+        const made = await tx.expense.create({
+          data: {
+            groupId,
+            description: label,
+            notes: `${c.d.days} days × ${money(c.bill.amount)}`,
+            amount: c.d.amount,
+            splitType: "exact",
+            forMode: "selected",
+            category: c.bill.category,
+            paidById: c.payerId,
+            originalAmount: c.d.amount,
+            originalCurrency: flat.currency,
+            baseCurrency: flat.currency,
+            convertedAmount: c.d.amount,
+            createdById: actorId,
+            spentAt: new Date(`${input.lastDay}T12:00:00Z`),
+            shares: { create: [{ memberId: leaver.id, amount: c.d.amount }] },
+          },
+        });
+        const fresh = await tx.bill.findUnique({ where: { id: c.bill.id }, select: { prepaid: true } });
+        await tx.bill.update({ where: { id: c.bill.id }, data: { prepaid: addPrepaid(fresh?.prepaid ?? "{}", c.period, { m: leaver.id, a: c.d.amount, e: made.id, d: input.lastDay }) } });
+        (undoInfo.prepaid ??= []).push({ billId: c.bill.id, period: c.period, expenseId: made.id });
+        await logEvent(tx, {
+          groupId,
+          actorId,
+          kind: "expense_added",
+          text: `added ${label} (${money(c.d.amount)})`,
+          details: [`Paid by ${name(c.payerId)}`, `Moved out ${niceDate(input.lastDay)}; the rest of the month is shared by the others`],
+          expenseId: made.id,
         });
       }
       // 2. Square up.
@@ -163,7 +263,6 @@ export async function moveOut(
         });
       }
       // 3. Their deposit: handed to whoever moves in, or kept on record until the lease ends.
-      const undoInfo: MoveOutUndo = { bills: [] };
       const dep = flat.deposit?.shares.find((s) => s.memberId === leaver.id && s.status === "held");
       if (dep && depositTo) {
         await tx.depositShare.update({ where: { id: dep.id }, data: { status: "transferred", toMemberId: depositTo, updatedAt: new Date() } });
@@ -212,6 +311,7 @@ export async function moveOut(
         details: [
           ...(p.credit ? [`${money(p.credit)} of bills after they left moved to the others`] : []),
           ...p.payments.map((t) => `${name(t.from)} paid ${name(t.to)} ${money(t.amount)}`),
+          ...charges.map((c) => `${c.bill.name}: ${leaver.name}’s share for ${c.d.days} days, ${money(c.d.amount)}, charged now`),
           ...(dep && depositTo ? [`Deposit ${money(dep.amount)} taken over by ${name(depositTo)}`] : []),
         ],
         undo: { type: "member_set", memberId: leaver.id, data: { leftAt: null }, moveOut: undoInfo },
@@ -326,6 +426,15 @@ export async function undoMoveOut(groupId: string, actorId: string, memberId: st
         if (d.created) await tx.depositShare.delete({ where: { id: receiver.id } });
         else await tx.depositShare.update({ where: { id: receiver.id }, data: { amount: d.receiverBefore.amount, status: d.receiverBefore.status, updatedAt: new Date() } });
       }
+      // The daily-bill shares charged at move-out come off again, unless that month's bill was added since
+      // (it was worked out without them: edit it by hand instead).
+      for (const x of info.prepaid ?? []) {
+        const run = await tx.billRun.findUnique({ where: { billId_period: { billId: x.billId, period: x.period } }, select: { status: true } });
+        if (run && run.status !== "waiting") throw new Error(`MONTH_ADDED:${(await tx.bill.findUnique({ where: { id: x.billId }, select: { name: true } }))?.name ?? "The bill"}`);
+        await tx.expense.updateMany({ where: { id: x.expenseId, deletedAt: null }, data: { deletedAt: new Date(), deletedById: actorId } });
+        const fresh = await tx.bill.findUnique({ where: { id: x.billId }, select: { prepaid: true } });
+        if (fresh) await tx.bill.update({ where: { id: x.billId }, data: { prepaid: removePrepaid(fresh.prepaid, x.period, x.expenseId) } });
+      }
       let kept = 0;
       for (const b of info.bills) {
         const now = await tx.bill.findUnique({ where: { id: b.id }, select: { payer: true, rotation: true, split: true, deletedAt: true } });
@@ -346,6 +455,7 @@ export async function undoMoveOut(groupId: string, actorId: string, memberId: st
           ...(info.bills.length - kept > 0 ? ["Bills they paid or took turns on are back as they were"] : []),
           ...(kept ? [`${kept} bill${kept === 1 ? "" : "s"} changed since kept the newer settings`] : []),
           ...(info.deposit ? ["Their deposit is back with them"] : []),
+          ...((info.prepaid ?? []).length ? ["Their share of the daily bills was taken off again"] : []),
         ],
         // No redo from here: moving out again hands over bills and the deposit,
         // which only the move-out screen does properly.
@@ -353,7 +463,13 @@ export async function undoMoveOut(groupId: string, actorId: string, memberId: st
     });
     return { ok: true, eventId };
   } catch (err) {
-    if (String((err as Error)?.message ?? err).includes("DEPOSIT_CHANGED")) {
+    const msg = String((err as Error)?.message ?? err);
+    const at = msg.indexOf("MONTH_ADDED:");
+    if (at >= 0) {
+      const bill = msg.slice(at + "MONTH_ADDED:".length).split("\n")[0].trim();
+      return { ok: false, error: `This month’s ${bill} was already added, so the move-out can’t be undone. Edit ${bill} instead.` };
+    }
+    if (msg.includes("DEPOSIT_CHANGED")) {
       return { ok: false, error: "The deposit changed since the move-out (returned or handed on), so this can’t be undone. Change the deposit back first." };
     }
     throw err;

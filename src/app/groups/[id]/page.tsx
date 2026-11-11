@@ -1,6 +1,9 @@
 import Link from "@/components/Link";
 import { notFound, redirect } from "next/navigation";
-import { getMemberships } from "@/lib/identity";
+import { getAccount, getMemberships } from "@/lib/identity";
+import { invitationFor } from "@/lib/invitations";
+import { PendingGroup } from "./_components/PendingGroup";
+import { LeftBanner, LeftFootnote, LeftSections } from "./_components/LeftBanner";
 import { loadGroup, loadSwitchList } from "@/lib/group-data";
 import { db } from "@/lib/db";
 import { canUndo } from "@/lib/undo";
@@ -87,22 +90,25 @@ export default async function GroupPage({
   // at once (each is a trip to the database; one after another they add up).
   const memberships = await getMemberships();
   const myId = memberships[id];
-  // The first time someone added by another person opens the group (their passport is shared from now on).
-  if (myId) await db.member.updateMany({ where: { id: myId, groupId: id, addedBy: { not: "" }, seenAt: null }, data: { seenAt: new Date() } }).catch(() => undefined);
   if (!myId) {
     const exists = await db.group.findFirst({ where: { id, deletedAt: null }, select: { id: true } });
     if (!exists) notFound();
+    // Someone added you here and you haven't answered yet: the invitation, not the group.
+    const invitation = await invitationFor(await getAccount(), id);
+    if (invitation) return <PendingGroup inv={invitation} />;
     redirect("/private");
   }
-  const [data, tz, switchTo] = await Promise.all([loadGroup(id), getTimeZone(), loadSwitchList(memberships, id)]);
+  const [data, tz, switchTo] = await Promise.all([loadGroup(id, { viewer: myId }), getTimeZone(), loadSwitchList(memberships, id)]);
   if (!data) notFound();
   // Still in it? (A removed person's phone can remember the group.)
   if (!data.group.members.some((m) => m.id === myId)) redirect("/private");
 
   const v = await buildGroupView(data, myId, tz);
   const { group } = v;
-  const home = group.type === "home" || group.type === "couple";
-  const pot = group.type === "pot";
+  // Someone who left (or was removed) sees Activity, Balances (their own) and Charts only.
+  const leaver = v.leaver;
+  const home = !leaver && (group.type === "home" || group.type === "couple");
+  const pot = !leaver && group.type === "pot";
   const tabs = home ? HOME_TABS : pot ? POT_TABS : TABS;
   const allowed: readonly string[] = home ? ["month", "bills", "list", "activity", "balances", "charts"] : pot ? ["games", "balances", "activity"] : ["activity", "balances", "charts"];
   const tab: Tab = allowed.includes(sp.tab ?? "") ? (sp.tab as Tab) : home ? "month" : pot ? "games" : "activity";
@@ -170,6 +176,7 @@ export default async function GroupPage({
   return (
     <>
       <GroupHeader v={v} switchTo={switchTo} />
+      <LeftBanner v={v} />
       <GroupSummary v={v} sp={sp} compact={home} />
       {sp.imported && <ImportedNote code={sp.imported} groupId={group.id} />}
 
@@ -187,6 +194,7 @@ export default async function GroupPage({
         ))}
       </nav>
 
+      {tab === "activity" && <LeftSections v={v} />}
       {tab === "activity" && (
         <ActivityTab
           v={v}
@@ -224,7 +232,7 @@ export default async function GroupPage({
       {tab === "charts" && <ChartsTab v={v} />}
 
       {/* Below the group's own content, never above it; not while searching or before anything was added. */}
-      {(tab === "activity" || tab === "month" || tab === "games") && group.expenses.length > 0 && !sp.q && !sp.cat && !sp.who && !sp.type && (
+      {(tab === "activity" || tab === "month" || tab === "games") && !leaver && group.expenses.length > 0 && !sp.q && !sp.cat && !sp.who && !sp.type && (
         <SendPostcardCard
           href={`/postcards/new?group=${group.id}`}
           front={group.type === "trip" && !group.cover && placePhoto(group.name) ? `photo:${placePhoto(group.name)!.src}` : group.type === "pot" ? "print:cards" : group.type === "home" || group.type === "couple" ? "print:home" : "print:beach"}
@@ -232,6 +240,8 @@ export default async function GroupPage({
           className="mt-8"
         />
       )}
+
+      <LeftFootnote v={v} />
 
       {showUndo && (
         <UndoBar

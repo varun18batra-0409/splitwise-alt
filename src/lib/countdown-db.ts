@@ -1,27 +1,33 @@
 import { db } from "./db";
-import { claimOnce, sendPushTo } from "./push";
+import { claimJob, finishJob, sendPushTo } from "./push";
+import { JOINED } from "./membership";
 import { dayKey, DEFAULT_TIME_ZONE } from "./dates";
 import { NUDGE_DAYS, afterTripNudge, countdownNudge, daysBetween, placeOf } from "./countdown";
 
 // The daily job (morning, India time): nudges to everyone in a trip 60, 45, 30,
 // 14, 7, 3 and 1 days before it starts, on the morning itself, and the day after it
 // ends (settle up). Each trip gets each nudge once, even if the job runs twice.
-export async function sendTripCountdowns(now = new Date()) {
+export async function sendTripCountdowns(now = new Date(), stop: () => boolean = () => false) {
   const today = dayKey(now, DEFAULT_TIME_ZONE);
   const lastDay = dayKey(new Date(now.getTime() + Math.max(...NUDGE_DAYS) * 86_400_000), DEFAULT_TIME_ZONE);
   const trips = await db.group.findMany({
     where: { type: "trip", deletedAt: null, closed: false, tripStart: { gte: today, lte: lastDay } },
-    select: { id: true, name: true, tripStart: true, members: { where: { leftAt: null }, select: { id: true } } },
+    select: { id: true, name: true, tripStart: true, members: { where: { leftAt: null, ...JOINED }, select: { id: true } } },
   });
   let sent = 0;
+  let deferred = false;
   for (const g of trips) {
     const left = daysBetween(today, g.tripStart);
     const body = countdownNudge(g, left);
-    if (!body || !(await claimOnce(`countdown:${g.id}:${g.tripStart}:${left}`))) continue;
+    if (!body) continue;
+    if (stop()) { deferred = true; break; }
+    const key = `countdown:${g.id}:${g.tripStart}:${left}`;
+    if (!(await claimJob(key, now))) continue;
     sent += await sendPushTo(
       g.members.map((m) => m.id),
       { title: left === 0 ? `${placeOf(g.name)} day!` : g.name, body, url: `/groups/${g.id}`, tag: `countdown:${g.id}` },
     );
+    await finishJob(key);
   }
   // The day after a trip ends: "Back from Goa? Settle up in one tap" (only for trips where something was spent).
   const yesterday = dayKey(new Date(now.getTime() - 86_400_000), DEFAULT_TIME_ZONE);
@@ -33,36 +39,42 @@ export async function sendTripCountdowns(now = new Date()) {
       expenses: { some: { deletedAt: null } },
       OR: [{ tripEnd: yesterday }, { tripEnd: "", tripStart: yesterday }],
     },
-    select: { id: true, name: true, members: { where: { leftAt: null }, select: { id: true } } },
+    select: { id: true, name: true, members: { where: { leftAt: null, ...JOINED }, select: { id: true } } },
   });
   for (const g of ended) {
-    if (!(await claimOnce(`countdown-after:${g.id}:${yesterday}`))) continue;
+    if (stop()) { deferred = true; break; }
+    const key = `countdown-after:${g.id}:${yesterday}`;
+    if (!(await claimJob(key, now))) continue;
     sent += await sendPushTo(
       g.members.map((m) => m.id),
       { title: g.name, body: afterTripNudge(g), url: `/groups/${g.id}/settle`, tag: `countdown:${g.id}` },
     );
+    await finishJob(key);
   }
-  return { trips: trips.length, ended: ended.length, sent };
+  return { trips: trips.length, ended: ended.length, sent, deferred };
 }
 
 // The day-end pulse (evening, India time): for each trip happening today with
 // something spent today, one playful line to everyone in it. Once a day per trip.
-export async function sendDayPulse(now = new Date()) {
+export async function sendDayPulse(now = new Date(), stop: () => boolean = () => false) {
   const { pulseText } = await import("./pulse");
   const { spentAmount, payersOf } = await import("./payers");
   const today = dayKey(now, DEFAULT_TIME_ZONE);
   const trips = await db.group.findMany({
     where: { type: "trip", deletedAt: null, closed: false, tripStart: { lte: today, not: "" } },
-    select: { id: true, name: true, currency: true, tripStart: true, tripEnd: true, members: { where: { leftAt: null }, select: { id: true, name: true } } },
+    select: { id: true, name: true, currency: true, tripStart: true, tripEnd: true, members: { where: { leftAt: null, ...JOINED }, select: { id: true, name: true } } },
   });
   let sent = 0;
+  let deferred = false;
   for (const g of trips) {
+    if (stop()) { deferred = true; break; }
     const end = g.tripEnd || g.tripStart;
     if (end < today) continue;
     const since = new Date(now.getTime() - 20 * 3_600_000);
     const expenses = await db.expense.findMany({ where: { groupId: g.id, deletedAt: null, kind: "expense", createdAt: { gte: since } } });
     const todays = expenses.filter((e) => dayKey(e.spentAt ?? e.createdAt, DEFAULT_TIME_ZONE) === today);
-    if (!todays.length || !(await claimOnce(`pulse:${g.id}:${today}`))) continue;
+    const key = `pulse:${g.id}:${today}`;
+    if (!todays.length || !(await claimJob(key, now))) continue;
     const spent = todays.reduce((s, e) => s + spentAmount(e), 0);
     const paid = new Map<string, number>();
     for (const e of todays) for (const p of payersOf(e)) paid.set(p.memberId, (paid.get(p.memberId) ?? 0) + p.amount);
@@ -78,25 +90,30 @@ export async function sendDayPulse(now = new Date()) {
       topShare: spent ? topAmt / spent : 0,
     });
     sent += await sendPushTo(g.members.map((m) => m.id), { title: `🌙 ${g.name}`, body, url: `/groups/${g.id}?tab=activity`, tag: `pulse:${g.id}` });
+    await finishJob(key);
   }
-  return { sent };
+  return { sent, deferred };
 }
 
 // Memory lane (morning): "A year ago today: Goa" to everyone who went.
-export async function sendMemoryLane(now = new Date()) {
+export async function sendMemoryLane(now = new Date(), stop: () => boolean = () => false) {
   const { memoryText } = await import("./pulse");
   const today = dayKey(now, DEFAULT_TIME_ZONE);
   const md = today.slice(4); // "-10-27"
   const trips = await db.group.findMany({
     where: { type: "trip", deletedAt: null, tripStart: { endsWith: md, lt: `${today.slice(0, 4)}-01-01` } },
-    select: { id: true, name: true, tripStart: true, tripEnd: true, members: { where: { leftAt: null }, select: { id: true } } },
+    select: { id: true, name: true, tripStart: true, tripEnd: true, members: { where: { leftAt: null, ...JOINED }, select: { id: true } } },
   });
   let sent = 0;
+  let deferred = false;
   for (const g of trips) {
+    if (stop()) { deferred = true; break; }
     const years = Number(today.slice(0, 4)) - Number(g.tripStart.slice(0, 4));
-    if (years < 1 || !(await claimOnce(`memory:${g.id}:${today}`))) continue;
+    const key = `memory:${g.id}:${today}`;
+    if (years < 1 || !(await claimJob(key, now))) continue;
     const body = memoryText({ place: placeOf(g.name), years, people: g.members.length, days: g.tripEnd ? daysBetween(g.tripStart, g.tripEnd) + 1 : 1 });
     sent += await sendPushTo(g.members.map((m) => m.id), { title: `📸 ${g.name}`, body, url: `/groups/${g.id}/wrapped`, tag: `memory:${g.id}` });
+    await finishJob(key);
   }
-  return { sent };
+  return { sent, deferred };
 }

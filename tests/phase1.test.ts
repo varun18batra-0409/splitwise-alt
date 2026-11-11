@@ -132,7 +132,7 @@ describe("edit clashes, double taps and deleting groups", () => {
 
   beforeAll(async () => {
     const g = await db.group.create({
-      data: { name: "Phase 1 test", currency: "INR", inviteCode: `p1-${Date.now()}`, members: { create: [{ name: "Me" }, { name: "A" }] } },
+      data: { name: "Phase 1 test", currency: "INR", inviteCode: `p1-${Date.now()}`, members: { create: [{ name: "Me", claimedAt: new Date() }, { name: "A" }] } }, // Me looks after the group, so Restore is offered to Me
       include: { members: true },
     });
     groupId = g.id;

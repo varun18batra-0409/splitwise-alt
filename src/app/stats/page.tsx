@@ -2,7 +2,8 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getAccount } from "@/lib/identity";
 import { netBalances } from "@/lib/balances";
-import { computeStats } from "@/lib/stats";
+import { computeStats, signedInPeople } from "@/lib/stats";
+import { getTimeZone } from "@/lib/tz";
 import { LIMITS, appUsage, pct, tursoUsage } from "@/lib/usage";
 import { PageHeader } from "@/components/ui";
 
@@ -18,11 +19,11 @@ export default async function Stats() {
 
   const [groups, members, expenses, payments, events, accounts, errors] = await Promise.all([
     db.group.findMany({ select: { id: true, createdAt: true, deletedAt: true, closed: true } }),
-    db.member.findMany({ select: { id: true, groupId: true, claimedAt: true } }),
+    db.member.findMany({ select: { id: true, groupId: true, claimedAt: true, accountId: true, leftAt: true, removedAt: true } }),
     db.expense.findMany({ where: { deletedAt: null }, select: { groupId: true, createdAt: true, paidById: true, payers: true, kind: true, amount: true, shares: { select: { memberId: true, amount: true } } } }),
     db.payment.findMany({ where: { deletedAt: null }, select: { groupId: true, fromId: true, toId: true, amount: true } }),
     db.groupEvent.findMany({ where: { createdAt: { gte: new Date(Date.now() - 60 * 86_400_000) } }, select: { groupId: true, createdAt: true, kind: true } }),
-    db.account.count(),
+    db.account.findMany({ select: { id: true, email: true, name: true, createdAt: true } }),
     db.errorLog.findMany({ orderBy: { createdAt: "desc" }, take: 20 }),
   ]);
 
@@ -32,7 +33,10 @@ export default async function Stats() {
     const net = netBalances(ids, expenses.filter((e) => e.groupId === g.id), payments.filter((p) => p.groupId === g.id));
     balancesSettled[g.id] = Object.values(net).every((v) => v === 0);
   }
-  const s = computeStats({ groups, members, expenses, events, balancesSettled, accounts });
+  const s = computeStats({ groups, members, expenses, events, balancesSettled, accounts: accounts.length });
+  const people = signedInPeople(accounts, members, new Set(groups.filter((g) => !g.deletedAt).map((g) => g.id)));
+  const tz = await getTimeZone();
+  const day = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: tz });
   const [usage, turso] = await Promise.all([appUsage(), tursoUsage()]);
   const gb = (b: number) => `${(b / 1024 ** 3).toFixed(2)} GB`;
   const m = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)} M` : n.toLocaleString("en-IN"));
@@ -76,6 +80,22 @@ export default async function Stats() {
           </div>
         ))}
       </div>
+
+      <h2 className="mb-1 mt-10 font-display text-lg font-semibold tracking-tight">Who has signed in</h2>
+      <p className="mb-3 text-sm text-gray-500">Everyone with a Loopin account, newest first. Only you can see this.</p>
+      <ul className="divide-y divide-line rounded-2xl border border-line text-sm" data-signed-in-people>
+        {people.map((p) => (
+          <li key={p.id} className="flex items-center justify-between gap-3 px-4 py-3">
+            <div className="min-w-0">
+              <p className={`truncate ${p.name ? "" : "text-gray-500"}`}>{p.name || "No name yet"}</p>
+              <p className="truncate text-xs text-gray-400">
+                {p.email}, since {day(p.since)}
+              </p>
+            </div>
+            <span className="shrink-0 text-xs text-gray-500 tabular-nums">{p.groups === 0 ? "No groups" : p.groups === 1 ? "1 group" : `${p.groups} groups`}</span>
+          </li>
+        ))}
+      </ul>
 
       <h2 className="mb-1 mt-10 font-display text-lg font-semibold tracking-tight">Usage and free limits</h2>
       <p className="mb-3 text-sm text-gray-500">Both free plans pause the app if a limit is reached (no surprise bill). Act at 70%.</p>

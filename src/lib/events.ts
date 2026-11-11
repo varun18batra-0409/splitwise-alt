@@ -2,7 +2,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import { getCategory } from "./categories";
 import { formatMoney, formatPercent } from "./money";
 import { niceDate } from "./format";
-import { parsePayers } from "./payers";
+import { moneyLines, parsePayers } from "./payers";
 import { after } from "next/server";
 
 // Phone notifications go out after the response is sent (so after the change
@@ -147,7 +147,7 @@ export type UndoPayload =
       // accountId … joinedFrom: missing in changes saved before they were kept.
       members: { id: string; name: string; phone: string; createdAt: string; accountId?: string | null; claimedAt?: string | null; splitWeight?: number; notify?: string; joinedFrom?: string | null; addedBy?: string; seenAt?: string | null }[];
     }
-  | { type: "member_set"; memberId: string; data: { name?: string; leftAt?: string | null }; moveOut?: MoveOutUndo }
+  | { type: "member_set"; memberId: string; data: { name?: string; leftAt?: string | null; removedAt?: string | null; removedById?: string }; moveOut?: MoveOutUndo }
   | { type: "settle_all"; paymentIds: string[]; apply: boolean }
   | { type: "payments_set"; paymentIds: string[]; deleted: boolean };
 
@@ -155,6 +155,8 @@ export type UndoPayload =
 // What a move-out changed besides the person (bill payers and rotations, and
 // the deposit handed over), so undoing it puts those back too.
 export type MoveOutUndo = {
+  // Daily-bill shares charged at move-out (one expense each), taken off again by the undo.
+  prepaid?: { billId: string; period: string; expenseId: string }[];
   bills: { id: string; before: { payer: string; rotation: string; split: string }; after: { payer: string; rotation: string; split: string } }[];
   deposit?: {
     leaverShareId: string;
@@ -185,6 +187,61 @@ export function parseUndo(json: string): UndoPayload | null {
   }
 }
 
+// An expense as far as "whose balance does it move" is concerned.
+export type Involved = {
+  paidById: string;
+  amount: number;
+  payers?: string | null;
+  kind?: string | null;
+  shares: { memberId: string; amount: number }[];
+};
+
+// What an expense does to each person: money they put in minus their share
+// (money back flips the signs, like the balances do).
+function effectOf(x: Involved): Map<string, number> {
+  const { credits, debits } = moneyLines(x);
+  const out = new Map<string, number>();
+  for (const c of credits) out.set(c.memberId, (out.get(c.memberId) ?? 0) + c.amount);
+  for (const d of debits) out.set(d.memberId, (out.get(d.memberId) ?? 0) - d.amount);
+  return out;
+}
+
+// Whose balance a change to an expense moved. Adding, deleting or restoring (only one side given)
+// touches everyone in it; an edit touches only those whose money in or share actually changed.
+export function touchedByExpense(before: Involved | null, after: Involved | null): string[] {
+  const a = before ? effectOf(before) : new Map<string, number>();
+  const b = after ? effectOf(after) : new Map<string, number>();
+  const ids = new Set([...a.keys(), ...b.keys()]);
+  if (!before || !after) return [...ids];
+  return [...ids].filter((id) => (a.get(id) ?? 0) !== (b.get(id) ?? 0));
+}
+
+export function parseTouches(csv: string | null | undefined): string[] {
+  return csv ? csv.split(",").filter(Boolean) : [];
+}
+
+// Used when the caller doesn't say: everyone in the expense or payment the event is about
+// (and in the payments of a "settle everyone" step), read as they are right now.
+async function touchesFromDb(db: Db, e: { expenseId?: string; paymentId?: string; undo?: UndoPayload }): Promise<string[]> {
+  const ids = new Set<string>();
+  try {
+    if (e.expenseId) {
+      const x = await db.expense.findUnique({ where: { id: e.expenseId }, include: { shares: true } });
+      if (x) for (const id of touchedByExpense(null, x)) ids.add(id);
+    }
+    const paymentIds = [...(e.paymentId ? [e.paymentId] : []), ...(e.undo && (e.undo.type === "settle_all" || e.undo.type === "payments_set") ? e.undo.paymentIds : [])];
+    if (paymentIds.length) {
+      for (const p of await db.payment.findMany({ where: { id: { in: paymentIds } }, select: { fromId: true, toId: true } })) {
+        ids.add(p.fromId);
+        ids.add(p.toId);
+      }
+    }
+  } catch {
+    /* never let this break the change being logged */
+  }
+  return [...ids];
+}
+
 export async function logEvent(
   db: Db,
   e: {
@@ -196,8 +253,11 @@ export async function logEvent(
     expenseId?: string;
     paymentId?: string;
     undo?: UndoPayload;
+    // Whose balance this moved (member ids). Left out = worked out from the expense or payment.
+    touches?: string[];
   },
 ): Promise<string> {
+  const touches = e.touches ?? (e.expenseId || e.paymentId || e.undo ? await touchesFromDb(db, e) : []);
   const created = await db.groupEvent.create({
     data: {
       groupId: e.groupId,
@@ -208,6 +268,7 @@ export async function logEvent(
       expenseId: e.expenseId ?? null,
       paymentId: e.paymentId ?? null,
       undo: e.undo ? JSON.stringify(e.undo) : "",
+      touches: [...new Set(touches)].join(","),
     },
   });
   schedulePush(created.id);

@@ -1,5 +1,20 @@
 import { db } from "./db";
+import { JOINED, isPending } from "./membership";
 import { buildPassport, parseHandPlaces, type PassportTrip } from "./passport";
+
+// Someone the admin removed stops counting for passport sharing (both ways); someone who left on their own still counts.
+const COUNTS = { ...JOINED, removedAt: null };
+
+// "Our passports" for one group: who is listed, from the viewer's side. The same rule as canSeePassport:
+// the viewer must have really joined and not been removed (else null: the screen sends them away), and the
+// list holds only people who have really joined and were not removed (plus the viewer). Someone who
+// left on their own still counts. Hiding a passport ("private") is decided per person by the screen.
+type RosterMember = { id: string; addedBy: string; seenAt: Date | null; removedAt: Date | null };
+export function passportRoster<T extends RosterMember>(members: T[], viewerId: string): T[] | null {
+  const me = members.find((m) => m.id === viewerId);
+  if (!me || isPending(me) || me.removedAt) return null;
+  return members.filter((m) => m.id === viewerId || (!isPending(m) && !m.removedAt));
+}
 
 // Your passport, from every trip group you're in (any phone you signed in on).
 export async function loadPassport(account: { id: string; homeCountry: string; places: string }, fallbackHome: string, today: string, opts: { forFriend?: boolean } = {}) {
@@ -59,11 +74,12 @@ export async function loadPassport(account: { id: string; homeCountry: string; p
 // Everyone you've shared a group with at some point (they may have left since),
 // who's on Loopin: the people whose passports you can open. Deleted groups don't count.
 export async function passportFriends(accountId: string) {
-  const mine = await db.member.findMany({ where: { accountId, group: { deletedAt: null } }, select: { groupId: true }, take: 500 });
+  // (Your own row must be joined too: a group someone added you to but you never opened shows you nobody.)
+  const mine = await db.member.findMany({ where: { accountId, ...COUNTS, group: { deletedAt: null } }, select: { groupId: true }, take: 500 });
   if (!mine.length) return [];
   const others = await db.member.findMany({
     // Someone added straight in by another person counts once they've opened that group.
-    where: { groupId: { in: mine.map((m) => m.groupId) }, accountId: { not: null, notIn: [accountId] }, OR: [{ addedBy: "" }, { seenAt: { not: null } }] },
+    where: { groupId: { in: mine.map((m) => m.groupId) }, accountId: { not: null, notIn: [accountId] }, ...COUNTS },
     select: { accountId: true, name: true, groupId: true, group: { select: { name: true } } },
     take: 3000,
   });
@@ -77,11 +93,12 @@ export async function passportFriends(accountId: string) {
 }
 
 // May this person open that person's passport? Only if they've shared a group
-// (not deleted), and the owner lets people in their groups see it.
+// (not deleted) and both really joined it (neither is still "added by someone, never opened it"
+// or removed by the admin; leaving on your own later doesn't matter), and the owner lets people in their groups see it.
 export async function canSeePassport(viewerAccountId: string, ownerAccountId: string) {
   if (viewerAccountId === ownerAccountId) return { ok: true as const, owner: await db.account.findUnique({ where: { id: ownerAccountId } }), name: undefined as string | undefined };
   const shared = await db.member.findFirst({
-    where: { accountId: ownerAccountId, OR: [{ addedBy: "" }, { seenAt: { not: null } }], group: { deletedAt: null, members: { some: { accountId: viewerAccountId } } } },
+    where: { accountId: ownerAccountId, ...COUNTS, group: { deletedAt: null, members: { some: { accountId: viewerAccountId, ...COUNTS } } } },
     select: { name: true },
   });
   if (!shared) return { ok: false as const, reason: "stranger" as const, name: undefined as string | undefined };

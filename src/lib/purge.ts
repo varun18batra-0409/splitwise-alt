@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { RESTORE_DAYS } from "./group-data";
 
-// Deleted groups: anyone in them can restore them for 30 days (RESTORE_DAYS).
+// Deleted groups: whoever deleted them or looks after them can restore them for 30 days (RESTORE_DAYS).
 // After that, the daily job erases them for good, as the privacy page says:
 // the group, its people, expenses, payments, history, bills, list, budgets,
 // goals, deposit, photos and receipts. Groups that were only closed are never touched.
@@ -24,7 +24,11 @@ export async function eraseGroups(ids: string[]) {
     ...(await db.groupPhoto.findMany({ where: inG, select: { blobKey: true } })),
     ...(await db.receipt.findMany({ where: inG, select: { blobKey: true } })),
   ].map((f) => f.blobKey);
+  const { photoTrashOps, flushPhotoDeletes } = await import("./photo-store");
+  // The files' keys go on the to-delete list in the same step as the rows: a failed
+  // delete is then tried again later, never forgotten.
   await db.$transaction([
+    ...(await photoTrashOps(files)),
     db.reaction.deleteMany({ where: { memberId: { in: memberIds } } }),
     db.expenseShare.deleteMany({ where: { expense: inG } }),
     db.expenseItem.deleteMany({ where: { expense: inG } }),
@@ -48,6 +52,5 @@ export async function eraseGroups(ids: string[]) {
     db.member.deleteMany({ where: inG }),
     db.group.deleteMany({ where: { id: { in: ids } } }),
   ]);
-  const { removePhotos } = await import("./photo-store");
-  await removePhotos(files);
+  await flushPhotoDeletes();
 }

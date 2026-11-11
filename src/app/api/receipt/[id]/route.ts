@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
 import { readPhoto } from "@/lib/photo-store";
+import { expenseAccess } from "@/lib/left-view-db";
 
 // A bill photo: only for people in its group.
 export const dynamic = "force-dynamic";
@@ -16,6 +17,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!me) return no();
   // Someone who left sees the bills from their time in the group, not newer ones.
   if (me.leftAt && r.createdAt > me.leftAt) return no();
+  // ...and only for expenses they may still see (not one the group added without them).
+  if (me.leftAt && r.expenseId && (await expenseAccess(r.groupId, me.id, r.expenseId)) === "hidden") return no();
   const bytes = await readPhoto(r);
   if (!bytes) return no();
   return new Response(new Uint8Array(bytes), {

@@ -1,5 +1,5 @@
 import { listAdd, listBuy, listGoingShopping, listRemove, listToggle } from "@/app/bill-actions";
-import { newRequestKey } from "@/lib/once";
+import { FreshKey } from "@/components/FreshKey";
 import { Notice } from "@/components/Notice";
 import type { GroupView } from "./view";
 
@@ -94,7 +94,7 @@ export function ListTab({ v, items, usual, notice }: { v: GroupView; items: Item
           </p>
           <form action={listBuy} className="mt-3 flex gap-2">
             {hidden("groupId", group.id)}
-            {hidden("rid", newRequestKey())}
+            <FreshKey name="rid" />
             <span className="flex flex-1 items-center gap-2 rounded-xl border border-line bg-mist px-3 focus-within:border-accent">
               <span className="nobreak shrink-0 text-sm text-gray-400">{group.currency}</span>
               <input name="amount" required inputMode="decimal" aria-label="What it cost" placeholder="0" className="w-full bg-transparent py-3 font-display text-xl outline-none" />

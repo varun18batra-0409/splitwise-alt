@@ -14,6 +14,7 @@ import { dayKey } from "@/lib/dates";
 import { getTimeZone } from "@/lib/tz";
 import { formatMoney, toInputAmount } from "@/lib/money";
 import { niceDate } from "@/lib/format";
+import { leaverOf } from "@/lib/left-view-db";
 
 // One bill: its daily calendar (milk), what happened each month, and changes.
 export default async function BillPage({
@@ -32,6 +33,8 @@ export default async function BillPage({
   if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  // Someone who left (or was removed) reads the group only on its main screen, up to the day they left.
+  if (await leaverOf(myId)) redirect(`/groups/${group.id}`);
   const bill = await db.bill.findFirst({ where: { id: billId, groupId: group.id, deletedAt: null }, include: { runs: { orderBy: { period: "desc" }, take: 6 } } });
   if (!bill) notFound();
 

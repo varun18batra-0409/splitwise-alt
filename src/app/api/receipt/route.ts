@@ -31,9 +31,17 @@ export async function POST(req: Request) {
   if (!type) return Response.json({ ok: false, error: "Pick a photo (JPEG, PNG or WebP)." }, { status: 415 });
   const clean = cleanPhoto(bytes);
   if (!clean) return Response.json({ ok: false, error: "We couldn’t check that photo for hidden details (like where it was taken). Try another one, or a screenshot of it." }, { status: 415 });
-  const { storePhoto } = await import("@/lib/photo-store");
+  const { storePhoto, removePhotos } = await import("@/lib/photo-store");
   const stored = await storePhoto("receipt", clean, type);
-  const saved = await db.receipt.create({ data: { groupId, data: stored.data, blobKey: stored.blobKey, type, createdById: me.id }, select: { id: true } });
+  let saved: { id: string };
+  try {
+    saved = await db.receipt.create({ data: { groupId, data: stored.data, blobKey: stored.blobKey, type, createdById: me.id }, select: { id: true } });
+  } catch (err) {
+    // The file is stored but the row wasn't saved: put the file on the to-delete list so it isn't left behind.
+    console.error("receipt: save failed", String(err).slice(0, 160));
+    await removePhotos([stored.blobKey]);
+    return Response.json({ ok: false, error: "We couldn’t save that photo. Please try again." }, { status: 500 });
+  }
 
   if (url.searchParams.get("read") !== "1") return Response.json({ ok: true, id: saved.id });
   const blocked = await aiAllowed(me.accountId ?? me.id);

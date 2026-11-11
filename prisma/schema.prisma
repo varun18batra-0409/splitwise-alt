@@ -89,6 +89,9 @@ model Member {
   // hidden from that group until they first open it (seenAt).
   addedBy   String   @default("")
   seenAt    DateTime?
+  // Taken out of the group by someone else (leftAt is set too): they can't rejoin on their own.
+  removedAt DateTime?
+  removedById String @default("")
   @@unique([groupId, name])
   @@index([accountId])
 }
@@ -184,6 +187,8 @@ model GroupEvent {
   undoneAt  DateTime? // set once someone undoes it
   undoneById String?
   createdAt DateTime @default(now())
+  // Added later: kept at the end so the online database can simply add the column.
+  touches   String   @default("") // member ids whose balance this change moved, comma-separated (expense and payment changes); "" = not recorded
 
   @@index([groupId, createdAt])
   @@index([expenseId])
@@ -275,6 +280,10 @@ model Invite {
   invitedById String
   createdAt   DateTime  @default(now())
   acceptedAt  DateTime?
+  // Added later: kept at the end so the online database can simply add the columns.
+  token       String    @default("") // random code for this one invitation (the Join / Not now buttons and the invite link)
+  declinedAt  DateTime? // "Not now": the card is hidden, the name row stays
+  memberId    String    @default("") // the name-only row this invitation is for (the token itself is random)
 
   @@unique([groupId, email])
 }
@@ -327,7 +336,19 @@ model RequestKey {
   key       String   @id
   result    String   @default("")
   createdAt DateTime @default(now())
+  fingerprint String @default("") // what the form was for (action + amount + people); "" = not checked
   @@index([createdAt])
+}
+
+// Photo files that should be deleted from file storage but haven't been confirmed gone yet.
+// A key stays here until storage says it's gone (tried again later, a little slower each time).
+model BlobTrash {
+  key       String   @id
+  tries     Int      @default(0)
+  lastError String   @default("")
+  createdAt DateTime @default(now())
+  nextAt    DateTime @default(now())
+  @@index([nextAt])
 }
 
 // ---------- Home & Couple groups ----------
@@ -358,6 +379,7 @@ model Bill {
   deletedAt   DateTime?
   runs        BillRun[]
   pausedAt    DateTime? // when it was paused (resuming skips what came round since)
+  prepaid     String    @default("{}") // daily bills: a leaver's share already charged at move-out, JSON {"2026-11":[{"m":memberId,"a":paise,"e":expenseId}]}
   @@index([groupId])
 }
 
@@ -453,6 +475,7 @@ model DepositShare {
 model NotifyLog {
   key       String   @id
   createdAt DateTime @default(now())
+  state     String   @default("done") // "claimed" (being sent) | "done"; rows from before this read as done
 }
 
 // How long things take on people's phones (numbers only: the kind of step,

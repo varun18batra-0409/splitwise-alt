@@ -2,7 +2,8 @@ import { db } from "../db";
 import { getCategory } from "../categories";
 import { formatMoney } from "../money";
 import { dayKey, DEFAULT_TIME_ZONE } from "../dates";
-import { claimOnce, sendPushTo } from "../push";
+import { claimJob, finishJob, sendPushTo } from "../push";
+import { isPending } from "../membership";
 import { loadGroup } from "../group-data";
 import { addMonths, daysInMonth, monthKey } from "./month";
 import { monthSummary } from "./summary";
@@ -69,20 +70,23 @@ export async function monthInsights(groupId: string, expenses: Expenses, myId: s
 }
 
 // On the 1st: last month in one message, to everyone in Home and Couple groups.
-export async function sendMonthlySummaries(now = new Date()) {
+export async function sendMonthlySummaries(now = new Date(), stop: () => boolean = () => false) {
   const today = dayKey(now, DEFAULT_TIME_ZONE);
-  if (today.slice(8, 10) !== "01") return { sent: 0 };
+  if (today.slice(8, 10) !== "01") return { sent: 0, deferred: false };
   const last = addMonths(today.slice(0, 7), -1);
   const groups = await db.group.findMany({ where: { type: { in: ["home", "couple"] }, deletedAt: null }, select: { id: true } });
   let sent = 0;
+  let deferred = false;
   for (const { id } of groups) {
-    if (!(await claimOnce(`summary:${id}:${last}`))) continue;
+    if (stop()) { deferred = true; break; }
+    const key = `summary:${id}:${last}`;
+    if (!(await claimJob(key, now))) continue;
     const data = await loadGroup(id, { events: false });
-    if (!data) continue;
+    if (!data) { await finishJob(key); continue; }
     const history = await varyingHistory(id);
     const jump = utilityJumps(history, last)[0];
     const money = (n: number) => formatMoney(n, data.group.currency);
-    for (const m of data.group.members.filter((x) => !x.leftAt)) {
+    for (const m of data.group.members.filter((x) => !x.leftAt && !isPending(x))) {
       const s = monthSummary(data.expenses, m.id, last, DEFAULT_TIME_ZONE);
       if (s.total <= 0) break;
       const text = monthlySummaryText(
@@ -99,6 +103,7 @@ export async function sendMonthlySummaries(now = new Date()) {
       );
       sent += await sendPushTo([m.id], { ...text, url: `/groups/${id}`, tag: `summary-${id}-${last}` });
     }
+    await finishJob(key);
   }
-  return { sent };
+  return { sent, deferred };
 }

@@ -165,6 +165,7 @@ export async function moveOutAction(formData: FormData) {
     leaverId,
     lastDay,
     depositTo: String(formData.get("depositTo") ?? "") || undefined,
+    addDaily: formData.get("addDaily") === "1",
     requestKey: cleanKey(formData.get("rid")) ?? `move-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
   });
   if (!r.ok) redirect(`/groups/${groupId}/people/${leaverId}/move?day=${encodeURIComponent(lastDay)}&error=${encodeURIComponent(r.error)}`);
@@ -210,7 +211,8 @@ export async function addGoalEntry(formData: FormData) {
     await me(groupId),
     goalId,
     String(formData.get("amount") ?? ""),
-    cleanKey(formData.get("rid")) ?? `goal-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+    // No usable key (the field was empty): none, so the server's double-tap guard applies instead of a made-up key.
+    cleanKey(formData.get("rid")),
   );
   redirect(`/groups/${groupId}/goals/${goalId}${r.ok ? "?added=1" : `?error=${encodeURIComponent(r.error)}`}`);
 }

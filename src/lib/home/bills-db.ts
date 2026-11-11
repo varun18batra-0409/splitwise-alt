@@ -1,12 +1,16 @@
 import { db } from "../db";
 import { getRate } from "../rate-cache";
-import { saveExpense, type SaveExpenseInput } from "../save-expense";
+import { saveExpense, type Attach, type SaveExpenseInput } from "../save-expense";
 import { sendPushTo } from "../push";
 import { toInputAmount, formatMoney } from "../money";
 import { dailyTotal, payerFor, periodsDue, nextDueDay, ordinalDay } from "./bills";
 import { addMonths, daysInMonth, dueKey } from "./month";
-import { joinWeights } from "./moving";
+import { joinWeights, parsePrepaid, type Prepaid } from "./moving";
+import { niceDate } from "../format";
 import { previousResult } from "../once";
+import { logEvent, touchedByExpense } from "../events";
+import { REPEAT_BILL_MARK } from "../membership";
+import type { Prisma } from "@prisma/client";
 
 // Recurring bills, database side. The daily job calls runAllBills(); each
 // (bill, month) gets one BillRun row — its unique key is what makes adding a
@@ -108,6 +112,39 @@ export function billExpenseInput(bill: BillRow, groupId: string, currency: strin
 const sameCurrencyRate = async (from: string, to: string) =>
   from === to ? { ok: true as const, rate: "1", date: new Date().toISOString().slice(0, 10) } : getRate(from, to);
 
+// What a leaver already paid for a daily bill's month at move-out (their share of the days they were
+// there). Each charge counts for what it is NOW (edited since: the new amount) and only while its expense
+// exists and isn't deleted; the month-end bill takes that off, so nobody pays twice.
+export async function prepaidFor(bill: { prepaid: string }, period: string): Promise<{ total: number; entries: Prepaid[] }> {
+  const list = parsePrepaid(bill.prepaid)[period] ?? [];
+  if (!list.length) return { total: 0, entries: [] };
+  const now = new Map((await db.expense.findMany({ where: { id: { in: list.map((x) => x.e) }, deletedAt: null }, select: { id: true, amount: true } })).map((e) => [e.id, e.amount]));
+  const entries = list.filter((x) => now.has(x.e)).map((x) => ({ ...x, a: now.get(x.e)! }));
+  return { total: entries.reduce((n, x) => n + x.a, 0), entries };
+}
+
+// The month-end daily bill is paid by that month's payer, so the move-out charge (which only the leaver shares)
+// is credited to that same person: the payer ends up credited for the whole month. Shares don't change.
+// A short line goes in the history for each charge that changes payer ("Asha now paid Milk · 1–14 Nov"), so nothing moves silently.
+export async function syncChargePayer(tx: Prisma.TransactionClient, groupId: string, entries: Prepaid[], payer: string): Promise<void> {
+  if (!payer || !entries.length) return;
+  const rows = await tx.expense.findMany({ where: { id: { in: entries.map((x) => x.e) }, paidById: { not: payer } }, include: { shares: true } });
+  if (!rows.length) return;
+  const name = (await tx.member.findUnique({ where: { id: payer }, select: { name: true } }))?.name ?? "Someone";
+  for (const x of rows) {
+    await tx.expense.update({ where: { id: x.id }, data: { paidById: payer, payers: "" } });
+    await logEvent(tx, {
+      groupId,
+      actorId: payer,
+      kind: "expense_edited",
+      text: `${name} now paid ${x.description}`,
+      details: [`Paid by ${name}`],
+      expenseId: x.id,
+      touches: touchedByExpense(x, { paidById: payer, amount: x.amount, payers: "", kind: x.kind, shares: x.shares }),
+    });
+  }
+}
+
 // A claim older than this is from a run that crashed part-way; it's taken over.
 const STALE_MS = 10 * 60_000;
 
@@ -132,13 +169,17 @@ async function runOne(bill: BillRow, group: { id: string; currency: string; clos
   if (!run) return "already";
   const key = run.requestKey || `bill-${run.id}`;
   // Taking over a crashed run: if its expense was saved after all, just finish.
-  const saved = await previousResult(key);
-  if (saved) {
-    await db.billRun.update({ where: { id: run.id }, data: { status: "added", expenseId: saved, reason: "" } });
-    return "added";
-  }
   const active = group.members.filter((m) => !m.leftAt).map((m) => m.id);
   const payer = payerFor(bill, period, active);
+  const saved = await previousResult(key);
+  if (saved) {
+    const charges = bill.nature === "daily" && payer ? (await prepaidFor(bill, period)).entries : [];
+    await db.$transaction(async (tx) => {
+      await tx.billRun.update({ where: { id: run.id }, data: { status: "added", expenseId: saved, reason: "" } });
+      await syncChargePayer(tx, group.id, charges, payer ?? "");
+    });
+    return "added";
+  }
   const wait = async (reason: string) => {
     await db.billRun.update({ where: { id: run.id }, data: { status: "waiting", reason, requestKey: "" } });
     return "waiting";
@@ -171,22 +212,37 @@ async function runOne(bill: BillRow, group: { id: string; currency: string; clos
 
   let amount = bill.amount;
   let note = "";
+  let charges: Prepaid[] = [];
   if (bill.nature === "daily") {
     const d = dailyTotal(bill, period);
     if (d.days <= 0 || bill.amount <= 0) {
       await db.billRun.update({ where: { id: run.id }, data: { status: "skipped", reason: "no days" } });
       return "skipped";
     }
-    amount = d.amount;
+    // Someone who moved out part-way through this month already paid their share of the days they were there.
+    const pre = await prepaidFor(bill, period);
+    charges = pre.entries;
+    amount = d.amount - pre.total;
+    if (pre.total > 0 && amount <= 0) {
+      await db.billRun.update({ where: { id: run.id }, data: { status: "skipped", reason: "covered" } });
+      return "skipped";
+    }
     note = `${d.days} days × ${formatMoney(bill.amount, group.currency)}`;
+    for (const x of pre.entries) {
+      note += `, less ${formatMoney(x.a, group.currency)} ${group.members.find((m) => m.id === x.m)?.name ?? "someone"}’s share${x.d ? ` (moved out ${niceDate(x.d)})` : ""}`;
+    }
   }
   if (amount <= 0) return wait("no amount");
 
   const input = billExpenseInput(bill, group.id, group.currency, period, amount, payer, group.members);
   if (note) input.notes = note;
-  const r = await saveExpense(input, payer, sameCurrencyRate, { now, requestKey: key, eventText: `paid ${bill.name} (${formatMoney(amount, group.currency)}) · repeat bill` });
+  const r = await saveExpense(input, payer, sameCurrencyRate, { now, requestKey: key, eventText: `paid ${bill.name} (${formatMoney(amount, group.currency)}) ${REPEAT_BILL_MARK}` });
   if (!r.ok) return wait(r.error.slice(0, 120));
-  await db.billRun.update({ where: { id: run.id }, data: { status: "added", expenseId: r.id } });
+  // Added, and in the same step the move-out charge is credited to this month's payer.
+  await db.$transaction(async (tx) => {
+    await tx.billRun.update({ where: { id: run.id }, data: { status: "added", expenseId: r.id } });
+    await syncChargePayer(tx, group.id, charges, payer);
+  });
   return "added";
 }
 
@@ -217,10 +273,12 @@ export async function runBillsForGroup(groupId: string, now = new Date()) {
 }
 
 // The daily job: every group that has bills.
-export async function runAllBills(now = new Date()) {
+export async function runAllBills(now = new Date(), stop: () => boolean = () => false) {
   const groups = await db.bill.findMany({ where: { deletedAt: null, paused: false, group: { deletedAt: null } }, select: { groupId: true }, distinct: ["groupId"] });
-  const total = { groups: groups.length, added: 0, waiting: 0, skipped: 0, failed: 0 };
+  const total = { groups: groups.length, added: 0, waiting: 0, skipped: 0, failed: 0, deferred: false };
   for (const g of groups) {
+    // Out of time: the rest wait for the next run (each bill month is added at most once, so repeating is safe).
+    if (stop()) { total.deferred = true; break; }
     const c = await runBillsForGroup(g.groupId, now);
     total.added += c.added;
     total.waiting += c.waiting;
@@ -282,6 +340,7 @@ export async function addWaitingBill(
   lookupRate: Parameters<typeof saveExpense>[2],
   billRun: { billId: string; period: string },
   requestKey: string | undefined,
+  attach?: Attach,
 ): Promise<Awaited<ReturnType<typeof saveExpense>>> {
   const done = await previousResult(requestKey);
   if (done !== null) return { ok: true, id: done };
@@ -297,7 +356,7 @@ export async function addWaitingBill(
   const release = () => db.billRun.updateMany({ where: { ...where, status: "adding" }, data: { status: "waiting", requestKey: "" } });
   let r: Awaited<ReturnType<typeof saveExpense>>;
   try {
-    r = await saveExpense(input, actorId, lookupRate, { ignoreDoubleTap: true, requestKey, checkDuplicate: true });
+    r = await saveExpense(input, actorId, lookupRate, { ignoreDoubleTap: true, requestKey, checkDuplicate: true, attach });
   } catch (err) {
     await release().catch(() => undefined);
     throw err;
@@ -306,7 +365,12 @@ export async function addWaitingBill(
     await release();
     return r;
   }
-  await db.billRun.updateMany({ where: { ...where, status: "adding" }, data: { status: "added", expenseId: r.id, reason: "", requestKey: "" } });
+  // A daily bill added by hand: the move-out charge is credited to whoever paid it, like the automatic one.
+  const charges = bill.nature === "daily" && input.paidById ? (await prepaidFor(bill, where.period)).entries : [];
+  await db.$transaction(async (tx) => {
+    await tx.billRun.updateMany({ where: { ...where, status: "adding" }, data: { status: "added", expenseId: r.id, reason: "", requestKey: "" } });
+    await syncChargePayer(tx, input.groupId, charges, input.paidById);
+  });
   if (bill.nature === "varies") {
     const e = await db.expense.findUnique({ where: { id: r.id }, select: { amount: true } });
     if (e) await db.bill.update({ where: { id: bill.id }, data: { amount: e.amount } });

@@ -1,8 +1,9 @@
 import { parsePayers } from "./payers";
+import { chargeLock, chargeLockedText } from "./home/charge-lock";
 import { LEFT_ERROR } from "./active";
 import { db } from "./db";
 import { withRetry } from "./once";
-import { diffExpense, expenseState, logEvent, parseUndo, type UndoPayload } from "./events";
+import { diffExpense, expenseState, logEvent, parseUndo, touchedByExpense, type UndoPayload } from "./events";
 import { setExpenseDeleted, setPaymentDeleted } from "./save-expense";
 import { formatPercent } from "./money";
 import { setMember } from "./people";
@@ -177,6 +178,8 @@ async function revertExpense(expenseId: string, before: Parameters<typeof expens
   if (e.group.closed) return { ok: false, error: "This group is closed. Reopen it to change expenses." };
   if (e.deletedAt) return { ok: false, error: "This expense is deleted. Restore it first." };
   if (before.baseCurrency !== e.group.currency) return { ok: false, error: "The group currency changed since, so this edit can’t be undone." };
+  const locked = await chargeLock(db, e.groupId, expenseId);
+  if (locked) return { ok: false, error: chargeLockedText(locked.bill) };
   const memberIds = new Set(e.group.members.map((m) => m.id));
   if (!memberIds.has(before.paidById) || before.shares.some((s) => !memberIds.has(s.memberId)) || parsePayers(before.payers).some((p) => !memberIds.has(p.memberId))) {
     return { ok: false, error: "Someone in that version is no longer in the group." };
@@ -187,7 +190,12 @@ async function revertExpense(expenseId: string, before: Parameters<typeof expens
   const changes = diffExpense(current, before, nameOf);
   const { shares, ...fields } = before;
 
-  const eventId = await db.$transaction(async (tx) => {
+  // Checked again inside the transaction: a bill run could have counted the charge since the first look.
+  let eventId: string;
+  try {
+   eventId = await db.$transaction(async (tx) => {
+    const lockedNow = await chargeLock(tx, e.groupId, expenseId);
+    if (lockedNow) throw new ChargeLockedNow(lockedNow.bill);
     await tx.expenseShare.deleteMany({ where: { expenseId } });
     await tx.expense.update({
       where: { id: expenseId },
@@ -201,10 +209,17 @@ async function revertExpense(expenseId: string, before: Parameters<typeof expens
       details: changes,
       expenseId,
       undo: { type: "expense_revert", expenseId, before: current },
+      touches: touchedByExpense(current, before),
     });
-  });
+   });
+  } catch (err) {
+    if (err instanceof ChargeLockedNow) return { ok: false, error: chargeLockedText(err.message) };
+    throw err;
+  }
   return { ok: true, eventId };
 }
+
+class ChargeLockedNow extends Error {}
 
 // Rename / markup / second currency / close-reopen back to what it was.
 async function applyGroupSettings(

@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { cookies } from "next/headers";
 import { db } from "./db";
+import { JOINED, confirmUsedPending } from "./membership";
 import { SESSION_COOKIE, SESSION_MAX_AGE, decodeSession, encodeSession, today, type Session } from "./session";
 
 // Who you are on this phone: which person you are in each group, and (if you
@@ -42,7 +43,10 @@ export const getMemberships = cache(async (): Promise<Record<string, string>> =>
   if (s.a) {
     const acc = await readAccount();
     if (acc) {
-      const mine = await db.member.findMany({ where: { accountId: acc.id }, select: { id: true, groupId: true } });
+      // Only groups they have really joined: someone added straight in who hasn't answered yet (Join / Not now) isn't in it.
+      // (An older person who has added an expense or payment there themselves has plainly joined: they stay in, and it is remembered.)
+      await confirmUsedPending(acc.id);
+      const mine = await db.member.findMany({ where: { accountId: acc.id, ...JOINED }, select: { id: true, groupId: true } });
       for (const m of mine) if (!out[m.groupId]) out[m.groupId] = m.id;
     } else {
       // Signed out elsewhere: anything on this phone that belongs to that account goes too.

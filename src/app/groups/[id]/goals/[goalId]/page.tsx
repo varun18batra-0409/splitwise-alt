@@ -9,7 +9,8 @@ import { formatMoney, toInputAmount } from "@/lib/money";
 import { niceDate } from "@/lib/format";
 import { dayKey } from "@/lib/dates";
 import { getTimeZone } from "@/lib/tz";
-import { newRequestKey } from "@/lib/once";
+import { FreshKey } from "@/components/FreshKey";
+import { leaverOf } from "@/lib/left-view-db";
 
 // A savings goal ("new" to start one): the ring, what a month gets you there,
 // and "I set money aside". The money stays in people's own accounts.
@@ -26,6 +27,8 @@ export default async function GoalPage({
   if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  // Someone who left (or was removed) reads the group only on its main screen, up to the day they left.
+  if (await leaverOf(myId)) redirect(`/groups/${group.id}`);
   const money = (n: number) => formatMoney(n, group.currency);
   const tz = await getTimeZone();
 
@@ -131,7 +134,7 @@ export default async function GoalPage({
         <form action={addGoalEntry} className="mt-6 space-y-2">
           <input type="hidden" name="groupId" value={group.id} />
           <input type="hidden" name="goalId" value={goal.id} />
-          <input type="hidden" name="rid" value={newRequestKey()} />
+          <FreshKey name="rid" />
           <span className="flex items-center gap-2 rounded-xl border border-line bg-mist px-4 focus-within:border-accent">
             <span className="nobreak shrink-0 text-sm text-gray-400">{group.currency}</span>
             <input name="amount" required inputMode="decimal" aria-label="Amount set aside" defaultValue={plan.perPerson.find((p) => p.memberId === myId) ? toInputAmount(plan.perPerson.find((p) => p.memberId === myId)!.amount, group.currency) : ""} className="w-full bg-transparent py-3 font-display text-xl outline-none" />

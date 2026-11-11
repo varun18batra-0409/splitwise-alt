@@ -2,6 +2,7 @@ import { parseNotify, wantsPush } from "./notify-prefs";
 import webpush from "web-push";
 import { db } from "./db";
 import { isBigExpense } from "./big-expense";
+import { JOINED } from "./membership";
 
 // Phone notifications (Web Push). When someone changes something in a group,
 // everyone else in it who turned notifications on gets a short message.
@@ -69,7 +70,8 @@ export async function sendEventPush(eventId: string): Promise<number> {
     // never the phone that made the change (even if it's someone else here too).
     const [all, own] = await Promise.all([
       db.pushSubscription.findMany({
-        where: { member: { groupId: ev.groupId, leftAt: null }, memberId: { not: ev.actorId } },
+        // (Someone added by another person who hasn't opened the group yet gets nothing.)
+        where: { member: { groupId: ev.groupId, leftAt: null, ...JOINED }, memberId: { not: ev.actorId } },
         include: { member: { select: { notify: true } } },
       }),
       db.pushSubscription.findMany({ where: { memberId: ev.actorId }, select: { endpoint: true } }),
@@ -114,7 +116,7 @@ export async function sendEventPush(eventId: string): Promise<number> {
 export async function sendPushTo(memberIds: string[], p: { title: string; body: string; url: string; tag: string }): Promise<number> {
   try {
     if (memberIds.length === 0) return 0;
-    const subs = await db.pushSubscription.findMany({ where: { memberId: { in: memberIds } }, include: { member: { select: { notify: true } } } });
+    const subs = await db.pushSubscription.findMany({ where: { memberId: { in: memberIds }, member: JOINED }, include: { member: { select: { notify: true } } } });
     const wanted = subs.filter((s) => !parseNotify(s.member.notify).off);
     if (wanted.length === 0) return 0;
     const keys = await vapidKeys();
@@ -148,7 +150,7 @@ export async function sendPushToAccounts(accountIds: string[], p: { title: strin
     if (!accountIds.length) return 0;
     const wanted = await db.account.findMany({ where: { id: { in: accountIds }, collectPush: true }, select: { id: true } });
     if (!wanted.length) return 0;
-    const subs = await db.pushSubscription.findMany({ where: { member: { accountId: { in: wanted.map((a) => a.id) }, leftAt: null } } });
+    const subs = await db.pushSubscription.findMany({ where: { member: { accountId: { in: wanted.map((a) => a.id) }, leftAt: null, ...JOINED } } });
     if (!subs.length) return 0;
     const keys = await vapidKeys();
     const payload = JSON.stringify({ title: p.title, body: p.body.length > 140 ? `${p.body.slice(0, 139)}…` : p.body, url: p.url, tag: p.tag });
@@ -182,4 +184,32 @@ export async function claimOnce(key: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+// A daily-job step that must happen at least once, and not twice if it can be
+// helped. claimJob marks it "claimed" (being sent); finishJob marks it "done".
+// If a run dies half-way the claim is left as "claimed", and after `staleMs`
+// the next run may take it over (compare-and-set on the claim time, so two
+// runs can't both take it over). A crash between sending and finishing may
+// send once more (same push tag, so phones show one). Rows made before there
+// was a state read as "done".
+export async function claimJob(key: string, now = new Date(), staleMs = 10 * 60_000): Promise<boolean> {
+  try {
+    await db.notifyLog.create({ data: { key, state: "claimed", createdAt: now } });
+    return true;
+  } catch {
+    // Already there: only an abandoned claim can be taken over.
+  }
+  try {
+    const row = await db.notifyLog.findUnique({ where: { key } });
+    if (!row || row.state !== "claimed" || row.createdAt.getTime() > now.getTime() - staleMs) return false;
+    const taken = await db.notifyLog.updateMany({ where: { key, state: "claimed", createdAt: row.createdAt }, data: { createdAt: now } });
+    return taken.count === 1;
+  } catch {
+    return false;
+  }
+}
+
+export async function finishJob(key: string): Promise<void> {
+  await db.notifyLog.updateMany({ where: { key }, data: { state: "done" } }).catch(() => undefined);
 }

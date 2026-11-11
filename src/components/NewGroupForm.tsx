@@ -10,6 +10,7 @@ import { WhereTo } from "./WhereTo";
 import { GroupCover } from "./GroupCover";
 import { coverOf, isCoverChoice, type CoverChoice } from "@/lib/covers";
 import { inputClass, primaryButtonClass, secondaryButtonClass } from "./ui";
+import { useRequestKey } from "./FreshKeyInput";
 import Link from "./Link";
 
 const ICONS: Record<GroupType, React.ReactNode> = {
@@ -46,7 +47,7 @@ export function NewGroupForm({
   const [name, setName] = useState(initialName);
   const [you, setYou] = useState(yourName);
   // One key per visit to this form: a double tap or a retry makes one group, not two.
-  const [rid] = useState(() => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`));
+  const rid = useRequestKey();
   const [mode, setMode] = useState<"equal" | "income" | "custom">("equal");
   const [mine, setMine] = useState("");
   const [theirs, setTheirs] = useState("");
@@ -59,7 +60,7 @@ export function NewGroupForm({
   return (
     <form action={createGroup}>
       <input type="hidden" name="type" value={type} />
-      <input type="hidden" name="rid" value={rid} />
+      <input type="hidden" name="rid" value={rid} suppressHydrationWarning />
       <input type="hidden" name="ratio" value={type === "couple" ? ratio : 50} />
 
       <div hidden={step !== 1} className="space-y-7">

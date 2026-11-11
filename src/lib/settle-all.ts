@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { hasLeft, LEFT_ERROR } from "./active";
-import { claimKey, isDuplicateKey, previousResult, withRetry } from "./once";
+import { claimKey, fingerprintOf, isDuplicateKey, keyState, STALE_KEY_ERROR, withRetry } from "./once";
 import { loadGroup } from "./group-data";
 import { logEvent } from "./events";
 import { formatMoney } from "./money";
@@ -95,7 +95,11 @@ export async function applySettleAll(groupId: string, actorId: string, paymentId
 type Pick = { from: string; to: string; amount: number }[];
 export async function markAllPaid(groupId: string, actorId: string, pickIn: Pick | (() => Promise<Pick>), label: string, checkPlan = true, key?: string): Promise<Result> {
   // The same tap arriving twice (a slow network, two servers) is recorded once.
-  if ((await previousResult(key)) !== null) return { ok: true };
+  // (A card game works out its own list later, so for it the group and label stand for the request.)
+  const fp = fingerprintOf("settle-all", groupId, label, checkPlan, ...(typeof pickIn === "function" ? [] : pickIn.map((p) => `${p.from}|${p.to}|${p.amount}`).sort()));
+  const ks = await keyState(key, fp);
+  if (ks.state === "stale") return { ok: false, error: STALE_KEY_ERROR };
+  if (ks.state === "done") return { ok: true };
   try {
     return await withRetry(async () => {
     const data = await loadGroup(groupId, { events: false });
@@ -116,7 +120,7 @@ export async function markAllPaid(groupId: string, actorId: string, pickIn: Pick
     const nameOf = (id: string) => group.members.find((m) => m.id === id)?.name ?? "Someone";
     const money = (n: number) => formatMoney(n, group.currency);
     const eventId = await db.$transaction(async (tx) => {
-      await claimKey(tx, key, "paid");
+      await claimKey(tx, key, "paid", fp);
       const ids: string[] = [];
       for (const t of pick) {
         const r = group.members.find((m) => m.id === t.to);
