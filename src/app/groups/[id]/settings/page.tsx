@@ -13,6 +13,7 @@ import { niceDate } from "@/lib/format";
 import Link from "@/components/Link";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { ChipRadios, GroupTypeChips, SecondCurrencyChips } from "@/components/SettingsControls";
+import { settingsSnapshot } from "@/lib/settings-save";
 import { PhoneStatus } from "@/components/PushControls";
 import { currencyLine } from "@/lib/currency-line";
 import { pickAdmin } from "@/lib/group-admin";
@@ -63,7 +64,8 @@ export default async function GroupSettings({
   const isAdmin = admin?.id === myId;
   const adminNote = `Only ${admin?.name ?? "the person who started the group"}, who looks after this group, can change this.`;
   const active = group.members.filter((m) => !m.leftAt);
-  const prefs = parseNotify((await db.member.findUnique({ where: { id: myId }, select: { notify: true } }))?.notify);
+  const myNotifyJson = (await db.member.findUnique({ where: { id: myId }, select: { notify: true } }))?.notify;
+  const prefs = parseNotify(myNotifyJson);
 
   // Step 2 of changing the currency: confirm the conversion rate.
   if (convert && isSupportedCurrency(convert) && convert !== group.currency) {
@@ -123,10 +125,12 @@ export default async function GroupSettings({
   return (
     <>
       <PageHeader title="Group settings" back={`/groups/${group.id}`} />
-      {error && <ErrorNote>{ERRORS[error] ?? error.slice(0, 120)}</ErrorNote>}
+      {error && <ErrorNote>{ERRORS[error] ?? error.slice(0, 200)}</ErrorNote>}
 
       <form action={saveGroupSettings} className="space-y-10" data-settings-form>
         <input type="hidden" name="groupId" value={group.id} />
+        {/* What this page shows now: Save only changes what you changed, and never undoes what someone else changed meanwhile. */}
+        <input type="hidden" name="was" value={JSON.stringify(settingsSnapshot(group, group.members, myNotifyJson))} />
         <section className="space-y-8">
         <h2 className={`!mb-3 ${sectionTitle}`}>Basics</h2>
 

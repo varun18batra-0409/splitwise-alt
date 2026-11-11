@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { hasLeft, LEFT_ERROR } from "./active";
 import { db } from "./db";
 import { isSupportedCurrency } from "./money";
-import { logEvent } from "./events";
+import { logEvent, type Db } from "./events";
 import { MAX_PHOTO_BYTES, cleanCover, photoType } from "./covers";
 import { cleanPhoto } from "./strip-meta";
 import { cleanTripDates, tripRange } from "./countdown";
@@ -58,18 +58,19 @@ function tripDatesOrNone(start = "", end = "") {
 }
 
 // Settings → trip dates. Logged in the group's history (so everyone sees the new dates).
-export async function setTripDates(groupId: string, actorId: string, start: string, end: string, today: string, opts?: { dryRun?: boolean }): Promise<Result> {
-  const g = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
+export async function setTripDates(groupId: string, actorId: string, start: string, end: string, today: string, opts?: { dryRun?: boolean; tx?: Db }): Promise<Result> {
+  const c = opts?.tx ?? db;
+  const g = await c.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
   if (!g || g.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (!g.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can change it." };
-  if (await hasLeft(groupId, actorId)) return { ok: false, error: LEFT_ERROR };
+  if (await hasLeft(groupId, actorId, c)) return { ok: false, error: LEFT_ERROR };
   const r = cleanTripDates(start, end, today);
   if (!r.ok) return r;
   if (opts?.dryRun) return { ok: true };
   if (r.start === g.tripStart && r.end === g.tripEnd) return { ok: true };
   const label = (s: string, e: string) => (!s ? "not set" : tripRange(s, e));
   let eventId: string | undefined;
-  await db.$transaction(async (tx) => {
+  const write = async (tx: Db) => {
     await tx.group.update({ where: { id: g.id }, data: { tripStart: r.start, tripEnd: r.end } });
     eventId = await logEvent(tx, {
       groupId,
@@ -78,7 +79,9 @@ export async function setTripDates(groupId: string, actorId: string, start: stri
       text: r.start ? `set the trip dates: ${label(r.start, r.end)}` : "cleared the trip dates",
       details: [`Trip dates: ${label(g.tripStart, g.tripEnd)} → ${label(r.start, r.end)}`],
     });
-  });
+  };
+  if (opts?.tx) await write(opts.tx);
+  else await db.$transaction(write);
   return { ok: true, eventId };
 }
 
@@ -95,12 +98,13 @@ export async function updateSharing(
   groupId: string,
   actorId: string,
   input: { type: string; weights: Record<string, string> },
-  opts?: { dryRun?: boolean },
+  opts?: { dryRun?: boolean; tx?: Db },
 ): Promise<Result> {
-  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } });
+  const c = opts?.tx ?? db;
+  const group = await c.group.findUnique({ where: { id: groupId }, include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (!group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can change this." };
-  if (await hasLeft(groupId, actorId)) return { ok: false, error: LEFT_ERROR };
+  if (await hasLeft(groupId, actorId, c)) return { ok: false, error: LEFT_ERROR };
   const type: GroupType = isGroupType(input.type) ? input.type : (group.type as GroupType);
   const active = group.members.filter((m) => !m.leftAt);
   const shownAsPercent = group.type === "couple";
@@ -134,7 +138,7 @@ export async function updateSharing(
   if (opts?.dryRun) return { ok: true };
 
   const label = weightsLabel(active.map((m) => next[m.id])) || "equally";
-  const eventId = await db.$transaction(async (tx) => {
+  const write = async (tx: Db) => {
     if (type !== group.type) await tx.group.update({ where: { id: group.id }, data: { type } });
     for (const m of changed) await tx.member.update({ where: { id: m.id }, data: { splitWeight: next[m.id] } });
     return logEvent(tx, {
@@ -144,7 +148,8 @@ export async function updateSharing(
       text: `changed how costs are shared (${label})`,
       details: active.map((m) => `${m.name}: ${type === "couple" ? `${next[m.id]}%` : `${Number((next[m.id] / 100).toFixed(2))} share${next[m.id] === 100 ? "" : "s"}`}`),
     });
-  });
+  };
+  const eventId = opts?.tx ? await write(opts.tx) : await db.$transaction(write);
   return { ok: true, eventId };
 }
 

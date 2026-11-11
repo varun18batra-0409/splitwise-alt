@@ -91,6 +91,11 @@ export function searchCurrencies(query: string): CurrencyInfo[] {
   );
 }
 
+// Enter in the currency search: the first match, or null (then Enter does nothing). Never submits the page.
+export function firstCurrencyMatch(query: string): string | null {
+  return query.trim() ? (searchCurrencies(query)[0]?.code ?? null) : null;
+}
+
 // The database stores whole numbers up to about 2.1 billion, so amounts are capped
 // there (₹2 crore, 2 billion dong, 2 million Kuwaiti dinar). Plenty for shared expenses.
 export const MAX_MINOR = 2_000_000_000;

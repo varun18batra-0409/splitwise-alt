@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { POPULAR_CURRENCIES, currencyInfo, searchCurrencies } from "@/lib/money";
+import { POPULAR_CURRENCIES, currencyInfo, firstCurrencyMatch, searchCurrencies } from "@/lib/money";
 
 // Searchable list of every currency: popular ones first, then A–Z.
 // Type "baht", "THB" or "dollar" to narrow it down.
@@ -31,6 +31,13 @@ export function CurrencyPicker({
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          // Enter picks the first match; it never sends the surrounding form (Settings has one Save for the whole page).
+          onKeyDown={(e) => {
+            if (e.key !== "Enter") return;
+            e.preventDefault();
+            const first = firstCurrencyMatch(query);
+            if (first) onPick(first);
+          }}
           placeholder="Search currency, e.g. baht or THB"
           autoComplete="off"
           aria-label="Search currencies"

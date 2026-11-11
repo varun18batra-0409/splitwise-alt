@@ -151,8 +151,10 @@ describe("undo and redo", () => {
     const pay = ev({ id: "p0", kind: "payment_recorded", expenseId: null, paymentId: "p1", undo: JSON.stringify({ type: "payment_delete", paymentId: "p1" }) });
     const payBlock = ev({ id: "p1b", kind: "payment_deleted", expenseId: null, paymentId: "p1", createdAt: at("2026-11-11T09:00:00Z"), actorId: "ravi", text: "deleted a payment from Asha to Meera" });
     const c2 = canUndo(pay, [pay, payBlock]);
-    if (!c2.ok) expect(blockedMessage(c2, { nameOf, tz: "Asia/Kolkata" })).toBe("Can’t undo yet: Ravi deleted a payment from Asha to Meera after this (2:30 pm). Undo that first in Activity.");
-    if (!check.ok) expect(blockedMessage(check, { nameOf: () => undefined, tz: "Asia/Kolkata" })).toBe(check.reason);
+    expect(c2.ok).toBe(false); // asserted first, so the message checks below can never be skipped
+    if (c2.ok) return;
+    expect(blockedMessage(c2, { nameOf, tz: "Asia/Kolkata" })).toBe("Can’t undo yet: Ravi deleted a payment from Asha to Meera after this (2:30 pm). Undo that first in Activity.");
+    expect(blockedMessage(check, { nameOf: () => undefined, tz: "Asia/Kolkata" })).toBe(check.reason);
   });
 
   it("deleted payments can be restored, and recording a payment can be undone", async () => {

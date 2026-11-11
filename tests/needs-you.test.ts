@@ -105,14 +105,115 @@ describe("Needs you", () => {
 describe("Activity doesn't repeat what Needs you shows", () => {
   it("drops the 'says they paid' line for a waiting claim and the collection note for an entry still to check; keeps everything else", async () => {
     const n = await loadNeedsYou({ [gid]: asha }, { id: accountId }, 0, nov1);
-    const claimEvent = { type: "event" as const, groupId: gid, kind: "payment_claimed", actorId: ravi };
-    const otherEvent = { type: "event" as const, groupId: gid, kind: "expense_added", actorId: ravi };
-    const claimByMeera = { type: "event" as const, groupId: gid, kind: "payment_claimed", actorId: meera }; // Meera's claim isn't waiting any more
+    const claimAt = n.items.find((i) => i.kind === "claim")!.at;
+    const claimEvent = { type: "event" as const, groupId: gid, kind: "payment_claimed", actorId: ravi, at: claimAt };
+    const otherEvent = { type: "event" as const, groupId: gid, kind: "expense_added", actorId: ravi, at: claimAt };
+    const claimByMeera = { type: "event" as const, groupId: gid, kind: "payment_claimed", actorId: meera, at: claimAt }; // Meera's claim isn't waiting any more
     const code = n.items.find((i) => i.kind === "collect")!.href;
     const zoyaNote = { type: "note" as const, kind: "collect_ticked", url: code, body: "Zoya says they paid ₹200. Tap to check it off." };
     const kabirNote = { type: "note" as const, kind: "collect_ticked", url: code, body: "Kabir says they paid ₹200. Tap to check it off." }; // not waiting: kept
     const added = { type: "note" as const, kind: "collect_added", url: code, body: "Asha added you" };
     const kept = withoutRepeats([claimEvent, otherEvent, claimByMeera, zoyaNote, kabirNote, added], n.items);
     expect(kept).toEqual([otherEvent, claimByMeera, kabirNote, added]);
+  });
+});
+
+// ---- Round 2: the right label for held bills, only the matching "says they paid" line hidden, leavers, two groups ----
+// Each test makes its own people (own account, own groups) so nothing depends on the cast above.
+
+const extraGroups: string[] = [];
+const extraAccounts: string[] = [];
+const uniq = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+async function flat(name: string, people: { name: string; left?: boolean; account?: boolean }[]) {
+  const accs: Record<string, string> = {};
+  for (const p of people) {
+    if (p.account) {
+      const a = await db.account.create({ data: { email: `ny2-${uniq()}@example.test`, name: p.name } });
+      extraAccounts.push(a.id);
+      accs[p.name] = a.id;
+    }
+  }
+  const g = await db.group.create({
+    data: {
+      name,
+      type: "home",
+      currency: "INR",
+      inviteCode: `ny2-${uniq()}`,
+      members: { create: people.map((p) => ({ name: p.name, claimedAt: new Date(), accountId: accs[p.name], leftAt: p.left ? new Date() : null })) },
+    },
+    include: { members: true },
+  });
+  extraGroups.push(g.id);
+  const ids = Object.fromEntries(g.members.map((m) => [m.name, m.id])) as Record<string, string>;
+  return { id: g.id, ids, accs };
+}
+
+describe("Needs you, round 2", () => {
+  afterAll(async () => {
+    await eraseGroups(extraGroups);
+    await db.account.deleteMany({ where: { id: { in: extraAccounts } } });
+  });
+
+  it("a fixed bill held for a split problem says Needs a fix and opens the bill's settings; a varies bill waiting for its amount still says so", async () => {
+    const f = await flat("Held flat", [{ name: "Asha" }, { name: "Ravi", left: true }]);
+    const split = JSON.stringify({ mode: "amounts", amt: { [f.ids.Ravi]: 1000000, [f.ids.Asha]: 2000000 } }); // Ravi has left
+    const rent = await db.bill.create({ data: { groupId: f.id, name: "Rent", nature: "fixed", amount: 3000000, day: 1, startMonth: "2026-11", payer: f.ids.Asha, tz: "Asia/Kolkata", split } });
+    await db.bill.create({ data: { groupId: f.id, name: "Electricity", nature: "varies", amount: 242000, day: 1, startMonth: "2026-11", payer: f.ids.Asha, tz: "Asia/Kolkata" } });
+    const { runBillsForGroup } = await import("@/lib/home/bills-db");
+    await runBillsForGroup(f.id, nov1);
+    const n = await loadNeedsYou({ [f.id]: f.ids.Asha }, null, 0, nov1);
+    const held = n.items.find((i) => i.id.startsWith(`bill:${rent.id}`))!;
+    expect(held.action).toBe("Needs a fix");
+    expect(held.tone).toBe("orange");
+    expect(held.text).toBe("Rent is on hold: someone in the split has left");
+    expect(held.href).toBe(`/groups/${f.id}/bills/${rent.id}`);
+    const amount = n.items.find((i) => i.text === "Electricity is waiting for its amount")!;
+    expect(amount.action).toBeUndefined(); // the usual "Enter amount"
+    expect(amount.href).toMatch(/\/add\?bill=/);
+    expect(n.items.length).toBe(2);
+  });
+
+  it("someone who has left still sees money paid to them, but no bills", async () => {
+    const f = await flat("Leaver flat", [{ name: "Meera", left: true }, { name: "Ravi" }, { name: "Asha" }]);
+    await db.paymentClaim.create({ data: { groupId: f.id, fromId: f.ids.Ravi, toId: f.ids.Meera, amount: 25000, currency: "INR", status: "waiting" } });
+    await db.bill.create({ data: { groupId: f.id, name: "Wi-Fi", nature: "varies", amount: 100000, day: 1, startMonth: "2026-11", payer: f.ids.Meera, tz: "Asia/Kolkata" } });
+    const { runBillsForGroup } = await import("@/lib/home/bills-db");
+    await runBillsForGroup(f.id, nov1);
+    const n = await loadNeedsYou({ [f.id]: f.ids.Meera }, null, 0, nov1);
+    expect(n.items.map((i) => i.kind)).toEqual(["claim"]);
+    expect(n.items[0].text).toBe("Ravi says they paid you ₹250");
+    expect(n.total).toBe(1);
+  });
+
+  it("one person in two groups: each group's own waiting claim, once, with its own group name; a claim to someone else is not theirs", async () => {
+    const g1 = await flat("Goa gang", [{ name: "Asha" }, { name: "Ravi" }]);
+    const g2 = await flat("Office lunch", [{ name: "Asha" }, { name: "Meera" }]);
+    await db.paymentClaim.create({ data: { groupId: g1.id, fromId: g1.ids.Ravi, toId: g1.ids.Asha, amount: 10000, currency: "INR", status: "waiting" } });
+    await db.paymentClaim.create({ data: { groupId: g2.id, fromId: g2.ids.Meera, toId: g2.ids.Asha, amount: 35000, currency: "INR", status: "waiting" } });
+    await db.paymentClaim.create({ data: { groupId: g2.id, fromId: g2.ids.Asha, toId: g2.ids.Meera, amount: 5000, currency: "INR", status: "waiting" } }); // to Meera
+    const n = await loadNeedsYou({ [g1.id]: g1.ids.Asha, [g2.id]: g2.ids.Asha }, null, 0, nov1);
+    expect(n.items.map((i) => `${i.where}: ${i.text}`).sort()).toEqual(["Goa gang: Ravi says they paid you ₹100", "Office lunch: Meera says they paid you ₹350"]);
+    expect(new Set(n.items.map((i) => i.id)).size).toBe(2);
+    expect(n.items.find((i) => i.where === "Goa gang")!.href).toBe(`/groups/${g1.id}/settle`);
+    expect(n.items.find((i) => i.where === "Office lunch")!.href).toBe(`/groups/${g2.id}/settle`);
+    // Only one of the two groups is this phone's: only that one counts.
+    const one = await loadNeedsYou({ [g2.id]: g2.ids.Asha }, null, 0, nov1);
+    expect(one.items.map((i) => i.where)).toEqual(["Office lunch"]);
+  });
+
+  it("Activity hides only the 'says they paid' line of the claim shown in Needs you, not Ravi's other lines in that group", async () => {
+    const f = await flat("Line flat", [{ name: "Asha" }, { name: "Ravi" }, { name: "Meera" }]);
+    await db.paymentClaim.create({ data: { groupId: f.id, fromId: f.ids.Ravi, toId: f.ids.Asha, amount: 10000, currency: "INR", status: "waiting" } });
+    const n = await loadNeedsYou({ [f.id]: f.ids.Asha }, null, 0, nov1);
+    const at = n.items[0].at;
+    const hour = 60 * 60 * 1000;
+    const row = (actorId: string, when: Date, kind = "payment_claimed") => ({ type: "event" as const, groupId: f.id, kind, actorId, at: when });
+    const mineNow = row(f.ids.Ravi, new Date(at.getTime() + 20)); // written with the claim
+    const earlier = row(f.ids.Ravi, new Date(at.getTime() - 2 * hour)); // an earlier tap, already answered
+    const later = row(f.ids.Ravi, new Date(at.getTime() + hour)); // a later line
+    const otherPerson = row(f.ids.Meera, at);
+    const kept = withoutRepeats([mineNow, earlier, later, otherPerson], n.items);
+    expect(kept).toEqual([earlier, later, otherPerson]);
   });
 });

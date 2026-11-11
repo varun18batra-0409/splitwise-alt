@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { logEvent } from "../events";
+import { logEvent, type Db } from "../events";
 import { formatMoney, formatPercent, parseAmount, parsePercent } from "../money";
 import { BILL_TEMPLATES, addMissed, daysBefore, daysInRange, firstMonth, monthsBetween, ordinalDay, periodsDue, toggleMissed } from "./bills";
 import { addMonths, dueKey } from "./month";
@@ -171,9 +171,10 @@ export async function saveSettleRulesFor(
   groupId: string,
   actorId: string,
   input: { reminders: boolean; settleDay: number; settleMin: string },
-  opts?: { dryRun?: boolean },
+  opts?: { dryRun?: boolean; tx?: Db },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: true } });
+  const c = opts?.tx ?? db;
+  const group = await c.group.findUnique({ where: { id: groupId }, include: { members: true } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (!group.members.some((m) => m.id === actorId && !m.leftAt)) return { ok: false, error: "Only people in this group can change this." };
   const day = Number.isInteger(input.settleDay) && ((input.settleDay >= 1 && input.settleDay <= 28) || input.settleDay === 31) ? input.settleDay : 0;
@@ -185,9 +186,11 @@ export async function saveSettleRulesFor(
   if (day !== group.settleDay) changes.push(day ? `Settle-up day: the ${ordinalDay(day)}` : "No settle-up day");
   if (min !== group.settleMin) changes.push(min ? `Leave out payments under ${formatMoney(min, group.currency)}` : "Show every payment");
   if (!changes.length || opts?.dryRun) return { ok: true };
-  await db.$transaction(async (tx) => {
+  const write = async (tx: Db) => {
     await tx.group.update({ where: { id: groupId }, data: { reminders, settleDay: day, settleMin: min } });
     await logEvent(tx, { groupId, actorId, kind: "bill_changed", text: "changed how the group settles up", details: changes });
-  });
+  };
+  if (opts?.tx) await write(opts.tx);
+  else await db.$transaction(write);
   return { ok: true };
 }

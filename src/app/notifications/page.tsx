@@ -73,7 +73,7 @@ export default async function Notifications() {
     withoutRepeats(
       all.map((r) =>
         r.type === "event"
-          ? { type: "event" as const, groupId: r.n.event.groupId, kind: r.n.event.kind, actorId: r.n.event.actorId, row: r }
+          ? { type: "event" as const, groupId: r.n.event.groupId, kind: r.n.event.kind, actorId: r.n.event.actorId, at: r.n.event.createdAt, row: r }
           : { type: "note" as const, kind: r.note.kind, url: r.note.url, body: r.note.body, row: r },
       ),
       needs.items,
@@ -104,7 +104,7 @@ export default async function Notifications() {
                     <span className="min-w-0 flex-1">
                       <span className="block text-sm font-medium">{it.text}</span>
                       <span className="block truncate text-xs text-gray-400">
-                        {it.where} · {NEED_ACTION[it.kind]}
+                        {it.where} · <span className={it.tone === "orange" ? "text-orange-400" : undefined}>{it.action ?? NEED_ACTION[it.kind]}</span>
                       </span>
                     </span>
                     <span aria-hidden className="text-gray-400">

@@ -8,7 +8,7 @@ import { billStatuses, runBillsForGroup } from "@/lib/home/bills-db";
 
 const tz = "Asia/Kolkata";
 const nov1 = new Date("2026-11-01T06:00:00Z"); // 11:30 on 1 Nov in India
-const f = { status: "upcoming" as const, due: "2026-11-01", payerId: "a", reason: "", recordedThisMonth: false, tz, now: nov1 };
+const f = { nature: "varies", status: "upcoming" as const, due: "2026-11-01", payerId: "a", reason: "", recordedThisMonth: false, tz, now: nov1 };
 
 describe("billBadge", () => {
   it("not added yet, due today: Due today (gold)", () => {
@@ -19,6 +19,12 @@ describe("billBadge", () => {
   });
   it("a bill that varies and waits for its amount: Needs amount (orange)", () => {
     expect(billBadge({ ...f, status: "waiting" })).toEqual({ id: "needs-amount", label: "Needs amount", tone: "orange" });
+  });
+  it("a fixed bill held for a split problem is Needs a fix (orange), not Needs amount; a varies bill held for the same is too", () => {
+    const fix = { id: "needs-fix", label: "Needs a fix", tone: "orange" };
+    expect(billBadge({ ...f, nature: "fixed", status: "waiting", reason: "someone in the split has left" })).toEqual(fix);
+    expect(billBadge({ ...f, nature: "varies", status: "waiting", reason: "someone in the split has left" })).toEqual(fix);
+    expect(billBadge({ ...f, nature: "varies", status: "waiting", reason: "" })?.id).toBe("needs-amount");
   });
   it("waiting with nobody to pay it (the payer left): Needs a payer (orange)", () => {
     expect(billBadge({ ...f, status: "waiting", payerId: null, reason: "payer left" })).toEqual({ id: "needs-payer", label: "Needs a payer", tone: "orange" });
@@ -54,7 +60,7 @@ describe("billStatuses knows if this month's is recorded", () => {
     await db.bill.create({ data: { groupId, name: "Wi-Fi", nature: "fixed", amount: 120000, day: 15, startMonth: "2026-11", payer: you, tz } });
     const chip = async (name: string) => {
       const s = (await billStatuses(groupId, nov1)).find((x) => x.bill.name === name)!;
-      return billBadge({ status: s.status, due: s.due, payerId: s.payerId, reason: s.reason, recordedThisMonth: s.recordedThisMonth, tz: s.bill.tz, now: nov1 })?.id ?? null;
+      return billBadge({ nature: s.bill.nature, status: s.status, due: s.due, payerId: s.payerId, reason: s.reason, recordedThisMonth: s.recordedThisMonth, tz: s.bill.tz, now: nov1 })?.id ?? null;
     };
     expect(await chip("Rent")).toBe("due-today");
     expect(await chip("Wi-Fi")).toBeNull();

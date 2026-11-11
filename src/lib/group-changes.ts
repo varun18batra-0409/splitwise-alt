@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { hasLeft, LEFT_ERROR } from "./active";
-import { logEvent, type OtherMoney } from "./events";
+import { logEvent, type Db, type OtherMoney } from "./events";
 import { allocateByWeights } from "./split";
 import { formatMoney, formatPercent, isSupportedCurrency } from "./money";
 import { parseRate } from "./conversion";
@@ -13,12 +13,13 @@ export async function updateGroupBasics(
   groupId: string,
   actorId: string,
   changes: { name?: string; markupBp?: number; secondaryCurrency?: string },
-  opts?: { dryRun?: boolean },
+  opts?: { dryRun?: boolean; tx?: Db }, // tx: run inside the caller's transaction (the one Save)
 ): Promise<Result> {
-  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
+  const c = opts?.tx ?? db;
+  const group = await c.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (!group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can change it." };
-  if (await hasLeft(groupId, actorId)) return { ok: false, error: LEFT_ERROR };
+  if (await hasLeft(groupId, actorId, c)) return { ok: false, error: LEFT_ERROR };
   const name = changes.name?.trim().replace(/\s+/g, " ").slice(0, 60);
   if (changes.name !== undefined && !name) return { ok: false, error: "Give the group a name." };
 
@@ -27,7 +28,7 @@ export async function updateGroupBasics(
   if (opts?.dryRun) return { ok: true }; // checked only: the one Save validates everything before writing anything
 
   let lastEventId: string | undefined;
-  await db.$transaction(async (tx) => {
+  const write = async (tx: Db) => {
     if (sec !== undefined && sec !== group.secondaryCurrency) {
       await tx.group.update({ where: { id: group.id }, data: { secondaryCurrency: sec } });
       const label = (v: string) => (v === "" ? "automatic" : v === "none" ? "off" : v);
@@ -62,7 +63,9 @@ export async function updateGroupBasics(
         details: [`Card markup: ${formatPercent(group.cardMarkupBp)} → ${formatPercent(changes.markupBp)}`, "Applies to new expenses only"],
       });
     }
-  });
+  };
+  if (opts?.tx) await write(opts.tx);
+  else await db.$transaction(write);
   return { ok: true, eventId: lastEventId };
 }
 

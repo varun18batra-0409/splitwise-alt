@@ -215,9 +215,11 @@ export function homeHighlights(x: HighlightInput): Highlight[] {
     ...(x.trips.length === 0
       ? [{ id: "fill-trip", kind: "card" as const, tone: "trip" as const, eyebrow: "Nothing booked yet", title: "Where to next?", text: "Start a trip group now. The countdown, the stories and the split come with it.", button: "Plan a trip", href: "/groups/new?type=trip", cover: "beach" as CoverId }]
       : []),
+    // A group-type tip (not an ad): flats, couples and card nights each have their own way of sharing.
+    { id: "fill-group", kind: "card", tone: "paper", eyebrow: "Not just trips", title: "A group for every kind of sharing", text: "Flatmates with bills, a couple with its own split, a card night, a dinner. Each gets the setup that suits it.", button: "Make a group", href: "/groups/new", art: "bill" },
   ];
   for (const f of fillers) {
-    if (out.length >= 3) break;
+    if (out.length >= 4) break;
     add(f);
   }
   return out;

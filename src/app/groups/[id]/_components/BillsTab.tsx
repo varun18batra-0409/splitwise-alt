@@ -2,7 +2,7 @@ import Link from "@/components/Link";
 import type { BillStatus } from "@/lib/home/bills-db";
 import { Notice } from "@/components/Notice";
 import { parseSplit } from "@/lib/home/bills-db";
-import { billBadge, ordinalDay, type BillBadge } from "@/lib/home/bills";
+import { billBadge, billHold, ordinalDay, type BillBadge } from "@/lib/home/bills";
 import { niceDate } from "@/lib/format";
 import type { GroupView } from "./view";
 
@@ -50,7 +50,8 @@ export function BillsTab({ v, bills, saved }: { v: GroupView; bills: BillStatus[
         : b.bill.nature === "daily"
           ? `${money(b.bill.amount)} a day`
           : `${ordinalDay(b.bill.day).replace(/^last day$/, "Last day")}${b.bill.every > 1 ? `, every ${b.bill.every} months` : ""}`;
-    const badge = billBadge({ status: b.status, due: b.due, payerId: b.payerId, reason: b.reason, recordedThisMonth: b.recordedThisMonth, tz: b.bill.tz, now: new Date() });
+    const hold = billHold({ nature: b.bill.nature, reason: b.reason, payerId: b.payerId });
+    const badge = billBadge({ nature: b.bill.nature, status: b.status, due: b.due, payerId: b.payerId, reason: b.reason, recordedThisMonth: b.recordedThisMonth, tz: b.bill.tz, now: new Date() });
     return (
       <li key={b.bill.id} className="flex items-center gap-3 py-3">
         <Link href={`/groups/${group.id}/bills/${b.bill.id}`} className="min-w-0 flex-1">
@@ -67,10 +68,14 @@ export function BillsTab({ v, bills, saved }: { v: GroupView; bills: BillStatus[
             {turns}
             {b.bill.nature === "varies" && b.usual ? ` · usually ${money(b.usual)}` : ""}
           </span>
+          {b.status === "waiting" && hold === "fix" && b.reason && <span className="block truncate text-xs text-orange-400">On hold: {b.reason}</span>}
         </Link>
         {b.status === "waiting" ? (
-          <Link href={`/groups/${group.id}/add?bill=${b.bill.id}&period=${b.period}`} className="shrink-0 border border-gray-300 px-3 py-2 text-sm font-semibold text-fg active:bg-mist rounded-full">
-            {b.reason === "payer left" ? "Add it" : "Enter amount"}
+          <Link
+            href={hold === "fix" ? `/groups/${group.id}/bills/${b.bill.id}` : `/groups/${group.id}/add?bill=${b.bill.id}&period=${b.period}`}
+            className="shrink-0 border border-gray-300 px-3 py-2 text-sm font-semibold text-fg active:bg-mist rounded-full"
+          >
+            {hold === "payer" ? "Add it" : hold === "fix" ? "Fix it" : "Enter amount"}
           </Link>
         ) : (
           <span className="shrink-0 text-right">

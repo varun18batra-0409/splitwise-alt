@@ -38,7 +38,7 @@ import { dayKey } from "@/lib/dates";
 import { importSplitwise } from "@/lib/splitwise-import";
 import { canRestoreGroup, isGroupAdmin } from "@/lib/group-admin";
 import { hasLeft, LEFT_ERROR } from "@/lib/active";
-import { saveAllSettings } from "@/lib/settings-save";
+import { parseWas, saveAllSettings } from "@/lib/settings-save";
 import { joinExisting, joinNew, newInviteLink, type JoinFail } from "@/lib/join";
 import { acceptInvitation, declineInvitation } from "@/lib/invitations";
 
@@ -434,10 +434,11 @@ export async function saveGroupSettings(formData: FormData) {
       notify: formData.has("notifyForm")
         ? { all: formData.get("all") === "on", expenses: formData.get("expenses") === "on", edits: formData.get("edits") === "on", payments: formData.get("payments") === "on", people: formData.get("people") === "on" }
         : undefined,
+      was: formData.has("was") ? parseWas(str("was")) : undefined, // what the page showed: only what you changed is saved
     },
     dayKey(new Date(), await getTimeZone()),
   );
-  if (!r.ok) redirect(`${back}?${new URLSearchParams({ error: r.code ?? r.error })}`);
+  if (!r.ok) redirect(`${back}?${new URLSearchParams({ error: r.code && r.code !== "conflict" ? r.code : r.error })}`);
   if (r.convertTo) redirect(`${back}?convert=${r.convertTo}`);
   redirect(`/groups/${group.id}?saved=settings${r.eventId ? `&did=${r.eventId}` : ""}`);
 }

@@ -161,15 +161,25 @@ export function ordinalDay(day: number): string {
 
 // ---------- The state chip on each bill in the Bills tab ----------
 
-export type BillBadge = { id: "needs-amount" | "needs-payer" | "due-today" | "recorded" | "paused"; label: string; tone: "orange" | "gold" | "green" | "grey" };
+// Why a bill that is due is waiting: for the amount only a "varies" bill needs, because nobody
+// can pay it (the payer left), or because something is wrong with it (a split that can't work,
+// a closed group) and it needs fixing in the bill's settings.
+export function billHold(b: { nature: string; reason: string; payerId: string | null }): "amount" | "payer" | "fix" {
+  if (b.reason === "payer left" || !b.payerId) return "payer";
+  return b.nature === "varies" && b.reason === "" ? "amount" : "fix";
+}
+
+export type BillBadge = { id: "needs-amount" | "needs-fix" | "needs-payer" | "due-today" | "recorded" | "paused"; label: string; tone: "orange" | "gold" | "green" | "grey" };
 
 // One word for where a bill is right now (nothing for a bill that's simply coming later):
 //   Paused        – switched off
 //   Needs amount  – a bill that changes is waiting for its payer to enter the amount (orange)
+//   Needs a fix   – held for a problem (e.g. someone in its split has left); fix it in the bill's settings (orange)
 //   Needs a payer – it is waiting and the person who pays has left (orange)
 //   Recorded      – this month's is already added (green)
 //   Due today     – it is due today and not added yet (gold)
 export function billBadge(b: {
+  nature: string;
   status: "waiting" | "added" | "upcoming" | "paused";
   due: string; // the next (or waiting) due date, "2026-11-01"
   payerId: string | null;
@@ -180,7 +190,12 @@ export function billBadge(b: {
 }): BillBadge | null {
   if (b.status === "paused") return { id: "paused", label: "Paused", tone: "grey" };
   if (b.status === "waiting") {
-    return b.reason === "payer left" || !b.payerId ? { id: "needs-payer", label: "Needs a payer", tone: "orange" } : { id: "needs-amount", label: "Needs amount", tone: "orange" };
+    const hold = billHold(b);
+    return hold === "payer"
+      ? { id: "needs-payer", label: "Needs a payer", tone: "orange" }
+      : hold === "amount"
+        ? { id: "needs-amount", label: "Needs amount", tone: "orange" }
+        : { id: "needs-fix", label: "Needs a fix", tone: "orange" };
   }
   if (b.recordedThisMonth) return { id: "recorded", label: "Recorded", tone: "green" };
   if (b.due && b.due === dayKey(b.now, b.tz || DEFAULT_TIME_ZONE)) return { id: "due-today", label: "Due today", tone: "gold" };

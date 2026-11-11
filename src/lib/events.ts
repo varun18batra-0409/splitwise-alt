@@ -58,7 +58,7 @@ export type EventKind =
   | "bill_changed"
   | "group_imported";
 
-type Db = PrismaClient | Prisma.TransactionClient;
+export type Db = PrismaClient | Prisma.TransactionClient;
 
 // Everything needed to put an expense back exactly as it was.
 export type ExpenseState = {

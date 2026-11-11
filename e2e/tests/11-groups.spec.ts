@@ -94,6 +94,18 @@ test("Settings has ONE Save: the name, card fee, second currency, group type chi
   await expect(page.locator('input[name="name"]')).toHaveValue(`${name} saved`);
 });
 
+test("Settings: Enter in the currency search picks the first match and never saves the page", async () => {
+  const name = groupName("Enter pick");
+  const g = await createGroup(page, name);
+  await page.goto(`${g.path}/settings`);
+  await settled(page);
+  await page.getByRole("button", { name: "Other…" }).click();
+  await page.getByLabel("Search currencies").fill("baht");
+  await page.getByLabel("Search currencies").press("Enter");
+  await expect(page).toHaveURL(/\/settings/); // still on the page: nothing was submitted
+  await expect(page.locator('input[name="secondaryCurrency"]')).toHaveValue("THB");
+});
+
 test("close a group: it moves to Closed groups and adding is paused; reopen it", async () => {
   const name = groupName("Close me");
   const g = await createGroup(page, name);

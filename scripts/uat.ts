@@ -1009,11 +1009,11 @@ async function main() {
     await V.getByRole("heading", { name: "Your groups" }).waitFor();
     await V.getByRole("navigation", { name: "Main" }).waitFor();
   });
-  await step(V, "Home", "The sliding cards at the top: 3 to 7 of them, no two the same, each with words and a button that goes somewhere; no “Coming from another app?” card", async () => {
+  await step(V, "Home", "The sliding cards at the top: 4 to 7 of them, no two the same, each with words and a button that goes somewhere; no “Coming from another app?” card", async () => {
     await go(V, "/");
     const slides = V.locator('[aria-roledescription="slide"]');
     const n = await slides.count();
-    assert(n >= 3 && n <= 7, `${n} cards`);
+    assert(n >= 4 && n <= 7, `${n} cards`);
     assert((await V.locator('[aria-roledescription="slide"]').filter({ hasText: "Coming from another app" }).count()) === 0, "the switching card is back on Home");
     const texts = await slides.evaluateAll((els) => els.map((e) => (e as HTMLElement).innerText.replace(/\s+/g, " ").trim()));
     assert(new Set(texts).size === texts.length, `the same card twice: ${texts.join(" / ")}`);
