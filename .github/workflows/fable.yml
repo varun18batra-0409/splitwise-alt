@@ -1,0 +1,20 @@
+# Independent review tests (read-only on everything live: a throwaway database on this machine only).
+name: Fable break tests
+on:
+  push:
+    branches: [audit-fable]
+jobs:
+  t:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run db:setup
+      - name: Tests
+        run: |
+          npx vitest run tests/fable-break.test.ts 2>&1 | tee t.log || true
+          echo "::notice title=Fable tests::$(grep -E 'FABLE|✓|×|FAIL|AssertionError|Expected|Received|^\s+[-+] |Test Files|Tests |Error:' t.log | head -70 | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g' | cut -c1-6000)"
