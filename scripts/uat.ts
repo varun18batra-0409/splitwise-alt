@@ -706,10 +706,10 @@ async function main() {
     const card = settleCards(page).nth(i);
     const other = card.getByRole("link", { name: "Paid a different amount?" });
     assert(await other.count(), "a Settle up row has no “Paid a different amount?” link");
-    assert((await card.locator('input[name="amount"]').count()) === 0, "a Settle up row still has an amount box");
+    assert((await card.locator('input[name="amount"]:not([type="hidden"])').count()) === 0, "a Settle up row still has an amount box");
     await other.click();
     await page.waitForURL(/\/pay\?/);
-    if (o.amount !== undefined) await page.locator('input[name="amount"]').fill(o.amount);
+    if (o.amount !== undefined) await page.locator('input[name="amount"]:not([type="hidden"])').fill(o.amount);
     const b = page.getByRole("button", { name: "Record payment" });
     if (o.dbl) await b.dblclick();
     else await b.click();
@@ -734,7 +734,7 @@ async function main() {
       const filled = await row.locator(".pop").count();
       const apps = await row.locator("[data-pay]").count();
       assert(filled === (apps || 1) || (filled === 0 && (await row.locator("[data-claim-waiting], [data-claim-above]").count()) > 0), `row ${i} has ${filled} filled buttons`);
-      assert((await row.locator('input[name="amount"]').count()) === 0, `row ${i} still has an amount box`);
+      assert((await row.locator('input[name="amount"]:not([type="hidden"])').count()) === 0, `row ${i} still has an amount box`);
       assert((await row.getByText("Mark paid", { exact: true }).count()) <= 1, `row ${i} has look-alike buttons`);
     }
     return `${n} payments suggested`;
@@ -815,7 +815,7 @@ async function main() {
     await go(V, `${g}/pay`);
     await V.locator("label", { hasText: "Zoe" }).first().click();
     await V.locator("label[data-to]", { hasText: "Asha" }).click();
-    await V.locator('input[name="amount"]').fill("50");
+    await V.locator('input[name="amount"]:not([type="hidden"])').fill("50");
     await V.getByRole("button", { name: "Record payment" }).click();
     await V.waitForURL(/paid=1/);
     payments.push({ from: "Zoe", to: "Asha", amount: 5000, active: true, key: "manual" });
@@ -825,7 +825,7 @@ async function main() {
     await go(V, `${g}/pay`);
     await V.locator("label", { hasText: "Zoe" }).first().click();
     await V.locator("label[data-to]", { hasText: "Asha" }).click();
-    await V.locator('input[name="amount"]').fill("50000");
+    await V.locator('input[name="amount"]:not([type="hidden"])').fill("50000");
     const before = await db.payment.count({ where: { groupId: g.split("/").pop()!, deletedAt: null } });
     await V.getByRole("button", { name: "Record payment" }).click();
     await V.locator("[data-over-warning]").waitFor();
@@ -849,7 +849,7 @@ async function main() {
       if (r && from) r.value = from.value;
       if (r) r.checked = true;
     });
-    await V.locator('input[name="amount"]').fill("10");
+    await V.locator('input[name="amount"]:not([type="hidden"])').fill("10");
     await V.getByRole("button", { name: "Record payment" }).click();
     await V.getByText(/two different people/).waitFor();
   });
@@ -1798,16 +1798,16 @@ async function main() {
     await go(V, `${gc}/settings`);
     const form = V.locator('form:has(input[name="settleMin"])');
     await form.locator('input[name="settleMin"]').fill("50");
-    await form.locator('button[type="submit"]').click();
-    await V.waitForURL(/saved=settling/);
+    await V.getByRole("button", { name: "Save settings" }).click();
+    await V.waitForURL(/saved=settings/); // one Save for the whole Settings page
     await go(V, `${gc}/settle`);
     await V.getByText(/1 small amount under ₹50(\.00)? left out/).waitFor();
     const b = await shownBalances(V, gc);
     assert(b.Asha === -4500, `balances ${JSON.stringify(b)}`);
     await go(V, `${gc}/settings`);
     await form.locator('input[name="settleMin"]').fill("");
-    await form.locator('button[type="submit"]').click();
-    await V.waitForURL(/saved=settling/);
+    await V.getByRole("button", { name: "Save settings" }).click();
+    await V.waitForURL(/saved=settings/); // one Save for the whole Settings page
   });
   await step(V, "Flat", "Milk (₹60 a day): tap today as “didn’t come” on its calendar and the month's total drops by ₹60", async () => {
     await go(V, `${gh}/bills/new`);
@@ -2414,7 +2414,7 @@ async function main() {
     await go(V, "/collect/new");
     await V.getByRole("button", { name: "Farewell", exact: true }).click();
     assert((await V.locator('input[name="title"]').inputValue()).includes("Farewell"), "the quick pick didn't fill the name");
-    await V.locator('input[name="amount"]').fill("500");
+    await V.locator('input[name="amount"]:not([type="hidden"])').fill("500");
     // In rupees (the hosted copy is opened from a US machine, so it starts in dollars).
     await V.getByText("More options").click();
     await V.locator('select[name="currency"]').selectOption("INR");
@@ -2603,6 +2603,7 @@ async function main() {
   await step(V, "Words", "The import screen gives generic export steps and no other app’s name", async () => {
     await go(V, "/import");
     assert(!/splitwise/i.test(await V.locator("body").innerText()), "the import screen names another app");
+    await V.getByText("Where’s the export in my app?").click(); // the steps sit in a fold
     await V.getByText(/In your old app|Your old app/).first().waitFor();
   });
 
