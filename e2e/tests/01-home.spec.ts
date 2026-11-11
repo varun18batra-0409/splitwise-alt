@@ -39,6 +39,8 @@ test("key pages open from Home: guide, sign in, Splitwise, privacy, terms", asyn
 
   await page.goto("/privacy");
   await expect(page.locator("main")).toContainText(/data/i);
+  // Contact placeholders never show on the live site.
+  await expect(page.locator("main")).not.toContainText("{{");
 
   // Terms of use: linked from sign-in, plain English, and clear that Loopin never moves money.
   await page.goto("/signin");
@@ -46,6 +48,7 @@ test("key pages open from Home: guide, sign in, Splitwise, privacy, terms", asyn
   await expect(page).toHaveURL(/\/terms$/);
   await expect(page.getByRole("heading", { name: "What Loopin is (and isn’t)" })).toBeVisible();
   await expect(page.locator("main")).toContainText("never holds, sends or receives money");
+  await expect(page.locator("main")).not.toContainText("{{");
 });
 
 test("FAQ: opens from the You page; questions open on tap; the data answer links to the privacy details", async ({ page }) => {
