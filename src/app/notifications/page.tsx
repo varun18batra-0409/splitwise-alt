@@ -73,7 +73,7 @@ export default async function Notifications() {
     withoutRepeats(
       all.map((r) =>
         r.type === "event"
-          ? { type: "event" as const, groupId: r.n.event.groupId, kind: r.n.event.kind, actorId: r.n.event.actorId, at: r.n.event.createdAt, row: r }
+          ? { type: "event" as const, groupId: r.n.event.groupId, kind: r.n.event.kind, actorId: r.n.event.actorId, at: r.n.event.createdAt, ref: r.n.event.paymentId, row: r }
           : { type: "note" as const, kind: r.note.kind, url: r.note.url, body: r.note.body, row: r },
       ),
       needs.items,

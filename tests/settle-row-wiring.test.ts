@@ -5,7 +5,7 @@ import { loadGroup } from "@/lib/group-data";
 import { createPayment } from "@/lib/payments";
 import { makeClaim } from "@/lib/payment-claims";
 import { needsOkFor } from "@/lib/payment-ok";
-import { planSettleRow } from "@/lib/settle-row";
+import { planSettleRow, settleRowFacts } from "@/lib/settle-row";
 
 // The Settle up page, wired to the real data (the page itself needs a browser; these are the same calls it makes):
 // the payer's row to someone who has joined offers "I've paid" (a claim: no balance moves until they confirm),
@@ -45,7 +45,11 @@ async function rowFor(gid: string, asha: string, to: string) {
   const data = await loadGroup(gid, { events: false });
   const t = data!.transfers.find((x) => x.from === asha && x.to === to)!;
   const receiver = data!.group.members.find((m) => m.id === to);
-  const plan = planSettleRow({ iPay: true, iAmPaid: false, closed: false, iLeft: false, receiverCanConfirm: needsOkFor(receiver, asha), payApps: 0, myClaimWaiting: false, theirClaimWaiting: false });
+  // The same helper the Settle up page calls, fed from the real group the way the page feeds it.
+  const myClaimWaiting = (await db.paymentClaim.count({ where: { groupId: gid, fromId: asha, toId: to, status: "waiting" } })) > 0;
+  const plan = planSettleRow(
+    settleRowFacts({ transfer: t, myId: asha, closed: data!.group.closed, iLeft: Boolean(data!.group.members.find((m) => m.id === asha)?.leftAt), receiver, payApps: 0, myClaimWaiting, theirClaimWaiting: false }),
+  );
   return { t, plan, receiver };
 }
 

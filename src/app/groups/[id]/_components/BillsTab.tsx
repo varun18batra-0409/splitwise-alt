@@ -75,7 +75,7 @@ export function BillsTab({ v, bills, saved }: { v: GroupView; bills: BillStatus[
             href={hold === "fix" ? `/groups/${group.id}/bills/${b.bill.id}` : `/groups/${group.id}/add?bill=${b.bill.id}&period=${b.period}`}
             className="shrink-0 border border-gray-300 px-3 py-2 text-sm font-semibold text-fg active:bg-mist rounded-full"
           >
-            {hold === "payer" ? "Add it" : hold === "fix" ? "Fix it" : "Enter amount"}
+            {hold === "payer" || hold === "add" ? "Add it" : hold === "fix" ? "Fix it" : "Enter amount"}
           </Link>
         ) : (
           <span className="shrink-0 text-right">

@@ -369,3 +369,15 @@ describe("other rules", () => {
     expect(await payments(w.gid)).toBe(0);
   });
 });
+
+describe("the claim's history line names its claim", () => {
+  it("makeClaim writes one 'says they paid' line whose payment reference is claim:<id> (a reference no payment has), so Alerts can match it exactly", async () => {
+    const w = await world();
+    const c = await claim(w);
+    const lines = await db.groupEvent.findMany({ where: { groupId: w.gid, kind: "payment_claimed" } });
+    expect(lines).toHaveLength(1);
+    expect(lines[0].paymentId).toBe(`claim:${c.claimId}`);
+    expect(await db.payment.count({ where: { id: lines[0].paymentId! } })).toBe(0);
+    expect(await net(w.gid)).toEqual({ [w.a]: 60000, [w.r]: -30000, [w.m]: -30000 }); // still no balance change
+  });
+});

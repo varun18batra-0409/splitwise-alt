@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
-import { billBadge } from "@/lib/home/bills";
+import { billBadge, billHold } from "@/lib/home/bills";
 import { billStatuses, runBillsForGroup } from "@/lib/home/bills-db";
 
 // The state chip on each bill: Needs amount (orange) / Due today (gold) / Recorded (green) / Paused (grey),
@@ -25,6 +25,15 @@ describe("billBadge", () => {
     expect(billBadge({ ...f, nature: "fixed", status: "waiting", reason: "someone in the split has left" })).toEqual(fix);
     expect(billBadge({ ...f, nature: "varies", status: "waiting", reason: "someone in the split has left" })).toEqual(fix);
     expect(billBadge({ ...f, nature: "varies", status: "waiting", reason: "" })?.id).toBe("needs-amount");
+  });
+  it("a fixed or daily bill waiting with nothing wrong is Add it (not Needs a fix); a varies bill is still Needs amount", () => {
+    const add = { id: "needs-add", label: "Add it", tone: "orange" };
+    expect(billBadge({ ...f, nature: "fixed", status: "waiting", reason: "" })).toEqual(add);
+    expect(billBadge({ ...f, nature: "daily", status: "waiting", reason: "" })).toEqual(add);
+    expect(billHold({ nature: "fixed", reason: "", payerId: "a" })).toBe("add");
+    expect(billHold({ nature: "varies", reason: "", payerId: "a" })).toBe("amount");
+    expect(billHold({ nature: "fixed", reason: "group closed", payerId: "a" })).toBe("fix");
+    expect(billHold({ nature: "fixed", reason: "", payerId: null })).toBe("payer");
   });
   it("waiting with nobody to pay it (the payer left): Needs a payer (orange)", () => {
     expect(billBadge({ ...f, status: "waiting", payerId: null, reason: "payer left" })).toEqual({ id: "needs-payer", label: "Needs a payer", tone: "orange" });

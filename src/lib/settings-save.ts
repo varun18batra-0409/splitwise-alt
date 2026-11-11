@@ -10,6 +10,7 @@ import type { Db } from "./events";
 import { LEFT_ERROR } from "./active";
 import { isSupportedCurrency, parsePercent, toInputAmount } from "./money";
 import { parseNotify } from "./notify-prefs";
+import { retryOnceIfBusy } from "./once";
 
 // Group settings: ONE Save for the whole page (Basics, card fees, how you share,
 // settle-up rules and my own notification choices).
@@ -41,6 +42,7 @@ export type SettingsWas = {
   settleDay?: number;
   settleMin?: string;
   notify?: string; // JSON of my notification choices
+  drawnAt?: number; // when the page was drawn (ms): only changes made after it can be blamed in a "changed while you were editing" message
 };
 
 export type SettingsForm = {
@@ -90,7 +92,7 @@ type GroupLike = {
 type MemberLike = { id: string; leftAt: Date | null; splitWeight: number };
 
 // What the Settings page shows right now (also what it carries as `was`).
-export function settingsSnapshot(g: GroupLike, members: MemberLike[], notifyJson?: string | null): SettingsWas {
+export function settingsSnapshot(g: GroupLike, members: MemberLike[], notifyJson?: string | null, drawnAt: number = Date.now()): SettingsWas {
   const active = members.filter((m) => !m.leftAt);
   const shown = sharingInputs(g.type, active.map((m) => m.splitWeight));
   return {
@@ -109,17 +111,31 @@ export function settingsSnapshot(g: GroupLike, members: MemberLike[], notifyJson
     settleDay: g.settleDay,
     settleMin: g.settleMin ? toInputAmount(g.settleMin, g.currency) : "",
     notify: JSON.stringify(parseNotify(notifyJson)),
+    drawnAt,
   };
 }
 
 // Reads the hidden `was` field; anything odd means "no information" (the older, plain behaviour).
+// Each field is kept only if it is the right type; a wrong one is dropped, and that part is then saved
+// the plain way (as if the page hadn't said what it showed), so a damaged field can never crash a Save.
+const WAS_TEXT = ["name", "markup", "secondaryCurrency", "currency", "tripStart", "tripEnd", "tripPlace", "tripCountry", "cover", "type", "settleMin", "notify"] as const;
 export function parseWas(raw: string): SettingsWas | undefined {
+  let v: unknown;
   try {
-    const v = JSON.parse(raw);
-    return v && typeof v === "object" && !Array.isArray(v) ? (v as SettingsWas) : undefined;
+    v = JSON.parse(raw);
   } catch {
     return undefined;
   }
+  if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
+  const o = v as Record<string, unknown>;
+  const out: SettingsWas = {};
+  for (const k of WAS_TEXT) if (typeof o[k] === "string") out[k] = o[k] as string;
+  if (typeof o.reminders === "boolean") out.reminders = o.reminders;
+  if (typeof o.settleDay === "number" && Number.isInteger(o.settleDay)) out.settleDay = o.settleDay;
+  if (typeof o.drawnAt === "number" && Number.isFinite(o.drawnAt)) out.drawnAt = o.drawnAt;
+  const w = o.weights;
+  if (w && typeof w === "object" && !Array.isArray(w) && Object.values(w).every((x) => typeof x === "string")) out.weights = w as Record<string, string>;
+  return out;
 }
 
 type Verdict = "skip" | "write" | "conflict";
@@ -153,11 +169,13 @@ const THINGS = {
   settle: { words: "the settle-up rules", kinds: ["bill_changed"] },
 };
 
-async function conflict(tx: Db, groupId: string, actorId: string, thing: keyof typeof THINGS): Promise<never> {
+// Names someone only if they really made that kind of change after this page was drawn (and it isn't the
+// person saving); otherwise "Someone", never a guess from an older change.
+async function conflict(tx: Db, groupId: string, actorId: string, thing: keyof typeof THINGS, drawnAt?: number): Promise<never> {
   const t = THINGS[thing];
   let who = "Someone";
-  if (t.kinds.length) {
-    const e = await tx.groupEvent.findFirst({ where: { groupId, kind: { in: t.kinds }, NOT: { actorId } }, orderBy: { createdAt: "desc" }, select: { actorId: true } });
+  if (t.kinds.length && drawnAt !== undefined) {
+    const e = await tx.groupEvent.findFirst({ where: { groupId, kind: { in: t.kinds }, createdAt: { gte: new Date(drawnAt) }, NOT: { actorId } }, orderBy: { createdAt: "desc" }, select: { actorId: true } });
     const m = e ? await tx.member.findUnique({ where: { id: e.actorId }, select: { name: true } }) : null;
     if (m?.name) who = m.name;
   }
@@ -166,8 +184,11 @@ async function conflict(tx: Db, groupId: string, actorId: string, thing: keyof t
 
 export async function saveAllSettings(groupId: string, actorId: string, f: SettingsForm, today: string): Promise<SettingsResult> {
   let committed: { eventId?: string; wantedCurrency: string; currencyWrite: boolean };
+  const attempt = () => db.$transaction((tx) => saveInside(tx, groupId, actorId, f, today), { timeout: 20000, maxWait: 10000 });
   try {
-    committed = await db.$transaction((tx) => saveInside(tx, groupId, actorId, f, today), { timeout: 20000, maxWait: 10000 });
+    // Two saves at the same instant: the database may answer "busy" (a Stop is our own answer, never retried).
+    // The second try then sees what the other save did and gives the normal "changed while you were editing" message if it clashes.
+    committed = await retryOnceIfBusy(attempt);
   } catch (e) {
     if (e instanceof Stop) return e.result;
     throw e;
@@ -183,8 +204,10 @@ export async function saveAllSettings(groupId: string, actorId: string, f: Setti
       if (fresh._count.expenses + fresh._count.payments > 0 || hasOtherMoney(await loadOtherMoney(groupId, fresh.settleMin))) {
         return { ok: true, eventId: lastEventId, convertTo: committed.wantedCurrency };
       }
-      const c = await changeGroupCurrency(groupId, actorId, committed.wantedCurrency, "1");
-      if (!c.ok) return c;
+      // expectEmpty: if something was added since the check above, ask for the rate instead of using 1.
+      const c = await changeGroupCurrency(groupId, actorId, committed.wantedCurrency, "1", { expectEmpty: true });
+      if (!c.ok && c.needsRate) return { ok: true, eventId: lastEventId, convertTo: committed.wantedCurrency };
+      if (!c.ok) return { ok: false, error: `${c.error} Your other changes were saved.` };
       if (c.eventId) lastEventId = c.eventId;
     }
   }
@@ -237,15 +260,19 @@ async function saveInside(tx: Db, groupId: string, actorId: string, f: SettingsF
         [current.reminders, current.settleDay, current.settleMin],
       );
 
-  if (vName === "conflict") await conflict(tx, groupId, actorId, "name");
-  if (vMarkup === "conflict") await conflict(tx, groupId, actorId, "markup");
-  if (vSecond === "conflict") await conflict(tx, groupId, actorId, "secondary");
-  if (vCurrency === "conflict") await conflict(tx, groupId, actorId, "currency");
-  if (vDates === "conflict") await conflict(tx, groupId, actorId, "dates");
-  if (vPlace === "conflict") await conflict(tx, groupId, actorId, "place");
-  if (vCover === "conflict") await conflict(tx, groupId, actorId, "cover");
-  if (vSharing === "conflict") await conflict(tx, groupId, actorId, "sharing");
-  if (vSettle === "conflict") await conflict(tx, groupId, actorId, "settle");
+  if (vName === "conflict") await conflict(tx, groupId, actorId, "name", was?.drawnAt);
+  if (vMarkup === "conflict") await conflict(tx, groupId, actorId, "markup", was?.drawnAt);
+  if (vSecond === "conflict") await conflict(tx, groupId, actorId, "secondary", was?.drawnAt);
+  if (vCurrency === "conflict") await conflict(tx, groupId, actorId, "currency", was?.drawnAt);
+  if (vDates === "conflict") await conflict(tx, groupId, actorId, "dates", was?.drawnAt);
+  if (vPlace === "conflict") await conflict(tx, groupId, actorId, "place", was?.drawnAt);
+  if (vCover === "conflict") await conflict(tx, groupId, actorId, "cover", was?.drawnAt);
+  if (vSharing === "conflict") await conflict(tx, groupId, actorId, "sharing", was?.drawnAt);
+  if (vSettle === "conflict") await conflict(tx, groupId, actorId, "settle", was?.drawnAt);
+
+  // The group's currency changed after this page was drawn: a minimum typed here was meant in the old
+  // currency, so it must not be saved as if it were in the new one.
+  if (vSettle === "write" && was?.currency !== undefined && was.currency !== group.currency) await conflict(tx, groupId, actorId, "currency", was.drawnAt);
 
   // ---- Currency: for the person who looks after the group. ----
   const wantedCurrency = f.currency ?? group.currency;

@@ -399,7 +399,8 @@ export async function updateGroupSettings(formData: FormData) {
     // With money already in the group, confirm the conversion rate first.
     // (Bills, budgets, goals, a deposit or card games count as money too.)
     if (group._count.expenses + group._count.payments > 0 || hasOtherMoney(await loadOtherMoney(group.id, group.settleMin))) redirect(`${back}?convert=${currency}`);
-    const c = await changeGroupCurrency(group.id, myId, currency, "1");
+    const c = await changeGroupCurrency(group.id, myId, currency, "1", { expectEmpty: true });
+    if (!c.ok && c.needsRate) redirect(`${back}?convert=${currency}`);
     if (c.ok && c.eventId) redirect(`/groups/${group.id}?saved=settings&did=${c.eventId}`);
   }
   redirect(`/groups/${group.id}?saved=settings${did}`);

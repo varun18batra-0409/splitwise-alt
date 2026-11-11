@@ -5,6 +5,8 @@
 //   one quiet text link     – "Paid a different amount?"
 // A row with no main button makes its one action the filled one. Never two buttons that look alike.
 
+import { needsOkFor } from "./payment-ok";
+
 export type RowFacts = {
   iPay: boolean; // I'm the one paying
   iAmPaid: boolean; // I'm the one being paid
@@ -25,6 +27,30 @@ export type RowPlan = {
   differentAmount: boolean; // show "Paid a different amount?"
   filledButtons: number; // how many filled buttons the row shows (a row with several payment apps shows one per app)
 };
+
+// The facts for one row, worked out from the pair and the viewer: the Settle up page and its tests both use this,
+// so a test of the plan proves what the page really offers.
+export function settleRowFacts(i: {
+  transfer: { from: string; to: string };
+  myId: string;
+  closed: boolean;
+  iLeft: boolean;
+  receiver: Parameters<typeof needsOkFor>[0]; // the person paid, as found in the group
+  payApps: number;
+  myClaimWaiting: boolean;
+  theirClaimWaiting: boolean;
+}): RowFacts {
+  return {
+    iPay: i.transfer.from === i.myId,
+    iAmPaid: i.transfer.to === i.myId,
+    closed: i.closed,
+    iLeft: i.iLeft,
+    receiverCanConfirm: needsOkFor(i.receiver, i.myId),
+    payApps: i.payApps,
+    myClaimWaiting: i.myClaimWaiting,
+    theirClaimWaiting: i.theirClaimWaiting,
+  };
+}
 
 export function planSettleRow(f: RowFacts): RowPlan {
   const canRecord = !f.closed && !f.iLeft;

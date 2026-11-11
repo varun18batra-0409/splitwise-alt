@@ -22,6 +22,7 @@ export type NeedsYouItem = {
   href: string;
   groupId?: string;
   fromId?: string; // claim: who says they paid (to hide the matching line in Activity)
+  claimId?: string; // claim: its id (the claim's history line carries the same one)
   entryName?: string; // collect: the name on the list that says they paid
   at: Date;
 };
@@ -53,7 +54,7 @@ export async function loadNeedsYou(memberships: Record<string, string>, account:
     for (const c of claims) {
       const g = groupOf.get(c.toId);
       if (!g) continue;
-      items.push({ id: `claim:${c.id}`, kind: "claim", text: `${nameOf(c.fromId)} says they paid you ${formatMoney(c.amount, c.currency)}`, where: g.name, href: `/groups/${g.id}/settle`, groupId: g.id, fromId: c.fromId, at: c.createdAt });
+      items.push({ id: `claim:${c.id}`, kind: "claim", text: `${nameOf(c.fromId)} says they paid you ${formatMoney(c.amount, c.currency)}`, where: g.name, href: `/groups/${g.id}/settle`, groupId: g.id, fromId: c.fromId, claimId: c.id, at: c.createdAt });
     }
     for (const p of payments) {
       const g = groupOf.get(p.toId);
@@ -68,6 +69,9 @@ export async function loadNeedsYou(memberships: Record<string, string>, account:
         const hold = billHold({ nature: b.bill.nature, reason: b.reason, payerId: b.payerId });
         if (hold === "amount") {
           items.push({ id: `bill:${b.bill.id}:${b.period}`, kind: "bill", text: `${b.bill.name} is waiting for its amount`, where: m.group.name, href: `/groups/${m.groupId}/add?bill=${b.bill.id}&period=${b.period}`, groupId: m.groupId, at: now });
+        } else if (hold === "add") {
+          // Nothing is wrong any more (or an add was interrupted): it only needs adding.
+          items.push({ id: `bill:${b.bill.id}:${b.period}`, kind: "bill", text: `${b.bill.name} is ready to add`, action: "Add it", where: m.group.name, href: `/groups/${m.groupId}/add?bill=${b.bill.id}&period=${b.period}`, groupId: m.groupId, at: now });
         } else if (hold === "fix") {
           // Held for a problem (not for an amount): the fix is in the bill's settings.
           items.push({ id: `bill:${b.bill.id}:${b.period}`, kind: "bill", text: `${b.bill.name} is on hold${b.reason ? `: ${b.reason}` : ""}`, action: "Needs a fix", tone: "orange", where: m.group.name, href: `/groups/${m.groupId}/bills/${b.bill.id}`, groupId: m.groupId, at: now });
@@ -95,12 +99,13 @@ export async function loadNeedsYou(memberships: Record<string, string>, account:
 
 // What goes in the Activity list once "Needs you" is drawn: the same thing is never shown twice.
 // The "says they paid" line of a claim that is shown in Needs you, and a collection "paid" note for a
-// payment still waiting to be checked, both live in Needs you only. Only THAT claim's line is hidden:
-// the line is written in the same moment as its claim (same group, same person, same instant), so an
-// older or later line from the same person (an earlier tap, a "hasn't received it") stays in Activity.
+// payment still waiting to be checked, both live in Needs you only. Only THAT claim's line is hidden.
+// The line carries its claim's id ("claim:<id>" in `ref`), so it is matched exactly: another claim by the
+// same person, an earlier tap or a "hasn't received it" line stays in Activity. Lines written before the id
+// was kept have no `ref`; for those only, the old rule applies (same group, same person, the same moment).
 export const CLAIM_LINE_WINDOW_MS = 5000;
 
-export function withoutRepeats<T extends { type: "event"; groupId: string; kind: string; actorId: string; at: Date } | { type: "note"; kind: string; url: string; body: string }>(
+export function withoutRepeats<T extends { type: "event"; groupId: string; kind: string; actorId: string; at: Date; ref?: string | null } | { type: "note"; kind: string; url: string; body: string }>(
   rows: T[],
   needs: NeedsYouItem[],
 ): T[] {
@@ -108,7 +113,9 @@ export function withoutRepeats<T extends { type: "event"; groupId: string; kind:
   const says = needs.filter((n) => n.kind === "collect" && n.entryName).map((n) => ({ url: n.href, prefix: `${n.entryName} says they paid` }));
   return rows.filter((r) => {
     if (r.type === "event") {
-      return !(r.kind === "payment_claimed" && claims.some((c) => c.groupId === r.groupId && c.fromId === r.actorId && Math.abs(c.at.getTime() - r.at.getTime()) <= CLAIM_LINE_WINDOW_MS));
+      if (r.kind !== "payment_claimed") return true;
+      if (r.ref?.startsWith("claim:")) return !claims.some((c) => c.claimId !== undefined && `claim:${c.claimId}` === r.ref);
+      return !claims.some((c) => c.groupId === r.groupId && c.fromId === r.actorId && Math.abs(c.at.getTime() - r.at.getTime()) <= CLAIM_LINE_WINDOW_MS);
     }
     return !(r.kind === "collect_ticked" && says.some((x) => x.url === r.url && r.body.startsWith(x.prefix)));
   });

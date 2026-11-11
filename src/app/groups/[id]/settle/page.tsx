@@ -18,8 +18,8 @@ import { ErrorNote, PageHeader, secondaryButtonClass } from "@/components/ui";
 import { db } from "@/lib/db";
 import { getAccount } from "@/lib/identity";
 import { payButtons, type PayWays } from "@/lib/pay-links";
-import { needsOkFor, waitingForMe } from "@/lib/payment-ok";
-import { planSettleRow } from "@/lib/settle-row";
+import { waitingForMe } from "@/lib/payment-ok";
+import { planSettleRow, settleRowFacts } from "@/lib/settle-row";
 import { claimsWaitingFor, declinedNote, myDeclinedClaims, myWaitingClaims } from "@/lib/payment-claims";
 import { claimPaidAction, confirmClaimAction, confirmPaymentAction, declineClaimAction, markAllPaidAction, rejectPaymentAction, withdrawClaimAction } from "@/app/pay-actions";
 
@@ -245,16 +245,9 @@ export default async function GroupSettle({
             const notReceived = t.from === myId && !myClaim ? myDeclined.find((c) => c.toId === t.to) : undefined;
             const buttons = t.from === myId ? payButtons(waysOf(t.to), { amount: t.amount, currency: group.currency, toName: receiver?.name ?? "", note: group.name }) : [];
             const theirClaim = t.to === myId ? (claimsToMe.find((c) => c.fromId === t.from) ?? waiting.find((p) => p.fromId === t.from)) : undefined; // answered in "Did you get these?" above
-            const plan = planSettleRow({
-              iPay: t.from === myId,
-              iAmPaid: t.to === myId,
-              closed: group.closed,
-              iLeft,
-              receiverCanConfirm: needsOkFor(receiver, myId),
-              payApps: buttons.length,
-              myClaimWaiting: Boolean(myClaim),
-              theirClaimWaiting: Boolean(theirClaim),
-            });
+            const plan = planSettleRow(
+              settleRowFacts({ transfer: t, myId, closed: group.closed, iLeft, receiver, payApps: buttons.length, myClaimWaiting: Boolean(myClaim), theirClaimWaiting: Boolean(theirClaim) }),
+            );
             // One filled button per row: the payment app (when I'm paying and they have one) or Remind (when I'm owed).
             const main =
               plan.main === "pay-app" ? (

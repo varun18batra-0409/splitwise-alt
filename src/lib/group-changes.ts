@@ -6,7 +6,7 @@ import { formatMoney, formatPercent, isSupportedCurrency } from "./money";
 import { parseRate } from "./conversion";
 import { rebaseExpense, rebasePayment } from "./rebase";
 
-type Result = { ok: true; eventId?: string } | { ok: false; error: string };
+type Result = { ok: true; eventId?: string } | { ok: false; error: string; needsRate?: true };
 
 // Rename the group and/or change its card markup. Logged for everyone.
 export async function updateGroupBasics(
@@ -72,7 +72,9 @@ export async function updateGroupBasics(
 // Change the group's currency. Every expense, share and payment is converted
 // at `rate` (1 old = rate new). Original receipt amounts are kept as they were,
 // and every expense's shares still add up exactly.
-export async function changeGroupCurrency(groupId: string, actorId: string, newCurrency: string, rate: string): Promise<Result> {
+// expectEmpty: the caller checked that the group holds no money and so uses rate "1". If money turned up since
+// (an expense added meanwhile), nothing is changed and `needsRate` says the caller must ask for a real rate.
+export async function changeGroupCurrency(groupId: string, actorId: string, newCurrency: string, rate: string, opts?: { expectEmpty?: boolean }): Promise<Result> {
   const group = await db.group.findUnique({
     where: { id: groupId },
     include: { expenses: { include: { shares: true } }, payments: true, members: { select: { id: true } } },
@@ -89,6 +91,7 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
   // smallest payment worth settling and card games. All at the same rate.
   const otherBefore = await loadOtherMoney(groupId, group.settleMin);
   const hasMoney = group.expenses.length > 0 || group.payments.length > 0 || hasOtherMoney(otherBefore);
+  if (hasMoney && opts?.expectEmpty) return { ok: false, error: "Something was added to the group just now, so the new currency needs a conversion rate.", needsRate: true };
   if (hasMoney && !parseRate(rate)) return { ok: false, error: "Enter the conversion rate, like 0.012." };
 
   const oldCurrency = group.currency;

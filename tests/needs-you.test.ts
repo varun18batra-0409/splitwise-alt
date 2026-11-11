@@ -216,4 +216,69 @@ describe("Needs you, round 2", () => {
     const kept = withoutRepeats([mineNow, earlier, later, otherPerson], n.items);
     expect(kept).toEqual([earlier, later, otherPerson]);
   });
+
+  it("Activity hides a claim line by its id: two claims by Ravi one second apart, to Asha and to Meera, and only Asha's line goes", async () => {
+    const f = await flat("Twin flat", [{ name: "Asha" }, { name: "Ravi" }, { name: "Meera" }]);
+    const toAsha = await db.paymentClaim.create({ data: { groupId: f.id, fromId: f.ids.Ravi, toId: f.ids.Asha, amount: 10000, currency: "INR", status: "waiting" } });
+    const toMeera = await db.paymentClaim.create({ data: { groupId: f.id, fromId: f.ids.Ravi, toId: f.ids.Meera, amount: 20000, currency: "INR", status: "waiting" } });
+    const n = await loadNeedsYou({ [f.id]: f.ids.Asha }, null, 0, nov1); // Asha's phone: only the claim to her
+    expect(n.items).toHaveLength(1);
+    expect(n.items[0].claimId).toBe(toAsha.id);
+    const at = n.items[0].at;
+    const line = (ref: string | null, ms: number) => ({ type: "event" as const, groupId: f.id, kind: "payment_claimed", actorId: f.ids.Ravi, at: new Date(at.getTime() + ms), ref });
+    const lineToAsha = line(`claim:${toAsha.id}`, 0);
+    const lineToMeera = line(`claim:${toMeera.id}`, 1000); // one second later: inside the old 5-second window
+    expect(withoutRepeats([lineToAsha, lineToMeera], n.items)).toEqual([lineToMeera]);
+    // A line written before the id was kept (no reference) still goes by the old same-moment rule.
+    const oldLine = line(null, 20);
+    expect(withoutRepeats([oldLine, lineToMeera], n.items)).toEqual([lineToMeera]);
+  });
+
+  it("a held fixed bill stops saying 'Needs a fix' once the split is fixed: it says Add it, in Needs you and on the chip", async () => {
+    const { billStatuses, runBillsForGroup } = await import("@/lib/home/bills-db");
+    const { billBadge } = await import("@/lib/home/bills");
+    const f = await flat("Fixed flat", [{ name: "Asha" }, { name: "Ravi", left: true }]);
+    const broken = JSON.stringify({ mode: "amounts", amt: { [f.ids.Ravi]: 1000000, [f.ids.Asha]: 2000000 } }); // Ravi has left
+    const rent = await db.bill.create({ data: { groupId: f.id, name: "Rent", nature: "fixed", amount: 3000000, day: 1, startMonth: "2026-11", payer: f.ids.Asha, tz: "Asia/Kolkata", split: broken } });
+    await runBillsForGroup(f.id, nov1);
+    const chip = async () => {
+      const s = (await billStatuses(f.id, nov1)).find((x) => x.bill.id === rent.id)!;
+      return billBadge({ nature: s.bill.nature, status: s.status, due: s.due, payerId: s.payerId, reason: s.reason, recordedThisMonth: s.recordedThisMonth, tz: s.bill.tz, now: nov1 });
+    };
+    expect((await chip())?.id).toBe("needs-fix");
+    expect((await loadNeedsYou({ [f.id]: f.ids.Asha }, null, 0, nov1)).items[0].action).toBe("Needs a fix");
+    // Fix the split (back to the group's own). The run still has the old reason saved; it must not be used.
+    await db.bill.update({ where: { id: rent.id }, data: { split: JSON.stringify({ mode: "group" }) } });
+    expect((await db.billRun.findFirstOrThrow({ where: { billId: rent.id } })).reason).toBe("someone in the split has left");
+    expect(await chip()).toEqual({ id: "needs-add", label: "Add it", tone: "orange" });
+    const n = await loadNeedsYou({ [f.id]: f.ids.Asha }, null, 0, nov1);
+    expect(n.items).toHaveLength(1);
+    expect(n.items[0]).toMatchObject({ text: "Rent is ready to add", action: "Add it", href: `/groups/${f.id}/add?bill=${rent.id}&period=2026-11` });
+    expect(n.items[0].tone).toBeUndefined();
+  });
+
+  it("a fixed bill waiting with an empty reason (an add that was interrupted) says Add it, not Needs a fix", async () => {
+    const { billStatuses } = await import("@/lib/home/bills-db");
+    const { billBadge } = await import("@/lib/home/bills");
+    const f = await flat("Interrupted flat", [{ name: "Asha" }, { name: "Ravi" }]);
+    const wifi = await db.bill.create({ data: { groupId: f.id, name: "Wi-Fi", nature: "fixed", amount: 120000, day: 1, startMonth: "2026-11", payer: f.ids.Asha, tz: "Asia/Kolkata" } });
+    await db.billRun.create({ data: { billId: wifi.id, period: "2026-11", status: "waiting", reason: "" } });
+    const s = (await billStatuses(f.id, nov1)).find((x) => x.bill.id === wifi.id)!;
+    expect(billBadge({ nature: s.bill.nature, status: s.status, due: s.due, payerId: s.payerId, reason: s.reason, recordedThisMonth: s.recordedThisMonth, tz: s.bill.tz, now: nov1 })?.id).toBe("needs-add");
+    const n = await loadNeedsYou({ [f.id]: f.ids.Asha }, null, 0, nov1);
+    expect(n.items.map((i) => `${i.text} / ${i.action}`)).toEqual(["Wi-Fi is ready to add / Add it"]);
+  });
+
+  it("a varies bill whose problem was fixed goes back to Needs amount; one with a real problem still says Needs a fix", async () => {
+    const { billStatuses, runBillsForGroup } = await import("@/lib/home/bills-db");
+    const f = await flat("Varies flat", [{ name: "Asha" }, { name: "Ravi", left: true }]);
+    const broken = JSON.stringify({ mode: "percent", pct: { [f.ids.Ravi]: 5000, [f.ids.Asha]: 5000 } });
+    const power = await db.bill.create({ data: { groupId: f.id, name: "Electricity", nature: "varies", amount: 242000, day: 1, startMonth: "2026-11", payer: f.ids.Asha, tz: "Asia/Kolkata", split: broken } });
+    await runBillsForGroup(f.id, nov1);
+    expect((await billStatuses(f.id, nov1))[0].reason).toBe("someone in the split has left");
+    await db.bill.update({ where: { id: power.id }, data: { split: JSON.stringify({ mode: "group" }) } });
+    expect((await billStatuses(f.id, nov1))[0].reason).toBe("");
+    const n = await loadNeedsYou({ [f.id]: f.ids.Asha }, null, 0, nov1);
+    expect(n.items.map((i) => i.text)).toEqual(["Electricity is waiting for its amount"]);
+  });
 });

@@ -1,11 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
-import { markupFromForm, saveAllSettings, settingsSnapshot, type SettingsForm, type SettingsWas } from "@/lib/settings-save";
+import { markupFromForm, parseWas, saveAllSettings, settingsSnapshot, type SettingsForm, type SettingsWas } from "@/lib/settings-save";
 import { changeGroupCurrency } from "@/lib/group-changes";
 import { eraseGroups } from "@/lib/purge";
 import { saveExpense, type SaveExpenseInput } from "@/lib/save-expense";
 import { parseNotify } from "@/lib/notify-prefs";
 import { currencyLine } from "@/lib/currency-line";
+import { retryOnceIfBusy } from "@/lib/once";
 
 // Settings has ONE Save. It checks every part first and writes nothing if any part is wrong; it only
 // logs the parts that really changed; the currency is for the person who looks after the group
@@ -331,5 +332,137 @@ describe("Currency step uses what was just saved", () => {
     after = await load(g.id);
     expect(after.currency).toBe("JPY");
     expect(after.settleMin).toBe(100); // 50 x 2 = 100 yen (yen have no decimals)
+  });
+});
+
+describe("A damaged 'was' never crashes a Save", () => {
+  it("drops a field of the wrong type and keeps the good ones", () => {
+    expect(parseWas(JSON.stringify({ name: "Goa", weights: null, settleDay: "5", reminders: "yes", drawnAt: "now" }))).toEqual({ name: "Goa" });
+    expect(parseWas(JSON.stringify({ weights: "abc", cover: 7, markup: "300" }))).toEqual({ markup: "300" });
+    expect(parseWas(JSON.stringify({ weights: { a: 1 } }))).toEqual({}); // a share that isn't text: the whole box is dropped
+    expect(parseWas(JSON.stringify({ weights: { a: "1" }, settleDay: 5, reminders: true, drawnAt: 1700000000000 }))).toEqual({ weights: { a: "1" }, settleDay: 5, reminders: true, drawnAt: 1700000000000 });
+    expect(parseWas("[1,2]")).toBeUndefined();
+    expect(parseWas("not json")).toBeUndefined();
+  });
+
+  it("'weights': null, and a string where an object is expected, save the plain way (no error): the rename is written", async () => {
+    for (const bad of [null, "abc"]) {
+      const g = await mk("other", ["Asha", "Ravi"]);
+      const snap = await drawn(g.id);
+      const was = parseWas(JSON.stringify({ ...snap, weights: bad }));
+      expect(was?.weights).toBeUndefined();
+      const r = await saveAllSettings(g.id, g.ids.Asha, { name: "Renamed", sharing: { type: "other", weights: { ...snap.weights } }, was }, today);
+      expect(r.ok).toBe(true);
+      expect((await load(g.id)).name).toBe("Renamed");
+    }
+  });
+});
+
+describe("The conflict message only names someone who really changed it after the page was drawn", () => {
+  const long = 60 * 60 * 1000;
+  it("an older rename by Ravi is not blamed when the name changed again with no history line: it says Someone", async () => {
+    const g = await mk("other", ["Asha", "Ravi"]);
+    await db.groupEvent.create({ data: { groupId: g.id, actorId: g.ids.Ravi, kind: "group_renamed", text: "renamed the group", createdAt: new Date(Date.now() - long) } });
+    const was = await drawn(g.id);
+    await db.group.update({ where: { id: g.id }, data: { name: "Changed quietly" } });
+    const r = await saveAllSettings(g.id, g.ids.Asha, pageForm(was, { name: "Mine" }), today);
+    expect(r).toEqual({ ok: false, error: "Someone changed the group name while you were editing. Check and save again.", code: "conflict" });
+  });
+
+  it("the saver's own newer change is not named either, and a page without a draw time (older form) says Someone", async () => {
+    const g = await mk("other", ["Asha", "Ravi"]);
+    const was = await drawn(g.id);
+    await db.groupEvent.create({ data: { groupId: g.id, actorId: g.ids.Asha, kind: "group_renamed", text: "renamed the group" } });
+    await db.group.update({ where: { id: g.id }, data: { name: "Changed" } });
+    const r = await saveAllSettings(g.id, g.ids.Asha, pageForm(was, { name: "Mine" }), today);
+    expect(r).toMatchObject({ ok: false, error: "Someone changed the group name while you were editing. Check and save again." });
+    // Ravi really changed it after the page was drawn: named with a draw time, "Someone" without one.
+    await db.groupEvent.create({ data: { groupId: g.id, actorId: g.ids.Ravi, kind: "group_renamed", text: "renamed the group" } });
+    const named = await saveAllSettings(g.id, g.ids.Asha, pageForm(was, { name: "Mine" }), today);
+    expect(named).toMatchObject({ error: "Ravi changed the group name while you were editing. Check and save again." });
+    const { drawnAt, ...old } = was;
+    expect(drawnAt).toBeTypeOf("number");
+    const legacy = await saveAllSettings(g.id, g.ids.Asha, pageForm(old, { name: "Mine" }), today);
+    expect(legacy).toMatchObject({ error: "Someone changed the group name while you were editing. Check and save again." });
+  });
+});
+
+describe("A settle-up minimum is never saved in a currency the person didn't see", () => {
+  it("the page showed rupees, the group became yen meanwhile: the minimum is refused (nothing saved), but a plain rename still goes through", async () => {
+    const g = await mk("home", ["Asha", "Ravi"]);
+    const was = await drawn(g.id); // INR
+    const c = await changeGroupCurrency(g.id, g.ids.Asha, "JPY", "1"); // an empty group: no rate needed
+    expect(c.ok).toBe(true);
+    const settle = { reminders: false, settleDay: 0, settleMin: "50" };
+    const r = await saveAllSettings(g.id, g.ids.Ravi, pageForm(was, { name: "Renamed too", settle }), today);
+    expect(r).toEqual({ ok: false, error: "Asha changed the group currency while you were editing. Check and save again.", code: "conflict" });
+    const after = await load(g.id);
+    expect(after.settleMin).toBe(0);
+    expect(after.name).toBe("Round2 home"); // all or nothing
+    const plain = await saveAllSettings(g.id, g.ids.Ravi, pageForm(was, { name: "Renamed only" }), today);
+    expect(plain.ok).toBe(true);
+    expect((await load(g.id)).name).toBe("Renamed only");
+  });
+});
+
+describe("Two saves at the same instant", () => {
+  const busy = () => Object.assign(new Error("SQLITE_BUSY: database is locked"), { code: "P2034" });
+
+  it("a busy database is tried once more; a second busy answer, or any other error, is passed on", async () => {
+    let calls = 0;
+    expect(await retryOnceIfBusy(async () => (++calls === 1 ? Promise.reject(busy()) : "done"), 1)).toBe("done");
+    expect(calls).toBe(2);
+    calls = 0;
+    await expect(retryOnceIfBusy(async () => { calls++; throw busy(); }, 1)).rejects.toThrow(/locked/);
+    expect(calls).toBe(2);
+    calls = 0;
+    await expect(retryOnceIfBusy(async () => { calls++; throw new Error("boom"); }, 1)).rejects.toThrow("boom");
+    expect(calls).toBe(1);
+  });
+
+  it("the retry sees the other save and gives the normal conflict message (not a 500)", async () => {
+    const g = await mk("other", ["Asha", "Ravi"]);
+    const was = await drawn(g.id);
+    let tries = 0;
+    const r = await retryOnceIfBusy(async () => {
+      tries++;
+      if (tries === 1) {
+        await saveAllSettings(g.id, g.ids.Ravi, { name: "Ravi's name" }, today); // the other save lands first
+        throw busy(); // ...and ours found the database busy
+      }
+      return saveAllSettings(g.id, g.ids.Asha, pageForm(was, { name: "Asha's name" }), today);
+    }, 1);
+    expect(r).toEqual({ ok: false, error: "Ravi changed the group name while you were editing. Check and save again.", code: "conflict" });
+    expect((await load(g.id)).name).toBe("Ravi's name");
+  });
+});
+
+describe("The currency step after the rest is saved", () => {
+  it("if it fails, the error says the other changes were saved (and they were)", async () => {
+    const g = await mk("other", ["Asha", "Ravi"]);
+    await db.potGame.create({ data: { groupId: g.id, name: "Friday", hostId: g.ids.Asha, players: JSON.stringify([g.ids.Asha]) } }); // a card game still open blocks a currency change
+    const r = await saveAllSettings(g.id, g.ids.Asha, { name: "Saved anyway", currency: "JPY" }, today);
+    expect(r).toEqual({ ok: false, error: "Finish (or delete) the card game that’s still open first, then change the currency. Your other changes were saved." });
+    const after = await load(g.id);
+    expect(after.name).toBe("Saved anyway");
+    expect(after.currency).toBe("INR");
+  });
+
+  it("changeGroupCurrency with 'the group is empty' (rate 1) refuses when an expense turned up meanwhile, and asks for a rate; a really empty group converts", async () => {
+    const g = await mk("other", ["Asha", "Ravi"]);
+    const ok = await changeGroupCurrency(g.id, g.ids.Asha, "JPY", "1", { expectEmpty: true });
+    expect(ok.ok).toBe(true);
+    expect((await load(g.id)).currency).toBe("JPY");
+
+    const h = await mk("other", ["Asha", "Ravi"]);
+    await db.expense.create({
+      data: { groupId: h.id, description: "Dinner", amount: 60000, splitType: "equal", paidById: h.ids.Asha, createdById: h.ids.Asha, originalAmount: 60000, convertedAmount: 60000, shares: { create: [{ memberId: h.ids.Asha, amount: 30000 }, { memberId: h.ids.Ravi, amount: 30000 }] } },
+    });
+    const r = await changeGroupCurrency(h.id, h.ids.Asha, "JPY", "1", { expectEmpty: true });
+    expect(r).toMatchObject({ ok: false, needsRate: true });
+    const after = await load(h.id);
+    expect(after.currency).toBe("INR");
+    expect(await db.expense.findFirstOrThrow({ where: { groupId: h.id } })).toMatchObject({ amount: 60000 }); // untouched, not silently x1
+    expect(await count(h.id, "currency_changed")).toBe(0);
   });
 });

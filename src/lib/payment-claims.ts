@@ -19,6 +19,9 @@ export type ClaimResult =
   | { ok: true; claimId: string; already?: boolean; eventId?: string; paymentId?: string; amount?: number }
   | { ok: false; error: string; /** Confirm only: the claim is more than what's owed now, by this much. */ over?: number; /** Make only: the person paid can't tap Confirm (just a name), so record it as a payment instead. */ direct?: boolean };
 
+// The history line of a claim carries "claim:<id>" in its payment reference (a column that already exists).
+export const claimRef = (claimId: string) => `claim:${claimId}`;
+
 const notThere = "That one isn’t there any more.";
 
 // Phone notification for one person (the group's history line is separate).
@@ -70,6 +73,7 @@ async function makeClaimOnce(input: MakeInput): Promise<ClaimResult> {
         actorId,
         kind: "payment_claimed",
         text: `says they paid ${to.name} ${amountText} (waiting for ${to.name} to confirm)`,
+        paymentId: claimRef(claim.id), // names its claim so Alerts hides exactly this line (a payment never has this id)
         touches: [], // no balance moves until it's confirmed
       });
       return { ok: true as const, claimId: claim.id, eventId, amount: owed };

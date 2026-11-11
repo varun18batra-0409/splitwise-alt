@@ -80,6 +80,18 @@ export function serial<T>(fn: () => Promise<T>): Promise<T> {
   return run;
 }
 
+// Run `fn`; if the database was busy, wait a moment and run it exactly once more (a second busy answer is passed on).
+// For a whole transaction that re-reads what it checks, so the second try sees what the other change did.
+export async function retryOnceIfBusy<T>(fn: () => Promise<T>, waitMs = 50 + Math.random() * 100): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    if (!isBusy(err)) throw err;
+    await new Promise((r) => setTimeout(r, waitMs));
+    return fn();
+  }
+}
+
 export async function withRetry<T>(fn: () => Promise<T>, tries = 5): Promise<T> {
   for (let i = 0; ; i++) {
     try {
