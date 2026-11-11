@@ -23,7 +23,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const s = await readPayLink((await params).token);
   const robots = { index: false, follow: false };
   if (s.kind === "gone") return { title: "Loopin", robots };
-  const amount = formatMoney(s.amount, s.group.currency);
+  const amount = formatMoney(s.amount, s.currency);
   const title = s.kind === "owes" ? `${first(s.toName)} is asking for ${amount}` : `${s.group.name} · Loopin`;
   return { title, description: `For “${s.group.name}”. Pay, then tap I’ve paid. No sign-in needed.`, robots, openGraph: { title, description: `For “${s.group.name}”. Pay, then tap I’ve paid.` } };
 }
@@ -80,7 +80,7 @@ export default async function PayLinkPage({ params, searchParams }: Props) {
     );
   }
 
-  const money = formatMoney(s.amount, s.group.currency);
+  const money = formatMoney(s.amount, s.currency);
   const to = first(s.toName);
   const from = first(s.fromName);
 

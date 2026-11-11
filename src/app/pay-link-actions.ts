@@ -7,7 +7,7 @@ import { logEvent } from "@/lib/events";
 import { formatMoney } from "@/lib/money";
 import { makeClaim, tellReceiver, withdrawClaim } from "@/lib/payment-claims";
 import { allow, clientIp } from "@/lib/rate-limit";
-import { readPayLink } from "@/lib/pay-link";
+import { readPayLink, recordLinkPayment } from "@/lib/pay-link";
 
 // The "I've paid" link (no sign-in): say you paid what you owe (a claim that counts
 // only once the other person taps "Confirm received"), or take it back while it's waiting.
@@ -33,6 +33,13 @@ export async function iPaidAction(f: FormData) {
   const s = read;
   // "I've paid" is a claim, not a payment: nothing changes in the balances until the person paid taps "Confirm received".
   const r = await makeClaim({ groupId: s.group.id, fromId: s.link.fromId, toId: s.link.toId, actorId: s.link.fromId, source: "link", expectAmount: s.amount });
+  // The person owed can't tap "Confirm received" yet (just a name, no account): nobody to ask, so it is recorded
+  // as a payment straight away, as before claims existed. No dead end.
+  if (!r.ok && r.direct) {
+    const done = await recordLinkPayment({ link: s.link, amount: s.amount, currency: s.group.currency, toName: s.toName });
+    if (!done) back(token, { error: "That didn’t go through. Open the link again to see where things stand." });
+    back(token, { paid: "1" });
+  }
   if (!r.ok) back(token, { error: r.error });
   else if (!r.already) tellReceiver({ claimId: r.claimId, groupId: s.group.id, groupName: s.group.name, toId: s.link.toId, fromName: s.fromName, amountText: formatMoney(s.amount, s.group.currency) });
   back(token, { paid: "1" });
@@ -50,7 +57,7 @@ export async function undoIPaidAction(f: FormData) {
     const w = await withdrawClaim(s.claimId, s.link.fromId);
     back(token, w.ok ? { undone: "1" } : { error: w.error });
   }
-  const amountText = formatMoney(s.amount, s.group.currency);
+  const amountText = formatMoney(s.amount, s.currency);
   await db.$transaction(async (tx) => {
     const gone = await tx.payment.updateMany({ where: { id: s.link.paymentId, okAt: null, deletedAt: null }, data: { deletedAt: new Date(), deletedById: s.link.fromId } });
     if (gone.count !== 1) return;

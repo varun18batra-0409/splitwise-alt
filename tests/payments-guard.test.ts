@@ -20,6 +20,44 @@ function walk(dir: string): string[] {
   });
 }
 
+// A payment that is brought back (deletedAt set to null) must go through restorePayments, which also closes a
+// waiting "I've paid" for the same pair. Looks at every payment.update / updateMany call and its `data:` part.
+const UNDELETE_ALLOWED = new Set(["src/lib/payments.ts"]);
+function unDeletes(text: string): number {
+  let n = 0;
+  const call = /\.payment\s*\.\s*(update|updateMany)\s*\(/g;
+  for (let m = call.exec(text); m; m = call.exec(text)) {
+    // The text inside this call's brackets only.
+    let depth = 1;
+    let i = m.index + m[0].length;
+    const start = i;
+    for (; i < text.length && depth > 0; i++) depth += text[i] === "(" ? 1 : text[i] === ")" ? -1 : 0;
+    const inside = text.slice(start, i);
+    const at = inside.indexOf("data:");
+    if (at >= 0 && /deletedAt\s*:\s*null/.test(inside.slice(at))) n++;
+  }
+  return n;
+}
+
+describe("one place brings payments back", () => {
+  it("no code outside src/lib/payments.ts sets a payment's deletedAt back to null", () => {
+    const root = path.resolve(__dirname, "..");
+    const offenders = walk(path.join(root, "src"))
+      .map((f) => path.relative(root, f).split(path.sep).join("/"))
+      .filter((f) => !UNDELETE_ALLOWED.has(f))
+      .filter((f) => unDeletes(readFileSync(path.join(root, f), "utf8")) > 0);
+    expect(offenders, `Use restorePayments(tx, ids, actorId) from src/lib/payments.ts instead in: ${offenders.join(", ")}`).toEqual([]);
+  });
+
+  it("the detector sees the patterns it is meant to catch, and the allowed place still has one", () => {
+    expect(unDeletes("await tx.payment.updateMany({ where: { id }, data: { deletedAt: null, deletedById: null } });")).toBe(1);
+    expect(unDeletes("await tx.payment.update({ where: { id }, data: apply ? { deletedAt: null } : { deletedAt: new Date() } });")).toBe(1);
+    expect(unDeletes("await tx.payment.updateMany({ where: { id, deletedAt: null }, data: { deletedAt: new Date() } });")).toBe(0);
+    const root = path.resolve(__dirname, "..");
+    expect(unDeletes(readFileSync(path.join(root, "src/lib/payments.ts"), "utf8"))).toBeGreaterThan(0);
+  });
+});
+
 describe("one place writes payments", () => {
   it("no code outside src/lib/payments.ts (and the Splitwise import) creates a payment row", () => {
     const root = path.resolve(__dirname, "..");

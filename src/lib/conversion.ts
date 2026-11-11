@@ -116,7 +116,7 @@ export function computeTotals(args: {
 }
 
 // The maths behind a foreign-currency expense, in one line:
-//   "THB 1,000 × 2.50 + 3% card fee = ₹2,575"
+//   "THB 1,000 × 2.50 = ₹2,500 + ₹75 card fee (3%) = ₹2,575"
 // The rate is shown exactly as saved ("2.5" if that's what was saved; "2.50" only if it was). It is only
 // shown when recalculating from the saved pieces gives exactly the saved total; otherwise null, so a line
 // that doesn't add up is never shown.
@@ -137,7 +137,10 @@ export function fxLine(e: {
   const fee = markupAmountOf(converted, e.markupBp);
   if (fee !== e.markupAmount || converted + fee !== e.amount) return null;
   const rate = cleanRateText(e.exchangeRate);
-  return `${formatMoney(e.originalAmount, e.originalCurrency)} × ${rate}${e.markupBp > 0 ? ` + ${formatPercent(e.markupBp)} card fee` : ""} = ${formatMoney(e.amount, e.baseCurrency)}`;
+  // The converted amount is shown in the middle, so each step can be checked by hand:
+  // "USD 1 × 83.12345 = ₹83.12 + ₹2.49 card fee (3%) = ₹85.61".
+  const head = `${formatMoney(e.originalAmount, e.originalCurrency)} × ${rate} = ${formatMoney(converted, e.baseCurrency)}`;
+  return e.markupBp > 0 && fee > 0 ? `${head} + ${formatMoney(fee, e.baseCurrency)} card fee (${formatPercent(e.markupBp)}) = ${formatMoney(e.amount, e.baseCurrency)}` : head;
 }
 
 // Where the rate came from, for the line under the maths. `rateDate` is the day the rate applies to ("2026-10-14").

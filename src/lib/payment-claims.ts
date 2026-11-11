@@ -21,7 +21,7 @@ export type ClaimResult =
 
 const notThere = "That one isn’t there any more.";
 
-// Phone notification for the person paid only (the group's history line is separate).
+// Phone notification for one person (the group's history line is separate).
 function pushToReceiver(toId: string, p: { title: string; body: string; url: string; tag: string }) {
   try {
     after(async () => {
@@ -32,6 +32,9 @@ function pushToReceiver(toId: string, p: { title: string; body: string; url: str
     /* not inside a request (tests, scripts): nothing is sent */
   }
 }
+
+// What the payer is told when the person paid says "Not received" (the push and the note on their Settle up row).
+export const declinedNote = (toName: string, amount: number, currency: string) => `${toName} hasn’t received your ${formatMoney(amount, currency)} yet. Check your payment app.`;
 
 // Say "I paid". `amount` is what's owed between the pair right now; it is worked
 // out here (never taken from the caller), so only the real debt can be claimed.
@@ -117,6 +120,10 @@ async function declineClaimOnce(claimId: string, myMemberId: string | undefined)
     return logEvent(tx, { groupId: claim.groupId, actorId: myMemberId, kind: "payment_claimed", text: `hasn’t received ${formatMoney(claim.amount, claim.currency)} from ${from?.name ?? "them"} yet`, touches: [] });
   });
   if (!done) return { ok: false, error: "That one isn’t waiting any more." };
+  // The payer is told too (the group-wide push skips these notes), so they check their payment app.
+  const to = await db.member.findUnique({ where: { id: claim.toId }, select: { name: true } });
+  const g = await db.group.findUnique({ where: { id: claim.groupId }, select: { name: true } });
+  pushToReceiver(claim.fromId, { title: `💬 ${g?.name ?? "Loopin"}`, body: declinedNote(to?.name ?? "They", claim.amount, claim.currency), url: `/groups/${claim.groupId}/settle`, tag: `claim-declined-${claim.id}` });
   return { ok: true, claimId, eventId: done };
 }
 
@@ -134,7 +141,7 @@ async function confirmClaimOnce(claimId: string, myMemberId: string | undefined,
 
   const data = await loadGroup(claim.groupId, { events: false });
   if (!data) return { ok: false, error: "This group no longer exists." };
-  const { group, net } = data;
+  const { group, transfers } = data;
   const from = group.members.find((m) => m.id === claim.fromId);
   const to = group.members.find((m) => m.id === claim.toId);
   if (!from || !to) return { ok: false, error: notThere };
@@ -143,8 +150,10 @@ async function confirmClaimOnce(claimId: string, myMemberId: string | undefined,
     await db.paymentClaim.updateMany({ where: { id: claim.id, status: "waiting" }, data: { status: "expired", slot: claim.id, decidedAt: new Date(), decidedById: myMemberId } });
     return { ok: false, error: `The group’s currency changed after ${from.name} said they paid, so that note is out of date. Ask ${from.name} to tap I’ve paid again.` };
   }
-  // More than they owe now (the expense was edited, or part was paid another way): ask once.
-  const owes = Math.max(0, -(net[claim.fromId] ?? 0));
+  // More than they owe THIS person now (the expense was edited, or part was paid another way): ask once.
+  // Compared with what the payer owes the receiver in the settle plan, never their total debt to everyone,
+  // so a payer who owes two people can't have a claim to one pass as if it were a claim to the other.
+  const owes = transfers.find((t) => t.from === claim.fromId && t.to === claim.toId)?.amount ?? 0;
   if (claim.amount > owes && !o.over) return { ok: false, error: "More than what’s owed.", over: claim.amount - owes };
 
   const amountText = formatMoney(claim.amount, claim.currency);
@@ -154,7 +163,12 @@ async function confirmClaimOnce(claimId: string, myMemberId: string | undefined,
     const payment = await createPayment(tx, { groupId: claim.groupId, fromId: claim.fromId, toId: claim.toId, amount: claim.amount, createdById: claim.fromId, okAt: new Date() });
     await tx.paymentClaim.update({ where: { id: claim.id }, data: { paymentId: payment.id } });
     // The link page can then say "all square, confirmed".
-    await tx.payLink.updateMany({ where: { groupId: claim.groupId, fromId: claim.fromId, toId: claim.toId }, data: { paymentId: payment.id } });
+    // (Unless the link still tracks an older payment that is waiting for "Confirm received": that one must stay reachable.)
+    const link = await tx.payLink.findUnique({ where: { groupId_fromId_toId: { groupId: claim.groupId, fromId: claim.fromId, toId: claim.toId } }, select: { id: true, paymentId: true } });
+    if (link) {
+      const tracked = link.paymentId ? await tx.payment.findFirst({ where: { id: link.paymentId, deletedAt: null, needsOk: true, okAt: null }, select: { id: true } }) : null;
+      if (!tracked) await tx.payLink.update({ where: { id: link.id }, data: { paymentId: payment.id } });
+    }
     const eventId = await logEvent(tx, {
       groupId: claim.groupId,
       actorId: myMemberId,
@@ -184,4 +198,13 @@ export async function claimsWaitingFor(groupId: string, myMemberId: string) {
 // Claims this person made that are still waiting (so Settle up can say "Waiting for Asha to confirm").
 export async function myWaitingClaims(groupId: string, myMemberId: string) {
   return db.paymentClaim.findMany({ where: { groupId, fromId: myMemberId, status: "waiting" } });
+}
+
+// "Not received" answers this person is still looking at: for each person they owe, their latest claim, if it was
+// declined (so Settle up can say so). A newer claim, or a payment that closed things, replaces it.
+export async function myDeclinedClaims(groupId: string, myMemberId: string) {
+  const rows = await db.paymentClaim.findMany({ where: { groupId, fromId: myMemberId }, orderBy: { createdAt: "desc" }, take: 50 });
+  const latest = new Map<string, (typeof rows)[number]>();
+  for (const r of rows) if (!latest.has(r.toId)) latest.set(r.toId, r);
+  return [...latest.values()].filter((r) => r.status === "declined");
 }

@@ -11,7 +11,7 @@ import { deleteAccount, requestLoginCode, verifyLoginCode } from "@/lib/auth";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { headers } from "next/headers";
 import { cleanNames, sameName } from "@/lib/names";
-import { amountError, isSupportedCurrency, parseAmount, parsePercent } from "@/lib/money";
+import { amountError, isSupportedCurrency, overpayHref, parseAmount, parsePercent } from "@/lib/money";
 import { getRate, type RateAnswer } from "@/lib/rate-cache";
 import { cleanRateText } from "@/lib/conversion";
 import { deletePayment, saveExpense, setExpenseDeleted, setPaymentDeleted, type SaveExpenseInput } from "@/lib/save-expense";
@@ -586,7 +586,7 @@ export async function recordCustomPayment(formData: FormData) {
     const data = await loadGroup(group.id, { events: false });
     const owes = Math.max(0, -(data?.net[fromId] ?? 0));
     if (amount! > owes)
-      redirect(`/groups/${group.id}/pay?${new URLSearchParams({ from: fromId, to: toId, amount: amountText, owes: String(owes) })}`);
+      redirect(overpayHref(group.id, { from: fromId, to: toId, amount: amountText, owes: String(owes) }, fromSettle));
   }
   const done = potGame ? `/groups/${group.id}/pot/${potGame}?paid=1` : fromSettle ? `/groups/${group.id}/settle?paid=1` : `/groups/${group.id}?tab=balances&paid=1`;
   const key = cleanKey(formData.get("rid"));

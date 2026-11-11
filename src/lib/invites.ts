@@ -28,7 +28,21 @@ export function inviteRowLabel(invite: { email: string; invitedById: string }, v
   return invite.invitedById === viewerId ? invite.email : `Invited by ${inviterName}`;
 }
 
-const nameOfAccount = (a: { name: string; email: string }) => a.name.trim() || a.email.split("@")[0];
+// The name the search showed for this person: their own name, else their name in a group the two of you share.
+// Never anything made from their email (adding someone from search must not leak the start of it).
+async function shownNameFor(account: { id: string; name: string }, actorAccountId: string | null | undefined): Promise<string> {
+  const own = account.name.trim();
+  if (own) return own;
+  if (actorAccountId) {
+    const row = await db.member.findFirst({
+      where: { accountId: account.id, ...JOINED, group: { deletedAt: null, members: { some: { accountId: actorAccountId, ...JOINED } } } },
+      select: { name: true },
+      orderBy: { createdAt: "asc" },
+    });
+    if (row?.name.trim()) return row.name.trim();
+  }
+  return "Someone";
+}
 
 // A name that isn't taken in the group yet ("Joey", then "Joey 2"…).
 export function freeName(taken: string[], wanted: string): string {
@@ -209,7 +223,8 @@ export async function addRegistered(groupId: string, actorId: string, accountId:
     return { ok: true, memberId: existing.id, eventId, name: existing.name, email: account.email };
   }
   const mail = await inviteMailOk(actor);
-  const r = await inviteOne(group, actor, account.email, nameOfAccount(account), { origin, account, mail, later: opts.later });
+  const actorAccountId = (await db.member.findUnique({ where: { id: actorId }, select: { accountId: true } }))?.accountId;
+  const r = await inviteOne(group, actor, account.email, await shownNameFor(account, actorAccountId), { origin, account, mail, later: opts.later });
   return { ok: true, ...r, email: account.email };
 }
 
@@ -289,6 +304,6 @@ export async function inviteToClaim(groupId: string, actorId: string, memberId: 
     { optOut: true },
   );
   if (!sent) return { ok: false, error: "The email couldn’t be sent. Share the group’s invite link instead." };
-  await logEvent(db, { groupId, actorId, kind: "member_invited", text: `invited ${member.name} (${email}) to join` });
+  await logEvent(db, { groupId, actorId, kind: "member_invited", text: `invited ${member.name} to join` });
   return { ok: true, email };
 }

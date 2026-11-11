@@ -36,7 +36,10 @@ describe("amountEcho (C14): how a typed amount was read", () => {
     ["12,5", "INR", "₹12.50"],
     ["1,250", "INR", "₹1,250"],
     ["1,25,000", "INR", "₹1,25,000"],
-    ["1.250", "INR", "₹1.25"], // deliberately shows the mix-up
+    ["1.250", "INR", null], // refused by parseAmount, so nothing is described (the error line explains)
+    ["100.000", "INR", null],
+    ["1.000", "JPY", null],
+    ["99.50", "INR", "₹99.50"],
     ["0,5", "INR", "₹0.50"],
     ["1500", "INR", null],
     ["₹500", "INR", null],
@@ -53,7 +56,7 @@ describe("amountEcho (C14): how a typed amount was read", () => {
 
   it("JPY 12,50 says why (whole numbers), and what it shows matches what would be saved", () => {
     expect(amountError("12,50", "JPY")).toBe("JPY amounts are whole numbers: no decimals.");
-    // Whatever is echoed is what parseAmount saves (except the deliberate 1.250 case, which is refused with an error).
+    // Whatever is echoed is what parseAmount saves .
     for (const t of ["12,50", "12,5", "1,250", "1,25,000", "0,5"]) {
       const echoed = amountEcho(t, "INR")!;
       const saved = parseAmount(t, "INR")!;

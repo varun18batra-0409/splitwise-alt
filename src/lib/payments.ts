@@ -38,3 +38,31 @@ export async function createPayment(tx: Tx, p: NewPayment, now = new Date()) {
   }
   return payment;
 }
+
+// The ONE place a deleted payment is brought back (Undo of "Not received", restore a payment, redo of
+// "Mark all paid" or "Settle everything"). Bringing it back makes the money count again, so any "I've paid"
+// claim still waiting for the same pair is closed as "covered" in the SAME transaction, exactly like
+// createPayment does. Otherwise tapping "Confirm received" on that claim would record the same money a
+// second time. Only payments that are deleted right now are touched (`groupId` limits it to one group).
+// Returns the ids that really came back, so a repeated tap changes nothing.
+export async function restorePayments(tx: Tx, ids: string[], actorId: string, groupId?: string, now = new Date()): Promise<string[]> {
+  if (!ids.length) return [];
+  const rows = await tx.payment.findMany({
+    where: { id: { in: ids }, deletedAt: { not: null }, ...(groupId ? { groupId } : {}) },
+    select: { id: true, groupId: true, fromId: true, toId: true },
+  });
+  const restored: string[] = [];
+  for (const p of rows) {
+    const back = await tx.payment.updateMany({ where: { id: p.id, deletedAt: { not: null } }, data: { deletedAt: null, deletedById: null } });
+    if (back.count !== 1) continue;
+    restored.push(p.id);
+    const waiting = await tx.paymentClaim.findMany({ where: { groupId: p.groupId, fromId: p.fromId, toId: p.toId, status: "waiting" }, select: { id: true } });
+    for (const c of waiting) {
+      await tx.paymentClaim.updateMany({
+        where: { id: c.id, status: "waiting" },
+        data: { status: "covered", slot: c.id, paymentId: p.id, decidedAt: now, decidedById: actorId },
+      });
+    }
+  }
+  return restored;
+}

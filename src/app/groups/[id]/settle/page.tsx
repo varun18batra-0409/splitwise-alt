@@ -18,7 +18,7 @@ import { db } from "@/lib/db";
 import { getAccount } from "@/lib/identity";
 import { payButtons, type PayWays } from "@/lib/pay-links";
 import { needsOkFor, waitingForMe } from "@/lib/payment-ok";
-import { claimsWaitingFor, myWaitingClaims } from "@/lib/payment-claims";
+import { claimsWaitingFor, declinedNote, myDeclinedClaims, myWaitingClaims } from "@/lib/payment-claims";
 import { claimPaidAction, confirmClaimAction, confirmPaymentAction, declineClaimAction, markAllPaidAction, rejectPaymentAction, withdrawClaimAction } from "@/app/pay-actions";
 
 const RING = 2 * Math.PI * 46;
@@ -51,18 +51,20 @@ export default async function GroupSettle({
     ...shown.filter((t) => t.from !== myId && t.to !== myId),
   ];
   const justDid = sp.did ? group.events.find((e) => e.id === sp.did) : undefined;
-  const showUndo = justDid && canUndo(justDid, group.events).ok;
+  // (Someone who left can answer "Confirm received" / "Not received" but can't undo it, so no Undo bar for them.)
+  const showUndo = justDid && !group.members.find((m) => m.id === myId)?.leftAt && canUndo(justDid, group.events).ok;
 
   // How each person here likes to be paid (from their You page), my own account,
   // payments others recorded to me that wait for my "Confirm received" (older ones that already count),
   // and "I've paid" claims (not in the balances yet) waiting for me or made by me.
   const accountIds = [...new Set(group.members.map((m) => m.accountId).filter((a): a is string => Boolean(a)))];
-  const [accounts, me, waiting, claimsToMe, myClaims] = await Promise.all([
+  const [accounts, me, waiting, claimsToMe, myClaims, myDeclined] = await Promise.all([
     accountIds.length ? db.account.findMany({ where: { id: { in: accountIds } }, select: { id: true, upiId: true, payLink: true } }) : Promise.resolve([]),
     getAccount(),
     waitingForMe(group.id, myId),
     claimsWaitingFor(group.id, myId),
     myWaitingClaims(group.id, myId),
+    myDeclinedClaims(group.id, myId),
   ]);
   const overClaim = sp.over && /^\d{1,12}$/.test(sp.over) ? Number(sp.over) : 0;
   const waysOf = (mid: string): PayWays | null => {
@@ -240,6 +242,7 @@ export default async function GroupSettle({
             // My own "I've paid" (a claim) is for when the person I'm paying can tap "Confirm received".
             const claimable = t.from === myId && !group.closed && !iLeft && needsOkFor(receiver, myId);
             const myClaim = t.from === myId ? myClaims.find((c) => c.toId === t.to) : undefined;
+            const notReceived = t.from === myId && !myClaim ? myDeclined.find((c) => c.toId === t.to) : undefined;
             const buttons = t.from === myId ? payButtons(waysOf(t.to), { amount: t.amount, currency: group.currency, toName: group.members.find((m) => m.id === t.to)?.name ?? "", note: group.name }) : [];
             return (
               <li
@@ -302,6 +305,11 @@ export default async function GroupSettle({
                     </div>
                   ) : (
                     <div className="mt-3 pl-12">
+                      {notReceived && (
+                        <p className="mb-2 rounded-xl border border-owe/30 bg-owe-soft px-3 py-2 text-sm" role="status" data-claim-declined={t.to}>
+                          {declinedNote(receiver?.name ?? "They", notReceived.amount, notReceived.currency)}
+                        </p>
+                      )}
                       <form action={claimPaidAction}>
                         <input type="hidden" name="groupId" value={group.id} />
                         <input type="hidden" name="fromId" value={t.from} />

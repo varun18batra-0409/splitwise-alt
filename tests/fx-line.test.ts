@@ -14,14 +14,21 @@ describe("fxLine (C12)", () => {
 
   it("same, card 3%: 250000 + 7500 = 257500", () => {
     expect(fxLine({ ...base, originalAmount: 100000, originalCurrency: "THB", exchangeRate: "2.50", convertedAmount: 250000, markupBp: 300, markupAmount: 7500, amount: 257500 })).toBe(
-      "THB 1,000 × 2.50 + 3% card fee = ₹2,575",
+      "THB 1,000 × 2.50 = ₹2,500 + ₹75 card fee (3%) = ₹2,575",
     );
   });
 
   it("THB 999 × 2.8367, card 3%: 283386 + 8502 = 291888 (₹2,918.88)", () => {
     // 99900 × 2.8367 = 283386.33 → 283386; 3% of 283386 = 8501.58 → 8502; total 291888 = 2,833.86 × 1.03 = 2,918.88
     expect(fxLine({ ...base, originalAmount: 99900, originalCurrency: "THB", exchangeRate: "2.8367", convertedAmount: 283386, markupBp: 300, markupAmount: 8502, amount: 291888 })).toBe(
-      "THB 999 × 2.8367 + 3% card fee = ₹2,918.88",
+      "THB 999 × 2.8367 = ₹2,833.86 + ₹85.02 card fee (3%) = ₹2,918.88",
+    );
+  });
+
+  it("USD 1 × 83.12345, card 3%: the converted amount is in the middle so each step checks by hand", () => {
+    // 100 cents × 83.12345 = 8312.345 paise → 8312 (₹83.12); 3% of 8312 = 249.36 → 249 (₹2.49); 8312 + 249 = 8561 (₹85.61)
+    expect(fxLine({ ...base, originalAmount: 100, originalCurrency: "USD", exchangeRate: "83.12345", convertedAmount: 8312, markupBp: 300, markupAmount: 249, amount: 8561 })).toBe(
+      "USD 1 × 83.12345 = ₹83.12 + ₹2.49 card fee (3%) = ₹85.61",
     );
   });
 

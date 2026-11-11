@@ -175,19 +175,17 @@ export function overpayLine(typed: number, owes: number, currency = "INR", ask =
 }
 
 // How a typed amount was read, shown under the box ("12,50" → "₹12.50"). Null for plain digits (nothing to
-// explain) and for text that isn't an amount (the error message covers that). "1.250" deliberately shows
-// as ₹1.25: that is what it means, and it makes a thousands-dot slip visible before saving.
+// explain) and for anything parseAmount would refuse (the error message covers that): it never describes an
+// amount that won't be saved ("100.000", or "1.000" in yen).
 export function amountEcho(input: string, currency = "INR"): string | null {
   const t0 = input.replace(/[₹$€£¥฿\s]/g, "");
   if (!t0 || /^\d+$/.test(t0)) return null;
-  const d = decimalsOf(currency);
-  const t = (/^\d+,\d{1,2}$/.test(t0) ? t0.replace(",", ".") : t0).replace(/,/g, "");
-  const m = /^(\d*)(?:\.(\d*))?$/.exec(t);
-  if (!m || (m[1] === "" && !m[2])) return null;
-  let frac = m[2] ?? "";
-  while (frac.length > d && frac.endsWith("0")) frac = frac.slice(0, -1);
-  if (frac.length > d) return null;
-  const total = Number(m[1] || "0") * 10 ** d + Number(frac.padEnd(d, "0") || "0");
-  if (!Number.isSafeInteger(total) || total <= 0 || total > MAX_MINOR) return null;
-  return formatMoney(total, currency);
+  const total = parseAmount(input, currency);
+  return total === null ? null : formatMoney(total, currency);
+}
+
+// The "more than what's owed?" page for Record a payment. It keeps where the person came from (Settle up),
+// so Cancel, Record anyway and Back all return there.
+export function overpayHref(groupId: string, q: Record<string, string>, fromSettle: boolean): string {
+  return `/groups/${groupId}/pay?${new URLSearchParams({ ...q, ...(fromSettle ? { back: "settle" } : {}) })}`;
 }

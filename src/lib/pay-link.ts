@@ -1,6 +1,10 @@
 import { randomBytes } from "node:crypto";
 import { db } from "./db";
 import { loadGroup } from "./group-data";
+import { logEvent } from "./events";
+import { formatMoney } from "./money";
+import { createPayment } from "./payments";
+import { needsOkFor } from "./payment-ok";
 
 // "I've paid" links. When Asha reminds Ravi from Settle up, the WhatsApp
 // message carries a link that only does one thing: Ravi opens it (no sign-in),
@@ -42,6 +46,7 @@ export type PayLinkState =
   | { kind: "gone" } // unknown, expired, or the group is gone
   | {
       kind: "owes" | "said" | "square" | "closed";
+      currency: string; // the currency of `amount`: the group's now, or the waiting claim's own
       link: { id: string; token: string; groupId: string; fromId: string; toId: string; paymentId: string };
       group: { id: string; name: string; currency: string; closed: boolean };
       fromName: string;
@@ -71,13 +76,15 @@ export async function readPayLink(token: string, now = new Date()): Promise<PayL
     fromName: from.name,
     toName: to.name,
     toAccountId: to.accountId,
+    currency: group.currency,
   };
   // An older payment made through this link (it already counts in the balances) still waiting for "Confirm received".
   const said = link.paymentId ? payments.find((p) => p.id === link.paymentId && p.needsOk && !p.okAt) : undefined;
   if (said) return { kind: "said", ...base, amount: said.amount, paidAt: said.createdAt };
   // A new "I've paid": a claim waiting for the person paid. It is not in the balances.
   const claim = await db.paymentClaim.findFirst({ where: { groupId: link.groupId, fromId: link.fromId, toId: link.toId, status: "waiting" } });
-  if (claim) return group.closed ? { kind: "closed", ...base, amount: claim.amount } : { kind: "said", ...base, amount: claim.amount, paidAt: claim.createdAt, claimId: claim.id };
+  // The claim is shown in the currency it was made in, even if the group's currency changed since.
+  if (claim) return group.closed ? { kind: "closed", ...base, currency: claim.currency, amount: claim.amount } : { kind: "said", ...base, currency: claim.currency, amount: claim.amount, paidAt: claim.createdAt, claimId: claim.id };
   const owed = transfers.find((t) => t.from === link.fromId && t.to === link.toId)?.amount ?? 0;
   if (group.closed) return { kind: "closed", ...base, amount: owed };
   if (owed <= 0) {
@@ -87,4 +94,34 @@ export async function readPayLink(token: string, now = new Date()): Promise<PayL
   const latest = await db.paymentClaim.findFirst({ where: { groupId: link.groupId, fromId: link.fromId, toId: link.toId }, orderBy: { createdAt: "desc" }, select: { status: true } });
   if (latest?.status === "declined") return { kind: "owes", ...base, amount: owed, declined: true };
   return { kind: "owes", ...base, amount: owed };
+}
+
+// "I've paid" for someone who can't tap "Confirm received" (the person owed is only a name, or has no account):
+// there is nobody to ask, so it is recorded as a payment right away, as before claims existed. It counts now,
+// and is flagged for "Got it / Not received" only if the person owed can answer. Only the debt shown (`amount`) is
+// recorded, and only one tap wins: the link must still point at the payment it was read with.
+export async function recordLinkPayment(s: { link: { id: string; groupId: string; fromId: string; toId: string; paymentId: string }; amount: number; currency: string; toName: string }): Promise<boolean> {
+  const to = await db.member.findUnique({ where: { id: s.link.toId }, select: { id: true, accountId: true, claimedAt: true } });
+  const amountText = formatMoney(s.amount, s.currency);
+  // Only what is really owed right now (balances may have moved since the page was read).
+  const fresh = await loadGroup(s.link.groupId, { events: false });
+  if (!fresh || fresh.group.closed || fresh.transfers.find((t) => t.from === s.link.fromId && t.to === s.link.toId)?.amount !== s.amount) return false;
+  try {
+    return await db.$transaction(async (tx) => {
+      const p = await createPayment(tx, { groupId: s.link.groupId, fromId: s.link.fromId, toId: s.link.toId, amount: s.amount, createdById: s.link.fromId, needsOk: needsOkFor(to ?? undefined, s.link.fromId) });
+      const claimed = await tx.payLink.updateMany({ where: { id: s.link.id, paymentId: s.link.paymentId }, data: { paymentId: p.id } });
+      if (claimed.count !== 1) throw new Error("double tap"); // the other tap won: this payment is rolled back
+      await logEvent(tx, {
+        groupId: s.link.groupId,
+        actorId: s.link.fromId,
+        kind: "payment_recorded",
+        text: `paid ${s.toName} ${amountText} (from the reminder link)`,
+        paymentId: p.id,
+        undo: { type: "payment_delete", paymentId: p.id },
+      });
+      return true;
+    });
+  } catch {
+    return false;
+  }
 }

@@ -15,7 +15,7 @@ export default async function RecordPayment({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ from?: string; to?: string; amount?: string; error?: string; owes?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; amount?: string; error?: string; owes?: string; back?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -34,16 +34,17 @@ export default async function RecordPayment({
   const fill = (f: string, t: string, a: number) =>
     `/groups/${group.id}/pay?${new URLSearchParams({ from: f, to: t, amount: toInputAmount(a, group.currency) })}`;
 
+  const fromSettle = sp.back === "settle";
   const owes = /^\d{1,12}$/.test(sp.owes ?? "") ? Number(sp.owes) : null;
   const typed = parseAmount(sp.amount ?? "", group.currency);
   // More than the payer owes (often an extra zero): asked once, with Cancel first.
   const overLine = owes !== null && typed !== null ? overpayLine(typed, owes, group.currency) : null;
-  const cancelHref = `/groups/${group.id}/pay?${new URLSearchParams({ from, ...(to ? { to } : {}), amount: sp.amount ?? "" })}`;
+  const cancelHref = `/groups/${group.id}/pay?${new URLSearchParams({ from, ...(to ? { to } : {}), amount: sp.amount ?? "", ...(fromSettle ? { back: "settle" } : {}) })}`;
   const chip = "flex items-center gap-2 rounded-full border border-line bg-mist px-4 py-2 text-sm font-medium has-[:checked]:border-fg has-[:checked]:bg-fg has-[:checked]:font-medium has-[:checked]:text-canvas";
 
   return (
     <>
-      <PageHeader title="Record a payment" back={`/groups/${group.id}?tab=balances`} />
+      <PageHeader title="Record a payment" back={fromSettle ? `/groups/${group.id}/settle` : `/groups/${group.id}?tab=balances`} />
       {sp.error && <ErrorNote>{sp.error}</ErrorNote>}
 
       {transfers.length > 0 && (
@@ -63,6 +64,7 @@ export default async function RecordPayment({
 
       <form action={recordCustomPayment} className="space-y-8">
         <input type="hidden" name="groupId" value={group.id} />
+        {fromSettle && <input type="hidden" name="back" value="settle" />}
         <FreshKey name="rid" />
         {/* You can't pay yourself: whoever is picked as "Who paid?" is greyed out under "Paid to". */}
         <style>

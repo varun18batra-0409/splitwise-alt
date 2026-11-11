@@ -4,7 +4,7 @@ import { claimKey, fingerprintOf, isDuplicateKey, keyState, STALE_KEY_ERROR, wit
 import { loadGroup } from "./group-data";
 import { logEvent } from "./events";
 import { formatMoney } from "./money";
-import { createPayment } from "./payments";
+import { createPayment, restorePayments } from "./payments";
 import type { Transfer } from "./settle";
 
 // "We settled outside the app": record every Smart Settle payment at once and
@@ -73,10 +73,8 @@ export async function applySettleAll(groupId: string, actorId: string, paymentId
   if (!apply && !group.closed) return { ok: false, error: "The group was reopened since, so this can’t be undone. Delete the payments one by one instead." };
   if (apply && group.closed) return { ok: false, error: "The group is already closed." };
   const eventId = await db.$transaction(async (tx) => {
-    await tx.payment.updateMany({
-      where: { id: { in: paymentIds }, groupId },
-      data: apply ? { deletedAt: null, deletedById: null } : { deletedAt: new Date(), deletedById: actorId },
-    });
+    if (apply) await restorePayments(tx, paymentIds, actorId, groupId);
+    else await tx.payment.updateMany({ where: { id: { in: paymentIds }, groupId }, data: { deletedAt: new Date(), deletedById: actorId } });
     await tx.group.update({ where: { id: groupId }, data: { closed: apply, closedAt: apply ? new Date() : null } });
     return logEvent(tx, {
       groupId,
@@ -153,7 +151,8 @@ export async function setPaymentsDeleted(groupId: string, actorId: string, payme
   if (await hasLeft(groupId, actorId)) return { ok: false, error: LEFT_ERROR };
   if (group.closed) return { ok: false, error: "This group is closed. Reopen it to change payments." };
   const eventId = await db.$transaction(async (tx) => {
-    await tx.payment.updateMany({ where: { id: { in: paymentIds }, groupId }, data: deleted ? { deletedAt: new Date(), deletedById: actorId } : { deletedAt: null, deletedById: null } });
+    if (deleted) await tx.payment.updateMany({ where: { id: { in: paymentIds }, groupId }, data: { deletedAt: new Date(), deletedById: actorId } });
+    else await restorePayments(tx, paymentIds, actorId, groupId);
     return logEvent(tx, {
       groupId,
       actorId,

@@ -3,6 +3,7 @@ import { hasLeft, LEFT_ERROR } from "./active";
 import { buildExpense, type ExpenseDraft } from "./expense";
 import { getCategory, guessCategory, isCategory } from "./categories";
 import { formatMoney, isSupportedCurrency } from "./money";
+import { restorePayments } from "./payments";
 import { cleanRateText, parseRate, PAYMENT_METHODS } from "./conversion";
 import { diffExpense, expenseState, logEvent, touchedByExpense, type ExpenseSnapshot } from "./events";
 import type { RateAnswer } from "./rate-cache";
@@ -400,11 +401,14 @@ async function setPaymentDeletedOnce(paymentId: string, actingMemberId: string |
   if (payment.group.closed) return { ok: false, error: "This group is closed. Reopen it to change payments." };
   if (Boolean(payment.deletedAt) === deleted) return { ok: true, id: payment.id };
   const eventId = await db.$transaction(async (tx) => {
-    const changed = await tx.payment.updateMany({
-      where: { id: payment.id, deletedAt: deleted ? null : { not: null } },
-      data: deleted ? { deletedAt: new Date(), deletedById: actingMemberId } : { deletedAt: null, deletedById: null },
-    });
-    if (changed.count !== 1) return "";
+    let moved: boolean;
+    if (deleted) {
+      moved = (await tx.payment.updateMany({ where: { id: payment.id, deletedAt: null }, data: { deletedAt: new Date(), deletedById: actingMemberId } })).count === 1;
+    } else {
+      // Counting again: also closes a waiting "I've paid" for the same pair, so one payment can't count twice.
+      moved = (await restorePayments(tx, [payment.id], actingMemberId)).length === 1;
+    }
+    if (!moved) return "";
     return logEvent(tx, {
       groupId: payment.groupId,
       actorId: actingMemberId,
