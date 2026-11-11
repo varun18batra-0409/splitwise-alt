@@ -13,7 +13,7 @@ jobs:
           echo "::notice title=CSP fonts::$(echo "$csp" | tr ';' '\n' | grep -E 'connect-src|font-src|style-src' | tr '\n' '|')"
           n=$(curl -s "$s/" | grep -o '<script[^>]*nonce="[^"]*"' | wc -l); echo "::notice title=Scripts with nonce on /::$n"
           echo "::notice title=Health (public)::$(curl -s $s/api/health)"
-          codes=""; for p in / /signin /faq /how-it-works /privacy /terms /settle /account /passport /postcards /join/NOTAREALCODE /groups/not-a-real-group /api/cron/daily /api/unsubscribe; do codes="$codes $p=$(curl -s -o /dev/null -w '%{http_code}' $s$p)"; done; echo "::notice title=Status::$codes"
+          codes=""; for p in / /signin /faq /how-it-works /privacy /terms /settle /account /passport /postcards /join/NOTAREALCODE /groups/not-a-real-group /api/cron/daily /api/unsubscribe /stats /passports; do codes="$codes $p=$(curl -s -o /dev/null -w '%{http_code}' $s$p)"; done; echo "::notice title=Status::$codes"
           echo "::notice title=Headers::$(curl -s -D - -o /dev/null "$s/signin" | tr -d '\r' | grep -iE '^(x-frame|strict-transport|referrer-policy|x-content-type|permissions-policy)' | cut -c1-70 | tr '\n' '|')"
           css=$(curl -s "$s/" | grep -o '/_next/static/css/[^"]*\.css' | head -3); found=""; for c in $css; do curl -s "$s$c" | grep -q 'nobreak{' && found="nobreak rule live (Batch A)"; done; echo "::notice title=New CSS::${found:-not found}"
           echo "::notice title=Private API caching::$(curl -s -D - -o /dev/null -X POST "$s/api/speed" | tr -d '\r' | grep -i '^cache-control:')"
