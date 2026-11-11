@@ -67,7 +67,8 @@ describe("saving towards a goal", () => {
     // The same amount from someone else is their own entry.
     expect((await addGoalEntryFor(groupId, you, goalId, "250", "")).ok).toBe(true);
     expect(await db.goalEntry.count({ where: { goalId } })).toBe(before + 3);
-    // No made-up key was stored for any of it.
-    expect(await db.requestKey.count({ where: { result: goalId } })).toBe(keysBefore);
+    // Each saved entry claims one key made from who, which goal, how much and when
+    // (so two taps at the same moment save once): three entries, three keys.
+    expect(await db.requestKey.count({ where: { result: goalId } })).toBe(keysBefore + 3);
   });
 });

@@ -74,7 +74,8 @@ test("add by email: in the group at once as a name; the invitee gets a Join card
   await expect(jp.getByText("Hana added you to this group.")).toBeVisible();
 
   await jp.getByRole("button", { name: /^Join / }).click();
-  await jp.waitForURL(new RegExp(`${g.path}$`));
+  // Same address before and after, so wait for the invitation screen to be replaced by the group.
+  await expect(jp.locator("[data-pending-group]")).toHaveCount(0, { timeout: 15_000 });
   const { db } = await import("../helpers/db");
   expect((await members()).find((m) => m.id === row!.id)?.accountId).toBe((await db.account.findUniqueOrThrow({ where: { email } })).id);
   await jp.goto("/");
