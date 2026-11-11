@@ -16,3 +16,13 @@ export function squareNumbers(g: {
   })();
   return { spent, expenses: g.expenses.length, payments: g.payments.length, people: g.people, days, each: g.people ? Math.round(spent / g.people) : 0 };
 }
+
+// The three tiles under "All square", as [big text, small label]. With "hide amounts" the money tile
+// becomes a count, so the picture can be shared without showing what the group spent.
+export function squareTiles(n: ReturnType<typeof squareNumbers>, o: { hide: boolean; formatSpent: (minor: number) => string }): [string, string][] {
+  const expenses: [string, string] = [String(n.expenses), n.expenses === 1 ? "expense" : "expenses"];
+  const crew: [string, string] = n.days > 1 ? [`${n.days} days`, `${n.people} of you`] : [`${n.people}`, "people"];
+  if (!o.hide) return [[o.formatSpent(n.spent), "spent together"], expenses, crew];
+  const payments: [string, string] = [String(n.payments), n.payments === 1 ? "payment made" : "payments made"];
+  return n.payments > 0 ? [expenses, payments, crew] : [expenses, crew];
+}

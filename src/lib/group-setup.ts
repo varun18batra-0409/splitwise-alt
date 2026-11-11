@@ -58,13 +58,14 @@ function tripDatesOrNone(start = "", end = "") {
 }
 
 // Settings → trip dates. Logged in the group's history (so everyone sees the new dates).
-export async function setTripDates(groupId: string, actorId: string, start: string, end: string, today: string): Promise<Result> {
+export async function setTripDates(groupId: string, actorId: string, start: string, end: string, today: string, opts?: { dryRun?: boolean }): Promise<Result> {
   const g = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
   if (!g || g.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (!g.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can change it." };
   if (await hasLeft(groupId, actorId)) return { ok: false, error: LEFT_ERROR };
   const r = cleanTripDates(start, end, today);
   if (!r.ok) return r;
+  if (opts?.dryRun) return { ok: true };
   if (r.start === g.tripStart && r.end === g.tripEnd) return { ok: true };
   const label = (s: string, e: string) => (!s ? "not set" : tripRange(s, e));
   let eventId: string | undefined;
@@ -94,6 +95,7 @@ export async function updateSharing(
   groupId: string,
   actorId: string,
   input: { type: string; weights: Record<string, string> },
+  opts?: { dryRun?: boolean },
 ): Promise<Result> {
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
@@ -129,6 +131,7 @@ export async function updateSharing(
   const sameRatio = oldW.every((w, i) => w * sumNew === newW[i] * sumOld);
   const changed = sameRatio ? [] : active.filter((m) => next[m.id] !== m.splitWeight);
   if (!changed.length && type === group.type) return { ok: true };
+  if (opts?.dryRun) return { ok: true };
 
   const label = weightsLabel(active.map((m) => next[m.id])) || "equally";
   const eventId = await db.$transaction(async (tx) => {

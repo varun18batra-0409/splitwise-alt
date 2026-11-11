@@ -38,6 +38,7 @@ import { dayKey } from "@/lib/dates";
 import { importSplitwise } from "@/lib/splitwise-import";
 import { canRestoreGroup, isGroupAdmin } from "@/lib/group-admin";
 import { hasLeft, LEFT_ERROR } from "@/lib/active";
+import { saveAllSettings } from "@/lib/settings-save";
 import { joinExisting, joinNew, newInviteLink, type JoinFail } from "@/lib/join";
 import { acceptInvitation, declineInvitation } from "@/lib/invitations";
 
@@ -303,7 +304,7 @@ export async function undoChange(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const eventId = String(formData.get("eventId") ?? "");
   const back = String(formData.get("back") ?? "group");
-  const r = await undoEvent(eventId, await getMyMemberId(groupId));
+  const r = await undoEvent(eventId, await getMyMemberId(groupId), await getTimeZone());
   const q = r.ok ? `undone=1${r.eventId ? `&did=${r.eventId}` : ""}` : `error=${encodeURIComponent(r.error)}`;
   if (back === "home") redirect(`/?${q}&g=${groupId}`);
   if (back === "people") redirect(`/groups/${groupId}/people?${q}`);
@@ -402,6 +403,43 @@ export async function updateGroupSettings(formData: FormData) {
     if (c.ok && c.eventId) redirect(`/groups/${group.id}?saved=settings&did=${c.eventId}`);
   }
   redirect(`/groups/${group.id}?saved=settings${did}`);
+}
+
+// Settings: the ONE Save. Checks everything first, then writes what changed (see lib/settings-save).
+export async function saveGroupSettings(formData: FormData) {
+  const groupId = String(formData.get("groupId") ?? "");
+  const group = await db.group.findUnique({ where: { id: groupId }, select: { id: true, type: true, members: { select: { id: true, leftAt: true } } } });
+  if (!group) redirect("/");
+  const myId = await getMyMemberId(group.id);
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  if (group.members.find((m) => m.id === myId)?.leftAt) redirect(`/groups/${group.id}/people`); // left: read-only
+  const back = `/groups/${group.id}/settings`;
+  const str = (k: string) => String(formData.get(k) ?? "");
+  const weights: Record<string, string> = {};
+  for (const [k, v] of formData.entries()) if (k.startsWith("w_")) weights[k.slice(2)] = String(v);
+  const r = await saveAllSettings(
+    group.id,
+    myId,
+    {
+      name: formData.has("name") ? str("name") : undefined,
+      markup: formData.has("markup") ? str("markup") : undefined,
+      customMarkup: str("customMarkup"),
+      secondaryCurrency: formData.has("secondaryCurrency") ? str("secondaryCurrency") : undefined,
+      currency: formData.has("currency") ? str("currency") : undefined,
+      tripDates: formData.has("tripStart") ? { start: str("tripStart"), end: str("tripEnd") } : undefined,
+      tripPlace: formData.has("tripPlace") ? { place: str("tripPlace"), country: str("tripCountry") } : undefined,
+      cover: formData.has("cover") ? str("cover") : undefined,
+      sharing: formData.has("type") ? { type: str("type"), weights } : undefined,
+      settle: formData.has("settleDay") ? { reminders: formData.get("reminders") === "on", settleDay: Number(formData.get("settleDay") ?? 0), settleMin: str("settleMin") } : undefined,
+      notify: formData.has("notifyForm")
+        ? { all: formData.get("all") === "on", expenses: formData.get("expenses") === "on", edits: formData.get("edits") === "on", payments: formData.get("payments") === "on", people: formData.get("people") === "on" }
+        : undefined,
+    },
+    dayKey(new Date(), await getTimeZone()),
+  );
+  if (!r.ok) redirect(`${back}?${new URLSearchParams({ error: r.code ?? r.error })}`);
+  if (r.convertTo) redirect(`${back}?convert=${r.convertTo}`);
+  redirect(`/groups/${group.id}?saved=settings${r.eventId ? `&did=${r.eventId}` : ""}`);
 }
 
 // Second step of changing the currency: convert everything at the confirmed rate.

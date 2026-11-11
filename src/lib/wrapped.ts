@@ -134,7 +134,7 @@ export function wrapSlides(g: {
   tripEnd?: string;
   stillToSettle: number;
   myId: string;
-}): { slides: Slide[]; awards: Award[]; total: number } {
+}): { slides: Slide[]; awards: Award[]; total: number; spentCount: number } {
   const expenses = g.expenses.filter((e) => !e.deletedAt && e.kind !== "pot");
   const money = (n: number) => formatMoney(n, g.currency);
   const name = (id: string) => (id === g.myId ? "You" : g.people.find((p) => p.id === id)?.name.split(" ")[0] ?? "Someone");
@@ -143,7 +143,7 @@ export function wrapSlides(g: {
   const days = g.tripStart && g.tripEnd ? Math.round((Date.parse(g.tripEnd) - Date.parse(g.tripStart)) / 86_400_000) + 1 : new Set(spentOnes.map((e) => dayIn(e.spentAt ?? e.createdAt, g.tz))).size;
   const slides: Slide[] = [];
   slides.push({ kind: "intro", headline: `${g.name}, wrapped`, line: `${days > 1 ? `${days} days, ` : ""}${g.people.length} of you, ${spentOnes.length} expenses`, emoji: "🎬" });
-  if (!spentOnes.length) return { slides, awards: [], total };
+  if (!spentOnes.length) return { slides, awards: [], total, spentCount: 0 };
   const paidBy = new Map<string, number>();
   // Net of money back, like the headline total, so the payers add up to it.
   for (const e of expenses) for (const p of payersOf(e)) paidBy.set(p.memberId, (paidBy.get(p.memberId) ?? 0) + (e.kind === "refund" ? -p.amount : p.amount));
@@ -221,5 +221,27 @@ export function wrapSlides(g: {
       ? { kind: "outro", headline: `${money(g.stillToSettle)} still to settle`, line: "Close it out and make it official", emoji: "🤝" }
       : { kind: "outro", headline: "All square", line: "Same time next year?", emoji: "🎉" },
   );
-  return { slides, awards, total };
+  return { slides, awards, total, spentCount: spentOnes.length };
+}
+
+// The words on the shared Wrapped picture. With "hide amounts" every money figure is swapped for a count,
+// so the picture can go to a group chat or a status without showing what anyone spent.
+export function pictureWords(p: {
+  hide: boolean;
+  total?: { amount: string; each: string };
+  day?: { label: string; amount: string };
+  splurge?: { amount: string; payer: string };
+  spentCount: number;
+  people: number;
+}): { totalKicker: string; totalBig: string; totalSub: string; daySmall: string; splurgeSmall: string } {
+  if (!p.hide) {
+    return { totalKicker: "TOGETHER WE SPENT", totalBig: p.total?.amount ?? "", totalSub: p.total ? `About ${p.total.each} each` : "", daySmall: p.day?.amount ?? "", splurgeSmall: p.splurge?.amount ?? "" };
+  }
+  return {
+    totalKicker: "TOGETHER WE ADDED",
+    totalBig: `${p.spentCount} ${p.spentCount === 1 ? "expense" : "expenses"}`,
+    totalSub: `${p.people} of us`,
+    daySmall: "the busiest day",
+    splurgeSmall: p.splurge ? `paid by ${p.splurge.payer}` : "",
+  };
 }

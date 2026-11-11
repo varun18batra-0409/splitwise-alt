@@ -171,6 +171,7 @@ export async function saveSettleRulesFor(
   groupId: string,
   actorId: string,
   input: { reminders: boolean; settleDay: number; settleMin: string },
+  opts?: { dryRun?: boolean },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: true } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
@@ -183,7 +184,7 @@ export async function saveSettleRulesFor(
   if (reminders !== group.reminders) changes.push(reminders ? "Reminders on" : "Reminders off");
   if (day !== group.settleDay) changes.push(day ? `Settle-up day: the ${ordinalDay(day)}` : "No settle-up day");
   if (min !== group.settleMin) changes.push(min ? `Leave out payments under ${formatMoney(min, group.currency)}` : "Show every payment");
-  if (!changes.length) return { ok: true };
+  if (!changes.length || opts?.dryRun) return { ok: true };
   await db.$transaction(async (tx) => {
     await tx.group.update({ where: { id: groupId }, data: { reminders, settleDay: day, settleMin: min } });
     await logEvent(tx, { groupId, actorId, kind: "bill_changed", text: "changed how the group settles up", details: changes });

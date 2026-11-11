@@ -1,6 +1,7 @@
 import Link from "@/components/Link";
 import { InviteFriends } from "@/components/InviteFriends";
 import { GetAppButton } from "@/components/GetApp";
+import { PhoneOnlyNote } from "@/components/PhoneOnlyNote";
 import { Notice } from "@/components/Notice";
 import { IntroTour } from "@/components/IntroTour";
 import { JoinByLink } from "@/components/JoinByLink";
@@ -662,6 +663,8 @@ export default async function Home({
                 New group
               </Link>
             </div>
+            {/* Not signed in: these groups live only on this phone. Said once, right under the heading. */}
+            {!account && all.length > 0 && <PhoneOnlyNote plural className="mb-2" />}
             {open.length === 0 ? (
               <p className="py-6 text-sm text-gray-500">No open groups. Create one, or reopen a closed one.</p>
             ) : (
@@ -842,22 +845,7 @@ export default async function Home({
         </details>
       )}
 
-      {/* Save groups to an email, so a new phone or the installed app can get them back. */}
-      {!account && all.length > 0 && (
-        <Link href="/signin" className="mt-8 flex items-center gap-3 rounded-2xl border border-line px-4 py-3.5 active:bg-mist">
-          <PersonIcon size={20} />
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-medium">Sign up to save your groups</span>
-            <span className="block text-xs text-gray-400">Get them back on a new phone.</span>
-          </span>
-          <span className="text-gray-400" aria-hidden>
-            ›
-          </span>
-        </Link>
-      )}
-
       {all.length > 0 && <InviteFriends name={account?.name} className="mt-8" />}
-      <GetAppButton variant="card" className="mt-3" />
       <p className="mt-8 text-center text-xs text-gray-400">
         <Link href="/faq" className="underline underline-offset-4">
           FAQ

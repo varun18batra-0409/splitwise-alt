@@ -649,26 +649,22 @@ async function main() {
   });
 
   // ===== 6. Settling up =====
-  // Every payment row on Settle up. A row where you pay someone who has joined has "I've paid" (a claim: it counts only after
-  // they tap Confirm received) and a "Paid a different amount?" link; other rows have the amount box and "Mark paid".
+  // Every payment row on Settle up has the same layout: one filled main button (Open payment app or Remind), one outlined action
+  // ("I've paid" = a claim that counts after Confirm received, or direct "I've paid" / "They've paid me" / "Mark paid" where
+  // the other person can't confirm) and a "Paid a different amount?" link. There is no amount box on the row any more.
   const settleCards = (page: Page) => page.locator("main ul > li[data-transfer-row]");
-  // Record row i's payment so it counts straight away: "Mark paid" where the row has it, else Record a payment (the link on claim rows).
+  // Record row i's payment so it counts straight away, in full or for another amount: through "Paid a different amount?" (Record a payment).
   const rowRecord = async (page: Page, i: number, o: { amount?: string; dbl?: boolean } = {}) => {
     const card = settleCards(page).nth(i);
     const other = card.getByRole("link", { name: "Paid a different amount?" });
-    if (await other.count()) {
-      await other.click();
-      await page.waitForURL(/\/pay\?/);
-      if (o.amount !== undefined) await page.locator('input[name="amount"]').fill(o.amount);
-      const b = page.getByRole("button", { name: "Record payment" });
-      if (o.dbl) await b.dblclick();
-      else await b.click();
-    } else {
-      if (o.amount !== undefined) await card.locator('input[name="amount"]').fill(o.amount);
-      const b = card.getByRole("button", { name: "Mark paid" });
-      if (o.dbl) await b.dblclick();
-      else await b.click();
-    }
+    assert(await other.count(), "a Settle up row has no “Paid a different amount?” link");
+    assert((await card.locator('input[name="amount"]').count()) === 0, "a Settle up row still has an amount box");
+    await other.click();
+    await page.waitForURL(/\/pay\?/);
+    if (o.amount !== undefined) await page.locator('input[name="amount"]').fill(o.amount);
+    const b = page.getByRole("button", { name: "Record payment" });
+    if (o.dbl) await b.dblclick();
+    else await b.click();
   };
   const cardPeople = async (page: Page, i: number, me: Person): Promise<[Person, Person, number]> => {
     const t = (await settleCards(page).nth(i).innerText()).replace(/\s+/g, " ");
@@ -683,6 +679,16 @@ async function main() {
     await V.waitForURL(/\/settle/);
     const n = await settleCards(V).count();
     assert(n >= 1 && n <= 3, `${n} payments suggested for 4 people`);
+    // One layout: a row has one filled main button (Open payment app / Remind, or its one action when it has neither), no amount box,
+    // and a "Paid a different amount?" link unless a claim is waiting.
+    for (let i = 0; i < n; i++) {
+      const row = settleCards(V).nth(i);
+      const filled = await row.locator(".pop").count();
+      const apps = await row.locator("[data-pay]").count();
+      assert(filled === (apps || 1) || (filled === 0 && (await row.locator("[data-claim-waiting], [data-claim-above]").count()) > 0), `row ${i} has ${filled} filled buttons`);
+      assert((await row.locator('input[name="amount"]').count()) === 0, `row ${i} still has an amount box`);
+      assert((await row.getByText("Mark paid", { exact: true }).count()) <= 1, `row ${i} has look-alike buttons`);
+    }
     return `${n} payments suggested`;
   });
   await step(V, "Settle", "Bottom bar “Settle” inside a group goes to the same screen", async () => {
@@ -712,7 +718,7 @@ async function main() {
     await rowRecord(V, 0, { amount: "0" });
     await V.getByText(/more than zero|valid amount/).waitFor();
   });
-  await step(V, "Settle", "Double-tapping “Mark paid” (or Record payment) records it once", async () => {
+  await step(V, "Settle", "Double-tapping Record payment records it once", async () => {
     await go(V, `${g}/settle`);
     const [from, to, amt] = await cardPeople(V, 0, "Varun");
     await rowRecord(V, 0, { dbl: true });
@@ -745,10 +751,16 @@ async function main() {
     await V.waitForURL(/claimed=1/);
     await V.getByText("Waiting for Asha to confirm").waitFor();
     await checkBalances(V, g); // the claim moved nothing
+    // Asha's Alerts lists it once, under "Needs you" (not again in Activity).
+    await go(A, "/notifications");
+    await A.locator('[data-need="claim"]').filter({ hasText: /Varun says they paid you/ }).waitFor();
+    assert((await A.getByText(/says they paid/).count()) === 1, "the claim shows up twice in Alerts");
     await go(A, `${g}/settle`);
     await A.locator("[data-waiting='Varun']").getByRole("button", { name: "Confirm received" }).click();
     await A.waitForURL(/ok=1/);
     payments.push({ from: "Varun", to: "Asha", amount: amt, active: true, key: "claim" });
+    await go(A, "/notifications");
+    assert((await A.locator('[data-need="claim"]').count()) === 0, "Needs you still lists the confirmed claim");
     return `${before} → after Confirm: ${await checkBalances(V, g)}`;
   });
   await step(V, "Settle", "Record a different payment on the payment screen (Zoe paid Asha ₹50)", async () => {
@@ -848,6 +860,20 @@ async function main() {
     const b3 = await shownBalances(V, g3);
     assert(Object.values(b2).every((x) => x === 0) && Object.values(b3).every((x) => x === 0), `not square: ${JSON.stringify({ b2, b3 })}`);
   });
+  await step(V, "Across groups", "All square page: a “Hide amounts” switch swaps the money tile for counts, and the shared picture follows", async () => {
+    await go(V, `${g2}/square`);
+    await V.locator("[data-square]").waitFor();
+    assert(/₹/.test(await V.locator("main").innerText()), "the square page shows no amount to hide");
+    await V.locator("[data-hide-amounts]").click();
+    await V.waitForURL(/amounts=0/);
+    const t = await V.locator("main").innerText();
+    assert(!/₹/.test(t), `amounts still shown: ${t.replace(/\s+/g, " ").slice(0, 200)}`);
+    assert((await V.locator("[data-hide-amounts]").getAttribute("aria-checked")) === "true", "the switch doesn't say it's on");
+    for (const q of ["", "?amounts=0"]) {
+      const r = await V.request.get(`${base}${g2}/square-image${q}`, { headers: bypass });
+      assert(r.ok() && /image\/png/.test(r.headers()["content-type"] ?? ""), `square picture ${q || "(amounts shown)"}: ${r.status()}`);
+    }
+  });
 
   // ===== 7b. Couples, shares, several payers, money back, filters, add another, repeat, duplicates =====
   let gc = "";
@@ -940,8 +966,8 @@ async function main() {
   await step(V, "Group settings", "Turn off payment notifications for one group", async () => {
     await go(V, `${gc}/settings`);
     await V.locator('input[name="payments"]').uncheck();
-    await V.getByRole("button", { name: "Save notifications" }).click();
-    await V.waitForURL(/saved=notify/);
+    await V.getByRole("button", { name: "Save settings" }).click(); // one Save for the whole settings page
+    await V.waitForURL(/saved=settings/);
     const me = await db.member.findFirst({ where: { groupId: gc.split("/").pop()!, name: "Varun" } });
     assert(JSON.parse(me!.notify).payments === false, "not saved");
   });
@@ -983,11 +1009,12 @@ async function main() {
     await V.getByRole("heading", { name: "Your groups" }).waitFor();
     await V.getByRole("navigation", { name: "Main" }).waitFor();
   });
-  await step(V, "Home", "The sliding cards at the top: 4 to 7 of them, no two the same, each with words and a button that goes somewhere", async () => {
+  await step(V, "Home", "The sliding cards at the top: 3 to 7 of them, no two the same, each with words and a button that goes somewhere; no “Coming from another app?” card", async () => {
     await go(V, "/");
     const slides = V.locator('[aria-roledescription="slide"]');
     const n = await slides.count();
-    assert(n >= 4 && n <= 7, `${n} cards`);
+    assert(n >= 3 && n <= 7, `${n} cards`);
+    assert((await V.locator('[aria-roledescription="slide"]').filter({ hasText: "Coming from another app" }).count()) === 0, "the switching card is back on Home");
     const texts = await slides.evaluateAll((els) => els.map((e) => (e as HTMLElement).innerText.replace(/\s+/g, " ").trim()));
     assert(new Set(texts).size === texts.length, `the same card twice: ${texts.join(" / ")}`);
     for (const t of texts) assert(t.length > 30, `a card with almost nothing on it: “${t}”`);
@@ -1086,7 +1113,8 @@ async function main() {
   });
   await step(V, "Group settings", "Show amounts in a second currency (USD) next to balances", async () => {
     await go(V, `${g2}/settings`);
-    await V.locator('select[name="secondaryCurrency"]').selectOption("USD");
+    await V.getByRole("radio", { name: /USD/ }).click(); // chips, not a dropdown; USD is one of the popular few
+    assert((await V.locator('input[name="secondaryCurrency"]').inputValue()) === "USD", "the second-currency chip didn't set USD");
     await V.getByRole("button", { name: "Save settings" }).click();
     await V.waitForURL(/saved=settings/);
     await go(V, g2);
@@ -1191,7 +1219,8 @@ async function main() {
   });
   await step(V, "Alerts", "Alerts screen offers phone notifications on/off", async () => {
     await go(V, "/notifications");
-    await V.getByText("Notifications on this phone").first().waitFor();
+    await V.getByText("This phone", { exact: true }).first().waitFor();
+    await V.getByText("What Loopin sends").first().waitFor();
   });
   await step(V, "Add people", "Adding the email of someone already on Loopin gets the same reply as any email; they see an invitation on Home and in Alerts", async () => {
     await go(V, `${g2}/invite`);
@@ -1347,6 +1376,8 @@ async function main() {
     await V.getByRole("link", { name: "How Loopin works" }).click();
     await V.waitForURL(/\/how-it-works/);
     await V.getByRole("heading", { name: "Add an expense in seconds" }).waitFor();
+    const basics = (await V.locator("[data-basics]").innerText()).replace(/\s+/g, " ");
+    assert(/1 Create a group/.test(basics) && /2 Add an expense/.test(basics) && /3 Record a payment/.test(basics), `the guide starts with: ${basics.slice(0, 160)}`);
     await V.waitForTimeout(2500);
     const imgs = await V.locator("main img").count();
     const sizes = await V.evaluate(() =>
@@ -1479,6 +1510,11 @@ async function main() {
     assert(elec === 0, "Electricity was added without an amount");
     await go(A, `${gh}?tab=bills`);
     assert(await A.getByRole("link", { name: "Enter amount" }).count(), "Asha sees no “Enter amount”");
+    // Each bill says where it stands: Electricity "Needs amount" (orange), Rent "Recorded" (green).
+    assert((await A.locator('[data-bill-state="needs-amount"]').count()) === 1, "Electricity has no “Needs amount” chip");
+    await go(V, `${gh}?tab=bills`);
+    assert((await V.locator('[data-bill-state="recorded"]').filter({ hasText: "Recorded" }).count()) === 1, "Rent has no “Recorded” chip");
+    assert((await V.locator('[data-bill-state="needs-amount"]').count()) === 1, "Electricity has no “Needs amount” chip");
   });
   await step(A, "Flat", "Asha taps “Enter amount”, types ₹2,840 and saves: Asha owes ₹13,580 in all", async () => {
     await go(A, `${gh}?tab=bills`);
@@ -1490,6 +1526,8 @@ async function main() {
     assert(b.Varun === 1358000 && b.Asha === -1358000, `balances ${JSON.stringify(b)}`);
     await go(V, `${gh}?tab=bills`);
     assert((await V.getByRole("link", { name: "Enter amount" }).count()) === 0, "Electricity still waiting");
+    assert((await V.locator('[data-bill-state="needs-amount"]').count()) === 0, "Electricity still says “Needs amount”");
+    assert((await V.locator('[data-bill-state="recorded"]').count()) === 2, "Rent and Electricity should both say “Recorded”");
   });
   await step(V, "Flat", "Shopping list: add Bread and Milk, tick both, enter ₹1,240 → one Groceries expense", async () => {
     await go(V, `${gh}?tab=list`);
@@ -1735,6 +1773,34 @@ async function main() {
     await ctx.close();
     assert(wide.length === 0, `scrolls sideways: ${wide.join(", ")}`);
     return `${pages.length} screens checked`;
+  });
+
+  await step(null, "Layout", "Sign-in on small phones (320×568 and 375×667): Google and the email box are both on the first screen, no scrolling", async () => {
+    const seen: string[] = [];
+    for (const [w, h] of [[320, 568], [375, 667]] as const) {
+      const ctx = await browser.newContext({ viewport: { width: w, height: h }, locale: "en-IN", timezoneId: "Asia/Kolkata", colorScheme: "dark" });
+      const page = await ctx.newPage();
+      page.setDefaultTimeout(15_000);
+      await go(page, "/signin");
+      const email = page.locator('input[name="email"]');
+      await email.waitFor();
+      const google = page.locator('a[href^="/api/auth/google/start"]');
+      const boxes = [await email.boundingBox(), (await google.count()) ? await google.boundingBox() : null];
+      for (const b of boxes) if (b) assert(b.y >= 0 && b.y + b.height <= h, `${w}×${h}: a sign-in control sits at ${Math.round(b.y)}–${Math.round(b.y + b.height)}px, past the screen`);
+      assert((await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 1, `${w}×${h}: scrolls sideways`);
+      seen.push(`${w}×${h}: email box ends at ${Math.round((boxes[0]?.y ?? 0) + (boxes[0]?.height ?? 0))}px`);
+      await ctx.close();
+    }
+    return seen.join("; ");
+  });
+  await step(V, "Group settings", "Settings has ONE Save; the group's currency is for the person who looks after it (Asha sees it as text, not a dropdown)", async () => {
+    await go(V, `${g}/settings`);
+    const form = V.locator("form[data-settings-form]");
+    assert((await form.locator('button[type="submit"]').count()) === 1, "the settings form has more than one Save button");
+    for (const gone of ["Save how you share", "Save notifications"]) assert((await V.getByRole("button", { name: gone }).count()) === 0, `still has “${gone}”`);
+    await go(A, `${g}/settings`);
+    assert((await A.locator('[data-admin-only="currency"]').count()) === 1, "Asha doesn't see the currency as admin-only text");
+    assert((await A.locator('select[name="currency"]').count()) === 0, "Asha has a currency dropdown");
   });
 
   // ===== 10. More of everyday use =====

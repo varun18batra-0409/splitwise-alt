@@ -16,6 +16,7 @@ import { UndoBar } from "@/components/UndoBar";
 import { canUndo } from "@/lib/undo";
 import { decimalsOf, formatMoney, PAYMENT_LINE, toInputAmount } from "@/lib/money";
 import { recordCustomPayment } from "@/app/actions";
+import { actionFormClass, DifferentAmountLink, differentAmountFor, filledActionClass, SettleRow } from "@/components/SettleRow";
 import { FreshKey } from "@/components/FreshKey";
 import { getTimeZone } from "@/lib/tz";
 
@@ -91,31 +92,37 @@ export default async function GamePage({ params, searchParams }: { params: Promi
               {settlement.transfers.map((t) => {
                 const { left, done } = t;
                 return (
-                  <li key={`${t.from}-${t.to}`} className="flex items-center gap-3 rounded-2xl border border-line px-4 py-3" data-transfer={done ? "paid" : "pending"}>
-                    <span className="min-w-0 flex-1 text-sm">
-                      <strong className="font-semibold">{you(t.from)}</strong> {t.from === myId ? "pay" : "pays"} <strong className="font-semibold">{youLow(t.to)}</strong>
-                    </span>
-                    <span className="text-right font-semibold tabular-nums">
-                      {money(done || left === t.amount ? t.amount : left)}
-                      {!done && left !== t.amount && <span className="block text-[11px] font-normal text-gray-500">left of {money(t.amount)}</span>}
-                    </span>
-                    {done || group.closed ? (
-                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${done ? "bg-owed/[0.14] text-owed" : "bg-fg/[0.08] text-fg/60"}`}>{done ? "paid ✓" : "pending"}</span>
-                    ) : (
-                      // Paid? Mark it right here: you stay on the game.
-                      <form action={recordCustomPayment} className="shrink-0">
-                        <input type="hidden" name="groupId" value={group.id} />
-                        <input type="hidden" name="fromId" value={t.from} />
-                        <input type="hidden" name="toId" value={t.to} />
-                        <input type="hidden" name="amount" value={toInputAmount(left, group.currency)} />
-                        <input type="hidden" name="back" value={`pot:${game.id}`} />
-                        <FreshKey name="rid" />
-                        <button type="submit" className="rounded-full bg-fg px-3 py-1 text-xs font-semibold text-canvas" aria-label={`Mark paid: ${you(t.from)} ${t.from === myId ? "pay" : "pays"} ${youLow(t.to)}`}>
-                          Mark paid
-                        </button>
-                      </form>
-                    )}
-                  </li>
+                  <SettleRow
+                    key={`${t.from}-${t.to}`}
+                    data={{ "data-transfer": done ? "paid" : "pending" }}
+                    avatarName={t.from === myId ? "You" : you(t.from)}
+                    title={`${you(t.from)} ${t.from === myId ? "pay" : "pays"} ${youLow(t.to)}`}
+                    amount={money(done || left === t.amount ? t.amount : left)}
+                    tone={t.to === myId ? "owed" : t.from === myId ? "owe" : "neutral"}
+                    sub={!done && left !== t.amount ? `left of ${money(t.amount)}` : undefined}
+                    status={
+                      done || group.closed ? (
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${done ? "bg-owed/[0.14] text-owed" : "bg-fg/[0.08] text-fg/60"}`}>{done ? "paid ✓" : "pending"}</span>
+                      ) : undefined
+                    }
+                    action={
+                      done || group.closed ? undefined : (
+                        // Paid? Mark it right here: you stay on the game.
+                        <form action={recordCustomPayment} className={actionFormClass}>
+                          <input type="hidden" name="groupId" value={group.id} />
+                          <input type="hidden" name="fromId" value={t.from} />
+                          <input type="hidden" name="toId" value={t.to} />
+                          <input type="hidden" name="amount" value={toInputAmount(left, group.currency)} />
+                          <input type="hidden" name="back" value={`pot:${game.id}`} />
+                          <FreshKey name="rid" />
+                          <button type="submit" className={filledActionClass} aria-label={`Mark paid: ${you(t.from)} ${t.from === myId ? "pay" : "pays"} ${youLow(t.to)}`}>
+                            Mark paid
+                          </button>
+                        </form>
+                      )
+                    }
+                    link={done || group.closed ? undefined : <DifferentAmountLink href={differentAmountFor(group.id, t.from, t.to, toInputAmount(left, group.currency), false)} />}
+                  />
                 );
               })}
             </ul>

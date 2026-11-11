@@ -7,7 +7,7 @@ import type { CoverId } from "../covers";
 // The cards that slide by at the top of Home, picked for you: what's useful
 // right now comes first (the trip you're on, the next trip's weather and
 // what's on there, a trip just over, postcards waiting, a bill due), then your
-// month, a festival where you live, and a few always-good ones to fill in.
+// month, a festival where you live, and a few always-good ones to fill in (the "Coming from another app?" card is gone: it lives on the new-user Home, How Loopin works and Import).
 // Between 4 and 7 cards; never a card with nothing to say.
 
 export type HighlightTone = "trip" | "sky" | "warm" | "teal" | "rose" | "night" | "paper";
@@ -215,12 +215,9 @@ export function homeHighlights(x: HighlightInput): Highlight[] {
     ...(x.trips.length === 0
       ? [{ id: "fill-trip", kind: "card" as const, tone: "trip" as const, eyebrow: "Nothing booked yet", title: "Where to next?", text: "Start a trip group now. The countdown, the stories and the split come with it.", button: "Plan a trip", href: "/groups/new?type=trip", cover: "beach" as CoverId }]
       : []),
-    ...(x.groups <= 3
-      ? [{ id: "fill-switch", kind: "card" as const, tone: "teal" as const, eyebrow: "Switching to Loopin?", title: "Coming from another app?", text: "Bring a group over in about a minute. Same balances.", button: "Bring a group over", href: "/switching", art: "switch" as const }]
-      : []),
   ];
   for (const f of fillers) {
-    if (out.length >= 4) break;
+    if (out.length >= 3) break;
     add(f);
   }
   return out;

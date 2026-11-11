@@ -1,0 +1,50 @@
+// What one payment row on Settle up offers. The same rules everywhere:
+//   one FILLED main button  – "Open payment app" (I'm paying and they have one) or "Remind" (I'm owed)
+//   one OUTLINED action     – "I've paid" (a claim: counts after Confirm received), or the same words recorded straight away
+//                             where the other person can't confirm; "They've paid me" for money owed to me; "Mark paid" for others
+//   one quiet text link     – "Paid a different amount?"
+// A row with no main button makes its one action the filled one. Never two buttons that look alike.
+
+export type RowFacts = {
+  iPay: boolean; // I'm the one paying
+  iAmPaid: boolean; // I'm the one being paid
+  closed: boolean;
+  iLeft: boolean; // someone who left can't say they paid
+  receiverCanConfirm: boolean; // the person paid is on Loopin and can tap Confirm received
+  payApps: number; // how many "Open payment app" buttons I'd have
+  myClaimWaiting: boolean; // my "I've paid" is waiting for them
+  theirClaimWaiting: boolean; // they say they paid me (answered in the box at the top)
+};
+
+export type RowPlan = {
+  main: "pay-app" | "remind" | null;
+  action: "claim" | "record" | null;
+  actionFilled: boolean; // the action is the row's one filled button
+  actionLabel: "I’ve paid" | "They’ve paid me" | "Mark paid" | null;
+  status: "waiting" | "their-claim" | null;
+  differentAmount: boolean; // show "Paid a different amount?"
+  filledButtons: number; // how many filled buttons the row shows (a row with several payment apps shows one per app)
+};
+
+export function planSettleRow(f: RowFacts): RowPlan {
+  const canRecord = !f.closed && !f.iLeft;
+  const claimable = f.iPay && !f.closed && !f.iLeft && f.receiverCanConfirm;
+  const main: RowPlan["main"] = f.iPay && f.payApps > 0 ? "pay-app" : f.iAmPaid && !f.closed && !f.theirClaimWaiting ? "remind" : null;
+  let action: RowPlan["action"] = null;
+  let status: RowPlan["status"] = null;
+  if (claimable && f.myClaimWaiting) status = "waiting";
+  else if (claimable) action = "claim";
+  else if (canRecord && !f.theirClaimWaiting) action = "record";
+  else if (f.theirClaimWaiting) status = "their-claim";
+  const actionFilled = action !== null && main === null;
+  const actionLabel = action === null ? null : f.iPay ? "I’ve paid" : f.iAmPaid ? "They’ve paid me" : "Mark paid";
+  return {
+    main,
+    action,
+    actionFilled,
+    actionLabel,
+    status,
+    differentAmount: canRecord && status !== "waiting",
+    filledButtons: main === "pay-app" ? f.payApps : main === "remind" ? 1 : actionFilled ? 1 : 0,
+  };
+}

@@ -60,6 +60,40 @@ test("rename a group, then Undo puts the old name back", async () => {
   expect(await shownGroupName(page, g.path)).toBe(`${name} 2`);
 });
 
+test("Settings has ONE Save: the name, card fee, second currency, group type chips and notifications save together", async () => {
+  const name = groupName("One save");
+  const g = await createGroup(page, name);
+  await page.goto(`${g.path}/settings`);
+  await settled(page);
+  const form = page.locator("form[data-settings-form]");
+  await expect(form.locator('button[type="submit"]')).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Save how you share" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Save notifications" })).toHaveCount(0);
+  // Chips that keep the same field names (no phone dropdowns for these).
+  await expect(page.locator('select[name="secondaryCurrency"], select[name="type"], select[name="settleDay"]')).toHaveCount(0);
+  await page.locator('input[name="name"]').fill(`${name} saved`);
+  await page.locator('input[name="markup"][value="300"]').check({ force: true });
+  await page.getByRole("radio", { name: /USD/ }).click();
+  await page.locator('input[name="payments"]').uncheck();
+  await page.getByRole("button", { name: "Save settings" }).click();
+  await page.waitForURL(/saved=settings/);
+  await page.goto(`${g.path}/settings`);
+  await settled(page);
+  await expect(page.locator('input[name="name"]')).toHaveValue(`${name} saved`);
+  await expect(page.locator('input[name="markup"][value="300"]')).toBeChecked();
+  await expect(page.locator('input[name="secondaryCurrency"]')).toHaveValue("USD");
+  await expect(page.locator('input[name="payments"]')).not.toBeChecked();
+  // A bad card fee saves nothing at all (not even the new name).
+  await page.locator('input[name="name"]').fill(`${name} nope`);
+  await page.locator('input[name="markup"][value="custom"]').check({ force: true });
+  await page.locator('input[name="customMarkup"]').fill("55");
+  await page.getByRole("button", { name: "Save settings" }).click();
+  await expect(page.getByText("Enter a markup between 0% and 20%")).toBeVisible();
+  await page.goto(`${g.path}/settings`);
+  await settled(page);
+  await expect(page.locator('input[name="name"]')).toHaveValue(`${name} saved`);
+});
+
 test("close a group: it moves to Closed groups and adding is paused; reopen it", async () => {
   const name = groupName("Close me");
   const g = await createGroup(page, name);

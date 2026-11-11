@@ -14,6 +14,7 @@ import { placeOf } from "@/lib/countdown";
 import { buildGroupView } from "./_components/view";
 import { getTimeZone } from "@/lib/tz";
 import { GroupHeader } from "./_components/GroupHeader";
+import { PhoneOnlyNote } from "@/components/PhoneOnlyNote";
 import { GroupSummary } from "./_components/GroupSummary";
 import { ActivityTab } from "./_components/ActivityTab";
 import { BalancesTab } from "./_components/BalancesTab";
@@ -98,7 +99,7 @@ export default async function GroupPage({
     if (invitation) return <PendingGroup inv={invitation} />;
     redirect("/private");
   }
-  const [data, tz, switchTo] = await Promise.all([loadGroup(id, { viewer: myId }), getTimeZone(), loadSwitchList(memberships, id)]);
+  const [data, tz, switchTo, account] = await Promise.all([loadGroup(id, { viewer: myId }), getTimeZone(), loadSwitchList(memberships, id), getAccount()]);
   if (!data) notFound();
   // Still in it? (A removed person's phone can remember the group.)
   if (!data.group.members.some((m) => m.id === myId)) redirect("/private");
@@ -178,6 +179,7 @@ export default async function GroupPage({
       <GroupHeader v={v} switchTo={switchTo} />
       <LeftBanner v={v} />
       <GroupSummary v={v} sp={sp} compact={home} />
+      {!account && <PhoneOnlyNote back={`/groups/${group.id}`} className="mb-5" />}
       {sp.imported && <ImportedNote code={sp.imported} groupId={group.id} />}
 
       <nav className="-mx-5 mb-5 flex gap-6 overflow-x-auto border-b border-line px-5 [scrollbar-width:none]" aria-label="Group sections">

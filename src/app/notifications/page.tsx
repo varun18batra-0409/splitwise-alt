@@ -8,9 +8,17 @@ import { byDay } from "@/lib/activity";
 import { getTimeZone } from "@/lib/tz";
 import { parseDetails } from "@/lib/events";
 import { PageHeader } from "@/components/ui";
-import { PushToggle } from "@/components/PushControls";
+import { PhoneStatus } from "@/components/PushControls";
+import { loadNeedsYou, withoutRepeats } from "@/lib/needs-you";
 import { InvitationCard } from "@/components/InvitationCard";
 import { loadInvitations } from "@/lib/invitations";
+
+const NEED_ACTION: Record<"claim" | "payment" | "bill" | "collect", string> = {
+  claim: "Confirm received",
+  payment: "Confirm received",
+  bill: "Enter amount",
+  collect: "Check it",
+};
 
 const ICON: Record<string, string> = {
   expense_added: "＋",
@@ -51,27 +59,74 @@ const ICON: Record<string, string> = {
 export default async function Notifications() {
   const [memberships, tz, account] = await Promise.all([getMemberships(), getTimeZone(), getAccount()]);
   const [{ items }, notes, invitations] = await Promise.all([loadNotifications(memberships, 100), account ? loadNotes(account.id, 50) : Promise.resolve([]), loadInvitations(account)]);
+  const needs = await loadNeedsYou(memberships, account, invitations.length);
   await Promise.all([markNotificationsSeen(memberships), account ? markNotesSeen(account.id) : null]);
 
   // Group changes and personal notes (Collect) together, newest first.
   type Row = { date: Date } & ({ type: "event"; n: (typeof items)[number] } | { type: "note"; note: (typeof notes)[number] });
-  const rows: Row[] = [
+  const all: Row[] = [
     ...items.map((n) => ({ type: "event" as const, n, date: n.event.createdAt })),
     ...notes.map((note) => ({ type: "note" as const, note, date: note.createdAt })),
   ].sort((a, b) => b.date.getTime() - a.date.getTime());
+  // Whatever is already under "Needs you" isn't listed a second time in Activity.
+  const kept = new Set(
+    withoutRepeats(
+      all.map((r) =>
+        r.type === "event"
+          ? { type: "event" as const, groupId: r.n.event.groupId, kind: r.n.event.kind, actorId: r.n.event.actorId, row: r }
+          : { type: "note" as const, kind: r.note.kind, url: r.note.url, body: r.note.body, row: r },
+      ),
+      needs.items,
+    ).map((x) => x.row),
+  );
+  const rows = all.filter((r) => kept.has(r));
   const time = (d: Date) => d.toLocaleTimeString("en-IN", { timeZone: tz, hour: "numeric", minute: "2-digit" });
 
   return (
     <>
       <PageHeader title="Alerts" back="/" />
-      <PushToggle />
+      {/* Things only you can answer, first. */}
+      {needs.total > 0 && (
+        <section aria-label="Needs you" className="mb-8" data-needs-you={needs.total}>
+          <h2 className="mb-2.5 px-1 font-display text-lg font-semibold tracking-tight">Needs you</h2>
+          {invitations.length > 0 && (
+            <div className="mb-3 space-y-3" data-invitations>
+              {invitations.map((inv) => (
+                <InvitationCard key={inv.key} inv={inv} />
+              ))}
+            </div>
+          )}
+          {needs.items.length > 0 && (
+            <ul className="divide-y divide-line rounded-2xl border border-owe/30 bg-owe/[0.05]">
+              {needs.items.map((it) => (
+                <li key={it.id} data-need={it.kind}>
+                  <Link href={it.href} className="flex items-center gap-3 px-4 py-3 active:bg-mist">
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-medium">{it.text}</span>
+                      <span className="block truncate text-xs text-gray-400">
+                        {it.where} · {NEED_ACTION[it.kind]}
+                      </span>
+                    </span>
+                    <span aria-hidden className="text-gray-400">
+                      ›
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {/* Notifications: what this phone allows, then what Loopin sends. */}
+      <PhoneStatus />
       {account && (
-        // Collect notifications (being added, reminders, payments checked, people ticking): on the phone or not.
-        <form action={setCollectPush} className="-mt-2 mb-6 flex items-center gap-3 rounded-2xl border border-line px-4 py-3">
+        // Collection and passport alerts: on the phone or not (always listed here too).
+        <form action={setCollectPush} className="mb-8 flex items-center gap-3 rounded-2xl border border-line px-4 py-3">
           <input type="hidden" name="on" value={account.collectPush ? "0" : "1"} />
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-medium">Personal alerts on this phone</span>
-            <span className="block text-xs text-gray-400">Collections (added, reminders, payments) and passport moments. Always listed here too.</span>
+            <span className="block text-sm font-medium">What Loopin sends</span>
+            <span className="block text-xs text-gray-400">Collections (added, reminders, payments) and passport moments. Group alerts are chosen in each group’s settings.</span>
           </span>
           <button
             type="submit"
@@ -84,14 +139,8 @@ export default async function Notifications() {
           </button>
         </form>
       )}
-      {invitations.length > 0 && (
-        <div className="mb-6 space-y-3" data-invitations>
-          {invitations.map((inv) => (
-            <InvitationCard key={inv.key} inv={inv} />
-          ))}
-        </div>
-      )}
-      {rows.length === 0 ? (
+      {rows.length > 0 && <h2 className="mb-1 px-1 font-display text-lg font-semibold tracking-tight">Activity</h2>}
+      {rows.length === 0 && needs.total > 0 ? null : rows.length === 0 ? (
         <p className="rounded-2xl bg-mist px-4 py-10 text-center text-sm text-gray-600">
           Nothing yet. When someone adds, changes or deletes something in your groups, or something happens in a collection, it shows up here.
         </p>

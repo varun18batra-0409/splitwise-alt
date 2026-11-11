@@ -107,7 +107,7 @@ const SECTIONS: { title: string; items: QA[] }[] = [
       },
       {
         q: "How does Settle up work? Does Loopin move money?",
-        a: "Settle up shows a short list of payments that clears everything, even across all your groups at once. You pay each other however you like, then tap I’ve paid; it counts once the person you paid taps Confirm received. Loopin only records payments; it never holds or moves money and never asks for bank details.",
+        a: "Settle up shows a short list of payments that clears everything, even across all your groups at once. You pay each other however you like, then tap I’ve paid; it counts once the person you paid taps Confirm received. Paid a different amount? Tap Paid a different amount? on the payment. Loopin only records payments; it never holds or moves money and never asks for bank details.",
       },
       {
         q: "Can people pay me with UPI, PayPal or Venmo in one tap?",
@@ -186,7 +186,7 @@ const SECTIONS: { title: string; items: QA[] }[] = [
       },
       {
         q: "Does Loopin hold the money or run the game?",
-        a: "Neither. It only keeps count, like a notebook at the table: no chips, bets or hands, and it never holds or moves money. You pay each other however you usually do, then mark it paid in Settle up.",
+        a: "Neither. It only keeps count, like a notebook at the table: no chips, bets or hands, and it never holds or moves money. You pay each other however you usually do, then tap I’ve paid in Settle up.",
       },
       {
         q: "Where is Collect?",

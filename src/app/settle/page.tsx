@@ -2,12 +2,13 @@ import Link from "@/components/Link";
 import { getMemberships } from "@/lib/identity";
 import { Notice } from "@/components/Notice";
 import { loadOverview } from "@/lib/overview";
-import { formatMoney, PAYMENT_LINE } from "@/lib/money";
+import { formatMoney, PAYMENT_LINE, toInputAmount } from "@/lib/money";
+import { DifferentAmountLink, differentAmountFor, mainButtonClass, outlineButtonClass, PayAppButtons, RemindIcon, SettleRow } from "@/components/SettleRow";
 import { crossPreview } from "@/lib/cross-settle";
 import { settleAcrossGroups } from "@/app/actions";
 import { STALE_KEY_ERROR } from "@/lib/once";
 import { FreshKey } from "@/components/FreshKey";
-import { Avatar, PageHeader } from "@/components/ui";
+import { PageHeader } from "@/components/ui";
 import { SquareSeal } from "@/components/DrawnIcons";
 import { db } from "@/lib/db";
 import { payButtons } from "@/lib/pay-links";
@@ -63,100 +64,79 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
                     // Remind about a part where they owe you (never one where you're the one paying).
                     const biggest = [...it.parts].filter((p) => !p.iPay).sort((a, b) => b.amount - a.amount)[0];
                     return (
-                      <li
+                      <SettleRow
                         key={it.key}
-                        className={`rounded-[22px] border px-4 py-3.5 ${it.net < 0 ? "border-owe/25 bg-[linear-gradient(180deg,rgba(255,171,107,0.07),rgba(255,171,107,0.02))]" : "border-line bg-white"}`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <Avatar name={it.name} />
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-[15px] font-semibold">{it.net < 0 ? `You pay ${it.name}` : it.net > 0 ? `${it.name} pays you` : `You and ${it.name} are even`}</p>
-                            <p className={`money text-[22px] leading-tight ${it.net < 0 ? "text-owe" : it.net > 0 ? "text-owed" : "text-gray-400"}`}>{it.net === 0 ? "Even" : amt(it.net)}</p>
-                          </div>
-                          {it.net > 0 && biggest && (
-                            <Link
-                              href={`/groups/${biggest.groupId}/remind?from=${biggest.fromId}`}
-                              data-remind
-                              className="flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-line bg-mist px-3.5 text-sm font-semibold active:scale-[0.97]"
-                            >
-                              <svg aria-hidden width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M21 3 10 14M21 3l-7 18-4-7-7-4Z" />
-                              </svg>
-                              Remind
-                            </Link>
-                          )}
-                        </div>
-                        <ul className="mt-2 space-y-0.5 pl-12 text-xs text-gray-500">
-                          {it.parts.length === 1 ? (
-                            <li>In {it.parts[0].groupName}</li>
-                          ) : (
-                            it.parts.map((p) => (
-                              <li key={`${p.groupId}-${p.fromId}-${p.toId}`} className="flex flex-wrap items-baseline justify-between gap-x-3">
-                                <span>
-                                  {p.groupName}: {p.iPay ? `you pay ${formatMoney(p.amount, p.currency)}` : `${it.name} pays you ${formatMoney(p.amount, p.currency)}`}
-                                </span>
-                                {/* Just this group for now (the trip today, the flat at month-end). */}
-                                <Link href={`/groups/${p.groupId}/settle`} className="shrink-0 font-medium text-fg underline underline-offset-2">
-                                  Settle only here
-                                </Link>
-                              </li>
-                            ))
-                          )}
-                        </ul>
-                        {it.net < 0 &&
-                          !it.converted &&
-                          (() => {
+                        avatarName={it.name}
+                        title={it.net < 0 ? `You pay ${it.name}` : it.net > 0 ? `${it.name} pays you` : `You and ${it.name} are even`}
+                        amount={it.net === 0 ? "Even" : amt(it.net)}
+                        tone={it.net < 0 ? "owe" : it.net > 0 ? "owed" : "neutral"}
+                        tint={it.net < 0 ? "owe" : "mine"}
+                        sub={
+                          <ul className="space-y-0.5">
+                            {it.parts.length === 1 ? (
+                              <li>In {it.parts[0].groupName}</li>
+                            ) : (
+                              it.parts.map((p) => (
+                                <li key={`${p.groupId}-${p.fromId}-${p.toId}`} className="flex flex-wrap items-baseline justify-between gap-x-3">
+                                  <span>
+                                    {p.groupName}: {p.iPay ? `you pay ${formatMoney(p.amount, p.currency)}` : `${it.name} pays you ${formatMoney(p.amount, p.currency)}`}
+                                  </span>
+                                  {/* Just this group for now (the trip today, the flat at month-end). */}
+                                  <Link href={`/groups/${p.groupId}/settle`} className="shrink-0 font-medium text-fg underline underline-offset-2">
+                                    Settle only here
+                                  </Link>
+                                </li>
+                              ))
+                            )}
+                          </ul>
+                        }
+                        hint={it.parts.length > 1 ? `1 payment instead of ${it.parts.length}` : undefined}
+                        main={(() => {
+                          if (it.net < 0 && !it.converted) {
                             const a = accounts.find((x) => `acc:${x.id}` === it.key);
                             const buttons = payButtons(a, { amount: -it.net, currency: common, toName: it.name, note: "Loopin settle-up" });
-                            return buttons.length ? (
-                              <div className="mt-3 flex flex-wrap gap-2 pl-12" data-pay-buttons>
-                                {buttons.map((b) => (
-                                  <a
-                                    key={b.kind}
-                                    href={b.href}
-                                    {...(b.kind === "upi" ? {} : { target: "_blank", rel: "noopener noreferrer" })}
-                                    className="inline-flex h-10 items-center rounded-full bg-fg px-4 text-sm font-semibold text-canvas active:scale-[0.97]"
-                                    data-pay={b.kind}
-                                  >
-                                    Open payment app{b.kind === "upi" ? "" : ` (${b.label})`}
-                                  </a>
-                                ))}
-                              </div>
-                            ) : null;
-                          })()}
-                        {/* Shows each group's part and the total first; only "Record in N groups" saves anything. */}
-                        {(() => {
+                            if (buttons.length) return <PayAppButtons buttons={buttons} />;
+                          }
+                          return it.net > 0 && biggest ? (
+                            <Link href={`/groups/${biggest.groupId}/remind?from=${biggest.fromId}`} data-remind className={mainButtonClass}>
+                              <RemindIcon />
+                              Remind
+                            </Link>
+                          ) : undefined;
+                        })()}
+                        link={
+                          it.parts.length === 1 && !it.converted ? (
+                            <DifferentAmountLink href={differentAmountFor(it.parts[0].groupId, it.parts[0].fromId, it.parts[0].toId, toInputAmount(it.parts[0].amount, it.parts[0].currency), false)} />
+                          ) : undefined
+                        }
+                        action={(() => {
+                          // Shows each group's part and the total first; only "Record in N groups" saves anything.
                           const pv = crossPreview(it, common);
                           return (
-                            <div className="mt-3 pl-12">
-                              <span className="text-xs text-gray-400">{it.parts.length > 1 ? `1 payment instead of ${it.parts.length}` : ""}</span>
-                              <details className="group mt-1.5" data-cross-preview>
-                                <summary className="flex h-10 w-fit cursor-pointer list-none items-center rounded-full border border-fg/18 bg-fg/[0.07] px-4 text-sm font-semibold text-fg active:scale-[0.97] [&::-webkit-details-marker]:hidden">
-                                  Mark as paid
-                                </summary>
-                                <div className="mt-3 rounded-2xl border border-line bg-mist px-4 py-3.5">
-                                  <p className="text-sm font-semibold">This will record:</p>
-                                  <ul className="mt-2 space-y-1 text-sm text-fg/80" data-cross-lines>
-                                    {pv.lines.map((l) => (
-                                      <li key={l}>{l}</li>
-                                    ))}
-                                  </ul>
-                                  <p className="mt-2 border-t border-line pt-2 text-sm font-semibold" data-cross-total>
-                                    {pv.total}
-                                  </p>
-                                  <form action={settleAcrossGroups} className="mt-3">
-                                    <FreshKey name="rid" />
-                                    <input type="hidden" name="parts" value={JSON.stringify(it.parts.map((p) => ({ groupId: p.groupId, fromId: p.fromId, toId: p.toId, amount: p.amount })))} />
-                                    <button type="submit" data-haptic="success" data-cross-record className="pop block w-full bg-fg px-4 py-3 text-center text-[15px] font-semibold text-canvas">
-                                      {pv.button}
-                                    </button>
-                                  </form>
-                                </div>
-                              </details>
-                            </div>
+                            <details className="group flex-1 basis-40 open:basis-full" data-cross-preview>
+                              <summary className={`${outlineButtonClass} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>Mark as paid</summary>
+                              <div className="mt-3 rounded-2xl border border-line bg-mist px-4 py-3.5">
+                                <p className="text-sm font-semibold">This will record:</p>
+                                <ul className="mt-2 space-y-1 text-sm text-fg/80" data-cross-lines>
+                                  {pv.lines.map((l) => (
+                                    <li key={l}>{l}</li>
+                                  ))}
+                                </ul>
+                                <p className="mt-2 border-t border-line pt-2 text-sm font-semibold" data-cross-total>
+                                  {pv.total}
+                                </p>
+                                <form action={settleAcrossGroups} className="mt-3">
+                                  <FreshKey name="rid" />
+                                  <input type="hidden" name="parts" value={JSON.stringify(it.parts.map((p) => ({ groupId: p.groupId, fromId: p.fromId, toId: p.toId, amount: p.amount })))} />
+                                  <button type="submit" data-haptic="success" data-cross-record className="pop block w-full bg-fg px-4 py-3 text-center text-[15px] font-semibold text-canvas">
+                                    {pv.button}
+                                  </button>
+                                </form>
+                              </div>
+                            </details>
                           );
                         })()}
-                      </li>
+                      />
                     );
                   })}
                 </ul>

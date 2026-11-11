@@ -5,19 +5,21 @@ import { notFound, redirect } from "next/navigation";
 import { Notice } from "@/components/Notice";
 import { getMyMemberId } from "@/lib/identity";
 import { loadGroup } from "@/lib/group-data";
-import { differentAmountHref, formatMoney, overpayLine, PAYMENT_LINE, toInputAmount } from "@/lib/money";
+import { formatMoney, overpayLine, PAYMENT_LINE, toInputAmount } from "@/lib/money";
 import { applySettleMin, pairwiseDebtCount } from "@/lib/settle";
 import { planKey } from "@/lib/settle-all";
 import { canUndo } from "@/lib/undo";
 import { recordCustomPayment, settleEverything } from "@/app/actions";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { actionFormClass, DifferentAmountLink, differentAmountFor, filledActionClass, mainButtonClass, outlineButtonClass, PayAppButtons, RemindIcon, SettleRow } from "@/components/SettleRow";
 import { FreshKey } from "@/components/FreshKey";
 import { UndoBar } from "@/components/UndoBar";
-import { Avatar, ErrorNote, PageHeader, secondaryButtonClass } from "@/components/ui";
+import { ErrorNote, PageHeader, secondaryButtonClass } from "@/components/ui";
 import { db } from "@/lib/db";
 import { getAccount } from "@/lib/identity";
 import { payButtons, type PayWays } from "@/lib/pay-links";
 import { needsOkFor, waitingForMe } from "@/lib/payment-ok";
+import { planSettleRow } from "@/lib/settle-row";
 import { claimsWaitingFor, declinedNote, myDeclinedClaims, myWaitingClaims } from "@/lib/payment-claims";
 import { claimPaidAction, confirmClaimAction, confirmPaymentAction, declineClaimAction, markAllPaidAction, rejectPaymentAction, withdrawClaimAction } from "@/app/pay-actions";
 
@@ -239,120 +241,101 @@ export default async function GroupSettle({
             const mine = t.from === myId || t.to === myId;
             const other = t.from === myId ? t.to : t.from;
             const receiver = group.members.find((m) => m.id === t.to);
-            // My own "I've paid" (a claim) is for when the person I'm paying can tap "Confirm received".
-            const claimable = t.from === myId && !group.closed && !iLeft && needsOkFor(receiver, myId);
             const myClaim = t.from === myId ? myClaims.find((c) => c.toId === t.to) : undefined;
             const notReceived = t.from === myId && !myClaim ? myDeclined.find((c) => c.toId === t.to) : undefined;
-            const buttons = t.from === myId ? payButtons(waysOf(t.to), { amount: t.amount, currency: group.currency, toName: group.members.find((m) => m.id === t.to)?.name ?? "", note: group.name }) : [];
-            return (
-              <li
-                key={`${t.from}-${t.to}`}
-                data-transfer-row
-                className={`rounded-[22px] border px-4 py-3.5 ${t.from === myId ? "border-owe/25 bg-[linear-gradient(180deg,rgba(255,171,107,0.07),rgba(255,171,107,0.02))]" : mine ? "border-line bg-white" : "border-line"}`}
-              >
-                <div className="flex items-center gap-3">
-                  <Avatar name={nameOf(mine ? other : t.from)} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[15px] font-semibold">
-                      {nameOf(t.from)} {t.from === myId ? "pay" : "pays"} {t.to === myId ? "you" : nameOf(t.to)}
-                    </p>
-                    <p className={`money text-[22px] leading-tight ${t.to === myId ? "text-owed" : t.from === myId ? "text-owe" : "text-fg/80"}`}>{money(t.amount)}</p>
-                  </div>
-                  {t.to === myId && !group.closed && (
-                    <a
-                      href={`/groups/${group.id}/remind?from=${encodeURIComponent(t.from)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-line bg-mist px-3.5 text-sm font-semibold active:scale-[0.97]"
-                      data-remind={t.from}
-                    >
-                      <svg aria-hidden width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 3 10 14M21 3l-7 18-4-7-7-4Z" />
-                      </svg>
-                      Remind
-                    </a>
-                  )}
+            const buttons = t.from === myId ? payButtons(waysOf(t.to), { amount: t.amount, currency: group.currency, toName: receiver?.name ?? "", note: group.name }) : [];
+            const theirClaim = t.to === myId ? (claimsToMe.find((c) => c.fromId === t.from) ?? waiting.find((p) => p.fromId === t.from)) : undefined; // answered in "Did you get these?" above
+            const plan = planSettleRow({
+              iPay: t.from === myId,
+              iAmPaid: t.to === myId,
+              closed: group.closed,
+              iLeft,
+              receiverCanConfirm: needsOkFor(receiver, myId),
+              payApps: buttons.length,
+              myClaimWaiting: Boolean(myClaim),
+              theirClaimWaiting: Boolean(theirClaim),
+            });
+            // One filled button per row: the payment app (when I'm paying and they have one) or Remind (when I'm owed).
+            const main =
+              plan.main === "pay-app" ? (
+                <PayAppButtons buttons={buttons} />
+              ) : plan.main === "remind" ? (
+                <a href={`/groups/${group.id}/remind?from=${encodeURIComponent(t.from)}`} target="_blank" rel="noopener noreferrer" className={mainButtonClass} data-remind={t.from}>
+                  <RemindIcon />
+                  Remind
+                </a>
+              ) : undefined;
+            const btn = plan.actionFilled ? filledActionClass : outlineButtonClass; // a row with no main button makes its one action the filled one
+            const label = plan.actionLabel;
+            let action: React.ReactNode = undefined;
+            let status: React.ReactNode = undefined;
+            let hint: string | undefined;
+            if (plan.status === "waiting" && myClaim) {
+              status = (
+                <div data-claim-waiting={t.to}>
+                  <p className="text-sm font-semibold text-fg/80">Waiting for {receiver?.name} to confirm</p>
+                  <form action={withdrawClaimAction}>
+                    <input type="hidden" name="claimId" value={myClaim.id} />
+                    <button type="submit" className="mt-1 inline-flex min-h-11 items-center text-sm font-medium text-fg/70 underline underline-offset-4">
+                      Tapped by mistake? Take it back
+                    </button>
+                  </form>
                 </div>
-                {/* Pay in one tap: the payment app opens with the amount filled in. */}
-                {buttons.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2 pl-12" data-pay-buttons>
-                    {buttons.map((b) => (
-                      <a
-                        key={b.kind}
-                        href={b.href}
-                        {...(b.kind === "upi" ? {} : { target: "_blank", rel: "noopener noreferrer" })}
-                        className="pop inline-flex h-10 items-center gap-1.5 bg-fg px-4 text-sm font-semibold text-canvas"
-                        data-pay={b.kind}
-                      >
-                        Open payment app{b.kind === "upi" ? "" : ` (${b.label})`}
-                      </a>
-                    ))}
-                    <span className="basis-full text-xs text-gray-400">
-                      {claimable ? `Pay ${money(t.amount)}, then tap I’ve paid. It counts once ${receiver?.name ?? "they"} confirm${receiver?.name ? "s" : ""}.` : "Paid? Tap Mark paid below so it counts."}
-                    </span>
-                  </div>
-                )}
-                {claimable ? (
-                  myClaim ? (
-                    <div className="mt-3 pl-12" data-claim-waiting={t.to}>
-                      <p className="text-sm font-semibold text-fg/80">Waiting for {receiver?.name} to confirm</p>
-                      <form action={withdrawClaimAction}>
-                        <input type="hidden" name="claimId" value={myClaim.id} />
-                        <button type="submit" className="mt-1 inline-flex min-h-11 items-center text-sm font-medium text-fg/70 underline underline-offset-4">
-                          Tapped by mistake? Take it back
-                        </button>
-                      </form>
-                    </div>
-                  ) : (
-                    <div className="mt-3 pl-12">
-                      {notReceived && (
-                        <p className="mb-2 rounded-xl border border-owe/30 bg-owe-soft px-3 py-2 text-sm" role="status" data-claim-declined={t.to}>
-                          {declinedNote(receiver?.name ?? "They", notReceived.amount, notReceived.currency)}
-                        </p>
-                      )}
-                      <form action={claimPaidAction}>
-                        <input type="hidden" name="groupId" value={group.id} />
-                        <input type="hidden" name="fromId" value={t.from} />
-                        <input type="hidden" name="toId" value={t.to} />
-                        <input type="hidden" name="amount" value={t.amount} />
-                        <button type="submit" data-haptic="success" data-i-paid className="pop block w-full bg-owed px-4 py-3 text-center text-[15px] font-semibold text-canvas [--pop-edge:#1f6b4a]">
-                          I’ve paid {money(t.amount)}
-                        </button>
-                      </form>
-                      <Link href={differentAmountHref(group.id, t.from, t.to, toInputAmount(t.amount, group.currency))} className="mt-1 inline-flex min-h-11 items-center text-sm font-medium text-fg/70 underline underline-offset-4">
-                        Paid a different amount?
-                      </Link>
-                    </div>
-                  )
-                ) : (
-                  !group.closed && (
-                    <>
-                      <form action={recordCustomPayment} className="mt-3 flex items-center gap-2 pl-12">
-                        <input type="hidden" name="groupId" value={group.id} />
-                        <input type="hidden" name="fromId" value={t.from} />
-                        <input type="hidden" name="toId" value={t.to} />
-                        <input type="hidden" name="back" value="settle" />
-                        <FreshKey name="rid" />
-                        <label className="flex h-10 min-w-0 flex-1 items-center rounded-full border border-line bg-mist px-3.5 focus-within:border-fg/40">
-                          <span className="nobreak shrink-0 text-xs text-gray-400">{group.currency}</span>
-                          <input
-                            name="amount"
-                            inputMode="decimal"
-                            defaultValue={toInputAmount(t.amount, group.currency)}
-                            aria-label={`Amount ${nameOf(t.from)} paid ${t.to === myId ? "you" : nameOf(t.to)}`}
-                            autoComplete="off"
-                            className="w-full bg-transparent px-2 text-right text-base tabular-nums outline-none"
-                          />
-                        </label>
-                        <button type="submit" data-haptic="success" className="h-10 shrink-0 rounded-full border border-fg/18 bg-fg/[0.07] px-4 text-sm font-semibold text-fg active:scale-[0.97]">
-                          Mark paid
-                        </button>
-                      </form>
-                      <p className="mt-1.5 pl-12 text-xs text-gray-400">Paid less? Change the amount first.</p>
-                    </>
-                  )
-                )}
-              </li>
+              );
+            } else if (plan.action === "claim") {
+              if (notReceived) {
+                status = (
+                  <p className="rounded-xl border border-owe/30 bg-owe-soft px-3 py-2 text-sm" role="status" data-claim-declined={t.to}>
+                    {declinedNote(receiver?.name ?? "They", notReceived.amount, notReceived.currency)}
+                  </p>
+                );
+              }
+              action = (
+                <form action={claimPaidAction} className={actionFormClass}>
+                  <input type="hidden" name="groupId" value={group.id} />
+                  <input type="hidden" name="fromId" value={t.from} />
+                  <input type="hidden" name="toId" value={t.to} />
+                  <input type="hidden" name="amount" value={t.amount} />
+                  <button type="submit" data-haptic="success" data-i-paid className={btn}>
+                    {label} {money(t.amount)}
+                  </button>
+                </form>
+              );
+              hint = buttons.length > 0 ? `Pay ${money(t.amount)}, then tap I’ve paid. It counts once ${receiver?.name ?? "they"} confirm${receiver?.name ? "s" : ""}.` : undefined;
+            } else if (plan.action === "record") {
+              // The other person can't tap "Confirm received" (not on Loopin, or a record for someone else): it counts straight away.
+              action = (
+                <form action={recordCustomPayment} className={actionFormClass}>
+                  <input type="hidden" name="groupId" value={group.id} />
+                  <input type="hidden" name="fromId" value={t.from} />
+                  <input type="hidden" name="toId" value={t.to} />
+                  <input type="hidden" name="amount" value={toInputAmount(t.amount, group.currency)} />
+                  <input type="hidden" name="back" value="settle" />
+                  <FreshKey name="rid" />
+                  <button type="submit" data-haptic="success" data-mark-paid className={btn}>
+                    {label} {money(t.amount)}
+                  </button>
+                </form>
+              );
+              hint = t.from === myId && buttons.length > 0 ? "Paid? Tap I’ve paid so it counts." : undefined;
+            } else if (plan.status === "their-claim" && theirClaim) {
+              status = <p className="text-sm text-fg/70" data-claim-above>{"fromName" in theirClaim ? theirClaim.fromName : theirClaim.from.name} says they paid. Confirm it in the box above.</p>;
+            }
+            return (
+              <SettleRow
+                key={`${t.from}-${t.to}`}
+                dataRow=""
+                avatarName={nameOf(mine ? other : t.from)}
+                title={`${nameOf(t.from)} ${t.from === myId ? "pay" : "pays"} ${t.to === myId ? "you" : nameOf(t.to)}`}
+                amount={money(t.amount)}
+                tone={t.to === myId ? "owed" : t.from === myId ? "owe" : "neutral"}
+                tint={t.from === myId ? "owe" : mine ? "mine" : "plain"}
+                main={main}
+                action={action}
+                status={status}
+                hint={hint}
+                link={plan.differentAmount ? <DifferentAmountLink href={differentAmountFor(group.id, t.from, t.to, toInputAmount(t.amount, group.currency))} /> : undefined}
+              />
             );
           })}
         </ul>

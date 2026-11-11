@@ -12,6 +12,7 @@ import { coverOf, isCoverChoice, type CoverChoice } from "@/lib/covers";
 import { inputClass, primaryButtonClass, secondaryButtonClass } from "./ui";
 import { useRequestKey } from "./FreshKeyInput";
 import Link from "./Link";
+import { currencyLine } from "@/lib/currency-line";
 
 const ICONS: Record<GroupType, React.ReactNode> = {
   trip: <path d="M2 16l20-7-4-2-6 2-6-4-2 1 4 5-4 1-2-1-1 1zM3 21h18" />,
@@ -46,6 +47,7 @@ export function NewGroupForm({
   const [step, setStep] = useState<1 | 2>(1);
   const [name, setName] = useState(initialName);
   const [you, setYou] = useState(yourName);
+  const [currency, setCurrency] = useState(defaultCurrency);
   // One key per visit to this form: a double tap or a retry makes one group, not two.
   const rid = useRequestKey();
   const [mode, setMode] = useState<"equal" | "income" | "custom">("equal");
@@ -140,9 +142,12 @@ export function NewGroupForm({
         </label>
         <label className="block">
           <span className="mb-2 block text-sm font-medium text-gray-600">
-            Group currency <span className="font-normal text-gray-400">(balances are shown in this)</span>
+            Group currency
           </span>
-          <CurrencySelect name="currency" defaultValue={defaultCurrency} />
+          <CurrencySelect name="currency" defaultValue={defaultCurrency} onChange={setCurrency} />
+          <span className="mt-2 block text-sm text-gray-500" data-currency-line>
+            {currencyLine(currency)}
+          </span>
         </label>
 
         {type === "couple" ? (

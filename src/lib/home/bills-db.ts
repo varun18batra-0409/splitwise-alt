@@ -7,6 +7,7 @@ import { dailyTotal, payerFor, periodsDue, nextDueDay, ordinalDay } from "./bill
 import { addMonths, daysInMonth, dueKey } from "./month";
 import { joinWeights, parsePrepaid, type Prepaid } from "./moving";
 import { niceDate } from "../format";
+import { dayKey, DEFAULT_TIME_ZONE } from "../dates";
 import { previousResult } from "../once";
 import { logEvent, touchedByExpense } from "../events";
 import type { Prisma } from "@prisma/client";
@@ -296,6 +297,7 @@ export type BillStatus = {
   usual: number | null; // varies: the average of recent months
   payerId: string | null;
   reason: string;
+  recordedThisMonth: boolean; // this month's is already added (in the bill's own time zone)
 };
 
 export async function billStatuses(groupId: string, now = new Date()): Promise<BillStatus[]> {
@@ -310,23 +312,25 @@ export async function billStatuses(groupId: string, now = new Date()): Promise<B
   );
   return bills.map((bill) => {
     const { runs, ...b } = bill;
+    const thisMonth = dayKey(now, bill.tz || DEFAULT_TIME_ZONE).slice(0, 7);
+    const recordedThisMonth = runs.some((r) => r.period === thisMonth && r.status === "added");
     const waiting = runs.find((r) => r.status === "waiting");
     const past = runs.filter((r) => r.status === "added" && amounts.has(r.expenseId)).map((r) => amounts.get(r.expenseId)!);
     const usual = bill.nature === "varies" && past.length ? Math.round(past.slice(0, 3).reduce((s, a) => s + a, 0) / Math.min(3, past.length)) : null;
     if (waiting) {
       const due = bill.nature === "daily" ? dueKey(waiting.period, "last") : dueKey(waiting.period, bill.day >= 31 ? "last" : bill.day);
-      return { bill: b as BillRow, status: "waiting", period: waiting.period, due, usual, payerId: payerFor(bill, waiting.period, active), reason: waiting.reason };
+      return { bill: b as BillRow, status: "waiting", period: waiting.period, due, usual, payerId: payerFor(bill, waiting.period, active), reason: waiting.reason, recordedThisMonth };
     }
     const next = nextDueDay(bill, now);
-    if (bill.paused || !next) return { bill: b as BillRow, status: "paused", period: "", due: "", usual, payerId: null, reason: "" };
+    if (bill.paused || !next) return { bill: b as BillRow, status: "paused", period: "", due: "", usual, payerId: null, reason: "", recordedThisMonth };
     const period = next.slice(0, 7);
     const done = runs.find((r) => r.period === period && (r.status === "added" || r.status === "skipped"));
     // This month's already added → show the next one.
     if (done) {
       const after = nextDueDay({ ...bill, startMonth: bill.startMonth > addMonths(period, 1) ? bill.startMonth : addMonths(period, 1) }, now);
-      if (after) return { bill: b as BillRow, status: "upcoming", period: after.slice(0, 7), due: after, usual, payerId: payerFor(bill, after.slice(0, 7), active), reason: "" };
+      if (after) return { bill: b as BillRow, status: "upcoming", period: after.slice(0, 7), due: after, usual, payerId: payerFor(bill, after.slice(0, 7), active), reason: "", recordedThisMonth };
     }
-    return { bill: b as BillRow, status: "upcoming", period, due: next, usual, payerId: payerFor(bill, period, active), reason: "" };
+    return { bill: b as BillRow, status: "upcoming", period, due: next, usual, payerId: payerFor(bill, period, active), reason: "", recordedThisMonth };
   });
 }
 

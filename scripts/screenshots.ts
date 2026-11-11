@@ -178,6 +178,12 @@ await shot("61-new-goal", `${c}/goals/new`);
 await shot("15-new-group", "/groups/new");
 await shot("25-account", "/account");
 await shot("26-signin", "/signin", undefined, false);
+// Sign-in on small phones: Google and the email box must both be on the first screen.
+for (const [n, w, h] of [["26b-signin-320x568", 320, 568], ["26c-signin-375x667", 375, 667]] as const) {
+  await page.setViewportSize({ width: w, height: h });
+  await shot(n, "/signin", undefined, false);
+}
+await page.setViewportSize({ width: 390, height: 844 });
 await shot("27-privacy", "/privacy");
 // Phase 5
 await shot("62-trip-report", `${g}/report`);
@@ -387,6 +393,7 @@ if (!hosted) {
     await db.expense.create({ data: { groupId: lona.id, description: "Villa", amount: 800000, splitType: "equal", forMode: "everyone", category: "accommodation", paidById: lv, originalAmount: 800000, originalCurrency: "INR", baseCurrency: "INR", convertedAmount: 800000, createdById: lv, spentAt: new Date(), shares: { create: [{ memberId: lv, amount: 400000 }, { memberId: lr, amount: 400000 }] } } });
     await db.payment.create({ data: { groupId: lona.id, fromId: lr, toId: lv, amount: 400000, createdById: lr } });
     await shot("105-all-square", `/groups/${lona.id}/square`);
+    await shot("105b-all-square-amounts-hidden", `/groups/${lona.id}/square?amounts=0`); // "Hide amounts" on: counts instead of money
     await shot("106-home-stories", "/", undefined, false);
     await shot("107-story-open", "/", async (p) => {
       await p.locator("[data-stories] button").first().click();

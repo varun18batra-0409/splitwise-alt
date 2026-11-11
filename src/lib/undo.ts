@@ -11,6 +11,7 @@ import { applySettleAll, setPaymentsDeleted } from "./settle-all";
 import { loadOtherMoney, sameOtherMoney, writeOtherMoney } from "./group-changes";
 import { isGroupAdmin } from "./group-admin";
 import { undoMoveOut } from "./home/moving-db";
+import { DEFAULT_TIME_ZONE } from "./dates";
 
 // Undo any change in a group. Undoing is itself a logged change that everyone
 // is notified about, and it can be undone too ("redo").
@@ -30,6 +31,9 @@ type EventLike = {
   expenseId: string | null;
   paymentId: string | null;
   createdAt: Date;
+  // Optional: with these the "can't undo yet" message can say who changed what (see blockedMessage).
+  actorId?: string;
+  text?: string;
 };
 
 const MONEY_KINDS = new Set([
@@ -47,52 +51,71 @@ const later = (a: EventLike, b: EventLike) =>
   a.createdAt.getTime() > b.createdAt.getTime() || (a.createdAt.getTime() === b.createdAt.getTime() && a.id > b.id);
 
 // Can this change still be undone? Pure, so the screen can show/hide the Undo button.
-export function canUndo(ev: EventLike, all: EventLike[]): { ok: true } | { ok: false; reason: string } {
+export type CanUndo = { ok: true } | { ok: false; reason: string; blockedBy?: EventLike };
+
+export function canUndo(ev: EventLike, all: EventLike[]): CanUndo {
   const payload = parseUndo(ev.undo);
   if (!payload) return { ok: false, reason: "This change can’t be undone." };
   if (ev.undoneAt) return { ok: false, reason: "This change was already undone." };
-  const newer = all.filter((x) => x.id !== ev.id && later(x, ev));
+  const newer = all.filter((x) => x.id !== ev.id && later(x, ev)).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || (a.id < b.id ? -1 : 1));
+  // The first newer change that stands in the way (so the message can name it).
+  const block = (reason: string, pred: (x: EventLike) => boolean): CanUndo | null => {
+    const x = newer.find(pred);
+    return x ? { ok: false, reason, blockedBy: x } : null;
+  };
 
-  if (ev.expenseId && newer.some((x) => x.expenseId === ev.expenseId)) {
-    return { ok: false, reason: "This expense was changed again since. Undo the newer change first." };
-  }
-  if (ev.paymentId && newer.some((x) => x.paymentId === ev.paymentId)) {
-    return { ok: false, reason: "This payment was changed again since. Undo the newer change first." };
-  }
-  if (payload.type === "group_set" && newer.some((x) => settingFamily(x.kind) === settingFamily(ev.kind))) {
-    return { ok: false, reason: "This setting was changed again since. Undo the newer change first." };
-  }
-  if ((payload.type === "members_remove" || payload.type === "members_restore") && newer.some((x) => settingFamily(x.kind) === "members")) {
-    return { ok: false, reason: "People were added or removed again since. Undo the newer change first." };
-  }
-  if (payload.type === "settle_all") {
-    if (newer.some((x) => settingFamily(x.kind) === "open-state" || (x.paymentId && payload.paymentIds.includes(x.paymentId)))) {
-      return { ok: false, reason: "The group or those payments changed since. Undo the newer change first." };
-    }
-  }
-  if (payload.type === "payments_set" && newer.some((x) => x.paymentId && payload.paymentIds.includes(x.paymentId))) {
-    return { ok: false, reason: "One of those payments changed since. Undo the newer change first." };
-  }
-  if (payload.type === "member_set") {
-    const sameKind = (x: EventLike) => {
-      const q = parseUndo(x.undo);
-      return q?.type === "member_set" && q.memberId === payload.memberId && ("name" in q.data) === ("name" in payload.data);
-    };
-    if (newer.some(sameKind)) return { ok: false, reason: "This person was changed again since. Undo the newer change first." };
-  }
-  if (payload.type === "currency_restore" && newer.some((x) => MONEY_KINDS.has(x.kind))) {
-    return { ok: false, reason: "Expenses or payments changed after the currency change, so it can’t be undone safely." };
-  }
-  return { ok: true };
+  const checks: (CanUndo | null)[] = [
+    ev.expenseId ? block("This expense was changed again since. Undo the newer change first.", (x) => x.expenseId === ev.expenseId) : null,
+    ev.paymentId ? block("This payment was changed again since. Undo the newer change first.", (x) => x.paymentId === ev.paymentId) : null,
+    payload.type === "group_set" ? block("This setting was changed again since. Undo the newer change first.", (x) => settingFamily(x.kind) === settingFamily(ev.kind)) : null,
+    payload.type === "members_remove" || payload.type === "members_restore"
+      ? block("People were added or removed again since. Undo the newer change first.", (x) => settingFamily(x.kind) === "members")
+      : null,
+    payload.type === "settle_all"
+      ? block("The group or those payments changed since. Undo the newer change first.", (x) => settingFamily(x.kind) === "open-state" || Boolean(x.paymentId && payload.paymentIds.includes(x.paymentId)))
+      : null,
+    payload.type === "payments_set"
+      ? block("One of those payments changed since. Undo the newer change first.", (x) => Boolean(x.paymentId && payload.paymentIds.includes(x.paymentId)))
+      : null,
+    payload.type === "member_set"
+      ? block("This person was changed again since. Undo the newer change first.", (x) => {
+          const q = parseUndo(x.undo);
+          return q?.type === "member_set" && q.memberId === payload.memberId && ("name" in q.data) === ("name" in payload.data);
+        })
+      : null,
+    payload.type === "currency_restore" ? block("Expenses or payments changed after the currency change, so it can’t be undone safely.", (x) => MONEY_KINDS.has(x.kind)) : null,
+  ];
+  return checks.find((c) => c !== null) ?? { ok: true };
+}
+
+// "Can’t undo yet: Ravi changed Dinner after this (2:14 pm). Undo that first in Activity, or edit Dinner."
+// Names the change that stands in the way. Falls back to the plain reason when it can't tell who or what.
+export function blockedMessage(check: Extract<CanUndo, { ok: false }>, ctx: { nameOf: (memberId: string) => string | undefined; tz: string }): string {
+  const x = check.blockedBy;
+  if (!x || !x.actorId || !x.text) return check.reason;
+  const who = ctx.nameOf(x.actorId);
+  if (!who) return check.reason;
+  const time = x.createdAt.toLocaleTimeString("en-IN", { timeZone: ctx.tz, hour: "numeric", minute: "2-digit" });
+  // "changed Dinner", "added Dinner (₹900)", "deleted Dinner": the thing is what follows the verb.
+  const thing = /^(?:changed|edited|deleted|restored|added|removed)\s+(?:money back:\s+)?(.+?)(?:\s+\([^)]*\))?$/.exec(x.text)?.[1];
+  const isExpense = x.kind.startsWith("expense_");
+  const tail = isExpense
+    ? thing
+      ? `Undo that first in Activity, or edit ${thing}.`
+      : "Undo that first in Activity."
+    : x.kind.startsWith("payment_")
+      ? "Undo that first in Activity."
+      : "Undo that first in Activity, or change it again in Settings.";
+  return `Can’t undo yet: ${who} ${x.text.replace(/\s+\([^)]*\)$/, "")} after this (${time}). ${tail}`;
 }
 
 type UndoResult = { ok: true; eventId?: string } | { ok: false; error: string };
 
-export async function undoEvent(eventId: string, actorId: string | undefined): Promise<UndoResult> {
-  return withRetry(() => undoOnce(eventId, actorId));
+export async function undoEvent(eventId: string, actorId: string | undefined, tz: string = DEFAULT_TIME_ZONE): Promise<UndoResult> {
+  return withRetry(() => undoOnce(eventId, actorId, tz));
 }
 
-async function undoOnce(eventId: string, actorId: string | undefined): Promise<UndoResult> {
+async function undoOnce(eventId: string, actorId: string | undefined, tz: string): Promise<UndoResult> {
   const ev = await db.groupEvent.findUnique({ where: { id: eventId } });
   if (!ev) return { ok: false, error: "That change no longer exists." };
   const group = await db.group.findUnique({
@@ -107,7 +130,10 @@ async function undoOnce(eventId: string, actorId: string | undefined): Promise<U
   if (group.deletedAt) return { ok: false, error: "This group was deleted. Restore it first." };
 
   const check = canUndo(ev, group.events);
-  if (!check.ok) return { ok: false, error: check.reason };
+  if (!check.ok) {
+    const nameOf = (id: string) => (id === actorId ? "You" : group.members.find((m) => m.id === id)?.name);
+    return { ok: false, error: blockedMessage(check, { nameOf, tz }) };
+  }
   const payload = parseUndo(ev.undo)!;
 
   // What only the person who looks after the group can do on the main screens

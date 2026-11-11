@@ -13,6 +13,7 @@ export async function updateGroupBasics(
   groupId: string,
   actorId: string,
   changes: { name?: string; markupBp?: number; secondaryCurrency?: string },
+  opts?: { dryRun?: boolean },
 ): Promise<Result> {
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
@@ -23,6 +24,7 @@ export async function updateGroupBasics(
 
   const sec = changes.secondaryCurrency;
   if (sec !== undefined && sec !== "" && sec !== "none" && !isSupportedCurrency(sec)) return { ok: false, error: "Pick a currency from the list." };
+  if (opts?.dryRun) return { ok: true }; // checked only: the one Save validates everything before writing anything
 
   let lastEventId: string | undefined;
   await db.$transaction(async (tx) => {
