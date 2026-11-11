@@ -1,4 +1,5 @@
 import Link from "@/components/Link";
+import { FocusOnShow } from "@/components/FocusOnShow";
 import { notFound, redirect } from "next/navigation";
 import { getMyMemberId } from "@/lib/identity";
 import { loadGroup } from "@/lib/group-data";
@@ -116,9 +117,9 @@ export default async function RecordPayment({
           <div role="alert" className="rounded-2xl border border-[#5a3a20] bg-owe-soft px-4 py-3 text-sm" data-over-warning>
             <p>{overLine}</p>
             <div className="mt-3 flex gap-2">
-              <Link href={cancelHref} autoFocus className="rounded-full bg-fg px-4 py-2 text-sm font-semibold text-canvas" data-over-cancel>
+              <FocusOnShow><Link href={cancelHref} className="rounded-full bg-fg px-4 py-2 text-sm font-semibold text-canvas" data-over-cancel>
                 Cancel
-              </Link>
+              </Link></FocusOnShow>
               <button type="submit" name="over" value="1" className="rounded-full border border-line px-4 py-2 text-sm font-semibold" data-over-record>
                 Record anyway
               </button>
