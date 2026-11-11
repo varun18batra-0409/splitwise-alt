@@ -66,7 +66,7 @@ async function step(page: Page | null, area: string, name: string, fn: () => Pro
     results.push({ area, name, ok: true, detail: typeof note === "string" ? note : "" });
     console.log("✓", area, "—", name);
   } catch (e) {
-    const msg = String((e as Error)?.message ?? e).split("\n").slice(0, 3).join(" ").slice(0, 400);
+    const msg = String((e as Error)?.message ?? e).split("\n").slice(0, 3).join(" ").slice(0, 400) + diagnose(page);
     let shot = "";
     if (page) {
       shotNo++;
@@ -137,7 +137,35 @@ async function person(browser: Browser): Promise<{ ctx: BrowserContext; page: Pa
   const page = await ctx.newPage();
   page.on("dialog", (d) => d.accept());
   page.setDefaultTimeout(hosted ? 30_000 : 15_000); // the test copy can be slow to wake up
+  watch(page);
   return { ctx, page };
+}
+
+// For failure notes: requests still in flight and the last browser errors on a page.
+const pending = new WeakMap<Page, Map<object, string>>();
+const lastErrors = new WeakMap<Page, string[]>();
+function watch(page: Page) {
+  const open = new Map<object, string>();
+  const errs: string[] = [];
+  pending.set(page, open);
+  lastErrors.set(page, errs);
+  page.on("request", (r) => open.set(r, `${r.method()} ${r.url().replace(/^https?:\/\/[^/]+/, "")}`.slice(0, 120)));
+  page.on("requestfinished", (r) => open.delete(r));
+  page.on("requestfailed", (r) => open.delete(r));
+  const keep = (t: string) => {
+    errs.push(t.slice(0, 160));
+    if (errs.length > 3) errs.shift();
+  };
+  page.on("pageerror", (e) => keep(`pageerror ${String(e)}`));
+  page.on("console", (m) => {
+    if (m.type() === "error") keep(`console ${m.text()}`);
+  });
+}
+function diagnose(page: Page | null): string {
+  if (!page) return "";
+  const open = [...(pending.get(page)?.values() ?? [])].slice(0, 5);
+  const errs = lastErrors.get(page) ?? [];
+  return (open.length ? ` [still loading: ${open.join(", ")}]` : "") + (errs.length ? ` [browser errors: ${errs.join(" | ")}]` : "");
 }
 
 async function go(page: Page, path: string) {
