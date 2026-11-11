@@ -11,6 +11,7 @@ import { googleConfigured } from "@/lib/google";
 import { coverFor } from "@/lib/covers";
 import { Polaroid } from "@/components/Polaroid";
 import { inviteMemberId } from "@/lib/invites";
+import { invitedNameRows } from "@/lib/join";
 import type { Metadata } from "next";
 
 // The preview WhatsApp shows for an invite link: the group's name, never anyone's money.
@@ -74,6 +75,9 @@ export default async function JoinPage({
 
   const active = group.members.filter((m) => !m.leftAt);
   const unclaimed = active.filter((m) => !m.accountId && !m.claimedAt);
+  // Names someone was invited as by email can only be taken by that email (offered above as "Continue as"), never from this list.
+  const invitedRows = await invitedNameRows(group.id);
+  const claimable = unclaimed.filter((m) => !invitedRows.has(m.id));
   // Invited by email (this account's own invitation): say who by, and offer the name they were added as.
   const invite = account ? await db.invite.findUnique({ where: { groupId_email: { groupId: group.id, email: account.email } } }) : null;
   const waiting = invite && !invite.acceptedAt ? invite : null;
@@ -151,12 +155,12 @@ export default async function JoinPage({
           </form>
 
           {/* Names stay out of sight until you ask: the page above shows none. */}
-          {unclaimed.length > 0 && (
+          {claimable.length > 0 && (
             <details className="mt-10" data-claim-names>
               <summary className="cursor-pointer text-sm font-medium text-gray-600">Already added to this group by name?</summary>
               <p className="mb-3 mt-1 text-xs text-gray-400">Tap your name to take it over, so its expenses are yours.</p>
               <ul className="space-y-2">
-                {unclaimed.map((m) => (
+                {claimable.map((m) => (
                   <li key={m.id}>
                     <form action={joinAsExisting}>
                       <input type="hidden" name="code" value={code} />

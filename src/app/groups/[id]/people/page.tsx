@@ -17,6 +17,7 @@ import { UndoBar } from "@/components/UndoBar";
 import { StaysGoes } from "@/components/StaysGoes";
 import { leaveText, removeText } from "@/lib/leave-text";
 import { groupPeople } from "@/lib/people";
+import { membersAsOf } from "@/lib/left-view";
 
 // Everyone in the group: fix a name, remove someone (the admin) or
 // leave / bring back. Every change notifies the others and can be undone.
@@ -46,7 +47,9 @@ export default async function PeoplePage({
   const money = (m: number) => formatMoney(Math.abs(m), group.currency);
   // Taken out by whoever looks after the group ("removed"): kept in the history, can't rejoin on their own.
   // Everyone is listed once (a removed person only under Removed).
-  const { active, left, removed } = groupPeople(group.members);
+  // Someone who left sees the people as they were on the day they left, and no one else's balance.
+  const leaver = data.leaver;
+  const { active, left, removed } = groupPeople(leaver ? membersAsOf(group.members, myId, leaver.leftAt) : group.members);
   // Removing people or marking them as left is for the person who looks after the group.
   const admin = pickAdmin(group.members);
   const isAdmin = admin?.id === myId;
@@ -77,7 +80,7 @@ export default async function PeoplePage({
                 )}
               </span>
               <span className="block text-xs text-gray-400">
-                {m.removedAt ? "Removed from the group" : m.leftAt ? "Left the group" : bal > 0 ? `gets ${money(bal)}` : bal < 0 ? `owes ${money(bal)}` : "settled up"}
+                {m.removedAt ? "Removed from the group" : m.leftAt ? "Left the group" : leaver && !me ? "—" : bal > 0 ? `gets ${money(bal)}` : bal < 0 ? `owes ${money(bal)}` : "settled up"}
               </span>
             </span>
             <span className="text-sm text-gray-400 group-open/p:hidden">Edit</span>

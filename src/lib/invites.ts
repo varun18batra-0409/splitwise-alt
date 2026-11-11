@@ -116,11 +116,12 @@ async function inviteOne(
   actor: Actor,
   email: string,
   wantedName: string,
-  o: { origin: string; account: { id: string } | null; mail: boolean; later?: Later },
+  o: { origin: string; account: { id: string } | null; mail: boolean; later?: Later; row?: { id: string; name: string } },
 ): Promise<{ memberId: string; eventId: string; name: string }> {
   const prior = await db.invite.findUnique({ where: { groupId_email: { groupId: group.id, email } } });
   // Asked again before they joined: the same name row, a fresh invitation.
-  const kept = prior && !prior.acceptedAt && prior.token ? group.members.find((m) => m.id === inviteMemberId(prior) && !m.accountId && !m.leftAt && !m.removedAt) : undefined;
+  // `row`: someone who left on their own and is added again by email. The invitation is for their own row; Join brings them back.
+  const kept = o.row ?? (prior && !prior.acceptedAt && prior.token ? group.members.find((m) => m.id === inviteMemberId(prior) && !m.accountId && !m.leftAt && !m.removedAt) : undefined);
   const name = kept ? kept.name : freeName(group.members.map((m) => m.name), wantedName);
   const { memberId, eventId } = await db.$transaction(async (tx) => {
     let memberId = kept?.id ?? "";
@@ -130,7 +131,7 @@ async function inviteOne(
       memberId = m.id;
       eventId = await logEvent(tx, { groupId: group.id, actorId: actor.id, kind: "members_added", text: `added ${name} to the group`, undo: { type: "members_remove", memberIds: [m.id] } });
     }
-    const token = kept && prior?.token ? prior.token : newInviteToken();
+    const token = kept && prior?.token && inviteMemberId(prior) === kept.id ? prior.token : newInviteToken();
     await tx.invite.upsert({
       where: { groupId_email: { groupId: group.id, email } },
       create: { groupId: group.id, email, invitedById: actor.id, token, memberId },
@@ -211,8 +212,7 @@ export async function inviteByEmail(groupId: string, actorId: string, rawEmails:
   const { group, actor } = await loadInviteGroup(groupId, actorId);
   const people: { name: string; email: string }[] = [];
   const bad: string[] = [];
-  const eventIds: string[] = [];
-  if (!group || group.deletedAt || !actor || actor.leftAt) return { people, bad, eventIds };
+  if (!group || group.deletedAt || !actor || actor.leftAt) return { people, bad };
   const parts = [...new Set(rawEmails.split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean))].slice(0, 20);
   for (const p of parts) {
     const email = cleanEmail(p);
@@ -232,21 +232,23 @@ export async function inviteByEmail(groupId: string, actorId: string, rawEmails:
     const already = account ? group.members.find((m) => m.accountId === account.id) : undefined;
     if (account && already) {
       // The same quiet reply for everyone. Only the person who looks after the group can bring back someone they removed.
-      if (already.removedAt && (await isAdmin(groupId, actorId))) {
-        const back = await bringBack(groupId, actorId, already.id);
-        if (back.ok) {
-          await copyPushTo(account.id, already.id);
-          if (back.eventId) eventIds.push(back.eventId);
+      if (already.removedAt) {
+        if (await isAdmin(groupId, actorId)) {
+          const back = await bringBack(groupId, actorId, already.id);
+          if (back.ok) await copyPushTo(account.id, already.id);
         }
+      } else if (already.leftAt) {
+        // Left on their own: invited to their own row. Join brings them back (they are not back until they tap it).
+        await inviteOne(group, actor, email, already.name, { origin, account, mail, later: opts.later, row: already });
       }
       people.push({ name: wanted, email });
       continue;
     }
     const r = await inviteOne(group, actor, email, wanted, { origin, account, mail, later: opts.later });
     people.push({ name: r.name, email });
-    if (r.eventId) eventIds.push(r.eventId);
   }
-  return { people, bad, eventIds };
+  // No Undo bar for any email invite, so the reply looks the same whoever the email belongs to.
+  return { people, bad };
 }
 
 function esc(s: string) {

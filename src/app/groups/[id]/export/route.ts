@@ -26,7 +26,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     db.expense.findMany({ where: { groupId: group.id, ...(scope ? { AND: [scope.expenses] } : {}) }, include: { shares: true } }),
     db.payment.findMany({ where: { groupId: group.id, ...(scope ? { AND: [scope.payments] } : {}) } }),
   ]);
-  const body = groupCsv(group, group.members, expenses, payments, await getTimeZone());
+  const body = groupCsv(group, group.members, expenses, payments, await getTimeZone(), { onlyInvolved: Boolean(scope) });
   return new Response(body, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",

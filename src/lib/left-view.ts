@@ -92,5 +92,28 @@ export function ownShareDetails(detailsJson: string, name: string): string {
   }
 }
 
+// The people as they were on the day the viewer left: only those who had been added by then (createdAt <= that day),
+// and anyone who left or was removed only AFTER that day counts as still being in. The viewer is always listed.
+// This is for the header and the People list; names on rows they can see are still looked up in the full list.
+export function membersAsOf<M extends { id: string; createdAt: Date; leftAt: Date | null; removedAt: Date | null }>(members: M[], me: string, cut: Date): M[] {
+  const day = cut.getTime();
+  return members
+    .filter((m) => m.id === me || m.createdAt.getTime() <= day)
+    .map((m) => {
+      const leftLater = m.id !== me && m.leftAt !== null && m.leftAt.getTime() > day;
+      return leftLater ? { ...m, leftAt: null, removedAt: null } : m;
+    });
+}
+
+// A card-night game is part of what a leaver sees only if it finished (or, unfinished, started) by the day they left.
+export function gameVisible(cut: LeaverCut | null, game: { finishedAt: Date | null; createdAt: Date }): boolean {
+  return !cut || (game.finishedAt ?? game.createdAt).getTime() <= cut.leftAt.getTime();
+}
+
+// A bill (a household bill added as an expense, or a bill run) created after they left isn't shown to them.
+export function createdByCut(cut: LeaverCut | null, createdAt: Date): boolean {
+  return !cut || createdAt.getTime() <= cut.leftAt.getTime();
+}
+
 // How long someone who left can still download the group's history.
 export const COPY_DAYS = 30;

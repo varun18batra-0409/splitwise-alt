@@ -8,6 +8,8 @@ import { addMonths, daysInMonth, dueKey } from "./month";
 import { joinWeights, parsePrepaid, type Prepaid } from "./moving";
 import { niceDate } from "../format";
 import { previousResult } from "../once";
+import { logEvent, touchedByExpense } from "../events";
+import type { Prisma } from "@prisma/client";
 
 // Recurring bills, database side. The daily job calls runAllBills(); each
 // (bill, month) gets one BillRun row — its unique key is what makes adding a
@@ -122,9 +124,24 @@ export async function prepaidFor(bill: { prepaid: string }, period: string): Pro
 
 // The month-end daily bill is paid by that month's payer, so the move-out charge (which only the leaver shares)
 // is credited to that same person: the payer ends up credited for the whole month. Shares don't change.
-function syncChargePayer(entries: Prepaid[], payer: string) {
-  const ids = entries.map((x) => x.e);
-  return db.expense.updateMany({ where: { id: { in: ids }, paidById: { not: payer } }, data: { paidById: payer, payers: "" } });
+// A short line goes in the history for each charge that changes payer ("Asha now paid Milk · 1–14 Nov"), so nothing moves silently.
+export async function syncChargePayer(tx: Prisma.TransactionClient, groupId: string, entries: Prepaid[], payer: string): Promise<void> {
+  if (!payer || !entries.length) return;
+  const rows = await tx.expense.findMany({ where: { id: { in: entries.map((x) => x.e) }, paidById: { not: payer } }, include: { shares: true } });
+  if (!rows.length) return;
+  const name = (await tx.member.findUnique({ where: { id: payer }, select: { name: true } }))?.name ?? "Someone";
+  for (const x of rows) {
+    await tx.expense.update({ where: { id: x.id }, data: { paidById: payer, payers: "" } });
+    await logEvent(tx, {
+      groupId,
+      actorId: payer,
+      kind: "expense_edited",
+      text: `${name} now paid ${x.description}`,
+      details: [`Paid by ${name}`],
+      expenseId: x.id,
+      touches: touchedByExpense(x, { paidById: payer, amount: x.amount, payers: "", kind: x.kind, shares: x.shares }),
+    });
+  }
 }
 
 // A claim older than this is from a run that crashed part-way; it's taken over.
@@ -156,7 +173,10 @@ async function runOne(bill: BillRow, group: { id: string; currency: string; clos
   const saved = await previousResult(key);
   if (saved) {
     const charges = bill.nature === "daily" && payer ? (await prepaidFor(bill, period)).entries : [];
-    await db.$transaction([db.billRun.update({ where: { id: run.id }, data: { status: "added", expenseId: saved, reason: "" } }), syncChargePayer(charges, payer ?? "")]);
+    await db.$transaction(async (tx) => {
+      await tx.billRun.update({ where: { id: run.id }, data: { status: "added", expenseId: saved, reason: "" } });
+      await syncChargePayer(tx, group.id, charges, payer ?? "");
+    });
     return "added";
   }
   const wait = async (reason: string) => {
@@ -218,7 +238,10 @@ async function runOne(bill: BillRow, group: { id: string; currency: string; clos
   const r = await saveExpense(input, payer, sameCurrencyRate, { now, requestKey: key, eventText: `paid ${bill.name} (${formatMoney(amount, group.currency)}) · repeat bill` });
   if (!r.ok) return wait(r.error.slice(0, 120));
   // Added, and in the same step the move-out charge is credited to this month's payer.
-  await db.$transaction([db.billRun.update({ where: { id: run.id }, data: { status: "added", expenseId: r.id } }), syncChargePayer(charges, payer)]);
+  await db.$transaction(async (tx) => {
+    await tx.billRun.update({ where: { id: run.id }, data: { status: "added", expenseId: r.id } });
+    await syncChargePayer(tx, group.id, charges, payer);
+  });
   return "added";
 }
 
@@ -343,10 +366,10 @@ export async function addWaitingBill(
   }
   // A daily bill added by hand: the move-out charge is credited to whoever paid it, like the automatic one.
   const charges = bill.nature === "daily" && input.paidById ? (await prepaidFor(bill, where.period)).entries : [];
-  await db.$transaction([
-    db.billRun.updateMany({ where: { ...where, status: "adding" }, data: { status: "added", expenseId: r.id, reason: "", requestKey: "" } }),
-    syncChargePayer(charges, input.paidById),
-  ]);
+  await db.$transaction(async (tx) => {
+    await tx.billRun.updateMany({ where: { ...where, status: "adding" }, data: { status: "added", expenseId: r.id, reason: "", requestKey: "" } });
+    await syncChargePayer(tx, input.groupId, charges, input.paidById);
+  });
   if (bill.nature === "varies") {
     const e = await db.expense.findUnique({ where: { id: r.id }, select: { amount: true } });
     if (e) await db.bill.update({ where: { id: bill.id }, data: { amount: e.amount } });

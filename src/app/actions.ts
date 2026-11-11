@@ -167,7 +167,6 @@ export async function invitePeople(formData: FormData) {
   const r = await inviteByEmail(group.id, me.id, String(formData.get("emails") ?? ""), origin, { later: (job) => after(job) });
   const q = new URLSearchParams();
   if (r.people.length) q.set("invited", JSON.stringify(r.people.map((p) => [p.name, p.email])));
-  if (r.eventIds.length === 1) q.set("did", r.eventIds[0]);
   if (r.bad.length) q.set("error", `Couldn’t invite: ${r.bad.join(", ")}`);
   redirect(`/groups/${group.id}/invite?${q}`);
 }

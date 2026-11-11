@@ -123,7 +123,7 @@ export default async function SearchPage({
   );
   // Bills that repeat, in these groups (Home and Couple groups have them).
   const billRows = await db.bill.findMany({
-    where: { groupId: { in: groups.map((g) => g.group.id) }, deletedAt: null, paused: false },
+    where: { groupId: { in: groups.filter((g) => !g.leaver).map((g) => g.group.id) }, deletedAt: null, paused: false }, // a group they left shows no bills
     orderBy: { createdAt: "asc" },
     take: 12,
   });

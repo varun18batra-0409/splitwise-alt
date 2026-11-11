@@ -153,7 +153,8 @@ export async function replaceGroupPhoto(
     if (seen) {
       const current = await tx.groupPhoto.findUnique({ where: { groupId }, select: { blobKey: true } });
       oldKey = current?.blobKey ?? "";
-      const r = await tx.groupPhoto.updateMany({ where: { groupId, updatedAt: seen.updatedAt }, data });
+      // blobKey: oldKey too, so a move of the old photo to file storage that happened in between can't leave its file behind.
+      const r = await tx.groupPhoto.updateMany({ where: { groupId, updatedAt: seen.updatedAt, blobKey: oldKey }, data });
       if (r.count !== 1) return false;
     } else {
       await tx.groupPhoto.create({ data: { groupId, ...data } });

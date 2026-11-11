@@ -121,7 +121,10 @@ export async function setMember(
           data: leaving
             ? removal.removedAt
               ? { leftAt: alreadyLeft ? m.leftAt!.toISOString() : null, removedAt: null, removedById: "" }
-              : { leftAt: null }
+              : m.removedAt
+                ? // Undoing a removal back to "left": redoing it must remove them again, not bring them back.
+                  { leftAt: (m.leftAt ?? m.removedAt).toISOString(), removedAt: m.removedAt.toISOString(), removedById: m.removedById }
+                : { leftAt: null }
             : m.removedAt
               ? { leftAt: (m.leftAt ?? m.removedAt).toISOString(), removedAt: m.removedAt.toISOString(), removedById: m.removedById }
               : { leftAt: m.leftAt!.toISOString() },

@@ -40,6 +40,25 @@ export async function recordDeferred(now: Date, parts: string[]): Promise<void> 
   }
 }
 
+// The morning run writes `daily-started:<day>` when it begins and `daily-finished:<day>` when it is through.
+// If the evening finds it started but never finished (it crashed or was cut off), or never started at all
+// (the cron did not fire), it runs every part: safe, because each part claims its work per group first.
+const startedKey = (today: string) => `daily-started:${today}`;
+const finishedKey = (today: string) => `daily-finished:${today}`;
+
+async function note(key: string, now: Date) {
+  await db.notifyLog.create({ data: { key, state: "done", createdAt: now } }).catch(() => undefined); // already noted
+}
+export const markDailyStarted = (now: Date) => note(startedKey(dayKey(now, DEFAULT_TIME_ZONE)), now);
+export const markDailyFinished = (now: Date) => note(finishedKey(dayKey(now, DEFAULT_TIME_ZONE)), now);
+
+export async function dailyState(now: Date): Promise<{ started: boolean; finished: boolean }> {
+  const today = dayKey(now, DEFAULT_TIME_ZONE);
+  const rows = await db.notifyLog.findMany({ where: { key: { in: [startedKey(today), finishedKey(today)] } }, select: { key: true } });
+  const keys = new Set(rows.map((r) => r.key));
+  return { started: keys.has(startedKey(today)), finished: keys.has(finishedKey(today)) };
+}
+
 export async function deferredToday(now: Date): Promise<string[]> {
   const prefix = deferredPrefix(dayKey(now, DEFAULT_TIME_ZONE));
   const rows = await db.notifyLog.findMany({ where: { key: { startsWith: prefix } }, select: { key: true } });
@@ -50,12 +69,21 @@ export async function deferredToday(now: Date): Promise<string[]> {
 // The evening catch-up: run only the parts the morning left undone (nothing deferred = nothing at all).
 // A part that gets through is crossed off; the groups it already did are not repeated (their own claims).
 export async function runDeferredParts(now: Date, stop: () => boolean, failed: string[]): Promise<PartsReport> {
-  const todo = await deferredToday(now);
+  const noted = await deferredToday(now);
+  const state = await dailyState(now);
+  // The morning did not start, or did not get to the end: nothing says what it missed, so try every part.
+  const everything = !state.started || !state.finished;
+  const todo: string[] = everything ? [...PART_NAMES] : noted;
   if (!todo.length) return { results: {}, deferred: [] };
   const report = await runClaimedParts(now, stop, failed, todo);
   const today = dayKey(now, DEFAULT_TIME_ZONE);
   const finished = todo.filter((p) => !report.deferred.includes(p) && !failed.includes(p));
   if (finished.length) await db.notifyLog.deleteMany({ where: { key: { in: finished.map((p) => `${deferredPrefix(today)}${p}`) } } }).catch(() => undefined);
+  // Everything got through: the day counts as done, so a second evening run does nothing.
+  if (everything && finished.length === todo.length) {
+    await markDailyStarted(now);
+    await markDailyFinished(now);
+  }
   return report;
 }
 

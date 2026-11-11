@@ -11,7 +11,7 @@ import { claimKey, isDuplicateKey, previousResult, withRetry } from "./once";
 import { parsePayers, payersJson, payersLabel } from "./payers";
 import { findLikelyDuplicate } from "./duplicates";
 import { queuePhotoDeletes } from "./photo-store";
-import { parsePrepaid } from "./home/moving";
+import { chargeLock, chargeLockedText } from "./home/charge-lock";
 import type { Prisma } from "@prisma/client";
 
 export type SaveExpenseInput = ExpenseDraft & {
@@ -67,6 +67,7 @@ export async function saveExpense(
 class Clash extends Error {}
 class ReceiptGone extends Error {}
 class MonthAdded extends Error {}
+class ChargeLocked extends Error {}
 
 type CleanAttach = { lines?: { position: number; name: string; amount: number; people: string }[]; receipt?: string };
 
@@ -290,6 +291,9 @@ async function saveExpenseOnce(
   try {
    eventId = await db.$transaction(async (tx) => {
     // Only if nobody else saved a change in the meantime (checked and written in one step).
+    // A move-out daily charge is part of its month's bill once that bill is being added or was added: edit the bill instead.
+    const locked = await chargeLock(tx, group.id, existing.id);
+    if (locked) throw new ChargeLocked(locked.bill);
     const lock = await tx.expense.updateMany({ where: { id: existing.id, editedAt: existing.editedAt, deletedAt: null }, data: { editedAt: new Date() } });
     if (lock.count !== 1) throw new Clash();
     await claimKey(tx, opts.requestKey, existing.id);
@@ -315,6 +319,7 @@ async function saveExpenseOnce(
     });
    });
   } catch (err) {
+    if (err instanceof ChargeLocked) return { ok: false, error: chargeLockedText(err.message) };
     if (err instanceof Clash) return { ok: false, error: "Someone changed this expense a moment ago. Go back and open it again to see the latest version." };
     if (err instanceof ReceiptGone) return { ok: false, error: RECEIPT_GONE };
     throw err;
@@ -346,17 +351,9 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
   let eventId: string;
   try {
    eventId = await db.$transaction(async (tx) => {
-    // A move-out daily charge can't come back once that month's bill was added without it (it would be counted twice).
-    if (!deleted) {
-      const bills = await tx.bill.findMany({ where: { groupId: expense.groupId, prepaid: { contains: expense.id } }, select: { id: true, name: true, prepaid: true } });
-      for (const b of bills) {
-        for (const [period, list] of Object.entries(parsePrepaid(b.prepaid))) {
-          if (!list.some((x) => x.e === expense.id)) continue;
-          const run = await tx.billRun.findUnique({ where: { billId_period: { billId: b.id, period } }, select: { status: true } });
-          if (run?.status === "added") throw new MonthAdded(b.name);
-        }
-      }
-    }
+    // A move-out daily charge can't be deleted, or come back, once that month's bill is being added or was added: the bill took it off its total.
+    const locked = await chargeLock(tx, expense.groupId, expense.id);
+    if (locked) throw deleted ? new ChargeLocked(locked.bill) : new MonthAdded(locked.bill);
     // Only if it's still in the state we saw (two taps at once change it once).
     const changed = await tx.expense.updateMany({
       where: { id: expense.id, deletedAt: deleted ? null : { not: null } },
@@ -374,6 +371,7 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
    });
   } catch (err) {
     if (err instanceof MonthAdded) return { ok: false, error: `This month’s ${err.message} was already added, so this charge can’t come back. Add it again by hand if needed.` };
+    if (err instanceof ChargeLocked) return { ok: false, error: chargeLockedText(err.message) };
     throw err;
   }
   return { ok: true, id: expense.id, eventId: eventId || undefined };

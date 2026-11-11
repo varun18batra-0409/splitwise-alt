@@ -105,6 +105,7 @@ describe("adding people", () => {
     // The same shape for all four: one person listed under the email typed, nothing refused.
     for (const [k, r] of Object.entries(reply)) {
       expect(r.bad, k).toEqual([]);
+      expect(Object.keys(r).sort(), k).toEqual(["bad", "people"]); // the same reply for all four (no Undo bar for any of them)
       expect(r.people.length, k).toBe(1);
       expect(r.people[0].email, k).toBe(cases[k as keyof typeof cases]);
       // The name comes from the email only (never from the account), so it says nothing about who has one.

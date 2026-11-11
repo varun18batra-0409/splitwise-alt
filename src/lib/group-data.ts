@@ -4,7 +4,7 @@ import { netBalances } from "./balances";
 import { smartSettle } from "./settle";
 import { payerIds, spentAmount } from "./payers";
 import { canRestoreGroup } from "./group-admin";
-import { leaverCut, ownShareDetails, scopeBalances, scopeForLeaver, type LeaverCut } from "./left-view";
+import { leaverCut, membersAsOf, ownShareDetails, scopeBalances, scopeForLeaver, type LeaverCut } from "./left-view";
 import { leaverEvents, touchedAfter } from "./left-view-db";
 
 // Deleted expenses and payments stay in the database (and in history) but never count.
@@ -59,7 +59,7 @@ export async function loadMyGroups(memberships: Record<string, string>) {
   const groups = await db.group.findMany({
     where: { id: { in: Object.keys(memberships) }, deletedAt: null },
     include: {
-      members: { select: { id: true, name: true, phone: true, leftAt: true, removedAt: true, accountId: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
+      members: { select: { id: true, name: true, phone: true, leftAt: true, removedAt: true, accountId: true, createdAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
       expenses: { include: { shares: true }, orderBy: { createdAt: "desc" } },
       payments: { orderBy: { createdAt: "desc" } },
     },
@@ -92,7 +92,9 @@ export async function loadMyGroups(memberships: Record<string, string>) {
         .sort((a, b) => b.getTime() - a.getTime())[0];
       const spent = expenses.reduce((s, e) => s + spentAmount(e), 0);
       const shown = cut ? scopeBalances(net, transfers, myId) : { net, transfers };
-      return { group: g, expenses, payments, myId, net: shown.net, transfers: shown.transfers, myBalance: net[myId] ?? 0, lastActivity, spent, leaver: cut };
+      // How many people to say are in it: for a leaver, as it was on the day they left.
+      const people = (cut ? membersAsOf(g.members, myId, cut.leftAt) : g.members).filter((m) => !m.leftAt).length;
+      return { group: g, expenses, payments, myId, net: shown.net, transfers: shown.transfers, myBalance: net[myId] ?? 0, lastActivity, spent, leaver: cut, people };
     }),
   );
 }

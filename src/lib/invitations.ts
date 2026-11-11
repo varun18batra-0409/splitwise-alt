@@ -46,12 +46,12 @@ export async function loadInvitations(account: Account | null): Promise<Invitati
     }),
   ]);
   const out: Invitation[] = [];
-  const mine = (g: { members: { accountId: string | null; leftAt: Date | null }[] }) => g.members.some((m) => m.accountId === account.id);
   for (const i of invites) {
     const g = i.group;
-    // Already in, or taken out of, that group: nothing to answer.
-    if (mine(g)) continue;
-    const memberId = g.members.find((m) => m.id === inviteMemberId(i) && !m.accountId && !m.leftAt)?.id ?? "";
+    const own = g.members.find((m) => m.accountId === account.id);
+    // Already in, or taken out of, that group: nothing to answer. (Someone who left on their own and was invited to their own row does have something to answer.)
+    if (own && !(own.leftAt && !own.removedAt && own.id === inviteMemberId(i))) continue;
+    const memberId = g.members.find((m) => m.id === inviteMemberId(i) && !m.removedAt && (own ? m.id === own.id : !m.accountId && !m.leftAt))?.id ?? "";
     // Their name was taken out of the group again (or taken by someone else): nothing to answer any more.
     if (!memberId) continue;
     out.push({
@@ -82,6 +82,7 @@ export async function invitationFor(account: Account | null, groupId: string): P
 
 export type Answer = { ok: true; groupId: string; memberId: string } | { ok: false; error: string };
 const GONE = "This invitation is no longer there.";
+const CLOSED = "This invitation is no longer open.";
 
 // Join. `key` is the token, or "m:<memberId>" for the older kind.
 export async function acceptInvitation(account: Account, key: string): Promise<Answer> {
@@ -95,9 +96,21 @@ export async function acceptInvitation(account: Account, key: string): Promise<A
   if (!inv || inv.group.deletedAt) return { ok: false, error: GONE };
   const code = inv.group.inviteCode;
   const memberId = inviteMemberId(inv);
-  // Link their name row if it is still free; otherwise join as themselves (a new row, with their own name).
-  let r: JoinOk | JoinFail = memberId ? await joinExisting(code, account, memberId) : { ok: false, reason: "claimed" };
-  if (!r.ok && r.reason === "claimed") r = await joinNew(code, account, account.name);
+  // The invitation is for one row. If that row is gone (undone) or was removed, the invitation is closed: no joining as someone new instead.
+  const row = memberId ? await db.member.findFirst({ where: { id: memberId, groupId: inv.groupId } }) : null;
+  if (!row || (row.removedAt && row.accountId !== account.id)) {
+    await db.invite.updateMany({ where: { id: inv.id, acceptedAt: null }, data: { declinedAt: new Date() } });
+    return { ok: false, error: CLOSED };
+  }
+  let r: JoinOk | JoinFail;
+  if (row.accountId === account.id) {
+    // Left on their own and invited back to their own row: joining brings them back (joinNew also refuses a removed person).
+    r = await joinNew(code, account, account.name);
+  } else {
+    // Link their name row if it is still free; if someone else took that name meanwhile, join as themselves (a new row, with their own name).
+    r = await joinExisting(code, account, memberId);
+    if (!r.ok && r.reason === "claimed") r = await joinNew(code, account, account.name);
+  }
   if (!r.ok) {
     return { ok: false, error: r.reason === "removed" ? `${r.adminName || "The person who looks after the group"} removed you from this group. Ask them to invite you again.` : GONE };
   }
@@ -113,7 +126,7 @@ export async function acceptInvitation(account: Account, key: string): Promise<A
 // the invitation card goes away. They can still join later from the group's invite link or a new invitation.
 export async function declineInvitation(account: Account, key: string): Promise<Answer> {
   if (key.startsWith("m:")) {
-    const m = await db.member.findFirst({ where: { id: key.slice(2), accountId: account.id, addedBy: { not: "" }, seenAt: null, group: { deletedAt: null } } });
+    const m = await db.member.findFirst({ where: { id: key.slice(2), accountId: account.id, addedBy: { not: "" }, seenAt: null, removedAt: null, group: { deletedAt: null } } });
     if (!m) return { ok: false, error: GONE };
     // Taken off the row, which stays as a plain name (used or not): expenses, payments and balances don't move.
     await db.$transaction([

@@ -31,6 +31,7 @@ import { itemHref } from "@/lib/paths";
 import { restoreGroup } from "@/app/actions";
 import { db } from "@/lib/db";
 import { leaverOf } from "@/lib/left-view-db";
+import { gameVisible } from "@/lib/left-view";
 import { canUndo } from "@/lib/undo";
 import { UndoBar } from "@/components/UndoBar";
 import { PersonIcon, iconButtonClass } from "@/components/icons";
@@ -115,7 +116,7 @@ export default async function Home({
       .map((it) => ({ key: `owed-${it.key}`, lead: it.name, text: <><span className="font-semibold">{it.name}</span> owes you</>, sub: "Nudge or record it", amount: amt(it.net, it.converted), href: "/settle", tone: "owed" as const })),
     ...(unread > 0 ? [{ key: "unread", lead: "bell", text: <>{unread > 9 ? "9+" : unread} new {unread === 1 ? "update" : "updates"}</>, sub: "In your groups and collections", href: "/notifications" }] : []),
     ...open
-      .filter((g) => g.expenses.length > 0 && g.transfers.length === 0 && g.lastActivity.getTime() < quietSince)
+      .filter((g) => !g.leaver && g.expenses.length > 0 && g.transfers.length === 0 && g.lastActivity.getTime() < quietSince)
       .map((g) => ({ key: `close-${g.group.id}`, lead: "check", text: <>Everyone’s square in <span className="font-semibold">{g.group.name}</span></>, sub: "Close it?", href: `/groups/${g.group.id}/settings#close` })),
   ].slice(0, 4);
 
@@ -180,9 +181,11 @@ export default async function Home({
   // Stories: the moments in your groups (a trip coming up, last night's game,
   // a group that just got square, a collection filling up, a year ago today).
   const potIds = open.filter((g) => g.group.type === "pot").map((g) => g.group.id);
-  const games = potIds.length
+  const gameRows = potIds.length
     ? await db.potGame.findMany({ where: { groupId: { in: potIds }, status: "done", deletedAt: null, finishedAt: { gte: new Date(Date.now() - 3 * 86_400_000) } }, include: { moves: { where: { deletedAt: null } } }, take: 10 })
     : [];
+  // Games played after someone left the group aren't theirs to see.
+  const games = gameRows.filter((gm) => gameVisible(open.find((x) => x.group.id === gm.groupId)?.leaver ?? null, gm));
   // What each story shows: the place's photos, the crew, today's numbers, a game's table.
   const first = (n: string) => n.trim().split(/\s+/)[0] || n;
   const crewOf = (g: (typeof open)[number]) => g.group.members.filter((m) => !m.leftAt).map((m) => (m.id === g.myId ? "You" : first(m.name)));
@@ -255,7 +258,7 @@ export default async function Home({
       };
     }),
     squared: open
-      .filter((g) => g.group.type !== "pot" && g.expenses.length > 0 && g.transfers.length === 0 && g.payments.length > 0)
+      .filter((g) => !g.leaver && g.group.type !== "pot" && g.expenses.length > 0 && g.transfers.length === 0 && g.payments.length > 0)
       .map((g) => ({
         id: g.group.id,
         name: g.group.name,
@@ -347,7 +350,8 @@ export default async function Home({
   const homeCountry = (account?.homeCountry || region.country || "IN").toUpperCase();
   const [postcardsNew, billRows] = await Promise.all([
     account ? db.postcard.count({ where: { toId: account.id, readAt: null, OR: [{ opensAt: null }, { opensAt: { lte: new Date() } }] } }) : Promise.resolve(0),
-    db.bill.findMany({ where: { groupId: { in: open.map((g) => g.group.id) }, deletedAt: null, paused: false }, take: 20 }),
+    // A group they left shows no bills.
+    db.bill.findMany({ where: { groupId: { in: open.filter((g) => !g.leaver).map((g) => g.group.id) }, deletedAt: null, paused: false }, take: 20 }),
   ]);
   // The same count as the passport: countries with a stamp or a tick (home only if it has one).
   const passportSet = new Set(
@@ -882,7 +886,7 @@ function GroupRow({ g, closed, tz }: { g: Awaited<ReturnType<typeof loadOverview
         <span className="min-w-0 flex-1">
           <span className={`block truncate font-medium ${closed ? "text-gray-500" : ""}`}>{g.group.name}</span>
           <span className="block truncate text-sm text-gray-400">
-            {peopleCount(g.group.members.filter((m) => !m.leftAt).length)}, {closed ? "closed" : activeText(g.lastActivity, tz)}
+            {peopleCount(g.people)}, {closed ? "closed" : activeText(g.lastActivity, tz)}
           </span>
         </span>
         <span className={`shrink-0 text-right text-sm tabular-nums ${b > 0 ? "text-owed" : b < 0 ? "text-owe" : "text-gray-400"}`}>
@@ -896,7 +900,7 @@ function GroupRow({ g, closed, tz }: { g: Awaited<ReturnType<typeof loadOverview
 // A group on Home: its photo, its name, what happened last, and your balance in it.
 function GroupLine({ g, tz }: { g: Awaited<ReturnType<typeof loadOverview>>["all"][number]; tz: string }) {
   const b = g.myBalance;
-  const people = g.group.members.filter((m) => !m.leftAt);
+  const people = { length: g.people };
   const photo = g.group.type === "trip" && !g.group.cover ? placePhoto(g.group.name)?.src : undefined;
   return (
     <li>

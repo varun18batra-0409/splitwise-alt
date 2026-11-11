@@ -175,6 +175,28 @@ describe("the admin can turn 'left' into 'removed'", () => {
   });
 });
 
+describe("redo after undoing 'left' -> 'removed'", () => {
+  it("left, removed, Undo (back to left), Redo (removed again, not active)", async () => {
+    const f = await flat("redo");
+    await setMemberLeft(f.groupId, f.sam, f.sam, true);
+    const leftAt = (await db.member.findUniqueOrThrow({ where: { id: f.sam } })).leftAt!;
+    const removed = await setMemberLeft(f.groupId, f.asha, f.sam, true);
+    if (!removed.ok || !removed.eventId) throw new Error("no event");
+    const undone = await undoEvent(removed.eventId, f.asha);
+    if (!undone.ok || !undone.eventId) throw new Error("undo failed");
+    const mid = await db.member.findUniqueOrThrow({ where: { id: f.sam } });
+    expect(mid.removedAt).toBeNull();
+    expect(mid.leftAt?.getTime()).toBe(leftAt.getTime());
+    const redone = await undoEvent(undone.eventId, f.asha); // Redo = undo the undo
+    expect(redone.ok).toBe(true);
+    const row = await db.member.findUniqueOrThrow({ where: { id: f.sam } });
+    expect(row.removedAt).not.toBeNull(); // removed again, not active
+    expect(row.removedById).toBe(f.asha);
+    expect(row.leftAt).not.toBeNull();
+    expect(row.leftAt?.getTime()).toBe(leftAt.getTime());
+  });
+});
+
 describe("a new invite link", () => {
   it("the old link stops working and the new one works; only the admin can make it", async () => {
     const f = await flat("h");

@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { db } from "./db";
 
 // Who counts as having really joined a group.
 //
@@ -16,4 +17,20 @@ export const JOINED = { OR: [{ addedBy: "" }, { seenAt: { not: null } }] } satis
 
 export function isPending(m: { addedBy: string; seenAt: Date | null }): boolean {
   return m.addedBy !== "" && m.seenAt === null;
+}
+
+// Older people who used a group before invitations existed: added straight in, never opened the group's page,
+// but have themselves added an expense or payment there. They have clearly joined, so they stay joined (and
+// their seenAt is set, one benign write). Returns the ids of the rows it confirmed.
+export async function confirmUsedPending(accountId: string): Promise<string[]> {
+  const pending = await db.member.findMany({ where: { accountId, addedBy: { not: "" }, seenAt: null }, select: { id: true } });
+  if (!pending.length) return [];
+  const ids = pending.map((p) => p.id);
+  const [spent, paid] = await Promise.all([
+    db.expense.findMany({ where: { createdById: { in: ids } }, select: { createdById: true }, distinct: ["createdById"] }),
+    db.payment.findMany({ where: { createdById: { in: ids } }, select: { createdById: true }, distinct: ["createdById"] }),
+  ]);
+  const used = [...new Set([...spent, ...paid].map((r) => r.createdById))].filter((id) => ids.includes(id));
+  if (used.length) await db.member.updateMany({ where: { id: { in: used }, seenAt: null }, data: { seenAt: new Date() } });
+  return used;
 }

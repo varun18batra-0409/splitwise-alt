@@ -1,4 +1,4 @@
-import { payersOf } from "./payers";
+import { payerIds, payersOf } from "./payers";
 import { getCategory } from "./categories";
 import { decimalsOf } from "./money";
 import { dayKey } from "./dates";
@@ -47,14 +47,31 @@ export function typeLabel(kind?: string | null): string {
   return kind === "refund" ? "Money back" : kind === "pot" ? "Card game" : "Expense";
 }
 
+// Everyone who is a payer, a sharer or a side of a payment in these rows.
+export function involvedIds(expenses: Pick<Expense, "paidById" | "payers" | "shares">[], payments: Pick<Payment, "fromId" | "toId">[]): Set<string> {
+  const ids = new Set<string>();
+  for (const e of expenses) {
+    ids.add(e.paidById);
+    for (const id of payerIds(e)) ids.add(id);
+    for (const s of e.shares) ids.add(s.memberId);
+  }
+  for (const p of payments) ids.add(p.fromId).add(p.toId);
+  return ids;
+}
+
 export function groupCsv(
   group: { name: string; currency: string },
   members: Member[],
   expenses: Expense[],
   payments: Payment[],
   tz?: string,
+  // `onlyInvolved`: for someone who left. Share columns only for people who appear in the rows they may see,
+  // so the sheet doesn't list everyone who joined the group later.
+  opts: { onlyInvolved?: boolean } = {},
 ): string {
   const cur = group.currency;
+  const involved = opts.onlyInvolved ? involvedIds(expenses, payments) : null;
+  const cols = involved ? members.filter((m) => involved.has(m.id)) : members;
   const name = (id: string) => members.find((m) => m.id === id)?.name ?? "Someone";
   // Money back is written as negative amounts, so a column adds up to what was really spent.
   const sign = (e: Expense) => (e.kind === "refund" ? -1 : 1);
@@ -66,7 +83,7 @@ export function groupCsv(
   const header = [
     "Date", "Type", "Description", "Notes", "Category", "Paid by", `Amount (${cur})`,
     "Original amount", "Original currency", "Exchange rate", `Card markup (${cur})`, "Paid with", "Status",
-    ...members.map((m) => `${m.name}'s share (${cur})`),
+    ...cols.map((m) => `${m.name}'s share (${cur})`),
   ];
   type Row = { date: Date; cells: (string | number)[] };
   const rows: Row[] = [];
@@ -79,7 +96,7 @@ export function groupCsv(
         dayKey(date, tz), typeLabel(e.kind), e.description, e.notes ?? "", getCategory(e.category).label, paidByCell(e), plain(sign(e) * e.amount, cur),
         foreign ? plain(e.originalAmount, e.originalCurrency) : "", foreign ? e.originalCurrency : "", foreign ? e.exchangeRate : "",
         e.markupAmount ? plain(e.markupAmount, cur) : "", e.paymentMethod, e.deletedAt ? "Deleted" : "",
-        ...members.map((m) => {
+        ...cols.map((m) => {
           const s = e.shares.find((x) => x.memberId === m.id);
           return s ? plain(sign(e) * s.amount, cur) : "";
         }),
@@ -91,7 +108,7 @@ export function groupCsv(
       date: p.createdAt,
       cells: [
         dayKey(p.createdAt, tz), "Payment", `${name(p.fromId)} paid ${name(p.toId)}`, "", "", name(p.fromId), plain(p.amount, cur),
-        "", "", "", "", "", p.deletedAt ? "Deleted" : "", ...members.map(() => ""),
+        "", "", "", "", "", p.deletedAt ? "Deleted" : "", ...cols.map(() => ""),
       ],
     });
   }

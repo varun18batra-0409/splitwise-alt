@@ -10,7 +10,7 @@ const { db } = await import("@/lib/db");
 const { claimJob, finishJob } = await import("@/lib/push");
 const { sendReminders } = await import("@/lib/home/reminders-db");
 const { saveExpense } = await import("@/lib/save-expense");
-const { makeStop, runClaimedParts, runDeferredParts, recordDeferred, deferredToday, DAILY_BUDGET_MS } = await import("@/lib/daily-job");
+const { makeStop, runClaimedParts, runDeferredParts, recordDeferred, deferredToday, markDailyStarted, markDailyFinished, dailyState, DAILY_BUDGET_MS } = await import("@/lib/daily-job");
 
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const MIN = 60_000;
@@ -177,9 +177,17 @@ describe("the evening catch-up only finishes what the morning left", () => {
   const evening = new Date("2026-11-23T16:00:00Z"); // Monday 21:30 India time
   const noteKey = (part: string) => `daily-deferred:2026-11-23:${part}`;
   const never = () => false;
+  // The morning run began and got to the end (what it left is in the deferred notes, if anything).
+  const morningDone = async (at: Date) => {
+    await markDailyStarted(at);
+    await markDailyFinished(at);
+    const day = at.toISOString().slice(0, 10);
+    keys.push(`daily-started:${day}`, `daily-finished:${day}`);
+  };
 
   it("nothing was deferred in the morning: the evening does nothing at all (no first-time nudge at 21:30)", async () => {
     const quiet = new Date("2026-11-17T16:00:00Z"); // a day with no morning note
+    await morningDone(new Date("2026-11-17T00:30:00Z"));
     const f = await flat("quiet");
     mocks.sendPushTo.mockClear();
     const failed: string[] = [];
@@ -191,6 +199,7 @@ describe("the evening catch-up only finishes what the morning left", () => {
   });
 
   it("the morning ran out of time before reminders: the evening runs reminders only, for the flat not done yet, and crosses it off", async () => {
+    await morningDone(new Date("2026-11-23T00:30:00Z"));
     const done = await flat("morning-done");
     const left = await flat("not-yet");
     // The morning already did the first flat.
@@ -232,5 +241,47 @@ describe("the evening catch-up only finishes what the morning left", () => {
     const r = await runClaimedParts(night, never, failed, ["reminders", "summaries"]);
     expect(Object.keys(r.results)).toEqual(["reminders", "summaries"]);
     expect(r.deferred).toEqual(["reminders", "summaries"]);
+  });
+});
+
+// Evening catch-up when the morning's own notes are missing or incomplete.
+describe("the evening runs everything when the morning never finished", () => {
+  const never = () => false;
+  const note = (day: string, what: "started" | "finished") => {
+    keys.push(`daily-${what}:${day}`);
+  };
+
+  it("started but never finished (crashed): every part runs, then the day counts as done and a second evening run does nothing", async () => {
+    const morning = new Date("2026-11-25T00:30:00Z");
+    const evening = new Date("2026-11-25T16:00:00Z"); // 21:30 India time
+    await markDailyStarted(morning);
+    note("2026-11-25", "started");
+    note("2026-11-25", "finished");
+    expect(await dailyState(evening)).toEqual({ started: true, finished: false });
+    const failed: string[] = [];
+    const r = await runDeferredParts(evening, never, failed);
+    expect(Object.keys(r.results)).toEqual(["bills", "reminders", "countdowns", "budgets", "summaries", "memories", "postcards", "blob-trash"]);
+    expect(r.deferred).toEqual([]);
+    expect(await dailyState(evening)).toEqual({ started: true, finished: true });
+    expect(await runDeferredParts(evening, never, failed)).toEqual({ results: {}, deferred: [] });
+  });
+
+  it("never started at all (the morning cron did not fire): every part runs in the evening", async () => {
+    const evening = new Date("2026-11-26T16:00:00Z");
+    note("2026-11-26", "started");
+    note("2026-11-26", "finished");
+    expect(await dailyState(evening)).toEqual({ started: false, finished: false });
+    const r = await runDeferredParts(evening, never, []);
+    expect(Object.keys(r.results).length).toBe(8);
+    expect(await dailyState(evening)).toEqual({ started: true, finished: true });
+  });
+
+  it("short of time in the evening: the day is not marked finished, so the next run tries everything again", async () => {
+    const evening = new Date("2026-11-27T16:00:00Z");
+    note("2026-11-27", "started");
+    note("2026-11-27", "finished");
+    const r = await runDeferredParts(evening, () => true, []);
+    expect(r.deferred.length).toBe(8);
+    expect(await dailyState(evening)).toEqual({ started: false, finished: false });
   });
 });

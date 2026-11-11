@@ -33,6 +33,26 @@ function removedBy(group: Loaded, row: { removedById: string }): string {
   return group.members.find((m) => m.id === row.removedById)?.name ?? pickAdmin(group.members)?.name ?? "";
 }
 
+// Emails with an open invitation (not joined, not declined) for this name row. Older tokens carried the row id before a dot.
+export async function openInviteEmails(groupId: string, memberId: string): Promise<string[]> {
+  const rows = await db.invite.findMany({
+    where: { groupId, acceptedAt: null, declinedAt: null, OR: [{ memberId }, { token: { startsWith: `${memberId}.` } }] },
+    select: { email: true },
+  });
+  return rows.map((r) => r.email.toLowerCase());
+}
+
+// Name rows nobody may take with "That's me" because an email invitation is open for them (for the join page's list).
+export async function invitedNameRows(groupId: string): Promise<Set<string>> {
+  const rows = await db.invite.findMany({ where: { groupId, acceptedAt: null, declinedAt: null }, select: { memberId: true, token: true } });
+  return new Set(rows.map((r) => r.memberId || (r.token.includes(".") ? r.token.split(".")[0] : "")).filter(Boolean));
+}
+
+// Joining counts as having opened the group: an older pending row (added straight in) stops being pending.
+async function markSeen(memberId: string) {
+  await db.member.updateMany({ where: { id: memberId, seenAt: null }, data: { seenAt: new Date() } });
+}
+
 // "That's me": take over a name someone added before invitations existed.
 export async function joinExisting(code: string, account: JoinAccount, memberId: string): Promise<JoinOk | JoinFail> {
   const group = await loadByCode(code);
@@ -40,11 +60,17 @@ export async function joinExisting(code: string, account: JoinAccount, memberId:
   const gone = removedRow(group, account.id);
   if (gone) return { ok: false, reason: "removed", adminName: removedBy(group, gone) };
   const mine = group.members.find((m) => m.accountId === account.id);
-  if (mine) return { ok: true, memberId: mine.id };
+  if (mine) {
+    await markSeen(mine.id);
+    return { ok: true, memberId: mine.id };
+  }
   const member = group.members.find((m) => m.id === memberId);
   // Only names nobody has claimed yet (and nobody removed), and only one person can win the claim.
   if (!member || member.accountId || member.claimedAt || member.removedAt) return { ok: false, reason: "claimed" };
-  const won = await db.member.updateMany({ where: { id: member.id, accountId: null, claimedAt: null, removedAt: null }, data: { accountId: account.id, claimedAt: new Date() } });
+  // A name someone was invited as (by email) belongs to that invitation: only the invited email can take it.
+  const open = await openInviteEmails(group.id, member.id);
+  if (open.length && !open.includes(account.email.toLowerCase())) return { ok: false, reason: "claimed" };
+  const won = await db.member.updateMany({ where: { id: member.id, accountId: null, claimedAt: null, removedAt: null }, data: { accountId: account.id, claimedAt: new Date(), seenAt: new Date() } });
   if (won.count !== 1) return { ok: false, reason: "claimed" };
   if (!account.name) await db.account.update({ where: { id: account.id }, data: { name: member.name } });
   await logEvent(db, { groupId: group.id, actorId: member.id, kind: "members_added", text: "joined the group" });
@@ -60,6 +86,7 @@ export async function joinNew(code: string, account: JoinAccount, typedName: str
   const mine = group.members.find((m) => m.accountId === account.id);
   if (mine) {
     if (mine.leftAt) await db.member.update({ where: { id: mine.id }, data: { leftAt: null } });
+    await markSeen(mine.id);
     return { ok: true, memberId: mine.id };
   }
   const typed = cleanNames([typedName])[0] ?? account.name;
@@ -67,7 +94,7 @@ export async function joinNew(code: string, account: JoinAccount, typedName: str
   if (!account.name) await db.account.update({ where: { id: account.id }, data: { name: typed || name } });
   let member;
   try {
-    member = await db.member.create({ data: { name, groupId: group.id, claimedAt: new Date(), accountId: account.id, splitWeight: group.joinWeight } });
+    member = await db.member.create({ data: { name, groupId: group.id, claimedAt: new Date(), seenAt: new Date(), accountId: account.id, splitWeight: group.joinWeight } });
   } catch {
     // Pressed twice, or someone took the same name at the same moment: try again.
     return { ok: false, reason: "retry" };
