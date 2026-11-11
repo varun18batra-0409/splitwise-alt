@@ -5,7 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import { Notice } from "@/components/Notice";
 import { getMyMemberId } from "@/lib/identity";
 import { loadGroup } from "@/lib/group-data";
-import { formatMoney, overpayLine, PAYMENT_LINE, toInputAmount } from "@/lib/money";
+import { differentAmountHref, formatMoney, overpayLine, PAYMENT_LINE, toInputAmount } from "@/lib/money";
 import { applySettleMin, pairwiseDebtCount } from "@/lib/settle";
 import { planKey } from "@/lib/settle-all";
 import { canUndo } from "@/lib/undo";
@@ -319,7 +319,7 @@ export default async function GroupSettle({
                           I’ve paid {money(t.amount)}
                         </button>
                       </form>
-                      <Link href={`/groups/${group.id}/pay?${new URLSearchParams({ from: t.from, to: t.to, amount: toInputAmount(t.amount, group.currency) })}`} className="mt-1 inline-flex min-h-11 items-center text-sm font-medium text-fg/70 underline underline-offset-4">
+                      <Link href={differentAmountHref(group.id, t.from, t.to, toInputAmount(t.amount, group.currency))} className="mt-1 inline-flex min-h-11 items-center text-sm font-medium text-fg/70 underline underline-offset-4">
                         Paid a different amount?
                       </Link>
                     </div>

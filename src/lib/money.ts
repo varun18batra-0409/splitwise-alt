@@ -184,6 +184,11 @@ export function amountEcho(input: string, currency = "INR"): string | null {
   return total === null ? null : formatMoney(total, currency);
 }
 
+// Settle up's "Paid a different amount?" link: Record a payment with the pair filled in, and Back returning to Settle up.
+export function differentAmountHref(groupId: string, fromId: string, toId: string, amountInput: string): string {
+  return `/groups/${groupId}/pay?${new URLSearchParams({ from: fromId, to: toId, amount: amountInput, back: "settle" })}`;
+}
+
 // The "more than what's owed?" page for Record a payment. It keeps where the person came from (Settle up),
 // so Cancel, Record anyway and Back all return there.
 export function overpayHref(groupId: string, q: Record<string, string>, fromSettle: boolean): string {

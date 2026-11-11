@@ -206,5 +206,12 @@ export async function myDeclinedClaims(groupId: string, myMemberId: string) {
   const rows = await db.paymentClaim.findMany({ where: { groupId, fromId: myMemberId }, orderBy: { createdAt: "desc" }, take: 50 });
   const latest = new Map<string, (typeof rows)[number]>();
   for (const r of rows) if (!latest.has(r.toId)) latest.set(r.toId, r);
-  return [...latest.values()].filter((r) => r.status === "declined");
+  const declined = [...latest.values()].filter((r) => r.status === "declined");
+  if (!declined.length) return [];
+  // Any payment from this person to that person recorded after the "Not received" (and still counting) replaces the note.
+  const paid = await db.payment.findMany({ where: { groupId, fromId: myMemberId, deletedAt: null }, select: { toId: true, createdAt: true } });
+  return declined.filter((r) => {
+    const since = r.decidedAt ?? r.createdAt;
+    return !paid.some((p) => p.toId === r.toId && p.createdAt >= since);
+  });
 }

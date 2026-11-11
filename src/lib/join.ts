@@ -14,7 +14,8 @@ import { isGroupAdmin, pickAdmin } from "./group-admin";
 //   The admin can bring them back from People.
 // - Someone who left on their own can rejoin from the link, as before.
 
-export type JoinFail = { ok: false; reason: "gone" | "removed" | "claimed" | "retry"; adminName?: string };
+export type JoinFail = { ok: false; reason: "gone" | "removed" | "claimed" | "retry" | "name"; adminName?: string };
+export const NAME_NEEDED = "Add your name so the group knows who you are.";
 export type JoinOk = { ok: true; memberId: string };
 export type JoinAccount = { id: string; name: string; email: string };
 
@@ -89,9 +90,11 @@ export async function joinNew(code: string, account: JoinAccount, typedName: str
     await markSeen(mine.id);
     return { ok: true, memberId: mine.id };
   }
+  // A name is never made up from the email address: if nobody gave one, ask for it.
   const typed = cleanNames([typedName])[0] ?? account.name;
-  const name = freeName(group.members.map((m) => m.name), typed || account.email.split("@")[0]);
-  if (!account.name) await db.account.update({ where: { id: account.id }, data: { name: typed || name } });
+  if (!typed) return { ok: false, reason: "name" };
+  const name = freeName(group.members.map((m) => m.name), typed);
+  if (!account.name) await db.account.update({ where: { id: account.id }, data: { name: typed } });
   let member;
   try {
     member = await db.member.create({ data: { name, groupId: group.id, claimedAt: new Date(), seenAt: new Date(), accountId: account.id, splitWeight: group.joinWeight } });

@@ -3,7 +3,7 @@ import { hasLeft, LEFT_ERROR } from "./active";
 import { buildExpense, type ExpenseDraft } from "./expense";
 import { getCategory, guessCategory, isCategory } from "./categories";
 import { formatMoney, isSupportedCurrency } from "./money";
-import { restorePayments } from "./payments";
+import { RestoreRefused, restorePayments } from "./payments";
 import { cleanRateText, parseRate, PAYMENT_METHODS } from "./conversion";
 import { diffExpense, expenseState, logEvent, touchedByExpense, type ExpenseSnapshot } from "./events";
 import type { RateAnswer } from "./rate-cache";
@@ -400,7 +400,9 @@ async function setPaymentDeletedOnce(paymentId: string, actingMemberId: string |
   if (payment.group.deletedAt) return { ok: false, error: "This group was deleted." };
   if (payment.group.closed) return { ok: false, error: "This group is closed. Reopen it to change payments." };
   if (Boolean(payment.deletedAt) === deleted) return { ok: true, id: payment.id };
-  const eventId = await db.$transaction(async (tx) => {
+  let eventId: string;
+  try {
+   eventId = await db.$transaction(async (tx) => {
     let moved: boolean;
     if (deleted) {
       moved = (await tx.payment.updateMany({ where: { id: payment.id, deletedAt: null }, data: { deletedAt: new Date(), deletedById: actingMemberId } })).count === 1;
@@ -417,6 +419,10 @@ async function setPaymentDeletedOnce(paymentId: string, actingMemberId: string |
       paymentId: payment.id,
       undo: { type: deleted ? "payment_restore" : "payment_delete", paymentId: payment.id },
     });
-  });
+   });
+  } catch (err) {
+    if (err instanceof RestoreRefused) return { ok: false, error: err.message };
+    throw err;
+  }
   return { ok: true, id: payment.id, eventId: eventId || undefined };
 }

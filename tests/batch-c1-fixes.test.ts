@@ -43,9 +43,11 @@ const { rejectPayment } = await import("@/lib/payment-ok");
 const { markAllPaid, setPaymentsDeleted, settleAllAndClose, applySettleAll, planKey } = await import("@/lib/settle-all");
 const { setPaymentDeleted } = await import("@/lib/save-expense");
 const { undoEvent } = await import("@/lib/undo");
-const { payLinkFor, readPayLink, recordLinkPayment } = await import("@/lib/pay-link");
+const { payLinkFor, readPayLink, recordLinkPayment, owedInTx } = await import("@/lib/pay-link");
 const { addRegistered, inviteToClaim, searchPeople } = await import("@/lib/invites");
-const { overpayHref } = await import("@/lib/money");
+const { overpayHref, differentAmountHref } = await import("@/lib/money");
+const { joinNew, NAME_NEEDED } = await import("@/lib/join");
+const { readFileSync } = await import("node:fs");
 const { LEFT_ERROR } = await import("@/lib/active");
 const A = await import("@/app/actions");
 const P = await import("@/app/pay-actions");
@@ -348,7 +350,7 @@ describe("4: the pay link records a payment when the person owed can't confirm",
     expect(url.pathname).toBe(`/p/${token}`);
     expect(url.searchParams.get("paid")).toBe("1");
     const p = await db.payment.findFirstOrThrow({ where: { groupId: w.gid } });
-    expect([p.fromId, p.toId, p.amount, p.createdById, p.needsOk]).toEqual([w.r, w.a, 30000, w.r, false]); // Asha can't answer yet, so nobody is asked
+    expect([p.fromId, p.toId, p.amount, p.createdById, p.needsOk]).toEqual([w.r, w.a, 30000, w.r, true]); // flagged, so once Asha joins she can still say Not received
     expect(await net(w.gid)).toEqual({ [w.a]: 30000, [w.r]: 0, [w.m]: -30000 });
     expect((await db.payLink.findUniqueOrThrow({ where: { token } })).paymentId).toBe(p.id);
     expect(await db.paymentClaim.count({ where: { groupId: w.gid } })).toBe(0);
@@ -510,5 +512,169 @@ describe("action guards: who can call claimPaidAction and confirmClaimAction", (
     expect((await redirectOf(() => P.confirmClaimAction(f()))).searchParams.get("ok")).toBe("1");
     expect(await net(w.gid)).toEqual({ [w.a]: 30000, [w.r]: 0, [w.m]: -30000 });
     expect(await payCount(w.gid)).toBe(1);
+  });
+});
+
+
+// ---------------------------------------------------------------------------------------------------------------
+// Second round
+// ---------------------------------------------------------------------------------------------------------------
+
+const REFUSAL_R_A = "Ravi’s ₹300 payment to Asha was confirmed since. If both were really paid, record this one again.";
+
+describe("N1: a restore after a claim was confirmed is refused, so the money never counts twice", () => {
+  it("Meera records R→A, Asha says Not received, Ravi claims and Asha confirms, then Undo of Not received is refused", async () => {
+    const w = await auditorWorld(); // A +30000, R −60000, M +30000
+    const first = await db.$transaction((tx) => createPayment(tx, { groupId: w.gid, fromId: w.r, toId: w.a, amount: 30000, createdById: w.m, needsOk: true }));
+    const rej = await rejectPayment(first.id, w.a);
+    expect(rej.ok).toBe(true);
+    const c = await claimOf(w, w.r, w.a);
+    expect((await confirmClaim(c.claimId, w.a)).ok).toBe(true);
+    // One payment (Ravi's confirmed 30000): Asha 30000 − 30000 = 0, Ravi −60000 + 30000 = −30000, Meera +30000.
+    const before = { [w.a]: 0, [w.r]: -30000, [w.m]: 30000 };
+    expect(await net(w.gid)).toEqual(before);
+    const undone = await undoEvent(rej.ok ? rej.eventId! : "", w.a);
+    expect(undone).toMatchObject({ ok: false, error: REFUSAL_R_A });
+    // Nothing changed: still one payment, the old one still deleted, same balances (a double count would make Ravi 0 and Asha −30000).
+    expect(await payCount(w.gid)).toBe(1);
+    expect((await db.payment.findUniqueOrThrow({ where: { id: first.id } })).deletedAt).not.toBeNull();
+    const after = await net(w.gid);
+    expect(after).toEqual(before);
+    expect(sum(after)).toBe(0);
+    // Restoring it by hand is refused the same way.
+    expect(await setPaymentDeleted(first.id, w.a, false)).toEqual({ ok: false, error: REFUSAL_R_A });
+    expect(await payCount(w.gid)).toBe(1);
+  });
+
+  it("redo of Mark all paid is refused as a whole after a claim for one of its pairs was confirmed", async () => {
+    // Dinner ₹900 by Asha for three: A +60000, R −30000, M −30000.
+    const w = await world();
+    await addExpense(w.gid, w.a, 90000, [[w.a, 30000], [w.r, 30000], [w.m, 30000]], "Dinner");
+    expect((await markAllPaid(w.gid, w.a, [{ from: w.r, to: w.a, amount: 30000 }, { from: w.m, to: w.a, amount: 30000 }], "", true)).ok).toBe(true);
+    const ids = (await db.payment.findMany({ where: { groupId: w.gid }, select: { id: true } })).map((x) => x.id);
+    expect((await setPaymentsDeleted(w.gid, w.a, ids, true)).ok).toBe(true);
+    const c = await claimOf(w, w.r, w.a);
+    expect((await confirmClaim(c.claimId, w.a)).ok).toBe(true);
+    // Ravi's confirmed 30000 only: A +30000, R 0, M −30000.
+    const before = { [w.a]: 30000, [w.r]: 0, [w.m]: -30000 };
+    expect(await net(w.gid)).toEqual(before);
+    expect(await setPaymentsDeleted(w.gid, w.a, ids, false)).toEqual({ ok: false, error: REFUSAL_R_A });
+    // Meera's payment did not come back either (all or nothing).
+    expect(await payCount(w.gid)).toBe(1);
+    expect(await net(w.gid)).toEqual(before);
+  });
+
+  it("redo of Settle everything is refused too, and the group stays open", async () => {
+    const w = await world();
+    await addExpense(w.gid, w.a, 90000, [[w.a, 30000], [w.r, 30000], [w.m, 30000]], "Dinner");
+    const data = (await loadGroup(w.gid, { events: false }))!;
+    expect((await settleAllAndClose(w.gid, w.a, planKey(data.transfers))).ok).toBe(true);
+    const ids = (await db.payment.findMany({ where: { groupId: w.gid }, select: { id: true } })).map((x) => x.id);
+    expect((await applySettleAll(w.gid, w.a, ids, false)).ok).toBe(true);
+    const c = await claimOf(w, w.r, w.a);
+    expect((await confirmClaim(c.claimId, w.a)).ok).toBe(true);
+    expect(await applySettleAll(w.gid, w.a, ids, true)).toEqual({ ok: false, error: REFUSAL_R_A });
+    expect((await db.group.findUniqueOrThrow({ where: { id: w.gid } })).closed).toBe(false);
+    expect(await payCount(w.gid)).toBe(1);
+    expect(await net(w.gid)).toEqual({ [w.a]: 30000, [w.r]: 0, [w.m]: -30000 });
+  });
+
+  it("a claim confirmed BEFORE the payment was deleted does not block its restore", async () => {
+    const w = await world();
+    await addExpense(w.gid, w.a, 90000, [[w.a, 30000], [w.r, 30000], [w.m, 30000]], "Dinner");
+    const c = await claimOf(w, w.r, w.a);
+    const done = await confirmClaim(c.claimId, w.a);
+    expect(done.ok && done.paymentId).toBeTruthy();
+    const pid = done.ok ? done.paymentId! : "";
+    await new Promise((r) => setTimeout(r, 5));
+    expect((await setPaymentDeleted(pid, w.a, true)).ok).toBe(true);
+    expect(await net(w.gid)).toEqual({ [w.a]: 60000, [w.r]: -30000, [w.m]: -30000 });
+    // Restoring that same confirmed payment is fine: A +30000, R 0, M −30000.
+    expect((await setPaymentDeleted(pid, w.a, false)).ok).toBe(true);
+    expect(await net(w.gid)).toEqual({ [w.a]: 30000, [w.r]: 0, [w.m]: -30000 });
+  });
+});
+
+describe("N2: the pay link re-checks what is owed inside the write", () => {
+  it("owedInTx sees a payment made after the page was read, and the link then records nothing", async () => {
+    const w = await world({ ashaJoined: false });
+    await addExpense(w.gid, w.a, 90000, [[w.a, 30000], [w.r, 30000], [w.m, 30000]], "Dinner");
+    const s = await readPayLink(await payLinkFor(w.gid, w.r, w.a, w.a));
+    expect(s.kind).toBe("owes");
+    if (s.kind !== "owes") return;
+    expect(await db.$transaction((tx) => owedInTx(tx, w.gid, w.r, w.a))).toBe(30000);
+    // Meera records Ravi's ₹300 another way, just after the read.
+    await db.$transaction((tx) => createPayment(tx, { groupId: w.gid, fromId: w.r, toId: w.a, amount: 30000, createdById: w.m }));
+    expect(await db.$transaction((tx) => owedInTx(tx, w.gid, w.r, w.a))).toBe(0);
+    expect(await recordLinkPayment({ link: s.link, amount: s.amount, currency: "INR", toName: "Asha" })).toBe(false);
+    expect(await payCount(w.gid)).toBe(1); // Meera's only
+    expect(await net(w.gid)).toEqual({ [w.a]: 30000, [w.r]: 0, [w.m]: -30000 });
+  });
+});
+
+describe("N5: a name is never made from an email address", () => {
+  async function newcomer(name: string) {
+    const n = ++counter;
+    const email = `zed.quill${n}-${stamp}@example.test`;
+    const acc = await db.account.create({ data: { email, name } });
+    accounts.push(acc.id);
+    const g = await db.group.create({ data: { name: `N5 ${n} ${stamp}`, currency: "INR", inviteCode: `n5-${n}-${stamp}`, members: { create: [{ name: "Asha", claimedAt: new Date() }] } } });
+    groups.push(g.id);
+    return { acc: { id: acc.id, name: acc.name, email }, g };
+  }
+
+  it("no typed name and no account name: refused, nobody added, account unchanged", async () => {
+    const { acc, g } = await newcomer("");
+    expect(await joinNew(g.inviteCode, acc, "   ")).toEqual({ ok: false, reason: "name" });
+    expect(NAME_NEEDED).toBe("Add your name so the group knows who you are.");
+    expect(await db.member.count({ where: { groupId: g.id } })).toBe(1);
+    expect((await db.account.findUniqueOrThrow({ where: { id: acc.id } })).name).toBe("");
+  });
+
+  it("a typed name is used and saved on the nameless account", async () => {
+    const { acc, g } = await newcomer("");
+    const r = await joinNew(g.inviteCode, acc, "Zed");
+    expect(r.ok).toBe(true);
+    expect((await db.member.findMany({ where: { groupId: g.id }, orderBy: { createdAt: "asc" } })).map((m) => m.name)).toEqual(["Asha", "Zed"]);
+    expect((await db.account.findUniqueOrThrow({ where: { id: acc.id } })).name).toBe("Zed");
+  });
+
+  it("no typed name but the account has one: that name is used", async () => {
+    const { acc, g } = await newcomer("Zoya");
+    expect((await joinNew(g.inviteCode, acc, "")).ok).toBe(true);
+    expect(await db.member.count({ where: { groupId: g.id, name: "Zoya" } })).toBe(1);
+  });
+
+  it("the join page shows the ask for ?error=name", () => {
+    const src = readFileSync(`${__dirname}/../src/app/join/[code]/page.tsx`, "utf8");
+    expect(src).toContain('error === "name"');
+  });
+});
+
+describe("N6: Paid a different amount? keeps the way back, and the Not received note goes once a payment follows", () => {
+  it("the link carries back=settle and the pay page returns to Settle up", () => {
+    expect(differentAmountHref("g1", "r1", "a1", "300")).toBe("/groups/g1/pay?from=r1&to=a1&amount=300&back=settle");
+    const settle = readFileSync(`${__dirname}/../src/app/groups/[id]/settle/page.tsx`, "utf8");
+    expect(settle).toContain("differentAmountHref(group.id, t.from, t.to,");
+    const pay = readFileSync(`${__dirname}/../src/app/groups/[id]/pay/page.tsx`, "utf8");
+    expect(pay).toContain('back={fromSettle ? `/groups/${group.id}/settle`');
+  });
+
+  it("the note stays after a decline, and goes when any payment Ravi→Asha is recorded after it", async () => {
+    const w = await world();
+    await addExpense(w.gid, w.a, 90000, [[w.a, 30000], [w.r, 30000], [w.m, 30000]], "Dinner");
+    const c = await claimOf(w, w.r, w.a);
+    expect((await declineClaim(c.claimId, w.a)).ok).toBe(true);
+    expect((await myDeclinedClaims(w.gid, w.r)).map((x) => x.toId)).toEqual([w.a]);
+    // A payment Meera → Asha does not clear Ravi's note (different pair).
+    await db.$transaction((tx) => createPayment(tx, { groupId: w.gid, fromId: w.m, toId: w.a, amount: 30000, createdById: w.m }));
+    expect((await myDeclinedClaims(w.gid, w.r)).map((x) => x.toId)).toEqual([w.a]);
+    // Ravi pays Asha ₹100 (a part payment, recorded another way): the note goes.
+    await new Promise((r) => setTimeout(r, 5));
+    const part = await db.$transaction((tx) => createPayment(tx, { groupId: w.gid, fromId: w.r, toId: w.a, amount: 10000, createdById: w.r }));
+    expect(await myDeclinedClaims(w.gid, w.r)).toEqual([]);
+    // If that payment is deleted again, the money isn't paid after all, so the note returns.
+    await setPaymentDeleted(part.id, w.a, true);
+    expect((await myDeclinedClaims(w.gid, w.r)).map((x) => x.toId)).toEqual([w.a]);
   });
 });

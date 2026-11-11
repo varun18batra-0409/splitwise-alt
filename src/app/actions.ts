@@ -189,7 +189,7 @@ async function finishJoin(groupId: string, memberId: string, accountId: string, 
 
 // Where a refused join goes: the join page says it calmly.
 function joinRefused(code: string, r: JoinFail): never {
-  redirect(`/join/${code}${r.reason === "removed" ? "?error=removed" : r.reason === "claimed" ? "?error=claimed" : ""}`);
+  redirect(`/join/${code}${r.reason === "removed" ? "?error=removed" : r.reason === "claimed" ? "?error=claimed" : r.reason === "name" ? "?error=name" : ""}`);
 }
 
 // "That's me": claim a name someone added before invitations existed.

@@ -4,7 +4,9 @@ import { loadGroup } from "./group-data";
 import { logEvent } from "./events";
 import { formatMoney } from "./money";
 import { createPayment } from "./payments";
-import { needsOkFor } from "./payment-ok";
+import { netBalances } from "./balances";
+import { smartSettle } from "./settle";
+import type { Prisma } from "@prisma/client";
 
 // "I've paid" links. When Asha reminds Ravi from Settle up, the WhatsApp
 // message carries a link that only does one thing: Ravi opens it (no sign-in),
@@ -96,19 +98,32 @@ export async function readPayLink(token: string, now = new Date()): Promise<PayL
   return { kind: "owes", ...base, amount: owed };
 }
 
+// What `from` owes `to` right now in the settle plan, read INSIDE the given transaction (so it is the same data the
+// write will see). Same working as loadGroup: every member, expenses and payments that aren't deleted.
+export async function owedInTx(tx: Prisma.TransactionClient, groupId: string, fromId: string, toId: string): Promise<number> {
+  const [members, expenses, payments] = await Promise.all([
+    tx.member.findMany({ where: { groupId }, select: { id: true } }),
+    tx.expense.findMany({ where: { groupId, deletedAt: null }, include: { shares: true } }),
+    tx.payment.findMany({ where: { groupId, deletedAt: null } }),
+  ]);
+  const net = netBalances(members.map((m) => m.id), expenses, payments);
+  return smartSettle(net).find((t) => t.from === fromId && t.to === toId)?.amount ?? 0;
+}
+
 // "I've paid" for someone who can't tap "Confirm received" (the person owed is only a name, or has no account):
 // there is nobody to ask, so it is recorded as a payment right away, as before claims existed. It counts now,
-// and is flagged for "Got it / Not received" only if the person owed can answer. Only the debt shown (`amount`) is
+// and is flagged for "Got it / Not received" so that, once the person owed joins, they can still say Not received. Only the debt shown (`amount`) is
 // recorded, and only one tap wins: the link must still point at the payment it was read with.
 export async function recordLinkPayment(s: { link: { id: string; groupId: string; fromId: string; toId: string; paymentId: string }; amount: number; currency: string; toName: string }): Promise<boolean> {
-  const to = await db.member.findUnique({ where: { id: s.link.toId }, select: { id: true, accountId: true, claimedAt: true } });
   const amountText = formatMoney(s.amount, s.currency);
   // Only what is really owed right now (balances may have moved since the page was read).
   const fresh = await loadGroup(s.link.groupId, { events: false });
   if (!fresh || fresh.group.closed || fresh.transfers.find((t) => t.from === s.link.fromId && t.to === s.link.toId)?.amount !== s.amount) return false;
   try {
     return await db.$transaction(async (tx) => {
-      const p = await createPayment(tx, { groupId: s.link.groupId, fromId: s.link.fromId, toId: s.link.toId, amount: s.amount, createdById: s.link.fromId, needsOk: needsOkFor(to ?? undefined, s.link.fromId) });
+      // Checked again inside the write: someone may have recorded this money between the read above and now.
+      if ((await owedInTx(tx, s.link.groupId, s.link.fromId, s.link.toId)) !== s.amount) throw new Error("no longer owed");
+      const p = await createPayment(tx, { groupId: s.link.groupId, fromId: s.link.fromId, toId: s.link.toId, amount: s.amount, createdById: s.link.fromId, needsOk: true });
       const claimed = await tx.payLink.updateMany({ where: { id: s.link.id, paymentId: s.link.paymentId }, data: { paymentId: p.id } });
       if (claimed.count !== 1) throw new Error("double tap"); // the other tap won: this payment is rolled back
       await logEvent(tx, {

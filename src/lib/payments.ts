@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { formatMoney } from "./money";
 
 // The ONE place a payment row is written. Every route that records a payment
 // (Mark paid, Record a payment, Mark all paid, Settle everything, cross-group
@@ -45,12 +46,29 @@ export async function createPayment(tx: Tx, p: NewPayment, now = new Date()) {
 // createPayment does. Otherwise tapping "Confirm received" on that claim would record the same money a
 // second time. Only payments that are deleted right now are touched (`groupId` limits it to one group).
 // Returns the ids that really came back, so a repeated tap changes nothing.
+//
+// One more rule: if "Confirm received" recorded money for the same pair AFTER this payment was deleted, bringing
+// the old payment back would count that money twice. So the whole restore is refused (RestoreRefused is thrown, which
+// rolls the transaction back, and the caller turns it into the message). Nothing changes.
+export class RestoreRefused extends Error {}
+
 export async function restorePayments(tx: Tx, ids: string[], actorId: string, groupId?: string, now = new Date()): Promise<string[]> {
   if (!ids.length) return [];
   const rows = await tx.payment.findMany({
     where: { id: { in: ids }, deletedAt: { not: null }, ...(groupId ? { groupId } : {}) },
-    select: { id: true, groupId: true, fromId: true, toId: true },
+    select: { id: true, groupId: true, fromId: true, toId: true, amount: true, deletedAt: true },
   });
+  for (const p of rows) {
+    if (!p.deletedAt) continue;
+    const since = await tx.paymentClaim.findFirst({ where: { groupId: p.groupId, fromId: p.fromId, toId: p.toId, status: "confirmed", decidedAt: { gt: p.deletedAt } }, select: { id: true } });
+    if (!since) continue;
+    const [from, to, group] = await Promise.all([
+      tx.member.findUnique({ where: { id: p.fromId }, select: { name: true } }),
+      tx.member.findUnique({ where: { id: p.toId }, select: { name: true } }),
+      tx.group.findUnique({ where: { id: p.groupId }, select: { currency: true } }),
+    ]);
+    throw new RestoreRefused(`${from?.name ?? "They"}’s ${formatMoney(p.amount, group?.currency ?? "INR")} payment to ${to?.name ?? "them"} was confirmed since. If both were really paid, record this one again.`);
+  }
   const restored: string[] = [];
   for (const p of rows) {
     const back = await tx.payment.updateMany({ where: { id: p.id, deletedAt: { not: null } }, data: { deletedAt: null, deletedById: null } });
