@@ -70,3 +70,23 @@ describe("undo a move-out", () => {
     expect((await db.groupEvent.findUnique({ where: { id: ev!.id } }))!.undoneAt).toBeNull();
   });
 });
+
+// Reviewer gaps: two people pressing at the same moment.
+describe("two at once", () => {
+  it("two flatmates confirming the same move-out: one goes through, once", async () => {
+    const g = await db.group.create({
+      data: { name: "Flat T", type: "home", currency: "INR", inviteCode: `mvt-${Date.now()}`, members: { create: [{ name: "You" }, { name: "Rohan" }, { name: "Meera" }] } },
+      include: { members: true },
+    });
+    const id = (n: string) => g.members.find((m) => m.name === n)!.id;
+    const now = new Date("2026-10-20T06:00:00Z");
+    // (A clash may also show up as a database "busy" error for the second one: also not a second move-out.)
+    const all = await Promise.allSettled([
+      moveOut(g.id, id("You"), { leaverId: id("Rohan"), lastDay: "2026-10-20", requestKey: `mvt1-${Date.now()}-abcdefgh` }, now),
+      moveOut(g.id, id("Meera"), { leaverId: id("Rohan"), lastDay: "2026-10-20", requestKey: `mvt2-${Date.now()}-abcdefgh` }, now),
+    ]);
+    expect(all.filter((x) => x.status === "fulfilled" && x.value.ok)).toHaveLength(1);
+    expect(await db.groupEvent.count({ where: { groupId: g.id, kind: "member_left" } })).toBe(1);
+    await db.group.delete({ where: { id: g.id } });
+  });
+});

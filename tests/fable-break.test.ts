@@ -86,16 +86,73 @@ describe("changing the group currency converts everything that holds money", () 
     expect(after).toEqual({ bill: 7200, budget: 18000, goalTarget: 38400, goalEntry: 6000, deposit: 30000, settleMin: 120 });
   });
 
-  it("an open card game's buy-ins follow the new currency", async () => {
+  // Reviewer L1: buy-ins and returns converted one by one can leave an open
+  // game a cent out, so the change waits until the game is finished.
+  it("an open card game blocks the change; once finished, its lines follow the new currency", async () => {
     const g = await group("pot", "INR", ["A", "B", "C"]);
     const [a, b, c] = g.ids;
     const s = await startGame(g.id, a, { name: "", game: "poker", players: [a, b, c] });
     if (!s.ok) throw new Error(s.error);
     for (const who of [a, b, c]) expect((await recordMove(s.id, a, { memberId: who, kind: "take", amount: "2000" })).ok).toBe(true);
+    const blocked = await changeGroupCurrency(g.id, a, "USD", "0.012");
+    expect(blocked.ok).toBe(false);
+    expect((await db.group.findUnique({ where: { id: g.id } }))!.currency).toBe("INR");
+    for (const [who, back] of [[a, "3000"], [b, "2000"], [c, "1000"]] as const) expect((await recordMove(s.id, a, { memberId: who, kind: "return", amount: back })).ok).toBe(true);
+    expect((await finishGame(s.id, a)).ok).toBe(true);
     expect((await changeGroupCurrency(g.id, a, "USD", "0.012")).ok).toBe(true);
-    const moves = await db.potMove.findMany({ where: { gameId: s.id } });
-    console.log("FABLE pot buy-ins after INR→USD:", moves.map((m) => m.amount).join(","));
+    const moves = await db.potMove.findMany({ where: { gameId: s.id, kind: "take" } });
     expect(moves.every((m) => m.amount === 2400)).toBe(true); // ₹2,000 → $24.00
+  });
+
+  // Reviewer gap: the host pressing Finish twice at the same moment adds one result.
+  it("finishing a game twice at once records the result once", async () => {
+    const g = await group("pot", "INR", ["A", "B"]);
+    const [a, b] = g.ids;
+    const s = await startGame(g.id, a, { name: "Twice", game: "poker", players: [a, b] });
+    if (!s.ok) throw new Error(s.error);
+    for (const who of [a, b]) expect((await recordMove(s.id, a, { memberId: who, kind: "take", amount: "1000" })).ok).toBe(true);
+    expect((await recordMove(s.id, a, { memberId: a, kind: "return", amount: "1500" })).ok).toBe(true);
+    expect((await recordMove(s.id, a, { memberId: b, kind: "return", amount: "500" })).ok).toBe(true);
+    await Promise.allSettled([finishGame(s.id, a), finishGame(s.id, a)]);
+    expect(await db.expense.count({ where: { groupId: g.id, kind: "pot", deletedAt: null } })).toBe(1);
+    const e = await db.expense.findFirstOrThrow({ where: { groupId: g.id, kind: "pot" } });
+    expect(e.amount).toBe(50000); // A won ₹500 from B
+  });
+
+  // Reviewer H1: money that changes without a history entry (a deposit handed
+  // over, a new bill, a buy-in) must block undoing the currency change.
+  it("undo is refused once a deposit, bill or goal changed after the currency change; allowed when nothing did", async () => {
+    const g = await group("home", "INR", ["A", "B"]);
+    const [a, b] = g.ids;
+    const dep = await db.deposit.create({ data: { groupId: g.id, shares: { create: [{ memberId: a, amount: 3000000 }, { memberId: b, amount: 3000000 }] } } });
+    // Nothing spent yet: the rate must still be asked for (reviewer M2).
+    expect((await changeGroupCurrency(g.id, a, "USD", "")).ok).toBe(false);
+    const r = await changeGroupCurrency(g.id, a, "USD", "0.012");
+    expect(r.ok).toBe(true);
+    expect((await db.depositShare.findMany({ where: { depositId: dep.id } })).map((x) => x.amount)).toEqual([36000, 36000]); // ₹30,000 → $360
+    // B's deposit is handed to A (as a move-out does, with no money history entry).
+    const [sa, sb] = await db.depositShare.findMany({ where: { depositId: dep.id }, orderBy: { memberId: "asc" } });
+    await db.depositShare.update({ where: { id: sb.id }, data: { status: "transferred", toMemberId: sa.memberId } });
+    await db.depositShare.update({ where: { id: sa.id }, data: { amount: 72000 } });
+    const ev = await db.groupEvent.findFirstOrThrow({ where: { groupId: g.id, kind: "currency_changed" }, orderBy: { createdAt: "desc" } });
+    const u = await undoEvent(ev.id, a);
+    expect(u.ok).toBe(false);
+    expect((await db.group.findUnique({ where: { id: g.id } }))!.currency).toBe("USD");
+    expect((await db.depositShare.findUnique({ where: { id: sa.id } }))!.amount).toBe(72000); // untouched, nothing lost
+
+    // A second group where nothing else changes: undo works and every amount is back exactly.
+    const g2 = await group("home", "INR", ["A", "B"]);
+    const bill = await db.bill.create({ data: { groupId: g2.id, name: "Rent", nature: "fixed", amount: 2500000, startMonth: "2026-11", payer: g2.ids[0] } });
+    expect((await changeGroupCurrency(g2.id, g2.ids[0], "USD", "0.012")).ok).toBe(true);
+    expect((await db.bill.findUnique({ where: { id: bill.id } }))!.amount).toBe(30000); // ₹25,000 → $300
+    const ev2 = await db.groupEvent.findFirstOrThrow({ where: { groupId: g2.id, kind: "currency_changed" }, orderBy: { createdAt: "desc" } });
+    expect((await undoEvent(ev2.id, g2.ids[0])).ok).toBe(true);
+    expect((await db.bill.findUnique({ where: { id: bill.id } }))!.amount).toBe(2500000);
+    // …but a bill added after a currency change blocks its undo.
+    expect((await changeGroupCurrency(g2.id, g2.ids[0], "THB", "0.4")).ok).toBe(true);
+    await db.bill.create({ data: { groupId: g2.id, name: "Maid", nature: "fixed", amount: 150000, startMonth: "2026-11", payer: g2.ids[0] } });
+    const ev3 = await db.groupEvent.findFirstOrThrow({ where: { groupId: g2.id, kind: "currency_changed" }, orderBy: { createdAt: "desc" } });
+    expect((await undoEvent(ev3.id, g2.ids[0])).ok).toBe(false);
   });
 });
 

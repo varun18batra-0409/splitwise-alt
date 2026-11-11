@@ -139,6 +139,7 @@ export type UndoPayload =
       // Everything else that holds money in the group's currency (missing in
       // changes made before these were converted too).
       other?: OtherMoney;
+      after?: OtherMoney; // the amounts as the change left them (to spot changes since)
     }
   | { type: "members_remove"; memberIds: string[] }
   | {

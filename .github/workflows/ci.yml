@@ -86,8 +86,6 @@ jobs:
           git show origin/main:prisma/schema.prisma > /tmp/live-schema/schema.prisma
           npx prisma db push --skip-generate --schema /tmp/live-schema/schema.prisma
           cp /tmp/live-schema/dev.db /tmp/online-stand-in.db
-      - name: One-off database links upgrade (DEF-010), as run on the live database
-        run: node scripts/db-links.mjs --apply
       - name: Hosting build (schema sync, data upgrade, build)
         run: |
           set -o pipefail

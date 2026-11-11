@@ -186,8 +186,9 @@ export async function finishGame(gameId: string, actorId: string): Promise<Resul
     if (claimed.count !== 1) return false;
     // The game as it is now, inside this claim: a buy-in recorded meanwhile can't be left out.
     const fresh = await tx.potMove.findMany({ where: { gameId, deletedAt: null } });
-    const again = potSummary(parsePlayers(game.players), fresh);
-    if (!again.totals.balanced || again.totals.taken !== totals.taken) throw new Error("POT_CHANGED");
+    // Exactly the same lines as the result was worked out from (not just the same totals).
+    const sig = (ms: { id: string; memberId: string; amount: number; kind: string }[]) => ms.map((m) => `${m.id}:${m.memberId}:${m.kind}:${m.amount}`).sort().join("|");
+    if (sig(fresh) !== sig(game.moves)) throw new Error("POT_CHANGED");
     let resultId = "";
     if (res.total > 0) {
       const e = await tx.expense.create({

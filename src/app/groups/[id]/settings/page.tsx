@@ -75,8 +75,9 @@ export default async function GroupSettings({
           <strong>
             {to.flag} {convert}
           </strong>
-          . All {group._count.expenses} expenses, every share and {group._count.payments} payments will be converted at the
-          rate below. Original receipt amounts stay as they were, and everyone is notified.
+          . Every amount in the group ({group._count.expenses ? `${group._count.expenses} expense${group._count.expenses === 1 ? "" : "s"}, ` : ""}
+          {group._count.payments ? `${group._count.payments} payment${group._count.payments === 1 ? "" : "s"}, ` : ""}bills, budgets, goals, the deposit and card
+          games) will be converted at the rate below. Original receipt amounts stay as they were, and everyone is notified.
         </p>
         <form action={convertGroupCurrency} className="space-y-6">
           <input type="hidden" name="groupId" value={group.id} />

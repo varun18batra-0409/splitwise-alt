@@ -32,6 +32,8 @@ describe("photos lose their hidden details before they're stored", () => {
     expect(cleanPhoto(new Uint8Array([0xff, 0xd8, 0xff, 0xe1, 0x40, 0x00, ...txt("GPS")]))).toBeNull();
     // No picture data at all.
     expect(cleanPhoto(new Uint8Array([0xff, 0xd8, ...exif]))).toBeNull();
+    // Anything after the end of the picture (a "motion photo" video) is dropped.
+    expect([...cleanPhoto(new Uint8Array([0xff, 0xd8, ...picture, ...txt("ftypmp4 GPS")]))!]).toEqual([0xff, 0xd8, ...picture]);
     // Not a JPEG, PNG or WebP.
     expect(cleanPhoto(new Uint8Array([1, 2, 3, 4, 5]))).toBeNull();
     // The lenient version still gives broken files back unchanged (and strict mode doesn't leak into it).

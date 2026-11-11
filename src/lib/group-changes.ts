@@ -77,7 +77,13 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
   if (await hasLeft(groupId, actorId)) return { ok: false, error: LEFT_ERROR };
   if (!isSupportedCurrency(newCurrency)) return { ok: false, error: "Pick a currency from the list." };
   if (newCurrency === group.currency) return { ok: true };
-  const hasMoney = group.expenses.length > 0 || group.payments.length > 0;
+  // A card game still being played would come out a cent or two off after
+  // converting each buy-in and return on its own: finish it first.
+  if (await db.potGame.count({ where: { groupId, status: "open" } })) return { ok: false, error: "Finish (or delete) the card game that’s still open first, then change the currency." };
+  // Everything else that holds money: bills, budgets, goals, the deposit, the
+  // smallest payment worth settling and card games. All at the same rate.
+  const otherBefore = await loadOtherMoney(groupId, group.settleMin);
+  const hasMoney = group.expenses.length > 0 || group.payments.length > 0 || hasOtherMoney(otherBefore);
   if (hasMoney && !parseRate(rate)) return { ok: false, error: "Enter the conversion rate, like 0.012." };
 
   const oldCurrency = group.currency;
@@ -86,9 +92,6 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
   const paymentUpdates = group.payments.map((p) => ({ p, amount: rebasePayment(p.amount, oldCurrency, newCurrency, rate) }));
   if (paymentUpdates.some((x) => x.amount === null || x.amount <= 0)) return { ok: false, error: "That rate makes a payment too small. Check it." };
 
-  // Everything else that holds money: bills, budgets, goals, the deposit, the
-  // smallest payment worth settling and card games. All at the same rate.
-  const otherBefore = await loadOtherMoney(groupId, group.settleMin);
   const otherAfter = convertOtherMoney(otherBefore, (a) => rebaseSigned(a, oldCurrency, newCurrency, rate));
   if (!otherAfter) return { ok: false, error: "That rate makes a bill, budget, goal or deposit too small or too large. Check it." };
 
@@ -112,6 +115,7 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
     })),
     payments: group.payments.map((p) => ({ id: p.id, amount: p.amount })),
     other: otherBefore,
+    after: otherAfter, // what was written, so undo can tell if anything changed since
   };
 
   const eventId = await db.$transaction(async (tx) => {
@@ -159,6 +163,26 @@ function rebaseSigned(amount: number, from: string, to: string, rate: string): n
   if (amount === 0) return 0;
   const v = rebasePayment(Math.abs(amount), from, to, rate);
   return v === null ? null : amount < 0 ? -v : v;
+}
+
+// True if anything besides expenses and payments holds an amount.
+export function hasOtherMoney(o: OtherMoney): boolean {
+  return o.settleMin > 0 || o.bills.length > 0 || o.budgets.length > 0 || o.goals.length > 0 || o.goalEntries.length > 0 || o.depositShares.length > 0 || o.potMoves.length > 0;
+}
+
+// The same money in a fixed order, to compare two snapshots exactly.
+export function sameOtherMoney(a: OtherMoney, b: OtherMoney): boolean {
+  const norm = (o: OtherMoney) =>
+    JSON.stringify({
+      settleMin: o.settleMin,
+      bills: [...o.bills].sort((x, y) => x.id.localeCompare(y.id)).map((x) => [x.id, x.amount, x.split]),
+      budgets: [...o.budgets].sort((x, y) => x.id.localeCompare(y.id)).map((x) => [x.id, x.amount]),
+      goals: [...o.goals].sort((x, y) => x.id.localeCompare(y.id)).map((x) => [x.id, x.target]),
+      goalEntries: [...o.goalEntries].sort((x, y) => x.id.localeCompare(y.id)).map((x) => [x.id, x.amount]),
+      depositShares: [...o.depositShares].sort((x, y) => x.id.localeCompare(y.id)).map((x) => [x.id, x.amount, x.returnedAmount]),
+      potMoves: [...o.potMoves].sort((x, y) => x.id.localeCompare(y.id)).map((x) => [x.id, x.amount]),
+    });
+  return norm(a) === norm(b);
 }
 
 export async function loadOtherMoney(groupId: string, settleMin: number): Promise<OtherMoney> {

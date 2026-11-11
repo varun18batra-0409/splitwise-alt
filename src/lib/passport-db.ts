@@ -17,15 +17,16 @@ export async function loadPassport(account: { id: string; homeCountry: string; p
   });
   // A trip without dates counts once something was spent, from its latest spending.
   // Seen by a friend: only trips that are over (a trip happening now would say where you are today).
-  // (A trip without dates counts once it's a few days old.)
-  const over = (g: { tripStart: string; tripEnd: string; createdAt: Date }) =>
-    g.tripEnd || g.tripStart ? (g.tripEnd || g.tripStart) < today : new Date(g.createdAt.getTime() + 3 * 86_400_000).toISOString().slice(0, 10) < today;
   // An undated trip happened around its latest spending (not when the group was made,
   // which can be months before: a flight booked early isn't a stamp yet).
   const undatedDay = (g: (typeof groups)[number]) => {
     const e = g.expenses[0];
     return (e ? e.spentAt ?? e.createdAt : g.createdAt).toISOString().slice(0, 10);
   };
+  // (A trip without dates counts as over once nothing has been spent for 3 days:
+  // spending today would otherwise tell a friend where you are now.)
+  const over = (g: (typeof groups)[number]) =>
+    g.tripEnd || g.tripStart ? (g.tripEnd || g.tripStart) < today : new Date(Date.parse(`${undatedDay(g)}T12:00:00Z`) + 3 * 86_400_000).toISOString().slice(0, 10) < today;
   // Someone who left before the trip began didn't go.
   const went = (g: (typeof groups)[number]) => {
     const start = g.tripStart || undatedDay(g);

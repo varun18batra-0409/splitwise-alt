@@ -64,7 +64,18 @@ function stripJpeg(b: Uint8Array<ArrayBuffer>): Uint8Array<ArrayBuffer> {
     if (b[i] !== 0xff) return unsure(b); // not a clean segment list
     const marker = b[i + 1];
     if (marker === 0xda) {
-      parts.push(b.subarray(i)); // start of the picture data: everything from here is kept
+      // The picture data runs to the end marker (FF D9; inside the data a real
+      // FF byte is always followed by 00 or a restart number). Anything after
+      // it, like a phone's "motion photo" video, which can carry a location, goes.
+      let end = -1;
+      for (let j = i + 2; j + 1 < b.length; j++) {
+        if (b[j] === 0xff && b[j + 1] === 0xd9) {
+          end = j + 2;
+          break;
+        }
+      }
+      if (end < 0) return unsure(b);
+      parts.push(b.subarray(i, end));
       return concat(parts);
     }
     if (marker === 0xd8 || (marker >= 0xd0 && marker <= 0xd7) || marker === 0x01) {

@@ -19,7 +19,7 @@ import { removeMembers, undoEvent } from "@/lib/undo";
 import { isMemberUsed, renameMember, setMemberLeft } from "@/lib/people";
 import { settleAllAndClose } from "@/lib/settle-all";
 import { vapidKeys } from "@/lib/push";
-import { changeGroupCurrency, updateGroupBasics } from "@/lib/group-changes";
+import { changeGroupCurrency, hasOtherMoney, loadOtherMoney, updateGroupBasics } from "@/lib/group-changes";
 import { logEvent } from "@/lib/events";
 import { countryOf } from "@/lib/geo";
 import { needsOkFor } from "@/lib/payment-ok";
@@ -59,6 +59,7 @@ export async function createGroup(formData: FormData) {
     if (!claimed) redirect("/");
   }
 
+  // If making the group fails, free the key so trying again works (not a silent trip Home).
   const group = await createGroupFor(account, {
     type: String(formData.get("type") ?? "other"),
     name: groupName,
@@ -71,6 +72,9 @@ export async function createGroup(formData: FormData) {
     tripPlace: String(formData.get("tripPlace") ?? ""),
     tripCountry: String(formData.get("tripCountry") ?? ""),
     photo: photoFrom(formData.get("photo")),
+  }).catch(async (err) => {
+    if (rid) await db.requestKey.deleteMany({ where: { key: rid, result: "" } }).catch(() => undefined);
+    throw err;
   });
   if (rid) await db.requestKey.update({ where: { key: rid }, data: { result: group.id } }).catch(() => undefined);
   const me = group.members[0];
@@ -406,7 +410,8 @@ export async function updateGroupSettings(formData: FormData) {
     if (!(await isGroupAdmin(group.id, myId))) redirect(`${back}?error=admin`);
     if (!isSupportedCurrency(currency)) redirect(`${back}?error=currency`);
     // With money already in the group, confirm the conversion rate first.
-    if (group._count.expenses + group._count.payments > 0) redirect(`${back}?convert=${currency}`);
+    // (Bills, budgets, goals, a deposit or card games count as money too.)
+    if (group._count.expenses + group._count.payments > 0 || hasOtherMoney(await loadOtherMoney(group.id, group.settleMin))) redirect(`${back}?convert=${currency}`);
     const c = await changeGroupCurrency(group.id, myId, currency, "1");
     if (c.ok && c.eventId) redirect(`/groups/${group.id}?saved=settings&did=${c.eventId}`);
   }

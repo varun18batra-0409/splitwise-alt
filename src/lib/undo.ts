@@ -7,7 +7,7 @@ import { setExpenseDeleted, setPaymentDeleted } from "./save-expense";
 import { formatPercent } from "./money";
 import { setMember } from "./people";
 import { applySettleAll, setPaymentsDeleted } from "./settle-all";
-import { loadOtherMoney, writeOtherMoney } from "./group-changes";
+import { loadOtherMoney, sameOtherMoney, writeOtherMoney } from "./group-changes";
 import { isGroupAdmin } from "./group-admin";
 import { undoMoveOut } from "./home/moving-db";
 
@@ -272,7 +272,15 @@ async function restoreCurrency(groupId: string, actorId: string, p: Extract<Undo
     })),
     payments: g.payments.map((x) => ({ id: x.id, amount: x.amount })),
     other: await loadOtherMoney(groupId, g.settleMin),
+    ...(p.other ? { after: p.other } : {}),
   };
+  // Bills, budgets, goals, the deposit and card games don't all leave a history
+  // entry when they change, so compare them with what the currency change left.
+  // Anything added, removed or changed since → putting the old amounts back
+  // would mix currencies or lose money, so refuse.
+  if (p.after && current.other && !sameOtherMoney(current.other, p.after)) {
+    return { ok: false, error: "Bills, budgets, goals, the deposit or a card game changed after the currency change, so it can’t be undone safely. Change the currency again instead." };
+  }
   const eventId = await db.$transaction(async (tx) => {
     // Rows removed since (a card game's result after it was reopened) are skipped.
     for (const e of p.expenses) {
