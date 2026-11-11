@@ -390,11 +390,12 @@ async function main() {
     await V.getByRole("button", { name: "Invite", exact: true }).click();
     await V.waitForURL(/invited=|error=/);
     assert((await db.outbox.count({ where: { to: email("optout") } })) === before, "an invite was emailed after unsubscribing");
-    // Adding by email put an "Optout" name in the group. Take it (and its invitations) out again so the group keeps its 4 people.
+    // Adding by email put "Optout" names in the group. Take them (and their invitations) out again so the group keeps its 4 people.
     const gid = g.split("/").pop()!;
     await db.invite.deleteMany({ where: { groupId: gid, email: email("optout") } });
-    await db.member.deleteMany({ where: { groupId: gid, accountId: null, name: nameFromEmail(email("optout")) } });
-    assert((await db.member.count({ where: { groupId: gid, name: nameFromEmail(email("optout")) } })) === 0, "the Optout name is still in the group");
+    // Each "Invite" by email adds a name ("Optout", then "Optout 2" for the second try): take them all out.
+    await db.member.deleteMany({ where: { groupId: gid, accountId: null, name: { startsWith: nameFromEmail(email("optout")) } } });
+    assert((await db.member.count({ where: { groupId: gid, name: { startsWith: nameFromEmail(email("optout")) } } })) === 0, "an Optout name is still in the group");
   });
   await step(V, "Joining", "Add people shows everyone as “On Loopin ✓” and no pending invites", async () => {
     await go(V, `${g}/invite`);
