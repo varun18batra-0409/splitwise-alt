@@ -35,6 +35,11 @@ afterAll(async () => {
   keys.push(ZONES_LIVE_KEY);
   await db.notifyLog.deleteMany({ where: { OR: [{ key: { in: keys } }, ...groupIds.map((id) => ({ key: { contains: id } }))] } });
   await db.bill.deleteMany({ where: { groupId: { in: groupIds } } });
+  // The bills part (test H1) adds a real expense for a bill that fell due: it points at its members, so it goes first.
+  await db.groupEvent.deleteMany({ where: { groupId: { in: groupIds } } });
+  await db.expenseShare.deleteMany({ where: { expense: { groupId: { in: groupIds } } } });
+  await db.expense.deleteMany({ where: { groupId: { in: groupIds } } });
+  await db.payment.deleteMany({ where: { groupId: { in: groupIds } } });
   await db.member.deleteMany({ where: { groupId: { in: groupIds } } });
   await db.group.deleteMany({ where: { id: { in: groupIds } } });
   await db.account.deleteMany({ where: { id: { in: accountIds } } });

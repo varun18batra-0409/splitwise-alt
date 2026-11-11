@@ -248,10 +248,16 @@ describe("Save never undoes what someone else changed meanwhile", () => {
     expect((await load(g.id)).name).toBe("Us, renamed");
     expect(await weightOf(g.id)).toEqual({ Asha: 100, Ravi: 200 }); // not 33 / 67
     expect(await count(g.id, "split_changed")).toBe(0);
-    // Without the drawn values (an older form) the boxes would have been rewritten; that is what `was` prevents.
+    // An older form (no `was`) that sends back exactly what the page drew (33 / 67) is not a change either:
+    // the stored 1:2 is left exactly as it was, never rewritten as 33 / 67.
     const legacy = await saveAllSettings(g.id, g.ids.Asha, { sharing: { type: "couple", weights: { [g.ids.Asha]: "33", [g.ids.Ravi]: "67" } } }, today);
     expect(legacy.ok).toBe(true);
-    expect(await weightOf(g.id)).toEqual({ Asha: 33, Ravi: 67 });
+    expect(await weightOf(g.id)).toEqual({ Asha: 100, Ravi: 200 });
+    expect(await count(g.id, "split_changed")).toBe(0);
+    // A real change from an older form is still written.
+    const changed = await saveAllSettings(g.id, g.ids.Asha, { sharing: { type: "couple", weights: { [g.ids.Asha]: "40", [g.ids.Ravi]: "60" } } }, today);
+    expect(changed.ok).toBe(true);
+    expect(await weightOf(g.id)).toEqual({ Asha: 40, Ravi: 60 });
   });
 });
 

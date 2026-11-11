@@ -51,7 +51,12 @@ describe("reading the file", () => {
   it("explains files that aren't a Splitwise export", () => {
     const p = parseSplitwiseCsv("Name,Amount\nTea,20");
     expect(p.ok).toBe(false);
-    if (!p.ok) expect(p.error).toMatch(/Export as spreadsheet/);
+    if (!p.ok) {
+      // Generic on purpose (no app name): it still says what file to bring.
+      expect(p.error).toMatch(/export it as a spreadsheet \(CSV\)/);
+      expect(p.error).toMatch(/pick that file/);
+      expect(p.error).not.toMatch(/splitwise/i);
+    }
     expect(parseSplitwiseCsv("").ok).toBe(false);
     const dup = parseSplitwiseCsv("Date,Description,Category,Cost,Currency,Asha,asha\n2026-01-01,Tea,General,2,INR,1,-1");
     expect(dup.ok).toBe(false);
