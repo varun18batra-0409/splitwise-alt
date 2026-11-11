@@ -14,7 +14,7 @@ import { splitNameFor } from "@/lib/group-types";
 import { initialFromExpense } from "@/lib/expense-initial";
 import { todayKey } from "@/lib/dates";
 import { formatMoney, toInputAmount } from "@/lib/money";
-import { billExpenseInput } from "@/lib/home/bills-db";
+import { billExpenseInput, prepaidFor } from "@/lib/home/bills-db";
 import { dailyTotal, payerFor } from "@/lib/home/bills";
 import type { ExpenseInitial } from "@/lib/expense-initial";
 
@@ -74,7 +74,7 @@ export default async function AddExpensePage({
     sp.bill && sp.period && /^\d{4}-\d{2}$/.test(sp.period)
       ? await db.billRun.findFirst({ where: { billId: sp.bill, period: sp.period, status: "waiting", bill: { groupId: group.id, deletedAt: null } }, include: { bill: true } })
       : null;
-  const billInitial = waitingRun ? billToInitial(waitingRun.bill, group, sp.period!, myId) : undefined;
+  const billInitial = waitingRun ? billToInitial(waitingRun.bill, group, sp.period!, myId, (await prepaidFor(waitingRun.bill, sp.period!)).total) : undefined;
   const initial = source
     ? initialFromExpense(source, { groupMarkupBp: group.cardMarkupBp, groupWeights: weights, tz, today: todayKey(new Date(), tz) }, sp.again ? "again" : "repeat")
     : billInitial;
@@ -123,12 +123,13 @@ function billToInitial(
   group: { id: string; currency: string; members: { id: string; name: string; leftAt: Date | null; splitWeight: number }[] },
   period: string,
   myId: string,
+  prepaid = 0,
 ): ExpenseInitial {
   const active = group.members.filter((m) => !m.leftAt).map((m) => m.id);
   const payer = payerFor(bill, period, active) ?? myId;
   const x = billExpenseInput(bill, group.id, group.currency, period, 0, payer, group.members);
   // A fixed bill waiting only because its payer left: fill in the usual amount (daily: the month's total).
-  const known = bill.nature === "fixed" ? bill.amount : bill.nature === "daily" ? dailyTotal(bill, period).amount : 0;
+  const known = bill.nature === "fixed" ? bill.amount : bill.nature === "daily" ? Math.max(0, dailyTotal(bill, period).amount - prepaid) : 0; // daily: the month's total, less what someone who moved out already paid
   return {
     name: x.name,
     amount: known > 0 ? toInputAmount(known, group.currency) : "",

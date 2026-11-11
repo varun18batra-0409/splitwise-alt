@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { RESTORE_DAYS } from "./group-data";
 
-// Deleted groups: anyone in them can restore them for 30 days (RESTORE_DAYS).
+// Deleted groups: whoever deleted them or looks after them can restore them for 30 days (RESTORE_DAYS).
 // After that, the daily job erases them for good, as the privacy page says:
 // the group, its people, expenses, payments, history, bills, list, budgets,
 // goals, deposit, photos and receipts. Groups that were only closed are never touched.

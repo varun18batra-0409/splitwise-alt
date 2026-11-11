@@ -3,6 +3,7 @@ import { coverFor } from "./covers";
 import { netBalances } from "./balances";
 import { smartSettle } from "./settle";
 import { spentAmount } from "./payers";
+import { canRestoreGroup } from "./group-admin";
 
 // Deleted expenses and payments stay in the database (and in history) but never count.
 const active = <T extends { deletedAt: Date | null }>(rows: T[]) => rows.filter((r) => !r.deletedAt);
@@ -113,11 +114,13 @@ export async function loadDeletedGroups(memberships: Record<string, string>, now
   const since = new Date(now.getTime() - RESTORE_DAYS * 86_400_000);
   const groups = await db.group.findMany({
     where: { id: { in: Object.keys(memberships) }, deletedAt: { gt: since } },
-    include: { members: { select: { id: true, name: true } } },
+    include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, claimedAt: true, leftAt: true, addedBy: true, seenAt: true } } },
     orderBy: { deletedAt: "desc" },
   });
   return groups
-    .filter((g) => g.members.some((m) => m.id === memberships[g.id]))
+    // Only the groups this person is allowed to bring back (restoreGroup's rule): whoever deleted it or
+    // looks after it, and not someone who left.
+    .filter((g) => canRestoreGroup(g, g.members, memberships[g.id]))
     .map((g) => ({
       id: g.id,
       name: g.name,

@@ -14,8 +14,10 @@ import { ConfirmButton } from "@/components/ConfirmButton";
 import Link from "@/components/Link";
 import { InviteIcon, iconButtonClass } from "@/components/icons";
 import { UndoBar } from "@/components/UndoBar";
+import { StaysGoes } from "@/components/StaysGoes";
+import { leaveText, removeText } from "@/lib/leave-text";
 
-// Everyone in the group: fix a name, remove someone added by mistake, or
+// Everyone in the group: fix a name, remove someone (the admin) or
 // leave / bring back. Every change notifies the others and can be undone.
 export default async function PeoplePage({
   params,
@@ -42,7 +44,9 @@ export default async function PeoplePage({
 
   const money = (m: number) => formatMoney(Math.abs(m), group.currency);
   const active = group.members.filter((m) => !m.leftAt);
-  const left = group.members.filter((m) => m.leftAt);
+  const left = group.members.filter((m) => m.leftAt && !m.removedAt);
+  // Taken out by whoever looks after the group: kept in the history, can't rejoin on their own.
+  const removed = group.members.filter((m) => m.removedAt);
   // Removing people or marking them as left is for the person who looks after the group.
   const admin = pickAdmin(group.members);
   const isAdmin = admin?.id === myId;
@@ -73,7 +77,7 @@ export default async function PeoplePage({
                 )}
               </span>
               <span className="block text-xs text-gray-400">
-                {m.leftAt ? "Left the group" : bal > 0 ? `gets ${money(bal)}` : bal < 0 ? `owes ${money(bal)}` : "settled up"}
+                {m.removedAt ? "Removed from the group" : m.leftAt ? "Left the group" : bal > 0 ? `gets ${money(bal)}` : bal < 0 ? `owes ${money(bal)}` : "settled up"}
               </span>
             </span>
             <span className="text-sm text-gray-400 group-open/p:hidden">Edit</span>
@@ -124,7 +128,22 @@ export default async function PeoplePage({
               </button>
             </form>
 
-            {m.leftAt ? (
+            {m.removedAt ? (
+              isAdmin && !me ? (
+                <form action={setPersonLeft}>
+                  {hidden}
+                  <input type="hidden" name="left" value="0" />
+                  <button type="submit" className={small}>
+                    Bring {m.name} back
+                  </button>
+                  <p className="mt-2 text-xs text-gray-400">{m.name} can’t rejoin on their own or with the old link.</p>
+                </form>
+              ) : (
+                <p className="text-xs text-gray-400" data-removed-note>
+                  {me ? `${group.members.find((x) => x.id === m.removedById)?.name ?? admin?.name ?? "The person who looks after the group"} removed you from this group. Ask them to invite you again.` : `Only ${admin?.name ?? "the person who looks after the group"} can bring ${m.name} back.`}
+                </p>
+              )
+            ) : m.leftAt ? (
               <form action={setPersonLeft}>
                 {hidden}
                 <input type="hidden" name="left" value="0" />
@@ -134,28 +153,34 @@ export default async function PeoplePage({
               </form>
             ) : !me && !isAdmin ? (
               <p className="text-xs text-gray-400" data-admin-only="people">
-                Only {admin?.name ?? "the person who started the group"}, who looks after this group, can remove people or mark them as left.
+                Only {admin?.name ?? "the person who started the group"}, who looks after this group, can remove people.
               </p>
-            ) : !used.has(m.id) && !me ? (
+            ) : !me ? (
               <form action={removePerson}>
                 {hidden}
-                <ConfirmButton message={`Remove ${m.name} from ${group.name}?`} className={small}>
-                  Remove from group
-                </ConfirmButton>
-                <p className="mt-2 text-xs text-gray-400">Not in any expense yet, so they can be removed completely.</p>
+                <StaysGoes text={removeText(m.name)} />
+                {bal !== 0 ? (
+                  <button type="submit" disabled className={small}>
+                    Settle up first
+                  </button>
+                ) : (
+                  <ConfirmButton message={`Remove ${m.name} from ${group.name}? They won’t be able to rejoin on their own.`} className={small}>
+                    Remove {m.name}
+                  </ConfirmButton>
+                )}
+                <p className="mt-2 text-xs text-gray-400">
+                  {bal !== 0 ? `${m.name} must be settled up first (${bal > 0 ? "gets" : "owes"} ${money(bal)}).` : used.has(m.id) || m.accountId ? "They stay in the history. You can bring them back later." : "Not in any expense yet, so they’re removed completely."}
+                </p>
               </form>
             ) : (
               <form action={setPersonLeft}>
                 {hidden}
                 <input type="hidden" name="left" value="1" />
+                <StaysGoes text={leaveText()} />
                 <button type="submit" disabled={bal !== 0} className={small}>
-                  {bal !== 0 ? "Settle up first" : me ? "Leave group" : `Mark ${m.name} as left`}
+                  {bal !== 0 ? "Settle up first" : "Leave group"}
                 </button>
-                <p className="mt-2 text-xs text-gray-400">
-                  {bal !== 0
-                    ? `${me ? "You" : m.name} must be settled up first (${bal > 0 ? "gets" : "owes"} ${money(bal)}).`
-                    : "They stay in the history, but won’t be offered for new expenses. You can bring them back any time."}
-                </p>
+                {bal !== 0 && <p className="mt-2 text-xs text-gray-400">You must be settled up first ({bal > 0 ? "get" : "owe"} {money(bal)}).</p>}
               </form>
             )}
           </div>
@@ -201,6 +226,17 @@ export default async function PeoplePage({
           <h2 className="mb-2 text-sm font-medium text-gray-500">Left the group</h2>
           <ul className="border-t border-line opacity-80">
             {left.map((m) => (
+              <Person key={m.id} m={m} />
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {removed.length > 0 && (
+        <section className="mt-10" data-removed-section>
+          <h2 className="mb-2 text-sm font-medium text-gray-500">Removed</h2>
+          <ul className="border-t border-line opacity-80">
+            {removed.map((m) => (
               <Person key={m.id} m={m} />
             ))}
           </ul>

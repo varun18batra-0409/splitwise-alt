@@ -165,6 +165,7 @@ export async function moveOutAction(formData: FormData) {
     leaverId,
     lastDay,
     depositTo: String(formData.get("depositTo") ?? "") || undefined,
+    addDaily: formData.get("addDaily") === "1",
     requestKey: cleanKey(formData.get("rid")) ?? `move-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
   });
   if (!r.ok) redirect(`/groups/${groupId}/people/${leaverId}/move?day=${encodeURIComponent(lastDay)}&error=${encodeURIComponent(r.error)}`);

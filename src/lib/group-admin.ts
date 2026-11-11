@@ -18,6 +18,15 @@ export function pickAdmin<T extends AdminCandidate>(members: T[]): T | undefined
   return here.find((m) => m.claimedAt && !m.leftAt) ?? here.find((m) => !m.leftAt);
 }
 
+// Who may bring a deleted group back (within 30 days): the person who deleted it, or whoever looks
+// after the group now, and only if they haven't left. `members` in the order they were added.
+// The Restore button on Home and restoreGroup both use this, so the screen never offers what the code refuses.
+export function canRestoreGroup(group: { deletedById: string }, members: (AdminCandidate & { id: string })[], memberId: string | undefined): boolean {
+  const me = members.find((m) => m.id === memberId);
+  if (!me || me.leftAt) return false;
+  return group.deletedById === me.id || pickAdmin(members)?.id === me.id;
+}
+
 export async function groupAdminId(groupId: string): Promise<string | undefined> {
   const members = await db.member.findMany({
     where: { groupId },

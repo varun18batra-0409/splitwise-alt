@@ -147,7 +147,7 @@ export type UndoPayload =
       // accountId … joinedFrom: missing in changes saved before they were kept.
       members: { id: string; name: string; phone: string; createdAt: string; accountId?: string | null; claimedAt?: string | null; splitWeight?: number; notify?: string; joinedFrom?: string | null; addedBy?: string; seenAt?: string | null }[];
     }
-  | { type: "member_set"; memberId: string; data: { name?: string; leftAt?: string | null }; moveOut?: MoveOutUndo }
+  | { type: "member_set"; memberId: string; data: { name?: string; leftAt?: string | null; removedAt?: string | null; removedById?: string }; moveOut?: MoveOutUndo }
   | { type: "settle_all"; paymentIds: string[]; apply: boolean }
   | { type: "payments_set"; paymentIds: string[]; deleted: boolean };
 
@@ -155,6 +155,8 @@ export type UndoPayload =
 // What a move-out changed besides the person (bill payers and rotations, and
 // the deposit handed over), so undoing it puts those back too.
 export type MoveOutUndo = {
+  // Daily-bill shares charged at move-out (one expense each), taken off again by the undo.
+  prepaid?: { billId: string; period: string; expenseId: string }[];
   bills: { id: string; before: { payer: string; rotation: string; split: string }; after: { payer: string; rotation: string; split: string } }[];
   deposit?: {
     leaverShareId: string;

@@ -1,5 +1,6 @@
 import Link from "@/components/Link";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
+import { pickAdmin } from "@/lib/group-admin";
 import { GetAppButton } from "@/components/GetApp";
 import { db } from "@/lib/db";
 import { getAccount, getMemberships } from "@/lib/identity";
@@ -73,10 +74,35 @@ export default async function JoinPage({
     where: { inviteCode: code },
     include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
   });
-  if (!group || group.deletedAt) notFound();
+  // A link that was replaced (or a group that's gone): a calm page, not a 404.
+  if (!group || group.deletedAt) {
+    return (
+      <section className="vault mt-10 rounded-[24px] px-6 py-10 text-center" data-join-gone>
+        <p className="font-display text-[26px] font-semibold leading-tight tracking-tight">This invite link no longer works</p>
+        <p className="mt-3 text-sm text-gray-500">Ask for a new one.</p>
+        <Link href="/" className="mt-6 inline-block text-sm font-semibold text-fg/70 underline underline-offset-4">
+          Go to Loopin
+        </Link>
+      </section>
+    );
+  }
 
   const account = await getAccount();
   const memberships = await getMemberships();
+  // Taken out of this group by whoever looks after it: the link doesn't bring them back in.
+  const removedMe = account ? group.members.find((m) => m.accountId === account.id && m.removedAt) : undefined;
+  if (removedMe) {
+    const by = group.members.find((m) => m.id === removedMe.removedById)?.name ?? pickAdmin(group.members)?.name ?? "The person who looks after the group";
+    return (
+      <section className="vault mt-10 rounded-[24px] px-6 py-10 text-center" data-join-removed>
+        <p className="font-display text-[26px] font-semibold leading-tight tracking-tight">{group.name}</p>
+        <p className="mt-3 text-sm text-gray-500">{by} removed you from this group. Ask them to invite you again.</p>
+        <Link href="/" className="mt-6 inline-block text-sm font-semibold text-fg/70 underline underline-offset-4">
+          Go to Home
+        </Link>
+      </section>
+    );
+  }
   const mine = group.members.find((m) => (account && m.accountId === account.id) || memberships[group.id] === m.id);
   if (mine && !mine.leftAt && (!account || mine.accountId === account.id)) redirect(`/groups/${group.id}`);
 

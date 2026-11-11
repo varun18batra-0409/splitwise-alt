@@ -5,6 +5,8 @@ import { convertGroupCurrency, deleteGroup, saveNotifyPrefs, setGroupClosed, upd
 import { NOTIFY_KINDS, parseNotify } from "@/lib/notify-prefs";
 import { saveSettleRules } from "@/app/bill-actions";
 import { GROUP_TYPES, sharingInputs } from "@/lib/group-types";
+import { StaysGoes } from "@/components/StaysGoes";
+import { deleteText } from "@/lib/leave-text";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { CURRENCIES, currencyInfo, formatMoney, formatPercent, isSupportedCurrency, POPULAR_CURRENCIES, toInputAmount } from "@/lib/money";
 import { getRate } from "@/lib/rate-cache";
@@ -364,7 +366,7 @@ export default async function GroupSettings({
       {/* Delete (restorable for 30 days) */}
       <section className="mt-8">
         <h3 className="mb-1 text-base font-semibold">Delete this group</h3>
-        <p className="mb-4 text-sm text-gray-500">For everyone. Anyone in it can restore it for 30 days.</p>
+        <p className="mb-4 text-sm text-gray-500">For everyone. Whoever deleted it, or looks after it, can restore it for 30 days.</p>
         {!isAdmin ? (
           <p className="rounded-xl bg-mist px-4 py-3 text-sm text-gray-600" data-admin-only="delete">
             Only {admin?.name ?? "the person who started the group"}, who started it, can delete this group.
@@ -372,6 +374,7 @@ export default async function GroupSettings({
         ) : (
         <form action={deleteGroup}>
           <input type="hidden" name="groupId" value={group.id} />
+          <StaysGoes text={deleteText()} label="What stays, what goes" />
           <ConfirmButton
             message={`Delete “${group.name}” for everyone? It can be restored for 30 days.`}
             className="w-full rounded-full border border-red-500/40 px-5 py-3.5 text-center text-base font-medium text-red-400 active:bg-red-500/10"

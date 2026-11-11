@@ -25,7 +25,7 @@ import { countryOf } from "@/lib/geo";
 import { needsOkFor } from "@/lib/payment-ok";
 import { claimKey, cleanKey, fingerprintOf, isDuplicateKey, keyState, previousResult, STALE_KEY_ERROR } from "@/lib/once";
 import { safePath } from "@/lib/paths";
-import { addRegistered, copyPushTo, freeName, inviteByEmail } from "@/lib/invites";
+import { addRegistered, copyPushTo, inviteByEmail } from "@/lib/invites";
 import { savePushFor, validSub } from "@/lib/push-subs";
 import { formatMoney } from "@/lib/money";
 import { createGroupFor, setTripDates, updateSharing } from "@/lib/group-setup";
@@ -35,8 +35,9 @@ import { after } from "next/server";
 import { getTimeZone } from "@/lib/tz";
 import { dayKey } from "@/lib/dates";
 import { importSplitwise } from "@/lib/splitwise-import";
-import { isGroupAdmin } from "@/lib/group-admin";
+import { canRestoreGroup, isGroupAdmin } from "@/lib/group-admin";
 import { hasLeft, LEFT_ERROR } from "@/lib/active";
+import { joinExisting, joinNew, newInviteLink, type JoinFail } from "@/lib/join";
 
 
 export async function createGroup(formData: FormData) {
@@ -171,13 +172,11 @@ export async function invitePeople(formData: FormData) {
 }
 
 // Joining from an invitation (link, QR, contact message or email). Needs a
-// verified email: the join page asks people to sign up first.
+// verified email: the join page asks people to sign up first. The rules live in lib/join.ts.
 async function joinContext(code: string) {
-  const group = await db.group.findUnique({ where: { inviteCode: code }, include: { members: true } });
-  if (!group || group.deletedAt) redirect("/");
   const account = await getAccount();
   if (!account) redirect(`/join/${code}`);
-  return { group, account };
+  return { account };
 }
 
 async function finishJoin(groupId: string, memberId: string, accountId: string, email: string) {
@@ -187,20 +186,20 @@ async function finishJoin(groupId: string, memberId: string, accountId: string, 
   redirect(`/groups/${groupId}`);
 }
 
+// Where a refused join goes: the join page says it calmly.
+function joinRefused(code: string, r: JoinFail): never {
+  redirect(`/join/${code}${r.reason === "removed" ? "?error=removed" : r.reason === "claimed" ? "?error=claimed" : ""}`);
+}
+
 // "That's me": claim a name someone added before invitations existed.
 export async function joinAsExisting(formData: FormData) {
   const code = String(formData.get("code") ?? "");
-  const { group, account } = await joinContext(code);
-  const mine = group.members.find((m) => m.accountId === account.id);
-  if (mine) await finishJoin(group.id, mine.id, account.id, account.email);
-  const member = group.members.find((m) => m.id === String(formData.get("memberId") ?? ""));
-  // Only names nobody has claimed yet, and only one person can win the claim.
-  if (!member || member.accountId || member.claimedAt) redirect(`/join/${code}?error=claimed`);
-  const won = await db.member.updateMany({ where: { id: member.id, accountId: null, claimedAt: null }, data: { accountId: account.id, claimedAt: new Date() } });
-  if (won.count !== 1) redirect(`/join/${code}?error=claimed`);
-  if (!account.name) await db.account.update({ where: { id: account.id }, data: { name: member.name } });
-  await logEvent(db, { groupId: group.id, actorId: member.id, kind: "members_added", text: "joined the group" });
-  await finishJoin(group.id, member.id, account.id, account.email);
+  const { account } = await joinContext(code);
+  const r = await joinExisting(code, account, String(formData.get("memberId") ?? ""));
+  if (!r.ok) joinRefused(code, r);
+  const group = await db.group.findUnique({ where: { inviteCode: code }, select: { id: true } });
+  if (!group) redirect(`/join/${code}`);
+  await finishJoin(group.id, r.memberId, account.id, account.email);
 }
 
 // Join as yourself (your verified account).
@@ -208,30 +207,21 @@ export async function joinAsNew(formData: FormData) {
   const code = String(formData.get("code") ?? "");
   // Generous per network: a whole party can join on one venue's Wi-Fi.
   if (!(await allow(`join:${(await originAndIp()).ip}`, 120, 3600))) redirect(`/join/${code}?error=busy`);
-  const { group, account } = await joinContext(code);
-  const mine = group.members.find((m) => m.accountId === account.id);
-  if (mine) {
-    if (mine.leftAt) await db.member.update({ where: { id: mine.id }, data: { leftAt: null } });
-    await finishJoin(group.id, mine.id, account.id, account.email);
-  }
-  const typed = cleanNames([String(formData.get("name") ?? "")])[0] ?? account.name;
-  const name = freeName(group.members.map((m) => m.name), typed || account.email.split("@")[0]);
-  if (!account.name) await db.account.update({ where: { id: account.id }, data: { name: typed || name } });
-  let member;
-  try {
-    member = await db.member.create({ data: { name, groupId: group.id, claimedAt: new Date(), accountId: account.id, splitWeight: group.joinWeight } });
-  } catch {
-    // Pressed twice, or someone took the same name at the same moment: try again.
-    redirect(`/join/${code}`);
-  }
-  await logEvent(db, {
-    groupId: group.id,
-    actorId: member.id,
-    kind: "members_added",
-    text: "joined the group",
-    undo: { type: "members_remove", memberIds: [member.id] },
-  });
-  await finishJoin(group.id, member.id, account.id, account.email);
+  const { account } = await joinContext(code);
+  const r = await joinNew(code, account, String(formData.get("name") ?? ""));
+  if (!r.ok) joinRefused(code, r);
+  const group = await db.group.findUnique({ where: { inviteCode: code }, select: { id: true } });
+  if (!group) redirect(`/join/${code}`);
+  await finishJoin(group.id, r.memberId, account.id, account.email);
+}
+
+// Add people → "Make a new invite link": the old link (and email invites not yet accepted) stop working.
+export async function makeNewInviteLink(formData: FormData) {
+  const groupId = String(formData.get("groupId") ?? "");
+  const myId = await getMyMemberId(groupId);
+  if (!myId) redirect("/private");
+  const r = await newInviteLink(groupId, myId);
+  redirect(`/groups/${groupId}/invite${r.ok ? "?newlink=1" : `?error=${encodeURIComponent(r.error)}`}`);
 }
 
 // Saves a new expense — or changes an existing one — then goes back to the group page.
@@ -634,13 +624,16 @@ export async function renamePerson(formData: FormData) {
 export async function removePerson(formData: FormData) {
   const { groupId, memberId, myId } = await peopleContext(formData);
   if (!(await isGroupAdmin(groupId, myId))) backToPeople(groupId, { ok: false, error: ADMIN_ONLY });
-  if (await isMemberUsed(memberId)) backToPeople(groupId, { ok: false, error: "They’re already part of expenses or payments. They can leave instead, once settled up." });
+  const row = await db.member.findFirst({ where: { id: memberId, groupId }, select: { accountId: true } });
+  // Someone with an account, or anyone already in expenses or payments, is removed but kept in the history
+  // (they can't rejoin on their own). A name that was never used is deleted completely.
+  if (row?.accountId || (await isMemberUsed(memberId))) backToPeople(groupId, await setMemberLeft(groupId, myId, memberId, true));
   backToPeople(groupId, await removeMembers(groupId, myId, [memberId], false));
 }
 
 export async function setPersonLeft(formData: FormData) {
   const { groupId, memberId, myId } = await peopleContext(formData);
-  // You can always leave or rejoin yourself; marking someone else as left is for whoever looks after the group.
+  // You can always leave or rejoin yourself; removing someone else (or bringing them back) is for whoever looks after the group.
   if (memberId !== myId && formData.get("left") === "1" && !(await isGroupAdmin(groupId, myId))) backToPeople(groupId, { ok: false, error: ADMIN_ONLY });
   backToPeople(groupId, await setMemberLeft(groupId, myId, memberId, formData.get("left") === "1"));
 }
@@ -804,12 +797,12 @@ export async function deleteGroup(formData: FormData) {
 
 export async function restoreGroup(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
-  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
+  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } });
   if (!group || !group.deletedAt) redirect("/");
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/");
   // Bringing a deleted group back is for whoever deleted it or looks after it, and not for someone who left.
-  if ((await hasLeft(group.id, myId)) || (group.deletedById !== myId && !(await isGroupAdmin(group.id, myId)))) redirect("/");
+  if (!canRestoreGroup(group, group.members, myId)) redirect("/");
   await db.$transaction(async (tx) => {
     await tx.group.update({ where: { id: group.id }, data: { deletedAt: null, deletedById: "" } });
     await logEvent(tx, { groupId: group.id, actorId: myId, kind: "group_restored", text: "restored the group" });

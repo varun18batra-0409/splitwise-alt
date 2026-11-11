@@ -5,7 +5,8 @@ import { sendPushTo } from "../push";
 import { toInputAmount, formatMoney } from "../money";
 import { dailyTotal, payerFor, periodsDue, nextDueDay, ordinalDay } from "./bills";
 import { addMonths, daysInMonth, dueKey } from "./month";
-import { joinWeights } from "./moving";
+import { joinWeights, parsePrepaid, type Prepaid } from "./moving";
+import { niceDate } from "../format";
 import { previousResult } from "../once";
 
 // Recurring bills, database side. The daily job calls runAllBills(); each
@@ -108,6 +109,17 @@ export function billExpenseInput(bill: BillRow, groupId: string, currency: strin
 const sameCurrencyRate = async (from: string, to: string) =>
   from === to ? { ok: true as const, rate: "1", date: new Date().toISOString().slice(0, 10) } : getRate(from, to);
 
+// What a leaver already paid for a daily bill's month at move-out (their share of the days they were
+// there). Only entries whose expense still exists and isn't deleted count; the month-end bill takes
+// them off, so nobody pays twice.
+export async function prepaidFor(bill: { prepaid: string }, period: string): Promise<{ total: number; entries: Prepaid[] }> {
+  const list = parsePrepaid(bill.prepaid)[period] ?? [];
+  if (!list.length) return { total: 0, entries: [] };
+  const alive = new Set((await db.expense.findMany({ where: { id: { in: list.map((x) => x.e) }, deletedAt: null }, select: { id: true } })).map((e) => e.id));
+  const entries = list.filter((x) => alive.has(x.e));
+  return { total: entries.reduce((n, x) => n + x.a, 0), entries };
+}
+
 // A claim older than this is from a run that crashed part-way; it's taken over.
 const STALE_MS = 10 * 60_000;
 
@@ -177,8 +189,17 @@ async function runOne(bill: BillRow, group: { id: string; currency: string; clos
       await db.billRun.update({ where: { id: run.id }, data: { status: "skipped", reason: "no days" } });
       return "skipped";
     }
-    amount = d.amount;
+    // Someone who moved out part-way through this month already paid their share of the days they were there.
+    const pre = await prepaidFor(bill, period);
+    amount = d.amount - pre.total;
+    if (pre.total > 0 && amount <= 0) {
+      await db.billRun.update({ where: { id: run.id }, data: { status: "skipped", reason: "covered" } });
+      return "skipped";
+    }
     note = `${d.days} days × ${formatMoney(bill.amount, group.currency)}`;
+    for (const x of pre.entries) {
+      note += `, less ${formatMoney(x.a, group.currency)} ${group.members.find((m) => m.id === x.m)?.name ?? "someone"}’s share${x.d ? ` (moved out ${niceDate(x.d)})` : ""}`;
+    }
   }
   if (amount <= 0) return wait("no amount");
 

@@ -4,7 +4,9 @@ import { Notice } from "@/components/Notice";
 import QRCode from "qrcode";
 import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
-import { invitePeople } from "@/app/actions";
+import { invitePeople, makeNewInviteLink } from "@/app/actions";
+import { pickAdmin } from "@/lib/group-admin";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { canUndo } from "@/lib/undo";
 import { Avatar, ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/components/ui";
 import { ShareInvite } from "@/components/ShareInvite";
@@ -43,7 +45,7 @@ export default async function AddPeoplePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ new?: string; added?: string; invited?: string; error?: string; did?: string; undone?: string }>;
+  searchParams: Promise<{ new?: string; added?: string; invited?: string; error?: string; did?: string; undone?: string; newlink?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -103,6 +105,7 @@ export default async function AddPeoplePage({
         <Notice params={["new"]} className="-mt-2 mb-5">{group.name} is ready. Now bring your people in.</Notice>
       )}
       {sp.error && <ErrorNote>{sp.error}</ErrorNote>}
+      {sp.newlink && <Notice tone="success" params={["newlink"]} className="mb-4">New invite link ready. The old one no longer works.</Notice>}
       {sp.added && !sp.undone && <Notice tone="success" params={["added"]} className="mb-4">Added {sp.added}. They’ve been notified.</Notice>}
       {sp.invited && <Notice params={["invited"]} className="mb-4">Invite sent to {sp.invited}. They’ll join once they accept.</Notice>}
 
@@ -140,6 +143,18 @@ export default async function AddPeoplePage({
             />
             <p className="mt-2 text-center text-xs text-gray-400">Anyone with it can ask to join after signing up</p>
           </details>
+          {pickAdmin(group.members)?.id === myId && (
+            <form action={makeNewInviteLink} className="mt-1 text-center" data-new-invite-link>
+              <input type="hidden" name="groupId" value={group.id} />
+              <ConfirmButton
+                message={`Make a new invite link? The old link stops working.${invites.length > 0 ? " Email invites not yet accepted will stop working." : ""}`}
+                className="py-1.5 text-xs font-semibold text-fg/50 underline underline-offset-4"
+              >
+                Make a new invite link
+              </ConfirmButton>
+              <p className="text-[11px] text-gray-400">Use this if the link got to someone it shouldn’t.{invites.length > 0 ? " Email invites not yet accepted will stop working." : ""}</p>
+            </form>
+          )}
         </div>
       </section>
 
