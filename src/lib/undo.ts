@@ -315,7 +315,9 @@ export async function removeMembers(groupId: string, actorId: string, memberIds:
     const used =
       (await db.expenseShare.count({ where: { memberId: m.id } })) +
       (await db.expense.count({ where: { groupId, OR: [{ paidById: m.id }, { createdById: m.id }, { payers: { contains: m.id } }] } })) +
-      (await db.payment.count({ where: { OR: [{ fromId: m.id }, { toId: m.id }] } }));
+      (await db.payment.count({ where: { OR: [{ fromId: m.id }, { toId: m.id }] } })) +
+      // An "I've paid" claim (waiting or answered) counts as being part of a payment too.
+      (await db.paymentClaim.count({ where: { OR: [{ fromId: m.id }, { toId: m.id }] } }));
     if (used > 0) return { ok: false, error: `${m.name} is already part of expenses or payments, so they can’t be removed.` };
   }
   if (members.length === 0) return { ok: true };

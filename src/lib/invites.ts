@@ -20,7 +20,13 @@ const inviteMailOk = (actor: { id: string; accountId?: string | null }) => allow
 
 // `removed`: the admin took this person out of the group. Only the admin may bring them back, so for
 // everyone else the screen shows "Removed" and no Add (`mayAdd` false).
-export type Found = { accountId: string; name: string; email: string; inGroup: boolean; known: boolean; invited: boolean; removed: boolean; mayAdd: boolean };
+export type Found = { accountId: string; name: string; inGroup: boolean; known: boolean; invited: boolean; removed: boolean; mayAdd: boolean };
+
+// What the invite screen shows for an invitation that has no name row of its own: the typed email only to the
+// person who invited; everyone else just sees who invited.
+export function inviteRowLabel(invite: { email: string; invitedById: string }, viewerId: string, inviterName: string): string {
+  return invite.invitedById === viewerId ? invite.email : `Invited by ${inviterName}`;
+}
 
 const nameOfAccount = (a: { name: string; email: string }) => a.name.trim() || a.email.split("@")[0];
 
@@ -33,38 +39,40 @@ export function freeName(taken: string[], wanted: string): string {
   return `${base} ${Date.now() % 1000}`;
 }
 
-// Search for people on Loopin. For privacy, names only match people you
-// already share a group with; anyone else is found by their exact email.
+// Search for people on Loopin. For privacy it matches NAMES only (never an email, so typing "gmail"
+// finds nobody) and returns no email address. Only people you already share a group with are listed;
+// anyone else is added by typing their full email, which the screen offers as a plain "Add".
 export async function searchPeople(memberships: Record<string, string>, groupId: string, rawQuery: string): Promise<Found[]> {
   const q = rawQuery.trim().toLowerCase().slice(0, 80);
   if (q.length < 2) return [];
-  const email = cleanEmail(q);
   // Everything at once (each is a trip to the database).
-  const [groupRows, knownRows, exact, me, adminId] = await Promise.all([
+  const [groupRows, knownRows, me, adminId] = await Promise.all([
     // Everyone with an account in this group, including people who left or were removed (a removed person is never offered an Add).
     db.member.findMany({ where: { groupId, accountId: { not: null } }, select: { accountId: true, leftAt: true, removedAt: true } }),
     // People you share a group with, both really joined (someone added straight in who hasn't opened it isn't offered yet).
     db.member.findMany({
       where: { groupId: { in: Object.keys(memberships) }, accountId: { not: null }, ...JOINED, group: { members: { some: { id: { in: Object.values(memberships) }, ...JOINED } } } },
-      select: { accountId: true },
-      distinct: ["accountId"],
+      // Their name in a group we share, used when they haven't set a name of their own (never the start of their email).
+      select: { accountId: true, name: true },
+      orderBy: { createdAt: "asc" },
     }),
-    email ? db.account.findUnique({ where: { email } }) : Promise.resolve(null),
     db.member.findUnique({ where: { id: memberships[groupId] ?? "" }, select: { accountId: true } }),
     groupAdminId(groupId),
   ]);
   const inGroup = new Set(groupRows.filter((m) => !m.leftAt && !m.removedAt).map((m) => m.accountId!));
   const removedIn = new Set(groupRows.filter((m) => m.removedAt).map((m) => m.accountId!));
   const iAmAdmin = Boolean(adminId) && adminId === memberships[groupId];
-  const known = await db.account.findMany({ where: { id: { in: knownRows.map((r) => r.accountId!) } } });
-  const shown = known.filter((a) => a.email.includes(q) || nameOfAccount(a).toLowerCase().includes(q));
+  const groupName = new Map<string, string>();
+  for (const r of knownRows) if (r.accountId && !groupName.has(r.accountId)) groupName.set(r.accountId, r.name);
+  const known = await db.account.findMany({ where: { id: { in: [...groupName.keys()] } } });
+  const shownName = (a: { id: string; name: string }) => a.name.trim() || groupName.get(a.id) || "Someone";
+  const shown = known.filter((a) => shownName(a).toLowerCase().includes(q));
   // Already invited to this group and not joined yet: shown as "Invited".
   const waiting = shown.length ? await db.invite.findMany({ where: { groupId, acceptedAt: null, declinedAt: null, email: { in: shown.map((a) => a.email) } }, select: { email: true } }) : [];
   const invitedEmails = new Set(waiting.map((i) => i.email));
-  const out: Found[] = shown.map((a) => ({ accountId: a.id, name: nameOfAccount(a), email: a.email, inGroup: inGroup.has(a.id), known: true, invited: invitedEmails.has(a.email), removed: removedIn.has(a.id), mayAdd: !removedIn.has(a.id) || iAmAdmin }));
+  const out: Found[] = shown.map((a) => ({ accountId: a.id, name: shownName(a), inGroup: inGroup.has(a.id), known: true, invited: invitedEmails.has(a.email), removed: removedIn.has(a.id), mayAdd: !removedIn.has(a.id) || iAmAdmin }));
   // A full email of someone you share nothing with is not looked up here: the screen offers the same
   // "Add" for any email (on Loopin → added; not yet → invited), so nobody can check who has an account.
-  void exact;
   // Don't offer the person searching (they're already in the group).
   return out.filter((f) => f.accountId !== me?.accountId).slice(0, 8);
 }

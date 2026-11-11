@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
-import { addRegistered, freeName, inviteByEmail, inviteMemberId, newInviteToken, searchPeople } from "@/lib/invites";
+import { addRegistered, freeName, inviteByEmail, inviteMemberId, inviteRowLabel, newInviteToken, searchPeople } from "@/lib/invites";
 import { groupPeople, setMemberLeft, setMember } from "@/lib/people";
 
 // Adding people: everyone added by email (or found by name) is in the group at once as a name and
@@ -56,6 +56,36 @@ describe("adding people", () => {
     expect(await searchPeople(ms, g2, "sheld")).toEqual([]); // not someone I know
     expect(await searchPeople(ms, g2, mail("sheldon"))).toEqual([]); // no "Sheldon is on Loopin" by email
     expect(await searchPeople(ms, g2, "chandler")).toEqual([]); // never suggests yourself
+  });
+
+  // C18: names only. Never an email in a result, never a match on part of an email.
+  it("search results carry no email, and typing part of an email finds nobody", async () => {
+    const ms = { [g1]: meG1, [g2]: meG2 };
+    const found = await searchPeople(ms, g2, "joe");
+    expect(found).toHaveLength(1);
+    expect(Object.keys(found[0])).not.toContain("email");
+    expect(JSON.stringify(found)).not.toContain("example.com");
+    expect(JSON.stringify(found)).not.toContain(String(stamp)); // not even the start of an email
+    expect(await searchPeople(ms, g2, "gmail")).toEqual([]);
+    expect(await searchPeople(ms, g2, "example.com")).toEqual([]);
+    expect(await searchPeople(ms, g2, `joey-${stamp}`)).toEqual([]); // the start of Joey's email is not a name
+    expect(await searchPeople(ms, g2, mail("joey"))).toEqual([]); // a full email of someone I know isn't matched either
+    expect((await searchPeople(ms, g2, "rancho")).map((f) => f.name)).toEqual(["Rancho"]);
+  });
+
+  it("a typed invite email is shown only to the person who invited; everyone else sees who invited", () => {
+    const inv = { email: "kabir@example.com", invitedById: "m-chandler" };
+    expect(inviteRowLabel(inv, "m-chandler", "Chandler")).toBe("kabir@example.com");
+    expect(inviteRowLabel(inv, "m-joey", "Chandler")).toBe("Invited by Chandler");
+  });
+
+  it("someone with no name of their own is shown by the name they have in the group you share, not their email", async () => {
+    const ghost = await db.account.create({ data: { email: `qwerty-${stamp}@gmail.com`, name: "" } });
+    await db.member.create({ data: { groupId: g1, name: "Pinky", accountId: ghost.id } });
+    const ms = { [g1]: meG1, [g2]: meG2 };
+    const byGroupName = await searchPeople(ms, g2, "pink");
+    expect(byGroupName.map((f) => f.name)).toEqual(["Pinky"]);
+    expect(await searchPeople(ms, g2, "qwerty")).toEqual([]); // the start of their email doesn't find them
   });
 
   // REVERSED ON PURPOSE (Batch B): adding someone used to put their account straight into the group.

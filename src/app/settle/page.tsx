@@ -2,7 +2,8 @@ import Link from "@/components/Link";
 import { getMemberships } from "@/lib/identity";
 import { Notice } from "@/components/Notice";
 import { loadOverview } from "@/lib/overview";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, PAYMENT_LINE } from "@/lib/money";
+import { crossPreview } from "@/lib/cross-settle";
 import { settleAcrossGroups } from "@/app/actions";
 import { STALE_KEY_ERROR } from "@/lib/once";
 import { FreshKey } from "@/components/FreshKey";
@@ -117,26 +118,44 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
                                     className="inline-flex h-10 items-center rounded-full bg-fg px-4 text-sm font-semibold text-canvas active:scale-[0.97]"
                                     data-pay={b.kind}
                                   >
-                                    Pay {amt(it.net)} with {b.label}
+                                    Open payment app{b.kind === "upi" ? "" : ` (${b.label})`}
                                   </a>
                                 ))}
                               </div>
                             ) : null;
                           })()}
-                        <div className="mt-3 flex items-center justify-between gap-3 pl-12">
-                          <span className="text-xs text-gray-400">{it.parts.length > 1 ? `1 payment instead of ${it.parts.length}` : ""}</span>
-                          <form action={settleAcrossGroups}>
-                            <FreshKey name="rid" />
-                            <input
-                              type="hidden"
-                              name="parts"
-                              value={JSON.stringify(it.parts.map((p) => ({ groupId: p.groupId, fromId: p.fromId, toId: p.toId, amount: p.amount })))}
-                            />
-                            <button type="submit" data-haptic="success" className="h-10 rounded-full border border-fg/18 bg-fg/[0.07] px-4 text-sm font-semibold text-fg active:scale-[0.97]">
-                              Mark as paid
-                            </button>
-                          </form>
-                        </div>
+                        {/* Shows each group's part and the total first; only "Record in N groups" saves anything. */}
+                        {(() => {
+                          const pv = crossPreview(it, common);
+                          return (
+                            <div className="mt-3 pl-12">
+                              <span className="text-xs text-gray-400">{it.parts.length > 1 ? `1 payment instead of ${it.parts.length}` : ""}</span>
+                              <details className="group mt-1.5" data-cross-preview>
+                                <summary className="flex h-10 w-fit cursor-pointer list-none items-center rounded-full border border-fg/18 bg-fg/[0.07] px-4 text-sm font-semibold text-fg active:scale-[0.97] [&::-webkit-details-marker]:hidden">
+                                  Mark as paid
+                                </summary>
+                                <div className="mt-3 rounded-2xl border border-line bg-mist px-4 py-3.5">
+                                  <p className="text-sm font-semibold">This will record:</p>
+                                  <ul className="mt-2 space-y-1 text-sm text-fg/80" data-cross-lines>
+                                    {pv.lines.map((l) => (
+                                      <li key={l}>{l}</li>
+                                    ))}
+                                  </ul>
+                                  <p className="mt-2 border-t border-line pt-2 text-sm font-semibold" data-cross-total>
+                                    {pv.total}
+                                  </p>
+                                  <form action={settleAcrossGroups} className="mt-3">
+                                    <FreshKey name="rid" />
+                                    <input type="hidden" name="parts" value={JSON.stringify(it.parts.map((p) => ({ groupId: p.groupId, fromId: p.fromId, toId: p.toId, amount: p.amount })))} />
+                                    <button type="submit" data-haptic="success" data-cross-record className="pop block w-full bg-fg px-4 py-3 text-center text-[15px] font-semibold text-canvas">
+                                      {pv.button}
+                                    </button>
+                                  </form>
+                                </div>
+                              </details>
+                            </div>
+                          );
+                        })()}
                       </li>
                     );
                   })}
@@ -169,7 +188,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
           <circle cx="12" cy="12" r="9" />
           <path d="M12 8v5M12 16.5v.5" />
         </svg>
-        <span>“Mark as paid” only records it; Loopin never moves money. Remind sends a WhatsApp link where they can tap “I’ve paid” without signing in.</span>
+        <span>{PAYMENT_LINE} Remind sends a WhatsApp link where they can tap “I’ve paid” without signing in.</span>
       </p>
     </>
   );

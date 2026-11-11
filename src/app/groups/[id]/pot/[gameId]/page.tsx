@@ -11,10 +11,10 @@ import { PotCount } from "@/components/PotCount";
 import { PotName } from "@/components/PotName";
 import { addPlayerAction, adjustAction, cashOutAction, deleteGameAction, finishGameAction, markGamePaidAction, removeMoveAction, reopenGameAction } from "@/app/pot-actions";
 import { gameSettlement, inPlay, loadGame } from "@/lib/pot-db";
-import { parsePlayers, potGameLabel, potSummary } from "@/lib/pot";
+import { parsePlayers, potGameLabel, potResultLine, potSummary } from "@/lib/pot";
 import { UndoBar } from "@/components/UndoBar";
 import { canUndo } from "@/lib/undo";
-import { decimalsOf, formatMoney, toInputAmount } from "@/lib/money";
+import { decimalsOf, formatMoney, PAYMENT_LINE, toInputAmount } from "@/lib/money";
 import { recordCustomPayment } from "@/app/actions";
 import { FreshKey } from "@/components/FreshKey";
 import { getTimeZone } from "@/lib/tz";
@@ -82,8 +82,8 @@ export default async function GamePage({ params, searchParams }: { params: Promi
   );
 
   const whoPays = (
-        <section aria-label="Who pays whom" className="mt-6">
-          <h2 className="mb-2 font-display text-lg font-semibold tracking-tight">Who pays whom</h2>
+        <section aria-label="Money owed" className="mt-6">
+          <h2 className="mb-2 font-display text-lg font-semibold tracking-tight">Money owed</h2>
           {!settlement || settlement.transfers.length === 0 ? (
             <p className="rounded-xl bg-mist px-4 py-3 text-sm text-gray-500">Nobody owes anybody for this game.</p>
           ) : (
@@ -129,6 +129,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
               </ConfirmButton>
             </form>
           )}
+          <p className="mt-3 text-xs text-gray-400">{PAYMENT_LINE}</p>
           <p className="mt-3 text-sm text-gray-500" data-still-owed={stillOwed}>
             {stillOwed > 0 ? `Still to settle in this group: ${money(stillOwed)}.` : "Everyone in this group is square ✓"}
           </p>
@@ -248,8 +249,9 @@ export default async function GamePage({ params, searchParams }: { params: Promi
       )}
 
       {/* Players */}
-      <section aria-label="Players" className="mt-8">
-        <h2 className="mb-2 font-display text-lg font-semibold tracking-tight">{open ? "At the table" : "Results"}</h2>
+      <section aria-label="Game tally" className="mt-8">
+        <h2 className="font-display text-lg font-semibold tracking-tight">Game tally</h2>
+        <p className="mb-2 mt-0.5 text-xs text-gray-500">{open ? "At the table. This is only a count: nothing is owed until the game is finished." : "How the game went. Who owes what is under Money owed."}</p>
         <ul className="divide-y divide-line">
           {(open ? lines : ranked).map((l) => {
             const still = open && playing.includes(l.memberId);
@@ -338,6 +340,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
               return { id: p, name: you(p), tookText: `took ${money(took)}${back ? `, back ${money(back)}` : ""}`, base: back + (l?.adjust ?? 0) - took };
             })}
             inPlay={totals.out}
+            settled={lines.filter((l) => !playing.includes(l.memberId)).map((l) => ({ name: nameOf(l.memberId), net: l.net }))}
             host={host}
             hostName={you(game.hostId)}
             currency={group.currency}
@@ -387,8 +390,9 @@ export default async function GamePage({ params, searchParams }: { params: Promi
           {host ? (
             form(
               finishGameAction,
-              totals.balanced ? "Settle: who pays whom 🏁" : "Settle (when it adds up)",
+              totals.balanced ? "Finish: put it into Money owed 🏁" : "Finish (when it adds up)",
               `pop block w-full bg-fg px-4 py-3.5 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63] ${totals.balanced ? "" : "opacity-50"}`,
+              totals.balanced ? potResultLine(lines.map((l) => ({ name: nameOf(l.memberId), net: l.net })), group.currency) : undefined,
             )
           ) : (
             <p className="text-center text-xs text-gray-500">{you(game.hostId)} (the host) settles the game once it adds up.</p>

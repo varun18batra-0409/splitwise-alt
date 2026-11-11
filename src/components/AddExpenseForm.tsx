@@ -5,9 +5,10 @@ import { ExpenseGlyph } from "./ExpenseGlyph";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { addExpense, lookupRate } from "@/app/actions";
 import { CATEGORIES, analyzeName, applySuggestion, getCategory } from "@/lib/categories";
-import { computeTotals, PAYMENT_METHODS, type PaymentMethod } from "@/lib/conversion";
+import { computeTotals, fxLine, PAYMENT_METHODS, type PaymentMethod } from "@/lib/conversion";
 import { buildExpense, chosenMarkupBp, type ExpenseDraft } from "@/lib/expense";
-import { currencyInfo, formatMoney, formatPercent, isSupportedCurrency, parseAmount, parsePercent } from "@/lib/money";
+import { amountEcho, currencyInfo, formatMoney, formatPercent, isSupportedCurrency, parseAmount, parsePercent } from "@/lib/money";
+import { expenseSummary } from "@/lib/expense-summary";
 import { QuickLine } from "./QuickLine";
 import { BillScan, type ScannedBill } from "./BillScan";
 import { useRequestKey } from "./FreshKeyInput";
@@ -282,6 +283,17 @@ export function AddExpenseForm({
   const base = (minor: number) => formatMoney(minor, baseCurrency);
   const orig = (minor: number) => formatMoney(minor, currency);
   const cur = currencyInfo(currency);
+  // One line above Save: what this adds, who paid, your share. Only when the expense is valid, so it is exactly what will be saved.
+  const summary = preview.ok ? expenseSummary(preview.expense, myId, baseCurrency, Object.fromEntries(members.map((m) => [m.id, m.name])), foreign) : "";
+  const echo = amountEcho(amount, currency);
+  const fxMaths = foreign && totals.ok
+    ? fxLine({ originalAmount: totals.originalAmount, originalCurrency: currency, baseCurrency, exchangeRate: totals.exchangeRate, convertedAmount: totals.convertedAmount, markupBp: totals.markupBp, markupAmount: totals.markupAmount, amount: totals.total })
+    : null;
+  const fxSource = usingManualRate
+    ? "Rate entered by hand"
+    : rateState.status === "ok" && rateState.date
+      ? `${keepSavedRate ? "Rate saved with this expense" : "Live rate"} for ${niceDate(rateState.date)}`
+      : null;
 
   // Running total for the payers' amounts.
   const payersLeft = (() => {
@@ -449,6 +461,12 @@ export function AddExpenseForm({
           size={Math.max(2, amount.length + 1)}
           className="money mt-2 w-full bg-transparent text-center focus-visible:outline-none focus-visible:shadow-[inset_0_-1px_0_0_rgb(244_242_236/0.22)] text-[clamp(52px,17vw,72px)] leading-[1.05] text-fg caret-[var(--color-tint,var(--color-fg))] outline-none placeholder:text-fg/25"
         />
+        {/* How the typed amount was read ("12,50" → ₹12.50); nothing for plain digits. */}
+        {echo && (
+          <span role="status" aria-live="polite" className="mt-1 text-xs text-fg/60" data-amount-echo={echo}>
+            Read as {echo}
+          </span>
+        )}
         {showCurrencies && (
           <div className="w-full text-left">
             <CurrencyPicker value={currency} recent={[baseCurrency, currency]} onPick={chooseCurrency} />
@@ -705,6 +723,13 @@ export function AddExpenseForm({
                 {PAYMENT_METHODS.find((p) => p.id === paymentMethod)?.label} · {orig(totals.originalAmount)} ≈{" "}
                 <strong className="font-medium text-fg">{base(totals.total)}</strong>
                 {totals.markupAmount > 0 && ` incl. ${base(totals.markupAmount)} card fee`}
+                {/* The maths, and where the rate came from. Only shown when it adds up exactly. */}
+                {fxMaths && (
+                  <span className="mt-1 block text-xs tabular-nums text-gray-500" data-fx-line>
+                    {fxMaths}
+                    {fxSource && <span className="block text-gray-400">{fxSource}</span>}
+                  </span>
+                )}
               </>
             ) : rateState.status === "ok" ? (
               <>1 {currency} = {rateText(rateState.rate, baseCurrency)} · {PAYMENT_METHODS.find((p) => p.id === paymentMethod)?.label}</>
@@ -1253,8 +1278,14 @@ export function AddExpenseForm({
         </div>
       )}
 
-      {/* Always in reach: the save buttons ride along at the bottom while you scroll the form. */}
-      <div className={`glass-strong sticky bottom-[max(1rem,env(safe-area-inset-bottom))] z-10 -mx-2 rounded-full p-1.5 shadow-[0_18px_40px_-14px_rgba(0,0,0,0.85)] ${expenseId ? "" : "flex gap-1.5"}`}>
+      {/* Always in reach: the summary and the save buttons ride along at the bottom while you scroll the form. */}
+      <div className="sticky bottom-[max(1rem,env(safe-area-inset-bottom))] z-10 -mx-2">
+      {summary && (
+        <p role="status" aria-live="polite" className="mx-auto mb-1.5 w-fit max-w-full rounded-full bg-canvas/90 px-4 py-1.5 text-center text-[13px] font-medium leading-snug text-fg/80 tabular-nums" data-expense-summary>
+          {summary}
+        </p>
+      )}
+      <div className={`glass-strong rounded-full p-1.5 shadow-[0_18px_40px_-14px_rgba(0,0,0,0.85)] ${expenseId ? "" : "flex gap-1.5"}`}>
         <button
           type="submit"
           data-haptic="tap"
@@ -1280,6 +1311,7 @@ export function AddExpenseForm({
             {saving && again ? "Saving…" : "Save & add another"}
           </button>
         )}
+      </div>
       </div>
     </form>
   );

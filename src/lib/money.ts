@@ -163,3 +163,31 @@ export function toInputAmount(minor: number, currency = "INR"): string {
   const s = (minor / 10 ** d).toFixed(d);
   return d > 0 ? s.replace(/\.?0+$/, "") : s;
 }
+
+// The one line shown wherever a payment is recorded (Pay, Settle up, the I've paid page, card nights).
+export const PAYMENT_LINE = "This records a payment made outside Loopin. Loopin doesn't move money.";
+
+// "This is ₹2,700 more than what's owed. Record it anyway?" — null when the amount is no more than what's owed.
+// typed and owes are in minor units. `ask` is the closing question ("Confirm anyway?" on Confirm received).
+export function overpayLine(typed: number, owes: number, currency = "INR", ask = "Record it anyway?"): string | null {
+  if (!Number.isSafeInteger(typed) || !Number.isSafeInteger(owes) || typed <= owes) return null;
+  return `This is ${formatMoney(typed - Math.max(0, owes), currency)} more than what's owed. ${ask}`;
+}
+
+// How a typed amount was read, shown under the box ("12,50" → "₹12.50"). Null for plain digits (nothing to
+// explain) and for text that isn't an amount (the error message covers that). "1.250" deliberately shows
+// as ₹1.25: that is what it means, and it makes a thousands-dot slip visible before saving.
+export function amountEcho(input: string, currency = "INR"): string | null {
+  const t0 = input.replace(/[₹$€£¥฿\s]/g, "");
+  if (!t0 || /^\d+$/.test(t0)) return null;
+  const d = decimalsOf(currency);
+  const t = (/^\d+,\d{1,2}$/.test(t0) ? t0.replace(",", ".") : t0).replace(/,/g, "");
+  const m = /^(\d*)(?:\.(\d*))?$/.exec(t);
+  if (!m || (m[1] === "" && !m[2])) return null;
+  let frac = m[2] ?? "";
+  while (frac.length > d && frac.endsWith("0")) frac = frac.slice(0, -1);
+  if (frac.length > d) return null;
+  const total = Number(m[1] || "0") * 10 ** d + Number(frac.padEnd(d, "0") || "0");
+  if (!Number.isSafeInteger(total) || total <= 0 || total > MAX_MINOR) return null;
+  return formatMoney(total, currency);
+}

@@ -2,6 +2,7 @@ import Link from "@/components/Link";
 import { buildActivity, byDay, filterActivity, hasFilter, type ActivityFilter } from "@/lib/activity";
 import { CATEGORIES, getCategory } from "@/lib/categories";
 import { originalShares } from "@/lib/currency-ledgers";
+import { fxLine, rateSourceLine } from "@/lib/conversion";
 import { dayKey, expenseDate, formatter } from "@/lib/dates";
 import { parseDetails } from "@/lib/events";
 import { niceDate, rateText } from "@/lib/format";
@@ -360,15 +361,19 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                       )}
                       {foreign && (
                         <>
+                          {/* The maths in one line; only shown when it adds up to the saved total. */}
+                          {(() => {
+                            const fx = fxLine(e);
+                            return fx ? (
+                              <p className="rounded-lg bg-white/[0.03] px-3 py-2 font-medium tabular-nums" data-fx-line>
+                                {fx}
+                              </p>
+                            ) : null;
+                          })()}
                           <Line label="Original expense" value={formatMoney(e.originalAmount, e.originalCurrency)} />
                           <Line label="Exchange rate" value={`1 ${e.originalCurrency} = ${rateText(e.exchangeRate, e.baseCurrency)}`} />
-                          <p className="-mt-1 text-right text-xs text-gray-400">
-                            {e.rateSource === "manual"
-                              ? "Entered by hand"
-                              : e.rateSource === "converted"
-                                ? "Adjusted when the group currency changed"
-                                : "Live rate"}
-                            {e.rateDate && `, ${niceDate(e.rateDate)}`}
+                          <p className="-mt-1 text-right text-xs text-gray-400" data-rate-source>
+                            {rateSourceLine(e, niceDate) ?? `Live rate${e.rateDate ? `, ${niceDate(e.rateDate)}` : ""}`}
                           </p>
                           <Line label="Paid with" value={PAID_WITH[e.paymentMethod] ?? "—"} />
                           <Line label="Converted amount" value={money(e.convertedAmount)} />

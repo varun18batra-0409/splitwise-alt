@@ -5,6 +5,7 @@ import { netBalances } from "@/lib/balances";
 import { addPlayerToGame, adjustGap, buyIn, cashOut, countOut, deleteGame, finishGame, gamesToSettle, inPlay, loadGame, markGamePaid, recordMove, removeMove, reopenGame, startGame } from "@/lib/pot-db";
 import { undoEvent } from "@/lib/undo";
 import { parsePlayers } from "@/lib/pot";
+import { spentAmount } from "@/lib/payers";
 
 // The Pot against a real database: a game from start to settle, the gap
 // check, the host's rules, and a finished game's result in the balances.
@@ -189,5 +190,27 @@ describe("The Pot (real database)", () => {
     expect([x.ok, y.ok].filter(Boolean).length).toBeGreaterThanOrEqual(1);
     expect(await gamesToSettle(g.id, games)).toEqual({ [one]: 0, [two]: 0 });
     expect((await balances(g.id))[a]).toBe(0);
+  });
+
+  // C136. Asha takes ₹1,000 and puts back ₹1,500; Bina takes 1,000 and puts back 700; Chirag takes 1,000 and puts back 800.
+  // Results +50000, −30000, −20000 (sum 0). The game tally is not in the balances until the game is finished.
+  it("Game tally vs Money owed: balances stay 0 until finished, then +50000 / −30000 / −20000; reopen puts them back to 0; the result is not spending", async () => {
+    const { g, a, b, c } = await table();
+    const s = await startGame(g.id, a, { name: "Tally night", game: "teenpatti", players: [a, b, c] });
+    if (!s.ok) throw new Error(s.error);
+    for (const who of [a, b, c]) await recordMove(s.id, a, { memberId: who, kind: "take", amount: "1000" });
+    for (const [who, amt] of [[a, "1500"], [b, "700"], [c, "800"]] as const) await recordMove(s.id, a, { memberId: who, kind: "return", amount: amt });
+    expect(Object.values(await balances(g.id)).every((v) => v === 0)).toBe(true); // still only a tally
+
+    expect((await finishGame(s.id, a)).ok).toBe(true);
+    const done = await balances(g.id);
+    expect({ a: done[a], b: done[b], c: done[c] }).toEqual({ a: 50000, b: -30000, c: -20000 });
+    expect(Object.values(done).reduce((x, y) => x + y, 0)).toBe(0);
+    // Not spending: out of month totals and categories.
+    const result = await db.expense.findFirstOrThrow({ where: { groupId: g.id, kind: "pot" } });
+    expect(spentAmount(result)).toBe(0);
+
+    expect((await reopenGame(s.id, a)).ok).toBe(true);
+    expect(Object.values(await balances(g.id)).every((v) => v === 0)).toBe(true);
   });
 });

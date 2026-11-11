@@ -4,6 +4,7 @@ import { claimKey, fingerprintOf, isDuplicateKey, keyState, STALE_KEY_ERROR, wit
 import { loadGroup } from "./group-data";
 import { logEvent } from "./events";
 import { formatMoney } from "./money";
+import { createPayment } from "./payments";
 import type { Transfer } from "./settle";
 
 // "We settled outside the app": record every Smart Settle payment at once and
@@ -40,7 +41,7 @@ async function settleAllOnce(groupId: string, actorId: string, expectedPlan: str
     if (lock.count !== 1) throw new Error("already-closed");
     const ids: string[] = [];
     for (const t of transfers) {
-      const p = await tx.payment.create({ data: { groupId, fromId: t.from, toId: t.to, amount: t.amount, createdById: actorId } });
+      const p = await createPayment(tx, { groupId, fromId: t.from, toId: t.to, amount: t.amount, createdById: actorId });
       ids.push(p.id);
     }
     return logEvent(tx, {
@@ -124,7 +125,7 @@ export async function markAllPaid(groupId: string, actorId: string, pickIn: Pick
       const ids: string[] = [];
       for (const t of pick) {
         const r = group.members.find((m) => m.id === t.to);
-        const p = await tx.payment.create({ data: { groupId, fromId: t.from, toId: t.to, amount: t.amount, createdById: actorId, needsOk: Boolean(r && r.id !== actorId && (r.accountId || r.claimedAt)) } });
+        const p = await createPayment(tx, { groupId, fromId: t.from, toId: t.to, amount: t.amount, createdById: actorId, needsOk: Boolean(r && r.id !== actorId && (r.accountId || r.claimedAt)) });
         ids.push(p.id);
       }
       return logEvent(tx, {

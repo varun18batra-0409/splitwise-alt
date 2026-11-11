@@ -50,6 +50,8 @@ export type PayLinkState =
       amount: number; // what's owed right now (owes) or what they said they paid (said)
       paidAt?: Date;
       confirmed?: boolean; // square because they confirmed the payment made here
+      claimId?: string; // said: the waiting "I've paid" claim (absent = an older payment that already counts and waits for "Confirm received")
+      declined?: boolean; // owes: the person paid said "Not received" to the last "I've paid"
     };
 
 // Everything the page needs, worked out fresh from the group's balances.
@@ -70,14 +72,19 @@ export async function readPayLink(token: string, now = new Date()): Promise<PayL
     toName: to.name,
     toAccountId: to.accountId,
   };
-  // Said they paid through this link, and it's still waiting for a "Got it".
+  // An older payment made through this link (it already counts in the balances) still waiting for "Confirm received".
   const said = link.paymentId ? payments.find((p) => p.id === link.paymentId && p.needsOk && !p.okAt) : undefined;
   if (said) return { kind: "said", ...base, amount: said.amount, paidAt: said.createdAt };
+  // A new "I've paid": a claim waiting for the person paid. It is not in the balances.
+  const claim = await db.paymentClaim.findFirst({ where: { groupId: link.groupId, fromId: link.fromId, toId: link.toId, status: "waiting" } });
+  if (claim) return group.closed ? { kind: "closed", ...base, amount: claim.amount } : { kind: "said", ...base, amount: claim.amount, paidAt: claim.createdAt, claimId: claim.id };
   const owed = transfers.find((t) => t.from === link.fromId && t.to === link.toId)?.amount ?? 0;
   if (group.closed) return { kind: "closed", ...base, amount: owed };
   if (owed <= 0) {
     const last = link.paymentId ? payments.find((p) => p.id === link.paymentId) : undefined;
     return { kind: "square", ...base, amount: last?.amount ?? 0, confirmed: Boolean(last?.okAt) };
   }
+  const latest = await db.paymentClaim.findFirst({ where: { groupId: link.groupId, fromId: link.fromId, toId: link.toId }, orderBy: { createdAt: "desc" }, select: { status: true } });
+  if (latest?.status === "declined") return { kind: "owes", ...base, amount: owed, declined: true };
   return { kind: "owes", ...base, amount: owed };
 }

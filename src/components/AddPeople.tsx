@@ -6,11 +6,11 @@ import { InviteIcon, SearchIcon } from "./icons";
 import { reportSpeed } from "./speedReport";
 import { whatsappLink } from "@/lib/whatsapp";
 
-type Found = { accountId: string; name: string; email: string; inGroup: boolean; known: boolean; invited?: boolean; removed?: boolean; mayAdd?: boolean };
+type Found = { accountId: string; name: string; inGroup: boolean; known: boolean; invited?: boolean; removed?: boolean; mayAdd?: boolean };
 const isEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(s.trim());
 
-// 1. Search people already on Loopin (friends you share a group with by name,
-//    anyone by exact email) and add them with one tap.
+// 1. Search people already on Loopin (friends you share a group with, by name only: no emails
+//    are shown or matched) and add them with one tap. Anyone else: type their full email.
 export function PeopleSearch({ groupId }: { groupId: string }) {
   const [q, setQ] = useState("");
   const [found, setFound] = useState<Found[]>([]);
@@ -55,7 +55,8 @@ export function PeopleSearch({ groupId }: { groupId: string }) {
     return () => ctl.abort();
   }, [q, groupId]);
 
-  const showInvite = isEmail(q) && !busy && !found.some((f) => f.email === q.trim().toLowerCase());
+  // A full email always offers the same plain "Add" (search results never show or match emails).
+  const showInvite = isEmail(q) && !busy;
 
   return (
     <div>
@@ -90,7 +91,6 @@ export function PeopleSearch({ groupId }: { groupId: string }) {
                 <span className="block truncate font-medium">
                   {f.name} <span className="ml-1 rounded-full bg-owed/15 px-1.5 py-0.5 align-middle text-[10px] font-semibold text-owed">On Loopin ✓</span>
                 </span>
-                <span className="block truncate text-xs text-gray-400">{f.email}</span>
               </span>
               {f.inGroup ? (
                 <span className="shrink-0 text-xs text-gray-400">In group</span>

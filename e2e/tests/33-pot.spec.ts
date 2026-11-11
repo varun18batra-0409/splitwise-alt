@@ -113,7 +113,7 @@ test("a Teen Patti game from first take to settled", async ({ browser }) => {
   const net = async (name: string) => Number(await A.locator(`[data-player='${name}']`).getAttribute("data-net"));
   const nets = { Asha: await net("Asha"), Ravi: await net("Ravi"), Chirag: await net("Chirag"), Dev: await net("Dev"), Neha: await net("Neha") };
   expect(nets, `nets were ${JSON.stringify(nets)}`).toEqual({ Asha: 60000, Ravi: -30000, Chirag: -20000, Dev: -10000, Neha: 0 });
-  const pays = A.getByRole("region", { name: "Who pays whom" });
+  const pays = A.getByRole("region", { name: "Money owed" });
   await expect(pays.locator("[data-transfer]")).toHaveCount(3);
   await expect(pays).toContainText("Ravi pays you");
   await expect(pays).toContainText("₹300");
@@ -123,7 +123,7 @@ test("a Teen Patti game from first take to settled", async ({ browser }) => {
   await pays.getByRole("button", { name: "Mark paid: Dev pays you" }).click();
   await A.waitForURL(/\/pot\/[^/?]+\?paid=1/);
   await settled(A);
-  await expect(A.getByRole("region", { name: "Who pays whom" }).locator("[data-transfer='paid']").filter({ hasText: "Dev pays you" })).toHaveCount(1);
+  await expect(A.getByRole("region", { name: "Money owed" }).locator("[data-transfer='paid']").filter({ hasText: "Dev pays you" })).toHaveCount(1);
   await expect(A.locator("[data-still-owed]")).toHaveAttribute("data-still-owed", "50000");
 
   // Ravi sees it in the group: lost ₹300, and pays Asha in Settle up.
@@ -132,11 +132,16 @@ test("a Teen Patti game from first take to settled", async ({ browser }) => {
   await expect(R.locator("[data-game='done']")).toContainText("you lost");
   await R.goto(`${g.path}/settle`);
   await settled(R);
-  await R.locator("form").filter({ has: R.getByLabel(/^Amount (You|Ravi) paid Asha$/) }).getByRole("button", { name: "Mark paid" }).click();
-  await R.waitForURL(/paid=1/); // (the settle page is already open: wait for the payment itself)
+  // Settle up's "I've paid" is a claim: it counts once Asha taps Confirm received.
+  await R.locator("[data-i-paid]").click();
+  await R.waitForURL(/claimed=1/);
+  await A.goto(`${g.path}/settle`);
+  await settled(A);
+  await A.locator("[data-waiting='Ravi']").getByRole("button", { name: "Confirm received" }).click();
+  await A.waitForURL(/ok=1/);
   await R.goto(game);
   await settled(R);
-  await expect(R.getByRole("region", { name: "Who pays whom" }).locator("[data-transfer='paid']").filter({ hasText: "You pay Asha" })).toHaveCount(1);
+  await expect(R.getByRole("region", { name: "Money owed" }).locator("[data-transfer='paid']").filter({ hasText: "You pay Asha" })).toHaveCount(1);
   await expect(R.locator("[data-still-owed]")).toHaveAttribute("data-still-owed", "20000");
 
   // Only the host finishes or reopens: Ravi doesn't get those buttons.

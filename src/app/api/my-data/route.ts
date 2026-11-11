@@ -29,11 +29,13 @@ export async function GET() {
         .map(async (g) => {
           // Groups I left (or was removed from): only what I'm allowed to see there, like on screen.
           const scope = await readableWhere(g.id, g.members.find((m) => m.id === memberships[g.id])!);
-          const [expenses, payments] = await Promise.all([
+          const [expenses, payments, claims] = await Promise.all([
             db.expense.findMany({ where: { groupId: g.id, ...(scope ? { AND: [scope.expenses] } : {}) }, include: { shares: true } }),
             db.payment.findMany({ where: { groupId: g.id, ...(scope ? { AND: [scope.payments] } : {}) } }),
+            // Only my own "I've paid" claims (said by me, or said to me).
+            db.paymentClaim.findMany({ where: { groupId: g.id, OR: [{ fromId: memberships[g.id] }, { toId: memberships[g.id] }] } }),
           ]);
-          return { ...g, expenses, payments, myId: memberships[g.id] };
+          return { ...g, expenses, payments, claims, myId: memberships[g.id] };
         }),
     ),
     now,

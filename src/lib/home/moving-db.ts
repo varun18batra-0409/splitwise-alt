@@ -4,6 +4,7 @@ import { netBalances } from "../balances";
 import { formatMoney, parseAmount } from "../money";
 import { claimKey, fingerprintOf, isDuplicateKey, keyState, STALE_KEY_ERROR } from "../once";
 import { niceDate } from "../format";
+import { createPayment } from "../payments";
 import { addMonths, daysInMonth } from "./month";
 import { DEFAULT_TIME_ZONE, dayKey } from "../dates";
 import { addPrepaid, dailyPrecharge, depositRefunds, leaverPayments, parsePrepaid, proRataShares, removePrepaid, type DailyPrecharge } from "./moving";
@@ -252,7 +253,7 @@ export async function moveOut(
       }
       // 2. Square up.
       for (const t of p.payments) {
-        const pay = await tx.payment.create({ data: { groupId, fromId: t.from, toId: t.to, amount: t.amount, createdById: actorId } });
+        const pay = await createPayment(tx, { groupId, fromId: t.from, toId: t.to, amount: t.amount, createdById: actorId });
         await logEvent(tx, {
           groupId,
           actorId,

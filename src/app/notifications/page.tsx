@@ -21,6 +21,7 @@ const ICON: Record<string, string> = {
   payment_deleted: "✕",
   payment_restored: "↺",
   payment_confirmed: "✓",
+  payment_claimed: "…",
   members_removed: "👤",
   display_currency_changed: "💱",
   group_renamed: "✎",

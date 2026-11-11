@@ -107,7 +107,7 @@ const SECTIONS: { title: string; items: QA[] }[] = [
       },
       {
         q: "How does Settle up work? Does Loopin move money?",
-        a: "Settle up shows a short list of payments that clears everything, even across all your groups at once. You pay each other however you like, then tap Mark paid. Loopin only records payments; it never holds or moves money and never asks for bank details.",
+        a: "Settle up shows a short list of payments that clears everything, even across all your groups at once. You pay each other however you like, then tap I’ve paid; it counts once the person you paid taps Confirm received. Loopin only records payments; it never holds or moves money and never asks for bank details.",
       },
       {
         q: "Can people pay me with UPI, PayPal or Venmo in one tap?",
@@ -115,11 +115,11 @@ const SECTIONS: { title: string; items: QA[] }[] = [
       },
       {
         q: "Someone marked a payment to me. What if I didn’t get it?",
-        a: "You’re asked in Settle up (and on your phone): Got it ✓ or Not received. Not received takes it off the balances, with Undo, so nobody is out of pocket on someone’s word. A WhatsApp Remind also carries your UPI ID or pay link and an “I’ve paid” link.",
+        a: "You’re asked in Settle up (and on your phone): Confirm received or Not received. When someone taps I’ve paid, nothing changes in the balances until you confirm; Not received leaves the balances as they were. A WhatsApp Remind also carries your UPI ID or pay link and an “I’ve paid” link.",
       },
       {
         q: "Can someone tell me they paid without having Loopin?",
-        a: "Yes. Tap Remind in Settle up and WhatsApp opens with a note, your UPI ID and a link. They open it (no app, no sign-in), pay with UPI, and tap I’ve paid. You’re asked to confirm with Got it ✓. The link only works for what they owe you right now, can’t be used for anything else, and stops working once you’re square or after 30 days.",
+        a: "Yes. Tap Remind in Settle up and WhatsApp opens with a note, your UPI ID and a link. They open it (no app, no sign-in), pay with UPI, and tap I’ve paid. You’re asked to tap Confirm received, and the balances change then. The link only works for what they owe you right now, can’t be used for anything else, and stops working once you’re square or after 30 days.",
       },
       {
         q: "I made a mistake. Can I undo it?",

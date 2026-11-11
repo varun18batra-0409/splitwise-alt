@@ -2,10 +2,11 @@ import Link from "@/components/Link";
 import { notFound, redirect } from "next/navigation";
 import { getMyMemberId } from "@/lib/identity";
 import { loadGroup } from "@/lib/group-data";
-import { formatMoney, parseAmount, toInputAmount } from "@/lib/money";
+import { formatMoney, overpayLine, parseAmount, PAYMENT_LINE, toInputAmount } from "@/lib/money";
+import { PayAmountField } from "@/components/AmountEcho";
 import { recordCustomPayment } from "@/app/actions";
 import { FreshKey } from "@/components/FreshKey";
-import { ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/components/ui";
+import { ErrorNote, PageHeader, primaryButtonClass } from "@/components/ui";
 
 // Record that one person paid another back — any amount, full or part.
 // Smart Settle's suggestions are offered as one-tap fill-ins.
@@ -35,12 +36,9 @@ export default async function RecordPayment({
 
   const owes = /^\d{1,12}$/.test(sp.owes ?? "") ? Number(sp.owes) : null;
   const typed = parseAmount(sp.amount ?? "", group.currency);
-  const overWarning =
-    owes !== null && typed !== null && typed > owes
-      ? owes === 0
-        ? `${nameOf(from)} ${from === myId ? "don’t" : "doesn’t"} owe anything in this group right now. Recording ${money(typed)} will leave ${from === myId ? "you" : nameOf(from)} owed money by the group.`
-        : `That’s more than ${from === myId ? "you owe" : `${nameOf(from)} owes`} in this group (${money(owes)}). Recording ${money(typed)} will leave ${from === myId ? "you" : nameOf(from)} owed money by the group.`
-      : "";
+  // More than the payer owes (often an extra zero): asked once, with Cancel first.
+  const overLine = owes !== null && typed !== null ? overpayLine(typed, owes, group.currency) : null;
+  const cancelHref = `/groups/${group.id}/pay?${new URLSearchParams({ from, ...(to ? { to } : {}), amount: sp.amount ?? "" })}`;
   const chip = "flex items-center gap-2 rounded-full border border-line bg-mist px-4 py-2 text-sm font-medium has-[:checked]:border-fg has-[:checked]:bg-fg has-[:checked]:font-medium has-[:checked]:text-canvas";
 
   return (
@@ -102,24 +100,35 @@ export default async function RecordPayment({
 
         <label className="block">
           <span className="mb-2 block text-sm font-medium text-gray-600">Amount ({group.currency})</span>
-          <input name="amount" required inputMode="decimal" placeholder="0" defaultValue={sp.amount ?? ""} autoComplete="off" className={`${inputClass} text-2xl font-semibold`} />
+          <PayAmountField currency={group.currency} defaultValue={sp.amount ?? ""} />
           <span className="mt-2 block text-xs text-gray-400">Full or part. You can record the rest later.</span>
         </label>
 
-        {/* Asked once when the amount is more than the payer owes (an extra zero is a common slip). */}
-        {overWarning && (
+        {/* Asked once when the amount is more than the payer owes. Cancel is first and has the focus; nothing is saved. */}
+        {overLine ? (
+          <>
+          {/* Pressing Enter after changing the amount checks it again (it never counts as "Record anyway"). */}
+          <button type="submit" tabIndex={-1} aria-hidden className="sr-only">
+            Check and record
+          </button>
           <div role="alert" className="rounded-2xl border border-[#5a3a20] bg-owe-soft px-4 py-3 text-sm" data-over-warning>
-            <p>{overWarning}</p>
-            <label className="mt-3 flex min-h-11 items-center gap-3 font-medium">
-              <input type="checkbox" name="over" value="1" required className="h-5 w-5 accent-[var(--color-accent)]" />
-              Yes, record it anyway
-            </label>
+            <p>{overLine}</p>
+            <div className="mt-3 flex gap-2">
+              <Link href={cancelHref} autoFocus className="rounded-full bg-fg px-4 py-2 text-sm font-semibold text-canvas" data-over-cancel>
+                Cancel
+              </Link>
+              <button type="submit" name="over" value="1" className="rounded-full border border-line px-4 py-2 text-sm font-semibold" data-over-record>
+                Record anyway
+              </button>
+            </div>
           </div>
+          </>
+        ) : (
+          <button type="submit" className={primaryButtonClass}>
+            Record payment
+          </button>
         )}
-        <button type="submit" className={primaryButtonClass}>
-          Record payment
-        </button>
-        <p className="text-xs text-gray-400">This only notes the payment here, so balances update. The app never moves real money.</p>
+        <p className="text-xs text-gray-400">{PAYMENT_LINE}</p>
       </form>
     </>
   );

@@ -29,7 +29,7 @@ export async function vapidKeys(): Promise<{ publicKey: string; privateKey: stri
 // A small sign for what kind of change it was, so it's clear at a glance.
 const SIGN: Record<string, string> = {
   expense_added: "🧾", expense_edited: "✏️", expense_deleted: "🗑️", expense_restored: "↩️",
-  payment_recorded: "💸", payment_deleted: "🗑️", payment_restored: "↩️", payment_confirmed: "✅",
+  payment_recorded: "💸", payment_deleted: "🗑️", payment_restored: "↩️", payment_confirmed: "✅", payment_claimed: "💬",
   members_added: "👋", member_invited: "✉️", members_removed: "👤", member_left: "👤", member_rejoined: "👋", member_renamed: "✏️",
   group_settled_closed: "✅", group_closed: "📦", group_reopened: "📂", group_imported: "📥", group_deleted: "🗑️", group_restored: "↩️",
   split_changed: "⚖️",
@@ -66,6 +66,8 @@ export async function sendEventPush(eventId: string): Promise<number> {
   try {
     const ev = await db.groupEvent.findUnique({ where: { id: eventId }, include: { group: { select: { id: true, name: true } } } });
     if (!ev) return 0;
+    // "Ravi says he paid" is told to the person paid only (see payment-claims.ts), not the whole group.
+    if (ev.kind === "payment_claimed") return 0;
     // Everyone else still in the group whose settings want this kind of change —
     // never the phone that made the change (even if it's someone else here too).
     const [all, own] = await Promise.all([

@@ -649,7 +649,27 @@ async function main() {
   });
 
   // ===== 6. Settling up =====
-  const settleCards = (page: Page) => page.locator("main ul > li").filter({ has: page.locator('input[name="amount"]') });
+  // Every payment row on Settle up. A row where you pay someone who has joined has "I've paid" (a claim: it counts only after
+  // they tap Confirm received) and a "Paid a different amount?" link; other rows have the amount box and "Mark paid".
+  const settleCards = (page: Page) => page.locator("main ul > li[data-transfer-row]");
+  // Record row i's payment so it counts straight away: "Mark paid" where the row has it, else Record a payment (the link on claim rows).
+  const rowRecord = async (page: Page, i: number, o: { amount?: string; dbl?: boolean } = {}) => {
+    const card = settleCards(page).nth(i);
+    const other = card.getByRole("link", { name: "Paid a different amount?" });
+    if (await other.count()) {
+      await other.click();
+      await page.waitForURL(/\/pay\?/);
+      if (o.amount !== undefined) await page.locator('input[name="amount"]').fill(o.amount);
+      const b = page.getByRole("button", { name: "Record payment" });
+      if (o.dbl) await b.dblclick();
+      else await b.click();
+    } else {
+      if (o.amount !== undefined) await card.locator('input[name="amount"]').fill(o.amount);
+      const b = card.getByRole("button", { name: "Mark paid" });
+      if (o.dbl) await b.dblclick();
+      else await b.click();
+    }
+  };
   const cardPeople = async (page: Page, i: number, me: Person): Promise<[Person, Person, number]> => {
     const t = (await settleCards(page).nth(i).innerText()).replace(/\s+/g, " ");
     const m = /^(?:[A-Z] )?(\w+) (?:pay|pays) (\w+) (₹[\d,.]+)/.exec(t); // the card starts with the person's initial
@@ -673,7 +693,7 @@ async function main() {
   await step(V, "Settle", "Mark a payment as paid in full", async () => {
     await go(V, `${g}/settle`);
     const [from, to, amt] = await cardPeople(V, 0, "Varun");
-    await settleCards(V).nth(0).getByRole("button", { name: "Mark paid" }).click();
+    await rowRecord(V, 0);
     await V.waitForURL(/paid=1/);
     payments.push({ from, to, amount: amt, active: true, key: "full" });
     return `${from} → ${to} ${rupees(amt)}; ${await checkBalances(V, g)}`;
@@ -682,22 +702,20 @@ async function main() {
     await go(V, `${g}/settle`);
     const [from, to, amt] = await cardPeople(V, 0, "Varun");
     const part = Math.floor(amt / 2 / 100) * 100;
-    await settleCards(V).nth(0).locator('input[name="amount"]').fill(String(part / 100));
-    await settleCards(V).nth(0).getByRole("button", { name: "Mark paid" }).click();
+    await rowRecord(V, 0, { amount: String(part / 100) });
     await V.waitForURL(/paid=1/);
     payments.push({ from, to, amount: part, active: true, key: "part" });
     return `${from} → ${to} ${rupees(part)} of ${rupees(amt)}; ${await checkBalances(V, g)}`;
   });
   await step(V, "Settle", "A zero or nonsense amount is refused", async () => {
     await go(V, `${g}/settle`);
-    await settleCards(V).nth(0).locator('input[name="amount"]').fill("0");
-    await settleCards(V).nth(0).getByRole("button", { name: "Mark paid" }).click();
+    await rowRecord(V, 0, { amount: "0" });
     await V.getByText(/more than zero|valid amount/).waitFor();
   });
-  await step(V, "Settle", "Double-tapping “Mark paid” records it once", async () => {
+  await step(V, "Settle", "Double-tapping “Mark paid” (or Record payment) records it once", async () => {
     await go(V, `${g}/settle`);
     const [from, to, amt] = await cardPeople(V, 0, "Varun");
-    await settleCards(V).nth(0).getByRole("button", { name: "Mark paid" }).dblclick();
+    await rowRecord(V, 0, { dbl: true });
     await V.waitForURL(/paid=1/);
     payments.push({ from, to, amount: amt, active: true, key: "dbl" });
     return checkBalances(V, g);
@@ -706,12 +724,32 @@ async function main() {
     await go(V, `${g}/settle`);
     if ((await settleCards(V).count()) === 0) return "nothing left to pay (skipped)";
     const [from, to, amt] = await cardPeople(V, 0, "Varun");
-    await settleCards(V).nth(0).getByRole("button", { name: "Mark paid" }).click();
+    await rowRecord(V, 0);
     await V.waitForURL(/paid=1/);
     await V.getByRole("status").getByRole("button", { name: "Undo", exact: true }).click();
     await V.waitForURL(/undone=1/);
     void from; void to; void amt;
     return checkBalances(V, g);
+  });
+  await step(V, "Settle", "“I’ve paid” is only a claim: balances don't move until Asha taps Confirm received", async () => {
+    await go(V, `${g}/settle`);
+    const mine = settleCards(V).filter({ has: V.locator("[data-i-paid]") });
+    if (!(await mine.count())) return "Varun pays nobody who has joined right now (skipped)";
+    const t = (await mine.first().innerText()).replace(/\s+/g, " ");
+    const m = /You pay (\w+) (₹[\d,.]+)/.exec(t);
+    assert(m, `can't read the row: ${t}`);
+    if (m[1] !== "Asha") return `Varun pays ${m[1]}, who isn't one of the signed-in phones here (skipped)`;
+    const amt = minor(m[2]);
+    const before = await checkBalances(V, g);
+    await mine.first().locator("[data-i-paid]").click();
+    await V.waitForURL(/claimed=1/);
+    await V.getByText("Waiting for Asha to confirm").waitFor();
+    await checkBalances(V, g); // the claim moved nothing
+    await go(A, `${g}/settle`);
+    await A.locator("[data-waiting='Varun']").getByRole("button", { name: "Confirm received" }).click();
+    await A.waitForURL(/ok=1/);
+    payments.push({ from: "Varun", to: "Asha", amount: amt, active: true, key: "claim" });
+    return `${before} → after Confirm: ${await checkBalances(V, g)}`;
   });
   await step(V, "Settle", "Record a different payment on the payment screen (Zoe paid Asha ₹50)", async () => {
     await go(V, `${g}/pay`);
@@ -732,8 +770,12 @@ async function main() {
     await V.getByRole("button", { name: "Record payment" }).click();
     await V.locator("[data-over-warning]").waitFor();
     const t = (await V.locator("[data-over-warning]").innerText()).replace(/\s+/g, " ");
-    assert(/more than Zoe owes/.test(t), `warning says: ${t}`);
+    assert(/This is ₹[\d,.]+ more than what's owed\. Record it anyway\?/.test(t), `warning says: ${t}`);
     assert((await db.payment.count({ where: { groupId: g.split("/").pop()!, deletedAt: null } })) === before, "a payment was saved before confirming");
+    // Cancel (first, and the safe default) saves nothing and takes the warning away.
+    await V.locator("[data-over-cancel]").click();
+    await V.locator("[data-over-warning]").waitFor({ state: "detached" });
+    assert((await db.payment.count({ where: { groupId: g.split("/").pop()!, deletedAt: null } })) === before, "Cancel saved a payment");
   });
   await step(V, "Settle", "You can't record paying yourself", async () => {
     await go(V, `${g}/pay`);
@@ -795,7 +837,12 @@ async function main() {
     const t = (await card.innerText()).replace(/\s+/g, " ");
     assert(/Asha pays you/.test(t) && /₹200/.test(t), `card says: ${t}`);
     assert(/1 payment instead of 2/.test(t), "doesn't say 1 payment instead of 2");
-    await card.getByRole("button", { name: "Mark as paid" }).click();
+    // "Mark as paid" opens a preview of each group's part and the total; only "Record in 2 groups" saves.
+    await card.locator("summary", { hasText: "Mark as paid" }).click();
+    const lines = (await card.locator("[data-cross-lines]").innerText()).replace(/\s+/g, " ");
+    assert(/UAT Flat: Asha pays you ₹500/.test(lines) && /UAT Dinner club: you pay Asha ₹300/.test(lines), `preview lines: ${lines}`);
+    assert(/Together: Asha pays you ₹200/.test(await card.locator("[data-cross-total]").innerText()), "preview total isn't Asha pays you ₹200");
+    await card.getByRole("button", { name: "Record in 2 groups" }).click();
     await V.waitForURL(/settle=done/);
     const b2 = await shownBalances(V, g2);
     const b3 = await shownBalances(V, g3);
@@ -1625,7 +1672,7 @@ async function main() {
     await go(V, gc);
     await V.getByRole("link", { name: "Even out" }).click();
     await V.waitForURL(/\/settle/);
-    await V.getByRole("button", { name: "Mark paid" }).first().click();
+    await rowRecord(V, 0);
     await V.waitForURL(/paid=1/);
     await go(V, gc);
     await V.getByText("You’re even").waitFor();
@@ -2391,6 +2438,8 @@ async function main() {
     await go(page, payPath);
     await page.locator("[data-paylink='owes']").waitFor();
     assert(((await page.locator("[data-pay='upi']").getAttribute("href")) ?? "").startsWith("upi://pay?pa=varun%40okicici"), "no UPI button for Varun");
+    assert(/Open payment app/.test(await page.locator("[data-pay='upi']").innerText()), "the UPI button isn't “Open payment app”");
+    assert(/This records a payment made outside Loopin\. Loopin doesn't move money\./.test(await page.locator("body").innerText()), "the payment line is missing on the I’ve paid page");
     assert(await page.locator("[data-i-paid]").count(), "no I’ve paid button");
     // A made-up link: a friendly page, not an error.
     await go(page, "/p/AAAAAAAAAAAAAAAAAAAAAA");

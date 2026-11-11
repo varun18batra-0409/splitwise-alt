@@ -122,12 +122,23 @@ export function csvFileName(groupName: string): string {
   return `${base}-expenses.csv`;
 }
 
+// An "I've paid" claim (not a payment: it never counts in balances). Only the person's own claims are exported.
+export type ClaimRow = { fromId: string; toId: string; amount: number; currency: string; status: string; createdAt: Date };
+const CLAIM_STATUS: Record<string, string> = {
+  waiting: "Waiting to be confirmed (not counted)",
+  confirmed: "Confirmed",
+  declined: "Not received (not counted)",
+  withdrawn: "Taken back (not counted)",
+  covered: "Recorded another way (not counted)",
+  expired: "Out of date (not counted)",
+};
+
 // "Download all my data": one spreadsheet with every expense and payment in
 // every group I'm in (deleted ones marked), my share and how each changed my
 // balance, under a few lines about my account.
 export function myDataCsv(
   account: { email: string; name: string; createdAt: Date } | null,
-  groups: { name: string; currency: string; type: string; closed: boolean; myId: string; members: Member[]; expenses: Expense[]; payments: Payment[] }[],
+  groups: { name: string; currency: string; type: string; closed: boolean; myId: string; members: Member[]; expenses: Expense[]; payments: Payment[]; claims?: ClaimRow[] }[],
   now: Date,
   tz?: string,
 ): string {
@@ -164,6 +175,13 @@ export function myDataCsv(
           plain(sign * e.amount, cur), cur, mine ? plain(sign * mine, cur) : "", plain(sign * (paidMine - mine), cur),
           foreign ? plain(e.originalAmount, e.originalCurrency) : "", foreign ? e.originalCurrency : "", status(e.deletedAt),
         ],
+      });
+    }
+    for (const c of (g.claims ?? []).filter((x) => x.fromId === g.myId || x.toId === g.myId)) {
+      rows.push({
+        group: g.name,
+        date: c.createdAt,
+        cells: [g.name, g.type, dayKey(c.createdAt, tz), "Payment claim", `${name(c.fromId)} said they paid ${name(c.toId)}`, "", "", name(c.fromId), plain(c.amount, c.currency), c.currency, "", "", "", "", CLAIM_STATUS[c.status] ?? c.status],
       });
     }
     for (const p of g.payments) {

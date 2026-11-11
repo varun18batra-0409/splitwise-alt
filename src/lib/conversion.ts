@@ -1,4 +1,4 @@
-import { amountError, decimalsOf, MAX_MINOR, parseAmount } from "./money";
+import { amountError, decimalsOf, formatMoney, formatPercent, MAX_MINOR, parseAmount } from "./money";
 
 // Currency conversion and card markup, done with exact whole-number maths
 // (BigInt) so there are no floating-point rounding surprises.
@@ -113,4 +113,37 @@ export function computeTotals(args: {
   if (total > MAX_MINOR) return { ok: false, error: "That amount is too large.", originalAmount };
 
   return { ok: true, originalAmount, convertedAmount, markupBp, markupAmount, total, exchangeRate };
+}
+
+// The maths behind a foreign-currency expense, in one line:
+//   "THB 1,000 × 2.50 + 3% card fee = ₹2,575"
+// The rate is shown exactly as saved ("2.5" if that's what was saved; "2.50" only if it was). It is only
+// shown when recalculating from the saved pieces gives exactly the saved total; otherwise null, so a line
+// that doesn't add up is never shown.
+export function fxLine(e: {
+  originalAmount: number;
+  originalCurrency: string;
+  baseCurrency: string;
+  exchangeRate: string;
+  convertedAmount: number;
+  markupBp: number;
+  markupAmount: number;
+  amount: number;
+  paymentMethod?: string;
+}): string | null {
+  if (e.originalCurrency === e.baseCurrency) return null;
+  const converted = convertAmount(e.originalAmount, e.originalCurrency, e.baseCurrency, e.exchangeRate);
+  if (converted === null || converted !== e.convertedAmount) return null;
+  const fee = markupAmountOf(converted, e.markupBp);
+  if (fee !== e.markupAmount || converted + fee !== e.amount) return null;
+  const rate = cleanRateText(e.exchangeRate);
+  return `${formatMoney(e.originalAmount, e.originalCurrency)} × ${rate}${e.markupBp > 0 ? ` + ${formatPercent(e.markupBp)} card fee` : ""} = ${formatMoney(e.amount, e.baseCurrency)}`;
+}
+
+// Where the rate came from, for the line under the maths. `rateDate` is the day the rate applies to ("2026-10-14").
+export function rateSourceLine(e: { rateSource: string; rateDate: string }, niceDate: (day: string) => string): string | null {
+  if (e.rateSource === "api") return e.rateDate ? `Live rate for ${niceDate(e.rateDate)}` : "Live rate";
+  if (e.rateSource === "manual") return "Rate entered by hand";
+  if (e.rateSource === "converted") return "Adjusted when the group currency changed";
+  return null;
 }

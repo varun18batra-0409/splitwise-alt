@@ -627,6 +627,29 @@ model PayLink {
   @@index([groupId])
 }
 
+// "I've paid" claims: Ravi says he paid Asha. A claim is NOT a payment and never
+// counts in balances; it waits for Asha's "Confirm received", which records the real
+// payment (paymentId). Plain ids (no database links) so this is a simple new table.
+// While waiting, slot is "" and the unique rule below allows one waiting claim per
+// pair; once closed, slot is set to the claim's own id so a new claim can be made.
+model PaymentClaim {
+  id          String    @id @default(cuid())
+  groupId     String
+  fromId      String // who says they paid
+  toId        String // who was paid (the one who confirms)
+  amount      Int // in the group's currency, as it was when the claim was made
+  currency    String    @default("INR")
+  source      String    @default("link") // "link" (the I've paid page) | "app" (Settle up)
+  status      String    @default("waiting") // waiting | confirmed | declined | withdrawn | covered | expired
+  slot        String    @default("")
+  paymentId   String    @default("") // the payment recorded when it was confirmed
+  decidedAt   DateTime?
+  decidedById String    @default("")
+  createdAt   DateTime  @default(now())
+  @@unique([groupId, fromId, toId, slot])
+  @@index([groupId, toId, status])
+}
+
 // A postcard: a warm note from one person to another they've shared a group with. The front is a
 // photo (Loopin's place photos, or their own) or a designed print; the back is the message in
 // handwriting, a stamp, a free-text address and a postmark. One row per person it went to.

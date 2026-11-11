@@ -255,10 +255,10 @@ export default async function HowItWorks() {
         <Steps
           items={[
             <>In a group, tap <strong>Settle up</strong>. Loopin shows a short list of payments that clears everything.</>,
-            <>Paid in full? Tap <strong>Mark paid</strong>. Paid part? Change the amount first.</>,
+            <>Paid the person you owe? Tap <strong>I’ve paid</strong>. It counts once they tap <strong>Confirm received</strong>. Paid a different amount? Use <strong>Record a different payment</strong>.</>,
             <>Your friend added their UPI ID or PayPal / Venmo link? A <strong>Pay</strong> button opens the app with the amount filled in.</>,
             <>Someone owes you? Tap <strong>Remind</strong>: WhatsApp opens with a friendly note, your UPI ID and an <strong>I’ve paid</strong> link. They pay and tap it, no app or sign-in needed.</>,
-            <>Whoever was paid is asked <strong>Got it ✓</strong> or <strong>Not received</strong>, so a payment only stays if it really arrived.</>,
+            <>Whoever was paid is asked <strong>Confirm received</strong> or <strong>Not received</strong>, so an “I’ve paid” only counts if the money really arrived.</>,
             <>Owe the same friend in two groups? The <strong>Settle</strong> tab combines them into one payment.</>,
           ]}
         />

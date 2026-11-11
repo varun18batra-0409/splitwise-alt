@@ -16,9 +16,10 @@ import { whatsappLink } from "@/lib/whatsapp";
 import { CopyButton } from "@/components/CollectBits";
 import { GroupCover } from "@/components/GroupCover";
 import { coverFor } from "@/lib/covers";
-import { inviteMemberId } from "@/lib/invites";
+import { inviteMemberId, inviteRowLabel } from "@/lib/invites";
 
-// "invited" in the address: who was just added, as [name, email] pairs.
+// "invited" in the address: who was just added, as [name, email] pairs. The email is only there when the
+// person typed it themselves ("By email"); someone found by search carries their name alone.
 function justInvited(raw: string | undefined): [string, string][] {
   try {
     const v = JSON.parse(raw ?? "[]");
@@ -123,9 +124,11 @@ export default async function AddPeoplePage({
       {sp.newlink && <Notice tone="success" params={["newlink"]} className="mb-4">New invite link ready. The old one no longer works.</Notice>}
       {!sp.undone &&
         justInvited(sp.invited).map(([name, email]) => (
-          <Notice key={email} tone="success" params={["invited"]} className="mb-4">
+          <Notice key={`${name}-${email}`} tone="success" params={["invited"]} className="mb-4">
             <span className="block font-semibold" data-invited-title>{name} is in the group</span>
-            <span className="block text-sm">You can add {name} to expenses now. We’ve sent an invitation to {email} so they can see the group on their phone.</span>
+            <span className="block text-sm">
+              You can add {name} to expenses now. We’ve sent an invitation{email ? ` to ${email}` : ""} so they can see the group on their phone.
+            </span>
           </Notice>
         ))}
 
@@ -207,8 +210,11 @@ export default async function AddPeoplePage({
           <ul className="divide-y divide-line rounded-2xl border border-line">
             {looseInvites.map((i) => (
               <li key={i.id} className="flex items-center gap-3 px-4 py-3">
-                <span className="min-w-0 flex-1 truncate text-sm">{i.email}</span>
-                <span className="shrink-0 rounded-full bg-mist px-2.5 py-1 text-xs text-gray-500">Invited</span>
+                {/* The email someone typed is shown only to the person who invited; everyone else sees that an invitation is out. */}
+                <span className="min-w-0 flex-1 truncate text-sm" data-invite-row>
+                  {inviteRowLabel(i, myId, nameOf(i.invitedById))}
+                </span>
+                <span className="shrink-0 rounded-full bg-mist px-2.5 py-1 text-xs text-gray-500">Invited · hasn’t joined yet</span>
               </li>
             ))}
           </ul>

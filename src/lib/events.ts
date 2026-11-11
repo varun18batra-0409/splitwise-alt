@@ -31,6 +31,7 @@ export type EventKind =
   | "payment_deleted"
   | "payment_restored"
   | "payment_confirmed"
+  | "payment_claimed"
   | "group_renamed"
   | "currency_changed"
   | "markup_changed"

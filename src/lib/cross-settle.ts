@@ -1,3 +1,4 @@
+import { formatMoney } from "./money";
 import type { Transfer } from "./settle";
 
 // Smart Settle across groups.
@@ -8,9 +9,9 @@ import type { Transfer } from "./settle";
 // you ₹400 → across groups, you pay Asha ₹600.
 //
 // The same person is recognised by their Loopin account (signed in with a
-// verified email) — two different people who happen to share a name are never
-// merged. Someone added by name only (not on Loopin yet) is matched by phone
-// number (last 10 digits), else by name (ignoring capitals and extra spaces).
+// verified email), else by phone number (last 10 digits). Two people who only
+// share a name are NEVER merged: someone added by name alone is settled group by
+// group (each group's own row), because a name can't prove it's the same person.
 // Recording it as paid records the underlying payment in each group, so every
 // group's own balances stay right.
 
@@ -41,11 +42,12 @@ export type CrossItem = {
   converted: boolean; // some parts were converted from another currency
 };
 
-export function personKey(m: { name: string; phone: string; accountId?: string | null }): string {
+export function personKey(m: { id?: string; name: string; phone: string; accountId?: string | null }, groupId = ""): string {
   if (m.accountId) return `acc:${m.accountId}`;
   const digits = m.phone.replace(/\D/g, "");
   if (digits.length >= 8) return `tel:${digits.slice(-10)}`;
-  return `name:${m.name.trim().replace(/\s+/g, " ").toLowerCase()}`;
+  // Name only: never matched across groups. Its own row, in its own group.
+  return `solo:${groupId}:${m.id ?? m.name.trim().replace(/\s+/g, " ").toLowerCase()}`;
 }
 
 export function crossSettle(
@@ -68,7 +70,7 @@ export function crossSettle(
         if (!skippedGroups.includes(g.groupName)) skippedGroups.push(g.groupName);
         continue;
       }
-      const key = personKey(other);
+      const key = personKey(other, g.groupId);
       const item = byPerson.get(key) ?? { key, name: other.name, net: 0, parts: [], converted: false };
       const iPay = t.from === g.myId;
       item.net += iPay ? -amountCommon : amountCommon;
@@ -80,4 +82,15 @@ export function crossSettle(
 
   const items = [...byPerson.values()].sort((a, b) => Math.abs(b.net) - Math.abs(a.net) || a.name.localeCompare(b.name));
   return { items, skippedGroups };
+}
+
+// What "Mark as paid" is about to record, in words, before anything is saved.
+// Each group's part is exact (in that group's own currency). Only the combined
+// total can be converted, so only the total carries ≈.
+export function crossPreview(item: CrossItem, common: string): { lines: string[]; total: string; text: string; button: string } {
+  const lines = item.parts.map((p) => `${p.groupName}: ${p.iPay ? `you pay ${item.name} ${formatMoney(p.amount, p.currency)}` : `${item.name} pays you ${formatMoney(p.amount, p.currency)}`}`);
+  const amount = `${item.converted ? "≈ " : ""}${formatMoney(Math.abs(item.net), common)}`;
+  const total = item.net < 0 ? `Together: you pay ${item.name} ${amount}` : item.net > 0 ? `Together: ${item.name} pays you ${amount}` : `Together: you and ${item.name} are even`;
+  const n = item.parts.length;
+  return { lines, total, text: `${[...lines, total].join(" · ")}.`, button: `Record in ${n} ${n === 1 ? "group" : "groups"}` };
 }
