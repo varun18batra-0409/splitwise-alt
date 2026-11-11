@@ -10,6 +10,8 @@ import { dayKey, parseDay } from "./dates";
 import { claimKey, isDuplicateKey, previousResult, withRetry } from "./once";
 import { parsePayers, payersJson, payersLabel } from "./payers";
 import { findLikelyDuplicate } from "./duplicates";
+import { queuePhotoDeletes } from "./photo-store";
+import type { Prisma } from "@prisma/client";
 
 export type SaveExpenseInput = ExpenseDraft & {
   groupId: string;
@@ -26,6 +28,13 @@ export type SaveExpenseInput = ExpenseDraft & {
 };
 
 type RateLookupFn = (from: string, to: string) => Promise<RateAnswer>;
+// What goes with the expense and is saved in the very same step: the bill's item
+// lines (undefined = leave them; [] = not split by item) and a bill photo
+// (an id from the photo upload, or "remove"; undefined = leave it).
+export type ItemLine = { name: string; amount: number; people: string[] };
+export type Attach = { items?: ItemLine[]; receiptId?: string };
+export const RECEIPT_GONE = "That bill photo has expired. Add it again.";
+
 export type Result =
   | { ok: true; id: string; eventId?: string }
   | { ok: false; error: string; duplicateOf?: { id: string; description: string; amount: number; by: string; when: string } };
@@ -39,7 +48,7 @@ export async function saveExpense(
   input: SaveExpenseInput,
   actingMemberId: string | undefined,
   lookupRate: RateLookupFn,
-  opts: { ignoreDoubleTap?: boolean; requestKey?: string; checkDuplicate?: boolean; eventText?: string; now?: Date } = {},
+  opts: { ignoreDoubleTap?: boolean; requestKey?: string; checkDuplicate?: boolean; eventText?: string; now?: Date; attach?: Attach } = {},
 ): Promise<Result> {
   return withRetry(async () => {
     // The same request again (retry / double tap): it already happened.
@@ -55,12 +64,66 @@ export async function saveExpense(
 }
 
 class Clash extends Error {}
+class ReceiptGone extends Error {}
+
+type CleanAttach = { lines?: { position: number; name: string; amount: number; people: string }[]; receipt?: string };
+
+// Item lines are checked against the group's own people; a photo id must look like one.
+function cleanAttach(a: Attach | undefined, memberIds: string[]): CleanAttach | undefined {
+  if (!a) return undefined;
+  const out: CleanAttach = {};
+  if (Array.isArray(a.items)) {
+    const ids = new Set(memberIds);
+    out.lines = a.items
+      .slice(0, 40)
+      .filter((x) => x && typeof x.name === "string" && Number.isSafeInteger(x.amount) && x.amount > 0 && Array.isArray(x.people))
+      .map((x, i) => ({ position: i, name: x.name.slice(0, 40), amount: x.amount, people: JSON.stringify([...new Set(x.people.filter((p) => typeof p === "string" && ids.has(p)))]) }));
+  }
+  if (a.receiptId === "remove" || (typeof a.receiptId === "string" && /^[A-Za-z0-9_-]{6,40}$/.test(a.receiptId))) out.receipt = a.receiptId;
+  return out.lines || out.receipt ? out : undefined;
+}
+
+// Inside the expense's own transaction: write the item lines and link the bill photo.
+// A photo that is gone (expired, cleaned up, another group's) stops the whole save.
+// Photos it replaces are deleted here and their files go on the to-delete list in the same step.
+async function writeAttach(tx: Prisma.TransactionClient, groupId: string, expenseId: string, a: CleanAttach, isNew: boolean) {
+  if (a.lines) {
+    if (!isNew) await tx.expenseItem.deleteMany({ where: { expenseId } });
+    if (a.lines.length) await tx.expenseItem.createMany({ data: a.lines.map((l) => ({ ...l, expenseId })) });
+  }
+  if (a.receipt) {
+    const old = isNew ? [] : await tx.receipt.findMany({ where: { groupId, expenseId }, select: { id: true, blobKey: true } });
+    if (a.receipt !== "remove") {
+      const linked = await tx.receipt.updateMany({ where: { id: a.receipt, groupId, expenseId: "" }, data: { expenseId } });
+      if (linked.count !== 1) throw new ReceiptGone();
+    }
+    if (old.length) {
+      await queuePhotoDeletes(tx, old.map((o) => o.blobKey));
+      await tx.receipt.deleteMany({ where: { id: { in: old.map((o) => o.id) } } });
+    }
+  }
+}
+
+// Editing with nothing else changed: do the lines or the photo differ from what is saved?
+async function attachChanges(groupId: string, expenseId: string, a: CleanAttach | undefined): Promise<boolean> {
+  if (!a) return false;
+  if (a.receipt && (a.receipt !== "remove" || (await db.receipt.count({ where: { groupId, expenseId } })) > 0)) return true;
+  if (a.lines) {
+    const cur = await db.expenseItem.findMany({ where: { expenseId }, orderBy: [{ position: "asc" }, { id: "asc" }] });
+    if (cur.length !== a.lines.length) return true;
+    return cur.some((c, i) => c.name !== a.lines![i].name || c.amount !== a.lines![i].amount || c.people !== a.lines![i].people);
+  }
+  return false;
+}
+
+// Files of replaced bill photos: delete now if storage is connected (the keys stay on the list until it confirms).
+const flushSoon = () => import("./photo-store").then((m) => m.flushPhotoDeletes(20)).catch(() => undefined);
 
 async function saveExpenseOnce(
   input: SaveExpenseInput,
   actingMemberId: string | undefined,
   lookupRate: RateLookupFn,
-  opts: { ignoreDoubleTap?: boolean; requestKey?: string; checkDuplicate?: boolean; eventText?: string; now?: Date },
+  opts: { ignoreDoubleTap?: boolean; requestKey?: string; checkDuplicate?: boolean; eventText?: string; now?: Date; attach?: Attach },
 ): Promise<Result> {
   const group = await db.group.findUnique({
     where: { id: input.groupId },
@@ -71,6 +134,7 @@ async function saveExpenseOnce(
   if (group.closed) return { ok: false, error: "This group is closed. Reopen it to add or change expenses." };
 
   const memberIds = group.members.map((m) => m.id);
+  const attach = cleanAttach(opts.attach, memberIds);
   if (!actingMemberId || !memberIds.includes(actingMemberId)) return { ok: false, error: "Please join this group first." };
   if (group.members.find((m) => m.id === actingMemberId)?.leftAt) return { ok: false, error: "You left this group. Rejoin it to make changes." };
   if (!isSupportedCurrency(input.currency)) return { ok: false, error: "Pick a currency from the list." };
@@ -185,9 +249,11 @@ async function saveExpenseOnce(
         };
       }
     }
-    const saved = await db.$transaction(async (tx) => {
+    try {
+     const saved = await db.$transaction(async (tx) => {
       const created = await tx.expense.create({ data: { ...fields, groupId: group.id, createdById: actingMemberId, shares: { create: e.shares } } });
       await claimKey(tx, opts.requestKey, created.id);
+      if (attach) await writeAttach(tx, group.id, created.id, attach, true);
       const eventId = await logEvent(tx, {
         groupId: group.id,
         actorId: actingMemberId,
@@ -201,8 +267,13 @@ async function saveExpenseOnce(
         undo: { type: "expense_delete", expenseId: created.id },
       });
       return { created, eventId };
-    });
-    return { ok: true, id: saved.created.id, eventId: saved.eventId };
+     });
+     return { ok: true, id: saved.created.id, eventId: saved.eventId };
+    } catch (err) {
+      // Everything above is undone together: no expense, no lines, no key. The form keeps what was typed.
+      if (err instanceof ReceiptGone) return { ok: false, error: RECEIPT_GONE };
+      throw err;
+    }
   }
 
   const changes = diffExpense(
@@ -210,7 +281,8 @@ async function saveExpenseOnce(
     { ...snapshot({ ...fields, shares: e.shares }), day: dayKey(spentAt ?? existing.createdAt) },
     nameOf,
   );
-  if (changes.length === 0) return { ok: true, id: existing.id }; // nothing changed
+  // Nothing changed in the expense itself: only still saved if its item lines or bill photo did change.
+  if (changes.length === 0 && !(await attachChanges(group.id, existing.id, attach))) return { ok: true, id: existing.id };
 
   let eventId: string;
   try {
@@ -219,11 +291,15 @@ async function saveExpenseOnce(
     const lock = await tx.expense.updateMany({ where: { id: existing.id, editedAt: existing.editedAt, deletedAt: null }, data: { editedAt: new Date() } });
     if (lock.count !== 1) throw new Clash();
     await claimKey(tx, opts.requestKey, existing.id);
-    await tx.expenseShare.deleteMany({ where: { expenseId: existing.id } });
-    await tx.expense.update({
-      where: { id: existing.id },
-      data: { ...fields, editedAt: new Date(), shares: { create: e.shares } },
-    });
+    if (changes.length) {
+      await tx.expenseShare.deleteMany({ where: { expenseId: existing.id } });
+      await tx.expense.update({
+        where: { id: existing.id },
+        data: { ...fields, editedAt: new Date(), shares: { create: e.shares } },
+      });
+    }
+    if (attach) await writeAttach(tx, group.id, existing.id, attach, false);
+    if (!changes.length) return "";
     return logEvent(tx, {
       groupId: group.id,
       actorId: actingMemberId,
@@ -236,9 +312,11 @@ async function saveExpenseOnce(
    });
   } catch (err) {
     if (err instanceof Clash) return { ok: false, error: "Someone changed this expense a moment ago. Go back and open it again to see the latest version." };
+    if (err instanceof ReceiptGone) return { ok: false, error: RECEIPT_GONE };
     throw err;
   }
-  return { ok: true, id: existing.id, eventId };
+  if (attach?.receipt) await flushSoon();
+  return { ok: true, id: existing.id, eventId: eventId || undefined };
 }
 
 function snapshot(x: Omit<ExpenseSnapshot, "shares"> & { shares: { memberId: string; amount: number }[] }): ExpenseSnapshot {

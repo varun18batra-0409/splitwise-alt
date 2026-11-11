@@ -10,6 +10,7 @@ import { buildExpense, chosenMarkupBp, type ExpenseDraft } from "@/lib/expense";
 import { currencyInfo, formatMoney, formatPercent, isSupportedCurrency, parseAmount, parsePercent } from "@/lib/money";
 import { QuickLine } from "./QuickLine";
 import { BillScan, type ScannedBill } from "./BillScan";
+import { useRequestKey } from "./FreshKey";
 import { SpinWheel } from "./SpinWheel";
 import { CurrencyPicker } from "./CurrencyPicker";
 import { expensePairs, payersJson } from "@/lib/payers";
@@ -137,7 +138,7 @@ export function AddExpenseForm({
   const [error, setError] = useState("");
   const [saving, startSaving] = useTransition();
   // One key per opened form: if the save is sent twice, it's saved once.
-  const [requestKey] = useState(() => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`));
+  const requestKey = useRequestKey();
 
   // Remember how the last expense in this group was split (who it was for,
   // how, and how it was paid) and start the next one the same way.

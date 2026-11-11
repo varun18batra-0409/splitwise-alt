@@ -1,18 +1,15 @@
 import { timingSafeEqual } from "node:crypto";
 import { headers } from "next/headers";
-import { runAllBills } from "@/lib/home/bills-db";
-import { sendReminders } from "@/lib/home/reminders-db";
-import { checkBudgets } from "@/lib/home/budgets-db";
-import { sendMonthlySummaries } from "@/lib/home/insights-db";
 import { db } from "@/lib/db";
 import { allow, clientIp } from "@/lib/rate-limit";
-import { DEFAULT_TIME_ZONE } from "@/lib/dates";
 import { eraseExpiredGroups } from "@/lib/purge";
-import { sendMemoryLane, sendTripCountdowns } from "@/lib/countdown-db";
-import { noteOpenedPostcards } from "@/lib/postcards/open-db";
+import { makeStop, runClaimedParts } from "@/lib/daily-job";
 
 // The daily job (Vercel Cron, 06:00 India time): adds the bills that are due.
-// Safe to run more than once — every bill month is added at most once.
+// Safe to run more than once — every bill month is added at most once, and every
+// group's nudge is claimed before it is sent. It stops starting new work after 50
+// seconds and says what it left ("deferred"); the evening job picks up any
+// unfinished sending and bills (it is the second run of the day).
 // When CRON_SECRET is set (Vercel sends it), only that caller may run it.
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -24,15 +21,21 @@ function sameSecret(given: string | null, secret: string) {
 }
 
 // Each part runs on its own: one failing doesn't stop the rest (failures go in the admin's daily check).
-let failed: string[] = [];
-async function part<T>(name: string, fn: () => Promise<T>): Promise<T | { error: string }> {
-  try {
-    return await fn();
-  } catch (err) {
-    console.error(`daily job: ${name} failed`, String(err).slice(0, 300));
-    failed.push(name);
-    return { error: "failed" };
-  }
+// (Kept inside the request, so one run can never add to another's list.)
+function makePart(failed: string[], deferred: string[], stop: () => boolean) {
+  return async function part<T>(name: string, fn: () => Promise<T>): Promise<T | { error: string } | { deferred: true }> {
+    if (stop()) {
+      deferred.push(name);
+      return { deferred: true };
+    }
+    try {
+      return await fn();
+    } catch (err) {
+      console.error(`daily job: ${name} failed`, String(err).slice(0, 300));
+      failed.push(name);
+      return { error: "failed" };
+    }
+  };
 }
 
 export async function GET(req: Request) {
@@ -45,23 +48,13 @@ export async function GET(req: Request) {
     return Response.json({ error: "Too many runs" }, { status: 429 });
   }
   const now = new Date();
-  failed = [];
-  const bills = await part("bills", () => runAllBills(now));
-  // Phone nudges never go out in the night, even if the job is started early.
-  const hour = Number(new Intl.DateTimeFormat("en-GB", { timeZone: DEFAULT_TIME_ZONE, hour: "2-digit", hourCycle: "h23" }).format(now));
-  const daytime = hour >= 6 && hour < 22;
-  const reminders = daytime ? await part("reminders", () => sendReminders(now)) : { sent: 0, skipped: "night" };
-  const countdowns = daytime ? await part("countdowns", () => sendTripCountdowns(now)) : { sent: 0, skipped: "night" };
-  const memories = daytime ? await part("memories", () => sendMemoryLane(now)) : { sent: 0, skipped: "night" };
-  const postcardsOpened = await part("postcards", () => noteOpenedPostcards(now));
-  // Budgets reached by bills added just now.
-  const budgetAlerts = await part("budgets", async () => {
-    const groups = await db.budget.findMany({ select: { groupId: true }, distinct: ["groupId"] });
-    let n = 0;
-    for (const b of groups) n += (await checkBudgets(b.groupId, now).catch(() => [])).length;
-    return n;
-  });
-  const summaries = daytime ? await part("summaries", () => sendMonthlySummaries(now)) : { sent: 0, skipped: "night" };
+  const stop = makeStop();
+  const failed: string[] = [];
+  const deferred: string[] = [];
+  const part = makePart(failed, deferred, stop);
+  // Bills, reminders, countdowns, budgets, summaries, memories, postcards, photo-file clean-up.
+  const main = await runClaimedParts(now, stop, failed);
+  deferred.push(...main.deferred);
   // Speed numbers are kept two weeks.
   const speedLogsRemoved = await part("cleanup", async () => (await db.speedLog.deleteMany({ where: { at: { lt: new Date(now.getTime() - 14 * 86_400_000) } } })).count);
   // Error records are kept 30 days, as the privacy page says.
@@ -99,8 +92,6 @@ export async function GET(req: Request) {
     }
     return n;
   });
-  // Photo files that couldn't be deleted before are tried again (each waits longer after every failure).
-  const photoTrash = await part("blob-trash", async () => (await import("@/lib/photo-store")).flushPhotoDeletes(200, now));
   // Photos saved before file storage was connected move over, a few each day.
   await part("move-photos", async () => (await import("@/lib/photo-store")).movePhotosToBlob(60));
   // Groups deleted more than 30 days ago (past their restore window) are erased for good.
@@ -108,5 +99,5 @@ export async function GET(req: Request) {
   // The admin's email when something needs a look (failed parts, errors, emails not sent, orphan rows).
   const { sendOpsDigest } = await import("@/lib/ops-digest");
   const check = await sendOpsDigest(now, failed).catch(() => ({ sent: false, reason: "digest failed" }));
-  return Response.json({ ok: true, photoTrash, bills, reminders, countdowns, memories, postcardsOpened, budgetAlerts, summaries, speedLogsRemoved, groupsErased, check });
+  return Response.json({ ok: true, ...main.results, speedLogsRemoved, groupsErased, deferred, check });
 }

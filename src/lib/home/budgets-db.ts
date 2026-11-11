@@ -2,7 +2,7 @@ import { db } from "../db";
 import { parseAmount, formatMoney } from "../money";
 import { getCategory } from "../categories";
 import { logEvent } from "../events";
-import { claimOnce, sendPushTo } from "../push";
+import { claimJob, finishJob, sendPushTo } from "../push";
 import { DEFAULT_TIME_ZONE } from "../dates";
 import { BUDGET_CATEGORIES, budgetLevelsCrossed, budgetStatus } from "./budgets";
 import { monthSummary } from "./summary";
@@ -67,7 +67,8 @@ export async function checkBudgets(groupId: string, now = new Date()): Promise<s
   const sent: string[] = [];
   for (const b of budgetStatus(budgets, s.byCategory)) {
     for (const level of budgetLevelsCrossed(b.spent, b.amount)) {
-      if (!(await claimOnce(`budget:${groupId}:${b.category}:${month}:${level}`))) continue;
+      const key = `budget:${groupId}:${b.category}:${month}:${level}`;
+      if (!(await claimJob(key, now))) continue;
       const label = getCategory(b.category).label;
       const money = (n: number) => formatMoney(n, group.currency);
       await sendPushTo(
@@ -79,6 +80,7 @@ export async function checkBudgets(groupId: string, now = new Date()): Promise<s
           tag: `budget-${groupId}-${b.category}`,
         },
       );
+      await finishJob(key);
       sent.push(`${b.category}:${level}`);
     }
   }

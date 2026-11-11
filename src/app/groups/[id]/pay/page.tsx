@@ -4,7 +4,7 @@ import { getMyMemberId } from "@/lib/identity";
 import { loadGroup } from "@/lib/group-data";
 import { formatMoney, parseAmount, toInputAmount } from "@/lib/money";
 import { recordCustomPayment } from "@/app/actions";
-import { newRequestKey } from "@/lib/once";
+import { FreshKey } from "@/components/FreshKey";
 import { ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/components/ui";
 
 // Record that one person paid another back — any amount, full or part.
@@ -65,7 +65,7 @@ export default async function RecordPayment({
 
       <form action={recordCustomPayment} className="space-y-8">
         <input type="hidden" name="groupId" value={group.id} />
-        <input type="hidden" name="rid" value={newRequestKey()} />
+        <FreshKey name="rid" />
         {/* You can't pay yourself: whoever is picked as "Who paid?" is greyed out under "Paid to". */}
         <style>
           {people

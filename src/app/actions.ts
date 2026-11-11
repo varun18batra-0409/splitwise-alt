@@ -23,7 +23,7 @@ import { changeGroupCurrency, hasOtherMoney, loadOtherMoney, updateGroupBasics }
 import { logEvent } from "@/lib/events";
 import { countryOf } from "@/lib/geo";
 import { needsOkFor } from "@/lib/payment-ok";
-import { claimKey, cleanKey, isDuplicateKey, previousResult } from "@/lib/once";
+import { claimKey, cleanKey, fingerprintOf, isDuplicateKey, keyState, previousResult, STALE_KEY_ERROR } from "@/lib/once";
 import { safePath } from "@/lib/paths";
 import { addRegistered, copyPushTo, freeName, inviteByEmail } from "@/lib/invites";
 import { savePushFor, validSub } from "@/lib/push-subs";
@@ -244,36 +244,15 @@ export async function addExpense(
   if (g && input.currency !== g.currency && input.rateMode === "auto") await getRate(input.currency, g.currency).catch(() => null);
   const me = await getMyMemberId(input.groupId);
   const requestKey = cleanKey(input.requestKey);
+  // The bill's item lines and photo are saved in the same step as the expense: all or nothing
+  // (a photo that expired stops the save, and the form keeps what was typed).
+  const attach = { items: input.items, receiptId: input.receiptId };
   // "Enter amount" for a waiting bill: the month is claimed as it's saved, so it's added once.
   const result =
     input.billRun && !input.expenseId
-      ? await addWaitingBill(input, me, getRate, input.billRun, requestKey)
-      : await saveExpense(input, me, getRate, { ignoreDoubleTap: true, requestKey, checkDuplicate: true });
+      ? await addWaitingBill(input, me, getRate, input.billRun, requestKey, attach)
+      : await saveExpense(input, me, getRate, { ignoreDoubleTap: true, requestKey, checkDuplicate: true, attach });
   if (!result.ok) return { error: result.error, duplicateOf: result.duplicateOf };
-  // A bill photo taken while adding: it now belongs to this expense (one per expense).
-  const dropReceipts = async (expenseId: string) => {
-    const old = await db.receipt.findMany({ where: { groupId: input.groupId, expenseId }, select: { blobKey: true } });
-    await db.receipt.deleteMany({ where: { groupId: input.groupId, expenseId } });
-    const { removePhotos } = await import("@/lib/photo-store");
-    await removePhotos(old.map((o) => o.blobKey));
-  };
-  if (me && result.id && input.receiptId === "remove") await dropReceipts(result.id);
-  // Split by item: keep the bill's lines so editing reopens them (none = not split by item).
-  if (me && result.id && Array.isArray(input.items)) {
-    const ids = new Set((await db.member.findMany({ where: { groupId: input.groupId }, select: { id: true } })).map((m) => m.id));
-    const lines = input.items
-      .slice(0, 40)
-      .filter((x) => x && typeof x.name === "string" && Number.isSafeInteger(x.amount) && x.amount > 0 && Array.isArray(x.people))
-      .map((x, i) => ({ expenseId: result.id, position: i, name: x.name.slice(0, 40), amount: x.amount, people: JSON.stringify([...new Set(x.people.filter((p) => typeof p === "string" && ids.has(p)))]) }));
-    await db.$transaction([db.expenseItem.deleteMany({ where: { expenseId: result.id } }), ...(lines.length ? [db.expenseItem.createMany({ data: lines })] : [])]);
-  }
-  if (me && result.id && typeof input.receiptId === "string" && /^[A-Za-z0-9_-]{6,40}$/.test(input.receiptId)) {
-    const r = await db.receipt.findFirst({ where: { id: input.receiptId, groupId: input.groupId, expenseId: "" }, select: { id: true } });
-    if (r) {
-      await dropReceipts(result.id);
-      await db.receipt.update({ where: { id: r.id }, data: { expenseId: result.id } });
-    }
-  }
   // Budgets: a nudge at 80% and when one goes over (after the reply is sent).
   after(() => checkBudgets(input.groupId).catch(() => []));
   // "Save & add another": straight back to a fresh form with the same people and split.
@@ -452,14 +431,17 @@ export async function recordPayment(formData: FormData) {
   if (!Number.isSafeInteger(amount) || amount <= 0 || amount > 2_000_000_000) redirect(`/groups/${group.id}?tab=balances`);
 
   const key = cleanKey(formData.get("rid"));
-  if ((await previousResult(key)) !== null || (!key && (await isDoubleTap(group.id, fromId, toId, amount, myId)))) redirect(`/groups/${group.id}?tab=balances&paid=1`);
+  const fp = fingerprintOf("pay", group.id, fromId, toId, amount);
+  const ks = await keyState(key, fp);
+  if (ks.state === "stale") redirect(`/groups/${group.id}?tab=balances&error=${encodeURIComponent(STALE_KEY_ERROR)}`);
+  if (ks.state === "done" || (!key && (await isDoubleTap(group.id, fromId, toId, amount, myId)))) redirect(`/groups/${group.id}?tab=balances&paid=1`);
   const names = await db.member.findMany({ where: { id: { in: [fromId, toId] } }, select: { id: true, name: true, accountId: true, claimedAt: true } });
   const nameOf = (id: string) => names.find((n) => n.id === id)?.name ?? "Someone";
   let did = "";
   try {
    did = await db.$transaction(async (tx) => {
     const p = await tx.payment.create({ data: { groupId: group.id, fromId, toId, amount, createdById: myId, needsOk: needsOkFor(names.find((n) => n.id === toId), myId) } });
-    await claimKey(tx, key, p.id);
+    await claimKey(tx, key, p.id, fp);
     return logEvent(tx, {
       groupId: group.id,
       actorId: myId,
@@ -521,7 +503,10 @@ export async function settleAcrossGroups(formData: FormData) {
     redirect("/settle?settle=error");
   }
   const key = cleanKey(formData.get("rid"));
-  if ((await previousResult(key)) !== null) redirect("/settle?settle=done");
+  const fp = fingerprintOf("settle-across", ...parts.map((p) => `${p?.groupId}|${p?.fromId}|${p?.toId}|${p?.amount}`).sort());
+  const ks = await keyState(key, fp);
+  if (ks.state === "stale") redirect("/settle?settle=stale");
+  if (ks.state === "done") redirect("/settle?settle=done");
   const { loadGroup } = await import("@/lib/group-data");
   const memberships = await getMemberships();
   const checked: { groupId: string; fromId: string; toId: string; amount: number; currency: string; names: Map<string, string>; needsOk: boolean }[] = [];
@@ -538,7 +523,7 @@ export async function settleAcrossGroups(formData: FormData) {
 
   try {
    await db.$transaction(async (tx) => {
-    await claimKey(tx, key, "settled");
+    await claimKey(tx, key, "settled", fp);
     for (const c of checked) {
       const myId = memberships[c.groupId];
       const pay = await tx.payment.create({ data: { groupId: c.groupId, fromId: c.fromId, toId: c.toId, amount: c.amount, createdById: myId, needsOk: c.needsOk } });
@@ -598,13 +583,16 @@ export async function recordCustomPayment(formData: FormData) {
   }
   const done = potGame ? `/groups/${group.id}/pot/${potGame}?paid=1` : fromSettle ? `/groups/${group.id}/settle?paid=1` : `/groups/${group.id}?tab=balances&paid=1`;
   const key = cleanKey(formData.get("rid"));
-  if ((await previousResult(key)) !== null || (!key && (await isDoubleTap(group.id, fromId, toId, amount!, myId)))) redirect(done);
+  const fp = fingerprintOf("pay-custom", group.id, fromId, toId, amount, potGame, fromSettle);
+  const ks = await keyState(key, fp);
+  if (ks.state === "stale") back(STALE_KEY_ERROR);
+  if (ks.state === "done" || (!key && (await isDoubleTap(group.id, fromId, toId, amount!, myId)))) redirect(done);
 
   let did = "";
   try {
    did = await db.$transaction(async (tx) => {
     const p = await tx.payment.create({ data: { groupId: group.id, fromId, toId, amount: amount!, createdById: myId, needsOk: needsOkFor(group.members.find((m) => m.id === toId), myId) } });
-    await claimKey(tx, key, p.id);
+    await claimKey(tx, key, p.id, fp);
     return logEvent(tx, {
       groupId: group.id,
       actorId: myId,

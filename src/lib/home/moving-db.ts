@@ -2,7 +2,7 @@ import { db } from "../db";
 import { logEvent, expenseState, type MoveOutUndo } from "../events";
 import { netBalances } from "../balances";
 import { formatMoney, parseAmount } from "../money";
-import { claimKey, isDuplicateKey, previousResult } from "../once";
+import { claimKey, fingerprintOf, isDuplicateKey, keyState, STALE_KEY_ERROR } from "../once";
 import { niceDate } from "../format";
 import { addMonths, daysInMonth } from "./month";
 import { DEFAULT_TIME_ZONE, dayKey } from "../dates";
@@ -105,7 +105,10 @@ export async function moveOut(
   input: { leaverId: string; lastDay: string; depositTo?: string; requestKey: string },
   now = new Date(),
 ): Promise<{ ok: true; payments: Transfer[] } | Fail> {
-  if ((await previousResult(input.requestKey)) !== null) return { ok: true, payments: [] };
+  const fp = fingerprintOf("move-out", groupId, input.leaverId, input.lastDay, input.depositTo ?? "");
+  const ks = await keyState(input.requestKey, fp);
+  if (ks.state === "stale") return { ok: false, error: STALE_KEY_ERROR };
+  if (ks.state === "done") return { ok: true, payments: [] };
   const flat = await loadFlat(groupId);
   if (!flat || flat.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (!flat.members.some((m) => m.id === actorId && !m.leftAt)) return { ok: false, error: "Only people in this group can do this." };
@@ -125,7 +128,7 @@ export async function moveOut(
 
   try {
     await db.$transaction(async (tx) => {
-      await claimKey(tx, input.requestKey, "moved");
+      await claimKey(tx, input.requestKey, "moved", fp);
       // Claim the move-out first: if two people confirm it at the same moment,
       // only the first one goes through (the second finds them already gone).
       const claimed = await tx.member.updateMany({ where: { id: leaver.id, leftAt: null }, data: { leftAt: new Date(`${input.lastDay}T12:00:00Z`) } });

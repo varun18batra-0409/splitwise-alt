@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { isDuplicateKey, previousResult } from "./once";
+import { fingerprintOf, isDuplicateKey, keyState, STALE_KEY_ERROR } from "./once";
 import { logEvent } from "./events";
 import { formatMoney, parseAmount } from "./money";
 import { payersJson } from "./payers";
@@ -288,10 +288,13 @@ export async function buyIn(gameId: string, actorId: string, input: { memberIds:
   const players = parsePlayers(game.players);
   const note = cleanNote(input.note ?? "");
   // The same form sent twice (a double tap) adds it once.
-  if (input.requestKey && (await previousResult(input.requestKey)) !== null) return { ok: true, count: who.length };
+  const fp = fingerprintOf("pot-buyin", gameId, amount, ...[...who].sort());
+  const ks = await keyState(input.requestKey, fp);
+  if (ks.state === "stale") return { ok: false, error: STALE_KEY_ERROR };
+  if (ks.state === "done") return { ok: true, count: who.length };
   try {
     await db.$transaction([
-      ...(input.requestKey ? [db.requestKey.create({ data: { key: input.requestKey, result: "buyin" } })] : []),
+      ...(input.requestKey ? [db.requestKey.create({ data: { key: input.requestKey, result: "buyin", fingerprint: fp } })] : []),
       db.potMove.createMany({ data: who.map((memberId) => ({ gameId, memberId, kind: "take", amount, note, createdById: actorId })) }),
       ...(who.every((id) => players.includes(id)) ? [] : [db.potGame.update({ where: { id: gameId }, data: { players: JSON.stringify([...new Set([...players, ...who])]) } })]),
     ]);

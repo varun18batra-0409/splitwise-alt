@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { buyInAction } from "@/app/pot-actions";
 import { formatMoney, parseAmount } from "@/lib/money";
+import { useRequestKey } from "./FreshKey";
 
 // Buy-in: tick who's taking money (everyone, at the start), one amount, one
 // tap. What's on screen is what's saved; if the save comes back with a
@@ -23,15 +24,14 @@ export function PotBuyIn({
   allTicked,
   quick,
   currency,
-  rid,
 }: {
-  rid: string;
   gameId: string;
   players: { id: string; name: string; note: string }[];
   allTicked: boolean;
   quick: { value: string; label: string }[];
   currency: string;
 }) {
+  const rid = useRequestKey();
   // Who's ticked and the amount: kept on screen if the save comes back with a problem.
   const [ticked, setTicked] = useState<string[]>(allTicked ? players.map((p) => p.id) : []);
   const [typed, setTyped] = useState("");

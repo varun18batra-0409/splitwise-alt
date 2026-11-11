@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { getRate } from "../rate-cache";
-import { saveExpense, type SaveExpenseInput } from "../save-expense";
+import { saveExpense, type Attach, type SaveExpenseInput } from "../save-expense";
 import { sendPushTo } from "../push";
 import { toInputAmount, formatMoney } from "../money";
 import { dailyTotal, payerFor, periodsDue, nextDueDay, ordinalDay } from "./bills";
@@ -217,10 +217,12 @@ export async function runBillsForGroup(groupId: string, now = new Date()) {
 }
 
 // The daily job: every group that has bills.
-export async function runAllBills(now = new Date()) {
+export async function runAllBills(now = new Date(), stop: () => boolean = () => false) {
   const groups = await db.bill.findMany({ where: { deletedAt: null, paused: false, group: { deletedAt: null } }, select: { groupId: true }, distinct: ["groupId"] });
-  const total = { groups: groups.length, added: 0, waiting: 0, skipped: 0, failed: 0 };
+  const total = { groups: groups.length, added: 0, waiting: 0, skipped: 0, failed: 0, deferred: false };
   for (const g of groups) {
+    // Out of time: the rest wait for the next run (each bill month is added at most once, so repeating is safe).
+    if (stop()) { total.deferred = true; break; }
     const c = await runBillsForGroup(g.groupId, now);
     total.added += c.added;
     total.waiting += c.waiting;
@@ -282,6 +284,7 @@ export async function addWaitingBill(
   lookupRate: Parameters<typeof saveExpense>[2],
   billRun: { billId: string; period: string },
   requestKey: string | undefined,
+  attach?: Attach,
 ): Promise<Awaited<ReturnType<typeof saveExpense>>> {
   const done = await previousResult(requestKey);
   if (done !== null) return { ok: true, id: done };
@@ -297,7 +300,7 @@ export async function addWaitingBill(
   const release = () => db.billRun.updateMany({ where: { ...where, status: "adding" }, data: { status: "waiting", requestKey: "" } });
   let r: Awaited<ReturnType<typeof saveExpense>>;
   try {
-    r = await saveExpense(input, actorId, lookupRate, { ignoreDoubleTap: true, requestKey, checkDuplicate: true });
+    r = await saveExpense(input, actorId, lookupRate, { ignoreDoubleTap: true, requestKey, checkDuplicate: true, attach });
   } catch (err) {
     await release().catch(() => undefined);
     throw err;

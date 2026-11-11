@@ -1,7 +1,7 @@
 import { db } from "../db";
 import { logEvent } from "../events";
 import { formatMoney, parseAmount } from "../money";
-import { claimKey, isDuplicateKey, previousResult } from "../once";
+import { claimKey, fingerprintOf, isDuplicateKey, keyState, STALE_KEY_ERROR } from "../once";
 
 type Result = { ok: true; id: string } | { ok: false; error: string };
 
@@ -36,7 +36,10 @@ export async function saveGoalFor(groupId: string, actorId: string, input: { goa
 
 // "I set money aside": counted once per tap; reaching the target is noted once.
 export async function addGoalEntryFor(groupId: string, actorId: string, goalId: string, amountText: string, requestKey: string): Promise<Result> {
-  if ((await previousResult(requestKey)) !== null) return { ok: true, id: goalId };
+  const fp = fingerprintOf("goal-entry", groupId, goalId, amountText.trim());
+  const ks = await keyState(requestKey, fp);
+  if (ks.state === "stale") return { ok: false, error: STALE_KEY_ERROR };
+  if (ks.state === "done") return { ok: true, id: goalId };
   const goal = await db.goal.findFirst({ where: { id: goalId, groupId, deletedAt: null }, include: { group: true } });
   if (!goal) return { ok: false, error: "That goal no longer exists." };
   const me = await member(groupId, actorId);
@@ -45,7 +48,7 @@ export async function addGoalEntryFor(groupId: string, actorId: string, goalId: 
   if (amount === null || amount === 0) return { ok: false, error: "Enter the amount you set aside." };
   try {
     await db.$transaction(async (tx) => {
-      await claimKey(tx, requestKey, goal.id);
+      await claimKey(tx, requestKey, goal.id, fp);
       await tx.goalEntry.create({ data: { goalId: goal.id, memberId: actorId, amount } });
       const saved = (await tx.goalEntry.aggregate({ where: { goalId: goal.id }, _sum: { amount: true } }))._sum.amount ?? 0;
       const money = (n: number) => formatMoney(n, goal.group.currency);

@@ -8,7 +8,7 @@ import { formatMoney } from "@/lib/money";
 import { niceDate } from "@/lib/format";
 import { dayKey } from "@/lib/dates";
 import { getTimeZone } from "@/lib/tz";
-import { newRequestKey } from "@/lib/once";
+import { FreshKey } from "@/components/FreshKey";
 import { addMonths } from "@/lib/home/month";
 
 const monthLabel = (period: string) => new Date(`${period}-15T12:00:00Z`).toLocaleDateString("en-IN", { month: "short", timeZone: "UTC" });
@@ -64,7 +64,7 @@ export default async function MoveOutPage({
           <input type="hidden" name="groupId" value={group.id} />
           <input type="hidden" name="leaverId" value={leaver.id} />
           <input type="hidden" name="lastDay" value={lastDay} />
-          <input type="hidden" name="rid" value={newRequestKey()} />
+          <FreshKey name="rid" />
 
           <section>
             <h2 className="mb-3 font-display text-[19px] font-semibold">Squaring up</h2>

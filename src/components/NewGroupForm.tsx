@@ -10,6 +10,7 @@ import { WhereTo } from "./WhereTo";
 import { GroupCover } from "./GroupCover";
 import { coverOf, isCoverChoice, type CoverChoice } from "@/lib/covers";
 import { inputClass, primaryButtonClass, secondaryButtonClass } from "./ui";
+import { useRequestKey } from "./FreshKey";
 import Link from "./Link";
 
 const ICONS: Record<GroupType, React.ReactNode> = {
@@ -46,7 +47,7 @@ export function NewGroupForm({
   const [name, setName] = useState(initialName);
   const [you, setYou] = useState(yourName);
   // One key per visit to this form: a double tap or a retry makes one group, not two.
-  const [rid] = useState(() => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`));
+  const rid = useRequestKey();
   const [mode, setMode] = useState<"equal" | "income" | "custom">("equal");
   const [mine, setMine] = useState("");
   const [theirs, setTheirs] = useState("");

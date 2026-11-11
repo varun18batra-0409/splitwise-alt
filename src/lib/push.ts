@@ -185,3 +185,31 @@ export async function claimOnce(key: string): Promise<boolean> {
     return false;
   }
 }
+
+// A daily-job step that must happen at least once, and not twice if it can be
+// helped. claimJob marks it "claimed" (being sent); finishJob marks it "done".
+// If a run dies half-way the claim is left as "claimed", and after `staleMs`
+// the next run may take it over (compare-and-set on the claim time, so two
+// runs can't both take it over). A crash between sending and finishing may
+// send once more (same push tag, so phones show one). Rows made before there
+// was a state read as "done".
+export async function claimJob(key: string, now = new Date(), staleMs = 10 * 60_000): Promise<boolean> {
+  try {
+    await db.notifyLog.create({ data: { key, state: "claimed", createdAt: now } });
+    return true;
+  } catch {
+    // Already there: only an abandoned claim can be taken over.
+  }
+  try {
+    const row = await db.notifyLog.findUnique({ where: { key } });
+    if (!row || row.state !== "claimed" || row.createdAt.getTime() > now.getTime() - staleMs) return false;
+    const taken = await db.notifyLog.updateMany({ where: { key, state: "claimed", createdAt: row.createdAt }, data: { createdAt: now } });
+    return taken.count === 1;
+  } catch {
+    return false;
+  }
+}
+
+export async function finishJob(key: string): Promise<void> {
+  await db.notifyLog.updateMany({ where: { key }, data: { state: "done" } }).catch(() => undefined);
+}

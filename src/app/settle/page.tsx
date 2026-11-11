@@ -4,7 +4,8 @@ import { Notice } from "@/components/Notice";
 import { loadOverview } from "@/lib/overview";
 import { formatMoney } from "@/lib/money";
 import { settleAcrossGroups } from "@/app/actions";
-import { newRequestKey } from "@/lib/once";
+import { STALE_KEY_ERROR } from "@/lib/once";
+import { FreshKey } from "@/components/FreshKey";
 import { Avatar, PageHeader } from "@/components/ui";
 import { SquareSeal } from "@/components/DrawnIcons";
 import { db } from "@/lib/db";
@@ -33,6 +34,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
 
       {notice === "done" && <Notice params={["settle"]} className="mb-3">Recorded in each group. Everyone’s notified.</Notice>}
       {notice === "changed" && <Notice params={["settle"]} className="mb-3">Balances just changed. Here’s the latest.</Notice>}
+      {notice === "stale" && <Notice tone="error" params={["settle"]} className="mb-3">{STALE_KEY_ERROR}</Notice>}
       {notice === "error" && <Notice tone="error" params={["settle"]} className="mb-3">Couldn’t record that. Try again.</Notice>}
 
       {all.length === 0 ? (
@@ -124,7 +126,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
                         <div className="mt-3 flex items-center justify-between gap-3 pl-12">
                           <span className="text-xs text-gray-400">{it.parts.length > 1 ? `1 payment instead of ${it.parts.length}` : ""}</span>
                           <form action={settleAcrossGroups}>
-                            <input type="hidden" name="rid" value={newRequestKey()} />
+                            <FreshKey name="rid" />
                             <input
                               type="hidden"
                               name="parts"
