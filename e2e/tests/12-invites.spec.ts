@@ -144,7 +144,7 @@ test("someone added by name: “not on Loopin yet” → Invite by email → the
   await settled(host);
   const row = host.locator("details").filter({ hasText: "Rohan" }).first();
   await expect(row.getByText("not on Loopin yet")).toBeVisible();
-  await row.locator("summary").click();
+  await row.locator(":scope > summary").click(); // its own summary, not the nested "What stays, what goes"
   const since = new Date(Date.now() - 2_000);
   await row.getByLabel("Rohan’s email").fill(email);
   await row.getByRole("button", { name: "Invite", exact: true }).click();
