@@ -270,7 +270,6 @@ export type PreviewBalance = {
 export function previewText(p: Extract<SwParsed, { ok: true }>): {
   expenses: number;
   payments: number;
-  counts: string; // "2 expenses and 1 payment"
   range: string; // "1 Oct – 5 Oct 2026" or ""
   people: string[];
   balances: PreviewBalance[];
@@ -282,7 +281,6 @@ export function previewText(p: Extract<SwParsed, { ok: true }>): {
   return {
     expenses,
     payments,
-    counts: `${expenses} ${expenses === 1 ? "expense" : "expenses"} and ${payments} ${payments === 1 ? "payment" : "payments"}`,
     range: dateRangeText(p.rows.map((r) => r.date)),
     people: p.people,
     balances: p.people.map((name, i) => {

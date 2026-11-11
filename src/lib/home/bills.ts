@@ -65,6 +65,18 @@ export function nextDueDay(b: DueRule, now: Date): string | null {
   return null;
 }
 
+// The period whose due date is exactly this calendar day ("2026-11" for day "2026-11-16"), or null. Worked out from
+// the bill's rules alone, so it does not matter whether the daily job has already added that period (for someone
+// behind India, "tomorrow" can already be India's today). Same rules as nextDueDay.
+export function periodDueOn(b: DueRule, day: string): string | null {
+  if (b.paused) return null;
+  const p = day.slice(0, 7);
+  if (p < b.startMonth || (b.endMonth && p > b.endMonth)) return null;
+  if (monthsBetween(b.startMonth, p) % Math.max(1, b.every) !== 0) return null;
+  const due = b.nature === "daily" ? dueKey(p, "last") : dueKey(p, b.day >= 31 ? "last" : b.day);
+  return due === day ? p : null;
+}
+
 // Who pays this period: the set payer (null if they've left), or taking turns
 // round the people still in the group.
 export function payerFor(b: { payer: string; rotation: string; startMonth: string; every: number }, period: string, activeIds: string[]): string | null {

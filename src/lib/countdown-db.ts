@@ -32,7 +32,7 @@ export async function sendTripCountdowns(now = new Date(), stop: () => boolean =
     },
     select: { id: true, name: true, tripStart: true, tripEnd: true, members: { where: { leftAt: null, ...JOINED }, select: { id: true } } },
   });
-  const zones = await zonesOf([...trips, ...ended].flatMap((g) => g.members.map((m) => m.id)));
+  const zones = await zonesOf([...trips, ...ended].flatMap((g) => g.members.map((m) => m.id)), now);
   let sent = 0;
   let deferred = false;
   for (const g of trips) {
@@ -48,14 +48,15 @@ export async function sendTripCountdowns(now = new Date(), stop: () => boolean =
       }
     }
     for (const p of zoned) {
-      const days = daysBetween(p.today, g.tripStart);
+      // At night, look at the day of their next daytime, so a later run is asked for (see ZonedPerson.ahead).
+      const days = daysBetween(p.daytime ? p.today : p.ahead, g.tripStart);
       const text = countdownNudge(g, days);
       if (!text) continue;
       if (!p.daytime) { deferred = true; continue; }
       if (stop()) { deferred = true; break; }
       const oldKey = `countdown:${g.id}:${g.tripStart}:${days}`;
       const key = `${oldKey}:m:${p.id}`;
-      if (await coveredByOldRecord(oldKey)) continue;
+      if (await coveredByOldRecord(oldKey, now, p.id)) continue;
       if (!(await claimJob(key, now))) continue;
       sent += await sendPushTo([p.id], { title: days === 0 ? `${placeOf(g.name)} day!` : g.name, body: text, url: `/groups/${g.id}`, tag: `countdown:${g.id}` });
       await finishJob(key);
@@ -74,12 +75,12 @@ export async function sendTripCountdowns(now = new Date(), stop: () => boolean =
       }
     }
     for (const p of zoned) {
-      if (endDay !== p.yesterday) continue;
+      if (endDay !== addDays(p.daytime ? p.today : p.ahead, -1)) continue;
       if (!p.daytime) { deferred = true; continue; }
       if (stop()) { deferred = true; break; }
       const oldKey = `countdown-after:${g.id}:${p.yesterday}`;
       const key = `${oldKey}:m:${p.id}`;
-      if (await coveredByOldRecord(oldKey)) continue;
+      if (await coveredByOldRecord(oldKey, now, p.id)) continue;
       if (!(await claimJob(key, now))) continue;
       sent += await sendPushTo([p.id], { title: g.name, body: afterTripNudge(g), url: `/groups/${g.id}/settle`, tag: `countdown:${g.id}` });
       await finishJob(key);
@@ -140,7 +141,7 @@ export async function sendMemoryLane(now = new Date(), stop: () => boolean = () 
     where: { type: "trip", deletedAt: null, OR: days.map((d) => ({ tripStart: { endsWith: d.slice(4) } })), tripStart: { lt: `${days[2].slice(0, 4)}-01-01` } },
     select: { id: true, name: true, tripStart: true, tripEnd: true, members: { where: { leftAt: null, ...JOINED }, select: { id: true } } },
   });
-  const zones = await zonesOf(trips.flatMap((g) => g.members.map((m) => m.id)));
+  const zones = await zonesOf(trips.flatMap((g) => g.members.map((m) => m.id)), now);
   let sent = 0;
   let deferred = false;
   const lineFor = (g: (typeof trips)[number], day: string, people: number) => {
@@ -158,12 +159,12 @@ export async function sendMemoryLane(now = new Date(), stop: () => boolean = () 
       await finishJob(key);
     }
     for (const p of zoned) {
-      const own = lineFor(g, p.today, g.members.length);
+      const own = lineFor(g, p.daytime ? p.today : p.ahead, g.members.length);
       if (!own) continue;
       if (!p.daytime) { deferred = true; continue; }
       const oldKey = `memory:${g.id}:${p.today}`;
       const personKey = `${oldKey}:m:${p.id}`;
-      if (await coveredByOldRecord(oldKey)) continue;
+      if (await coveredByOldRecord(oldKey, now, p.id)) continue;
       if (!(await claimJob(personKey, now))) continue;
       sent += await sendPushTo([p.id], own);
       await finishJob(personKey);

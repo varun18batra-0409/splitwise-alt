@@ -166,7 +166,6 @@ describe("import preview", () => {
     expect(p.people).toEqual(["A", "B", "C"]);
     expect(p.range).toBe("1 Oct – 5 Oct 2026");
     expect([p.expenses, p.payments]).toEqual([2, 1]);
-    expect(p.counts).toBe("2 expenses and 1 payment");
     expect(p.balances.map((b) => b.net)).toEqual([30000, -10000, -20000]);
     expect(p.balances.map((b) => b.net).reduce((s, x) => s + x, 0)).toBe(0);
     expect(p.balances.map((b) => [b.name, b.tone, b.text])).toEqual([

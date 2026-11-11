@@ -82,7 +82,7 @@ export async function sendMonthlySummaries(now = new Date(), stop: () => boolean
   if (![addDays(today, -1), today, addDays(today, 1)].some(isFirst)) return { sent: 0, deferred: false };
   const legacyToday = isFirst(today);
   const groups = await db.group.findMany({ where: { type: { in: ["home", "couple"] }, deletedAt: null }, select: { id: true, members: { select: { id: true } } } });
-  const zones = await zonesOf(groups.flatMap((g) => g.members.map((m) => m.id)));
+  const zones = await zonesOf(groups.flatMap((g) => g.members.map((m) => m.id)), now);
   let sent = 0;
   let deferred = false;
   for (const { id, members } of groups) {
@@ -91,7 +91,8 @@ export async function sendMonthlySummaries(now = new Date(), stop: () => boolean
     const last = addMonths(today.slice(0, 7), -1);
     const key = `summary:${id}:${last}`;
     const runLegacy = legacyToday && legacyOk && legacy.length > 0 && (await claimJob(key, now));
-    const zonedFirst = zoned.filter((p) => isFirst(p.today));
+    const dayOf = (p: { daytime: boolean; today: string; ahead: string }) => (p.daytime ? p.today : p.ahead); // at night: the day of their next daytime
+    const zonedFirst = zoned.filter((p) => isFirst(dayOf(p)));
     if (!runLegacy && !zonedFirst.length) continue;
     const data = await loadGroup(id, { events: false });
     if (!data) {
@@ -128,13 +129,13 @@ export async function sendMonthlySummaries(now = new Date(), stop: () => boolean
     }
     for (const p of zonedFirst) {
       if (!around.some((x) => x.id === p.id)) continue;
-      const month = addMonths(p.today.slice(0, 7), -1);
+      const month = addMonths(dayOf(p).slice(0, 7), -1);
       const t = text(p.id, month);
       if (!t) continue;
       if (!p.daytime) { deferred = true; continue; }
       const oldKey = `summary:${id}:${month}`;
       const personKey = `${oldKey}:m:${p.id}`;
-      if (await coveredByOldRecord(oldKey)) continue;
+      if (await coveredByOldRecord(oldKey, now, p.id)) continue;
       if (!(await claimJob(personKey, now))) continue;
       sent += await sendPushTo([p.id], { ...t, url: `/groups/${id}`, tag: `summary-${id}-${month}` });
       await finishJob(personKey);
