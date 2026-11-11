@@ -32,7 +32,7 @@ export async function requestLoginCode(rawEmail: string, ip: string, origin: str
   }
   // At most 12 codes a day for one address (5 tries each): guessing a code stays hopeless.
   if (!testing && !(await allow(`code-email-day:${email}`, 12, 86_400, now))) {
-    return { ok: false, error: "Too many codes asked for today. Try again tomorrow, or use Continue with Google." };
+    return { ok: false, error: "Too many codes asked for today. Try again tomorrow, or sign in with Google or your fingerprint or face above." };
   }
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
   await db.loginCode.create({

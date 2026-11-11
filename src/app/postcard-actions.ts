@@ -1,6 +1,6 @@
 "use server";
 
-import { stripImageMetadata } from "@/lib/strip-meta";
+import { cleanPhoto } from "@/lib/strip-meta";
 import { redirect } from "@/lib/fresh-redirect";
 import { db } from "@/lib/db";
 import { getAccount } from "@/lib/identity";
@@ -44,7 +44,9 @@ export async function sendPostcardAction(f: FormData) {
     const type = photoType(bytes);
     if (!type || bytes.length > MAX_PHOTO_BYTES) fail("That photo didn’t work. Try another one.");
     const { storePhoto } = await import("@/lib/photo-store");
-    const stored = await storePhoto("postcard", stripImageMetadata(bytes), type!);
+    const clean = cleanPhoto(bytes);
+    if (!clean) fail("We couldn’t check that photo for hidden details (like where it was taken). Try another one, or a screenshot of it.");
+    const stored = await storePhoto("postcard", clean!, type!);
     photoId = (await db.postcardPhoto.create({ data: { data: stored.data, blobKey: stored.blobKey, type: type! } })).id;
   } else if (front.startsWith("print:")) {
     if (!isPrint(front.slice(6))) front = "print:beach";

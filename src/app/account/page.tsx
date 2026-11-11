@@ -267,13 +267,13 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
       )}
 
       <p className="mt-10 text-center text-sm">
-        <Link href="/how-it-works" className="mr-4 text-gray-500 underline underline-offset-4">
+        <Link href="/how-it-works" className="mr-4 inline-flex min-h-11 items-center text-gray-500 underline underline-offset-4">
           How Loopin works
         </Link>
-        <Link href="/faq" className="mr-4 text-gray-500 underline underline-offset-4">
+        <Link href="/faq" className="mr-4 inline-flex min-h-11 items-center text-gray-500 underline underline-offset-4">
           FAQ
         </Link>
-        <Link href="/terms" className="text-gray-500 underline underline-offset-4">
+        <Link href="/terms" className="inline-flex min-h-11 items-center text-gray-500 underline underline-offset-4">
           Terms
         </Link>
       </p>

@@ -635,7 +635,7 @@ export default async function Home({
           <section className="mt-8" aria-label="Your groups">
             <div className="mb-1 flex items-baseline justify-between">
               <h2 className="font-display text-[22px] font-semibold tracking-tight">Your groups</h2>
-              <Link href="/groups/new" className="flex items-center gap-1 text-sm font-semibold text-fg/85 underline decoration-fg/30 underline-offset-4">
+              <Link href="/groups/new" className="flex min-h-11 items-center gap-1 text-sm font-semibold text-fg/85 underline decoration-fg/30 underline-offset-4">
                 New group
               </Link>
             </div>

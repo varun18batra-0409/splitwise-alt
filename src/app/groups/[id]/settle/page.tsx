@@ -315,7 +315,7 @@ export default async function GroupSettle({
         </section>
       )}
       {group.type === "trip" && (
-        <Link href={`/groups/${group.id}/report`} className="mt-6 block text-center text-sm font-medium text-fg underline underline-offset-4">
+        <Link href={`/groups/${group.id}/report`} className="mt-4 flex min-h-11 items-center justify-center text-sm font-medium text-fg underline underline-offset-4">
           See the trip report
         </Link>
       )}

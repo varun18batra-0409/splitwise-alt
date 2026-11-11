@@ -9,6 +9,7 @@ import { setMember } from "./people";
 import { applySettleAll, setPaymentsDeleted } from "./settle-all";
 import { loadOtherMoney, writeOtherMoney } from "./group-changes";
 import { isGroupAdmin } from "./group-admin";
+import { undoMoveOut } from "./home/moving-db";
 
 // Undo any change in a group. Undoing is itself a logged change that everyone
 // is notified about, and it can be undone too ("redo").
@@ -160,6 +161,7 @@ async function apply(p: UndoPayload, groupId: string, actorId: string, originalT
     case "payments_set":
       return fromResult(await setPaymentsDeleted(groupId, actorId, p.paymentIds, p.deleted));
     case "member_set":
+      if (p.moveOut && p.data.leftAt === null) return fromResult(await undoMoveOut(groupId, actorId, p.memberId, p.moveOut));
       return fromResult(await setMember(groupId, actorId, p.memberId, p.data, true));
   }
 }

@@ -24,6 +24,7 @@ export type SwRow = {
   cost: number; // minor units, always ≥ 0
   nets: number[]; // per person, minor units, adds up to 0
   payment: boolean;
+  kind?: "refund" | "pot"; // from a Loopin spreadsheet: money back, or a card game's result
 };
 
 export type SwParsed =
@@ -172,7 +173,7 @@ export function parseSplitwiseCsv(text: string): SwParsed {
 
 export type PlannedLine =
   | { type: "payment"; row: SwRow; from: number; to: number; amount: number }
-  | { type: "expense"; row: SwRow; amount: number; payers: { i: number; a: number }[]; shares: { i: number; a: number }[] };
+  | { type: "expense"; row: SwRow; amount: number; payers: { i: number; a: number }[]; shares: { i: number; a: number }[]; kind?: "refund" | "pot" };
 
 // How one Splitwise row becomes a Loopin expense or payment, with exactly the
 // same effect on balances. Splitwise only gives each person's net change, so:
@@ -180,12 +181,20 @@ export type PlannedLine =
 // out ahead paid it back plus an equal part of whatever's left of the cost.
 // (One payer, the usual case, comes out exactly as it was in Splitwise.)
 export function planRow(row: SwRow): PlannedLine {
+  // Money back works the other way round: whoever got the money (the "payer")
+  // ends up owing the people it's shared with. Plan it as the mirror image,
+  // then mark it, so its effect on balances is exactly the file's.
+  if (row.kind === "refund" && !row.payment) {
+    const p = planRow({ ...row, kind: undefined, nets: row.nets.map((x) => -x) });
+    return p.type === "expense" ? { ...p, row, kind: "refund" } : p;
+  }
+  const kind = row.kind === "pot" ? ("pot" as const) : undefined;
   const pos = row.nets.map((a, i) => ({ i, a })).filter((x) => x.a > 0);
   const neg = row.nets.map((a, i) => ({ i, a: -a })).filter((x) => x.a > 0);
   if (row.payment && pos.length === 1 && neg.length === 1) return { type: "payment", row, from: pos[0].i, to: neg[0].i, amount: pos[0].a };
   const ahead = pos.reduce((s, x) => s + x.a, 0);
   const rest = row.cost - ahead; // the payers' own shares, together
-  if (rest < 0 || !pos.length) return { type: "expense", row, amount: ahead, payers: pos, shares: neg };
+  if (rest < 0 || !pos.length) return { type: "expense", row, amount: ahead, payers: pos, shares: neg, kind };
   const each = Math.floor(rest / pos.length);
   const extra = rest - each * pos.length;
   const own = pos.map((x, k) => ({ i: x.i, a: each + (k < extra ? 1 : 0) }));
@@ -195,6 +204,7 @@ export function planRow(row: SwRow): PlannedLine {
     amount: row.cost,
     payers: pos.map((x, k) => ({ i: x.i, a: x.a + own[k].a })),
     shares: [...neg, ...own.filter((x) => x.a > 0)].sort((x, y) => x.i - y.i),
+    kind,
   };
 }
 
@@ -205,8 +215,9 @@ export function balancesOf(plans: PlannedLine[], people: number): number[] {
       net[p.from] += p.amount;
       net[p.to] -= p.amount;
     } else {
-      for (const x of p.payers) net[x.i] += x.a;
-      for (const x of p.shares) net[x.i] -= x.a;
+      const sign = p.kind === "refund" ? -1 : 1;
+      for (const x of p.payers) net[x.i] += sign * x.a;
+      for (const x of p.shares) net[x.i] -= sign * x.a;
     }
   }
   return net;

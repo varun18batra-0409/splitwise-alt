@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { stripImageMetadata } from "@/lib/strip-meta";
+import { cleanPhoto, stripImageMetadata } from "@/lib/strip-meta";
 import { pickAdmin } from "@/lib/group-admin";
 
 const seg = (marker: number, payload: number[]) => [0xff, marker, ((payload.length + 2) >> 8) & 0xff, (payload.length + 2) & 0xff, ...payload];
@@ -22,6 +22,20 @@ describe("photos lose their hidden details before they're stored", () => {
     const idat = chunk("IDAT", [1, 2, 3]);
     const out = stripImageMetadata(new Uint8Array([...sig, ...ihdr, ...chunk("eXIf", txt("GPS")), ...chunk("tEXt", txt("Author")), ...idat, ...chunk("IEND", [])]));
     expect([...out]).toEqual([...sig, ...ihdr, ...idat, ...chunk("IEND", [])]);
+  });
+  // FR-L17: a photo whose structure can't be read isn't stored as it came.
+  it("strict: a broken or unknown photo is refused, a clean one passes", () => {
+    const picture = [0xff, 0xda, 0x00, 0x04, 0x01, 0x02, 0x11, 0x22, 0x33, 0xff, 0xd9];
+    const exif = seg(0xe1, txt("Exif\0\0GPS 12.97N 77.59E"));
+    expect([...cleanPhoto(new Uint8Array([0xff, 0xd8, ...exif, ...picture]))!]).toEqual([0xff, 0xd8, ...picture]);
+    // A segment that claims to run past the end of the file.
+    expect(cleanPhoto(new Uint8Array([0xff, 0xd8, 0xff, 0xe1, 0x40, 0x00, ...txt("GPS")]))).toBeNull();
+    // No picture data at all.
+    expect(cleanPhoto(new Uint8Array([0xff, 0xd8, ...exif]))).toBeNull();
+    // Not a JPEG, PNG or WebP.
+    expect(cleanPhoto(new Uint8Array([1, 2, 3, 4, 5]))).toBeNull();
+    // The lenient version still gives broken files back unchanged (and strict mode doesn't leak into it).
+    expect([...stripImageMetadata(new Uint8Array([0xff, 0xd8, ...exif]))]).toEqual([0xff, 0xd8, ...exif]);
   });
   it("anything else comes back untouched", () => {
     const junk = new Uint8Array([1, 2, 3, 4, 5]);

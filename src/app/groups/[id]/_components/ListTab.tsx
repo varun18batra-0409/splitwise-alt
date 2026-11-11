@@ -136,7 +136,7 @@ export function ListTab({ v, items, usual, notice }: { v: GroupView; items: Item
 
       <form action={listGoingShopping} className="mt-6">
         {hidden("groupId", group.id)}
-        <button type="submit" className="text-sm font-medium text-fg underline underline-offset-4">
+        <button type="submit" className="inline-flex min-h-11 items-center text-sm font-medium text-fg underline underline-offset-4">
           Going shopping? Tell {group.type === "couple" ? "your partner" : "the flat"}
         </button>
       </form>

@@ -32,7 +32,13 @@ const SECURITY_HEADERS = [
 const nextConfig: NextConfig = {
   eslint: { ignoreDuringBuilds: true },
   async headers() {
-    return [{ source: "/:path*", headers: SECURITY_HEADERS }];
+    // Private answers that set no caching of their own are never kept by a
+    // browser or the hosting's cache (photo routes set their own, private, rules).
+    const NO_STORE = [{ key: "Cache-Control", value: "private, no-store" }];
+    return [
+      { source: "/:path*", headers: SECURITY_HEADERS },
+      ...["/api/passkey/:path*", "/api/push", "/api/receipt", "/api/speed", "/api/cron/:path*"].map((source) => ({ source, headers: NO_STORE })),
+    ];
   },
   // The online-database driver uses native code; load it as-is instead of bundling.
   serverExternalPackages: ["@prisma/adapter-libsql", "@libsql/client", "libsql", "nodemailer"],

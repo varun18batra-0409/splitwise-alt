@@ -75,6 +75,28 @@ describe("a Loopin group spreadsheet", () => {
     expect(Object.values(net).reduce((a, b) => a + b, 0)).toBe(0);
     expect(p.rows[4]).toMatchObject({ payment: true });
   });
+
+  // Fable F27: Loopin's own export, brought in again, keeps money back as
+  // money back and a card game's result as a card game.
+  it("keeps money back and card games as they were", () => {
+    const f = [
+      head,
+      "2026-10-19,Money back,Refund,,Other,Varun,-300.00,,,,,,,-100.00,-100.00,-100.00",
+      "2026-10-21,Card game,Diwali night,,Other,Nupur,500.00,,,,,,,300.00,,200.00",
+    ].join("\r\n");
+    const { p, net } = nets(f);
+    expect(p.rows.map((r) => r.kind)).toEqual(["refund", "pot"]);
+    const plans = p.rows.map(planRow);
+    // Money back, by hand: Varun got ₹300 back, shared by all three → the
+    // same lines as in Loopin: Varun "paid" 300, each share 100, marked refund.
+    expect(plans[0]).toMatchObject({ type: "expense", kind: "refund", amount: 30000, payers: [{ i: 0, a: 30000 }] });
+    expect(plans[0].type === "expense" && plans[0].shares).toEqual([{ i: 0, a: 10000 }, { i: 1, a: 10000 }, { i: 2, a: 10000 }]);
+    expect(plans[1]).toMatchObject({ type: "expense", kind: "pot", amount: 50000, payers: [{ i: 1, a: 50000 }] });
+    // Balances, by hand. Money back: Varun owes Nupur and Mansi ₹100 each
+    // (Varun −200, Nupur +100, Mansi +100). Card game: Nupur won ₹500 from
+    // Varun 300 and Mansi 200. Total: Varun −500, Nupur +600, Mansi −100.
+    expect(net).toEqual({ Varun: -50000, Nupur: 60000, Mansi: -10000 });
+  });
 });
 
 describe("another app's spreadsheet", () => {

@@ -157,7 +157,7 @@ export function ShareSheet({
                   </span>
                 </button>
               )}
-              <button type="button" onClick={more} disabled={busy !== ""} className="mt-3 w-full text-center text-xs font-semibold text-fg/50 underline disabled:opacity-60">
+              <button type="button" onClick={more} disabled={busy !== ""} className="mt-1 min-h-11 w-full text-center text-xs font-semibold text-fg/50 underline disabled:opacity-60">
                 {busy === "more" ? "Getting it ready…" : many ? "Other apps (Instagram…) or save the pages" : "Other apps (Instagram…) or save the picture"}
               </button>
               <button type="button" onClick={() => setOpen(false)} className="mt-4 w-full py-2.5 text-sm font-semibold text-fg/60">

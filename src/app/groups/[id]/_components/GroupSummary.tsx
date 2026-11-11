@@ -1,5 +1,6 @@
 import Link from "@/components/Link";
 import { niceDate } from "@/lib/format";
+import { dayKey } from "@/lib/dates";
 import { Notice } from "@/components/Notice";
 import { setGroupClosed } from "@/app/actions";
 import type { GroupView } from "./view";
@@ -17,7 +18,7 @@ export function GroupSummary({ v, sp, compact }: { v: GroupView; sp: Notices; co
       {group.closed && (
         <div className="mb-5 flex items-center justify-between gap-3 rounded-2xl bg-mist px-4 py-3 text-sm">
           <span className="text-gray-600">
-            Closed{group.closedAt ? ` on ${niceDate(group.closedAt.toISOString().slice(0, 10))}` : ""}. History stays here; new expenses are
+            Closed{group.closedAt ? ` on ${niceDate(dayKey(group.closedAt, v.tz))}` : ""}. History stays here; new expenses are
             paused.{" "}
             {expenses.length > 0 && (
               <Link href={`/groups/${group.id}/report`} className="font-medium text-fg underline underline-offset-4">

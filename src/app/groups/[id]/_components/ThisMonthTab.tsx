@@ -66,9 +66,9 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
                   <div className="flex-1 bg-[#6e6b63]" />
                 </div>
                 <div className="mt-1.5 flex justify-between text-xs text-gray-500">
-                  <span>You {myPart}%</span>
+                  <span>You paid {myPart}%</span>
                   <span>
-                    Agreed {agreed} / {100 - agreed}
+                    Your split: {agreed}% / {100 - agreed}%
                   </span>
                   <span>
                     {partner?.name ?? "Partner"} {100 - myPart}%

@@ -87,7 +87,7 @@ export async function addPlayerToGame(gameId: string, actorId: string, raw: stri
 
 // Start a game: its name, Poker or Teen Patti, and who's playing (at least two).
 // `newNames`: players who aren't in the group yet, added by name.
-export async function startGame(groupId: string, actorId: string, input: { name: string; game: string; players: string[]; newNames?: string }, today = new Date()): Promise<Result<{ id: string }>> {
+export async function startGame(groupId: string, actorId: string, input: { name: string; game: string; players: string[]; newNames?: string }, today = new Date(), tz = "Asia/Kolkata"): Promise<Result<{ id: string }>> {
   let r = await groupFor(groupId, actorId);
   if (!r.g) return { ok: false, error: r.error };
   if (r.g.type !== "pot") return { ok: false, error: "Games are for Pot groups." };
@@ -100,7 +100,8 @@ export async function startGame(groupId: string, actorId: string, input: { name:
   const active = new Set(r.g.members.filter((m) => !m.leftAt).map((m) => m.id));
   const players = [...new Set([...input.players, ...named.ids].filter((p) => active.has(p)))];
   if (players.length < 2) return { ok: false, error: "Pick at least two players." };
-  const when = today.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  // The day where the players are (not the server's clock): a game at 1 am is still that night's date for them.
+  const when = today.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: tz });
   const name = String(input.name ?? "").trim().replace(/\s+/g, " ").slice(0, 60) || `${potGameLabel(game)} · ${when}`;
   const created = await db.potGame.create({ data: { groupId, name, game, players: JSON.stringify(players), hostId: actorId } });
   await logEvent(db, { groupId, actorId, kind: "pot_started", text: `started a game: ${name} (${potGameLabel(game)}, ${players.length} players)` });

@@ -17,6 +17,33 @@ export function stripImageMetadata(input: Uint8Array): Uint8Array<ArrayBuffer> {
   return b;
 }
 
+// Strict mode (cleanPhoto): a photo whose structure can't be read is refused
+// rather than stored as it came, since its hidden details might still be in it.
+let strict = false;
+class Unsure extends Error {}
+function unsure(b: Uint8Array<ArrayBuffer>): Uint8Array<ArrayBuffer> {
+  if (strict) throw new Unsure();
+  return b;
+}
+
+// The photo without hidden details, or null if it couldn't be checked for sure
+// (then don't store it; ask for another photo).
+export function cleanPhoto(input: Uint8Array): Uint8Array<ArrayBuffer> | null {
+  const b = new Uint8Array(new ArrayBuffer(input.length));
+  b.set(input);
+  strict = true;
+  try {
+    if (b[0] === 0xff && b[1] === 0xd8) return stripJpeg(b);
+    if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return stripPng(b);
+    if (ascii(b, 0, 4) === "RIFF" && ascii(b, 8, 4) === "WEBP") return stripWebp(b);
+    return null; // not a kind of photo it can check
+  } catch {
+    return null;
+  } finally {
+    strict = false;
+  }
+}
+
 const ascii = (b: Uint8Array, at: number, n: number) => String.fromCharCode(...b.subarray(at, at + n));
 
 function concat(parts: Uint8Array[]): Uint8Array<ArrayBuffer> {
@@ -34,7 +61,7 @@ function stripJpeg(b: Uint8Array<ArrayBuffer>): Uint8Array<ArrayBuffer> {
   const parts: Uint8Array[] = [b.subarray(0, 2)];
   let i = 2;
   while (i + 4 <= b.length) {
-    if (b[i] !== 0xff) return b; // not a clean segment list: leave as is
+    if (b[i] !== 0xff) return unsure(b); // not a clean segment list
     const marker = b[i + 1];
     if (marker === 0xda) {
       parts.push(b.subarray(i)); // start of the picture data: everything from here is kept
@@ -46,12 +73,12 @@ function stripJpeg(b: Uint8Array<ArrayBuffer>): Uint8Array<ArrayBuffer> {
       continue;
     }
     const len = (b[i + 2] << 8) | b[i + 3];
-    if (len < 2 || i + 2 + len > b.length) return b;
+    if (len < 2 || i + 2 + len > b.length) return unsure(b);
     const drop = marker === 0xe1 || marker === 0xec || marker === 0xed || marker === 0xfe || (marker >= 0xe3 && marker <= 0xef);
     if (!drop) parts.push(b.subarray(i, i + 2 + len));
     i += 2 + len;
   }
-  return b;
+  return unsure(b);
 }
 
 // PNG: drop text and Exif chunks (tEXt, zTXt, iTXt, eXIf, tIME).
@@ -63,12 +90,12 @@ function stripPng(b: Uint8Array<ArrayBuffer>): Uint8Array<ArrayBuffer> {
     const len = ((b[i] << 24) >>> 0) + (b[i + 1] << 16) + (b[i + 2] << 8) + b[i + 3];
     const type = ascii(b, i + 4, 4);
     const end = i + 12 + len;
-    if (end > b.length) return b;
+    if (end > b.length) return unsure(b);
     if (!drop.has(type)) parts.push(b.subarray(i, end));
     i = end;
     if (type === "IEND") return concat(parts);
   }
-  return b;
+  return unsure(b);
 }
 
 // WebP: drop EXIF and XMP chunks and clear their flags.
@@ -80,7 +107,7 @@ function stripWebp(b: Uint8Array<ArrayBuffer>): Uint8Array<ArrayBuffer> {
     const type = ascii(b, i, 4);
     const len = b[i + 4] | (b[i + 5] << 8) | (b[i + 6] << 16) | (b[i + 7] << 24);
     const end = i + 8 + len + (len & 1);
-    if (len < 0 || end > b.length) return b;
+    if (len < 0 || end > b.length) return unsure(b);
     if (type === "EXIF" || type === "XMP ") removed = true;
     else if (type === "VP8X") {
       const c = new Uint8Array(b.subarray(i, end));

@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { photoType } from "@/lib/covers";
-import { stripImageMetadata } from "@/lib/strip-meta";
+import { cleanPhoto } from "@/lib/strip-meta";
 import { aiAllowed, readBill } from "@/lib/ai";
 
 // A bill photo while adding an expense: kept (camera details and location
@@ -29,7 +29,8 @@ export async function POST(req: Request) {
   if (bytes.length > MAX_RECEIPT_BYTES) return Response.json({ ok: false, error: "That photo is too big." }, { status: 413 });
   const type = photoType(bytes);
   if (!type) return Response.json({ ok: false, error: "Pick a photo (JPEG, PNG or WebP)." }, { status: 415 });
-  const clean = stripImageMetadata(bytes);
+  const clean = cleanPhoto(bytes);
+  if (!clean) return Response.json({ ok: false, error: "We couldn’t check that photo for hidden details (like where it was taken). Try another one, or a screenshot of it." }, { status: 415 });
   const { storePhoto } = await import("@/lib/photo-store");
   const stored = await storePhoto("receipt", clean, type);
   const saved = await db.receipt.create({ data: { groupId, data: stored.data, blobKey: stored.blobKey, type, createdById: me.id }, select: { id: true } });

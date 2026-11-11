@@ -241,7 +241,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
                 <form action={undoPaidAction}>
                   <input type="hidden" name="code" value={c.code} />
                   <input type="hidden" name="entryId" value={e.id} />
-                  <button type="submit" className="text-xs font-semibold underline">
+                  <button type="submit" className="inline-flex min-h-11 items-center text-xs font-semibold underline">
                     Undo
                   </button>
                 </form>
@@ -370,7 +370,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
         <p className="mt-12 text-center text-xs text-gray-400">
           Loopin never touches the money: you pay {c.organiser} directly.
           <br />
-          <Link href="/collect/new" className="mt-2 inline-block font-semibold text-fg underline">
+          <Link href="/collect/new" className="mt-1 inline-flex min-h-11 items-center font-semibold text-fg underline">
             Collecting for your own group? Make a link
           </Link>
         </p>

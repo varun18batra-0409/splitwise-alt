@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { getMyMemberId } from "@/lib/identity";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { MAX_PHOTO_BYTES, photoType } from "@/lib/covers";
-import { stripImageMetadata } from "@/lib/strip-meta";
+import { cleanPhoto } from "@/lib/strip-meta";
 import { readPhoto, removePhotos, storePhoto } from "@/lib/photo-store";
 
 // A group's own photo: shown only to people in the group; anyone in it can
@@ -46,8 +46,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const bytes = new Uint8Array(await req.arrayBuffer());
   if (bytes.length > MAX_PHOTO_BYTES) return Response.json({ ok: false, error: "That photo is too big." }, { status: 413 });
   const type = photoType(bytes);
-  const clean = stripImageMetadata(bytes); // no camera details or location
   if (!type) return Response.json({ ok: false, error: "Pick a photo (JPEG, PNG or WebP)." }, { status: 415 });
+  const clean = cleanPhoto(bytes); // no camera details or location
+  if (!clean) return Response.json({ ok: false, error: "We couldn’t check that photo for hidden details (like where it was taken). Try another one, or a screenshot of it." }, { status: 415 });
   const now = new Date();
   const old = await db.groupPhoto.findUnique({ where: { groupId: id }, select: { blobKey: true } });
   const stored = await storePhoto("group", clean, type);

@@ -34,7 +34,7 @@ export default async function GoalPage({
       <>
         <PageHeader title="New savings goal" back={`/groups/${group.id}`} />
         {sp.error && <ErrorNote>{sp.error.slice(0, 160)}</ErrorNote>}
-        <p className="-mt-3 mb-6 text-sm text-gray-500">A holiday, a sofa, a rainy-day fund. Loopin keeps count; the money stays in your own accounts.</p>
+        <p className="-mt-3 mb-6 text-sm text-gray-500">A holiday, a sofa, a rainy-day fund. Loopin keeps count; it doesn’t hold this money. It stays in your own accounts.</p>
         <form action={saveGoal} className="space-y-6">
           <input type="hidden" name="groupId" value={group.id} />
           <label className="block">
@@ -139,7 +139,7 @@ export default async function GoalPage({
           <button type="submit" className={primaryButtonClass}>
             I set money aside
           </button>
-          <p className="text-center text-xs text-gray-500">The money stays in your own accounts. Loopin just keeps count.</p>
+          <p className="text-center text-xs text-gray-500">Loopin doesn’t hold this money. It stays in your own accounts; Loopin just keeps count.</p>
         </form>
       )}
 

@@ -1775,6 +1775,12 @@ async function main() {
     assert(arrive.setCookie.some((c) => c.startsWith(`sw_me=${me.value};`)), "sign-in not carried over");
     const again = await raw(`/api/arrive?t=${m[1]}&to=%2Fsettle`, "loopinapps.com");
     assert(!again.setCookie.some((c) => c.startsWith("sw_me=")), "the pass worked twice");
+    // A pass sent to someone already signed in never switches who they are (Fable security 8).
+    const move2 = await raw("/api/move?to=%2Fsettle", "getloopin.vercel.app", cookie);
+    const m2 = /arrive\?t=([A-Za-z0-9_-]+)&/.exec(move2.location);
+    assert(m2, `second move: ${move2.status} ${move2.location}`);
+    const planted = await raw(`/api/arrive?t=${m2[1]}&to=%2Fsettle`, "loopinapps.com", "sw_me=someone-else");
+    assert(planted.status === 303 && !planted.setCookie.some((c) => c.startsWith("sw_me=")), "a pass switched who was signed in");
     const stays = await raw("/api/health", "getloopin.vercel.app");
     assert(stays.status === 200 || stays.status === 429, `the daily job / health stopped working on the old address (${stays.status})`);
   });

@@ -47,7 +47,7 @@ export default async function FriendsPassports() {
           </span>
           <p className="mt-2 font-semibold">No friends here yet</p>
           <p className="mt-1 text-sm text-gray-500">When friends join your groups on Loopin, their passports show up here.</p>
-          <Link href="/groups/new" className="mt-5 inline-block text-sm font-semibold underline underline-offset-4">
+          <Link href="/groups/new" className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold underline underline-offset-4">
             Start a trip
           </Link>
         </div>

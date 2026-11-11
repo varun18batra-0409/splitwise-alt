@@ -390,7 +390,7 @@ export function AddExpenseForm({
         // Going to the group afterwards is Next.js's own signal: let it through.
         if (String((err as { digest?: string })?.digest ?? "").startsWith("NEXT_")) throw err;
         // No signal, or the server hiccuped. Saving again is safe (this form's key means it's only ever added once).
-        setError("Couldn’t reach Loopin. Check your connection and tap Save again.");
+        setError("We couldn’t confirm this saved. What you typed is still here: tap Save again when you’re back online. It won’t be added twice.");
       }
     });
   }

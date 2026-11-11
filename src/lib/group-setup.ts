@@ -4,8 +4,8 @@ import { db } from "./db";
 import { isSupportedCurrency } from "./money";
 import { logEvent } from "./events";
 import { MAX_PHOTO_BYTES, cleanCover, photoType } from "./covers";
-import { stripImageMetadata } from "./strip-meta";
-import { cleanTripDates } from "./countdown";
+import { cleanPhoto } from "./strip-meta";
+import { cleanTripDates, tripRange } from "./countdown";
 import { dayKey, DEFAULT_TIME_ZONE } from "./dates";
 import { countryOf } from "./geo";
 import { isGroupType, parseWeight, sharingInputs, weightsLabel, type GroupType } from "./group-types";
@@ -36,10 +36,13 @@ export async function createGroupFor(account: { id: string }, input: NewGroupInp
     },
     include: { members: true },
   });
-  if (photo && photoKind) {
+  // A photo that can't be checked for hidden details is left out (the group
+  // gets its usual cover; a photo can be added later).
+  const clean = photo && photoKind ? cleanPhoto(photo) : null;
+  if (clean && photoKind) {
     const now = new Date();
     const { storePhoto } = await import("./photo-store");
-    const stored = await storePhoto("group", stripImageMetadata(photo), photoKind);
+    const stored = await storePhoto("group", clean, photoKind);
     await db.$transaction([
       db.groupPhoto.create({ data: { groupId: group.id, data: stored.data, blobKey: stored.blobKey, type: photoKind, createdById: group.members[0].id, updatedAt: now } }),
       db.group.update({ where: { id: group.id }, data: { cover: "own", coverAt: now } }),
@@ -63,7 +66,7 @@ export async function setTripDates(groupId: string, actorId: string, start: stri
   const r = cleanTripDates(start, end, today);
   if (!r.ok) return r;
   if (r.start === g.tripStart && r.end === g.tripEnd) return { ok: true };
-  const label = (s: string, e: string) => (!s ? "not set" : e && e !== s ? `${niceDay(s)} – ${niceDay(e)}` : niceDay(s));
+  const label = (s: string, e: string) => (!s ? "not set" : tripRange(s, e));
   let eventId: string | undefined;
   await db.$transaction(async (tx) => {
     await tx.group.update({ where: { id: g.id }, data: { tripStart: r.start, tripEnd: r.end } });
@@ -78,7 +81,6 @@ export async function setTripDates(groupId: string, actorId: string, start: stri
   return { ok: true, eventId };
 }
 
-const niceDay = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 
 export function newInviteCode() {
   return randomBytes(6).toString("base64url"); // 8 characters, hard to guess

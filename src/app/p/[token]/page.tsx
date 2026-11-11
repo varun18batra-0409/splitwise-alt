@@ -188,7 +188,7 @@ function Done({ s, money, to, from, token }: { s: Shown; money: string; to: stri
       {s.kind === "said" && (
         <form action={undoIPaidAction} className="mt-6">
           <input type="hidden" name="token" value={token} />
-          <button type="submit" className="text-sm font-medium text-fg/70 underline underline-offset-4">
+          <button type="submit" className="inline-flex min-h-11 items-center text-sm font-medium text-fg/70 underline underline-offset-4">
             Tapped by mistake? Take it back
           </button>
         </form>
