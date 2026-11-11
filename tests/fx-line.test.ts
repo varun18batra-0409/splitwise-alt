@@ -25,10 +25,10 @@ describe("fxLine (C12)", () => {
     );
   });
 
-  it("USD 1 × 83.12345, card 3%: the converted amount is in the middle so each step checks by hand", () => {
+  it("$1 × 83.12345, card 3%: the converted amount is in the middle so each step checks by hand", () => {
     // 100 cents × 83.12345 = 8312.345 paise → 8312 (₹83.12); 3% of 8312 = 249.36 → 249 (₹2.49); 8312 + 249 = 8561 (₹85.61)
     expect(fxLine({ ...base, originalAmount: 100, originalCurrency: "USD", exchangeRate: "83.12345", convertedAmount: 8312, markupBp: 300, markupAmount: 249, amount: 8561 })).toBe(
-      "USD 1 × 83.12345 = ₹83.12 + ₹2.49 card fee (3%) = ₹85.61",
+      "$1 × 83.12345 = ₹83.12 + ₹2.49 card fee (3%) = ₹85.61",
     );
   });
 

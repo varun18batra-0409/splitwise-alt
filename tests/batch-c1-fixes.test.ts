@@ -654,8 +654,9 @@ describe("N5: a name is never made from an email address", () => {
 describe("N6: Paid a different amount? keeps the way back, and the Not received note goes once a payment follows", () => {
   it("the link carries back=settle and the pay page returns to Settle up", () => {
     expect(differentAmountHref("g1", "r1", "a1", "300")).toBe("/groups/g1/pay?from=r1&to=a1&amount=300&back=settle");
-    const settle = readFileSync(`${__dirname}/../src/app/groups/[id]/settle/page.tsx`, "utf8");
-    expect(settle).toContain("differentAmountHref(group.id, t.from, t.to,");
+    // Settle up's rows are drawn by SettleRow, which builds the link with back=settle.
+    const row = readFileSync(`${__dirname}/../src/components/SettleRow.tsx`, "utf8");
+    expect(row).toContain("differentAmountHref(groupId, fromId, toId, amountInput)");
     const pay = readFileSync(`${__dirname}/../src/app/groups/[id]/pay/page.tsx`, "utf8");
     expect(pay).toContain('back={fromSettle ? `/groups/${group.id}/settle`');
   });

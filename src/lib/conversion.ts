@@ -138,7 +138,7 @@ export function fxLine(e: {
   if (fee !== e.markupAmount || converted + fee !== e.amount) return null;
   const rate = cleanRateText(e.exchangeRate);
   // The converted amount is shown in the middle, so each step can be checked by hand:
-  // "USD 1 × 83.12345 = ₹83.12 + ₹2.49 card fee (3%) = ₹85.61".
+  // "$1 × 83.12345 = ₹83.12 + ₹2.49 card fee (3%) = ₹85.61".
   const head = `${formatMoney(e.originalAmount, e.originalCurrency)} × ${rate} = ${formatMoney(converted, e.baseCurrency)}`;
   return e.markupBp > 0 && fee > 0 ? `${head} + ${formatMoney(fee, e.baseCurrency)} card fee (${formatPercent(e.markupBp)}) = ${formatMoney(e.amount, e.baseCurrency)}` : head;
 }
