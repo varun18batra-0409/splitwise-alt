@@ -21,7 +21,7 @@ const PAPER = "#efe8d6";
 type Page = { title: string; stamps: Stamp[] };
 type Props = {
   name: string;
-  stats: { cities: number; countries: number; trips: number; thisYear: number };
+  stats: { cities: number; countries: number; trips: number; thisYear: number; abroad?: number };
   milestones: string[];
   pages: Page[];
   index: IndexRow[];
