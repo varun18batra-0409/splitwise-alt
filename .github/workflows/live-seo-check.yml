@@ -24,7 +24,7 @@ jobs:
           cat > c.cjs <<'JS'
           const { chromium } = require('playwright');
           (async () => {
-            const b = await chromium.launch({ channel: 'chrome' }); // the runner's own Chrome (no browser download) const out = [];
+            const b = await chromium.launch({ channel: 'chrome' }); const out = [];
             for (const p of ['/', '/signin', '/how-it-works', '/faq', '/privacy']) {
               const pg = await b.newPage({ viewport: { width: 390, height: 844 } }); const errs = [];
               pg.on('console', m => { if (m.type() === 'error') errs.push(m.text().slice(0, 120)); });
