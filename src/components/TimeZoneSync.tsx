@@ -19,7 +19,8 @@ export function TimeZoneSync() {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
       if (!tz) return;
       if (cookieValue("tzs") !== tz) {
-        fetch("/api/tz", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ tz }), keepalive: true })
+        // A normal request (not keepalive: the page is open anyway, and browsers report keepalive requests as never finishing).
+        fetch("/api/tz", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ tz }), signal: AbortSignal.timeout(8000) })
           .then((r) => {
             if (r.ok) document.cookie = `tzs=${encodeURIComponent(tz)}; path=/; max-age=${60 * 60 * 24 * 7}; samesite=lax`;
           })
