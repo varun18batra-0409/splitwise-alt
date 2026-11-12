@@ -45,6 +45,7 @@ export async function GET() {
     ),
     now,
     tz,
+    account ? await db.report.findMany({ where: { kind: "support", reporterId: account.id }, orderBy: { createdAt: "asc" }, select: { createdAt: true, note: true, contact: true, status: true }, take: 500 }) : [],
   );
   return new Response(body, {
     headers: {

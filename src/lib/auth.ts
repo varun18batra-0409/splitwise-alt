@@ -126,6 +126,8 @@ export async function deleteAccount(accountId: string, opts: { keepEndpoint?: st
       await tx.collection.deleteMany({ where: { accountId } });
       await tx.accountNote.deleteMany({ where: { accountId } });
       // Blocks you made or that were made against you go with the account (reports stay: they are the record of what was reported).
+      // Messages this account sent to support go with it (reports stay, as they are the record of what was reported).
+      await tx.report.deleteMany({ where: { kind: "support", reporterId: accountId } });
       await tx.block.deleteMany({ where: { OR: [{ blockerId: accountId }, { blockedId: accountId }] } });
       await tx.collectionEntry.updateMany({ where: { accountId }, data: { accountId: "" } });
       await tx.account.delete({ where: { id: accountId } });

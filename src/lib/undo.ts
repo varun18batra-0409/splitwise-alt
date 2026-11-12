@@ -13,7 +13,7 @@ import { loadOtherMoney, sameOtherMoney, writeOtherMoney } from "./group-changes
 import { isGroupAdmin } from "./group-admin";
 import { undoMoveOut } from "./home/moving-db";
 import { DEFAULT_TIME_ZONE } from "./dates";
-import { GroupChanged, groupChangedText, guardGroup, peopleInExpense } from "./money-guard";
+import { GroupChanged, groupChangedText, guardGroup, leaverBalanceBreaks, peopleInExpense } from "./money-guard";
 
 // Undo any change in a group. Undoing is itself a logged change that everyone
 // is notified about, and it can be undone too ("redo").
@@ -238,11 +238,15 @@ export async function revertExpense(expenseId: string, before: Parameters<typeof
    eventId = await db.$transaction(async (tx) => {
     // First a write: the group is still in this currency and open; then the expense is claimed as it was read. Any edit
     // since (even one that only changed the item lines) moved editedAt, so this undo would overwrite newer work: refused.
-    await guardGroup(tx, e.groupId, { currency, involvedIds: [...new Set([...returning, ...movedByUndo])] });
+    await guardGroup(tx, e.groupId, { currency });
     const claim = await tx.expense.updateMany({ where: { id: expenseId, editedAt: e.editedAt, deletedAt: null }, data: { editedAt: new Date() } });
     if (claim.count !== 1) throw new RevertClash();
     const lockedNow = await chargeLock(tx, e.groupId, expenseId);
     if (lockedNow) throw new ChargeLockedNow(lockedNow.bill);
+    // A leaver may only end with the balance they had, or 0.
+    const back = { id: expenseId, paidById: before.paidById, amount: before.amount, payers: before.payers, kind: before.kind, shares: before.shares };
+    const gone = await leaverBalanceBreaks(tx, e.groupId, [...new Set([...returning, ...movedByUndo])], (l) => ({ ...l, expenses: [...l.expenses.filter((x) => x.id !== expenseId), back] }));
+    if (gone.length) throw new GroupChanged("left", gone[0]);
     // What it is now, read inside the transaction: this is what "redo" puts back.
     const [curShares, curItems] = await Promise.all([
       tx.expenseShare.findMany({ where: { expenseId } }),

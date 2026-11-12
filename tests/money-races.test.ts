@@ -750,5 +750,20 @@ describe("review fixes: undo, move-out, deletes and redo re-check inside the wri
     expect((await net(g.id))[C]).toBe(0);
     await invariants(g.id);
   });
+
+  it("N3 (balance rule): restoring a Dinner that takes a leaver from +30000 back to 0 is allowed", async () => {
+    const g = await make(["A", "B", "C"]);
+    const { A, C } = g.ids;
+    const first = await saveExpense(draft(g.id, A), A, rate1); // 30000 each
+    if (!first.ok) throw new Error(first.error);
+    await payNow(g.id, C, A, 30000); // C is square: 0
+    expect((await setExpenseDeleted(first.id, A, true)).ok).toBe(true); // C: paid 30000 for nothing = +30000
+    expect((await net(g.id))[C]).toBe(30000);
+    await db.member.update({ where: { id: C }, data: { leftAt: new Date() } }); // C has left with +30000
+    const back = await setExpenseDeleted(first.id, A, false); // C's 30000 share returns: +30000 − 30000 = 0
+    expect(back.ok).toBe(true);
+    expect((await net(g.id))[C]).toBe(0);
+    await invariants(g.id);
+  });
 });
 

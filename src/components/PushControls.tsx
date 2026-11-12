@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
+import { clearResyncCookieString, pushSyncPlan } from "@/lib/push-resync";
 import { BellIcon } from "./DrawnIcons";
 import { phoneStatusLabel, type PhoneState } from "@/lib/phone-status";
 import { pushPublicKey, removePushSubscription, savePushSubscription } from "@/app/actions";
@@ -167,26 +169,31 @@ export function PhoneStatus({ compact = false }: { compact?: boolean }) {
 // sure groups joined since then are included. A plain request, a few seconds
 // after opening, so it never holds up the first taps.
 export function PushSync() {
+  // Checked again on each page change, so a sign-in that ends with a redirect (no full reload) is still noticed.
+  const pathname = usePathname();
   useEffect(() => {
-    if (!supported() || Notification.permission !== "granted") return;
+    if (!supported()) return;
     let last = 0;
     try {
       last = Number(localStorage.getItem("lp_push_sync") ?? 0);
     } catch {}
-    if (Date.now() - last < 6 * 3600_000) return;
+    const plan = pushSyncPlan({ granted: Notification.permission === "granted", cookieHeader: document.cookie, lastSyncMs: last, nowMs: Date.now() });
+    if (!plan.run) return;
     const t = window.setTimeout(() => {
       currentSubscription()
         .then(async ({ sub }) => {
           if (!sub) return;
           const r = await fetch("/api/push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sub.toJSON()) });
-          if (r.ok)
+          if (r.ok) {
+            if (plan.resync) document.cookie = clearResyncCookieString();
             try {
               localStorage.setItem("lp_push_sync", String(Date.now()));
             } catch {}
+          }
         })
         .catch(() => {});
-    }, 4000);
+    }, plan.resync ? 500 : 4000);
     return () => window.clearTimeout(t);
-  }, []);
+  }, [pathname]);
   return null;
 }

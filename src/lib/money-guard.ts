@@ -84,6 +84,35 @@ export async function leftAmong(tx: Tx, groupId: string, ids: string[]): Promise
   return rows.map((m) => m.name);
 }
 
+type LedgerExpense = { id: string; paidById: string; amount: number; payers?: string | null; kind?: string | null; shares: { memberId: string; amount: number }[] };
+type LedgerPayment = { id: string; fromId: string; toId: string; amount: number };
+
+// The rule for restores, undos and edits: someone who has left may only end up with the balance they had, or with 0.
+// Reads the live expenses and payments inside the transaction, lets `change` say what the ledger looks like after the
+// change, and returns the names of leavers among `ids` whose balance would end neither unchanged nor 0.
+// Hand-worked: C left at 0 and a restored Dinner gives C a 30000 share, so after = -30000: refused. A restored charge
+// that takes C from -20800 to 0 is allowed (after = 0).
+export async function leaverBalanceBreaks(
+  tx: Tx,
+  groupId: string,
+  ids: string[],
+  change: (live: { expenses: LedgerExpense[]; payments: LedgerPayment[] }) => { expenses: LedgerExpense[]; payments: LedgerPayment[] },
+): Promise<string[]> {
+  if (!ids.length) return [];
+  const leavers = await tx.member.findMany({ where: { groupId, id: { in: [...new Set(ids)] }, leftAt: { not: null } }, select: { id: true, name: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
+  if (!leavers.length) return [];
+  const [members, expenses, payments] = await Promise.all([
+    tx.member.findMany({ where: { groupId }, select: { id: true } }),
+    tx.expense.findMany({ where: { groupId, deletedAt: null }, include: { shares: true } }),
+    tx.payment.findMany({ where: { groupId, deletedAt: null } }),
+  ]);
+  const all = members.map((m) => m.id);
+  const before = netBalances(all, expenses, payments);
+  const next = change({ expenses, payments });
+  const after = netBalances(all, next.expenses, next.payments);
+  return leavers.filter((m) => (after[m.id] ?? 0) !== (before[m.id] ?? 0) && (after[m.id] ?? 0) !== 0).map((m) => m.name);
+}
+
 // The group's balances and settle-up plan, read INSIDE the transaction (after guardGroup). The same working as
 // loadGroup: every member (oldest first), and the expenses and payments that aren't deleted.
 export async function ledgerInTx(tx: Tx, groupId: string): Promise<{ memberIds: string[]; net: Record<string, number>; transfers: Transfer[] }> {

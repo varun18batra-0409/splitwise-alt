@@ -54,6 +54,7 @@ export default function Privacy() {
         <li>Your Trip passport details: the home country you pick and any places you add by hand. Its trips come from your trip groups.</li>
         <li>Postcards you send or get: the card, your message and, if you add one, your own photo.</li>
         <li>Your answer to “Let AI read bills and lines”, on your account (or on your phone, if you have no account).</li>
+        <li>Messages you send to support: the message and any reply email you leave.</li>
         <li>Blocks you make, and reports you send about something another person sent you (what, why and your note).</li>
       </ul>
 
@@ -125,14 +126,14 @@ export default function Privacy() {
         <li>Expenses and payments can be deleted and restored; the history notes it.</li>
         <li>A whole group can be deleted from its settings. Whoever deleted it, or looks after it, can restore it for 30 days; after that it’s erased for good, with everything in it.</li>
         <li>
-          “You → Delete my email &amp; sign-in” erases your email and sign-in, your passkeys, the postcards you sent or got (including their photos), your alerts, the collections you organised, and the blocks you made or that were made against you.
+          “You → Delete my email &amp; sign-in” erases your email and sign-in, your passkeys, the postcards you sent or got (including their photos), your alerts, the collections you organised, your messages to support, and the blocks you made or that were made against you.
         </li>
         <li>Deleting your email also stops notifications on your other phones.</li>
         <li>
           What stays in shared groups: your name in their history, an invitation that holds your email, and a phone number someone else saved for you. They are other people’s shared records, so deleting your account doesn’t rewrite them.
         </li>
         <li>Reports stay with us so we can act on them: the ones you made, and reports made about you, including the reporter’s note, are kept even after you delete your account.</li>
-        <li>“You → Download all my data” gives you everything about you in one spreadsheet.</li>
+        <li>“You → Download all my data” gives you your account details, your groups, expenses and payments, and your messages to support, in one spreadsheet. Reports you sent and reports about you are not in it.</li>
         <li>Encrypted backups are kept for 14 days and then removed. Something you delete can stay in a backup until then.</li>
       </ul>
 

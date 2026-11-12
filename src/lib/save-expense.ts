@@ -6,7 +6,7 @@ import { formatMoney, isSupportedCurrency } from "./money";
 import { RestoreRefused, restorePayments } from "./payments";
 import { cleanRateText, parseRate, PAYMENT_METHODS } from "./conversion";
 import { diffExpense, expenseState, logEvent, touchedByExpense, type ExpenseSnapshot } from "./events";
-import { GroupChanged, groupChangedText, guardGroup, leftAmong, peopleInExpense } from "./money-guard";
+import { GroupChanged, groupChangedText, guardGroup, leaverBalanceBreaks, peopleInExpense } from "./money-guard";
 import type { RateAnswer } from "./rate-cache";
 import { dayKey, parseDay } from "./dates";
 import { claimKey, isDuplicateKey, previousResult, withRetry } from "./once";
@@ -328,7 +328,8 @@ async function saveExpenseOnce(
    eventId = await db.$transaction(async (tx) => {
     await guardGroup(tx, group.id, { currency: group.currency, actorId: actingMemberId, involvedIds: newcomers });
     if (changes.length) {
-      const gone = await leftAmong(tx, group.id, moved);
+      const next = { id: existing.id, paidById: fields.paidById, amount: fields.amount, payers: fields.payers, kind: fields.kind, shares: e.shares };
+      const gone = await leaverBalanceBreaks(tx, group.id, moved, (l) => ({ ...l, expenses: [...l.expenses.filter((x) => x.id !== existing.id), next] }));
       if (gone.length) throw new LeaverStays(`${gone[0]} has left the group, so their share can't change. Ask them to rejoin first.`);
     }
     // Only if nobody else saved a change in the meantime (checked and written in one step).
@@ -404,15 +405,16 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
    eventId = await db.$transaction(async (tx) => {
     // First: the group is still open, in the same currency, and this person still in it.
     await guardGroup(tx, expense.groupId, { currency: expense.group.currency, actorId: actingMemberId });
-    if (!deleted) {
-      // Bringing it back puts its amounts back into everyone's balance. Someone who has left can't have theirs changed.
-      const now = await tx.expense.findUnique({ where: { id: expense.id }, include: { shares: true } });
-      const gone = now ? await leftAmong(tx, expense.groupId, peopleInExpense({ paidById: now.paidById, payers: parsePayers(now.payers), shares: now.shares })) : [];
-      if (gone.length) throw new LeaverBack(`${gone[0]} has left the group, so this can't be ${opts.undoing ? "undone" : "brought back"}.`);
-    }
     // A move-out daily charge can't be deleted, or come back, once that month's bill is being added or was added: the bill took it off its total.
     const locked = await chargeLock(tx, expense.groupId, expense.id);
     if (locked) throw deleted ? new ChargeLocked(locked.bill) : new MonthAdded(locked.bill);
+    if (!deleted) {
+      // After the "month already added" check, so that answer comes first. Bringing it back puts its amounts back into everyone's balance.
+      const now = await tx.expense.findUnique({ where: { id: expense.id }, include: { shares: true } });
+      // Someone who has left may only end with the balance they had, or 0.
+      const gone = now ? await leaverBalanceBreaks(tx, expense.groupId, peopleInExpense({ paidById: now.paidById, payers: parsePayers(now.payers), shares: now.shares }), (l) => ({ ...l, expenses: [...l.expenses, now] })) : [];
+      if (gone.length) throw new LeaverBack(`${gone[0]} has left the group, so this can't be ${opts.undoing ? "undone" : "brought back"}.`);
+    }
     // Only if it's still in the state we saw (two taps at once change it once).
     const changed = await tx.expense.updateMany({
       where: { id: expense.id, deletedAt: deleted ? null : { not: null } },
@@ -467,7 +469,7 @@ async function setPaymentDeletedOnce(paymentId: string, actingMemberId: string |
     // First: the group is still open, in the same currency, and this person still in it.
     await guardGroup(tx, payment.groupId, { currency: payment.group.currency, actorId: actingMemberId });
     if (!deleted) {
-      const gone = await leftAmong(tx, payment.groupId, [payment.fromId, payment.toId]);
+      const gone = await leaverBalanceBreaks(tx, payment.groupId, [payment.fromId, payment.toId], (l) => ({ ...l, payments: [...l.payments, payment] }));
       if (gone.length) throw new LeaverBack(`${gone[0]} has left the group, so this can't be ${opts.undoing ? "undone" : "brought back"}.`);
     }
     let moved: boolean;

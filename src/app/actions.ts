@@ -730,7 +730,15 @@ export async function signOutThisPhone(formData?: FormData) {
   // This phone stops getting notifications for every name it ever held (by its address, whoever the name is now).
   const endpoint = String(formData?.get("endpoint") ?? "");
   if (endpoint.startsWith("https://") && endpoint.length < 1000) {
-    await db.pushSubscription.deleteMany({ where: { endpoint } }).catch(() => undefined);
+    // Only for a phone that really holds this address: there must be a session (signed in, or at least one name), and at
+    // least one of the address's rows must belong to a name in that session or to the signed-in account. Otherwise nothing.
+    const account = await getAccount();
+    const mine = new Set(Object.values(await getMemberships()));
+    if (account || mine.size) {
+      const rows = await db.pushSubscription.findMany({ where: { endpoint }, select: { memberId: true, member: { select: { accountId: true } } } }).catch(() => []);
+      const belongs = rows.some((r) => mine.has(r.memberId) || (account && r.member.accountId === account.id));
+      if (belongs) await db.pushSubscription.deleteMany({ where: { endpoint } }).catch(() => undefined);
+    }
   }
   await forgetThisPhone();
   redirect("/");

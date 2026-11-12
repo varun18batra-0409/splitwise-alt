@@ -28,5 +28,11 @@ export async function saveSupportMessage(o: { reporterId?: string; message: stri
 // What /stats/reports shows. Owner only: anyone else gets "not found" before anything is read.
 export async function loadReportsForOwner(account: { email: string } | null | undefined) {
   requireOwner(account);
-  return db.report.findMany({ orderBy: [{ status: "asc" }, { createdAt: "desc" }], take: 200 });
+  // Two lists, so a flood of one kind can never push the other off the page. Open ones first, then newest.
+  const order = [{ status: "asc" as const }, { createdAt: "desc" as const }]; // "open" sorts before "resolved"
+  const [reports, support] = await Promise.all([
+    db.report.findMany({ where: { kind: { not: "support" } }, orderBy: order, take: 100 }),
+    db.report.findMany({ where: { kind: "support" }, orderBy: order, take: 100 }),
+  ]);
+  return { reports, support };
 }

@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import type { Prisma } from "@prisma/client";
 import { db } from "./db";
 import { JOINED, confirmUsedPending } from "./membership";
+import { PUSH_RESYNC_COOKIE, PUSH_RESYNC_MAX_AGE } from "./push-resync";
 import { SESSION_COOKIE, SESSION_MAX_AGE, decodeSession, encodeSession, today, type Session } from "./session";
 
 // Who you are on this phone: which person you are in each group, and (if you
@@ -50,8 +51,21 @@ export function parseGrant(v: string): { id: string; epoch: number } {
 
 // A phone that loses a name must also stop hearing about it: when a name's epoch goes up, its notification rows go too,
 // except `keepEndpoint` (the phone doing this, when the caller knows its address; that phone re-subscribes on its own anyway).
-const dropPush = (memberIds: string[], keepEndpoint?: string) =>
-  db.pushSubscription.deleteMany({ where: { memberId: { in: memberIds }, ...(keepEndpoint ? { endpoint: { not: keepEndpoint } } : {}) } });
+// This phone's own rows go too (the server can't tell which address is this phone's), so a short-lived note in a cookie
+// makes the app put this phone's notifications back at once (see PushSync). The phone that lost access has no such note
+// and isn't in the session's names any more, so it stays cut off.
+async function dropPush(memberIds: string[], keepEndpoint?: string) {
+  const r = await db.pushSubscription.deleteMany({ where: { memberId: { in: memberIds }, ...(keepEndpoint ? { endpoint: { not: keepEndpoint } } : {}) } });
+  if (r.count > 0) {
+    (await cookies()).set(PUSH_RESYNC_COOKIE, "1", {
+      httpOnly: false, // the app's own script reads and clears it
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production" && process.env.E2E_PLAIN_HTTP !== "1",
+      path: "/",
+      maxAge: PUSH_RESYNC_MAX_AGE,
+    });
+  }
+}
 
 // Used inside a transaction (e.g. when an account is deleted and its members are unlinked): every old guest copy of
 // these members' cookies stops working, and so do their phone notifications.
@@ -114,10 +128,11 @@ export async function setMyMemberId(groupId: string, memberId: string, opts: { k
   if (acc) {
     // Signed in: the group is linked to the account (kept in the database), so the cookie doesn't grow.
     // Linking ends every older guest copy of this name (their epoch no longer matches).
-    const linked = await db.member.updateMany({ where: { id: memberId, OR: [{ accountId: null }, { accountId: acc.id }] }, data: { accountId: acc.id, grantEpoch: { increment: 1 } } });
-    if (linked.count === 1) {
-      // The name's epoch went up: other phones holding it as a guest lose it, and stop getting its notifications.
-      await dropPush([memberId], opts.keepEndpoint);
+    // Only a name that really changes hands raises the epoch and drops notifications. A name already linked to this very
+    // account (for example just joined from an invitation, which copied this account's phones onto it) is left exactly as it is.
+    const linked = await db.member.updateMany({ where: { id: memberId, accountId: null }, data: { accountId: acc.id, grantEpoch: { increment: 1 } } });
+    if (linked.count === 1) await dropPush([memberId], opts.keepEndpoint);
+    if (linked.count === 1 || (await db.member.count({ where: { id: memberId, accountId: acc.id } })) === 1) {
       const m = { ...s.m };
       delete m[groupId];
       await writeSession({ ...s, m });

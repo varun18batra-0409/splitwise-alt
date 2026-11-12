@@ -375,6 +375,12 @@ export async function inviteToClaim(groupId: string, actorId: string, memberId: 
     }),
   ]);
   const link = `${origin}/join/${group.inviteCode}?${new URLSearchParams({ e: email, as: member.id })}`;
+  // If that email belongs to someone who blocked the inviter, nothing is sent (the reply is the same, and the name stays in the group).
+  const theirAccount = await db.account.findUnique({ where: { email }, select: { id: true } });
+  if (theirAccount && actor.accountId && (await hasBlocked(theirAccount.id, actor.accountId).catch(() => true))) {
+    await logEvent(db, { groupId, actorId, kind: "member_invited", text: `invited ${member.name} to join` });
+    return { ok: true, email };
+  }
   const sent = await sendMail(
     email,
     `${actor.name} added you to ${group.name} on Loopin`,

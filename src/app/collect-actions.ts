@@ -114,7 +114,8 @@ async function tellOrganiser(code: string, entryId: string) {
   const e = c?.entries.find((x) => x.id === entryId);
   if (!c || !e) return;
   await deliverNotes([
-    { accountIds: [c.accountId], kind: "collect_ticked", title: c.title, body: `${e.name} says they paid ${formatMoney(e.amount, c.currency)}. Tap to check it off.`, url: `/c/${c.code}`, tag: `collect:${c.code}` },
+    // From the person who ticked (when they are signed in), so an organiser who blocked them isn't told.
+    { fromAccountId: e.accountId || undefined, accountIds: [c.accountId], kind: "collect_ticked", title: c.title, body: `${e.name} says they paid ${formatMoney(e.amount, c.currency)}. Tap to check it off.`, url: `/c/${c.code}`, tag: `collect:${c.code}` },
   ]);
 }
 

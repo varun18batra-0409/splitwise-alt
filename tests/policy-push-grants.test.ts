@@ -6,11 +6,11 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 // L2: the move pass reads cookie grants ("id~epoch") properly.
 // L6: every group page sends a stranger to the same place, through one helper.
 // web-push is replaced by a stand-in that records who was sent to; nothing leaves this machine.
-const state = vi.hoisted(() => ({ cookie: "" }));
+const state = vi.hoisted(() => ({ cookie: "", set: {} as Record<string, string> }));
 const push = vi.hoisted(() => ({ send: vi.fn(async (_s: { endpoint: string }, _p?: unknown, _o?: unknown) => ({})) }));
 vi.mock("web-push", () => ({ default: { sendNotification: push.send, generateVAPIDKeys: () => ({ publicKey: "pub", privateKey: "priv" }) } }));
 vi.mock("next/headers", () => ({
-  cookies: async () => ({ get: (n: string) => (n === "sw_me" && state.cookie ? { value: state.cookie } : undefined), set: () => undefined, delete: () => undefined }),
+  cookies: async () => ({ get: (n: string) => (n === "sw_me" && state.cookie ? { value: state.cookie } : undefined), set: (n: string, v: string) => { state.set[n] = v; if (n === "sw_me") state.cookie = v; }, delete: () => undefined }),
   headers: async () => new Headers(),
 }));
 vi.mock("react", async (orig) => ({ ...(await orig<typeof import("react")>()), cache: <T,>(f: T) => f }));
@@ -25,6 +25,10 @@ const { encodeSession, today } = await import("@/lib/session");
 const { grantValue, signInAs, setMyMemberId, bumpGrantEpochs, privatePath } = await import("@/lib/identity");
 const { sendEventPush } = await import("@/lib/push");
 const { createMovePass, peekMovePass } = await import("@/lib/move");
+const { acceptInvitation } = await import("@/lib/invitations");
+const { savePushFor } = await import("@/lib/push-subs");
+const { getMemberships } = await import("@/lib/identity");
+const { PUSH_RESYNC_COOKIE, pushSyncPlan, hasResyncCookie, clearResyncCookieString } = await import("@/lib/push-resync");
 const { signOutThisPhone } = await import("@/app/actions");
 const { GOOD_AUTH, GOOD_P256DH, goodEndpoint } = await import("./helpers/push-keys");
 
@@ -37,7 +41,7 @@ const sentTo = () => new Set(push.send.mock.calls.map((c) => c[0].endpoint));
 const sub = (memberId: string, endpoint: string) => db.pushSubscription.create({ data: { memberId, endpoint, p256dh: GOOD_P256DH, auth: GOOD_AUTH } });
 const rowsFor = async (memberId: string) => (await db.pushSubscription.findMany({ where: { memberId }, select: { endpoint: true } })).map((r) => r.endpoint).sort();
 async function account(label: string) {
-  const a = await db.account.create({ data: { email: `pg-${label}-${stamp}@example.test`, name: label } });
+  const a = await db.account.create({ data: { email: `pg-${label.toLowerCase()}-${stamp}@example.test`, name: label } });
   accountIds.push(a.id);
   return a;
 }
@@ -57,6 +61,7 @@ const phone1 = (memberships: Record<string, string>, accountId?: string) =>
 
 beforeEach(() => {
   state.cookie = "";
+  state.set = {};
   push.send.mockClear();
 });
 afterAll(async () => {
@@ -66,7 +71,9 @@ afterAll(async () => {
 });
 
 describe("M4: a phone that loses a name stops getting its notifications", () => {
-  it("phone 2 holds a guest copy of X and is subscribed; phone 1 signs in and links X: phone 2's row is gone and a send for X's group misses it", async () => {
+  // What production does: nobody passes the phone's own address. Every row for the linked name goes, a short-lived note
+  // is left for the app, and the phone that just signed in puts its own back; the other phone is not in the session.
+  it("phone 2 holds a guest copy of X and is subscribed; phone 1 signs in and links X: X's rows go, the resync note is set, phone 1 re-registers, phone 2 stays cut off", async () => {
     const t = await group("si");
     const ep1 = goodEndpoint(`p1-${stamp}-si`);
     const ep2 = goodEndpoint(`p2-${stamp}-si`);
@@ -79,26 +86,36 @@ describe("M4: a phone that loses a name stops getting its notifications", () => 
 
     const me = await account("Xavier");
     state.cookie = await phone1({ [t.g.id]: grantValue(t.x.id, 0) });
-    await signInAs(me.id, { keepEndpoint: ep1 });
+    await signInAs(me.id);
 
     expect((await db.member.findUniqueOrThrow({ where: { id: t.x.id } })).accountId).toBe(me.id);
-    expect(await rowsFor(t.x.id)).toEqual([ep1]); // phone 1 (the one that signed in) keeps its own
+    expect(await rowsFor(t.x.id)).toEqual([]); // both phones' rows are gone
+    expect(state.set[PUSH_RESYNC_COOKIE]).toBe("1"); // the note for this phone's app
+    await sendEventPush((await change(t.g.id, t.y.id)).id);
+    expect(push.send).not.toHaveBeenCalled();
+
+    // Phone 1's app sees the note and re-registers itself for all its names (what PushSync's request does).
+    expect(Object.values(await getMemberships())).toContain(t.x.id);
+    await savePushFor(await getMemberships(), { endpoint: ep1, keys: { p256dh: GOOD_P256DH, auth: GOOD_AUTH } });
     await sendEventPush((await change(t.g.id, t.y.id)).id);
     expect(sentTo()).toEqual(new Set([ep1]));
     expect(sentTo().has(ep2)).toBe(false);
+    // Phone 2 still holds the old guest copy, but that copy no longer counts, so it can't re-register.
+    state.cookie = await phone1({ [t.g.id]: grantValue(t.x.id, 0) });
+    expect(Object.values(await getMemberships())).not.toContain(t.x.id);
+    expect((await savePushFor(await getMemberships(), { endpoint: ep2, keys: { p256dh: GOOD_P256DH, auth: GOOD_AUTH } })).groups).toBe(0);
+    expect(await rowsFor(t.x.id)).toEqual([ep1]);
   });
 
-  it("without the phone's own address (a plain sign-in), every row for the linked name goes; names that were not linked keep theirs", async () => {
+  it("names that were not linked keep their rows, and nothing is dropped (and no note set) when nothing was linked", async () => {
     const t = await group("sn");
-    const epX = goodEndpoint(`x-${stamp}-sn`);
     const epZ = goodEndpoint(`z-${stamp}-sn`);
-    await sub(t.x.id, epX);
     await sub(t.z.id, epZ);
     const me = await account("Xena");
-    state.cookie = await phone1({ [t.g.id]: grantValue(t.x.id, 0) });
+    state.cookie = await phone1({});
     await signInAs(me.id);
-    expect(await rowsFor(t.x.id)).toEqual([]);
     expect(await rowsFor(t.z.id)).toEqual([epZ]);
+    expect(state.set[PUSH_RESYNC_COOKIE]).toBeUndefined();
   });
 
   it("a stale guest copy (old epoch) links nothing and so removes nothing", async () => {
@@ -113,19 +130,52 @@ describe("M4: a phone that loses a name stops getting its notifications", () => 
     expect(await rowsFor(t.x.id)).toEqual([ep]);
   });
 
-  it("choosing a name while signed in links it and drops the other phones' rows, keeping the given address", async () => {
+  it("choosing a free name while signed in links it, drops every row and leaves the resync note", async () => {
     const t = await group("sm");
-    const keep = goodEndpoint(`keep-${stamp}-sm`);
-    const other = goodEndpoint(`other-${stamp}-sm`);
-    await sub(t.x.id, keep);
-    await sub(t.x.id, other);
+    await sub(t.x.id, goodEndpoint(`one-${stamp}-sm`));
+    await sub(t.x.id, goodEndpoint(`two-${stamp}-sm`));
     const me = await account("Pick");
     state.cookie = await phone1({}, me.id);
-    await setMyMemberId(t.g.id, t.x.id, { keepEndpoint: keep });
-    expect(await rowsFor(t.x.id)).toEqual([keep]);
+    await setMyMemberId(t.g.id, t.x.id);
+    expect(await rowsFor(t.x.id)).toEqual([]);
+    expect(state.set[PUSH_RESYNC_COOKIE]).toBe("1");
   });
 
-  it("bumpGrantEpochs raises the epoch and removes the rows (all, or all but the kept address)", async () => {
+  it("choosing a name already linked to the same account changes nothing: same epoch, rows kept, no note", async () => {
+    const t = await group("sk");
+    const me = await account("Again");
+    await db.member.update({ where: { id: t.x.id }, data: { accountId: me.id, grantEpoch: 4 } });
+    const ep = goodEndpoint(`k-${stamp}-sk`);
+    await sub(t.x.id, ep);
+    state.cookie = await phone1({}, me.id);
+    await setMyMemberId(t.g.id, t.x.id);
+    expect(await rowsFor(t.x.id)).toEqual([ep]);
+    expect((await db.member.findUniqueOrThrow({ where: { id: t.x.id } })).grantEpoch).toBe(4);
+    expect(state.set[PUSH_RESYNC_COOKIE]).toBeUndefined();
+  });
+
+  it("joining from an invitation: an account with two subscribed phones keeps both phones' rows for the new name", async () => {
+    const old = await group("iv0");
+    const t = await group("iv1");
+    const me = await account("Joiner");
+    await db.member.update({ where: { id: old.x.id }, data: { accountId: me.id } });
+    const ep1 = goodEndpoint(`j1-${stamp}-iv`);
+    const ep2 = goodEndpoint(`j2-${stamp}-iv`);
+    await sub(old.x.id, ep1);
+    await sub(old.x.id, ep2);
+    await db.invite.create({ data: { groupId: t.g.id, email: me.email, invitedById: t.y.id, token: `tok-${stamp}`, memberId: t.x.id } });
+    state.cookie = await phone1({}, me.id);
+    const r = await acceptInvitation(me, `tok-${stamp}`);
+    if (!r.ok) throw new Error(r.error);
+    await setMyMemberId(r.groupId, r.memberId); // what answerInvitation does next
+    expect(r.memberId).toBe(t.x.id);
+    expect(await rowsFor(t.x.id)).toEqual([ep1, ep2].sort());
+    expect(state.set[PUSH_RESYNC_COOKIE]).toBeUndefined();
+    await sendEventPush((await change(t.g.id, t.y.id)).id);
+    expect(sentTo()).toEqual(new Set([ep1, ep2]));
+  });
+
+  it("bumpGrantEpochs raises the epoch and removes the rows (all, or all but a kept address)", async () => {
     const t = await group("bg");
     const a = goodEndpoint(`a-${stamp}-bg`);
     const b = goodEndpoint(`b-${stamp}-bg`);
@@ -141,19 +191,57 @@ describe("M4: a phone that loses a name stops getting its notifications", () => 
     expect((await db.member.findUniqueOrThrow({ where: { id: t.x.id } })).grantEpoch).toBe(2);
   });
 
-  it("'sign out this phone' removes this phone's address for every name, including ones it no longer holds; other phones keep theirs", async () => {
+  it("'sign out this phone' removes this phone's address for every name it holds or belonged to; other phones keep theirs", async () => {
     const t = await group("so");
     const mine = goodEndpoint(`mine-${stamp}-so`);
     const theirs = goodEndpoint(`theirs-${stamp}-so`);
-    await sub(t.x.id, mine); // a name this phone still holds
-    await sub(t.z.id, mine); // a name it held earlier (linked to someone since)
+    const me = await account("Leaver");
+    await db.member.update({ where: { id: t.z.id }, data: { accountId: me.id } }); // a name linked to the signed-in account
+    await sub(t.x.id, mine); // a name this phone holds as a guest
+    await sub(t.z.id, mine);
     await sub(t.z.id, theirs);
-    state.cookie = await phone1({ [t.g.id]: grantValue(t.x.id, 0) });
+    state.cookie = await phone1({ [t.g.id]: grantValue(t.x.id, 0) }, me.id);
     const f = new FormData();
     f.set("endpoint", mine);
     await expect(signOutThisPhone(f)).rejects.toThrow("REDIRECT /");
     expect(await db.pushSubscription.count({ where: { endpoint: mine } })).toBe(0);
     expect(await rowsFor(t.z.id)).toEqual([theirs]);
+  });
+
+  it("'sign out this phone' with no session, or an address that is none of the session's, deletes nothing", async () => {
+    const t = await group("sx");
+    const other = await group("sy");
+    const ep = goodEndpoint(`o-${stamp}-sx`);
+    await sub(other.x.id, ep);
+    const f = new FormData();
+    f.set("endpoint", ep);
+    state.cookie = ""; // no session at all
+    await expect(signOutThisPhone(f)).rejects.toThrow("REDIRECT /");
+    expect(await rowsFor(other.x.id)).toEqual([ep]);
+    state.cookie = await phone1({ [t.g.id]: grantValue(t.x.id, 0) }); // a session, but for other names
+    await expect(signOutThisPhone(f)).rejects.toThrow("REDIRECT /");
+    expect(await rowsFor(other.x.id)).toEqual([ep]);
+    const me = await account("Nobody"); // signed in with no groups, still not this address's owner
+    state.cookie = await phone1({}, me.id);
+    await expect(signOutThisPhone(f)).rejects.toThrow("REDIRECT /");
+    expect(await rowsFor(other.x.id)).toEqual([ep]);
+  });
+});
+
+describe("PushSync's decision (the app's re-register after the resync note)", () => {
+  const base = { granted: true, cookieHeader: "a=b", nowMs: 10 * 3600_000 };
+  it("the note skips the 6-hour throttle; without it a sync inside 6 hours waits; without permission nothing runs", () => {
+    const recent = 9 * 3600_000;
+    expect(pushSyncPlan({ ...base, lastSyncMs: recent })).toEqual({ run: false, resync: false });
+    expect(pushSyncPlan({ ...base, lastSyncMs: 0 })).toEqual({ run: true, resync: false });
+    expect(pushSyncPlan({ ...base, lastSyncMs: recent, cookieHeader: `a=b; ${PUSH_RESYNC_COOKIE}=1` })).toEqual({ run: true, resync: true });
+    expect(pushSyncPlan({ ...base, lastSyncMs: 0, granted: false, cookieHeader: `${PUSH_RESYNC_COOKIE}=1` })).toEqual({ run: false, resync: false });
+  });
+  it("reads only the exact note, and the clearing string expires it", () => {
+    expect(hasResyncCookie(`x=1; ${PUSH_RESYNC_COOKIE}=1`)).toBe(true);
+    expect(hasResyncCookie(`${PUSH_RESYNC_COOKIE}=0`)).toBe(false);
+    expect(hasResyncCookie(`not_${PUSH_RESYNC_COOKIE}=1`)).toBe(false);
+    expect(clearResyncCookieString()).toContain("Max-Age=0");
   });
 });
 
@@ -183,7 +271,13 @@ describe("L6: one place sends a stranger to /private", () => {
     const root = path.join(process.cwd(), "src/app/groups");
     const files = (readdirSync(root, { recursive: true }) as string[]).filter((f) => /(page|route)\.tsx?$/.test(f));
     expect(files.length).toBeGreaterThan(10);
-    const bare = files.filter((f) => /redirect\(\s*["'`]\/private["'`]\s*\)/.test(readFileSync(path.join(root, f), "utf8")));
+    // A bare redirect("/private"), or new URL("/private", ...) / a "/private" string handed to a redirect in a route file.
+    const bareRedirect = /redirect\(\s*["'`]\/private["'`]/;
+    const bareUrl = /new URL\(\s*["'`]\/private["'`]/;
+    const bare = files.filter((f) => {
+      const src = readFileSync(path.join(root, f), "utf8");
+      return bareRedirect.test(src) || bareUrl.test(src);
+    });
     expect(bare).toEqual([]);
   });
 });

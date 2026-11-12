@@ -3,7 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 // POL-03: report and block. Blocking stops postcards, passports, nudges and their pushes, both ways for passports;
 // it never touches group expenses or balances. Reports are saved and the operator is emailed (kept in the test outbox).
 
-const state = vi.hoisted(() => ({ session: "", ip: "" }));
+const state = vi.hoisted(() => ({ session: "", ip: "", pending: [] as (() => unknown)[] }));
 // web-push is replaced by a stand-in that records who was sent to; nothing leaves this machine.
 const push = vi.hoisted(() => ({ send: vi.fn(async (_s: { endpoint: string }, _p?: unknown, _o?: unknown) => ({})) }));
 vi.mock("web-push", () => ({ default: { sendNotification: push.send, generateVAPIDKeys: () => ({ publicKey: "pub", privateKey: "priv" }) } }));
@@ -11,6 +11,8 @@ vi.mock("next/headers", () => ({
   cookies: async () => ({ get: (n: string) => (n === "sw_me" && state.session ? { value: state.session } : undefined), set: () => undefined, delete: () => undefined }),
   headers: async () => new Headers(state.ip ? { "x-forwarded-for": state.ip } : {}),
 }));
+// after(): the work that runs once the reply is sent is queued here and run by the test.
+vi.mock("next/server", async (orig) => ({ ...(await orig<typeof import("next/server")>()), after: (fn: () => unknown) => void state.pending.push(fn) }));
 vi.mock("react", async (orig) => ({ ...(await orig<typeof import("react")>()), cache: <T,>(f: T) => f }));
 // A server action ends by redirecting; here the redirect is caught and its address handed back.
 vi.mock("@/lib/fresh-redirect", () => ({
@@ -37,6 +39,13 @@ const { addRegistered } = await import("@/lib/invites");
 const { sendEventPush, sendPushTo } = await import("@/lib/push");
 const { contactSupportAction } = await import("@/app/safety-actions");
 const { loadReportsForOwner, saveSupportMessage } = await import("@/lib/reports");
+const { loadInvitations } = await import("@/lib/invitations");
+const { inviteToClaim } = await import("@/lib/invites");
+const { markPaidAction } = await import("@/app/collect-actions");
+const { reactPostcardAction } = await import("@/app/postcard-actions");
+const { REACTIONS } = await import("@/lib/postcards/looks");
+const { canViewPostcard } = await import("@/lib/blocks");
+const myData = await import("@/app/api/my-data/route");
 const photoRoute = await import("@/app/api/postcard-photo/[id]/route");
 const { GOOD_AUTH, GOOD_P256DH, goodEndpoint } = await import("./helpers/push-keys");
 
@@ -98,6 +107,7 @@ beforeAll(async () => {
 beforeEach(() => {
   state.session = "";
   state.ip = "";
+  state.pending = [];
   push.send.mockClear();
   delete process.env.ADMIN_EMAIL;
 });
@@ -380,9 +390,11 @@ describe("blocking: group invites", () => {
     await blockAccount(dev.id, t.asha.id); // Dev blocked Asha
     const toDev = await addRegistered(t.g.id, t.ma.id, dev.id, "https://loopin.test");
     const toEve = await addRegistered(t.g.id, t.ma.id, eve.id, "https://loopin.test");
-    expect(toDev.ok && toEve.ok).toBe(true);
-    // Group money keeps working: both are in the group.
-    expect(await db.member.count({ where: { groupId: t.g.id, accountId: { in: [dev.id, eve.id] } } })).toBe(2);
+    if (!toDev.ok || !toEve.ok) throw new Error("expected both to be added");
+    // Group money keeps working: both are in the group as names (they are linked to their accounts when they tap Join), with an invitation each.
+    expect(await db.member.count({ where: { groupId: t.g.id, id: { in: [toDev.memberId, toEve.memberId] }, leftAt: null, removedAt: null } })).toBe(2);
+    expect(await db.member.count({ where: { groupId: t.g.id } })).toBe(5);
+    expect(await db.invite.count({ where: { groupId: t.g.id, email: { in: [dev.email, eve.email] }, memberId: { in: [toDev.memberId, toEve.memberId] } } })).toBe(2);
     expect(await db.outbox.count({ where: { to: dev.email } })).toBe(0);
     expect(await db.accountNote.count({ where: { accountId: dev.id } })).toBe(0);
     expect(await db.outbox.count({ where: { to: eve.email } })).toBe(1);
@@ -404,9 +416,9 @@ describe("blocking: group pushes", () => {
     expect(await db.expense.count({ where: { groupId: t.g.id, deletedAt: null } })).toBe(1);
   });
   it("a person-to-person push (a reaction, 'I've paid', going shopping) from Asha skips Ben, who blocked her, and still reaches Cleo", async () => {
-    const t = await crew("pp");
-    const epB = goodEndpoint(`b-${stamp}-pp`);
-    const epC = goodEndpoint(`c-${stamp}-pp`);
+    const t = await crew("p2p");
+    const epB = goodEndpoint(`b-${stamp}-p2p`);
+    const epC = goodEndpoint(`c-${stamp}-p2p`);
     for (const [memberId, endpoint] of [[t.mb.id, epB], [t.mc.id, epC]]) await db.pushSubscription.create({ data: { memberId, endpoint, p256dh: GOOD_P256DH, auth: GOOD_AUTH } });
     await blockAccount(t.ben.id, t.asha.id);
     push.send.mockClear();
@@ -485,7 +497,9 @@ describe("support messages", () => {
     await expect(loadReportsForOwner(null)).rejects.toThrow();
     await expect(loadReportsForOwner({ email: t.asha.email })).rejects.toThrow(); // even the person who wrote it
     const rows = await loadReportsForOwner({ email: "Boss-S4@Example.test" });
-    expect(rows.find((r) => r.note === note)).toMatchObject({ kind: "support", reporterId: t.asha.id });
+    expect(rows.support.find((r) => r.note === note)).toMatchObject({ kind: "support", reporterId: t.asha.id });
+    expect(rows.reports.some((r) => r.note === note)).toBe(false); // support messages and reports are separate lists
+    expect(rows.reports.every((r) => r.kind !== "support")).toBe(true);
   });
 
   it("a support message can't be filed through the report form", async () => {
@@ -493,5 +507,141 @@ describe("support messages", () => {
     await signedInAs(t.asha);
     const url = await redirected(() => reportAction(form({ kind: "support", id: t.ben.id, reason: "spam", back: "/account" })));
     expect(url).toContain("error=");
+  });
+});
+
+
+// ---------- Re-check round ----------
+describe("blocking: invitations from someone you blocked", () => {
+  it("a blocked inviter's Join card is gone from the list Home and Alerts both use; unblocking brings it back", async () => {
+    const t = await crew("iv");
+    const dev = await account(`Dv${stamp.slice(-4)}`);
+    const n = await db.member.create({ data: { groupId: t.g.id, name: "Dev", addedBy: t.ma.id } });
+    await db.invite.create({ data: { groupId: t.g.id, email: dev.email, invitedById: t.ma.id, token: `tk-${stamp}-iv`, memberId: n.id } });
+    expect((await loadInvitations(dev)).map((i) => i.groupId)).toEqual([t.g.id]);
+    await blockAccount(dev.id, t.asha.id); // Dev blocked Asha, who invited him
+    expect(await loadInvitations(dev)).toEqual([]);
+    // The name is still in the group, so the group's money is unchanged.
+    expect(await db.member.count({ where: { id: n.id, groupId: t.g.id } })).toBe(1);
+    await unblockAccount(dev.id, t.asha.id);
+    expect(await loadInvitations(dev)).toHaveLength(1);
+  });
+
+  it("a card from someone else is not affected by blocking the inviter; and the older kind (added straight in) is hidden too", async () => {
+    const t = await crew("iw");
+    const dev = await account(`Dw${stamp.slice(-4)}`);
+    await db.member.create({ data: { groupId: t.g.id, name: "Dev", accountId: dev.id, addedBy: t.mc.id, seenAt: null } });
+    await blockAccount(dev.id, t.asha.id); // not Cleo, who added him
+    expect(await loadInvitations(dev)).toHaveLength(1);
+    await blockAccount(dev.id, t.cleo.id);
+    expect(await loadInvitations(dev)).toEqual([]);
+  });
+
+  it("invite-by-email to someone who blocked the inviter sends nothing (same reply); another address gets the email", async () => {
+    const t = await crew("ie");
+    const dev = await account(`De${stamp.slice(-4)}`);
+    const n1 = await db.member.create({ data: { groupId: t.g.id, name: "Name One" } });
+    const n2 = await db.member.create({ data: { groupId: t.g.id, name: "Name Two" } });
+    await blockAccount(dev.id, t.asha.id);
+    const r1 = await inviteToClaim(t.g.id, t.ma.id, n1.id, dev.email, "https://loopin.test");
+    expect(r1).toEqual({ ok: true, email: dev.email });
+    expect(await db.outbox.count({ where: { to: dev.email } })).toBe(0);
+    const other = `rb-other-${stamp}-ie@example.test`;
+    const r2 = await inviteToClaim(t.g.id, t.ma.id, n2.id, other, "https://loopin.test");
+    expect(r2.ok).toBe(true);
+    expect(await db.outbox.count({ where: { to: other } })).toBe(1);
+  });
+});
+
+describe("blocking: collection ticks and wax seals", () => {
+  const input = { title: "Gift", note: "", currency: "INR", amount: "300", dueDate: "", upiId: "", payLink: "", names: "" };
+  const runAfter = async () => {
+    for (const fn of state.pending.splice(0)) await fn();
+  };
+
+  it("when a blocked person ticks 'I've paid', the organiser who blocked them is not told; Cleo's tick is told", async () => {
+    const t = await crew("ct");
+    const made = await createCollection({ id: t.asha.id, name: "Asha" }, { ...input, friends: [t.ben.id, t.cleo.id] });
+    if (!made.ok) throw new Error(made.error);
+    await blockAccount(t.asha.id, t.ben.id); // after Ben was put on the list
+    const entryOf = (accountId: string) => db.collectionEntry.findFirstOrThrow({ where: { collection: { code: made.code }, accountId } });
+    for (const who of [t.ben, t.cleo]) {
+      await signedInAs(who);
+      await redirected(() => markPaidAction(form({ code: made.code, entryId: (await entryOf(who.id)).id })));
+      await runAfter();
+    }
+    expect(await db.accountNote.count({ where: { accountId: t.asha.id, kind: "collect_ticked" } })).toBe(1);
+    expect((await db.accountNote.findFirstOrThrow({ where: { accountId: t.asha.id, kind: "collect_ticked" } })).body).toContain("Cleo");
+    // The tick itself still counts.
+    expect((await entryOf(t.ben.id)).status).toBe("paid");
+  });
+
+  it("a card can't be sealed once either person has blocked the other; before that it can", async () => {
+    const t = await crew("sl");
+    const seal = REACTIONS[0].id;
+    const card = (fromId: string, toId: string) => db.postcard.create({ data: { fromId, toId, front: "print:beach", message: "hi" } });
+    const sealIt = async (c: { id: string }, who: { id: string }) => {
+      await signedInAs(who);
+      await redirected(() => reactPostcardAction(form({ id: c.id, reaction: seal })));
+      return (await db.postcard.findUniqueOrThrow({ where: { id: c.id } })).reaction;
+    };
+    const fine = await card(t.asha.id, t.ben.id);
+    expect(await sealIt(fine, t.ben)).toBe(seal);
+    // The sender blocked the recipient.
+    const one = await card(t.asha.id, t.cleo.id);
+    await blockAccount(t.asha.id, t.cleo.id);
+    expect(await sealIt(one, t.cleo)).toBeFalsy();
+    // The recipient blocked the sender.
+    const two = await card(t.cleo.id, t.ben.id);
+    await blockAccount(t.ben.id, t.cleo.id);
+    expect(await sealIt(two, t.ben)).toBeFalsy();
+    expect(await db.accountNote.count({ where: { accountId: t.cleo.id, title: { contains: "sealed your postcard" } } })).toBe(0);
+  });
+
+  it("the postcard page's own check: the recipient loses a card from someone blocked either way, the sender keeps theirs, strangers never see it", async () => {
+    const t = await crew("vp");
+    const card = await db.postcard.create({ data: { fromId: t.asha.id, toId: t.ben.id, front: "print:beach", message: "hi" } });
+    expect(await canViewPostcard(t.ben.id, card)).toBe(true);
+    expect(await canViewPostcard(t.cleo.id, card)).toBe(false);
+    await blockAccount(t.asha.id, t.ben.id);
+    expect(await canViewPostcard(t.ben.id, card)).toBe(false);
+    expect(await canViewPostcard(t.asha.id, card)).toBe(true);
+    await unblockAccount(t.asha.id, t.ben.id);
+    await blockAccount(t.ben.id, t.asha.id);
+    expect(await canViewPostcard(t.ben.id, card)).toBe(false);
+  });
+});
+
+describe("support messages and account deletion / download", () => {
+  it("deleting an account removes the support messages it sent and keeps the reports (made by it and about it)", async () => {
+    const t = await crew("dm");
+    await saveSupportMessage({ reporterId: t.ben.id, message: `help ${stamp} dm` });
+    await saveSupportMessage({ reporterId: t.asha.id, message: `other person ${stamp} dm` });
+    await db.report.create({ data: { reporterId: t.ben.id, kind: "person", targetId: t.asha.id, targetAccountId: t.asha.id, reason: "spam", note: `by ben ${stamp}` } });
+    await db.report.create({ data: { reporterId: t.cleo.id, kind: "person", targetId: t.ben.id, targetAccountId: t.ben.id, reason: "spam", note: `about ben ${stamp}` } });
+    await deleteAccount(t.ben.id);
+    expect(await db.report.count({ where: { kind: "support", reporterId: t.ben.id } })).toBe(0);
+    expect(await db.report.count({ where: { kind: "support", reporterId: t.asha.id } })).toBe(1);
+    expect(await db.report.count({ where: { kind: "person", note: { in: [`by ben ${stamp}`, `about ben ${stamp}`] } } })).toBe(2);
+  });
+
+  it("'Download all my data' includes my own support messages (and the reply email) and nobody else's", async () => {
+    const t = await crew("dx");
+    await saveSupportMessage({ reporterId: t.asha.id, message: `my words ${stamp} dx`, contact: "asha-reply@example.com" });
+    await saveSupportMessage({ reporterId: t.ben.id, message: `his words ${stamp} dx` });
+    await signedInAs(t.asha);
+    const res = await myData.GET();
+    const csv = await res.text();
+    expect(res.status).toBe(200);
+    expect(csv).toContain("Your messages to support");
+    expect(csv).toContain(`my words ${stamp} dx`);
+    expect(csv).toContain("asha-reply@example.com");
+    expect(csv).not.toContain(`his words ${stamp} dx`);
+  });
+
+  it("someone with no support messages gets no empty section", async () => {
+    const t = await crew("dy");
+    await signedInAs(t.cleo);
+    expect(await (await myData.GET()).text()).not.toContain("Your messages to support");
   });
 });

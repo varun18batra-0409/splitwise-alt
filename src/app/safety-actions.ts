@@ -13,6 +13,7 @@ import { REPORT_KINDS, REPORT_REASONS, resolveReportTarget, saveSupportMessage }
 
 const field = (f: FormData, k: string, max = 200) => String(f.get(k) ?? "").replace(/\r/g, "").slice(0, max);
 const ID = /^[A-Za-z0-9_-]{6,40}$/;
+const ANON_SUPPORT_PER_DAY = 100;
 
 // "Report": a short form (a reason and an optional note). Saved first, then the operator is emailed (no photos in the email).
 export async function reportAction(f: FormData) {
@@ -79,6 +80,8 @@ export async function contactSupportAction(f: FormData) {
   if (reply && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(reply)) fail("That email doesn’t look right. Check it, or leave it empty.");
   if (!(await allow(`support:${me?.id ?? clientIp(await headers())}`, 5, 3600))) fail("You’ve sent a few already. We’ll get back to you.");
   // Saved first: the message is kept even if the email below can't be sent (down, or over its daily allowance).
+  // People who aren't signed in also share one app-wide allowance, so the table can't be flooded from many addresses.
+  if (!me && !(await allow("support:anon-day", ANON_SUPPORT_PER_DAY, 86_400))) fail("We’re getting a lot of messages right now. Please try again tomorrow.");
   await saveSupportMessage({ reporterId: me?.id, message, contact: reply });
   await mailOperator("Loopin: a message for support", [
     "Someone wrote to Loopin support.",

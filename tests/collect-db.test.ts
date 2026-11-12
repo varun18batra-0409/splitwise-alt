@@ -149,7 +149,7 @@ describe("Collect (real database)", () => {
     const m = c.entries.find((e) => e.name === "Meera")!;
     expect(m.accountId).toBe(meera.id);
     const ok = await organiserAction(made.code, asha.id, { kind: "confirm", entryId: m.id });
-    expect(ok.ok && ok.notify).toEqual([{ accountIds: [meera.id], kind: "collect_paid", title: "Farewell gift", body: "Asha got your ₹300 ✓ You’re all done.", url: `/c/${made.code}`, tag: `collect:${made.code}` }]);
+    expect(ok.ok && ok.notify).toEqual([{ fromAccountId: asha.id, accountIds: [meera.id], kind: "collect_paid", title: "Farewell gift", body: "Asha got your ₹300 ✓ You’re all done.", url: `/c/${made.code}`, tag: `collect:${made.code}` }]);
   });
 
   it("adding a Loopin friend who's already on the list as paid doesn't ask them to pay", async () => {

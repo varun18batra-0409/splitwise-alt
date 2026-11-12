@@ -38,6 +38,7 @@ function transport() {
 // `signInCode`: sign-in codes always get through first. Everything else
 // (invites, "you were added") stops a little before the daily ceiling, so a
 // burst of invites can never lock people out of signing in.
+export const OPS_MAIL_PER_DAY = 20;
 export async function sendMail(to: string, subject: string, text: string, html: string, opts: { signInCode?: boolean; optOut?: boolean; item?: string; ops?: boolean } = {}): Promise<boolean> {
   if (!mailConfigured()) return false;
   // An optional email that belongs to a "Notifications & email" switch: skipped (reported as sent, like an unsubscribe,
@@ -83,19 +84,21 @@ export async function sendMail(to: string, subject: string, text: string, html: 
   // Checked BEFORE the app-wide daily ceiling: an email refused here is never sent,
   // so it must not use up a place meant for emails that are (otherwise repeated
   // invites to one address could use the whole day's budget and block sign-in codes).
-  // Mail to the operator (reports, support) has its own allowance, so it never shares the 10-a-day limit for one address.
-  const [capKey, capMax]: [string, number] = opts.ops ? ["mail:ops", 200] : [`${opts.signInCode ? "mail:code" : "mail:to"}:${to.toLowerCase()}`, opts.signInCode ? 12 : 10];
+  // Mail to the operator (reports, support) is a small budget of its own: 20 a day in all (each address is one send).
+  // It is NOT counted against the invite budget (mail:other) nor the app-wide count (mail:all), so a flood of reports
+  // can never use up invitations or the 30 places kept for sign-in codes. (Everything is saved in the app anyway.)
+  const [capKey, capMax]: [string, number] = opts.ops ? ["mail:ops", OPS_MAIL_PER_DAY] : [`${opts.signInCode ? "mail:code" : "mail:to"}:${to.toLowerCase()}`, opts.signInCode ? 12 : 10];
   if (!(await allow(capKey, capMax, 86_400))) return false;
   // A daily ceiling for the whole app, so nobody can use up the quota and stop
   // sign-in codes reaching everyone else. Under the sending service's own limit:
   // Resend's free plan allows 100 a day, Gmail about 500. (MAIL_DAILY_CAP overrides.)
   const cap = Number(process.env.MAIL_DAILY_CAP ?? (/resend/i.test(process.env.SMTP_HOST ?? "") ? 95 : 400));
-  if (!opts.signInCode && !(await allow("mail:other", Math.max(1, cap - 30), 86_400))) {
+  if (!opts.signInCode && !opts.ops && !(await allow("mail:other", Math.max(1, cap - 30), 86_400))) {
     console.error("sendMail: daily cap for invites reached (kept for sign-in codes)");
     await noteFailure("cap");
     return false;
   }
-  if (!(await allow("mail:all", cap, 86_400))) {
+  if (!opts.ops && !(await allow("mail:all", cap, 86_400))) {
     console.error("sendMail: daily email cap reached");
     await noteFailure("cap");
     return false;

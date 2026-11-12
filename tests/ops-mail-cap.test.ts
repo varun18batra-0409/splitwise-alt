@@ -25,7 +25,12 @@ const { encodeSession, today } = await import("@/lib/session");
 
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 const OP = `operator-${stamp}@example.com`;
-const KEYS = ["mail:ops", "mail:other", "mail:all", `mail:to:${OP}`, `mail:to:friend-${stamp}@example.com`];
+// Only the counters these tests own are touched (set up, then removed at the end); the shared mail:other and mail:all
+// counters are never reset: the tests read them before and after and compare.
+const KEYS = ["mail:ops", "support:anon-day"];
+const tomorrow = () => new Date(Date.now() + 86_400_000);
+const setCount = (key: string, count: number) => db.rateLimit.upsert({ where: { key }, create: { key, count, resetAt: tomorrow() }, update: { count, resetAt: tomorrow() } });
+const countOf = async (key: string) => (await db.rateLimit.findUnique({ where: { key } }))?.count ?? 0;
 let accountId = "";
 
 beforeEach(async () => {
@@ -38,7 +43,8 @@ beforeEach(async () => {
   process.env.ADMIN_EMAIL = OP;
   mail.send.mockReset();
   mail.send.mockResolvedValue({});
-  await db.rateLimit.deleteMany({ where: { key: { in: KEYS } } });
+  await setCount("mail:ops", 0);
+  await setCount("support:anon-day", 0);
 });
 afterAll(async () => {
   await db.rateLimit.deleteMany({ where: { key: { in: KEYS } } });
@@ -58,22 +64,35 @@ const support = async (message: string) => {
   throw new Error("expected a redirect");
 };
 
-describe("operator mail has its own allowance", () => {
-  it("12 reports/support emails to the same operator address all go out (an ordinary address stops at 10)", async () => {
-    for (let i = 0; i < 12; i++) expect(await mailOperator("Loopin: a new report", ["x"])).toBe(true);
-    expect(mail.send).toHaveBeenCalledTimes(12);
-    mail.send.mockClear();
-    const sent: boolean[] = [];
-    for (let i = 0; i < 11; i++) sent.push(await sendMail(`friend-${stamp}@example.com`, "hi", "hi", "<p>hi</p>"));
-    expect(sent.filter(Boolean)).toHaveLength(10); // the eleventh to one address is refused
-    expect(mail.send).toHaveBeenCalledTimes(10);
+describe("operator mail is a small budget of its own", () => {
+  it("25 operator emails: 20 go out and 5 are refused; the invite budget (mail:other) and the app-wide count (mail:all) do not move", async () => {
+    const other = await countOf("mail:other");
+    const all = await countOf("mail:all");
+    const results: boolean[] = [];
+    for (let i = 0; i < 25; i++) results.push(await mailOperator("Loopin: a new report", ["x"]));
+    expect(results.filter(Boolean)).toHaveLength(20);
+    expect(results.slice(0, 20).every(Boolean)).toBe(true);
+    expect(mail.send).toHaveBeenCalledTimes(20);
+    expect(await countOf("mail:ops")).toBe(20);
+    expect(await countOf("mail:other")).toBe(other);
+    expect(await countOf("mail:all")).toBe(all);
   });
 
-  it("once the operator allowance (200 a day) is used, further operator mail is refused", async () => {
-    const future = new Date(Date.now() + 3_600_000);
-    await db.rateLimit.create({ data: { key: "mail:ops", count: 200, resetAt: future } });
-    expect(await mailOperator("Loopin: a new report", ["x"])).toBe(false);
-    expect(mail.send).not.toHaveBeenCalled();
+  it("each operator address is one send: two addresses use two places", async () => {
+    process.env.ADMIN_EMAIL = `${OP}, second-${OP}`;
+    expect(await mailOperator("Loopin: a new report", ["x"])).toBe(true);
+    expect(await countOf("mail:ops")).toBe(2);
+    expect(mail.send).toHaveBeenCalledTimes(2);
+  });
+
+  it("ordinary mail keeps its own rules: an address stops at 10 a day, and that still counts in mail:other", async () => {
+    const other = await countOf("mail:other");
+    const to = `friend-${stamp}@example.com`;
+    const sent: boolean[] = [];
+    for (let i = 0; i < 11; i++) sent.push(await sendMail(to, "hi", "hi", "<p>hi</p>"));
+    expect(sent.filter(Boolean)).toHaveLength(10);
+    expect(await countOf("mail:other")).toBe(other + 10);
+    await db.rateLimit.deleteMany({ where: { key: `mail:to:${to}` } });
   });
 });
 
@@ -86,7 +105,7 @@ describe("a support message is saved whatever happens to the email", () => {
   });
 
   it("operator allowance used up: saved, nothing emailed", async () => {
-    await db.rateLimit.create({ data: { key: "mail:ops", count: 200, resetAt: new Date(Date.now() + 3_600_000) } });
+    await setCount("mail:ops", 20);
     const note = `allowance used ${stamp}`;
     expect(await support(note)).toBe("REDIRECT /support?sent=1");
     expect(await db.report.count({ where: { kind: "support", note } })).toBe(1);
@@ -103,5 +122,27 @@ describe("a support message is saved whatever happens to the email", () => {
     const row = await db.report.findFirstOrThrow({ where: { note } });
     expect(row.reporterId).toBe(a.id);
     expect(String((mail.send.mock.calls[0]?.[0] as { text?: string })?.text)).toContain("/stats/reports");
+  });
+
+  it("signed-out people share 100 messages a day across everyone: the 100th is kept, the 101st is turned away and not saved", async () => {
+    await setCount("support:anon-day", 99);
+    const kept = `anon hundredth ${stamp}`;
+    expect(await support(kept)).toBe("REDIRECT /support?sent=1");
+    const refused = `anon one-oh-one ${stamp}`;
+    expect(await support(refused)).toContain("error=");
+    expect(await db.report.count({ where: { kind: "support", note: kept } })).toBe(1);
+    expect(await db.report.count({ where: { note: refused } })).toBe(0);
+    expect(await countOf("support:anon-day")).toBe(100);
+  });
+
+  it("the app-wide signed-out allowance does not stop signed-in people", async () => {
+    await setCount("support:anon-day", 100);
+    const a = await db.account.create({ data: { email: `sup2-${stamp}@example.test`, name: "Sup2" } });
+    state.session = await encodeSession({ m: {}, a: a.id, v: 0, t: today() });
+    const note = `signed in while full ${stamp}`;
+    expect(await support(note)).toBe("REDIRECT /support?sent=1");
+    state.session = "";
+    expect(await db.report.count({ where: { note } })).toBe(1);
+    await db.account.deleteMany({ where: { id: a.id } });
   });
 });

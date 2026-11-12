@@ -141,6 +141,7 @@ export function myDataCsv(
   groups: { name: string; currency: string; type: string; closed: boolean; myId: string; members: Member[]; expenses: Expense[]; payments: Payment[]; claims?: ClaimRow[] }[],
   now: Date,
   tz?: string,
+  support: { createdAt: Date; note: string; contact: string; status: string }[] = [],
 ): string {
   const top: (string | number)[][] = [
     ["Loopin: all your data"],
@@ -197,6 +198,10 @@ export function myDataCsv(
     }
   }
   rows.sort((a, b) => a.group.localeCompare(b.group) || a.date.getTime() - b.date.getTime());
-  const lines = [...top, header, ...rows.map((r) => r.cells)].map((r) => r.map(cell).join(","));
+  // The messages this account sent to Loopin support (what was written and the reply email left, if any).
+  const mine: (string | number)[][] = support.length
+    ? [[], ["Your messages to support"], ["Date", "Message", "Reply email", "Status"], ...support.map((m) => [dayKey(m.createdAt, tz), m.note, m.contact, m.status === "resolved" ? "Dealt with" : "Received"])]
+    : [];
+  const lines = [...top, header, ...rows.map((r) => r.cells), ...mine].map((r) => r.map(cell).join(","));
   return "﻿" + lines.join("\r\n") + "\r\n";
 }

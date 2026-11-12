@@ -32,6 +32,14 @@ export async function blockersOf(accountId: string): Promise<Set<string>> {
   return new Set(rows.map((r) => r.blockerId));
 }
 
+// May this person open this postcard? The sender always can. The person it went to can't once either of them has blocked
+// the other, even for a card sent before the block.
+export async function canViewPostcard(viewerId: string, card: { fromId: string; toId: string }): Promise<boolean> {
+  if (card.fromId !== viewerId && card.toId !== viewerId) return false;
+  if (card.fromId === viewerId) return true;
+  return !(await isBlockedEitherWay(viewerId, card.fromId));
+}
+
 // Idempotent: blocking twice is the same as once. You can't block yourself or someone who isn't on Loopin.
 export async function blockAccount(blockerId: string, blockedId: string): Promise<boolean> {
   if (!blockerId || !blockedId || blockerId === blockedId) return false;
