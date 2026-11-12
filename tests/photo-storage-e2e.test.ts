@@ -649,18 +649,16 @@ describe("postcard photo", () => {
     // Only creating the postcard photo row fails. The delegate is swapped for a stand-in and the exact original put back.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const client = db as any;
-    const had = Object.getOwnPropertyDescriptor(client, "postcardPhoto");
     const delegate = client.postcardPhoto;
     const stand = new Proxy(delegate, { get: (t, k) => (k === "create" ? () => Promise.reject(new Error("row hiccup")) : Reflect.get(t, k)) });
-    Object.defineProperty(client, "postcardPhoto", { configurable: true, value: stand });
+    Object.defineProperty(client, "postcardPhoto", { configurable: true, writable: true, value: stand });
     let threw = false;
     try {
       await sendCard(from, [to], jpeg(38));
     } catch (err) {
       threw = String((err as Error).message).includes("row hiccup");
     } finally {
-      if (had) Object.defineProperty(client, "postcardPhoto", had);
-      else delete client.postcardPhoto;
+      Object.defineProperty(client, "postcardPhoto", { configurable: true, writable: true, value: delegate }); // the exact original, never deleted
     }
     expect(client.postcardPhoto).toBe(delegate);
     expect(threw).toBe(true);
