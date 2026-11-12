@@ -506,13 +506,15 @@ describe("postcard photo", () => {
     expect(await status(from, photoId)).toBe(200);
     expect(await status(two, photoId)).toBe(200);
 
+    // Each person gets their own card (there is no separate copy for the sender), so deleting the
+    // second person removes the last card with this photo: the photo row and the file go with it.
     await deleteAccount(two.id);
-    expect(await status(from, photoId)).toBe(200); // the sender's own card is still there
-    expect(blob.files.size).toBe(1);
-
-    await deleteAccount(from.id);
+    expect(await db.postcard.count({ where: { photoId } })).toBe(0);
     expect(await db.postcardPhoto.count({ where: { id: photoId } })).toBe(0);
     expect(blob.files.size).toBe(0);
+    expect(await status(from, photoId)).toBe(404);
+
+    await deleteAccount(from.id);
     expect(await leftovers()).toEqual(CLEAN);
   });
 
@@ -562,7 +564,8 @@ describe("postcard photo", () => {
     try {
       const { went, cards } = await sendCard(from, [to], jpeg(35));
       expect(went).toContain("/postcards/new");
-      expect(decodeURIComponent(went)).toContain("a lot of postcards");
+      // The message travels form-encoded ("That’s+a+lot+of+postcards"): decode it before reading the words.
+      expect(new URLSearchParams(went.split("?")[1] ?? "").get("error")).toContain("a lot of postcards");
       expect(cards).toHaveLength(0);
       expect(blob.files.size).toBe(0);
       expect(blob.putKeys).toHaveLength(0);
@@ -577,18 +580,27 @@ describe("postcard photo", () => {
     const [from, to] = [await person("From7"), await person("To7")];
     await together(from, to);
     // Only the one that makes the cards (the list form) fails; every other use of the database is untouched.
+    // (Done by hand rather than vi.spyOn: restoring a spy on the database client left $transaction missing for
+    // every later test. Here the original is put back exactly as it was, or the temporary one is removed.)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const real = (db.$transaction as any).bind(db);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const spy = vi.spyOn(db, "$transaction").mockImplementation(((arg: unknown, ...rest: unknown[]) => (Array.isArray(arg) ? Promise.reject(new Error("database hiccup")) : real(arg, ...rest))) as any);
+    const client = db as any;
+    const real = client.$transaction.bind(db);
+    const own = Object.getOwnPropertyDescriptor(client, "$transaction");
+    Object.defineProperty(client, "$transaction", {
+      configurable: true,
+      writable: true,
+      value: (arg: unknown, ...rest: unknown[]) => (Array.isArray(arg) ? Promise.reject(new Error("database hiccup")) : real(arg, ...rest)),
+    });
     let threw = false;
     try {
       await sendCard(from, [to], jpeg(36));
     } catch (err) {
       threw = String((err as Error).message).includes("database hiccup");
     } finally {
-      spy.mockRestore();
+      if (own) Object.defineProperty(client, "$transaction", own);
+      else delete client.$transaction;
     }
+    expect(typeof client.$transaction).toBe("function");
     expect(threw).toBe(true);
     expect(blob.putKeys).toHaveLength(1); // it was stored...
     expect(blob.files.size).toBe(0); // ...and removed again
