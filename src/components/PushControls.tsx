@@ -51,9 +51,14 @@ export function PhoneStatus({ compact = false }: { compact?: boolean }) {
     // 3 s: a browser whose push service doesn't answer must not leave this page stuck on "checking".
     let done = false;
     // Only ever replaces "checking": a late answer must not undo what a tap has started since.
-    const settle = (next: State) => setState((now) => (now === "checking" ? next : now));
+    // (A slow answer after the 3 s fallback may still correct "off", but never a state a tap has started.)
+    let timedOut = false;
+    const settle = (next: State) => setState((now) => (now === "checking" || (timedOut && now === "off") ? next : now));
     const giveUp = setTimeout(() => {
-      if (!done) settle("off");
+      if (!done) {
+        settle("off");
+        timedOut = true;
+      }
     }, 3000);
     navigator.serviceWorker
       .getRegistration()

@@ -112,17 +112,18 @@ export function MoneyCard({
                   // Money going the other way too: why the net amount is smaller than the names above. Shortens first, like a name.
                   <span className="flex min-w-0 shrink-[2] items-baseline gap-1.5 text-fg/65" data-who-opposite>
                     <span aria-hidden className="shrink-0 text-fg/40">·</span>
-                    <span className="min-w-0 truncate">
-                      {who.opposite.kind === "owes-you" ? (
-                        <>
-                          <b className="font-semibold text-fg/85">{who.opposite.name}</b> owes you
-                        </>
-                      ) : (
-                        <>
-                          you owe <b className="font-semibold text-fg/85">{who.opposite.name}</b>
-                        </>
-                      )}
-                    </span>
+                    {/* Only the name shortens: the direction words always stay, so it never reads as a third person you owe. */}
+                    {who.opposite.kind === "owes-you" ? (
+                      <>
+                        <b className="min-w-0 truncate font-semibold text-fg/85">{who.opposite.name}</b>
+                        <span className="shrink-0">{who.opposite.phrase.slice(who.opposite.name.length + 1)}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="shrink-0">you owe</span>
+                        <b className="min-w-0 truncate font-semibold text-fg/85">{who.opposite.name}</b>
+                      </>
+                    )}
                     <span className="shrink-0" title={who.opposite.exact}>{who.opposite.amount}</span>
                   </span>
                 )}

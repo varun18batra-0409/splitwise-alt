@@ -285,10 +285,13 @@ describe("the who-line when money goes both ways", () => {
     expect(formatMoney(300000 + 200000 + 100000 - 100000)).toBe("₹5,000"); // what the card would say
   });
 
-  it("only the biggest person from the other side is added (Ravi ₹1,000 before Kiran ₹300)", () => {
+  it("several people the other way (one currency): a count with their total, so the line adds up to the card", () => {
+    // Nupur is owed ₹1,800; Ravi owes you ₹1,000 and Kiran ₹300 → card ₹1,800 − ₹1,300 = ₹500.
     const back = theyPay("g2", "Flat", [["k", "Kiran", 30000], ["r", "Ravi", 100000]]);
     const l = whoLine(moneyPeople([goa, back], "owe", "INR", same), moneyPeople([goa, back], "owed", "INR", same), "owe");
-    expect(l.text).toBe("Nupur ₹1,800 · Ravi owes you ₹1,000");
+    expect(l.text).toBe("Nupur ₹1,800 · 2 people owe you ₹1,300");
+    expect(l.opposite?.exact).toBe("₹1,300");
+    expect(formatMoney(180000 - 130000)).toBe("₹500"); // what the card says
   });
 
   it("nothing going the other way: no extra part; the Pay button is unchanged either way", () => {

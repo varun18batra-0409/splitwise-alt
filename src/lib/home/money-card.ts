@@ -121,18 +121,32 @@ export function whoLine(entries: MoneyPerson[], otherSide: MoneyPerson[] = [], s
   const others = Math.max(0, list.length - 2);
   const tail = others === 0 ? "" : others === 1 ? "1 other" : `${others} others`;
   const mainKeys = new Set(list.map(({ e }) => e.key));
-  const top = uniquePeople(otherSide.filter((e) => !mainKeys.has(e.key)))[0];
+  const rest = uniquePeople(otherSide.filter((e) => !mainKeys.has(e.key)));
+  const top = rest[0];
   const kind = side === "owe" ? "owes-you" : "you-owe";
+  // Several people the other way, all in one currency: name them as a count with their total, so the line adds up
+  // to the card ("Nupur ₹1,800 · 2 people owe you ₹1,300" under ₹500). Mixed currencies: the biggest one, as before.
+  const oneCurrency = rest.length > 1 && rest.every(({ e }) => e.currency === top.e.currency);
+  const sum = oneCurrency ? rest.reduce((t, { e }) => t + e.amount, 0) : 0;
+  const approx = oneCurrency ? rest.some(({ e }) => e.approx) : top?.e.approx;
   const opposite: WhoOpposite | null = top
-    ? {
-        name: top.name,
-        amount: `${top.e.approx ? "≈ " : ""}${homeMoney(top.e.amount, top.e.currency)}`,
-        exact: `${top.e.approx ? "≈ " : ""}${formatMoney(top.e.amount, top.e.currency)}`,
-        kind,
-        phrase: "",
-      }
+    ? oneCurrency
+      ? {
+          name: `${rest.length} people`,
+          amount: `${approx ? "≈ " : ""}${homeMoney(sum, top.e.currency)}`,
+          exact: `${approx ? "≈ " : ""}${formatMoney(sum, top.e.currency)}`,
+          kind,
+          phrase: "",
+        }
+      : {
+          name: top.name,
+          amount: `${top.e.approx ? "≈ " : ""}${homeMoney(top.e.amount, top.e.currency)}`,
+          exact: `${top.e.approx ? "≈ " : ""}${formatMoney(top.e.amount, top.e.currency)}`,
+          kind,
+          phrase: "",
+        }
     : null;
-  if (opposite) opposite.phrase = kind === "owes-you" ? `${opposite.name} owes you` : `you owe ${opposite.name}`;
+  if (opposite) opposite.phrase = kind === "owes-you" ? `${opposite.name} ${oneCurrency ? "owe" : "owes"} you` : `you owe ${opposite.name}`;
   const text = [...parts.map((p) => `${p.name} ${p.amount}`), ...(tail ? [tail] : []), ...(opposite ? [`${opposite.phrase} ${opposite.amount}`] : [])].join(" · ");
   const label =
     parts.map((p) => `${p.name} ${p.exact}`).join(", ") + (tail ? ` and ${tail}` : "") + (opposite ? `. Also ${opposite.phrase} ${opposite.exact}` : "");
