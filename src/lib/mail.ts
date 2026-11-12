@@ -104,8 +104,9 @@ export async function sendMail(to: string, subject: string, text: string, html: 
   {
     const { db } = await import("./db");
     const now = new Date();
-    const all = await db.rateLimit.findUnique({ where: { key: counter("mail:all") } }).catch(() => null);
-    if (!all || all.resetAt <= now) await db.rateLimit.updateMany({ where: { key: counter("mail:other"), resetAt: { gt: now } }, data: { count: 0, resetAt: now } }).catch(() => undefined);
+    // A failed read (undefined) is not "no day yet": skip the restart, so a database hiccup can never wipe a live count.
+    const all = await db.rateLimit.findUnique({ where: { key: counter("mail:all") } }).catch(() => undefined);
+    if (all === null || (all && all.resetAt <= now)) await db.rateLimit.updateMany({ where: { key: counter("mail:other"), resetAt: { gt: now } }, data: { count: 0, resetAt: now } }).catch(() => undefined);
   }
   if (opts.ops) {
     const { db } = await import("./db");
