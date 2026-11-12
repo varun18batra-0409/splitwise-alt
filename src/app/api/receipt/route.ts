@@ -23,7 +23,7 @@ export async function POST(req: Request) {
   const url = new URL(req.url);
   const groupId = url.searchParams.get("group") ?? "";
   const myId = /^[A-Za-z0-9_-]{6,40}$/.test(groupId) ? await getMyMemberId(groupId) : null;
-  const me = myId ? await db.member.findFirst({ where: { id: myId, groupId, leftAt: null, group: { deletedAt: null } }, select: { id: true, accountId: true } }) : null;
+  const me = myId ? await db.member.findFirst({ where: { id: myId, groupId, leftAt: null, group: { deletedAt: null } }, select: { id: true, accountId: true, group: { select: { currency: true } } } }) : null;
   if (!me) return Response.json({ ok: false, error: "Only people in this group can add a bill photo." }, { status: 403 });
   if (!(await allow(`receipt:${clientIp(h)}`, 60, 3600))) return Response.json({ ok: false, error: "Lots of photos from here in the last hour. Try again later." }, { status: 429 });
   const bytes = new Uint8Array(await req.arrayBuffer());
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
   if (refusal) return Response.json({ ok: true, id: saved.id, needsConsent: refusal.needsConsent, note: "Photo attached. Fill in the rest by hand." });
   const blocked = await aiAllowed(me.accountId ?? me.id);
   if (blocked) return Response.json({ ok: true, id: saved.id, note: blocked });
-  const bill = await readBill(clean, type);
+  const bill = await readBill(clean, type, me.group.currency);
   if (!bill) return Response.json({ ok: true, id: saved.id, note: "Couldn’t read that bill. The photo is attached; fill in the rest." });
   return Response.json({ ok: true, id: saved.id, bill });
 }

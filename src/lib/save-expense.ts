@@ -88,7 +88,11 @@ class Clash extends Error {}
 class LeaverStays extends Error {}
 class LeaverBack extends Error {}
 class ReceiptGone extends Error {}
-class MonthAdded extends Error {}
+class MonthAdded extends Error {
+  constructor(bill: string, public status?: "adding" | "added" | "covered") {
+    super(bill);
+  }
+}
 class ChargeLocked extends Error {
   constructor(bill: string, public status?: "adding" | "added" | "covered") {
     super(bill);
@@ -451,7 +455,7 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
     await markUndone(tx, opts.mark); // when this is an undo: marked in this very transaction
     // A move-out daily charge can't be deleted, or come back, once that month's bill is being added or was added: the bill took it off its total.
     const locked = await chargeLock(tx, expense.groupId, expense.id);
-    if (locked) throw deleted ? new ChargeLocked(locked.bill, locked.status) : new MonthAdded(locked.bill);
+    if (locked) throw deleted ? new ChargeLocked(locked.bill, locked.status) : new MonthAdded(locked.bill, locked.status);
     if (deleted) {
       // Deleting takes its amounts out of everyone's balance: a leaver can't end anywhere but where they were, or 0.
       // A move-out daily charge is exempt only for the leaver it was made for (deleting it is the tested way to take it
@@ -485,7 +489,7 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
   } catch (err) {
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
     if (err instanceof LeaverBack || err instanceof LeaverBreak) return { ok: false, error: err.message };
-    if (err instanceof MonthAdded) return { ok: false, error: `This month’s ${err.message} was already added, so this charge can’t come back. Add it again by hand if needed.` };
+    if (err instanceof MonthAdded) return { ok: false, error: err.status === "covered" ? `This month’s ${err.message} was already covered, so this charge can’t come back.` : `This month’s ${err.message} was already added, so this charge can’t come back. Add it again by hand if needed.` };
     if (err instanceof ChargeLocked) return { ok: false, error: chargeLockedText(err.message, err.status) };
     throw err;
   }

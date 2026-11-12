@@ -60,12 +60,17 @@ export async function monthInsights(groupId: string, expenses: Expenses, myId: s
         .filter((e) => !billExpenseIds.has(e.id) && getCategory(e.category).id === "groceries" && dayKey(e.spentAt ?? e.createdAt, tz).startsWith(k))
         .reduce((s, e) => s + (e.kind === "refund" ? -e.amount : e.amount), 0);
     }).filter((x) => x > 0);
-    const perBillFixed = bills.filter((b) => b.nature === "fixed").map((b) => ({ b, amount: Math.round(b.amount / Math.max(1, b.every)) }));
-    const perBillVaries = bills.filter((b) => b.nature === "varies").map((b) => {
+    // A bill the real run will hold (nobody left to share it, or someone in its split has left) isn't added next month, so it
+    // is left out of the total as well as out of "your share".
+    const members = await db.member.findMany({ where: { groupId }, select: { id: true, name: true, leftAt: true, splitWeight: true, joinedFrom: true } });
+    const active = members.filter((m) => !m.leftAt);
+    const usable = bills.filter((b) => !splitProblem(b.split, active.map((m) => m.id)));
+    const perBillFixed = usable.filter((b) => b.nature === "fixed").map((b) => ({ b, amount: Math.round(b.amount / Math.max(1, b.every)) }));
+    const perBillVaries = usable.filter((b) => b.nature === "varies").map((b) => {
       const past = history.filter((h) => h.name === b.name).slice(0, 3).map((h) => h.amount);
       return { b, past: past.length ? past : b.amount ? [b.amount] : [] };
     });
-    const perBillDaily = bills.filter((b) => b.nature === "daily").map((b) => ({ b, rate: b.amount, days: daysInMonth(next) }));
+    const perBillDaily = usable.filter((b) => b.nature === "daily").map((b) => ({ b, rate: b.amount, days: daysInMonth(next) }));
     estimate = forecast({
       fixed: perBillFixed.map((x) => x.amount),
       varies: perBillVaries.map((x) => x.past),
@@ -75,8 +80,6 @@ export async function monthInsights(groupId: string, expenses: Expenses, myId: s
     // "Your share": each bill is shared the way that bill is (its own split, the days people are there), worked out
     // with the same code that will split the real expense, in the currency's own minor units. The usual groceries are
     // shared by the group's weights.
-    const members = await db.member.findMany({ where: { groupId }, select: { id: true, name: true, leftAt: true, splitWeight: true, joinedFrom: true } });
-    const active = members.filter((m) => !m.leftAt);
     const groceryTotal = forecast({ fixed: [], varies: [], daily: [], groceries });
     const totalW = Object.values(weights).reduce((s, w) => s + w, 0);
     const groceryMine = totalW ? allocateByWeights(groceryTotal, Object.entries(weights).map(([memberId, weight]) => ({ memberId, weight }))).find((x) => x.memberId === myId)?.amount ?? 0 : 0;

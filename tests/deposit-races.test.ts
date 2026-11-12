@@ -106,6 +106,9 @@ describe("saving the form keeps a leaver's deposit on record", () => {
     expect(s[g.ids.Kabir]).toEqual({ amount: 20000, status: "held" });
     expect(s[g.ids.You]).toEqual({ amount: 15000, status: "held" });
     expect(s[g.ids.Asha]).toBeUndefined();
+    // The Activity line shows what is held after the save: You 15000 + Kabir 20000 = 35000, which is ₹350 (not just the 15000 typed).
+    const last = await db.groupEvent.findFirstOrThrow({ where: { groupId: g.id, text: { startsWith: "updated the deposit" } }, orderBy: [{ createdAt: "desc" }, { id: "desc" }] });
+    expect(last.text).toBe("updated the deposit with Landlord (₹350)");
   });
 });
 

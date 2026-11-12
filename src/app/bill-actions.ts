@@ -227,6 +227,8 @@ export async function tripFromGoal(formData: FormData) {
     const inIt = made.existing && await db.member.findFirst({ where: { groupId: made.existing, accountId: account.id, leftAt: null }, select: { id: true } });
     redirect(inIt ? `/groups/${made.existing}` : `/groups/${groupId}`);
   }
+  // The trip it made was deleted but can still be brought back: show Recently deleted with a note (no second trip).
+  if ("deleted" in made) redirect("/groups?deleted=trip");
   if ("busy" in made) redirect(`/groups/${groupId}`);
   const trip = made.trip;
   await setMyMemberId(trip.id, trip.members[0].id);

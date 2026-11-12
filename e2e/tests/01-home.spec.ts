@@ -13,7 +13,7 @@ test("first visit shows the tour, then a start screen with the main ways in", as
   await expect(page.getByRole("heading", { name: "Start with one group." })).toBeVisible();
   await expect(page.getByRole("link", { name: "Create a group" })).toBeVisible();
   await expect(page.getByRole("button", { name: "I have an invite link" })).toBeVisible();
-  await expect(page.getByRole("link", { name: /Sign up to keep your groups/ }).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: /Sign in to start/ }).first()).toBeVisible();
 });
 
 test("key pages open from Home: guide, sign in, moving over from another app, privacy, terms", async ({ page }) => {
@@ -32,7 +32,7 @@ test("key pages open from Home: guide, sign in, moving over from another app, pr
   await expect(page.getByRole("heading", { name: "Bring your groups. Keep your balances." })).toBeVisible();
 
   await page.goto("/");
-  await page.getByRole("link", { name: /Sign up to keep your groups/ }).first().click();
+  await page.getByRole("link", { name: /Sign in to start/ }).first().click();
   await expect(page).toHaveURL(/\/signin/);
   await expect(page.getByRole("heading", { name: "Continue to Loopin" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Email me a code" })).toBeVisible();

@@ -540,13 +540,13 @@ async function main() {
   await step(null, "Joining", "Someone opening the link without signing up can't join (no name box)", async () => {
     const x = await person(browser);
     await go(x.page, invite);
-    await x.page.getByRole("link", { name: "Sign up to join" }).waitFor();
+    await x.page.getByRole("link", { name: "Continue with email" }).waitFor();
     assert((await x.page.locator('input[name="name"]').count()) === 0, "a name box is offered before sign-up");
     await x.ctx.close();
   });
   await step(A, "Joining", "Asha opens the link, signs up with her email, and joins", async () => {
     await go(A, invite);
-    await A.getByRole("link", { name: "Sign up to join" }).click();
+    await A.getByRole("link", { name: "Continue with email" }).click();
     await signup(A, "Asha", email("asha"));
     await A.waitForURL(new RegExp(invite));
     await A.getByRole("button", { name: /^Join / }).click();
@@ -554,7 +554,7 @@ async function main() {
   });
   await step(R, "Joining", "Ravi does the same from a WhatsApp message", async () => {
     await go(R, invite);
-    await R.getByRole("link", { name: "Sign up to join" }).click();
+    await R.getByRole("link", { name: "Continue with email" }).click();
     await signup(R, "Ravi", email("ravi"));
     await R.waitForURL(new RegExp(invite));
     await R.getByRole("button", { name: /^Join / }).click();
@@ -585,7 +585,7 @@ async function main() {
     const link = /https?:\/\/\S+\/join\/\S+/.exec(mailRow.text)?.[0];
     assert(link, "no link in the email");
     await Z.goto(base + new URL(link).pathname + new URL(link).search, { waitUntil: "networkidle" });
-    await Z.getByRole("link", { name: "Sign up to join" }).click();
+    await Z.getByRole("link", { name: "Continue with email" }).click();
     assert((await Z.locator('input[name="email"]').inputValue()) === email("zoe"), "email not filled in from the invite");
     await signup(Z, "Zoe", email("zoe"), true);
     await Z.waitForURL(/\/join\//);
@@ -1251,7 +1251,7 @@ async function main() {
     // The same neutral row for any email (nobody can check who has an account); on Loopin → added straight away.
     await V.locator("[data-add-by-email]").waitFor();
     const results = (await V.locator("ul").filter({ has: V.locator("[data-add-by-email]") }).innerText()).replace(/\s+/g, " ");
-    assert(!/On Loopin/.test(results) && /In the group now, and emailed an invitation/.test(results), `a stranger's account was revealed by their email: ${results}`);
+    assert(!/On Loopin/.test(results) && /In the group now\. We’ll email an invitation/.test(results), `the reply for a full email should be the neutral row "In the group now. We’ll email an invitation" with no "On Loopin" label, but it says: ${results}`);
     await V.locator("[data-add-by-email]").click();
     await V.waitForURL(/invited=/);
     await V.locator("[data-invited-title]").waitFor();
@@ -1829,7 +1829,7 @@ async function main() {
     await V.getByRole("button", { name: "Invite", exact: true }).click();
     await V.waitForURL(/invited=/);
     await V.locator("[data-invited-title]").waitFor();
-    await V.getByText(/We’ve sent an invitation to/).waitFor();
+    await V.getByText(/We’re emailing an invitation to/).waitFor();
     await go(R, "/");
     await R.locator("[data-invitation]").filter({ hasText: "UAT Flat" }).getByRole("button", { name: "Not now", exact: true }).waitFor();
     await go(R, "/notifications");
@@ -1969,7 +1969,7 @@ async function main() {
     await go(page, "/");
     await page.getByRole("link", { name: "Home", exact: true }).first().click();
     await page.getByRole("heading", { name: "Start with one group." }).waitFor();
-    await page.getByRole("link", { name: /Sign up to keep your groups/ }).first().waitFor();
+    await page.getByRole("link", { name: /Sign in to start/ }).first().waitFor();
     // Join with a pasted link
     // (Tapped again if the first tap landed before the page came alive, as a person would.)
     for (let i = 0; i < 4 && !(await page.getByLabel("Invite link").count()); i++) {
@@ -2147,10 +2147,10 @@ async function main() {
     assert(elec === 0, "Electricity was added without an amount");
     await go(A, `${gh}?tab=bills`);
     assert(await A.getByRole("link", { name: "Enter amount" }).count(), "Asha sees no “Enter amount”");
-    // Each bill says where it stands: Electricity "Needs amount" (orange), Rent "Recorded" (green).
+    // Each bill says where it stands: Electricity "Needs amount" (orange), Rent "Added this month" (green).
     assert((await A.locator('[data-bill-state="needs-amount"]').count()) === 1, "Electricity has no “Needs amount” chip");
     await go(V, `${gh}?tab=bills`);
-    assert((await V.locator('[data-bill-state="recorded"]').filter({ hasText: "Recorded" }).count()) === 1, "Rent has no “Recorded” chip");
+    assert((await V.locator('[data-bill-state="recorded"]').filter({ hasText: "Added this month" }).count()) === 1, "Rent has no “Added this month” chip");
     assert((await V.locator('[data-bill-state="needs-amount"]').count()) === 1, "Electricity has no “Needs amount” chip");
   });
   await step(A, "Flat", "Asha taps “Enter amount”, types ₹2,840 and saves: Asha owes ₹13,580 in all", async () => {
@@ -2164,7 +2164,7 @@ async function main() {
     await go(V, `${gh}?tab=bills`);
     assert((await V.getByRole("link", { name: "Enter amount" }).count()) === 0, "Electricity still waiting");
     assert((await V.locator('[data-bill-state="needs-amount"]').count()) === 0, "Electricity still says “Needs amount”");
-    assert((await V.locator('[data-bill-state="recorded"]').count()) === 2, "Rent and Electricity should both say “Recorded”");
+    assert((await V.locator('[data-bill-state="recorded"]').count()) === 2, "Rent and Electricity should both say “Added this month”");
   });
   await step(V, "Flat", "Shopping list: add Bread and Milk, tick both, enter ₹1,240 → one Groceries expense", async () => {
     await go(V, `${gh}?tab=list`);

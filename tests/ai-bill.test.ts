@@ -24,6 +24,12 @@ describe("three-decimal currencies keep their last digit", () => {
     expect(cleanBill({ is_bill: true, total: 12.345, currency: "INR", items: [] })?.total).toBe(12.35);
     expect(cleanBill({ is_bill: true, total: 10.126, currency: "INR", items: [] })?.total).toBe(10.13);
   });
+  it("a blank currency uses the group's decimals: in a KWD group 1.234 stays 1.234 (1234 fils); in an INR group it is 1.23", () => {
+    expect(cleanBill({ is_bill: true, total: 1.234, currency: "", items: [{ name: "Tea", price: 0.567 }] }, "KWD")).toMatchObject({ total: 1.234, items: [{ name: "Tea", price: 0.567 }] });
+    expect(cleanBill({ is_bill: true, total: 1.234, currency: "", items: [] }, "INR")?.total).toBe(1.23);
+    // What the bill says wins over the group: a USD bill in a KWD group rounds to cents.
+    expect(cleanBill({ is_bill: true, total: 1.234, currency: "USD", items: [] }, "KWD")?.total).toBe(1.23);
+  });
   it("no currency, or one we don't know, rounds to 2 decimals (1.234 becomes 1.23)", () => {
     expect(cleanBill({ is_bill: true, total: 1.234, currency: "", items: [] })?.total).toBe(1.23);
     expect(cleanBill({ is_bill: true, total: 1.234, currency: "XYZ", items: [] })?.total).toBe(1.23);

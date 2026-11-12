@@ -39,15 +39,23 @@ export type Detected =
 
 const lower = (s: string | undefined) => (s ?? "").trim().toLowerCase();
 
-// A currency cell as people write it: a code ("INR", "usd"), or a common symbol or short form ("₹", "Rs", "Rs.", "$", "£", "€").
-// Returns the code, or "" when it says nothing we can read (then the row is taken as being in the file's own currency,
-// never skipped for a symbol). "$" is read as US dollars.
-const CURRENCY_WORDS: Record<string, string> = { "₹": "INR", RS: "INR", "RS.": "INR", "$": "USD", US$: "USD", "£": "GBP", "€": "EUR" };
-export function currencyCell(raw: string | undefined): string {
-  const t = (raw ?? "").trim().toUpperCase().replace(/\s+/g, "");
-  if (!t) return "";
-  if (CURRENCY_WORDS[t]) return CURRENCY_WORDS[t];
-  return /^[A-Z]{3}$/.test(t) ? t : "";
+// A currency cell as people write it: a code ("INR", "usd"), or a common symbol or short form ("₹", "Rs", "฿", "A$", "RM"…).
+//   code set            = a currency we can read
+//   code "" and text "" = an empty cell: the row is in the file's own currency
+//   code "" and text    = something written that we can't read ("dollars", "baht"): never taken as the file's currency
+// "$" is read as the file's own currency when that is a dollar currency, otherwise as US dollars.
+const DOLLARS = ["USD", "AUD", "CAD", "SGD", "NZD", "HKD"];
+const CURRENCY_WORDS: Record<string, string> = {
+  "₹": "INR", RS: "INR", "RS.": "INR", "US$": "USD", "£": "GBP", "€": "EUR", "฿": "THB", "¥": "JPY",
+  "A$": "AUD", "S$": "SGD", "C$": "CAD", "HK$": "HKD", RM: "MYR", RP: "IDR",
+};
+export function currencyCell(raw: string | undefined, main = ""): { code: string; text: string } {
+  const text = (raw ?? "").trim();
+  const t = text.toUpperCase().replace(/\s+/g, "");
+  if (!t) return { code: "", text: "" };
+  if (t === "$") return { code: DOLLARS.includes(main) ? main : "USD", text };
+  if (CURRENCY_WORDS[t]) return { code: CURRENCY_WORDS[t], text };
+  return /^[A-Z]{3}$/.test(t) ? { code: t, text } : { code: "", text };
 }
 
 export function detectFormat(text: string): Detected {
@@ -68,9 +76,18 @@ export function detectFormat(text: string): Detected {
   let currency = "INR";
   if (curCol >= 0) {
     const counts = new Map<string, number>();
+    let bare = 0; // rows that just say "$": read as the file's own dollar currency when it has one
     for (const r of table.slice(1)) {
-      const c = currencyCell(r[curCol]);
-      if (isSupportedCurrency(c)) counts.set(c, (counts.get(c) ?? 0) + 1);
+      if ((r[curCol] ?? "").trim() === "$") bare++;
+      else {
+        const c = currencyCell(r[curCol]).code;
+        if (isSupportedCurrency(c)) counts.set(c, (counts.get(c) ?? 0) + 1);
+      }
+    }
+    if (bare) {
+      const top = [...counts.entries()].sort((x, y) => y[1] - x[1])[0]?.[0] ?? "";
+      const d = DOLLARS.includes(top) ? top : "USD";
+      counts.set(d, (counts.get(d) ?? 0) + bare);
     }
     currency = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "INR";
   } else {
@@ -256,7 +273,13 @@ export function parseGenericCsv(text: string, map: ColumnMap, currency: string):
   // A currency column (if any): rows in another currency than the group's are left out and listed,
   // never read as if they were in the group's currency (10 USD is not 10 rupees).
   const curCol = head.findIndex((x) => /^currency$|currency code/.test(lower(x)));
-  const rowCurrency = (r: string[]) => (curCol >= 0 ? currencyCell(r[curCol]) : "");
+  // What a row says its currency is: "" for an empty cell (the file's own); the code if readable; otherwise the text as
+  // written, which is never the file's currency (so it is left out and listed, not imported by guessing).
+  const rowCurrency = (r: string[]) => {
+    if (curCol < 0) return "";
+    const c = currencyCell(r[curCol], currency);
+    return c.code || c.text;
+  };
   const isOther = (r: string[]) => {
     const c = rowCurrency(r);
     return c !== "" && c !== currency;
@@ -287,7 +310,10 @@ export function parseGenericCsv(text: string, map: ColumnMap, currency: string):
   const skipped: { line: number; reason: string }[] = [];
   body.forEach((r, k) => {
     const line = k + 2;
-    if (isOther(r)) return skipped.push({ line, reason: `in ${rowCurrency(r)}` });
+    if (isOther(r)) {
+      const c = rowCurrency(r);
+      return skipped.push({ line, reason: /^[A-Z]{3}$/.test(c) ? `in ${c}` : `in “${c}”` });
+    }
     const amount = looseAmount(cell(r, map.amount), currency);
     if (amount === null) return skipped.push({ line, reason: "the amount couldn’t be read" });
     if (amount === 0) return skipped.push({ line, reason: "no amount" });

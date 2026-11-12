@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectFormat, guessColumns, looseAmount, looseDate, parseImport, splitNames } from "@/lib/import-formats";
+import { currencyCell, detectFormat, guessColumns, looseAmount, looseDate, parseImport, splitNames } from "@/lib/import-formats";
 import { balancesOf, planRow } from "@/lib/splitwise-csv";
 
 // Bringing a group over from any app's spreadsheet.
@@ -192,13 +192,44 @@ describe("currency written as a symbol (LC-05)", () => {
     expect(p.currency).toBe("USD");
     expect(p.rows.map((r) => r.cost)).toEqual([1000, 2000]);
   });
-  it("a £ row in an INR file is left out as GBP; words we can't read are taken as the file's currency", () => {
-    const p = parseImport("Title,Amount,Currency,Paid by,For\nA,10,INR,Kim,Lee\nB,20,INR,Kim,Lee\nC,30,£,Kim,Lee\nD,40,rupees,Kim,Lee\n");
+  it("a £ row in an INR file is left out as GBP; a word we can't read ('rupees') is left out and listed as written, never imported by guessing", () => {
+    const p = parseImport("Title,Amount,Currency,Paid by,For\nA,10,INR,Kim,Lee\nB,20,INR,Kim,Lee\nC,30,£,Kim,Lee\nD,40,rupees,Kim,Lee\nE,50,,Kim,Lee\n");
     expect(p.ok).toBe(true);
     if (!p.ok) return;
-    expect(p.rows.map((r) => r.cost)).toEqual([1000, 2000, 4000]);
-    expect(p.skipped).toEqual([{ line: 4, reason: "in GBP" }]);
-    expect(p.otherCurrencies).toEqual(["GBP"]);
+    // Rows A and B (10, 20 rupees) and E (an empty cell: the file's own currency, 50 rupees) are imported.
+    expect(p.rows.map((r) => r.cost)).toEqual([1000, 2000, 5000]);
+    expect(p.skipped).toEqual([{ line: 4, reason: "in GBP" }, { line: 5, reason: "in “rupees”" }]);
+    expect(p.otherCurrencies).toEqual(["GBP", "rupees"]);
+  });
+  it("an INR file with ₹ and ฿ rows imports the ₹ rows and lists the ฿ row as THB", () => {
+    const p = parseImport("Title,Amount,Currency,Paid by,For\nA,100,₹,Kim,Lee\nB,200,₹,Kim,Lee\nC,300,฿,Kim,Lee\n");
+    expect(p.ok).toBe(true);
+    if (!p.ok) return;
+    expect(p.currency).toBe("INR");
+    expect(p.rows.map((r) => r.cost)).toEqual([10000, 20000]); // 100 and 200 rupees in paise
+    expect(p.skipped).toEqual([{ line: 4, reason: "in THB" }]);
+    expect(p.otherCurrencies).toEqual(["THB"]);
+  });
+  it("other common symbols are read: A$ S$ RM Rp ¥ HK$ C$", () => {
+    expect(["A$", "S$", "RM", "Rp", "¥", "HK$", "C$"].map((x) => currencyCell(x).code)).toEqual(["AUD", "SGD", "MYR", "IDR", "JPY", "HKD", "CAD"]);
+    expect(currencyCell("baht")).toEqual({ code: "", text: "baht" });
+    expect(currencyCell("  ")).toEqual({ code: "", text: "" });
+  });
+  it("'$' means the file's own dollar currency: an AUD file imports its $ rows as Australian dollars", () => {
+    const p = parseImport("Title,Amount,Currency,Paid by,For\nA,10,AUD,Kim,Lee\nB,20,AUD,Kim,Lee\nC,30,$,Kim,Lee\n");
+    expect(p.ok).toBe(true);
+    if (!p.ok) return;
+    expect(p.currency).toBe("AUD");
+    expect(p.rows.map((r) => r.cost)).toEqual([1000, 2000, 3000]);
+    expect(p.skipped).toEqual([]);
+    // Picked in the box: an all-$ file read as AUD.
+    const q = parseImport("Title,Amount,Currency,Paid by,For\nA,10,$,Kim,Lee\nB,20,$,Kim,Lee\n", { currency: "AUD" });
+    expect(q.ok && q.currency).toBe("AUD");
+    expect(q.ok && q.rows.map((r) => r.cost)).toEqual([1000, 2000]);
+  });
+  it("'$' in an INR file is US dollars, so those rows are left out as USD", () => {
+    const p = parseImport("Title,Amount,Currency,Paid by,For\nA,10,INR,Kim,Lee\nB,20,INR,Kim,Lee\nC,30,$,Kim,Lee\n");
+    expect(p.ok && p.skipped).toEqual([{ line: 4, reason: "in USD" }]);
   });
 });
 

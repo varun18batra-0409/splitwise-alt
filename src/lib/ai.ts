@@ -93,12 +93,14 @@ export function roundTo(v: number, decimals: number): number {
   return Math.round(Number((v * scale).toPrecision(15))) / scale;
 }
 
-export function cleanBill(raw: Record<string, unknown> | null): ReadBill | null {
+export function cleanBill(raw: Record<string, unknown> | null, groupCurrency = ""): ReadBill | null {
   if (!raw || raw.is_bill === false) return null;
   // Rounded to the bill currency's own decimals (3 only for a dinar or rial), so the form never gets a number it would
   // refuse. With no currency, or one we don't know, 2.
   const currency = /^[A-Z]{3}$/.test(String(raw.currency ?? "").toUpperCase()) ? String(raw.currency).toUpperCase() : "";
-  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0 && v < 1e9 ? roundTo(v, currency && isSupportedCurrency(currency) ? decimalsOf(currency) : 2) : null);
+  // The currency the bill says, else the group's (the form fills in the group's currency when the bill is silent), else 2.
+  const useCur = isSupportedCurrency(currency) ? currency : isSupportedCurrency(groupCurrency) ? groupCurrency : "";
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0 && v < 1e9 ? roundTo(v, useCur ? decimalsOf(useCur) : 2) : null);
   const total = num(raw.total);
   const items = (Array.isArray(raw.items) ? raw.items : [])
     .map((x) => ({ name: String((x as { name?: unknown })?.name ?? "").trim().slice(0, 40), price: num((x as { price?: unknown })?.price) ?? 0 }))
@@ -109,18 +111,18 @@ export function cleanBill(raw: Record<string, unknown> | null): ReadBill | null 
 }
 
 // Fast model first; the stronger one only if it read a bill but found no total.
-export async function readBill(image: Uint8Array, type: string): Promise<ReadBill | null> {
+export async function readBill(image: Uint8Array, type: string, groupCurrency = ""): Promise<ReadBill | null> {
   const content: Content[] = [
     { type: "image", source: { type: "base64", media_type: type, data: Buffer.from(image).toString("base64") } },
     { type: "text", text: "Read this bill." },
   ];
   const raw = await call<Record<string, unknown>>(FAST, BILL_SYSTEM, content, BILL_TOOL, 1500);
-  const first = cleanBill(raw);
+  const first = cleanBill(raw, groupCurrency);
   if (first?.total) return first;
   // The stronger model only when the fast one did read a bill but found no total:
   // not for a photo that isn't a bill, and not after a failed call (each is a paid call).
   if (!raw || raw.is_bill === false) return null;
-  return cleanBill(await call<Record<string, unknown>>(STRONG, BILL_SYSTEM, content, BILL_TOOL, 1500)) ?? first;
+  return cleanBill(await call<Record<string, unknown>>(STRONG, BILL_SYSTEM, content, BILL_TOOL, 1500), groupCurrency) ?? first;
 }
 
 // ---- A spoken or typed line ---------------------------------------------

@@ -50,9 +50,10 @@ describe("forecast 'Your share' uses each bill's own split", () => {
     await db.bill.create({ data: { groupId: f.gid, name: "Maid", nature: "fixed", amount: 6000, startMonth: "2026-10", payer: f.id.A, split: JSON.stringify({ mode: "some", ids: [f.id.C] }) } });
     await db.bill.create({ data: { groupId: f.gid, name: "Wi-Fi", nature: "fixed", amount: 9000, startMonth: "2026-10", payer: f.id.A, split: JSON.stringify({ mode: "group" }) } });
     await db.member.update({ where: { id: f.id.C }, data: { leftAt: new Date("2026-11-01T00:00:00Z") } });
-    // Only A and B are in the flat now: Wi-Fi 9000 / 2 = 4500 each; the 6000 for C alone is held, so 0 for A.
+    // Only A and B are in the flat now: Wi-Fi 9000 / 2 = 4500 each; the 6000 for C alone is held, so 0 for A and it is not in the total either.
     const a = await monthInsights(f.gid, [], f.id.A, { [f.id.A]: 100, [f.id.B]: 100 }, "INR", "Asia/Kolkata", now);
-    expect(a.forecast).toEqual({ total: 15000, mine: 4500 });
+    // The held Maid bill (6000) is also out of the total: 9000, not 15000.
+    expect(a.forecast).toEqual({ total: 9000, mine: 4500 });
   });
 
   it("JPY (no decimals): 1000 yen shared by three: 334 / 333 / 333, and every share is whole yen", async () => {

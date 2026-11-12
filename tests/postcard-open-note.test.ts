@@ -1,4 +1,10 @@
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
+
+const push = vi.hoisted(() => ({ calls: [] as string[] }));
+vi.mock("@/lib/push", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/push")>();
+  return { ...real, sendPushToAccounts: async (ids: string[], ..._rest: unknown[]) => void push.calls.push(...ids) };
+});
 import { db } from "@/lib/db";
 import { noteOpenedPostcards } from "@/lib/postcards/open-db";
 
@@ -56,13 +62,35 @@ describe("noteOpenedPostcards", () => {
     expect(await db.accountNote.count({ where: { accountId: to.id } })).toBe(0);
   });
 
-  it("more than 100 due cards are all handled (in batches of 100), each with its note", async () => {
+  it("more than 100 due cards are all handled (in batches of 100), each with its note and its alert", async () => {
     const from = await account("Sender4");
     const to = await account("Reader4");
     await db.postcard.createMany({ data: Array.from({ length: 120 }, (_, i) => ({ fromId: from.id, toId: to.id, front: "print:beach", message: `card ${i}`, opensAt: new Date(Date.now() - 60_000) })) });
+    push.calls.length = 0;
     const r = await noteOpenedPostcards();
     expect(r.sent).toBeGreaterThanOrEqual(120);
     expect(await db.postcard.count({ where: { fromId: from.id, openNoted: false } })).toBe(0);
     expect(await db.accountNote.count({ where: { accountId: to.id, kind: "postcard" } })).toBe(120);
+    expect(push.calls.filter((id) => id === to.id)).toHaveLength(120);
+  });
+
+  it("a later batch failing does not lose the first batch's alerts: 100 claimed and alerted, the other 20 still waiting", async () => {
+    // Oldest first is not guaranteed, so count what happened rather than which cards.
+    const from = await account("Sender5");
+    const to = await account("Reader5");
+    await db.postcard.updateMany({ where: { openNoted: false, opensAt: { lte: new Date() } }, data: { openNoted: true } }); // clear anything left by other tests
+    await db.postcard.createMany({ data: Array.from({ length: 120 }, (_, i) => ({ fromId: from.id, toId: to.id, front: "print:beach", message: `card ${i}`, opensAt: new Date(Date.now() - 60_000) })) });
+    push.calls.length = 0;
+    await expect(
+      noteOpenedPostcards(new Date(), {
+        beforeBatch: async (index) => {
+          if (index === 1) throw new Error("second batch broke");
+        },
+      }),
+    ).rejects.toThrow("second batch broke");
+    expect(await db.postcard.count({ where: { fromId: from.id, openNoted: true } })).toBe(100);
+    expect(await db.postcard.count({ where: { fromId: from.id, openNoted: false } })).toBe(20);
+    expect(await db.accountNote.count({ where: { accountId: to.id, kind: "postcard" } })).toBe(100);
+    expect(push.calls.filter((id) => id === to.id)).toHaveLength(100); // alerted straight after batch 1 committed
   });
 });

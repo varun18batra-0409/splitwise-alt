@@ -390,11 +390,13 @@ export async function saveDepositFor(groupId: string, actorId: string, input: { 
           if (done.count !== 1) throw new Error("DEPOSIT_CHANGED");
         }
       }
+      // The total still held after this save: everyone's held share, including a leaver's that stays on record.
+      const stillHeld = (await tx.depositShare.aggregate({ where: { depositId: dep.id, status: "held" }, _sum: { amount: true } }))._sum.amount ?? 0;
       await logEvent(tx, {
         groupId,
         actorId,
         kind: "bill_changed",
-        text: `updated the deposit with ${heldBy} (${formatMoney(rows.reduce((s, r) => s + r.amount, 0), flat.currency)})`,
+        text: `updated the deposit with ${heldBy} (${formatMoney(stillHeld, flat.currency)})`,
         details: rows.map((r) => `${flat.members.find((m) => m.id === r.memberId)?.name}: ${formatMoney(r.amount, flat.currency)}`),
       });
     });

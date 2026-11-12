@@ -8,7 +8,8 @@ import { noteItem } from "@/lib/account-notify";
 // both tell. The phone push goes afterwards (a push that fails never undoes the note).
 const BATCH = 100;
 
-export async function noteOpenedPostcards(now = new Date()): Promise<{ sent: number }> {
+// `opts.beforeBatch` is for tests only: it runs before each batch (a throw there stands in for a later batch failing).
+export async function noteOpenedPostcards(now = new Date(), opts: { beforeBatch?: (index: number) => Promise<void> } = {}): Promise<{ sent: number }> {
   const due = await db.postcard.findMany({ where: { opensAt: { lte: now }, openNoted: false }, select: { id: true, fromId: true, toId: true }, take: 500 });
   if (!due.length) return { sent: 0 };
   const senders = await db.account.findMany({ where: { id: { in: [...new Set(due.map((p) => p.fromId))] } }, select: { id: true, name: true } });
@@ -19,12 +20,12 @@ export async function noteOpenedPostcards(now = new Date()): Promise<{ sent: num
   for (const from of new Set(due.map((p) => p.fromId))) blockedBy.set(from, await blockedEitherWay(from)); // if this fails the run fails (counted), nothing is claimed
   const recipients = new Set((await db.account.findMany({ where: { id: { in: [...new Set(due.map((p) => p.toId))] } }, select: { id: true } })).map((a) => a.id));
 
-  const toPush: { to: string; fromId: string; title: string; body: string; url: string; tag: string }[] = [];
   let sent = 0;
   // At most 100 cards per transaction (each does a few writes), with room to finish: a long list can't hit the default time limit.
   for (let i = 0; i < due.length; i += BATCH) {
     const batch = due.slice(i, i + BATCH);
-    const pushed: typeof toPush = [];
+    await opts.beforeBatch?.(i / BATCH);
+    const pushed: { to: string; fromId: string; title: string; body: string; url: string; tag: string }[] = [];
     let claimedHere = 0;
     await db.$transaction(
       async (tx) => {
@@ -45,13 +46,13 @@ export async function noteOpenedPostcards(now = new Date()): Promise<{ sent: num
       { timeout: 30000 },
     );
     sent += claimedHere;
-    toPush.push(...pushed);
-  }
-  for (const n of toPush) {
-    try {
-      await sendPushToAccounts([n.to], { title: n.title, body: n.body, url: n.url, tag: n.tag }, noteItem("postcard"));
-    } catch {
-      // a notification must never break the job
+    // This batch's phone alerts go out now, straight after it committed: a later batch failing can't lose them.
+    for (const n of pushed) {
+      try {
+        await sendPushToAccounts([n.to], { title: n.title, body: n.body, url: n.url, tag: n.tag }, noteItem("postcard"));
+      } catch {
+        // a notification must never break the job
+      }
     }
   }
   return { sent };
