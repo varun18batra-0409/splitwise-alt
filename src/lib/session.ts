@@ -17,6 +17,8 @@ const enc = new TextEncoder();
 function secret(): string {
   if (process.env.AUTH_SECRET) return process.env.AUTH_SECRET;
   if (process.env.TURSO_AUTH_TOKEN) return `loopin-session:${process.env.TURSO_AUTH_TOKEN}`;
+  // The live app never signs sessions with a string that is written in the code.
+  if (process.env.VERCEL_ENV === "production") throw new Error("Sign-in is not set up: AUTH_SECRET is missing on the live app.");
   return "loopin-local-development-secret";
 }
 

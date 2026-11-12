@@ -35,6 +35,8 @@ type RateLookupFn = (from: string, to: string) => Promise<RateAnswer>;
 // (an id from the photo upload, or "remove"; undefined = leave it).
 export type ItemLine = { name: string; amount: number; people: string[] };
 export type Attach = { items?: ItemLine[]; receiptId?: string };
+export const POT_EDIT_ERROR = "Card-game results change through the game: open the game to change it.";
+export const POT_DELETE_ERROR = "Card-game results change through the game: open the game to reopen or delete it.";
 export const RECEIPT_GONE = "That bill photo has expired. Add it again.";
 
 export type Result =
@@ -154,6 +156,8 @@ async function saveExpenseOnce(
   if (input.expenseId) {
     if (!existing) return { ok: false, error: "That expense no longer exists." };
     if (existing.deletedAt) return { ok: false, error: "This expense was deleted. Restore it before changing it." };
+    // A card game's result is worked out from the game: it can't be edited into ordinary spending.
+    if (existing.kind === "pot") return { ok: false, error: POT_EDIT_ERROR };
     // Someone else saved a change while this person was editing: don't overwrite it silently.
     if (input.baseVersion && (existing.editedAt ?? existing.createdAt).toISOString() !== input.baseVersion) {
       const last = await db.groupEvent.findFirst({ where: { expenseId: existing.id }, orderBy: { createdAt: "desc" } });
@@ -191,7 +195,9 @@ async function saveExpenseOnce(
   const inExisting = (id: string) =>
     Boolean(existing && (existing.paidById === id || existing.shares.some((s) => s.memberId === id) || parsePayers(existing.payers).some((p) => p.memberId === id)));
   const pool = group.members.filter((m) => !m.leftAt || inExisting(m.id)).map((m) => m.id);
-  const built = buildExpense(input, { memberIds: pool, baseCurrency: group.currency, groupMarkupBp: group.cardMarkupBp, rate });
+  // An edit that doesn't say otherwise keeps money back as money back.
+  const draft = existing && existing.kind === "refund" && input.kind === undefined ? { ...input, kind: "refund" as const } : input;
+  const built = buildExpense(draft, { memberIds: pool, baseCurrency: group.currency, groupMarkupBp: group.cardMarkupBp, rate });
   if (!built.ok) return built;
   const e = built.expense;
 
@@ -347,6 +353,8 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
   if (await hasLeft(expense.groupId, actingMemberId)) return { ok: false, error: LEFT_ERROR };
   if (expense.group.deletedAt) return { ok: false, error: "This group was deleted." };
   if (expense.group.closed) return { ok: false, error: "This group is closed. Reopen it to change expenses." };
+  // A game's result is never deleted or restored on its own (it would leave a finished game with no result, or two results).
+  if (expense.kind === "pot") return { ok: false, error: POT_DELETE_ERROR };
   if (Boolean(expense.deletedAt) === deleted) return { ok: true, id: expense.id };
 
   let eventId: string;

@@ -95,7 +95,7 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
   if (newCurrency === group.currency) return { ok: true };
   // A card game still being played would come out a cent or two off after
   // converting each buy-in and return on its own: finish it first.
-  if (await db.potGame.count({ where: { groupId, status: "open" } })) return { ok: false, error: "Finish (or delete) the card game that’s still open first, then change the currency." };
+  if (await db.potGame.count({ where: { groupId, status: "open", deletedAt: null } })) return { ok: false, error: "Finish (or delete) the card game that’s still open first, then change the currency." };
   // Everything else that holds money: bills, budgets, goals, the deposit, the
   // smallest payment worth settling and card games. All at the same rate.
   const otherBefore = await loadOtherMoney(groupId, group.settleMin);

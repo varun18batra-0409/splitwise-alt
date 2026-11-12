@@ -149,6 +149,7 @@ async function confirmClaimOnce(claimId: string, myMemberId: string | undefined,
   const from = group.members.find((m) => m.id === claim.fromId);
   const to = group.members.find((m) => m.id === claim.toId);
   if (!from || !to) return { ok: false, error: notThere };
+  // Deliberate product decision: a receiver who has since left can still tap Confirm received / Not received. Do not block it.
   if (group.closed) return { ok: false, error: "This group is closed. Reopen it to confirm payments." };
   if (group.currency !== claim.currency) {
     await db.paymentClaim.updateMany({ where: { id: claim.id, status: "waiting" }, data: { status: "expired", slot: claim.id, decidedAt: new Date(), decidedById: myMemberId } });

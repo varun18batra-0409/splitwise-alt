@@ -76,6 +76,8 @@ export async function GET(req: Request) {
   await part("cleanup-collections", async () => (await db.collection.deleteMany({ where: { deletedAt: { lt: new Date(now.getTime() - 30 * 86_400_000) } } })).count);
   await part("cleanup-notes", async () => (await db.accountNote.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - 90 * 86_400_000) } } })).count);
   await part("cleanup-mail", async () => (await db.notifyLog.deleteMany({ where: { key: { startsWith: "mail-failed:" }, createdAt: { lt: new Date(now.getTime() - 30 * 86_400_000) } } })).count);
+  // Kept emails (only written in preview/test mode): gone after a day.
+  await part("cleanup-outbox", async () => (await db.outbox.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - 86_400_000) } } })).count);
   await part("cleanup-deferred", async () => (await db.notifyLog.deleteMany({ where: { OR: [{ key: { startsWith: "daily-deferred:" } }, { key: { startsWith: "daily-started:" } }, { key: { startsWith: "daily-finished:" } }], createdAt: { lt: new Date(now.getTime() - 7 * 86_400_000) } } })).count);
   // Bill photos taken while adding an expense that was never saved: gone after a day.
   await part("cleanup-receipts", async () => (await import("@/lib/photo-store")).cleanUnsentReceipts(now));

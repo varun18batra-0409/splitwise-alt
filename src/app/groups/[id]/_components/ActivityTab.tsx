@@ -254,7 +254,8 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
               const deleted = Boolean(e.deletedAt);
               const orig = foreign ? originalShares(e) : [];
               const reacted = reactionSummary(reactions.filter((r) => r.expenseId === e.id), myId);
-              const swipeable = !deleted && !group.closed;
+              const isPot = e.kind === "pot"; // a card game's result changes through the game, so no swipe Delete
+              const swipeable = !deleted && !group.closed && !isPot;
               const wrap = (node: ReactNode) =>
                 swipeable ? (
                     <SwipeRow
@@ -407,7 +408,11 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                       </div>
                       {!group.closed && (
                         <div className="flex gap-4 pt-1">
-                          {deleted ? (
+                          {isPot ? (
+                            <Link href={`/groups/${group.id}/expenses/${e.id}/edit`} className="text-sm font-medium text-accent">
+                              Open the game
+                            </Link>
+                          ) : deleted ? (
                             <form action={restoreExpense}>
                               <input type="hidden" name="groupId" value={group.id} />
                               <input type="hidden" name="expenseId" value={e.id} />

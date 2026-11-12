@@ -10,7 +10,7 @@ import { PotBuyIn } from "@/components/PotBuyIn";
 import { PotCount } from "@/components/PotCount";
 import { PotName } from "@/components/PotName";
 import { addPlayerAction, adjustAction, cashOutAction, deleteGameAction, finishGameAction, markGamePaidAction, removeMoveAction, reopenGameAction } from "@/app/pot-actions";
-import { gameSettlement, inPlay, loadGame } from "@/lib/pot-db";
+import { canRunGame, gameSettlement, inPlay, loadGame } from "@/lib/pot-db";
 import { parsePlayers, potGameLabel, potResultLine, potSummary } from "@/lib/pot";
 import { UndoBar } from "@/components/UndoBar";
 import { canUndo } from "@/lib/undo";
@@ -47,7 +47,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
   const live = game.moves.filter((m) => !m.deletedAt);
   const { lines, totals } = potSummary(players, live);
   const open = game.status === "open";
-  const host = game.hostId === myId;
+  const host = canRunGame(game, group.members, myId); // the host, or the group admin if the host has left
   const ranked = [...lines].sort((a, b) => b.net - a.net);
   const playing = inPlay(players, live);
   const lineOf = (mid: string) => lines.find((l) => l.memberId === mid);

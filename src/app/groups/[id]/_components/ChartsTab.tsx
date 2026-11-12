@@ -8,6 +8,7 @@ import { spentByCurrency } from "@/lib/secondary";
 import { ColumnChart, HBarChart } from "@/components/Charts";
 import type { GroupExpense, GroupView } from "./view";
 import Link from "@/components/Link";
+import { spendingOnly } from "@/lib/chart-rows";
 import { insightLines, tripReport } from "@/lib/trip-report";
 
 // Category, currency, day-by-day, who paid, and each person's share.
@@ -17,9 +18,9 @@ export function ChartsTab({ v }: { v: GroupView }) {
     return <p className="rounded-2xl bg-mist px-4 py-8 text-center text-sm text-gray-600">Charts appear once the group has expenses.</p>;
   }
 
-  const sumBy = (keyOf: (e: GroupExpense) => string[], amountOf: (e: GroupExpense, k: string) => number) => {
+  const sumBy = (keyOf: (e: GroupExpense) => string[], amountOf: (e: GroupExpense, k: string) => number, rows: GroupExpense[] = expenses) => {
     const m = new Map<string, number>();
-    for (const e of expenses) for (const k of keyOf(e)) m.set(k, (m.get(k) ?? 0) + amountOf(e, k));
+    for (const e of rows) for (const k of keyOf(e)) m.set(k, (m.get(k) ?? 0) + amountOf(e, k));
     return m;
   };
 
@@ -32,7 +33,7 @@ export function ChartsTab({ v }: { v: GroupView }) {
     .sort((a, b) => b.value - a.value);
 
   const sign = (e: GroupExpense) => (e.kind === "refund" ? -1 : 1);
-  const paid = sumBy((e) => payerIds(e), (e, k) => sign(e) * (payersOf(e).find((p) => p.memberId === k)?.amount ?? 0));
+  const paid = sumBy((e) => payerIds(e), (e, k) => sign(e) * (payersOf(e).find((p) => p.memberId === k)?.amount ?? 0), spendingOnly(expenses));
   const people = (m: Map<string, number>) =>
     group.members
       .map((mem) => ({ key: mem.id, label: mem.id === myId ? "You" : mem.name, value: m.get(mem.id) ?? 0, valueText: money(m.get(mem.id) ?? 0) }))
@@ -42,7 +43,7 @@ export function ChartsTab({ v }: { v: GroupView }) {
   const byPerson = group.members
     .map((mem) => {
       const cats = new Map<string, number>();
-      for (const e of expenses) {
+      for (const e of spendingOnly(expenses)) {
         const sh = e.shares.find((x) => x.memberId === mem.id)?.amount ?? 0;
         if (!sh) continue;
         const c = getCategory(e.category).id;

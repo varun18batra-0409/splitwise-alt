@@ -1296,9 +1296,11 @@ async function main() {
     assert(order[0] === "new", `the first card in the row is ${order[0]}, not “+ New group”`);
     assert(/New group/.test(await newCard.innerText()), "the first card doesn't say New group");
     const nb = (await newCard.boundingBox())!;
-    const gb = (await V.locator("[data-group-card]").first().boundingBox())!;
+    // Polaroids differ in height (a long name wraps to two lines), so the card matches the tallest one in the row.
+    const heights = await V.locator("[data-group-card]").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
+    const tallest = Math.max(...heights);
     assert(nb.width >= 44 && nb.height >= 44, `the “+ New group” card is ${Math.round(nb.width)}×${Math.round(nb.height)}px`);
-    assert(Math.abs(nb.height - gb.height) <= 14, `the “+ New group” card is ${Math.round(nb.height)}px tall, the group cards ${Math.round(gb.height)}px`);
+    assert(Math.abs(nb.height - tallest) <= 14, `the “+ New group” card is ${Math.round(nb.height)}px tall, the tallest group card ${Math.round(tallest)}px`);
     assert((await V.getByRole("link", { name: "See all" }).count()) >= 1, "“See all” is gone from the header");
     await newCard.click();
     await V.waitForURL(/\/groups\/new/);
@@ -2275,7 +2277,7 @@ async function main() {
       req.on("error", reject);
       req.end();
     });
-  await step(null, "New address", "The old address forwards to loopinapps.com, and a signed-in person arrives still signed in (once)", async () => {
+  await step(null, "New address", "The old address forwards to loopinapps.com, and a signed-in person arrives still signed in after one tap (once)", async () => {
     // Pretending to be the old address only works on a server of our own; on Vercel it would reach the live app.
     if (hosted) return "checked on the GitHub test server only (on Vercel this would reach the live app)";
     const plain = await raw("/how-it-works", "getloopin.vercel.app");
@@ -2288,17 +2290,31 @@ async function main() {
     const move = await raw("/api/move?to=%2Fsettle", "getloopin.vercel.app", cookie);
     const m = /^https:\/\/loopinapps\.com\/api\/arrive\?t=([A-Za-z0-9_-]+)&to=%2Fsettle$/.exec(move.location);
     assert(move.status === 307 && m, `move: ${move.status} ${move.location}`);
+    // Opening the link signs nobody in: it only leads to a "Continue to Loopin as …?" page, which doesn't use the pass up either.
     const arrive = await raw(`/api/arrive?t=${m[1]}&to=%2Fsettle`, "loopinapps.com");
-    assert(arrive.status === 303 && /\/settle\?moved=1$/.test(arrive.location), `arrive: ${arrive.status} ${arrive.location}`);
-    assert(arrive.setCookie.some((c) => c.startsWith(`sw_me=${me.value};`)), "sign-in not carried over");
-    const again = await raw(`/api/arrive?t=${m[1]}&to=%2Fsettle`, "loopinapps.com");
-    assert(!again.setCookie.some((c) => c.startsWith("sw_me=")), "the pass worked twice");
+    assert(arrive.status === 303 && new RegExp(`/arrive\\?t=${m[1]}&to=%2Fsettle$`).test(arrive.location), `arrive: ${arrive.status} ${arrive.location}`);
+    assert(!arrive.setCookie.some((c) => c.startsWith("sw_me=")), "opening the link signed someone in");
+    const look = await raw(`/arrive?t=${m[1]}&to=%2Fsettle`, "loopinapps.com");
+    assert(look.status === 200 && !look.setCookie.some((c) => c.startsWith("sw_me=")), `confirm page: ${look.status}`);
+    // The tap on "Yes, continue" signs in (once).
+    const fresh = await person(browser);
+    await go(fresh.page, `/arrive?t=${m[1]}&to=%2Fsettle`);
+    await fresh.page.getByText(/Continue to Loopin as/).waitFor();
+    await fresh.page.getByRole("button", { name: "Yes, continue" }).click();
+    await fresh.page.waitForURL(/\/settle\?moved=1/);
+    assert((await fresh.ctx.cookies()).some((c) => c.name === "sw_me" && c.value === me.value), "sign-in not carried over");
+    await fresh.ctx.close();
+    const again = await person(browser);
+    await go(again.page, `/arrive?t=${m[1]}&to=%2Fsettle`);
+    await again.page.getByText(/run out or was already used/).waitFor();
+    assert(!(await again.ctx.cookies()).some((c) => c.name === "sw_me"), "the pass worked twice");
+    await again.ctx.close();
     // A pass sent to someone already signed in never switches who they are (Fable security 8).
     const move2 = await raw("/api/move?to=%2Fsettle", "getloopin.vercel.app", cookie);
     const m2 = /arrive\?t=([A-Za-z0-9_-]+)&/.exec(move2.location);
     assert(m2, `second move: ${move2.status} ${move2.location}`);
     const planted = await raw(`/api/arrive?t=${m2[1]}&to=%2Fsettle`, "loopinapps.com", "sw_me=someone-else");
-    assert(planted.status === 303 && !planted.setCookie.some((c) => c.startsWith("sw_me=")), "a pass switched who was signed in");
+    assert(planted.status === 303 && planted.location.endsWith("/settle") && !planted.setCookie.some((c) => c.startsWith("sw_me=")), "a pass switched who was signed in");
     const stays = await raw("/api/health", "getloopin.vercel.app");
     assert(stays.status === 200 || stays.status === 429, `the daily job / health stopped working on the old address (${stays.status})`);
   });
