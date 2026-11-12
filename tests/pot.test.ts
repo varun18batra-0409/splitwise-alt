@@ -83,6 +83,6 @@ describe("the question before a game goes into Money owed", () => {
 
   it("leaves out people who came out even, and copes with a game nobody won", () => {
     expect(potResultLine([{ name: "Asha", net: 10000 }, { name: "Dev", net: 0 }, { name: "Ravi", net: -10000 }], "INR")).toBe("Put this game into Money owed? Asha +₹100, Ravi −₹100. You can reopen it.");
-    expect(potResultLine([{ name: "Asha", net: 0 }], "INR")).toBe("Put this game into Money owed? Nobody won or lost. You can reopen it.");
+    expect(potResultLine([{ name: "Asha", net: 0 }], "INR")).toBe("Put this game into Money owed? Nobody came out ahead or behind. You can reopen it.");
   });
 });

@@ -71,7 +71,7 @@ export function PotCount({
       <input type="hidden" name="gameId" value={gameId} />
       <div>
         <h2 className="font-display text-lg font-semibold tracking-tight">Game over? Count the money</h2>
-        <p className="mt-0.5 text-sm text-gray-500">What does each player have in front of them? 0 if they lost it all.</p>
+        <p className="mt-0.5 text-sm text-gray-500">What does each player have in front of them? 0 if they have nothing left.</p>
       </div>
       <ul className="divide-y divide-line rounded-2xl border border-line">
         {rows.map((r) => {

@@ -67,9 +67,9 @@ export default function Privacy() {
           the people who should be in it.
         </li>
         <li>
-          <strong>Your Trip passport:</strong> by default, anyone who is or was in a group with you can open it (not someone removed from a group).
-          They see the countries and cities you’ve been to and when. They never see money, your groups or your email. You can hide it any time:
-          Passport → Who can see it → Only me.
+          <strong>Your Trip passport:</strong> hidden until you say yes. Loopin asks you once, the first time you open your passport. If you choose Show, anyone who is or was in a group with you can open it (not someone removed from a group).
+          They see the countries and cities you’ve been to and when. They never see money, your groups or your email. You can change your mind any time:
+          Passport → Who can see it.
         </li>
         <li>
           <strong>Postcards:</strong> only the person who sent a card and the people it was sent to. That includes the photo on it. Cards go only to

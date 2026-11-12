@@ -1,3 +1,4 @@
+import { neutralGameText } from "@/lib/game-words";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { Notice } from "@/components/Notice";
@@ -41,7 +42,7 @@ function inviteMessage(type: string, name: string, link: string, from: string): 
         : type === "couple"
           ? `💛 ${who} to *${name}* on Loopin\n\nOur shared money, sorted. One number, no awkward maths.`
           : type === "pot"
-            ? `🃏 ${who} to *${name}* on Loopin\n\nBuy-ins, the pot and who pays whom at the end, all in one place.`
+            ? `🃏 ${who} to *${name}* on Loopin\n\nKeep the score and see who pays whom, all in one place. No betting happens in the app.`
             : `👋 ${who} to *${name}* on Loopin\n\nAdd what you spend, see who owes what, settle in one tap.`;
   return `${body}\n\nTap to join 👇\n${link}`;
 }
@@ -252,7 +253,7 @@ export default async function AddPeoplePage({
       )}
 
       {justDid && canUndo(justDid, group.events).ok && (
-        <UndoBar key={justDid.id} text={sp.undone ? "Undone." : `${nameOf(justDid.actorId)} ${justDid.text}`} groupId={group.id} eventId={justDid.id} back="people" redo={sp.undone === "1"} />
+        <UndoBar key={justDid.id} text={sp.undone ? "Undone." : `${nameOf(justDid.actorId)} ${neutralGameText(justDid.text)}`} groupId={group.id} eventId={justDid.id} back="people" redo={sp.undone === "1"} />
       )}
     </>
   );

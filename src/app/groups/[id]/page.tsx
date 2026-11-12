@@ -1,3 +1,4 @@
+import { neutralGameText } from "@/lib/game-words";
 import Link from "@/components/Link";
 import { notFound, redirect } from "next/navigation";
 import { getAccount, getMemberships } from "@/lib/identity";
@@ -263,7 +264,7 @@ export default async function GroupPage({
       {showUndo && (
         <UndoBar
           key={justDid.id}
-          text={sp.undone ? "Undone." : `${v.nameOf(justDid.actorId)} ${justDid.text}`}
+          text={sp.undone ? "Undone." : `${v.nameOf(justDid.actorId)} ${neutralGameText(justDid.text)}`}
           groupId={group.id}
           eventId={justDid.id}
           back={tab === "balances" ? "balances" : "group"}

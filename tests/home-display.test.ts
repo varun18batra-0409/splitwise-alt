@@ -62,7 +62,7 @@ describe("Needs you wording for collections", () => {
 describe("story labels", () => {
   it("up to 10 characters stay whole; longer ones are cut to 9 plus an ellipsis", () => {
     expect(storyShort("Collection")).toBe("Collection");
-    expect(storyShort("Card night")).toBe("Card night");
+    expect(storyShort("Game night")).toBe("Game night");
     expect(storyShort("Lonavala weekend")).toBe("Lonavala…");
     expect(storyShort("Teacher’s Day gift")).toBe("Teacher’s…");
   });
@@ -77,7 +77,7 @@ describe("story labels", () => {
       wrapped: [{ id: "w1", name: "Thailand trip", endedDaysAgo: 2 }],
     });
     const shortOf = (k: string) => stories.find((s) => s.kind === k)?.short;
-    expect(shortOf("pot")).toBe("Card night");
+    expect(shortOf("pot")).toBe("Game night");
     expect(shortOf("square")).toBe("All square");
     expect(shortOf("collect")).toBe("Collection");
     expect(shortOf("memory")).toBe("A year ago");

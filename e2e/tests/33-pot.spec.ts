@@ -4,26 +4,26 @@ import { testEmail, groupName } from "../env";
 import { signUp } from "../helpers/auth";
 import { contextFor, createGroup, joinGroup, settled } from "../helpers/app";
 
-// The Pot (card nights), the brief's example: Asha (host) and Ravi on Loopin,
-// Chirag and Dev just names. Buy-in for everyone, top-ups, a cash-out with Neha
+// Game night, the brief's example: Asha (host) and Ravi on Loopin,
+// Chirag and Dev just names. Chips in for everyone, top-ups, a took-home with Neha
 // taking the seat, a count table with a ₹100 slip caught and fixed, then
 // Calculate & settle → A +600, R −300, C −200, D −100, N 0; Ravi pays and it shows.
-test("a Teen Patti game from first take to settled", async ({ browser }) => {
+test("a game night from first chips in to settled", async ({ browser }) => {
   const asha = await signUp("Asha", testEmail("pot-asha"));
   const ravi = await signUp("Ravi", testEmail("pot-ravi"));
   const A = await (await contextFor(browser, asha)).newPage();
   const R = await (await contextFor(browser, ravi)).newPage();
 
-  const g = await createGroup(A, groupName("Diwali cards"), "The Pot");
+  const g = await createGroup(A, groupName("Diwali cards"), "Game night");
   await joinGroup(R, g.invite, g.path);
 
-  // The group opens on its games, with what The Pot does.
+  // The group opens on its games, with what Game night does.
   await A.goto(g.path);
   await settled(A);
-  await expect(A.getByText(/Take money from the pot to play, put back what’s left/)).toBeVisible();
+  await expect(A.getByText(/Put chips in to play, take home what’s left/)).toBeVisible();
   await A.getByRole("link", { name: /Start a game/ }).click();
   await settled(A);
-  await expect(A.locator('input[name="game"][value="teenpatti"]')).toBeChecked(); // Teen Patti first
+  await expect(A.locator('input[name="game"][value="cards"]')).toBeChecked(); // Cards first
   await A.locator('input[name="name"]').fill("Diwali night");
   // Chirag and Dev aren't on Loopin: just their names.
   await A.locator('input[name="newNames"]').fill("Chirag, Deev"); // a typo, fixed below
@@ -41,9 +41,9 @@ test("a Teen Patti game from first take to settled", async ({ browser }) => {
   await expect(A.locator("[data-player='Dev']")).toHaveCount(1);
   await expect(A.getByRole("button", { name: "Ravi: fix the name" })).toHaveCount(0);
 
-  // Buy-in: everyone ticked at the start; later, tick just who's topping up.
+  // Chips in: everyone ticked at the start; later, tick just who's topping up.
   const buyIn = async (page: Page, who: "everyone" | string[], amount: string, total: string) => {
-    const form = page.getByRole("form", { name: "Buy in" });
+    const form = page.getByRole("form", { name: "Chips in" });
     if (who === "everyone") await form.getByRole("button", { name: "Everyone", exact: true }).click();
     else {
       await form.getByRole("button", { name: "Clear", exact: true }).click();
@@ -55,22 +55,22 @@ test("a Teen Patti game from first take to settled", async ({ browser }) => {
     await expect(page.locator("[data-pot-taken]")).toHaveText(total);
     await settled(page);
   };
-  await expect(A.getByRole("form", { name: "Buy in" }).locator('input[name="memberIds"]:checked')).toHaveCount(4); // all four, ready to go
-  await A.getByRole("form", { name: "Buy in" }).getByLabel("Amount each").fill("500");
-  await expect(A.getByRole("form", { name: "Buy in" }).locator('button[type="submit"]')).toHaveText("Give ₹500 to 4 players · ₹2,000");
+  await expect(A.getByRole("form", { name: "Chips in" }).locator('input[name="memberIds"]:checked')).toHaveCount(4); // all four, ready to go
+  await A.getByRole("form", { name: "Chips in" }).getByLabel("Amount each").fill("500");
+  await expect(A.getByRole("form", { name: "Chips in" }).locator('button[type="submit"]')).toHaveText("Chips in: ₹500 for 4 players · ₹2,000");
   await buyIn(A, "everyone", "500", "₹2,000");
   await buyIn(A, ["You", "Ravi", "Dev"], "500", "₹3,500"); // a top-up for three
   await buyIn(A, ["Ravi"], "1000", "₹4,500");
   await buyIn(A, ["Dev"], "500", "₹5,000");
-  await expect(A.locator("[data-player='Dev']")).toContainText("took ₹1,500 (3×)");
+  await expect(A.locator("[data-player='Dev']")).toContainText("chips in ₹1,500 (3×)");
 
-  // Chirag leaves with ₹300; Neha (just a name) takes his seat with ₹500.
+  // Chirag took home ₹300; Neha (just a name) takes his seat with ₹500.
   const chirag = A.locator("[data-player='Chirag']");
   await chirag.locator("summary").click();
-  await chirag.getByLabel("Leaves with").fill("300");
+  await chirag.getByLabel("Took home", { exact: true }).fill("300");
   await chirag.getByLabel("New player in the seat").fill("Neha");
-  await chirag.getByLabel("New player's buy-in").fill("500");
-  await chirag.getByRole("button", { name: "Cash out", exact: true }).click();
+  await chirag.getByLabel("New player's chips in").fill("500");
+  await chirag.getByRole("button", { name: "Save took home", exact: true }).click();
   await A.waitForURL(/cashed=1/);
   await expect(A.locator("[data-pot-taken]")).toHaveText("₹5,500");
   await expect(A.locator("[data-player='Neha']")).toHaveAttribute("data-playing", "1");
@@ -99,7 +99,7 @@ test("a Teen Patti game from first take to settled", async ({ browser }) => {
   await count.getByRole("button", { name: /Calculate & settle/ }).click();
   await A.waitForURL(/gap=1/);
   await settled(A);
-  await expect(A.locator("[data-pot-gap]")).toContainText("₹100 is missing from the pot");
+  await expect(A.locator("[data-pot-gap]")).toContainText("₹100 is missing from the count");
 
   // Fix the slip: take Dev's count off and count him again.
   await A.getByRole("region", { name: "History" }).getByRole("listitem").filter({ hasText: "Dev ended with ₹1,300" }).getByRole("button", { name: "Take it off" }).click();
@@ -126,10 +126,10 @@ test("a Teen Patti game from first take to settled", async ({ browser }) => {
   await expect(A.getByRole("region", { name: "Money owed" }).locator("[data-transfer='paid']").filter({ hasText: "Dev pays you" })).toHaveCount(1);
   await expect(A.locator("[data-still-owed]")).toHaveAttribute("data-still-owed", "50000");
 
-  // Ravi sees it in the group: lost ₹300, and pays Asha in Settle up.
+  // Ravi sees it in the group: down ₹300, and pays Asha in Settle up.
   await R.goto(`${g.path}?tab=games`);
   await settled(R);
-  await expect(R.locator("[data-game='done']")).toContainText("you lost");
+  await expect(R.locator("[data-game='done']")).toContainText("you were down");
   await R.goto(`${g.path}/settle`);
   await settled(R);
   // Settle up's "I've paid" is a claim: it counts once Asha taps Confirm received.

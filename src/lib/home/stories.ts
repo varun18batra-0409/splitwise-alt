@@ -22,7 +22,7 @@ export type Story = {
   id: string; // stable for "seen" (changes when the story changes, e.g. the day count)
   kind: StoryKind;
   label: string; // the full name: "Goa", "Teacher’s Day gift" (the viewer's header, and the full name for screen readers)
-  short: string; // under the little picture on Home: the story's kind and group in a few words ("Goa", "Card night", "Collection")
+  short: string; // under the little picture on Home: the story's kind and group in a few words ("Goa", "Game night", "Collection")
   headline: string; // the story in one line (also read out to screen readers)
   line: string;
   cta: string;
@@ -154,19 +154,19 @@ export function buildStories(i: StoryInput): Story[] {
   }
   for (const g of i.games) {
     if (now - g.finishedAt.getTime() > 3 * 86_400_000) continue;
-    const headline = g.youWon ? `You won ${g.youWon}` : g.winner ? `${g.winner} won ${g.won}` : "Everyone broke even";
-    // Card nights get their own artwork (green felt, gold, the cards), never a stock photo.
+    const headline = g.youWon ? `You came out ahead by ${g.youWon}` : g.winner ? `${g.winner} came out ahead by ${g.won}` : "Everyone broke even";
+    // Game nights get their own artwork (green felt, gold, the cards), never a stock photo.
     const frames: Frame[] = [
-      { kind: "art", art: "pot", kicker: g.name, head: g.youWon ? `You won ${g.youWon}` : g.winner ? `${g.winner} took the pot` : "Everyone broke even", line: g.youWon ? "Drinks are on you, apparently" : g.winner ? `${g.won} richer. Insufferable now.` : "Nobody won. Nobody lost. Suspicious." },
+      { kind: "art", art: "pot", kicker: g.name, head: g.youWon ? `You came out ahead by ${g.youWon}` : g.winner ? `${g.winner} came out ahead` : "Everyone broke even", line: g.youWon ? "Drinks are on you, apparently" : g.winner ? `${g.won} up. Insufferable now.` : "Nobody up. Nobody down. Suspicious." },
       ...(g.table && g.table.length > 1 ? [{ kind: "list", tone: "mint", kicker: "The table", rows: g.table.slice(0, 8).map((r) => ({ label: r.name, value: r.net, good: r.up && !r.even, bad: !r.up && !r.even, share: r.share })) } as Frame] : []),
-      ...(g.pays && g.pays.length ? [{ kind: "list", tone: "sun", kicker: "Who pays whom", rows: g.pays.slice(0, 6).map((l) => ({ label: l })), line: g.pays.length > 6 ? `and ${g.pays.length - 6} more` : "Pay up, card sharks" } as Frame] : []),
+      ...(g.pays && g.pays.length ? [{ kind: "list", tone: "sun", kicker: "Who pays whom", rows: g.pays.slice(0, 6).map((l) => ({ label: l })), line: g.pays.length > 6 ? `and ${g.pays.length - 6} more` : "Square up, everyone" } as Frame] : []),
       { kind: "poster", tone: g.toSettle ? "coral" : "sky", kicker: g.toSettle ? "Still to settle" : "Settled", big: g.toSettle ?? "All square ✓", line: g.toSettle ? "Mark it paid in the game" : "Clean books. Respect." },
-      { kind: "art", art: "pot", kicker: "Next time", head: "Same table, next week?", line: "Bring snacks. And your poker face." },
+      { kind: "art", art: "pot", kicker: "Next time", head: "Same table, next week?", line: "Bring snacks. And your game face." },
     ];
     out.push({
       id: `pot-${g.id}`,
       kind: "pot",
-      short: "Card night",
+      short: "Game night",
       label: g.name.length > 14 ? `${g.name.slice(0, 13)}…` : g.name,
       headline,
       line: g.name,

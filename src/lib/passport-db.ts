@@ -1,9 +1,15 @@
 import { db } from "./db";
 import { JOINED, isPending } from "./membership";
-import { buildPassport, parseHandPlaces, type PassportTrip } from "./passport";
+import { buildPassport, parseHandPlaces, passportShared, type PassportTrip } from "./passport";
 
 // Someone the admin removed stops counting for passport sharing (both ways); someone who left on their own still counts.
 const COUNTS = { ...JOINED, removedAt: null };
+
+// Record the owner's answer (the "Show" / "Not now" buttons, and the Who can see it switch).
+// Either way the answer is stamped, so the question is never asked again.
+export async function recordPassportChoice(accountId: string, show: boolean) {
+  await db.account.update({ where: { id: accountId }, data: { passportShare: show ? "groups" : "private", passportChoiceAt: new Date() } });
+}
 
 // "Our passports" for one group: who is listed, from the viewer's side. The same rule as canSeePassport:
 // the viewer must have really joined and not been removed (else null: the screen sends them away), and the
@@ -94,7 +100,7 @@ export async function passportFriends(accountId: string) {
 
 // May this person open that person's passport? Only if they've shared a group
 // (not deleted) and both really joined it (neither is still "added by someone, never opened it"
-// or removed by the admin; leaving on your own later doesn't matter), and the owner lets people in their groups see it.
+// or removed by the admin; leaving on your own later doesn't matter), and the owner has said yes (no recorded answer counts as no).
 export async function canSeePassport(viewerAccountId: string, ownerAccountId: string) {
   if (viewerAccountId === ownerAccountId) return { ok: true as const, owner: await db.account.findUnique({ where: { id: ownerAccountId } }), name: undefined as string | undefined };
   const shared = await db.member.findFirst({
@@ -104,7 +110,7 @@ export async function canSeePassport(viewerAccountId: string, ownerAccountId: st
   if (!shared) return { ok: false as const, reason: "stranger" as const, name: undefined as string | undefined };
   const owner = await db.account.findUnique({ where: { id: ownerAccountId } });
   if (!owner) return { ok: false as const, reason: "stranger" as const, name: undefined as string | undefined };
-  if (owner.passportShare === "private") return { ok: false as const, reason: "private" as const, name: shared.name as string | undefined };
+  if (!passportShared(owner)) return { ok: false as const, reason: (owner.passportShare === "private" ? "private" : "unanswered") as "private" | "unanswered", name: shared.name as string | undefined };
   return { ok: true as const, owner, name: shared.name as string | undefined };
 }
 

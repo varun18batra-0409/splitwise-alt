@@ -36,8 +36,8 @@ type RateLookupFn = (from: string, to: string) => Promise<RateAnswer>;
 // (an id from the photo upload, or "remove"; undefined = leave it).
 export type ItemLine = { name: string; amount: number; people: string[] };
 export type Attach = { items?: ItemLine[]; receiptId?: string };
-export const POT_EDIT_ERROR = "Card-game results change through the game: open the game to change it.";
-export const POT_DELETE_ERROR = "Card-game results change through the game: open the game to reopen or delete it.";
+export const POT_EDIT_ERROR = "Game results change through the game: open the game to change it.";
+export const POT_DELETE_ERROR = "Game results change through the game: open the game to reopen or delete it.";
 export const RECEIPT_GONE = "That bill photo has expired. Add it again.";
 
 export type Result =

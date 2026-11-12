@@ -236,6 +236,8 @@ model Account {
   name      String   @default("") // shown to friends when they search for you
   createdAt DateTime @default(now())
   collectPush Boolean @default(true) // phone notifications about collections (added, reminders, payments checked)
+  // "Notifications & email" choices, as JSON of what is switched off (see src/lib/account-notify.ts). "" = everything on.
+  notifyPrefs String @default("")
   // How friends pay you back: shown on Settle up to people in your groups who owe you.
   upiId     String   @default("") // e.g. asha@okicici (opens GPay / PhonePe with the amount filled in)
   payLink   String   @default("") // PayPal.me, Venmo, Cash App, Revolut or Monzo link
@@ -244,7 +246,11 @@ model Account {
   homeCountry String @default("")
   places      String @default("[]")
   // Who can open your passport from a group: "groups" (people you share a group with) or "private".
+  // Only counts once the person has answered (passportChoiceAt below): the column default is old and stays as it was.
   passportShare String @default("groups")
+  // When the person answered "Show your places to people in your groups?". Empty = never answered,
+  // which counts as hidden (accounts from before the question stay hidden until they answer).
+  passportChoiceAt DateTime?
   // Bumped by "Sign out on all other phones": cookies carrying an older number stop working.
   sessionVersion Int @default(0)
   // Passport moments already celebrated ("countries-10 continents-3"); "-" = none yet.

@@ -93,7 +93,7 @@ export default async function PayLinkPage({ params, searchParams }: Props) {
         {PAYMENT_LINE}
         <br />
         <Link href="/" className="font-medium text-fg/70 underline underline-offset-2">
-          Split trips, flats and card nights with Loopin
+          Split trips, flats and game nights with Loopin
         </Link>
       </p>
     </>

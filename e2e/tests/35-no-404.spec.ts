@@ -14,12 +14,12 @@ test("every link in the app opens a real screen (no 404s)", async ({ browser }) 
   const page = await ctx.newPage();
   const R = await (await contextFor(browser, ravi)).newPage();
 
-  // Something in every kind of screen: a trip with an expense, and a Pot group.
+  // Something in every kind of screen: a trip with an expense, and a Game night group.
   const trip = await createGroup(page, groupName("Goa trip"), "Trip");
   await joinGroup(R, trip.invite, trip.path);
   await addEqualExpense(page, trip.path, "Dinner", "1200");
   await addEqualExpense(page, trip.path, "Cab", "600");
-  const pot = await createGroup(page, groupName("Card night"), "The Pot");
+  const pot = await createGroup(page, groupName("Game night"), "Game night");
   await page.goto("/");
   await settled(page);
 

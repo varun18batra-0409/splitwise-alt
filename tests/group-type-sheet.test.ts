@@ -30,18 +30,19 @@ describe("the one-time group-type sheet: what it says", () => {
     expect(s.cards[0].body).toMatch(/incomes/);
     expect(s.primary.href).toBe("/groups/g2/add");
   });
-  it("a card night: Game tally vs Money owed, and results go in only after confirming", () => {
+  it("a game night: Game tally vs Money owed, and results go in only after confirming", () => {
     const s = sheetFor("pot", "g3")!;
     expect(s.cards[0].title).toBe("Game tally vs Money owed");
     expect(s.cards[1].body).toMatch(/asks before/);
     expect(s.primary.href).toBe("/groups/g3/pot/new");
+    expect(s.note).toBe("Loopin keeps the score of games you play together. No betting happens in the app.");
   });
   it("trips and everything else get no sheet", () => {
     expect(sheetFor("trip", "g")).toBeNull();
     expect(sheetFor("other", "g")).toBeNull();
   });
   it("says nothing about India-only things or other apps", () => {
-    for (const t of ["home", "couple", "pot"]) expect(JSON.stringify(sheetFor(t, "g"))).not.toMatch(/UPI|Diwali|Teen Patti|splitwise/i);
+    for (const t of ["home", "couple", "pot"]) expect(JSON.stringify(sheetFor(t, "g"))).not.toMatch(/UPI|Diwali|Teen Patti|Poker|splitwise/i);
   });
 });
 

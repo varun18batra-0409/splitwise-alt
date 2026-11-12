@@ -1,8 +1,5 @@
 import Link from "@/components/Link";
 import { PageHeader } from "@/components/ui";
-import { headers } from "next/headers";
-import { getAccount } from "@/lib/identity";
-import { regionFor } from "@/lib/region";
 
 export const metadata = { title: "FAQ", description: "Answers about Loopin: is it free, currencies, repeat bills, inviting friends, your data and privacy.", alternates: { canonical: "/faq" } };
 
@@ -10,8 +7,7 @@ export const metadata = { title: "FAQ", description: "Answers about Loopin: is i
 type QA = { q: string; a: React.ReactNode };
 const link = "underline underline-offset-4";
 
-// Teen Patti is named only for people in India; elsewhere it is poker or rummy.
-const sections = (india: boolean): { title: string; items: QA[] }[] => [
+const sections = (): { title: string; items: QA[] }[] => [
   {
     title: "Getting started",
     items: [
@@ -26,6 +22,10 @@ const sections = (india: boolean): { title: string; items: QA[] }[] => [
       {
         q: "Do my friends need to sign up?",
         a: "Yes, with an email (or Google), once. It takes about 30 seconds and there’s no password. It means everyone in a group has a checked email, notifications reach the right phone, and friends can find each other.",
+      },
+      {
+        q: "Can I choose which notifications and emails I get?",
+        a: "Yes. Open You, then Notifications & email. Each kind (expenses, payments, groups, reminders, memories, summaries) has an Allow switch and a switch for each item, and every change is saved at once. A group can also be muted in its own settings. Sign-in codes and security emails are always sent.",
       },
       {
         q: "How do I sign in without a password?",
@@ -66,7 +66,7 @@ const sections = (india: boolean): { title: string; items: QA[] }[] => [
       },
       {
         q: "What are the cards that slide by at the top of Home?",
-        a: "Your overall balance (with Settle up), your month in numbers (your share across groups, how many expenses, what you spent most on), a seasonal idea (like a Diwali card night with The Pot), and a way to bring groups over from another app. Swipe them, tap the dots, or pause them.",
+        a: "Your overall balance (with Settle up), your month in numbers (your share across groups, how many expenses, what you spent most on), a seasonal idea (like a Diwali game night), and a way to bring groups over from another app. Swipe them, tap the dots, or pause them.",
       },
       {
         q: "Why does Home show only four groups?",
@@ -149,7 +149,7 @@ const sections = (india: boolean): { title: string; items: QA[] }[] => [
     items: [
       {
         q: "What are the little circles on Home?",
-        a: "Stories from your groups. Each one is a few slides you tap through: photos of where a trip is going with a countdown and the crew, today’s spend while you’re away, last night’s card game with everyone’s result and who pays whom, a group that just got all square, a collection filling up, and a trip from a year ago. Tap the right side for the next slide, swipe down or press Back to close. A gold ring means you haven’t seen it yet.",
+        a: "Stories from your groups. Each one is a few slides you tap through: photos of where a trip is going with a countdown and the crew, today’s spend while you’re away, last night’s game night with everyone’s result and who pays whom, a group that just got all square, a collection filling up, and a trip from a year ago. Tap the right side for the next slide, swipe down or press Back to close. A gold ring means you haven’t seen it yet.",
       },
       {
         q: "What is Wrapped?",
@@ -161,11 +161,11 @@ const sections = (india: boolean): { title: string; items: QA[] }[] => [
       },
       {
         q: "Can I see my friends’ passports?",
-        a: "Yes: anyone you’ve shared a group with, even a closed one or if they’ve left. Open You → Friends’ passports, or Our passports inside any group, and tap a name. If their passport is empty, you can nudge them (it shows in their Alerts, at most once a month). People you’ve never shared a group with can’t open yours.",
+        a: "Yes, if they’ve chosen to show it: anyone you’ve shared a group with, even a closed one or if they’ve left. Friends who haven’t said yes show as private. Open You → Friends’ passports, or Our passports inside any group, and tap a name. If their passport is empty, you can nudge them (it shows in their Alerts, at most once a month). People you’ve never shared a group with can’t open yours.",
       },
       {
         q: "Who can see my passport?",
-        a: "People you share a group with, unless you switch it to Only me on your passport page. They see your stamps and countries only: never your money, your groups or your email. Trips that are still happening stay hidden until they’re over, so nobody can tell where you are right now. Nobody is told when you look at a passport.",
+        a: "Nobody, until you say yes. The first time you open your passport, Loopin asks whether to show your places to people in your groups (Show or Not now). If you tap Show, people you share a group with can see it; you can switch to Only me any time on your passport page. They see your stamps and countries only: never your money, your groups or your email. Trips that are still happening stay hidden until they’re over, so nobody can tell where you are right now. Nobody is told when you look at a passport.",
       },
       {
         q: "Reactions, titles and the spinning wheel?",
@@ -174,15 +174,15 @@ const sections = (india: boolean): { title: string; items: QA[] }[] => [
     ],
   },
   {
-    title: "Card nights and collecting",
+    title: "Game night and collecting",
     items: [
       {
-        q: "What is The Pot?",
-        a: `For ${india ? "Teen Patti and Poker" : "Poker and rummy"} nights. Make a group and pick The Pot, then start a game. Buy everyone in with one tap (top-ups for just a few), cash out anyone who leaves early and let a new name take the seat, then count what everyone has in one table. Tap Calculate & settle: Loopin works out who won, who lost and the fewest payments to square up.`,
+        q: "What is Game night?",
+        a: "For cards, board games or any game you play together. Make a group and pick Game night, then start a game. Put chips in for everyone with one tap (top-ups for just a few), record what anyone took home if they leave early and let a new name take the seat, then count what everyone has in one table. Tap Calculate & settle: Loopin works out who came out ahead, who came out behind and the fewest payments to square up. Loopin keeps the score of games you play together. No betting happens in the app.",
       },
       {
         q: "The money doesn’t add up. What now?",
-        a: "Loopin won’t finish the game until every rupee taken has come back. Check the amounts (whoever added a line, or the host, can take it off and add it again). If it really is lost, the host can fix the difference: spread it over everyone who played, or put it on one person, with a reason everyone can see.",
+        a: "Loopin won’t finish the game until every rupee that went in has come back. Check the amounts (whoever added a line, or the host, can take it off and add it again). If it really is lost, the host can fix the difference: spread it over everyone who played, or put it on one person, with a reason everyone can see.",
       },
       {
         q: "Do all the players need Loopin?",
@@ -190,7 +190,7 @@ const sections = (india: boolean): { title: string; items: QA[] }[] => [
       },
       {
         q: "Does Loopin hold the money or run the game?",
-        a: "Neither. It only keeps count, like a notebook at the table: no chips, bets or hands, and it never holds or moves money. You pay each other however you usually do, then tap I’ve paid in Settle up.",
+        a: "Neither. It only keeps the score, like a notebook at the table, and it never holds or moves money. No betting happens in the app. You pay each other however you usually do, then tap I’ve paid in Settle up.",
       },
       {
         q: "Where is Collect?",
@@ -257,8 +257,7 @@ const sections = (india: boolean): { title: string; items: QA[] }[] => [
   },
 ];
 
-export default async function Faq() {
-  const { india } = regionFor(await headers(), (await getAccount())?.homeCountry);
+export default function Faq() {
   return (
     <>
       <PageHeader title="FAQ" back="/" />
@@ -266,7 +265,7 @@ export default async function Faq() {
       <p className="mt-2 text-sm text-gray-500">
         Tap a question to open it. For a full tour, see <Link href="/how-it-works" className={link}>How Loopin works</Link>.
       </p>
-      {sections(india).map((s) => (
+      {sections().map((s) => (
         <section key={s.title} className="mt-8" aria-label={s.title}>
           <h2 className="mb-2 font-display text-lg font-semibold tracking-tight">{s.title}</h2>
           <ul className="divide-y divide-line border-y border-line">

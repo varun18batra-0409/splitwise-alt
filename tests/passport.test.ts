@@ -97,7 +97,7 @@ describe("Stories on Home", () => {
     });
     expect(s.map((x) => x.id)).toEqual(["trip-g1-b3", "pot-p1", "memory-g9-1", "collect-c1-2"]);
     expect(s[0]).toMatchObject({ headline: "Goa in 3 days", line: "5 of you, 3 sleeps to go", href: "/groups/g1" });
-    expect(s.find((x) => x.kind === "pot")?.headline).toBe("Asha won ₹600");
+    expect(s.find((x) => x.kind === "pot")?.headline).toBe("Asha came out ahead by ₹600");
     expect(s.find((x) => x.kind === "memory")?.headline).toBe("A year ago: Manali");
   });
   it("each story is several slides: photos of the place, the countdown, the crew; a game's table and who pays whom", () => {
@@ -119,7 +119,7 @@ describe("Stories on Home", () => {
     expect(trip.frames.some((f) => f.kind === "poster" && f.big === "3")).toBe(true);
     expect(trip.frames.some((f) => f.kind === "list" && f.kicker === "The crew")).toBe(true);
     const pot = s.find((x) => x.kind === "pot")!;
-    // Card nights get designed artwork (felt, gold, the cards), never a stock photo.
+    // Game nights get designed artwork (felt, gold, the cards), never a stock photo.
     expect(pot.photo).toBeUndefined();
     expect(pot.art).toBe("pot");
     expect(pot.frames.map((f) => (f.kind === "art" ? `art:${f.art}` : f.kicker))).toEqual(["art:pot", "The table", "Who pays whom", "Still to settle", "art:pot"]);

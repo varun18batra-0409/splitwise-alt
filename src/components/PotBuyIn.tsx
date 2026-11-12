@@ -6,7 +6,7 @@ import { buyInAction } from "@/app/pot-actions";
 import { formatMoney, parseAmount } from "@/lib/money";
 import { useRequestKey } from "./FreshKeyInput";
 
-// Buy-in: tick who's taking money (everyone, at the start), one amount, one
+// Chips in: tick who's putting chips in (everyone, at the start), one amount, one
 // tap. What's on screen is what's saved; if the save comes back with a
 // problem (a typo in the amount), the ticks and the amount stay as they were.
 function Submit({ label }: { label: string }) {
@@ -41,17 +41,17 @@ export function PotBuyIn({
   const setAmount = (v: string) => setTyped(v);
   const label =
     count === 0
-      ? "Tick who’s buying in"
+      ? "Tick who’s putting chips in"
       : each
-        ? `Give ${formatMoney(each, currency)} to ${count === 1 ? "1 player" : `${count} players`}${count > 1 ? ` · ${formatMoney(each * count, currency)}` : ""}`
-        : `Buy in for ${count === 1 ? "1 player" : `${count} players`}`;
+        ? `Chips in: ${formatMoney(each, currency)} for ${count === 1 ? "1 player" : `${count} players`}${count > 1 ? ` · ${formatMoney(each * count, currency)}` : ""}`
+        : `Chips in for ${count === 1 ? "1 player" : `${count} players`}`;
 
   return (
-    <form action={buyInAction} className="space-y-3.5" data-allow-repeat="1" aria-label="Buy in">
+    <form action={buyInAction} className="space-y-3.5" data-allow-repeat="1" aria-label="Chips in">
       <input type="hidden" name="gameId" value={gameId} />
       <input type="hidden" name="rid" value={rid} suppressHydrationWarning />
       <div className="flex items-baseline justify-between gap-3">
-        <h2 className="font-display text-lg font-semibold tracking-tight">{allTicked ? "Buy in" : "Buy in / top up"}</h2>
+        <h2 className="font-display text-lg font-semibold tracking-tight">{allTicked ? "Chips in" : "Chips in / top up"}</h2>
         <span className="flex gap-3 text-xs font-semibold text-accent">
           <button type="button" onClick={() => tickAll(true)}>
             Everyone
@@ -62,7 +62,7 @@ export function PotBuyIn({
         </span>
       </div>
       <fieldset className="flex flex-wrap gap-2">
-        <legend className="sr-only">Who’s taking money</legend>
+        <legend className="sr-only">Who’s putting chips in</legend>
         {players.map((p) => (
           <label
             key={p.id}

@@ -15,7 +15,7 @@ const groupIds: string[] = [];
 const accountIds: string[] = [];
 
 async function account(name: string) {
-  const a = await db.account.create({ data: { email: `rm-${name}-${stamp}@example.test`, name } });
+  const a = await db.account.create({ data: { email: `rm-${name}-${stamp}@example.test`, name, passportChoiceAt: new Date() } }); // each has tapped Show
   accountIds.push(a.id);
   return { id: a.id, name, email: a.email };
 }

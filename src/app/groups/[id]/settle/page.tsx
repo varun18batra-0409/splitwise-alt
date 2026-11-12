@@ -1,3 +1,4 @@
+import { neutralGameText } from "@/lib/game-words";
 import { Confetti } from "@/components/Confetti";
 import Link from "@/components/Link";
 import { SquareSeal } from "@/components/DrawnIcons";
@@ -404,7 +405,7 @@ export default async function GroupSettle({
       {showUndo && (
         <UndoBar
           key={justDid.id}
-          text={sp.undone ? "Undone." : `${nameOf(justDid.actorId)} ${justDid.text}`}
+          text={sp.undone ? "Undone." : `${nameOf(justDid.actorId)} ${neutralGameText(justDid.text)}`}
           groupId={group.id}
           eventId={justDid.id}
           back="settle"

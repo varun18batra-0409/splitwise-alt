@@ -4,6 +4,7 @@ import { getAccount } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
 import { todayKey } from "@/lib/dates";
 import { loadPassport, passportFriends } from "@/lib/passport-db";
+import { passportShared } from "@/lib/passport";
 import { countryOf } from "@/lib/geo";
 import { Avatar, PageHeader, primaryButtonClass } from "@/components/ui";
 import { FriendSearch } from "@/components/FriendSearch";
@@ -29,10 +30,10 @@ export default async function FriendsPassports() {
   const owners = await Promise.all(
     friends.map(async (f) => {
       const { db } = await import("@/lib/db");
-      const a = await db.account.findUnique({ where: { id: f.accountId }, select: { id: true, homeCountry: true, places: true, passportShare: true } });
-      if (!a || a.passportShare === "private") return { ...f, private: true, countries: [] as string[], stats: null };
+      const a = await db.account.findUnique({ where: { id: f.accountId }, select: { id: true, homeCountry: true, places: true, passportShare: true, passportChoiceAt: true } });
+      if (!a || !passportShared(a)) return { ...f, private: true, unshared: Boolean(a) && a!.passportShare !== "private", countries: [] as string[], stats: null };
       const p = await loadPassport(a, "", today, { forFriend: true });
-      return { ...f, private: false, countries: p.index.map((r) => r.code), stats: p.stats };
+      return { ...f, private: false, unshared: false, countries: p.index.map((r) => r.code), stats: p.stats };
     }),
   );
   const first = (n: string) => n.trim().split(/\s+/)[0] || n;
@@ -61,7 +62,7 @@ export default async function FriendsPassports() {
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">{f.name}</span>
                     <span className="block truncate text-xs text-gray-400">
-                      {f.private ? "Keeps their passport private" : f.stats ? [f.stats.countries ? `${f.stats.countries} ${f.stats.countries === 1 ? "country" : "countries"}` : "", f.stats.cities ? `${f.stats.cities} ${f.stats.cities === 1 ? "city" : "cities"}` : ""].filter(Boolean).join(" · ") : ""}
+                      {f.private ? (f.unshared ? "Hasn’t shared their passport yet" : "Keeps their passport private") : f.stats ? [f.stats.countries ? `${f.stats.countries} ${f.stats.countries === 1 ? "country" : "countries"}` : "", f.stats.cities ? `${f.stats.cities} ${f.stats.cities === 1 ? "city" : "cities"}` : ""].filter(Boolean).join(" · ") : ""}
                       {" · "}
                       {f.groups.slice(0, 2).join(", ")}
                       {f.groups.length > 2 ? ` +${f.groups.length - 2}` : ""}

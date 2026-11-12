@@ -1,3 +1,4 @@
+import { neutralGameText } from "@/lib/game-words";
 import { getCategory } from "@/lib/categories";
 import { ExpenseGlyph } from "./ExpenseGlyph";
 import { formatMoney } from "@/lib/money";
@@ -48,7 +49,7 @@ export function ActivityRow({
           <GearIcon size={18} />
         </span>
         <p className="min-w-0 flex-1 text-sm text-gray-500">
-          <span className="font-medium text-ink">{nameOf(item.actorId)}</span> {item.text}
+          <span className="font-medium text-ink">{nameOf(item.actorId)}</span> {neutralGameText(item.text)}
           {groupName && <span className="text-gray-400"> · {groupName}</span>}
         </p>
       </div>
@@ -87,22 +88,22 @@ export function ActivityRow({
     );
   }
 
-  // A card game's result (The Pot): who won, and how it went for you.
+  // A game's result (Game night): who came out ahead, and how it went for you.
   if (item.pot) {
     return (
       <div className="flex items-center gap-3.5 py-3.5">
-        <ExpenseGlyph title={item.title} category="activities" emoji="🃏" motion={motion} delay={delay} label="Card game" />
+        <ExpenseGlyph title={item.title} category="activities" emoji="🃏" motion={motion} delay={delay} label="Game night" />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-semibold tracking-tight">{item.title}</p>
+          <p className="truncate text-[15px] font-semibold tracking-tight">{neutralGameText(item.title)}</p>
           <p className={meta}>
-            Game result · {(item.payerIds ?? [item.paidById]).map(nameOf).join(" + ")} won {money(item.amount)}
+            Game result · {(item.payerIds ?? [item.paidById]).map(nameOf).join(" + ")} came out ahead by {money(item.amount)}
             {groupName && ` · ${groupName}`}
           </p>
         </div>
         {item.effect > 0 ? (
-          <Effect label="you won" amount={money(item.effect)} cls="text-owed" />
+          <Effect label="you were up" amount={money(item.effect)} cls="text-owed" />
         ) : item.effect < 0 ? (
-          <Effect label="you lost" amount={money(-item.effect)} cls="text-owe" />
+          <Effect label="you were down" amount={money(-item.effect)} cls="text-owe" />
         ) : (
           <Effect label="even" cls="" />
         )}

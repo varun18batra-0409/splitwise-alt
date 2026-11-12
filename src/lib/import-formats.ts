@@ -223,7 +223,7 @@ export function parseLoopinCsv(text: string): SwParsed {
       nets[k2] -= s;
     }
     if (nets.reduce((a, b) => a + b, 0) !== 0) return skipped.push({ line, reason: "its shares don’t add up to the amount" });
-    const kind = type === "money back" ? ("refund" as const) : type === "card game" ? ("pot" as const) : undefined;
+    const kind = type === "money back" ? ("refund" as const) : type === "card game" || type === "game result" ? ("pot" as const) : undefined;
     rows.push({ line, date: looseDate(cells[0] ?? ""), description: cells[2]?.trim().slice(0, 80) || "Expense", category: cells[4] ?? "", cost: Math.abs(amount), nets, payment: false, ...(kind ? { kind } : {}) });
   });
   return finish(people, rows, skipped, currency);

@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
-import { canSeePassport, passportFriends, passportRoster } from "@/lib/passport-db";
+import { canSeePassport, passportFriends, passportRoster, recordPassportChoice } from "@/lib/passport-db";
+import { passportNeedsAnswer, passportShared } from "@/lib/passport";
 
 // Who may open whose passport. The rule: both people have really joined a group
 // that still exists (leaving later doesn't matter), and the owner hasn't hidden it.
@@ -10,8 +11,9 @@ const stamp = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 const accountIds: string[] = [];
 const groupIds: string[] = [];
 
-async function account(name: string, extra: { passportShare?: string } = {}) {
-  const a = await db.account.create({ data: { email: `pa-${name}-${stamp}@example.test`, name, ...extra } });
+async function account(name: string, extra: { passportShare?: string; passportChoiceAt?: Date | null } = {}) {
+  // By default the owner has tapped Show (the rule: no recorded answer = hidden).
+  const a = await db.account.create({ data: { email: `pa-${name}-${stamp}@example.test`, name, passportChoiceAt: new Date(), ...extra } });
   accountIds.push(a.id);
   return a;
 }
@@ -183,5 +185,85 @@ describe("our passports page: who may open it and who is listed", () => {
     expect(await canSeePassport(viewer.id, owner.id)).toMatchObject({ ok: false, reason: "stranger" });
     const after = await db.member.findMany({ where: { groupId: g.id }, select: { id: true, accountId: true, addedBy: true, seenAt: true, removedAt: true } });
     expect(passportRoster(after, v.id)).toBeNull();
+  });
+});
+
+// Ask once, hidden until the person chooses. Hand-worked: "visible" needs BOTH a recorded answer and "groups".
+describe("passport: hidden until the owner says yes", () => {
+  it("no choice recorded (an account from before the question): hidden to a group-mate", async () => {
+    const owner = await account("Owner20", { passportChoiceAt: null }); // passportShare is still the old default "groups"
+    const viewer = await account("Viewer20");
+    await group("nochoice", [{ account: owner }, { account: viewer }]);
+    expect(owner.passportShare).toBe("groups");
+    expect(await canSeePassport(viewer.id, owner.id)).toMatchObject({ ok: false, reason: "unanswered" }); // not "private": they have not chosen
+    expect(passportShared(owner)).toBe(false);
+    expect(passportNeedsAnswer(owner)).toBe(true);
+  });
+
+  it("chose Show: visible to a group-mate, still hidden to a stranger", async () => {
+    const owner = await account("Owner21", { passportChoiceAt: null });
+    const viewer = await account("Viewer21");
+    const stranger = await account("Stranger21");
+    await group("show", [{ account: owner }, { account: viewer }]);
+    await recordPassportChoice(owner.id, true);
+    expect((await canSeePassport(viewer.id, owner.id)).ok).toBe(true);
+    expect(await canSeePassport(stranger.id, owner.id)).toMatchObject({ ok: false, reason: "stranger" });
+    const after = await db.account.findUniqueOrThrow({ where: { id: owner.id } });
+    expect(after.passportShare).toBe("groups");
+    expect(after.passportChoiceAt).not.toBeNull();
+  });
+
+  it("chose Not now: hidden, and the question does not come back", async () => {
+    const owner = await account("Owner22", { passportChoiceAt: null });
+    const viewer = await account("Viewer22");
+    await group("notnow", [{ account: owner }, { account: viewer }]);
+    expect(passportNeedsAnswer(owner)).toBe(true); // first visit: asked
+    await recordPassportChoice(owner.id, false);
+    const after = await db.account.findUniqueOrThrow({ where: { id: owner.id } });
+    expect(await canSeePassport(viewer.id, owner.id)).toMatchObject({ ok: false, reason: "private" });
+    expect(passportNeedsAnswer(after)).toBe(false); // second visit: not asked
+  });
+
+  it("the question appears exactly once: before an answer yes, after Show no, after Not now no", async () => {
+    const a = await account("Owner23", { passportChoiceAt: null });
+    const b = await account("Owner24", { passportChoiceAt: null });
+    expect([a, b].map(passportNeedsAnswer)).toEqual([true, true]);
+    await recordPassportChoice(a.id, true);
+    await recordPassportChoice(b.id, false);
+    const rows = await db.account.findMany({ where: { id: { in: [a.id, b.id] } }, orderBy: { name: "asc" } });
+    expect(rows.map(passportNeedsAnswer)).toEqual([false, false]);
+  });
+
+  it("switched off before the change (private, no recorded choice): stays hidden and is not asked again", async () => {
+    const owner = await account("Owner25", { passportShare: "private", passportChoiceAt: null });
+    const viewer = await account("Viewer25");
+    await group("oldoff", [{ account: owner }, { account: viewer }]);
+    expect(await canSeePassport(viewer.id, owner.id)).toMatchObject({ ok: false, reason: "private" });
+    expect(passportNeedsAnswer(owner)).toBe(false);
+  });
+
+  it("the Who can see it switch also records the answer (Only me -> groups makes it visible)", async () => {
+    const owner = await account("Owner26", { passportShare: "private", passportChoiceAt: null });
+    const viewer = await account("Viewer26");
+    await group("switch", [{ account: owner }, { account: viewer }]);
+    await recordPassportChoice(owner.id, true);
+    expect((await canSeePassport(viewer.id, owner.id)).ok).toBe(true);
+  });
+
+  it("a removed member is still excluded even though they chose Show", async () => {
+    const owner = await account("Owner27");
+    const viewer = await account("Viewer27");
+    const g = await group("removed", [{ account: owner }, { account: viewer }]);
+    await db.member.updateMany({ where: { groupId: g.id, accountId: viewer.id }, data: { removedAt: new Date(), leftAt: new Date() } });
+    expect(await canSeePassport(viewer.id, owner.id)).toMatchObject({ ok: false, reason: "stranger" });
+  });
+
+  it("the friends list and Our passports use the same rule (passportShared)", () => {
+    const now = new Date();
+    // [share, choice] -> visible
+    expect(passportShared({ passportShare: "groups", passportChoiceAt: now })).toBe(true);
+    expect(passportShared({ passportShare: "groups", passportChoiceAt: null })).toBe(false);
+    expect(passportShared({ passportShare: "private", passportChoiceAt: now })).toBe(false);
+    expect(passportShared({ passportShare: "private", passportChoiceAt: null })).toBe(false);
   });
 });

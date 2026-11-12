@@ -44,7 +44,7 @@ export function plain(minor: number, currency: string): string {
 // The Type column. Read back by the importer, so money back and card-game
 // results stay what they were when a Loopin spreadsheet is brought in again.
 export function typeLabel(kind?: string | null): string {
-  return kind === "refund" ? "Money back" : kind === "pot" ? "Card game" : "Expense";
+  return kind === "refund" ? "Money back" : kind === "pot" ? "Game result" : "Expense";
 }
 
 // Everyone who is a payer, a sharer or a side of a payment in these rows.

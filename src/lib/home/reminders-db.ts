@@ -8,6 +8,9 @@ import { billStatuses } from "./bills-db";
 import { payerFor, periodDueOn } from "./bills";
 import { reminderPlan, type ReminderGroup } from "./reminders";
 
+// A reminder about a bill (its tag starts "bill-") or about settling up.
+const remindItem = (tag: string) => (tag.startsWith("bill-") ? ("reminders.bills" as const) : ("reminders.settle" as const));
+
 // The daily job's reminders: once per day and flat (each flat claimed on its own,
 // so a run that runs out of time carries on with the flats it didn't reach next
 // time, and never repeats the ones it did). For flats that turned them on.
@@ -71,7 +74,7 @@ export async function sendReminders(now = new Date(), stop: () => boolean = () =
         for (const r of planFor(today, legacyBills)) {
           const to = r.memberIds.filter((m) => mine.has(m));
           if (to.length) {
-            sent += await sendPushTo(to, r);
+            sent += await sendPushTo(to, r, remindItem(r.tag));
             await markSentByOldPath(key, to, now);
           }
         }
@@ -85,7 +88,7 @@ export async function sendReminders(now = new Date(), stop: () => boolean = () =
         const personKey = `reminders:${p.today}:${id}:m:${p.id}`;
         if (await coveredByOldRecord(`reminders:${p.today}:${id}`, now, p.id)) continue;
         if (!(await claimJob(personKey, now))) continue;
-        for (const r of plan) sent += await sendPushTo([p.id], r);
+        for (const r of plan) sent += await sendPushTo([p.id], r, remindItem(r.tag));
         await finishJob(personKey);
       }
     }

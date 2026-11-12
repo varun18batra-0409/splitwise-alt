@@ -38,8 +38,8 @@ function writeSeen(s: Set<string>) {
 
 function Picture({ s, uid, big }: { s: Story; uid: string; big?: boolean }) {
   // Sized for where it shows: a small copy for the polaroid, a sharp one full screen.
-  if (s.photo) return <Image src={s.photo} alt="" aria-hidden fill sizes={big ? "(max-width: 448px) 100vw, 448px" : "64px"} quality={big ? 82 : 70} priority={big} className={`object-cover ${big ? "lp-drift" : ""}`} />;
-  if (s.cover && !s.art) return <GroupCover kind={s.cover.kind as CoverChoice} src={s.cover.src} uid={uid} sizes={big ? "448px" : "64px"} drift={big} />;
+  if (s.photo) return <Image src={s.photo} alt="" aria-hidden fill sizes={big ? "(max-width: 448px) 100vw, 448px" : "72px"} quality={big ? 82 : 70} priority={big} className={`object-cover ${big ? "lp-drift" : ""}`} />;
+  if (s.cover && !s.art) return <GroupCover kind={s.cover.kind as CoverChoice} src={s.cover.src} uid={uid} sizes={big ? "448px" : "72px"} drift={big} />;
   // No photo: designed artwork (green felt for a card night, a jar for a collection…).
   return <StoryArt kind={s.art ?? s.kind} uid={uid} />;
 }
@@ -64,11 +64,11 @@ export function Stories({ stories, className = "mb-6" }: { stories: Story[]; cla
 
   return (
     <section aria-label="Stories" className={`relative -mx-5 ${className}`}>
-      <ul className="flex gap-3.5 overflow-x-auto px-5 pb-1 pt-1 [scrollbar-width:none]" data-stories>
+      <ul className="flex gap-3 overflow-x-auto px-5 pb-1 pt-1 [scrollbar-width:none]" data-stories>
         {ordered.map((s) => {
           const isNew = !seen.has(s.id);
           return (
-            <li key={s.id} className="w-[68px] shrink-0" data-story={s.kind} data-new={isNew ? "1" : "0"}>
+            <li key={s.id} className="w-[76px] shrink-0" data-story={s.kind} data-new={isNew ? "1" : "0"}>
               <button
                 type="button"
                 onClick={() => setOpen(stories.indexOf(s))}
@@ -76,12 +76,12 @@ export function Stories({ stories, className = "mb-6" }: { stories: Story[]; cla
                 title={s.label}
                 className="flex w-full flex-col items-center gap-1.5 text-center transition-opacity active:opacity-70 motion-reduce:transition-none"
               >
-                <span aria-hidden className={`block h-16 w-16 rounded-full p-[3px] ${isNew ? "bg-[conic-gradient(#e8c46a,#f0a35e,#6fe3a8,#e8c46a)]" : "bg-fg/25"}`}>
+                <span aria-hidden className={`block h-[72px] w-[72px] rounded-full p-[3px] ${isNew ? "bg-[conic-gradient(#e8c46a,#f0a35e,#6fe3a8,#e8c46a)]" : "bg-fg/25"}`}>
                   <span className="relative block h-full w-full overflow-hidden rounded-full border-[3px] border-canvas bg-mist">
                     <Picture s={s} uid={`st-${s.id}`} />
                   </span>
                 </span>
-                <span className={`block w-full whitespace-nowrap text-[12px] leading-tight ${isNew ? "text-fg" : "text-fg/70"}`} data-story-label>
+                <span className={`block w-full truncate text-[13px] leading-tight ${isNew ? "text-fg" : "text-fg/70"}`} data-story-label>
                   {storyShort(s.short ?? s.label)}
                 </span>
               </button>

@@ -129,4 +129,13 @@ describe("another app's spreadsheet", () => {
     expect(p.rows).toHaveLength(1);
     expect(p.skipped.map((s) => s.reason)).toEqual(["the amount couldn’t be read", "nobody is named as paying"]);
   });
+
+  it("reads Type \"Game result\" (what Loopin exports now) as a game result, same as the old \"Card game\"", () => {
+    const head = "Date,Type,Description,Notes,Category,Paid by,Amount (INR),Original amount,Original currency,Exchange rate,Card markup (INR),Paid with,Status,Varun's share (INR),Nupur's share (INR),Mansi's share (INR)";
+    const row = (type: string) => [head, `2026-10-21,${type},Diwali night,,Other,Nupur,500.00,,,,,,,300.00,,200.00`].join("\r\n");
+    expect(nets(row("Game result")).p.rows.map((r) => r.kind)).toEqual(["pot"]);
+    expect(nets(row("Card game")).p.rows.map((r) => r.kind)).toEqual(["pot"]);
+    // Same numbers either way, by hand: Nupur +500, Varun −300, Mansi −200.
+    expect(nets(row("Game result")).net).toEqual(nets(row("Card game")).net);
+  });
 });

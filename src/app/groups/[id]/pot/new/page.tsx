@@ -5,6 +5,7 @@ import { getMyMemberId } from "@/lib/identity";
 import { ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/components/ui";
 import { startGameAction } from "@/app/pot-actions";
 import { POT_GAMES } from "@/lib/pot";
+import { GAME_NOTE } from "@/lib/game-words";
 
 // Start a game: what you're playing and who's at the table.
 export default async function NewGamePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; first?: string }> }) {
@@ -16,26 +17,28 @@ export default async function NewGamePage({ params, searchParams }: { params: Pr
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
   if (group.type !== "pot") redirect(`/groups/${group.id}`);
   const chip =
-    "relative flex h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-line text-sm font-semibold has-[:checked]:border-fg has-[:checked]:bg-fg has-[:checked]:text-canvas has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent";
+    "relative flex h-14 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-xl border border-line text-[13px] font-semibold has-[:checked]:border-fg has-[:checked]:bg-fg has-[:checked]:text-canvas has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent";
   return (
     <>
       <PageHeader title="Start a game" back={`/groups/${group.id}`} />
       {sp.error && <ErrorNote>{sp.error.slice(0, 160)}</ErrorNote>}
       {sp.first && (
         <p className="-mt-3 mb-5 rounded-xl bg-owed/10 px-4 py-3 text-sm text-owed">
-          Your Pot is ready 🃏 Add the players below: just their names is fine, nobody has to join Loopin.
+          Your Game night is ready 🃏 Add the players below: just their names is fine, nobody has to join Loopin.
         </p>
       )}
-      <p className="-mt-3 mb-6 text-sm text-gray-500">Everyone takes money from the pot to play and puts back what’s left at the end. Loopin works out who won and who pays whom.</p>
+      <p className="-mt-3 mb-2 text-sm text-gray-500">Everyone puts chips in to play and takes home what’s left at the end. Loopin works out who came out ahead and who pays whom.</p>
+      <p className="mb-6 text-xs text-gray-400" data-game-note>{GAME_NOTE}</p>
       <form action={startGameAction} className="space-y-6">
         <input type="hidden" name="groupId" value={group.id} />
         <fieldset>
           <legend className="mb-2 text-sm font-medium text-gray-600">What are you playing?</legend>
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-3 gap-2.5">
             {POT_GAMES.map((g, i) => (
               <label key={g.id} className={chip}>
                 <input type="radio" name="game" value={g.id} defaultChecked={i === 0} className="sr-only" />
-                <span aria-hidden>{g.emoji}</span> {g.label}
+                <span aria-hidden className="text-base leading-none">{g.emoji}</span>
+                <span>{g.label}</span>
               </label>
             ))}
           </div>
@@ -44,7 +47,7 @@ export default async function NewGamePage({ params, searchParams }: { params: Pr
           <span className="mb-2 block text-sm font-medium text-gray-600">
             Name <span className="font-normal text-gray-400">(optional)</span>
           </span>
-          <input name="name" maxLength={60} placeholder="Diwali night, Round 2…" autoComplete="off" className={inputClass} />
+          <input name="name" maxLength={60} placeholder="Friday night, Round 2…" autoComplete="off" className={inputClass} />
         </label>
         <fieldset>
           <legend className="mb-2 text-sm font-medium text-gray-600">Who’s playing?</legend>

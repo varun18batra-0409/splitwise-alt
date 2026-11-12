@@ -210,7 +210,7 @@ describe("DEF-041: being added by someone doesn't open your passport to them", (
     const { addRegistered } = await import("@/lib/invites");
     const { canSeePassport, passportFriends } = await import("@/lib/passport-db");
     const s = Date.now();
-    const victim = await db.account.create({ data: { email: `victim-${s}@x.loopin.test`, name: "Vic", places: JSON.stringify([{ c: "TH", city: "Phuket" }]) } });
+    const victim = await db.account.create({ data: { email: `victim-${s}@x.loopin.test`, name: "Vic", passportChoiceAt: new Date(), places: JSON.stringify([{ c: "TH", city: "Phuket" }]) } });
     const stranger = await db.account.create({ data: { email: `stranger-${s}@x.loopin.test`, name: "Stan" } });
     try {
       const g = await group("Forced", "INR", ["Stan"]);

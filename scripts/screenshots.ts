@@ -305,26 +305,26 @@ if (!hosted) {
   await shot("80-home-countdown-close", "/", undefined, false);
   await db.group.update({ where: { id: goa.id }, data: { tripStart: ist(-1), tripEnd: ist(3) } });
   await shot("81-group-countdown-during", `/groups/${goa.id}`, undefined, false);
-  // The Pot: a card-night group with a finished game (the brief's example) and one being played.
+  // Game night: a group with a finished game (the brief's example) and one being played.
   {
     const { startGame, recordMove, finishGame } = await import("../src/lib/pot-db");
     const pot = await db.group.create({
       data: {
-        name: "Diwali card night", type: "pot", currency: "INR", inviteCode: `shotspot${now.toString(36)}`,
+        name: "Diwali game night", type: "pot", currency: "INR", inviteCode: `shotspot${now.toString(36)}`,
         members: { create: [{ name: "Varun", accountId: acc.id, claimedAt: new Date() }, { name: "Ravi" }, { name: "Meera" }, { name: "Kabir" }] },
       },
       include: { members: { orderBy: { createdAt: "asc" } } },
     });
     const [v, r, m, k] = ["Varun", "Ravi", "Meera", "Kabir"].map((n) => pot.members.find((x) => x.name === n)!.id);
-    const one = await startGame(pot.id, v, { name: "Round 1", game: "teenpatti", players: [v, r, m, k] });
+    const one = await startGame(pot.id, v, { name: "Round 1", game: "cards", players: [v, r, m, k] });
     if (one.ok) {
       for (const [who, a] of [[v, "1000"], [r, "2000"], [m, "500"], [k, "1000"], [k, "500"]] as const) await recordMove(one.id, v, { memberId: who, kind: "take", amount: a });
       for (const [who, a] of [[v, "1600"], [r, "1700"], [m, "300"], [k, "1400"]] as const) await recordMove(one.id, v, { memberId: who, kind: "return", amount: a });
       await finishGame(one.id, v);
     }
-    const two = await startGame(pot.id, v, { name: "Round 2", game: "poker", players: [v, r, m, k] });
+    const two = await startGame(pot.id, v, { name: "Round 2", game: "board", players: [v, r, m, k] });
     if (two.ok) {
-      for (const [who, a] of [[v, "2000"], [r, "1000"], [m, "1000"], [k, "2000"]] as const) await recordMove(two.id, r, { memberId: who, kind: "take", amount: a, note: who === k ? "second buy-in later" : "" });
+      for (const [who, a] of [[v, "2000"], [r, "1000"], [m, "1000"], [k, "2000"]] as const) await recordMove(two.id, r, { memberId: who, kind: "take", amount: a, note: who === k ? "second chips in later" : "" });
       await recordMove(two.id, m, { memberId: m, kind: "return", amount: "1500" });
       await recordMove(two.id, v, { memberId: r, kind: "return", amount: "0" });
     }
@@ -420,6 +420,8 @@ if (!hosted) {
     }, false);
     await db.account.update({ where: { id: acc.id }, data: { places: JSON.stringify([{ c: "TH" }, { c: "IT" }, { c: "AT" }, { c: "HR" }]) } });
     await shot("108-passport", "/passport", undefined, false);
+    // 108 shows the one-time question; from here Varun has said Show.
+    await db.account.update({ where: { id: acc.id }, data: { passportChoiceAt: new Date() } });
     await shot("109-passport-open", "/passport", async (p) => {
       await p.getByRole("button", { name: "Open your passport" }).click();
       await p.waitForTimeout(800);
@@ -451,10 +453,10 @@ if (!hosted) {
       await p.waitForTimeout(700);
     }, false);
     // Postcards: one from Meera (received, a Goa photo), one sent back (a print), the composer.
-    const meera = await db.account.create({ data: { email: `shots-meera-${Date.now()}@uat.loopin.test`, name: "Meera" } });
+    const meera = await db.account.create({ data: { email: `shots-meera-${Date.now()}@uat.loopin.test`, name: "Meera", passportChoiceAt: new Date() } });
     await db.member.create({ data: { groupId: lona.id, name: "Meera", accountId: meera.id, claimedAt: new Date() } });
     const got = await db.postcard.create({
-      data: { fromId: meera.id, toId: acc.id, groupId: lona.id, front: "photo:/photos/place-goa.jpg", words: "Goa", lettering: "classic", message: "Wish you were here. The beach shack turned out to be the fancy dinner, Ravi lost every hand at cards, and we watched the sun go down three evenings in a row. Same time next year?", hand: "caveat", stamp: "c:IN", paper: "cream", look: "golden:70", touches: "seal,flower", address: JSON.stringify(["Varun", "the flat that never has milk", "Bengaluru"]), place: "Goa" },
+      data: { fromId: meera.id, toId: acc.id, groupId: lona.id, front: "photo:/photos/place-goa.jpg", words: "Goa", lettering: "classic", message: "Wish you were here. The beach shack turned out to be the fancy dinner, Ravi forgot the rules of every card game, and we watched the sun go down three evenings in a row. Same time next year?", hand: "caveat", stamp: "c:IN", paper: "cream", look: "golden:70", touches: "seal,flower", address: JSON.stringify(["Varun", "the flat that never has milk", "Bengaluru"]), place: "Goa" },
     });
     await db.postcard.create({
       data: { fromId: acc.id, toId: meera.id, groupId: lona.id, front: "print:hills", words: "Lonavala", lettering: "italic", message: "Thank you for planning all of it.", hand: "homemade", stamp: "t:mountains", paper: "airmail", address: JSON.stringify(["Meera", "", ""]), place: "Lonavala", reaction: "miss", reactedAt: new Date() },
@@ -553,7 +555,7 @@ if (!hosted) {
       await p.getByRole("button", { name: "Share", exact: true }).first().click();
       await p.waitForTimeout(800);
     }, false);
-    await db.account.update({ where: { id: priya.id }, data: { places: JSON.stringify([{ c: "JP" }, { c: "FR" }, { c: "GR" }, { c: "TH" }, { c: "AE" }, { c: "ID" }]) } });
+    await db.account.update({ where: { id: priya.id }, data: { passportChoiceAt: new Date(), places: JSON.stringify([{ c: "JP" }, { c: "FR" }, { c: "GR" }, { c: "TH" }, { c: "AE" }, { c: "ID" }]) } });
     await shot("123-friends-passports", "/passport/friends", undefined, false);
     await shot("124-friend-passport", `/passport/friends/${priya.id}`, async (p) => {
       await p.getByRole("button", { name: "Open your passport" }).click();

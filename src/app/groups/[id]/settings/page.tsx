@@ -1,11 +1,9 @@
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { headers } from "next/headers";
-import { getAccount, getMyMemberId } from "@/lib/identity";
-import { regionFor } from "@/lib/region";
+import { getMyMemberId } from "@/lib/identity";
 import { convertGroupCurrency, deleteGroup, saveGroupSettings, setGroupClosed } from "@/app/actions";
 import { NOTIFY_KINDS, parseNotify } from "@/lib/notify-prefs";
-import { groupTypesFor, sharingInputs } from "@/lib/group-types";
+import { GROUP_TYPES, sharingInputs } from "@/lib/group-types";
 import { StaysGoes } from "@/components/StaysGoes";
 import { deleteText } from "@/lib/leave-text";
 import { ConfirmButton } from "@/components/ConfirmButton";
@@ -60,7 +58,6 @@ export default async function GroupSettings({
   // Someone who left can still read the group, but not change it.
   if (group.members.find((m) => m.id === myId)?.leftAt) redirect(`/groups/${group.id}/people?error=${encodeURIComponent("You left this group. Rejoin it to change its settings.")}`);
 
-  const india = regionFor(await headers(), (await getAccount())?.homeCountry).india; // Teen Patti is named only for people in India
   const isPreset = PRESETS.includes(group.cardMarkupBp);
   // Deleting the group and changing its currency are for the person who started it.
   const admin = pickAdmin(group.members);
@@ -218,7 +215,7 @@ export default async function GroupSettings({
           <h2 className={`!mb-3 ${sectionTitle}`}>How you share costs</h2>
           <div>
             <span className="mb-2 block text-base font-semibold">Group type</span>
-            <GroupTypeChips types={groupTypesFor(india)} defaultValue={group.type} />
+            <GroupTypeChips types={GROUP_TYPES} defaultValue={group.type} />
           </div>
           <fieldset>
             <legend className="mb-1 text-base font-semibold">{group.type === "couple" ? "Each person’s %" : "Shares"}</legend>

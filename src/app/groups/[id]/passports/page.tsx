@@ -6,6 +6,7 @@ import { getMyMemberId } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
 import { todayKey } from "@/lib/dates";
 import { loadPassport, passportRoster } from "@/lib/passport-db";
+import { passportShared } from "@/lib/passport";
 import { countryOf } from "@/lib/geo";
 import { Avatar, PageHeader } from "@/components/ui";
 import { WorldMap } from "@/components/PassportBook";
@@ -29,14 +30,14 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
   const roster = passportRoster(group.members, myId);
   if (!roster) redirect("/private");
   const today = todayKey(new Date(), await getTimeZone());
-  type Person = { m: { id: string; name: string; accountId: string | null; claimedAt: Date | null; leftAt: Date | null; addedBy: string; seenAt: Date | null; removedAt: Date | null }; mine: boolean; state: "notOnLoopin" | "private" | "open" | "empty"; codes: string[]; cities: number };
+  type Person = { m: { id: string; name: string; accountId: string | null; claimedAt: Date | null; leftAt: Date | null; addedBy: string; seenAt: Date | null; removedAt: Date | null }; mine: boolean; state: "notOnLoopin" | "private" | "unshared" | "open" | "empty"; codes: string[]; cities: number };
   const people: Person[] = await Promise.all(
     roster.map(async (m): Promise<Person> => {
       const mine = m.id === myId;
       if (!m.accountId) return { m, mine, state: "notOnLoopin", codes: [], cities: 0 };
-      const a = await db.account.findUnique({ where: { id: m.accountId }, select: { id: true, homeCountry: true, places: true, passportShare: true } });
+      const a = await db.account.findUnique({ where: { id: m.accountId }, select: { id: true, homeCountry: true, places: true, passportShare: true, passportChoiceAt: true } });
       if (!a) return { m, mine, state: "notOnLoopin", codes: [], cities: 0 };
-      if (!mine && a.passportShare === "private") return { m, mine, state: "private", codes: [], cities: 0 };
+      if (!mine && !passportShared(a)) return { m, mine, state: a.passportShare === "private" ? "private" : "unshared", codes: [], cities: 0 };
       const p = await loadPassport(a, "", today, { forFriend: !mine });
       const codes = p.index.map((r) => r.code);
       return { m, mine, state: codes.length ? "open" : "empty", codes, cities: p.stats.cities };
@@ -102,7 +103,9 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
               ? "Not on Loopin yet · invite them"
               : state === "private"
                 ? "Keeps their passport private"
-                : state === "empty"
+                : state === "unshared"
+                  ? "Hasn’t shared their passport yet"
+                  : state === "empty"
                   ? mine
                     ? "Empty so far · add where you’ve been"
                     : "Empty so far · nudge them"
@@ -119,7 +122,7 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
                   <span className="block truncate text-xs text-gray-400">{sub}</span>
                 </span>
                 <span className="shrink-0 text-base" aria-hidden>
-                  {state === "private" ? "🔒" : codes.slice(0, 4).map((c) => countryOf(c)?.flag).join("")}
+                  {state === "private" || state === "unshared" ? "🔒" : codes.slice(0, 4).map((c) => countryOf(c)?.flag).join("")}
                 </span>
                 <span aria-hidden className="text-gray-400">
                   ›

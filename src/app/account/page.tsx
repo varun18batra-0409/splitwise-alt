@@ -145,7 +145,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           <span aria-hidden className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-owed/40 bg-[radial-gradient(circle_at_30%_25%,rgba(111,227,168,0.16),transparent_70%)] text-owed"><PeoplePassportsIcon size={24} /></span>
           <span className="min-w-0 flex-1">
             <span className="block font-display text-lg font-semibold">Friends’ passports</span>
-            <span className="block text-sm text-gray-500">Where everyone in your groups has been</span>
+            <span className="block text-sm text-gray-500">Where friends in your groups have been</span>
           </span>
           <span aria-hidden className="text-xl">›</span>
         </Link>
@@ -193,8 +193,12 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
 
       <section className="mt-10 border-t border-line pt-8" id="notifications">
         <h2 className="mb-1 text-base font-semibold">Notifications</h2>
-        <p className="mb-4 text-sm text-gray-500">Whether this phone lets Loopin notify you. What Loopin sends is chosen in Alerts and each group’s settings.</p>
+        <p className="mb-4 text-sm text-gray-500">Whether this phone lets Loopin notify you.</p>
         <PhoneStatus compact />
+        <Link href="/account/notifications" className="mt-3 flex min-h-11 items-center justify-between gap-3 rounded-2xl border border-line px-4 py-3 text-sm font-medium active:bg-mist" data-notify-link>
+          <span>Notifications &amp; email</span>
+          <span aria-hidden className="text-gray-400">›</span>
+        </Link>
       </section>
 
       {account && (

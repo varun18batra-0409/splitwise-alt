@@ -1,3 +1,4 @@
+import { neutralGameText } from "@/lib/game-words";
 import Link from "@/components/Link";
 import { InviteFriends } from "@/components/InviteFriends";
 import { GetAppButton } from "@/components/GetApp";
@@ -7,7 +8,7 @@ import { IntroTour } from "@/components/IntroTour";
 import { JoinByLink } from "@/components/JoinByLink";
 import { cookies, headers } from "next/headers";
 import { visitorRegion } from "@/lib/region";
-import { cardGames } from "@/lib/group-types";
+import { GAME_NIGHT_GAMES } from "@/lib/group-types";
 import { getTimeZone } from "@/lib/tz";
 import { getAccount, getMemberships } from "@/lib/identity";
 import { PasskeyOffer } from "@/components/Passkeys";
@@ -107,7 +108,7 @@ export default async function Home({
     if (ev && canUndo(ev, events).ok) {
       const grp = all.find((x) => x.group.id === didGroup);
       const actor = ev.actorId === memberships[didGroup] ? "You" : grp?.group.members.find((m) => m.id === ev.actorId)?.name ?? "Someone";
-      undoBar = { text: undone ? "Undone." : `${actor} ${ev.text}${grp ? ` · ${grp.group.name}` : ""}`, groupId: didGroup, eventId: ev.id };
+      undoBar = { text: undone ? "Undone." : `${actor} ${neutralGameText(ev.text)}${grp ? ` · ${grp.group.name}` : ""}`, groupId: didGroup, eventId: ev.id };
     }
   }
 
@@ -296,7 +297,7 @@ export default async function Home({
       return {
         id: gm.id,
         groupId: gm.groupId,
-        name: gm.name,
+        name: neutralGameText(gm.name),
         winner: top && top.net > 0 ? name(top.memberId) : "",
         won: top && top.net > 0 ? formatMoney(top.net, grp.group.currency) : "",
         youWon: top && top.net > 0 && top.memberId === grp.myId ? formatMoney(top.net, grp.group.currency) : undefined,
@@ -564,7 +565,7 @@ export default async function Home({
                 ›
               </span>
             </Link>
-            <PotTeaser className="mt-2" india={region.india} />
+            <PotTeaser className="mt-2" />
           </section>
 
           {stories.length > 0 && <Stories stories={stories} className="mt-8" />}
@@ -582,7 +583,7 @@ export default async function Home({
             who={who}
             whoHref={mode === "owe" ? "/settle#pay" : "/settle#remind"}
             amount={mode === "square" ? "All square" : netCommon ? heroText.replace(/^([≈ ]*)[+−]/, "$1") : heroText /* several currencies: each keeps its own sign */}
-            amountClass={mode === "square" ? "text-[26px]" : heroText.length <= 9 ? "text-[40px]" : heroText.length <= 12 ? "text-[32px]" : "text-[22px]"}
+            amountClass={mode === "square" ? "text-[24px]" : heroText.length <= 9 ? "text-[32px]" : heroText.length <= 12 ? "text-[26px]" : "text-[20px]"}
             tone={mode === "owed" ? "owed" : mode === "owe" ? "owe" : "plain"}
             mode={mode}
             actions={actions}
@@ -593,7 +594,7 @@ export default async function Home({
           {invitationsBlock}
 
           {/* Groups: polaroids you swipe sideways. "See all" opens the full list. */}
-          <section className="mt-6" aria-labelledby="home-groups-h">
+          <section className="mt-5" aria-labelledby="home-groups-h">
             <div className="flex items-baseline justify-between">
               <h2 id="home-groups-h" className="font-display text-[20px] font-semibold tracking-tight">Your groups</h2>
               <Link href="/groups" className="flex min-h-11 items-center text-sm font-medium text-fg/85">
@@ -784,14 +785,14 @@ function CollectionsSection({ list }: { list: Awaited<ReturnType<typeof myCollec
 }
 
 // "Collect money": one small row inviting a first collection.
-// For someone just starting: card nights (Collect and everything else start from New group).
-function PotTeaser({ className = "", india }: { className?: string; india: boolean }) {
+// For someone just starting: game nights (Collect and everything else start from New group).
+function PotTeaser({ className = "" }: { className?: string }) {
   return (
     <Link href="/groups/new?type=pot" className={`flex items-center gap-3 rounded-2xl border border-line px-4 py-3.5 active:bg-mist ${className}`}>
       <RowIcon d="M7 4h8a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2ZM17 7l2.2.6a2 2 0 0 1 1.4 2.4l-2.6 9.6" />
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-medium">Card night? Start a Pot</span>
-        <span className="block text-xs text-gray-400">{cardGames(india)}: who took what from the pot, who won, who pays</span>
+        <span className="block text-sm font-medium">Game night? Start one</span>
+        <span className="block text-xs text-gray-400">{GAME_NIGHT_GAMES}: keep the score, see who pays</span>
       </span>
       <span className="text-gray-400" aria-hidden>
         ›

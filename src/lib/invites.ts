@@ -178,7 +178,7 @@ async function inviteOne(
         `${actor.name} added you to ${group.name} on Loopin`,
         `${actor.name} added you to “${group.name}” on Loopin.\n\nJoin here: ${link}`,
         `<div style="font-family:system-ui,sans-serif;max-width:440px"><p style="font-size:16px"><strong>${esc(actor.name)}</strong> added you to <strong>${esc(group.name)}</strong> on Loopin.</p><p><a href="${link}" style="display:inline-block;background:#0d0d0f;color:#f4f2ec;padding:12px 18px;text-decoration:none;font-weight:600">Join ${esc(group.name)}</a></p></div>`,
-        { optOut: true },
+        { optOut: true, item: "groups.added" },
       );
     }
     if (o.account) {
@@ -374,7 +374,7 @@ export async function inviteToClaim(groupId: string, actorId: string, memberId: 
     `${actor.name} added you to ${group.name} on Loopin`,
     `${actor.name} added you as “${member.name}” in “${group.name}” on Loopin. Tap to join and see your share:\n\n${link}`,
     `<div style="font-family:system-ui,sans-serif;max-width:440px"><p style="font-size:16px"><strong>${esc(actor.name)}</strong> added you as <strong>${esc(member.name)}</strong> in <strong>${esc(group.name)}</strong> on Loopin.</p><p><a href="${link}" style="display:inline-block;background:#0d0d0f;color:#f4f2ec;padding:12px 18px;text-decoration:none;font-weight:600">Join as ${esc(member.name)}</a></p></div>`,
-    { optOut: true },
+    { optOut: true, item: "groups.added" },
   );
   if (!sent) return { ok: false, error: "The email couldn’t be sent. Share the group’s invite link instead." };
   await logEvent(db, { groupId, actorId, kind: "member_invited", text: `invited ${member.name} to join` });

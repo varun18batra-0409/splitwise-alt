@@ -50,7 +50,7 @@ function Section({ slot, art, title, children }: { slot?: Slot; art?: StoryKind;
       {slot ? (
         <Photo slot={slot}>{heading}</Photo>
       ) : art ? (
-        // Designed artwork where a stock photo would look cheap (card nights).
+        // Designed artwork where a stock photo would look cheap (game nights).
         <div className="relative -mx-5 h-[200px] overflow-hidden">
           <StoryArt kind={art} uid={`guide-${art}`} />
           <div className="absolute inset-0 bg-gradient-to-t from-canvas via-canvas/30 to-transparent" />
@@ -173,7 +173,7 @@ export default async function HowItWorks() {
           ["#trips", "Trip report"],
           ["#home", "Home"],
           ["#couples", "Couples"],
-          ["#pot", "Card nights"],
+          ["#pot", "Game night"],
           ["#collect", "Collect money"],
           ["#safe", "Undo & privacy"],
           ["#from-another-app", "From another app"],
@@ -188,7 +188,7 @@ export default async function HowItWorks() {
       <Section slot="roadtrip" kicker="1 · Create a group" title="Create a group, bring everyone in">
         <Steps
           items={[
-            <>Tap <strong>New group</strong> and pick what it’s for: <strong>Trip</strong>, <strong>Home</strong>, <strong>Couple</strong>, <strong>The Pot</strong> (card nights) or <strong>Anything Goes</strong>. Collecting for a gift or a booking? <strong>Collect</strong> is right there too. Give it a name (“Euro trip”) and a currency. First time? Sign in with Google or your email in 30 seconds (no password). Next time, one touch with your fingerprint or face.</>,
+            <>Tap <strong>New group</strong> and pick what it’s for: <strong>Trip</strong>, <strong>Home</strong>, <strong>Couple</strong>, <strong>Game night</strong> or <strong>Anything Goes</strong>. Collecting for a gift or a booking? <strong>Collect</strong> is right there too. Give it a name (“Euro trip”) and a currency. First time? Sign in with Google or your email in 30 seconds (no password). Next time, one touch with your fingerprint or face.</>,
             <>Add people: friends already on Loopin, people from your contacts, or anyone by email.</>,
             <>Or share the group’s link or QR code. People confirm their email and they’re in, and show up on the People screen. From then on everyone is told about every change.</>,
           ]}
@@ -314,22 +314,22 @@ export default async function HowItWorks() {
       </Section>
 
       <div id="pot" className="scroll-mt-4" />
-      <Section art="pot" title="Card nights: The Pot keeps score">
+      <Section art="pot" title="Game night: Loopin keeps the score">
         <p>
-          Playing {india ? <><strong>Teen Patti</strong> or <strong>Poker</strong></> : <><strong>Poker</strong> or <strong>rummy</strong></>}? Make a group and pick <strong>The Pot</strong>. Add the players: friends on
+          Playing <strong>cards</strong>, a <strong>board game</strong> or any game? Make a group and pick <strong>Game night</strong>. Add the players: friends on
           Loopin see the game and their balance; anyone else can just be a name (they can join with the link later).
         </p>
         <Steps
           items={[
             <><strong>Start a game.</strong> Pick the game and who’s at the table. Whoever starts it is the host.</>,
-            <><strong>Buy in.</strong> Everyone is ticked: pick an amount ({india ? "₹1,000" : "$100"}) and tap once. Topping up later? Tick just those players. Anyone in the group can add money, and every line says who added it.</>,
-            <><strong>Cash out, or swap a player.</strong> Someone leaving early taps <strong>Cash out</strong> with what they have. A new player can take the seat right there: just a name and their buy-in.</>,
-            <><strong>Count the money.</strong> At the end, one table: type what each player has in front of them (0 if they lost it all). It shows who’s up or down as you type, and whether it adds up.</>,
-            <><strong>It has to add up.</strong> If money is missing, or more came back than was taken, the game can’t finish until you find it, or the host fixes the difference (spread over everyone, or on one person) with a reason.</>,
+            <><strong>Chips in.</strong> Everyone is ticked: pick an amount ({india ? "₹1,000" : "$100"}) and tap once. Topping up later? Tick just those players. Anyone in the group can add to it, and every line says who added it.</>,
+            <><strong>Took home, or swap a player.</strong> Someone leaving early taps <strong>Took home</strong> with what they have. A new player can take the seat right there: just a name and their chips in.</>,
+            <><strong>Count the money.</strong> At the end, one table: type what each player has in front of them (0 if nothing). It shows who’s up or down as you type, and whether it adds up.</>,
+            <><strong>It has to add up.</strong> If money is missing, or more came back than went in, the game can’t finish until you find it, or the host fixes the difference (spread over everyone, or on one person) with a reason.</>,
             <><strong>Calculate & settle.</strong> The host taps it and gets a short list of payments to square up (“Meera pays Ravi {india ? "₹300" : "$30"}”). The result goes into the group’s balances, so Settle up works as always. Every game stays in the history.</>,
           ]}
         />
-        <p>Loopin only keeps count, like a notebook at the table. It doesn’t run the game, track chips or bets, or hold or move any money.</p>
+        <p>Loopin keeps the score of games you play together. No betting happens in the app. It only keeps count, like a notebook at the table: it doesn’t run the game or hold or move any money.</p>
       </Section>
 
       <div id="stories" className="scroll-mt-4" />
@@ -337,11 +337,11 @@ export default async function HowItWorks() {
         <p>
           At the top of Home is a row of little circles with a gold ring. Each one is a <strong>story</strong> from your groups, a few slides you tap through: the
           countdown to a trip with photos of where you’re going and the crew, <strong>today’s spend</strong> while you’re away, last night’s{" "}
-          <strong>card game</strong> with everyone’s result and who pays whom, a group that just got <strong>all square</strong>, and a trip from a year ago.
+          <strong>game night</strong> with everyone’s result and who pays whom, a group that just got <strong>all square</strong>, and a trip from a year ago.
         </p>
         <Screens
           a={{ src: "/guide/story-trip.webp", alt: "A trip story: a photo of the beach with a quirky caption", caption: "A trip coming up" }}
-          b={{ src: "/guide/story-pot.webp", alt: "A card night story: everyone's result as bars", caption: "Last night’s card game" }}
+          b={{ src: "/guide/story-pot.webp", alt: "A game night story: everyone's result as bars", caption: "Last night’s game" }}
         />
       </Section>
 
@@ -365,11 +365,11 @@ export default async function HowItWorks() {
         </p>
         <Steps
           items={[
-            <><strong>Friends’ passports.</strong> Anyone you’ve shared a group with, even an old flat or a finished trip: You → Friends’ passports.</>,
+            <><strong>Friends’ passports.</strong> Anyone you’ve shared a group with, even an old flat or a finished trip, who has chosen to show theirs: You → Friends’ passports.</>,
             <><strong>Moments.</strong> Your 5th country, a new continent, 10 cities: each one shows up in Alerts, once.</>,
             <><strong>Our passports.</strong> Inside any group: where you’ve all been together, with every flag.</>,
             <><strong>Empty passport?</strong> Nudge them. They’ll see it in Alerts, never as a push or email.</>,
-            <><strong>Private when you want.</strong> Switch yours to Only me. Trips still happening stay hidden until they’re over.</>,
+            <><strong>Yours to show.</strong> Loopin asks once whether to show your places to people in your groups. Until you tap Show, nobody sees them. Change it any time under Who can see it. Trips still happening stay hidden until they’re over.</>,
           ]}
         />
         <Screens
@@ -420,7 +420,7 @@ export default async function HowItWorks() {
       <div id="safe" className="scroll-mt-4" />
       <section className="mt-12 space-y-3 text-[15px] leading-relaxed text-gray-600">
         <h2 className="font-display text-[26px] font-semibold tracking-tight text-fg">Mistakes happen. Fix them.</h2>
-        <p>Every change can be undone, and the history shows who changed what. Everyone in the group gets an alert; you choose which alerts per group in its settings.</p>
+        <p>Every change can be undone, and the history shows who changed what. Everyone in the group gets an alert; you choose which alerts per group in its settings. To choose what Loopin sends you everywhere, on your phone and by email, open <strong>You</strong> and then <strong>Notifications &amp; email</strong>.</p>
         <p>
           You sign in with Google, your email (a code, no password) or your fingerprint or face, so your groups come back on any phone. Only people in a group can see it.
           No ads, and your data isn’t sold. <Link href="/privacy" className="underline underline-offset-4">Privacy</Link>

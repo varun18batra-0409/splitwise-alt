@@ -1,4 +1,6 @@
+import { neutralGameText } from "./game-words";
 import { parseNotify, wantsPush } from "./notify-prefs";
+import { allows, bothAllow, eventItem, type ItemId } from "./account-notify";
 import webpush from "web-push";
 import { db } from "./db";
 import { isBigExpense } from "./big-expense";
@@ -42,7 +44,7 @@ const SIGN: Record<string, string> = {
   bill_changed: "🧾",
 };
 export function pushPayload(e: { groupId: string; groupName: string; actorName: string; text: string; eventId: string; kind?: string }) {
-  const body = `${e.actorName} ${e.text}`;
+  const body = `${e.actorName} ${neutralGameText(e.text)}`;
   const sign = e.kind ? SIGN[e.kind] ?? "⚙️" : "";
   return {
     title: sign ? `${sign} ${e.groupName}` : e.groupName,
@@ -51,6 +53,14 @@ export function pushPayload(e: { groupId: string; groupName: string; actorName: 
     url: e.kind === "payment_recorded" ? `/groups/${e.groupId}/settle` : `/groups/${e.groupId}?tab=activity`,
     tag: e.eventId,
   };
+}
+
+// Each person's own "Notifications & email" choices, by account. People without an account (phone-only members) have none: they get today's behaviour.
+async function accountPrefs(accountIds: (string | null | undefined)[]): Promise<Map<string, string>> {
+  const ids = [...new Set(accountIds.filter((x): x is string => Boolean(x)))];
+  if (!ids.length) return new Map();
+  const rows = await db.account.findMany({ where: { id: { in: ids } }, select: { id: true, notifyPrefs: true } });
+  return new Map(rows.map((r) => [r.id, r.notifyPrefs]));
 }
 
 async function bigOne(groupId: string, expenseId: string): Promise<boolean> {
@@ -74,15 +84,18 @@ export async function sendEventPush(eventId: string): Promise<number> {
       db.pushSubscription.findMany({
         // (Someone added by another person who hasn't opened the group yet gets nothing.)
         where: { member: { groupId: ev.groupId, leftAt: null, ...JOINED }, memberId: { not: ev.actorId } },
-        include: { member: { select: { notify: true } } },
+        include: { member: { select: { notify: true, accountId: true } } },
       }),
       db.pushSubscription.findMany({ where: { memberId: ev.actorId }, select: { endpoint: true } }),
     ]);
     const actorPhones = new Set(own.map((o) => o.endpoint));
-    const subs = all.filter((s) => !actorPhones.has(s.endpoint) && wantsPush(parseNotify(s.member.notify), ev.kind));
+    // Both must agree: the person's account choices and the group's own settings.
+    const prefs = await accountPrefs(all.map((s) => s.member.accountId));
+    const item = eventItem(ev.kind);
+    const subs = all.filter((s) => !actorPhones.has(s.endpoint) && bothAllow(s.member.accountId ? prefs.get(s.member.accountId) : "", "push", item, wantsPush(parseNotify(s.member.notify), ev.kind)));
     if (subs.length === 0) return 0;
     const actor = await db.member.findUnique({ where: { id: ev.actorId }, select: { name: true } });
-    const base = pushPayload({ groupId: ev.group.id, groupName: ev.group.name, actorName: actor?.name ?? "Someone", text: ev.text, eventId, kind: ev.kind });
+    const base = pushPayload({ groupId: ev.group.id, groupName: ev.group.name, actorName: actor?.name ?? "Someone", text: neutralGameText(ev.text), eventId, kind: ev.kind });
     // A much bigger expense than this group usually has: say so, so people check it.
     if (ev.kind === "expense_added" && ev.expenseId && (await bigOne(ev.groupId, ev.expenseId))) {
       base.title = `💰 Big one in ${ev.group.name}`;
@@ -115,11 +128,12 @@ export async function sendEventPush(eventId: string): Promise<number> {
 
 // Send a message to particular people (reminders, budget alerts…), on every
 // phone they turned notifications on for in that group. Never throws.
-export async function sendPushTo(memberIds: string[], p: { title: string; body: string; url: string; tag: string }): Promise<number> {
+export async function sendPushTo(memberIds: string[], p: { title: string; body: string; url: string; tag: string }, item: ItemId): Promise<number> {
   try {
     if (memberIds.length === 0) return 0;
-    const subs = await db.pushSubscription.findMany({ where: { memberId: { in: memberIds }, member: JOINED }, include: { member: { select: { notify: true } } } });
-    const wanted = subs.filter((s) => !parseNotify(s.member.notify).off);
+    const subs = await db.pushSubscription.findMany({ where: { memberId: { in: memberIds }, member: JOINED }, include: { member: { select: { notify: true, accountId: true } } } });
+    const prefs = await accountPrefs(subs.map((s) => s.member.accountId));
+    const wanted = subs.filter((s) => bothAllow(s.member.accountId ? prefs.get(s.member.accountId) : "", "push", item, !parseNotify(s.member.notify).off));
     if (wanted.length === 0) return 0;
     const keys = await vapidKeys();
     const payload = JSON.stringify({ title: p.title, body: p.body.length > 140 ? `${p.body.slice(0, 139)}…` : p.body, url: p.url, tag: p.tag });
@@ -147,12 +161,14 @@ export async function sendPushTo(memberIds: string[], p: { title: string; body: 
 
 // Send to people by account (Collect), on every phone they use Loopin on —
 // unless they turned off collection notifications. Never throws.
-export async function sendPushToAccounts(accountIds: string[], p: { title: string; body: string; url: string; tag: string }): Promise<number> {
+export async function sendPushToAccounts(accountIds: string[], p: { title: string; body: string; url: string; tag: string }, item: ItemId): Promise<number> {
   try {
     if (!accountIds.length) return 0;
-    const wanted = await db.account.findMany({ where: { id: { in: accountIds }, collectPush: true }, select: { id: true } });
-    if (!wanted.length) return 0;
-    const subs = await db.pushSubscription.findMany({ where: { member: { accountId: { in: wanted.map((a) => a.id) }, leftAt: null, ...JOINED } } });
+    const wanted = await db.account.findMany({ where: { id: { in: accountIds }, collectPush: true }, select: { id: true, notifyPrefs: true } });
+    // Collection alerts stay on their own switch too; the account's choices are on top of it.
+    const ok = wanted.filter((a) => allows(a.notifyPrefs, "push", item));
+    if (!ok.length) return 0;
+    const subs = await db.pushSubscription.findMany({ where: { member: { accountId: { in: ok.map((a) => a.id) }, leftAt: null, ...JOINED } } });
     if (!subs.length) return 0;
     const keys = await vapidKeys();
     const payload = JSON.stringify({ title: p.title, body: p.body.length > 140 ? `${p.body.slice(0, 139)}…` : p.body, url: p.url, tag: p.tag });

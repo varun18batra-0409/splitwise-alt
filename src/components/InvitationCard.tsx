@@ -3,7 +3,7 @@ import { GroupCover } from "@/components/GroupCover";
 import { coverFor } from "@/lib/covers";
 import type { Invitation } from "@/lib/invitations";
 
-export const kindWord = (type: string) => (type === "trip" ? "Trip" : type === "home" ? "Home" : type === "couple" ? "Couple" : type === "pot" ? "The Pot" : "Group");
+export const kindWord = (type: string) => (type === "trip" ? "Trip" : type === "home" ? "Home" : type === "couple" ? "Couple" : type === "pot" ? "Game night" : "Group");
 
 // "Asha added you to Goa trip": Join or Not now. Shown on Home and in Alerts. The group isn't
 // in your groups until you tap Join; Not now just hides the card.

@@ -186,3 +186,17 @@ export function stampPages(stamps: Stamp[], been: Stamp[], per = 6) {
   return pages;
 }
 
+
+// Is this account's passport open to people in its groups? Only if the owner said yes:
+// "no recorded choice" (passportChoiceAt empty) counts as hidden, and so does an explicit
+// "private". Accounts from before the question existed have no recorded choice, so they
+// stay hidden until they answer.
+export function passportShared(a: { passportShare: string; passportChoiceAt: Date | null | undefined }): boolean {
+  return a.passportShare !== "private" && Boolean(a.passportChoiceAt);
+}
+
+// Should /passport still ask "Show your places to people in your groups?" Only when there is no
+// recorded answer. Someone who had already switched it off ("private") has answered: not asked again.
+export function passportNeedsAnswer(a: { passportShare: string; passportChoiceAt: Date | null | undefined }): boolean {
+  return !a.passportChoiceAt && a.passportShare !== "private";
+}

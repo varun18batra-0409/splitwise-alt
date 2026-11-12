@@ -8,7 +8,7 @@ import { sendPassportAction } from "./actions";
 export const metadata = { title: "Send your passport", robots: { index: false } };
 
 const ERRORS: Record<string, string> = {
-  private: "Your passport is set to private. Change who can see it first.",
+  private: "Your passport isn’t shown to people in your groups yet. Choose who can see it first.",
   none: "Pick who it’s for.",
   limit: "That’s a lot of sending today. Try again tomorrow.",
 };

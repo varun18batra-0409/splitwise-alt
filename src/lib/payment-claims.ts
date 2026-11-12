@@ -25,11 +25,11 @@ export const claimRef = (claimId: string) => `claim:${claimId}`;
 const notThere = "That one isn’t there any more.";
 
 // Phone notification for one person (the group's history line is separate).
-function pushToReceiver(toId: string, p: { title: string; body: string; url: string; tag: string }) {
+function pushToReceiver(toId: string, p: { title: string; body: string; url: string; tag: string }, item: "payments.claimed" | "payments.answered") {
   try {
     after(async () => {
       const { sendPushTo } = await import("./push");
-      await sendPushTo([toId], p);
+      await sendPushTo([toId], p, item);
     });
   } catch {
     /* not inside a request (tests, scripts): nothing is sent */
@@ -90,7 +90,7 @@ async function makeClaimOnce(input: MakeInput): Promise<ClaimResult> {
 
 // After makeClaim succeeded for the first time: tell the person paid.
 export function tellReceiver(c: { claimId: string; groupId: string; groupName: string; toId: string; fromName: string; amountText: string }) {
-  pushToReceiver(c.toId, { title: `💸 ${c.groupName}`, body: `${c.fromName} says they paid you ${c.amountText}. Tap to confirm.`, url: `/groups/${c.groupId}/settle`, tag: `claim-${c.claimId}` });
+  pushToReceiver(c.toId, { title: `💸 ${c.groupName}`, body: `${c.fromName} says they paid you ${c.amountText}. Tap to confirm.`, url: `/groups/${c.groupId}/settle`, tag: `claim-${c.claimId}` }, "payments.claimed");
 }
 
 // The payer takes it back while it's still waiting. Allowed only for the person who made it.
@@ -127,7 +127,7 @@ async function declineClaimOnce(claimId: string, myMemberId: string | undefined)
   // The payer is told too (the group-wide push skips these notes), so they check their payment app.
   const to = await db.member.findUnique({ where: { id: claim.toId }, select: { name: true } });
   const g = await db.group.findUnique({ where: { id: claim.groupId }, select: { name: true } });
-  pushToReceiver(claim.fromId, { title: `💬 ${g?.name ?? "Loopin"}`, body: declinedNote(to?.name ?? "They", claim.amount, claim.currency), url: `/groups/${claim.groupId}/settle`, tag: `claim-declined-${claim.id}` });
+  pushToReceiver(claim.fromId, { title: `💬 ${g?.name ?? "Loopin"}`, body: declinedNote(to?.name ?? "They", claim.amount, claim.currency), url: `/groups/${claim.groupId}/settle`, tag: `claim-declined-${claim.id}` }, "payments.answered");
   return { ok: true, claimId, eventId: done };
 }
 

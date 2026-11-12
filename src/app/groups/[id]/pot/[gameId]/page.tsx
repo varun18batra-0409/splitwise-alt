@@ -6,6 +6,7 @@ import { getMyMemberId } from "@/lib/identity";
 import { ErrorNote, PageHeader, inputClass, secondaryButtonClass } from "@/components/ui";
 import { Notice } from "@/components/Notice";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { GAME_NOTE, TOOK_HOME_NOTES, gameEmoji, neutralGameText } from "@/lib/game-words";
 import { PotBuyIn } from "@/components/PotBuyIn";
 import { PotCount } from "@/components/PotCount";
 import { PotName } from "@/components/PotName";
@@ -21,10 +22,10 @@ import { actionFormClass, DifferentAmountLink, differentAmountFor, filledActionC
 import { FreshKey } from "@/components/FreshKey";
 import { getTimeZone } from "@/lib/tz";
 
-// One game of The Pot: money taken and put back, live; then who won, who
-// lost and who pays whom. Settling up happens in the group, as always.
+// One game of Game night: chips in and took home, live; then who came out ahead,
+// who came out behind and who pays whom. Settling up happens in the group, as always.
 
-const CASHED = "cashed out";
+const CASHED = TOOK_HOME_NOTES;
 const COUNTED = "counted at the end";
 
 type SP = { did?: string; undone?: string; allpaid?: string; paid?: string; renamed?: string; error?: string; bought?: string; cashed?: string; seat?: string; counted?: string; gap?: string; joined?: string; started?: string; saved?: string; who?: string; kind?: string; removed?: string; adjusted?: string; finished?: string; reopened?: string };
@@ -153,26 +154,26 @@ export default async function GamePage({ params, searchParams }: { params: Promi
 
   return (
     <>
-      <PageHeader title={game.name} back={`/groups/${group.id}?tab=games`} />
+      <PageHeader title={neutralGameText(game.name)} back={`/groups/${group.id}?tab=games`} />
       {sp.error && <ErrorNote>{sp.error.slice(0, 200)}</ErrorNote>}
       {sp.started && (
         <Notice tone="success" params={["started"]} className="mb-4">
-          Game on! Tap “Give” to buy everyone in. Anyone in the group can add to it.
+          Game on! Put chips in for everyone below. Anyone in the group can add to it.
         </Notice>
       )}
       {sp.saved && (
         <Notice tone="success" params={["saved", "who"]} className="mb-4">
-          {sp.saved === "take" ? "Taken from the pot." : "Put back."} Saved.
+          {sp.saved === "take" ? "Chips in." : "Took home."} Saved.
         </Notice>
       )}
       {sp.bought && (
         <Notice tone="success" params={["bought"]} className="mb-4">
-          Bought in{Number(sp.bought) > 1 ? ` for ${Number(sp.bought)} players` : ""}. Saved.
+          Chips in{Number(sp.bought) > 1 ? ` for ${Number(sp.bought)} players` : ""}. Saved.
         </Notice>
       )}
       {sp.cashed && (
         <Notice tone="success" params={["cashed", "seat"]} className="mb-4">
-          Cashed out.{sp.seat ? " The new player is in their seat." : ""}
+          Took home saved.{sp.seat ? " The new player is in their seat." : ""}
         </Notice>
       )}
       {sp.counted && (
@@ -197,8 +198,8 @@ export default async function GamePage({ params, searchParams }: { params: Promi
       )}
       {sp.reopened && <Notice params={["reopened"]} className="mb-4">Reopened. Its result is out of the balances until you finish it again.</Notice>}
 
-      {/* The pot */}
-      <section aria-label="The pot" className="relative overflow-hidden rounded-[24px] px-5 pb-5 pt-5 text-fg [background:radial-gradient(90%_100%_at_100%_0%,#1f6b4a_0%,transparent_60%),linear-gradient(160deg,#123a2a_0%,#0b1612_80%)]">
+      {/* The table */}
+      <section aria-label="The table" className="relative overflow-hidden rounded-[24px] px-5 pb-5 pt-5 text-fg [background:radial-gradient(90%_100%_at_100%_0%,#1f6b4a_0%,transparent_60%),linear-gradient(160deg,#123a2a_0%,#0b1612_80%)]">
         <p className="pr-14 text-[11px] font-semibold text-fg/55">
           {potGameLabel(game.game)} · host {youLow(game.hostId)} · {open ? "playing" : "finished"}
         </p>
@@ -207,7 +208,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
             <p className="mt-2 money text-[40px] font-semibold leading-none tabular-nums" data-pot-out>
               {money(totals.out)}
             </p>
-            <p className="mt-1 font-hand text-[21px] font-bold leading-none text-[#ffd9a8]">out of the pot, in play</p>
+            <p className="mt-1 font-hand text-[21px] font-bold leading-none text-[#ffd9a8]">chips in play</p>
           </>
         ) : (
           <>
@@ -215,35 +216,35 @@ export default async function GamePage({ params, searchParams }: { params: Promi
               Game over <TrophyIcon size={30} className="text-[#e8d29a]" />
             </p>
             <p className="mt-1.5 font-hand text-[21px] font-bold leading-none text-[#ffd9a8]">
-              {ranked[0] && ranked[0].net > 0 ? `${you(ranked[0].memberId)} won ${money(ranked[0].net)}` : "everyone broke even"}
+              {ranked[0] && ranked[0].net > 0 ? `${you(ranked[0].memberId)} came out ahead by ${money(ranked[0].net)}` : "everyone broke even"}
             </p>
           </>
         )}
         <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
           <p>
-            <span className="block text-xs text-fg/55">Taken from the pot</span>
+            <span className="block text-xs text-fg/55">Chips in</span>
             <span className="font-semibold tabular-nums" data-pot-taken>
               {money(totals.taken)}
             </span>
           </p>
           <p>
-            <span className="block text-xs text-fg/55">Put back</span>
+            <span className="block text-xs text-fg/55">Took home</span>
             <span className="font-semibold tabular-nums" data-pot-returned>
               {money(totals.returned)}
             </span>
           </p>
         </div>
         <span aria-hidden className="pointer-events-none absolute -right-2 -top-3 select-none text-[70px] opacity-[0.12]">
-          {game.game === "poker" ? "♠️" : "🃏"}
+          {gameEmoji(game.game)}
         </span>
       </section>
 
       {/* Who pays whom: first thing you see once it's finished */}
       {!open && whoPays}
 
-      {/* Buy in / top up */}
+      {/* Chips in / top up */}
       {open && (
-        <section aria-label="Buy in" className="mt-6 rounded-2xl border border-line p-4">
+        <section aria-label="Chips in" className="mt-6 rounded-2xl border border-line p-4">
           <PotBuyIn
             key={live.length}
             gameId={game.id}
@@ -262,6 +263,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
       <section aria-label="Game tally" className="mt-8">
         <h2 className="font-display text-lg font-semibold tracking-tight">Game tally</h2>
         <p className="mb-2 mt-0.5 text-xs text-gray-500">{open ? "At the table. This is only a count: nothing is owed until the game is finished." : "How the game went. Who owes what is under Money owed."}</p>
+        <p className="mb-2 text-xs text-gray-400" data-game-note>{GAME_NOTE}</p>
         <ul className="divide-y divide-line">
           {(open ? lines : ranked).map((l) => {
             const still = open && playing.includes(l.memberId);
@@ -286,37 +288,37 @@ export default async function GamePage({ params, searchParams }: { params: Promi
                     <span className="block text-xs text-gray-500 tabular-nums">
                       {l.taken === 0
                         ? "not in yet"
-                        : `took ${money(l.taken)}${l.takes > 1 ? ` (${l.takes}×)` : ""} · ${still ? (l.returned ? `back ${money(l.returned)} · playing` : "playing") : `back ${money(l.returned)}`}`}
+                        : `chips in ${money(l.taken)}${l.takes > 1 ? ` (${l.takes}×)` : ""} · ${still ? (l.returned ? `took home ${money(l.returned)} · playing` : "playing") : `took home ${money(l.returned)}`}`}
                       {l.adjust ? ` · fix ${l.adjust > 0 ? "+" : "−"}${money(Math.abs(l.adjust))}` : ""}
                     </span>
                   </span>
                   {showNet && (
                     <span className={`shrink-0 text-right font-semibold tabular-nums ${l.net > 0 ? "text-owed" : l.net < 0 ? "text-owe" : "text-gray-500"}`}>
                       {l.net > 0 ? `+${money(l.net)}` : l.net < 0 ? `−${money(-l.net)}` : money(0)}
-                      <span className="block text-[11px] font-normal text-gray-500">{l.net > 0 ? "won" : l.net < 0 ? "lost" : "even"}</span>
+                      <span className="block text-[11px] font-normal text-gray-500">{l.net > 0 ? "up" : l.net < 0 ? "down" : "even"}</span>
                     </span>
                   )}
                 </div>
-                {/* Cash out (leaving early), and maybe someone new takes the seat. Works before the page has loaded. */}
+                {/* Took home (leaving early), and maybe someone new takes the seat. Works before the page has loaded. */}
                 {still && (
                   <details className="group mt-2 pl-12">
                     <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-full border border-line px-3 py-1 text-xs font-semibold active:bg-mist [&::-webkit-details-marker]:hidden">
-                      Cash out<span aria-hidden className="transition-transform group-open:rotate-180">▾</span>
+                      Took home<span aria-hidden className="transition-transform group-open:rotate-180">▾</span>
                     </summary>
-                    <form action={cashOutAction} className="mt-3 space-y-2.5 rounded-2xl bg-mist p-3" aria-label={`Cash out ${nameOf(l.memberId)}`}>
+                    <form action={cashOutAction} className="mt-3 space-y-2.5 rounded-2xl bg-mist p-3" aria-label={`Took home: ${nameOf(l.memberId)}`}>
                       <input type="hidden" name="gameId" value={game.id} />
                       <input type="hidden" name="memberId" value={l.memberId} />
                       <label className="block">
-                        <span className="mb-1 block text-xs font-medium text-gray-600">{l.memberId === myId ? "You leave" : `${nameOf(l.memberId)} leaves`} with (0 if nothing)</span>
-                        <input name="amount" required inputMode="decimal" placeholder="0" autoComplete="off" aria-label="Leaves with" className={inputClass} />
+                        <span className="mb-1 block text-xs font-medium text-gray-600">{l.memberId === myId ? "You took" : `${nameOf(l.memberId)} took`} home (0 if nothing)</span>
+                        <input name="amount" required inputMode="decimal" placeholder="0" autoComplete="off" aria-label="Took home" className={inputClass} />
                       </label>
                       <p className="pt-1 text-xs font-medium text-gray-600">Someone taking the seat? (optional)</p>
                       <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-2">
                         <input name="newName" maxLength={80} placeholder="Their name" autoComplete="off" aria-label="New player in the seat" className={`${inputClass} min-w-0`} />
-                        <input name="newAmount" inputMode="decimal" placeholder="Buy-in" autoComplete="off" aria-label="New player's buy-in" className={`${inputClass} min-w-0`} />
+                        <input name="newAmount" inputMode="decimal" placeholder="Chips in" autoComplete="off" aria-label="New player's chips in" className={`${inputClass} min-w-0`} />
                       </div>
                       <button type="submit" className="block w-full rounded-xl bg-fg px-4 py-2.5 text-sm font-semibold text-canvas">
-                        Cash out
+                        Save took home
                       </button>
                     </form>
                   </details>
@@ -347,7 +349,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
               const l = lineOf(p);
               const took = l?.taken ?? 0;
               const back = l?.returned ?? 0;
-              return { id: p, name: you(p), tookText: `took ${money(took)}${back ? `, back ${money(back)}` : ""}`, base: back + (l?.adjust ?? 0) - took };
+              return { id: p, name: you(p), tookText: `chips in ${money(took)}${back ? `, took home ${money(back)}` : ""}`, base: back + (l?.adjust ?? 0) - took };
             })}
             inPlay={totals.out}
             settled={lines.filter((l) => !playing.includes(l.memberId)).map((l) => ({ name: nameOf(l.memberId), net: l.net }))}
@@ -364,10 +366,10 @@ export default async function GamePage({ params, searchParams }: { params: Promi
           {!totals.balanced && (
             <div className="rounded-2xl border border-owe/40 bg-owe/[0.08] px-4 py-3.5" role="status" data-pot-gap={totals.gap}>
               <p className="text-sm font-semibold text-owe">
-                {totals.gap < 0 ? `${gapText} is missing from the pot` : `${gapText} more came back than was taken`}
+                {totals.gap < 0 ? `${gapText} is missing from the count` : `${gapText} more came back than went in`}
               </p>
               <p className="mt-0.5 text-xs text-fg/60">
-                Taken {money(totals.taken)}, back {money(totals.returned + totals.adjust)}. A wrong count? Tap ✕ on it in the history and count again. {host ? "Or fix the difference:" : "The host can fix the difference."}
+                Chips in {money(totals.taken)}, took home {money(totals.returned + totals.adjust)}. A wrong count? Tap ✕ on it in the history and count again. {host ? "Or fix the difference:" : "The host can fix the difference."}
               </p>
               {host && (
                 <div className="mt-3 space-y-2">
@@ -421,9 +423,9 @@ export default async function GamePage({ params, searchParams }: { params: Promi
               <li key={m.id} className={`flex items-center gap-3 py-2.5 text-sm ${m.deletedAt ? "opacity-50" : ""}`}>
                 <span className="w-14 shrink-0 text-xs text-gray-400 tabular-nums">{time(m.createdAt)}</span>
                 <span className={`min-w-0 flex-1 ${m.deletedAt ? "line-through" : ""}`}>
-                  {you(m.memberId)} {m.kind === "take" ? "took" : m.kind === "return" ? (m.note === CASHED ? "cashed out with" : m.note === COUNTED ? "ended with" : "put back") : "fix"} {m.kind === "adjust" ? `${m.amount > 0 ? "+" : "−"}${money(Math.abs(m.amount))}` : money(m.amount)}
+                  {you(m.memberId)} {m.kind === "take" ? "chips in" : m.kind === "return" ? (CASHED.includes(m.note) ? "took home" : m.note === COUNTED ? "ended with" : "took home") : "fix"} {m.kind === "adjust" ? `${m.amount > 0 ? "+" : "−"}${money(Math.abs(m.amount))}` : money(m.amount)}
                   <span className="block text-xs text-gray-400">
-                    {m.note && m.note !== CASHED && m.note !== COUNTED ? `${m.note} · ` : ""}
+                    {m.note && !CASHED.includes(m.note) && m.note !== COUNTED ? `${neutralGameText(m.note)} · ` : ""}
                     {m.createdById === m.memberId ? "" : `added by ${youLow(m.createdById)}`}
                   </span>
                 </span>
@@ -455,7 +457,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
         </section>
       )}
       {showUndo && justDid && (
-        <UndoBar key={justDid.id} text={sp.undone ? "Undone." : `${you(justDid.actorId)} ${justDid.text}`} groupId={group.id} eventId={justDid.id} back={`pot:${game.id}`} redo={sp.undone === "1"} />
+        <UndoBar key={justDid.id} text={sp.undone ? "Undone." : `${you(justDid.actorId)} ${neutralGameText(justDid.text)}`} groupId={group.id} eventId={justDid.id} back={`pot:${game.id}`} redo={sp.undone === "1"} />
       )}
     </>
   );

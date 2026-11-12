@@ -85,6 +85,6 @@ export async function goingShopping(groupId: string, actorId: string): Promise<R
   if (!(await claimOnce(`shopping:${actorId}:${hour}`))) return { ok: true, id: "" };
   const group = await db.group.findUnique({ where: { id: groupId }, select: { name: true, members: { where: { leftAt: null }, select: { id: true } } } });
   const others = (group?.members ?? []).map((m) => m.id).filter((id) => id !== actorId);
-  await sendPushTo(others, { title: `🛒 ${group?.name ?? "Loopin"}`, body: `${me.name} is going shopping. Add anything you need to the list.`, url: `/groups/${groupId}?tab=list`, tag: `shopping-${groupId}` });
+  await sendPushTo(others, { title: `🛒 ${group?.name ?? "Loopin"}`, body: `${me.name} is going shopping. Add anything you need to the list.`, url: `/groups/${groupId}?tab=list`, tag: `shopping-${groupId}` }, "groups.shopping");
   return { ok: true, id: "" };
 }

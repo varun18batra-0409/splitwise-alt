@@ -1,3 +1,4 @@
+import { neutralGameText } from "@/lib/game-words";
 import { setMoveIn } from "@/app/bill-actions";
 import { PassportIcon, PeoplePassportsIcon } from "@/components/DrawnIcons";
 import { payerIds } from "@/lib/payers";
@@ -297,7 +298,7 @@ export default async function PeoplePage({
       {justDid && canUndo(justDid, group.events).ok && (
         <UndoBar
           key={justDid.id}
-          text={sp.undone ? "Undone." : `${nameOf(justDid.actorId)} ${justDid.text}`}
+          text={sp.undone ? "Undone." : `${nameOf(justDid.actorId)} ${neutralGameText(justDid.text)}`}
           groupId={group.id}
           eventId={justDid.id}
           back="people"

@@ -39,10 +39,10 @@ async function balances(groupId: string) {
 describe("The Pot (real database)", () => {
   it("takes, put backs, finish: the result lands in the group's balances (A +600, B −300, C −200, D −100)", async () => {
     const { g, a, b, c, d } = await table();
-    const s = await startGame(g.id, a, { name: "", game: "teenpatti", players: [a, b, c, d] }, new Date("2026-10-26T15:00:00Z"));
+    const s = await startGame(g.id, a, { name: "", game: "cards", players: [a, b, c, d] }, new Date("2026-10-26T15:00:00Z"));
     if (!s.ok) throw new Error(s.error);
     const game = await loadGame(g.id, s.id);
-    expect(game?.name).toBe("Teen Patti · 26 Oct");
+    expect(game?.name).toBe("Cards · 26 Oct");
     expect(game?.hostId).toBe(a);
 
     for (const [who, amt] of [[a, "1000"], [b, "2000"], [c, "500"], [d, "1000"], [d, "500"]] as const) expect((await recordMove(s.id, b, { memberId: who, kind: "take", amount: amt })).ok).toBe(true);
@@ -65,7 +65,7 @@ describe("The Pot (real database)", () => {
     expect(await balances(g.id)).toEqual({ [a]: 60000, [b]: -30000, [c]: -20000, [d]: -10000 });
     const result = await db.expense.findFirstOrThrow({ where: { groupId: g.id, kind: "pot" } });
     expect(result.amount).toBe(60000);
-    expect((await db.groupEvent.findFirst({ where: { groupId: g.id, kind: "pot_finished" } }))?.text).toBe("finished Teen Patti · 26 Oct: Asha won ₹600");
+    expect((await db.groupEvent.findFirst({ where: { groupId: g.id, kind: "pot_finished" } }))?.text).toBe("finished Cards · 26 Oct: Asha came out ahead by ₹600");
 
     // Finished: nothing more can be added; reopening takes the result out again.
     expect((await recordMove(s.id, a, { memberId: a, kind: "take", amount: "100" })).ok).toBe(false);
@@ -243,7 +243,7 @@ describe("The Pot (real database)", () => {
 
     const r = await saveExpense(edit(g.id, result.id, b), b, noRate);
     expect(r).toEqual({ ok: false, error: POT_EDIT_ERROR });
-    expect(POT_EDIT_ERROR).toBe("Card-game results change through the game: open the game to change it.");
+    expect(POT_EDIT_ERROR).toBe("Game results change through the game: open the game to change it.");
     const after = await db.expense.findFirstOrThrow({ where: { id: result.id }, include: { shares: true } });
     expect(after.kind).toBe("pot");
     expect(JSON.stringify({ d: after.description, amt: after.amount, k: after.kind, s: after.shares.map((x) => [x.memberId, x.amount]).sort(), by: after.paidById })).toBe(before);
@@ -412,8 +412,8 @@ describe("The Pot (real database)", () => {
     const result = await db.expense.findFirstOrThrow({ where: { groupId: g.id, kind: "pot" } });
 
     const del = await setExpenseDeleted(result.id, b, true);
-    expect(del).toEqual({ ok: false, error: "Card-game results change through the game: open the game to reopen or delete it." });
-    expect(POT_DELETE_ERROR).toBe("Card-game results change through the game: open the game to reopen or delete it.");
+    expect(del).toEqual({ ok: false, error: "Game results change through the game: open the game to reopen or delete it." });
+    expect(POT_DELETE_ERROR).toBe("Game results change through the game: open the game to reopen or delete it.");
     const same = await db.expense.findUniqueOrThrow({ where: { id: result.id } });
     expect(same.deletedAt).toBeNull();
     expect(same.amount).toBe(50000);

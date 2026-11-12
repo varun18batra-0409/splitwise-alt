@@ -278,7 +278,7 @@ describe("passport privacy: added by someone else, undone, brought back", () => 
     const { addRegistered } = await import("@/lib/invites");
     const { canSeePassport } = await import("@/lib/passport-db");
     const stranger = await db.account.create({ data: { email: `fb-stranger-${Date.now()}@test.dev`, name: "Stranger" } });
-    const victim = await db.account.create({ data: { email: `fb-victim-${Date.now()}@test.dev`, name: "Victim" } });
+    const victim = await db.account.create({ data: { email: `fb-victim-${Date.now()}@test.dev`, name: "Victim", passportChoiceAt: new Date() } });
     const g = await db.group.create({ data: { name: "Fb privacy", inviteCode: `fbp-${Date.now()}`, members: { create: [{ name: "Stranger", accountId: stranger.id, claimedAt: new Date() }] } }, include: { members: true } });
     groups.push(g.id);
     const me = g.members[0].id;

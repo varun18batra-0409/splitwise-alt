@@ -77,9 +77,9 @@ export type Season = {
 // (one year) or "MM-DD" (every year). Add new ones here.
 const SEASONS: (Omit<Season, "href"> & { from: string; to: string; name: string; type: string; countries?: string[] })[] = [
   {
-    // Diwali card nights: Teen Patti and Poker with The Pot.
-    id: "diwali-2026", from: "2026-10-05", to: "2026-11-08", eyebrow: "Diwali is on 8 Nov 🪔", title: "Diwali card night?",
-    text: "Teen Patti or Poker: The Pot keeps count of who took what, who won and who pays whom.", button: "Start a Pot", cover: "cards", name: "Diwali card night", type: "pot", countries: ["IN"],
+    // Diwali game nights.
+    id: "diwali-2026", from: "2026-10-05", to: "2026-11-08", eyebrow: "Diwali is on 8 Nov 🪔", title: "Diwali game night?",
+    text: "Cards, board games or any game: Game night keeps the score and shows who pays whom.", button: "Start a game night", cover: "cards", name: "Diwali game night", type: "pot", countries: ["IN"],
   },
   {
     id: "thanksgiving-2026", from: "2026-11-01", to: "2026-11-26", eyebrow: "Thanksgiving is on Nov 26", title: "Friendsgiving?",
@@ -98,8 +98,8 @@ const SEASONS: (Omit<Season, "href"> & { from: string; to: string; name: string;
     text: "Lonavala, Coorg, a waterfall drive: split the villa, the fuel and the chai.", button: "Plan a weekend", cover: "mountain", name: "Monsoon weekend", type: "trip", countries: ["IN"],
   },
   {
-    id: "diwali-2027", from: "2027-10-10", to: "2027-10-29", eyebrow: "Diwali is on 29 Oct 🪔", title: "Diwali card night?",
-    text: "Teen Patti or Poker: The Pot keeps count of who took what, who won and who pays whom.", button: "Start a Pot", cover: "cards", name: "Diwali card night", type: "pot", countries: ["IN"],
+    id: "diwali-2027", from: "2027-10-10", to: "2027-10-29", eyebrow: "Diwali is on 29 Oct 🪔", title: "Diwali game night?",
+    text: "Cards, board games or any game: Game night keeps the score and shows who pays whom.", button: "Start a game night", cover: "cards", name: "Diwali game night", type: "pot", countries: ["IN"],
   },
   {
     id: "lunar-2027", from: "2027-01-20", to: "2027-02-06", eyebrow: "Lunar New Year is on 6 Feb", title: "Reunion dinner?",

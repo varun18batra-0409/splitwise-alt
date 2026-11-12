@@ -34,8 +34,8 @@ export default async function FriendPassportByAccount({ params, searchParams }: 
           <p className="text-3xl" aria-hidden>
             🔒
           </p>
-          <p className="mt-2 font-semibold">{first} keeps their passport private.</p>
-          <p className="mt-1 text-sm text-gray-500">Only they can see it.</p>
+          <p className="mt-2 font-semibold">{!r.ok && r.reason === "unanswered" ? `${first} hasn’t shared their passport yet.` : `${first} keeps their passport private.`}</p>
+          <p className="mt-1 text-sm text-gray-500">{!r.ok && r.reason === "unanswered" ? "They can choose to show it any time." : "Only they can see it."}</p>
         </div>
       </>
     );

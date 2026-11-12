@@ -124,7 +124,7 @@ export async function sendMonthlySummaries(now = new Date(), stop: () => boolean
       for (const m of around.filter((x) => mine.has(x.id))) {
         const t = text(m.id, last);
         if (!t) break;
-        sent += await sendPushTo([m.id], { ...t, url: `/groups/${id}`, tag: `summary-${id}-${last}` });
+        sent += await sendPushTo([m.id], { ...t, url: `/groups/${id}`, tag: `summary-${id}-${last}` }, "summaries.monthly");
         await markSentByOldPath(key, [m.id], now);
       }
     }
@@ -138,7 +138,7 @@ export async function sendMonthlySummaries(now = new Date(), stop: () => boolean
       const personKey = `${oldKey}:m:${p.id}`;
       if (await coveredByOldRecord(oldKey, now, p.id)) continue;
       if (!(await claimJob(personKey, now))) continue;
-      sent += await sendPushTo([p.id], { ...t, url: `/groups/${id}`, tag: `summary-${id}-${month}` });
+      sent += await sendPushTo([p.id], { ...t, url: `/groups/${id}`, tag: `summary-${id}-${month}` }, "summaries.monthly");
       await finishJob(personKey);
     }
     if (runLegacy) await finishJob(key);
