@@ -97,11 +97,14 @@ function balancePlan(groupIds: string[], given?: Record<string, string[]>) {
 }
 
 // `members` (optional): each group's member ids already in createdAt, id order; saves one query.
-// All the reads run in one transaction, so every group's numbers come from the same moment.
-export async function netBalancesDb(groupIds: string[], opts: { members?: Record<string, string[]> } = {}): Promise<Map<string, GroupBalances>> {
+// By default the reads run side by side with no transaction (on the live database every read in a transaction is
+// a round trip that can hold up other writes). `snapshot: true` puts them all in one transaction so the numbers
+// come from the same moment; only the group Settle page, where a plan is shown and then acted on, asks for it.
+export async function netBalancesDb(groupIds: string[], opts: { members?: Record<string, string[]>; snapshot?: boolean } = {}): Promise<Map<string, GroupBalances>> {
   const plan = balancePlan(groupIds, opts.members);
   if (plan.queries.length === 0) return new Map();
-  return plan.finish(await db.$transaction(plan.queries));
+  const results = opts.snapshot ? await db.$transaction(plan.queries) : await Promise.all(plan.queries);
+  return plan.finish(results);
 }
 
 async function balancesFrom(ids: string[], given: Record<string, string[]> | undefined, sums: SumRow[], many: ManyRow[], memberRows: MemberRow[] | null): Promise<Map<string, GroupBalances>> {

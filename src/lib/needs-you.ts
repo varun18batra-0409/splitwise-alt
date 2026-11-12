@@ -2,6 +2,7 @@ import { db } from "./db";
 import { formatMoney } from "./money";
 import { billStatuses } from "./home/bills-db";
 import { billHold } from "./home/bills";
+import { collectSentence, paidAction, paidToViewer } from "./home/display";
 
 // Alerts: "Needs you" (things only you can answer) kept apart from "Activity" (what happened).
 // Four kinds, each one line that goes straight to where you act:
@@ -84,12 +85,25 @@ export async function loadNeedsYou(memberships: Record<string, string>, account:
   if (account) {
     const entries = await db.collectionEntry.findMany({
       where: { status: "paid", collection: { accountId: account.id, closedAt: null, deletedAt: null } },
-      include: { collection: { select: { code: true, title: true, currency: true } } },
+      include: { collection: { select: { code: true, title: true, currency: true, upiId: true, payLink: true } } },
       orderBy: { paidAt: "desc" },
       take: 50,
     });
+    // A collection's money goes to its UPI ID / pay link, which can be someone else's (a treasurer's). "Paid you" is
+    // said only when those are the viewer's own; otherwise the line stays neutral and names the collection.
+    const mine = entries.length ? await db.account.findUnique({ where: { id: account.id }, select: { upiId: true, payLink: true } }) : null;
     for (const e of entries) {
-      items.push({ id: `collect:${e.id}`, kind: "collect", text: `${e.name} says they paid ${formatMoney(e.amount, e.collection.currency)}`, where: e.collection.title, href: `/c/${e.collection.code}`, entryName: e.name, at: e.paidAt ?? e.createdAt });
+      const youArePaid = paidToViewer(e.collection, mine);
+      items.push({
+        id: `collect:${e.id}`,
+        kind: "collect",
+        text: collectSentence(e.name, formatMoney(e.amount, e.collection.currency), e.collection.title, youArePaid),
+        action: paidAction(youArePaid),
+        where: e.collection.title,
+        href: `/c/${e.collection.code}`,
+        entryName: e.name,
+        at: e.paidAt ?? e.createdAt,
+      });
     }
   }
 

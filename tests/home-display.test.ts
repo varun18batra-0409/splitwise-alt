@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { homeMoney, needText, paidAction, paidSentence, storyShort } from "@/lib/home/display";
+import { collectSentence, homeMoney, paidAction, paidToViewer, storyShort } from "@/lib/home/display";
 import { buildStories } from "@/lib/home/stories";
 import { formatMoney } from "@/lib/money";
 
@@ -35,20 +35,27 @@ describe("homeMoney: whole units for big amounts, display only", () => {
   });
 });
 
-describe("Needs you wording", () => {
-  it("you are paid: 'Meera says they paid you ₹300' and the action is Confirm", () => {
-    expect(paidSentence("Meera", null, "₹300")).toBe("Meera says they paid you ₹300");
+describe("Needs you wording for collections", () => {
+  const mine = { upiId: "Asha@okicici", payLink: "" };
+  it("money to the viewer's own UPI ID (any capital letters): 'paid you' and Confirm", () => {
+    expect(paidToViewer({ currency: "INR", upiId: "asha@okicici", payLink: "" }, mine)).toBe(true);
+    expect(collectSentence("Meera", "₹300", "Teacher’s Day gift", true)).toBe("Meera says they paid you ₹300");
     expect(paidAction(true)).toBe("Confirm");
   });
-  it("someone else is paid: 'Meera says they paid Asha ₹300' and the action is View", () => {
-    expect(paidSentence("Meera", "Asha", "₹300")).toBe("Meera says they paid Asha ₹300");
+  it("money to someone else's UPI ID (a treasurer): neutral, names the collection, and the action is View", () => {
+    expect(paidToViewer({ currency: "INR", upiId: "treasurer@ybl", payLink: "" }, mine)).toBe(false);
+    expect(collectSentence("Meera", "₹300", "Teacher’s Day gift", false)).toBe("Meera says they paid ₹300 for Teacher’s Day gift");
     expect(paidAction(false)).toBe("View");
   });
-  it("a collection line always says who was paid; lines that already say 'you', and bills, are unchanged", () => {
-    expect(needText("collect", "Zoya says they paid ₹200")).toBe("Zoya says they paid you ₹200");
-    expect(needText("claim", "Ravi says they paid you ₹500")).toBe("Ravi says they paid you ₹500");
-    expect(needText("payment", "Meera says they paid you ₹300")).toBe("Meera says they paid you ₹300");
-    expect(needText("bill", "Electricity is waiting for its amount")).toBe("Electricity is waiting for its amount");
+  it("other currencies compare the pay link; no pay details, or no saved ones on the account, stay neutral", () => {
+    expect(paidToViewer({ currency: "USD", upiId: "", payLink: "https://paypal.me/asha" }, { upiId: "", payLink: "https://paypal.me/asha" })).toBe(true);
+    expect(paidToViewer({ currency: "USD", upiId: "", payLink: "https://paypal.me/other" }, { upiId: "", payLink: "https://paypal.me/asha" })).toBe(false);
+    expect(paidToViewer({ currency: "INR", upiId: "", payLink: "" }, mine)).toBe(false);
+    expect(paidToViewer({ currency: "INR", upiId: "asha@okicici", payLink: "" }, { upiId: "", payLink: "" })).toBe(false);
+    expect(paidToViewer({ currency: "INR", upiId: "asha@okicici", payLink: "" }, null)).toBe(false);
+  });
+  it("both wordings start '<name> says they paid', which is what Activity matches to hide the duplicate", () => {
+    for (const s of [collectSentence("Zoya", "₹200", "Trip", true), collectSentence("Zoya", "₹200", "Trip", false)]) expect(s.startsWith("Zoya says they paid")).toBe(true);
   });
 });
 

@@ -14,22 +14,27 @@ export function homeMoney(minor: number, currency = "INR"): string {
   return formatMoney(whole, currency);
 }
 
-// "Meera says they paid you ₹300" / "Meera says they paid Asha ₹300": always says who was paid.
-// `payee` is null when the person looking is the one paid. "they" because we don't know anyone's pronoun.
-export function paidSentence(payer: string, payee: string | null, amount: string): string {
-  return `${payer} says they paid ${payee ?? "you"} ${amount}`;
+// A collection's money goes to its UPI ID (INR) or pay link, and the organiser may have put someone else's there
+// (a treasurer). It is the viewer's own only when it matches what is saved on the viewer's account.
+type PayTo = { currency: string; upiId: string; payLink: string };
+export function paidToViewer(c: PayTo, mine: { upiId: string; payLink: string } | null): boolean {
+  if (!mine) return false;
+  const same = (a: string, b: string) => a.trim() !== "" && a.trim().toLowerCase() === b.trim().toLowerCase();
+  if (c.currency === "INR" && c.upiId.trim()) return same(c.upiId, mine.upiId);
+  if (c.payLink.trim()) return same(c.payLink, mine.payLink);
+  return false; // nothing says where the money went, so don't say it came to you
 }
 
-// One action word for the same action: "Confirm" when you are the one who was paid, "View" for someone else's claim.
+// "Meera says they paid you ₹300" only when the viewer is the one paid; otherwise neutral and naming the
+// collection: "Meera says they paid ₹300 for Teacher's Day gift". "they" because we don't know anyone's pronoun.
+// (Always starts "<name> says they paid": the Activity list matches on that to hide the duplicate.)
+export function collectSentence(payer: string, amount: string, title: string, youArePaid: boolean): string {
+  return youArePaid ? `${payer} says they paid you ${amount}` : `${payer} says they paid ${amount} for ${title}`;
+}
+
+// "Confirm" when you are the one who was paid, "View" for money that went to someone else.
 export function paidAction(youArePaid: boolean): "Confirm" | "View" {
   return youArePaid ? "Confirm" : "View";
-}
-
-// Home's Needs-you line for a "says they paid" item: the person looking is always the one paid there, so
-// "Zoya says they paid ₹200" (a collection) reads "Zoya says they paid you ₹200". Other lines are unchanged.
-export function needText(kind: "claim" | "payment" | "bill" | "collect", text: string): string {
-  if (kind === "bill") return text;
-  return text.replace(/ says they paid (?!you\b)/, " says they paid you ");
 }
 
 // A story's label under its circle: one line, the same on every phone. Longer than `max` characters is cut with an

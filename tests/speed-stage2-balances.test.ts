@@ -821,13 +821,33 @@ function watchTx() {
   return { calls, restore: () => Object.defineProperty(client, "$transaction", { configurable: true, writable: true, value: original }) };
 }
 
-describe("the balance reads run as one snapshot (one transaction)", () => {
-  it("netBalancesDb: all the reads for two groups go in a single db.$transaction array, and the numbers are the hand-worked ones", async () => {
+describe("the balance reads: side by side by default, one snapshot (one transaction) only when asked", () => {
+  it("netBalancesDb by default opens no transaction, and gives the same hand-worked numbers as with a snapshot", async () => {
     const t = await handTrip();
     const u = await handTrip();
     const w = watchTx();
     try {
       const out = await netBalancesDb([t.gid, u.gid]);
+      expect(w.calls).toHaveLength(0);
+      for (const g of [t, u]) expect(named(g.nameOf, out.get(g.gid)!.net)).toEqual({ A: 38966, B: 4017, C: -25833, D: -17150 });
+      // With the members given (as Home does) it is still no transaction, and the answer is identical.
+      const given = await netBalancesDb([t.gid], { members: { [t.gid]: t.ids } });
+      expect(w.calls).toHaveLength(0);
+      expect(given.get(t.gid)).toEqual(out.get(t.gid));
+      // The snapshot form gives exactly the same answer.
+      const snap = await netBalancesDb([t.gid, u.gid], { snapshot: true });
+      expect([...snap.entries()]).toEqual([...out.entries()]);
+    } finally {
+      w.restore();
+    }
+  });
+
+  it("netBalancesDb with { snapshot: true }: all the reads for two groups go in a single db.$transaction array, and the numbers are the hand-worked ones", async () => {
+    const t = await handTrip();
+    const u = await handTrip();
+    const w = watchTx();
+    try {
+      const out = await netBalancesDb([t.gid, u.gid], { snapshot: true });
       expect(w.calls).toHaveLength(1);
       const queries = w.calls[0] as unknown as unknown[];
       expect(Array.isArray(queries)).toBe(true);
@@ -838,15 +858,15 @@ describe("the balance reads run as one snapshot (one transaction)", () => {
     }
   });
 
-  it("netBalancesDb with the members given needs 2 reads in the one transaction; with no groups it opens none", async () => {
+  it("netBalancesDb with the members given and { snapshot: true } needs 2 reads in the one transaction; with no groups it opens none", async () => {
     const t = await handTrip();
     const w = watchTx();
     try {
-      await netBalancesDb([t.gid], { members: { [t.gid]: t.ids } });
+      await netBalancesDb([t.gid], { members: { [t.gid]: t.ids }, snapshot: true });
       expect(w.calls).toHaveLength(1);
       expect(w.calls[0] as unknown as unknown[]).toHaveLength(2);
       w.calls.length = 0;
-      expect((await netBalancesDb([])).size).toBe(0);
+      expect((await netBalancesDb([], { snapshot: true })).size).toBe(0);
       expect(w.calls).toHaveLength(0);
     } finally {
       w.restore();

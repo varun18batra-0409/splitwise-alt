@@ -2,6 +2,7 @@ import Link from "@/components/Link";
 import { niceDate } from "@/lib/format";
 import { TakeOff } from "@/components/TripCountdown";
 import { ShareCountdown } from "@/components/ShareCountdown";
+import { ExactAmount } from "@/components/ExactAmount";
 import { moneyButtons, stripWords, type MoneyMode } from "@/lib/home/money-card";
 import type { TripPhase } from "@/lib/countdown";
 
@@ -52,7 +53,7 @@ export function MoneyCard({
           data-net-balance
           title={exact}
         >
-          {amount}
+          {exact ? <ExactAmount amount={amount} exact={exact} /> : amount}
         </p>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">

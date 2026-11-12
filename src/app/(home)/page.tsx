@@ -19,7 +19,7 @@ import { loadInvitations } from "@/lib/invitations";
 import { InvitationCard } from "@/components/InvitationCard";
 import { buildActivity, dayLabel } from "@/lib/activity";
 import { formatMoney } from "@/lib/money";
-import { homeMoney, needText } from "@/lib/home/display";
+import { homeMoney } from "@/lib/home/display";
 import { HomeBanner } from "@/components/HomeBanner";
 import { HighlightCard } from "@/components/HighlightCard";
 import { homeHighlights } from "@/lib/home/highlights";
@@ -118,7 +118,7 @@ export default async function Home({
   const NEED_ACTION: Record<"claim" | "payment" | "bill" | "collect", string> = { claim: "Confirm", payment: "Confirm", bill: "Add", collect: "Confirm" };
   type Need = { key: string; lead: string; text: React.ReactNode; sub?: string; action: string; href: string; orange?: boolean };
   const needRows: Need[] = [
-    ...needs.items.map((it) => ({ key: it.id, lead: it.kind === "bill" ? "bill" : it.text.trim().charAt(0).toUpperCase(), text: needText(it.kind, it.text), sub: it.where, action: it.action ?? NEED_ACTION[it.kind], href: it.href, orange: it.tone === "orange" })),
+    ...needs.items.map((it) => ({ key: it.id, lead: it.kind === "bill" ? "bill" : it.text.trim().charAt(0).toUpperCase(), text: it.text, sub: it.where, action: it.action ?? NEED_ACTION[it.kind], href: it.href, orange: it.tone === "orange" })),
     ...open
       .filter((g) => !g.leaver && g.expenseCount > 0 && g.transfers.length === 0 && g.lastActivity.getTime() < quietSince)
       .map((g) => ({ key: `close-${g.group.id}`, lead: "check", text: <>Everyone’s square in <span className="font-semibold">{g.group.name}</span></>, action: "Close it", href: `/groups/${g.group.id}/settings#close` })),

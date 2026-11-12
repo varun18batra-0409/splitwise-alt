@@ -606,6 +606,70 @@ describe("postcard photo", () => {
     expect(await db.postcardPhoto.count({ where: { blobKey: { in: [...blob.putKeys] } } })).toBe(0);
     expect(await leftovers()).toEqual(CLEAN);
   });
+
+  it("if the cards were SAVED and then something throws, the photo (row and file) is kept: a sent card's photo is never deleted", async () => {
+    const [from, to] = [await person("From8"), await person("To8")];
+    await together(from, to);
+    // The card-making step really saves the cards, then throws. Same hand-made override as above; the original is put back.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const client = db as any;
+    const original = client.$transaction;
+    const real = original.bind(db);
+    Object.defineProperty(client, "$transaction", {
+      configurable: true,
+      writable: true,
+      value: async (arg: unknown, ...rest: unknown[]) => {
+        const out = await real(arg, ...rest);
+        if (Array.isArray(arg)) throw new Error("database hiccup after saving");
+        return out;
+      },
+    });
+    let threw = false;
+    try {
+      await sendCard(from, [to], jpeg(37));
+    } catch (err) {
+      threw = String((err as Error).message).includes("database hiccup after saving");
+    } finally {
+      Object.defineProperty(client, "$transaction", { configurable: true, writable: true, value: original });
+    }
+    expect(typeof client.$transaction).toBe("function");
+    expect(threw).toBe(true);
+    expect(blob.putKeys).toHaveLength(1);
+    const rows = await db.postcardPhoto.findMany({ where: { blobKey: { in: [...blob.putKeys] } }, select: { id: true } });
+    expect(rows).toHaveLength(1); // the row stays...
+    expect(blob.files.has(blob.putKeys[0])).toBe(true); // ...and so does the file
+    expect(await db.postcard.count({ where: { photoId: rows[0].id, fromId: from.id } })).toBe(1); // the card that uses it was saved
+    expect(await db.blobTrash.count({ where: { key: { in: [...blob.putKeys] } } })).toBe(0); // nothing queued for deletion
+    expect(await leftovers()).toEqual(CLEAN);
+  });
+
+  it("if the file was stored but its photo row could not be made, the file is queued on the to-delete list and deleted (no orphan file)", async () => {
+    const [from, to] = [await person("From9"), await person("To9")];
+    await together(from, to);
+    // Only creating the postcard photo row fails. The delegate is swapped for a stand-in and the exact original put back.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const client = db as any;
+    const had = Object.getOwnPropertyDescriptor(client, "postcardPhoto");
+    const delegate = client.postcardPhoto;
+    const stand = new Proxy(delegate, { get: (t, k) => (k === "create" ? () => Promise.reject(new Error("row hiccup")) : Reflect.get(t, k)) });
+    Object.defineProperty(client, "postcardPhoto", { configurable: true, value: stand });
+    let threw = false;
+    try {
+      await sendCard(from, [to], jpeg(38));
+    } catch (err) {
+      threw = String((err as Error).message).includes("row hiccup");
+    } finally {
+      if (had) Object.defineProperty(client, "postcardPhoto", had);
+      else delete client.postcardPhoto;
+    }
+    expect(client.postcardPhoto).toBe(delegate);
+    expect(threw).toBe(true);
+    expect(blob.putKeys).toHaveLength(1); // it was stored...
+    expect(blob.files.size).toBe(0); // ...and deleted again
+    expect(await db.blobTrash.count({ where: { key: { in: [...blob.putKeys] } } })).toBe(0); // the list is empty again: the delete finished
+    expect(await db.postcard.count({ where: { fromId: from.id } })).toBe(0);
+    expect(await leftovers()).toEqual(CLEAN);
+  });
 });
 
 // ---------------------------------------------------------------------------------------------------------------

@@ -81,7 +81,18 @@ export async function sendPostcardAction(f: FormData) {
     const { storePhoto } = await import("@/lib/photo-store");
     const stored = await storePhoto("postcard", newPhoto.bytes, newPhoto.type);
     storedKey = stored.blobKey;
-    photoId = (await db.postcardPhoto.create({ data: { data: stored.data, blobKey: stored.blobKey, type: newPhoto.type } })).id;
+    try {
+      photoId = (await db.postcardPhoto.create({ data: { data: stored.data, blobKey: stored.blobKey, type: newPhoto.type } })).id;
+    } catch (err) {
+      // The file is stored but its row was not made: put its key on the to-delete list and delete it.
+      try {
+        const { removePhotos } = await import("@/lib/photo-store");
+        await removePhotos([storedKey]);
+      } catch (cleanErr) {
+        console.error("postcard: couldn't remove the unused photo file", String(cleanErr).slice(0, 160));
+      }
+      throw err;
+    }
   }
   const hand = HANDS.some((h) => h.id === field(f, "hand", 20)) ? field(f, "hand", 20) : "caveat";
   const lettering = LETTERINGS.some((l) => l.id === field(f, "lettering", 20)) ? field(f, "lettering", 20) : "classic";
@@ -114,12 +125,15 @@ export async function sendPostcardAction(f: FormData) {
   try {
     made = await db.$transaction([...to].map((toId) => db.postcard.create({ data: { ...data, toId }, select: { id: true, toId: true } })));
   } catch (err) {
-    // The cards were not made: a photo stored just for them must not be left behind.
+    // The cards were not made: a photo stored just for them must not be left behind. But if any postcard
+    // does use the photo (the cards were saved and something after that failed), it is never deleted.
     if (newPhoto) {
       try {
-        await db.postcardPhoto.deleteMany({ where: { id: photoId } });
-        const { removePhotos } = await import("@/lib/photo-store");
-        await removePhotos([storedKey]); // queued on the to-delete list first, then tried at once
+        if ((await db.postcard.count({ where: { photoId } })) === 0) {
+          await db.postcardPhoto.deleteMany({ where: { id: photoId } });
+          const { removePhotos } = await import("@/lib/photo-store");
+          await removePhotos([storedKey]); // queued on the to-delete list first, then tried at once
+        }
       } catch (cleanErr) {
         console.error("postcard: couldn't remove the unused photo", String(cleanErr).slice(0, 160));
       }
