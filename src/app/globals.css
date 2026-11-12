@@ -121,6 +121,13 @@ fieldset {
     backdrop-filter: blur(24px) saturate(150%);
     border: 1px solid rgb(244 242 236 / 0.12);
   }
+  /* The bottom bar: nearly solid, so nothing scrolling under it shows through the labels. */
+  .glass-bar {
+    background: rgb(31 31 36 / 0.94);
+    -webkit-backdrop-filter: blur(24px) saturate(150%);
+    backdrop-filter: blur(24px) saturate(150%);
+    border: 1px solid rgb(244 242 236 / 0.12);
+  }
   /* Money in the new face: tight and even-width figures. */
   .money {
     font-family: var(--font-sans);

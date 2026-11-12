@@ -18,7 +18,9 @@ export function MoneyCard({
   amountClass,
   tone,
   mode,
+  exact,
 }: {
+  exact?: string; // the exact amount, when `amount` is rounded for display (tooltip)
   label: string; // "Coming back to you", "You owe, to 2 people", "Nobody owes anybody"
   amount: string; // "₹3,450" or "All square"
   amountClass: string;
@@ -48,6 +50,7 @@ export function MoneyCard({
         <p
           className={`ml-auto text-right font-display font-semibold leading-[1.1] tracking-tight tabular-nums [overflow-wrap:normal] ${amountClass} ${tone === "owed" ? "text-owed" : tone === "owe" ? "text-owe" : ""}`}
           data-net-balance
+          title={exact}
         >
           {amount}
         </p>

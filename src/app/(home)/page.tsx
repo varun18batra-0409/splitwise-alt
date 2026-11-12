@@ -19,6 +19,7 @@ import { loadInvitations } from "@/lib/invitations";
 import { InvitationCard } from "@/components/InvitationCard";
 import { buildActivity, dayLabel } from "@/lib/activity";
 import { formatMoney } from "@/lib/money";
+import { homeMoney, needText } from "@/lib/home/display";
 import { HomeBanner } from "@/components/HomeBanner";
 import { HighlightCard } from "@/components/HighlightCard";
 import { homeHighlights } from "@/lib/home/highlights";
@@ -50,7 +51,6 @@ import { Stories } from "@/components/Stories";
 import { buildStories } from "@/lib/home/stories";
 import { placePhoto, placePhotos } from "@/lib/places";
 import { GroupCards, type GroupCardData } from "@/components/HomeGroups";
-import { GroupRow } from "@/components/GroupLines";
 import { tripTag } from "@/lib/home/group-card";
 import { loadNeedsYou } from "@/lib/needs-you";
 import { tripEmoji } from "@/lib/countdown";
@@ -115,10 +115,10 @@ export default async function Home({
   // Needs you: things only you can answer first, then a group that is square and quiet (ready to close). Home shows the top two.
   // Money you owe or are owed is the money card's job, and new updates are the Alerts badge's, so neither repeats here.
   const quietSince = Date.now() - 7 * 86_400_000;
-  const NEED_ACTION: Record<"claim" | "payment" | "bill" | "collect", string> = { claim: "Confirm", payment: "Confirm", bill: "Add", collect: "Check" };
+  const NEED_ACTION: Record<"claim" | "payment" | "bill" | "collect", string> = { claim: "Confirm", payment: "Confirm", bill: "Add", collect: "Confirm" };
   type Need = { key: string; lead: string; text: React.ReactNode; sub?: string; action: string; href: string; orange?: boolean };
   const needRows: Need[] = [
-    ...needs.items.map((it) => ({ key: it.id, lead: it.kind === "bill" ? "bill" : it.text.trim().charAt(0).toUpperCase(), text: it.text, sub: it.where, action: it.action ?? NEED_ACTION[it.kind], href: it.href, orange: it.tone === "orange" })),
+    ...needs.items.map((it) => ({ key: it.id, lead: it.kind === "bill" ? "bill" : it.text.trim().charAt(0).toUpperCase(), text: needText(it.kind, it.text), sub: it.where, action: it.action ?? NEED_ACTION[it.kind], href: it.href, orange: it.tone === "orange" })),
     ...open
       .filter((g) => !g.leaver && g.expenseCount > 0 && g.transfers.length === 0 && g.lastActivity.getTime() < quietSince)
       .map((g) => ({ key: `close-${g.group.id}`, lead: "check", text: <>Everyone’s square in <span className="font-semibold">{g.group.name}</span></>, action: "Close it", href: `/groups/${g.group.id}/settings#close` })),
@@ -166,9 +166,11 @@ export default async function Home({
   const live = stillIn(open);
   const byActivity = [...live].sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
   // The balance card's big number (all groups together, or per currency).
-  const heroText = netCommon
-    ? `${netCommon.converted ? "≈ " : ""}${netCommon.value > 0 ? "+" : netCommon.value < 0 ? "−" : ""}${formatMoney(Math.abs(netCommon.value), common)}`
-    : netLines.join(" · ");
+  // Big amounts show whole units (display only); the exact amount rides along in the tooltip.
+  const heroOf = (money: (n: number) => string) =>
+    netCommon ? `${netCommon.converted ? "≈ " : ""}${netCommon.value > 0 ? "+" : netCommon.value < 0 ? "−" : ""}${money(Math.abs(netCommon.value))}` : netLines.join(" · ");
+  const heroText = heroOf((n) => homeMoney(n, common));
+  const heroExact = heroOf((n) => formatMoney(n, common));
   // Several currencies with no saved rate and money going both ways: no single "you owe", so the card stays neutral.
   const acrossCurrencies = !netCommon && mixedDirections(netLines);
   const mode = acrossCurrencies ? "even" : moneyMode({ owedLines: owedLines.length, oweLines: oweLines.length, netValue });
@@ -342,6 +344,7 @@ export default async function Home({
     photo: g.group.type === "trip" && !g.group.cover ? placePhoto(g.group.name)?.src : undefined,
     balance: g.myBalance,
     money: (n: number) => formatMoney(n, g.group.currency),
+    show: (n: number) => homeMoney(n, g.group.currency),
     tag: tripTag(phaseOf.get(g.group.id)),
   }));
   // Trips at the same stage of the countdown each get their own words (slot 0, 1, 2… in that stage).
@@ -432,7 +435,11 @@ export default async function Home({
       {account && signedin === "1" && (await countPasskeys(account.id)) === 0 && <PasskeyOffer />}
       {justClosed === "1" && !undone && (
         <Notice params={["closed"]} className="mb-4">
-          Group closed. Find it under “Closed groups”.
+          Group closed. Find it under{" "}
+          <Link href="/groups" className="font-medium underline underline-offset-4">
+            Closed groups
+          </Link>
+          .
           {closed.some((c) => c.group.id === didGroup && c.group.type === "trip") && (
             <>
               {" "}
@@ -466,7 +473,7 @@ export default async function Home({
           {/* Start card: nothing here yet. */}
           <section aria-label="Start" className="vault rounded-[26px] px-5 pb-5 pt-6 text-fg" data-start-card>
             <p className="text-sm text-fg/60">Welcome to Loopin</p>
-            <h1 className="mt-1 font-display text-[32px] font-semibold leading-[1.08] tracking-tight">Start with one group.</h1>
+            <h1 className="mt-1 font-display text-[32px] font-semibold leading-[1.08] tracking-tight [text-wrap:balance]">Start with one group.</h1>
             <p className="mt-2 text-fg/65">Add what you paid, and Loopin keeps track of who owes whom.</p>
             <div className="mt-6 space-y-3">
               <Link href="/groups/new" className="pop block bg-fg px-4 py-3.5 text-center font-semibold text-canvas">
@@ -477,13 +484,13 @@ export default async function Home({
           </section>
 
           <div className="mt-4 grid grid-cols-2 gap-3">
-            <Link href="/switching" className="flex min-h-[76px] flex-col justify-center rounded-2xl border border-line px-4 py-3 active:bg-mist">
+            <Link href="/switching" className="flex min-h-[92px] flex-col justify-center rounded-2xl border border-line px-4 py-3 active:bg-mist [&>span]:[text-wrap:balance]">
               <span className="text-[13px] text-fg/60">Coming from another app?</span>
-              <span className="mt-0.5 text-sm font-semibold leading-snug">Bring your groups over</span>
+              <span className="mt-0.5 text-sm font-semibold leading-snug [text-wrap:balance]">Bring your groups over</span>
             </Link>
-            <Link href="/how-it-works" className="flex min-h-[76px] flex-col justify-center rounded-2xl border border-line px-4 py-3 active:bg-mist">
+            <Link href="/how-it-works" className="flex min-h-[92px] flex-col justify-center rounded-2xl border border-line px-4 py-3 active:bg-mist [&>span]:[text-wrap:balance]">
               <span className="text-[13px] text-fg/60">How Loopin works</span>
-              <span className="mt-0.5 text-sm font-semibold leading-snug">Three steps, one minute</span>
+              <span className="mt-0.5 text-sm font-semibold leading-snug [text-wrap:balance]">Three steps, one minute</span>
             </Link>
           </div>
 
@@ -544,6 +551,7 @@ export default async function Home({
             amountClass={mode === "square" ? "text-[26px]" : heroText.length <= 9 ? "text-[28px]" : heroText.length <= 12 ? "text-[24px]" : "text-[18px]"}
             tone={mode === "owed" ? "owed" : mode === "owe" ? "owe" : "plain"}
             mode={mode}
+            exact={mode !== "square" && heroExact !== heroText ? heroExact.replace(/^([≈ ]*)[+−]/, "$1") : undefined}
           />
 
           {invitationsBlock}
@@ -588,49 +596,17 @@ export default async function Home({
                         )}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[14px]">{n.text}</span>
+                        <span className="block text-[14px] leading-snug [text-wrap:balance]">{n.text}</span>
                         {n.sub && <span className="block truncate text-[12px] text-fg/60">{n.sub}</span>}
                       </span>
-                      <span className="shrink-0 text-[13px] font-semibold">{n.action}</span>
+                      <span className="inline-flex h-11 min-w-[76px] shrink-0 items-center justify-center rounded-full border border-fg/20 bg-fg/[0.06] px-4 text-[13px] font-semibold" data-need-action>
+                        {n.action}
+                      </span>
                     </Link>
                   </li>
                 ))}
               </ul>
             </section>
-          )}
-
-          {/* Not signed in: these groups live only on this phone. */}
-          {!account && <PhoneOnlyNote plural className="mt-6" />}
-
-          {/* Closed groups stay one tap away. */}
-          {closed.length > 0 && (
-            <details className="group/closed mt-4" open={justClosed === "1"}>
-              <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-full border border-line px-4 py-2 text-sm text-gray-600 active:bg-mist [&::-webkit-details-marker]:hidden">
-                <span className="group-open/closed:hidden">Closed groups ({closed.length})</span>
-                <span className="hidden group-open/closed:inline">Hide closed groups</span>
-              </summary>
-              <ul className="mt-2 divide-y divide-line">
-                {closed.map((g) => (
-                  <GroupRow key={g.group.id} g={g} closed tz={tz} />
-                ))}
-              </ul>
-            </details>
-          )}
-
-          {/* New here (one group, no expenses yet): a gentle pointer to the 1-minute tour. */}
-          {open.length <= 1 && open.every((g) => g.expenseCount === 0) && (
-            <Link href="/how-it-works" className="mt-6 flex items-center gap-3 rounded-2xl border border-line bg-mist px-4 py-3 text-sm active:bg-line">
-              <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#d8bd7a]/45 text-[#e8d29a]">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M8 5.5v13l10.5-6.5Z" />
-                </svg>
-              </span>
-              <span className="min-w-0 flex-1 leading-snug">
-                <span className="block font-medium text-fg">New to Loopin? See how it works</span>
-                <span className="block text-xs text-gray-400">A one-minute guide</span>
-              </span>
-              <span className="text-gray-400" aria-hidden>›</span>
-            </Link>
           )}
 
           {/* The next trip, as one compact countdown line. A trip that is on is tagged on its photo in Your groups instead. */}
@@ -655,8 +631,6 @@ export default async function Home({
             </section>
           )}
 
-          {collections.length > 0 && <CollectionsSection list={collections} />}
-
           {/* Latest */}
           {recent.length > 0 && (
             <section className="mt-8">
@@ -677,6 +651,24 @@ export default async function Home({
                 ))}
               </ul>
             </section>
+          )}
+
+          {collections.length > 0 && <CollectionsSection list={collections} />}
+
+          {/* New here (one group, no expenses yet): a gentle pointer to the 1-minute tour. */}
+          {open.length <= 1 && open.every((g) => g.expenseCount === 0) && (
+            <Link href="/how-it-works" className="mt-6 flex items-center gap-3 rounded-2xl border border-line bg-mist px-4 py-3 text-sm active:bg-line">
+              <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#d8bd7a]/45 text-[#e8d29a]">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8 5.5v13l10.5-6.5Z" />
+                </svg>
+              </span>
+              <span className="min-w-0 flex-1 leading-snug">
+                <span className="block font-medium text-fg">New to Loopin? See how it works</span>
+                <span className="block text-xs text-gray-400">A one-minute guide</span>
+              </span>
+              <span className="text-gray-400" aria-hidden>›</span>
+            </Link>
           )}
 
           <div className="mt-8">
@@ -759,7 +751,11 @@ export default async function Home({
       )}
 
       {all.length > 0 && <InviteFriends name={account?.name} className="mt-8" />}
-      <p className="mt-8 text-center text-xs text-gray-400">
+
+      {/* Not signed in: these groups live only on this phone. Just above the footer, out of the way of the groups and Latest. */}
+      {all.length > 0 && !account && <PhoneOnlyNote plural className="mt-6" />}
+
+      <p className="mt-8 pb-6 text-center text-xs text-gray-400">
         <Link href="/faq" className="underline underline-offset-4">
           FAQ
         </Link>

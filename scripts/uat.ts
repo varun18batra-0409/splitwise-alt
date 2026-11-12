@@ -1124,6 +1124,59 @@ async function main() {
     assert((await V.locator("[data-stories]").count()) <= 1, "stories show twice on Home");
     if ((await V.locator("[data-story]").count()) === 0) assert((await V.getByRole("region", { name: "Stories" }).count()) === 0, "an empty stories row is showing");
   });
+  await step(V, "Home", "Home order: Latest comes straight after Your groups and Needs you (only the trip countdown may sit between); closed groups are not on Home; the “saved on this phone” note is below everything but the footer; Needs you buttons are 44px", async () => {
+    await go(V, "/");
+    const y = async (loc: ReturnType<Page["locator"]>) => ((await loc.count()) ? (await loc.first().boundingBox())!.y : -1);
+    const groups = await y(V.getByRole("heading", { name: "Your groups" }));
+    const latest = await y(V.getByRole("heading", { name: "Latest" }));
+    assert(groups >= 0, "no Your groups heading");
+    if (latest >= 0) {
+      assert(latest > groups, "Latest is above Your groups");
+      const collecting = await y(V.getByRole("heading", { name: "Collecting" }));
+      assert(collecting < 0 || collecting > latest, "“Collecting” sits between Your groups and Latest");
+      assert((await V.getByText(/^Closed groups \(\d+\)$/).count()) === 0, "closed groups are listed on Home");
+      const between = await V.evaluate(() => {
+        const top = (t: string) => [...document.querySelectorAll("h2")].find((h) => h.textContent?.trim() === t);
+        const from = top("Your groups")?.closest("section"), to = top("Latest")?.closest("section");
+        if (!from || !to) return [] as string[];
+        const out: string[] = [];
+        for (let n = from.nextElementSibling; n && n !== to; n = n.nextElementSibling) out.push((n.getAttribute("aria-label") ?? n.querySelector("h2")?.textContent ?? n.tagName).trim());
+        return out;
+      });
+      const allowed = /^(Needs you|Trip countdown|More trips)$/;
+      assert(between.every((b) => allowed.test(b)), `between Your groups and Latest: ${between.join(", ")}`);
+    }
+    const phone = V.getByText(/saved on this phone/);
+    if (await phone.count()) {
+      const footer = await y(V.getByRole("link", { name: "FAQ" }));
+      assert((await phone.first().boundingBox())!.y < footer, "the phone-only note is below the footer");
+      if (latest >= 0) assert((await phone.first().boundingBox())!.y > latest, "the phone-only note is above Latest");
+    }
+    for (const b of await V.locator("[data-need-action]").all()) {
+      const bb = (await b.boundingBox())!;
+      assert(bb.height >= 44, `a Needs you button is ${Math.round(bb.height)}px tall`);
+    }
+    const lines = await V.locator("[data-needs-you] li").allInnerTexts();
+    for (const l of lines) if (/says they paid/.test(l)) assert(/says they paid (you|[A-Z])/.test(l) && !/says they paid [₹$€£]/.test(l), `a Needs you line doesn't say who was paid: ${l}`);
+  });
+  await step(V, "Home", "The bottom bar is nearly solid (background alpha 0.9 or more) so words never show through, and big amounts on Home are whole rupees", async () => {
+    await go(V, "/");
+    const alpha = await V.locator("[data-bottom-nav] > div").first().evaluate((el) => {
+      const m = /rgba?\(([^)]+)\)/.exec(getComputedStyle(el).backgroundColor);
+      if (!m) return 0;
+      const p = m[1].split(/[ ,/]+/).filter(Boolean);
+      return p.length > 3 ? Number(p[3]) : 1;
+    });
+    assert(alpha >= 0.9, `the bottom bar background alpha is ${alpha}`);
+    const hero = (await V.locator("[data-net-balance]").first().innerText()).trim();
+    if (/₹\s?[\d,]{5,}/.test(hero)) assert(!/\.\d\d$/.test(hero), `the money card total isn't rounded: ${hero}`);
+    for (const t of await V.locator("[data-group-card]").evaluateAll((els) => els.map((e) => (e as HTMLElement).innerText))) {
+      const m = /[₹]\s?([\d,]+)(\.\d\d)?/.exec(t);
+      if (m && Number(m[1].replace(/,/g, "")) >= 1000) assert(!m[2], `a polaroid balance isn't rounded: ${t}`);
+    }
+    // Story labels: one line, at most 10 characters.
+    for (const t of await V.locator("[data-story-label]").allInnerTexts()) assert([...t.trim()].length <= 10, `a story label is too long: ${t}`);
+  });
   await step(V, "Home", "The sliding cards at the top: 4 to 7 of them, no two the same, each with words and a button that goes somewhere; no “Coming from another app?” card", async () => {
     await go(V, "/");
     const slides = V.locator('[aria-roledescription="slide"]');

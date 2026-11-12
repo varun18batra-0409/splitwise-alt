@@ -14,7 +14,8 @@ export type GroupCardData = {
   cover: { kind: CoverChoice; src?: string };
   photo?: string; // a place photo for a trip with no picture of its own
   balance: number; // minor units, in the group's currency; + is owed to you
-  money: (minor: number) => string; // formats in the group's currency
+  money: (minor: number) => string; // formats in the group's currency, exact (read out to screen readers, shown on hold)
+  show?: (minor: number) => string; // what the polaroid prints: whole units for big amounts (display only); money() when absent
   tag?: string | null; // "Day 2 of 5"
 };
 
@@ -30,15 +31,17 @@ export function GroupCards({ groups, total }: { groups: GroupCardData[]; total: 
       data-group-cards
     >
       {shown.map((g, i) => {
-        const b = cardBalance(g.balance, g.money);
+        const b = cardBalance(g.balance, g.show ?? g.money);
+        const exact = cardBalance(g.balance, g.money);
         return (
           <li key={g.id} className="w-[150px] shrink-0 snap-start">
             <Link
               href={`/groups/${g.id}`}
-              aria-label={`${g.name}, ${b.spoken}${g.tag ? `, ${g.tag}` : ""}`}
+              aria-label={`${g.name}, ${exact.spoken}${g.tag ? `, ${g.tag}` : ""}`}
               className={`lp-press block ${tilt[i % 2]} active:rotate-0 motion-reduce:rotate-0`}
               data-group-card
               data-tone={b.tone}
+              title={g.show ? `${g.name}: ${exact.text}` : undefined}
             >
               <Polaroid
                 cover={g.cover}
@@ -49,6 +52,7 @@ export function GroupCards({ groups, total }: { groups: GroupCardData[]; total: 
                 noteTone={b.tone === "square" ? undefined : b.tone}
                 photoClass="h-[120px]"
                 captionClass="text-[22px]"
+                wrapCaption
                 sizes="150px"
                 className="w-[150px]"
               >

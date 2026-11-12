@@ -19,7 +19,8 @@ function Effect({ label, amount, sub, cls }: { label: string; amount?: string; s
   );
 }
 
-const meta = "mt-0.5 truncate text-[13px] text-fg/60";
+// Up to two lines, so "Thailand trip, Today" isn't cut to "Thailand trip, T…".
+const meta = "mt-0.5 line-clamp-2 break-words text-[13px] leading-snug text-fg/60";
 
 // One line of history: an expense, a settle-up payment or a group change,
 // and what it meant for you. Deleted items stay visible, crossed out.

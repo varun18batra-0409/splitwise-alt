@@ -11,6 +11,7 @@ import { Backdrop, TONE } from "./Backdrop";
 import type { CoverChoice } from "@/lib/covers";
 import type { Frame, Story } from "@/lib/home/stories";
 import { orderStories } from "@/lib/home/story-order";
+import { storyShort } from "@/lib/home/display";
 
 // Home's stories, as a row of circles under the header (like Instagram). A gold ring means you haven't seen it yet; seen ones have a faint ring. Tap one to open the stories full screen: tap the
 // right side for the next, the left for the one before, hold to pause,
@@ -72,6 +73,7 @@ export function Stories({ stories, className = "mb-6" }: { stories: Story[]; cla
                 type="button"
                 onClick={() => setOpen(stories.indexOf(s))}
                 aria-label={`${s.headline}${isNew ? " (new)" : ""}`}
+                title={s.label}
                 className="flex w-full flex-col items-center gap-1.5 text-center transition-opacity active:opacity-70 motion-reduce:transition-none"
               >
                 <span aria-hidden className={`block h-16 w-16 rounded-full p-[3px] ${isNew ? "bg-[conic-gradient(#e8c46a,#f0a35e,#6fe3a8,#e8c46a)]" : "bg-fg/25"}`}>
@@ -79,7 +81,9 @@ export function Stories({ stories, className = "mb-6" }: { stories: Story[]; cla
                     <Picture s={s} uid={`st-${s.id}`} />
                   </span>
                 </span>
-                <span className={`block w-full truncate text-[12px] leading-tight ${isNew ? "text-fg" : "text-fg/70"}`}>{s.label}</span>
+                <span className={`block w-full whitespace-nowrap text-[12px] leading-tight ${isNew ? "text-fg" : "text-fg/70"}`} data-story-label>
+                  {storyShort(s.short ?? s.label)}
+                </span>
               </button>
             </li>
           );

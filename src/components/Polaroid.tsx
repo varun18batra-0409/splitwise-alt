@@ -23,6 +23,7 @@ export function Polaroid({
   sizes = "120px",
   children,
   captionClass = "text-[17px]",
+  wrapCaption = false,
 }: {
   cover: { kind: CoverChoice; src?: string };
   uid: string;
@@ -36,6 +37,7 @@ export function Polaroid({
   sizes?: string;
   children?: React.ReactNode; // laid over the photo (labels, faces)
   captionClass?: string;
+  wrapCaption?: boolean; // let a long name take two lines instead of cutting it with "…"
 }) {
   return (
     <span
@@ -49,7 +51,9 @@ export function Polaroid({
         {children}
       </span>
       <span className="block px-1 pb-1.5 pt-0.5 leading-none" style={{ color: INK }}>
-        <span className={`block truncate font-hand font-bold leading-[1.1] ${captionClass}`}>{caption}</span>
+        <span className={`block font-hand font-bold leading-[1.1] ${wrapCaption ? "line-clamp-2 break-words [text-wrap:balance]" : "truncate"} ${captionClass}`} title={wrapCaption ? caption : undefined}>
+          {caption}
+        </span>
         {note && (
           <span className="mt-0.5 block truncate text-[11px] font-semibold tabular-nums" style={{ color: noteTone === "owed" ? INK_OWED : noteTone === "owe" ? INK_OWE : "#6d685e" }}>
             {note}
