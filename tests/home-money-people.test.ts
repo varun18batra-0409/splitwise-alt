@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { firstName, moneyActions, moneyLabel, moneyPeople, payHref, peopleLine, personButtonLabel, remindHref, whoLine, type PeopleGroup } from "@/lib/home/money-card";
-import { settleRowId } from "@/lib/cross-settle";
+import { crossSettle, settleRowId } from "@/lib/cross-settle";
+import { formatMoney } from "@/lib/money";
 
 // The people line on Home's money card: initial circles and "Nupur, Ravi and 2 others". No amounts on Home.
 // Amounts (minor units, paise) are only used here to put the biggest first.
@@ -249,5 +250,100 @@ describe("the main button: who to pay, who to remind, and where it goes", () => 
     const [add, settle] = moneyActions("owe", [], "INR");
     expect(add).toMatchObject({ key: "add", bright: false });
     expect(settle).toMatchObject({ key: "settle", label: "Settle up", bright: true });
+  });
+});
+
+// ---- Money in both directions: the line has to explain the net amount in the card ----
+describe("the who-line when money goes both ways", () => {
+  // I owe Nupur ₹1,800 (Goa); Ravi owes me ₹1,000 (Flat).
+  const goa = iPay("g1", "Goa", "INR", [["n", "Nupur", 180000]]);
+  const flat = theyPay("g2", "Flat", [["r", "Ravi", 100000]]);
+  const both = [goa, flat];
+  const owePeople = moneyPeople(both, "owe", "INR", same);
+  const owedPeople = moneyPeople(both, "owed", "INR", same);
+
+  it("owe ₹1,800, ₹1,000 coming back: the card says ₹800 and the line names both", () => {
+    expect(formatMoney(180000 - 100000)).toBe("₹800"); // 1,800 - 1,000 = 800
+    const l = whoLine(owePeople, owedPeople, "owe");
+    expect(l.text).toBe("Nupur ₹1,800 · Ravi owes you ₹1,000");
+    expect(l.opposite).toMatchObject({ name: "Ravi", amount: "₹1,000", kind: "owes-you" });
+    expect(l.label).toBe("Nupur ₹1,800. Also Ravi owes you ₹1,000");
+  });
+
+  it("the other way round (owed ₹5,000 by Meera, I owe Asha ₹200): “Meera ₹5,000 · you owe Asha ₹200”, card ₹4,800", () => {
+    const g = [theyPay("g1", "Goa", [["m", "Meera", 500000]]), iPay("g2", "Flat", "INR", [["a", "Asha", 20000]])];
+    expect(formatMoney(500000 - 20000)).toBe("₹4,800");
+    expect(whoLine(moneyPeople(g, "owed", "INR", same), moneyPeople(g, "owe", "INR", same), "owed").text).toBe("Meera ₹5,000 · you owe Asha ₹200");
+  });
+
+  it("three people on the main side and one on the other: top two, “· 1 other”, then the other side's person (3 names in all)", () => {
+    const main = iPay("g1", "Goa", "INR", [["c", "Chirag", 300000], ["b", "Bela", 200000], ["a", "Asha", 100000]]);
+    const back = theyPay("g2", "Flat", [["r", "Ravi", 100000]]);
+    const l = whoLine(moneyPeople([main, back], "owe", "INR", same), moneyPeople([main, back], "owed", "INR", same), "owe");
+    expect(l.text).toBe("Chirag ₹3,000 · Bela ₹2,000 · 1 other · Ravi owes you ₹1,000");
+    expect(l.parts.length + (l.opposite ? 1 : 0)).toBe(3);
+    expect(formatMoney(300000 + 200000 + 100000 - 100000)).toBe("₹5,000"); // what the card would say
+  });
+
+  it("only the biggest person from the other side is added (Ravi ₹1,000 before Kiran ₹300)", () => {
+    const back = theyPay("g2", "Flat", [["k", "Kiran", 30000], ["r", "Ravi", 100000]]);
+    const l = whoLine(moneyPeople([goa, back], "owe", "INR", same), moneyPeople([goa, back], "owed", "INR", same), "owe");
+    expect(l.text).toBe("Nupur ₹1,800 · Ravi owes you ₹1,000");
+  });
+
+  it("nothing going the other way: no extra part; the Pay button is unchanged either way", () => {
+    expect(whoLine(moneyPeople([goa], "owe", "INR", same), moneyPeople([goa], "owed", "INR", same), "owe")).toMatchObject({ opposite: null, text: "Nupur ₹1,800" });
+    expect(moneyActions("owe", owePeople, "INR")[0]).toMatchObject({ key: "pay", label: "Pay Nupur ₹1,800", href: "/settle#pay-acc_acc-n" });
+  });
+});
+
+// ---- Home must agree with /settle: same people, same amounts, same row ids ----
+describe("Home's per-person amounts equal the rows on /settle", () => {
+  // Goa: I pay Nupur ₹1,200; Ravi pays me ₹1,500.   Flat: I pay Nupur ₹600 and Ravi ₹500; Asha pays me ₹200.
+  // By hand: Nupur -1,200 - 600 = -₹1,800 (I owe); Ravi +1,500 - 500 = +₹1,000; Asha +₹200.
+  const goa: PeopleGroup = {
+    groupId: "g1",
+    groupName: "Goa",
+    currency: "INR",
+    myId: "me",
+    members: [person("me", "Me"), person("n1", "Nupur", "acc-nupur"), person("r1", "Ravi", "acc-ravi")],
+    transfers: [{ from: "me", to: "n1", amount: 120000 }, { from: "r1", to: "me", amount: 150000 }],
+  };
+  const flat: PeopleGroup = {
+    groupId: "g2",
+    groupName: "Flat",
+    currency: "INR",
+    myId: "me",
+    members: [person("me", "Me"), person("n2", "Nupur", "acc-nupur"), person("r2", "Ravi", "acc-ravi"), person("a2", "Asha", "acc-asha")],
+    transfers: [{ from: "me", to: "n2", amount: 60000 }, { from: "me", to: "r2", amount: 50000 }, { from: "a2", to: "me", amount: 20000 }],
+  };
+  const groups = [goa, flat];
+  const settle = crossSettle(groups, "INR", same).items; // exactly what the /settle page builds its rows from
+
+  it("/settle's rows are the hand-worked ones", () => {
+    expect(settle.map((i) => [i.name, i.net])).toEqual([["Nupur", -180000], ["Ravi", 100000], ["Asha", 20000]]);
+  });
+
+  it("every “you owe” person: same amount and same #pay id as /settle's row", () => {
+    const home = moneyPeople(groups, "owe", "INR", same);
+    const rows = settle.filter((i) => i.net < 0);
+    expect(home.map((h) => [h.key, h.amount])).toEqual(rows.map((r) => [r.key, -r.net]));
+    expect(payHref(home[0], "INR")).toBe(`/settle#${settleRowId("pay", rows[0].key)}`);
+    expect(whoLine(home).parts[0].amount).toBe("₹1,800");
+  });
+
+  it("every “owed to you” person: same amounts, same order, same people as /settle's “Coming to you” rows", () => {
+    const home = moneyPeople(groups, "owed", "INR", same);
+    const rows = settle.filter((i) => i.net > 0);
+    expect(home.map((h) => [h.key, h.name, h.amount])).toEqual(rows.map((r) => [r.key, r.name, r.net]));
+    expect(whoLine(home).text).toBe("Ravi ₹1,000 · Asha ₹200");
+    // Remind goes to the group where Ravi owes most (Goa ₹1,500, member r1), the same part /settle's Remind uses.
+    const biggest = [...rows[0].parts].filter((p) => !p.iPay).sort((a, b) => b.amount - a.amount)[0];
+    expect(remindHref(home[0])).toBe(`/groups/${biggest.groupId}/remind?from=${biggest.fromId}`);
+    expect(remindHref(home[0])).toBe("/groups/g1/remind?from=r1");
+  });
+
+  it("the card's net equals what /settle's rows add up to: 1,000 + 200 - 1,800 = -₹600", () => {
+    expect(settle.reduce((t, i) => t + i.net, 0)).toBe(-60000);
   });
 });

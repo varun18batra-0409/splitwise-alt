@@ -50,19 +50,21 @@ export function PhoneStatus({ compact = false }: { compact?: boolean }) {
     // Only look (never register here: the app registers its worker once elsewhere), and never wait more than
     // 3 s: a browser whose push service doesn't answer must not leave this page stuck on "checking".
     let done = false;
+    // Only ever replaces "checking": a late answer must not undo what a tap has started since.
+    const settle = (next: State) => setState((now) => (now === "checking" ? next : now));
     const giveUp = setTimeout(() => {
-      if (!done) setState("off");
+      if (!done) settle("off");
     }, 3000);
     navigator.serviceWorker
       .getRegistration()
       .then((reg) => (reg ? reg.pushManager.getSubscription() : null))
       .then((sub) => {
         done = true;
-        setState(sub ? "on" : "off");
+        settle(sub ? "on" : "off");
       })
       .catch(() => {
         done = true;
-        setState("off");
+        settle("off");
       })
       .finally(() => clearTimeout(giveUp));
     return () => clearTimeout(giveUp);

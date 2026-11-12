@@ -95,7 +95,10 @@ export type PeopleLine = { names: string[]; text: string };
 // ---- The who-line under the amount: "Nupur ₹1,800 · Ravi ₹650" (two people), "… · 2 others" (more) ----
 // Same entries as the people line (so the same rules about who counts, and the same per-person totals /settle shows).
 export type WhoPart = { name: string; amount: string; exact: string };
-export type WhoLine = { parts: WhoPart[]; others: number; tail: string; text: string; label: string };
+// `opposite`: when money also goes the other way, the biggest person on that side ("Ravi owes you ₹1,000" on an owe card,
+// "you owe Ravi ₹1,000" on an owed card), so the line explains the net amount in the card (₹1,800 owed - ₹1,000 back = ₹800).
+export type WhoOpposite = WhoPart & { kind: "owes-you" | "you-owe"; phrase: string };
+export type WhoLine = { parts: WhoPart[]; others: number; tail: string; opposite: WhoOpposite | null; text: string; label: string };
 
 // Names are made unique the way peopleLine does it ("Ravi (Flat 402)"); a person is named once (their biggest entry).
 function uniquePeople(entries: MoneyPerson[]): { name: string; e: MoneyPerson }[] {
@@ -107,7 +110,8 @@ function uniquePeople(entries: MoneyPerson[]): { name: string; e: MoneyPerson }[
 }
 
 // Amounts follow Home's rule (homeMoney): whole units from 1,000, exact below; the exact amount rides along for title/aria.
-export function whoLine(entries: MoneyPerson[]): WhoLine {
+// Never more than 3 names: the top two of the main side, then one from the other side.
+export function whoLine(entries: MoneyPerson[], otherSide: MoneyPerson[] = [], side: "owe" | "owed" = "owe"): WhoLine {
   const list = uniquePeople(entries);
   const parts = list.slice(0, 2).map(({ name, e }) => ({
     name,
@@ -116,9 +120,23 @@ export function whoLine(entries: MoneyPerson[]): WhoLine {
   }));
   const others = Math.max(0, list.length - 2);
   const tail = others === 0 ? "" : others === 1 ? "1 other" : `${others} others`;
-  const text = [...parts.map((p) => `${p.name} ${p.amount}`), ...(tail ? [tail] : [])].join(" · ");
-  const label = parts.map((p) => `${p.name} ${p.exact}`).join(", ") + (tail ? ` and ${tail}` : "");
-  return { parts, others, tail, text, label };
+  const mainKeys = new Set(list.map(({ e }) => e.key));
+  const top = uniquePeople(otherSide.filter((e) => !mainKeys.has(e.key)))[0];
+  const kind = side === "owe" ? "owes-you" : "you-owe";
+  const opposite: WhoOpposite | null = top
+    ? {
+        name: top.name,
+        amount: `${top.e.approx ? "≈ " : ""}${homeMoney(top.e.amount, top.e.currency)}`,
+        exact: `${top.e.approx ? "≈ " : ""}${formatMoney(top.e.amount, top.e.currency)}`,
+        kind,
+        phrase: "",
+      }
+    : null;
+  if (opposite) opposite.phrase = kind === "owes-you" ? `${opposite.name} owes you` : `you owe ${opposite.name}`;
+  const text = [...parts.map((p) => `${p.name} ${p.amount}`), ...(tail ? [tail] : []), ...(opposite ? [`${opposite.phrase} ${opposite.amount}`] : [])].join(" · ");
+  const label =
+    parts.map((p) => `${p.name} ${p.exact}`).join(", ") + (tail ? ` and ${tail}` : "") + (opposite ? `. Also ${opposite.phrase} ${opposite.exact}` : "");
+  return { parts, others, tail, opposite, text, label };
 }
 
 // ---- The two buttons on a card with someone to pay or remind ----

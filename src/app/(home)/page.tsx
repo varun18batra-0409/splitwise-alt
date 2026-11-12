@@ -179,7 +179,17 @@ export default async function Home({
           toCommon,
         )
       : [];
-  const who = people.length > 0 ? whoLine(people) : null;
+  // Money going the other way too (you owe Nupur ₹1,800, Ravi owes you ₹1,000 -> the card says ₹800): the biggest of them joins the line.
+  const otherSide =
+    people.length > 0
+      ? moneyPeople(
+          open.map((g) => ({ groupId: g.group.id, groupName: g.group.name, currency: g.group.currency, myId: g.myId, members: g.group.members, transfers: g.transfers })),
+          mode === "owe" ? "owed" : "owe",
+          common,
+          toCommon,
+        )
+      : [];
+  const who = people.length > 0 ? whoLine(people, otherSide, mode === "owe" ? "owe" : "owed") : null;
   // Pay the person you owe most (their row on Settle up), or remind the person who owes you most (WhatsApp). Else today's buttons.
   const actions = moneyActions(mode, people, common);
   // What waits on you, folded into the card: the top one as a line; two or more real ones as a count that opens Alerts (where all of them are listed
