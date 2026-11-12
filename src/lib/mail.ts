@@ -66,10 +66,16 @@ export async function sendMail(to: string, subject: string, text: string, html: 
     await db.outbox.create({ data: { to, subject, text } });
     return true;
   }
+  const { allow } = await import("./rate-limit");
+  // One address can't be flooded. Sign-in codes have their own allowance, so
+  // invitations from other people can never use up someone's sign-in.
+  // Checked BEFORE the app-wide daily ceiling: an email refused here is never sent,
+  // so it must not use up a place meant for emails that are (otherwise repeated
+  // invites to one address could use the whole day's budget and block sign-in codes).
+  if (!(await allow(`${opts.signInCode ? "mail:code" : "mail:to"}:${to.toLowerCase()}`, opts.signInCode ? 12 : 10, 86_400))) return false;
   // A daily ceiling for the whole app, so nobody can use up the quota and stop
   // sign-in codes reaching everyone else. Under the sending service's own limit:
   // Resend's free plan allows 100 a day, Gmail about 500. (MAIL_DAILY_CAP overrides.)
-  const { allow } = await import("./rate-limit");
   const cap = Number(process.env.MAIL_DAILY_CAP ?? (/resend/i.test(process.env.SMTP_HOST ?? "") ? 95 : 400));
   if (!opts.signInCode && !(await allow("mail:other", Math.max(1, cap - 30), 86_400))) {
     console.error("sendMail: daily cap for invites reached (kept for sign-in codes)");
@@ -81,9 +87,6 @@ export async function sendMail(to: string, subject: string, text: string, html: 
     await noteFailure("cap");
     return false;
   }
-  // One address can't be flooded. Sign-in codes have their own allowance, so
-  // invitations from other people can never use up someone's sign-in.
-  if (!(await allow(`${opts.signInCode ? "mail:code" : "mail:to"}:${to.toLowerCase()}`, opts.signInCode ? 12 : 10, 86_400))) return false;
   const message = {
     from: process.env.MAIL_FROM ?? `Loopin <${process.env.SMTP_USER}>`,
     to,

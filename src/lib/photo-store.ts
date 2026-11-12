@@ -165,6 +165,27 @@ export async function replaceGroupPhoto(
   });
 }
 
+// Bill photos taken while adding an expense that was never saved: gone after a day (used by the daily job).
+// Returns how many were removed. Exactly the rows whose files are queued, in batches: never a row deleted
+// without its file's key going on the to-delete list in the same step.
+export async function cleanUnsentReceipts(now = new Date()): Promise<number> {
+  const { db } = await import("./db");
+  const where = { expenseId: "", createdAt: { lt: new Date(now.getTime() - 86_400_000) } };
+  let n = 0;
+  for (let round = 0; round < 10; round++) {
+    const batch = await db.receipt.findMany({ where, select: { id: true, blobKey: true }, take: 500 });
+    if (!batch.length) break;
+    // Still unattached at this moment: one attached meanwhile is kept, and its key is not queued.
+    n += await db.$transaction(async (tx) => {
+      const mine = await tx.receipt.findMany({ where: { id: { in: batch.map((o) => o.id) }, expenseId: "" }, select: { id: true, blobKey: true } });
+      await queuePhotoDeletes(tx, mine.map((o) => o.blobKey));
+      return (await tx.receipt.deleteMany({ where: { id: { in: mine.map((o) => o.id) }, expenseId: "" } })).count;
+    });
+    if (batch.length < 500) break;
+  }
+  return n;
+}
+
 // Photos saved before file storage was connected: moved over a few at a time
 // by the daily job (the database copy is cleared once the file copy exists).
 export async function movePhotosToBlob(limit = 40): Promise<number> {

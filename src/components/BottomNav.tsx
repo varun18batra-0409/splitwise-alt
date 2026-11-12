@@ -52,8 +52,8 @@ export function BottomNav() {
   );
 
   return (
-    <nav aria-label="Main" className="bottom-nav pointer-events-none fixed inset-x-0 bottom-0 z-20 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-      <div className="glass-strong pointer-events-auto mx-auto flex h-[66px] max-w-[416px] items-center rounded-full px-2 shadow-[0_18px_40px_-12px_rgba(0,0,0,0.8)]">
+    <nav aria-label="Main" data-bottom-nav className="bottom-nav pointer-events-none fixed inset-x-0 bottom-0 z-20 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <div className="glass-bar pointer-events-auto mx-auto flex h-[66px] max-w-[416px] items-center rounded-full px-2 shadow-[0_18px_40px_-12px_rgba(0,0,0,0.8)]">
         {cell(items[0])}
         {cell(items[1])}
         <Link

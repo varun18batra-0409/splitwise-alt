@@ -21,7 +21,8 @@ export type Frame =
 export type Story = {
   id: string; // stable for "seen" (changes when the story changes, e.g. the day count)
   kind: StoryKind;
-  label: string; // under the little picture: "Goa", "Diwali night"
+  label: string; // the full name: "Goa", "Teacher’s Day gift" (the viewer's header, and the full name for screen readers)
+  short: string; // under the little picture on Home: the story's kind and group in a few words ("Goa", "Card night", "Collection")
   headline: string; // the story in one line (also read out to screen readers)
   line: string;
   cta: string;
@@ -126,6 +127,7 @@ export function buildStories(i: StoryInput): Story[] {
       id: `trip-${t.id}-${key}`,
       kind: "trip",
       label: place(t.name),
+      short: place(t.name),
       headline: head,
       line: tripLine(p, t.people),
       cta: p.kind === "before" ? "Open the trip" : "Add an expense",
@@ -148,7 +150,7 @@ export function buildStories(i: StoryInput): Story[] {
       { kind: "poster", tone: "lilac", kicker: "Also inside", big: "Awards", line: "Who's the Banker? Who's the Snack Lord? Find out." },
       ...(photos[1] ? [{ kind: "photo", photo: photos[1], kicker: "Ready when you are", head: "Watch the whole thing", line: "Then share it to the group" } as Frame] : []),
     ];
-    out.push({ id: `wrapped-${w.id}`, kind: "wrapped", label: place(w.name), headline: `${place(w.name)}, wrapped`, line: "Who paid most, the biggest night and more", cta: "Watch it", href: `/groups/${w.id}/wrapped`, photo: photos[0], cover: w.cover, emoji: "🎬", big: "Wrapped", frames, at: now - w.endedDaysAgo * 86_400_000 + 3_600_000 });
+    out.push({ id: `wrapped-${w.id}`, kind: "wrapped", label: place(w.name), short: "Wrapped", headline: `${place(w.name)}, wrapped`, line: "Who paid most, the biggest night and more", cta: "Watch it", href: `/groups/${w.id}/wrapped`, photo: photos[0], cover: w.cover, emoji: "🎬", big: "Wrapped", frames, at: now - w.endedDaysAgo * 86_400_000 + 3_600_000 });
   }
   for (const g of i.games) {
     if (now - g.finishedAt.getTime() > 3 * 86_400_000) continue;
@@ -164,6 +166,7 @@ export function buildStories(i: StoryInput): Story[] {
     out.push({
       id: `pot-${g.id}`,
       kind: "pot",
+      short: "Card night",
       label: g.name.length > 14 ? `${g.name.slice(0, 13)}…` : g.name,
       headline,
       line: g.name,
@@ -185,7 +188,7 @@ export function buildStories(i: StoryInput): Story[] {
       ...(s.payments ? [{ kind: "poster", tone: "sky", kicker: "Payments it took", big: String(s.payments), line: "*that we know of" } as Frame] : []),
       ...(photos[1] ? [{ kind: "photo", photo: photos[1], kicker: "Bragging rights", head: "Share it with the group", line: "Friendships: intact ✓" } as Frame] : []),
     ];
-    out.push({ id: `square-${s.id}-${s.at.getTime()}`, kind: "square", label: place(s.name), headline: `${place(s.name)} is all square`, line: "Nobody owes anybody. Nice one 🎉", cta: "Share it", href: `/groups/${s.id}/square`, photo: photos[0], cover: s.cover, art: "square", emoji: "🎉", big: "All square", frames, at: s.at.getTime() });
+    out.push({ id: `square-${s.id}-${s.at.getTime()}`, kind: "square", label: place(s.name), short: "All square", headline: `${place(s.name)} is all square`, line: "Nobody owes anybody. Nice one 🎉", cta: "Share it", href: `/groups/${s.id}/square`, photo: photos[0], cover: s.cover, art: "square", emoji: "🎉", big: "All square", frames, at: s.at.getTime() });
   }
   for (const c of i.collections) {
     if (c.people === 0) continue;
@@ -200,6 +203,7 @@ export function buildStories(i: StoryInput): Story[] {
     out.push({
       id: `collect-${c.id}-${c.paid}`,
       kind: "collect",
+      short: "Collection",
       label: c.title.length > 14 ? `${c.title.slice(0, 13)}…` : c.title,
       headline: all ? `${c.title}: everyone’s in` : `${c.title}: ${c.paid} of ${c.people} paid`,
       line: all ? "Time to close it" : c.paid === 0 ? "Share the link to get it going" : "Nearly there. A nudge might help",
@@ -226,6 +230,7 @@ export function buildStories(i: StoryInput): Story[] {
       id: `memory-${m.id}-${m.years}`,
       kind: "memory",
       label: place(m.name),
+      short: m.years === 1 ? "A year ago" : `${m.years} yrs ago`,
       headline: `${ago}: ${place(m.name)}`,
       line: `${m.people} of you${m.days > 1 ? `, ${m.days} days` : ""}. Remember that? 🌴`,
       cta: "Relive it",

@@ -50,6 +50,16 @@ describe("Home money card: the words", () => {
   });
 });
 
+describe("Home money card: emphasis per state (design A)", () => {
+  it("owed: Add expense filled; owe: Settle up filled; even: Add expense filled; square: Add expense filled and New group second", () => {
+    expect(brightOf("owed")).toEqual(["Add expense"]);
+    expect(brightOf("owe")).toEqual(["Settle up"]);
+    expect(brightOf("even")).toEqual(["Add expense"]);
+    expect(brightOf("square")).toEqual(["Add expense"]);
+    expect(moneyButtons("square").map((b) => b.label)).toEqual(["Add expense", "New group"]);
+  });
+});
+
 describe("Home countdown strip words", () => {
   it("before, tomorrow, today, during, after", () => {
     expect(stripWords("Goa", { kind: "before", days: 6 })).toEqual({ pre: "Goa in ", num: "6", post: " sleeps" });

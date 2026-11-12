@@ -1,7 +1,13 @@
 // Next.js calls this whenever a page or action crashes on the server. We keep
 // a short note (personal details removed; kept 30 days) so problems show up
 // on the private stats page, and could email an alert later.
-export async function register() {}
+export async function register() {
+  // Node only (the edge build must never see Node's perf_hooks): the speed log for the CI load test.
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    const { startPerfLoop } = await import("./perf-loop");
+    startPerfLoop();
+  }
+}
 
 export async function onRequestError(
   err: unknown,

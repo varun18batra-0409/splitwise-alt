@@ -66,13 +66,37 @@ describe("Needs you", () => {
     expect(text("claim")).toBe("Ravi says they paid you ₹500");
     expect(text("payment")).toBe("Meera says they paid you ₹300");
     expect(text("bill")).toBe("Electricity is waiting for its amount");
-    expect(text("collect")).toBe("Zoya says they paid ₹200");
+    // This collection has no UPI ID or pay link saved, so nothing says the money came to Asha: neutral wording, "View".
+    expect(text("collect")).toBe("Zoya says they paid ₹200 for Farewell gift");
+    expect(n.items.find((i) => i.kind === "collect")!.action).toBe("View");
     // Nothing twice.
     expect(new Set(n.items.map((i) => i.id)).size).toBe(n.items.length);
     // Each one goes to where it is answered.
     expect(n.items.find((i) => i.kind === "claim")!.href).toBe(`/groups/${gid}/settle`);
     expect(n.items.find((i) => i.kind === "bill")!.href).toMatch(new RegExp(`^/groups/${gid}/add\\?bill=.+&period=2026-11$`));
     expect(n.items.find((i) => i.kind === "collect")!.href).toMatch(/^\/c\/nc-/);
+  });
+
+  it("a collection line says 'paid you' (and Confirm) only when its UPI ID is the viewer's own; a treasurer's UPI ID stays neutral", async () => {
+    const acc = await db.account.create({ data: { email: `needs-upi-${Date.now()}@example.test`, name: "Dev", upiId: "dev@okicici" } });
+    try {
+      const mk = async (title: string, upiId: string) => {
+        const c = await db.collection.create({ data: { code: `nu-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, title, accountId: acc.id, organiser: "Dev", currency: "INR", amount: 30000, upiId } });
+        collectionIds.push(c.id);
+        await db.collectionEntry.create({ data: { collectionId: c.id, name: "Meera", amount: 30000, status: "paid", paidAt: new Date() } });
+      };
+      await mk("Mine", "Dev@okicici");
+      await mk("Teacher’s Day gift", "treasurer@ybl");
+      const n = await loadNeedsYou({}, { id: acc.id }, 0, nov1);
+      const by = Object.fromEntries(n.items.map((i) => [i.where, i]));
+      expect(by["Mine"].text).toBe("Meera says they paid you ₹300");
+      expect(by["Mine"].action).toBe("Confirm");
+      expect(by["Teacher’s Day gift"].text).toBe("Meera says they paid ₹300 for Teacher’s Day gift");
+      expect(by["Teacher’s Day gift"].action).toBe("View");
+    } finally {
+      await db.collection.deleteMany({ where: { accountId: acc.id } });
+      await db.account.delete({ where: { id: acc.id } }).catch(() => {});
+    }
   });
 
   it("nothing for a person with nothing to answer", async () => {

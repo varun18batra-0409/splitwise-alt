@@ -2,35 +2,37 @@ import Link from "@/components/Link";
 import { niceDate } from "@/lib/format";
 import { TakeOff } from "@/components/TripCountdown";
 import { ShareCountdown } from "@/components/ShareCountdown";
+import { ExactAmount } from "@/components/ExactAmount";
 import { moneyButtons, stripWords, type MoneyMode } from "@/lib/home/money-card";
 import type { TripPhase } from "@/lib/countdown";
 
-// The top of Home, as two small pieces: the money card (big net amount, two equal buttons) and, when a trip is coming up
-// or on, one compact countdown line under it. Both are short so the money and both buttons fit the first screen of a small phone.
+// Home's money card (slim, so the money and both buttons fit the first screen of a small phone) and, lower down, the countdown
+// line for a trip that is coming up.
 
-const bright = "pop flex h-12 flex-1 items-center justify-center gap-2 bg-fg text-[15px] font-semibold text-canvas [--pop-edge:#6e6b63]";
-const quiet = "flex h-12 flex-1 items-center justify-center gap-2 rounded-full border border-fg/18 bg-fg/[0.07] text-[15px] font-semibold text-fg transition-transform active:scale-[0.97]";
+const bright = "pop flex h-11 items-center justify-center gap-2 bg-fg text-[14px] font-semibold text-canvas [--pop-edge:#6e6b63]";
+const quiet = "flex h-11 items-center justify-center gap-2 rounded-full border border-fg/20 bg-fg/[0.04] text-[14px] font-semibold text-fg transition-transform active:scale-[0.97] motion-reduce:transition-none motion-reduce:active:scale-100";
 
+// The slim money card: what it means on the left, the amount on the right, two equal buttons underneath.
 export function MoneyCard({
-  lead,
+  label,
   amount,
   amountClass,
   tone,
-  sub,
   mode,
+  exact,
 }: {
-  lead: string; // "Good evening, Varun. You owe"
+  exact?: string; // the exact amount, when `amount` is rounded for display (tooltip)
+  label: string; // "Coming back to you", "You owe, to 2 people", "Nobody owes anybody"
   amount: string; // "₹3,450" or "All square"
   amountClass: string;
   tone: "owed" | "owe" | "plain";
-  sub: string; // "across 2 groups, to 2 people"
   mode: MoneyMode;
 }) {
   const [add, second] = moneyButtons(mode);
   const btn = (b: typeof add, key: string) => (
     <Link key={key} href={b.href} className={b.bright ? bright : quiet} data-money-action={key} data-emphasis={b.bright ? "bright" : "quiet"}>
       {b.label === "Add expense" && (
-        <svg aria-hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round">
+        <svg aria-hidden width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round">
           <path d="M12 5v14M5 12h14" />
         </svg>
       )}
@@ -38,13 +40,23 @@ export function MoneyCard({
     </Link>
   );
   return (
-    <section aria-label="Your money" className="vault rounded-[26px] px-[18px] pb-4 pt-[18px] text-fg" data-balance-card data-money-mode={mode}>
-      <p className="text-sm text-fg/70">{lead}</p>
-      <p className={`money mt-1 whitespace-nowrap font-display font-semibold leading-[1.1] tracking-tight ${amountClass} ${tone === "owed" ? "text-owed" : tone === "owe" ? "text-owe" : ""}`} data-net-balance>
-        {amount}
-      </p>
-      <p className="mt-0.5 text-[13px] text-fg/55">{sub}</p>
-      <div className="mt-4 flex gap-2.5">
+    <section
+      aria-label="Your money"
+      className={`rounded-[22px] border bg-[#16161a] px-4 py-3.5 text-fg ${tone === "owe" ? "border-owe/25" : "border-fg/10"}`}
+      data-balance-card
+      data-money-mode={mode}
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+        <p className="min-w-0 max-w-full truncate text-[13px] text-fg/65">{label}</p>
+        <p
+          className={`ml-auto text-right font-display font-semibold leading-[1.1] tracking-tight tabular-nums [overflow-wrap:normal] ${amountClass} ${tone === "owed" ? "text-owed" : tone === "owe" ? "text-owe" : ""}`}
+          data-net-balance
+          title={exact}
+        >
+          {exact ? <ExactAmount amount={amount} exact={exact} /> : amount}
+        </p>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2">
         {btn(add, "add")}
         {btn(second, second.label === "Settle up" ? "settle" : "new-group")}
       </div>

@@ -148,8 +148,8 @@ const sections = (india: boolean): { title: string; items: QA[] }[] => [
     title: "Trips and the fun stuff",
     items: [
       {
-        q: "What are the little photos on Home?",
-        a: "Stories from your groups. Each one is a few slides you tap through: photos of where a trip is going with a countdown and the crew, today’s spend while you’re away, last night’s card game with everyone’s result and who pays whom, a group that just got all square, a collection filling up, and a trip from a year ago. Tap the right side for the next slide, swipe down or press Back to close. A green peg means you haven’t seen it yet.",
+        q: "What are the little circles on Home?",
+        a: "Stories from your groups. Each one is a few slides you tap through: photos of where a trip is going with a countdown and the crew, today’s spend while you’re away, last night’s card game with everyone’s result and who pays whom, a group that just got all square, a collection filling up, and a trip from a year ago. Tap the right side for the next slide, swipe down or press Back to close. A gold ring means you haven’t seen it yet.",
       },
       {
         q: "What is Wrapped?",

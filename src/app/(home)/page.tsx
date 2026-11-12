@@ -12,19 +12,20 @@ import { getTimeZone } from "@/lib/tz";
 import { getAccount, getMemberships } from "@/lib/identity";
 import { PasskeyOffer } from "@/components/Passkeys";
 
-import { countAllUnread, loadDeletedGroups } from "@/lib/group-data";
+import { loadDeletedGroups } from "@/lib/group-data";
 import { loadOverview } from "@/lib/overview";
+import { loadHomeRows, wrappedEnded } from "@/lib/home/home-data";
 import { loadInvitations } from "@/lib/invitations";
 import { InvitationCard } from "@/components/InvitationCard";
 import { buildActivity, dayLabel } from "@/lib/activity";
 import { formatMoney } from "@/lib/money";
+import { homeMoney } from "@/lib/home/display";
 import { HomeBanner } from "@/components/HomeBanner";
 import { HighlightCard } from "@/components/HighlightCard";
 import { homeHighlights } from "@/lib/home/highlights";
 import { usesFahrenheit } from "@/lib/climate";
 import { parseHandPlaces } from "@/lib/passport";
 import { nextDueDay } from "@/lib/home/bills";
-import { GroupCover } from "@/components/GroupCover";
 import { Polaroid } from "@/components/Polaroid";
 import { coverFor, coverOf } from "@/lib/covers";
 import { monthNumbers, seasonNow } from "@/lib/home/banner";
@@ -44,11 +45,14 @@ import { TripCountdown } from "@/components/TripCountdown";
 import { countdownStage } from "@/lib/countdown";
 import { countryOf, tripStops } from "@/lib/geo";
 import { MoneyCard, TripStrip } from "@/components/HomeMoney";
-import { mixedDirections, moneyLead, moneyMode, moneySub } from "@/lib/home/money-card";
+import { mixedDirections, moneyLabel, moneyMode } from "@/lib/home/money-card";
 import { TripRow } from "@/components/TripRow";
 import { Stories } from "@/components/Stories";
 import { buildStories } from "@/lib/home/stories";
 import { placePhoto, placePhotos } from "@/lib/places";
+import { GroupCards, type GroupCardData } from "@/components/HomeGroups";
+import { tripTag } from "@/lib/home/group-card";
+import { loadNeedsYou } from "@/lib/needs-you";
 import { tripEmoji } from "@/lib/countdown";
 import { payersOf, spentAmount } from "@/lib/payers";
 import { getCategory } from "@/lib/categories";
@@ -59,7 +63,7 @@ export const metadata = { alternates: { canonical: "/" } };
 
 const countPasskeys = (accountId: string) => db.passkey.count({ where: { accountId } });
 
-// Home: your net balance, what needs your attention, your groups, and the
+// Home: stories, your net balance with Add expense and Settle up, your groups as polaroids, what needs you, and the
 // latest changes. Search, Settle and Alerts live in the bottom bar.
 export default async function Home({
   searchParams,
@@ -79,16 +83,21 @@ export default async function Home({
   const { closed: justClosed, did, g: didGroup, undone, error, deleted, signedin, moved, collection } = await searchParams;
   const [tz, memberships] = await Promise.all([getTimeZone(), getMemberships()]);
   // Independent reads, all at once.
-  const [overview, unread, deletedGroups, account, collections, invitations] = await Promise.all([
+  const [overview, deletedGroups, account, collections, invitations, needs] = await Promise.all([
     loadOverview(memberships),
-    getAccount().then((a) => countAllUnread(memberships, a?.id)),
     loadDeletedGroups(memberships),
     getAccount(),
     getAccount().then((a) => (a ? myCollections(a.id) : [])),
     // Groups someone added you to, waiting for Join or Not now.
     getAccount().then((a) => loadInvitations(a)),
+    // Things only you can answer (someone says they paid you, a bill waiting for its amount): the top two show on Home.
+    getAccount().then((a) => loadNeedsYou(memberships, a, 0)),
   ]);
   const { all, open, closed, owedLines, oweLines, common, netCommon, netLines, netValue, settleItems, toCommon } = overview;
+  // Only the rows Home shows: the newest changes, this month, today's spending on trips, a finished trip's categories.
+  const now = new Date();
+  const today = todayKey(now, tz);
+  const rows = await loadHomeRows(all, { tz, now, today });
 
   // Undo bar after a change made from the home screen (e.g. closing a group).
   let undoBar: { text: string; groupId: string; eventId: string } | null = null;
@@ -103,29 +112,25 @@ export default async function Home({
     }
   }
 
-  // Needs attention: money waiting on you or for you, new changes, and groups
-  // that are all square and quiet (ready to close). At most four lines.
-  const amt = (n: number, converted: boolean) => `${converted ? "≈ " : ""}${formatMoney(Math.abs(n), common)}`;
+  // Needs you: things only you can answer first, then a group that is square and quiet (ready to close). Home shows the top two.
+  // Money you owe or are owed is the money card's job, and new updates are the Alerts badge's, so neither repeats here.
   const quietSince = Date.now() - 7 * 86_400_000;
-  type Attention = { key: string; text: React.ReactNode; sub?: string; amount?: string; lead: string; href: string; tone?: "owed" | "owe" };
-  const attention: Attention[] = [
-    ...settleItems
-      .filter((it) => it.net < 0)
-      .map((it) => ({ key: `owe-${it.key}`, lead: it.name, text: <>You owe <span className="font-semibold">{it.name}</span></>, sub: "Tap to settle up", amount: amt(it.net, it.converted), href: "/settle", tone: "owe" as const })),
-    ...settleItems
-      .filter((it) => it.net > 0)
-      .map((it) => ({ key: `owed-${it.key}`, lead: it.name, text: <><span className="font-semibold">{it.name}</span> owes you</>, sub: "Nudge, or “They’ve paid me”", amount: amt(it.net, it.converted), href: "/settle", tone: "owed" as const })),
-    ...(unread > 0 ? [{ key: "unread", lead: "bell", text: <>{unread > 9 ? "9+" : unread} new {unread === 1 ? "update" : "updates"}</>, sub: "In your groups and collections", href: "/notifications" }] : []),
+  const NEED_ACTION: Record<"claim" | "payment" | "bill" | "collect", string> = { claim: "Confirm", payment: "Confirm", bill: "Add", collect: "Confirm" };
+  type Need = { key: string; lead: string; text: React.ReactNode; sub?: string; action: string; href: string; orange?: boolean };
+  const needRows: Need[] = [
+    ...needs.items.map((it) => ({ key: it.id, lead: it.kind === "bill" ? "bill" : it.text.trim().charAt(0).toUpperCase(), text: it.text, sub: it.where, action: it.action ?? NEED_ACTION[it.kind], href: it.href, orange: it.tone === "orange" })),
     ...open
-      .filter((g) => !g.leaver && g.expenses.length > 0 && g.transfers.length === 0 && g.lastActivity.getTime() < quietSince)
-      .map((g) => ({ key: `close-${g.group.id}`, lead: "check", text: <>Everyone’s square in <span className="font-semibold">{g.group.name}</span></>, sub: "Close it?", href: `/groups/${g.group.id}/settings#close` })),
-  ].slice(0, 4);
+      .filter((g) => !g.leaver && g.expenseCount > 0 && g.transfers.length === 0 && g.lastActivity.getTime() < quietSince)
+      .map((g) => ({ key: `close-${g.group.id}`, lead: "check", text: <>Everyone’s square in <span className="font-semibold">{g.group.name}</span></>, action: "Close it", href: `/groups/${g.group.id}/settings#close` })),
+  ];
 
   // The latest changes across open groups.
   const recent = open
     .flatMap((g) => {
+      const mine = rows.recent.get(g.group.id);
+      if (!mine) return [];
       const names = new Map(g.group.members.map((m) => [m.id, m.id === g.myId ? "You" : m.name]));
-      return buildActivity(g.expenses, g.payments, g.myId).map((item) => ({
+      return buildActivity(mine.expenses, mine.payments, g.myId).map((item) => ({
         item,
         groupId: g.group.id,
         currency: g.group.currency,
@@ -154,22 +159,18 @@ export default async function Home({
   // The sliding cards at the top: your month so far, and a seasonal nudge.
   // Your month across every group you're in (closed ones too: it was still your money), the same
   // way Insights counts it.
-  const month = monthNumbers(
-    all.map((g) => ({ currency: g.group.currency, myId: g.myId, expenses: g.expenses })),
-    toCommon,
-    common,
-    new Date(),
-    tz,
-  );
+  const month = monthNumbers(rows.monthGroups, toCommon, common, now, tz);
   const region = visitorRegion(await headers());
   const season = seasonNow(new Date(), tz, region.country);
   // Stories about how a group is now (countdown, a year ago, just back, wrapped, hero) skip groups the viewer left.
   const live = stillIn(open);
   const byActivity = [...live].sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
   // The balance card's big number (all groups together, or per currency).
-  const heroText = netCommon
-    ? `${netCommon.converted ? "≈ " : ""}${netCommon.value > 0 ? "+" : netCommon.value < 0 ? "−" : ""}${formatMoney(Math.abs(netCommon.value), common)}`
-    : netLines.join(" · ");
+  // Big amounts show whole units (display only); the exact amount rides along in the tooltip.
+  const heroOf = (money: (n: number) => string) =>
+    netCommon ? `${netCommon.converted ? "≈ " : ""}${netCommon.value > 0 ? "+" : netCommon.value < 0 ? "−" : ""}${money(Math.abs(netCommon.value))}` : netLines.join(" · ");
+  const heroText = heroOf((n) => homeMoney(n, common));
+  const heroExact = heroOf((n) => formatMoney(n, common));
   // Several currencies with no saved rate and money going both ways: no single "you owe", so the card stays neutral.
   const acrossCurrencies = !netCommon && mixedDirections(netLines);
   const mode = acrossCurrencies ? "even" : moneyMode({ owedLines: owedLines.length, oweLines: oweLines.length, netValue });
@@ -183,7 +184,6 @@ export default async function Home({
       </div>
     ) : null;
   // Trip countdowns: trips with a start day, happening now first, then the soonest (up to a year out).
-  const today = todayKey(new Date(), tz);
   const trips = live
     .filter((g) => g.group.type === "trip" && g.group.tripStart)
     .map((g) => ({ g, phase: tripPhase(g.group.tripStart, g.group.tripEnd, today) }))
@@ -210,7 +210,7 @@ export default async function Home({
   };
   const dayOf = (d: Date) => todayKey(d, tz);
   const todayIn = (g: (typeof open)[number]) => {
-    const list = g.expenses.filter((e) => e.kind !== "pot" && e.kind !== "refund" && dayOf(e.spentAt ?? e.createdAt) === today);
+    const list = (rows.today.get(g.group.id) ?? []).filter((e) => e.kind !== "pot" && e.kind !== "refund" && dayOf(e.spentAt ?? e.createdAt) === today);
     if (!list.length) return { spent: "", count: 0 };
     const money = (n: number) => formatMoney(n, g.group.currency);
     const paid = new Map<string, number>();
@@ -273,15 +273,15 @@ export default async function Home({
       };
     }),
     squared: open
-      .filter((g) => !g.leaver && g.group.type !== "pot" && g.expenses.length > 0 && g.transfers.length === 0 && g.payments.length > 0)
+      .filter((g) => !g.leaver && g.group.type !== "pot" && g.expenseCount > 0 && g.transfers.length === 0 && g.paymentCount > 0 && g.lastPaymentAt)
       .map((g) => ({
         id: g.group.id,
         name: g.group.name,
-        at: g.payments.reduce((m, p) => (p.createdAt > m ? p.createdAt : m), g.payments[0].createdAt),
+        at: g.lastPaymentAt!,
         cover: coverFor(g.group),
         photos: g.group.type === "trip" ? placePhotos(g.group.name, g.group.tripPlace, 2) : [],
         spent: formatMoney(g.spent, g.group.currency),
-        payments: g.payments.length,
+        payments: g.paymentCount,
         people: g.group.members.filter((m) => !m.leftAt).length,
       })),
     collections: collections
@@ -325,18 +325,28 @@ export default async function Home({
       }),
     // A trip that ended in the last two weeks: its Wrapped.
     wrapped: live
-      .filter((g) => g.group.type === "trip" && g.group.tripStart && g.expenses.length >= 3)
       .flatMap((g) => {
-        const ended = daysBetween(g.group.tripEnd || g.group.tripStart, today);
-        if (ended < 1 || ended > 14) return [];
-        const cats = new Map<string, number>();
-        for (const e of g.expenses) if (e.kind !== "pot" && e.kind !== "refund") cats.set(e.category, (cats.get(e.category) ?? 0) + e.amount);
+        const ended = wrappedEnded(g, today);
+        if (ended === null) return [];
+        const cats = rows.categories.get(g.group.id) ?? new Map<string, number>();
         const top = [...cats].sort((a, b) => b[1] - a[1])[0];
         return [{ id: g.group.id, name: g.group.name, endedDaysAgo: ended, photos: placePhotos(g.group.name, g.group.tripPlace, 2), cover: coverFor(g.group), spent: formatMoney(g.spent, g.group.currency), topCategory: top ? getCategory(top[0]).label : undefined }];
       }),
   });
   // The next trip (or the one you're on): a compact strip under the money card.
   const hero = trips[0];
+  // The polaroids in Your groups: newest activity first. A trip that is on carries its day ("Day 2 of 5") on its photo.
+  const phaseOf = new Map(trips.map((t) => [t.g.group.id, t.phase]));
+  const groupCards: GroupCardData[] = byActivity.map((g) => ({
+    id: g.group.id,
+    name: g.group.name,
+    cover: coverFor(g.group),
+    photo: g.group.type === "trip" && !g.group.cover ? placePhoto(g.group.name)?.src : undefined,
+    balance: g.myBalance,
+    money: (n: number) => formatMoney(n, g.group.currency),
+    show: (n: number) => homeMoney(n, g.group.currency),
+    tag: tripTag(phaseOf.get(g.group.id)),
+  }));
   // Trips at the same stage of the countdown each get their own words (slot 0, 1, 2… in that stage).
   const stageSlot = new Map<string, number>();
   {
@@ -361,7 +371,7 @@ export default async function Home({
     [
       ...(account ? parseHandPlaces(account.places).map((p) => p.c) : []),
       ...all
-        .filter((g) => g.group.type === "trip" && !g.group.deletedAt && (g.group.tripStart ? g.group.tripStart <= today : g.expenses.some((e) => !e.deletedAt)))
+        .filter((g) => g.group.type === "trip" && !g.group.deletedAt && (g.group.tripStart ? g.group.tripStart <= today : g.expenseCount > 0))
         .flatMap((g) => stopsOf(g).map((s) => s.country || homeCountry)),
     ].filter(Boolean),
   );
@@ -381,7 +391,7 @@ export default async function Home({
       };
     }),
     justBack: live
-      .filter((g) => g.group.type === "trip" && g.group.tripStart && g.expenses.length > 0)
+      .filter((g) => g.group.type === "trip" && g.group.tripStart && g.expenseCount > 0)
       .map((g) => ({ g, ended: daysBetween(g.group.tripEnd || g.group.tripStart, today) }))
       .filter(({ ended }) => ended >= 1 && ended <= 14)
       .sort((a, b) => a.ended - b.ended)
@@ -425,7 +435,11 @@ export default async function Home({
       {account && signedin === "1" && (await countPasskeys(account.id)) === 0 && <PasskeyOffer />}
       {justClosed === "1" && !undone && (
         <Notice params={["closed"]} className="mb-4">
-          Group closed. Find it under “Closed groups”.
+          Group closed. Find it under{" "}
+          <Link href="/groups" className="font-medium underline underline-offset-4">
+            Closed groups
+          </Link>
+          .
           {closed.some((c) => c.group.id === didGroup && c.group.type === "trip") && (
             <>
               {" "}
@@ -437,14 +451,14 @@ export default async function Home({
         </Notice>
       )}
 
-      <header className="mb-5 flex items-center justify-between">
+      <header className="mb-4 flex items-center justify-between">
         <p className="font-display text-[26px] font-semibold leading-none tracking-tight">loopin</p>
         <div className="flex items-center gap-2">
           <GetAppButton variant="icon" />
-          <Link href="/how-it-works" aria-label="How Loopin works" className={`glass ${iconButtonClass} text-[17px] font-semibold`}>
+          <Link href="/how-it-works" aria-label="How Loopin works" className={`glass ${iconButtonClass} h-11! w-11! text-[17px] font-semibold`}>
             ?
           </Link>
-          <Link href="/account" aria-label={account ? `Account: ${account.email}` : "Sign in or account"} className={`relative glass ${iconButtonClass}`}>
+          <Link href="/account" aria-label={account ? `Account: ${account.email}` : "Sign in or account"} className={`relative glass ${iconButtonClass} h-11! w-11!`}>
             {account?.name ? <span className="text-[15px] font-bold">{account.name.trim().charAt(0).toUpperCase()}</span> : <PersonIcon size={20} />}
             {account && <span className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-owed" aria-hidden />}
           </Link>
@@ -459,7 +473,7 @@ export default async function Home({
           {/* Start card: nothing here yet. */}
           <section aria-label="Start" className="vault rounded-[26px] px-5 pb-5 pt-6 text-fg" data-start-card>
             <p className="text-sm text-fg/60">Welcome to Loopin</p>
-            <h1 className="mt-1 font-display text-[32px] font-semibold leading-[1.08] tracking-tight">Start with one group.</h1>
+            <h1 className="mt-1 font-display text-[32px] font-semibold leading-[1.08] tracking-tight [text-wrap:balance]">Start with one group.</h1>
             <p className="mt-2 text-fg/65">Add what you paid, and Loopin keeps track of who owes whom.</p>
             <div className="mt-6 space-y-3">
               <Link href="/groups/new" className="pop block bg-fg px-4 py-3.5 text-center font-semibold text-canvas">
@@ -470,13 +484,13 @@ export default async function Home({
           </section>
 
           <div className="mt-4 grid grid-cols-2 gap-3">
-            <Link href="/switching" className="flex min-h-[76px] flex-col justify-center rounded-2xl border border-line px-4 py-3 active:bg-mist">
+            <Link href="/switching" className="flex min-h-[92px] flex-col justify-center rounded-2xl border border-line px-4 py-3 active:bg-mist [&>span]:[text-wrap:balance]">
               <span className="text-[13px] text-fg/60">Coming from another app?</span>
-              <span className="mt-0.5 text-sm font-semibold leading-snug">Bring your groups over</span>
+              <span className="mt-0.5 text-sm font-semibold leading-snug [text-wrap:balance]">Bring your groups over</span>
             </Link>
-            <Link href="/how-it-works" className="flex min-h-[76px] flex-col justify-center rounded-2xl border border-line px-4 py-3 active:bg-mist">
+            <Link href="/how-it-works" className="flex min-h-[92px] flex-col justify-center rounded-2xl border border-line px-4 py-3 active:bg-mist [&>span]:[text-wrap:balance]">
               <span className="text-[13px] text-fg/60">How Loopin works</span>
-              <span className="mt-0.5 text-sm font-semibold leading-snug">Three steps, one minute</span>
+              <span className="mt-0.5 text-sm font-semibold leading-snug [text-wrap:balance]">Three steps, one minute</span>
             </Link>
           </div>
 
@@ -526,88 +540,83 @@ export default async function Home({
         </>
       ) : (
         <>
-          {/* Money first: the net amount and two equal buttons, inside the first screen of a small phone. */}
-          <MoneyCard
-            lead={`${mode === "square" ? greeting(new Date(), tz, account?.name) : `${greeting(new Date(), tz, account?.name)}. ${moneyLead(mode, acrossCurrencies)}`}${mode !== "square" && netCommon && netCommon.converted ? ` (in ${common})` : ""}`}
-            amount={mode === "square" ? "All square" : netCommon ? heroText.replace(/^([≈ ]*)[+−]/, "$1") : heroText /* several currencies: each keeps its own sign */}
-            amountClass={mode === "square" ? "text-[40px]" : heroText.length <= 9 ? "text-[44px]" : heroText.length <= 12 ? "text-[36px]" : "text-[28px]"}
-            tone={mode === "owed" ? "owed" : mode === "owe" ? "owe" : "plain"}
-            sub={moneySub({ mode, groups: open.filter((g) => g.myBalance !== 0).length, allGroups: open.length, people: settleItems })}
-            mode={mode}
-          />
+          {/* Stories on top, like Instagram: a row of circles. Hidden when there are none (then a greeting fills the space). */}
+          <h1 className={stories.length > 0 ? "sr-only" : "mb-4 mt-1 font-display text-[32px] font-semibold leading-[1.05] tracking-tight"}>{greeting(new Date(), tz, account?.name)}</h1>
+          {stories.length > 0 && <Stories stories={stories} className="mb-4" />}
 
-          {/* The next trip, or the one you're on: one compact line. */}
-          {hero && <TripStrip groupId={hero.g.group.id} place={placeOf(hero.g.group.name)} phase={hero.phase} going={crewOf(hero.g).length} start={hero.g.group.tripStart} shareLine={countdownWords(hero.g.group.name, hero.phase)?.line ?? ""} />}
+          {/* Money, slim: what it means, the amount, and two equal buttons, inside the first screen of a small phone. */}
+          <MoneyCard
+            label={moneyLabel({ mode, acrossCurrencies, people: settleItems })}
+            amount={mode === "square" ? "All square" : netCommon ? heroText.replace(/^([≈ ]*)[+−]/, "$1") : heroText /* several currencies: each keeps its own sign */}
+            amountClass={mode === "square" ? "text-[26px]" : heroText.length <= 9 ? "text-[28px]" : heroText.length <= 12 ? "text-[24px]" : "text-[18px]"}
+            tone={mode === "owed" ? "owed" : mode === "owe" ? "owe" : "plain"}
+            mode={mode}
+            exact={mode !== "square" && heroExact !== heroText ? heroExact.replace(/^([≈ ]*)[+−]/, "$1") : undefined}
+          />
 
           {invitationsBlock}
 
-          {/* New here (one group, no expenses yet): a gentle pointer to the 1-minute tour. */}
-          {open.length <= 1 && open.every((g) => g.expenses.length === 0) && (
-            <Link href="/how-it-works" className="mt-5 flex items-center gap-3 rounded-2xl border border-line bg-mist px-4 py-3 text-sm active:bg-line">
-              <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#d8bd7a]/45 text-[#e8d29a]">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M8 5.5v13l10.5-6.5Z" />
-                </svg>
-              </span>
-              <span className="min-w-0 flex-1 leading-snug">
-                <span className="block font-medium text-fg">New to Loopin? See how it works</span>
-                <span className="block text-xs text-gray-400">A one-minute guide</span>
-              </span>
-              <span className="text-gray-400" aria-hidden>›</span>
-            </Link>
-          )}
-
-          {/* Groups: each with its photo, what happened last and where you stand. */}
-          <section className="mt-8" aria-label="Your groups">
-            <div className="mb-1 flex items-baseline justify-between">
-              <h2 className="font-display text-[22px] font-semibold tracking-tight">Your groups</h2>
-              <Link href="/groups/new" className="flex min-h-11 items-center gap-1 text-sm font-semibold text-fg/85 underline decoration-fg/30 underline-offset-4">
-                New group
+          {/* Groups: polaroids you swipe sideways. "See all" opens the full list. */}
+          <section className="mt-6" aria-labelledby="home-groups-h">
+            <div className="flex items-baseline justify-between">
+              <h2 id="home-groups-h" className="font-display text-[20px] font-semibold tracking-tight">Your groups</h2>
+              <Link href="/groups" className="flex min-h-11 items-center text-sm font-medium text-fg/85">
+                See all
               </Link>
             </div>
-            {/* Not signed in: these groups live only on this phone. Said once, right under the heading. */}
-            {!account && all.length > 0 && <PhoneOnlyNote plural className="mb-2" />}
-            {open.length === 0 ? (
-              <p className="py-6 text-sm text-gray-500">No open groups. Create one, or reopen a closed one.</p>
+            {byActivity.length === 0 ? (
+              <p className="py-4 text-sm text-gray-500">No open groups. Create one, or reopen a closed one.</p>
             ) : (
-              <>
-                <ul className="lp-rise">
-                  {byActivity.slice(0, 5).map((g) => (
-                    <GroupLine key={g.group.id} g={g} tz={tz} />
-                  ))}
-                </ul>
-                {byActivity.length > 5 && (
-                  <details className="group/more">
-                    <summary className="mt-2 inline-flex cursor-pointer list-none items-center gap-2 rounded-full border border-line px-4 py-2 text-sm text-gray-600 active:bg-mist [&::-webkit-details-marker]:hidden">
-                      <span className="group-open/more:hidden">Show all {byActivity.length} groups</span>
-                      <span className="hidden group-open/more:inline">Show fewer</span>
-                    </summary>
-                    <ul className="lp-rise">
-                      {byActivity.slice(5).map((g) => (
-                        <GroupLine key={g.group.id} g={g} tz={tz} />
-                      ))}
-                    </ul>
-                  </details>
-                )}
-              </>
-            )}
-
-            {closed.length > 0 && (
-              <details className="group/closed mt-3" open={justClosed === "1"}>
-                <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-full border border-line px-4 py-2 text-sm text-gray-600 active:bg-mist [&::-webkit-details-marker]:hidden">
-                  <span className="group-open/closed:hidden">Closed groups ({closed.length})</span>
-                  <span className="hidden group-open/closed:inline">Hide closed groups</span>
-                </summary>
-                <ul className="mt-2 divide-y divide-line">
-                  {closed.map((g) => (
-                    <GroupRow key={g.group.id} g={g} closed tz={tz} />
-                  ))}
-                </ul>
-              </details>
+              <div className="-mt-2">
+                <GroupCards groups={groupCards} total={byActivity.length} />
+              </div>
             )}
           </section>
 
-          {/* Any other trips coming up, one card at a time (soonest first). The first one is the strip under the money card. */}
+          {/* Needs you: the top two; the rest are in Alerts. */}
+          {needRows.length > 0 && (
+            <section aria-label="Needs you" className="-mt-1" data-needs-you>
+              <div className="flex items-baseline justify-between">
+                <h2 className="font-display text-[20px] font-semibold tracking-tight">Needs you</h2>
+                <Link href="/notifications" className="flex min-h-11 items-center text-sm font-medium text-fg/85">
+                  See all
+                </Link>
+              </div>
+              <ul className="divide-y divide-line/70">
+                {needRows.slice(0, 2).map((n) => (
+                  <li key={n.key}>
+                    <Link href={n.href} className="flex min-h-[52px] items-center gap-3 py-2 active:bg-mist">
+                      <span aria-hidden className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[15px] font-semibold ${n.orange ? "bg-owe/[0.14] text-owe" : "bg-owed/[0.14] text-owed"}`}>
+                        {n.lead === "check" ? (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                        ) : n.lead === "bill" ? (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2ZM9 8h6M9 12h6" /></svg>
+                        ) : (
+                          n.lead
+                        )}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[14px] leading-snug [text-wrap:balance]">{n.text}</span>
+                        {n.sub && <span className="block truncate text-[12px] text-fg/60">{n.sub}</span>}
+                      </span>
+                      <span className="inline-flex h-11 min-w-[76px] shrink-0 items-center justify-center rounded-full border border-fg/20 bg-fg/[0.06] px-4 text-[13px] font-semibold" data-need-action>
+                        {n.action}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {/* The next trip, as one compact countdown line. A trip that is on is tagged on its photo in Your groups instead. */}
+          {hero && hero.phase.kind === "before" && (
+            <div className="mt-6">
+              <TripStrip groupId={hero.g.group.id} place={placeOf(hero.g.group.name)} phase={hero.phase} going={crewOf(hero.g).length} start={hero.g.group.tripStart} shareLine={countdownWords(hero.g.group.name, hero.phase)?.line ?? ""} />
+            </div>
+          )}
+
+          {/* Any other trips coming up, one card at a time (soonest first). The soonest one is the countdown line above (a trip that is on is tagged in Your groups). */}
           {trips.length > 1 && (
             <section className="mt-8" aria-label="More trips">
               <div className="mb-3 flex items-baseline justify-between">
@@ -619,47 +628,6 @@ export default async function Home({
                   <TripCountdown key={t.g.group.id} group={t.g.group} phase={t.phase} slot={stageSlot.get(t.g.group.id) ?? 0} />
                 ))}
               </TripRow>
-            </section>
-          )}
-
-          {stories.length > 0 && <Stories stories={stories} className="mt-8" />}
-
-          {collections.length > 0 && <CollectionsSection list={collections} />}
-
-          {/* Needs attention */}
-          {attention.length > 0 && (
-            <section className="mt-8">
-              <h2 className="mb-2 font-display text-lg font-semibold tracking-tight">Needs attention</h2>
-              <ul className="lp-rise overflow-hidden rounded-[20px] bg-white/[0.035] ring-1 ring-inset ring-line">
-                {attention.map((a, n) => (
-                  <li key={a.key} className={n ? "border-t border-line/70" : ""}>
-                    <Link href={a.href} className="flex items-center gap-3.5 px-4 py-3.5 active:bg-mist">
-                      <span
-                        aria-hidden
-                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-display text-[15px] font-semibold ${
-                          a.tone === "owe" ? "bg-owe/[0.14] text-owe" : a.tone === "owed" ? "bg-owed/[0.14] text-owed" : "bg-fg/[0.07] text-fg/70"
-                        }`}
-                      >
-                        {a.lead === "bell" ? (
-                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg>
-                        ) : a.lead === "check" ? (
-                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
-                        ) : (
-                          a.lead.trim().charAt(0).toUpperCase()
-                        )}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[15px] tracking-tight">{a.text}</span>
-                        {a.sub && <span className="mt-0.5 block truncate text-[12px] text-fg/60">{a.sub}</span>}
-                      </span>
-                      {a.amount && (
-                        <span className={`shrink-0 text-[15px] font-semibold tabular-nums tracking-tight ${a.tone === "owe" ? "text-owe" : "text-owed"}`}>{a.amount}</span>
-                      )}
-                      <svg aria-hidden width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-fg/25"><path d="m9 18 6-6-6-6" /></svg>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
             </section>
           )}
 
@@ -683,6 +651,24 @@ export default async function Home({
                 ))}
               </ul>
             </section>
+          )}
+
+          {collections.length > 0 && <CollectionsSection list={collections} />}
+
+          {/* New here (one group, no expenses yet): a gentle pointer to the 1-minute tour. */}
+          {open.length <= 1 && open.every((g) => g.expenseCount === 0) && (
+            <Link href="/how-it-works" className="mt-6 flex items-center gap-3 rounded-2xl border border-line bg-mist px-4 py-3 text-sm active:bg-line">
+              <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#d8bd7a]/45 text-[#e8d29a]">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8 5.5v13l10.5-6.5Z" />
+                </svg>
+              </span>
+              <span className="min-w-0 flex-1 leading-snug">
+                <span className="block font-medium text-fg">New to Loopin? See how it works</span>
+                <span className="block text-xs text-gray-400">A one-minute guide</span>
+              </span>
+              <span className="text-gray-400" aria-hidden>›</span>
+            </Link>
           )}
 
           <div className="mt-8">
@@ -765,7 +751,11 @@ export default async function Home({
       )}
 
       {all.length > 0 && <InviteFriends name={account?.name} className="mt-8" />}
-      <p className="mt-8 text-center text-xs text-gray-400">
+
+      {/* Not signed in: these groups live only on this phone. Just above the footer, out of the way of the groups and Latest. */}
+      {all.length > 0 && !account && <PhoneOnlyNote plural className="mt-6" />}
+
+      <p className="mt-8 pb-6 text-center text-xs text-gray-400">
         <Link href="/faq" className="underline underline-offset-4">
           FAQ
         </Link>
@@ -779,61 +769,6 @@ export default async function Home({
         </Link>
       </p>
     </>
-  );
-}
-
-function GroupRow({ g, closed, tz }: { g: Awaited<ReturnType<typeof loadOverview>>["all"][number]; closed?: boolean; tz: string }) {
-  const b = g.myBalance;
-  return (
-    <li>
-      <Link href={`/groups/${g.group.id}`} className="flex items-center gap-3 py-3.5 active:bg-mist">
-        <span className={`relative h-11 w-11 shrink-0 overflow-hidden rounded-xl ${closed ? "opacity-50 grayscale" : ""}`} aria-hidden>
-          <GroupCover {...coverFor(g.group)} uid={`row-${g.group.id}`} letter={g.group.name} letterClass="text-lg" sizes="44px" />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className={`block truncate font-medium ${closed ? "text-gray-500" : ""}`}>{g.group.name}</span>
-          <span className="block truncate text-sm text-gray-400">
-            {peopleCount(g.people)}, {closed ? "closed" : activeText(g.lastActivity, tz)}
-          </span>
-        </span>
-        <span className={`shrink-0 text-right text-sm tabular-nums ${b > 0 ? "text-owed" : b < 0 ? "text-owe" : "text-gray-400"}`}>
-          {b > 0 ? `owed ${formatMoney(b, g.group.currency)}` : b < 0 ? `owe ${formatMoney(-b, g.group.currency)}` : "settled"}
-        </span>
-      </Link>
-    </li>
-  );
-}
-
-// A group on Home: its photo, its name, what happened last, and your balance in it.
-function GroupLine({ g, tz }: { g: Awaited<ReturnType<typeof loadOverview>>["all"][number]; tz: string }) {
-  const b = g.myBalance;
-  const people = { length: g.people };
-  const photo = g.group.type === "trip" && !g.group.cover ? placePhoto(g.group.name)?.src : undefined;
-  return (
-    <li>
-      <Link href={`/groups/${g.group.id}`} className="flex items-center gap-3.5 py-2.5 active:opacity-80" data-group-line>
-        <span className="relative h-[52px] w-[52px] shrink-0 overflow-hidden rounded-[16px] bg-mist" aria-hidden>
-          {photo ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={photo} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" decoding="async" />
-          ) : (
-            <GroupCover {...coverFor(g.group)} uid={`line-${g.group.id}`} letter={g.group.name} letterClass="text-lg" sizes="52px" />
-          )}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[16px] font-semibold tracking-tight">{g.group.name}</span>
-          <span className="block truncate text-[13px] text-fg/50">
-            {peopleCount(people.length)}, {activeText(g.lastActivity, tz)}
-          </span>
-        </span>
-        <span className="shrink-0 text-right leading-tight">
-          <span className={`money block text-[17px] ${b > 0 ? "text-owed" : b < 0 ? "text-owe" : "text-fg/60"}`}>
-            {b > 0 ? `+${formatMoney(b, g.group.currency)}` : b < 0 ? `−${formatMoney(-b, g.group.currency)}` : "Settled"}
-          </span>
-          {b !== 0 && <span className="block text-[11px] text-fg/60">{b > 0 ? "you’re owed" : "you owe"}</span>}
-        </span>
-      </Link>
-    </li>
   );
 }
 
@@ -898,13 +833,6 @@ function PotTeaser({ className = "", india }: { className?: string; india: boole
 // The pill-shaped buttons on the sliding cards.
 const bannerButton =
   "inline-flex h-10 items-center self-start rounded-full border border-fg/25 bg-fg/[0.12] px-[18px] text-sm font-semibold text-fg backdrop-blur active:bg-fg/20";
-
-function activeText(d: Date, tz: string): string {
-  const day = dayLabel(d, new Date(), tz);
-  return day === "Today" || day === "Yesterday" ? `active ${day.toLowerCase()}` : `active ${day}`;
-}
-
-const peopleCount = (n: number) => (n === 1 ? "1 person" : `${n} people`);
 
 function greeting(now: Date, tz: string, name?: string | null): string {
   const h = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: tz }).format(now));

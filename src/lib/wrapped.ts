@@ -1,4 +1,5 @@
 import { getCategory } from "./categories";
+import { formatter } from "./dates";
 import { formatMoney } from "./money";
 import { payersOf, spentAmount } from "./payers";
 
@@ -29,8 +30,9 @@ export type SlideData =
   | { kind: "awards"; awards: { name: string; title: string; emoji: string; why: string }[] };
 export type Slide = { kind: "intro" | "total" | "category" | "day" | "splurge" | "awards" | "outro"; headline: string; line: string; emoji?: string; data?: SlideData };
 
-const hourIn = (d: Date, tz: string) => Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: tz }).format(d)) % 24;
-const dayIn = (d: Date, tz: string) => new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(d);
+// The same formatters as before, now made once and reused (dates.ts keeps them): same options, same output.
+export const hourIn = (d: Date, tz: string) => Number(formatter("en-GB", { hour: "numeric", hour12: false, timeZone: tz }).format(d)) % 24;
+export const dayIn = (d: Date, tz: string) => formatter("en-CA", { timeZone: tz }).format(d);
 
 // Fun titles: once a group has a few expenses, everyone gets one, about habits
 // (never about who's poorest). The strongest titles go first; a tie goes to whoever

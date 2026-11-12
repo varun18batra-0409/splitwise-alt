@@ -1,5 +1,5 @@
 import { ExpenseGlyph } from "@/components/ExpenseGlyph";
-import { explainBalance } from "@/lib/explain";
+import { explainBalance, type Why, type WhySummary } from "@/lib/explain";
 import { getCategory } from "@/lib/categories";
 import { dayLabel } from "@/lib/activity";
 import type { GroupView } from "./view";
@@ -8,12 +8,14 @@ const LINES = 60;
 
 // "Why?" under a person's balance: the totals that make it up, then every
 // expense and payment behind it. Always adds up to the balance shown.
-export function WhyPanel({ v, memberId, open }: { v: GroupView; memberId: string; open?: boolean }) {
+// `summary` (from explainAll) gives the totals for everyone in one pass; only the open panel works out its item list.
+export function WhyPanel({ v, memberId, open, summary }: { v: GroupView; memberId: string; open?: boolean; summary?: WhySummary }) {
   const { expenses, payments, money, myId, tz } = v;
   const isMe = memberId === myId;
   const name = (id: string) => (id === memberId ? (isMe ? "you" : "them") : id === myId ? "you" : v.nameOf(id));
-  const w = explainBalance(memberId, expenses, payments, name);
-  if (w.lines.length === 0) return null;
+  const w: Why = open || !summary ? explainBalance(memberId, expenses, payments, name) : { ...summary, lines: [] };
+  const count = open || !summary ? w.lines.length : summary.count;
+  if (count === 0) return null;
   const sign = (n: number) => (n > 0 ? `+${money(n)}` : n < 0 ? `−${money(-n)}` : money(0));
   const who = isMe ? "You" : v.nameOf(memberId);
   const now = new Date();
@@ -50,7 +52,7 @@ export function WhyPanel({ v, memberId, open }: { v: GroupView; memberId: string
 
         {!open ? (
           <a href={`/groups/${v.group.id}?tab=balances&why=${memberId}#why-${memberId}`} className="mt-3 inline-block text-xs font-medium text-fg underline underline-offset-4">
-            See it item by item ({w.lines.length})
+            See it item by item ({count})
           </a>
         ) : (
         <>

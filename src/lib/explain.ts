@@ -78,3 +78,53 @@ export function explainBalance(
   lines.sort((a, b) => b.date.getTime() - a.date.getTime());
   return { lines, paidTotal, shareTotal, feeTotal, sent, received, balance: paidTotal - shareTotal + sent - received };
 }
+
+// Everyone's totals in one pass (the Balances screen shows a "Why?" for every person, but only
+// the one that is open needs its item-by-item list). The totals are exactly explainBalance's:
+// same rules, same rounding, same "first line for that person" choice.
+export type WhySummary = Omit<Why, "lines"> & { count: number }; // count = how many lines explainBalance would list
+
+export function explainAll(memberIds: string[], expenses: ExpenseLike[], payments: PaymentLike[]): Record<string, WhySummary> {
+  const out: Record<string, WhySummary> = {};
+  for (const id of memberIds) out[id] = { paidTotal: 0, shareTotal: 0, feeTotal: 0, sent: 0, received: 0, balance: 0, count: 0 };
+
+  for (const e of expenses) {
+    const { credits, debits } = moneyLines(e);
+    const refund = e.kind === "refund";
+    const paidList = refund ? debits : credits;
+    const shareList = refund ? credits : debits;
+    // explainBalance uses .find(): if a person is listed twice, only the first entry counts.
+    const paidBy = new Map<string, number>();
+    for (const p of paidList) if (!paidBy.has(p.memberId)) paidBy.set(p.memberId, p.amount);
+    const shareBy = new Map<string, number>();
+    for (const s of shareList) if (!shareBy.has(s.memberId)) shareBy.set(s.memberId, s.amount);
+    const sign = refund ? -1 : 1;
+    for (const id of new Set([...paidBy.keys(), ...shareBy.keys()])) {
+      const w = out[id];
+      if (!w) continue;
+      const paid = paidBy.get(id) ?? 0;
+      const share = shareBy.get(id) ?? 0;
+      if (!paid && !share) continue;
+      const fee = e.markupAmount > 0 && share > 0 && e.amount > 0 ? Math.round((e.markupAmount * share) / e.amount) : 0;
+      w.paidTotal += sign * paid;
+      w.shareTotal += sign * share;
+      w.feeTotal += sign * fee;
+      w.count += 1;
+    }
+  }
+  for (const p of payments) {
+    const from = out[p.fromId];
+    if (from) {
+      from.sent += p.amount;
+      from.count += 1;
+    }
+    // (explainBalance reads a payment to yourself as "sent" only.)
+    const to = p.toId !== p.fromId ? out[p.toId] : undefined;
+    if (to) {
+      to.received += p.amount;
+      to.count += 1;
+    }
+  }
+  for (const id of memberIds) out[id].balance = out[id].paidTotal - out[id].shareTotal + out[id].sent - out[id].received;
+  return out;
+}

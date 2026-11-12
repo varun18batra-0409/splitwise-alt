@@ -10,8 +10,10 @@ import { StoryArt } from "./StoryArt";
 import { Backdrop, TONE } from "./Backdrop";
 import type { CoverChoice } from "@/lib/covers";
 import type { Frame, Story } from "@/lib/home/stories";
+import { orderStories } from "@/lib/home/story-order";
+import { storyShort } from "@/lib/home/display";
 
-// Home's stories, as photo cards. A bright ring means you haven't seen it yet. Tap one to open the stories full screen: tap the
+// Home's stories, as a row of circles under the header (like Instagram). A gold ring means you haven't seen it yet; seen ones have a faint ring. Tap one to open the stories full screen: tap the
 // right side for the next, the left for the one before, hold to pause,
 // swipe sideways to jump stories, swipe up for the story's button, swipe
 // down (or Back) to close. Seen stories are remembered on this phone only.
@@ -36,8 +38,8 @@ function writeSeen(s: Set<string>) {
 
 function Picture({ s, uid, big }: { s: Story; uid: string; big?: boolean }) {
   // Sized for where it shows: a small copy for the polaroid, a sharp one full screen.
-  if (s.photo) return <Image src={s.photo} alt="" aria-hidden fill sizes={big ? "(max-width: 448px) 100vw, 448px" : "120px"} quality={big ? 82 : 70} priority={big} className={`object-cover ${big ? "lp-drift" : ""}`} />;
-  if (s.cover && !s.art) return <GroupCover kind={s.cover.kind as CoverChoice} src={s.cover.src} uid={uid} sizes={big ? "448px" : "120px"} drift={big} />;
+  if (s.photo) return <Image src={s.photo} alt="" aria-hidden fill sizes={big ? "(max-width: 448px) 100vw, 448px" : "64px"} quality={big ? 82 : 70} priority={big} className={`object-cover ${big ? "lp-drift" : ""}`} />;
+  if (s.cover && !s.art) return <GroupCover kind={s.cover.kind as CoverChoice} src={s.cover.src} uid={uid} sizes={big ? "448px" : "64px"} drift={big} />;
   // No photo: designed artwork (green felt for a card night, a jar for a collection…).
   return <StoryArt kind={s.art ?? s.kind} uid={uid} />;
 }
@@ -56,29 +58,32 @@ export function Stories({ stories, className = "mb-6" }: { stories: Story[]; cla
     });
   }, []);
 
-  // Unseen first, in their order; then the seen ones.
-  const ordered = [...stories.filter((s) => !seen.has(s.id)), ...stories.filter((s) => seen.has(s.id))];
+  // Unseen first, most recent first; then the seen ones.
+  const ordered = orderStories(stories, seen);
   if (!stories.length) return null;
 
   return (
     <section aria-label="Stories" className={`relative -mx-5 ${className}`}>
-      <ul className="flex gap-2.5 overflow-x-auto px-5 pb-3 pt-1 [scrollbar-width:none]" data-stories>
+      <ul className="flex gap-3.5 overflow-x-auto px-5 pb-1 pt-1 [scrollbar-width:none]" data-stories>
         {ordered.map((s) => {
           const isNew = !seen.has(s.id);
-          const caption = s.headline.length <= 30 ? s.headline : s.label;
           return (
-            <li key={s.id} className="shrink-0" data-story={s.kind} data-new={isNew ? "1" : "0"}>
+            <li key={s.id} className="w-[68px] shrink-0" data-story={s.kind} data-new={isNew ? "1" : "0"}>
               <button
                 type="button"
                 onClick={() => setOpen(stories.indexOf(s))}
                 aria-label={`${s.headline}${isNew ? " (new)" : ""}`}
-                className={`relative block h-[132px] w-[96px] overflow-hidden rounded-[20px] bg-mist text-left shadow-[0_14px_28px_-12px_rgba(0,0,0,0.9)] transition-transform active:scale-95 ${
-                  isNew ? "outline outline-2 outline-offset-2 outline-fg" : "opacity-75"
-                }`}
+                title={s.label}
+                className="flex w-full flex-col items-center gap-1.5 text-center transition-opacity active:opacity-70 motion-reduce:transition-none"
               >
-                <Picture s={s} uid={`st-${s.id}`} />
-                <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,transparent_38%,rgba(0,0,0,0.78)_100%)]" />
-                <span className="absolute inset-x-2 bottom-2 line-clamp-3 text-[12.5px] font-semibold leading-[1.2] text-[#f7f4ec]">{caption}</span>
+                <span aria-hidden className={`block h-16 w-16 rounded-full p-[3px] ${isNew ? "bg-[conic-gradient(#e8c46a,#f0a35e,#6fe3a8,#e8c46a)]" : "bg-fg/25"}`}>
+                  <span className="relative block h-full w-full overflow-hidden rounded-full border-[3px] border-canvas bg-mist">
+                    <Picture s={s} uid={`st-${s.id}`} />
+                  </span>
+                </span>
+                <span className={`block w-full whitespace-nowrap text-[12px] leading-tight ${isNew ? "text-fg" : "text-fg/70"}`} data-story-label>
+                  {storyShort(s.short ?? s.label)}
+                </span>
               </button>
             </li>
           );

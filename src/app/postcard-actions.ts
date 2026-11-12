@@ -32,6 +32,7 @@ export async function sendPostcardAction(f: FormData) {
   // The front: a print, one of Loopin's place photos, or your own photo.
   let front = field(f, "front", 120);
   let photoId = "";
+  let newPhoto: { bytes: Uint8Array; type: string } | null = null;
   const reuse = field(f, "reusePhoto", 40);
   if (front === "own" && reuse && !f.get("photo")) {
     // Your own photo from a card you sent before: only if it really was yours.
@@ -43,11 +44,10 @@ export async function sendPostcardAction(f: FormData) {
     const bytes = b64 ? new Uint8Array(Buffer.from(b64, "base64")) : new Uint8Array();
     const type = photoType(bytes);
     if (!type || bytes.length > MAX_PHOTO_BYTES) fail("That photo didn’t work. Try another one.");
-    const { storePhoto } = await import("@/lib/photo-store");
     const clean = cleanPhoto(bytes);
     if (!clean) fail("We couldn’t check that photo for hidden details (like where it was taken). Try another one, or a screenshot of it.");
-    const stored = await storePhoto("postcard", clean!, type!);
-    photoId = (await db.postcardPhoto.create({ data: { data: stored.data, blobKey: stored.blobKey, type: type! } })).id;
+    // Not stored yet: every other check below runs first, so a refused card leaves no photo behind.
+    newPhoto = { bytes: clean!, type: type! };
   } else if (front.startsWith("print:")) {
     if (!isPrint(front.slice(6))) front = "print:beach";
   } else if (!(front.startsWith("photo:") && isSitePhoto(front.slice(6)))) {
@@ -74,6 +74,25 @@ export async function sendPostcardAction(f: FormData) {
     const now = Date.now();
     if (Number.isNaN(at.getTime()) || at.getTime() <= now || at.getTime() > now + 2 * 366 * 86_400_000) fail("Pick a day from tomorrow, up to two years ahead.");
     opensAt = at;
+  }
+  // Every check has passed: only now is a new photo stored.
+  let storedKey = "";
+  if (newPhoto) {
+    const { storePhoto } = await import("@/lib/photo-store");
+    const stored = await storePhoto("postcard", newPhoto.bytes, newPhoto.type);
+    storedKey = stored.blobKey;
+    try {
+      photoId = (await db.postcardPhoto.create({ data: { data: stored.data, blobKey: stored.blobKey, type: newPhoto.type } })).id;
+    } catch (err) {
+      // The file is stored but its row was not made: put its key on the to-delete list and delete it.
+      try {
+        const { removePhotos } = await import("@/lib/photo-store");
+        await removePhotos([storedKey]);
+      } catch (cleanErr) {
+        console.error("postcard: couldn't remove the unused photo file", String(cleanErr).slice(0, 160));
+      }
+      throw err;
+    }
   }
   const hand = HANDS.some((h) => h.id === field(f, "hand", 20)) ? field(f, "hand", 20) : "caveat";
   const lettering = LETTERINGS.some((l) => l.id === field(f, "lettering", 20)) ? field(f, "lettering", 20) : "classic";
@@ -102,7 +121,25 @@ export async function sendPostcardAction(f: FormData) {
     address: JSON.stringify(address),
     place: field(f, "place", 24).trim(),
   };
-  const made = await db.$transaction([...to].map((toId) => db.postcard.create({ data: { ...data, toId }, select: { id: true, toId: true } })));
+  let made: { id: string; toId: string }[];
+  try {
+    made = await db.$transaction([...to].map((toId) => db.postcard.create({ data: { ...data, toId }, select: { id: true, toId: true } })));
+  } catch (err) {
+    // The cards were not made: a photo stored just for them must not be left behind. But if any postcard
+    // does use the photo (the cards were saved and something after that failed), it is never deleted.
+    if (newPhoto) {
+      try {
+        if ((await db.postcard.count({ where: { photoId } })) === 0) {
+          await db.postcardPhoto.deleteMany({ where: { id: photoId } });
+          const { removePhotos } = await import("@/lib/photo-store");
+          await removePhotos([storedKey]); // queued on the to-delete list first, then tried at once
+        }
+      } catch (cleanErr) {
+        console.error("postcard: couldn't remove the unused photo", String(cleanErr).slice(0, 160));
+      }
+    }
+    throw err;
+  }
 
   const sender = me.name.trim().split(/\s+/)[0] || "A friend";
   await deliverNotes(

@@ -1,5 +1,5 @@
 import { spentAmount } from "@/lib/payers";
-import { loadGroup } from "@/lib/group-data";
+import { loadGroupView } from "@/lib/group-data";
 import { foreignLedgers, type Ledger } from "@/lib/currency-ledgers";
 import { resolveSecondary } from "@/lib/secondary";
 import { after } from "next/server";
@@ -10,7 +10,7 @@ import { formatMoney } from "@/lib/money";
 // Everything the group screen shows, worked out once and shared by its parts
 // (summary, Activity, Balances, Charts).
 
-type Loaded = NonNullable<Awaited<ReturnType<typeof loadGroup>>>;
+type Loaded = NonNullable<Awaited<ReturnType<typeof loadGroupView>>>;
 export type Group = Loaded["group"];
 export type GroupExpense = Group["expenses"][number];
 export type GroupEvent = Group["events"][number];

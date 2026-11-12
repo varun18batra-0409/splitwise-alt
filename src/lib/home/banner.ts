@@ -19,6 +19,13 @@ export type MonthNumbers = {
   top: string | null; // the category you spent most on ("Stay")
 };
 
+// Which month the card is about: this one, or (in the first three days of a month) the one that just ended.
+export function viewMonth(now = new Date(), tz: string = DEFAULT_TIME_ZONE): { month: string; wrapped: boolean } {
+  const today = dayKey(now, tz);
+  const wrapped = Number(today.slice(8, 10)) <= 3;
+  return { month: wrapped ? addMonths(today.slice(0, 7), -1) : today.slice(0, 7), wrapped };
+}
+
 // Your month: what your part came to across your groups. In the first three
 // days of a month it looks back at the one that just ended.
 export function monthNumbers(
@@ -28,9 +35,7 @@ export function monthNumbers(
   now = new Date(),
   tz: string = DEFAULT_TIME_ZONE,
 ): MonthNumbers | null {
-  const today = dayKey(now, tz);
-  const wrapped = Number(today.slice(8, 10)) <= 3;
-  const month = wrapped ? addMonths(today.slice(0, 7), -1) : today.slice(0, 7);
+  const { month, wrapped } = viewMonth(now, tz);
   let share = 0;
   let count = 0;
   let converted = false;
