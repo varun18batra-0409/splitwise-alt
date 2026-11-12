@@ -4,6 +4,7 @@ import { ExpenseGlyph } from "./ExpenseGlyph";
 import { formatMoney } from "@/lib/money";
 import type { ActivityItem } from "@/lib/activity";
 import { GearIcon, SettleIcon } from "./icons";
+import { paymentEffectLabel, paymentSubline, paymentTitle } from "@/lib/payment-words";
 
 // Right-hand side: what it meant for you. The amount first (bold), what it is
 // underneath; rows that weren't yours stay quiet.
@@ -61,28 +62,25 @@ export function ActivityRow({
 
   if (item.kind === "payment") {
     const to = nameOf(item.toId);
+    // Wording lives in payment-words.ts: a payment only said (not yet confirmed) never reads "paid you" or "you received".
     return (
       <div className={`flex items-center gap-3.5 py-3.5 ${deleted ? "opacity-[.85]" : ""}`}>
         <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-owed/[0.12] text-owed ring-1 ring-inset ring-owed/15">
           <SettleIcon size={18} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className={`truncate text-[15px] font-semibold tracking-tight ${deleted ? "line-through decoration-gray-400" : ""}`}>
-            {nameOf(item.fromId)} paid {to === "You" ? "you" : to}
+          <p className={`line-clamp-2 break-words text-[15px] font-semibold leading-snug tracking-tight ${deleted ? "line-through decoration-gray-400" : ""}`}>
+            {paymentTitle(nameOf(item.fromId), to, item.status, deleted)}
           </p>
           <p className={meta}>
-            {deleted ? deletedNote : item.status === "waiting" ? `Waiting for ${to === "You" ? "you" : to} to confirm` : item.status === "ok" ? "Confirmed ✓" : "Settle-up"} · {money(item.amount)}
+            {paymentSubline(item.status, to, deleted, deletedNote)} · {money(item.amount)}
             {groupName && ` · ${groupName}`}
           </p>
         </div>
-        {deleted ? (
-          <Effect label="deleted" cls="" />
-        ) : item.effect > 0 ? (
-          <Effect label="you paid" amount={money(item.effect)} cls="text-fg" />
-        ) : item.effect < 0 ? (
-          <Effect label="you received" amount={money(-item.effect)} cls="text-fg" />
+        {deleted || item.effect === 0 ? (
+          <Effect label={paymentEffectLabel(item.status, item.effect, deleted)} cls="" />
         ) : (
-          <Effect label="not involved" cls="" />
+          <Effect label={paymentEffectLabel(item.status, item.effect, deleted)} amount={money(Math.abs(item.effect))} cls={item.status === "waiting" ? "text-fg/70" : "text-fg"} />
         )}
       </div>
     );

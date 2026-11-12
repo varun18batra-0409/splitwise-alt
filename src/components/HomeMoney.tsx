@@ -90,44 +90,45 @@ export function MoneyCard({
             {exact ? <ExactAmount amount={amount} exact={exact} /> : amount}
           </p>
           {who && who.parts.length > 0 && (
-            // One line, one 44px tap target to Settle up (where each person's row is). Names shorten first; amounts stay whole.
-            <Link href={whoHref} aria-label={`${who.label}. Open Settle up`} className="-mb-2 -mt-1.5 flex min-h-11 items-center text-fg/85 active:text-fg" data-money-people>
-              <span className="flex min-w-0 max-w-full items-baseline gap-1.5 whitespace-nowrap text-[13px]" data-who-line>
+            // One 44px tap target to Settle up (where each person's row is), in up to two rows that can wrap:
+            // row 1 is the main side ("Kabir ₹30,723 · Meera ₹17,618 · 5 others"), row 2 appears only when money also goes the other
+            // way ("You owe Ravi ₹1,000"). Only names shorten (full names stay in the aria-label); amounts and direction words never do.
+            <Link href={whoHref} aria-label={`${who.label}. Open Settle up`} className="-mb-2 -mt-1.5 flex min-h-11 flex-col justify-center gap-0.5 py-1 text-fg/85 active:text-fg" data-money-people>
+              <span className="flex min-w-0 max-w-full flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[13px] leading-[1.35]" data-who-line data-who-row="main">
                 {who.parts.map((p, i) => (
-                  <span key={`${p.name}-${i}`} className="flex min-w-0 shrink items-baseline gap-1.5">
+                  <span key={`${p.name}-${i}`} className="flex min-w-0 max-w-full items-baseline gap-1.5 whitespace-nowrap">
                     {i > 0 && <span aria-hidden className="shrink-0 text-fg/40">·</span>}
-                    <span className="flex min-w-0 shrink items-baseline gap-1">
-                      <b className="min-w-0 truncate font-semibold">{p.name}</b>
+                    <span className="flex min-w-0 items-baseline gap-1">
+                      <b className="min-w-0 max-w-[9.5rem] truncate font-semibold" title={p.name}>{p.name}</b>
                       <span className="shrink-0" title={p.exact}>{p.amount}</span>
                     </span>
                   </span>
                 ))}
                 {who.tail && (
-                  <>
-                    <span aria-hidden className="shrink-0 text-fg/40">·</span>
-                    <span className="shrink-0 text-fg/65">{who.tail}</span>
-                  </>
-                )}
-                {who.opposite && (
-                  // Money going the other way too: why the net amount is smaller than the names above. Shortens first, like a name.
-                  <span className="flex min-w-0 shrink-[2] items-baseline gap-1.5 text-fg/65" data-who-opposite>
-                    <span aria-hidden className="shrink-0 text-fg/40">·</span>
-                    {/* Only the name shortens: the direction words always stay, so it never reads as a third person you owe. */}
-                    {who.opposite.kind === "owes-you" ? (
-                      <>
-                        <b className="min-w-0 truncate font-semibold text-fg/85">{who.opposite.name}</b>
-                        <span className="shrink-0">{who.opposite.phrase.slice(who.opposite.name.length + 1)}</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="shrink-0">you owe</span>
-                        <b className="min-w-0 truncate font-semibold text-fg/85">{who.opposite.name}</b>
-                      </>
-                    )}
-                    <span className="shrink-0" title={who.opposite.exact}>{who.opposite.amount}</span>
+                  <span className="flex shrink-0 items-baseline gap-1.5 whitespace-nowrap">
+                    <span aria-hidden className="text-fg/40">·</span>
+                    <span className="text-fg/65">{who.tail}</span>
                   </span>
                 )}
               </span>
+              {who.opposite && (
+                // Money going the other way too: why the net amount is smaller than the names above. Only the name shortens:
+                // the direction words always stay, so it never reads as a third person you owe.
+                <span className="flex min-w-0 max-w-full items-baseline gap-1 whitespace-nowrap text-[13px] leading-[1.35] text-fg/65" data-who-line data-who-row="opposite" data-who-opposite>
+                  {who.opposite.kind === "owes-you" ? (
+                    <>
+                      <b className="min-w-0 max-w-[9.5rem] truncate font-semibold text-fg/85" title={who.opposite.name}>{who.opposite.name}</b>
+                      <span className="shrink-0">{who.opposite.phrase.slice(who.opposite.name.length + 1)}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="shrink-0">You owe</span>
+                      <b className="min-w-0 truncate font-semibold text-fg/85" title={who.opposite.name}>{who.opposite.name}</b>
+                    </>
+                  )}
+                  <span className="shrink-0" title={who.opposite.exact}>{who.opposite.amount}</span>
+                </span>
+              )}
             </Link>
           )}
         </div>

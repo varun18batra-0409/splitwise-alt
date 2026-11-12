@@ -3,6 +3,7 @@ import { PassportIcon, PeoplePassportsIcon, SquareSeal } from "@/components/Draw
 import { pairwiseDebtCount } from "@/lib/settle";
 import { Notice } from "@/components/Notice";
 import { formatMoney, formatPercent } from "@/lib/money";
+import { foreignPartLine } from "@/lib/foreign-part";
 import { niceDate } from "@/lib/format";
 import { Avatar } from "@/components/ui";
 import type { GroupView } from "./view";
@@ -90,18 +91,8 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
           {group.members.filter((m) => (leaver ? m.id === myId : !m.leftAt || (net[m.id] ?? 0) !== 0)).map((m) => {
             const b = net[m.id] ?? 0;
             const theirs = transfers.filter((t) => t.from === m.id || t.to === m.id);
-            // Their part of the spending in each foreign currency, said plainly.
-            const foreign =
-              b === 0
-                ? ""
-                : ledgers
-                    .map((l) => {
-                      const x = l.net[m.id] ?? 0;
-                      // "THB part: owes 5,099.17" (the currency named once).
-                      return x === 0 ? "" : `${l.currency} part: ${x > 0 ? "gets" : "owes"} ${formatMoney(Math.abs(x), l.currency).replace(`${l.currency} `, "")}`;
-                    })
-                    .filter(Boolean)
-                    .join(" · ");
+            // Their part of the spending in each foreign currency, said plainly: "Includes THB 5,099.17 from Thai baht spends".
+            const foreign = b === 0 ? "" : foreignPartLine(ledgers.map((l) => ({ currency: l.currency, amount: l.net[m.id] ?? 0 })));
             return (
               <li key={m.id}>
                 <details className="group/person" open={why === m.id}>
@@ -117,7 +108,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
                           </span>
                         ) : null;
                       })()}
-                      <span className="block truncate text-xs text-gray-400">
+                      <span className={`block text-xs text-gray-400 ${foreign ? "break-words" : "truncate"}`} data-foreign-part={foreign ? "1" : undefined}>
                         {foreign || eq(b) || (theirs.length ? `${theirs.length} payment${theirs.length === 1 ? "" : "s"} to settle` : "settled up")}
                       </span>
                     </span>

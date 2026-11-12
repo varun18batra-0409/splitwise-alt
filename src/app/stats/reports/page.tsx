@@ -1,0 +1,54 @@
+import { db } from "@/lib/db";
+import { getAccount } from "@/lib/identity";
+import { requireOwner } from "@/lib/owner";
+import { getTimeZone } from "@/lib/tz";
+import { PageHeader } from "@/components/ui";
+import { resolveReportAction } from "@/app/safety-actions";
+import { REASON_LABELS } from "@/lib/reports";
+
+export const metadata = { title: "Reports", robots: { index: false } };
+export const dynamic = "force-dynamic";
+
+// Owner only (the same rule as /stats): what people reported, newest first, with a Resolved button.
+// Shows who and what, never the private photo itself.
+export default async function Reports() {
+  const account = await getAccount();
+  requireOwner(account);
+  const rows = await db.report.findMany({ orderBy: [{ status: "asc" }, { createdAt: "desc" }], take: 200 });
+  const ids = [...new Set(rows.flatMap((r) => [r.reporterId, r.targetAccountId]))];
+  const people = ids.length ? await db.account.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, email: true } }) : [];
+  const who = new Map(people.map((p) => [p.id, `${p.name || "No name"} (${p.email})`]));
+  const tz = await getTimeZone();
+  const when = (d: Date) => d.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: tz });
+  const open = rows.filter((r) => r.status === "open");
+  return (
+    <>
+      <PageHeader title="Reports" back="/stats" />
+      <p className="mb-4 text-sm text-gray-500" data-open-reports={open.length}>
+        {open.length ? `${open.length} to look at` : "Nothing waiting."}
+      </p>
+      <ul className="divide-y divide-line border-y border-line">
+        {rows.map((r) => (
+          <li key={r.id} className="py-4" data-report={r.id} data-status={r.status}>
+            <p className="text-sm font-semibold">
+              {REASON_LABELS[r.reason] ?? r.reason} · {r.kind} · {when(r.createdAt)}
+            </p>
+            <p className="mt-1 text-sm text-gray-500">About: {who.get(r.targetAccountId) ?? "an account that no longer exists"}</p>
+            <p className="text-sm text-gray-500">From: {who.get(r.reporterId) ?? "an account that no longer exists"}</p>
+            {r.note && <p className="mt-1 break-words text-sm">“{r.note}”</p>}
+            {r.status === "open" ? (
+              <form action={resolveReportAction} className="mt-2">
+                <input type="hidden" name="id" value={r.id} />
+                <button type="submit" className="min-h-11 rounded-full border border-line px-4 text-sm font-medium active:bg-mist">
+                  Resolved
+                </button>
+              </form>
+            ) : (
+              <p className="mt-1 text-xs text-gray-400">Resolved{r.resolvedAt ? ` ${when(r.resolvedAt)}` : ""}</p>
+            )}
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}

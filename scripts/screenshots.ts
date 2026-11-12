@@ -90,6 +90,7 @@ await shot("21b-insights-week", "/search?p=w", undefined, false);
 await shot("21c-insights-spent-year", "/search?v=spent&p=y", undefined, false);
 await shot("21d-insights-flat", `/search?g=${demo.flat.id}`);
 await shot("22-settle-everything", `${g}/settle`, async (p) => {
+  await p.getByText("More options").last().click();
   await p.getByRole("button", { name: /Settle everything/ }).scrollIntoViewIfNeeded();
 }, false);
 await shot("23-add-expense-differently", `${g}/add`, async (p) => {
@@ -629,7 +630,7 @@ if (collectCode) {
   await context.addCookies([{ name: "lp_payer", value: "shotsPayerKey0000000001", url: `${base}/c/` }]);
   await shot("75-collect-payer-ticked", `/c/${collectCode}`);
 }
-for (const n of [2, 3, 4]) {
+for (const n of [2, 3, 4, 5, 6]) {
   await shot(`24-tour-${n}`, "/", async (p) => {
     for (let k = 1; k < n; k++) {
       await p.getByRole("button", { name: /Next/ }).click();
@@ -678,8 +679,8 @@ if (!hosted) {
     await p.goto(base + "/", { waitUntil: "networkidle" });
     await p.getByRole("button", { name: /Next/ }).click();
   }, false);
-  await step("81-us-tour-4", async () => {
-    for (let k = 0; k < 2; k++) { // already on slide 2: two more taps reach slide 4 (the last)
+  await step("81-us-tour-6", async () => {
+    for (let k = 0; k < 4; k++) { // already on slide 2: four more taps reach slide 6 (the last)
       await p.getByRole("button", { name: /Next/ }).click();
       await p.waitForTimeout(450);
     }

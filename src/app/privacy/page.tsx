@@ -41,7 +41,9 @@ export default function Privacy() {
       <h2 className={h}>What we store</h2>
       <ul className={ul}>
         <li>Group names, people’s names (as typed in the group), expenses, notes, payments and the change history.</li>
-        <li>Phone numbers only if someone adds them when inviting from contacts.</li>
+        <li>
+          Contacts: when you pick a person from your phone’s contacts, their name and phone number (just the one you picked) are saved to the group. Loopin never uploads your address book.
+        </li>
         <li>A group’s own photo, if someone in the group adds one. It’s made small on the phone first, and only people in that group can see it.</li>
         <li>A photo of a bill, if someone adds one to an expense. Camera details and location are removed, and only people in that group can see it.</li>
         <li>Your email and name, from signing up (or from Google, if you use Continue with Google). We use the email to sign you in and to tell you about your groups. Nothing else.</li>
@@ -51,6 +53,8 @@ export default function Privacy() {
         <li>Your time zone, sent by your phone, so reminders arrive in the daytime where you are.</li>
         <li>Your Trip passport details: the home country you pick and any places you add by hand. Its trips come from your trip groups.</li>
         <li>Postcards you send or get: the card, your message and, if you add one, your own photo.</li>
+        <li>Your answer to “Let AI read bills and lines”, on your account (or on your phone, if you have no account).</li>
+        <li>Blocks you make, and reports you send about something another person sent you (what, why and your note).</li>
       </ul>
 
       <h2 className={h}>What we don’t do</h2>
@@ -79,6 +83,17 @@ export default function Privacy() {
           <strong>“I’ve paid” links:</strong> a link in a reminder opens without signing in. Whoever has it sees the group’s name, the two people’s
           names and the amount owed, and can tap “I’ve paid”. It works for that one debt only, and stops after 30 days, once it’s settled, or if the group is closed. Send it only to the person who owes.
         </li>
+        <li>
+          <strong>If you leave a group:</strong> you still see it as it was up to the day you left, plus any later change to your own share. Older expenses
+          show as they are now, but if someone changes one after you left, its notes are hidden from you.
+        </li>
+      </ul>
+
+      <h2 className={h}>Reporting and blocking</h2>
+      <ul className={ul}>
+        <li>On a postcard you got, on a friend’s passport, or on a person in a group’s People screen, you can <strong>Report</strong> it (spam, abusive or something else, with an optional note). Only Loopin sees a report, and we look at it within 24 hours.</li>
+        <li><strong>Block</strong> stops that person sending you postcards, passports or nudges, hides their cards and passport from you (and yours from them), and stops their notifications. You’ll still see shared group expenses and balances. You can unblock from You → Privacy and safety.</li>
+        <li>Notes on an expense that was edited after someone left a group aren’t shown to that person.</li>
       </ul>
 
       <h2 className={h}>Emails and notifications</h2>
@@ -94,7 +109,7 @@ export default function Privacy() {
         <li><strong>Vercel:</strong> runs the app (our servers are in Mumbai) and keeps your photos in its private file storage.</li>
         <li><strong>Turso:</strong> keeps the database: your groups, expenses, accounts and the rest.</li>
         <li><strong>Resend:</strong> sends our emails. It gets the address, and the words of the email (sign-in codes, invites).</li>
-        <li><strong>Anthropic (Claude):</strong> reads a bill photo you scan, or a typed or spoken expense Loopin can’t follow on its own. It gets that photo or line, and the first names in the group. Anthropic doesn’t use it to train its models.</li>
+        <li><strong>Anthropic (Claude):</strong> reads a bill photo you scan, or a typed or spoken expense Loopin can’t follow on its own, but only after you say yes. Loopin asks you the first time. It gets that photo or line, and the first names in the group. Anthropic doesn’t use it to train its models. Say no, or change your mind any time, in You → Privacy and safety; then bill photos are only attached and lines stay as you typed them.</li>
         <li><strong>Google:</strong> if you choose Continue with Google, it tells us your email and name. Speaking an expense uses your browser’s own voice typing (Google’s in Chrome, Apple’s in Safari); Loopin only receives the words. Postcard lettering is loaded by your browser from Google Fonts.</li>
         <li><strong>Frankfurter:</strong> gives us currency exchange rates. It is only asked for rates, never about you.</li>
       </ul>
@@ -110,7 +125,13 @@ export default function Privacy() {
       <ul className={ul}>
         <li>Expenses and payments can be deleted and restored; the history notes it.</li>
         <li>A whole group can be deleted from its settings. Whoever deleted it, or looks after it, can restore it for 30 days; after that it’s erased for good, with everything in it.</li>
-        <li>“You → Delete my email &amp; sign-in” removes your email and sign-in from Loopin, along with your passkeys and the postcards you sent or got, including their photos. Your groups keep the name you used in them.</li>
+        <li>
+          “You → Delete my email &amp; sign-in” erases your email and sign-in, your passkeys, the postcards you sent or got (including their photos), your alerts, the collections you organised, and the blocks you made or that were made against you.
+        </li>
+        <li>Deleting your email also stops notifications on your other phones.</li>
+        <li>
+          What stays in shared groups: your name in their history, an invitation that holds your email, and a phone number someone else saved for you. They are other people’s shared records, so deleting your account doesn’t rewrite them. Reports you sent about someone stay with us so we can act on them.
+        </li>
         <li>“You → Download all my data” gives you everything about you in one spreadsheet.</li>
         <li>Encrypted backups are kept for 14 days and then removed. Something you delete can stay in a backup until then.</li>
       </ul>
@@ -140,7 +161,7 @@ export default function Privacy() {
 
       <h2 className={h}>Questions</h2>
       <p className={p}>
-        See the <a href="/faq" className="underline underline-offset-4">FAQ</a> and the{" "}
+        Need help, or want to tell us something? <a href="/support" className="underline underline-offset-4">Contact support</a>. See the <a href="/faq" className="underline underline-offset-4">FAQ</a> and the{" "}
         <a href="/terms" className="underline underline-offset-4">
           Terms of use
         </a>

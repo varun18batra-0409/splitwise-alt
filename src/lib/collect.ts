@@ -99,13 +99,21 @@ export async function markPaid(code: string, input: { entryId?: string; name?: s
   return { ok: true, entryId: e.id };
 }
 
+// Tests only: runs after the reads and before the write (the gap in which the other person can act).
+type Hooks = { afterRead?: () => Promise<void> };
+const CHANGED = "This payment changed just now. Check the list again.";
+
 // "I haven't paid after all": the payer takes back their own tick (until it's checked).
-export async function undoPaid(code: string, entryId: string, payerKey: string): Promise<Ok<object> | Fail> {
+export async function undoPaid(code: string, entryId: string, payerKey: string, opts: Hooks = {}): Promise<Ok<object> | Fail> {
   const c = await loadCollection(code);
   const e = c?.entries.find((x) => x.id === entryId);
   if (!c || !e || !payerKey || e.payerKey !== payerKey) return { ok: false, error: "Only the phone that ticked it can undo it." };
   if (e.status === "confirmed") return { ok: false, error: `${c.organiser} has already checked this payment. Ask them to change it.` };
-  await db.collectionEntry.update({ where: { id: e.id }, data: { status: "due", amount: 0, payerKey: "", paidAt: null, method: "" } });
+  await opts.afterRead?.();
+  // Only the tick that was seen (its time is its version): if the organiser checked it, or it was ticked again, in the
+  // meantime, this takes nothing back.
+  const done = await db.collectionEntry.updateMany({ where: { id: e.id, status: "paid", payerKey, paidAt: e.paidAt }, data: { status: "due", amount: 0, payerKey: "", paidAt: null, method: "" } });
+  if (done.count !== 1) return { ok: false, error: `${c.organiser} checked this payment just now, so it can’t be undone here. Ask them to change it.` };
   return { ok: true };
 }
 
@@ -114,6 +122,7 @@ export async function organiserAction(
   code: string,
   accountId: string,
   action: { kind: "confirm" | "unconfirm" | "remove" | "cash" | "add" | "nudge" | "close" | "reopen" | "delete"; entryId?: string; names?: string; contacts?: string; friends?: string[] },
+  opts: Hooks = {},
 ): Promise<Ok<{ notify?: CollectNote[] }> | Fail> {
   const c = await loadCollection(code);
   if (!c || c.accountId !== accountId) return { ok: false, error: "Only the organiser can change this collection." };
@@ -121,16 +130,21 @@ export async function organiserAction(
   switch (action.kind) {
     case "confirm":
       if (!e || e.status === "due") return { ok: false, error: "Nothing to check there." };
-      await db.collectionEntry.update({ where: { id: e.id }, data: { status: "confirmed", confirmedAt: new Date() } });
+      await opts.afterRead?.();
+      // Only the tick that was seen (same amount, same time): a payer who took it back or ticked again meanwhile wins.
+      if ((await db.collectionEntry.updateMany({ where: { id: e.id, status: "paid", amount: e.amount, paidAt: e.paidAt }, data: { status: "confirmed", confirmedAt: new Date() } })).count !== 1) return { ok: false, error: CHANGED };
       return { ok: true, notify: paidNote(c, e.accountId, e.amount) };
     case "unconfirm":
       if (!e || e.status !== "confirmed") return { ok: false, error: "Nothing to change there." };
-      await db.collectionEntry.update({ where: { id: e.id }, data: { status: "paid", confirmedAt: null } });
+      await opts.afterRead?.();
+      if ((await db.collectionEntry.updateMany({ where: { id: e.id, status: "confirmed", confirmedAt: e.confirmedAt }, data: { status: "paid", confirmedAt: null } })).count !== 1) return { ok: false, error: CHANGED };
       return { ok: true };
     case "cash":
       if (!e || e.status !== "due") return { ok: false, error: "They’re already marked as paid." };
       if (!c.amount) return { ok: false, error: "For “any amount” collections, ask them to tick their own amount." };
-      await db.collectionEntry.update({ where: { id: e.id }, data: { status: "confirmed", amount: c.amount, method: "cash", paidAt: new Date(), confirmedAt: new Date() } });
+      await opts.afterRead?.();
+      // Only if they are still unpaid: a payer who ticked their own meanwhile keeps their tick.
+      if ((await db.collectionEntry.updateMany({ where: { id: e.id, status: "due" }, data: { status: "confirmed", amount: c.amount, method: "cash", paidAt: new Date(), confirmedAt: new Date() } })).count !== 1) return { ok: false, error: CHANGED };
       return { ok: true, notify: paidNote(c, e.accountId, c.amount) };
     case "nudge":
       // A reminder inside Loopin, for someone on Loopin who hasn't paid yet.
@@ -142,7 +156,9 @@ export async function organiserAction(
       };
     case "remove":
       if (!e) return { ok: false, error: "That name isn’t on the list." };
-      await db.collectionEntry.delete({ where: { id: e.id } });
+      await opts.afterRead?.();
+      // Only the entry as it was seen: a fresh tick (or the organiser's own check) means the list changed.
+      if ((await db.collectionEntry.deleteMany({ where: { id: e.id, status: e.status, paidAt: e.paidAt } })).count !== 1) return { ok: false, error: CHANGED };
       return { ok: true };
     case "add": {
       const typed = cleanNames(String(action.names ?? "").split(/[\n,]+/));

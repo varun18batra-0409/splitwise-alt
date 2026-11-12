@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { JOINED, isPending } from "./membership";
+import { blockedEitherWay, isBlockedEitherWay } from "./blocks";
 import { buildPassport, parseHandPlaces, passportShared, type PassportTrip } from "./passport";
 
 // Someone the admin removed stops counting for passport sharing (both ways); someone who left on their own still counts.
@@ -90,7 +91,9 @@ export async function passportFriends(accountId: string) {
     take: 3000,
   });
   const by = new Map<string, { accountId: string; name: string; groups: string[] }>();
+  const blocked = await blockedEitherWay(accountId);
   for (const o of others) {
+    if (blocked.has(o.accountId!)) continue;
     const f = by.get(o.accountId!) ?? { accountId: o.accountId!, name: o.name, groups: [] };
     if (!f.groups.includes(o.group.name)) f.groups.push(o.group.name);
     by.set(o.accountId!, f);
@@ -103,6 +106,8 @@ export async function passportFriends(accountId: string) {
 // or removed by the admin; leaving on your own later doesn't matter), and the owner has said yes (no recorded answer counts as no).
 export async function canSeePassport(viewerAccountId: string, ownerAccountId: string) {
   if (viewerAccountId === ownerAccountId) return { ok: true as const, owner: await db.account.findUnique({ where: { id: ownerAccountId } }), name: undefined as string | undefined };
+  // A block between the two (either way round) closes the door; it looks the same as not sharing a group.
+  if (await isBlockedEitherWay(viewerAccountId, ownerAccountId)) return { ok: false as const, reason: "stranger" as const, name: undefined as string | undefined };
   const shared = await db.member.findFirst({
     where: { accountId: ownerAccountId, ...COUNTS, group: { deletedAt: null, members: { some: { accountId: viewerAccountId, ...COUNTS } } } },
     select: { name: true },

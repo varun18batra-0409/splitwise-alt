@@ -6,6 +6,7 @@ import { getMyMemberId } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
 import { todayKey } from "@/lib/dates";
 import { loadPassport, passportRoster } from "@/lib/passport-db";
+import { blockedEitherWay } from "@/lib/blocks";
 import { passportShared } from "@/lib/passport";
 import { countryOf } from "@/lib/geo";
 import { Avatar, PageHeader } from "@/components/ui";
@@ -27,8 +28,12 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
   });
   if (!group || group.deletedAt || !group.members.some((m) => m.id === myId)) notFound();
   // Only someone who really joined (and wasn't removed) can open it, and it lists only people who did too.
-  const roster = passportRoster(group.members, myId);
-  if (!roster) redirect("/private");
+  const everyone = passportRoster(group.members, myId);
+  if (!everyone) redirect("/private");
+  // Someone blocked (either way round) is left out of Our passports; the group itself is untouched.
+  const myAccountId = group.members.find((m) => m.id === myId)?.accountId;
+  const hidden = myAccountId ? await blockedEitherWay(myAccountId) : new Set<string>();
+  const roster = everyone.filter((m) => m.id === myId || !m.accountId || !hidden.has(m.accountId));
   const today = todayKey(new Date(), await getTimeZone());
   type Person = { m: { id: string; name: string; accountId: string | null; claimedAt: Date | null; leftAt: Date | null; addedBy: string; seenAt: Date | null; removedAt: Date | null }; mine: boolean; state: "notOnLoopin" | "private" | "unshared" | "open" | "empty"; codes: string[]; cities: number };
   const people: Person[] = await Promise.all(
@@ -87,7 +92,7 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
           <PassportCompare
             sets={[
               { key: "all", label: "Everywhere", countries: together.map(c3) },
-              ...(shared.length > 0 ? [{ key: "shared", label: visible.length === 2 ? "Both of you" : "All of you", countries: shared.map(c3) }] : []),
+              ...(shared.length > 0 ? [{ key: "shared", label: "Shared", countries: shared.map(c3) }] : []),
               ...onlyBy.map(({ p, codes }) => ({ key: p.mine ? "you" : p.m.id, label: `Only ${p.mine ? "you" : first(p.m.name)}`, countries: codes.map(c3) })),
             ]}
           />

@@ -1,7 +1,12 @@
 @import "tailwindcss";
 
-/* Small phones: narrow (iPhone SE, 320-375px) or short (700px or less) screens. */
-@custom-variant tight (@media (max-width: 375px), (max-height: 700px));
+/* Small phones: narrow (iPhone SE, 320-375px) OR short (700px or less) screens. The block form keeps the comma ("or") inside one
+   media query; the one-line form `(@media (a), (b))` was read as a selector list and compiled to an invalid dangling combinator. */
+@custom-variant tight {
+  @media (max-width: 375px), (max-height: 700px) {
+    @slot;
+  }
+}
 
 /*
   Design tokens — dark, CRED-inspired ("NeoPOP"): a near-black canvas, warm

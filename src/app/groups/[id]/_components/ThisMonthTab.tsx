@@ -164,7 +164,7 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
           <ul className="space-y-3 text-sm">
             {s.byCategory.slice(0, 6).map((c) => (
               <li key={c.id} className="grid grid-cols-[96px_1fr_84px] items-center gap-2.5">
-                <span className="truncate">{getCategory(c.id).short}</span>
+                <span className="line-clamp-2 break-words leading-tight" data-category-name>{getCategory(c.id).short}</span>
                 <span className="h-2 overflow-hidden rounded-full bg-mist">
                   <span className="block h-full rounded-full bg-gray-600" style={{ width: `${Math.max(2, Math.round((Math.max(0, c.amount) * 100) / Math.max(1, s.byCategory[0].amount)))}%` }} />
                 </span>

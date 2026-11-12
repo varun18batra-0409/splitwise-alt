@@ -3,6 +3,7 @@ import { parseNotify, wantsPush } from "./notify-prefs";
 import { allows, bothAllow, eventItem, type ItemId } from "./account-notify";
 import webpush from "web-push";
 import { db } from "./db";
+import { pushHostForLog, validSub } from "./push-subs";
 import { isBigExpense } from "./big-expense";
 import { JOINED } from "./membership";
 
@@ -109,6 +110,7 @@ export async function sendEventPush(eventId: string): Promise<number> {
     for (const s of subs) {
       if (seen.has(s.endpoint)) continue;
       seen.add(s.endpoint);
+      if (!(await usable(s))) continue;
       try {
         await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, {
           vapidDetails: { subject: SUBJECT, publicKey: keys.publicKey, privateKey: keys.privateKey },
@@ -124,6 +126,15 @@ export async function sendEventPush(eventId: string): Promise<number> {
   } catch {
     return 0;
   }
+}
+
+// Checked again before every send: a stored row that is not a real push address from a supported service (or has bad keys)
+// is deleted and never sent to. Only the host is logged.
+async function usable(s: { endpoint: string; p256dh: string; auth: string }): Promise<boolean> {
+  if (validSub({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } })) return true;
+  await db.pushSubscription.deleteMany({ where: { endpoint: s.endpoint } }).catch(() => undefined);
+  console.warn(`push: removed an unsupported subscription (host ${pushHostForLog(s.endpoint)})`);
+  return false;
 }
 
 // Send a message to particular people (reminders, budget alerts…), on every
@@ -142,6 +153,7 @@ export async function sendPushTo(memberIds: string[], p: { title: string; body: 
     for (const s of wanted) {
       if (seen.has(s.endpoint)) continue;
       seen.add(s.endpoint);
+      if (!(await usable(s))) continue;
       try {
         await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, {
           vapidDetails: { subject: SUBJECT, publicKey: keys.publicKey, privateKey: keys.privateKey },
@@ -177,6 +189,7 @@ export async function sendPushToAccounts(accountIds: string[], p: { title: strin
     for (const s of subs) {
       if (seen.has(s.endpoint)) continue;
       seen.add(s.endpoint);
+      if (!(await usable(s))) continue;
       try {
         await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, {
           vapidDetails: { subject: SUBJECT, publicKey: keys.publicKey, privateKey: keys.privateKey },

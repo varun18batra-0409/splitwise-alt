@@ -3,7 +3,7 @@ import { chargeLock, chargeLockedText } from "./home/charge-lock";
 import { LEFT_ERROR } from "./active";
 import { db } from "./db";
 import { withRetry } from "./once";
-import { diffExpense, expenseState, logEvent, parseUndo, touchedByExpense, type UndoPayload } from "./events";
+import { diffExpense, expenseState, itemsForState, logEvent, parseUndo, touchedByExpense, type UndoPayload } from "./events";
 import { POT_EDIT_ERROR, setExpenseDeleted, setPaymentDeleted } from "./save-expense";
 import { isGameResult } from "./pot-result";
 import { formatPercent } from "./money";
@@ -13,6 +13,7 @@ import { loadOtherMoney, sameOtherMoney, writeOtherMoney } from "./group-changes
 import { isGroupAdmin } from "./group-admin";
 import { undoMoveOut } from "./home/moving-db";
 import { DEFAULT_TIME_ZONE } from "./dates";
+import { GroupChanged, groupChangedText, guardGroup } from "./money-guard";
 
 // Undo any change in a group. Undoing is itself a logged change that everyone
 // is notified about, and it can be undone too ("redo").
@@ -198,9 +199,15 @@ function fromResult(r: { ok: true; eventId?: string } | { ok: false; error: stri
   return r.ok ? { ok: true, eventId: r.eventId } : r;
 }
 
-// Put an expense back exactly as it was before an edit.
-async function revertExpense(expenseId: string, before: Parameters<typeof expenseState>[0], actorId: string): Promise<UndoResult> {
-  const e = await db.expense.findUnique({ where: { id: expenseId }, include: { shares: true, group: { include: { members: true } } } });
+export const REVERT_CLASH = "Someone changed this expense a moment ago, so it wasn’t undone. Open it again to see the latest version.";
+
+// The people and amounts of a set of shares, as one comparable text.
+const sharesSig = (xs: { memberId: string; amount: number }[]) => xs.map((x) => `${x.memberId}:${x.amount}`).sort().join("|");
+
+// Put an expense back exactly as it was before an edit: its fields, its shares and (for edits saved with them) its bill's
+// item lines. `afterRead` is for tests only: it runs after the reads and before the write begins.
+export async function revertExpense(expenseId: string, before: Parameters<typeof expenseState>[0], actorId: string, opts: { afterRead?: () => Promise<void> } = {}): Promise<UndoResult> {
+  const e = await db.expense.findUnique({ where: { id: expenseId }, include: { shares: true, items: { orderBy: [{ position: "asc" }, { id: "asc" }] }, group: { include: { members: true } } } });
   if (!e) return { ok: false, error: "That expense no longer exists." };
   if (e.group.closed) return { ok: false, error: "This group is closed. Reopen it to change expenses." };
   if (e.deletedAt) return { ok: false, error: "This expense is deleted. Restore it first." };
@@ -213,40 +220,66 @@ async function revertExpense(expenseId: string, before: Parameters<typeof expens
     return { ok: false, error: "Someone in that version is no longer in the group." };
   }
 
-  const current = expenseState(e);
   const nameOf = (id: string) => e.group.members.find((m) => m.id === id)?.name ?? "Someone";
-  const changes = diffExpense(current, before, nameOf);
-  const { shares, ...fields } = before;
+  const { shares, items: beforeItems, ...fields } = before;
+  const currency = e.group.currency;
 
+  await opts.afterRead?.();
   // Checked again inside the transaction: a bill run could have counted the charge since the first look.
   let eventId: string;
   try {
    eventId = await db.$transaction(async (tx) => {
+    // First a write: the group is still in this currency and open; then the expense is claimed as it was read. Any edit
+    // since (even one that only changed the item lines) moved editedAt, so this undo would overwrite newer work: refused.
+    await guardGroup(tx, e.groupId, { currency });
+    const claim = await tx.expense.updateMany({ where: { id: expenseId, editedAt: e.editedAt, deletedAt: null }, data: { editedAt: new Date() } });
+    if (claim.count !== 1) throw new RevertClash();
     const lockedNow = await chargeLock(tx, e.groupId, expenseId);
     if (lockedNow) throw new ChargeLockedNow(lockedNow.bill);
+    // What it is now, read inside the transaction: this is what "redo" puts back.
+    const [curShares, curItems] = await Promise.all([
+      tx.expenseShare.findMany({ where: { expenseId } }),
+      tx.expenseItem.findMany({ where: { expenseId }, orderBy: [{ position: "asc" }, { id: "asc" }] }),
+    ]);
+    const current = expenseState({ ...e, shares: curShares, items: curItems });
+    // Item lines: put back as saved. A change saved before item lines were kept says nothing about them: if the bill has
+    // lines now and the restored shares no longer match what they add up to, clear the lines (they would be wrong).
+    let itemsAfter: NonNullable<typeof current.items> | null = null; // null = leave them
+    const savedItems = itemsForState(beforeItems);
+    if (savedItems) itemsAfter = savedItems.map((i) => ({ name: i.name, amount: i.amount, people: i.people.filter((p) => memberIds.has(p)) }));
+    else if (curItems.length && sharesSig(curShares) !== sharesSig(shares)) itemsAfter = [];
+    const itemsChanged = itemsAfter !== null && JSON.stringify(itemsAfter) !== JSON.stringify(current.items);
+    const changes = diffExpense(current, before, nameOf);
     await tx.expenseShare.deleteMany({ where: { expenseId } });
     await tx.expense.update({
       where: { id: expenseId },
       data: { ...fields, payers: fields.payers ?? "", kind: fields.kind ?? "expense", spentAt: fields.spentAt ? new Date(fields.spentAt) : null, editedAt: new Date(), shares: { create: shares } },
     });
+    if (itemsAfter) {
+      await tx.expenseItem.deleteMany({ where: { expenseId } });
+      if (itemsAfter.length) await tx.expenseItem.createMany({ data: itemsAfter.map((i, position) => ({ expenseId, position, name: i.name, amount: i.amount, people: JSON.stringify(i.people) })) });
+    }
     return logEvent(tx, {
       groupId: e.groupId,
       actorId,
       kind: "expense_edited",
       text: `undid a change to ${before.description}`,
-      details: changes,
+      details: changes.length ? changes : itemsChanged ? ["Item lines changed"] : [],
       expenseId,
       undo: { type: "expense_revert", expenseId, before: current },
       touches: touchedByExpense(current, before),
     });
    });
   } catch (err) {
+    if (err instanceof RevertClash) return { ok: false, error: REVERT_CLASH };
+    if (err instanceof GroupChanged) return { ok: false, error: err.reason === "currency" ? "The group currency changed since, so this edit can’t be undone." : groupChangedText(err) };
     if (err instanceof ChargeLockedNow) return { ok: false, error: chargeLockedText(err.message) };
     throw err;
   }
   return { ok: true, eventId };
 }
 
+class RevertClash extends Error {}
 class ChargeLockedNow extends Error {}
 
 // Rename / markup / second currency / close-reopen back to what it was.

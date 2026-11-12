@@ -55,6 +55,7 @@ test("pay buttons, payment tracking and the quick line", async ({ browser }) => 
   const payments = () => db.payment.count({ where: { groupId, deletedAt: null } });
 
   // A typo with an extra zero: ₹3,000 when Ravi owes ₹500. It asks first; Cancel is focused and saves nothing.
+  await R.getByText("More options").first().click(); // F1: under the row's quiet "More options"
   await R.getByRole("link", { name: "Paid a different amount?" }).click();
   await R.waitForURL(/\/pay\?/);
   await settled(R);

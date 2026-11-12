@@ -150,6 +150,7 @@ export async function sendPostcardAction(f: FormData) {
       body: opensAt ? `It opens on ${new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" }).format(opensAt)}. No peeking.` : data.words ? `Greetings from ${data.words}` : message.slice(0, 80),
       url: `/postcards/${p.id}`,
       tag: `postcard-${p.id}`,
+      fromAccountId: me.id,
     })),
   );
   redirect(`/postcards/${made[0].id}?sent=${made.length}`);
@@ -167,7 +168,7 @@ export async function reactPostcardAction(f: FormData) {
   await db.postcard.update({ where: { id: p!.id }, data: { reaction: r!.id, reactedAt: new Date() } });
   if (p!.reaction !== r!.id) {
     const who = me.name.trim().split(/\s+/)[0] || "A friend";
-    await deliverNotes([{ accountIds: [p!.fromId], kind: "postcard", title: `${who} sealed your postcard`, body: `“${r!.name}”`, url: `/postcards/${p!.id}`, tag: `postcard-seal-${p!.id}` }]);
+    await deliverNotes([{ accountIds: [p!.fromId], kind: "postcard", title: `${who} sealed your postcard`, body: `“${r!.name}”`, url: `/postcards/${p!.id}`, tag: `postcard-seal-${p!.id}`, fromAccountId: me.id }]);
   }
   redirect(`/postcards/${id}?sealed=1`);
 }

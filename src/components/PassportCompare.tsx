@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 // Our passports, in one small box: tabs for every country between you, the
-// ones you've all been to, and the ones only one of you has; under them, the
+// ones you've all been to ("Shared"), and the ones only one of you has (the tabs wrap onto a second row, none is ever cut off); under them, the
 // flags with a short name each.
 export type CompareSet = { key: string; label: string; countries: { code: string; flag: string; name: string }[] };
 
@@ -13,7 +13,7 @@ export function PassportCompare({ sets }: { sets: CompareSet[] }) {
   if (!set) return null;
   return (
     <div className="mt-4" data-passport-compare>
-      <div role="tablist" aria-label="Who's been where" className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div role="tablist" aria-label="Who's been where" className="flex flex-wrap gap-1.5">
         {sets.map((s) => (
           <button
             key={s.key}
@@ -22,7 +22,7 @@ export function PassportCompare({ sets }: { sets: CompareSet[] }) {
             aria-selected={s.key === set.key}
             onClick={() => setOn(s.key)}
             data-compare-tab={s.key}
-            className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-[13px] ${s.key === set.key ? "border-fg bg-fg font-semibold text-canvas" : "border-line text-fg/70 active:bg-mist"}`}
+            className={`max-w-full shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-[13px] ${s.key === set.key ? "border-fg bg-fg font-semibold text-canvas" : "border-line text-fg/70 active:bg-mist"}`}
           >
             {s.label} <span className={s.key === set.key ? "text-canvas/60" : "text-fg/60"}>{s.countries.length}</span>
           </button>

@@ -430,13 +430,15 @@ describe("10: the 'more than what's owed' page keeps back=settle", () => {
   });
 
   it("Record a payment from Settle up for too much redirects with back=settle", async () => {
-    // Ravi owes 60000 in all (auditor's story). He enters ₹700 from Settle up.
+    // Ravi owes 60000 in all (auditor's story) but Asha is owed only 30000. He enters ₹700 from Settle up: the limit is the
+    // smaller of the two (30000), and it is Asha's side that sets it.
     const w = await auditorWorld();
     await as(w, w.r);
     const url = await redirectOf(() => A.recordCustomPayment(form({ groupId: w.gid, fromId: w.r, toId: w.a, amount: "700", back: "settle" })));
     expect(url.pathname).toBe(`/groups/${w.gid}/pay`);
     expect(url.searchParams.get("back")).toBe("settle");
-    expect(url.searchParams.get("owes")).toBe("60000");
+    expect(url.searchParams.get("owes")).toBe("30000");
+    expect(url.searchParams.get("side")).toBe("to");
     expect(await payCount(w.gid)).toBe(0);
     // From the plain Record a payment page there is no back.
     const plain = await redirectOf(() => A.recordCustomPayment(form({ groupId: w.gid, fromId: w.r, toId: w.a, amount: "700" })));

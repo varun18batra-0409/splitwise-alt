@@ -60,7 +60,8 @@ export default async function MoveOutPage({
         ))}
       </ul>
     );
-  const title = leaver.id === myId ? "You’re moving out" : `${leaver.name} is moving out`;
+  // Short, so it stays on one line (no lone "out" on line 2); a long name wraps evenly.
+  const title = leaver.id === myId ? "You’re moving out" : `${leaver.name} moves out`;
 
   return (
     <>
@@ -92,7 +93,7 @@ export default async function MoveOutPage({
             <dl className="space-y-2.5 text-sm">
               <div className="flex justify-between">
                 <dt>Balance today</dt>
-                <dd className="money tabular-nums">{p.balanceToday > 0 ? `gets ${money(p.balanceToday)}` : p.balanceToday < 0 ? `owes ${money(-p.balanceToday)}` : "square"}</dd>
+                <dd className="money shrink-0 tabular-nums">{p.balanceToday > 0 ? `gets ${money(p.balanceToday)}` : p.balanceToday < 0 ? `owes ${money(-p.balanceToday)}` : "square"}</dd>
               </div>
               {p.bills.map((b) => (
                 <div key={`${b.name}-${b.period}`} className="flex justify-between">
@@ -102,9 +103,21 @@ export default async function MoveOutPage({
                       · {monthLabel(b.period)}, {b.days} of {b.monthDays} days
                     </span>
                   </dt>
-                  <dd className="money tabular-nums text-owed">− {money(b.before - b.after)}</dd>
+                  {/* A deduction is neither good nor bad news: plain text, no green, no minus sign. */}
+                  <dd className="money shrink-0 tabular-nums text-fg/80" data-deduction>less {money(b.before - b.after)}</dd>
                 </div>
               ))}
+              {/* Daily bills (milk ...) added with "Add it now" are in the final payments, so they are in this list too (it follows the tick). */}
+              {p.daily
+                .filter((d) => !d.unsupported && d.amount > 0)
+                .map((d) => (
+                  <div key={`daily-${d.billId}`} className="hidden justify-between group-has-[input[name=addDaily]:checked]/mv:flex" data-daily-line>
+                    <dt>
+                      {d.name} <span className="text-gray-500">({d.days} {d.days === 1 ? "day" : "days"})</span>
+                    </dt>
+                    <dd className="money shrink-0 tabular-nums text-fg/80">+ {money(d.amount)}</dd>
+                  </div>
+                ))}
             </dl>
             {p.bills.length > 0 && (
               <p className="mt-2 text-xs text-gray-500">Bills are re-split: {name(leaver.id)} keep{leaver.id === myId ? "" : "s"} a share only for the days there; the rest goes to the others.</p>

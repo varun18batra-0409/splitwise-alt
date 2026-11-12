@@ -85,6 +85,7 @@ export default async function GroupSettle({
   };
   const myWays = waysOf(myId);
   const owedToMe = ordered.some((t) => t.to === myId);
+  const othersToMark = ordered.filter((t) => t.from !== myId); // "Mark all N paid" covers only payments someone else makes (mine go through "I've paid")
   const iLeft = Boolean(group.members.find((m) => m.id === myId)?.leftAt); // someone who left can answer "Confirm received", but not say they paid
   const today = dayKey(new Date(), await getTimeZone()); // the viewer's today: a trip is "ended" from its last day
   const ended = tripEnded(group, today);
@@ -355,23 +356,11 @@ export default async function GroupSettle({
         </p>
       )}
 
-      {/* The closing actions: ONE main button, the rest quiet links under it. */}
+      {/* The closing actions. At most ONE main button (Close group / Settle everything & close, once a trip has ended or nothing is left);
+          everything else is a quiet link under "More options", so the rows' own buttons stay the main thing on the screen. */}
       {!group.closed && !iLeft && (
         <section id="close" className="mt-6 scroll-mt-4 space-y-1" data-settle-actions>
-          {ordered.length > 1 && (
-            <form action={markAllPaidAction} className={mainAction === "mark-all" ? "" : "flex justify-center"}>
-              <input type="hidden" name="groupId" value={group.id} />
-              <input type="hidden" name="plan" value={planKey(transfers)} />
-              <FreshKey name="rid" />
-              <ConfirmButton
-                message={`Mark all ${ordered.length} payments paid? The group stays open, everyone is told, and you can undo it.`}
-                className={mainAction === "mark-all" ? "pop block w-full bg-fg px-4 py-3.5 text-center text-[15px] font-semibold text-canvas" : quietLinkClass}
-              >
-                Mark all paid ({ordered.length})
-              </ConfirmButton>
-            </form>
-          )}
-          {transfers.length > 0 || mainAction === "close" ? (
+          {mainAction === "close" && (
             <form action={settleEverything} className="flex justify-center">
               <input type="hidden" name="groupId" value={group.id} />
               <input type="hidden" name="plan" value={planKey(transfers)} />
@@ -381,18 +370,43 @@ export default async function GroupSettle({
                     ? `Mark all ${transfers.length} payments as paid and close ${group.name}? Everyone will be notified. You can undo this.`
                     : `Close ${group.name}? You can reopen it any time.`
                 }
-                className={mainAction === "close" ? "pop block w-full bg-fg px-4 py-3.5 text-center text-[15px] font-semibold text-canvas" : quietLinkClass}
+                className="pop block w-full bg-fg px-4 py-3.5 text-center text-[15px] font-semibold text-canvas"
               >
                 {transfers.length > 0 ? "Settle everything & close" : "Close group"}
               </ConfirmButton>
             </form>
-          ) : null}
-          <div className="flex justify-center">
-            <Link href={`/groups/${group.id}/pay`} className={quietLinkClass}>
-              Record a different payment
-            </Link>
-          </div>
-          {transfers.length > 0 && <p className="px-2 pt-1 text-center text-xs text-gray-400">Settled outside the app? “Settle everything & close” marks every payment above paid and closes the group.</p>}
+          )}
+          <details className="group text-center" data-more-options="settle">
+            <summary className="inline-flex min-h-11 cursor-pointer list-none items-center text-sm font-medium text-fg/70 underline underline-offset-4 [&::-webkit-details-marker]:hidden">More options</summary>
+            <div className="space-y-1">
+              {/* Only other people's payments: your own go through "I've paid", so they can be confirmed. */}
+              {othersToMark.length > 1 && (
+                <form action={markAllPaidAction} className="flex justify-center">
+                  <input type="hidden" name="groupId" value={group.id} />
+                  <input type="hidden" name="plan" value={planKey(transfers)} />
+                  <FreshKey name="rid" />
+                  <ConfirmButton message={`Mark all ${othersToMark.length} paid? These are the payments between other people. The group stays open, everyone is told, and you can undo it.`} className={quietLinkClass}>
+                    Mark all {othersToMark.length} paid
+                  </ConfirmButton>
+                </form>
+              )}
+              {mainAction !== "close" && transfers.length > 0 && (
+                <form action={settleEverything} className="flex justify-center">
+                  <input type="hidden" name="groupId" value={group.id} />
+                  <input type="hidden" name="plan" value={planKey(transfers)} />
+                  <ConfirmButton message={`Mark all ${transfers.length} payments as paid and close ${group.name}? Everyone will be notified. You can undo this.`} className={quietLinkClass}>
+                    Settle everything & close
+                  </ConfirmButton>
+                </form>
+              )}
+              <div className="flex justify-center">
+                <Link href={`/groups/${group.id}/pay`} className={quietLinkClass}>
+                  Record a different payment
+                </Link>
+              </div>
+              {transfers.length > 0 && <p className="px-2 pt-1 text-center text-xs text-gray-400">Settled outside the app? “Settle everything & close” marks every payment above paid and closes the group.</p>}
+            </div>
+          </details>
         </section>
       )}
       {group.type === "trip" && (

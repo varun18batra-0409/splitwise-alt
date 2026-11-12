@@ -8,7 +8,7 @@ import type { PayButton } from "@/lib/pay-links";
 //   who pays whom + the amount
 //   one FILLED main button  ("Open payment app" or "Remind"; other saved ways are quiet "or pay with PayPal" links),
 //   one OUTLINED button      ("I've paid" / "Mark paid"),
-//   a quiet text link        ("Paid a different amount?").
+//   a quiet "More options" link that opens "Paid a different amount?".
 // If a row has no main button, its one action button becomes the filled one.
 
 export const mainButtonClass = "pop inline-flex min-h-11 flex-1 basis-40 items-center justify-center gap-1.5 bg-fg px-4 text-sm font-semibold text-canvas";
@@ -27,11 +27,13 @@ export function RemindIcon() {
 }
 
 // ONE main "Open payment app" button: the first way the person likes to be paid (UPI first, and it only exists for
-// rupees; outside India the saved link is the main one). Any other saved way is a small quiet link under the buttons,
-// "or pay with PayPal", so a row never has two filled buttons.
+// rupees; outside India the saved link is the main one). "or pay with PayPal" is only for when it suits (the group isn't in
+// rupees, or the person has no UPI ID): then the saved link IS the main button, so there is nothing left to add. A rupee row
+// whose payee has a UPI ID pays by UPI and shows no PayPal link.
 export function PayAppButtons({ buttons }: { buttons: PayButton[] }) {
-  const [first, ...rest] = buttons;
+  const [first, ...more] = buttons;
   if (!first) return null;
+  const rest = first.kind === "upi" ? [] : more;
   const external = (b: PayButton) => (b.kind === "upi" ? {} : { target: "_blank", rel: "noopener noreferrer" });
   return (
     <>
@@ -54,11 +56,15 @@ export function PayAppButtons({ buttons }: { buttons: PayButton[] }) {
 }
 
 // "Paid a different amount?" always goes to the Record a payment page, which asks if it's more than what's owed.
+// It sits under a quiet "More options" link so a row shows one main button and nothing else competing with it.
 export function DifferentAmountLink({ href, label = "Paid a different amount?" }: { href: string; label?: string }) {
   return (
-    <Link href={href} className="mt-1 inline-flex min-h-11 items-center text-sm font-medium text-fg/70 underline underline-offset-4" data-different-amount>
-      {label}
-    </Link>
+    <details className="group" data-more-options>
+      <summary className="mt-1 inline-flex min-h-11 cursor-pointer list-none items-center text-sm font-medium text-fg/70 underline underline-offset-4 [&::-webkit-details-marker]:hidden">More options</summary>
+      <Link href={href} className="inline-flex min-h-11 items-center text-sm font-medium text-fg/85 underline underline-offset-4" data-different-amount>
+        {label}
+      </Link>
+    </details>
   );
 }
 

@@ -3,7 +3,8 @@ import { FocusOnShow } from "@/components/FocusOnShow";
 import { notFound, redirect } from "next/navigation";
 import { getMyMemberId } from "@/lib/identity";
 import { loadGroup } from "@/lib/group-data";
-import { formatMoney, overpayLine, parseAmount, PAYMENT_LINE, toInputAmount } from "@/lib/money";
+import { formatMoney, parseAmount, PAYMENT_LINE, toInputAmount } from "@/lib/money";
+import { overpayQuestion } from "@/lib/pay-record";
 import { PayAmountField } from "@/components/AmountEcho";
 import { recordCustomPayment } from "@/app/actions";
 import { FreshKey } from "@/components/FreshKey";
@@ -16,7 +17,7 @@ export default async function RecordPayment({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ from?: string; to?: string; amount?: string; error?: string; owes?: string; back?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; amount?: string; error?: string; owes?: string; side?: string; back?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -39,7 +40,10 @@ export default async function RecordPayment({
   const owes = /^\d{1,12}$/.test(sp.owes ?? "") ? Number(sp.owes) : null;
   const typed = parseAmount(sp.amount ?? "", group.currency);
   // More than the payer owes (often an extra zero): asked once, with Cancel first.
-  const overLine = owes !== null && typed !== null ? overpayLine(typed, owes, group.currency) : null;
+  // `owes` is the most that can be paid without either person flipping to the other side; `side` says who sets that limit.
+  const side = sp.side === "to" ? "to" : "from";
+  const plain = (mid: string) => group.members.find((m) => m.id === mid)?.name ?? "Someone";
+  const overLine = owes !== null && typed !== null ? overpayQuestion({ typed, limit: owes, side, currency: group.currency, fromName: plain(from), toName: plain(sp.to ?? "") }) : null;
   const cancelHref = `/groups/${group.id}/pay?${new URLSearchParams({ from, ...(to ? { to } : {}), amount: sp.amount ?? "", ...(fromSettle ? { back: "settle" } : {}) })}`;
   const chip = "flex items-center gap-2 rounded-full border border-line bg-mist px-4 py-2 text-sm font-medium has-[:checked]:border-fg has-[:checked]:bg-fg has-[:checked]:font-medium has-[:checked]:text-canvas";
 

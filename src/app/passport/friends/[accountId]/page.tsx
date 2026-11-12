@@ -8,6 +8,7 @@ import { stampPages } from "@/lib/passport";
 import { PageHeader } from "@/components/ui";
 import { PassportBook } from "@/components/PassportBook";
 import { Locked, NudgeBox } from "@/components/PassportFriend";
+import { SafetyLinks } from "@/components/SafetyLinks";
 
 export const metadata = { title: "Passport", robots: { index: false } };
 
@@ -37,6 +38,7 @@ export default async function FriendPassportByAccount({ params, searchParams }: 
           <p className="mt-2 font-semibold">{!r.ok && r.reason === "unanswered" ? `${first} hasn’t shared their passport yet.` : `${first} keeps their passport private.`}</p>
           <p className="mt-1 text-sm text-gray-500">{!r.ok && r.reason === "unanswered" ? "They can choose to show it any time." : "Only they can see it."}</p>
         </div>
+        <SafetyLinks kind="passport" targetId={accountId} accountId={accountId} name={first} back={`/passport/friends/${accountId}`} className="mt-4" />
       </>
     );
   const p = await loadPassport(r.owner, "", todayKey(new Date(), await getTimeZone()), { forFriend: true });
@@ -55,6 +57,7 @@ export default async function FriendPassportByAccount({ params, searchParams }: 
           Yours
         </Link>
       </p>
+      <SafetyLinks kind="passport" targetId={accountId} accountId={accountId} name={first} back={`/passport/friends/${accountId}`} className="mt-2" />
     </>
   );
 }

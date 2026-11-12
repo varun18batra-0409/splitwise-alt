@@ -1365,9 +1365,9 @@ export function AddExpenseForm({
       )}
 
       {/* Always in reach: the summary and the save buttons ride along at the bottom while you scroll the form. */}
-      <div className="sticky bottom-[max(1rem,env(safe-area-inset-bottom))] z-10 -mx-2">
+      <div className="sticky bottom-[max(1rem,env(safe-area-inset-bottom))] z-10 -mx-2 mt-6">
       {summary && (
-        <p role="status" aria-live="polite" className="mx-auto mb-1.5 w-fit max-w-full truncate whitespace-nowrap rounded-full border border-line bg-canvas px-4 py-1.5 text-center text-[13px] font-medium leading-snug text-fg/80 tabular-nums" data-expense-summary>
+        <p role="status" aria-live="polite" className="mx-auto mb-1.5 w-fit max-w-full text-balance break-words rounded-[18px] border border-line bg-canvas px-4 py-1.5 text-center text-[13px] font-medium leading-snug text-fg/80 tabular-nums" data-expense-summary>
           {summary}
         </p>
       )}

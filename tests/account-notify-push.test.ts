@@ -10,10 +10,11 @@ vi.mock("web-push", () => ({
 }));
 
 import { db } from "@/lib/db";
+import { GOOD_AUTH, GOOD_P256DH, goodEndpoint } from "./helpers/push-keys";
 import { sendEventPush, sendPushTo, sendPushToAccounts } from "@/lib/push";
 
 const stamp = Date.now();
-const ep = (n: string) => `https://push.example/${n}-${stamp}`;
+const ep = (n: string) => goodEndpoint(`${n}-${stamp}`);
 let gid = "";
 let hadKeys = true;
 const m: Record<string, string> = {};
@@ -24,7 +25,7 @@ async function person(key: string, prefs: string, notify = "") {
   a[key] = acc.id;
   const mem = await db.member.create({ data: { groupId: gid, name: key, accountId: acc.id, notify } });
   m[key] = mem.id;
-  await db.pushSubscription.create({ data: { memberId: mem.id, endpoint: ep(key), p256dh: "k", auth: "a" } });
+  await db.pushSubscription.create({ data: { memberId: mem.id, endpoint: ep(key), p256dh: GOOD_P256DH, auth: GOOD_AUTH } });
 }
 const sentTo = () => new Set(mocks.send.mock.calls.map((c) => c[0].endpoint));
 
@@ -41,7 +42,7 @@ beforeAll(async () => {
   // A phone-only member: no account at all.
   const plain = await db.member.create({ data: { groupId: gid, name: "plain" } });
   m.plain = plain.id;
-  await db.pushSubscription.create({ data: { memberId: plain.id, endpoint: ep("plain"), p256dh: "k", auth: "a" } });
+  await db.pushSubscription.create({ data: { memberId: plain.id, endpoint: ep("plain"), p256dh: GOOD_P256DH, auth: GOOD_AUTH } });
 });
 beforeEach(() => mocks.send.mockClear());
 afterAll(async () => {

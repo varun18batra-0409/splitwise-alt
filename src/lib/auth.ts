@@ -90,30 +90,47 @@ export async function verifyLoginCode(rawEmail: string, rawCode: string, now = n
 
 // "Delete my account": the email and sign-in codes are removed; group
 // histories keep the names people used in them.
-export async function deleteAccount(accountId: string) {
+// keepEndpoint: this phone's notification address. The account's people stop getting notifications on every OTHER
+// phone (those rows are deleted); this phone's stays, so it keeps working for the groups it still has. Without it,
+// all of them go (this phone's comes back by itself the next time the app is opened).
+// `afterRead` is for tests only: it runs before the transaction begins.
+export async function deleteAccount(accountId: string, opts: { keepEndpoint?: string; afterRead?: () => Promise<void> } = {}) {
   const acc = await db.account.findUnique({ where: { id: accountId } });
   if (!acc) return;
-  // Postcards they sent or received go with them, and so do their photos
-  // (unless another remaining card still uses the same photo).
-  const cards = await db.postcard.findMany({ where: { OR: [{ fromId: accountId }, { toId: accountId }] }, select: { id: true, photoId: true } });
-  const photoIds = [...new Set(cards.map((c) => c.photoId).filter(Boolean))];
-  const stillUsed = photoIds.length
-    ? new Set((await db.postcard.findMany({ where: { photoId: { in: photoIds }, id: { notIn: cards.map((c) => c.id) } }, select: { photoId: true } })).map((c) => c.photoId))
-    : new Set<string>();
-  const goneFiles = (await db.postcardPhoto.findMany({ where: { id: { in: photoIds.filter((p) => !stillUsed.has(p)) } }, select: { blobKey: true } })).map((p) => p.blobKey);
-  const { photoTrashOps, flushPhotoDeletes } = await import("./photo-store");
-  await db.$transaction([
-    ...(await photoTrashOps(goneFiles)),
-    db.member.updateMany({ where: { accountId }, data: { accountId: null } }),
-    db.loginCode.deleteMany({ where: { email: acc.email } }),
-    db.postcard.deleteMany({ where: { id: { in: cards.map((c) => c.id) } } }),
-    db.postcardPhoto.deleteMany({ where: { id: { in: photoIds.filter((p) => !stillUsed.has(p)) } } }),
-    db.passkey.deleteMany({ where: { accountId } }),
-    // Collections they organised hold other people's names under their account: they go too.
-    db.collection.deleteMany({ where: { accountId } }),
-    db.accountNote.deleteMany({ where: { accountId } }),
-    db.collectionEntry.updateMany({ where: { accountId }, data: { accountId: "" } }),
-    db.account.delete({ where: { id: accountId } }),
-  ]);
+  const keep = opts.keepEndpoint ?? "";
+  const { queuePhotoDeletes, flushPhotoDeletes } = await import("./photo-store");
+  await opts.afterRead?.();
+  // One transaction that starts with a write (so it holds the write lock): a postcard sent, or a photo copied to file
+  // storage, a moment ago is seen and handled, not missed.
+  await db.$transaction(
+    async (tx) => {
+      // Notifications on the account's other phones stop (before the people are unlinked from the account).
+      await tx.pushSubscription.deleteMany({ where: { member: { accountId }, ...(keep ? { endpoint: { not: keep } } : {}) } });
+      // Postcards they sent or received go with them, and so do their photos
+      // (unless another remaining card still uses the same photo).
+      const cards = await tx.postcard.findMany({ where: { OR: [{ fromId: accountId }, { toId: accountId }] }, select: { id: true, photoId: true } });
+      const photoIds = [...new Set(cards.map((c) => c.photoId).filter(Boolean))];
+      const stillUsed = photoIds.length
+        ? new Set((await tx.postcard.findMany({ where: { photoId: { in: photoIds }, id: { notIn: cards.map((c) => c.id) } }, select: { photoId: true } })).map((c) => c.photoId))
+        : new Set<string>();
+      const goneIds = photoIds.filter((p) => !stillUsed.has(p));
+      const goneFiles = (await tx.postcardPhoto.findMany({ where: { id: { in: goneIds } }, select: { blobKey: true } })).map((p) => p.blobKey);
+      await queuePhotoDeletes(tx, goneFiles);
+      // Each name gets a new grant epoch, so old copies of this phone-only access elsewhere stop working (SEC-01).
+      await tx.member.updateMany({ where: { accountId }, data: { accountId: null, grantEpoch: { increment: 1 } } });
+      await tx.loginCode.deleteMany({ where: { email: acc.email } });
+      await tx.postcard.deleteMany({ where: { id: { in: cards.map((c) => c.id) } } });
+      await tx.postcardPhoto.deleteMany({ where: { id: { in: goneIds } } });
+      await tx.passkey.deleteMany({ where: { accountId } });
+      // Collections they organised hold other people's names under their account: they go too.
+      await tx.collection.deleteMany({ where: { accountId } });
+      await tx.accountNote.deleteMany({ where: { accountId } });
+      // Blocks you made or that were made against you go with the account (reports stay: they are the record of what was reported).
+      await tx.block.deleteMany({ where: { OR: [{ blockerId: accountId }, { blockedId: accountId }] } });
+      await tx.collectionEntry.updateMany({ where: { accountId }, data: { accountId: "" } });
+      await tx.account.delete({ where: { id: accountId } });
+    },
+    { timeout: 30000 },
+  );
   await flushPhotoDeletes();
 }

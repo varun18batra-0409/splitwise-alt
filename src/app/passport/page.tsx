@@ -87,7 +87,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
       <PassportBook name={account.name} stats={p.stats} milestones={p.milestones} pages={stampPages(p.stamps, p.been)} index={p.index} badges={p.badges} />
 
       {!empty && (
-        <div className="mt-5">
+        <div className="mb-10 mt-5 scroll-mb-28" data-passport-actions>
           <div className="grid grid-cols-2 gap-3">
             <Link href="/passport/send" className="pop flex h-12 items-center justify-center bg-fg text-[15px] font-semibold text-canvas" data-passport-send>
               Send in Loopin

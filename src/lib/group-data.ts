@@ -4,7 +4,7 @@ import { netBalances } from "./balances";
 import { pairwiseDebtCount, smartSettle } from "./settle";
 import { payerIds, spentAmount } from "./payers";
 import { canRestoreGroup } from "./group-admin";
-import { leaverCut, membersAsOf, ownShareDetails, scopeBalances, scopeForLeaver, type LeaverCut } from "./left-view";
+import { hideLaterNotes, leaverCut, membersAsOf, ownShareDetails, scopeBalances, scopeForLeaver, type LeaverCut } from "./left-view";
 import { leaverEvents, readableWhere, touchedAfter } from "./left-view-db";
 import { netBalancesDb, settleDataDb } from "./balances-db";
 import type { Prisma } from "@prisma/client";
@@ -39,6 +39,7 @@ export async function loadGroup(id: string, opts: { events?: boolean; viewer?: s
 
   const { before, after } = await leaverEvents(id, cut.leftAt, opts.events === false ? 0 : 500);
   const scoped = scopeForLeaver({ expenses: group.expenses, payments: group.payments, events: [...after, ...before] }, me.id, cut.leftAt);
+  scoped.expenses = hideLaterNotes(scoped.expenses, cut.leftAt);
   const mine = scopeBalances(net, transfers, me.id);
   return {
     group: {
@@ -84,6 +85,7 @@ export async function loadGroupView(id: string, opts: { events?: boolean; viewer
 
   const { before, after } = await leaverEvents(id, cut.leftAt, opts.events === false ? 0 : 500);
   const scoped = scopeForLeaver({ expenses: group.expenses, payments: group.payments, events: [...after, ...before] }, me.id, cut.leftAt);
+  scoped.expenses = hideLaterNotes(scoped.expenses, cut.leftAt);
   const mine = scopeBalances(net, transfers, me.id);
   return {
     group: {
@@ -136,7 +138,7 @@ export async function loadMyGroups(memberships: Record<string, string>) {
         const upTo = cut.leftAt.getTime();
         const myExpense = (e: (typeof g.expenses)[number]) => e.paidById === myId || e.shares.some((s) => s.memberId === myId) || payerIds(e).includes(myId);
         rows = {
-          expenses: g.expenses.filter((e) => e.createdAt.getTime() <= upTo || myExpense(e) || touched.expenseIds.includes(e.id)),
+          expenses: hideLaterNotes(g.expenses.filter((e) => e.createdAt.getTime() <= upTo || myExpense(e) || touched.expenseIds.includes(e.id)), cut.leftAt),
           payments: g.payments.filter((p) => p.createdAt.getTime() <= upTo || p.fromId === myId || p.toId === myId || touched.paymentIds.includes(p.id)),
         };
       }
@@ -183,7 +185,7 @@ export async function loadMyGroupsLean(memberships: Record<string, string>) {
         const upTo = cut.leftAt.getTime();
         const myExpense = (e: (typeof g.expenses)[number]) => e.paidById === myId || e.shares.some((s) => s.memberId === myId) || payerIds(e).includes(myId);
         rows = {
-          expenses: g.expenses.filter((e) => e.createdAt.getTime() <= upTo || myExpense(e) || touched.expenseIds.includes(e.id)),
+          expenses: hideLaterNotes(g.expenses.filter((e) => e.createdAt.getTime() <= upTo || myExpense(e) || touched.expenseIds.includes(e.id)), cut.leftAt),
           payments: g.payments.filter((p) => p.createdAt.getTime() <= upTo || p.fromId === myId || p.toId === myId || touched.paymentIds.includes(p.id)),
         };
       }

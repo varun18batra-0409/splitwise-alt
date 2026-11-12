@@ -83,10 +83,35 @@ export type ExpenseState = {
   spentAt: string | null; // the chosen day, as an ISO time; null = the day it was added
   notes?: string; // missing in changes saved before notes existed
   shares: { memberId: string; amount: number }[];
+  items?: { name: string; amount: number; people: string[] }[]; // the bill's item lines; missing in changes saved before they were kept
 };
 
+// Item lines as saved in the state: people as a list (the database keeps them as JSON text).
+export function itemsForState(items: { name: string; amount: number; people: string | string[] }[] | undefined): ExpenseState["items"] {
+  if (!items) return undefined;
+  return items.map((i) => {
+    let people: string[] = [];
+    if (Array.isArray(i.people)) people = i.people;
+    else {
+      try {
+        const v = JSON.parse(i.people);
+        if (Array.isArray(v)) people = v.filter((p): p is string => typeof p === "string");
+      } catch {
+        /* not JSON: no people */
+      }
+    }
+    return { name: i.name, amount: i.amount, people };
+  });
+}
+
 export function expenseState(
-  e: Omit<ExpenseState, "spentAt" | "notes" | "payers" | "kind"> & { spentAt?: Date | string | null; notes?: string; payers?: string | null; kind?: string | null },
+  e: Omit<ExpenseState, "spentAt" | "notes" | "payers" | "kind" | "items"> & {
+    spentAt?: Date | string | null;
+    notes?: string;
+    payers?: string | null;
+    kind?: string | null;
+    items?: { name: string; amount: number; people: string | string[] }[];
+  },
 ): ExpenseState {
   return {
     description: e.description,
@@ -110,6 +135,7 @@ export function expenseState(
     spentAt: e.spentAt instanceof Date ? e.spentAt.toISOString() : (e.spentAt ?? null),
     notes: e.notes ?? "",
     shares: e.shares.map((s) => ({ memberId: s.memberId, amount: s.amount })),
+    ...(e.items ? { items: itemsForState(e.items) } : {}),
   };
 }
 

@@ -17,8 +17,8 @@ const seen = () => {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { decimalsOf, formatMoney } from "@/lib/money";
 
-// The intro tour, in the visitor's own currency: four swipeable slides (make a group, add what you paid,
-// see who owes then settle, every trip becomes a story), each with a small animated picture. Shown to
+// The intro tour, in the visitor's own currency: six swipeable slides (make a group, add what you paid,
+// see who owes then settle, every trip becomes a story, send a postcard, collect your passport), each with a small animated picture. Shown to
 // first-time visitors on the home screen, and any time at /welcome (the "1-minute tour" link in How Loopin works).
 
 type Slide = { id: string; title: string; caption: string; art: React.ReactNode };
@@ -65,6 +65,46 @@ function Cheers() {
           </span>
         ))}
       </div>
+    </div>
+  );
+}
+
+// A postcard, as the tour shows it: cream card, a stamp, a handwritten line. Drawn here, no photo needed.
+function PostcardArt() {
+  return (
+    <div className="rise relative w-full max-w-[270px]" data-tour-postcard>
+      <div className="relative -rotate-3 bg-[#f4f1e8] p-4 pb-5 shadow-[0_24px_40px_-18px_rgba(0,0,0,0.95)]">
+        <span aria-hidden className="absolute right-3 top-3 flex h-12 w-10 items-center justify-center border-2 border-dashed border-[#b8956a]/70 text-[#b8956a]">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 13l18-8-6 15-3-6-6-1Z" />
+          </svg>
+        </span>
+        <p className="font-hand text-[26px] font-bold leading-[1.05] text-[#2a2620]">Wish you were here</p>
+        <p className="mt-3 max-w-[170px] font-hand text-[19px] leading-tight text-[#4a4338]">The beach, the bill and the best dinner of the trip.</p>
+        <span aria-hidden className="mt-4 block h-px w-3/5 bg-[#2a2620]/25" />
+        <span aria-hidden className="mt-2 block h-px w-2/5 bg-[#2a2620]/25" />
+      </div>
+    </div>
+  );
+}
+
+// A passport page with three stamps (place names only).
+function PassportArt() {
+  return (
+    <div className="rise relative w-full max-w-[260px] rounded-[22px] border border-[#d8bd7a]/35 bg-[radial-gradient(120%_80%_at_50%_0%,#2a2620_0%,#16161a_70%)] p-5 shadow-[0_24px_40px_-18px_rgba(0,0,0,0.95)]" data-tour-passport>
+      <p className="text-center text-[11px] font-semibold uppercase tracking-[0.28em] text-[#e8d29a]">Passport</p>
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        {["Goa", "Lisbon", "Bangkok"].map((place, i) => (
+          <span
+            key={place}
+            className="flex aspect-square items-center justify-center rounded-full border-2 border-[#d8bd7a]/60 px-1 text-center font-hand text-[16px] font-bold leading-none text-[#e8d29a]"
+            style={{ transform: `rotate(${[-8, 5, -3][i]}deg)` }}
+          >
+            {place}
+          </span>
+        ))}
+      </div>
+      <p className="mt-4 text-center font-hand text-[19px] font-bold text-[#ffd9a8]">3 stamps and counting</p>
     </div>
   );
 }
@@ -170,6 +210,18 @@ function makeSlides(L: Local): Slide[] {
       title: "Every trip becomes a story.",
       caption: "When it’s over, Loopin turns the spending into a short story to share with the group.",
       art: <StoryPoster L={L} />,
+    },
+    {
+      id: "postcard",
+      title: "Send a postcard.",
+      caption: "Pick a photo from the trip, write a line and send it to a friend, in Loopin or on WhatsApp.",
+      art: <PostcardArt />,
+    },
+    {
+      id: "passport",
+      title: "Collect your passport.",
+      caption: "Every trip adds a stamp. See the places you’ve been to, and share the page if you like.",
+      art: <PassportArt />,
     },
   ];
 }

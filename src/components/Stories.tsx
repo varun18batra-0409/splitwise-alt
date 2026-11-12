@@ -36,9 +36,14 @@ function writeSeen(s: Set<string>) {
   }
 }
 
+// Full-screen story photos (UX-F5). A landscape picture cropped to a portrait screen is scaled to the screen's HEIGHT, so it is shown
+// about twice as wide as the screen: ask the image service for twice the width (the old "100vw" gave a soft, blocky picture), at high quality.
+export const STORY_SIZES = "(max-width: 448px) 220vw, 960px";
+export const STORY_QUALITY = 90;
+
 function Picture({ s, uid, big }: { s: Story; uid: string; big?: boolean }) {
   // Sized for where it shows: a small copy for the polaroid, a sharp one full screen.
-  if (s.photo) return <Image src={s.photo} alt="" aria-hidden fill sizes={big ? "(max-width: 448px) 100vw, 448px" : "72px"} quality={big ? 82 : 70} priority={big} className={`object-cover ${big ? "lp-drift" : ""}`} />;
+  if (s.photo) return <Image src={s.photo} alt="" aria-hidden fill sizes={big ? STORY_SIZES : "72px"} quality={big ? STORY_QUALITY : 70} priority={big} className={`object-cover ${big ? "lp-drift" : ""}`} />;
   if (s.cover && !s.art) return <GroupCover kind={s.cover.kind as CoverChoice} src={s.cover.src} uid={uid} sizes={big ? "448px" : "72px"} drift={big} />;
   // No photo: designed artwork (green felt for a card night, a jar for a collection…).
   return <StoryArt kind={s.art ?? s.kind} uid={uid} />;
@@ -118,7 +123,7 @@ function Slide({ f, uid }: { f: Frame; uid: string }) {
   if (f.kind === "photo" || f.kind === "art")
     return (
       <>
-        {f.kind === "photo" ? <Image src={f.photo} alt="" aria-hidden fill sizes="(max-width: 448px) 100vw, 448px" quality={82} priority className="lp-drift object-cover" /> : <StoryArt kind={f.art} uid={uid} />}
+        {f.kind === "photo" ? <Image src={f.photo} alt="" aria-hidden fill sizes={STORY_SIZES} quality={STORY_QUALITY} priority className="lp-drift object-cover" /> : <StoryArt kind={f.art} uid={uid} />}
         <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.5)_0%,transparent_22%,transparent_42%,rgba(0,0,0,0.9)_100%)]" />
         <Words kicker={f.kicker} head={f.head} line={f.line} />
       </>

@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { load } from "./OwnPhoto";
 import { singleFlight } from "@/lib/single-flight";
+import { useAiConsent } from "./AiConsent";
+import { getAiConsentAction } from "@/app/ai-actions";
 
 export type ScannedBill = {
   merchant: string;
@@ -37,6 +39,7 @@ export function BillScan({
   const [state, setState] = useState<"idle" | "busy" | "done">("idle");
   const [note, setNote] = useState("");
   const [thumb, setThumb] = useState("");
+  const consent = useAiConsent();
   const [kept, setKept] = useState(Boolean(existingId)); // the current photo is still attached
   useEffect(() => {
     if (!openRef) return;
@@ -61,11 +64,21 @@ export function BillScan({
   }
 
   async function pickNow(file: File) {
+    // Before the first AI read, ask. A "no" (or "Not now") still attaches the photo, just without reading it.
+    let ai = read;
+    if (read) {
+      try {
+        const said = await getAiConsentAction();
+        ai = said === "yes" ? true : said === "no" ? false : await consent.ask("bill photo");
+      } catch {
+        ai = false;
+      }
+    }
     setState("busy");
-    setNote(read ? "Reading the bill…" : "Adding the photo…");
+    setNote(ai ? "Reading the bill…" : "Adding the photo…");
     try {
       const blob = await shrinkBill(file);
-      const res = await fetch(`/api/receipt?group=${encodeURIComponent(groupId)}${read ? "&read=1" : ""}`, { method: "POST", body: blob });
+      const res = await fetch(`/api/receipt?group=${encodeURIComponent(groupId)}${ai ? "&read=1" : ""}`, { method: "POST", body: blob });
       const r = (await res.json().catch(() => ({}))) as { ok?: boolean; id?: string; error?: string; note?: string; bill?: ScannedBill };
       if (!r.ok || !r.id) throw new Error(r.error || "Couldn’t add that photo. Try again.");
       if (thumb) URL.revokeObjectURL(thumb);
@@ -73,7 +86,7 @@ export function BillScan({
       setKept(false);
       onAttach(r.id);
       const extra = r.bill ? onRead(r.bill) : "";
-      setNote(`${r.bill ? (r.bill.total ? "Filled in from the bill. Check it, then save." : "Read the bill, but not its total. Type the amount.") : r.note || "Photo attached."}${extra ? ` ${extra}` : ""}`);
+      setNote(`${r.bill ? (r.bill.total ? "Filled in from the bill. Check it, then save." : "Read the bill, but not its total. Type the amount.") : r.note || (read && !ai ? "Photo attached. Fill in the rest by hand." : "Photo attached.")}${extra ? ` ${extra}` : ""}`);
       setState("done");
     } catch (err) {
       setNote(err instanceof Error ? err.message : "Couldn’t add that photo. Try again.");
@@ -83,6 +96,7 @@ export function BillScan({
 
   return (
     <div className="-mt-1" data-bill-scan>
+      {consent.sheet}
       {kept && existingId && state !== "done" && (
         <div className="flex items-center gap-3 rounded-2xl border border-line p-2" data-bill-current>
           {/* eslint-disable-next-line @next/next/no-img-element */}

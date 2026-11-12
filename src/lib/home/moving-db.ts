@@ -10,6 +10,7 @@ import { DEFAULT_TIME_ZONE, dayKey } from "../dates";
 import { addPrepaid, dailyPrecharge, depositRefunds, leaverPayments, parsePrepaid, proRataShares, removePrepaid, type DailyPrecharge } from "./moving";
 import { monthsBetween, payerFor } from "./bills";
 import type { Transfer } from "../settle";
+import { GroupChanged, groupChangedText, guardGroup } from "../money-guard";
 
 // Moving out, the deposit — database side.
 
@@ -187,6 +188,8 @@ export async function moveOut(
 
   try {
     await db.$transaction(async (tx) => {
+      // First: the flat must still be in the currency the amounts were worked out in, and the person doing it still in it.
+      await guardGroup(tx, groupId, { currency: flat.currency, actorId, allowClosed: true });
       await claimKey(tx, input.requestKey, "moved", fp);
       // Claim the move-out first: if two people confirm it at the same moment,
       // only the first one goes through (the second finds them already gone).
@@ -200,6 +203,8 @@ export async function moveOut(
       }
       // 1. Bills: their share only for the days they stayed (none for later months).
       for (const r of p.resplit) {
+        // Undoing the move-out puts the shares back and leaves the bill's item lines as they are.
+        const items = await tx.expenseItem.findMany({ where: { expenseId: r.e.id }, orderBy: [{ position: "asc" }, { id: "asc" }] });
         await tx.expenseShare.deleteMany({ where: { expenseId: r.e.id } });
         await tx.expense.update({ where: { id: r.e.id }, data: { splitType: "exact", forMode: "selected", editedAt: new Date(), shares: { create: r.shares.map((s) => ({ memberId: s.memberId, amount: s.amount })) } } });
         await logEvent(tx, {
@@ -209,7 +214,7 @@ export async function moveOut(
           text: `changed ${r.e.description}`,
           details: [`${leaver.name}’s share: ${money(r.e.shares.find((s) => s.memberId === leaver.id)?.amount ?? 0)} → ${money(r.shares.find((s) => s.memberId === leaver.id)?.amount ?? 0)} (moved out ${niceDate(input.lastDay)})`],
           expenseId: r.e.id,
-          undo: { type: "expense_revert", expenseId: r.e.id, before: expenseState(r.e) },
+          undo: { type: "expense_revert", expenseId: r.e.id, before: expenseState({ ...r.e, items }) },
           touches: touchedByExpense(r.e, { ...r.e, shares: r.shares }),
         });
       }
@@ -322,6 +327,7 @@ export async function moveOut(
     if (isDuplicateKey(err)) return { ok: true, payments: [] };
     const msg = String((err as Error)?.message ?? err);
     if (msg.includes("ALREADY_MOVED")) return { ok: false, error: `${leaver.name} has already moved out.` };
+    if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
     if (msg.includes("BILLS_CHANGED")) return { ok: false, error: "A bill changed just now. Check it and try again." };
     throw err;
   }

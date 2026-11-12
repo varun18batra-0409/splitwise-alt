@@ -22,13 +22,11 @@ import { vapidKeys } from "@/lib/push";
 import { changeGroupCurrency, hasOtherMoney, loadOtherMoney, updateGroupBasics } from "@/lib/group-changes";
 import { logEvent } from "@/lib/events";
 import { countryOf } from "@/lib/geo";
-import { needsOkFor } from "@/lib/payment-ok";
-import { createPayment } from "@/lib/payments";
-import { claimKey, cleanKey, fingerprintOf, isDuplicateKey, keyState, previousResult, STALE_KEY_ERROR } from "@/lib/once";
+import { paymentText, recordPaymentCore } from "@/lib/pay-record";
+import { cleanKey, fingerprintOf, isDuplicateKey, keyState, previousResult, STALE_KEY_ERROR } from "@/lib/once";
 import { safePath } from "@/lib/paths";
 import { addRegistered, copyPushTo, inviteByEmail } from "@/lib/invites";
 import { savePushFor, validSub } from "@/lib/push-subs";
-import { formatMoney } from "@/lib/money";
 import { createGroupFor, setTripDates, updateSharing } from "@/lib/group-setup";
 import { addWaitingBill } from "@/lib/home/bills-db";
 import { checkBudgets } from "@/lib/home/budgets-db";
@@ -486,26 +484,9 @@ export async function recordPayment(formData: FormData) {
   const ks = await keyState(key, fp);
   if (ks.state === "stale") redirect(`/groups/${group.id}?tab=balances&error=${encodeURIComponent(STALE_KEY_ERROR)}`);
   if (ks.state === "done" || (!key && (await isDoubleTap(group.id, fromId, toId, amount, myId)))) redirect(`/groups/${group.id}?tab=balances&paid=1`);
-  const names = await db.member.findMany({ where: { id: { in: [fromId, toId] } }, select: { id: true, name: true, accountId: true, claimedAt: true } });
-  const nameOf = (id: string) => names.find((n) => n.id === id)?.name ?? "Someone";
-  let did = "";
-  try {
-   did = await db.$transaction(async (tx) => {
-    const p = await createPayment(tx, { groupId: group.id, fromId, toId, amount, createdById: myId, needsOk: needsOkFor(names.find((n) => n.id === toId), myId) });
-    await claimKey(tx, key, p.id, fp);
-    return logEvent(tx, {
-      groupId: group.id,
-      actorId: myId,
-      kind: "payment_recorded",
-      text: paymentText(myId, fromId, toId, nameOf(fromId), nameOf(toId), formatMoney(amount, group.currency)),
-      paymentId: p.id,
-      undo: { type: "payment_delete", paymentId: p.id },
-    });
-   });
-  } catch (err) {
-    if (!isDuplicateKey(err)) throw err;
-  }
-  redirect(`/groups/${group.id}?tab=balances&paid=1${did ? `&did=${did}` : ""}`);
+  const r = await recordPaymentCore({ groupId: group.id, fromId, toId, amount, currency: group.currency, myId, key, fp, warnOver: false });
+  if (r.kind === "refused") redirect(`/groups/${group.id}?tab=balances&error=${encodeURIComponent(r.error)}`);
+  redirect(`/groups/${group.id}?tab=balances&paid=1${r.kind === "done" && r.did ? `&did=${r.did}` : ""}`);
 }
 
 // Close a group (hide it from the main list, stop new expenses) or reopen it.
@@ -540,58 +521,13 @@ export async function settleAcrossGroups(formData: FormData) {
   let parts: { groupId: string; fromId: string; toId: string; amount: number }[] = [];
   try {
     const raw = JSON.parse(String(formData.get("parts") ?? "[]"));
-    if (Array.isArray(raw)) {
-      // The same part twice would record the same payment twice.
-      const seen = new Set<string>();
-      parts = raw.filter((p) => {
-        const k = `${p?.groupId}|${p?.fromId}|${p?.toId}`;
-        if (seen.has(k)) return false;
-        seen.add(k);
-        return true;
-      });
-    }
+    if (Array.isArray(raw)) parts = raw.filter((p) => p && typeof p === "object").map((p) => ({ groupId: String(p.groupId), fromId: String(p.fromId), toId: String(p.toId), amount: Number(p.amount) }));
   } catch {
     redirect("/settle?settle=error");
   }
-  const key = cleanKey(formData.get("rid"));
-  const fp = fingerprintOf("settle-across", ...parts.map((p) => `${p?.groupId}|${p?.fromId}|${p?.toId}|${p?.amount}`).sort());
-  const ks = await keyState(key, fp);
-  if (ks.state === "stale") redirect("/settle?settle=stale");
-  if (ks.state === "done") redirect("/settle?settle=done");
-  const { loadGroup } = await import("@/lib/group-data");
-  const memberships = await getMemberships();
-  const checked: { groupId: string; fromId: string; toId: string; amount: number; currency: string; names: Map<string, string>; needsOk: boolean }[] = [];
-
-  for (const p of parts) {
-    const myId = memberships[String(p.groupId)];
-    const data = myId ? await loadGroup(String(p.groupId), { events: false }) : null;
-    if (!data || !myId) redirect("/settle?settle=error");
-    if (data.group.deletedAt || data.group.closed || (await hasLeft(data.group.id, myId))) redirect("/settle?settle=changed");
-    const ok = data.transfers.some((t) => t.from === p.fromId && t.to === p.toId && t.amount === p.amount) && (p.fromId === myId || p.toId === myId);
-    if (!ok) redirect("/settle?settle=changed"); // balances moved since the page loaded
-    checked.push({ ...p, currency: data.group.currency, names: new Map(data.group.members.map((m) => [m.id, m.name])), needsOk: needsOkFor(data.group.members.find((m) => m.id === p.toId), myId) });
-  }
-
-  try {
-   await db.$transaction(async (tx) => {
-    await claimKey(tx, key, "settled", fp);
-    for (const c of checked) {
-      const myId = memberships[c.groupId];
-      const pay = await createPayment(tx, { groupId: c.groupId, fromId: c.fromId, toId: c.toId, amount: c.amount, createdById: myId, needsOk: c.needsOk });
-      await logEvent(tx, {
-        groupId: c.groupId,
-        actorId: myId,
-        undo: { type: "payment_delete", paymentId: pay.id },
-        kind: "payment_recorded",
-        text: `${paymentText(myId, c.fromId, c.toId, c.names.get(c.fromId) ?? "Someone", c.names.get(c.toId) ?? "Someone", formatMoney(c.amount, c.currency))} (Smart Settle across groups)`,
-        paymentId: pay.id,
-      });
-    }
-   });
-  } catch (err) {
-    if (!isDuplicateKey(err)) throw err;
-  }
-  redirect("/settle?settle=done");
+  const { settleAcrossCore } = await import("@/lib/cross-settle-db");
+  const r = await settleAcrossCore(parts, await getMemberships(), cleanKey(formData.get("rid")));
+  redirect(`/settle?settle=${r}`);
 }
 
 // "Record a payment": any amount (full or part) between any two people in the group.
@@ -624,14 +560,6 @@ export async function recordCustomPayment(formData: FormData) {
   if (fromId === toId) back("Pick two different people.");
   const amount = parseAmount(amountText, group.currency);
   if (amount === null || amount <= 0) back(amountError(amountText, group.currency));
-  // More than they owe (often a typo with an extra zero): ask once before saving.
-  if (!potGame && formData.get("over") !== "1") {
-    const { loadGroup } = await import("@/lib/group-data");
-    const data = await loadGroup(group.id, { events: false });
-    const owes = Math.max(0, -(data?.net[fromId] ?? 0));
-    if (amount! > owes)
-      redirect(overpayHref(group.id, { from: fromId, to: toId, amount: amountText, owes: String(owes) }, fromSettle));
-  }
   const done = potGame ? `/groups/${group.id}/pot/${potGame}?paid=1` : fromSettle ? `/groups/${group.id}/settle?paid=1` : `/groups/${group.id}?tab=balances&paid=1`;
   const key = cleanKey(formData.get("rid"));
   const fp = fingerprintOf("pay-custom", group.id, fromId, toId, amount, potGame, fromSettle);
@@ -639,24 +567,11 @@ export async function recordCustomPayment(formData: FormData) {
   if (ks.state === "stale") back(STALE_KEY_ERROR);
   if (ks.state === "done" || (!key && (await isDoubleTap(group.id, fromId, toId, amount!, myId)))) redirect(done);
 
-  let did = "";
-  try {
-   did = await db.$transaction(async (tx) => {
-    const p = await createPayment(tx, { groupId: group.id, fromId, toId, amount: amount!, createdById: myId, needsOk: needsOkFor(group.members.find((m) => m.id === toId), myId) });
-    await claimKey(tx, key, p.id, fp);
-    return logEvent(tx, {
-      groupId: group.id,
-      actorId: myId,
-      kind: "payment_recorded",
-      text: paymentText(myId, fromId, toId, nameOf(fromId)!, nameOf(toId)!, formatMoney(amount!, group.currency)),
-      paymentId: p.id,
-      undo: { type: "payment_delete", paymentId: p.id },
-    });
-   });
-  } catch (err) {
-    if (!isDuplicateKey(err)) throw err;
-  }
-  redirect(did ? `${done}&did=${did}` : done);
+  // More than they (or the person paid) can owe each other (often a typo with an extra zero): asked once, checked inside the write.
+  const r = await recordPaymentCore({ groupId: group.id, fromId, toId, amount: amount!, currency: group.currency, myId, key, fp, warnOver: !potGame && formData.get("over") !== "1" });
+  if (r.kind === "refused") back(r.error);
+  if (r.kind === "over") redirect(overpayHref(group.id, { from: fromId, to: toId, amount: amountText, owes: String(r.limit), side: r.side }, fromSettle));
+  redirect(r.kind === "done" && r.did ? `${done}&did=${r.did}` : done);
 }
 
 const ADMIN_ONLY = "Only the person who started the group can do that.";
@@ -720,10 +635,10 @@ export async function pushPublicKey(): Promise<string> {
   return (await vapidKeys()).publicKey;
 }
 
-export async function savePushSubscription(sub: PushSub): Promise<{ ok: boolean; groups: number }> {
+export async function savePushSubscription(sub: PushSub): Promise<{ ok: boolean; groups: number; unsupported?: boolean }> {
   if (!(await allow(`push:${(await originAndIp()).ip}`, 60, 3600))) return { ok: false, groups: 0 };
   const clean = validSub(sub);
-  if (!clean) return { ok: false, groups: 0 };
+  if (!clean) return { ok: false, groups: 0, unsupported: true };
   const r = await savePushFor(await getMemberships(), clean);
   return { ok: r.ok, groups: r.groups };
 }
@@ -775,15 +690,6 @@ export async function verifyCode(formData: FormData) {
   redirect(`${back}${back.includes("?") ? "&" : "?"}signedin=1`);
 }
 
-// How a payment reads in the history and alerts, after the name of whoever
-// recorded it: "Ravi paid Varun ₹5,000", "Varun got ₹5,000 from Ravi", or
-// "Asha recorded Ravi paid Varun ₹5,000".
-function paymentText(actorId: string, fromId: string, toId: string, from: string, to: string, amount: string): string {
-  if (actorId === fromId) return `paid ${to} ${amount}`;
-  if (actorId === toId) return `got ${amount} from ${from}`;
-  return `recorded ${from} paid ${to} ${amount}`;
-}
-
 // You page → "Your name": the name friends see in invites and when they search
 // for you. Optionally also renames you in the groups where you still go by the
 // old name (a different name you picked for one group is left alone).
@@ -831,10 +737,14 @@ export async function signOutThisPhone(formData?: FormData) {
   redirect("/");
 }
 
-export async function deleteMyAccount() {
+export async function deleteMyAccount(formData?: FormData) {
+  // This phone keeps its notifications (its address comes from the page, like "Sign out other phones"); every other phone stops.
+  const keep = String(formData?.get("endpoint") ?? "");
+  const keepEndpoint = keep.startsWith("https://") && keep.length < 1000 ? keep : undefined;
   const account = await getAccount();
-  await keepGroupsDropAccount();
-  if (account) await deleteAccount(account.id);
+  const groups = await getMemberships(); // before deleting: the account's names are unlinked by it
+  if (account) await deleteAccount(account.id, { keepEndpoint });
+  await keepGroupsDropAccount(groups); // after: the cookie carries each name's fresh epoch
   redirect("/?deleted=account");
 }
 

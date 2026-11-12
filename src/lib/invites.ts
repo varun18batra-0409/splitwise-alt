@@ -8,6 +8,7 @@ import { deliverNotes } from "./account-notes";
 import { groupAdminId } from "./group-admin";
 import { setMember } from "./people";
 import { randomBytes } from "node:crypto";
+import { validSub } from "./push-subs";
 
 // Invite and "added you" emails one person can send in a day. The whole app's
 // daily email allowance is small, so one person (or a spammer) can't use it up.
@@ -96,6 +97,7 @@ export async function copyPushTo(accountId: string, memberId: string) {
   const others = await db.member.findMany({ where: { accountId, id: { not: memberId } }, select: { id: true } });
   const subs = await db.pushSubscription.findMany({ where: { memberId: { in: others.map((m) => m.id) } } });
   for (const s of subs) {
+    if (!validSub({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } })) continue; // never copy an address we wouldn't have accepted
     await db.pushSubscription.upsert({
       where: { memberId_endpoint: { memberId, endpoint: s.endpoint } },
       create: { memberId, endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth },

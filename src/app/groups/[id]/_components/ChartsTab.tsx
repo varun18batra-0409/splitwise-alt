@@ -152,7 +152,7 @@ function PersonByCategory({ rows, money }: { rows: { id: string; name: string; t
                   <Link href={p.href} className="block text-[13px] leading-tight active:opacity-70">
                     <span className="flex items-center gap-1.5">
                       <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ background: CAT_COLOUR[p.id] ?? CAT_COLOUR.other }} />
-                      <span className="whitespace-nowrap text-fg/60">{p.label}</span>
+                      <span className="min-w-0 break-words text-fg/60">{p.label}</span>
                     </span>
                     <span className="mt-0.5 block pl-3.5 tabular-nums text-fg/90">{money(p.amount)}</span>
                   </Link>

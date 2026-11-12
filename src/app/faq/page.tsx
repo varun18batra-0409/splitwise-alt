@@ -1,5 +1,6 @@
 import Link from "@/components/Link";
 import { PageHeader } from "@/components/ui";
+import { supportHref } from "@/lib/support";
 
 export const metadata = { title: "FAQ", description: "Answers about Loopin: is it free, currencies, repeat bills, inviting friends, your data and privacy.", alternates: { canonical: "/faq" } };
 
@@ -247,7 +248,35 @@ const sections = (): { title: string; items: QA[] }[] => [
       },
       {
         q: "How do I delete a group, or my account?",
-        a: "A group can be deleted from its settings; whoever deleted it or looks after it can restore it from Your groups → Recently deleted (also linked from You) for 30 days, and after that it’s erased for good. To remove your email and sign-in, go to You → Delete my email & sign-in. Your groups stay, under the name you used in them.",
+        a: "A group can be deleted from its settings; whoever deleted it or looks after it can restore it from Your groups → Recently deleted (also linked from You) for 30 days, and after that it’s erased for good. To remove your account, go to You → Delete my email & sign-in. That erases your email and sign-in, passkeys, the postcards you sent or got (with their photos), your alerts and the collections you organised. What stays in shared groups: your name in their history, an invitation that holds your email, and a phone number someone else saved for you. They are other people’s shared records.",
+      },
+      {
+        q: "Does Loopin upload my contacts?",
+        a: "No. When you pick a person from your phone’s contacts to add them to a group, that person’s name and phone number (only the one you picked) are saved to the group. Loopin never uploads your address book.",
+      },
+      {
+        q: "Does Loopin’s AI read my bills?",
+        a: "Only if you say yes. The first time Loopin could use AI (to read a bill photo you scan, or a line it can’t follow on its own), it asks. If you allow it, that photo or line and your group’s first names go to Anthropic, an AI company. If you say Not now, bill photos are just attached and lines stay as you typed them. Change your answer any time in You → Privacy and safety.",
+      },
+      {
+        q: "How do I report or block someone?",
+        a: "On a postcard you got, on a friend’s passport, or on a person in a group’s People screen, tap Report (spam, abusive or something else) or Block. We look at reports within 24 hours. Blocking stops postcards, passports and nudges between you, and hides their cards and passport from you. You’ll still see shared group expenses and balances. Unblock from You → Privacy and safety.",
+      },
+      {
+        q: "What does someone who left a group still see?",
+        a: "Someone who left sees the group as it was the day they left. Notes on expenses that were edited after they left are not shown to them.",
+      },
+      {
+        q: "How do I contact support?",
+        a: (
+          <>
+            Open <strong>You → Privacy and safety → Contact support</strong>, or go straight to the{" "}
+            <a href={supportHref()} className={link}>
+              support page
+            </a>
+            .
+          </>
+        ),
       },
       {
         q: "What does fingerprint / face sign-in share with Loopin?",

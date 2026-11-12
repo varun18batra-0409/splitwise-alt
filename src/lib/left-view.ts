@@ -65,6 +65,15 @@ export function scopeForLeaver<E extends ExpenseRow, P extends PaymentRow, V ext
   };
 }
 
+// Notes are not part of "what moved their money". If someone changes an expense after the viewer left (editedAt is after
+// the cut-off), its notes are hidden from the viewer: the note is blanked and notesHidden says why, so the screen can say
+// "Notes hidden: changed after you left." Only marked when there were notes to hide. Expenses edited before they left,
+// or never edited, keep their notes. (Members still in the group never go through this.)
+export function hideLaterNotes<E extends { notes?: string | null; editedAt?: Date | null }>(rows: E[], cut: Date): (E & { notesHidden?: boolean })[] {
+  const upTo = cut.getTime();
+  return rows.map((e) => (e.editedAt && e.editedAt.getTime() > upTo && e.notes ? { ...e, notes: "", notesHidden: true } : e));
+}
+
 // Only their own balance (worked out from the FULL ledger by the caller) and only the Smart Settle
 // payments they are part of.
 export function scopeBalances<T extends { from: string; to: string }>(net: Record<string, number>, transfers: T[], me: string): { net: Record<string, number>; transfers: T[] } {

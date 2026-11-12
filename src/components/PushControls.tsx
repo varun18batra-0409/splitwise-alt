@@ -89,6 +89,11 @@ export function PhoneStatus({ compact = false }: { compact?: boolean }) {
         (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(key) }));
       const json = sub.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } };
       const res = await savePushSubscription(json);
+      if (res.unsupported) {
+        setError("This browser's notification service isn't supported. Try Chrome, Safari, Firefox or Edge.");
+        setState("off");
+        return;
+      }
       if (!res.ok) throw new Error("save");
       setState("on");
     } catch {

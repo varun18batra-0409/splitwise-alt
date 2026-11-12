@@ -503,6 +503,12 @@ async function main() {
     g = new URL(V.url()).pathname.replace(/\/invite$/, "");
     await V.getByText("is ready. Now bring your people in").waitFor();
     for (const t of ["People on Loopin", "From your contacts", "By email"]) await V.getByText(t, { exact: true }).waitFor();
+    // F3: the "(you)" row never says "Not on Loopin yet". F14: WhatsApp and Copy link up front, the rest under More ways, WhatsApp in Loopin's own green.
+    assert(!/Not on Loopin yet/.test(await V.locator("li").filter({ hasText: "(you)" }).first().innerText()), "the (you) row says “Not on Loopin yet”");
+    await V.getByText("More ways", { exact: true }).waitFor();
+    await V.getByRole("button", { name: "Copy link" }).waitFor();
+    const wa = await V.locator("[data-invite-whatsapp]").evaluate("el => getComputedStyle(el).backgroundColor");
+    assert(wa === "rgb(111, 227, 168)", `the WhatsApp invite button is ${wa}, not Loopin's green (#6fe3a8)`);
     assert((await V.getByText("Add members yourself").count()) === 0, "old “Add members yourself” still there");
     const m = /\/join\/([A-Za-z0-9_-]+)/.exec(await V.content());
     assert(m, "no join link on the page");
@@ -858,12 +864,18 @@ async function main() {
   // Every payment row on Settle up has the same layout: one filled main button (Open payment app or Remind), one outlined action
   // ("I've paid" = a claim that counts after Confirm received, or direct "I've paid" / "They've paid me" / "Mark paid" where
   // the other person can't confirm) and a "Paid a different amount?" link. There is no amount box on the row any more.
+  // F1: the quiet closing actions and "Paid a different amount?" sit under a "More options" link: open the one inside `scope` first.
+  const openMore = async (scope: ReturnType<Page["locator"]>) => {
+    const d = scope.locator("details[data-more-options]").first();
+    if ((await d.count()) && !(await d.evaluate("el => el.open"))) await d.locator("summary").click();
+  };
   const settleCards = (page: Page) => page.locator("main ul > li[data-transfer-row]");
   // Record row i's payment so it counts straight away, in full or for another amount: through "Paid a different amount?" (Record a payment).
   const rowRecord = async (page: Page, i: number, o: { amount?: string; dbl?: boolean } = {}) => {
     const card = settleCards(page).nth(i);
     const other = card.getByRole("link", { name: "Paid a different amount?" });
     assert(await other.count(), "a Settle up row has no “Paid a different amount?” link");
+    await openMore(card);
     assert((await card.locator('input[name="amount"]:not([type="hidden"])').count()) === 0, "a Settle up row still has an amount box");
     await other.click();
     await page.waitForURL(/\/pay\?/);
@@ -896,7 +908,7 @@ async function main() {
       assert((await row.locator('input[name="amount"]:not([type="hidden"])').count()) === 0, `row ${i} still has an amount box`);
       assert((await row.getByText("Mark paid", { exact: true }).count()) <= 1, `row ${i} has look-alike buttons`);
     }
-    // Under the rows: ONE main closing button; "Record a different payment" and the other close action are quiet links.
+    // Under the rows: at most ONE main closing button; Mark all, Settle everything and "Record a different payment" are quiet links under More options.
     assert((await V.locator("[data-settle-actions] .pop").count()) <= 1, "more than one filled closing button under the payments");
     // One filled button per screen area: on the whole page, the rows' own main buttons plus at most one closing button,
     // and none at all when a single payment is shown (that payment's own button is the main one).
@@ -904,7 +916,17 @@ async function main() {
     const allFilled = await V.locator("main .pop").count();
     assert(allFilled <= rowFilled + 1, `${allFilled} filled buttons on Settle up, but the rows have ${rowFilled}`);
     if (n === 1) assert((await V.locator("[data-settle-actions] .pop").count()) === 0, "a second big button under a single payment");
-    assert((await V.getByRole("button", { name: /^Mark all \d+ paid$/ }).count()) === 0, "the old “Mark all N paid” wording is back");
+    // F1/F18: one wording, "Mark all N paid", quiet and under More options; it counts only other people's payments (never mine).
+    const markAll = V.locator("[data-settle-actions]").getByRole("button", { name: /Mark all/ });
+    assert((await V.getByRole("button", { name: /^Mark all paid \(\d+\)$/ }).count()) === 0, "the old “Mark all paid (N)” wording is back");
+    assert((await V.locator("[data-settle-actions] details[data-more-options]").count()) === 1, "Settle up has no “More options” under the payments");
+    await openMore(V.locator("[data-settle-actions]"));
+    const mineCount = await settleCards(V).filter({ hasText: /^(?:[A-Z] )?You pay / }).count();
+    const m = await markAll.count();
+    if (m) assert(new RegExp(`^Mark all ${n - mineCount} paid$`).test(((await markAll.first().innerText()) ?? "").trim()), `Mark all says ${await markAll.first().innerText()} but ${n - mineCount} payments are other people's`);
+    // F8: a row paid by UPI (rupees, the person has a UPI ID) shows no "or pay with PayPal" link.
+    const rowsWithAlt = await V.locator("main li[data-transfer-row]").evaluateAll((els) => els.filter((e) => e.querySelector("[data-pay='upi']") && e.querySelector("[data-pay-alt]")).length);
+    assert(rowsWithAlt === 0, "a UPI row still offers “or pay with PayPal”");
     return `${n} payments suggested`;
   });
   await step(V, "Settle", "Bottom bar “Settle” inside a group goes to the same screen", async () => {
@@ -1023,6 +1045,7 @@ async function main() {
   });
   await step(V, "Settle", "Settle everything & close, then reopen", async () => {
     await go(V, `${g}/settle`);
+    await openMore(V.locator("[data-settle-actions]"));
     await V.getByRole("button", { name: /Settle everything & close|Close group/ }).click();
     await V.waitForURL(/closed=1/);
     await V.getByText("Closed groups").first().waitFor();
@@ -1247,8 +1270,15 @@ async function main() {
       const line = (await who.innerText()).replace(/\s+/g, " ").trim();
       assert(/^\S.*[₹$€£]\s?\d/.test(line), `the who-line has no amounts: ${line}`);
       assert((await who.locator("b").count()) >= 1, "the who-line names aren't bold");
-      const lineBox = (await who.locator("[data-who-line]").boundingBox())!;
-      assert(lineBox.height < 24, `the who-line wraps (${Math.round(lineBox.height)}px tall)`);
+      // UX-01: each row of the who-line (main side; "You owe …" / "… owes you" when money also goes the other way) is whole:
+      // nothing cut off, and the direction words are on screen whenever the opposite row is.
+      const rows = (await who.locator("[data-who-line]").evaluateAll(
+        (els) => els.map((e) => ({ row: e.getAttribute("data-who-row"), cut: e.scrollWidth > e.clientWidth + 1, text: (e as HTMLElement).innerText })),
+      )) as { row: string; cut: boolean; text: string }[];
+      assert(rows.length >= 1 && rows[0].row === "main", "the who-line has no main row");
+      assert(rows.every((r) => !r.cut), `a who-line row is cut off: ${rows.filter((r) => r.cut).map((r) => r.text).join(" | ")}`);
+      const opp = rows.find((r) => r.row === "opposite");
+      if (opp) assert(/(^You owe )|( owes? you )/.test(opp.text.replace(/\s+/g, " ") + " ") && /\d/.test(opp.text), `the other-way row lost its direction words or amount: ${opp.text}`);
       const main = money.locator("[data-money-action][data-emphasis='bright']");
       const label = (await main.innerText()).trim();
       const href = (await main.getAttribute("href")) ?? "";
@@ -1293,7 +1323,7 @@ async function main() {
     const box = (await card.boundingBox())!;
     assert(box.y >= 0 && box.y + box.height <= 667, `the money card ends at ${Math.round(box.y + box.height)}px of 667`);
     // Compact: about 165px tall, about 210px with the "needs you" line folded in (a few px of slack for fonts).
-    const limit = (await card.locator("[data-need-line]").count()) ? 216 : 172;
+    const limit = ((await card.locator("[data-need-line]").count()) ? 216 : 172) + ((await card.locator("[data-who-row='opposite']").count()) ? 24 : 0);
     assert(box.height <= limit, `the money card is ${Math.round(box.height)}px tall (should be about ${limit - 6} or less)`);
     for (const b of await card.locator("[data-money-action]").all()) {
       const bb = (await b.boundingBox())!;
@@ -1344,6 +1374,45 @@ async function main() {
     // One stories row at most, and not again lower down; no row at all when there are no stories.
     assert((await V.locator("[data-stories]").count()) <= 1, "stories show twice on Home");
     if ((await V.locator("[data-story]").count()) === 0) assert((await V.getByRole("region", { name: "Stories" }).count()) === 0, "an empty stories row is showing");
+  });
+  await step(V, "Home", "F6/F10/F19: FAQ, Privacy and Terms on Home each have a 44px tap area with space between them; Latest says “Payment”, never “Settle-up”; the You page footer has a Privacy link with a 44px target", async () => {
+    await go(V, "/");
+    const boxes: { x: number; w: number; h: number }[] = [];
+    for (const name of ["FAQ", "Privacy", "Terms"]) {
+      const l = V.locator("[data-footer-links]").getByRole("link", { name, exact: true });
+      await l.waitFor();
+      const b = (await l.boundingBox())!;
+      assert(b.height >= 43.5 && b.width >= 43.5, `the ${name} link is ${Math.round(b.width)}×${Math.round(b.height)}px (needs 44×44)`);
+      boxes.push({ x: b.x, w: b.width, h: b.height });
+    }
+    for (let i = 1; i < boxes.length; i++) assert(boxes[i].x >= boxes[i - 1].x + boxes[i - 1].w - 0.5, "the footer links overlap each other");
+    assert(!/Settle-up\b/.test(await V.locator("main").innerText()), "Home still says “Settle-up” somewhere (Latest should say “Payment”)");
+    await go(V, "/account");
+    const priv = V.locator("[data-footer-links]").getByRole("link", { name: "Privacy", exact: true });
+    await priv.waitFor();
+    const pb = (await priv.boundingBox())!;
+    assert(pb.height >= 43.5, `the You page Privacy link is ${Math.round(pb.height)}px tall`);
+    assert((await priv.getAttribute("href")) === "/privacy", "the You page Privacy link goes elsewhere");
+    // F9: "Your share / You paid / You're owed" everywhere, including the Recap on Search (no "My cut", "I paid", "I'm owed").
+    await go(V, "/search");
+    const recap = await V.locator("main").innerText();
+    assert(!/My cut|\bI paid\b|I’m owed|I owe\b/.test(recap), "Search/Recap still says “My cut” / “I paid” / “I’m owed”");
+  });
+  await step(V, "Home", "F5: an open story's full-screen photo is requested big and sharp (its image address asks for 1920px or wider, quality 90)", async () => {
+    await go(V, "/");
+    const first = V.locator("[data-stories] button").first();
+    if (!(await first.count())) return "no story on Home to open";
+    await first.click();
+    await V.waitForTimeout(700);
+    const imgs = (await V.evaluate(
+      "Array.from(document.querySelectorAll('img')).filter(function(i){return i.getBoundingClientRect().height > 400}).map(function(i){return i.srcset || i.src})",
+    )) as string[];
+    if (imgs.length) {
+      const widths = [...imgs.join(",").matchAll(/[?&]w=(\d+)/g)].map((m) => Number(m[1]));
+      assert(widths.length > 0 && Math.max(...widths) >= 1920, `the story photo is only offered up to ${Math.max(0, ...widths)}px wide`);
+      assert(/q=90/.test(imgs.join(",")), "the story photo isn't requested at quality 90");
+    }
+    await V.keyboard.press("Escape");
   });
   await step(V, "Home", "“+ New group” is the first card in Your groups (dashed, as tall as the polaroids, at least 44px), whatever the number of groups, and one tap opens the new-group page; “See all” stays in the header", async () => {
     await go(V, "/");
@@ -1400,7 +1469,7 @@ async function main() {
     }
     assert((await V.getByText(/^(Recently deleted|Hide recently deleted)/).count()) === 0, "Recently deleted is still on Home");
   });
-  await step(V, "Home", "On the narrowest phone (320×640) the money card has no sideways scroll: the who-line stays on one line, the buttons keep their words inside, the card is tinted", async () => {
+  await step(V, "Home", "On the narrowest phone (320×640) the money card has no sideways scroll: no part of the who-line is cut off (also at 360 and 390), both directions show, the buttons keep their words inside, the card is tinted", async () => {
     const was = V.viewportSize();
     await V.setViewportSize({ width: 320, height: 640 });
     await go(V, "/");
@@ -1422,8 +1491,17 @@ async function main() {
     if (tone !== "square") {
       const bg = await card.evaluate((el) => getComputedStyle(el).backgroundImage);
       assert(/gradient/.test(bg), "a card that owes or is owed has no tint");
-      const who = card.locator("[data-who-line]");
-      if (await who.count()) assert((await who.boundingBox())!.height < 24, "the who-line wraps at 320px");
+    }
+    // UX-01: at 320, 360 and 390 px every who-line row is whole (scrollWidth <= clientWidth) and, with money going both ways, both rows show.
+    for (const w of [320, 360, 390]) {
+      await V.setViewportSize({ width: w, height: 700 });
+      await go(V, "/");
+      await card.waitFor();
+      const rows = (await card.evaluate(
+        "Array.from(document.querySelectorAll('[aria-label=\"Your money\"] [data-who-line]')).map(function(e){return {row:e.getAttribute('data-who-row'),cut:e.scrollWidth>e.clientWidth+1,text:e.innerText}})",
+      )) as { row: string; cut: boolean; text: string }[];
+      assert(rows.every((r) => !r.cut), `at ${w}px a who-line row is cut off: ${rows.filter((r) => r.cut).map((r) => r.text).join(" | ")}`);
+      if (rows.some((r) => r.row === "opposite")) assert(rows.length === 2 && rows[0].row === "main", `at ${w}px both directions should show as two rows`);
     }
     if (was) await V.setViewportSize(was);
   });
@@ -1825,6 +1903,26 @@ async function main() {
     await page.getByText(/Install app/).first().waitFor();
     await ctx.close();
   });
+  await step(null, "Sign in", "UX-04: the sign-in header is short (about 96px) on a short phone (390×667) and tall on a normal one (390×844), so the small-phone variant works for both width and height", async () => {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 667 }, locale: "en-IN" });
+    const page = await ctx.newPage();
+    page.setDefaultTimeout(15_000);
+    try {
+      await go(page, "/signin");
+      const header = page.locator("[data-signin-header]");
+      await header.waitFor();
+      const short = (await header.boundingBox())!.height;
+      assert(short >= 80 && short <= 130, `the sign-in header is ${Math.round(short)}px tall at 390×667 (should be about 96)`);
+      await page.setViewportSize({ width: 390, height: 844 });
+      const tall = (await header.boundingBox())!.height;
+      assert(tall >= 300, `the sign-in header is ${Math.round(tall)}px tall at 390×844 (should be tall, about 420)`);
+      await page.setViewportSize({ width: 320, height: 900 });
+      const narrow = (await header.boundingBox())!.height;
+      assert(narrow <= 130, `the sign-in header is ${Math.round(narrow)}px tall at 320×900 (a narrow phone should get the short one)`);
+    } finally {
+      await ctx.close();
+    }
+  });
   await step(V, "Get the app", "Home has an “App” button and the service worker is registered (needed to install)", async () => {
     await go(V, "/");
     await V.getByRole("button", { name: "Get the app" }).waitFor();
@@ -1887,21 +1985,21 @@ async function main() {
     await V.waitForURL(/\/welcome/);
     return `${imgs} photos on the guide (${sizes})`;
   });
-  await step(null, "Help", "The 1-minute tour has 4 slides (make a group, add what you paid, see who owes then settle, every trip becomes a story), in words that work outside India, and none says “no sign-up”", async () => {
+  await step(null, "Help", "The 1-minute tour has 6 slides (make a group, add what you paid, see who owes then settle, every trip becomes a story, send a postcard, collect your passport), in words that work outside India, and none says “no sign-up”", async () => {
     const { ctx, page } = await person(browser);
     await go(page, "/welcome");
     const seen: string[] = [];
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 6; i++) {
       seen.push((await page.locator("main").innerText()).replace(/\s+/g, " "));
       const next = page.getByRole("button", { name: /Next/ });
-      if (i < 3) {
+      if (i < 5) {
         await next.click();
         await page.waitForTimeout(500);
       }
     }
-    assert((await page.locator("[data-tour-slide]").count()) === 4, `${await page.locator("[data-tour-slide]").count()} slides, not 4`);
+    assert((await page.locator("[data-tour-slide]").count()) === 6, `${await page.locator("[data-tour-slide]").count()} slides, not 6 (the tour stays at 6 or fewer)`);
     const all = seen.join(" ");
-    for (const t of ["Make a group.", "Add what you paid.", "See who owes. Then settle.", "Every trip becomes a story."]) assert(all.includes(t), `no “${t}” slide`);
+    for (const t of ["Make a group.", "Add what you paid.", "See who owes. Then settle.", "Every trip becomes a story.", "Send a postcard.", "Collect your passport."]) assert(all.includes(t), `no “${t}” slide`);
     assert(/to the last paisa or cent/.test(all), "the add slide doesn’t say “to the last paisa or cent”");
     assert(/Pay each other however you like/.test(all), "the settle slide doesn’t say “Pay each other however you like”");
     assert(!/no sign-up/i.test(all), "a slide still says “no sign-up”");
@@ -2104,6 +2202,13 @@ async function main() {
     await V.waitForURL(/\/move/);
     const t = (await V.locator("main").innerText()).replace(/\s+/g, " ");
     assert(/Final payments/.test(t) && /Asha pays you|You pay Asha|all square/i.test(t), `move-out screen says: ${t.slice(0, 300)}`);
+    // F12: a short title on one line, deductions in plain colour (no green, no minus sign).
+    assert((await V.locator("header h1").first().innerText()).trim() === "Asha moves out", "the move-out title isn't “Asha moves out”");
+    const h1 = (await V.locator("header h1").first().boundingBox())!;
+    assert(h1.height < 44, `the move-out title wraps (${Math.round(h1.height)}px tall)`);
+    for (const d of await V.locator("[data-deduction]").all()) {
+      assert(!/[−-]/.test(await d.innerText()) && !/text-owed/.test((await d.getAttribute("class")) ?? ""), "a move-out deduction is green or has a minus sign");
+    }
     await V.getByRole("button", { name: /mark as moved out/ }).click();
     await V.waitForURL(/tab=activity/);
     const { loadGroup } = await import("../src/lib/group-data");
@@ -2802,6 +2907,7 @@ async function main() {
 
   await step(V, "Add people", "The invite screen shows the group's link and a QR code", async () => {
     await go(V, `${g}/invite`);
+    await V.getByText("More ways", { exact: true }).click(); // F14: WhatsApp and Copy link are the main ways; the rest is under More ways
     await V.getByText("Share the group link or QR code").click();
     await V.waitForTimeout(500);
     assert((await V.locator("svg").filter({ has: V.locator("path") }).count()) > 0, "no QR code");
@@ -2865,6 +2971,7 @@ async function main() {
     const vacc = await db.account.findUniqueOrThrow({ where: { email: email("varun") } });
     const trip = await db.group.findFirstOrThrow({ where: { name: "Manali trip", members: { some: { accountId: vacc.id } } }, orderBy: { createdAt: "desc" } });
     await go(V, `/groups/${trip.id}/settle`);
+    await openMore(V.locator("[data-settle-actions]"));
     await V.getByRole("button", { name: /Settle everything & close|Close group/ }).click();
     await V.waitForURL(/closed=1/);
     await V.getByRole("link", { name: "See the trip report" }).click();
@@ -2937,7 +3044,9 @@ async function main() {
     await page.waitForURL(/ticked=1/);
     await page.getByText("You’re on the list.", { exact: false }).waitFor();
     const p = await page.locator("[data-collection-progress]").innerText();
-    assert(/1 of 3 paid/.test(p) && /₹500/.test(p), `progress reads “${p.replace(/\s+/g, " ")}”`);
+    // UX-03: said-paid money is reported, not confirmed: "Confirmed ₹0" and "Reported, awaiting check ₹500" are separate lines.
+    const rep = await page.locator("[data-collection-reported]").innerText();
+    assert(/1 of 3 paid/.test(p) && /Confirmed ₹0/.test(p) && /Reported, awaiting check ₹500/.test(rep), `progress reads “${p.replace(/\s+/g, " ")}” / “${rep}”`);
     await ctx.close();
   });
 
@@ -2952,7 +3061,7 @@ async function main() {
     await V.getByRole("region", { name: "Still to pay" }).getByRole("listitem").filter({ hasText: "Kabir" }).getByRole("button", { name: "Paid cash" }).click();
     await V.getByRole("region", { name: "Paid" }).getByText(/cash · checked by you/).waitFor();
     const p = await V.locator("[data-collection-progress]").innerText();
-    assert(/2 of 3 paid/.test(p) && /₹1,000/.test(p) && /₹1,500/.test(p), `progress reads “${p.replace(/\s+/g, " ")}”`);
+    assert(/2 of 3 paid/.test(p) && /Confirmed ₹1,000/.test(p) && /₹1,500/.test(p) && (await V.locator("[data-collection-reported]").count()) === 0, `progress reads “${p.replace(/\s+/g, " ")}”`);
   });
 
   await step(V, "Collect", "Varun reminds Asha inside Loopin (bell); a second reminder straight away is refused; Asha sees it in Alerts", async () => {
@@ -3061,10 +3170,11 @@ async function main() {
     await V.locator("[data-expense-summary]").waitFor();
     const pill = await V.locator("[data-expense-summary]").evaluate((el) => {
       const c = getComputedStyle(el);
-      return { bg: c.backgroundColor, ws: c.whiteSpace, overflow: c.textOverflow };
+      return { bg: c.backgroundColor, ws: c.whiteSpace, overflow: c.textOverflow, cut: el.scrollWidth > el.clientWidth + 1 };
     });
     assert(!/rgba\(.*,\s*0?\.\d+\)$/.test(pill.bg) && pill.bg !== "rgba(0, 0, 0, 0)", `the summary pill is see-through: ${pill.bg}`);
-    assert(pill.ws === "nowrap" && pill.overflow === "ellipsis", "the summary pill isn't one row with an ellipsis");
+    // F4: money is never cut off with an ellipsis: the pill wraps onto a second line instead.
+    assert(pill.ws !== "nowrap" && pill.overflow !== "ellipsis" && !pill.cut, "the summary pill is still clipped with an ellipsis instead of wrapping");
     assert((await V.locator("[data-payer-row]").count()) === 1 && (await V.locator("[data-split-row]").count()) === 1, "Who paid / How to split chips aren't each one scrolling row");
   });
   await step(V, "Add", "Editing an expense that has notes opens More by itself, so nothing is hidden", async () => {
@@ -3536,6 +3646,43 @@ async function main() {
     await x.page.goto(base + cardPath);
     await x.page.waitForURL(/\/signin/);
     await x.ctx.close();
+  });
+
+  // ----- Safety: report and block (store rules for things people send each other), and the AI question -----
+  await step(R, "Safety", "Report and block: Ravi reports Asha's postcard (“We'll look at this within 24 hours”), blocks her from there, her card is gone from his view, and he unblocks from You", async () => {
+    assert(cardPath, "no postcard was sent");
+    await go(R, cardPath);
+    await R.locator("[data-report-link]").click();
+    await R.waitForURL(/\/report\?/);
+    await R.getByLabel("Spam").check();
+    await R.getByRole("button", { name: "Send report" }).click();
+    await R.locator("[data-report-done]").waitFor();
+    assert((await R.locator("[data-report-done]").innerText()).includes("We’ll look at this within 24 hours."), "the thank-you words are wrong");
+    const rep = await db.report.findFirstOrThrow({ where: { reporterId: raviAcc.id, targetAccountId: ashaAcc.id } });
+    assert(rep.reason === "spam" && rep.status === "open", "the report wasn't saved as an open spam report");
+    R.once("dialog", (d) => void d.accept());
+    await R.getByRole("button", { name: /^Block / }).click();
+    await R.waitForURL(/\/account\?blocked=1/);
+    await R.getByText("You’ll still see shared group expenses and balances.").waitFor();
+    const gone = await R.goto(base + cardPath);
+    assert(gone?.status() === 404, `a blocked person's postcard still opens (status ${gone?.status()})`);
+    await go(R, "/account#blocked");
+    R.once("dialog", (d) => void d.accept());
+    await R.getByRole("button", { name: "Unblock" }).click();
+    await R.getByText("Unblocked.").waitFor();
+    const back = await R.goto(base + cardPath);
+    assert(back?.status() === 200, `after unblocking the postcard doesn't open (status ${back?.status()})`);
+  });
+  await step(A, "Safety", "AI question: You → Privacy and safety starts “Not asked yet”; Don't allow records no, Allow records yes; Contact support is there", async () => {
+    await go(A, "/account");
+    await A.locator("[data-ai-setting='unasked']").waitFor();
+    await A.getByRole("button", { name: /^Don.t allow$/ }).click();
+    await A.locator("[data-ai-setting='no']").waitFor();
+    assert((await db.account.findUniqueOrThrow({ where: { id: ashaAcc.id } })).aiConsent === "no", "Don't allow wasn't saved");
+    await A.getByRole("button", { name: "Allow", exact: true }).click();
+    await A.locator("[data-ai-setting='yes']").waitFor();
+    assert((await db.account.findUniqueOrThrow({ where: { id: ashaAcc.id } })).aiConsent === "yes", "Allow wasn't saved");
+    await A.locator("[data-contact-support]").waitFor();
   });
 
   // ----- Sharing: a passport is hidden until its owner says yes -----

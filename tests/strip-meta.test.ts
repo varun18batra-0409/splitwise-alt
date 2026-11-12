@@ -45,6 +45,54 @@ describe("photos lose their hidden details before they're stored", () => {
   });
 });
 
+// SEC-09: the WebP file's own size field decides where the picture ends.
+// Hand-worked: "RIFF", size 16, "WEBP", "VP8L", chunk length 4, 4 bytes = 4 + 4 + 8 + 4 = 16 after the 8-byte RIFF header, 24 bytes in all.
+describe("WebP: strict size checks", () => {
+  const le32 = (n: number) => [n & 0xff, (n >> 8) & 0xff, (n >> 16) & 0xff, (n >> 24) & 0xff];
+  const riff = (size: number, body: number[]) => [...txt("RIFF"), ...le32(size), ...txt("WEBP"), ...body];
+  const vp8l = [...txt("VP8L"), ...le32(4), 0x2f, 0, 0, 0];
+  const clean = riff(16, vp8l);
+
+  it("the example file is 24 bytes and passes unchanged", () => {
+    expect(clean.length).toBe(24);
+    expect([...cleanPhoto(new Uint8Array(clean))!]).toEqual(clean);
+  });
+  it("bytes after the end of the RIFF are dropped (7-byte and 9-byte trailers), in both modes", () => {
+    for (const trailer of ["GPS1234", "GPS123456"]) {
+      const withTrailer = new Uint8Array([...clean, ...txt(trailer)]);
+      expect([...cleanPhoto(withTrailer)!]).toEqual(clean);
+      expect([...stripImageMetadata(withTrailer)]).toEqual(clean);
+    }
+    expect(clean.length + 7).toBe(31);
+  });
+  it("a RIFF size that runs past the file is refused", () => {
+    expect(cleanPhoto(new Uint8Array(riff(100, vp8l)))).toBeNull();
+  });
+  it("a RIFF size that leaves stray bytes inside is refused (size 18, 2 stray bytes)", () => {
+    expect(cleanPhoto(new Uint8Array([...riff(18, vp8l), 0x47, 0x50]))).toBeNull();
+  });
+  it("a chunk that runs past the RIFF end is refused", () => {
+    const body = [...txt("VP8L"), ...le32(40), 0x2f, 0, 0, 0];
+    expect(cleanPhoto(new Uint8Array(riff(16, body)))).toBeNull();
+  });
+  it("an odd-length chunk with its pad byte still passes", () => {
+    // VP8L with 5 data bytes + 1 pad: 4 + (8 + 5 + 1) = 18.
+    const odd = riff(18, [...txt("VP8L"), ...le32(5), 0x2f, 0, 0, 0, 1, 0]);
+    expect(odd.length).toBe(26);
+    expect([...cleanPhoto(new Uint8Array(odd))!]).toEqual(odd);
+  });
+  it("Exif and XMP chunks are removed and the size field is rebuilt (valid)", () => {
+    const exif = [...txt("EXIF"), ...le32(4), ...txt("GPS!")];
+    const withExif = riff(4 + 12 + 12, [...vp8l, ...exif]);
+    const out = cleanPhoto(new Uint8Array(withExif))!;
+    expect([...out]).toEqual(clean);
+  });
+  it("the lenient version gives a broken WebP back unchanged", () => {
+    const broken = new Uint8Array(riff(100, vp8l));
+    expect([...stripImageMetadata(broken)]).toEqual([...broken]);
+  });
+});
+
 describe("who looks after a group", () => {
   const d = new Date();
   it("is the person who started it", () => {

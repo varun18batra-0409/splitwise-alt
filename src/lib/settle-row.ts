@@ -79,7 +79,7 @@ export function planSettleRow(f: RowFacts): RowPlan {
 //   someone who left            -> none (the server refuses it for them)
 //   nothing left to pay         -> "Close group" is the one button
 //   a trip that has ended       -> "Settle everything & close" (2+ payments; with one, that payment's own button is the main one)
-//   other groups, or a trip still on, 2+ payments -> "Mark all paid (N)" (the group stays open)
+//   other groups, or a trip still on, 2+ payments -> "mark-all": a quiet "Mark all N paid" under More options (others' payments only; the group stays open)
 //   one payment                 -> none: that payment's own button is the main one
 export function settleMainAction(i: { type: string; transfers: number; shown: number; left?: boolean; ended?: boolean }): "close" | "mark-all" | null {
   if (i.left) return null;

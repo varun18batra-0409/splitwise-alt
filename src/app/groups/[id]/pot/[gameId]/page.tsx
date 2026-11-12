@@ -201,7 +201,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
       {/* The table */}
       <section aria-label="The table" className="relative overflow-hidden rounded-[24px] px-5 pb-5 pt-5 text-fg [background:radial-gradient(90%_100%_at_100%_0%,#1f6b4a_0%,transparent_60%),linear-gradient(160deg,#123a2a_0%,#0b1612_80%)]">
         <p className="pr-14 text-[11px] font-semibold text-fg/55">
-          {potGameLabel(game.game)} · host {youLow(game.hostId)} · {open ? "playing" : "finished"}
+          {potGameLabel(game.game)} · {youLow(game.hostId)} hosted · {open ? "playing" : "finished"}
         </p>
         {open ? (
           <>

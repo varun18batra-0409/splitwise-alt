@@ -67,7 +67,7 @@ describe("the closing actions under the rows: one main button", () => {
   it("a trip that has ended: Settle everything & close is the main action; Mark all paid is then a quiet link", () => {
     expect(settleMainAction({ type: "trip", transfers: 2, shown: 2, ended: true })).toBe("close");
   });
-  it("a trip still on (or with no dates): Mark all paid, the group stays open", () => {
+  it("a trip still on (or with no dates): "mark-all" (quiet, under More options), the group stays open", () => {
     expect(settleMainAction({ type: "trip", transfers: 2, shown: 2, ended: false })).toBe("mark-all");
     expect(settleMainAction({ type: "trip", transfers: 2, shown: 2 })).toBe("mark-all");
   });
@@ -80,7 +80,7 @@ describe("the closing actions under the rows: one main button", () => {
     expect(settleMainAction({ type: "home", transfers: 2, shown: 2, left: true })).toBeNull();
     expect(settleMainAction({ type: "home", transfers: 0, shown: 0, left: true })).toBeNull();
   });
-  it("a home or card group with 2 payments: Mark all paid (2) is the main one", () => {
+  it("a home or card group with 2 payments: "mark-all" (shown quietly under More options as "Mark all N paid", other people's payments only)", () => {
     expect(settleMainAction({ type: "home", transfers: 2, shown: 2 })).toBe("mark-all");
     expect(settleMainAction({ type: "pot", transfers: 3, shown: 3 })).toBe("mark-all");
   });

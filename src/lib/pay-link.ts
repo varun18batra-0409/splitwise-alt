@@ -6,6 +6,7 @@ import { formatMoney } from "./money";
 import { createPayment } from "./payments";
 import { netBalances } from "./balances";
 import { smartSettle } from "./settle";
+import { guardGroup } from "./money-guard";
 import type { Prisma } from "@prisma/client";
 
 // "I've paid" links. When Asha reminds Ravi from Settle up, the WhatsApp
@@ -121,7 +122,9 @@ export async function recordLinkPayment(s: { link: { id: string; groupId: string
   if (!fresh || fresh.group.closed || fresh.transfers.find((t) => t.from === s.link.fromId && t.to === s.link.toId)?.amount !== s.amount) return false;
   try {
     return await db.$transaction(async (tx) => {
-      // Checked again inside the write: someone may have recorded this money between the read above and now.
+      // The group must still be as read (same currency, open), then checked again inside the write: someone may have
+      // recorded this money between the read above and now.
+      await guardGroup(tx, s.link.groupId, { currency: s.currency });
       if ((await owedInTx(tx, s.link.groupId, s.link.fromId, s.link.toId)) !== s.amount) throw new Error("no longer owed");
       const p = await createPayment(tx, { groupId: s.link.groupId, fromId: s.link.fromId, toId: s.link.toId, amount: s.amount, createdById: s.link.fromId, needsOk: true });
       const claimed = await tx.payLink.updateMany({ where: { id: s.link.id, paymentId: s.link.paymentId }, data: { paymentId: p.id } });

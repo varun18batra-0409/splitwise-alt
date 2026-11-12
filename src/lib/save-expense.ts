@@ -6,6 +6,7 @@ import { formatMoney, isSupportedCurrency } from "./money";
 import { RestoreRefused, restorePayments } from "./payments";
 import { cleanRateText, parseRate, PAYMENT_METHODS } from "./conversion";
 import { diffExpense, expenseState, logEvent, touchedByExpense, type ExpenseSnapshot } from "./events";
+import { GroupChanged, groupChangedText, guardGroup, peopleInExpense } from "./money-guard";
 import type { RateAnswer } from "./rate-cache";
 import { dayKey, parseDay } from "./dates";
 import { claimKey, isDuplicateKey, previousResult, withRetry } from "./once";
@@ -44,6 +45,20 @@ export type Result =
   | { ok: true; id: string; eventId?: string }
   | { ok: false; error: string; duplicateOf?: { id: string; description: string; amount: number; by: string; when: string } };
 
+export type SaveOpts = {
+  ignoreDoubleTap?: boolean;
+  requestKey?: string;
+  checkDuplicate?: boolean;
+  eventText?: string;
+  now?: Date;
+  attach?: Attach;
+  // Runs inside a NEW expense's transaction after the request key is claimed. If it throws, the expense and the key are
+  // rolled back together (the shopping list links its items here).
+  alsoInTx?: (tx: Prisma.TransactionClient, expenseId: string) => Promise<void>;
+  // Tests only: runs after everything has been read and before the transaction begins (the gap in which another server can commit).
+  afterRead?: () => Promise<void>;
+};
+
 const today = () => new Date().toISOString().slice(0, 10);
 
 // Checks and saves one expense — new, or an edit of an existing one. Used by the
@@ -53,7 +68,7 @@ export async function saveExpense(
   input: SaveExpenseInput,
   actingMemberId: string | undefined,
   lookupRate: RateLookupFn,
-  opts: { ignoreDoubleTap?: boolean; requestKey?: string; checkDuplicate?: boolean; eventText?: string; now?: Date; attach?: Attach } = {},
+  opts: SaveOpts = {},
 ): Promise<Result> {
   return withRetry(async () => {
     // The same request again (retry / double tap): it already happened.
@@ -111,16 +126,16 @@ async function writeAttach(tx: Prisma.TransactionClient, groupId: string, expens
   }
 }
 
-// Editing with nothing else changed: do the lines or the photo differ from what is saved?
-async function attachChanges(groupId: string, expenseId: string, a: CleanAttach | undefined): Promise<boolean> {
-  if (!a) return false;
-  if (a.receipt && (a.receipt !== "remove" || (await db.receipt.count({ where: { groupId, expenseId } })) > 0)) return true;
+// Do the item lines or the bill photo differ from what is saved?
+async function attachChanges(groupId: string, expenseId: string, a: CleanAttach | undefined): Promise<{ lines: boolean; photo: boolean }> {
+  const out = { lines: false, photo: false };
+  if (!a) return out;
+  if (a.receipt && (a.receipt !== "remove" || (await db.receipt.count({ where: { groupId, expenseId } })) > 0)) out.photo = true;
   if (a.lines) {
     const cur = await db.expenseItem.findMany({ where: { expenseId }, orderBy: [{ position: "asc" }, { id: "asc" }] });
-    if (cur.length !== a.lines.length) return true;
-    return cur.some((c, i) => c.name !== a.lines![i].name || c.amount !== a.lines![i].amount || c.people !== a.lines![i].people);
+    out.lines = cur.length !== a.lines.length || cur.some((c, i) => c.name !== a.lines![i].name || c.amount !== a.lines![i].amount || c.people !== a.lines![i].people);
   }
-  return false;
+  return out;
 }
 
 // Files of replaced bill photos: delete now if storage is connected (the keys stay on the list until it confirms).
@@ -130,7 +145,7 @@ async function saveExpenseOnce(
   input: SaveExpenseInput,
   actingMemberId: string | undefined,
   lookupRate: RateLookupFn,
-  opts: { ignoreDoubleTap?: boolean; requestKey?: string; checkDuplicate?: boolean; eventText?: string; now?: Date; attach?: Attach },
+  opts: SaveOpts,
 ): Promise<Result> {
   const group = await db.group.findUnique({
     where: { id: input.groupId },
@@ -152,7 +167,7 @@ async function saveExpenseOnce(
   // Editing: anyone in the group can change any expense (every change is logged
   // with who made it and everyone else is notified), but not once it's deleted.
   const existing = input.expenseId
-    ? await db.expense.findFirst({ where: { id: input.expenseId, groupId: group.id }, include: { shares: true } })
+    ? await db.expense.findFirst({ where: { id: input.expenseId, groupId: group.id }, include: { shares: true, items: { orderBy: [{ position: "asc" }, { id: "asc" }] } } })
     : null;
   if (input.expenseId) {
     if (!existing) return { ok: false, error: "That expense no longer exists." };
@@ -260,11 +275,15 @@ async function saveExpenseOnce(
         };
       }
     }
+    await opts.afterRead?.();
     try {
      const saved = await db.$transaction(async (tx) => {
+      // First: the group must still be as it was read (same currency, open, not deleted) and everyone in it still there.
+      await guardGroup(tx, group.id, { currency: group.currency, actorId: actingMemberId, involvedIds: peopleInExpense({ paidById: e.paidById, payers: e.payers, shares: e.shares }) });
       const created = await tx.expense.create({ data: { ...fields, groupId: group.id, createdById: actingMemberId, shares: { create: e.shares } } });
       await claimKey(tx, opts.requestKey, created.id);
       if (attach) await writeAttach(tx, group.id, created.id, attach, true);
+      if (opts.alsoInTx) await opts.alsoInTx(tx, created.id);
       const eventId = await logEvent(tx, {
         groupId: group.id,
         actorId: actingMemberId,
@@ -283,6 +302,7 @@ async function saveExpenseOnce(
     } catch (err) {
       // Everything above is undone together: no expense, no lines, no key. The form keeps what was typed.
       if (err instanceof ReceiptGone) return { ok: false, error: RECEIPT_GONE };
+      if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
       throw err;
     }
   }
@@ -293,11 +313,16 @@ async function saveExpenseOnce(
     nameOf,
   );
   // Nothing changed in the expense itself: only still saved if its item lines or bill photo did change.
-  if (changes.length === 0 && !(await attachChanges(group.id, existing.id, attach))) return { ok: true, id: existing.id };
+  const attachDiff = await attachChanges(group.id, existing.id, attach);
+  if (changes.length === 0 && !attachDiff.lines && !attachDiff.photo) return { ok: true, id: existing.id };
 
+  // Only people who weren't already in this expense have to still be in the group.
+  const newcomers = peopleInExpense({ paidById: fields.paidById, payers: e.payers, shares: e.shares }).filter((id) => !inExisting(id));
+  await opts.afterRead?.();
   let eventId: string;
   try {
    eventId = await db.$transaction(async (tx) => {
+    await guardGroup(tx, group.id, { currency: group.currency, actorId: actingMemberId, involvedIds: newcomers });
     // Only if nobody else saved a change in the meantime (checked and written in one step).
     // A move-out daily charge is part of its month's bill once that bill is being added or was added: edit the bill instead.
     const locked = await chargeLock(tx, group.id, existing.id);
@@ -313,13 +338,17 @@ async function saveExpenseOnce(
       });
     }
     if (attach) await writeAttach(tx, group.id, existing.id, attach, false);
-    if (!changes.length) return "";
+    // Only the item lines changed: still a logged, undoable change. Only the bill photo: logged, with no undo (the old file is deleted).
+    if (!changes.length && !attachDiff.lines) {
+      if (!attachDiff.photo) return "";
+      return logEvent(tx, { groupId: group.id, actorId: actingMemberId, kind: "expense_edited", text: `changed the bill photo on ${name}`, expenseId: existing.id, touches: [] });
+    }
     return logEvent(tx, {
       groupId: group.id,
       actorId: actingMemberId,
       kind: "expense_edited",
       text: `changed ${name}`,
-      details: changes,
+      details: changes.length ? changes : ["Item lines changed"],
       expenseId: existing.id,
       undo: { type: "expense_revert", expenseId: existing.id, before: expenseState(existing) },
       // Only the people whose money in or share changed (a leaver sees the change only if it touched them).
@@ -329,6 +358,7 @@ async function saveExpenseOnce(
   } catch (err) {
     if (err instanceof ChargeLocked) return { ok: false, error: chargeLockedText(err.message) };
     if (err instanceof Clash) return { ok: false, error: "Someone changed this expense a moment ago. Go back and open it again to see the latest version." };
+    if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
     if (err instanceof ReceiptGone) return { ok: false, error: RECEIPT_GONE };
     throw err;
   }

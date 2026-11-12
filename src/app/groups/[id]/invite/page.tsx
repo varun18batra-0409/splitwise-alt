@@ -144,41 +144,47 @@ export default async function AddPeoplePage({
           <p className="mt-1 font-display text-[24px] font-semibold leading-tight tracking-tight">{group.name}</p>
           <div className="mt-4 flex items-center gap-2 rounded-2xl border border-line bg-canvas/50 px-3.5 py-2.5">
             <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-fg/70">{link.replace(/^https?:\/\//, "")}</span>
-            <CopyButton text={link} label="Copy" />
+            <CopyButton text={link} label="Copy link" />
           </div>
-          <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="pop mt-3 flex w-full items-center justify-center gap-2.5 bg-[#25d366] px-4 py-3.5 text-[15px] font-semibold text-[#062c16] [--pop-edge:#128c4a]" data-invite-whatsapp>
+          <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="pop mt-3 flex w-full items-center justify-center gap-2.5 bg-[#6fe3a8] px-4 py-3.5 text-[15px] font-semibold text-[#0b2a1b] [--pop-edge:#3b9c70]" data-invite-whatsapp>
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5z" />
             </svg>
             Invite on WhatsApp
           </a>
-          <div className="mt-2.5">
-            <ShareInvite code={group.inviteCode} groupName={group.name} />
-          </div>
-          <details className="group/link mt-2">
-            <summary className="flex cursor-pointer list-none items-center justify-center gap-1.5 py-1.5 text-xs font-semibold text-fg/60 [&::-webkit-details-marker]:hidden">
-              Share the group link or QR code <span className="transition-transform group-open/link:rotate-90">›</span>
+          {/* F14: WhatsApp and Copy link are the main ways; everything else is one tap further. */}
+          <details className="group/more mt-2" data-more-ways>
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-center gap-1.5 text-xs font-semibold text-fg/60 [&::-webkit-details-marker]:hidden">
+              More ways <span className="transition-transform group-open/more:rotate-90">›</span>
             </summary>
-            <div
-              className="mx-auto mt-3 w-full max-w-[200px] overflow-hidden rounded-2xl bg-[#f4f2ec] p-3 [&_svg]:h-auto [&_svg]:w-full"
-              role="img"
-              aria-label={`QR code to join ${group.name}`}
-              dangerouslySetInnerHTML={{ __html: qr }}
-            />
-            <p className="mt-2 text-center text-xs text-gray-400">Anyone with it can ask to join after signing up</p>
+            <div className="mt-1">
+              <ShareInvite code={group.inviteCode} groupName={group.name} />
+            </div>
+            <details className="group/link mt-2">
+              <summary className="flex cursor-pointer list-none items-center justify-center gap-1.5 py-1.5 text-xs font-semibold text-fg/60 [&::-webkit-details-marker]:hidden">
+                Share the group link or QR code <span className="transition-transform group-open/link:rotate-90">›</span>
+              </summary>
+              <div
+                className="mx-auto mt-3 w-full max-w-[200px] overflow-hidden rounded-2xl bg-[#f4f2ec] p-3 [&_svg]:h-auto [&_svg]:w-full"
+                role="img"
+                aria-label={`QR code to join ${group.name}`}
+                dangerouslySetInnerHTML={{ __html: qr }}
+              />
+              <p className="mt-2 text-center text-xs text-gray-400">Anyone with it can ask to join after signing up</p>
+            </details>
+            {pickAdmin(group.members)?.id === myId && (
+              <form action={makeNewInviteLink} className="mt-1 text-center" data-new-invite-link>
+                <input type="hidden" name="groupId" value={group.id} />
+                <ConfirmButton
+                  message={`Make a new invite link? The old link stops working.${invites.length > 0 ? " Email invites not yet accepted will stop working." : ""}`}
+                  className="py-1.5 text-xs font-semibold text-fg/50 underline underline-offset-4"
+                >
+                  Make a new invite link
+                </ConfirmButton>
+                <p className="text-[11px] text-gray-400">Use this if the link got to someone it shouldn’t.{invites.length > 0 ? " Email invites not yet accepted will stop working." : ""}</p>
+              </form>
+            )}
           </details>
-          {pickAdmin(group.members)?.id === myId && (
-            <form action={makeNewInviteLink} className="mt-1 text-center" data-new-invite-link>
-              <input type="hidden" name="groupId" value={group.id} />
-              <ConfirmButton
-                message={`Make a new invite link? The old link stops working.${invites.length > 0 ? " Email invites not yet accepted will stop working." : ""}`}
-                className="py-1.5 text-xs font-semibold text-fg/50 underline underline-offset-4"
-              >
-                Make a new invite link
-              </ConfirmButton>
-              <p className="text-[11px] text-gray-400">Use this if the link got to someone it shouldn’t.{invites.length > 0 ? " Email invites not yet accepted will stop working." : ""}</p>
-            </form>
-          )}
         </div>
       </section>
 
@@ -233,9 +239,12 @@ export default async function AddPeoplePage({
             ? { text: "Left", cls: "bg-mist text-gray-500" }
             : m.accountId
               ? { text: "On Loopin ✓", cls: "bg-owed/15 text-owed" }
-              : invitedRows.has(m.id)
-                ? { text: "Invited · hasn’t joined yet", cls: "bg-mist text-gray-500" }
-                : { text: "Not on Loopin yet", cls: "bg-mist text-gray-500" };
+              : me
+                ? // F3: you are never "not on Loopin yet": signed out, it's this phone only.
+                  { text: "This phone only · Sign in to save", cls: "bg-mist text-gray-500" }
+                : invitedRows.has(m.id)
+                  ? { text: "Invited · hasn’t joined yet", cls: "bg-mist text-gray-500" }
+                  : { text: "Not on Loopin yet", cls: "bg-mist text-gray-500" };
           return (
             <li key={m.id} className="flex items-center gap-3 px-4 py-3.5">
               <Avatar name={m.name} />
@@ -243,12 +252,14 @@ export default async function AddPeoplePage({
                 {m.name}
                 {me && <span className="text-gray-400"> (you)</span>}
               </span>
-              <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${status.cls}`}>{status.text}</span>
+              <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${me && !m.accountId ? "max-w-[10.5rem] text-center leading-snug" : ""} ${status.cls}`} data-member-status={me ? "me" : undefined}>
+                {status.text}
+              </span>
             </li>
           );
         })}
       </ul>
-      {group.members.some((m) => !m.accountId && !m.leftAt) && (
+      {group.members.some((m) => !m.accountId && !m.leftAt && m.id !== myId) && (
         <p className="mt-3 text-xs text-gray-400">“Not on Loopin yet”: added by name. They can take over their name from the group link after signing up.</p>
       )}
 

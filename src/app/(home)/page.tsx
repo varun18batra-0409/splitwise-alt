@@ -11,6 +11,7 @@ import { visitorRegion } from "@/lib/region";
 import { GAME_NIGHT_GAMES } from "@/lib/group-types";
 import { getTimeZone } from "@/lib/tz";
 import { getAccount, getMemberships } from "@/lib/identity";
+import { unreadPostcards } from "@/lib/blocks";
 import { PasskeyOffer } from "@/components/Passkeys";
 
 import { loadDeletedGroups } from "@/lib/group-data";
@@ -38,7 +39,8 @@ import { gameVisible, stillIn } from "@/lib/left-view";
 import { canUndo } from "@/lib/undo";
 import { UndoBar } from "@/components/UndoBar";
 import { PersonIcon, iconButtonClass } from "@/components/icons";
-import { myCollections, progress } from "@/lib/collect";
+import { myCollections, progress, progressBar } from "@/lib/collect";
+import { FooterLinks, HOME_FOOTER_LINKS } from "@/components/FooterLinks";
 import { countdownWords, placeOf, tripPhase, type TripPhase } from "@/lib/countdown";
 import { todayKey } from "@/lib/dates";
 import { TripCountdown } from "@/components/TripCountdown";
@@ -327,9 +329,11 @@ export default async function Home({
           title: c.title,
           paid: pr.paidCount,
           people: pr.people,
-          in: formatMoney(pr.collected, c.currency),
+          in: formatMoney(pr.confirmedAmount, c.currency),
+          reported: pr.reportedAmount > 0 ? formatMoney(pr.reportedAmount, c.currency) : undefined,
           target: pr.target ? formatMoney(pr.target, c.currency) : undefined,
-          paidNames: c.entries.filter((e) => e.status === "paid" || e.status === "confirmed").map((e) => first(e.name)),
+          paidNames: c.entries.filter((e) => e.status === "confirmed").map((e) => first(e.name)),
+          reportedNames: c.entries.filter((e) => e.status === "paid").map((e) => first(e.name)),
           dueNames: c.entries.filter((e) => e.status === "due").map((e) => first(e.name)),
         };
       }),
@@ -395,7 +399,7 @@ export default async function Home({
   const stopsOf = (g: (typeof all)[number]) => tripStops(g.group.name, g.group.tripPlace ?? "", g.group.tripCountry ?? "");
   const homeCountry = (account?.homeCountry || region.country || "IN").toUpperCase();
   const [postcardsNew, billRows] = await Promise.all([
-    account ? db.postcard.count({ where: { toId: account.id, readAt: null, OR: [{ opensAt: null }, { opensAt: { lte: new Date() } }] } }) : Promise.resolve(0),
+    account ? unreadPostcards(account.id) : Promise.resolve(0),
     // A group they left shows no bills.
     db.bill.findMany({ where: { groupId: { in: open.filter((g) => !g.leaver).map((g) => g.group.id) }, deletedAt: null, paused: false }, take: 20 }),
   ]);
@@ -726,19 +730,7 @@ export default async function Home({
       {/* Not signed in: these groups live only on this phone. Just above the footer, out of the way of the groups and Latest. */}
       {all.length > 0 && !account && <PhoneOnlyNote plural className="mt-6" />}
 
-      <p className="mt-8 pb-6 text-center text-xs text-gray-400">
-        <Link href="/faq" className="underline underline-offset-4">
-          FAQ
-        </Link>
-        <span aria-hidden> · </span>
-        <Link href="/privacy" className="underline underline-offset-4">
-          Privacy
-        </Link>
-        <span aria-hidden> · </span>
-        <Link href="/terms" className="underline underline-offset-4">
-          Terms
-        </Link>
-      </p>
+      <FooterLinks links={HOME_FOOTER_LINKS} className="mt-6 pb-6" />
     </>
   );
 }
@@ -756,24 +748,29 @@ function CollectionsSection({ list }: { list: Awaited<ReturnType<typeof myCollec
       <ul className="lp-rise space-y-2">
         {list.slice(0, 6).map((c) => {
           const p = progress(c.entries, c.amount);
-          const pct = p.target > 0 ? Math.min(100, Math.round((p.collected / p.target) * 100)) : p.people > 0 ? Math.round((p.paidCount / p.people) * 100) : 0;
+          const bar = progressBar(p);
           const toCheck = p.paidCount - p.checked;
           return (
             <li key={c.id}>
               <Link href={`/c/${c.code}`} className={`block rounded-2xl border border-line px-4 py-3.5 active:bg-mist ${c.closedAt ? "opacity-60" : ""}`}>
                 <span className="flex items-baseline justify-between gap-3">
                   <span className="truncate text-[15px] font-semibold">{c.title}</span>
-                  <span className="shrink-0 text-sm font-semibold tabular-nums">{formatMoney(p.collected, c.currency)}</span>
+                  <span className="shrink-0 text-sm font-semibold tabular-nums">Confirmed {formatMoney(p.confirmedAmount, c.currency)}</span>
                 </span>
-                <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-fg/[0.08]">
-                  <span className="lp-bar-x block h-full rounded-full bg-meter-up" style={{ width: `${Math.max(pct, p.paidCount ? 4 : 0)}%` }} />
+                <span className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-fg/[0.08]">
+                  <span className="lp-bar-x block h-full bg-meter-up" style={{ width: `${Math.max(bar.confirmedPct, p.checked ? 4 : 0)}%` }} />
+                  <span className="block h-full bg-meter-up/35" style={{ width: `${bar.reportedPct}%` }} />
                 </span>
                 <span className="mt-1.5 flex justify-between text-xs text-gray-400">
                   <span>
                     {c.closedAt ? "Closed · " : ""}
                     {p.paidCount} of {p.people || p.paidCount} paid
                   </span>
-                  {toCheck > 0 && !c.closedAt && <span className="font-medium text-owed">{toCheck} to check</span>}
+                  {toCheck > 0 && !c.closedAt && (
+                    <span className="font-medium text-owed">
+                      {p.reportedAmount > 0 ? `${formatMoney(p.reportedAmount, c.currency)} reported, awaiting check` : `${toCheck} to check`}
+                    </span>
+                  )}
                 </span>
               </Link>
             </li>

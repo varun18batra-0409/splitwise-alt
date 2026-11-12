@@ -1,4 +1,6 @@
+import { ACCOUNT_FOOTER_LINKS, FooterLinks } from "@/components/FooterLinks";
 import Link from "@/components/Link";
+import { unreadPostcards } from "@/lib/blocks";
 import { CompassIcon, PeoplePassportsIcon } from "@/components/DrawnIcons";
 import { InviteFriends } from "@/components/InviteFriends";
 import { PushEndpointField } from "@/components/PushEndpointField";
@@ -16,13 +18,14 @@ import { PageHeader, inputClass, primaryButtonClass, secondaryButtonClass } from
 import { savePayWays } from "@/app/pay-actions";
 import { headers } from "next/headers";
 import { visitorRegion } from "@/lib/region";
+import { PrivacySafety } from "@/components/PrivacySafety";
 
 // You: signed-in email (optional), sign out, delete your data, privacy.
-export default async function AccountPage({ searchParams }: { searchParams: Promise<{ name?: string; groups?: string; pay?: string; payError?: string; others?: string }> }) {
-  const { name: nameState, groups: renamed, pay: payState, payError, others } = await searchParams;
+export default async function AccountPage({ searchParams }: { searchParams: Promise<{ name?: string; groups?: string; pay?: string; payError?: string; others?: string; ai?: string; blocked?: string; unblocked?: string }> }) {
+  const { name: nameState, groups: renamed, pay: payState, payError, others, ai, blocked, unblocked } = await searchParams;
   const signedOutOthers = others === "out";
   const account = await getAccount();
-  const postcardsNew = account ? await db.postcard.count({ where: { toId: account.id, readAt: null, OR: [{ opensAt: null }, { opensAt: { lte: new Date() } }] } }) : 0;
+  const postcardsNew = account ? await unreadPostcards(account.id) : 0;
   const memberships = await getMemberships();
   const groups = await loadMyGroups(memberships);
   const deletedCount = (await loadDeletedGroups(memberships)).length;
@@ -258,6 +261,8 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         </section>
       )}
 
+      <PrivacySafety accountId={account?.id ?? null} flags={{ ai, blocked, unblocked }} />
+
       <section className="mt-10 border-t border-line pt-8">
         <h2 className="mb-1 text-base font-semibold">Your data</h2>
         <p className="mb-4 text-sm text-gray-500">
@@ -271,6 +276,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         )}
         {account && (
           <form action={deleteMyAccount}>
+            <PushEndpointField />
             <ConfirmButton
               message="Delete your sign-in, email, postcards and passkeys? Your groups stay on this phone and in each group’s history."
               className="w-full rounded-full border border-red-500/40 px-5 py-3.5 text-center text-base font-medium text-red-400 active:bg-red-500/10"
@@ -287,17 +293,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         </Link>
       )}
 
-      <p className="mt-10 text-center text-sm">
-        <Link href="/how-it-works" className="mr-4 inline-flex min-h-11 items-center text-gray-500 underline underline-offset-4">
-          How Loopin works
-        </Link>
-        <Link href="/faq" className="mr-4 inline-flex min-h-11 items-center text-gray-500 underline underline-offset-4">
-          FAQ
-        </Link>
-        <Link href="/terms" className="inline-flex min-h-11 items-center text-gray-500 underline underline-offset-4">
-          Terms
-        </Link>
-      </p>
+      <FooterLinks links={ACCOUNT_FOOTER_LINKS} className="mt-10" />
     </>
   );
 }

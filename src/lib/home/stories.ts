@@ -42,7 +42,7 @@ export type StoryInput = {
   trips: ({ id: string; name: string; phase: TripPhase; people: number; month?: number; stop?: { city?: string; country?: string; countryName?: string; flag?: string }; crew?: string[]; mood?: "beach" | "hills" | "city" | "any"; today?: { spent: string; count: number; top?: string; biggest?: { what: string; amount: string } } } & Pic)[];
   games: { id: string; groupId: string; name: string; winner: string; won: string; youWon?: string; finishedAt: Date; table?: { name: string; net: string; up: boolean; even: boolean; share: number }[]; pays?: string[]; toSettle?: string; photos?: string[] }[];
   squared: ({ id: string; name: string; at: Date; spent?: string; payments?: number; people?: number } & Pic)[];
-  collections: { id: string; code: string; title: string; paid: number; people: number; in?: string; target?: string; paidNames?: string[]; dueNames?: string[] }[];
+  collections: { id: string; code: string; title: string; paid: number; people: number; in?: string; reported?: string; target?: string; paidNames?: string[]; reportedNames?: string[]; dueNames?: string[] }[];
   memories: ({ id: string; name: string; years: number; people: number; days: number; spent?: string; crew?: string[] } & Pic)[];
   wrapped: ({ id: string; name: string; endedDaysAgo: number; spent?: string; topCategory?: string } & Pic)[];
 };
@@ -195,9 +195,9 @@ export function buildStories(i: StoryInput): Story[] {
     const all = c.paid === c.people;
     const frames: Frame[] = [
       { kind: "art", art: "collect", kicker: c.title, head: all ? "Everyone’s in" : `${c.paid} of ${c.people} paid`, line: all ? "Time to close it" : c.paid === 0 ? "Who’s going first?" : "The jar is filling up" },
-      ...(c.in && c.target ? [{ kind: "poster", tone: "coral", kicker: "Collected", big: c.in, line: `of ${c.target}` } as Frame] : []),
-      ...((c.paidNames?.length || c.dueNames?.length)
-        ? [{ kind: "list", tone: "mint", kicker: "Roll call", rows: [...(c.paidNames ?? []).slice(0, 5).map((n) => ({ label: n, value: "Paid ✓", good: true })), ...(c.dueNames ?? []).slice(0, 5).map((n) => ({ label: n, value: "Not yet", bad: true }))], line: (c.dueNames?.length ?? 0) > 0 ? "A gentle nudge might help" : "Legends, all of them" } as Frame]
+      ...(c.in && c.target ? [{ kind: "poster", tone: "coral", kicker: "Confirmed", big: c.in, line: `of ${c.target}${c.reported ? ` · ${c.reported} reported, awaiting check` : ""}` } as Frame] : []),
+      ...((c.paidNames?.length || c.reportedNames?.length || c.dueNames?.length)
+        ? [{ kind: "list", tone: "mint", kicker: "Roll call", rows: [...(c.paidNames ?? []).slice(0, 5).map((n) => ({ label: n, value: "Checked ✓", good: true })), ...(c.reportedNames ?? []).slice(0, 5).map((n) => ({ label: n, value: "Says paid", good: false })), ...(c.dueNames ?? []).slice(0, 5).map((n) => ({ label: n, value: "Not yet", bad: true }))], line: (c.dueNames?.length ?? 0) > 0 ? "A gentle nudge might help" : "Legends, all of them" } as Frame]
         : []),
     ];
     out.push({

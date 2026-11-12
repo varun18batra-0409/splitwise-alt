@@ -6,6 +6,7 @@ import { logEvent } from "./events";
 import { formatMoney } from "./money";
 import { createPayment, RestoreRefused, restorePayments } from "./payments";
 import type { Transfer } from "./settle";
+import { GroupChanged, groupChangedText, guardGroup, ledgerInTx } from "./money-guard";
 
 // "We settled outside the app": record every Smart Settle payment at once and
 // close the group. One logged change, one Undo (which takes the payments back
@@ -18,29 +19,38 @@ export function planKey(transfers: Transfer[]): string {
   return transfers.map((t) => `${t.from}>${t.to}:${t.amount}`).sort().join("|");
 }
 
-export async function settleAllAndClose(groupId: string, actorId: string, expectedPlan: string): Promise<Result> {
-  return withRetry(() => settleAllOnce(groupId, actorId, expectedPlan));
+const PLAN_CHANGED = "Balances changed since you opened this. Check the updated list and try again.";
+
+// `afterRead` is for tests only: it runs after the reads and before the write begins.
+export async function settleAllAndClose(groupId: string, actorId: string, expectedPlan: string, opts: { afterRead?: () => Promise<void> } = {}): Promise<Result> {
+  return withRetry(() => settleAllOnce(groupId, actorId, expectedPlan, opts));
 }
 
-async function settleAllOnce(groupId: string, actorId: string, expectedPlan: string): Promise<Result> {
+async function settleAllOnce(groupId: string, actorId: string, expectedPlan: string, opts: { afterRead?: () => Promise<void> }): Promise<Result> {
   const data = await loadGroup(groupId, { events: false });
   if (!data) return { ok: false, error: "This group no longer exists." };
   const { group, transfers } = data;
   if (!group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can do this." };
   if (await hasLeft(groupId, actorId)) return { ok: false, error: LEFT_ERROR };
   if (group.closed) return { ok: false, error: "This group is already closed." };
-  if (planKey(transfers) !== expectedPlan) return { ok: false, error: "Balances changed since you opened this. Check the updated list and try again." };
+  if (planKey(transfers) !== expectedPlan) return { ok: false, error: PLAN_CHANGED };
 
   const nameOf = (id: string) => group.members.find((m) => m.id === id)?.name ?? "Someone";
   const money = (n: number) => formatMoney(n, group.currency);
   let eventId: string;
+  await opts.afterRead?.();
   try {
    eventId = await db.$transaction(async (tx) => {
+    // The group must still be as read (same currency, open, not deleted, this person still in it).
+    await guardGroup(tx, groupId, { currency: group.currency, actorId });
     // Close first, only if still open: a second (retried) request stops here.
     const lock = await tx.group.updateMany({ where: { id: groupId, closed: false }, data: { closed: true, closedAt: new Date() } });
     if (lock.count !== 1) throw new Error("already-closed");
+    // The plan as it is now, inside the write: what is recorded is exactly what the person saw, or nothing.
+    const now = await ledgerInTx(tx, groupId);
+    if (planKey(now.transfers) !== expectedPlan) throw new Error("plan-changed");
     const ids: string[] = [];
-    for (const t of transfers) {
+    for (const t of now.transfers) {
       const p = await createPayment(tx, { groupId, fromId: t.from, toId: t.to, amount: t.amount, createdById: actorId });
       ids.push(p.id);
     }
@@ -55,9 +65,11 @@ async function settleAllOnce(groupId: string, actorId: string, expectedPlan: str
       details: transfers.map((t) => `${nameOf(t.from)} paid ${nameOf(t.to)} ${money(t.amount)}`),
       undo: { type: "settle_all", paymentIds: ids, apply: false },
     });
-   });
+   }, { timeout: 15000 });
   } catch (err) {
     if (String((err as Error)?.message) === "already-closed") return { ok: false, error: "This group is already closed." };
+    if (String((err as Error)?.message) === "plan-changed") return { ok: false, error: PLAN_CHANGED };
+    if (err instanceof GroupChanged) return { ok: false, error: err.reason === "closed" ? "This group is already closed." : groupChangedText(err) };
     throw err;
   }
   return { ok: true, eventId };
@@ -97,8 +109,9 @@ export async function applySettleAll(groupId: string, actorId: string, paymentId
 // week): records the given payments in one go, as one change with Undo.
 // From Settle up, each payment must still be one of the group's current Smart
 // Settle payments; a card game passes its own (already checked) payments.
+class PlanChanged extends Error {}
 type Pick = { from: string; to: string; amount: number }[];
-export async function markAllPaid(groupId: string, actorId: string, pickIn: Pick | (() => Promise<Pick>), label: string, checkPlan = true, key?: string): Promise<Result> {
+export async function markAllPaid(groupId: string, actorId: string, pickIn: Pick | (() => Promise<Pick>), label: string, checkPlan = true, key?: string, opts: { afterRead?: () => Promise<void> } = {}): Promise<Result> {
   // The same tap arriving twice (a slow network, two servers) is recorded once.
   // (A card game works out its own list later, so for it the group and label stand for the request.)
   const fp = fingerprintOf("settle-all", groupId, label, checkPlan, ...(typeof pickIn === "function" ? [] : pickIn.map((p) => `${p.from}|${p.to}|${p.amount}`).sort()));
@@ -124,7 +137,17 @@ export async function markAllPaid(groupId: string, actorId: string, pickIn: Pick
     }
     const nameOf = (id: string) => group.members.find((m) => m.id === id)?.name ?? "Someone";
     const money = (n: number) => formatMoney(n, group.currency);
+    await opts.afterRead?.();
     const eventId = await db.$transaction(async (tx) => {
+      // The group must still be as read; and from Settle up every payment is checked again against the plan as it is now.
+      await guardGroup(tx, groupId, { currency: group.currency, actorId });
+      if (checkPlan) {
+        const now = await ledgerInTx(tx, groupId);
+        for (const p of pick) {
+          const t = now.transfers.find((x) => x.from === p.from && x.to === p.to);
+          if (!t || p.amount > t.amount) throw new PlanChanged();
+        }
+      }
       await claimKey(tx, key, "paid", fp);
       const ids: string[] = [];
       for (const t of pick) {
@@ -140,11 +163,13 @@ export async function markAllPaid(groupId: string, actorId: string, pickIn: Pick
         details: pick.map((t) => `${nameOf(t.from)} paid ${nameOf(t.to)} ${money(t.amount)}`),
         undo: { type: "payments_set", paymentIds: ids, deleted: true },
       });
-    });
+    }, { timeout: 15000 });
     return { ok: true, eventId };
   });
   } catch (err) {
     if (isDuplicateKey(err)) return { ok: true };
+    if (err instanceof PlanChanged) return { ok: false, error: PLAN_CHANGED };
+    if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
     throw err;
   }
 }

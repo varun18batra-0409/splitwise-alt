@@ -353,6 +353,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                       <Line label="Date" value={niceDate(dayKey(expenseDate(e), tz))} />
                       <Line label="Category" value={cat.label} />
                       {e.notes && <p className="whitespace-pre-line rounded-lg bg-white/[0.03] px-3 py-2 text-gray-600">📝 {e.notes}</p>}
+                      {!e.notes && (e as { notesHidden?: boolean }).notesHidden && <p className="px-1 text-xs text-gray-500">Notes hidden: changed after you left.</p>}
                       {receiptOf.has(e.id) && (
                         <a href={`/api/receipt/${receiptOf.get(e.id)}`} target="_blank" rel="noopener" className="flex items-center gap-3 rounded-lg bg-white/[0.03] p-2 pr-3 text-sm text-gray-600 active:bg-mist" data-receipt-link>
                           {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -1,7 +1,7 @@
 import { neutralGameText } from "@/lib/game-words";
 import Link from "@/components/Link";
 import { notFound, redirect } from "next/navigation";
-import { getAccount, getMemberships } from "@/lib/identity";
+import { getAccount, getLinkedAwayGroups, getMemberships } from "@/lib/identity";
 import { invitationFor } from "@/lib/invitations";
 import { PendingGroup } from "./_components/PendingGroup";
 import { LeftBanner, LeftFootnote, LeftSections } from "./_components/LeftBanner";
@@ -99,7 +99,8 @@ export default async function GroupPage({
     // Someone added you here and you haven't answered yet: the invitation, not the group.
     const invitation = await invitationFor(await getAccount(), id);
     if (invitation) return <PendingGroup inv={invitation} />;
-    redirect("/private");
+    // This phone's old guest name was linked to an email since: say so, rather than "you're not in this group".
+    redirect((await getLinkedAwayGroups()).includes(id) ? "/private?linked=1" : "/private");
   }
   // Balances and Charts never show the history, so they skip it (up to 500 rows). An Undo bar loads just what it needs below.
   const noHistory = sp.tab === "balances" || sp.tab === "charts";

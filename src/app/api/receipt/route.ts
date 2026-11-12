@@ -5,6 +5,7 @@ import { allow, clientIp } from "@/lib/rate-limit";
 import { photoType } from "@/lib/covers";
 import { cleanPhoto } from "@/lib/strip-meta";
 import { aiAllowed, readBill } from "@/lib/ai";
+import { aiConsentFor, consentAccountId, consentRefusal } from "@/lib/ai-consent";
 
 // A bill photo while adding an expense: kept (camera details and location
 // removed) to attach to the expense when it's saved, and, if asked, read so
@@ -44,6 +45,9 @@ export async function POST(req: Request) {
   }
 
   if (url.searchParams.get("read") !== "1") return Response.json({ ok: true, id: saved.id });
+  // No yes, no call: the photo stays attached either way, but only a yes sends it to the AI.
+  const refusal = consentRefusal(await aiConsentFor(await consentAccountId(me.accountId)));
+  if (refusal) return Response.json({ ok: true, id: saved.id, needsConsent: refusal.needsConsent, note: "Photo attached. Fill in the rest by hand." });
   const blocked = await aiAllowed(me.accountId ?? me.id);
   if (blocked) return Response.json({ ok: true, id: saved.id, note: blocked });
   const bill = await readBill(clean, type);

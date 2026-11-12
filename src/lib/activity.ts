@@ -29,6 +29,7 @@ type ExpenseRow = {
   originalCurrency?: string;
   baseCurrency?: string;
   notes?: string;
+  notesHidden?: boolean; // the viewer left before this was last changed: its notes are not shown
 };
 type PaymentRow = {
   id: string;
@@ -54,6 +55,7 @@ export type ActivityItem =
       date: Date;
       title: string;
       notes?: string;
+      notesHidden?: boolean;
       category: string;
       amount: number;
       paidById: string;
@@ -109,6 +111,7 @@ export function buildActivity(expenses: ExpenseRow[], payments: PaymentRow[], my
         date: e.spentAt ?? e.createdAt,
         title: e.kind === "pot" ? neutralGameText(e.description) : e.description,
         notes: e.notes ?? "",
+        notesHidden: e.notesHidden || undefined,
         category: e.category,
         amount: e.amount,
         paidById: e.paidById,

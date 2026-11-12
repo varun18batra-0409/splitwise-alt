@@ -210,15 +210,22 @@ export async function drawBack(p: BackProps): Promise<Blob> {
     ctx.fillRect(X(0.6), ly, w * 0.34, 2);
     ctx.fillStyle = inkColor(p.ink ?? "navy");
     ctx.textBaseline = "bottom";
-    // Shrink a long line until it fits the space (no squashing).
+    // Shrink a long line until it fits the space (no squashing), but never below 62% of the size (same as the on-screen card):
+    // a line that is still too long after that breaks onto a second row above the rule, at a word boundary.
     const line = p.address[i] ?? "";
     let fsz = as;
     ctx.font = `${fsz}px "${hand.family}", cursive`;
-    while (fsz > as * 0.3 && ctx.measureText(line).width > w * 0.34) {
+    while (fsz > as * 0.62 && ctx.measureText(line).width > w * 0.34) {
       fsz -= 1;
       ctx.font = `${fsz}px "${hand.family}", cursive`;
     }
-    ctx.fillText(line, X(0.6), ly - 4);
+    if (ctx.measureText(line).width > w * 0.34 && line.includes(" ")) {
+      const words = line.split(" ");
+      let cut = words.length - 1;
+      while (cut > 1 && ctx.measureText(words.slice(0, cut).join(" ")).width > w * 0.34) cut--;
+      ctx.fillText(words.slice(0, cut).join(" "), X(0.6), ly - 4 - fsz * 1.1);
+      ctx.fillText(words.slice(cut).join(" "), X(0.6), ly - 4);
+    } else ctx.fillText(line, X(0.6), ly - 4);
     ctx.font = `${as}px "${hand.family}", cursive`;
     ctx.textBaseline = "top";
   }

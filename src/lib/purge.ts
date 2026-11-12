@@ -16,43 +16,49 @@ export async function eraseExpiredGroups(now = new Date(), limit = 100): Promise
 
 // Everything that belongs to these groups, children first (doesn't rely on the
 // database to cascade). Only ever called for groups already chosen above.
-export async function eraseGroups(ids: string[]) {
+// Everything is read and deleted inside ONE transaction that starts with a write (so it holds the write lock): a photo
+// whose file was copied to storage a moment ago (the photo migration), or a row added meanwhile, is seen and handled,
+// not missed. `afterRead` is for tests only: it runs before the transaction begins.
+export async function eraseGroups(ids: string[], opts: { afterRead?: () => Promise<void> } = {}) {
   const inG = { groupId: { in: ids } };
-  const memberIds = (await db.member.findMany({ where: inG, select: { id: true } })).map((m) => m.id);
-  // Photo files in file storage go too (group picture and bill photos).
-  const files = [
-    ...(await db.groupPhoto.findMany({ where: inG, select: { blobKey: true } })),
-    ...(await db.receipt.findMany({ where: inG, select: { blobKey: true } })),
-  ].map((f) => f.blobKey);
-  const { photoTrashOps, flushPhotoDeletes } = await import("./photo-store");
-  // The files' keys go on the to-delete list in the same step as the rows: a failed
-  // delete is then tried again later, never forgotten.
-  await db.$transaction([
-    ...(await photoTrashOps(files)),
-    db.reaction.deleteMany({ where: { memberId: { in: memberIds } } }),
-    db.expenseShare.deleteMany({ where: { expense: inG } }),
-    db.expenseItem.deleteMany({ where: { expense: inG } }),
-    db.expense.deleteMany({ where: inG }),
-    db.payment.deleteMany({ where: inG }),
-    db.paymentClaim.deleteMany({ where: inG }),
-    db.groupEvent.deleteMany({ where: inG }),
-    db.pushSubscription.deleteMany({ where: { member: inG } }),
-    db.invite.deleteMany({ where: inG }),
-    db.payLink.deleteMany({ where: inG }),
-    db.billRun.deleteMany({ where: { bill: inG } }),
-    db.bill.deleteMany({ where: inG }),
-    db.listItem.deleteMany({ where: inG }),
-    db.budget.deleteMany({ where: inG }),
-    db.goalEntry.deleteMany({ where: { goal: inG } }),
-    db.goal.deleteMany({ where: inG }),
-    db.depositShare.deleteMany({ where: { deposit: inG } }),
-    db.deposit.deleteMany({ where: inG }),
-    db.groupPhoto.deleteMany({ where: inG }),
-    db.receipt.deleteMany({ where: inG }),
-    db.potMove.deleteMany({ where: { game: inG } }),
-    db.potGame.deleteMany({ where: inG }),
-    db.member.deleteMany({ where: inG }),
-    db.group.deleteMany({ where: { id: { in: ids } } }),
-  ]);
+  const { queuePhotoDeletes, flushPhotoDeletes } = await import("./photo-store");
+  await opts.afterRead?.();
+  await db.$transaction(
+    async (tx) => {
+      // First statement is a write: from here nobody else can commit until this finishes.
+      await tx.reaction.deleteMany({ where: { member: inG } });
+      // Photo files in file storage go too (group picture and bill photos). Their keys go on the to-delete list in the
+      // same step as the rows: a failed delete is then tried again later, never forgotten.
+      const files = [
+        ...(await tx.groupPhoto.findMany({ where: inG, select: { blobKey: true } })),
+        ...(await tx.receipt.findMany({ where: inG, select: { blobKey: true } })),
+      ].map((f) => f.blobKey);
+      await queuePhotoDeletes(tx, files);
+      await tx.expenseShare.deleteMany({ where: { expense: inG } });
+      await tx.expenseItem.deleteMany({ where: { expense: inG } });
+      await tx.expense.deleteMany({ where: inG });
+      await tx.payment.deleteMany({ where: inG });
+      await tx.paymentClaim.deleteMany({ where: inG });
+      await tx.groupEvent.deleteMany({ where: inG });
+      await tx.pushSubscription.deleteMany({ where: { member: inG } });
+      await tx.invite.deleteMany({ where: inG });
+      await tx.payLink.deleteMany({ where: inG });
+      await tx.billRun.deleteMany({ where: { bill: inG } });
+      await tx.bill.deleteMany({ where: inG });
+      await tx.listItem.deleteMany({ where: inG });
+      await tx.budget.deleteMany({ where: inG });
+      await tx.goalEntry.deleteMany({ where: { goal: inG } });
+      await tx.goal.deleteMany({ where: inG });
+      await tx.depositShare.deleteMany({ where: { deposit: inG } });
+      await tx.deposit.deleteMany({ where: inG });
+      await tx.groupPhoto.deleteMany({ where: inG });
+      await tx.receipt.deleteMany({ where: inG });
+      await tx.potMove.deleteMany({ where: { game: inG } });
+      await tx.potGame.deleteMany({ where: inG });
+      await tx.member.deleteMany({ where: inG });
+      await tx.group.deleteMany({ where: { id: { in: ids } } });
+    },
+    { timeout: 30000 },
+  );
   await flushPhotoDeletes();
 }

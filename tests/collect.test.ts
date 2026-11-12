@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkNewCollection, cleanPayLink, cleanUpi, newCollectCode, personalReminder, phonesFor, progress, reminderText, upiLink, whatsappTo } from "@/lib/collect-rules";
+import { checkNewCollection, cleanPayLink, cleanUpi, newCollectCode, personalReminder, phonesFor, progress, progressBar, progressLines, reminderText, upiLink, whatsappTo } from "@/lib/collect-rules";
 
 const form = (over: Partial<Parameters<typeof checkNewCollection>[0]> = {}) => ({
   title: "Teacher's Day gift",
@@ -83,10 +83,23 @@ describe("Collect: the progress bar and reminder", () => {
     { name: "Zoya", amount: 0, status: "due" },
   ];
 
-  it("counts paid (ticked or checked), still to pay, and the money so far", () => {
-    expect(progress(entries, 30000)).toEqual({ paidCount: 2, dueCount: 2, people: 4, collected: 60000, target: 120000, checked: 1 });
+  it("counts paid (ticked or checked), still to pay, and keeps confirmed money apart from reported money", () => {
+    // Ravi 30000 confirmed, Meera 30000 only says paid: 2 paid of 4 people, target 4 x 30000 = 120000.
+    expect(progress(entries, 30000)).toEqual({ paidCount: 2, dueCount: 2, people: 4, confirmedAmount: 30000, reportedAmount: 30000, target: 120000, checked: 1 });
     expect(progress([], 30000).target).toBe(0);
     expect(progress(entries, 0).target).toBe(0); // any amount: no target
+  });
+
+  it("UX-03: the bar and the lines show Confirmed and Reported separately (₹300 confirmed + ₹300 reported of ₹1,200)", () => {
+    const p = progress(entries, 30000);
+    // 30000 / 120000 = 25% solid; 30000 / 120000 = 25% lighter, after it.
+    expect(progressBar(p)).toEqual({ confirmedPct: 25, reportedPct: 25 });
+    expect(progressLines(p, "INR")).toEqual({ confirmed: "Confirmed ₹300", reported: "Reported, awaiting check ₹300" });
+    // Nothing reported: no second line.
+    expect(progressLines(progress([{ name: "Ravi", amount: 30000, status: "confirmed" }], 30000), "INR").reported).toBeNull();
+    // Any amount (no target): the bar counts people, 1 checked + 1 said-paid of 4.
+    expect(progressBar(progress(entries, 0))).toEqual({ confirmedPct: 25, reportedPct: 25 });
+    expect(progressBar(progress([], 0))).toEqual({ confirmedPct: 0, reportedPct: 0 });
   });
 
   it("the WhatsApp reminder names who's left and links back", () => {

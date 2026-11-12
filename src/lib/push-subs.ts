@@ -2,12 +2,46 @@ import { db } from "./db";
 
 export type PushSub = { endpoint: string; keys: { p256dh: string; auth: string } };
 
+// Phone notifications only go to the big browser push services. A stored address is checked again before every send,
+// so a row that was saved before this rule (or copied from another account) can never point the server at anything else.
+const PUSH_HOSTS = new Set(["fcm.googleapis.com", "updates.push.services.mozilla.com", "web.push.apple.com"]);
+
+export function pushHostOk(endpoint: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(endpoint);
+  } catch {
+    return false;
+  }
+  if (u.protocol !== "https:" || u.username || u.password) return false;
+  if (u.port !== "" && u.port !== "443") return false;
+  return PUSH_HOSTS.has(u.hostname) || /^[a-z0-9-]+\.notify\.windows\.com$/.test(u.hostname);
+}
+
+// The host only (never the full address, which holds the phone's private token) for logs.
+export function pushHostForLog(endpoint: string): string {
+  try {
+    return new URL(endpoint).hostname.slice(0, 80) || "unknown";
+  } catch {
+    return "unparseable";
+  }
+}
+
+function keyBytes(v: string): Buffer | null {
+  if (!/^[A-Za-z0-9_-]+={0,2}$/.test(v) && !/^[A-Za-z0-9+/]+={0,2}$/.test(v)) return null;
+  return Buffer.from(v.replace(/-/g, "+").replace(/_/g, "/").replace(/=+$/, ""), "base64");
+}
+
 export function validSub(sub: unknown): PushSub | null {
   const s = sub as PushSub | null;
   const endpoint = String(s?.endpoint ?? "");
   const p256dh = String(s?.keys?.p256dh ?? "");
   const auth = String(s?.keys?.auth ?? "");
-  if (!/^https:\/\//.test(endpoint) || endpoint.length > 2000 || !p256dh || !auth || p256dh.length > 200 || auth.length > 100) return null;
+  if (endpoint.length > 2000 || !p256dh || !auth || p256dh.length > 200 || auth.length > 100) return null;
+  if (!pushHostOk(endpoint)) return null;
+  const pk = keyBytes(p256dh);
+  const au = keyBytes(auth);
+  if (!pk || pk.length !== 65 || pk[0] !== 0x04 || !au || au.length !== 16) return null;
   return { endpoint, keys: { p256dh, auth } };
 }
 

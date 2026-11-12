@@ -16,6 +16,6 @@ export async function sendPassportAction(f: FormData) {
   if (!to.size) redirect("/passport/send?error=none");
   if (!(await allow(`passport-send:${me!.id}`, 40, 86_400))) redirect("/passport/send?error=limit");
   const who = me!.name.trim().split(/\s+/)[0] || "A friend";
-  await deliverNotes([{ accountIds: [...to], kind: "passport", title: `${who} sent you their passport`, body: "See where they’ve been.", url: `/passport/friends/${me!.id}`, tag: `passport-${me!.id}` }]);
+  await deliverNotes([{ accountIds: [...to], kind: "passport", title: `${who} sent you their passport`, body: "See where they’ve been.", url: `/passport/friends/${me!.id}`, tag: `passport-${me!.id}`, fromAccountId: me!.id }]);
   redirect(`/passport?sent=${to.size}`);
 }

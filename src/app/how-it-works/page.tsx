@@ -213,6 +213,10 @@ export default async function HowItWorks() {
           by item. The photo stays with the expense for everyone in the group. <strong>Hands full?</strong> Tap <strong>Speak</strong> and say it: “Dinner 2400,
           Ravi paid, everyone except Dev.” Or tap <strong>Type a line</strong>: “Cab 600 except Leo”. Nothing saves until you tap Save.
         </p>
+        <p>
+          Reading a bill or a line with AI is always your choice: the first time, Loopin asks before anything is sent. Say <strong>Not now</strong> and the photo is still attached, and you fill in the rest.
+          Change it any time in <strong>You → Privacy and safety</strong>.
+        </p>
         <p>Change the date if it wasn’t today, and add a note if it helps (“Sam paid the tip”). Next time, Loopin starts with the same split you used last.</p>
         <p>
           <strong>Two people paid?</strong> Open <strong>More</strong> and switch on <strong>More than one person paid</strong>. <strong>Got money back</strong> (a refund, a returned
@@ -392,6 +396,7 @@ export default async function HowItWorks() {
             <><strong>Write back.</strong> Press a wax seal back on a card you got, or reply with your own.</>,
             <><strong>Reuse a design.</strong> Send the same card to someone else, or borrow the look of one you received.</>,
             <><strong>Stamp album.</strong> Every stamp you send or get is kept: You → Your postcards → Stamp album.</>,
+            <><strong>Report or block.</strong> Something unwelcome? Tap <strong>Report</strong> or <strong>Block</strong> on the card, a friend’s passport or a person in People. You’ll still see shared group expenses and balances. Unblock in You → Privacy and safety.</>,
           ]}
         />
       </Section>

@@ -65,7 +65,7 @@ export function Insights({ d }: { d: InsightsData }) {
       {/* Your share | Group spend */}
       <div className="grid grid-cols-2 gap-1 rounded-full bg-mist p-1" role="tablist" aria-label="What to show">
         <Link href={d.link({ v: "share" })} role="tab" aria-selected={d.view === "share"} className={pill(d.view === "share")}>
-          My cut
+          Your share
         </Link>
         <Link href={d.link({ v: "spent" })} role="tab" aria-selected={d.view === "spent"} className={pill(d.view === "spent")}>
           Group total
@@ -77,7 +77,7 @@ export function Insights({ d }: { d: InsightsData }) {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs text-fg/55">
-              {d.view === "share" ? "My cut" : "Group total"} · {bucketTitle(d.selected, d.grain)}
+              {d.view === "share" ? "Your share" : "Group total"} · {bucketTitle(d.selected, d.grain)}
             </p>
             <p className="mt-1 money text-[34px] font-semibold leading-none tracking-tight tabular-nums" data-insights-total>
               {approx}
@@ -114,23 +114,23 @@ export function Insights({ d }: { d: InsightsData }) {
 
         {/* Where it leaves you: your cut of the costs vs what you paid. Answers "why isn't this what I owe?" */}
         {(d.me.share !== 0 || d.me.paid !== 0) && (
-          <div className="mt-4 grid grid-cols-3 divide-x divide-fg/10 rounded-2xl bg-fg/[0.05] py-2.5 text-center" aria-label="My cut, what I paid, and where that leaves me">
+          <div className="mt-4 grid grid-cols-3 divide-x divide-fg/10 rounded-2xl bg-fg/[0.05] py-2.5 text-center" aria-label="Your share, what you paid, and where that leaves you">
             <p className="px-1">
-              <span className="block text-[11px] text-fg/50">My cut</span>
+              <span className="block text-[11px] text-fg/50">Your share</span>
               <span className="block text-sm font-semibold tabular-nums">
                 {approx}
                 {formatMoney(Math.abs(d.me.share), d.currency)}
               </span>
             </p>
             <p className="px-1">
-              <span className="block text-[11px] text-fg/50">I paid</span>
+              <span className="block text-[11px] text-fg/50">You paid</span>
               <span className="block text-sm font-semibold tabular-nums">
                 {approx}
                 {formatMoney(Math.abs(d.me.paid), d.currency)}
               </span>
             </p>
             <p className="px-1">
-              <span className="block text-[11px] text-fg/50">{d.me.net < 0 ? "I owe" : d.me.net > 0 ? "I’m owed" : "Even"}</span>
+              <span className="block text-[11px] text-fg/50">{d.me.net < 0 ? "You owe" : d.me.net > 0 ? "You’re owed" : "Even"}</span>
               <span className={`block text-sm font-semibold tabular-nums ${d.me.net < 0 ? "text-owe" : d.me.net > 0 ? "text-owed" : ""}`}>
                 {approx}
                 {formatMoney(Math.abs(d.me.net), d.currency)}
@@ -199,7 +199,7 @@ export function Insights({ d }: { d: InsightsData }) {
                   <ExpenseGlyph title="" category={c.id} />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline justify-between gap-2 text-sm">
-                      <span className="truncate font-medium">{cat.label}</span>
+                      <span className="line-clamp-2 min-w-0 break-words font-medium leading-tight" data-category-name>{cat.label}</span>
                       <span className="shrink-0 tabular-nums text-fg/80">
                         {approx}
                         {formatMoney(Math.max(0, c.amount), d.currency)} <span className="text-xs text-fg/60">· {pct}%</span>
