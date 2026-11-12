@@ -64,7 +64,7 @@ async function world() {
 }
 
 const without = <T extends object>(o: T, keys: string[]) => Object.fromEntries(Object.entries(o).filter(([k]) => !keys.includes(k)));
-const EXPENSE_OMITTED = ["rateSource"];
+const EXPENSE_OMITTED: string[] = []; // Activity shows each saved rate's source and day, so expenses keep every column
 const MEMBER_OMITTED = ["notify", "addedBy", "seenAt", "removedById", "seenEventsAt"];
 const GROUP_OMITTED = ["inviteCode", "joinWeight"];
 
@@ -172,7 +172,7 @@ describe("fix 4: the read-only loaders return the same data minus unused columns
     const w = await world();
     const view = (await loadGroupView(w.gid))!;
     const e = view.group.expenses.find((x) => x.description === "Hotel")!;
-    expect("rateSource" in e).toBe(false);
+    expect(e.rateSource).toBe("api"); // kept: Activity shows where a saved rate came from
     expect(e).toMatchObject({ amount: 103000, markupAmount: 3000, originalCurrency: "THB", exchangeRate: "2.8", payers: "" });
     expect("inviteCode" in view.group).toBe(false);
     expect("notify" in view.group.members[0]).toBe(false);
