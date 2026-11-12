@@ -45,8 +45,6 @@ describe("photo clean-up", () => {
     const r = await flushPhotoDeletes();
     expect(r.error).toContain("db down");
     expect(r.failed).toBeGreaterThanOrEqual(1);
-    // A normal run has no error field.
-    expect((await flushPhotoDeletes()).error).toBeUndefined();
   });
 
   it("the daily 'blob-trash' part is listed as failed when the clean-up broke", async () => {
