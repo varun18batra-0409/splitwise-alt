@@ -760,7 +760,7 @@ async function main() {
     ledger.find((x) => x.key === "Tickets")!.active = false;
     const after = await checkBalances(V, g);
     await go(V, `${g}?tab=activity&q=Tickets`);
-    await V.locator("details summary").filter({ hasText: "Tickets" }).first().click();
+    await V.locator('li[id^="item-"] details > summary').filter({ hasText: "Tickets" }).first().click();
     await V.getByRole("button", { name: "Restore" }).first().click();
     await V.waitForURL(/did=/);
     ledger.find((x) => x.key === "Tickets")!.active = true;
@@ -926,7 +926,9 @@ async function main() {
       const filled = await row.locator(".pop").count();
       const apps = await row.locator("[data-pay]").count();
       // One filled button when there is any pay option (a second saved way, e.g. PayPal, is a quiet "or pay with" link, never filled).
-      assert((apps <= 1 && filled === 1) || (filled === 0 && (await row.locator("[data-claim-waiting], [data-claim-above]").count()) > 0), `row ${i} has ${filled} filled buttons`);
+      // A payment between two other people has a quiet outline "Mark paid" (yours is the filled one); a waiting claim has none.
+      const quiet = filled === 0 && ((await row.locator("[data-claim-waiting], [data-claim-above]").count()) > 0 || (await row.getByRole("button", { name: "Mark paid", exact: true }).count()) === 1);
+      assert((apps <= 1 && filled === 1) || quiet, `row ${i} has ${filled} filled buttons`);
       assert((await row.locator('input[name="amount"]:not([type="hidden"])').count()) === 0, `row ${i} still has an amount box`);
       assert((await row.getByText("Mark paid", { exact: true }).count()) <= 1, `row ${i} has look-alike buttons`);
     }
@@ -1042,7 +1044,8 @@ async function main() {
     await V.getByRole("button", { name: "Record payment" }).click();
     await V.locator("[data-over-warning]").waitFor();
     const t = (await V.locator("[data-over-warning]").innerText()).replace(/\s+/g, " ");
-    assert(/\w+ is owed ₹[\d,.]+\. Recording ₹[\d,.]+ means \w+ will owe \w+ ₹[\d,.]+ back\. Record it anyway\?/.test(t), `warning says: ${t}`);
+    // Two wordings, depending on whether the person paid is owed anything right now (pay-record.ts overpayQuestion).
+    assert(/\w+ is owed ₹[\d,.]+\. Recording ₹[\d,.]+ means \w+ will owe \w+ ₹[\d,.]+ back\. Record it anyway\?/.test(t) || /This is ₹[\d,.]+ more than what's owed\. Record it anyway\?/.test(t), `warning says: ${t}`);
     assert((await db.payment.count({ where: { groupId: g.split("/").pop()!, deletedAt: null } })) === before, "a payment was saved before confirming");
     // Cancel (first, and the safe default) saves nothing and takes the warning away.
     await V.locator("[data-over-cancel]").click();
@@ -3116,7 +3119,8 @@ async function main() {
   });
 
   // ===== Trip countdown =====
-  const istDay = (plus: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(Date.now() + plus * 86_400_000));
+  // Days counted where this person is (a London desktop late in the evening is already a day behind India).
+  const istDay = (plus: number) => new Intl.DateTimeFormat("en-CA", { timeZone: P.timezoneId }).format(new Date(Date.now() + plus * 86_400_000));
   async function newTrip(page: Page, name: string, start: string) {
     await go(page, "/groups/new");
     await page.getByRole("button", { name: /^Trip/ }).click();
