@@ -927,7 +927,7 @@ async function main() {
       const apps = await row.locator("[data-pay]").count();
       // One filled button when there is any pay option (a second saved way, e.g. PayPal, is a quiet "or pay with" link, never filled).
       // A payment between two other people has a quiet outline "Mark paid" (yours is the filled one); a waiting claim has none.
-      const quiet = filled === 0 && ((await row.locator("[data-claim-waiting], [data-claim-above]").count()) > 0 || (await row.getByRole("button", { name: "Mark paid", exact: true, includeHidden: true }).count()) >= 1);
+      const quiet = filled === 0 && ((await row.locator("[data-claim-waiting], [data-claim-above]").count()) > 0 || (await row.locator("[data-mark-paid]").count()) >= 1);
       assert((apps <= 1 && filled === 1) || quiet, `row ${i} has ${filled} filled buttons`);
       assert((await row.locator('input[name="amount"]:not([type="hidden"])').count()) === 0, `row ${i} still has an amount box`);
       assert((await row.getByText("Mark paid", { exact: true }).count()) <= 1, `row ${i} has look-alike buttons`);
