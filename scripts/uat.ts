@@ -529,7 +529,7 @@ async function main() {
     assert(!/Not on Loopin yet/.test(await V.locator("li").filter({ hasText: "(you)" }).first().innerText()), "the (you) row says “Not on Loopin yet”");
     await V.locator("[data-more-ways] > summary").waitFor();
     await V.getByRole("button", { name: "Copy link" }).waitFor();
-    const wa = await V.locator("[data-invite-whatsapp]").evaluate("el => getComputedStyle(el).backgroundColor");
+    const wa = await V.locator("[data-invite-whatsapp]").evaluate((el) => getComputedStyle(el).backgroundColor);
     assert(wa === "rgb(111, 227, 168)", `the WhatsApp invite button is ${wa}, not Loopin's green (#6fe3a8)`);
     assert((await V.getByText("Add members yourself").count()) === 0, "old “Add members yourself” still there");
     const m = /\/join\/([A-Za-z0-9_-]+)/.exec(await V.content());
@@ -889,7 +889,7 @@ async function main() {
   // F1: the quiet closing actions and "Paid a different amount?" sit under a "More options" link: open the one inside `scope` first.
   const openMore = async (scope: ReturnType<Page["locator"]>) => {
     const d = scope.locator("details[data-more-options]").first();
-    if ((await d.count()) && !(await d.evaluate("el => el.open"))) await d.locator("summary").click();
+    if ((await d.count()) && !(await d.evaluate((el) => (el as HTMLDetailsElement).open))) await d.locator("summary").click();
   };
   const settleCards = (page: Page) => page.locator("main ul > li[data-transfer-row]");
   // Record row i's payment so it counts straight away, in full or for another amount: through "Paid a different amount?" (Record a payment).
