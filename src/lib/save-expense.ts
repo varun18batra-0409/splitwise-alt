@@ -224,7 +224,7 @@ async function saveExpenseOnce(
     forMode: e.forMode,
     paidById: e.paidById,
     payers: payersJson(e.payers),
-    kind: existing?.kind === "pot" ? "pot" : e.kind, // an imported card-game row stays a card-game row
+    kind: existing?.kind === "pot" && e.kind === "expense" ? "pot" : e.kind, // an imported card-game row stays one, unless it is switched to Money back
     originalAmount: e.originalAmount,
     originalCurrency: e.originalCurrency,
     baseCurrency: e.baseCurrency,

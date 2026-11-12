@@ -357,6 +357,33 @@ describe("The Pot (real database)", () => {
     expect((await saveExpense(edit(g.id, result, b), b, noRate)).ok).toBe(false);
   });
 
+  it("an imported card-game row switched to Money back saves as money back (not silently kept as a card row)", async () => {
+    const { g, a, b } = await table();
+    const imported = await db.expense.create({
+      data: { groupId: g.id, description: "Imported cards", amount: 20000, splitType: "exact", forMode: "selected", kind: "pot", paidById: a, createdById: a, originalAmount: 20000, convertedAmount: 20000, shares: { create: [{ memberId: b, amount: 20000 }] } },
+    });
+    const r = await saveExpense(edit(g.id, imported.id, a, { name: "Cash back", amount: "200", forMode: "selected", selected: [b], splitType: "equal", kind: "refund" }), a, noRate);
+    expect(r.ok).toBe(true);
+    expect((await db.expense.findUniqueOrThrow({ where: { id: imported.id } })).kind).toBe("refund");
+    // Money back ₹200 received by Asha, shared with Bina only: Asha owes Bina ₹200 → Asha -20000, Bina +20000.
+    const net = await balances(g.id);
+    expect({ a: net[a], b: net[b] }).toEqual({ a: -20000, b: 20000 });
+  });
+
+  it("two reopens at the same moment: only one acts; the game is open with no result and balances are back to 0", async () => {
+    const { g, a, gameId } = await playedGame();
+    expect((await finishGame(gameId, a)).ok).toBe(true);
+    const [r1, r2] = await Promise.all([reopenGame(gameId, a), reopenGame(gameId, a)]);
+    expect([r1.ok, r2.ok].filter(Boolean).length).toBe(1);
+    const game = await db.potGame.findUniqueOrThrow({ where: { id: gameId } });
+    expect({ status: game.status, resultId: game.resultId }).toEqual({ status: "open", resultId: "" });
+    expect(await db.expense.count({ where: { groupId: g.id } })).toBe(0);
+    expect((await db.groupEvent.count({ where: { groupId: g.id, kind: "pot_reopened" } }))).toBe(1);
+    // Finishing again gives exactly one result: Asha +50000, Bina -50000 (worked by hand above).
+    expect((await finishGame(gameId, a)).ok).toBe(true);
+    expect(await db.expense.count({ where: { groupId: g.id, deletedAt: null } })).toBe(1);
+  });
+
   it("an old result that was turned into ordinary spending is still removed on reopen; finishing leaves exactly one result and balances sum to 0", async () => {
     const { g, a, b, gameId } = await playedGame();
     expect((await finishGame(gameId, a)).ok).toBe(true);

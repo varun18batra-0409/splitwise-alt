@@ -244,7 +244,11 @@ export async function reopenGame(gameId: string, actorId: string): Promise<Resul
   if (!canRunGame(game, g.members, actorId)) return { ok: false, error: "Only the host can reopen the game." };
   if (game.status !== "done") return { ok: false, error: "This game is still going." };
   if (g.closed) return { ok: false, error: "This group is closed. Reopen the group first." };
-  await db.$transaction(async (tx) => {
+  const reopened = await db.$transaction(async (tx) => {
+    // Claim the game as it was read (the same way finishing claims it): two reopens, or a reopen racing a
+    // finish, can't both act, so a newer result is never left in the balances with no game pointing at it.
+    const claim = await tx.potGame.updateMany({ where: { id: gameId, status: "done", resultId: game.resultId }, data: { status: "open", finishedAt: null, resultId: "" } });
+    if (claim.count !== 1) return false;
     if (game.resultId) {
       // The event that pointed at it stays in the history, without the link.
       await tx.groupEvent.updateMany({ where: { expenseId: game.resultId }, data: { expenseId: null } });
@@ -252,9 +256,10 @@ export async function reopenGame(gameId: string, actorId: string): Promise<Resul
       await tx.expenseShare.deleteMany({ where: { expenseId: game.resultId } });
       await tx.expense.deleteMany({ where: { id: game.resultId } });
     }
-    await tx.potGame.update({ where: { id: gameId }, data: { status: "open", finishedAt: null, resultId: "" } });
     await logEvent(tx, { groupId: g.id, actorId, kind: "pot_reopened", text: `reopened ${game.name} (its result is out of the balances until it’s finished again)` });
+    return true;
   });
+  if (!reopened) return { ok: false, error: "This game changed just now. Open it again to see where it stands." };
   return { ok: true };
 }
 

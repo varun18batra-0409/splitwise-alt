@@ -95,7 +95,7 @@ test("fingerprint / face: turn it on, sign out, sign back in with one touch, rem
   await page.getByRole("button", { name: /Turn on fingerprint \/ face sign-in/ }).click();
   // The phone appears in the list (named from the browser: a Pixel → "Android phone").
   // (It saves, then the page reloads; on the hosted copy that can take a while.)
-  const added = page.getByText("Android phone").first();
+  const added = page.getByText(test.info().project.name === "desktop" ? /^(This device|Windows computer|Mac)$/ : "Android phone").first();
   const problem = page.locator('p[role="alert"]');
   await expect(added.or(problem).first()).toBeVisible({ timeout: 45_000 });
   if (await problem.count()) throw new Error(`Turning it on said: ${await problem.first().innerText()}`);

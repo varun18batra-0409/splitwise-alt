@@ -37,6 +37,7 @@ export default defineConfig({
     { name: "iphone", use: { ...devices["iPhone 14"], browserName: "webkit" } }, // iPhone, Safari's engine
     // A computer: a wide window, a mouse, no touch, another country and time zone. Run on purpose
     // (--project=desktop, as Exercise A does); the older workflows name their projects, so they're unchanged.
-    { name: "desktop", use: { ...devices["Desktop Chrome"], browserName: "chromium", viewport: { width: 1440, height: 900 }, isMobile: false, hasTouch: false, locale: "en-GB", timezoneId: "Europe/London" } },
+    // An Indian desktop user, so India-only parts (UPI, the stamp set) are covered; the UAT run covers a London desktop.
+    { name: "desktop", use: { ...devices["Desktop Chrome"], browserName: "chromium", viewport: { width: 1440, height: 900 }, isMobile: false, hasTouch: false, locale: "en-IN", timezoneId: "Asia/Kolkata" } },
   ],
 });
