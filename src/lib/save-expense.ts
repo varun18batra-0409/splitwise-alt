@@ -387,7 +387,7 @@ export async function setExpenseDeleted(expenseId: string, actingMemberId: strin
   return withRetry(() => setExpenseDeletedOnce(expenseId, actingMemberId, deleted, opts));
 }
 async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string | undefined, deleted: boolean, opts: { afterRead?: () => Promise<void>; undoing?: boolean }): Promise<Result> {
-  const expense = await db.expense.findUnique({ where: { id: expenseId }, include: { group: { include: { members: { select: { id: true } } } } } });
+  const expense = await db.expense.findUnique({ where: { id: expenseId }, include: { shares: true, group: { include: { members: { select: { id: true } } } } } });
   if (!expense) return { ok: false, error: "That expense no longer exists." };
   if (!actingMemberId || !expense.group.members.some((m) => m.id === actingMemberId)) {
     return { ok: false, error: "Only people in this group can delete or restore its expenses." };

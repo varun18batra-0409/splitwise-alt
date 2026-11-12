@@ -76,11 +76,12 @@ export async function joinExisting(code: string, account: JoinAccount, memberId:
   // its notification rows go (that phone stops hearing about it). The callers copy the joiner's own phones onto it afterwards.
   const won = await db.$transaction(async (tx) => {
     const w = await tx.member.updateMany({ where: { id: member.id, accountId: null, claimedAt: null, removedAt: null }, data: { accountId: account.id, claimedAt: new Date(), seenAt: new Date(), grantEpoch: { increment: 1 } } });
-    if (w.count === 1) await tx.pushSubscription.deleteMany({ where: { memberId: member.id } });
-    return w.count;
+    const dropped = w.count === 1 ? (await tx.pushSubscription.deleteMany({ where: { memberId: member.id } })).count : 0;
+    return { count: w.count, dropped };
   });
-  if (won !== 1) return { ok: false, reason: "claimed" };
-  await setPushResyncCookie();
+  if (won.count !== 1) return { ok: false, reason: "claimed" };
+  // Only when this name's notification rows actually went (the joiner's phones then re-register at once).
+  if (won.dropped > 0) await setPushResyncCookie();
   if (!account.name) await db.account.update({ where: { id: account.id }, data: { name: member.name } });
   await logEvent(db, { groupId: group.id, actorId: member.id, kind: "members_added", text: "joined the group" });
   return { ok: true, memberId: member.id };
