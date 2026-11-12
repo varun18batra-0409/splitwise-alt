@@ -230,7 +230,8 @@ async function go(page: Page, path: string, opts: { quick?: boolean } = {}) {
         // Layout only needs the page drawn: wait for load if it comes within 10 s, and say so if it doesn't.
         const loaded = await page.waitForLoadState("load", { timeout: 10_000 }).then(() => true, () => false);
         if (!loaded) slowLoads.push(path);
-        await page.evaluate("document.fonts ? document.fonts.ready.then(() => true) : true").catch(() => undefined);
+        // Fonts: at most 5 s (on Safari's engine "fonts ready" can wait on a font that never finishes on this machine).
+        await page.evaluate("Promise.race([document.fonts ? document.fonts.ready.then(() => true) : true, new Promise((r) => setTimeout(() => r(false), 5000))])").catch(() => undefined);
         await page.waitForTimeout(300);
       } else if (hosted) await page.goto(base + path, { waitUntil: "load", timeout: 30_000 });
       else await page.goto(base + path, { waitUntil: "networkidle" });
@@ -2153,11 +2154,14 @@ async function main() {
       "/settle", "/notifications", "/search", "/account", "/how-it-works", "/welcome",
     ];
     const wide: string[] = [];
+    const timings: [string, number][] = [];
     const started = Date.now();
     for (const p of pages) {
       // Never keep going in the background after the step's own time is up (it would slow the steps after it).
-      if (Date.now() - started > 280_000) throw new Error(`only ${pages.indexOf(p)} of ${pages.length} screens checked in time`);
+      if (Date.now() - started > 280_000) throw new Error(`only ${pages.indexOf(p)} of ${pages.length} screens checked in time; slowest: ${timings.sort((a, b) => b[1] - a[1]).slice(0, 3).map(([q, ms]) => `${q.replace(/[a-z0-9]{20,}/g, ":id")} ${Math.round(ms / 1000)} s`).join(", ")}`);
+      const t0 = Date.now();
       await go(page, p, { quick: true });
+      timings.push([p, Date.now() - t0]);
       const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       if (over > 1) {
         wide.push(`${p.replace(/[a-z0-9]{20,}/g, ":id")} (+${over}px)`);
