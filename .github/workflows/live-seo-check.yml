@@ -18,6 +18,9 @@ jobs:
           css=$(curl -s "$s/" | grep -o '/_next/static/css/[^"]*\.css' | head -3); found=""; for c in $css; do curl -s "$s$c" | grep -q 'nobreak{' && found="nobreak rule live (Batch A)"; done; echo "::notice title=New CSS::${found:-not found}"
           echo "::notice title=Private API caching::$(curl -s -D - -o /dev/null -X POST "$s/api/speed" | tr -d '\r' | grep -i '^cache-control:')"
           echo "::notice title=Signed-out verify link::$(curl -s "$s/signin/verify?e=a%40example.com&c=123456" | grep -o 'Only continue if you asked for this code' | head -1)"
+          echo "::notice title=Batch C words::import page names another app: $(curl -s $s/import | grep -ci splitwise) · switching: $(curl -s $s/switching | grep -ci splitwise) · keywords: $(curl -s $s/ | grep -o '<meta name="keywords"[^>]*>' | grep -ci splitwise)"
+          echo "::notice title=Time zone endpoint::POST good=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'content-type: application/json' -d '{"tz":"Asia/Kolkata"}' $s/api/tz) bad=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'content-type: application/json' -d '{"tz":"Not/AZone"}' $s/api/tz)"
+          echo "::notice title=Privacy placeholders::$(curl -s $s/privacy | grep -c '{{') on privacy, $(curl -s $s/terms | grep -c '{{') on terms"
           echo "::notice title=Postcard font CSS::$(curl -s -o /dev/null -w '%{http_code}' 'https://fonts.googleapis.com/css2?family=Caveat')"
       - run: npm i --no-save playwright@1.56.1 >/dev/null 2>&1
       - run: |
