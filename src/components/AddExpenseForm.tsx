@@ -299,7 +299,7 @@ export function AddExpenseForm({
     : null;
   const fxSource = usingManualRate
     ? "Rate entered by hand"
-    : rateState.status === "ok" && rateState.date
+    : rateState.status === "ok"
       ? rateDateLabel({ rateDate: rateState.date, expenseDay: date, saved: keepSavedRate, stale: rateState.stale }, niceDate)
       : null;
 

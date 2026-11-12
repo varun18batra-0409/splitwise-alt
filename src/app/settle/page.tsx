@@ -4,7 +4,7 @@ import { Notice } from "@/components/Notice";
 import { loadOverview } from "@/lib/overview";
 import { formatMoney, PAYMENT_LINE, toInputAmount } from "@/lib/money";
 import { DifferentAmountLink, differentAmountFor, mainButtonClass, outlineButtonClass, PayAppButtons, RemindIcon, SettleRow } from "@/components/SettleRow";
-import { crossPreview } from "@/lib/cross-settle";
+import { crossActionLabel, crossPreview } from "@/lib/cross-settle";
 import { settleAcrossGroups } from "@/app/actions";
 import { STALE_KEY_ERROR } from "@/lib/once";
 import { FreshKey } from "@/components/FreshKey";
@@ -114,7 +114,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
                           const pv = crossPreview(it, common);
                           return (
                             <details className="group flex-1 basis-40 open:basis-full" data-cross-preview>
-                              <summary className={`${outlineButtonClass} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>{it.net > 0 ? "They’ve paid me" : it.net < 0 ? "I’ve paid" : "Mark paid"}</summary>
+                              <summary className={`${outlineButtonClass} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>{crossActionLabel(it.net)}</summary>
                               <div className="mt-3 rounded-2xl border border-line bg-mist px-4 py-3.5">
                                 <p className="text-sm font-semibold">This will record:</p>
                                 <ul className="mt-2 space-y-1 text-sm text-fg/80" data-cross-lines>

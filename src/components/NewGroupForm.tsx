@@ -31,7 +31,7 @@ export function NewGroupForm({
   initialName,
   initialType = "trip",
   initialCover = "",
-  india = true,
+  india = false, // fail safe: Teen Patti only when the caller knows the person is in India
 }: {
   defaultCurrency: string;
   yourName: string;

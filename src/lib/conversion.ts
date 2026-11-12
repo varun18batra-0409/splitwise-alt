@@ -158,9 +158,15 @@ export function rateDateLabel(
   return o.saved ? `${prefix}, from ${when} (the latest when it was saved)` : `${prefix} from ${when}, the latest available`;
 }
 
-// Where the rate came from, for the line under the maths. `rateDate` is the day the rate applies to ("2026-10-14").
+// Where the rate came from, for the line under the maths of an expense that is already saved (Activity). `rateDate` is the
+// day the rate was published for ("2026-10-14"; Frankfurter's ECB day, not the UTC day): it is the latest one when the expense was saved,
+// so it can be older than the expense's day. A saved rate is never called "live".
 export function rateSourceLine(e: { rateSource: string; rateDate: string }, niceDate: (day: string) => string, expenseDay = ""): string | null {
-  if (e.rateSource === "api") return rateDateLabel({ rateDate: e.rateDate, expenseDay }, niceDate);
+  if (e.rateSource === "api") {
+    if (!e.rateDate) return "Rate saved with this expense";
+    const when = niceDate(e.rateDate);
+    return !expenseDay || expenseDay === e.rateDate ? `Rate for ${when}` : `Rate from ${when} (the latest when it was saved)`;
+  }
   if (e.rateSource === "manual") return "Rate entered by hand";
   if (e.rateSource === "converted") return "Adjusted when the group currency changed";
   return null;

@@ -16,10 +16,12 @@ import { FreshKey } from "@/components/FreshKey";
 import { UndoBar } from "@/components/UndoBar";
 import { ErrorNote, PageHeader } from "@/components/ui";
 import { db } from "@/lib/db";
+import { dayKey } from "@/lib/dates";
+import { getTimeZone } from "@/lib/tz";
 import { getAccount } from "@/lib/identity";
 import { payButtons, type PayWays } from "@/lib/pay-links";
 import { waitingForMe } from "@/lib/payment-ok";
-import { planSettleRow, settleMainAction, settleRowFacts } from "@/lib/settle-row";
+import { planSettleRow, settleMainAction, settleRowFacts, tripEnded } from "@/lib/settle-row";
 import { claimsWaitingFor, declinedNote, myDeclinedClaims, myWaitingClaims } from "@/lib/payment-claims";
 import { claimPaidAction, confirmClaimAction, confirmPaymentAction, declineClaimAction, markAllPaidAction, rejectPaymentAction, withdrawClaimAction } from "@/app/pay-actions";
 
@@ -77,9 +79,11 @@ export default async function GroupSettle({
     return a && (a.upiId || a.payLink) ? { upiId: a.upiId, payLink: a.payLink } : null;
   };
   const myWays = waysOf(myId);
-  const mainAction = settleMainAction({ type: group.type, transfers: transfers.length, shown: ordered.length });
   const owedToMe = ordered.some((t) => t.to === myId);
   const iLeft = Boolean(group.members.find((m) => m.id === myId)?.leftAt); // someone who left can answer "Confirm received", but not say they paid
+  const today = dayKey(new Date(), await getTimeZone()); // the viewer's today: a trip is "ended" from its last day
+  const ended = tripEnded(group, today);
+  const mainAction = settleMainAction({ type: group.type, transfers: transfers.length, shown: ordered.length, left: iLeft, ended });
   // Paid back so far, out of everything that needed paying back (payments made + what's still left).
   const paidSoFar = payments.reduce((t, p) => t + p.amount, 0);
   const left = transfers.reduce((t, x) => t + x.amount, 0);
@@ -348,7 +352,7 @@ export default async function GroupSettle({
       )}
 
       {/* The closing actions: ONE main button, the rest quiet links under it. */}
-      {!group.closed && (
+      {!group.closed && !iLeft && (
         <section id="close" className="mt-6 scroll-mt-4 space-y-1" data-settle-actions>
           {ordered.length > 1 && (
             <form action={markAllPaidAction} className={mainAction === "mark-all" ? "" : "flex justify-center"}>

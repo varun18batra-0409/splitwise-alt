@@ -76,12 +76,22 @@ export function planSettleRow(f: RowFacts): RowPlan {
 }
 
 // The closing actions under the payment rows: ONE main button, the others quiet links under it.
-//   nothing left to pay        -> "Close group" is the one button
-//   a trip (it ends)           -> "Settle everything & close"
-//   other groups, 2+ payments  -> "Mark all paid (N)" (the group stays open)
-//   other groups, 1 payment    -> none: that payment's own button is the main one
-export function settleMainAction(i: { type: string; transfers: number; shown: number }): "close" | "mark-all" | null {
+//   someone who left            -> none (the server refuses it for them)
+//   nothing left to pay         -> "Close group" is the one button
+//   a trip that has ended       -> "Settle everything & close" (2+ payments; with one, that payment's own button is the main one)
+//   other groups, or a trip still on, 2+ payments -> "Mark all paid (N)" (the group stays open)
+//   one payment                 -> none: that payment's own button is the main one
+export function settleMainAction(i: { type: string; transfers: number; shown: number; left?: boolean; ended?: boolean }): "close" | "mark-all" | null {
+  if (i.left) return null;
   if (i.transfers === 0) return "close";
-  if (i.type === "trip") return "close";
+  if (i.type === "trip" && i.ended) return i.shown === 1 ? null : "close";
   return i.shown > 1 ? "mark-all" : null;
+}
+
+// Has the trip ended? Its last day (or its first day when there is no end date) is today or earlier, in the viewer's time zone.
+// A trip with no dates is treated as not ended. Days are plain "YYYY-MM-DD" strings, so they compare as text.
+export function tripEnded(i: { type: string; tripStart: string; tripEnd: string }, today: string): boolean {
+  if (i.type !== "trip") return false;
+  const last = i.tripEnd || i.tripStart;
+  return Boolean(last) && last <= today;
 }

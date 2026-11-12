@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planSettleRow, settleMainAction, type RowFacts } from "@/lib/settle-row";
+import { planSettleRow, settleMainAction, tripEnded, type RowFacts } from "@/lib/settle-row";
 import { differentAmountHref } from "@/lib/money";
 
 // One layout for every payment on Settle up: one filled main button, one outlined action, one text link.
@@ -64,8 +64,21 @@ describe("a Settle up row", () => {
 });
 
 describe("the closing actions under the rows: one main button", () => {
-  it("a trip's main action is Settle everything & close; Mark all paid is then a quiet link", () => {
-    expect(settleMainAction({ type: "trip", transfers: 2, shown: 2 })).toBe("close");
+  it("a trip that has ended: Settle everything & close is the main action; Mark all paid is then a quiet link", () => {
+    expect(settleMainAction({ type: "trip", transfers: 2, shown: 2, ended: true })).toBe("close");
+  });
+  it("a trip still on (or with no dates): Mark all paid, the group stays open", () => {
+    expect(settleMainAction({ type: "trip", transfers: 2, shown: 2, ended: false })).toBe("mark-all");
+    expect(settleMainAction({ type: "trip", transfers: 2, shown: 2 })).toBe("mark-all");
+  });
+  it("a trip that has ended with ONE payment shown: no second big button (that payment's own button is the main one)", () => {
+    expect(settleMainAction({ type: "trip", transfers: 1, shown: 1, ended: true })).toBeNull();
+    expect(settleMainAction({ type: "trip", transfers: 1, shown: 1, ended: false })).toBeNull();
+  });
+  it("someone who left sees no closing button at all, whatever the group", () => {
+    expect(settleMainAction({ type: "trip", transfers: 2, shown: 2, ended: true, left: true })).toBeNull();
+    expect(settleMainAction({ type: "home", transfers: 2, shown: 2, left: true })).toBeNull();
+    expect(settleMainAction({ type: "home", transfers: 0, shown: 0, left: true })).toBeNull();
   });
   it("a home or card group with 2 payments: Mark all paid (2) is the main one", () => {
     expect(settleMainAction({ type: "home", transfers: 2, shown: 2 })).toBe("mark-all");
@@ -76,5 +89,24 @@ describe("the closing actions under the rows: one main button", () => {
   });
   it("nothing left to pay: Close group is the one button", () => {
     expect(settleMainAction({ type: "home", transfers: 0, shown: 0 })).toBe("close");
+  });
+});
+
+describe("tripEnded (viewer's today, plain days)", () => {
+  const trip = { type: "trip", tripStart: "2026-11-10", tripEnd: "2026-11-14" };
+  it("not ended before or on the day before the last day", () => {
+    expect(tripEnded(trip, "2026-11-13")).toBe(false);
+  });
+  it("ended on the last day and after", () => {
+    expect(tripEnded(trip, "2026-11-14")).toBe(true);
+    expect(tripEnded(trip, "2026-11-20")).toBe(true);
+  });
+  it("no end date: the start day is the last day", () => {
+    expect(tripEnded({ type: "trip", tripStart: "2026-11-10", tripEnd: "" }, "2026-11-10")).toBe(true);
+    expect(tripEnded({ type: "trip", tripStart: "2026-11-10", tripEnd: "" }, "2026-11-09")).toBe(false);
+  });
+  it("no dates, or not a trip: not ended", () => {
+    expect(tripEnded({ type: "trip", tripStart: "", tripEnd: "" }, "2026-11-20")).toBe(false);
+    expect(tripEnded({ type: "home", tripStart: "2026-01-01", tripEnd: "" }, "2026-11-20")).toBe(false);
   });
 });

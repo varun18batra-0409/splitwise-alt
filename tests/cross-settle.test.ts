@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { crossPreview, crossSettle, personKey, type GroupForSettle } from "@/lib/cross-settle";
+import { crossActionLabel, crossPreview, crossSettle, personKey, type GroupForSettle } from "@/lib/cross-settle";
 import { netBalances } from "@/lib/balances";
 import { smartSettle } from "@/lib/settle";
 
@@ -134,5 +134,13 @@ describe("second currency", () => {
       { currency: "THB", original: 400000, group: 1022500, count: 2 },
       { currency: "INR", original: 90000, group: 90000, count: 1 },
     ]);
+  });
+});
+
+describe("the all-groups Settle opener uses different words from a group's claim", () => {
+  it("I owe: Record payment (it counts at once), never I’ve paid; owed to me: They’ve paid me", () => {
+    expect(crossActionLabel(-20000)).toBe("Record payment");
+    expect(crossActionLabel(20000)).toBe("They’ve paid me");
+    expect(crossActionLabel(0)).toBe("Mark paid");
   });
 });

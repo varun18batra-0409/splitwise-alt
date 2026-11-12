@@ -743,6 +743,12 @@ async function main() {
     }
     // Under the rows: ONE main closing button; "Record a different payment" and the other close action are quiet links.
     assert((await V.locator("[data-settle-actions] .pop").count()) <= 1, "more than one filled closing button under the payments");
+    // One filled button per screen area: on the whole page, the rows' own main buttons plus at most one closing button,
+    // and none at all when a single payment is shown (that payment's own button is the main one).
+    const rowFilled = await settleCards(V).locator(".pop").count();
+    const allFilled = await V.locator("main .pop").count();
+    assert(allFilled <= rowFilled + 1, `${allFilled} filled buttons on Settle up, but the rows have ${rowFilled}`);
+    if (n === 1) assert((await V.locator("[data-settle-actions] .pop").count()) === 0, "a second big button under a single payment");
     assert((await V.getByRole("button", { name: /^Mark all \d+ paid$/ }).count()) === 0, "the old “Mark all N paid” wording is back");
     return `${n} payments suggested`;
   });
@@ -904,6 +910,8 @@ async function main() {
     const t = (await card.innerText()).replace(/\s+/g, " ");
     assert(/Asha pays you/.test(t) && /₹200/.test(t), `card says: ${t}`);
     assert(/1 payment instead of 2/.test(t), "doesn't say 1 payment instead of 2");
+    // Here a payment is recorded at once (unlike a group's own “I’ve paid” claim), so it never says “I’ve paid”.
+    assert((await V.locator("main summary", { hasText: "I’ve paid" }).count()) === 0, "the all-groups Settle screen says “I’ve paid”");
     // "They’ve paid me" (Varun is owed) opens a preview of each group's part and the total; only "Record in 2 groups" saves.
     await card.locator("summary", { hasText: "They’ve paid me" }).click();
     const lines = (await card.locator("[data-cross-lines]").innerText()).replace(/\s+/g, " ");
@@ -1690,6 +1698,9 @@ async function main() {
     await go(A, gh);
     await A.locator("[data-left-banner]").waitFor();
     for (const t of ["This month", "Bills", "List"]) assert((await A.getByRole("link", { name: t, exact: true }).count()) === 0, `a person who moved out sees the ${t} tab`);
+    // On Settle up she gets no Close group / Mark all paid section (the server would refuse it).
+    await go(A, `${gh}/settle`);
+    assert((await A.locator("[data-settle-actions]").count()) === 0, "a person who moved out is offered Close group / Mark all paid");
     const sum = Object.values(data.net).reduce((a, b) => a + b, 0);
     assert(sum === 0 && data.net[asha.id] === 0, `net ${JSON.stringify(data.net)}`);
   });
@@ -2618,6 +2629,17 @@ async function main() {
     await go(page, "/");
     assert(!/splitwise/i.test((await page.locator('head meta[name="keywords"]').getAttribute("content").catch(() => "")) ?? ""), "the keywords name another app");
     await ctx.close();
+  });
+  await step(V, "Words", "Teen Patti is named the same way on the new-group form, the FAQ and How Loopin works (only for people in India; otherwise Poker or rummy)", async () => {
+    await go(V, "/groups/new");
+    const onForm = /Teen Patti/.test(await V.locator("body").innerText());
+    for (const path of ["/faq", "/how-it-works"]) {
+      await go(V, path);
+      if (path === "/faq") await V.locator("summary", { hasText: "What is The Pot?" }).click();
+      const text = await V.locator("body").innerText();
+      assert(/Teen Patti/.test(text) === onForm, `${path}: Teen Patti ${onForm ? "missing" : "shown"}, unlike the new-group form`);
+      if (!onForm) assert(/rummy/i.test(text), `${path}: no “rummy” wording for people outside India`);
+    }
   });
   await step(V, "Words", "The import screen gives generic export steps and no other app’s name", async () => {
     await go(V, "/import");

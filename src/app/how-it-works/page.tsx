@@ -6,7 +6,8 @@ import photos from "@/generated/photos.json";
 import { PageHeader } from "@/components/ui";
 import { GetAppButton } from "@/components/GetApp";
 import { headers } from "next/headers";
-import { visitorRegion } from "@/lib/region";
+import { regionFor } from "@/lib/region";
+import { getAccount } from "@/lib/identity";
 import { decimalsOf, formatMoney } from "@/lib/money";
 
 export const metadata = { title: "How Loopin works", description: "How to split trips, flat rent and bills, and couple expenses with Loopin: any currency, repeat bills, one-tap settle up.", alternates: { canonical: "/how-it-works" } };
@@ -114,7 +115,7 @@ function Example({ children }: { children: React.ReactNode }) {
 // swipe-through tour is still at /welcome (linked at the top).
 export default async function HowItWorks() {
   // Examples in the visitor's own currency (₹ in India, dollars and similar elsewhere).
-  const { currency, india } = visitorRegion(await headers());
+  const { currency, india } = regionFor(await headers(), (await getAccount())?.homeCountry);
   const m = (major: number) => formatMoney(Math.round(major * 10 ** decimalsOf(currency)), currency);
   const x = india
     ? { dinner: 1200, each: 300, yen: 3390, fee: 102, four: 873, gift: 100 }
@@ -315,7 +316,7 @@ export default async function HowItWorks() {
       <div id="pot" className="scroll-mt-4" />
       <Section art="pot" title="Card nights: The Pot keeps score">
         <p>
-          Playing <strong>Poker</strong> or <strong>Teen Patti</strong>? Make a group and pick <strong>The Pot</strong>. Add the players: friends on
+          Playing {india ? <><strong>Teen Patti</strong> or <strong>Poker</strong></> : <><strong>Poker</strong> or <strong>rummy</strong></>}? Make a group and pick <strong>The Pot</strong>. Add the players: friends on
           Loopin see the game and their balance; anyone else can just be a name (they can join with the link later).
         </p>
         <Steps

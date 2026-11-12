@@ -59,7 +59,12 @@ describe("fxLine (C12)", () => {
 
 describe("rateSourceLine", () => {
   it("says where the rate came from", () => {
-    expect(rateSourceLine({ rateSource: "api", rateDate: "2026-10-14" }, niceDate)).toBe("Live rate for 14 Oct 2026");
+    expect(rateSourceLine({ rateSource: "api", rateDate: "2026-10-14" }, niceDate)).toBe("Rate for 14 Oct 2026");
+    // A rate stored with an expense is never "live"; expense on 13 Oct, rate published 14 Oct.
+    expect(rateSourceLine({ rateSource: "api", rateDate: "2026-10-14" }, niceDate, "2026-10-13")).toBe("Rate from 14 Oct 2026 (the latest when it was saved)");
+    expect(rateSourceLine({ rateSource: "api", rateDate: "2026-10-14" }, niceDate, "2026-10-14")).toBe("Rate for 14 Oct 2026");
+    // An old expense with no rate date still says the rate was saved.
+    expect(rateSourceLine({ rateSource: "api", rateDate: "" }, niceDate, "2026-10-13")).toBe("Rate saved with this expense");
     expect(rateSourceLine({ rateSource: "manual", rateDate: "2026-10-14" }, niceDate)).toBe("Rate entered by hand");
     expect(rateSourceLine({ rateSource: "converted", rateDate: "" }, niceDate)).toBe("Adjusted when the group currency changed");
     expect(rateSourceLine({ rateSource: "same", rateDate: "" }, niceDate)).toBeNull();
@@ -77,12 +82,19 @@ describe("rateDateLabel (the day the rate is for, next to the day of the expense
     );
     expect(rateDateLabel({ rateDate: "2026-10-11", expenseDay: "2026-10-13" }, niceDate)).toBe("Live rate from 11 Oct 2026, the latest available");
   });
-  it("late evening in India: 23:30 IST on 13 Oct is 18:00 UTC on 13 Oct, the same day; 01:00 IST on 14 Oct is still 13 Oct in UTC", () => {
+  it("an old expense with no rate date still reads 'Rate saved with this expense' (the form no longer hides it)", () => {
+    expect(rateDateLabel({ rateDate: "", expenseDay: "2026-10-13", saved: true }, niceDate)).toBe("Rate saved with this expense");
+    expect(rateDateLabel({ rateDate: "", expenseDay: "2026-10-13" }, niceDate)).toBe("Live rate");
+  });
+  it("late evening in India: the expense day is read in the person's zone, and the rate day is the rate's own publishing day", () => {
     const lateEvening = new Date("2026-10-13T18:00:00Z"); // 23:30 IST, 13 Oct
     const justAfterMidnight = new Date("2026-10-13T19:30:00Z"); // 01:00 IST, 14 Oct
     expect(dayKey(lateEvening, "Asia/Kolkata")).toBe("2026-10-13");
     expect(dayKey(justAfterMidnight, "Asia/Kolkata")).toBe("2026-10-14");
-    // The expense day is read in the person's zone (14 Oct); a rate dated by the UTC clock (13 Oct) is not claimed to be "for" 14 Oct.
-    expect(rateDateLabel({ rateDate: justAfterMidnight.toISOString().slice(0, 10), expenseDay: dayKey(justAfterMidnight, "Asia/Kolkata"), saved: true }, niceDate)).toContain("from 13 Oct 2026");
+    // The rate date is the day the rate source (Frankfurter, the ECB's publishing day) says, not the UTC day of the save.
+    // Say it was published for 13 Oct: for an expense on 14 Oct (IST) the line says "from 13 Oct", not "for 14 Oct".
+    expect(rateDateLabel({ rateDate: "2026-10-13", expenseDay: dayKey(justAfterMidnight, "Asia/Kolkata"), saved: true }, niceDate)).toBe(
+      "Rate saved with this expense, from 13 Oct 2026 (the latest when it was saved)",
+    );
   });
 });

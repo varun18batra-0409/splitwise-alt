@@ -1,5 +1,8 @@
 import Link from "@/components/Link";
 import { PageHeader } from "@/components/ui";
+import { headers } from "next/headers";
+import { getAccount } from "@/lib/identity";
+import { regionFor } from "@/lib/region";
 
 export const metadata = { title: "FAQ", description: "Answers about Loopin: is it free, currencies, repeat bills, inviting friends, your data and privacy.", alternates: { canonical: "/faq" } };
 
@@ -7,7 +10,8 @@ export const metadata = { title: "FAQ", description: "Answers about Loopin: is i
 type QA = { q: string; a: React.ReactNode };
 const link = "underline underline-offset-4";
 
-const SECTIONS: { title: string; items: QA[] }[] = [
+// Teen Patti is named only for people in India; elsewhere it is poker or rummy.
+const sections = (india: boolean): { title: string; items: QA[] }[] => [
   {
     title: "Getting started",
     items: [
@@ -174,7 +178,7 @@ const SECTIONS: { title: string; items: QA[] }[] = [
     items: [
       {
         q: "What is The Pot?",
-        a: "For Poker and Teen Patti nights. Make a group and pick The Pot, then start a game. Buy everyone in with one tap (top-ups for just a few), cash out anyone who leaves early and let a new name take the seat, then count what everyone has in one table. Tap Calculate & settle: Loopin works out who won, who lost and the fewest payments to square up.",
+        a: `For ${india ? "Teen Patti and Poker" : "Poker and rummy"} nights. Make a group and pick The Pot, then start a game. Buy everyone in with one tap (top-ups for just a few), cash out anyone who leaves early and let a new name take the seat, then count what everyone has in one table. Tap Calculate & settle: Loopin works out who won, who lost and the fewest payments to square up.`,
       },
       {
         q: "The money doesn’t add up. What now?",
@@ -253,7 +257,8 @@ const SECTIONS: { title: string; items: QA[] }[] = [
   },
 ];
 
-export default function Faq() {
+export default async function Faq() {
+  const { india } = regionFor(await headers(), (await getAccount())?.homeCountry);
   return (
     <>
       <PageHeader title="FAQ" back="/" />
@@ -261,7 +266,7 @@ export default function Faq() {
       <p className="mt-2 text-sm text-gray-500">
         Tap a question to open it. For a full tour, see <Link href="/how-it-works" className={link}>How Loopin works</Link>.
       </p>
-      {SECTIONS.map((s) => (
+      {sections(india).map((s) => (
         <section key={s.title} className="mt-8" aria-label={s.title}>
           <h2 className="mb-2 font-display text-lg font-semibold tracking-tight">{s.title}</h2>
           <ul className="divide-y divide-line border-y border-line">

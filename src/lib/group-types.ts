@@ -22,6 +22,11 @@ export function potNote(india: boolean): string {
   return india ? "Poker and Teen Patti nights" : "Poker and rummy nights";
 }
 
+// The group types with the card-night hint worded for where the person is (Teen Patti only in India).
+export function groupTypesFor(india: boolean): typeof GROUP_TYPES {
+  return GROUP_TYPES.map((t) => (t.id === "pot" ? { ...t, hint: potHint(india) } : t));
+}
+
 export function isGroupType(x: string): x is GroupType {
   return GROUP_TYPES.some((t) => t.id === x);
 }

@@ -374,7 +374,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                           <Line label="Original expense" value={formatMoney(e.originalAmount, e.originalCurrency)} />
                           <Line label="Exchange rate" value={`1 ${e.originalCurrency} = ${rateText(e.exchangeRate, e.baseCurrency)}`} />
                           <p className="-mt-1 text-right text-xs text-gray-400" data-rate-source>
-                            {rateSourceLine(e, niceDate, dayKey(expenseDate(e), tz)) ?? `Live rate${e.rateDate ? `, ${niceDate(e.rateDate)}` : ""}`}
+                            {rateSourceLine(e, niceDate, dayKey(expenseDate(e), tz)) ?? `Rate saved with this expense${e.rateDate ? `, ${niceDate(e.rateDate)}` : ""}`}
                           </p>
                           <Line label="Paid with" value={PAID_WITH[e.paymentMethod] ?? "—"} />
                           <Line label="Converted amount" value={money(e.convertedAmount)} />
