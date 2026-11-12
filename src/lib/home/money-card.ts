@@ -167,7 +167,7 @@ export function moneyActions(mode: MoneyMode, people: MoneyPerson[], common: str
   }
   const [a, b] = moneyButtons(mode);
   const conv = (x: MoneyButton): MoneyAction => ({ key: x.label === "Add expense" ? "add" : x.label === "Settle up" ? "settle" : "new-group", label: x.label, fullLabel: x.label, href: x.href, bright: x.bright });
-  return [conv(a, 0), conv(b, 1)];
+  return [conv(a), conv(b)];
 }
 
 // "Nupur" / "Nupur and Ravi" / "Nupur, Ravi and Asha" / "Nupur, Ravi and 3 others". No amounts: those live on Settle up.
