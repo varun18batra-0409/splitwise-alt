@@ -1135,14 +1135,20 @@ async function main() {
       const collecting = await y(V.getByRole("heading", { name: "Collecting" }));
       assert(collecting < 0 || collecting > latest, "“Collecting” sits between Your groups and Latest");
       assert((await V.getByText(/^Closed groups \(\d+\)$/).count()) === 0, "closed groups are listed on Home");
-      const between = await V.evaluate(() => {
-        const top = (t: string) => [...document.querySelectorAll("h2")].find((h) => h.textContent?.trim() === t);
-        const from = top("Your groups")?.closest("section"), to = top("Latest")?.closest("section");
-        if (!from || !to) return [] as string[];
-        const out: string[] = [];
-        for (let n = from.nextElementSibling; n && n !== to; n = n.nextElementSibling) out.push((n.getAttribute("aria-label") ?? n.querySelector("h2")?.textContent ?? n.tagName).trim());
+      // A plain string, so the test runner's helper names (__name) never reach the page.
+      const between = (await V.evaluate(`(() => {
+        const hs = Array.from(document.querySelectorAll("h2"));
+        const fromH = hs.find((h) => (h.textContent || "").trim() === "Your groups");
+        const toH = hs.find((h) => (h.textContent || "").trim() === "Latest");
+        const from = fromH && fromH.closest("section"), to = toH && toH.closest("section");
+        if (!from || !to) return [];
+        const out = [];
+        for (let n = from.nextElementSibling; n && n !== to; n = n.nextElementSibling) {
+          const h = n.querySelector("h2");
+          out.push((n.getAttribute("aria-label") || (h && h.textContent) || n.tagName).trim());
+        }
         return out;
-      });
+      })()`)) as string[];
       const allowed = /^(Needs you|Trip countdown|More trips)$/;
       assert(between.every((b) => allowed.test(b)), `between Your groups and Latest: ${between.join(", ")}`);
     }
