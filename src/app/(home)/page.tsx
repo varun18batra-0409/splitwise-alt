@@ -45,7 +45,7 @@ import { TripCountdown } from "@/components/TripCountdown";
 import { countdownStage } from "@/lib/countdown";
 import { countryOf, tripStops } from "@/lib/geo";
 import { MoneyCard, TripStrip } from "@/components/HomeMoney";
-import { mixedDirections, moneyLabel, moneyMode } from "@/lib/home/money-card";
+import { mixedDirections, moneyLabel, moneyMode, moneyPeople, peopleLine } from "@/lib/home/money-card";
 import { TripRow } from "@/components/TripRow";
 import { Stories } from "@/components/Stories";
 import { buildStories } from "@/lib/home/stories";
@@ -93,7 +93,7 @@ export default async function Home({
     // Things only you can answer (someone says they paid you, a bill waiting for its amount): the top two show on Home.
     getAccount().then((a) => loadNeedsYou(memberships, a, 0)),
   ]);
-  const { all, open, closed, owedLines, oweLines, common, netCommon, netLines, netValue, settleItems, toCommon } = overview;
+  const { all, open, closed, owedLines, oweLines, common, netCommon, netLines, netValue, toCommon } = overview;
   // Only the rows Home shows: the newest changes, this month, today's spending on trips, a finished trip's categories.
   const now = new Date();
   const today = todayKey(now, tz);
@@ -174,6 +174,18 @@ export default async function Home({
   // Several currencies with no saved rate and money going both ways: no single "you owe", so the card stays neutral.
   const acrossCurrencies = !netCommon && mixedDirections(netLines);
   const mode = acrossCurrencies ? "even" : moneyMode({ owedLines: owedLines.length, oweLines: oweLines.length, netValue });
+  // Who the money is with: the same transfers Settle up uses, largest first (names only; amounts are on Settle up).
+  const who =
+    mode === "owe" || mode === "owed"
+      ? peopleLine(
+          moneyPeople(
+            open.map((g) => ({ groupId: g.group.id, groupName: g.group.name, currency: g.group.currency, myId: g.myId, members: g.group.members, transfers: g.transfers })),
+            mode,
+            common,
+            toCommon,
+          ),
+        )
+      : null;
   // Someone added you to a group: it isn't in your groups until you tap Join.
   const invitationsBlock =
     invitations.length > 0 ? (
@@ -546,7 +558,9 @@ export default async function Home({
 
           {/* Money, slim: what it means, the amount, and two equal buttons, inside the first screen of a small phone. */}
           <MoneyCard
-            label={moneyLabel({ mode, acrossCurrencies, people: settleItems })}
+            label={moneyLabel({ mode, acrossCurrencies })}
+            who={who}
+            whoHref={mode === "owe" ? "/settle#pay" : "/settle#remind"}
             amount={mode === "square" ? "All square" : netCommon ? heroText.replace(/^([≈ ]*)[+−]/, "$1") : heroText /* several currencies: each keeps its own sign */}
             amountClass={mode === "square" ? "text-[26px]" : heroText.length <= 9 ? "text-[28px]" : heroText.length <= 12 ? "text-[24px]" : "text-[18px]"}
             tone={mode === "owed" ? "owed" : mode === "owe" ? "owe" : "plain"}

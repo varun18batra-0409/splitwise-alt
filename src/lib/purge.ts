@@ -38,6 +38,7 @@ export async function eraseGroups(ids: string[]) {
     db.groupEvent.deleteMany({ where: inG }),
     db.pushSubscription.deleteMany({ where: { member: inG } }),
     db.invite.deleteMany({ where: inG }),
+    db.payLink.deleteMany({ where: inG }),
     db.billRun.deleteMany({ where: { bill: inG } }),
     db.bill.deleteMany({ where: inG }),
     db.listItem.deleteMany({ where: inG }),

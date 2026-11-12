@@ -159,7 +159,8 @@ jobs:
         run: |
           if [ -n "$CSV_B64" ]; then mkdir -p e2e-private && echo "$CSV_B64" | base64 -d > e2e-private/splitwise.csv && echo "E2E_SPLITWISE_CSV=$PWD/e2e-private/splitwise.csv" >> "$GITHUB_ENV"; else echo "::notice title=Splitwise file::Not supplied: the real-file import test will show as blocked."; fi
       - name: Run the tests
-        run: npx playwright test
+        # Named projects: the computer-sized "desktop" project is for Exercise A (exercise-a.yml).
+        run: npx playwright test --project=phone --project=iphone
       - name: Summary
         if: always()
         run: node e2e/summary.mjs

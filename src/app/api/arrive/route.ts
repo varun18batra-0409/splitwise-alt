@@ -1,30 +1,20 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { redeemMovePass } from "@/lib/move";
-import { SESSION_COOKIE, SESSION_MAX_AGE } from "@/lib/session";
+import { looksLikePass } from "@/lib/move";
+import { SESSION_COOKIE } from "@/lib/session";
 import { safePath } from "@/lib/paths";
 
-// On the new address: swap the one-time pass for the sign-in, then open the
-// page they asked for (with a one-time "Loopin has a new address" note).
+// On the new address: a link carrying a one-time pass lands here. Opening a link
+// must never sign anyone in (someone could send you a pass for their own account),
+// so this only passes the visitor on to a page that asks "Continue to Loopin as …?".
+// The pass is used, and the sign-in set, only when they tap the button there.
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   const to = safePath(req.nextUrl.searchParams.get("to"));
-  // Already signed in here: never switch who that is through a link (someone
-  // could send you a pass for their own account). The pass is left unused.
-  if (req.cookies.get(SESSION_COOKIE)?.value) {
-    const res = NextResponse.redirect(new URL(to, req.url), 303);
-    res.headers.set("Cache-Control", "no-store");
-    return res;
-  }
-  const pass = await redeemMovePass(req.nextUrl.searchParams.get("t")).catch(() => null);
-  const dest = new URL(to, req.url);
-  if (pass) dest.searchParams.set("moved", "1");
+  const t = req.nextUrl.searchParams.get("t");
+  // Already signed in here, or no pass: just open the page. The pass is left unused.
+  const dest = req.cookies.get(SESSION_COOKIE)?.value || !looksLikePass(t) ? new URL(to, req.url) : new URL(`/arrive?${new URLSearchParams({ t, to })}`, req.url);
   const res = NextResponse.redirect(dest, 303);
   res.headers.set("Cache-Control", "no-store");
-  if (pass) {
-    const secure = process.env.NODE_ENV === "production";
-    res.cookies.set(SESSION_COOKIE, pass.session, { httpOnly: true, sameSite: "lax", secure, path: "/", maxAge: SESSION_MAX_AGE });
-    if (pass.tourSeen) res.cookies.set("lp_tour", "1", { sameSite: "lax", secure, path: "/", maxAge: 31536000 });
-  }
   return res;
 }

@@ -168,9 +168,12 @@ test("a group's own photo: upload it in settings; it shows on the group and Home
     el.scrollTo({ left: t });
     return t;
   });
-  expect(target, "the picture row has more pictures than fit (it can scroll)").toBeGreaterThan(5);
-  await page.waitForTimeout(800);
-  expect(Math.abs((await row.evaluate((el) => el.scrollLeft)) - target), "the picture row stays where it was scrolled").toBeLessThanOrEqual(2);
+  // On a wide desktop screen every picture can fit, so there is nothing to scroll; on phones it must scroll and stay put.
+  if (test.info().project.name !== "desktop" || target > 5) {
+    expect(target, "the picture row has more pictures than fit (it can scroll)").toBeGreaterThan(5);
+    await page.waitForTimeout(800);
+    expect(Math.abs((await row.evaluate((el) => el.scrollLeft)) - target), "the picture row stays where it was scrolled").toBeLessThanOrEqual(2);
+  }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "the page isn't wider than the phone").toBe(true);
   // A real finger swipe (Android): forward, then all the way back — "Your photo" at the start must be
   // reachable and stay in view (the old snapping stopped one tile short and hid it).

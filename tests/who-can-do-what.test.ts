@@ -1,5 +1,9 @@
 import { afterAll, describe, expect, it, vi } from "vitest";
 
+// Each row runs every role through a real action against the database; on a busy CI machine one row
+// can pass 5 s (seen once: "restore a payment" at 5.0 s), so this file gets more time per test.
+vi.setConfig({ testTimeout: 30_000 });
+
 // Who can do what, checked automatically.
 //
 // One kind of group is built again and again (a fresh, untouched copy for every try) with seven kinds of

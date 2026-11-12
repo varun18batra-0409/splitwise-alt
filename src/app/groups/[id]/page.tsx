@@ -145,6 +145,9 @@ export default async function GroupPage({
   const toSettle = games.length ? await gamesToSettle(group.id, games) : {};
   // Reactions on expenses, for the Activity list.
   const reactions = tab === "activity" && group.expenses.length ? await db.reaction.findMany({ where: { expenseId: { in: group.expenses.map((e) => e.id) } }, select: { expenseId: true, memberId: true, emoji: true } }) : [];
+  // Results of finished games: they change through the game (other card-game rows, e.g. imported ones, are ordinary).
+  // Loaded whatever the group type now is: a card-night group can later become a trip and keep its games.
+  const gameResultIds = tab === "activity" ? (await db.potGame.findMany({ where: { groupId: group.id, resultId: { not: "" } }, select: { resultId: true } })).map((g) => g.resultId) : [];
   const receipts = tab === "activity" && group.expenses.length ? await db.receipt.findMany({ where: { groupId: group.id, expenseId: { not: "" } }, select: { id: true, expenseId: true } }) : [];
   const today = dayKey(new Date(), v.tz);
   const comingUp = bills
@@ -225,6 +228,7 @@ export default async function GroupPage({
           openId={sp.open?.slice(0, 40)}
           reactions={reactions}
           receipts={receipts}
+          gameResultIds={gameResultIds}
         />
       )}
       {home && (tab === "balances" || tab === "charts") && (

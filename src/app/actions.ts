@@ -268,7 +268,7 @@ export async function addExpense(
   redirect(`/groups/${input.groupId}?tab=activity${result.eventId ? `&did=${result.eventId}` : ""}`);
 }
 
-// Delete / restore an expense (only whoever added it). History keeps it.
+// Delete / restore an expense (any active member can, not only whoever added it). History keeps it.
 export async function deleteExpense(formData: FormData) {
   await toggleExpense(formData, true);
 }
@@ -283,7 +283,7 @@ async function toggleExpense(formData: FormData, deleted: boolean) {
   redirect(`/groups/${groupId}?tab=activity&${q}`);
 }
 
-// Delete a settle-up payment (only whoever recorded it). History keeps it.
+// Delete a settle-up payment (any active member can, not only whoever recorded it). History keeps it.
 export async function removePayment(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const paymentId = String(formData.get("paymentId") ?? "");
@@ -315,6 +315,10 @@ export async function undoChange(formData: FormData) {
 
 // Looks up today's exchange rate when a currency is picked (not on every keystroke).
 export async function lookupRate(from: string, to: string): Promise<RateAnswer> {
+  // A person picking currencies makes a handful of lookups; this only stops a script from using our rate service up.
+  if (!(await allow(`rate-ip:${(await originAndIp()).ip}`, 120, 3600))) {
+    return { ok: false, reason: "unavailable", message: "Lots of rate lookups from here in the last hour. Enter the rate yourself, or try again later." };
+  }
   if (!isSupportedCurrency(from) || !isSupportedCurrency(to)) {
     return { ok: false, reason: "unsupported", message: "That currency isn't supported. Enter the rate yourself." };
   }
@@ -509,7 +513,7 @@ export async function setGroupClosed(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const closed = formData.get("closed") === "1";
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
-  if (!group) redirect("/");
+  if (!group || group.deletedAt) redirect("/"); // a deleted group is not closed or reopened
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
   if (await hasLeft(group.id, myId)) redirect(`/groups/${group.id}?error=${encodeURIComponent(LEFT_ERROR)}`);
@@ -690,7 +694,8 @@ export async function removePerson(formData: FormData) {
 
 export async function setPersonLeft(formData: FormData) {
   const { groupId, memberId, myId } = await peopleContext(formData);
-  // You can always leave or rejoin yourself; removing someone else (or bringing them back) is for whoever looks after the group.
+  // You can always leave or rejoin yourself. Taking someone else out is for whoever looks after the group; any member can bring back
+  // someone who left on their own (only a person the admin removed needs the admin: setMemberLeft checks that).
   if (memberId !== myId && formData.get("left") === "1" && !(await isGroupAdmin(groupId, myId))) backToPeople(groupId, { ok: false, error: ADMIN_ONLY });
   backToPeople(groupId, await setMemberLeft(groupId, myId, memberId, formData.get("left") === "1"));
 }

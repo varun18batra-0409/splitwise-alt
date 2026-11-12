@@ -198,7 +198,8 @@ async function loadInviteGroup(groupId: string, actorId: string) {
 
 export const alreadyInvitedAs = (name: string) => `That email is already invited as ${name}. Cancel that first.`;
 const isAdmin = async (groupId: string, memberId: string) => (await groupAdminId(groupId)) === memberId;
-// The admin brings back someone they removed (leftAt, removedAt and removedById are all cleared together).
+// Bringing someone back (leftAt, removedAt and removedById are all cleared together). Only a person the admin removed needs the admin (checked by the callers);
+// any member can bring back someone who left on their own.
 const bringBack = (groupId: string, actorId: string, memberId: string) => setMember(groupId, actorId, memberId, { leftAt: null });
 
 // Add someone who's already on Loopin (found by name among people you share a group with).
@@ -222,7 +223,7 @@ export async function addRegistered(groupId: string, actorId: string, accountId:
   if (existing && !existing.leftAt) return { ok: false, error: `${existing.name} is already in this group.` };
 
   if (existing) {
-    // Someone who left on their own and is added back: back in, as before.
+    // Someone who left on their own and is added back: back in, as before. Any member can do this (only removed people need the admin).
     const { eventId } = await db.$transaction(async (tx) => {
       await tx.member.update({ where: { id: existing.id }, data: { leftAt: null } });
       const eventId = await logEvent(tx, { groupId, actorId, kind: "members_added", text: `added ${existing.name} to the group` });

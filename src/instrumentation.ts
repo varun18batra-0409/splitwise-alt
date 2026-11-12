@@ -17,12 +17,7 @@ export async function onRequestError(
   try {
     const { db } = await import("./lib/db");
     const e = err as { message?: string; digest?: string };
-    // Personal details never kept: email addresses, phone-like numbers, long ids and tokens.
-    const scrub = (t: string) =>
-      t
-        .replace(/[^\s@<>"']+@[^\s@<>"']+\.[a-z]{2,}/gi, "[email]")
-        .replace(/\+?\d[\d\s-]{8,}\d/g, "[number]")
-        .replace(/[A-Za-z0-9_-]{24,}/g, "[id]");
+    const { scrubPersonal: scrub } = await import("./lib/scrub");
     await db.errorLog.create({
       data: {
         path: scrub(`${request.method} ${request.path.split("?")[0]}`).slice(0, 200),

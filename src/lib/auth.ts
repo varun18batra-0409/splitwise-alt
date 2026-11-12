@@ -14,8 +14,13 @@ export function cleanEmail(raw: string): string | null {
   return /^[^\s@]{1,64}@[^\s@]{1,190}\.[a-z]{2,24}$/.test(e) ? e : null;
 }
 
+function devPepper(): string {
+  if (process.env.VERCEL_ENV === "production") throw new Error("Sign-in is not set up: AUTH_SECRET is missing on the live app.");
+  return "loopin-dev";
+}
+
 export function hashLoginCode(email: string, code: string): string {
-  const pepper = process.env.AUTH_SECRET ?? process.env.TURSO_AUTH_TOKEN ?? "loopin-dev";
+  const pepper = process.env.AUTH_SECRET ?? process.env.TURSO_AUTH_TOKEN ?? devPepper();
   return createHash("sha256").update(`${pepper}:${email}:${code}`).digest("hex");
 }
 

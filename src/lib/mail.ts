@@ -103,7 +103,7 @@ export async function sendMail(to: string, subject: string, text: string, html: 
       // A kept connection the mail server dropped while idle: start a fresh one once.
       pooled?.close();
       pooled = null;
-      if (attempt === 1) console.error("sendMail failed", err);
+      if (attempt === 1) console.error("sendMail failed:", (await import("./scrub")).safeErrorNote(err));
     }
   }
   await noteFailure("send");

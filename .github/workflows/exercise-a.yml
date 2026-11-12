@@ -1,0 +1,285 @@
+# Exercise A: one complete, automatic test run to hand to an independent reviewer
+# (for example before applying to the app stores).
+#
+# What it does, all on GitHub's machines and all on throwaway data:
+#   1. UAT, three times: as an Android phone, an iPhone (Safari's engine) and a
+#      computer. Real people tapping through the real screens, exact money checked
+#      against an independent calculation. One artifact per device: uat-android,
+#      uat-iphone, uat-desktop.
+#   2. Every unit test (vitest), with a JUnit report.
+#   3. The Playwright end-to-end tests on Android, iPhone and desktop, with the HTML report.
+#   4. A plain-English summary of all of it (exercise-a-summary.md), also saved with
+#      every result file on the "exercise-a-results" branch.
+#
+# Safety:
+#   - Never touches the live app or its database, and never uses a GitHub secret
+#     (only the automatic read-only token, and write access to the results branch in
+#     the last job). The database is a file on the machine, thrown away afterwards.
+#   - Email never leaves: MAIL_OUTBOX keeps every email in the throwaway database.
+#   - Google sign-in and the daily-job key are made-up values, so nothing is sent anywhere.
+#   - It never deploys anything.
+#
+# Start it by hand (Actions > Exercise A > Run workflow) or by pushing to a branch
+# called "exercise-a". Reading the results: docs/exercise-a.md.
+name: Exercise A
+on:
+  workflow_dispatch:
+  push:
+    branches: [exercise-a]
+concurrency:
+  group: exercise-a-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------- 1. UAT x 3
+  uat:
+    name: UAT (${{ matrix.profile }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 80
+    strategy:
+      fail-fast: false # one device failing must not hide the others
+      matrix:
+        profile: [android, iphone, desktop]
+    env:
+      # A fresh, empty database file for this device only.
+      TURSO_DATABASE_URL: file:/tmp/exercise-a-${{ matrix.profile }}.db
+      MAIL_OUTBOX: "1" # emails are kept in the database for the tests, never sent
+      E2E_PLAIN_HTTP: "1" # plain http on this machine only (Safari's engine refuses the sign-in cookie otherwise); never set on the live app
+      GOOGLE_CLIENT_ID: uat-test.apps.googleusercontent.com # made up (same as the screens job in ci.yml): the button shows, nothing goes to Google
+      GOOGLE_CLIENT_SECRET: uat-not-a-secret
+      CRON_SECRET: exercise-a-only-not-a-real-secret
+      UAT_PROFILE: ${{ matrix.profile }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm install --no-save tsx@4.19.2 # Playwright itself comes with @playwright/test
+      - name: Safety check (the database is a file on this machine)
+        run: |
+          case "$TURSO_DATABASE_URL" in
+            file:/tmp/*) echo "Database: $TURSO_DATABASE_URL (a throwaway file)";;
+            *) echo "::error title=Stopped::The database is not a throwaway file."; exit 1;;
+          esac
+          [ -z "${TURSO_AUTH_TOKEN:-}" ] || { echo "::error title=Stopped::A database token is set."; exit 1; }
+      - name: Browser cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-exa-${{ matrix.profile }}-${{ runner.os }}-${{ hashFiles('package.json') }}
+      - name: Test browser (system packages, then the browser with retries)
+        timeout-minutes: 15
+        run: bash scripts/ci-browsers.sh ${{ matrix.profile == 'iphone' && 'webkit' || 'chromium' }}
+      - name: Fresh database, then the hosting build (schema sync, data upgrade, build)
+        run: |
+          set -o pipefail
+          npx prisma db push --skip-generate
+          cp prisma/dev.db "/tmp/exercise-a-${{ matrix.profile }}.db"
+          npm run vercel-build 2>&1 | tee vb.log || { echo "::error title=Hosting build failed::$(tail -60 vb.log | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"; exit 1; }
+          node scripts/turso-sync.mjs | tee sync2.log
+          grep -q "already matches" sync2.log || { echo "::error title=Schema sync not idempotent::$(cat sync2.log | tr '\n' ' ')"; exit 1; }
+      - name: Start the app
+        run: |
+          (npm run start > server.log 2>&1 &)
+          npx --yes wait-on@8.0.1 -t 90000 http://localhost:3000/api/health
+      - name: UAT as ${{ matrix.profile }}
+        run: |
+          mkdir -p screenshots/uat
+          npx tsx scripts/uat.ts 2>&1 | tee uat.log || true
+          cp uat.log server.log screenshots/uat/ || true
+          # The app's own log, in the job log too (artifacts can't always be opened): errors and the last lines.
+          echo "---- app server: errors and warnings ----"; grep -n -i -E "error|warn|killed|heap|SQLITE|busy|locked" server.log | tail -60 || true
+          echo "---- app server: last 40 lines ----"; tail -40 server.log || true
+          echo "::notice title=UAT ${{ matrix.profile }}::$(head -1 screenshots/uat/summary.txt)"
+          {
+            echo "## UAT: ${{ matrix.profile }}"
+            echo
+            head -1 screenshots/uat/summary.txt
+            echo
+            [ -f screenshots/uat/coverage.md ] && sed -n '/^| Area/,/^Areas\|^Every area/p' screenshots/uat/coverage.md
+          } >> "$GITHUB_STEP_SUMMARY" || true
+          if grep -q "✗\|crashed" screenshots/uat/summary.txt; then
+            echo "::warning title=UAT failures (${{ matrix.profile }})::$(tail -n +1 screenshots/uat/summary.txt | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g' | cut -c1-3000)"
+          fi
+      - name: Keep the results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: uat-${{ matrix.profile }}
+          path: screenshots/uat
+          retention-days: 30
+          if-no-files-found: warn
+      - name: Turn the job red if any step failed (the results above are kept either way)
+        if: always()
+        run: |
+          [ -f screenshots/uat/summary.txt ] || { echo "::error title=UAT ${{ matrix.profile }}::no result was written"; exit 1; }
+          if grep -q "✗\|crashed" screenshots/uat/summary.txt; then echo "::error title=UAT ${{ matrix.profile }}::$(head -1 screenshots/uat/summary.txt)"; exit 1; fi
+
+  # ---------------------------------------------------------------- 2. Unit tests
+  unit:
+    name: Unit tests (vitest)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run db:setup # the local test database file (prisma/dev.db)
+      - name: Run every unit test
+        id: vitest
+        run: |
+          set +e
+          npx vitest run --reporter=default --reporter=junit --outputFile.junit=vitest-junit.xml
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+      - name: Keep the JUnit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-junit
+          path: vitest-junit.xml
+          retention-days: 30
+          if-no-files-found: warn
+      - name: Turn the job red if a test failed
+        if: steps.vitest.outputs.code != '0'
+        run: |
+          echo "::error title=Unit tests::vitest finished with code ${{ steps.vitest.outputs.code }}"
+          exit 1
+
+  # ---------------------------------------------------------------- 3. End-to-end
+  e2e:
+    name: End-to-end (Android, iPhone, desktop)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    env:
+      TURSO_DATABASE_URL: file:/tmp/exercise-a-e2e.db
+      MAIL_OUTBOX: "1"
+      CRON_SECRET: exercise-a-only-not-a-real-secret
+      E2E_BASE_URL: http://localhost:3000
+      GOOGLE_CLIENT_ID: exercise-a.apps.googleusercontent.com
+      GOOGLE_CLIENT_SECRET: uat-not-a-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Safety check (the database is a file on this machine)
+        run: |
+          case "$TURSO_DATABASE_URL" in
+            file:/tmp/*) echo "Database: $TURSO_DATABASE_URL (a throwaway file)";;
+            *) echo "::error title=Stopped::The database is not a throwaway file."; exit 1;;
+          esac
+          [ -z "${TURSO_AUTH_TOKEN:-}" ] || { echo "::error title=Stopped::A database token is set."; exit 1; }
+      - name: Browser cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-exa-e2e-${{ runner.os }}-${{ hashFiles('package.json') }}
+      - name: Test browsers (system packages, then the browsers with retries)
+        timeout-minutes: 15
+        run: bash scripts/ci-browsers.sh chromium webkit
+      - name: Empty database and app build
+        run: |
+          npx prisma db push --skip-generate
+          cp prisma/dev.db /tmp/exercise-a-e2e.db
+          npm run build
+      - name: Start the app
+        run: |
+          # Plain http on this machine: lets the sign-in cookie work without https (Safari's engine insists otherwise). Never set on the live app.
+          (E2E_PLAIN_HTTP=1 npm run start > server.log 2>&1 &)
+          npx --yes wait-on@8.0.1 -t 90000 http://localhost:3000/api/health
+      # The real Splitwise file secret is deliberately NOT used here: that test shows as "blocked".
+      - name: Run the tests (Android phone, then iPhone, then desktop)
+        run: |
+          set +e
+          npx playwright test --project=phone; a=$?
+          E2E_RUN_TAG=ios npx playwright test --project=iphone; b=$?
+          E2E_RUN_TAG=desktop npx playwright test --project=desktop; c=$?
+          echo "Android=$a iPhone=$b desktop=$c"
+          [ $a -eq 0 ] && [ $b -eq 0 ] && [ $c -eq 0 ]
+      - name: Plain-English totals
+        if: always()
+        run: |
+          node e2e/summary.mjs e2e-results/results.json "Android" || true
+          node e2e/summary.mjs e2e-results-ios/results.json "iPhone" || true
+          node e2e/summary.mjs e2e-results-desktop/results.json "Desktop" || true
+      - name: Keep the HTML reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: |
+            e2e-report/
+            e2e-report-ios/
+            e2e-report-desktop/
+          retention-days: 30
+          if-no-files-found: warn
+      - name: Keep the result files (for the summary)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-json
+          path: |
+            e2e-results/results.json
+            e2e-results-ios/results.json
+            e2e-results-desktop/results.json
+          retention-days: 30
+          if-no-files-found: warn
+      - name: Keep failure details (screenshots, traces, browser logs, server log)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failures
+          path: |
+            e2e-results/
+            e2e-results-ios/
+            e2e-results-desktop/
+            server.log
+          retention-days: 30
+
+  # ---------------------------------------------------------------- 4. Summary
+  summary:
+    name: Summary for the reviewer
+    needs: [uat, unit, e2e]
+    if: always() # a failed job must still be summed up
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write # only to save the results branch
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Download every result
+        uses: actions/download-artifact@v4
+        with:
+          path: results # one folder per artifact: uat-android, uat-iphone, uat-desktop, unit-junit, e2e-report, e2e-json, ...
+      - name: Write exercise-a-summary.md
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMIT: ${{ github.sha }}
+          JOBS: "uat=${{ needs.uat.result }} unit=${{ needs.unit.result }} e2e=${{ needs.e2e.result }}"
+        run: |
+          node scripts/exercise-a-summary.mjs results results/exercise-a-summary.md
+          cat results/exercise-a-summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Keep the summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: exercise-a-summary
+          path: results/exercise-a-summary.md
+          retention-days: 30
+      - name: Save everything to the exercise-a-results branch
+        run: |
+          cd results
+          echo '{ "git": { "deploymentEnabled": false } }' > vercel.json
+          git init -q -b exercise-a-results
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add . && git commit -qm "Exercise A results for ${GITHUB_SHA::7} (run ${GITHUB_RUN_NUMBER})"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" exercise-a-results:exercise-a-results

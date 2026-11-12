@@ -5,6 +5,7 @@ import { formatMoney, parseAmount } from "./money";
 import { payersJson } from "./payers";
 import { isPotGame, parsePlayers, potGameLabel, potResult, potSummary, potTransfers, spreadGap } from "./pot";
 import { cleanNames, sameName } from "./names";
+import { pickAdmin } from "./group-admin";
 
 // "The Pot": saving and checking. Anyone in the group can record money taken
 // or put back (every line says who recorded it); the person who started the
@@ -18,12 +19,21 @@ const cleanNote = (s: string) => String(s ?? "").trim().replace(/\s+/g, " ").sli
 async function groupFor(groupId: string, actorId: string) {
   const g = await db.group.findUnique({
     where: { id: groupId },
-    select: { id: true, type: true, currency: true, closed: true, deletedAt: true, joinWeight: true, members: { select: { id: true, name: true, leftAt: true } } },
+    select: { id: true, type: true, currency: true, closed: true, deletedAt: true, joinWeight: true, members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true, claimedAt: true, addedBy: true, seenAt: true } } },
   });
   if (!g || g.deletedAt) return { error: "This group isn’t there any more." };
   const me = g.members.find((m) => m.id === actorId && !m.leftAt);
   if (!me) return { error: "Only people in this group can do that." };
   return { error: "", g };
+}
+
+// The host runs the game. If the host is no longer in the group, whoever looks
+// after the group (its admin) can adjust, finish, reopen or delete it instead.
+export function canRunGame(game: { hostId: string }, members: { id: string; claimedAt: Date | null; leftAt: Date | null; addedBy?: string; seenAt?: Date | null }[], actorId: string): boolean {
+  if (game.hostId === actorId) return true;
+  const host = members.find((m) => m.id === game.hostId);
+  if (host && !host.leftAt) return false;
+  return pickAdmin(members)?.id === actorId;
 }
 
 async function gameFor(gameId: string, actorId: string) {
@@ -136,7 +146,7 @@ export async function removeMove(moveId: string, actorId: string): Promise<Resul
   const r = await gameFor(m.gameId, actorId);
   if (!r.game || !r.g) return { ok: false, error: r.error };
   if (r.game.status !== "open") return { ok: false, error: "This game is finished. The host can reopen it." };
-  if (m.createdById !== actorId && r.game.hostId !== actorId) return { ok: false, error: "Only whoever added it, or the host, can take it back." };
+  if (m.createdById !== actorId && !canRunGame(r.game, r.g.members, actorId)) return { ok: false, error: "Only whoever added it, or the host, can take it back." };
   await db.potMove.update({ where: { id: moveId }, data: { deletedAt: new Date() } });
   return { ok: true, gameId: m.gameId };
 }
@@ -147,7 +157,7 @@ export async function adjustGap(gameId: string, actorId: string, input: { mode: 
   const r = await gameFor(gameId, actorId);
   if (!r.game || !r.g) return { ok: false, error: r.error };
   const { game } = r;
-  if (game.hostId !== actorId) return { ok: false, error: "Only the host can fix the difference." };
+  if (!canRunGame(game, r.g.members, actorId)) return { ok: false, error: "Only the host can fix the difference." };
   if (game.status !== "open") return { ok: false, error: "This game is finished." };
   const { lines, totals } = potSummary(parsePlayers(game.players), game.moves);
   if (totals.balanced) return { ok: false, error: "It already adds up." };
@@ -168,7 +178,7 @@ export async function finishGame(gameId: string, actorId: string): Promise<Resul
   const r = await gameFor(gameId, actorId);
   if (!r.game || !r.g) return { ok: false, error: r.error };
   const { game, g } = r;
-  if (game.hostId !== actorId) return { ok: false, error: "Only the host can finish the game." };
+  if (!canRunGame(game, g.members, actorId)) return { ok: false, error: "Only the host can finish the game." };
   if (game.status !== "open") return { ok: false, error: "This game is already finished." };
   if (g.closed) return { ok: false, error: "This group is closed. Reopen it in settings first." };
   const { lines, totals } = potSummary(parsePlayers(game.players), game.moves);
@@ -231,17 +241,25 @@ export async function reopenGame(gameId: string, actorId: string): Promise<Resul
   const r = await gameFor(gameId, actorId);
   if (!r.game || !r.g) return { ok: false, error: r.error };
   const { game, g } = r;
-  if (game.hostId !== actorId) return { ok: false, error: "Only the host can reopen the game." };
+  if (!canRunGame(game, g.members, actorId)) return { ok: false, error: "Only the host can reopen the game." };
   if (game.status !== "done") return { ok: false, error: "This game is still going." };
-  await db.$transaction(async (tx) => {
+  if (g.closed) return { ok: false, error: "This group is closed. Reopen the group first." };
+  const reopened = await db.$transaction(async (tx) => {
+    // Claim the game as it was read (the same way finishing claims it): two reopens, or a reopen racing a
+    // finish, can't both act, so a newer result is never left in the balances with no game pointing at it.
+    const claim = await tx.potGame.updateMany({ where: { id: gameId, status: "done", resultId: game.resultId, finishedAt: game.finishedAt }, data: { status: "open", finishedAt: null, resultId: "" } });
+    if (claim.count !== 1) return false;
     if (game.resultId) {
       // The event that pointed at it stays in the history, without the link.
       await tx.groupEvent.updateMany({ where: { expenseId: game.resultId }, data: { expenseId: null } });
-      await tx.expense.deleteMany({ where: { id: game.resultId, kind: "pot" } });
+      // By the game's own pointer (not by kind): a result that was changed into ordinary spending earlier still goes.
+      await tx.expenseShare.deleteMany({ where: { expenseId: game.resultId } });
+      await tx.expense.deleteMany({ where: { id: game.resultId } });
     }
-    await tx.potGame.update({ where: { id: gameId }, data: { status: "open", finishedAt: null, resultId: "" } });
     await logEvent(tx, { groupId: g.id, actorId, kind: "pot_reopened", text: `reopened ${game.name} (its result is out of the balances until it’s finished again)` });
+    return true;
   });
+  if (!reopened) return { ok: false, error: "This game changed just now. Open it again to see where it stands." };
   return { ok: true };
 }
 
@@ -249,7 +267,7 @@ export async function reopenGame(gameId: string, actorId: string): Promise<Resul
 export async function deleteGame(gameId: string, actorId: string): Promise<Result<{ groupId: string }>> {
   const r = await gameFor(gameId, actorId);
   if (!r.game || !r.g) return { ok: false, error: r.error };
-  if (r.game.hostId !== actorId) return { ok: false, error: "Only the host can delete the game." };
+  if (!canRunGame(r.game, r.g.members, actorId)) return { ok: false, error: "Only the host can delete the game." };
   if (r.game.status !== "open") return { ok: false, error: "Reopen it first." };
   await db.potGame.update({ where: { id: gameId }, data: { deletedAt: new Date() } });
   await logEvent(db, { groupId: r.g.id, actorId, kind: "pot_deleted", text: `deleted the game ${r.game.name}` });
@@ -362,7 +380,7 @@ export async function countOut(gameId: string, actorId: string, entries: { membe
   }
   if (!rows.length && !settle) return { ok: false, error: "Type what each person has." };
   if (rows.length) await db.potMove.createMany({ data: rows.map((x) => ({ gameId, memberId: x.memberId, kind: "return", amount: x.amount, note: "counted at the end", createdById: actorId })) });
-  if (!settle || game.hostId !== actorId) return { ok: true, finished: false, gap: false };
+  if (!settle || !canRunGame(game, g.members, actorId)) return { ok: true, finished: false, gap: false };
   const missing = [...playing].filter((id) => !rows.some((x) => x.memberId === id));
   if (missing.length) return { ok: false, error: `Still to count: ${missing.map(name).join(", ")}. Put 0 for anyone who lost it all.` };
   const f = await finishGame(gameId, actorId);

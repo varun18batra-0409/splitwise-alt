@@ -7,6 +7,7 @@ import { CARD_ROW_MAX, cardBalance, rowEnd } from "@/lib/home/group-card";
 // "Your groups" on Home: a row of polaroids you swipe sideways. Each shows the group's own picture, its name in handwriting,
 // and where you stand (green when you're owed, orange when you owe, "square" when even). A trip that is on carries a small
 // tag on its photo ("Day 2 of 5"). Cards tilt a little, alternately; the tilt is off for people who ask for less motion.
+// The first card is a dashed "+ New group" (one tap to the new-group page); the polaroids are 124px wide so the next one peeks in.
 
 export type GroupCardData = {
   id: string;
@@ -30,11 +31,24 @@ export function GroupCards({ groups, total }: { groups: GroupCardData[]; total: 
       className="-mx-5 flex snap-x snap-mandatory scroll-px-5 gap-3 overflow-x-auto px-5 pb-5 pt-3 [scrollbar-width:none]"
       data-group-cards
     >
+      {/* One tap to a new group: always the first card, as tall as the polaroids beside it. */}
+      <li className="flex w-[96px] shrink-0 snap-start">
+        <Link
+          href="/groups/new"
+          className="flex min-h-[44px] flex-1 flex-col items-center justify-center gap-1 rounded-md border border-dashed border-fg/30 px-2 text-center text-[14px] font-medium leading-tight text-fg/85 active:bg-mist"
+          data-group-card-new
+        >
+          <span aria-hidden className="text-[22px] font-light leading-none">
+            +
+          </span>
+          <span>New group</span>
+        </Link>
+      </li>
       {shown.map((g, i) => {
         const b = cardBalance(g.balance, g.show ?? g.money);
         const exact = cardBalance(g.balance, g.money);
         return (
-          <li key={g.id} className="w-[150px] shrink-0 snap-start">
+          <li key={g.id} className="w-[124px] shrink-0 snap-start">
             <Link
               href={`/groups/${g.id}`}
               aria-label={`${g.name}, ${exact.spoken}${g.tag ? `, ${g.tag}` : ""}`}
@@ -50,13 +64,14 @@ export function GroupCards({ groups, total }: { groups: GroupCardData[]; total: 
                 caption={g.name}
                 note={b.text}
                 noteTone={b.tone === "square" ? undefined : b.tone}
-                photoClass="h-[120px]"
-                captionClass="text-[22px]"
+                photoClass="h-[99px]"
+                captionClass="text-[19px]"
+                noteClass="text-[12px]"
                 wrapCaption
-                sizes="150px"
-                className="w-[150px]"
+                sizes="124px"
+                className="w-[124px]"
               >
-                {g.photo && <Image src={g.photo} alt="" aria-hidden fill sizes="150px" quality={70} className="object-cover" />}
+                {g.photo && <Image src={g.photo} alt="" aria-hidden fill sizes="124px" quality={70} className="object-cover" />}
                 {g.tag && (
                   <span className="absolute left-1.5 top-1.5 rounded-full bg-black/65 px-2 py-0.5 text-[11px] font-semibold leading-tight text-[#f7f4ec] backdrop-blur-sm" data-trip-tag>
                     {g.tag}
@@ -68,13 +83,13 @@ export function GroupCards({ groups, total }: { groups: GroupCardData[]; total: 
         );
       })}
       {end && (
-        <li className="flex w-[150px] shrink-0 snap-start">
+        <li className="flex w-[124px] shrink-0 snap-start">
           <Link
-            href={end === "new" ? "/groups/new" : "/groups"}
-            className="flex min-h-[170px] flex-1 items-center justify-center rounded-md border border-dashed border-fg/25 px-3 text-center text-sm font-medium text-fg/80 active:bg-mist"
+            href="/groups"
+            className="flex min-h-[44px] flex-1 items-center justify-center rounded-md border border-dashed border-fg/25 px-3 text-center text-sm font-medium text-fg/80 active:bg-mist"
             data-group-card-end={end}
           >
-            {end === "new" ? "+ New group" : `See all ${total} groups`}
+            {`See all ${total} groups`}
           </Link>
         </li>
       )}

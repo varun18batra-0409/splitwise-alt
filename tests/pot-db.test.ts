@@ -6,6 +6,9 @@ import { addPlayerToGame, adjustGap, buyIn, cashOut, countOut, deleteGame, finis
 import { undoEvent } from "@/lib/undo";
 import { parsePlayers } from "@/lib/pot";
 import { spentAmount } from "@/lib/payers";
+import { POT_DELETE_ERROR, POT_EDIT_ERROR, saveExpense, setExpenseDeleted, type SaveExpenseInput } from "@/lib/save-expense";
+import { changeGroupCurrency } from "@/lib/group-changes";
+import { groupAdminId } from "@/lib/group-admin";
 
 // The Pot against a real database: a game from start to settle, the gap
 // check, the host's rules, and a finished game's result in the balances.
@@ -212,5 +215,223 @@ describe("The Pot (real database)", () => {
 
     expect((await reopenGame(s.id, a)).ok).toBe(true);
     expect(Object.values(await balances(g.id)).every((v) => v === 0)).toBe(true);
+  });
+
+  // Batch C audit fixes for The Pot.
+  const noRate = async () => ({ ok: false as const, reason: "unavailable" as const, message: "no rate needed" });
+  const edit = (groupId: string, expenseId: string, paidById: string, over: Partial<SaveExpenseInput> = {}): SaveExpenseInput => ({
+    groupId, expenseId, name: "Sneaky", amount: "500", currency: "INR", paidById, forMode: "everyone", selected: [], onePersonId: "", splitType: "equal",
+    exact: {}, percent: {}, paymentMethod: "cash", markupChoice: "group", markupCustom: "", category: "", rateMode: "auto", manualRate: "", ...over,
+  });
+  // Asha takes 1,000 and puts back 1,500; Bina takes 1,000 and puts back 500. Asha +50000, Bina -50000.
+  async function playedGame(opts: { hostLeaves?: boolean } = {}) {
+    const t = await table();
+    const s = await startGame(t.g.id, t.a, { name: "Audit night", game: "poker", players: [t.a, t.b] });
+    if (!s.ok) throw new Error(s.error);
+    for (const who of [t.a, t.b]) await recordMove(s.id, t.a, { memberId: who, kind: "take", amount: "1000" });
+    await recordMove(s.id, t.a, { memberId: t.a, kind: "return", amount: "1500" });
+    await recordMove(s.id, t.a, { memberId: t.b, kind: "return", amount: "500" });
+    if (opts.hostLeaves) await db.member.update({ where: { id: t.a }, data: { leftAt: new Date() } });
+    return { ...t, gameId: s.id };
+  }
+
+  it("a card game's result can't be edited into ordinary spending; reopen then finish keeps exactly one result and balances stay 0", async () => {
+    const { g, a, b, gameId } = await playedGame();
+    expect((await finishGame(gameId, a)).ok).toBe(true);
+    const result = await db.expense.findFirstOrThrow({ where: { groupId: g.id, kind: "pot" }, include: { shares: true } });
+    const before = JSON.stringify({ d: result.description, amt: result.amount, k: result.kind, s: result.shares.map((x) => [x.memberId, x.amount]).sort(), by: result.paidById });
+
+    const r = await saveExpense(edit(g.id, result.id, b), b, noRate);
+    expect(r).toEqual({ ok: false, error: POT_EDIT_ERROR });
+    expect(POT_EDIT_ERROR).toBe("Card-game results change through the game: open the game to change it.");
+    const after = await db.expense.findFirstOrThrow({ where: { id: result.id }, include: { shares: true } });
+    expect(after.kind).toBe("pot");
+    expect(JSON.stringify({ d: after.description, amt: after.amount, k: after.kind, s: after.shares.map((x) => [x.memberId, x.amount]).sort(), by: after.paidById })).toBe(before);
+    expect(await db.expense.count({ where: { groupId: g.id } })).toBe(1);
+
+    // Reopen, finish again: one pot result, Asha +50000 and Bina -50000 (hand-worked), sum 0.
+    expect((await reopenGame(gameId, a)).ok).toBe(true);
+    expect(await db.expense.count({ where: { groupId: g.id, kind: "pot" } })).toBe(0);
+    expect((await finishGame(gameId, a)).ok).toBe(true);
+    expect(await db.expense.count({ where: { groupId: g.id, kind: "pot", deletedAt: null } })).toBe(1);
+    const net = await balances(g.id);
+    expect({ a: net[a], b: net[b] }).toEqual({ a: 50000, b: -50000 });
+    expect(Object.values(net).reduce((x, y) => x + y, 0)).toBe(0);
+  });
+
+  it("editing money back without saying the kind keeps it as money back", async () => {
+    const { g, a, b } = await table();
+    const refund = await db.expense.create({
+      data: { groupId: g.id, description: "Refund", amount: 30000, splitType: "equal", forMode: "everyone", kind: "refund", paidById: a, createdById: a, originalAmount: 30000, convertedAmount: 30000, shares: { create: [{ memberId: a, amount: 15000 }, { memberId: b, amount: 15000 }] } },
+    });
+    const r = await saveExpense(edit(g.id, refund.id, a, { name: "Refund (renamed)", amount: "300", selected: [a, b] }), a, noRate);
+    expect(r.ok).toBe(true);
+    expect((await db.expense.findFirstOrThrow({ where: { id: refund.id } })).kind).toBe("refund");
+  });
+
+  it("reopening a game in a closed group is refused and the result stays", async () => {
+    const { g, a, gameId } = await playedGame();
+    expect((await finishGame(gameId, a)).ok).toBe(true);
+    await db.group.update({ where: { id: g.id }, data: { closed: true } });
+    const r = await reopenGame(gameId, a);
+    expect(r).toEqual({ ok: false, error: "This group is closed. Reopen the group first." });
+    expect(await db.expense.count({ where: { groupId: g.id, kind: "pot", deletedAt: null } })).toBe(1);
+    expect((await db.potGame.findUniqueOrThrow({ where: { id: gameId } })).status).toBe("done");
+  });
+
+  it("a deleted open game doesn't block a currency change", async () => {
+    const { g, a } = await table();
+    const s = await startGame(g.id, a, { name: "Oops", game: "poker", players: [a, g.members[1].id] });
+    if (!s.ok) throw new Error(s.error);
+    const blocked = await changeGroupCurrency(g.id, a, "USD", "0.012");
+    expect(blocked.ok).toBe(false);
+    expect((await deleteGame(s.id, a)).ok).toBe(true);
+    const admin = (await groupAdminId(g.id))!;
+    const ok = await changeGroupCurrency(g.id, admin, "USD", "0.012");
+    expect(ok.ok).toBe(true);
+    expect((await db.group.findUniqueOrThrow({ where: { id: g.id } })).currency).toBe("USD");
+  });
+
+  it("when the host has left, the group admin can finish the game: the result is recorded once; others still can't", async () => {
+    const { g, a, b, c, gameId } = await playedGame({ hostLeaves: true });
+    const admin = (await groupAdminId(g.id))!;
+    expect(admin).not.toBe(a);
+    const notAdmin = [b, c].find((x) => x !== admin)!;
+    expect((await finishGame(gameId, notAdmin)).ok).toBe(false);
+    expect((await finishGame(gameId, admin)).ok).toBe(true);
+    expect((await finishGame(gameId, admin)).ok).toBe(false); // already finished
+    expect(await db.expense.count({ where: { groupId: g.id, kind: "pot", deletedAt: null } })).toBe(1);
+    expect((await db.expense.findFirstOrThrow({ where: { groupId: g.id, kind: "pot" } })).amount).toBe(50000);
+    // Reopen by the admin works too; a present host's game is still the host's alone.
+    expect((await reopenGame(gameId, admin)).ok).toBe(true);
+    expect(await db.expense.count({ where: { groupId: g.id, kind: "pot" } })).toBe(0);
+  });
+
+  it("the admin can delete a left host's open game, but not while the host is still in", async () => {
+    const t = await table();
+    // Who looks after the group, worked out as group-admin.ts does: nobody has claimed a place, so the earliest member (createdAt, then id) who hasn't left.
+    const ordered = await db.member.findMany({ where: { groupId: t.g.id }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true } });
+    const admin = ordered[0].id;
+    expect(await groupAdminId(t.g.id)).toBe(admin);
+    const host = ordered[1].id; // a member who is NOT the admin
+    const other = ordered[2].id;
+    const s = await startGame(t.g.id, host, { name: "Host night", game: "poker", players: [host, other] });
+    if (!s.ok) throw new Error(s.error);
+    expect((await loadGame(t.g.id, s.id))!.hostId).toBe(host);
+    // The host is still in: the admin may not delete it, another player may not, the host may only when it is theirs to do.
+    expect((await deleteGame(s.id, admin)).ok).toBe(false);
+    expect((await deleteGame(s.id, other)).ok).toBe(false);
+    expect(await loadGame(t.g.id, s.id)).not.toBeNull();
+    // The host leaves: now the admin can (and a plain player still can't).
+    await db.member.update({ where: { id: host }, data: { leftAt: new Date() } });
+    expect(await groupAdminId(t.g.id)).toBe(admin);
+    expect((await deleteGame(s.id, other)).ok).toBe(false);
+    expect((await deleteGame(s.id, admin)).ok).toBe(true);
+    expect(await loadGame(t.g.id, s.id)).toBeNull();
+  });
+
+  it("an imported card-game row (no game behind it) stays editable and deletable; a game's result does not", async () => {
+    const { g, a, b } = await table();
+    const imported = await db.expense.create({
+      data: { groupId: g.id, description: "Imported cards", amount: 20000, splitType: "exact", forMode: "selected", kind: "pot", paidById: a, createdById: a, originalAmount: 20000, convertedAmount: 20000, shares: { create: [{ memberId: b, amount: 20000 }] } },
+    });
+    const r = await saveExpense(edit(g.id, imported.id, a, { name: "Imported cards (fixed)", amount: "250", forMode: "selected", selected: [b], splitType: "equal" }), a, noRate);
+    expect(r.ok).toBe(true);
+    const edited = await db.expense.findUniqueOrThrow({ where: { id: imported.id } });
+    expect(edited.description).toBe("Imported cards (fixed)");
+    expect(edited.amount).toBe(25000);
+    expect(edited.kind).toBe("pot");
+    expect((await setExpenseDeleted(imported.id, b, true)).ok).toBe(true);
+    expect((await db.expense.findUniqueOrThrow({ where: { id: imported.id } })).deletedAt).not.toBeNull();
+    expect((await setExpenseDeleted(imported.id, b, false)).ok).toBe(true);
+
+    // A game's result in the same group is still protected.
+    const s = await startGame(g.id, a, { name: "Real game", game: "poker", players: [a, b] });
+    if (!s.ok) throw new Error(s.error);
+    for (const who of [a, b]) await recordMove(s.id, a, { memberId: who, kind: "take", amount: "1000" });
+    await recordMove(s.id, a, { memberId: a, kind: "return", amount: "1500" });
+    await recordMove(s.id, a, { memberId: b, kind: "return", amount: "500" });
+    expect((await finishGame(s.id, a)).ok).toBe(true);
+    const result = (await db.potGame.findUniqueOrThrow({ where: { id: s.id } })).resultId;
+    expect((await setExpenseDeleted(result, b, true)).ok).toBe(false);
+    expect((await saveExpense(edit(g.id, result, b), b, noRate)).ok).toBe(false);
+  });
+
+  it("an imported card-game row switched to Money back saves as money back (not silently kept as a card row)", async () => {
+    const { g, a, b } = await table();
+    const imported = await db.expense.create({
+      data: { groupId: g.id, description: "Imported cards", amount: 20000, splitType: "exact", forMode: "selected", kind: "pot", paidById: a, createdById: a, originalAmount: 20000, convertedAmount: 20000, shares: { create: [{ memberId: b, amount: 20000 }] } },
+    });
+    const r = await saveExpense(edit(g.id, imported.id, a, { name: "Cash back", amount: "200", forMode: "selected", selected: [b], splitType: "equal", kind: "refund" }), a, noRate);
+    expect(r.ok).toBe(true);
+    expect((await db.expense.findUniqueOrThrow({ where: { id: imported.id } })).kind).toBe("refund");
+    // Money back ₹200 received by Asha, shared with Bina only: Asha owes Bina ₹200 → Asha -20000, Bina +20000.
+    const net = await balances(g.id);
+    expect({ a: net[a], b: net[b] }).toEqual({ a: -20000, b: 20000 });
+  });
+
+  it("two reopens at the same moment: only one acts; the game is open with no result and balances are back to 0", async () => {
+    const { g, a, b, gameId } = await playedGame();
+    expect((await finishGame(gameId, a)).ok).toBe(true);
+    const [r1, r2] = await Promise.all([reopenGame(gameId, a), reopenGame(gameId, a)]);
+    expect([r1.ok, r2.ok].filter(Boolean).length).toBe(1);
+    const game = await db.potGame.findUniqueOrThrow({ where: { id: gameId } });
+    expect({ status: game.status, resultId: game.resultId }).toEqual({ status: "open", resultId: "" });
+    expect(await db.expense.count({ where: { groupId: g.id } })).toBe(0);
+    expect((await db.groupEvent.count({ where: { groupId: g.id, kind: "pot_reopened" } }))).toBe(1);
+    const loser = [r1, r2].find((r) => !r.ok);
+    expect(loser && !loser.ok ? loser.error : "").toMatch(/^(This game changed just now|This game is still going)/);
+    expect(Object.values(await balances(g.id)).every((v) => v === 0)).toBe(true);
+    // Finishing again gives exactly one result: Asha +50000, Bina -50000 (worked by hand above).
+    expect((await finishGame(gameId, a)).ok).toBe(true);
+    expect(await db.expense.count({ where: { groupId: g.id, deletedAt: null } })).toBe(1);
+    const net = await balances(g.id);
+    expect({ a: net[a], b: net[b] }).toEqual({ a: 50000, b: -50000 });
+    expect(Object.values(net).reduce((x, y) => x + y, 0)).toBe(0);
+  });
+
+  it("an old result that was turned into ordinary spending is still removed on reopen; finishing leaves exactly one result and balances sum to 0", async () => {
+    const { g, a, b, gameId } = await playedGame();
+    expect((await finishGame(gameId, a)).ok).toBe(true);
+    const resultId = (await db.potGame.findUniqueOrThrow({ where: { id: gameId } })).resultId;
+    await db.expense.update({ where: { id: resultId }, data: { kind: "expense" } }); // as the old edit hole did
+    expect((await reopenGame(gameId, a)).ok).toBe(true);
+    expect(await db.expense.count({ where: { groupId: g.id } })).toBe(0);
+    expect(Object.values(await balances(g.id)).every((v) => v === 0)).toBe(true);
+    expect((await finishGame(gameId, a)).ok).toBe(true);
+    expect(await db.expense.count({ where: { groupId: g.id, deletedAt: null } })).toBe(1);
+    // Asha took 1000 and put back 1500 (+500 = 50000 paise); Bina took 1000 and put back 500 (-500 = -50000 paise).
+    const net = await balances(g.id);
+    expect({ a: net[a], b: net[b] }).toEqual({ a: 50000, b: -50000 });
+    expect(Object.values(net).reduce((x, y) => x + y, 0)).toBe(0);
+  });
+
+  it("a card-game result can't be deleted or restored on its own; the game's own reopen still works", async () => {
+    const { g, a, b, gameId } = await playedGame();
+    expect((await finishGame(gameId, a)).ok).toBe(true);
+    const result = await db.expense.findFirstOrThrow({ where: { groupId: g.id, kind: "pot" } });
+
+    const del = await setExpenseDeleted(result.id, b, true);
+    expect(del).toEqual({ ok: false, error: "Card-game results change through the game: open the game to reopen or delete it." });
+    expect(POT_DELETE_ERROR).toBe("Card-game results change through the game: open the game to reopen or delete it.");
+    const same = await db.expense.findUniqueOrThrow({ where: { id: result.id } });
+    expect(same.deletedAt).toBeNull();
+    expect(same.amount).toBe(50000);
+    expect(await db.groupEvent.count({ where: { groupId: g.id, kind: "expense_deleted" } })).toBe(0);
+    const net = await balances(g.id);
+    expect({ a: net[a], b: net[b] }).toEqual({ a: 50000, b: -50000 });
+
+    // Restore is refused too (a row deleted before this rule existed stays as it is).
+    await db.expense.update({ where: { id: result.id }, data: { deletedAt: new Date(), deletedById: a } });
+    const back = await setExpenseDeleted(result.id, b, false);
+    expect(back).toEqual({ ok: false, error: POT_DELETE_ERROR });
+    expect((await db.expense.findUniqueOrThrow({ where: { id: result.id } })).deletedAt).not.toBeNull();
+    expect(await db.groupEvent.count({ where: { groupId: g.id, kind: "expense_restored" } })).toBe(0);
+    await db.expense.update({ where: { id: result.id }, data: { deletedAt: null, deletedById: null } });
+
+    // The game's own paths are untouched: reopen removes the result, finishing again adds exactly one.
+    expect((await reopenGame(gameId, a)).ok).toBe(true);
+    expect((await finishGame(gameId, a)).ok).toBe(true);
+    expect(await db.expense.count({ where: { groupId: g.id, kind: "pot", deletedAt: null } })).toBe(1);
   });
 });

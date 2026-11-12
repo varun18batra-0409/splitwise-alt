@@ -19,9 +19,9 @@ export function tripTag(phase: TripPhase | null | undefined): string | null {
   return null;
 }
 
-// The row ends with a dashed "+ New group" card for a small collection of groups, and with "See all N" when the row would get long.
+// "+ New group" is always the first card of the row (see HomeGroups), however many groups there are.
+// The row ends with "See all N" only when it would get long.
 export const CARD_ROW_MAX = 10;
-export function rowEnd(groups: number): "new" | "all" | null {
-  if (groups > CARD_ROW_MAX) return "all";
-  return groups <= 3 ? "new" : null;
+export function rowEnd(groups: number): "all" | null {
+  return groups > CARD_ROW_MAX ? "all" : null;
 }
