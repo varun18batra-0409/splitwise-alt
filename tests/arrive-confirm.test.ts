@@ -29,6 +29,7 @@ const { db } = await import("@/lib/db");
 const { eraseGroups } = await import("@/lib/purge");
 const { createMovePass, peekMovePass } = await import("@/lib/move");
 const { encodeSession, SESSION_COOKIE } = await import("@/lib/session");
+const { maskEmail } = await import("@/lib/stats");
 const { GET } = await import("@/app/api/arrive/route");
 const { confirmArrival } = await import("@/app/arrive/actions");
 
@@ -73,9 +74,20 @@ describe("arriving from the old address", () => {
     expect(res.headers.get("set-cookie")).toBeNull();
     expect(await passRows(t)).toBe(1);
     // Looking at it (the confirm page) names the person and still doesn't spend it.
-    expect(await peekMovePass(t)).toEqual({ firstName: "Meera" });
-    expect(await peekMovePass(t)).toEqual({ firstName: "Meera" });
+    expect(await peekMovePass(t)).toEqual({ firstName: "Meera", email: "" });
+    expect(await peekMovePass(t)).toEqual({ firstName: "Meera", email: "" });
     expect(await passRows(t)).toBe(1);
+  });
+
+  it("with an account, the confirm page can show the masked email (the first name is only the fallback)", async () => {
+    const acc = await db.account.create({ data: { email: `asha-${Date.now()}@example.test`, name: "Asha Rao" } });
+    try {
+      const t = (await createMovePass(await encodeSession({ m: {}, a: acc.id }), false))!;
+      expect(await peekMovePass(t)).toEqual({ firstName: "Asha", email: acc.email });
+      expect(maskEmail(acc.email)).toBe(`as•••@example.test`);
+    } finally {
+      await db.account.delete({ where: { id: acc.id } }).catch(() => undefined);
+    }
   });
 
   it("already signed in, or no pass: the link just opens the page and the pass is left alone", async () => {

@@ -33,7 +33,7 @@ const whenIn = (tz: string) => {
 // Busy groups show the latest PAGE items first, with "Show more".
 const PAGE = 60;
 
-export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = [], receipts = [] }: { v: GroupView; filter?: ActivityFilter; shown?: number; openId?: string; reactions?: { expenseId: string; memberId: string; emoji: string }[]; receipts?: { id: string; expenseId: string }[] }) {
+export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = [], receipts = [], gameResultIds = [] }: { v: GroupView; filter?: ActivityFilter; shown?: number; openId?: string; reactions?: { expenseId: string; memberId: string; emoji: string }[]; receipts?: { id: string; expenseId: string }[]; gameResultIds?: string[] }) {
   const receiptOf = new Map(receipts.map((r) => [r.expenseId, r.id]));
   const { group, myId, nameOf, money, expenseById, eventById, tz } = v;
   const when = whenIn(tz);
@@ -254,7 +254,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
               const deleted = Boolean(e.deletedAt);
               const orig = foreign ? originalShares(e) : [];
               const reacted = reactionSummary(reactions.filter((r) => r.expenseId === e.id), myId);
-              const isPot = e.kind === "pot"; // a card game's result changes through the game, so no swipe Delete
+              const isPot = gameResultIds.includes(e.id); // a finished game's result changes through the game, so no swipe Delete (an imported card-game row is ordinary)
               const swipeable = !deleted && !group.closed && !isPot;
               const wrap = (node: ReactNode) =>
                 swipeable ? (

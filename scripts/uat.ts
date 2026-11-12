@@ -214,12 +214,17 @@ async function settleNav(page: Page) {
   await page.waitForLoadState("load", { timeout: 10_000 }).catch(() => undefined);
   if (PROFILE === "iphone") await page.waitForLoadState("networkidle", { timeout: 2_000 }).catch(() => undefined);
 }
-async function go(page: Page, path: string) {
+async function go(page: Page, path: string, opts: { quick?: boolean } = {}) {
   for (let attempt = 0; ; attempt++) {
     await settleNav(page);
     try {
       // The hosted test copy keeps a connection open (Vercel's preview tools), so the network never goes quiet there.
-      if (hosted) await page.goto(base + path, { waitUntil: "load", timeout: 30_000 });
+      // "quick": layout sweeps only measure the page, so wait for load and fonts, not for every poll to finish.
+      if (opts.quick) {
+        await page.goto(base + path, { waitUntil: "load", timeout: 30_000 });
+        await page.evaluate("document.fonts ? document.fonts.ready.then(() => true) : true").catch(() => undefined);
+        await page.waitForTimeout(300);
+      } else if (hosted) await page.goto(base + path, { waitUntil: "load", timeout: 30_000 });
       else await page.goto(base + path, { waitUntil: "networkidle" });
       break;
     } catch (e) {
@@ -2141,7 +2146,7 @@ async function main() {
     ];
     const wide: string[] = [];
     for (const p of pages) {
-      await go(page, p);
+      await go(page, p, { quick: true });
       const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       if (over > 1) {
         wide.push(`${p.replace(/[a-z0-9]{20,}/g, ":id")} (+${over}px)`);

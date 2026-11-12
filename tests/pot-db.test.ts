@@ -308,12 +308,69 @@ describe("The Pot (real database)", () => {
   });
 
   it("the admin can delete a left host's open game, but not while the host is still in", async () => {
-    const live = await playedGame();
-    const other = [live.b, live.c, live.d].find((x) => x !== live.a)!;
-    expect((await deleteGame(live.gameId, other)).ok).toBe(false);
-    const gone = await playedGame({ hostLeaves: true });
-    const admin = (await groupAdminId(gone.g.id))!;
-    expect((await deleteGame(gone.gameId, admin)).ok).toBe(true);
+    const t = await table();
+    // Who looks after the group, worked out as group-admin.ts does: nobody has claimed a place, so the earliest member (createdAt, then id) who hasn't left.
+    const ordered = await db.member.findMany({ where: { groupId: t.g.id }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true } });
+    const admin = ordered[0].id;
+    expect(await groupAdminId(t.g.id)).toBe(admin);
+    const host = ordered[1].id; // a member who is NOT the admin
+    const other = ordered[2].id;
+    const s = await startGame(t.g.id, host, { name: "Host night", game: "poker", players: [host, other] });
+    if (!s.ok) throw new Error(s.error);
+    expect((await loadGame(t.g.id, s.id))!.hostId).toBe(host);
+    // The host is still in: the admin may not delete it, another player may not, the host may only when it is theirs to do.
+    expect((await deleteGame(s.id, admin)).ok).toBe(false);
+    expect((await deleteGame(s.id, other)).ok).toBe(false);
+    expect(await loadGame(t.g.id, s.id)).not.toBeNull();
+    // The host leaves: now the admin can (and a plain player still can't).
+    await db.member.update({ where: { id: host }, data: { leftAt: new Date() } });
+    expect(await groupAdminId(t.g.id)).toBe(admin);
+    expect((await deleteGame(s.id, other)).ok).toBe(false);
+    expect((await deleteGame(s.id, admin)).ok).toBe(true);
+    expect(await loadGame(t.g.id, s.id)).toBeNull();
+  });
+
+  it("an imported card-game row (no game behind it) stays editable and deletable; a game's result does not", async () => {
+    const { g, a, b } = await table();
+    const imported = await db.expense.create({
+      data: { groupId: g.id, description: "Imported cards", amount: 20000, splitType: "exact", forMode: "selected", kind: "pot", paidById: a, createdById: a, originalAmount: 20000, convertedAmount: 20000, shares: { create: [{ memberId: b, amount: 20000 }] } },
+    });
+    const r = await saveExpense(edit(g.id, imported.id, a, { name: "Imported cards (fixed)", amount: "250", forMode: "selected", selected: [b], splitType: "equal" }), a, noRate);
+    expect(r.ok).toBe(true);
+    const edited = await db.expense.findUniqueOrThrow({ where: { id: imported.id } });
+    expect(edited.description).toBe("Imported cards (fixed)");
+    expect(edited.amount).toBe(25000);
+    expect(edited.kind).toBe("pot");
+    expect((await setExpenseDeleted(imported.id, b, true)).ok).toBe(true);
+    expect((await db.expense.findUniqueOrThrow({ where: { id: imported.id } })).deletedAt).not.toBeNull();
+    expect((await setExpenseDeleted(imported.id, b, false)).ok).toBe(true);
+
+    // A game's result in the same group is still protected.
+    const s = await startGame(g.id, a, { name: "Real game", game: "poker", players: [a, b] });
+    if (!s.ok) throw new Error(s.error);
+    for (const who of [a, b]) await recordMove(s.id, a, { memberId: who, kind: "take", amount: "1000" });
+    await recordMove(s.id, a, { memberId: a, kind: "return", amount: "1500" });
+    await recordMove(s.id, a, { memberId: b, kind: "return", amount: "500" });
+    expect((await finishGame(s.id, a)).ok).toBe(true);
+    const result = (await db.potGame.findUniqueOrThrow({ where: { id: s.id } })).resultId;
+    expect((await setExpenseDeleted(result, b, true)).ok).toBe(false);
+    expect((await saveExpense(edit(g.id, result, b), b, noRate)).ok).toBe(false);
+  });
+
+  it("an old result that was turned into ordinary spending is still removed on reopen; finishing leaves exactly one result and balances sum to 0", async () => {
+    const { g, a, b, gameId } = await playedGame();
+    expect((await finishGame(gameId, a)).ok).toBe(true);
+    const resultId = (await db.potGame.findUniqueOrThrow({ where: { id: gameId } })).resultId;
+    await db.expense.update({ where: { id: resultId }, data: { kind: "expense" } }); // as the old edit hole did
+    expect((await reopenGame(gameId, a)).ok).toBe(true);
+    expect(await db.expense.count({ where: { groupId: g.id } })).toBe(0);
+    expect(Object.values(await balances(g.id)).every((v) => v === 0)).toBe(true);
+    expect((await finishGame(gameId, a)).ok).toBe(true);
+    expect(await db.expense.count({ where: { groupId: g.id, deletedAt: null } })).toBe(1);
+    // Asha took 1000 and put back 1500 (+500 = 50000 paise); Bina took 1000 and put back 500 (-500 = -50000 paise).
+    const net = await balances(g.id);
+    expect({ a: net[a], b: net[b] }).toEqual({ a: 50000, b: -50000 });
+    expect(Object.values(net).reduce((x, y) => x + y, 0)).toBe(0);
   });
 
   it("a card-game result can't be deleted or restored on its own; the game's own reopen still works", async () => {

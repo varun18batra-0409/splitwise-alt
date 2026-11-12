@@ -4,7 +4,8 @@ import { LEFT_ERROR } from "./active";
 import { db } from "./db";
 import { withRetry } from "./once";
 import { diffExpense, expenseState, logEvent, parseUndo, touchedByExpense, type UndoPayload } from "./events";
-import { setExpenseDeleted, setPaymentDeleted } from "./save-expense";
+import { POT_EDIT_ERROR, setExpenseDeleted, setPaymentDeleted } from "./save-expense";
+import { isGameResult } from "./pot-result";
 import { formatPercent } from "./money";
 import { setMember } from "./people";
 import { applySettleAll, setPaymentsDeleted } from "./settle-all";
@@ -203,6 +204,7 @@ async function revertExpense(expenseId: string, before: Parameters<typeof expens
   if (!e) return { ok: false, error: "That expense no longer exists." };
   if (e.group.closed) return { ok: false, error: "This group is closed. Reopen it to change expenses." };
   if (e.deletedAt) return { ok: false, error: "This expense is deleted. Restore it first." };
+  if (await isGameResult(expenseId)) return { ok: false, error: POT_EDIT_ERROR };
   if (before.baseCurrency !== e.group.currency) return { ok: false, error: "The group currency changed since, so this edit can’t be undone." };
   const locked = await chargeLock(db, e.groupId, expenseId);
   if (locked) return { ok: false, error: chargeLockedText(locked.bill) };

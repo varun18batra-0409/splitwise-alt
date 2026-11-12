@@ -10,6 +10,7 @@ import { PotBuyIn } from "@/components/PotBuyIn";
 import { PotCount } from "@/components/PotCount";
 import { PotName } from "@/components/PotName";
 import { addPlayerAction, adjustAction, cashOutAction, deleteGameAction, finishGameAction, markGamePaidAction, removeMoveAction, reopenGameAction } from "@/app/pot-actions";
+import { pickAdmin } from "@/lib/group-admin";
 import { canRunGame, gameSettlement, inPlay, loadGame } from "@/lib/pot-db";
 import { parsePlayers, potGameLabel, potResultLine, potSummary } from "@/lib/pot";
 import { UndoBar } from "@/components/UndoBar";
@@ -48,6 +49,8 @@ export default async function GamePage({ params, searchParams }: { params: Promi
   const { lines, totals } = potSummary(players, live);
   const open = game.status === "open";
   const host = canRunGame(game, group.members, myId); // the host, or the group admin if the host has left
+  const hostLeft = !group.members.some((m) => m.id === game.hostId && !m.leftAt);
+  const adminId = pickAdmin(group.members)?.id;
   const ranked = [...lines].sort((a, b) => b.net - a.net);
   const playing = inPlay(players, live);
   const lineOf = (mid: string) => lines.find((l) => l.memberId === mid);
@@ -402,7 +405,9 @@ export default async function GamePage({ params, searchParams }: { params: Promi
               totals.balanced ? potResultLine(lines.map((l) => ({ name: nameOf(l.memberId), net: l.net })), group.currency) : undefined,
             )
           ) : (
-            <p className="text-center text-xs text-gray-500">{you(game.hostId)} (the host) settles the game once it adds up.</p>
+            <p className="text-center text-xs text-gray-500">
+              {hostLeft && adminId ? `${you(adminId)} (looks after the group) settles the game once it adds up.` : `${you(game.hostId)} (the host) settles the game once it adds up.`}
+            </p>
           )}
         </section>
       )}
@@ -439,10 +444,14 @@ export default async function GamePage({ params, searchParams }: { params: Promi
 
       {host && (
         <section aria-label="Host" className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
-          {open
-            ? form(deleteGameAction, "Delete game", "text-xs text-red-500 underline", "Delete this game? Everything recorded in it goes too.")
-            : form(reopenGameAction, "Reopen game", "rounded-full border border-line px-3 py-1.5 text-xs font-semibold active:bg-mist", "Reopen it? Its result comes out of the balances until you finish it again.")}
-          <p className="text-xs text-gray-400">You’re the host.</p>
+          {open ? (
+            form(deleteGameAction, "Delete game", "text-xs text-red-500 underline", "Delete this game? Everything recorded in it goes too.")
+          ) : group.closed ? (
+            <p className="text-xs text-gray-500">Reopen the group to change this game.</p>
+          ) : (
+            form(reopenGameAction, "Reopen game", "rounded-full border border-line px-3 py-1.5 text-xs font-semibold active:bg-mist", "Reopen it? Its result comes out of the balances until you finish it again.")
+          )}
+          <p className="text-xs text-gray-400">{game.hostId === myId ? "You’re the host." : `${nameOf(game.hostId)} has left, so you can run this game.`}</p>
         </section>
       )}
       {showUndo && justDid && (

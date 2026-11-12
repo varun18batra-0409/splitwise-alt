@@ -6,6 +6,7 @@ import { PageHeader, primaryButtonClass } from "@/components/ui";
 import { peekMovePass } from "@/lib/move";
 import { SESSION_COOKIE } from "@/lib/session";
 import { safePath } from "@/lib/paths";
+import { maskEmail } from "@/lib/stats";
 
 // Where the hand-over from the old address lands. It asks for one tap instead of
 // signing in straight away, and only looks at the pass (never uses it up).
@@ -23,7 +24,7 @@ export default async function Arrive({ searchParams }: { searchParams: Promise<{
       {pass ? (
         <>
           <p className="mb-3 text-gray-600">
-            Continue to Loopin{pass.firstName ? <> as <span className="text-fg">{pass.firstName}</span></> : null}?
+            Continue to Loopin{pass.email ? <> as <span className="text-fg">{maskEmail(pass.email)}</span></> : pass.firstName ? <> as <span className="text-fg">{pass.firstName}</span></> : null}?
           </p>
           <p className="mb-6 text-sm text-gray-500">Only continue if you came here from your own Loopin on the old address.</p>
           <form action={confirmArrival}>

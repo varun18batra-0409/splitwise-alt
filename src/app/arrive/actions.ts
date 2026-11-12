@@ -14,7 +14,8 @@ export async function confirmArrival(formData: FormData) {
   if (jar.get(SESSION_COOKIE)?.value) redirect(to);
   const pass = await redeemMovePass(String(formData.get("t") ?? "")).catch(() => null);
   if (!pass) redirect(`/arrive?${new URLSearchParams({ to, gone: "1" })}`);
-  const secure = process.env.NODE_ENV === "production";
+  // Same rule as the other sign-in cookies (src/lib/identity.ts): plain http only for the automated browser tests.
+  const secure = process.env.NODE_ENV === "production" && process.env.E2E_PLAIN_HTTP !== "1";
   jar.set(SESSION_COOKIE, pass.session, { httpOnly: true, sameSite: "lax", secure, path: "/", maxAge: SESSION_MAX_AGE });
   if (pass.tourSeen) jar.set("lp_tour", "1", { sameSite: "lax", secure, path: "/", maxAge: 31536000 });
   const dest = new URL(to, "http://loopin.invalid");

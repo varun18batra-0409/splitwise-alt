@@ -39,10 +39,9 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
   const e = await db.expense.findFirst({ where: { id: expenseId, groupId: group.id }, include: { shares: true } });
   if (!e) notFound();
   // A game's result is worked out from the game: changes happen there (the host reopens it).
-  if (e.kind === "pot") {
-    const g = await db.potGame.findFirst({ where: { resultId: e.id, groupId: group.id }, select: { id: true } });
-    redirect(g ? `/groups/${group.id}/pot/${g.id}` : `/groups/${group.id}?tab=games`);
-  }
+  // (An imported card-game row has no game: it stays an ordinary, editable row.)
+  const game = await db.potGame.findFirst({ where: { resultId: e.id, groupId: group.id }, select: { id: true } });
+  if (game) redirect(`/groups/${group.id}/pot/${game.id}`);
 
   const back = `/groups/${group.id}?tab=activity`;
   const receipt = await db.receipt.findFirst({ where: { groupId: group.id, expenseId: e.id }, select: { id: true } });

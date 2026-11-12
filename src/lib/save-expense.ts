@@ -10,6 +10,7 @@ import type { RateAnswer } from "./rate-cache";
 import { dayKey, parseDay } from "./dates";
 import { claimKey, isDuplicateKey, previousResult, withRetry } from "./once";
 import { parsePayers, payersJson, payersLabel } from "./payers";
+import { isGameResult } from "./pot-result";
 import { findLikelyDuplicate } from "./duplicates";
 import { queuePhotoDeletes } from "./photo-store";
 import { chargeLock, chargeLockedText } from "./home/charge-lock";
@@ -157,7 +158,7 @@ async function saveExpenseOnce(
     if (!existing) return { ok: false, error: "That expense no longer exists." };
     if (existing.deletedAt) return { ok: false, error: "This expense was deleted. Restore it before changing it." };
     // A card game's result is worked out from the game: it can't be edited into ordinary spending.
-    if (existing.kind === "pot") return { ok: false, error: POT_EDIT_ERROR };
+    if (await isGameResult(existing.id)) return { ok: false, error: POT_EDIT_ERROR };
     // Someone else saved a change while this person was editing: don't overwrite it silently.
     if (input.baseVersion && (existing.editedAt ?? existing.createdAt).toISOString() !== input.baseVersion) {
       const last = await db.groupEvent.findFirst({ where: { expenseId: existing.id }, orderBy: { createdAt: "desc" } });
@@ -223,7 +224,7 @@ async function saveExpenseOnce(
     forMode: e.forMode,
     paidById: e.paidById,
     payers: payersJson(e.payers),
-    kind: e.kind,
+    kind: existing?.kind === "pot" ? "pot" : e.kind, // an imported card-game row stays a card-game row
     originalAmount: e.originalAmount,
     originalCurrency: e.originalCurrency,
     baseCurrency: e.baseCurrency,
@@ -354,7 +355,7 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
   if (expense.group.deletedAt) return { ok: false, error: "This group was deleted." };
   if (expense.group.closed) return { ok: false, error: "This group is closed. Reopen it to change expenses." };
   // A game's result is never deleted or restored on its own (it would leave a finished game with no result, or two results).
-  if (expense.kind === "pot") return { ok: false, error: POT_DELETE_ERROR };
+  if (await isGameResult(expense.id)) return { ok: false, error: POT_DELETE_ERROR };
   if (Boolean(expense.deletedAt) === deleted) return { ok: true, id: expense.id };
 
   let eventId: string;

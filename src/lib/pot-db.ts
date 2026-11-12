@@ -248,7 +248,9 @@ export async function reopenGame(gameId: string, actorId: string): Promise<Resul
     if (game.resultId) {
       // The event that pointed at it stays in the history, without the link.
       await tx.groupEvent.updateMany({ where: { expenseId: game.resultId }, data: { expenseId: null } });
-      await tx.expense.deleteMany({ where: { id: game.resultId, kind: "pot" } });
+      // By the game's own pointer (not by kind): a result that was changed into ordinary spending earlier still goes.
+      await tx.expenseShare.deleteMany({ where: { expenseId: game.resultId } });
+      await tx.expense.deleteMany({ where: { id: game.resultId } });
     }
     await tx.potGame.update({ where: { id: gameId }, data: { status: "open", finishedAt: null, resultId: "" } });
     await logEvent(tx, { groupId: g.id, actorId, kind: "pot_reopened", text: `reopened ${game.name} (its result is out of the balances until it’s finished again)` });
