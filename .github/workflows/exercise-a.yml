@@ -47,8 +47,8 @@ jobs:
       TURSO_DATABASE_URL: file:/tmp/exercise-a-${{ matrix.profile }}.db
       MAIL_OUTBOX: "1" # emails are kept in the database for the tests, never sent
       E2E_PLAIN_HTTP: "1" # plain http on this machine only (Safari's engine refuses the sign-in cookie otherwise); never set on the live app
-      GOOGLE_CLIENT_ID: exercise-a.apps.googleusercontent.com # made up: the button shows, nothing goes to Google
-      GOOGLE_CLIENT_SECRET: exercise-a-not-a-secret
+      GOOGLE_CLIENT_ID: uat-test.apps.googleusercontent.com # made up (same as the screens job in ci.yml): the button shows, nothing goes to Google
+      GOOGLE_CLIENT_SECRET: uat-not-a-secret
       CRON_SECRET: exercise-a-only-not-a-real-secret
       UAT_PROFILE: ${{ matrix.profile }}
     steps:
@@ -158,7 +158,7 @@ jobs:
       CRON_SECRET: exercise-a-only-not-a-real-secret
       E2E_BASE_URL: http://localhost:3000
       GOOGLE_CLIENT_ID: exercise-a.apps.googleusercontent.com
-      GOOGLE_CLIENT_SECRET: exercise-a-not-a-secret
+      GOOGLE_CLIENT_SECRET: uat-not-a-secret
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

@@ -113,6 +113,9 @@ async function stepOn(only: Profile[], why: string, page: Page | null, area: str
   results.push({ n: results.length + 1, area, name, status: "na", detail: `not applicable on ${PROFILE}: ${why} (runs on ${only.join(", ")})`, only });
   console.log("–", area, "—", name, `(not applicable on ${PROFILE})`);
 }
+// Old and new names for the same time zone (Chrome says Asia/Calcutta, the standard list says Asia/Kolkata).
+const ZONE_ALIAS: Record<string, string> = { "Asia/Calcutta": "Asia/Kolkata", "Asia/Saigon": "Asia/Ho_Chi_Minh", "Asia/Katmandu": "Asia/Kathmandu", "Asia/Rangoon": "Asia/Yangon" };
+const sameZone = (a: string, b: string) => (ZONE_ALIAS[a] ?? a) === (ZONE_ALIAS[b] ?? b);
 function assert(cond: unknown, msg: string): asserts cond {
   if (!cond) throw new Error(msg);
 }
@@ -204,13 +207,37 @@ function diagnose(page: Page | null): string {
   return (open.length ? ` [still loading: ${open.join(", ")}]` : "") + (errs.length ? ` [browser errors: ${errs.join(" | ")}]` : "");
 }
 
+// Let a navigation that is already under way (a server action's redirect, a router refresh) finish.
+// Safari's engine is still moving when the test asks for the next page, which gives
+// "Navigation … is interrupted by another navigation".
+async function settleNav(page: Page) {
+  await page.waitForLoadState("load", { timeout: 10_000 }).catch(() => undefined);
+  if (PROFILE === "iphone") await page.waitForLoadState("networkidle", { timeout: 2_000 }).catch(() => undefined);
+}
 async function go(page: Page, path: string) {
-  // The hosted test copy keeps a connection open (Vercel's preview tools), so the network never goes quiet there.
+  for (let attempt = 0; ; attempt++) {
+    await settleNav(page);
+    try {
+      // The hosted test copy keeps a connection open (Vercel's preview tools), so the network never goes quiet there.
+      if (hosted) await page.goto(base + path, { waitUntil: "load", timeout: 30_000 });
+      else await page.goto(base + path, { waitUntil: "networkidle" });
+      break;
+    } catch (e) {
+      // One more try only for the "interrupted" case; any other error is real.
+      if (attempt === 0 && /interrupted by another navigation/i.test(String(e))) continue;
+      // A page that never goes quiet (a poll still open): the page itself loaded, so carry on and say so.
+      if (attempt === 0 && !hosted && /Timeout .*networkidle|waiting until "networkidle"/i.test(String(e))) {
+        console.log(`  (note: ${path} never went network-quiet; open: ${[...(pending.get(page)?.values() ?? [])].slice(0, 5).join(", ") || "nothing listed"})`);
+        await page.waitForLoadState("load", { timeout: 10_000 }).catch(() => undefined);
+        break;
+      }
+      throw e;
+    }
+  }
   if (hosted) {
-    await page.goto(base + path, { waitUntil: "load", timeout: 30_000 });
     await page.waitForLoadState("networkidle", { timeout: 3_000 }).catch(() => undefined);
     await page.waitForTimeout(600); // let buttons come alive before tapping them
-  } else await page.goto(base + path, { waitUntil: "networkidle" });
+  }
 }
 
 // Everyone's balance as the app shows it (Balances tab → By person).
@@ -1071,6 +1098,8 @@ async function main() {
     await V.getByLabel("Search people on Loopin").fill("Asha");
     await V.getByRole("button", { name: "Add", exact: true }).first().click();
     await V.waitForURL(/invited=/);
+    await V.waitForURL(/invited=.*did=/, { timeout: 5_000 }).catch(() => undefined); // the redirect may land in two hops
+    await settleNav(V);
     const ws = await db.member.findMany({ where: { groupId: gc.split("/").pop()! }, orderBy: { createdAt: "asc" } });
     assert(ws.map((m) => m.splitWeight).join("/") === "55/45", `weights are ${ws.map((m) => m.splitWeight).join("/")}`);
   });
@@ -1421,7 +1450,7 @@ async function main() {
     await target.click();
     await page.waitForURL((u) => u.href !== before, { timeout: 20_000 });
   };
-  const groupNameShown = async (page: Page, path: string) => (await (await page.goto(base + path, { waitUntil: "networkidle" }), page.locator("header h1").first()).innerText());
+  const groupNameShown = async (page: Page, path: string) => (await (await go(page, path), page.locator("header h1").first()).innerText());
   await step(V, "Group settings", "Rename a group, then Undo puts the old name back", async () => {
     await go(V, `${g2}/settings`);
     await V.locator('input[name="name"]').fill("UAT Flat renamed");
@@ -1775,6 +1804,15 @@ async function main() {
     }
     await V.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     await V.waitForTimeout(1500);
+    // The pictures load lazily (Safari's engine only starts them near the screen): bring each into view, wait for it to finish, then measure.
+    const imgs = V.locator('main img[src*="/guide/"]');
+    const count = await imgs.count();
+    for (let i = 0; i < count; i++) {
+      const img = imgs.nth(i);
+      await img.scrollIntoViewIfNeeded();
+      await img.evaluate((el) => (el as HTMLImageElement).decode().catch(() => undefined));
+      await V.waitForFunction((n) => (document.querySelectorAll('main img[src*="/guide/"]')[n] as HTMLImageElement | undefined)?.complete === true, i, { timeout: 10_000 }).catch(() => undefined);
+    }
     const shots = await V.evaluate(() => [...document.querySelectorAll('main img[src*="/guide/"]')].map((i) => (i as HTMLImageElement).naturalWidth));
     assert(shots.length >= 11 && shots.every((w) => w > 0), `guide screens: ${JSON.stringify(shots)}`);
   });
@@ -2093,6 +2131,7 @@ async function main() {
     await ctx.addCookies(await varun.ctx.cookies());
     const page = await ctx.newPage();
     page.setDefaultTimeout(15_000);
+    watch(page); // so a page that never goes quiet names the request still open
     const pages = [
       "/", g, `${g}?tab=balances`, `${g}?tab=charts`, `${g}/settle`, `${g}/add`, `${g}/settings`, `${g}/people`, `${g}/invite`,
       gh, `${gh}?tab=bills`, `${gh}?tab=list`, `${gh}/bills/new`, `${gh}/budgets`, `${gh}/deposit`, gc, `${gc}/goals/new`,
@@ -2166,6 +2205,7 @@ async function main() {
     await V.getByLabel("Pantry Run budget").fill("1000");
     await V.getByRole("button", { name: "Save budgets" }).click();
     await V.waitForURL(new RegExp(`${gh}$`));
+    await settleNav(V);
     await V.getByText(/₹240(\.00)? over/).first().waitFor();
   });
   await step(V, "Flat", "Note when someone moved in (Zoe, on the 10th): it's recorded on People and in the history", async () => {
@@ -2280,7 +2320,7 @@ async function main() {
     const g = new URL(start.location);
     assert(start.status === 307 && g.origin === "https://accounts.google.com", `start: ${start.status} ${start.location}`);
     const client = g.searchParams.get("client_id") ?? "";
-    assert((hosted ? client.endsWith(".apps.googleusercontent.com") : client === "uat-test.apps.googleusercontent.com") && g.searchParams.get("code_challenge_method") === "S256", `params: ${g.search}`);
+    assert((hosted ? client.endsWith(".apps.googleusercontent.com") : client === (process.env.GOOGLE_CLIENT_ID || "uat-test.apps.googleusercontent.com")) && g.searchParams.get("code_challenge_method") === "S256", `params: ${g.search}`);
     assert(g.searchParams.get("redirect_uri") === `${base}/api/auth/google/callback`, `redirect_uri: ${g.searchParams.get("redirect_uri")}`);
     assert(start.setCookie.some((c) => c.startsWith("lp_g=")), "no sign-in attempt cookie");
     const forged = await raw("/api/auth/google/callback?state=forged&code=x", new URL(base).host, start.setCookie.map((c) => c.split(";")[0]).join("; "));
@@ -2887,12 +2927,14 @@ async function main() {
     await V.getByText(/In your old app|Your old app/).first().waitFor();
   });
 
-  await step(V, "Settle", "Varun adds his UPI ID on the You page; his WhatsApp Remind carries it and an “I’ve paid” link that opens without signing in", async () => {
+  // UPI is shown only to people in India (by design: the You page decides from the phone's language and region), so this runs on the India-region profiles.
+  await stepOn(["android", "iphone"], "UPI is shown only in India; this viewer is en-GB in London, who gets the pay-link step below instead", V, "Settle", "Varun adds his UPI ID on the You page; his WhatsApp Remind carries it and an “I’ve paid” link that opens without signing in", async () => {
     await go(V, "/account#pay");
     const pay = V.getByRole("region", { name: "How friends pay you back" });
     await pay.getByLabel("UPI ID (India)").fill("varun@okicici");
     await pay.getByRole("button", { name: "Save pay details" }).click();
     await V.waitForURL(/pay=saved/);
+    await settleNav(V);
     await go(V, `${g}/settle`);
     const link = V.locator("[data-remind]").first();
     if (!(await link.count())) return "saved; nobody owes Varun right now (nothing to remind)";
@@ -2912,6 +2954,29 @@ async function main() {
     // A made-up link: a friendly page, not an error.
     await go(page, "/p/AAAAAAAAAAAAAAAAAAAAAA");
     await page.locator("[data-paylink='gone']").waitFor();
+    await ctx.close();
+  });
+  await stepOn(["desktop"], "this is the outside-India path (PayPal, Venmo, Revolut, Monzo); in India the UPI step above runs instead", V, "Settle", "Outside India: the You page has no UPI box; Varun saves a PayPal link and the “I’ve paid” page offers PayPal", async () => {
+    await go(V, "/account#pay");
+    const pay = V.getByRole("region", { name: "How friends pay you back" });
+    assert((await pay.getByLabel("UPI ID (India)").count()) === 0, "a UPI box is shown outside India");
+    await pay.getByLabel(/PayPal, Venmo, Cash App, Revolut or Monzo link/).fill("paypal.me/varunuat");
+    await pay.getByRole("button", { name: "Save pay details" }).click();
+    await V.waitForURL(/pay=saved/);
+    await settleNav(V);
+    await go(V, `${g}/settle`);
+    const link = V.locator("[data-remind]").first();
+    if (!(await link.count())) return "saved; nobody owes Varun right now (nothing to remind)";
+    const res = await V.request.get(base + ((await link.getAttribute("href")) ?? ""), { maxRedirects: 0 });
+    assert(res.status() === 303, `Remind answered ${res.status()}`);
+    const payPath = new URL(res.headers()["x-pay-link"] ?? "").pathname;
+    const { ctx, page } = await person(browser);
+    await go(page, payPath);
+    await page.locator("[data-paylink='owes']").waitFor();
+    const href = (await page.locator("[data-pay='paypal']").getAttribute("href")) ?? "";
+    assert(href.startsWith("https://paypal.me/varunuat/"), `PayPal button goes to ${href}`);
+    assert(/Open payment app \(PayPal\)/.test(await page.locator("[data-pay='paypal']").innerText()), "the button isn't “Open payment app (PayPal)”");
+    assert((await page.locator("[data-pay='upi']").count()) === 0, "a UPI button is shown for a PayPal-only person");
     await ctx.close();
   });
 
@@ -3316,7 +3381,8 @@ async function main() {
     const yesterday = new Date(Date.UTC(y, mo - 1, d - 1)).toISOString().slice(0, 10);
     assert(e.spentAt && dayKey(e.spentAt, P.timezoneId) === yesterday, `saved as ${e.spentAt?.toISOString()}, expected the day ${yesterday} in ${P.timezoneId}`);
     const tzCookie = (await V.context().cookies()).find((c) => c.name === "tz");
-    if (tzCookie) assert(decodeURIComponent(tzCookie.value) === P.timezoneId, `the app was told the time zone ${tzCookie.value}`);
+    // Chrome reports India's zone by its old name (Asia/Calcutta); the cookie is URL-encoded (Asia%2FCalcutta). Same zone.
+    if (tzCookie) assert(sameZone(decodeURIComponent(tzCookie.value), P.timezoneId), `the app was told the time zone ${tzCookie.value}`);
     return `${yesterday} in ${P.timezoneId}`;
   });
   await step(R, "Permissions", "Ravi leaves the group himself; after that he sees it only up to the day he left", async () => {
@@ -3381,10 +3447,10 @@ async function main() {
     const ctx = await browser.newContext({ ...P.context, locale: P.locale, timezoneId: P.timezoneId });
     try {
       await ctx.addCookies(await varun.ctx.cookies());
-      await ctx.addInitScript(() => {
-        const w = window as unknown as Record<string, unknown>;
-        w.ContactsManager = class ContactsManager {};
-        Object.defineProperty(navigator, "contacts", { value: { select: async () => [{ name: ["Priya Contact"], tel: ["+91 98765 43210"] }] }, configurable: true });
+      // Plain text scripts: the test runner's compiler adds helper calls to functions that don't exist in the page.
+      await ctx.addInitScript({
+        content: `window.ContactsManager = class ContactsManager {};
+Object.defineProperty(navigator, "contacts", { value: { select: async () => [{ name: ["Priya Contact"], tel: ["+91 98765 43210"] }] }, configurable: true });`,
       });
       const page = await ctx.newPage();
       page.setDefaultTimeout(15_000);
@@ -3402,21 +3468,22 @@ async function main() {
     const ctx = await browser.newContext({ ...P.context, locale: P.locale, timezoneId: P.timezoneId });
     try {
       await ctx.addCookies(await varun.ctx.cookies());
-      await ctx.addInitScript(() => {
-        Object.defineProperty(navigator, "vibrate", {
-          value: (pattern: number | number[]) => {
-            const seen = JSON.parse(localStorage.getItem("__buzz") || "[]");
-            seen.push(pattern);
-            localStorage.setItem("__buzz", JSON.stringify(seen));
-            return true;
-          },
-          configurable: true,
-        });
+      await ctx.addInitScript({
+        content: `Object.defineProperty(navigator, "vibrate", {
+  value: function (pattern) {
+    var seen = JSON.parse(localStorage.getItem("__buzz") || "[]");
+    seen.push(pattern);
+    localStorage.setItem("__buzz", JSON.stringify(seen));
+    return true;
+  },
+  configurable: true,
+});`,
       });
       const page = await ctx.newPage();
       page.setDefaultTimeout(15_000);
       await go(page, "/");
-      await page.locator('a[aria-label="Add expense"][data-haptic]').click();
+      await page.waitForTimeout(1000); // the buzz listener is attached when the page comes alive
+      await page.locator('a[aria-label="Add expense"][data-haptic]').click(); // a real tap (the buzz only happens on one)
       await page.waitForURL((u) => u.pathname === "/add" || /\/groups\/[^/]+\/add$/.test(u.pathname));
       const seen = JSON.parse(await page.evaluate(() => localStorage.getItem("__buzz") || "[]")) as unknown[];
       assert(seen.length >= 1 && seen[0] === 8, `buzzes heard: ${JSON.stringify(seen)}`);
