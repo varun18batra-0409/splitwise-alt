@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Small phones: narrow (iPhone SE, 320-375px) or short (700px or less) screens. */
+@custom-variant tight (@media (max-width: 375px), (max-height: 700px));
+
 /*
   Design tokens — dark, CRED-inspired ("NeoPOP"): a near-black canvas, warm
   off-white type, a sharp serif for big moments, and square "pop" buttons with

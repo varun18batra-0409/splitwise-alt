@@ -44,8 +44,13 @@ describe("What's on where you're going", () => {
 });
 
 describe("Home highlights", () => {
-  it("never fewer than 4, never more than 7", () => {
+  it("never fewer than 4, never more than 7; the \"Coming from another app?\" card is gone", () => {
     expect(homeHighlights(base).length).toBe(4);
+    expect(homeHighlights(base).map((h) => h.id)).toEqual(["fill-postcard", "fill-passport", "fill-trip", "fill-group"]);
+    expect(homeHighlights({ ...base, groups: 1 }).some((h) => h.id === "fill-switch")).toBe(false);
+    // Postcards and the passport stay on Home.
+    expect(homeHighlights(base).some((h) => "href" in h && h.href === "/postcards/new")).toBe(true);
+    expect(homeHighlights(base).some((h) => "href" in h && h.href === "/passport")).toBe(true);
     const busy = homeHighlights({
       ...base,
       hasMonth: true,

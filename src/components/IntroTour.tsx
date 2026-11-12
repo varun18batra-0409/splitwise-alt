@@ -1,11 +1,9 @@
 "use client";
 
 import Link from "@/components/Link";
-import Image from "next/image";
 import { GetAppButton } from "./GetApp";
 import { HomeIcon } from "./icons";
 import { GroupCover } from "./GroupCover";
-import { StoryArt } from "./StoryArt";
 import type { CoverChoice } from "@/lib/covers";
 
 // Remember the tour was seen, so Home shows the start screen next time.
@@ -17,19 +15,15 @@ const seen = () => {
   }
 };
 import { useEffect, useMemo, useRef, useState } from "react";
-import { currencyInfo, decimalsOf, formatMoney } from "@/lib/money";
-import photos from "@/generated/photos.json";
+import { decimalsOf, formatMoney } from "@/lib/money";
 
-const photo = (slot: string) => (photos as Record<string, { src: string } | undefined>)[slot]?.src;
+// The intro tour, in the visitor's own currency: four swipeable slides (make a group, add what you paid,
+// see who owes then settle, every trip becomes a story), each with a small animated picture. Shown to
+// first-time visitors on the home screen, and any time at /welcome (the "1-minute tour" link in How Loopin works).
 
-// The intro tour, in the visitor's own currency: ten swipeable slides (start, balances, currencies, settling, home & couples, card nights, stories, passport, postcards, undo) that show what Loopin does, each with
-// a small animated picture. Shown to first-time visitors on the home screen,
-// and any time at /welcome.
-
-type Slide = { id: string; title: [string, string]; caption: string; art: React.ReactNode };
+type Slide = { id: string; title: string; caption: string; art: React.ReactNode };
 
 const owed = "text-owed";
-const owe = "text-owe";
 
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return <div className={`w-full rounded-[22px] border border-line bg-white p-5 ${className}`}>{children}</div>;
@@ -44,11 +38,11 @@ function Dot({ name, tone = "bg-mist" }: { name: string; tone?: string }) {
 }
 
 // Three of Loopin's own group pictures as polaroids, fanning in: a trip, a
-// flat, the two of you. Under them, the kinds of group.
+// home, the two of you. Under them, the kinds of group (the same names as New group).
 function Cheers() {
   const shots: [CoverChoice, string, number, string][] = [
     ["beach", "Trip", -9, "rise-2"],
-    ["city", "Flat", 2, "rise-3"],
+    ["city", "Home", 2, "rise-3"],
     ["couple", "Us", 10, "rise-4"],
   ];
   return (
@@ -64,9 +58,9 @@ function Cheers() {
           </span>
         ))}
       </div>
-      <div className="mt-7 flex flex-wrap gap-2">
-        {["Trips", "Flats", "Couples", "Card nights"].map((t, i) => (
-          <span key={t} className={`nobreak rise rise-${i + 2} rounded-full border border-line bg-canvas px-3 py-1 text-xs text-gray-600`}>
+      <div className="mt-7 flex flex-wrap justify-center gap-2">
+        {["Trip", "Home", "Couple", "The Pot"].map((t, i) => (
+          <span key={t} className={`nobreak rise rise-${Math.min(i + 2, 5)} rounded-full border border-line bg-canvas px-3 py-1 text-xs text-gray-600`}>
             {t}
           </span>
         ))}
@@ -75,293 +69,109 @@ function Cheers() {
   );
 }
 
-// A postcard on the table: the photo side slightly turned, the back peeking
-// out with a stamp and a wax seal.
-function PostcardArt({ place, slot }: { place: string; slot: string }) {
-  const src = photo(slot);
+// A trip's Wrapped, as a story poster: progress segments on top, then what the story is made of.
+// Only things Wrapped really shows: the total, the biggest splurge, who paid most, the busiest day.
+function StoryPoster({ L }: { L: Local }) {
   return (
-    <div className="relative h-[190px] w-full max-w-[300px]">
-      <div className="rise absolute right-1 top-0 h-[150px] w-[220px] rotate-[5deg] bg-[#f3eee2] p-3 shadow-[0_18px_30px_-14px_rgba(0,0,0,0.95)]">
-        <div className="absolute bottom-3 left-[52%] top-3 w-px bg-[#d8d0bd]" />
-        <div className="absolute right-3 top-3 h-[46px] w-[38px] bg-[#e9e1cc] p-[3px] [mask-image:radial-gradient(circle_at_2px_2px,transparent_1.6px,#000_1.8px)] [mask-size:5px_5px] [mask-position:-2px_-2px]">
-          <div className="h-full w-full border border-[#7b2d26] bg-[repeating-linear-gradient(0deg,rgba(123,45,38,0.18)_0_1px,transparent_1px_3px)]" />
-        </div>
-        <div className="absolute right-12 top-5 h-9 w-9 rounded-full border border-[#5b5a63]/60" />
-        <div className="absolute bottom-6 right-3 space-y-2.5">
-          <div className="h-px w-20 bg-[#cfc6b1]" />
-          <div className="h-px w-20 bg-[#cfc6b1]" />
-          <div className="h-px w-14 bg-[#cfc6b1]" />
-        </div>
-        <p className="absolute left-3 top-4 w-[44%] font-hand text-[15px] font-bold leading-tight text-[#2b3a67]">Wish you were here. Same time next year?</p>
-        <span className="absolute bottom-3 left-8 h-9 w-9 rounded-full bg-[radial-gradient(circle_at_35%_30%,#c44a3d,#7d1d16_70%)] shadow-[0_3px_6px_rgba(0,0,0,0.45)]" />
+    <div className="rise relative w-full max-w-[260px] overflow-hidden rounded-[24px] border border-line bg-[radial-gradient(120%_70%_at_50%_0%,#2a2620_0%,#16161a_65%,#0d0d0f_100%)] p-4 shadow-[0_24px_40px_-18px_rgba(0,0,0,0.95)]">
+      <div className="flex gap-1" aria-hidden>
+        {[0, 1, 2, 3, 4].map((i) => (
+          <span key={i} className={`h-[3px] flex-1 rounded-full ${i < 2 ? "bg-fg" : "bg-fg/25"}`} />
+        ))}
       </div>
-      <div className="rise rise-3 absolute bottom-0 left-1 h-[132px] w-[196px] -rotate-[6deg] bg-[#f4f1e8] p-[6px] shadow-[0_20px_34px_-14px_rgba(0,0,0,0.95)]">
-        <div className="relative h-full w-full overflow-hidden bg-[#2a2a30]">
-          {src && <Image src={src} alt="" fill sizes="200px" className="object-cover" />}
-          <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-2 pb-1.5 pt-6 font-display text-[22px] font-semibold leading-none text-[#f7f4ec]">{place}</span>
-        </div>
-      </div>
+      <p className="mt-6 font-hand text-[22px] font-bold leading-none text-[#d8bd7a]">{L.india ? "Goa, wrapped" : "Lake weekend, wrapped"}</p>
+      <p className="mt-2 font-display text-[34px] font-semibold leading-[1.02] tracking-tight text-fg">{L.m(L.india ? 48600 : 1240)}</p>
+      <p className="mt-1 text-xs text-fg/60">4 of you · about {L.m(L.india ? 12150 : 310)} each</p>
+      <ul className="mt-5 space-y-2 border-t border-fg/10 pt-4" data-story-lines>
+        {["The splurge", "Where the money went", "The biggest day"].map((t, i) => (
+          <li key={t} className={`rise rise-${i + 2} flex items-baseline gap-2.5 font-display text-[19px] font-semibold leading-tight tracking-tight text-fg`}>
+            <span aria-hidden className="font-hand text-[15px] font-bold text-[#d8bd7a]">
+              {i + 1}
+            </span>
+            {t}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
 
 // Examples in the visitor's own currency, with amounts that make sense there
 // (₹ for India, dollars and similar everywhere else).
-type Local = { m: (major: number) => string; cur: string; foreign: string; india: boolean };
+type Local = { m: (major: number) => string; cur: string; india: boolean };
 
 function local(currency: string, india: boolean): Local {
   const d = decimalsOf(currency);
   return {
     m: (major) => formatMoney(Math.round(major * 10 ** d), currency),
     cur: currency,
-    foreign: india ? "THB" : currency === "EUR" ? "USD" : "EUR",
     india,
   };
 }
 
 function makeSlides(L: Local): Slide[] {
-  const v = L.india
-    ? { owe: 240, owed1: 680, owed2: 500, total: 940, foreignAmt: 1800, conv: 5104, fee: 153, real: 5257, rent: 42000, ahead: 2670, paid: 3600, lent: 2700 }
-    : { owe: 24, owed1: 68, owed2: 50, total: 94, foreignAmt: 120, conv: 130.5, fee: 3.92, real: 134.42, rent: 2400, ahead: 267, paid: 48, lent: 36 };
-  const flag = (c: string) => currencyInfo(c).flag;
+  const v = L.india ? { dinner: 1200, each: 300, back: 900 } : { dinner: 120, each: 30, back: 90 };
   return [
-
-  {
-    id: "cheers",
-    title: ["Split it.", "Cheers."],
-    caption: "Make a group for a trip, a flat, the two of you, or a class gift. Friends join from a link, a QR code or an email in 30 seconds. No password.",
-    art: <Cheers />,
-  },
-  {
-    id: "owes",
-    title: ["See who owes who.", "At a glance."],
-    caption: "Snap the bill, say it, or type it in one line, and Loopin fills it in. Every expense shows what it means for you, the moment anyone adds it.",
-    art: (
-      <Card>
-        <p className="rise text-xs text-gray-400">{L.india ? "Goa weekend" : "Lake weekend"}</p>
-        <div className="rise rise-2 mt-3 flex items-center gap-3">
-          <Dot name="Maya" />
-          <span className="flex-1 text-sm">You owe Maya</span>
-          <span className={`font-display text-lg ${owe}`}>{L.m(v.owe)}</span>
-        </div>
-        <div className="rise rise-3 mt-3 flex items-center gap-3">
-          <Dot name="Sam" />
-          <span className="flex-1 text-sm">Sam owes you</span>
-          <span className={`font-display text-lg ${owed}`}>{L.m(v.owed1)}</span>
-        </div>
-        <div className="rise rise-4 mt-3 flex items-center gap-3">
-          <Dot name="Priya" />
-          <span className="flex-1 text-sm">Priya owes you</span>
-          <span className={`font-display text-lg ${owed}`}>{L.m(v.owed2)}</span>
-        </div>
-        <div className="rise rise-4 mt-4 h-1.5 overflow-hidden rounded-full bg-mist">
-          <div className="meter-bar h-full w-3/4 origin-left rounded-full bg-[#25a96f]" />
-        </div>
-        <p className="rise rise-5 mt-2 text-right text-xs text-gray-400">You’re owed {L.m(v.total)} overall</p>
-      </Card>
-    ),
-  },
-  {
-    id: "currency",
-    title: ["Any currency.", "Card fees included."],
-    caption: "Live exchange rates, plus your card’s foreign-transaction fee — something most split apps ignore. Balances show in both currencies.",
-    art: (
-      <Card>
-        <div className="rise flex items-center justify-between">
-          <span className="rounded-full bg-mist px-3 py-1 text-sm">{flag(L.foreign)} {L.foreign}</span>
-          <span className="text-gray-400">→</span>
-          <span className="rounded-full bg-mist px-3 py-1 text-sm">{flag(L.cur)} {L.cur}</span>
-        </div>
-        <dl className="mt-4 space-y-2 text-sm">
-          <div className="rise rise-2 flex justify-between"><dt className="text-gray-500">Dinner, paid by card</dt><dd>{formatMoney(v.foreignAmt * 100, L.foreign)}</dd></div>
-          <div className="rise rise-3 flex justify-between"><dt className="text-gray-500">At today’s rate</dt><dd>{L.m(v.conv)}</dd></div>
-          <div className="rise rise-4 flex justify-between"><dt className="text-gray-500">Card fee 3%</dt><dd className={owe}>+ {L.m(v.fee)}</dd></div>
-          <div className="rise rise-5 flex justify-between border-t border-line pt-2 font-semibold"><dt>Real cost to split</dt><dd className="font-display text-lg">{L.m(v.real)}</dd></div>
-        </dl>
-      </Card>
-    ),
-  },
-  {
-    id: "settle",
-    title: ["Simpler payments.", "One tap."],
-    caption: "Smart Settle cuts down how many payments it takes to square up, inside a group or across all your groups. Trip over? Share the trip report on WhatsApp.",
-    art: (
-      <Card>
-        <svg viewBox="0 -14 240 140" className="h-36 w-full" aria-hidden>
-          <g className="tangle" stroke="#8a877f" strokeWidth="1.6" fill="none">
-            <path d="M30 20 L210 20" /><path d="M30 20 L210 90" /><path d="M30 90 L210 20" /><path d="M30 90 L210 90" /><path d="M30 20 L30 90" /><path d="M210 20 L210 90" />
-          </g>
-          <g className="clean" stroke="#6fe3a8" strokeWidth="3" fill="none" strokeLinecap="round">
-            <path d="M44 22 C 100 30, 140 30, 196 22" /><path d="M44 88 C 100 80, 140 80, 196 88" />
-          </g>
-          {([[30, 20, "Emma"], [30, 90, "Leo"], [210, 20, "Aisha"], [210, 90, "Noah"]] as const).map(([x, y, t]) => (
-            <g key={t}>
-              <circle cx={x} cy={y} r="13" fill="#1f1f24" stroke="#2b2b31" />
-              <text x={x} y={y + 4} textAnchor="middle" fontSize="11" fill="#f4f2ec">{t.slice(0, 1)}</text>
-              <text x={x} y={y > 50 ? y + 26 : y - 18} textAnchor="middle" fontSize="9" fill="#8a877f">{t}</text>
-            </g>
-          ))}
-        </svg>
-        <p className="rise rise-3 text-center text-sm text-gray-500">
-          6 payments → <strong className="text-fg">2</strong>
-        </p>
-      </Card>
-    ),
-  },
-  {
-    id: "home",
-    title: ["Flats & couples.", "Bills on repeat."],
-    caption: "Set rent and Wi-Fi to repeat monthly and Loopin adds them on the day. Electricity asks whoever pays, and couples see who’s ahead of their split.",
-    art: (
-      <Card>
-        <p className="rise text-xs text-gray-400">{L.india ? "Flat 402" : "Apt 4B"} · This month</p>
-        <div className="rise rise-2 mt-3 flex items-center justify-between text-sm">
-          <span>Rent</span>
-          <span className="flex items-center gap-2">
-            <span className="font-display">{L.m(v.rent)}</span>
-            <span className={`text-xs ${owed}`}>added ✓</span>
-          </span>
-        </div>
-        <div className="rise rise-3 mt-2.5 flex items-center justify-between text-sm">
-          <span>Electricity</span>
-          <span className="border border-gray-300 px-2.5 py-1 text-xs font-semibold rounded-full">Enter amount</span>
-        </div>
-        <div className="rise rise-4 mt-2.5 flex items-center justify-between text-sm">
-          <span>{L.india ? "Milk" : "Internet"}</span>
-          <span className="font-display">{L.india ? `${L.m(68)}/day` : `${L.m(60)}/mo`}</span>
-        </div>
-        <div className="rise rise-5 mt-4 border-t border-line pt-3">
-          <p className="text-xs text-gray-400">Us · October together</p>
-          <p className={`mt-1 font-display text-lg font-semibold ${owed}`}>Overall you’re {L.m(v.ahead)} ahead</p>
-        </div>
-      </Card>
-    ),
-  },
-  {
-    id: "pot",
-    title: ["Card night?", "The Pot keeps score."],
-    caption: "Poker or Teen Patti: buy everyone in with one tap, count what each has at the end, and Loopin shows who pays whom.",
-    art: (
-      <Card className="[background:radial-gradient(90%_100%_at_100%_0%,rgba(31,107,74,0.35)_0%,transparent_60%)]">
-        <p className="rise text-xs text-gray-400">🃏 Teen Patti · Diwali night</p>
-        {(
-          [
-            ["Ravi", L.india ? 2000 : 200, L.india ? 2600 : 260],
-            ["You", L.india ? 1000 : 100, L.india ? 700 : 70],
-            ["Meera", L.india ? 1500 : 150, L.india ? 1200 : 120],
-          ] as const
-        ).map(([who, took, back], i) => (
-          <div key={who} className={`rise rise-${i + 2} mt-2.5 flex items-center justify-between text-sm`}>
-            <span className="flex items-center gap-2">
-              <Dot name={who} />
-              <span>
-                <span className="block font-medium">{who}</span>
-                <span className="block text-[11px] text-gray-400">
-                  took {L.m(took)} · back {L.m(back)}
-                </span>
+    {
+      id: "group",
+      title: "Make a group.",
+      caption: "One for the trip, home, or the two of you. Friends join from a link or a QR code.",
+      art: <Cheers />,
+    },
+    {
+      id: "add",
+      title: "Add what you paid.",
+      caption: "Type it, scan the bill or just say it. Loopin splits it to the last paisa or cent, in any currency.",
+      art: (
+        <Card>
+          <p className="rise text-xs text-gray-400">Beach dinner · you paid</p>
+          <p className="rise rise-2 mt-1 font-display text-[40px] font-semibold leading-none tracking-tight">{L.m(v.dinner)}</p>
+          <div className="rise rise-3 mt-4 grid grid-cols-2 gap-2">
+            {["You", "Asha", "Ravi", "Meera"].map((n) => (
+              <span key={n} className="flex items-center gap-2 rounded-xl bg-mist px-2.5 py-2 text-sm">
+                <Dot name={n} tone="bg-canvas" />
+                <span className="min-w-0 flex-1 truncate">{n}</span>
+                <span className="tabular-nums text-fg/80">{L.m(v.each)}</span>
               </span>
-            </span>
-            <span className={`font-display font-semibold ${back > took ? owed : owe}`}>
-              {back > took ? "+" : "−"}
-              {L.m(Math.abs(back - took))}
-            </span>
+            ))}
           </div>
-        ))}
-        <p className="rise rise-5 mt-4 border-t border-line pt-3 text-sm">
-          You pay Ravi <strong className="font-display">{L.m(L.india ? 300 : 30)}</strong> · Meera pays Ravi <strong className="font-display">{L.m(L.india ? 300 : 30)}</strong>
-        </p>
-      </Card>
-    ),
-  },
-  {
-    id: "stories",
-    title: ["Your trips,", "as stories."],
-    caption: "Home turns your groups into stories: the countdown to a trip, today’s spend while you’re away, last night’s card game. When it’s over, Wrapped tells the trip in posters.",
-    art: (
-      <div className="relative w-full">
-        <svg aria-hidden className="absolute inset-x-0 top-[9px] h-6 w-full" preserveAspectRatio="none" viewBox="0 0 100 10">
-          <path d="M0 1 Q 50 9 100 1" fill="none" stroke="#f4f2ec" strokeOpacity="0.25" strokeWidth="0.4" vectorEffect="non-scaling-stroke" />
-        </svg>
-        <div className="flex justify-center gap-3 pt-1">
-          {(
-            [
-              ["place-goa", L.india ? "Goa" : "Beach", "3 days", -4],
-              ["place-santorini", "Santorini", "Day 2", 3],
-              ["cards-2", "Card night", L.m(L.india ? 600 : 60), -2],
-            ] as const
-          ).map(([slot, label, big, tilt], i) => (
-            <span key={slot} className={`rise rise-${i + 2} relative block pt-2`} style={{ transform: `rotate(${tilt}deg)` }}>
-              <span aria-hidden className="absolute left-1/2 top-0 z-10 h-4 w-2.5 -translate-x-1/2 rounded-[2px] bg-owed shadow-[0_0_10px_rgba(111,227,168,0.6)]" />
-              <span className="block w-[92px] bg-[#f4f1e8] p-[5px] pb-0 shadow-[0_12px_22px_-10px_rgba(0,0,0,0.95)]">
-                <span className="relative block h-[104px] overflow-hidden bg-[#2a2a30]">
-                  {slot === "cards-2" ? <StoryArt kind="pot" uid="tour-pot" /> : photo(slot) && <Image src={photo(slot)!} alt="" fill sizes="96px" className="object-cover" />}
-                  <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1 pt-4 text-left font-display text-[13px] font-semibold text-[#f7f4ec]">{big}</span>
-                </span>
-                <span className="block truncate px-0.5 pb-1 pt-0.5 text-center font-hand text-[16px] font-bold leading-tight text-[#2a2620]">{label}</span>
-              </span>
+          <p className={`rise rise-4 mt-4 text-right text-sm font-semibold ${owed}`}>You’re owed {L.m(v.back)}</p>
+        </Card>
+      ),
+    },
+    {
+      id: "settle",
+      title: "See who owes. Then settle.",
+      caption: "Pay each other however you like. Loopin never moves money; it just keeps the score straight.",
+      art: (
+        <Card>
+          <div className="rise flex items-center gap-3">
+            <Dot name="Ravi" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium">Ravi pays you</span>
+              <span className="block text-xs text-gray-400">One payment clears the trip</span>
             </span>
-          ))}
-        </div>
-      </div>
-    ),
-  },
-  {
-    id: "passport",
-    title: ["Every trip,", "a stamp."],
-    caption: "Your trip passport fills itself as you travel. Flip through your friends’ passports, see where your group has been together, and share yours to WhatsApp.",
-    art: (
-      <div className="relative w-full overflow-hidden rounded-[18px] px-4 py-5" style={{ backgroundColor: "#efe8d6", backgroundImage: "repeating-linear-gradient(115deg, rgba(38,35,29,0.035) 0 1px, transparent 1px 7px)" }}>
-        <p className="text-[10px] font-semibold tracking-[0.2em] text-[#8a8270]">VISAS · STAMPS</p>
-        <div className="relative mt-2 h-[150px]">
-          {(
-            [
-              ["🇹🇭", "THAILAND", "MAR 2026", "#2b4c7e", "8%", "6%", -8],
-              ["🇮🇹", "ITALY", "JUN 2026", "#a53a3a", "52%", "2%", 6],
-              ["", L.india ? "Goa" : "Austin", "OCT 2026", "#2f7d4f", "30%", "52%", -3],
-            ] as const
-          ).map(([flag, name, when, ink, left, top, tilt], i) => (
-            <span
-              key={name}
-              className={`rise rise-${i + 2} absolute flex flex-col items-center justify-center text-center mix-blend-multiply ${flag ? "h-[96px] w-[96px] rounded-full border-[3px]" : "rounded-[8px] border-[2.5px] px-4 py-2"}`}
-              style={{ left, top, borderColor: ink, color: ink, transform: `rotate(${tilt}deg)`, boxShadow: flag ? `inset 0 0 0 4px #efe8d6, inset 0 0 0 5.5px ${ink}` : undefined }}
-            >
-              {flag ? <span className="text-[24px] leading-none">{flag}</span> : <span className="text-[8px] font-bold tracking-[0.2em]">✈ ARRIVED</span>}
-              <span className="mt-0.5 font-display text-[12px] font-bold tracking-wide">{name}</span>
-              <span className="text-[8px] font-bold tracking-[0.14em]">{when}</span>
-            </span>
-          ))}
-        </div>
-      </div>
-    ),
-  },
-  {
-    id: "postcards",
-    title: ["Wish you were here.", "Send a postcard."],
-    caption: "Turn a trip photo into a postcard with a real-looking stamp, a wax seal and your own words. Send it in Loopin or on WhatsApp, or seal it to open on a day you choose.",
-    art: <PostcardArt place={L.india ? "Goa" : "Lisbon"} slot={L.india ? "place-goa" : "place-santorini"} />,
-  },
-  {
-    id: "undo",
-    title: ["Oops?", "Undo expense mistakes."],
-    caption: "Restore a deleted expense or step back an edit. Every change is kept in the history and everyone in the group is told.",
-    art: (
-      <Card className="relative">
-        <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-mist text-lg">🍽️</span>
-          <span className="relative flex-1">
-            <span className="block text-sm font-medium">Pizza night</span>
-            <span className="block text-xs text-gray-400">You paid {L.m(v.paid)}</span>
-            <span className="strike absolute left-0 top-2.5 h-px w-full bg-gray-400" />
-          </span>
-          <span className="text-sm text-owed">you lent {L.m(v.lent)}</span>
-        </div>
-        <div className="undo-pill mx-auto mt-5 flex w-fit items-center gap-3 border border-line bg-canvas px-4 py-2 text-sm rounded-full">
-          Deleted · <span className="font-semibold">Undo ↺</span>
-        </div>
-      </Card>
-    ),
-  },
-];
+            <span className={`font-display text-lg ${owed}`}>{L.m(v.back)}</span>
+          </div>
+          <div className="rise rise-3 mt-4 rounded-2xl bg-mist p-3">
+            <p className="text-sm">
+              Ravi tapped <strong>I’ve paid</strong>
+            </p>
+            <div className="mt-2 grid grid-cols-2 gap-2 text-center text-[13px] font-semibold">
+              <span className="rounded-full bg-fg px-3 py-2 text-canvas">Confirm received</span>
+              <span className="rounded-full border border-line px-3 py-2 text-fg/80">Not received</span>
+            </div>
+          </div>
+        </Card>
+      ),
+    },
+    {
+      id: "story",
+      title: "Every trip becomes a story.",
+      caption: "When it’s over, Loopin turns the spending into a short story to share with the group.",
+      art: <StoryPoster L={L} />,
+    },
+  ];
 }
 
 export function IntroTour({
@@ -449,11 +259,7 @@ export function IntroTour({
               else if (!last) go(active + 1);
             }}
           >
-            <h1 className="font-display text-[40px] font-semibold leading-[1.05] tracking-tight">
-              {s.title[0]}
-              <br />
-              <span className="text-gray-500">{s.title[1]}</span>
-            </h1>
+            <h1 className="font-display text-[40px] font-semibold leading-[1.05] tracking-tight">{s.title}</h1>
             <div className="flex flex-1 items-center justify-center py-8">{s.art}</div>
             <p className="min-h-[3.5rem] text-center text-sm text-gray-500">{s.caption}</p>
           </section>
@@ -461,7 +267,6 @@ export function IntroTour({
       </div>
 
       <div className="mt-6 space-y-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
-        {last && <GetAppButton variant="card" />}
         <Link href={startHref} onClick={seen} className="pop block w-full bg-fg px-4 py-4 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63]">
           {cta}
         </Link>

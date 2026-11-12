@@ -182,6 +182,8 @@ export function WrappedDeck({
   settleHref?: string;
 }) {
   const [i, setI] = useState(0);
+  // "Hide amounts": the shared picture shows counts instead of money (this screen keeps showing everything, for you).
+  const [hide, setHide] = useState(false);
   const last = i === slides.length - 1;
   const s = slides[i];
   useEffect(() => {
@@ -232,8 +234,22 @@ export function WrappedDeck({
           <p className="mt-2 whitespace-pre-line font-hand text-[24px] font-bold leading-snug text-[#ffd9a8]">{s.line}</p>
           {last ? (
             <div className="pointer-events-auto relative z-30 mt-6 space-y-2.5">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={hide}
+                onClick={() => setHide((h) => !h)}
+                data-hide-amounts
+                className="flex min-h-11 w-full items-center gap-3 rounded-2xl border border-[#f7f4ec]/20 bg-black/30 px-4 py-2 text-left backdrop-blur-sm"
+              >
+                <span className="min-w-0 flex-1 text-sm font-medium">Hide amounts in the picture</span>
+                <span className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${hide ? "bg-[#6fe3a8]" : "bg-[#f7f4ec]/25"}`}>
+                  <span className={`absolute top-1 h-5 w-5 rounded-full bg-[#0d0d0f] transition-all ${hide ? "left-6" : "left-1"}`} />
+                </span>
+              </button>
               <ShareSheet
-                image={`/groups/${groupId}/wrapped-image`}
+                key={hide ? "hidden" : "shown"}
+                image={`/groups/${groupId}/wrapped-image${hide ? "?amounts=0" : ""}`}
                 fileName="wrapped.png"
                 title="Share the Wrapped"
                 words={`${groupName}, wrapped`}

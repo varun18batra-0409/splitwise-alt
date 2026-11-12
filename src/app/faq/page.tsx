@@ -1,5 +1,8 @@
 import Link from "@/components/Link";
 import { PageHeader } from "@/components/ui";
+import { headers } from "next/headers";
+import { getAccount } from "@/lib/identity";
+import { regionFor } from "@/lib/region";
 
 export const metadata = { title: "FAQ", description: "Answers about Loopin: is it free, currencies, repeat bills, inviting friends, your data and privacy.", alternates: { canonical: "/faq" } };
 
@@ -7,7 +10,8 @@ export const metadata = { title: "FAQ", description: "Answers about Loopin: is i
 type QA = { q: string; a: React.ReactNode };
 const link = "underline underline-offset-4";
 
-const SECTIONS: { title: string; items: QA[] }[] = [
+// Teen Patti is named only for people in India; elsewhere it is poker or rummy.
+const sections = (india: boolean): { title: string; items: QA[] }[] => [
   {
     title: "Getting started",
     items: [
@@ -95,7 +99,7 @@ const SECTIONS: { title: string; items: QA[] }[] = [
       },
       {
         q: "Can I just type an expense?",
-        a: "Yes. Tap Type it in one line and write it the way you’d say it: “Dinner 2400 Ravi paid split with Asha Meera” or “Cab 600 except Dev”. Loopin fills in the form for you to check. Nothing saves until you tap Save. Simple lines are read on your phone; a line it can’t follow is sent to Anthropic’s Claude to read, with the group’s first names, and you check the result before saving.",
+        a: "Yes. Tap Type a line (or Speak) and write it the way you’d say it: “Dinner 2400 Ravi paid split with Asha Meera” or “Cab 600 except Dev”. Loopin fills in the form for you to check. Nothing saves until you tap Save. Simple lines are read on your phone; a line it can’t follow is sent to Anthropic’s Claude to read, with the group’s first names, and you check the result before saving.",
       },
       {
         q: "Two people paid, or we got money back?",
@@ -107,7 +111,7 @@ const SECTIONS: { title: string; items: QA[] }[] = [
       },
       {
         q: "How does Settle up work? Does Loopin move money?",
-        a: "Settle up shows a short list of payments that clears everything, even across all your groups at once. You pay each other however you like, then tap Mark paid. Loopin only records payments; it never holds or moves money and never asks for bank details.",
+        a: "Settle up shows a short list of payments that clears everything, even across all your groups at once. You pay each other however you like, then tap I’ve paid; it counts once the person you paid taps Confirm received. Paid a different amount? Tap Paid a different amount? on the payment. Loopin only records payments; it never holds or moves money and never asks for bank details.",
       },
       {
         q: "Can people pay me with UPI, PayPal or Venmo in one tap?",
@@ -115,11 +119,11 @@ const SECTIONS: { title: string; items: QA[] }[] = [
       },
       {
         q: "Someone marked a payment to me. What if I didn’t get it?",
-        a: "You’re asked in Settle up (and on your phone): Got it ✓ or Not received. Not received takes it off the balances, with Undo, so nobody is out of pocket on someone’s word. A WhatsApp Remind also carries your UPI ID or pay link and an “I’ve paid” link.",
+        a: "You’re asked in Settle up (and on your phone): Confirm received or Not received. When someone taps I’ve paid, nothing changes in the balances until you confirm; Not received leaves the balances as they were. A WhatsApp Remind also carries your UPI ID or pay link and an “I’ve paid” link.",
       },
       {
         q: "Can someone tell me they paid without having Loopin?",
-        a: "Yes. Tap Remind in Settle up and WhatsApp opens with a note, your UPI ID and a link. They open it (no app, no sign-in), pay with UPI, and tap I’ve paid. You’re asked to confirm with Got it ✓. The link only works for what they owe you right now, can’t be used for anything else, and stops working once you’re square or after 30 days.",
+        a: "Yes. Tap Remind in Settle up and WhatsApp opens with a note, your UPI ID and a link. They open it (no app, no sign-in), pay with UPI, and tap I’ve paid. You’re asked to tap Confirm received, and the balances change then. The link only works for what they owe you right now, can’t be used for anything else, and stops working once you’re square or after 30 days.",
       },
       {
         q: "I made a mistake. Can I undo it?",
@@ -144,7 +148,7 @@ const SECTIONS: { title: string; items: QA[] }[] = [
     title: "Trips and the fun stuff",
     items: [
       {
-        q: "What are the little photos at the top of Home?",
+        q: "What are the little photos on Home?",
         a: "Stories from your groups. Each one is a few slides you tap through: photos of where a trip is going with a countdown and the crew, today’s spend while you’re away, last night’s card game with everyone’s result and who pays whom, a group that just got all square, a collection filling up, and a trip from a year ago. Tap the right side for the next slide, swipe down or press Back to close. A green peg means you haven’t seen it yet.",
       },
       {
@@ -174,7 +178,7 @@ const SECTIONS: { title: string; items: QA[] }[] = [
     items: [
       {
         q: "What is The Pot?",
-        a: "For Poker and Teen Patti nights. Make a group and pick The Pot, then start a game. Buy everyone in with one tap (top-ups for just a few), cash out anyone who leaves early and let a new name take the seat, then count what everyone has in one table. Tap Calculate & settle: Loopin works out who won, who lost and the fewest payments to square up.",
+        a: `For ${india ? "Teen Patti and Poker" : "Poker and rummy"} nights. Make a group and pick The Pot, then start a game. Buy everyone in with one tap (top-ups for just a few), cash out anyone who leaves early and let a new name take the seat, then count what everyone has in one table. Tap Calculate & settle: Loopin works out who won, who lost and the fewest payments to square up.`,
       },
       {
         q: "The money doesn’t add up. What now?",
@@ -186,7 +190,7 @@ const SECTIONS: { title: string; items: QA[] }[] = [
       },
       {
         q: "Does Loopin hold the money or run the game?",
-        a: "Neither. It only keeps count, like a notebook at the table: no chips, bets or hands, and it never holds or moves money. You pay each other however you usually do, then mark it paid in Settle up.",
+        a: "Neither. It only keeps count, like a notebook at the table: no chips, bets or hands, and it never holds or moves money. You pay each other however you usually do, then tap I’ve paid in Settle up.",
       },
       {
         q: "Where is Collect?",
@@ -198,11 +202,11 @@ const SECTIONS: { title: string; items: QA[] }[] = [
     title: "Bringing groups over",
     items: [
       {
-        q: "Can I bring my groups over from Splitwise or another app?",
+        q: "Can I bring my groups over from another app?",
         a: (
           <>
             Yes. Export the group as a spreadsheet (CSV) from the other app, then tap <strong>Bring a group over</strong> and pick the file.
-            Splitwise exports and Loopin downloads are read as they are; for anything else, Loopin asks which column is which. Every
+            Exports from some apps and Loopin downloads are read as they are; for anything else, Loopin asks which column is which. Every
             expense and payment comes across, and the other app keeps its copy. <Link href="/import" className={link}>Bring a group over</Link>
           </>
         ),
@@ -253,7 +257,8 @@ const SECTIONS: { title: string; items: QA[] }[] = [
   },
 ];
 
-export default function Faq() {
+export default async function Faq() {
+  const { india } = regionFor(await headers(), (await getAccount())?.homeCountry);
   return (
     <>
       <PageHeader title="FAQ" back="/" />
@@ -261,7 +266,7 @@ export default function Faq() {
       <p className="mt-2 text-sm text-gray-500">
         Tap a question to open it. For a full tour, see <Link href="/how-it-works" className={link}>How Loopin works</Link>.
       </p>
-      {SECTIONS.map((s) => (
+      {sections(india).map((s) => (
         <section key={s.title} className="mt-8" aria-label={s.title}>
           <h2 className="mb-2 font-display text-lg font-semibold tracking-tight">{s.title}</h2>
           <ul className="divide-y divide-line border-y border-line">

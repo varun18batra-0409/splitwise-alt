@@ -132,6 +132,7 @@ export async function loadNotifications(memberships: Record<string, string>, lim
       event: e,
       actorName: actors.find((a) => a.id === e.actorId)?.name ?? "Someone",
       groupName: me.group.name,
+      myName: me.name,
       groupCover: coverFor(me.group),
       unread: e.createdAt > seen,
     };

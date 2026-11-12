@@ -35,10 +35,7 @@ export default async function ImportPage({ searchParams }: { searchParams: Promi
         <summary className="cursor-pointer">Where’s the export in my app?</summary>
         <ul className="mt-2 space-y-1">
           <li>
-            <b>Splitwise:</b> the group → gear → Export as spreadsheet.
-          </li>
-          <li>
-            <b>Tricount, Settle Up and similar:</b> the group’s settings or menu → Export / Download as CSV or Excel. (If it gives an Excel
+            <b>Your old app:</b> the group’s settings or menu → Export / Download as a spreadsheet (CSV) or Excel. (If it gives an Excel
             file, open it and save as CSV.)
           </li>
           <li>

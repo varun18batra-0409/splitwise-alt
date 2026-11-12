@@ -19,6 +19,12 @@ export type ExpenseInput = {
   split?: Split;
 };
 
+// Notes, several payers and Spin for it sit under "More" (closed unless the expense already uses them).
+export async function openMore(page: Page) {
+  const b = page.locator("[data-more] > button");
+  if ((await b.getAttribute("aria-expanded")) !== "true") await b.click();
+}
+
 const chip = (page: Page, label: string) => page.getByRole("button", { name: new RegExp(`^(✓ )?${label}$`) });
 
 export async function fillExpense(page: Page, x: ExpenseInput) {
@@ -26,7 +32,8 @@ export async function fillExpense(page: Page, x: ExpenseInput) {
   if (x.payers) {
     await page.locator("#expense-name").fill(x.name);
     await page.getByLabel("Amount", { exact: true }).fill(x.amount);
-    await page.getByRole("button", { name: "More than one" }).click();
+    await openMore(page);
+    await page.getByRole("switch", { name: /More than one person paid/ }).click();
     for (const [who, a] of Object.entries(x.payers)) await page.getByLabel(`${who} paid`).fill(a);
     await expect(page.getByText(/Adds up to/).first()).toBeVisible();
   } else {

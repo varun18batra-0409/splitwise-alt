@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { crossSettle, personKey, type GroupForSettle } from "@/lib/cross-settle";
+import { crossActionLabel, crossPreview, crossSettle, personKey, type GroupForSettle } from "@/lib/cross-settle";
 import { netBalances } from "@/lib/balances";
 import { smartSettle } from "@/lib/settle";
 
@@ -44,16 +44,47 @@ describe("Smart Settle across groups", () => {
       ["Flat", false, 40000],
     ]);
     const ravi = items.find((i) => i.name === "Ravi")!;
-    expect(ravi.net).toBe(25000); // matched by name; only the Flat payment involves me
+    expect(ravi.net).toBe(25000); // Ravi is name-only: his own row, from the Flat group alone
   });
 
-  it("recognises people by phone first, then by name", () => {
+  it("recognises people by Loopin account first, then by phone; a name alone never matches across groups", () => {
     expect(personKey({ name: "Asha", phone: "+91 98765 43210" })).toBe(personKey({ name: "A. Sharma", phone: "098765-43210" }));
-    expect(personKey({ name: "Ravi  Kumar", phone: "" })).toBe(personKey({ name: "ravi kumar", phone: "" }));
     expect(personKey({ name: "Ravi", phone: "" })).not.toBe(personKey({ name: "Ravi", phone: "9999999999" }));
     // On Loopin: the account decides. Two different Rahuls are never merged; one Rahul is, whatever he's called.
     expect(personKey({ name: "Rahul", phone: "", accountId: "a1" })).not.toBe(personKey({ name: "Rahul", phone: "", accountId: "a2" }));
     expect(personKey({ name: "Rahul", phone: "", accountId: "a1" })).toBe(personKey({ name: "Rahul K", phone: "", accountId: "a1" }));
+    // Name only: "Ravi" in the Goa trip and "ravi" in the Flat are two different rows (settled group by group).
+    expect(personKey({ id: "r1", name: "Ravi  Kumar", phone: "" }, "g1")).not.toBe(personKey({ id: "r2", name: "ravi kumar", phone: "" }, "g2"));
+    expect(personKey({ id: "r1", name: "Ravi", phone: "" }, "g1")).toBe(personKey({ id: "r1", name: "Ravi", phone: "" }, "g1"));
+  });
+
+  it("two name-only 'Ravi's in two groups are not merged: each stays in its own group", () => {
+    const a: GroupForSettle = { ...goa, transfers: [{ from: "me1", to: "r1", amount: 50000 }] }; // I pay Ravi ₹500 in Goa
+    const b: GroupForSettle = { ...flat, transfers: [{ from: "r2", to: "me2", amount: 25000 }] }; // Ravi pays me ₹250 in the Flat
+    const { items } = crossSettle([a, b], "INR", () => null);
+    expect(items.map((i) => [i.name, i.net, i.parts.map((p) => p.groupName)])).toEqual([
+      ["Ravi", -50000, ["Goa trip"]],
+      ["Ravi", 25000, ["Flat"]],
+    ]);
+  });
+
+  it("the preview says each group's part and the total before anything is recorded", () => {
+    const { items } = crossSettle([goa, flat], "INR", () => null);
+    const asha = items.find((i) => i.name === "Asha")!;
+    const pv = crossPreview(asha, "INR");
+    expect(pv.lines).toEqual(["Goa trip: you pay Asha ₹1,000", "Flat: Asha pays you ₹400"]);
+    expect(pv.total).toBe("Together: you pay Asha ₹600"); // 100000 − 40000 = 60000
+    expect(pv.text).toBe("Goa trip: you pay Asha ₹1,000 · Flat: Asha pays you ₹400 · Together: you pay Asha ₹600.");
+    expect(pv.button).toBe("Record in 2 groups");
+  });
+
+  it("a converted total carries ≈ but each group's own part stays exact", () => {
+    const usd: GroupForSettle = { ...goa, groupId: "g3", groupName: "NYC", currency: "USD", transfers: [{ from: "a1", to: "me1", amount: 1050 }] }; // Asha pays me $10.50
+    const { items } = crossSettle([usd], "INR", (amt, cur) => (cur === "USD" ? amt * 84 : null)); // 1050 × 84 = 88200 paise
+    const pv = crossPreview(items[0], "INR");
+    expect(pv.lines).toEqual(["NYC: Asha pays you $10.50"]);
+    expect(pv.total).toBe("Together: Asha pays you ≈ ₹882");
+    expect(pv.button).toBe("Record in 1 group");
   });
 
   it("converts other currencies to the common one, and skips groups without a rate", () => {
@@ -103,5 +134,13 @@ describe("second currency", () => {
       { currency: "THB", original: 400000, group: 1022500, count: 2 },
       { currency: "INR", original: 90000, group: 90000, count: 1 },
     ]);
+  });
+});
+
+describe("the all-groups Settle opener uses different words from a group's claim", () => {
+  it("I owe: Record payment (it counts at once), never I’ve paid; owed to me: They’ve paid me", () => {
+    expect(crossActionLabel(-20000)).toBe("Record payment");
+    expect(crossActionLabel(20000)).toBe("They’ve paid me");
+    expect(crossActionLabel(0)).toBe("Mark paid");
   });
 });

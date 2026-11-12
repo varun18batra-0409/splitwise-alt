@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { saveExpense, setPaymentDeleted, type SaveExpenseInput } from "@/lib/save-expense";
-import { undoEvent, canUndo } from "@/lib/undo";
+import { undoEvent, canUndo, blockedMessage } from "@/lib/undo";
 import { updateGroupBasics, changeGroupCurrency } from "@/lib/group-changes";
 import { loadGroup } from "@/lib/group-data";
 import { logEvent } from "@/lib/events";
@@ -130,7 +130,31 @@ describe("undo and redo", () => {
     await saveExpense(input({ expenseId: id, name: "Lunch", amount: "600" }), me, rate);
     const res = await undoEvent(e1.ok ? e1.eventId! : "", me);
     expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.error).toContain("changed again");
+    // Names what stands in the way: who, what, and when (the newest edit was by "Me", who is the one asking, so "You").
+    if (!res.ok) expect(res.error).toMatch(/^Can’t undo yet: You changed Lunch after this \(\d{1,2}:\d{2} (am|pm)\)\. Undo that first in Activity, or edit Lunch\.$/);
+  });
+
+  it("the blocking message names who changed what and when (hand-worked: 08:44 UTC is 2:14 pm in India)", () => {
+    const at = (iso: string) => new Date(iso);
+    type Ev = Parameters<typeof canUndo>[0];
+    const ev = (o: Partial<Ev>): Ev => ({ id: "x", kind: "expense_edited", undo: JSON.stringify({ type: "expense_restore", expenseId: "e1", state: {} }), undoneAt: null, expenseId: "e1", paymentId: null, createdAt: at("2026-11-11T08:00:00Z"), ...o });
+    const first = ev({ id: "a1" });
+    const blocker = ev({ id: "b1", createdAt: at("2026-11-11T08:44:00Z"), actorId: "ravi", text: "changed Dinner" });
+    const check = canUndo(first, [first, blocker]);
+    expect(check.ok).toBe(false);
+    if (check.ok) return;
+    const nameOf = (id: string) => (id === "ravi" ? "Ravi" : undefined);
+    expect(blockedMessage(check, { nameOf, tz: "Asia/Kolkata" })).toBe("Can’t undo yet: Ravi changed Dinner after this (2:14 pm). Undo that first in Activity, or edit Dinner.");
+    // Same moment in London (GMT in November): 8:44 am.
+    expect(blockedMessage(check, { nameOf, tz: "Europe/London" })).toBe("Can’t undo yet: Ravi changed Dinner after this (8:44 am). Undo that first in Activity, or edit Dinner.");
+    // A payment in the way has no "edit" advice; a person we can't name falls back to the plain reason.
+    const pay = ev({ id: "p0", kind: "payment_recorded", expenseId: null, paymentId: "p1", undo: JSON.stringify({ type: "payment_delete", paymentId: "p1" }) });
+    const payBlock = ev({ id: "p1b", kind: "payment_deleted", expenseId: null, paymentId: "p1", createdAt: at("2026-11-11T09:00:00Z"), actorId: "ravi", text: "deleted a payment from Asha to Meera" });
+    const c2 = canUndo(pay, [pay, payBlock]);
+    expect(c2.ok).toBe(false); // asserted first, so the message checks below can never be skipped
+    if (c2.ok) return;
+    expect(blockedMessage(c2, { nameOf, tz: "Asia/Kolkata" })).toBe("Can’t undo yet: Ravi deleted a payment from Asha to Meera after this (2:30 pm). Undo that first in Activity.");
+    expect(blockedMessage(check, { nameOf: () => undefined, tz: "Asia/Kolkata" })).toBe(check.reason);
   });
 
   it("deleted payments can be restored, and recording a payment can be undone", async () => {

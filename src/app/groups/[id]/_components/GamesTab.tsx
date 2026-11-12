@@ -15,7 +15,7 @@ export function GamesTab({ v, games, toSettle = {} }: { v: GroupView; games: Gam
   return (
     <section aria-label="Games">
       <p className="mb-4 text-sm text-gray-500">
-        Take money from the pot to play, put back what’s left. Loopin works out who won and who pays whom. It never holds or moves money.
+        Take money from the pot to play, put back what’s left. The Game tally keeps count while you play; a finished game’s result goes into Money owed. Loopin never holds or moves money.
       </p>
       {!closed && (
         <Link href={`/groups/${group.id}/pot/new`} className="pop mb-6 flex items-center justify-center gap-2 bg-fg px-4 py-3.5 text-base font-semibold text-canvas [--pop-edge:#6e6b63]">

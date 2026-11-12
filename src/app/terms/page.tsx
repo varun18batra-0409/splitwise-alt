@@ -3,6 +3,19 @@ import { PageHeader } from "@/components/ui";
 
 export const metadata = { title: "Terms of use", description: "The terms for using Loopin, in plain English.", alternates: { canonical: "/terms" } };
 
+// Fill these in before launch. A line that needs a {{...}} detail stays hidden (or uses its
+// default) until it is filled, so no placeholder can ever show on the live site.
+const OPERATOR = {
+  OPERATOR_NAME: "{{OPERATOR_NAME}}",
+  POSTAL_ADDRESS: "{{POSTAL_ADDRESS}}",
+  PRIVACY_EMAIL: "{{PRIVACY_EMAIL}}",
+  COURTS_CITY: "{{COURTS_CITY}}",
+  MIN_AGE: "{{MIN_AGE}}",
+};
+const filled = (v: string) => v.trim() !== "" && !v.includes("{{");
+const contactReady = filled(OPERATOR.OPERATOR_NAME) && filled(OPERATOR.POSTAL_ADDRESS) && filled(OPERATOR.PRIVACY_EMAIL);
+const minAge = filled(OPERATOR.MIN_AGE) ? OPERATOR.MIN_AGE : "18";
+
 // Plain-English terms of use. Keep it honest, short and in step with Privacy and the FAQ.
 export default function Terms() {
   const h = "mt-8 mb-2 font-display text-lg font-semibold tracking-tight";
@@ -22,7 +35,7 @@ export default function Terms() {
       <h2 className={h}>What Loopin is (and isn’t)</h2>
       <ul className={ul}>
         <li>Loopin helps groups keep track of shared costs: who paid, who owes whom, and how to settle up.</li>
-        <li>It never holds, sends or receives money. It isn’t a bank, a wallet or a payment service. “Mark as paid” only records that a payment happened.</li>
+        <li>It never holds, sends or receives money. It isn’t a bank, a wallet or a payment service. “I’ve paid” and “They’ve paid me” only record that a payment happened.</li>
         <li>Balances are a record of what people in the group entered. Settling up is between you and the people you owe or who owe you.</li>
         <li>Loopin never reads your bank, cards, emails or messages. Repeating bills are added only because someone in the group set them up.</li>
       </ul>
@@ -31,12 +44,12 @@ export default function Terms() {
       <ul className={ul}>
         <li>You sign in with your email (a code we send you), Google, or your phone’s fingerprint or face. Keep access to your email and phone safe.</li>
         <li>One account per person, in your own name. Don’t sign in as someone else.</li>
-        <li>If you’re under 18, use Loopin with a parent’s or guardian’s permission.</li>
+        <li>You must be at least {minAge} years old to use Loopin.</li>
       </ul>
 
       <h2 className={h}>Groups and what you add</h2>
       <ul className={ul}>
-        <li>What you add (expenses, notes, names, photos) stays yours. You let Loopin store it and show it to the people in that group, which is how the app works.</li>
+        <li>What you add (expenses, notes, names, photos, postcards) stays yours. You let Loopin store it and show it to the people in that group, which is how the app works.</li>
         <li>Everyone in a group can see its expenses and change them. Every change is kept in the history, and almost anything can be undone.</li>
         <li>Only add people who want to be in the group, and only add photos you have the right to share.</li>
         <li>Check amounts before you rely on them. Loopin does the maths carefully, but it can only work with what was entered, and exchange rates come from outside services.</li>
@@ -58,7 +71,7 @@ export default function Terms() {
 
       <h2 className={h}>The service</h2>
       <ul className={ul}>
-        <li>We work hard to keep Loopin running and your data safe, with daily encrypted backups. Even so, it’s provided as it is, and there may be times it’s unavailable.</li>
+        <li>We work hard to keep Loopin running and your data safe, with daily encrypted backups kept for 14 days. Even so, it’s provided as it is, and there may be times it’s unavailable.</li>
         <li>As far as the law allows, Loopin isn’t responsible for disagreements between people in a group, or for losses from relying on what was entered.</li>
         <li>We may change or improve features. Anything that changes these terms in a way that matters to you will be shown in the app.</li>
       </ul>
@@ -70,7 +83,10 @@ export default function Terms() {
       </p>
 
       <h2 className={h}>The law</h2>
-      <p className={p}>These terms are governed by the laws of India.</p>
+      <p className={p}>
+        These terms are governed by the laws of India.
+        {filled(OPERATOR.COURTS_CITY) ? ` Any dispute about them goes to the courts in ${OPERATOR.COURTS_CITY}.` : ""}
+      </p>
 
       <h2 className={h}>Questions</h2>
       <p className={p}>
@@ -79,8 +95,18 @@ export default function Terms() {
           FAQ
         </Link>
         .
+        {contactReady ? (
+          <>
+            {" "}
+            Loopin is run by {OPERATOR.OPERATOR_NAME}, {OPERATOR.POSTAL_ADDRESS}. You can write to{" "}
+            <a href={`mailto:${OPERATOR.PRIVACY_EMAIL}`} className="underline underline-offset-4">
+              {OPERATOR.PRIVACY_EMAIL}
+            </a>
+            .
+          </>
+        ) : null}
       </p>
-      <p className="mt-10 text-xs text-gray-400">Last updated October 2026.</p>
+      <p className="mt-10 text-xs text-gray-400">Last updated November 2026.</p>
     </>
   );
 }

@@ -44,3 +44,11 @@ export function visitorRegion(h: { get(name: string): string | null }): { countr
   const currency = defaultCurrency(h, "USD");
   return { country, currency, india: country === "IN" || currency === "INR" };
 }
+
+// The same, but a signed-in person's own home country wins when they have set one ("IN" = India, anything else = not).
+export function regionFor(h: { get(name: string): string | null }, homeCountry?: string | null): { country: string | null; currency: string; india: boolean } {
+  const region = visitorRegion(h);
+  const home = (homeCountry ?? "").trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(home)) return region;
+  return { ...region, country: home, india: home === "IN" };
+}

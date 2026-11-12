@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import Link from "@/components/Link";
 import { NewGroupForm } from "@/components/NewGroupForm";
-import { defaultCurrency } from "@/lib/region";
+import { defaultCurrency, regionFor } from "@/lib/region";
 import { getAccount } from "@/lib/identity";
 import { isGroupType } from "@/lib/group-types";
 import { ErrorNote, PageHeader, primaryButtonClass } from "@/components/ui";
@@ -29,9 +29,9 @@ export default async function NewGroup({
       <>
         <PageHeader title="New group" back="/" />
         <section className="vault rounded-[24px] px-6 py-8 text-fg">
-          <h1 className="font-display text-2xl font-semibold leading-tight">First, a quick sign-up</h1>
+          <h1 className="font-display text-2xl font-semibold leading-tight">First, a quick sign-in</h1>
           <p className="mt-2 text-sm text-fg/60">
-            Sign in to create your group: with Google, or a code sent to your email. Your groups then follow you to any phone, and
+            Sign in or sign up to create your group: with Google, or a code sent to your email. Your groups then follow you to any phone, and
             notifications reach the right one. It takes 30 seconds, and there’s no password.
           </p>
           <Link href={`/signin?${new URLSearchParams({ back })}`} className={`mt-6 ${primaryButtonClass}`}>
@@ -57,6 +57,7 @@ export default async function NewGroup({
         initialName={(name ?? "").slice(0, 60)}
         initialType={type && isGroupType(type) ? type : undefined}
         initialCover={cover}
+        india={regionFor(await headers(), account.homeCountry).india}
       />
       <p className="mt-6 text-center text-sm text-gray-500">
         Moving from another app?{" "}

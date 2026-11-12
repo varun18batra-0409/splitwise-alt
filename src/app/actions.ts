@@ -11,7 +11,7 @@ import { deleteAccount, requestLoginCode, verifyLoginCode } from "@/lib/auth";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { headers } from "next/headers";
 import { cleanNames, sameName } from "@/lib/names";
-import { amountError, isSupportedCurrency, parseAmount, parsePercent } from "@/lib/money";
+import { amountError, isSupportedCurrency, overpayHref, parseAmount, parsePercent } from "@/lib/money";
 import { getRate, type RateAnswer } from "@/lib/rate-cache";
 import { cleanRateText } from "@/lib/conversion";
 import { deletePayment, saveExpense, setExpenseDeleted, setPaymentDeleted, type SaveExpenseInput } from "@/lib/save-expense";
@@ -23,6 +23,7 @@ import { changeGroupCurrency, hasOtherMoney, loadOtherMoney, updateGroupBasics }
 import { logEvent } from "@/lib/events";
 import { countryOf } from "@/lib/geo";
 import { needsOkFor } from "@/lib/payment-ok";
+import { createPayment } from "@/lib/payments";
 import { claimKey, cleanKey, fingerprintOf, isDuplicateKey, keyState, previousResult, STALE_KEY_ERROR } from "@/lib/once";
 import { safePath } from "@/lib/paths";
 import { addRegistered, copyPushTo, inviteByEmail } from "@/lib/invites";
@@ -37,6 +38,7 @@ import { dayKey } from "@/lib/dates";
 import { importSplitwise } from "@/lib/splitwise-import";
 import { canRestoreGroup, isGroupAdmin } from "@/lib/group-admin";
 import { hasLeft, LEFT_ERROR } from "@/lib/active";
+import { parseWas, saveAllSettings } from "@/lib/settings-save";
 import { joinExisting, joinNew, newInviteLink, type JoinFail } from "@/lib/join";
 import { acceptInvitation, declineInvitation } from "@/lib/invitations";
 
@@ -155,7 +157,7 @@ export async function addPerson(formData: FormData) {
   const { origin, ip } = await originAndIp();
   if (!(await allow(`add-person:${ip}`, 60, 3600))) redirect(`/groups/${group.id}/invite?error=${encodeURIComponent("Too many adds from here. Wait a bit.")}`);
   const r = await addRegistered(group.id, me.id, String(formData.get("accountId") ?? ""), origin, { later: (job) => after(job) });
-  const q = r.ok ? new URLSearchParams({ invited: JSON.stringify([[r.name, r.email]]), ...(r.eventId ? { did: r.eventId } : {}) }) : new URLSearchParams({ error: r.error });
+  const q = r.ok ? new URLSearchParams({ invited: JSON.stringify([[r.name, ""]]), ...(r.eventId ? { did: r.eventId } : {}) }) : new URLSearchParams({ error: r.error });
   redirect(`/groups/${group.id}/invite?${q}`);
 }
 
@@ -188,7 +190,7 @@ async function finishJoin(groupId: string, memberId: string, accountId: string, 
 
 // Where a refused join goes: the join page says it calmly.
 function joinRefused(code: string, r: JoinFail): never {
-  redirect(`/join/${code}${r.reason === "removed" ? "?error=removed" : r.reason === "claimed" ? "?error=claimed" : ""}`);
+  redirect(`/join/${code}${r.reason === "removed" ? "?error=removed" : r.reason === "claimed" ? "?error=claimed" : r.reason === "name" ? "?error=name" : ""}`);
 }
 
 // "That's me": claim a name someone added before invitations existed.
@@ -302,7 +304,7 @@ export async function undoChange(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
   const eventId = String(formData.get("eventId") ?? "");
   const back = String(formData.get("back") ?? "group");
-  const r = await undoEvent(eventId, await getMyMemberId(groupId));
+  const r = await undoEvent(eventId, await getMyMemberId(groupId), await getTimeZone());
   const q = r.ok ? `undone=1${r.eventId ? `&did=${r.eventId}` : ""}` : `error=${encodeURIComponent(r.error)}`;
   if (back === "home") redirect(`/?${q}&g=${groupId}`);
   if (back === "people") redirect(`/groups/${groupId}/people?${q}`);
@@ -397,10 +399,49 @@ export async function updateGroupSettings(formData: FormData) {
     // With money already in the group, confirm the conversion rate first.
     // (Bills, budgets, goals, a deposit or card games count as money too.)
     if (group._count.expenses + group._count.payments > 0 || hasOtherMoney(await loadOtherMoney(group.id, group.settleMin))) redirect(`${back}?convert=${currency}`);
-    const c = await changeGroupCurrency(group.id, myId, currency, "1");
+    const c = await changeGroupCurrency(group.id, myId, currency, "1", { expectEmpty: true });
+    if (!c.ok && c.needsRate) redirect(`${back}?convert=${currency}`);
     if (c.ok && c.eventId) redirect(`/groups/${group.id}?saved=settings&did=${c.eventId}`);
   }
   redirect(`/groups/${group.id}?saved=settings${did}`);
+}
+
+// Settings: the ONE Save. Checks everything first, then writes what changed (see lib/settings-save).
+export async function saveGroupSettings(formData: FormData) {
+  const groupId = String(formData.get("groupId") ?? "");
+  const group = await db.group.findUnique({ where: { id: groupId }, select: { id: true, type: true, members: { select: { id: true, leftAt: true } } } });
+  if (!group) redirect("/");
+  const myId = await getMyMemberId(group.id);
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  if (group.members.find((m) => m.id === myId)?.leftAt) redirect(`/groups/${group.id}/people`); // left: read-only
+  const back = `/groups/${group.id}/settings`;
+  const str = (k: string) => String(formData.get(k) ?? "");
+  const weights: Record<string, string> = {};
+  for (const [k, v] of formData.entries()) if (k.startsWith("w_")) weights[k.slice(2)] = String(v);
+  const r = await saveAllSettings(
+    group.id,
+    myId,
+    {
+      name: formData.has("name") ? str("name") : undefined,
+      markup: formData.has("markup") ? str("markup") : undefined,
+      customMarkup: str("customMarkup"),
+      secondaryCurrency: formData.has("secondaryCurrency") ? str("secondaryCurrency") : undefined,
+      currency: formData.has("currency") ? str("currency") : undefined,
+      tripDates: formData.has("tripStart") ? { start: str("tripStart"), end: str("tripEnd") } : undefined,
+      tripPlace: formData.has("tripPlace") ? { place: str("tripPlace"), country: str("tripCountry") } : undefined,
+      cover: formData.has("cover") ? str("cover") : undefined,
+      sharing: formData.has("type") ? { type: str("type"), weights } : undefined,
+      settle: formData.has("settleDay") ? { reminders: formData.get("reminders") === "on", settleDay: Number(formData.get("settleDay") ?? 0), settleMin: str("settleMin") } : undefined,
+      notify: formData.has("notifyForm")
+        ? { all: formData.get("all") === "on", expenses: formData.get("expenses") === "on", edits: formData.get("edits") === "on", payments: formData.get("payments") === "on", people: formData.get("people") === "on" }
+        : undefined,
+      was: formData.has("was") ? parseWas(str("was")) : undefined, // what the page showed: only what you changed is saved
+    },
+    dayKey(new Date(), await getTimeZone()),
+  );
+  if (!r.ok) redirect(`${back}?${new URLSearchParams({ error: r.code && r.code !== "conflict" ? r.code : r.error })}`);
+  if (r.convertTo) redirect(`${back}?convert=${r.convertTo}`);
+  redirect(`/groups/${group.id}?saved=settings${r.eventId ? `&did=${r.eventId}` : ""}`);
 }
 
 // Second step of changing the currency: convert everything at the confirmed rate.
@@ -418,7 +459,7 @@ export async function convertGroupCurrency(formData: FormData) {
   redirect(`/groups/${group.id}?saved=settings${r.eventId ? `&did=${r.eventId}` : ""}`);
 }
 
-// Records that one person paid another back (from Smart Settle's "Mark as paid").
+// Records that one person paid another back (from Smart Settle's "They’ve paid me" / "I’ve paid").
 // This is only a record — the app never moves real money.
 export async function recordPayment(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
@@ -446,7 +487,7 @@ export async function recordPayment(formData: FormData) {
   let did = "";
   try {
    did = await db.$transaction(async (tx) => {
-    const p = await tx.payment.create({ data: { groupId: group.id, fromId, toId, amount, createdById: myId, needsOk: needsOkFor(names.find((n) => n.id === toId), myId) } });
+    const p = await createPayment(tx, { groupId: group.id, fromId, toId, amount, createdById: myId, needsOk: needsOkFor(names.find((n) => n.id === toId), myId) });
     await claimKey(tx, key, p.id, fp);
     return logEvent(tx, {
       groupId: group.id,
@@ -532,7 +573,7 @@ export async function settleAcrossGroups(formData: FormData) {
     await claimKey(tx, key, "settled", fp);
     for (const c of checked) {
       const myId = memberships[c.groupId];
-      const pay = await tx.payment.create({ data: { groupId: c.groupId, fromId: c.fromId, toId: c.toId, amount: c.amount, createdById: myId, needsOk: c.needsOk } });
+      const pay = await createPayment(tx, { groupId: c.groupId, fromId: c.fromId, toId: c.toId, amount: c.amount, createdById: myId, needsOk: c.needsOk });
       await logEvent(tx, {
         groupId: c.groupId,
         actorId: myId,
@@ -580,12 +621,12 @@ export async function recordCustomPayment(formData: FormData) {
   const amount = parseAmount(amountText, group.currency);
   if (amount === null || amount <= 0) back(amountError(amountText, group.currency));
   // More than they owe (often a typo with an extra zero): ask once before saving.
-  if (!potGame && !fromSettle && formData.get("over") !== "1") {
+  if (!potGame && formData.get("over") !== "1") {
     const { loadGroup } = await import("@/lib/group-data");
     const data = await loadGroup(group.id, { events: false });
     const owes = Math.max(0, -(data?.net[fromId] ?? 0));
     if (amount! > owes)
-      redirect(`/groups/${group.id}/pay?${new URLSearchParams({ from: fromId, to: toId, amount: amountText, owes: String(owes) })}`);
+      redirect(overpayHref(group.id, { from: fromId, to: toId, amount: amountText, owes: String(owes) }, fromSettle));
   }
   const done = potGame ? `/groups/${group.id}/pot/${potGame}?paid=1` : fromSettle ? `/groups/${group.id}/settle?paid=1` : `/groups/${group.id}?tab=balances&paid=1`;
   const key = cleanKey(formData.get("rid"));
@@ -597,7 +638,7 @@ export async function recordCustomPayment(formData: FormData) {
   let did = "";
   try {
    did = await db.$transaction(async (tx) => {
-    const p = await tx.payment.create({ data: { groupId: group.id, fromId, toId, amount: amount!, createdById: myId, needsOk: needsOkFor(group.members.find((m) => m.id === toId), myId) } });
+    const p = await createPayment(tx, { groupId: group.id, fromId, toId, amount: amount!, createdById: myId, needsOk: needsOkFor(group.members.find((m) => m.id === toId), myId) });
     await claimKey(tx, key, p.id, fp);
     return logEvent(tx, {
       groupId: group.id,

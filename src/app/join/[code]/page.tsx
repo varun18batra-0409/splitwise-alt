@@ -11,7 +11,7 @@ import { googleConfigured } from "@/lib/google";
 import { coverFor } from "@/lib/covers";
 import { Polaroid } from "@/components/Polaroid";
 import { inviteMemberId } from "@/lib/invites";
-import { invitedNameRows } from "@/lib/join";
+import { invitedNameRows, NAME_NEEDED } from "@/lib/join";
 import type { Metadata } from "next";
 
 // The preview WhatsApp shows for an invite link: the group's name, never anyone's money.
@@ -106,6 +106,7 @@ export default async function JoinPage({
       </section>
 
       {error === "busy" && <ErrorNote>Too many joins from here in the last hour. Wait a bit and try again.</ErrorNote>}
+      {error === "name" && <ErrorNote>{NAME_NEEDED}</ErrorNote>}
       {error === "claimed" && <ErrorNote>That name is already taken by someone else. Join as yourself instead.</ErrorNote>}
 
       {!account ? (

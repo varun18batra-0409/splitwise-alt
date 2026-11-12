@@ -92,6 +92,7 @@ model Member {
   // Taken out of the group by someone else (leftAt is set too): they can't rejoin on their own.
   removedAt DateTime?
   removedById String @default("")
+  timeZone  String   @default("") // this person's time zone from their phone (e.g. "Europe/London"); "" = not known yet. An account's own zone wins.
   @@unique([groupId, name])
   @@index([accountId])
 }
@@ -253,6 +254,7 @@ model Account {
   notes         AccountNote[]
   postcardsSent Postcard[] @relation("PostcardFrom")
   postcardsRecv Postcard[] @relation("PostcardTo")
+  timeZone String @default("") // time zone from the phone (e.g. "America/Los_Angeles"): nudges arrive in the daytime there. "" = not known yet.
 }
 
 // Notifications for a person rather than a group (Collect: "Asha added you",
@@ -625,6 +627,29 @@ model PayLink {
   expiresAt   DateTime
   @@unique([groupId, fromId, toId])
   @@index([groupId])
+}
+
+// "I've paid" claims: Ravi says he paid Asha. A claim is NOT a payment and never
+// counts in balances; it waits for Asha's "Confirm received", which records the real
+// payment (paymentId). Plain ids (no database links) so this is a simple new table.
+// While waiting, slot is "" and the unique rule below allows one waiting claim per
+// pair; once closed, slot is set to the claim's own id so a new claim can be made.
+model PaymentClaim {
+  id          String    @id @default(cuid())
+  groupId     String
+  fromId      String // who says they paid
+  toId        String // who was paid (the one who confirms)
+  amount      Int // in the group's currency, as it was when the claim was made
+  currency    String    @default("INR")
+  source      String    @default("link") // "link" (the I've paid page) | "app" (Settle up)
+  status      String    @default("waiting") // waiting | confirmed | declined | withdrawn | covered | expired
+  slot        String    @default("")
+  paymentId   String    @default("") // the payment recorded when it was confirmed
+  decidedAt   DateTime?
+  decidedById String    @default("")
+  createdAt   DateTime  @default(now())
+  @@unique([groupId, fromId, toId, slot])
+  @@index([groupId, toId, status])
 }
 
 // A postcard: a warm note from one person to another they've shared a group with. The front is a

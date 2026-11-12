@@ -6,6 +6,8 @@ import { claimJob, finishJob, sendPushTo } from "../push";
 import { isPending } from "../membership";
 import { loadGroup } from "../group-data";
 import { addMonths, daysInMonth, monthKey } from "./month";
+import { addDays } from "../local-time";
+import { coveredByOldRecord, markSentByOldPath, splitByZone, zonesOf } from "../nudge-zones";
 import { monthSummary } from "./summary";
 import { categoryJumps, forecast, monthlySummaryText, sameDayDuplicates, utilityJumps } from "./insights";
 
@@ -70,28 +72,42 @@ export async function monthInsights(groupId: string, expenses: Expenses, myId: s
 }
 
 // On the 1st: last month in one message, to everyone in Home and Couple groups.
-export async function sendMonthlySummaries(now = new Date(), stop: () => boolean = () => false) {
+// People whose phone has told us its time zone get it on their own 1st, in their daytime, once per person
+// per month; everyone else keeps the group's India-time claim. `legacy: false` = it is night in India.
+export async function sendMonthlySummaries(now = new Date(), stop: () => boolean = () => false, opts: { legacy?: boolean } = {}) {
+  const legacyOk = opts.legacy !== false;
   const today = dayKey(now, DEFAULT_TIME_ZONE);
-  if (today.slice(8, 10) !== "01") return { sent: 0, deferred: false };
-  const last = addMonths(today.slice(0, 7), -1);
-  const groups = await db.group.findMany({ where: { type: { in: ["home", "couple"] }, deletedAt: null }, select: { id: true } });
+  const isFirst = (d: string) => d.slice(8, 10) === "01";
+  // Someone a few hours ahead of or behind India can be on the 1st while India is not.
+  if (![addDays(today, -1), today, addDays(today, 1)].some(isFirst)) return { sent: 0, deferred: false };
+  const legacyToday = isFirst(today);
+  const groups = await db.group.findMany({ where: { type: { in: ["home", "couple"] }, deletedAt: null }, select: { id: true, members: { select: { id: true } } } });
+  const zones = await zonesOf(groups.flatMap((g) => g.members.map((m) => m.id)), now);
   let sent = 0;
   let deferred = false;
-  for (const { id } of groups) {
+  for (const { id, members } of groups) {
     if (stop()) { deferred = true; break; }
+    const { legacy, zoned } = splitByZone(members.map((m) => m.id), zones, now);
+    const last = addMonths(today.slice(0, 7), -1);
     const key = `summary:${id}:${last}`;
-    if (!(await claimJob(key, now))) continue;
+    const runLegacy = legacyToday && legacyOk && legacy.length > 0 && (await claimJob(key, now));
+    const dayOf = (p: { daytime: boolean; today: string; ahead: string }) => (p.daytime ? p.today : p.ahead); // at night: the day of their next daytime
+    const zonedFirst = zoned.filter((p) => isFirst(dayOf(p)));
+    if (!runLegacy && !zonedFirst.length) continue;
     const data = await loadGroup(id, { events: false });
-    if (!data) { await finishJob(key); continue; }
+    if (!data) {
+      if (runLegacy) await finishJob(key);
+      continue;
+    }
     const history = await varyingHistory(id);
-    const jump = utilityJumps(history, last)[0];
     const money = (n: number) => formatMoney(n, data.group.currency);
-    for (const m of data.group.members.filter((x) => !x.leftAt && !isPending(x))) {
-      const s = monthSummary(data.expenses, m.id, last, DEFAULT_TIME_ZONE);
-      if (s.total <= 0) break;
-      const text = monthlySummaryText(
+    const text = (memberId: string, month: string) => {
+      const jump = utilityJumps(history, month)[0];
+      const s = monthSummary(data.expenses, memberId, month, DEFAULT_TIME_ZONE);
+      if (s.total <= 0) return null;
+      return monthlySummaryText(
         {
-          month: last,
+          month,
           group: data.group.name,
           total: s.total,
           mine: s.mine,
@@ -101,9 +117,31 @@ export async function sendMonthlySummaries(now = new Date(), stop: () => boolean
         },
         money,
       );
-      sent += await sendPushTo([m.id], { ...text, url: `/groups/${id}`, tag: `summary-${id}-${last}` });
+    };
+    const around = data.group.members.filter((x) => !x.leftAt && !isPending(x));
+    if (runLegacy) {
+      const mine = new Set(legacy);
+      for (const m of around.filter((x) => mine.has(x.id))) {
+        const t = text(m.id, last);
+        if (!t) break;
+        sent += await sendPushTo([m.id], { ...t, url: `/groups/${id}`, tag: `summary-${id}-${last}` });
+        await markSentByOldPath(key, [m.id], now);
+      }
     }
-    await finishJob(key);
+    for (const p of zonedFirst) {
+      if (!around.some((x) => x.id === p.id)) continue;
+      const month = addMonths(dayOf(p).slice(0, 7), -1);
+      const t = text(p.id, month);
+      if (!t) continue;
+      if (!p.daytime) { deferred = true; continue; }
+      const oldKey = `summary:${id}:${month}`;
+      const personKey = `${oldKey}:m:${p.id}`;
+      if (await coveredByOldRecord(oldKey, now, p.id)) continue;
+      if (!(await claimJob(personKey, now))) continue;
+      sent += await sendPushTo([p.id], { ...t, url: `/groups/${id}`, tag: `summary-${id}-${month}` });
+      await finishJob(personKey);
+    }
+    if (runLegacy) await finishJob(key);
   }
   return { sent, deferred };
 }

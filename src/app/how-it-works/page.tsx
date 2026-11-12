@@ -6,7 +6,8 @@ import photos from "@/generated/photos.json";
 import { PageHeader } from "@/components/ui";
 import { GetAppButton } from "@/components/GetApp";
 import { headers } from "next/headers";
-import { visitorRegion } from "@/lib/region";
+import { regionFor } from "@/lib/region";
+import { getAccount } from "@/lib/identity";
 import { decimalsOf, formatMoney } from "@/lib/money";
 
 export const metadata = { title: "How Loopin works", description: "How to split trips, flat rent and bills, and couple expenses with Loopin: any currency, repeat bills, one-tap settle up.", alternates: { canonical: "/how-it-works" } };
@@ -114,7 +115,7 @@ function Example({ children }: { children: React.ReactNode }) {
 // swipe-through tour is still at /welcome (linked at the top).
 export default async function HowItWorks() {
   // Examples in the visitor's own currency (₹ in India, dollars and similar elsewhere).
-  const { currency, india } = visitorRegion(await headers());
+  const { currency, india } = regionFor(await headers(), (await getAccount())?.homeCountry);
   const m = (major: number) => formatMoney(Math.round(major * 10 ** decimalsOf(currency)), currency);
   const x = india
     ? { dinner: 1200, each: 300, yen: 3390, fee: 102, four: 873, gift: 100 }
@@ -140,20 +141,42 @@ export default async function HowItWorks() {
         </Link>
       </div>
 
-      <nav className="mt-8 flex flex-wrap gap-2 text-sm" aria-label="On this page">
+      {/* The three things everyone does, in order. The sections below say more. */}
+      <section aria-label="The basics" className="mt-8 rounded-[22px] border border-line px-4 py-4" data-basics>
+        <h2 className="font-display text-[22px] font-semibold tracking-tight text-fg">The basics, in three steps</h2>
+        <ol className="mt-3 space-y-3">
+          {[
+            ["#start", "Create a group", "Pick what it’s for, name it, add your people."],
+            ["#add", "Add an expense", "Who paid, what it was, how to split it."],
+            ["#settle", "Record a payment", "In Settle up, pay the person, then tap I’ve paid."],
+          ].map(([href, title, line], i) => (
+            <li key={href}>
+              <a href={href} className="flex gap-3 active:opacity-70">
+                <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-fg text-xs font-semibold text-canvas">{i + 1}</span>
+                <span className="min-w-0">
+                  <span className="block text-[15px] font-semibold text-fg">{title}</span>
+                  <span className="block text-sm text-gray-500">{line}</span>
+                </span>
+              </a>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <nav className="mt-6 flex flex-wrap gap-2 text-sm" aria-label="On this page">
         {[
-          ["#start", "Start a group"],
-          ["#add", "Add expenses"],
+          ["#start", "Create a group"],
+          ["#add", "Add an expense"],
+          ["#settle", "Record a payment"],
           ["#abroad", "Abroad & card fees"],
           ["#balances", "Who owes what"],
-          ["#settle", "Settle up"],
           ["#trips", "Trip report"],
-          ["#home", "Flatmates"],
+          ["#home", "Home"],
           ["#couples", "Couples"],
           ["#pot", "Card nights"],
           ["#collect", "Collect money"],
           ["#safe", "Undo & privacy"],
-          ["#splitwise", "From another app"],
+          ["#from-another-app", "From another app"],
         ].map(([href, label]) => (
           <a key={href} href={href} className="rounded-full border border-line px-3 py-1.5 text-gray-600 active:bg-mist">
             {label}
@@ -162,7 +185,7 @@ export default async function HowItWorks() {
       </nav>
 
       <div id="start" className="scroll-mt-4" />
-      <Section slot="roadtrip" kicker="1 · Start" title="Make a group, bring everyone in">
+      <Section slot="roadtrip" kicker="1 · Create a group" title="Create a group, bring everyone in">
         <Steps
           items={[
             <>Tap <strong>New group</strong> and pick what it’s for: <strong>Trip</strong>, <strong>Home</strong>, <strong>Couple</strong>, <strong>The Pot</strong> (card nights) or <strong>Anything Goes</strong>. Collecting for a gift or a booking? <strong>Collect</strong> is right there too. Give it a name (“Euro trip”) and a currency. First time? Sign in with Google or your email in 30 seconds (no password). Next time, one touch with your fingerprint or face.</>,
@@ -177,7 +200,7 @@ export default async function HowItWorks() {
       </Section>
 
       <div id="add" className="scroll-mt-4" />
-      <Section slot="dinner" kicker="2 · Add" title="Add an expense in seconds">
+      <Section slot="dinner" kicker="2 · Add an expense" title="Add an expense in seconds">
         <Steps
           items={[
             <>Tap the <strong>＋</strong> at the bottom.</>,
@@ -187,26 +210,19 @@ export default async function HowItWorks() {
         />
         <p>
           <strong>Got the bill?</strong> Tap <strong>Scan a bill</strong> and Loopin reads the shop, total, date and every line, ready to split
-          by item. The photo stays with the expense for everyone in the group. <strong>Hands full?</strong> Tap the mic and say it: “Dinner 2400,
-          Ravi paid, everyone except Dev.” Or type it in one line. Nothing saves until you tap Save.
+          by item. The photo stays with the expense for everyone in the group. <strong>Hands full?</strong> Tap <strong>Speak</strong> and say it: “Dinner 2400,
+          Ravi paid, everyone except Dev.” Or tap <strong>Type a line</strong>: “Cab 600 except Leo”. Nothing saves until you tap Save.
         </p>
         <p>Change the date if it wasn’t today, and add a note if it helps (“Sam paid the tip”). Next time, Loopin starts with the same split you used last.</p>
         <p>
-          <strong>Two people paid?</strong> Choose <strong>More than one</strong> payer. <strong>Got money back</strong> (a refund, a returned
+          <strong>Two people paid?</strong> Open <strong>More</strong> and switch on <strong>More than one person paid</strong>. <strong>Got money back</strong> (a refund, a returned
           item)? Switch to <strong>Money back</strong> and it’s shared the same way. Adding a few in a row? <strong>Save &amp; add another</strong>.
           The same thing again? Open it and tap <strong>Repeat</strong>. Loopin warns you if something looks like a duplicate.
-        </p>
-        <p>
-          <strong>In a hurry?</strong> Tap <strong>Type it in one line</strong>: “Dinner 2400 Sam paid split with Maya Leo” or “Cab 600 except
-          Leo” fills in the form for you to check. Nothing saves until you tap Save.
         </p>
         <Example>
           Dinner {m(x.dinner)} · Maya paid · Everyone equally (4)
           <br />
           <span className="text-gray-500">→ Sam, Priya and Leo each owe Maya {m(x.each)}.</span>
-        </Example>
-        <Example>
-          Small amounts work too: a class gift at {m(x.gift)} each, pizza after practice, a shared cab.
         </Example>
       </Section>
 
@@ -227,13 +243,6 @@ export default async function HowItWorks() {
         <p>150+ currencies. Cash? No fee added. Better rate from the exchange booth? Type it in.</p>
       </Section>
 
-      <Section slot="train" kicker="Getting around" title="Trains, cabs and tickets">
-        <p>
-          Not everyone took the same train? Use <strong>Only some</strong> and tap the people who did. A ticket for one person? Choose
-          <strong> Custom → One person</strong>. Everyone else’s balance stays untouched.
-        </p>
-      </Section>
-
       <div id="balances" className="scroll-mt-4" />
       <Section slot="friends" kicker="4 · Balances" title="Who owes what, and why">
         <p>
@@ -244,25 +253,22 @@ export default async function HowItWorks() {
           Not sure about a number? Tap <strong>Why?</strong> under any balance. You’ll see every expense and payment behind it, including card fees, and it always adds up exactly.
         </p>
         <p className="mt-4">
-          Looking for something? <strong>Recap</strong> (in the bottom bar) charts your spending by week, month or year, shows where it went, and finds any expense across your groups. <strong>Charts</strong> show where the money went, with a
-          few plain lines on top (“Bites &amp; Sips is 42% of all spending”). <strong>Download</strong> in a group’s settings gives you its expenses as a
-          spreadsheet; <strong>Download all my data</strong> on the You page gives you every group in one file.
+          <strong>Recap</strong> (in the bottom bar) charts your spending and finds any expense across your groups. <strong>Download</strong> in a group’s settings
+          gives you its expenses as a spreadsheet.
         </p>
       </Section>
 
       <div id="settle" className="scroll-mt-4" />
-      <Section slot="sunset" kicker="5 · Settle" title="Settle up with fewer payments">
+      <Section slot="sunset" kicker="3 · Record a payment" title="Settle up with fewer payments">
         <Steps
           items={[
             <>In a group, tap <strong>Settle up</strong>. Loopin shows a short list of payments that clears everything.</>,
-            <>Paid in full? Tap <strong>Mark paid</strong>. Paid part? Change the amount first.</>,
-            <>Your friend added their UPI ID or PayPal / Venmo link? A <strong>Pay</strong> button opens the app with the amount filled in.</>,
-            <>Someone owes you? Tap <strong>Remind</strong>: WhatsApp opens with a friendly note, your UPI ID and an <strong>I’ve paid</strong> link. They pay and tap it, no app or sign-in needed.</>,
-            <>Whoever was paid is asked <strong>Got it ✓</strong> or <strong>Not received</strong>, so a payment only stays if it really arrived.</>,
-            <>Owe the same friend in two groups? The <strong>Settle</strong> tab combines them into one payment.</>,
+            <>Pay the person however you like. If they added a UPI ID or PayPal / Venmo link, <strong>Open payment app</strong> fills in the amount. Then tap <strong>I’ve paid</strong>: it counts once they tap <strong>Confirm received</strong> (or <strong>Not received</strong>, and nothing changes). Paid a different amount? Tap <strong>Paid a different amount?</strong>.</>,
+            <>Someone owes you? Tap <strong>Remind</strong>: WhatsApp opens with a friendly note, your UPI ID and an <strong>I’ve paid</strong> link they can tap without signing in.</>,
+            <>Owe the same friend in two groups? <strong>Settle up</strong> on Home combines them into one payment, and shows each group’s part before it records anything.</>,
           ]}
         />
-        <p>Loopin only records payments. It never moves money and never asks for bank details.</p>
+        <p>This records a payment made outside Loopin. Loopin doesn’t move money and never asks for bank details.</p>
       </Section>
 
       <div id="trips" className="scroll-mt-4" />
@@ -277,7 +283,7 @@ export default async function HowItWorks() {
       </Section>
 
       <div id="home" className="scroll-mt-4" />
-      <Section slot="home" kicker="Living together" title="Flatmates: the flat runs itself">
+      <Section slot="home" kicker="Living together" title="Home: the flat runs itself">
         <p>
           Make a <strong>Home</strong> group. It opens on <strong>This month</strong>: your share, the flat’s total, who owes whom and what’s coming up.
         </p>
@@ -310,7 +316,7 @@ export default async function HowItWorks() {
       <div id="pot" className="scroll-mt-4" />
       <Section art="pot" title="Card nights: The Pot keeps score">
         <p>
-          Playing <strong>Poker</strong> or <strong>Teen Patti</strong>? Make a group and pick <strong>The Pot</strong>. Add the players: friends on
+          Playing {india ? <><strong>Teen Patti</strong> or <strong>Poker</strong></> : <><strong>Poker</strong> or <strong>rummy</strong></>}? Make a group and pick <strong>The Pot</strong>. Add the players: friends on
           Loopin see the game and their balance; anyone else can just be a name (they can join with the link later).
         </p>
         <Steps
@@ -329,7 +335,7 @@ export default async function HowItWorks() {
       <div id="stories" className="scroll-mt-4" />
       <Section slot="place-goa" title="Home, told as stories">
         <p>
-          The top of Home is a row of little polaroids. Each one is a <strong>story</strong> from your groups, a few slides you tap through: the
+          Under your groups on Home is a row of little polaroids. Each one is a <strong>story</strong> from your groups, a few slides you tap through: the
           countdown to a trip with photos of where you’re going and the crew, <strong>today’s spend</strong> while you’re away, last night’s{" "}
           <strong>card game</strong> with everyone’s result and who pays whom, a group that just got <strong>all square</strong>, and a trip from a year ago.
         </p>
@@ -393,7 +399,7 @@ export default async function HowItWorks() {
       <div id="fun" className="scroll-mt-4" />
       <Section slot="place-japan-2" title="Spin for it, titles and reactions">
         <p>
-          Can’t decide who pays tonight? On Add expense, tap <strong>Spin for it</strong> and let the wheel decide. Once a group has a few expenses,
+          Can’t decide who pays tonight? On Add expense, open <strong>More</strong> and tap <strong>Spin for it</strong> and let the wheel decide. Once a group has a few expenses,
           everyone earns a <strong>title</strong> (The Banker, Snack Lord, Night Owl…), and you can react to any expense with 😂 🔥 😭.
         </p>
         <Screens
@@ -421,13 +427,13 @@ export default async function HowItWorks() {
         </p>
       </section>
 
-      <div id="splitwise" className="scroll-mt-4" />
+      <div id="from-another-app" className="scroll-mt-4" />
       <section className="mt-12 space-y-3 text-[15px] leading-relaxed text-gray-600">
         <h2 className="font-display text-[26px] font-semibold tracking-tight text-fg">Coming from another app?</h2>
         <p>
-          Export the group as a spreadsheet (CSV) from the other app (in Splitwise: the group → gear → <strong>Export as spreadsheet</strong>).
-          In Loopin, tap <strong>Bring a group over</strong> and pick that file: every expense and payment comes across. Splitwise files are
-          checked against their own totals; for other apps, you say which column is which.{" "}
+          Export the group as a spreadsheet (CSV) from the other app (look for <strong>Export</strong> or <strong>Download</strong> in the group’s settings or menu).
+          In Loopin, tap <strong>Bring a group over</strong> and pick that file: every expense and payment comes across. Files from some apps are
+          checked against their own totals; for others, you say which column is which.{" "}
           <Link href="/switching" className="underline underline-offset-4">What’s different</Link>
         </p>
       </section>

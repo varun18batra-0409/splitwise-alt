@@ -65,6 +65,18 @@ export function nextDueDay(b: DueRule, now: Date): string | null {
   return null;
 }
 
+// The period whose due date is exactly this calendar day ("2026-11" for day "2026-11-16"), or null. Worked out from
+// the bill's rules alone, so it does not matter whether the daily job has already added that period (for someone
+// behind India, "tomorrow" can already be India's today). Same rules as nextDueDay.
+export function periodDueOn(b: DueRule, day: string): string | null {
+  if (b.paused) return null;
+  const p = day.slice(0, 7);
+  if (p < b.startMonth || (b.endMonth && p > b.endMonth)) return null;
+  if (monthsBetween(b.startMonth, p) % Math.max(1, b.every) !== 0) return null;
+  const due = b.nature === "daily" ? dueKey(p, "last") : dueKey(p, b.day >= 31 ? "last" : b.day);
+  return due === day ? p : null;
+}
+
 // Who pays this period: the set payer (null if they've left), or taking turns
 // round the people still in the group.
 export function payerFor(b: { payer: string; rotation: string; startMonth: string; every: number }, period: string, activeIds: string[]): string | null {
@@ -157,4 +169,53 @@ export function ordinalDay(day: number): string {
   if (day >= 31) return "last day";
   const s = day % 10 === 1 && day !== 11 ? "st" : day % 10 === 2 && day !== 12 ? "nd" : day % 10 === 3 && day !== 13 ? "rd" : "th";
   return `${day}${s}`;
+}
+
+// ---------- The state chip on each bill in the Bills tab ----------
+
+// Why a bill that is due is waiting (`reason` is worked out fresh by billStatuses, "" = nothing is wrong now):
+//   amount – a "varies" bill waits for its amount
+//   payer  – nobody can pay it (the payer left)
+//   fix    – something is wrong with it (a split that can't work, a closed group); fix it in the bill's settings
+//   add    – a fixed or daily bill with nothing wrong any more (fixed since, or an add that was interrupted): just add it
+export function billHold(b: { nature: string; reason: string; payerId: string | null }): "amount" | "payer" | "fix" | "add" {
+  if (b.reason === "payer left" || !b.payerId) return "payer";
+  if (b.reason === "") return b.nature === "varies" ? "amount" : "add";
+  return "fix";
+}
+
+export type BillBadge = { id: "needs-amount" | "needs-add" | "needs-fix" | "needs-payer" | "due-today" | "recorded" | "paused"; label: string; tone: "orange" | "gold" | "green" | "grey" };
+
+// One word for where a bill is right now (nothing for a bill that's simply coming later):
+//   Paused        – switched off
+//   Needs amount  – a bill that changes is waiting for its payer to enter the amount (orange)
+//   Add it        – a fixed or daily bill is waiting and nothing is wrong with it now (orange)
+//   Needs a fix   – held for a problem (e.g. someone in its split has left); fix it in the bill's settings (orange)
+//   Needs a payer – it is waiting and the person who pays has left (orange)
+//   Recorded      – this month's is already added (green)
+//   Due today     – it is due today and not added yet (gold)
+export function billBadge(b: {
+  nature: string;
+  status: "waiting" | "added" | "upcoming" | "paused";
+  due: string; // the next (or waiting) due date, "2026-11-01"
+  payerId: string | null;
+  reason: string;
+  recordedThisMonth: boolean;
+  tz: string;
+  now: Date;
+}): BillBadge | null {
+  if (b.status === "paused") return { id: "paused", label: "Paused", tone: "grey" };
+  if (b.status === "waiting") {
+    const hold = billHold(b);
+    return hold === "payer"
+      ? { id: "needs-payer", label: "Needs a payer", tone: "orange" }
+      : hold === "amount"
+        ? { id: "needs-amount", label: "Needs amount", tone: "orange" }
+        : hold === "add"
+          ? { id: "needs-add", label: "Add it", tone: "orange" }
+          : { id: "needs-fix", label: "Needs a fix", tone: "orange" };
+  }
+  if (b.recordedThisMonth) return { id: "recorded", label: "Recorded", tone: "green" };
+  if (b.due && b.due === dayKey(b.now, b.tz || DEFAULT_TIME_ZONE)) return { id: "due-today", label: "Due today", tone: "gold" };
+  return null;
 }

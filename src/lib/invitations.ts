@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { copyPushTo, inviteMemberId } from "./invites";
-import { joinExisting, joinNew, type JoinFail, type JoinOk } from "./join";
+import { joinExisting, joinNew, NAME_NEEDED, type JoinFail, type JoinOk } from "./join";
 
 // Invitations from the invitee's side: the Join / Not now cards on Home and Alerts and the
 // "Asha added you to this group" screen. Pure database work (no redirects) so it can be tested.
@@ -112,7 +112,7 @@ export async function acceptInvitation(account: Account, key: string): Promise<A
     if (!r.ok && r.reason === "claimed") r = await joinNew(code, account, account.name);
   }
   if (!r.ok) {
-    return { ok: false, error: r.reason === "removed" ? `${r.adminName || "The person who looks after the group"} removed you from this group. Ask them to invite you again.` : GONE };
+    return { ok: false, error: r.reason === "name" ? NAME_NEEDED : r.reason === "removed" ? `${r.adminName || "The person who looks after the group"} removed you from this group. Ask them to invite you again.` : GONE };
   }
   await db.$transaction([
     db.invite.updateMany({ where: { groupId: inv.groupId, email: account.email, acceptedAt: null }, data: { acceptedAt: new Date() } }),

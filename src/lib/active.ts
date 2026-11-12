@@ -4,8 +4,8 @@ import { db } from "./db";
 // change it: no edits, deletes, undos, payments or settings, until they rejoin.
 export const LEFT_ERROR = "You left this group. Rejoin it to make changes.";
 
-export async function hasLeft(groupId: string, memberId: string | undefined): Promise<boolean> {
+export async function hasLeft(groupId: string, memberId: string | undefined, client: Pick<typeof db, "member"> = db): Promise<boolean> {
   if (!memberId) return false;
-  const m = await db.member.findFirst({ where: { id: memberId, groupId }, select: { leftAt: true } });
+  const m = await client.member.findFirst({ where: { id: memberId, groupId }, select: { leftAt: true } });
   return Boolean(m?.leftAt);
 }

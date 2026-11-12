@@ -1,4 +1,4 @@
-import { amountError, decimalsOf, MAX_MINOR, parseAmount } from "./money";
+import { amountError, decimalsOf, formatMoney, formatPercent, MAX_MINOR, parseAmount } from "./money";
 
 // Currency conversion and card markup, done with exact whole-number maths
 // (BigInt) so there are no floating-point rounding surprises.
@@ -113,4 +113,61 @@ export function computeTotals(args: {
   if (total > MAX_MINOR) return { ok: false, error: "That amount is too large.", originalAmount };
 
   return { ok: true, originalAmount, convertedAmount, markupBp, markupAmount, total, exchangeRate };
+}
+
+// The maths behind a foreign-currency expense, in one line:
+//   "THB 1,000 × 2.50 = ₹2,500 + ₹75 card fee (3%) = ₹2,575"
+// The rate is shown exactly as saved ("2.5" if that's what was saved; "2.50" only if it was). It is only
+// shown when recalculating from the saved pieces gives exactly the saved total; otherwise null, so a line
+// that doesn't add up is never shown.
+export function fxLine(e: {
+  originalAmount: number;
+  originalCurrency: string;
+  baseCurrency: string;
+  exchangeRate: string;
+  convertedAmount: number;
+  markupBp: number;
+  markupAmount: number;
+  amount: number;
+  paymentMethod?: string;
+}): string | null {
+  if (e.originalCurrency === e.baseCurrency) return null;
+  const converted = convertAmount(e.originalAmount, e.originalCurrency, e.baseCurrency, e.exchangeRate);
+  if (converted === null || converted !== e.convertedAmount) return null;
+  const fee = markupAmountOf(converted, e.markupBp);
+  if (fee !== e.markupAmount || converted + fee !== e.amount) return null;
+  const rate = cleanRateText(e.exchangeRate);
+  // The converted amount is shown in the middle, so each step can be checked by hand:
+  // "$1 × 83.12345 = ₹83.12 + ₹2.49 card fee (3%) = ₹85.61".
+  const head = `${formatMoney(e.originalAmount, e.originalCurrency)} × ${rate} = ${formatMoney(converted, e.baseCurrency)}`;
+  return e.markupBp > 0 && fee > 0 ? `${head} + ${formatMoney(fee, e.baseCurrency)} card fee (${formatPercent(e.markupBp)}) = ${formatMoney(e.amount, e.baseCurrency)}` : head;
+}
+
+// Which day a rate is for, in words, next to the day of the expense. Both are plain days ("2026-10-14"),
+// the expense's day in the person's own time zone, so the two can be compared directly.
+// A rate is always the latest published when the expense was saved (rates for a weekend are Friday's),
+// so it may be from a different day than the expense: then we say so instead of implying it is "for" that day.
+export function rateDateLabel(
+  o: { rateDate: string; expenseDay: string; saved?: boolean; stale?: boolean },
+  niceDate: (day: string) => string,
+): string {
+  const prefix = o.saved ? "Rate saved with this expense" : o.stale ? "Last saved rate" : "Live rate";
+  if (!o.rateDate) return prefix;
+  const when = niceDate(o.rateDate);
+  if (!o.expenseDay || o.expenseDay === o.rateDate) return `${prefix} for ${when}`;
+  return o.saved ? `${prefix}, from ${when} (the latest when it was saved)` : `${prefix} from ${when}, the latest available`;
+}
+
+// Where the rate came from, for the line under the maths of an expense that is already saved (Activity). `rateDate` is the
+// day the rate was published for ("2026-10-14"; Frankfurter's ECB day, not the UTC day): it is the latest one when the expense was saved,
+// so it can be older than the expense's day. A saved rate is never called "live".
+export function rateSourceLine(e: { rateSource: string; rateDate: string }, niceDate: (day: string) => string, expenseDay = ""): string | null {
+  if (e.rateSource === "api") {
+    if (!e.rateDate) return "Rate saved with this expense";
+    const when = niceDate(e.rateDate);
+    return !expenseDay || expenseDay === e.rateDate ? `Rate for ${when}` : `Rate from ${when} (the latest when it was saved)`;
+  }
+  if (e.rateSource === "manual") return "Rate entered by hand";
+  if (e.rateSource === "converted") return "Adjusted when the group currency changed";
+  return null;
 }

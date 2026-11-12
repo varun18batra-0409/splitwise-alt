@@ -95,7 +95,7 @@ export default async function AddExpensePage({
       )}
       {waitingRun && (
         <p className="-mt-2 mb-5 rounded-xl bg-mist px-4 py-3 text-sm" role="status">
-          {waitingRun.bill.name} for {new Date(`${sp.period}-15T12:00:00Z`).toLocaleString("en-IN", { month: "long", timeZone: "UTC" })}: enter the amount from the bill.
+          {waitingRun.bill.name} for {new Date(`${sp.period}-15T12:00:00Z`).toLocaleString("en-IN", { month: "long", timeZone: "UTC" })}: {waitingRun.bill.nature === "varies" ? "enter the amount from the bill." : "check it and add it."}
         </p>
       )}
       <AddExpenseForm

@@ -91,6 +91,11 @@ export function searchCurrencies(query: string): CurrencyInfo[] {
   );
 }
 
+// Enter in the currency search: the first match, or null (then Enter does nothing). Never submits the page.
+export function firstCurrencyMatch(query: string): string | null {
+  return query.trim() ? (searchCurrencies(query)[0]?.code ?? null) : null;
+}
+
 // The database stores whole numbers up to about 2.1 billion, so amounts are capped
 // there (₹2 crore, 2 billion dong, 2 million Kuwaiti dinar). Plenty for shared expenses.
 export const MAX_MINOR = 2_000_000_000;
@@ -162,4 +167,35 @@ export function toInputAmount(minor: number, currency = "INR"): string {
   const d = decimalsOf(currency);
   const s = (minor / 10 ** d).toFixed(d);
   return d > 0 ? s.replace(/\.?0+$/, "") : s;
+}
+
+// The one line shown wherever a payment is recorded (Pay, Settle up, the I've paid page, card nights).
+export const PAYMENT_LINE = "This records a payment made outside Loopin. Loopin doesn't move money.";
+
+// "This is ₹2,700 more than what's owed. Record it anyway?" — null when the amount is no more than what's owed.
+// typed and owes are in minor units. `ask` is the closing question ("Confirm anyway?" on Confirm received).
+export function overpayLine(typed: number, owes: number, currency = "INR", ask = "Record it anyway?"): string | null {
+  if (!Number.isSafeInteger(typed) || !Number.isSafeInteger(owes) || typed <= owes) return null;
+  return `This is ${formatMoney(typed - Math.max(0, owes), currency)} more than what's owed. ${ask}`;
+}
+
+// How a typed amount was read, shown under the box ("12,50" → "₹12.50"). Null for plain digits (nothing to
+// explain) and for anything parseAmount would refuse (the error message covers that): it never describes an
+// amount that won't be saved ("100.000", or "1.000" in yen).
+export function amountEcho(input: string, currency = "INR"): string | null {
+  const t0 = input.replace(/[₹$€£¥฿\s]/g, "");
+  if (!t0 || /^\d+$/.test(t0)) return null;
+  const total = parseAmount(input, currency);
+  return total === null ? null : formatMoney(total, currency);
+}
+
+// Settle up's "Paid a different amount?" link: Record a payment with the pair filled in, and Back returning to Settle up.
+export function differentAmountHref(groupId: string, fromId: string, toId: string, amountInput: string): string {
+  return `/groups/${groupId}/pay?${new URLSearchParams({ from: fromId, to: toId, amount: amountInput, back: "settle" })}`;
+}
+
+// The "more than what's owed?" page for Record a payment. It keeps where the person came from (Settle up),
+// so Cancel, Record anyway and Back all return there.
+export function overpayHref(groupId: string, q: Record<string, string>, fromSettle: boolean): string {
+  return `/groups/${groupId}/pay?${new URLSearchParams({ ...q, ...(fromSettle ? { back: "settle" } : {}) })}`;
 }

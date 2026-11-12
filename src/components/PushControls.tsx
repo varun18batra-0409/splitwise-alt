@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { BellIcon } from "./DrawnIcons";
+import { phoneStatusLabel, type PhoneState } from "@/lib/phone-status";
 import { pushPublicKey, removePushSubscription, savePushSubscription } from "@/app/actions";
 
 // Turning phone notifications on and off, and keeping them working when
@@ -27,13 +28,17 @@ async function currentSubscription() {
   return { reg, sub: await reg.pushManager.getSubscription() };
 }
 
-type State = "checking" | "unsupported" | "ios-install" | "denied" | "off" | "on" | "working";
+type State = PhoneState;
 
-export function PushToggle() {
+// "This phone": whether THIS phone lets Loopin send notifications at all, and the switch for it.
+// (What Loopin chooses to send is separate: see the "What Loopin sends" row and each group’s settings.)
+export function PhoneStatus({ compact = false }: { compact?: boolean }) {
   const [state, setState] = useState<State>("checking");
+  const [permission, setPermission] = useState<"default" | "granted" | "denied" | "none">("none");
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (typeof Notification !== "undefined") setPermission(Notification.permission);
     if (!supported()) {
       setState(typeof navigator !== "undefined" && isIOS() && !isInstalled() ? "ios-install" : "unsupported");
       return;
@@ -49,8 +54,9 @@ export function PushToggle() {
     setError("");
     setState("working");
     try {
-      const permission = await Notification.requestPermission();
-      if (permission !== "granted") return setState(permission === "denied" ? "denied" : "off");
+      const answer = await Notification.requestPermission();
+      setPermission(answer);
+      if (answer !== "granted") return setState(answer === "denied" ? "denied" : "off");
       const { reg } = await currentSubscription();
       const key = await pushPublicKey();
       const sub =
@@ -81,18 +87,17 @@ export function PushToggle() {
   }
 
   const on = state === "on";
+  const label = phoneStatusLabel(state, permission);
   return (
-    <section className="mb-8 rounded-2xl border border-line p-4">
+    <section className={compact ? "rounded-2xl border border-line p-4" : "mb-4 rounded-2xl border border-line p-4"} data-phone-status>
       <div className="flex items-center gap-3">
         <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#d8bd7a]/45 text-[#e8d29a]">
           <BellIcon size={20} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="font-medium">Notifications on this phone</p>
-          <p className="text-sm text-gray-500">
-            {on
-              ? "On — you'll get a notification when friends add, change or settle something."
-              : "Get a notification when friends add, change or settle something."}
+          <p className="font-medium">This phone</p>
+          <p className="text-sm text-gray-500" data-phone-state={state}>
+            {label}
           </p>
         </div>
         {(state === "on" || state === "off" || state === "working") && (

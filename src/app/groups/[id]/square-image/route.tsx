@@ -4,7 +4,7 @@ import { getMyMemberId } from "@/lib/identity";
 import { formatMoney } from "@/lib/money";
 import { photoData } from "@/lib/share-photo";
 import { loadOgFonts } from "@/lib/og-assets";
-import { squareNumbers } from "@/lib/square";
+import { squareNumbers, squareTiles } from "@/lib/square";
 
 // "All square" as a story-sized picture (1080 × 1920) for WhatsApp status or
 // Instagram. Only for people in the group (it shows the group's photo and name).
@@ -20,11 +20,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const n = squareNumbers({ expenses, payments, people: people.length, tripStart: group.tripStart, tripEnd: group.tripEnd });
   const origin = new URL(req.url).origin;
   const [photo, fonts] = await Promise.all([photoData(group, origin), loadOgFonts(origin)]);
-  const stats: [string, string][] = [
-    [formatMoney(n.spent, group.currency), "spent together"],
-    [String(n.expenses), n.expenses === 1 ? "expense" : "expenses"],
-    [n.days > 1 ? `${n.days} days` : String(people.length), n.days > 1 ? `${people.length} of us` : "of us"],
-  ];
+  // ?amounts=0 swaps the money tile for counts (Hide amounts), so nothing spent shows in the picture.
+  const hide = new URL(req.url).searchParams.get("amounts") === "0";
+  const stats = squareTiles(n, { hide, formatSpent: (m) => formatMoney(m, group.currency) });
   return new ImageResponse(
     (
       <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", padding: "150px 90px 110px", color: "#f4f2ec", fontFamily: "Sans, SansExt", background: "radial-gradient(100% 60% at 20% 0%, #2f8a62 0%, #0c1511 72%)" }}>

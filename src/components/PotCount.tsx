@@ -4,11 +4,12 @@ import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { countOutAction } from "@/app/pot-actions";
 import { formatMoney, parseAmount } from "@/lib/money";
+import { potResultLine } from "@/lib/pot";
 
 // The end of the game: one line per player still at the table, type what each
 // has in front of them, and the host taps "Calculate & settle". As you type it
 // shows who's up or down and whether it all adds up.
-function Submit({ host }: { host: boolean }) {
+function Submit({ host, confirmText }: { host: boolean; confirmText: string | null }) {
   const { pending } = useFormStatus();
   return (
     <button
@@ -16,6 +17,10 @@ function Submit({ host }: { host: boolean }) {
       name="settle"
       value={host ? "1" : "0"}
       disabled={pending}
+      // Putting the result into Money owed: asked once (the host can reopen the game later).
+      onClick={(e) => {
+        if (confirmText && !window.confirm(confirmText)) e.preventDefault();
+      }}
       className="pop block w-full bg-fg px-4 py-3.5 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63] disabled:opacity-60"
     >
       {pending ? "Working it out…" : host ? "Calculate & settle 🏁" : "Save the count"}
@@ -29,6 +34,7 @@ export function PotCount({
   gameId,
   rows,
   inPlay,
+  settled,
   host,
   hostName,
   currency,
@@ -37,6 +43,7 @@ export function PotCount({
   // base = what they've put back so far minus what they've taken (so base + count = up or down)
   rows: { id: string; name: string; tookText: string; base: number }[];
   inPlay: number;
+  settled: { name: string; net: number }[]; // players already out of the game, with their result
   host: boolean;
   hostName: string;
   currency: string;
@@ -53,6 +60,11 @@ export function PotCount({
   const counted = filled.reduce((s, r) => s + (value(r.id) ?? 0), 0);
   const all = filled.length === rows.length;
   const gap = counted - inPlay;
+  // When this tap will finish the game (host, everyone counted, it adds up): say what goes into Money owed.
+  const confirmText =
+    host && all && gap === 0
+      ? potResultLine([...settled, ...rows.map((r) => ({ name: r.name, net: r.base + (value(r.id) ?? 0) }))], currency)
+      : null;
 
   return (
     <form action={countOutAction} className="space-y-3" data-allow-repeat="1" aria-label="Count the money">
@@ -108,7 +120,7 @@ export function PotCount({
           <span className="font-semibold text-owe">{gap < 0 ? `${money(-gap)} short. Check the counts (or fix it after).` : `${money(gap)} too much. Check the counts (or fix it after).`}</span>
         )}
       </p>
-      <Submit host={host} />
+      <Submit host={host} confirmText={confirmText} />
       {!host && <p className="text-center text-xs text-gray-500">{hostName} (the host) taps Calculate & settle once everyone’s counted.</p>}
     </form>
   );

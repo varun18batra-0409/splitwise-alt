@@ -60,7 +60,7 @@ export function BillForm({
   groupId: string;
   members: Member[];
   myId: string;
-  splitName: string; // "Flat split" / "Our split" / "Group split"
+  splitName: string; // "Home split" / "Our split" / "Group split"
   splitLabel: string; // "1.2 / 1 / 1", "" when equal
   currency: string;
   initial?: BillFormInitial;

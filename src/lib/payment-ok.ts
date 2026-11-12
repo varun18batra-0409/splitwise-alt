@@ -2,7 +2,7 @@ import { db } from "./db";
 import { logEvent } from "./events";
 import { formatMoney } from "./money";
 
-// Payment tracking. When someone other than the person paid records a payment
+// Payment tracking (older payments only: new "I've paid" taps are claims, see payment-claims.ts). When someone other than the person paid records a payment
 // ("Ravi paid Asha ₹300"), it counts straight away (as before) but Asha is
 // asked: "Got it ✓" or "Not received". Not received takes it off the balances
 // (with undo), so nobody is out of pocket on someone's word.
@@ -18,8 +18,7 @@ async function mine(paymentId: string, myMemberId: string | undefined) {
   const p = await db.payment.findUnique({ where: { id: paymentId }, include: { group: { select: { id: true, currency: true, closed: true, deletedAt: true } }, from: { select: { name: true } }, to: { select: { name: true } } } });
   if (!p || p.deletedAt || p.group.deletedAt) return { error: "That payment isn’t there any more." } as const;
   if (!myMemberId || p.toId !== myMemberId) return { error: "Only the person who was paid can confirm it." } as const;
-  const me = await db.member.findUnique({ where: { id: myMemberId }, select: { leftAt: true } });
-  if (!me || me.leftAt) return { error: "You left this group. Rejoin it to make changes." } as const;
+  // Someone who left may still answer for money paid TO them (and only that): otherwise it would be stuck.
   return { p } as const;
 }
 

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { createGroup } from "@/app/actions";
-import { GROUP_TYPES, ratioFromIncomes, type GroupType } from "@/lib/group-types";
+import { GROUP_TYPES, potHint, potNote, ratioFromIncomes, type GroupType } from "@/lib/group-types";
 import { CurrencySelect } from "./CurrencySelect";
 import { CoverPicker } from "./CoverPicker";
 import { TripDates } from "./TripDates";
@@ -12,6 +12,7 @@ import { coverOf, isCoverChoice, type CoverChoice } from "@/lib/covers";
 import { inputClass, primaryButtonClass, secondaryButtonClass } from "./ui";
 import { useRequestKey } from "./FreshKeyInput";
 import Link from "./Link";
+import { currencyLine } from "@/lib/currency-line";
 
 const ICONS: Record<GroupType, React.ReactNode> = {
   trip: <path d="M2 16l20-7-4-2-6 2-6-4-2 1 4 5-4 1-2-1-1 1zM3 21h18" />,
@@ -30,12 +31,14 @@ export function NewGroupForm({
   initialName,
   initialType = "trip",
   initialCover = "",
+  india = false, // fail safe: Teen Patti only when the caller knows the person is in India
 }: {
   defaultCurrency: string;
   yourName: string;
   initialName: string;
   initialType?: GroupType;
   initialCover?: string;
+  india?: boolean; // Teen Patti is named only where it is played
 }) {
   const [type, setType] = useState<GroupType>(initialType);
   // The picture follows the type until you pick one yourself.
@@ -46,6 +49,7 @@ export function NewGroupForm({
   const [step, setStep] = useState<1 | 2>(1);
   const [name, setName] = useState(initialName);
   const [you, setYou] = useState(yourName);
+  const [currency, setCurrency] = useState(defaultCurrency);
   // One key per visit to this form: a double tap or a retry makes one group, not two.
   const rid = useRequestKey();
   const [mode, setMode] = useState<"equal" | "income" | "custom">("equal");
@@ -83,7 +87,7 @@ export function NewGroupForm({
                   </svg>
                   <span>
                     <span className="block text-[17px] font-semibold">Collect</span>
-                    <span className="mt-0.5 block text-xs text-gray-500">One link: gifts, fees, bookings</span>
+                    <span className="mt-0.5 block min-h-8 text-xs text-gray-500">One link: gifts, fees, bookings</span>
                   </span>
                 </Link>
               ) : (
@@ -102,7 +106,7 @@ export function NewGroupForm({
                 </svg>
                 <span>
                   <span className="block text-[17px] font-semibold">{t.label}</span>
-                  <span className="mt-0.5 block text-xs text-gray-500">{t.hint}</span>
+                  <span className="mt-0.5 block min-h-8 text-xs text-gray-500">{t.id === "pot" ? potHint(india) : t.hint}</span>
                 </span>
               </button>
               ),
@@ -110,7 +114,7 @@ export function NewGroupForm({
           </div>
           {type === "pot" && (
             <p className="mt-3 rounded-xl border border-owed/25 bg-owed/[0.08] px-3.5 py-2.5 text-[13px] leading-snug text-fg/80">
-              <strong className="font-semibold text-owed">The Pot</strong> is for Poker and Teen Patti nights. Everyone takes money from the pot to play and puts back
+              <strong className="font-semibold text-owed">The Pot</strong> is for {potNote(india)}. Everyone takes money from the pot to play and puts back
               what’s left. Loopin works out who won, who lost and who pays whom. It never holds or moves money.
             </p>
           )}
@@ -140,9 +144,12 @@ export function NewGroupForm({
         </label>
         <label className="block">
           <span className="mb-2 block text-sm font-medium text-gray-600">
-            Group currency <span className="font-normal text-gray-400">(balances are shown in this)</span>
+            Group currency
           </span>
-          <CurrencySelect name="currency" defaultValue={defaultCurrency} />
+          <CurrencySelect name="currency" defaultValue={defaultCurrency} onChange={setCurrency} />
+          <span className="mt-2 block text-sm text-gray-500" data-currency-line>
+            {currencyLine(currency)}
+          </span>
         </label>
 
         {type === "couple" ? (

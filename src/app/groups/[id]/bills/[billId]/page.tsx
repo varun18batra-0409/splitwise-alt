@@ -7,8 +7,8 @@ import { BillForm } from "@/components/BillForm";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { changeBill, toggleMissedDay } from "@/app/bill-actions";
 import { splitNameFor, weightsLabel } from "@/lib/group-types";
-import { dailyTotal, missedDays } from "@/lib/home/bills";
-import { parseSplit } from "@/lib/home/bills-db";
+import { billHold, dailyTotal, missedDays, payerFor } from "@/lib/home/bills";
+import { holdReasonNow, parseSplit } from "@/lib/home/bills-db";
 import { daysInMonth } from "@/lib/home/month";
 import { dayKey } from "@/lib/dates";
 import { getTimeZone } from "@/lib/tz";
@@ -47,6 +47,12 @@ export default async function BillPage({
   const missed = missedDays(bill.missed, month);
   const monthAdded = bill.runs.some((r) => r.period === month);
   const split = parseSplit(bill.split);
+  // A held month is described from how things are now (the same words as the Bills tab chip).
+  const holdOf = (period: string) => {
+    const payerId = payerFor(bill, period, active.map((m) => m.id));
+    const reason = holdReasonNow(bill, active.map((m) => m.id), group.closed, payerId, bill.runs.find((r) => r.period === period && r.status === "waiting")?.reason ?? "");
+    return { reason, hold: billHold({ nature: bill.nature, reason, payerId }) };
+  };
   const runLabel: Record<string, string> = { added: "Added", waiting: "Waiting for the amount", skipped: "Skipped", adding: "Adding…" };
 
   return (
@@ -99,9 +105,18 @@ export default async function BillPage({
               <li key={r.id} className="flex items-center justify-between gap-3 py-2.5">
                 <span>{new Date(`${r.period}-15T12:00:00Z`).toLocaleString("en-IN", { month: "long", year: "numeric", timeZone: "UTC" })}</span>
                 {r.status === "waiting" ? (
-                  <Link href={`/groups/${group.id}/add?bill=${bill.id}&period=${r.period}`} className="font-semibold text-fg underline underline-offset-4">
-                    {r.reason === "payer left" ? "Payer left · add it" : "Enter amount"}
-                  </Link>
+                  (() => {
+                    const { reason, hold } = holdOf(r.period);
+                    return hold === "fix" ? (
+                      <a href="#change" className="text-right font-semibold text-fg underline underline-offset-4">
+                        On hold{reason ? `: ${reason}` : ""} · Fix it
+                      </a>
+                    ) : (
+                      <Link href={`/groups/${group.id}/add?bill=${bill.id}&period=${r.period}`} className="font-semibold text-fg underline underline-offset-4">
+                        {hold === "payer" ? "Payer left · add it" : hold === "add" ? "Add it" : "Waiting for the amount · Enter it"}
+                      </Link>
+                    );
+                  })()
                 ) : (
                   <span className="text-gray-500">{runLabel[r.status] ?? r.status}</span>
                 )}
@@ -132,7 +147,7 @@ export default async function BillPage({
         </form>
       </section>
 
-      <h2 className="mb-4 font-display text-xl font-semibold">Change it</h2>
+      <h2 id="change" className="mb-4 scroll-mt-4 font-display text-xl font-semibold">Change it</h2>
       <BillForm
         groupId={group.id}
         members={active.map(({ id: mid, name: n }) => ({ id: mid, name: n }))}

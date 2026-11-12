@@ -1,18 +1,23 @@
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { getMyMemberId } from "@/lib/identity";
-import { convertGroupCurrency, deleteGroup, saveNotifyPrefs, setGroupClosed, updateGroupSettings, updateSharingSettings } from "@/app/actions";
+import { headers } from "next/headers";
+import { getAccount, getMyMemberId } from "@/lib/identity";
+import { regionFor } from "@/lib/region";
+import { convertGroupCurrency, deleteGroup, saveGroupSettings, setGroupClosed } from "@/app/actions";
 import { NOTIFY_KINDS, parseNotify } from "@/lib/notify-prefs";
-import { saveSettleRules } from "@/app/bill-actions";
-import { GROUP_TYPES, sharingInputs } from "@/lib/group-types";
+import { groupTypesFor, sharingInputs } from "@/lib/group-types";
 import { StaysGoes } from "@/components/StaysGoes";
 import { deleteText } from "@/lib/leave-text";
 import { ConfirmButton } from "@/components/ConfirmButton";
-import { CURRENCIES, currencyInfo, formatMoney, formatPercent, isSupportedCurrency, POPULAR_CURRENCIES, toInputAmount } from "@/lib/money";
+import { currencyInfo, formatMoney, formatPercent, isSupportedCurrency, toInputAmount } from "@/lib/money";
 import { getRate } from "@/lib/rate-cache";
 import { niceDate } from "@/lib/format";
 import Link from "@/components/Link";
 import { CurrencySelect } from "@/components/CurrencySelect";
+import { ChipRadios, GroupTypeChips, SecondCurrencyChips } from "@/components/SettingsControls";
+import { settingsSnapshot } from "@/lib/settings-save";
+import { PhoneStatus } from "@/components/PushControls";
+import { currencyLine } from "@/lib/currency-line";
 import { pickAdmin } from "@/lib/group-admin";
 import { CoverPicker } from "@/components/CoverPicker";
 import { TripDates } from "@/components/TripDates";
@@ -37,10 +42,10 @@ export default async function GroupSettings({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; convert?: string; saved?: string }>;
+  searchParams: Promise<{ error?: string; convert?: string }>;
 }) {
   const { id } = await params;
-  const { error, convert, saved } = await searchParams;
+  const { error, convert } = await searchParams;
   const group = await db.group.findUnique({
     where: { id },
     include: {
@@ -55,13 +60,15 @@ export default async function GroupSettings({
   // Someone who left can still read the group, but not change it.
   if (group.members.find((m) => m.id === myId)?.leftAt) redirect(`/groups/${group.id}/people?error=${encodeURIComponent("You left this group. Rejoin it to change its settings.")}`);
 
+  const india = regionFor(await headers(), (await getAccount())?.homeCountry).india; // Teen Patti is named only for people in India
   const isPreset = PRESETS.includes(group.cardMarkupBp);
   // Deleting the group and changing its currency are for the person who started it.
   const admin = pickAdmin(group.members);
   const isAdmin = admin?.id === myId;
   const adminNote = `Only ${admin?.name ?? "the person who started the group"}, who looks after this group, can change this.`;
   const active = group.members.filter((m) => !m.leftAt);
-  const prefs = parseNotify((await db.member.findUnique({ where: { id: myId }, select: { notify: true } }))?.notify);
+  const myNotifyJson = (await db.member.findUnique({ where: { id: myId }, select: { notify: true } }))?.notify;
+  const prefs = parseNotify(myNotifyJson);
 
   // Step 2 of changing the currency: confirm the conversion rate.
   if (convert && isSupportedCurrency(convert) && convert !== group.currency) {
@@ -121,10 +128,12 @@ export default async function GroupSettings({
   return (
     <>
       <PageHeader title="Group settings" back={`/groups/${group.id}`} />
-      {error && <ErrorNote>{ERRORS[error] ?? error.slice(0, 120)}</ErrorNote>}
+      {error && <ErrorNote>{ERRORS[error] ?? error.slice(0, 200)}</ErrorNote>}
 
-      <form action={updateGroupSettings} className="space-y-10">
+      <form action={saveGroupSettings} className="space-y-10" data-settings-form>
         <input type="hidden" name="groupId" value={group.id} />
+        {/* What this page shows now: Save only changes what you changed, and never undoes what someone else changed meanwhile. */}
+        <input type="hidden" name="was" value={JSON.stringify(settingsSnapshot(group, group.members, myNotifyJson))} />
         <section className="space-y-8">
         <h2 className={`!mb-3 ${sectionTitle}`}>Basics</h2>
 
@@ -143,7 +152,7 @@ export default async function GroupSettings({
         <fieldset>
           <legend className="mb-1 text-base font-semibold">Group currency</legend>
           <p className="mb-4 text-sm text-gray-500">
-            Balances are shown in this.
+            {currencyLine(group.currency)}
             {group._count.expenses + group._count.payments > 0 && " Changing it converts existing amounts (you’ll confirm the rate)."}
           </p>
           {isAdmin ? (
@@ -158,33 +167,13 @@ export default async function GroupSettings({
           )}
         </fieldset>
 
-        <label className="block">
+        <div>
           <span className="mb-1 block text-base font-semibold">Also show amounts in</span>
           <span className="mb-4 block text-sm text-gray-500">
             Shown as ≈ next to balances, at today’s rate. Automatic picks your most-used foreign currency.
           </span>
-          <select name="secondaryCurrency" defaultValue={group.secondaryCurrency} className={inputClass}>
-            <option value="">Automatic</option>
-            <option value="none">Don’t show a second currency</option>
-            <optgroup label="Popular">
-              {POPULAR_CURRENCIES.filter((c) => c !== group.currency).map((code) => {
-                const c = currencyInfo(code);
-                return (
-                  <option key={code} value={code}>
-                    {c.flag} {code} — {c.name}
-                  </option>
-                );
-              })}
-            </optgroup>
-            <optgroup label="All currencies">
-              {CURRENCIES.filter((c) => c.code !== group.currency && !POPULAR_CURRENCIES.includes(c.code)).map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.flag} {c.code} — {c.name}
-                </option>
-              ))}
-            </optgroup>
-          </select>
-        </label>
+          <SecondCurrencyChips groupCurrency={group.currency} defaultValue={group.secondaryCurrency} />
+        </div>
         </section>
 
         <section className="space-y-8">
@@ -223,61 +212,42 @@ export default async function GroupSettings({
         </fieldset>
         </section>
 
-        <button type="submit" className={primaryButtonClass}>
-          Save settings
-        </button>
-      </form>
 
-      {/* How you share costs: the group type and each person's part */}
-      <h2 id="sharing" className={`mt-12 ${sectionTitle}`}>How you share costs</h2>
-      <form action={updateSharingSettings} className="mt-3 space-y-5">
-        <input type="hidden" name="groupId" value={group.id} />
-        <label className="block">
-          <span className="mb-2 block text-base font-semibold">Group type</span>
-          {/* Just the name in the box (a long hint was cut off on phones); the current type's hint sits under it. */}
-          <select name="type" defaultValue={group.type} className={inputClass}>
-            {GROUP_TYPES.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.label}
-              </option>
-            ))}
-          </select>
-          <span className="mt-1.5 block text-xs text-gray-500">{GROUP_TYPES.find((t) => t.id === group.type)?.hint}</span>
-        </label>
-        <fieldset>
-          <legend className="mb-1 text-base font-semibold">{group.type === "couple" ? "Each person’s %" : "Shares"}</legend>
-          <p className="mb-3 text-sm text-gray-500">
-            {group.type === "couple"
-              ? "Your split for every expense, e.g. 55 and 45."
-              : "Everyone pays 1 share unless you change it, e.g. 1.5 for a bigger room."}
-          </p>
-          <ul className="divide-y divide-line rounded-2xl border border-line">
-            {active.map((m) => (
-              <li key={m.id} className="flex items-center gap-3 px-4 py-2.5">
-                <span className="min-w-0 flex-1 truncate">{m.id === myId ? `${m.name} (you)` : m.name}</span>
-                <input
-                  name={`w_${m.id}`}
-                  inputMode="decimal"
-                  aria-label={`${m.name}’s ${group.type === "couple" ? "percent" : "shares"}`}
-                  defaultValue={sharingInputs(group.type, active.map((x) => x.splitWeight))[active.indexOf(m)]}
-                  className="w-20 rounded-lg border border-line bg-mist px-2 py-1.5 text-right text-fg outline-none focus:border-accent"
-                />
-              </li>
-            ))}
-          </ul>
-        </fieldset>
-        <button type="submit" className={secondaryButtonClass}>
-          Save how you share
-        </button>
-      </form>
+        {/* How you share costs: the group type and each person's part */}
+        <section id="sharing" className="space-y-5">
+          <h2 className={`!mb-3 ${sectionTitle}`}>How you share costs</h2>
+          <div>
+            <span className="mb-2 block text-base font-semibold">Group type</span>
+            <GroupTypeChips types={groupTypesFor(india)} defaultValue={group.type} />
+          </div>
+          <fieldset>
+            <legend className="mb-1 text-base font-semibold">{group.type === "couple" ? "Each person’s %" : "Shares"}</legend>
+            <p className="mb-3 text-sm text-gray-500">
+              {group.type === "couple"
+                ? "Your split for every expense, e.g. 55 and 45."
+                : "Everyone pays 1 share unless you change it, e.g. 1.5 for a bigger room."}
+            </p>
+            <ul className="divide-y divide-line rounded-2xl border border-line">
+              {active.map((m) => (
+                <li key={m.id} className="flex items-center gap-3 px-4 py-2.5">
+                  <span className="min-w-0 flex-1 truncate">{m.id === myId ? `${m.name} (you)` : m.name}</span>
+                  <input
+                    name={`w_${m.id}`}
+                    inputMode="decimal"
+                    aria-label={`${m.name}’s ${group.type === "couple" ? "percent" : "shares"}`}
+                    defaultValue={sharingInputs(group.type, active.map((x) => x.splitWeight))[active.indexOf(m)]}
+                    className="w-20 rounded-lg border border-line bg-mist px-2 py-1.5 text-right text-fg outline-none focus:border-accent"
+                  />
+                </li>
+              ))}
+            </ul>
+          </fieldset>
+        </section>
 
-      {/* Reminders (flats) and settle-up rules (homes and couples) */}
-      {(group.type === "home" || group.type === "couple") && (
-        <>
-          <h2 id="settling" className={`mt-12 ${sectionTitle}`}>Reminders and settling up</h2>
-          {saved === "settling" && <p className="mt-2 text-sm text-owed">Saved.</p>}
-          <form action={saveSettleRules} className="mt-3 space-y-4">
-            <input type="hidden" name="groupId" value={group.id} />
+        {/* Reminders (flats) and settle-up rules (homes and couples) */}
+        {(group.type === "home" || group.type === "couple") && (
+          <section id="settling" className="space-y-4">
+            <h2 className={`!mb-3 ${sectionTitle}`}>Reminders and settling up</h2>
             {group.type === "home" && (
               <label className="flex items-start gap-3 rounded-2xl border border-line px-4 py-3">
                 <span className="flex-1">
@@ -287,55 +257,59 @@ export default async function GroupSettings({
                 <input type="checkbox" name="reminders" defaultChecked={group.reminders} className="mt-1 h-5 w-5 accent-[var(--color-accent)]" />
               </label>
             )}
-            <label className="block">
+            <div>
               <span className="mb-2 block text-base font-semibold">Settle-up day</span>
-              <select name="settleDay" defaultValue={String(group.settleDay)} className={inputClass}>
-                <option value="0">None</option>
-                {[1, 5, 10, 15, 20, 25].map((d) => (
-                  <option key={d} value={d}>
-                    Every month on the {d === 1 ? "1st" : `${d}th`}
-                  </option>
-                ))}
-                <option value="31">Every month on the last day</option>
-              </select>
-            </label>
+              <ChipRadios
+                name="settleDay"
+                label="Settle-up day"
+                defaultValue={String(group.settleDay)}
+                cols="grid-cols-3 min-[400px]:grid-cols-4"
+                options={[
+                  { value: "0", label: "None" },
+                  ...[1, 5, 10, 15, 20, 25].map((d) => ({ value: String(d), label: `${d === 1 ? "1st" : `${d}th`}` })),
+                  { value: "31", label: "Last day" },
+                ]}
+              />
+              <span className="mt-1.5 block text-xs text-gray-500">The day of the month Loopin nudges everyone to settle up.</span>
+            </div>
             <label className="block">
               <span className="mb-2 block text-base font-semibold">Leave out payments under</span>
               <input name="settleMin" inputMode="decimal" defaultValue={group.settleMin ? toInputAmount(group.settleMin, group.currency) : ""} placeholder="0 (show every payment)" className={inputClass} />
               <span className="mt-1 block text-sm text-gray-500">Small amounts stay in the balances; they’re just not suggested as payments.</span>
             </label>
-            <button type="submit" className={secondaryButtonClass}>
-              Save
-            </button>
-          </form>
-        </>
-      )}
+          </section>
+        )}
 
-      {/* Phone notifications for this group, just for me */}
-      <h2 id="notify" className={`mt-12 ${sectionTitle}`}>Phone notifications for this group</h2>
-      {saved === "notify" && <p className="mt-2 text-sm text-owed">Saved.</p>}
-      <form action={saveNotifyPrefs} className="mt-3 space-y-3">
-        <input type="hidden" name="groupId" value={group.id} />
-        <ul className="divide-y divide-line rounded-2xl border border-line">
-          <li>
-            <label className="flex items-center gap-3 px-4 py-3">
-              <span className="flex-1 font-medium">All notifications</span>
-              <input type="checkbox" name="all" defaultChecked={!prefs.off} className="h-5 w-5 accent-[var(--color-accent)]" />
-            </label>
-          </li>
-          {NOTIFY_KINDS.map((k) => (
-            <li key={k.id}>
+        {/* Phone notifications for this group, just for me */}
+        <section id="notify" className="space-y-3">
+          <h2 className={`!mb-3 ${sectionTitle}`}>Phone notifications for this group</h2>
+          <PhoneStatus compact />
+          <input type="hidden" name="notifyForm" value="1" />
+          <ul className="divide-y divide-line rounded-2xl border border-line">
+            <li>
               <label className="flex items-center gap-3 px-4 py-3">
-                <span className="flex-1">{k.label}</span>
-                <input type="checkbox" name={k.id} defaultChecked={prefs[k.id]} className="h-5 w-5 accent-[var(--color-accent)]" />
+                <span className="flex-1 font-medium">All notifications</span>
+                <input type="checkbox" name="all" defaultChecked={!prefs.off} className="h-5 w-5 accent-[var(--color-accent)]" />
               </label>
             </li>
-          ))}
-        </ul>
-        <p className="text-xs text-gray-400">Only for you, on phones where notifications are on. The Alerts list still shows everything.</p>
-        <button type="submit" className={secondaryButtonClass}>
-          Save notifications
-        </button>
+            {NOTIFY_KINDS.map((k) => (
+              <li key={k.id}>
+                <label className="flex items-center gap-3 px-4 py-3">
+                  <span className="flex-1">{k.label}</span>
+                  <input type="checkbox" name={k.id} defaultChecked={prefs[k.id]} className="h-5 w-5 accent-[var(--color-accent)]" />
+                </label>
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-gray-400">Only for you. This phone’s permission is above.</p>
+        </section>
+
+        {/* The one Save for everything above */}
+        <div className="sticky bottom-[calc(6rem+env(safe-area-inset-bottom))] z-10">
+          <button type="submit" className={primaryButtonClass}>
+            Save settings
+          </button>
+        </div>
       </form>
 
       {/* People & data: one list of links */}

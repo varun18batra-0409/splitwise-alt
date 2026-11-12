@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { potResult, potSummary, potTransfers, spreadGap } from "@/lib/pot";
+import { potResult, potResultLine, potSummary, potTransfers, spreadGap } from "@/lib/pot";
 
 // The Pot's maths, with the example from the brief (₹ in paise).
 const players = ["A", "B", "C", "D"];
@@ -59,5 +59,30 @@ describe("The Pot", () => {
     const { lines, totals } = potSummary([...players, "E"], [...moves, { ...take("B", 999), deletedAt: new Date() }]);
     expect(totals.taken).toBe(500000);
     expect(lines.find((l) => l.memberId === "E")).toMatchObject({ taken: 0, net: 0 });
+  });
+});
+
+// C136: "Game tally" while playing, "Money owed" once finished, and a question before the result goes into balances.
+describe("the question before a game goes into Money owed", () => {
+  // Asha takes 1000 and puts back 1500; Ravi 1000 → 700; Meera 1000 → 800.
+  const moves = [take("Asha", 1000), take("Ravi", 1000), take("Meera", 1000), back("Asha", 1500), back("Ravi", 700), back("Meera", 800)];
+
+  it("results are +50000, −30000, −20000 (they add up to 0)", () => {
+    const { lines, totals } = potSummary(["Asha", "Ravi", "Meera"], moves);
+    expect(lines.map((l) => l.net)).toEqual([50000, -30000, -20000]);
+    expect(lines.reduce((s, l) => s + l.net, 0)).toBe(0);
+    expect(totals.balanced).toBe(true);
+  });
+
+  it("says who is up and who is down, and that it can be reopened", () => {
+    const { lines } = potSummary(["Asha", "Ravi", "Meera"], moves);
+    expect(potResultLine(lines.map((l) => ({ name: l.memberId, net: l.net })), "INR")).toBe(
+      "Put this game into Money owed? Asha +₹500, Ravi −₹300, Meera −₹200. You can reopen it.",
+    );
+  });
+
+  it("leaves out people who came out even, and copes with a game nobody won", () => {
+    expect(potResultLine([{ name: "Asha", net: 10000 }, { name: "Dev", net: 0 }, { name: "Ravi", net: -10000 }], "INR")).toBe("Put this game into Money owed? Asha +₹100, Ravi −₹100. You can reopen it.");
+    expect(potResultLine([{ name: "Asha", net: 0 }], "INR")).toBe("Put this game into Money owed? Nobody won or lost. You can reopen it.");
   });
 });

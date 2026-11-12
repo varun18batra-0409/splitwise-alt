@@ -33,18 +33,19 @@ export default async function SignIn({
       ) : (
         <>
           {/* Three trips, as polaroids tossed on the table: what Loopin is for, before a word is read. */}
-          <div className="relative -mx-5 -mt-[max(1.5rem,env(safe-area-inset-top))] h-[420px] overflow-hidden pt-[max(1.2rem,env(safe-area-inset-top))]" aria-hidden>
-            <span className="absolute left-1/2 top-24 h-[480px] w-[480px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(255,171,107,0.13),transparent_62%)]" />
+          <div className="relative -mx-5 -mt-[max(1.5rem,env(safe-area-inset-top))] h-[420px] overflow-hidden pt-[max(1.2rem,env(safe-area-inset-top))] tight:h-[96px]" aria-hidden data-signin-header>
+            <span className="absolute left-1/2 top-24 h-[480px] tight:hidden w-[480px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(255,171,107,0.13),transparent_62%)]" />
             <p className="relative text-center font-display text-[26px] font-semibold leading-none tracking-tight">loopin</p>
             {SNAPS.map((p) => (
-              <span key={p.caption} className={`lp-drop absolute block bg-[#f4f2ec] p-2 pb-9 shadow-[0_24px_50px_-10px_rgba(0,0,0,0.7)] ${p.spot}`} style={{ animationDelay: p.delay }}>
+              <span key={p.caption} className={`lp-drop absolute block tight:hidden bg-[#f4f2ec] p-2 pb-9 shadow-[0_24px_50px_-10px_rgba(0,0,0,0.7)] ${p.spot}`} style={{ animationDelay: p.delay }}>
                 <span className="relative block h-full w-full overflow-hidden bg-[#222]">
                   {placePhoto(p.place)?.src && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={placePhoto(p.place)!.src} alt="" className="absolute inset-0 h-full w-full object-cover" />
                   )}
                 </span>
-                <span className="absolute inset-x-0 bottom-1.5 text-center font-hand text-[21px] font-bold text-[#1d1b17]">{p.caption}</span>
+                {/* Only the front photo has a caption: the two behind it are partly hidden, so theirs would read "M…" and "…pur". */}
+                {p.front && <span className="absolute inset-x-0 bottom-1.5 text-center font-hand text-[21px] font-bold text-[#1d1b17]">{p.caption}</span>}
               </span>
             ))}
           </div>
@@ -53,13 +54,13 @@ export default async function SignIn({
               <BackIcon size={20} />
             </Link>
           )}
-          <p className="mt-3 font-display text-[clamp(38px,11.5vw,46px)] font-semibold leading-[1.02] tracking-[-0.02em]">
+          <p className="mt-3 font-display text-[clamp(38px,11.5vw,46px)] font-semibold leading-[1.02] tracking-[-0.02em] tight:mt-1 tight:text-[26px]">
             Split the trip.
             <br />
             Keep the story.
           </p>
-          <p className="mt-3 text-[16px] leading-relaxed text-fg/65">Split costs for trips, flats and couples, see who owes what, and record payments as you settle. Loopin keeps track; it never moves money.</p>
-          <h1 className="mb-3 mt-7 text-[15px] font-semibold text-fg/80">Continue to Loopin</h1>
+          <p className="mt-3 text-[16px] leading-relaxed text-fg/65 tight:hidden">Split costs for trips, flats and couples, see who owes what, and record payments as you settle. Loopin keeps track; it never moves money.</p>
+          <h1 className="mb-3 mt-7 text-[15px] font-semibold text-fg/80 tight:mb-2 tight:mt-3">Continue to Loopin</h1>
         </>
       )}
       {error && <ErrorNote>{error}</ErrorNote>}
@@ -69,14 +70,13 @@ export default async function SignIn({
           {googleConfigured() && (
             <>
               {/* A plain link: it leaves the app for Google's account picker. */}
-              <a href={`/api/auth/google/start?${new URLSearchParams({ back })}`} className="pop mb-3 flex h-14 w-full items-center justify-center gap-3 bg-fg text-base font-semibold text-canvas">
+              <a href={`/api/auth/google/start?${new URLSearchParams({ back })}`} className="pop mb-3 flex h-14 tight:mb-1 tight:h-12 w-full items-center justify-center gap-3 bg-fg text-base font-semibold text-canvas">
                 <GoogleG />
                 Continue with Google
               </a>
             </>
           )}
-          <PasskeySignIn back={back} className="mb-3 flex h-14 w-full items-center justify-center rounded-full border border-fg/15 bg-fg/[0.06] text-base font-semibold text-fg transition-transform active:scale-[0.97]" />
-          <div className="my-6 flex items-center gap-3 text-xs text-gray-400" aria-hidden>
+          <div className="my-6 flex items-center gap-3 text-xs text-gray-400 tight:my-3" aria-hidden>
             <span className="h-px flex-1 bg-line" />
             or with your email
             <span className="h-px flex-1 bg-line" />
@@ -84,14 +84,8 @@ export default async function SignIn({
           {!mailConfigured() && (
             <p className="mb-6 rounded-xl bg-mist px-4 py-3 text-sm text-gray-500">Email sign-in isn’t switched on yet. Check back soon.</p>
           )}
-          <form action={requestCode} className="space-y-4">
+          <form action={requestCode} className="space-y-4 tight:space-y-3">
             <input type="hidden" name="back" value={back} />
-            <label className="block">
-              <span className="mb-2 block text-sm font-medium text-gray-600">
-                Your name <span className="font-normal text-gray-400">(if you’re new)</span>
-              </span>
-              <input name="name" autoComplete="name" defaultValue={name} placeholder="e.g. Maya" maxLength={40} className={inputClass} />
-            </label>
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-gray-600">Your email</span>
               <input
@@ -106,10 +100,20 @@ export default async function SignIn({
                 className={inputClass}
               />
             </label>
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-gray-600">
+                Your name <span className="font-normal text-gray-400">(if you’re new)</span>
+              </span>
+              <input name="name" autoComplete="name" defaultValue={name} placeholder="e.g. Maya" maxLength={40} className={inputClass} />
+            </label>
             <button type="submit" className={primaryButtonClass}>
               Email me a code
             </button>
           </form>
+          {/* A text link (or a quiet button once you have used it): it must never push Google and the email box down. */}
+          <div className="mt-3">
+            <PasskeySignIn back={back} className="flex h-12 w-full items-center justify-center rounded-full border border-fg/15 bg-fg/[0.06] text-base font-semibold text-fg transition-transform active:scale-[0.97]" />
+          </div>
         </>
       ) : (
         <>
@@ -146,7 +150,7 @@ export default async function SignIn({
         </>
       )}
 
-      <p className="mt-10 text-center text-xs text-gray-400">
+      <p className="mt-10 text-center text-xs text-gray-400 tight:mt-6">
         By continuing you agree to the{" "}
         <Link href="/terms" className="underline underline-offset-4">
           Terms
@@ -162,7 +166,7 @@ export default async function SignIn({
 
 // The three polaroids on the sign-in screen (photos from the app's own place pictures).
 const SNAPS = [
-  { place: "Manali", caption: "Manali", spot: "left-[6%] top-[86px] h-[200px] w-[160px] -rotate-[9deg]", delay: "0ms" },
-  { place: "Jaipur", caption: "Jaipur", spot: "right-[5%] top-[72px] h-[200px] w-[160px] rotate-[7deg]", delay: "120ms" },
-  { place: "Goa", caption: "Goa, all square", spot: "left-[27%] top-[176px] z-[2] h-[220px] w-[176px] -rotate-[1.5deg]", delay: "240ms" },
+  { place: "Manali", caption: "Manali", front: false, spot: "left-[6%] top-[86px] h-[200px] w-[160px] -rotate-[9deg]", delay: "0ms" },
+  { place: "Jaipur", caption: "Jaipur", front: false, spot: "right-[5%] top-[72px] h-[200px] w-[160px] rotate-[7deg]", delay: "120ms" },
+  { place: "Goa", caption: "Goa, all square", front: true, spot: "left-[27%] top-[176px] z-[2] h-[220px] w-[176px] -rotate-[1.5deg]", delay: "240ms" },
 ];

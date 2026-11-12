@@ -91,7 +91,7 @@ await shot("22-settle-everything", `${g}/settle`, async (p) => {
 }, false);
 await shot("23-add-expense-differently", `${g}/add`, async (p) => {
   await p.getByRole("button", { name: /Custom/ }).click();
-  await p.getByRole("button", { name: /Add notes/ }).click();
+  await p.locator("[data-more] > button").click(); // More: notes, several payers, spin
   await p.getByRole("button", { name: /Change/ }).first().click();
   await p.waitForTimeout(300);
 });
@@ -132,7 +132,7 @@ await shot("31-currency-details", `${g}/add`, async (p) => {
   await p.getByLabel("Search currencies").fill("baht");
   await p.getByRole("button", { name: /THB/ }).first().click();
   await p.waitForTimeout(2500);
-  await p.getByRole("button", { name: /Details/ }).click();
+  await p.getByRole("button", { name: "Change rate" }).click();
   await p.waitForTimeout(300);
 });
 await shot("39-new-group-types", "/groups/new", async (p) => {
@@ -149,7 +149,8 @@ await shot("40-couple-split", "/groups/new", async (p) => {
 await shot("41-add-payers-shares", `${g}/add`, async (p) => {
   await p.locator("#expense-name").fill("Dinner at Bastian");
   await p.getByLabel("Amount", { exact: true }).fill("3000");
-  await p.getByRole("button", { name: "More than one" }).click();
+  await p.locator("[data-more] > button").click();
+  await p.getByRole("switch", { name: /More than one person paid/ }).click();
   await p.getByRole("button", { name: /Custom/ }).click();
   await p.getByRole("button", { name: "Shares", exact: true }).click();
 });
@@ -178,6 +179,12 @@ await shot("61-new-goal", `${c}/goals/new`);
 await shot("15-new-group", "/groups/new");
 await shot("25-account", "/account");
 await shot("26-signin", "/signin", undefined, false);
+// Sign-in on small phones: Google and the email box must both be on the first screen.
+for (const [n, w, h] of [["26b-signin-320x568", 320, 568], ["26c-signin-375x667", 375, 667]] as const) {
+  await page.setViewportSize({ width: w, height: h });
+  await shot(n, "/signin", undefined, false);
+}
+await page.setViewportSize({ width: 390, height: 844 });
 await shot("27-privacy", "/privacy");
 // Phase 5
 await shot("62-trip-report", `${g}/report`);
@@ -343,10 +350,16 @@ if (!hosted) {
     await db.payment.create({ data: { groupId: pune.id, fromId: n, toId: v, amount: 50000, createdById: n, needsOk: true } });
     await shot("97-settle-pay-and-confirm", `/groups/${pune.id}/settle`);
     await shot("99-add-quick-line", `/groups/${pune.id}/add`, async (p) => {
-      await p.getByRole("button", { name: /Type it in one line/ }).click();
+      await p.getByRole("button", { name: "Type a line" }).click();
       await p.getByLabel("Type the expense in one line").fill("Snacks 450 Priya paid split with Nupur");
       await p.getByRole("button", { name: "Fill", exact: true }).click();
       await p.waitForTimeout(300);
+    }, false);
+
+    await shot("99b-add-expense-tidy", `/groups/${pune.id}/add`, undefined, false);
+    await shot("99c-add-expense-more-open", `/groups/${pune.id}/add`, async (p) => {
+      await p.locator("[data-more] > button").click();
+      await p.waitForTimeout(250);
     }, false);
 
     // The fun layer: reactions, spin the wheel, Wrapped, all square, stories, passport.
@@ -357,11 +370,13 @@ if (!hosted) {
     }
     for (const [d, by, cat] of [["Breakfast at Vohuman", n, "food"], ["Late-night Maggi", pr, "food"], ["Auto to FC Road", v, "transport"]] as const) await spent(d, 90000, by).then((e) => db.expense.update({ where: { id: e.id }, data: { category: cat } }));
     await shot("101-spin-wheel", `/groups/${pune.id}/add`, async (p) => {
+      await p.locator("[data-more] > button").click();
       await p.getByRole("button", { name: /Spin for it/ }).click();
       await p.getByRole("dialog", { name: "Spin the wheel" }).getByRole("button", { name: "Spin", exact: true }).click();
       await p.waitForTimeout(4900);
     }, false);
     await shot("101b-spin-wheel-ready", `/groups/${pune.id}/add`, async (p) => {
+      await p.locator("[data-more] > button").click();
       await p.getByRole("button", { name: /Spin for it/ }).click();
       await p.waitForTimeout(500);
     }, false);
@@ -387,6 +402,7 @@ if (!hosted) {
     await db.expense.create({ data: { groupId: lona.id, description: "Villa", amount: 800000, splitType: "equal", forMode: "everyone", category: "accommodation", paidById: lv, originalAmount: 800000, originalCurrency: "INR", baseCurrency: "INR", convertedAmount: 800000, createdById: lv, spentAt: new Date(), shares: { create: [{ memberId: lv, amount: 400000 }, { memberId: lr, amount: 400000 }] } } });
     await db.payment.create({ data: { groupId: lona.id, fromId: lr, toId: lv, amount: 400000, createdById: lr } });
     await shot("105-all-square", `/groups/${lona.id}/square`);
+    await shot("105b-all-square-amounts-hidden", `/groups/${lona.id}/square?amounts=0`); // "Hide amounts" on: counts instead of money
     await shot("106-home-stories", "/", undefined, false);
     await shot("107-story-open", "/", async (p) => {
       await p.locator("[data-stories] button").first().click();
@@ -601,7 +617,7 @@ if (collectCode) {
   await context.addCookies([{ name: "lp_payer", value: "shotsPayerKey0000000001", url: `${base}/c/` }]);
   await shot("75-collect-payer-ticked", `/c/${collectCode}`);
 }
-for (const n of [2, 3, 4, 5, 6, 7]) {
+for (const n of [2, 3, 4]) {
   await shot(`24-tour-${n}`, "/", async (p) => {
     for (let k = 1; k < n; k++) {
       await p.getByRole("button", { name: /Next/ }).click();
@@ -650,7 +666,7 @@ if (!hosted) {
     await p.goto(base + "/", { waitUntil: "networkidle" });
     await p.getByRole("button", { name: /Next/ }).click();
   }, false);
-  await step("81-us-tour-5", async () => {
+  await step("81-us-tour-4", async () => {
     for (let k = 0; k < 3; k++) {
       await p.getByRole("button", { name: /Next/ }).click();
       await p.waitForTimeout(450);

@@ -1,5 +1,6 @@
 import { smartSettle, type Transfer } from "./settle";
 import { allocateByWeights } from "./split";
+import { formatMoney } from "./money";
 
 // "The Pot": the maths, kept apart so it can be checked on its own.
 //
@@ -79,4 +80,12 @@ export function parsePlayers(json: string): string[] {
   } catch {
     return [];
   }
+}
+
+// The question asked before a game's result goes into the group's balances ("Money owed"). Biggest amounts first (a win before an equal loss);
+// players who came out even are left out. Amounts are minor units.
+export function potResultLine(results: { name: string; net: number }[], currency: string): string {
+  const shown = results.filter((r) => r.net !== 0).sort((a, b) => Math.abs(b.net) - Math.abs(a.net) || b.net - a.net || a.name.localeCompare(b.name));
+  const who = shown.length ? shown.map((r) => `${r.name} ${r.net > 0 ? "+" : "−"}${formatMoney(Math.abs(r.net), currency)}`).join(", ") : "Nobody won or lost";
+  return `Put this game into Money owed? ${who}. You can reopen it.`;
 }

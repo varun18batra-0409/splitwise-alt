@@ -7,6 +7,7 @@ import { dailyTotal, payerFor, periodsDue, nextDueDay, ordinalDay } from "./bill
 import { addMonths, daysInMonth, dueKey } from "./month";
 import { joinWeights, parsePrepaid, type Prepaid } from "./moving";
 import { niceDate } from "../format";
+import { dayKey, DEFAULT_TIME_ZONE } from "../dates";
 import { previousResult } from "../once";
 import { logEvent, touchedByExpense } from "../events";
 import { REPEAT_BILL_MARK } from "../membership";
@@ -48,6 +49,21 @@ export function splitProblem(splitJson: string, activeIds: string[]): string {
   const fixed = split.mode === "percent" ? split.pct : split.mode === "amounts" ? split.amt : null;
   if (fixed && (!Object.keys(fixed).length || Object.keys(fixed).some((id) => !activeIds.includes(id)))) return "someone in the split has left";
   return "";
+}
+
+// Why a waiting bill can't just be added, worked out from how things are NOW (so a problem that has been
+// fixed stops showing): "" = nothing is wrong. A varies bill with "" is waiting for its amount; others can be added.
+// The reasons the code can work out again. Any other reason saved with the held month (an error from trying to save
+// the expense) is kept as it was, so a form that won't save never shows "Add it".
+export const RECOMPUTABLE_HOLDS = ["group closed", "payer left", "nobody left to share it", "someone in the split has left", "no amount"];
+
+export function holdReasonNow(bill: { split: string; nature: string; amount: number }, activeIds: string[], closed: boolean, payer: string | null, saved = ""): string {
+  if (closed) return "group closed";
+  if (!payer) return "payer left";
+  const problem = splitProblem(bill.split, activeIds);
+  if (problem) return problem;
+  if (bill.nature === "fixed" && bill.amount <= 0) return "no amount";
+  return saved && !RECOMPUTABLE_HOLDS.includes(saved) ? saved : "";
 }
 
 // How an automatic expense is shared: the group's own split, equally, only
@@ -297,13 +313,16 @@ export type BillStatus = {
   usual: number | null; // varies: the average of recent months
   payerId: string | null;
   reason: string;
+  recordedThisMonth: boolean; // this month's is already added (in the bill's own time zone)
 };
 
 export async function billStatuses(groupId: string, now = new Date()): Promise<BillStatus[]> {
-  const [bills, members] = await Promise.all([
+  const [bills, members, grp] = await Promise.all([
     db.bill.findMany({ where: { groupId, deletedAt: null }, include: { runs: { orderBy: { period: "desc" }, take: 4 } }, orderBy: { createdAt: "asc" } }),
     db.member.findMany({ where: { groupId, leftAt: null }, select: { id: true } }),
+    db.group.findUnique({ where: { id: groupId }, select: { closed: true } }),
   ]);
+  const closed = Boolean(grp?.closed);
   const active = members.map((m) => m.id);
   const runExpenseIds = bills.flatMap((b) => b.runs.map((r) => r.expenseId)).filter(Boolean);
   const amounts = new Map(
@@ -311,23 +330,27 @@ export async function billStatuses(groupId: string, now = new Date()): Promise<B
   );
   return bills.map((bill) => {
     const { runs, ...b } = bill;
+    const thisMonth = dayKey(now, bill.tz || DEFAULT_TIME_ZONE).slice(0, 7);
+    const recordedThisMonth = runs.some((r) => r.period === thisMonth && r.status === "added");
     const waiting = runs.find((r) => r.status === "waiting");
     const past = runs.filter((r) => r.status === "added" && amounts.has(r.expenseId)).map((r) => amounts.get(r.expenseId)!);
     const usual = bill.nature === "varies" && past.length ? Math.round(past.slice(0, 3).reduce((s, a) => s + a, 0) / Math.min(3, past.length)) : null;
     if (waiting) {
       const due = bill.nature === "daily" ? dueKey(waiting.period, "last") : dueKey(waiting.period, bill.day >= 31 ? "last" : bill.day);
-      return { bill: b as BillRow, status: "waiting", period: waiting.period, due, usual, payerId: payerFor(bill, waiting.period, active), reason: waiting.reason };
+      // The reason saved when the month was held can be out of date (the split was fixed since): work it out again.
+      const payerId = payerFor(bill, waiting.period, active);
+      return { bill: b as BillRow, status: "waiting", period: waiting.period, due, usual, payerId, reason: holdReasonNow(bill, active, closed, payerId, waiting.reason), recordedThisMonth };
     }
     const next = nextDueDay(bill, now);
-    if (bill.paused || !next) return { bill: b as BillRow, status: "paused", period: "", due: "", usual, payerId: null, reason: "" };
+    if (bill.paused || !next) return { bill: b as BillRow, status: "paused", period: "", due: "", usual, payerId: null, reason: "", recordedThisMonth };
     const period = next.slice(0, 7);
     const done = runs.find((r) => r.period === period && (r.status === "added" || r.status === "skipped"));
     // This month's already added → show the next one.
     if (done) {
       const after = nextDueDay({ ...bill, startMonth: bill.startMonth > addMonths(period, 1) ? bill.startMonth : addMonths(period, 1) }, now);
-      if (after) return { bill: b as BillRow, status: "upcoming", period: after.slice(0, 7), due: after, usual, payerId: payerFor(bill, after.slice(0, 7), active), reason: "" };
+      if (after) return { bill: b as BillRow, status: "upcoming", period: after.slice(0, 7), due: after, usual, payerId: payerFor(bill, after.slice(0, 7), active), reason: "", recordedThisMonth };
     }
-    return { bill: b as BillRow, status: "upcoming", period, due: next, usual, payerId: payerFor(bill, period, active), reason: "" };
+    return { bill: b as BillRow, status: "upcoming", period, due: next, usual, payerId: payerFor(bill, period, active), reason: "", recordedThisMonth };
   });
 }
 

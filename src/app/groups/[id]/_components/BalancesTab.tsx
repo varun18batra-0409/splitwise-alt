@@ -10,7 +10,7 @@ import { WhyPanel } from "./WhyPanel";
 import { funTitles } from "@/lib/wrapped";
 
 // Balances answers one question: who owes what, and why.
-// Paying (Mark as paid, Part, Remind, Settle everything) lives on Settle up,
+// Paying (They’ve paid me, Part, Remind, Settle everything) lives on Settle up,
 // so it's in one place only. The group's details (other currencies, totals,
 // card fee) sit here rather than crowding the top of the group.
 export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; why?: string }) {

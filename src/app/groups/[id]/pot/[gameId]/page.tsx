@@ -11,11 +11,12 @@ import { PotCount } from "@/components/PotCount";
 import { PotName } from "@/components/PotName";
 import { addPlayerAction, adjustAction, cashOutAction, deleteGameAction, finishGameAction, markGamePaidAction, removeMoveAction, reopenGameAction } from "@/app/pot-actions";
 import { gameSettlement, inPlay, loadGame } from "@/lib/pot-db";
-import { parsePlayers, potGameLabel, potSummary } from "@/lib/pot";
+import { parsePlayers, potGameLabel, potResultLine, potSummary } from "@/lib/pot";
 import { UndoBar } from "@/components/UndoBar";
 import { canUndo } from "@/lib/undo";
-import { decimalsOf, formatMoney, toInputAmount } from "@/lib/money";
+import { decimalsOf, formatMoney, PAYMENT_LINE, toInputAmount } from "@/lib/money";
 import { recordCustomPayment } from "@/app/actions";
+import { actionFormClass, DifferentAmountLink, differentAmountFor, filledActionClass, SettleRow } from "@/components/SettleRow";
 import { FreshKey } from "@/components/FreshKey";
 import { getTimeZone } from "@/lib/tz";
 
@@ -82,8 +83,8 @@ export default async function GamePage({ params, searchParams }: { params: Promi
   );
 
   const whoPays = (
-        <section aria-label="Who pays whom" className="mt-6">
-          <h2 className="mb-2 font-display text-lg font-semibold tracking-tight">Who pays whom</h2>
+        <section aria-label="Money owed" className="mt-6">
+          <h2 className="mb-2 font-display text-lg font-semibold tracking-tight">Money owed</h2>
           {!settlement || settlement.transfers.length === 0 ? (
             <p className="rounded-xl bg-mist px-4 py-3 text-sm text-gray-500">Nobody owes anybody for this game.</p>
           ) : (
@@ -91,31 +92,37 @@ export default async function GamePage({ params, searchParams }: { params: Promi
               {settlement.transfers.map((t) => {
                 const { left, done } = t;
                 return (
-                  <li key={`${t.from}-${t.to}`} className="flex items-center gap-3 rounded-2xl border border-line px-4 py-3" data-transfer={done ? "paid" : "pending"}>
-                    <span className="min-w-0 flex-1 text-sm">
-                      <strong className="font-semibold">{you(t.from)}</strong> {t.from === myId ? "pay" : "pays"} <strong className="font-semibold">{youLow(t.to)}</strong>
-                    </span>
-                    <span className="text-right font-semibold tabular-nums">
-                      {money(done || left === t.amount ? t.amount : left)}
-                      {!done && left !== t.amount && <span className="block text-[11px] font-normal text-gray-500">left of {money(t.amount)}</span>}
-                    </span>
-                    {done || group.closed ? (
-                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${done ? "bg-owed/[0.14] text-owed" : "bg-fg/[0.08] text-fg/60"}`}>{done ? "paid ✓" : "pending"}</span>
-                    ) : (
-                      // Paid? Mark it right here: you stay on the game.
-                      <form action={recordCustomPayment} className="shrink-0">
-                        <input type="hidden" name="groupId" value={group.id} />
-                        <input type="hidden" name="fromId" value={t.from} />
-                        <input type="hidden" name="toId" value={t.to} />
-                        <input type="hidden" name="amount" value={toInputAmount(left, group.currency)} />
-                        <input type="hidden" name="back" value={`pot:${game.id}`} />
-                        <FreshKey name="rid" />
-                        <button type="submit" className="rounded-full bg-fg px-3 py-1 text-xs font-semibold text-canvas" aria-label={`Mark paid: ${you(t.from)} ${t.from === myId ? "pay" : "pays"} ${youLow(t.to)}`}>
-                          Mark paid
-                        </button>
-                      </form>
-                    )}
-                  </li>
+                  <SettleRow
+                    key={`${t.from}-${t.to}`}
+                    data={{ "data-transfer": done ? "paid" : "pending" }}
+                    avatarName={t.from === myId ? "You" : you(t.from)}
+                    title={`${you(t.from)} ${t.from === myId ? "pay" : "pays"} ${youLow(t.to)}`}
+                    amount={money(done || left === t.amount ? t.amount : left)}
+                    tone={t.to === myId ? "owed" : t.from === myId ? "owe" : "neutral"}
+                    sub={!done && left !== t.amount ? `left of ${money(t.amount)}` : undefined}
+                    status={
+                      done || group.closed ? (
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${done ? "bg-owed/[0.14] text-owed" : "bg-fg/[0.08] text-fg/60"}`}>{done ? "paid ✓" : "pending"}</span>
+                      ) : undefined
+                    }
+                    action={
+                      done || group.closed ? undefined : (
+                        // Paid? Mark it right here: you stay on the game.
+                        <form action={recordCustomPayment} className={actionFormClass}>
+                          <input type="hidden" name="groupId" value={group.id} />
+                          <input type="hidden" name="fromId" value={t.from} />
+                          <input type="hidden" name="toId" value={t.to} />
+                          <input type="hidden" name="amount" value={toInputAmount(left, group.currency)} />
+                          <input type="hidden" name="back" value={`pot:${game.id}`} />
+                          <FreshKey name="rid" />
+                          <button type="submit" className={filledActionClass} aria-label={`Mark paid: ${you(t.from)} ${t.from === myId ? "pay" : "pays"} ${youLow(t.to)}`}>
+                            Mark paid
+                          </button>
+                        </form>
+                      )
+                    }
+                    link={done || group.closed ? undefined : <DifferentAmountLink href={differentAmountFor(group.id, t.from, t.to, toInputAmount(left, group.currency), false)} />}
+                  />
                 );
               })}
             </ul>
@@ -129,6 +136,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
               </ConfirmButton>
             </form>
           )}
+          <p className="mt-3 text-xs text-gray-400">{PAYMENT_LINE}</p>
           <p className="mt-3 text-sm text-gray-500" data-still-owed={stillOwed}>
             {stillOwed > 0 ? `Still to settle in this group: ${money(stillOwed)}.` : "Everyone in this group is square ✓"}
           </p>
@@ -248,8 +256,9 @@ export default async function GamePage({ params, searchParams }: { params: Promi
       )}
 
       {/* Players */}
-      <section aria-label="Players" className="mt-8">
-        <h2 className="mb-2 font-display text-lg font-semibold tracking-tight">{open ? "At the table" : "Results"}</h2>
+      <section aria-label="Game tally" className="mt-8">
+        <h2 className="font-display text-lg font-semibold tracking-tight">Game tally</h2>
+        <p className="mb-2 mt-0.5 text-xs text-gray-500">{open ? "At the table. This is only a count: nothing is owed until the game is finished." : "How the game went. Who owes what is under Money owed."}</p>
         <ul className="divide-y divide-line">
           {(open ? lines : ranked).map((l) => {
             const still = open && playing.includes(l.memberId);
@@ -338,6 +347,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
               return { id: p, name: you(p), tookText: `took ${money(took)}${back ? `, back ${money(back)}` : ""}`, base: back + (l?.adjust ?? 0) - took };
             })}
             inPlay={totals.out}
+            settled={lines.filter((l) => !playing.includes(l.memberId)).map((l) => ({ name: nameOf(l.memberId), net: l.net }))}
             host={host}
             hostName={you(game.hostId)}
             currency={group.currency}
@@ -387,8 +397,9 @@ export default async function GamePage({ params, searchParams }: { params: Promi
           {host ? (
             form(
               finishGameAction,
-              totals.balanced ? "Settle: who pays whom 🏁" : "Settle (when it adds up)",
+              totals.balanced ? "Finish: put it into Money owed 🏁" : "Finish (when it adds up)",
               `pop block w-full bg-fg px-4 py-3.5 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63] ${totals.balanced ? "" : "opacity-50"}`,
+              totals.balanced ? potResultLine(lines.map((l) => ({ name: nameOf(l.memberId), net: l.net })), group.currency) : undefined,
             )
           ) : (
             <p className="text-center text-xs text-gray-500">{you(game.hostId)} (the host) settles the game once it adds up.</p>

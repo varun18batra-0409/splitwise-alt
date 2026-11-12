@@ -93,6 +93,9 @@ test("import a sample Splitwise export (fictional people): 2 expenses + 1 paymen
   await settled(page);
   await page.getByLabel("Spreadsheet to import").setInputFiles("e2e/data/splitwise-sample.csv");
   await expect(page.getByText("Found 2 expenses and 1 payment in INR")).toBeVisible();
+  await expect(page.getByText("1 Sep – 3 Sep 2026")).toBeVisible();
+  await expect(page.getByText("gets back ₹300")).toBeVisible();
+  await expect(page.getByText("owes ₹300")).toBeVisible();
   await expect(page.getByText("✓ Matches the file’s own balances")).toBeVisible();
   await page.locator('input[name="groupName"]').fill(`E2E sample import ${Date.now()}`);
   await page.getByRole("button", { name: "Bring it over" }).click();

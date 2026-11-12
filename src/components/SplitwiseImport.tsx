@@ -156,10 +156,16 @@ export function SplitwiseImport({ yourName }: { yourName: string }) {
               Found {preview.expenses} {preview.expenses === 1 ? "expense" : "expenses"} and {preview.payments}{" "}
               {preview.payments === 1 ? "payment" : "payments"} in {ok.currency}
             </p>
-            <ul className="mt-2 space-y-1 text-gray-600">
+            {preview.range && (
+              <p className="mt-0.5 text-gray-500" data-import-range>
+                {preview.range}
+              </p>
+            )}
+            <ul className="mt-3 divide-y divide-line" aria-label="Where everyone ends up">
               {preview.balances.map((b) => (
-                <li key={b.name}>
-                  {b.name}: {b.text}
+                <li key={b.name} className="flex items-baseline justify-between gap-3 py-2 first:pt-0 last:pb-0" data-import-balance={b.tone}>
+                  <span className="min-w-0 truncate">{b.name}</span>
+                  <span className={`shrink-0 tabular-nums ${b.tone === "owed" ? "font-semibold text-owed" : b.tone === "owe" ? "font-semibold text-owe" : "text-gray-500"}`}>{b.text}</span>
                 </li>
               ))}
             </ul>

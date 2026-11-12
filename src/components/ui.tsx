@@ -10,9 +10,11 @@ export function PageHeader({
   title,
   back,
   action,
+  hideTitle = false,
 }: {
   title: string;
   back?: string;
+  hideTitle?: boolean; // the screen shows its own big title: keep this one for screen readers only
   action?: { href: string; label: string; icon: React.ReactNode };
 }) {
   return (
@@ -22,7 +24,8 @@ export function PageHeader({
           <BackIcon size={20} />
         </Link>
       )}
-      <h1 className="min-w-0 flex-1 line-clamp-2 break-words font-display text-[28px] font-semibold leading-tight tracking-[-0.02em]">{title}</h1>
+      {hideTitle && <span aria-hidden className="flex-1" />}
+      <h1 className={`${hideTitle ? "sr-only" : "min-w-0 flex-1"} line-clamp-2 break-words font-display text-[28px] font-semibold leading-tight tracking-[-0.02em]`}>{title}</h1>
       {action && (
         <Link href={action.href} aria-label={action.label} className={iconButtonClass}>
           {action.icon}

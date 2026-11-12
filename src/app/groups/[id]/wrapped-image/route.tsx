@@ -3,7 +3,7 @@ import { loadGroup } from "@/lib/group-data";
 import { getMyMemberId } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
 import { photoData } from "@/lib/share-photo";
-import { wrapSlides, type SlideData } from "@/lib/wrapped";
+import { pictureWords, wrapSlides, type SlideData } from "@/lib/wrapped";
 import { loadOgFonts } from "@/lib/og-assets";
 import { titleIconPath } from "@/components/TitleIcon";
 
@@ -18,7 +18,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (!data || !myId || !data.group.members.some((m) => m.id === myId)) return new Response("Not found", { status: 404, headers: { "Cache-Control": "private, no-store" } });
   const { group, expenses, transfers } = data;
   const people = group.members.filter((m) => !m.leftAt).map((m) => ({ id: m.id, name: m.name }));
-  const { slides, awards } = wrapSlides({ name: group.name, currency: group.currency, tz: await getTimeZone(), people, expenses, tripStart: group.tripStart, tripEnd: group.tripEnd, stillToSettle: transfers.reduce((s, t) => s + t.amount, 0), myId: "" });
+  const { slides, awards, spentCount } = wrapSlides({ name: group.name, currency: group.currency, tz: await getTimeZone(), people, expenses, tripStart: group.tripStart, tripEnd: group.tripEnd, stillToSettle: transfers.reduce((s, t) => s + t.amount, 0), myId: "" });
   const photo = await photoData(group, new URL(req.url).origin);
   const slideData = <K extends SlideData["kind"]>(k: K) => slides.find((x) => x.data?.kind === k)?.data as Extract<SlideData, { kind: K }> | undefined;
   const total = slideData("total");
@@ -27,6 +27,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const splurge = slideData("splurge");
   const name = (mid: string) => people.find((p) => p.id === mid)?.name.split(" ")[0] ?? "";
   const fonts = await loadOgFonts(new URL(req.url).origin);
+  // ?amounts=0 (Hide amounts): every money figure becomes a count, so nothing spent shows in the picture.
+  const hide = new URL(req.url).searchParams.get("amounts") === "0";
+  const words = pictureWords({ hide, total, day, splurge, spentCount, people: people.length });
   const FG = "#f7f4ec";
   const MUTE = "#f7f4ec99";
   const tile = (accent: string, top: string, big: string, small: string) => (
@@ -52,16 +55,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         </div>
         {total && (
           <div style={{ display: "flex", flexDirection: "column", marginTop: 70 }}>
-            <div style={{ display: "flex", fontSize: 26, letterSpacing: 6, color: "#d8bd7a", fontWeight: 700 }}>TOGETHER WE SPENT</div>
-            <div style={{ display: "flex", marginTop: 8, fontSize: total.amount.length > 11 ? 130 : 160, fontWeight: 700, lineHeight: 1, letterSpacing: -4, fontFamily: "Display, SansExt" }}>{total.amount}</div>
-            <div style={{ display: "flex", marginTop: 12, fontSize: 38, color: MUTE }}>About {total.each} each</div>
+            <div style={{ display: "flex", fontSize: 26, letterSpacing: 6, color: "#d8bd7a", fontWeight: 700 }}>{words.totalKicker}</div>
+            <div style={{ display: "flex", marginTop: 8, fontSize: words.totalBig.length > 11 ? 130 : 160, fontWeight: 700, lineHeight: 1, letterSpacing: -4, fontFamily: "Display, SansExt" }}>{words.totalBig}</div>
+            <div style={{ display: "flex", marginTop: 12, fontSize: 38, color: MUTE }}>{words.totalSub}</div>
           </div>
         )}
         <div style={{ display: "flex", gap: 22, marginTop: 56 }}>
           {cat && tile("#f2a07b", "Most went on", `${cat.pct}%`, cat.label.slice(0, 18))}
-          {day && tile("#9cc8ec", "Biggest day", day.label, day.amount)}
+          {day && tile("#9cc8ec", "Biggest day", day.label, words.daySmall)}
         </div>
-        {splurge && <div style={{ display: "flex", marginTop: 22 }}>{tile("#e6a7c8", "The splurge", splurge.description.slice(0, 26), splurge.amount)}</div>}
+        {splurge && <div style={{ display: "flex", marginTop: 22 }}>{tile("#e6a7c8", "The splurge", splurge.description.slice(0, 26), words.splurgeSmall)}</div>}
         {awards.length > 0 && (
           <div style={{ marginTop: 22, display: "flex", flexDirection: "column", gap: 16, padding: "30px 34px", borderRadius: 34, background: "#18181c", border: "2px solid #b9a6ef55" }}>
             <div style={{ display: "flex", fontSize: 24, letterSpacing: 5, fontWeight: 700, color: "#b9a6ef" }}>THE AWARDS</div>

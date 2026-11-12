@@ -78,4 +78,20 @@ describe("Payment tracking (real database)", () => {
     expect(ev.text).toBe("hasn’t received ₹50 from Ravi, so it’s off the balances");
     expect(JSON.parse(ev.undo)).toEqual({ type: "payment_restore", paymentId: p2.id });
   });
+
+  it("someone who left can still answer for money paid TO them, and for nothing else", async () => {
+    const g = await db.group.create({
+      data: { name: "Left", currency: "INR", inviteCode: `left-${Date.now()}-${Math.random()}`, members: { create: [{ name: "Asha", claimedAt: new Date() }, { name: "Ravi", claimedAt: new Date() }] } },
+      include: { members: true },
+    });
+    groups.push(g.id);
+    const asha = g.members.find((m) => m.name === "Asha")!;
+    const ravi = g.members.find((m) => m.name === "Ravi")!;
+    const toAsha = await db.payment.create({ data: { groupId: g.id, fromId: ravi.id, toId: asha.id, amount: 30000, createdById: ravi.id, needsOk: true } });
+    const toRavi = await db.payment.create({ data: { groupId: g.id, fromId: asha.id, toId: ravi.id, amount: 5000, createdById: asha.id, needsOk: true } });
+    await db.member.update({ where: { id: asha.id }, data: { leftAt: new Date() } });
+    expect((await confirmPayment(toAsha.id, asha.id)).ok).toBe(true); // paid to Asha: she may confirm even though she left
+    expect((await confirmPayment(toRavi.id, asha.id)).ok).toBe(false); // paid to Ravi: not hers to answer
+    expect((await rejectPayment(toRavi.id, asha.id)).ok).toBe(false);
+  });
 });

@@ -61,7 +61,7 @@ export async function importSplitwise(
       id,
       groupId,
       description: p.row.description,
-      notes: parsed.format === "splitwise" ? "Brought over from Splitwise" : "Brought over from another app",
+      notes: "Brought over from another app",
       amount: p.amount,
       splitType: "exact",
       forMode: "selected",
@@ -108,7 +108,7 @@ export async function importSplitwise(
         groupId,
         actorId: memberIds[input.me],
         kind: "group_imported",
-        text: `brought this group over from ${parsed.format === "splitwise" ? "Splitwise" : parsed.format === "loopin" ? "a Loopin spreadsheet" : "another app"} (${expenses.length} expenses, ${payments.length} payments)`,
+        text: `brought this group over from ${parsed.format === "loopin" ? "a Loopin spreadsheet" : "another app"} (${expenses.length} expenses, ${payments.length} payments)`,
         details: matches === false ? ["Balances differ slightly from the file’s own total"] : [],
       });
     },

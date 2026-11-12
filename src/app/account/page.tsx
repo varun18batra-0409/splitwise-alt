@@ -8,6 +8,7 @@ import { sameName } from "@/lib/names";
 import { listPasskeys } from "@/lib/passkeys";
 import { PasskeyAdd } from "@/components/Passkeys";
 import { niceDate } from "@/lib/format";
+import { PhoneStatus } from "@/components/PushControls";
 import { getAccount, getMemberships } from "@/lib/identity";
 import { loadMyGroups } from "@/lib/group-data";
 import { ConfirmButton } from "@/components/ConfirmButton";
@@ -179,6 +180,12 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
       )}
 
       <InviteFriends name={account?.name} className="mt-6" />
+
+      <section className="mt-10 border-t border-line pt-8" id="notifications">
+        <h2 className="mb-1 text-base font-semibold">Notifications</h2>
+        <p className="mb-4 text-sm text-gray-500">Whether this phone lets Loopin notify you. What Loopin sends is chosen in Alerts and each group’s settings.</p>
+        <PhoneStatus compact />
+      </section>
 
       {account && (
         <section className="mt-10 border-t border-line pt-8">

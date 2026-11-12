@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
-import { balancesOf, mapCategory, parseSplitwiseCsv, planRow, readCsv, swAmount } from "@/lib/splitwise-csv";
+import { balancesOf, dateRangeText, mapCategory, parseSplitwiseCsv, planRow, previewText, readCsv, swAmount } from "@/lib/splitwise-csv";
 import { importSplitwise } from "@/lib/splitwise-import";
 import { netBalances } from "@/lib/balances";
 
@@ -51,7 +51,12 @@ describe("reading the file", () => {
   it("explains files that aren't a Splitwise export", () => {
     const p = parseSplitwiseCsv("Name,Amount\nTea,20");
     expect(p.ok).toBe(false);
-    if (!p.ok) expect(p.error).toMatch(/Export as spreadsheet/);
+    if (!p.ok) {
+      // Generic on purpose (no app name): it still says what file to bring.
+      expect(p.error).toMatch(/export it as a spreadsheet \(CSV\)/);
+      expect(p.error).toMatch(/pick that file/);
+      expect(p.error).not.toMatch(/splitwise/i);
+    }
     expect(parseSplitwiseCsv("").ok).toBe(false);
     const dup = parseSplitwiseCsv("Date,Description,Category,Cost,Currency,Asha,asha\n2026-01-01,Tea,General,2,INR,1,-1");
     expect(dup.ok).toBe(false);
@@ -141,5 +146,54 @@ describe("importing into a new group", () => {
     expect(await importSplitwise(account, { text: CSV, groupName: " ", type: "trip", me: 0 })).toMatchObject({ ok: false });
     expect(await importSplitwise(account, { text: CSV, groupName: "X", type: "trip", me: 7 })).toMatchObject({ ok: false });
     expect(await importSplitwise(account, { text: "nope", groupName: "X", type: "trip", me: 0 })).toMatchObject({ ok: false });
+  });
+});
+
+// The preview shown before importing: people, dates, counts and where each person ends up.
+describe("import preview", () => {
+  // By hand (people A, B, C):
+  //   Dinner 900, A paid, split 3 ways: each share 300 → A +600, B −300, C −300
+  //   Taxi 300, B paid, split 3 ways: each share 100 → A −100, B +200, C −100
+  //   C pays A 200: C +200, A −200
+  //   A: 600 − 100 − 200 = +300 (paid 900, own share 400 = +500, less the 200 received)
+  //   B: −300 + 200 = −100   C: −300 − 100 + 200 = −200   sum 300 − 100 − 200 = 0
+  const FILE = [
+    "Date,Description,Category,Cost,Currency,A,B,C",
+    "2026-10-01,Dinner,Dining out,900.00,INR,600.00,-300.00,-300.00",
+    "2026-10-03,Taxi,Taxi,300.00,INR,-100.00,200.00,-100.00",
+    "2026-10-05,C paid A,Payment,200.00,INR,-200.00,0.00,200.00",
+  ].join("\n");
+
+  it("shows the people, the date range, the counts and each person's balance", () => {
+    const parsed = parseSplitwiseCsv(FILE);
+    if (!parsed.ok) throw new Error(parsed.error);
+    const p = previewText(parsed);
+    expect(p.people).toEqual(["A", "B", "C"]);
+    expect(p.range).toBe("1 Oct – 5 Oct 2026");
+    expect([p.expenses, p.payments]).toEqual([2, 1]);
+    expect(p.balances.map((b) => b.net)).toEqual([30000, -10000, -20000]);
+    expect(p.balances.map((b) => b.net).reduce((s, x) => s + x, 0)).toBe(0);
+    expect(p.balances.map((b) => [b.name, b.tone, b.text])).toEqual([
+      ["A", "owed", "gets back ₹300"],
+      ["B", "owe", "owes ₹100"],
+      ["C", "owe", "owes ₹200"],
+    ]);
+  });
+
+  it("someone who ends square says so (no ₹0), and the range handles one day and two years", () => {
+    const parsed = parseSplitwiseCsv(["Date,Description,Category,Cost,Currency,A,B,C", "2026-12-30,Tea,Dining out,100.00,INR,50.00,-50.00,0.00", "2027-01-02,Cab,Taxi,60.00,INR,-30.00,30.00,0.00"].join("\n"));
+    if (!parsed.ok) throw new Error(parsed.error);
+    const p = previewText(parsed);
+    expect(p.range).toBe("30 Dec 2026 – 2 Jan 2027");
+    expect(p.balances.map((b) => b.text)).toEqual(["gets back ₹20", "owes ₹20", "all square"]);
+    expect(p.balances[2].amount).toBe("");
+    expect(dateRangeText(["2026-10-14", "2026-10-14"])).toBe("14 Oct 2026");
+    expect(dateRangeText(["", "nonsense"])).toBe("");
+  });
+
+  it("amounts use the group's currency", () => {
+    const parsed = parseSplitwiseCsv(["Date,Description,Category,Cost,Currency,A,B", "2026-10-01,Dinner,Dining out,30.00,USD,15.00,-15.00"].join("\n"));
+    if (!parsed.ok) throw new Error(parsed.error);
+    expect(previewText(parsed).balances.map((b) => b.text)).toEqual(["gets back $15", "owes $15"]);
   });
 });

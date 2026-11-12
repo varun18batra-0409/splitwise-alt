@@ -6,6 +6,7 @@ import { sendMemoryLane, sendTripCountdowns } from "./countdown-db";
 import { noteOpenedPostcards } from "./postcards/open-db";
 import { db } from "./db";
 import { DEFAULT_TIME_ZONE, dayKey } from "./dates";
+import { isNudgeHour } from "./local-time";
 
 // The parts of the daily job that send things or add bills. Every one of them
 // claims its work per group (or per bill month) before doing it, so any of them
@@ -135,15 +136,18 @@ export async function runClaimedParts(now: Date, stop: () => boolean, failed: st
       results[name] = { error: "failed" };
     }
   };
-  // Phone nudges never go out in the night, even if the job is started early.
-  const hour = Number(new Intl.DateTimeFormat("en-GB", { timeZone: DEFAULT_TIME_ZONE, hour: "2-digit", hourCycle: "h23" }).format(now));
-  const daytime = hour >= 6 && hour < 22;
-  // (Not sent at night, so it counts as left for later.)
-  const night = async () => ({ sent: 0, skipped: "night", deferred: true });
+  // Phone nudges never go out in the night. For people with no time zone of their own (the old way) that is India's
+  // night; people whose phone has told us their zone are checked against their own clock inside each sender.
+  const daytime = isNudgeHour(now, DEFAULT_TIME_ZONE);
+  // A part run with `legacy: false` sent only to people with their own zone; the rest is left for later (as a night skip always was).
+  const nudge = async <T extends object>(send: (legacy: boolean) => Promise<T>) => {
+    const r = await send(daytime);
+    return daytime ? r : { ...r, deferred: true };
+  };
 
   await part("bills", () => runAllBills(now, stop));
-  await part("reminders", () => (daytime ? sendReminders(now, stop) : night()));
-  await part("countdowns", () => (daytime ? sendTripCountdowns(now, stop) : night()));
+  await part("reminders", () => nudge((legacy) => sendReminders(now, stop, { legacy })));
+  await part("countdowns", () => nudge((legacy) => sendTripCountdowns(now, stop, { legacy })));
   // Budgets reached by bills added just now.
   await part("budgets", async () => {
     const groups = await db.budget.findMany({ select: { groupId: true }, distinct: ["groupId"], orderBy: { groupId: "asc" } });
@@ -154,8 +158,8 @@ export async function runClaimedParts(now: Date, stop: () => boolean, failed: st
     }
     return { sent, deferred: false };
   });
-  await part("summaries", () => (daytime ? sendMonthlySummaries(now, stop) : night()));
-  await part("memories", () => (daytime ? sendMemoryLane(now, stop) : night()));
+  await part("summaries", () => nudge((legacy) => sendMonthlySummaries(now, stop, { legacy })));
+  await part("memories", () => nudge((legacy) => sendMemoryLane(now, stop, { legacy })));
   await part("postcards", () => noteOpenedPostcards(now));
   await part("blob-trash", async () => (await import("./photo-store")).flushPhotoDeletes(200, now));
   return { results, deferred };
