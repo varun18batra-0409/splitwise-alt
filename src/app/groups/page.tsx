@@ -12,7 +12,7 @@ export const metadata = { title: "Your groups" };
 // "See all" from Home: every group in one plain list, open ones first (newest activity on top), closed ones underneath.
 export default async function GroupsPage() {
   const [tz, memberships, account] = await Promise.all([getTimeZone(), getMemberships(), getAccount()]);
-  const { open, closed } = await loadOverview(memberships, { lean: true });
+  const { open, closed } = await loadOverview(memberships);
   const live = stillIn(open).sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
   return (
     <>

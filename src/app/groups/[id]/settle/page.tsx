@@ -4,9 +4,9 @@ import { SquareSeal } from "@/components/DrawnIcons";
 import { notFound, redirect } from "next/navigation";
 import { Notice } from "@/components/Notice";
 import { getMyMemberId } from "@/lib/identity";
-import { eventsFrom, loadGroup } from "@/lib/group-data";
+import { eventsFrom, loadGroup, loadGroupSettle } from "@/lib/group-data";
 import { formatMoney, overpayLine, PAYMENT_LINE, toInputAmount } from "@/lib/money";
-import { applySettleMin, pairwiseDebtCount } from "@/lib/settle";
+import { applySettleMin } from "@/lib/settle";
 import { planKey } from "@/lib/settle-all";
 import { canUndo } from "@/lib/undo";
 import { recordCustomPayment, settleEverything } from "@/app/actions";
@@ -41,15 +41,16 @@ export default async function GroupSettle({
 }) {
   const { id } = await params;
   const sp = await searchParams;
-  const data = await loadGroup(id, { viewer: await getMyMemberId(id), events: false });
+  // What the page shows comes from the database's own sums, not from loading every expense: the settle buttons
+  // below recompute the plan on the full data and compare (planKey is the same on both).
+  const data = await loadGroupSettle(id, await getMyMemberId(id));
   if (!data) notFound();
-  const { group, transfers, expenses, payments } = data;
+  const { group, transfers, expenseCount, paymentCount, paidSoFar, before } = data;
   const myId = await getMyMemberId(group.id);
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
 
   const nameOf = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");
   const money = (n: number) => formatMoney(n, group.currency);
-  const before = pairwiseDebtCount(expenses, payments);
   // The group's rule "leave out small amounts" hides tiny payments here (they stay in the balances).
   const { shown, hidden } = applySettleMin(transfers, group.settleMin);
   const ordered = [
@@ -88,7 +89,6 @@ export default async function GroupSettle({
   const ended = tripEnded(group, today);
   const mainAction = settleMainAction({ type: group.type, transfers: transfers.length, shown: ordered.length, left: iLeft, ended });
   // Paid back so far, out of everything that needed paying back (payments made + what's still left).
-  const paidSoFar = payments.reduce((t, p) => t + p.amount, 0);
   const left = transfers.reduce((t, x) => t + x.amount, 0);
   const settledPct = paidSoFar + left > 0 ? Math.round((paidSoFar / (paidSoFar + left)) * 100) : 100;
 
@@ -227,11 +227,11 @@ export default async function GroupSettle({
 
       {transfers.length === 0 ? (
         <div className="rounded-[26px] bg-mist px-4 py-10 text-center">
-          {expenses.length > 0 && <Confetti id={`${group.id}:${expenses.length}:${payments.length}`} />}
+          {expenseCount > 0 && <Confetti id={`${group.id}:${expenseCount}:${paymentCount}`} />}
           <SquareSeal size={56} className="mx-auto" />
           <p className="mt-3 font-display text-xl font-semibold">All square</p>
           <p className="mt-1 text-sm text-gray-500">Nobody owes anybody here.</p>
-          {expenses.length > 0 && (
+          {expenseCount > 0 && (
             <Link href={`/groups/${group.id}/square`} className="mt-4 inline-block rounded-full bg-fg px-4 py-2 text-sm font-semibold text-canvas">
               Share the moment
             </Link>

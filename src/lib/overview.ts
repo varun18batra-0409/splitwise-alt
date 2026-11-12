@@ -1,4 +1,4 @@
-import { loadMyGroups, loadMyGroupsLean } from "./group-data";
+import { loadMyGroupsLight } from "./group-data";
 import { formatMoney } from "./money";
 import { crossSettle } from "./cross-settle";
 import { convertAmount } from "./conversion";
@@ -8,9 +8,10 @@ import { displayRate } from "./rate-cache";
 // Everything the home screen and the Settle screen need about all my groups:
 // totals, net balance (in one currency when rates are known) and Smart Settle
 // across groups.
-// `lean` (the Home screen) reads fewer columns per row; everything computed is identical.
-export async function loadOverview(memberships: Record<string, string>, opts: { lean?: boolean } = {}) {
-  const all: Awaited<ReturnType<typeof loadMyGroupsLean>> = opts.lean ? await loadMyGroupsLean(memberships) : await loadMyGroups(memberships);
+// The balances come from the database's own sums (balances-db.ts) and no group's expenses are loaded: nothing here
+// needs them. Every number is the one loadMyGroups would give.
+export async function loadOverview(memberships: Record<string, string>) {
+  const all = await loadMyGroupsLight(memberships);
   const open = all.filter((g) => !g.group.closed);
   const closed = all.filter((g) => g.group.closed);
 

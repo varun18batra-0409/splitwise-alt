@@ -14,6 +14,7 @@ import { PasskeyOffer } from "@/components/Passkeys";
 
 import { loadDeletedGroups } from "@/lib/group-data";
 import { loadOverview } from "@/lib/overview";
+import { loadHomeRows, wrappedEnded } from "@/lib/home/home-data";
 import { loadInvitations } from "@/lib/invitations";
 import { InvitationCard } from "@/components/InvitationCard";
 import { buildActivity, dayLabel } from "@/lib/activity";
@@ -83,7 +84,7 @@ export default async function Home({
   const [tz, memberships] = await Promise.all([getTimeZone(), getMemberships()]);
   // Independent reads, all at once.
   const [overview, deletedGroups, account, collections, invitations, needs] = await Promise.all([
-    loadOverview(memberships, { lean: true }),
+    loadOverview(memberships),
     loadDeletedGroups(memberships),
     getAccount(),
     getAccount().then((a) => (a ? myCollections(a.id) : [])),
@@ -93,6 +94,10 @@ export default async function Home({
     getAccount().then((a) => loadNeedsYou(memberships, a, 0)),
   ]);
   const { all, open, closed, owedLines, oweLines, common, netCommon, netLines, netValue, settleItems, toCommon } = overview;
+  // Only the rows Home shows: the newest changes, this month, today's spending on trips, a finished trip's categories.
+  const now = new Date();
+  const today = todayKey(now, tz);
+  const rows = await loadHomeRows(all, { tz, now, today });
 
   // Undo bar after a change made from the home screen (e.g. closing a group).
   let undoBar: { text: string; groupId: string; eventId: string } | null = null;
@@ -115,15 +120,17 @@ export default async function Home({
   const needRows: Need[] = [
     ...needs.items.map((it) => ({ key: it.id, lead: it.kind === "bill" ? "bill" : it.text.trim().charAt(0).toUpperCase(), text: it.text, sub: it.where, action: it.action ?? NEED_ACTION[it.kind], href: it.href, orange: it.tone === "orange" })),
     ...open
-      .filter((g) => !g.leaver && g.expenses.length > 0 && g.transfers.length === 0 && g.lastActivity.getTime() < quietSince)
+      .filter((g) => !g.leaver && g.expenseCount > 0 && g.transfers.length === 0 && g.lastActivity.getTime() < quietSince)
       .map((g) => ({ key: `close-${g.group.id}`, lead: "check", text: <>Everyone’s square in <span className="font-semibold">{g.group.name}</span></>, action: "Close it", href: `/groups/${g.group.id}/settings#close` })),
   ];
 
   // The latest changes across open groups.
   const recent = open
     .flatMap((g) => {
+      const mine = rows.recent.get(g.group.id);
+      if (!mine) return [];
       const names = new Map(g.group.members.map((m) => [m.id, m.id === g.myId ? "You" : m.name]));
-      return buildActivity(g.expenses, g.payments, g.myId).map((item) => ({
+      return buildActivity(mine.expenses, mine.payments, g.myId).map((item) => ({
         item,
         groupId: g.group.id,
         currency: g.group.currency,
@@ -152,13 +159,7 @@ export default async function Home({
   // The sliding cards at the top: your month so far, and a seasonal nudge.
   // Your month across every group you're in (closed ones too: it was still your money), the same
   // way Insights counts it.
-  const month = monthNumbers(
-    all.map((g) => ({ currency: g.group.currency, myId: g.myId, expenses: g.expenses })),
-    toCommon,
-    common,
-    new Date(),
-    tz,
-  );
+  const month = monthNumbers(rows.monthGroups, toCommon, common, now, tz);
   const region = visitorRegion(await headers());
   const season = seasonNow(new Date(), tz, region.country);
   // Stories about how a group is now (countdown, a year ago, just back, wrapped, hero) skip groups the viewer left.
@@ -181,7 +182,6 @@ export default async function Home({
       </div>
     ) : null;
   // Trip countdowns: trips with a start day, happening now first, then the soonest (up to a year out).
-  const today = todayKey(new Date(), tz);
   const trips = live
     .filter((g) => g.group.type === "trip" && g.group.tripStart)
     .map((g) => ({ g, phase: tripPhase(g.group.tripStart, g.group.tripEnd, today) }))
@@ -208,7 +208,7 @@ export default async function Home({
   };
   const dayOf = (d: Date) => todayKey(d, tz);
   const todayIn = (g: (typeof open)[number]) => {
-    const list = g.expenses.filter((e) => e.kind !== "pot" && e.kind !== "refund" && dayOf(e.spentAt ?? e.createdAt) === today);
+    const list = (rows.today.get(g.group.id) ?? []).filter((e) => e.kind !== "pot" && e.kind !== "refund" && dayOf(e.spentAt ?? e.createdAt) === today);
     if (!list.length) return { spent: "", count: 0 };
     const money = (n: number) => formatMoney(n, g.group.currency);
     const paid = new Map<string, number>();
@@ -271,15 +271,15 @@ export default async function Home({
       };
     }),
     squared: open
-      .filter((g) => !g.leaver && g.group.type !== "pot" && g.expenses.length > 0 && g.transfers.length === 0 && g.payments.length > 0)
+      .filter((g) => !g.leaver && g.group.type !== "pot" && g.expenseCount > 0 && g.transfers.length === 0 && g.paymentCount > 0 && g.lastPaymentAt)
       .map((g) => ({
         id: g.group.id,
         name: g.group.name,
-        at: g.payments.reduce((m, p) => (p.createdAt > m ? p.createdAt : m), g.payments[0].createdAt),
+        at: g.lastPaymentAt!,
         cover: coverFor(g.group),
         photos: g.group.type === "trip" ? placePhotos(g.group.name, g.group.tripPlace, 2) : [],
         spent: formatMoney(g.spent, g.group.currency),
-        payments: g.payments.length,
+        payments: g.paymentCount,
         people: g.group.members.filter((m) => !m.leftAt).length,
       })),
     collections: collections
@@ -323,12 +323,10 @@ export default async function Home({
       }),
     // A trip that ended in the last two weeks: its Wrapped.
     wrapped: live
-      .filter((g) => g.group.type === "trip" && g.group.tripStart && g.expenses.length >= 3)
       .flatMap((g) => {
-        const ended = daysBetween(g.group.tripEnd || g.group.tripStart, today);
-        if (ended < 1 || ended > 14) return [];
-        const cats = new Map<string, number>();
-        for (const e of g.expenses) if (e.kind !== "pot" && e.kind !== "refund") cats.set(e.category, (cats.get(e.category) ?? 0) + e.amount);
+        const ended = wrappedEnded(g, today);
+        if (ended === null) return [];
+        const cats = rows.categories.get(g.group.id) ?? new Map<string, number>();
         const top = [...cats].sort((a, b) => b[1] - a[1])[0];
         return [{ id: g.group.id, name: g.group.name, endedDaysAgo: ended, photos: placePhotos(g.group.name, g.group.tripPlace, 2), cover: coverFor(g.group), spent: formatMoney(g.spent, g.group.currency), topCategory: top ? getCategory(top[0]).label : undefined }];
       }),
@@ -370,7 +368,7 @@ export default async function Home({
     [
       ...(account ? parseHandPlaces(account.places).map((p) => p.c) : []),
       ...all
-        .filter((g) => g.group.type === "trip" && !g.group.deletedAt && (g.group.tripStart ? g.group.tripStart <= today : g.expenses.some((e) => !e.deletedAt)))
+        .filter((g) => g.group.type === "trip" && !g.group.deletedAt && (g.group.tripStart ? g.group.tripStart <= today : g.expenseCount > 0))
         .flatMap((g) => stopsOf(g).map((s) => s.country || homeCountry)),
     ].filter(Boolean),
   );
@@ -390,7 +388,7 @@ export default async function Home({
       };
     }),
     justBack: live
-      .filter((g) => g.group.type === "trip" && g.group.tripStart && g.expenses.length > 0)
+      .filter((g) => g.group.type === "trip" && g.group.tripStart && g.expenseCount > 0)
       .map((g) => ({ g, ended: daysBetween(g.group.tripEnd || g.group.tripStart, today) }))
       .filter(({ ended }) => ended >= 1 && ended <= 14)
       .sort((a, b) => a.ended - b.ended)
@@ -620,7 +618,7 @@ export default async function Home({
           )}
 
           {/* New here (one group, no expenses yet): a gentle pointer to the 1-minute tour. */}
-          {open.length <= 1 && open.every((g) => g.expenses.length === 0) && (
+          {open.length <= 1 && open.every((g) => g.expenseCount === 0) && (
             <Link href="/how-it-works" className="mt-6 flex items-center gap-3 rounded-2xl border border-line bg-mist px-4 py-3 text-sm active:bg-line">
               <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#d8bd7a]/45 text-[#e8d29a]">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
