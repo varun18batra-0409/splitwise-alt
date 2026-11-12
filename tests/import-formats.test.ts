@@ -173,3 +173,32 @@ describe("money back in another app's file (LC-06)", () => {
     expect(p.rows[0].kind).toBeUndefined();
   });
 });
+
+describe("currency written as a symbol (LC-05)", () => {
+  it("Rs, ₹, Rs. and INR rows in one file are all rupees: 4 rows, nothing skipped", () => {
+    const file = "Title,Amount,Currency,Paid by,For\nA,100,Rs,Kim,Lee\nB,200,₹,Kim,Lee\nC,300,Rs.,Kim,Lee\nD,400,INR,Kim,Lee\n";
+    const p = parseImport(file);
+    expect(p.ok).toBe(true);
+    if (!p.ok) return;
+    expect(p.currency).toBe("INR");
+    expect(p.rows.map((r) => r.cost)).toEqual([10000, 20000, 30000, 40000]);
+    expect(p.skipped).toEqual([]);
+    expect(p.otherCurrencies).toEqual([]);
+  });
+  it("a file whose currency column is all $ is read as dollars, not skipped", () => {
+    const p = parseImport("Title,Amount,Currency,Paid by,For\nA,10,$,Kim,Lee\nB,20,$,Kim,Lee\n");
+    expect(p.ok).toBe(true);
+    if (!p.ok) return;
+    expect(p.currency).toBe("USD");
+    expect(p.rows.map((r) => r.cost)).toEqual([1000, 2000]);
+  });
+  it("a £ row in an INR file is left out as GBP; words we can't read are taken as the file's currency", () => {
+    const p = parseImport("Title,Amount,Currency,Paid by,For\nA,10,INR,Kim,Lee\nB,20,INR,Kim,Lee\nC,30,£,Kim,Lee\nD,40,rupees,Kim,Lee\n");
+    expect(p.ok).toBe(true);
+    if (!p.ok) return;
+    expect(p.rows.map((r) => r.cost)).toEqual([1000, 2000, 4000]);
+    expect(p.skipped).toEqual([{ line: 4, reason: "in GBP" }]);
+    expect(p.otherCurrencies).toEqual(["GBP"]);
+  });
+});
+

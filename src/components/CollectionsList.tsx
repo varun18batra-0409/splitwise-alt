@@ -14,7 +14,9 @@ export type CollectionRow = {
 
 // Collect: the collections you're running (open first), each with how far along it is.
 // On Home it shows the first few with "See all"; on its own page (limit left out) it shows every one.
-export function CollectionsSection({ list, limit, className = "mt-8" }: { list: CollectionRow[]; limit?: number; className?: string }) {
+// `total`: the real number of collections when `list` holds only the newest (Home loads 20): "See all N" says the real N.
+export function CollectionsSection({ list, limit, total, className = "mt-8" }: { list: CollectionRow[]; limit?: number; total?: number; className?: string }) {
+  const all = Math.max(total ?? 0, list.length);
   const shown = limit ? list.slice(0, limit) : list;
   return (
     <section className={className} aria-label="Collections">
@@ -56,9 +58,9 @@ export function CollectionsSection({ list, limit, className = "mt-8" }: { list: 
           );
         })}
       </ul>
-      {limit && list.length > limit && (
+      {limit && all > limit && (
         <Link href="/collect" className="mt-3 block text-center text-sm font-medium text-fg/80 underline underline-offset-4">
-          {`See all ${list.length} collections`}
+          {`See all ${all} collections`}
         </Link>
       )}
     </section>

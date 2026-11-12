@@ -13,7 +13,7 @@ import { claimKey, isDuplicateKey, previousResult, withRetry } from "./once";
 import { parsePayers, payersJson, payersLabel } from "./payers";
 import { isGameResult } from "./pot-result";
 import { findLikelyDuplicate } from "./duplicates";
-import { splitByItems } from "./item-split";
+import { MAX_ITEM_LINES, splitByItems } from "./item-split";
 import { queuePhotoDeletes } from "./photo-store";
 import { chargeLock, chargeLockedText, moveOutLeavers } from "./home/charge-lock";
 import type { Prisma } from "@prisma/client";
@@ -89,7 +89,11 @@ class LeaverStays extends Error {}
 class LeaverBack extends Error {}
 class ReceiptGone extends Error {}
 class MonthAdded extends Error {}
-class ChargeLocked extends Error {}
+class ChargeLocked extends Error {
+  constructor(bill: string, public status?: "adding" | "added" | "covered") {
+    super(bill);
+  }
+}
 
 type CleanAttach = { lines?: { position: number; name: string; amount: number; people: string }[]; receipt?: string };
 
@@ -100,7 +104,7 @@ function cleanAttach(a: Attach | undefined, memberIds: string[]): CleanAttach | 
   if (Array.isArray(a.items)) {
     const ids = new Set(memberIds);
     out.lines = a.items
-      .slice(0, 40)
+      .slice(0, MAX_ITEM_LINES)
       .filter((x) => x && typeof x.name === "string" && Number.isSafeInteger(x.amount) && x.amount > 0 && Array.isArray(x.people))
       .map((x, i) => ({ position: i, name: x.name.slice(0, 40), amount: x.amount, people: JSON.stringify([...new Set(x.people.filter((p) => typeof p === "string" && ids.has(p)))]) }));
   }
@@ -111,27 +115,34 @@ function cleanAttach(a: Attach | undefined, memberIds: string[]): CleanAttach | 
 // When an expense comes with item lines, the shares must be exactly what those lines work out to (the same
 // split the Add screen shows), so a hand-made request can't save lines that say one thing and shares another.
 // Returns what to tell the person, or null when they agree.
+export const ITEMS_TOO_MANY = `A bill can have up to ${MAX_ITEM_LINES} items. Combine a few lines, or split the rest as a second expense.`;
 export const ITEMS_DISAGREE = "The bill's items and the split don't match. Open the expense and split it again.";
-function itemsDisagree(lines: NonNullable<CleanAttach["lines"]>, e: { originalAmount: number; amount: number; shares: { memberId: string; amount: number }[] }): string | null {
+export function itemsDisagree(lines: NonNullable<CleanAttach["lines"]>, e: { originalAmount: number; amount: number; shares: { memberId: string; amount: number }[] }): string | null {
   if (!lines.length) return null;
   const split = splitByItems(lines.map((l) => ({ name: l.name, amount: l.amount, people: JSON.parse(l.people) as string[] })), e.originalAmount);
   if (!split.ok) return split.error;
   const got = new Map(e.shares.filter((x) => x.amount > 0).map((x) => [x.memberId, x.amount]));
-  const want = Object.entries(split.amounts).filter(([, a]) => a > 0);
-  if (got.size !== want.length) return ITEMS_DISAGREE;
-  if (e.amount === e.originalAmount) return want.every(([id, a]) => got.get(id) === a) ? null : ITEMS_DISAGREE;
+  const want = new Map(Object.entries(split.amounts).filter(([, a]) => a > 0));
+  if (e.amount === e.originalAmount) {
+    if (got.size !== want.size) return ITEMS_DISAGREE;
+    return [...want].every(([id, a]) => got.get(id) === a) ? null : ITEMS_DISAGREE;
+  }
   // Another currency or a card fee: the shares are the item amounts scaled to the final total, each within one minor unit
-  // of its exact value (checked with whole numbers: amount * part / whole, rounded down or up).
+  // of its exact value (checked with whole numbers: amount * part / whole, rounded down or up). Someone whose exact value
+  // rounds to nothing (a tiny item) may have no share at all; someone with no item may not have one.
   const whole = BigInt(e.originalAmount);
-  return want.every(([id, a]) => {
-    const g = got.get(id);
-    if (g === undefined) return false;
-    const num = BigInt(e.amount) * BigInt(a);
-    const lo = num / whole;
-    return BigInt(g) === lo || BigInt(g) === lo + 1n;
-  })
-    ? null
-    : ITEMS_DISAGREE;
+  const ids = new Set([...got.keys(), ...want.keys()]);
+  for (const id of ids) {
+    const a = want.get(id) ?? 0;
+    const g = got.get(id) ?? 0;
+    if (a === 0) {
+      if (g !== 0) return ITEMS_DISAGREE;
+      continue;
+    }
+    const lo = (BigInt(e.amount) * BigInt(a)) / whole;
+    if (BigInt(g) !== lo && BigInt(g) !== lo + 1n) return ITEMS_DISAGREE;
+  }
+  return null;
 }
 
 // Inside the expense's own transaction: write the item lines and link the bill photo.
@@ -185,6 +196,7 @@ async function saveExpenseOnce(
   if (group.closed) return { ok: false, error: "This group is closed. Reopen it to add or change expenses." };
 
   const memberIds = group.members.map((m) => m.id);
+  if (Array.isArray(opts.attach?.items) && opts.attach.items.length > MAX_ITEM_LINES) return { ok: false, error: ITEMS_TOO_MANY };
   const attach = cleanAttach(opts.attach, memberIds);
   if (!actingMemberId || !memberIds.includes(actingMemberId)) return { ok: false, error: "Please join this group first." };
   if (group.members.find((m) => m.id === actingMemberId)?.leftAt) return { ok: false, error: "You left this group. Rejoin it to make changes." };
@@ -366,7 +378,7 @@ async function saveExpenseOnce(
     // Only if nobody else saved a change in the meantime (checked and written in one step).
     // A move-out daily charge is part of its month's bill once that bill is being added or was added: edit the bill instead.
     const locked = await chargeLock(tx, group.id, existing.id);
-    if (locked) throw new ChargeLocked(locked.bill);
+    if (locked) throw new ChargeLocked(locked.bill, locked.status);
     const lock = await tx.expense.updateMany({ where: { id: existing.id, editedAt: existing.editedAt, deletedAt: null }, data: { editedAt: new Date() } });
     if (lock.count !== 1) throw new Clash();
     await claimKey(tx, opts.requestKey, existing.id);
@@ -396,7 +408,7 @@ async function saveExpenseOnce(
     });
    });
   } catch (err) {
-    if (err instanceof ChargeLocked) return { ok: false, error: chargeLockedText(err.message) };
+    if (err instanceof ChargeLocked) return { ok: false, error: chargeLockedText(err.message, err.status) };
     if (err instanceof LeaverStays) return { ok: false, error: err.message };
     if (err instanceof Clash) return { ok: false, error: "Someone changed this expense a moment ago. Go back and open it again to see the latest version." };
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
@@ -439,7 +451,7 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
     await markUndone(tx, opts.mark); // when this is an undo: marked in this very transaction
     // A move-out daily charge can't be deleted, or come back, once that month's bill is being added or was added: the bill took it off its total.
     const locked = await chargeLock(tx, expense.groupId, expense.id);
-    if (locked) throw deleted ? new ChargeLocked(locked.bill) : new MonthAdded(locked.bill);
+    if (locked) throw deleted ? new ChargeLocked(locked.bill, locked.status) : new MonthAdded(locked.bill);
     if (deleted) {
       // Deleting takes its amounts out of everyone's balance: a leaver can't end anywhere but where they were, or 0.
       // A move-out daily charge is exempt only for the leaver it was made for (deleting it is the tested way to take it
@@ -474,7 +486,7 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
     if (err instanceof LeaverBack || err instanceof LeaverBreak) return { ok: false, error: err.message };
     if (err instanceof MonthAdded) return { ok: false, error: `This month’s ${err.message} was already added, so this charge can’t come back. Add it again by hand if needed.` };
-    if (err instanceof ChargeLocked) return { ok: false, error: chargeLockedText(err.message) };
+    if (err instanceof ChargeLocked) return { ok: false, error: chargeLockedText(err.message, err.status) };
     throw err;
   }
   return { ok: true, id: expense.id, eventId: eventId || undefined };

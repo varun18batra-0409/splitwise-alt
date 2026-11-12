@@ -130,6 +130,8 @@ describe("Exercise A summary fails closed", () => {
     const r = run(fx);
     expect(r.code, r.stdout).toBe(0);
     expect(r.file).toMatch(/## Verdict: CLEAN/);
+    // Accepted skips are not a bare CLEAN: the verdict line says some things did not run.
+    expect(r.file).toMatch(/## Verdict: CLEAN \(with 4 steps not run, listed below\)/);
     // The skip table shows the reasons the run itself recorded, plus device, owner and what covers it.
     expect(r.file).toContain("Touch drags are built with Chrome's Touch objects");
     expect(r.file).toMatch(/iPhone \| 38-gestures\.spec\.ts/);
@@ -181,6 +183,7 @@ describe("Exercise A summary fails closed", () => {
     const r = run(fx);
     expect(r.code, r.stdout).toBe(0);
     expect(r.file).toContain("NOT RUN");
+    expect(r.file).toMatch(/## Verdict: CLEAN \(with 5 steps not run, listed below\)/);
     expect(r.file).toContain("nothing left to pay");
     // android: 2 passed (not 3), 1 not run
     expect(r.file).toMatch(/\| android \| android phone \| 2 \| 0 \| 0 \| 1 \| 3 \|/);
@@ -322,5 +325,53 @@ describe("Exercise A summary fails closed", () => {
     const fx = makeFixture();
     rmSync(join(fx.repo, "e2e"), { recursive: true });
     expectBlocked(fx, /no expected spec files found/);
+  });
+});
+
+// N1: the cross-device "missing steps" check compares step NAMES, so a name must be the same fixed text on every device.
+// A name that mentions the time zone or the screen width would make every good run look as if steps were missing.
+describe("UAT step names are fixed text", () => {
+  const src = readFileSync(join(process.cwd(), "scripts", "uat.ts"), "utf8");
+  const headers = [...src.matchAll(/await step(?:On)?\(([\s\S]*?),\s*async \(\) =>/g)].map((m) => m[1]);
+
+  it("finds the steps (so the scan below is not checking nothing)", () => {
+    expect(headers.length).toBeGreaterThan(200);
+  });
+
+  it("no step name (or reason) contains a ${...} expression", () => {
+    const bad = headers.filter((h) => h.includes("${")).map((h) => h.replace(/\s+/g, " ").slice(0, 140));
+    expect(bad).toEqual([]);
+  });
+
+  it("steps names are unique, so a device cannot hide a missing step behind a repeat", () => {
+    const names = headers.map((h) => /"((?:[^"\\]|\\.)*)"\s*$/.exec(h.trim())?.[1]).filter(Boolean) as string[];
+    const seen = new Set<string>();
+    const dup = names.filter((n) => (seen.has(n) ? true : (seen.add(n), false)));
+    expect(dup).toEqual([]);
+  });
+
+  it("real step-name shapes (curly quotes, colons, unicode) compare equal across devices and pass", () => {
+    const fx = makeFixture();
+    const names = ["“Yesterday” is yesterday where the person is: the saved day, and the time zone the app was told, both match", "No screen scrolls sideways at this device's own size, including the 12-person and yen groups", "React 🔥 to an expense: it shows under the expense; tapping 🔥 again takes it back"];
+    for (const p of PROFILES) {
+      const steps = names.map((name, i) => ({ n: i + 1, area: "Money", coverage: "Money", name, status: "pass", detail: p === "android" ? "Asia/Kolkata" : "Europe/London", runsOn: [...PROFILES] }));
+      put(join(fx.results, `uat-${p}`, "coverage.json"), uatCoverage(p, { steps }));
+    }
+    const r = run(fx);
+    expect(r.code, r.stdout).toBe(0);
+    rmSync(fx.root, { recursive: true });
+  });
+});
+
+// N4: a step whose situation did not come up is recorded as not run, never as a pass.
+describe("UAT steps that can't fail are not passes", () => {
+  const src = readFileSync(join(process.cwd(), "scripts", "uat.ts"), "utf8");
+  it("no step returns a plain note saying nothing happened", () => {
+    expect(src).not.toMatch(/return "(?:no |nobody|saved; nobody|checked on the GitHub|Google isn)/);
+    expect(src).not.toMatch(/return [`"][^`"]*\(skipped\)/);
+  });
+  it("the invite step uses the real More ways control (data-more-ways), not its text", () => {
+    expect(src).not.toContain('getByText("More ways"');
+    expect(src.match(/\[data-more-ways\] > summary/g)?.length).toBe(2);
   });
 });

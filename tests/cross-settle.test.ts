@@ -172,3 +172,36 @@ describe("the all-groups Settle opener uses different words from a group's claim
     expect(personKey({ name: "x", phone: "919876543210" }, "g", "IN")).toBe(personKey({ name: "x", phone: "9876543210" }, "g", "IN"));
   });
 });
+
+describe("LC-03: numbers with and without a country code, in any currency's group", () => {
+  const grp = (id: string, currency: string, phone: string): GroupForSettle => ({
+    groupId: id,
+    groupName: id,
+    currency,
+    myId: `me-${id}`,
+    members: [{ id: `me-${id}`, name: "Me", phone: "" }, { id: `p-${id}`, name: "Asha", phone }],
+    transfers: [{ from: `me-${id}`, to: `p-${id}`, amount: 1000 }],
+  });
+  const rows = (a: GroupForSettle, b: GroupForSettle) => crossSettle([a, b], "INR", () => null).items;
+
+  it("+91 98765 43210 in an INR flat and 98765 43210 in a THB trip group are one person: 1 row, 2000", () => {
+    const items = crossSettle([grp("flat", "INR", "+91 98765 43210"), grp("trip", "THB", "98765 43210")], "INR", (amt) => amt);
+    expect(items.items).toHaveLength(1);
+    expect(items.items[0].net).toBe(-2000); // -1000 + -1000
+  });
+  it("098765 43210 in a USD group and +91 98765 43210 merge (no code on one side: last 10 digits)", () => {
+    const items = crossSettle([grp("us", "USD", "098765 43210"), grp("in", "INR", "+91 98765 43210")], "INR", (amt) => amt);
+    expect(items.items).toHaveLength(1);
+  });
+  it("+16505550123 and +916505550123 stay two people (both carry a code, and the codes differ): 2 rows", () => {
+    expect(rows(grp("us", "USD", "+16505550123"), grp("in", "INR", "+916505550123"))).toHaveLength(2);
+  });
+  it("a number with no code is left alone when the same digits exist under two different codes", () => {
+    const items = crossSettle([grp("us", "USD", "+16505550123"), grp("in", "INR", "+916505550123"), grp("eu", "EUR", "6505550123")], "INR", (amt) => amt);
+    expect(items.items).toHaveLength(3);
+  });
+  it("Singapore: +65 9123 4567 and 9123 4567 are one person", () => {
+    expect(crossSettle([grp("a", "SGD", "+65 9123 4567"), grp("b", "THB", "9123 4567")], "INR", (amt) => amt).items).toHaveLength(1);
+  });
+});
+

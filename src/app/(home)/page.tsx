@@ -39,7 +39,7 @@ import { gameVisible, stillIn } from "@/lib/left-view";
 import { canUndo } from "@/lib/undo";
 import { UndoBar } from "@/components/UndoBar";
 import { PersonIcon, iconButtonClass } from "@/components/icons";
-import { myCollections, progress } from "@/lib/collect";
+import { countMyCollections, myCollections, progress } from "@/lib/collect";
 import { CollectionsSection } from "@/components/CollectionsList";
 import { FooterLinks, HOME_FOOTER_LINKS } from "@/components/FooterLinks";
 import { countdownWords, placeOf, tripPhase, type TripPhase } from "@/lib/countdown";
@@ -86,11 +86,12 @@ export default async function Home({
   const { closed: justClosed, did, g: didGroup, undone, error, deleted, signedin, moved, collection } = await searchParams;
   const [tz, memberships] = await Promise.all([getTimeZone(), getMemberships()]);
   // Independent reads, all at once.
-  const [overview, deletedGroups, account, collections, invitations, needs] = await Promise.all([
+  const [overview, deletedGroups, account, collections, collectionsTotal, invitations, needs] = await Promise.all([
     loadOverview(memberships),
     loadDeletedGroups(memberships),
     getAccount(),
     getAccount().then((a) => (a ? myCollections(a.id) : [])),
+    getAccount().then((a) => (a ? countMyCollections(a.id) : 0)),
     // Groups someone added you to, waiting for Join or Not now.
     getAccount().then((a) => loadInvitations(a)),
     // Things only you can answer (someone says they paid you, a bill waiting for its amount): the top two show on Home.
@@ -574,7 +575,7 @@ export default async function Home({
           </section>
 
           {stories.length > 0 && <Stories stories={stories} className="mt-8" />}
-          {collections.length > 0 && <CollectionsSection list={collections} limit={6} />}
+          {collections.length > 0 && <CollectionsSection list={collections} limit={6} total={collectionsTotal} />}
         </>
       ) : (
         <>
@@ -659,7 +660,7 @@ export default async function Home({
             </section>
           )}
 
-          {collections.length > 0 && <CollectionsSection list={collections} limit={6} />}
+          {collections.length > 0 && <CollectionsSection list={collections} limit={6} total={collectionsTotal} />}
 
           {/* New here (one group, no expenses yet): a gentle pointer to the 1-minute tour. */}
           {open.length <= 1 && open.every((g) => g.expenseCount === 0) && (

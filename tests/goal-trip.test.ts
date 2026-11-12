@@ -8,6 +8,7 @@ const goal = (tag: string) => `goal-${tag}-${stamp}`;
 
 afterAll(async () => {
   await db.requestKey.deleteMany({ where: { key: { contains: stamp } } });
+  await db.notifyLog.deleteMany({ where: { key: { contains: stamp } } });
 });
 
 describe("tripFromGoalOnce", () => {
@@ -34,5 +35,22 @@ describe("tripFromGoalOnce", () => {
     const r = await tripFromGoalOnce(goal("c"), async () => ({ id: `t${++made}` }));
     expect(r).toEqual({ busy: true });
     expect(made).toBe(0);
+  });
+
+  it("a goal that became a trip before request keys existed (old claim only) makes no new trip", async () => {
+    await db.notifyLog.create({ data: { key: `trip-from-goal:${goal("legacy")}` } });
+    let made = 0;
+    const r = await tripFromGoalOnce(goal("legacy"), async () => ({ id: `t${++made}` }));
+    expect(r).toEqual({ existing: "" }); // trip not known: the caller goes to the group
+    expect(made).toBe(0);
+  });
+
+  it("after the request key is cleaned up, a tap still goes to the same trip and makes none", async () => {
+    let made = 0;
+    const make = async () => ({ id: `trip-d${++made}` });
+    expect(await tripFromGoalOnce(goal("durable"), make)).toEqual({ trip: { id: "trip-d1" } });
+    await db.requestKey.deleteMany({ where: { key: `trip-from-goal:${goal("durable")}` } }); // the 7/30-day clean-up
+    expect(await tripFromGoalOnce(goal("durable"), make)).toEqual({ existing: "trip-d1" });
+    expect(made).toBe(1);
   });
 });

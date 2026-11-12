@@ -133,6 +133,7 @@ export async function runClaimedParts(now: Date, stop: () => boolean, failed: st
     } catch (err) {
       console.error(`daily job: ${name} failed`, String(err).slice(0, 300));
       failed.push(name);
+      if ((err as { deferred?: boolean } | null)?.deferred === true) deferred.push(name); // failed AND unfinished: the evening run finishes it
       results[name] = { error: "failed" };
     }
   };
@@ -155,7 +156,8 @@ export async function runClaimedParts(now: Date, stop: () => boolean, failed: st
     let errors = 0;
     for (const b of groups) {
       if (stop()) {
-        if (errors) throw new Error(`budgets: ${errors} group(s) failed`);
+        // Time is up: the rest is deferred as before, but a group that already failed still marks the part as failed.
+        if (errors) throw Object.assign(new Error(`budgets: ${errors} group(s) failed`), { deferred: true });
         return { sent, deferred: true };
       }
       // A group whose check broke is counted (and the part reported as failed), not passed off as "nothing to send".

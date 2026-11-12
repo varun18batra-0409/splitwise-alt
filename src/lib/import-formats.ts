@@ -39,6 +39,17 @@ export type Detected =
 
 const lower = (s: string | undefined) => (s ?? "").trim().toLowerCase();
 
+// A currency cell as people write it: a code ("INR", "usd"), or a common symbol or short form ("₹", "Rs", "Rs.", "$", "£", "€").
+// Returns the code, or "" when it says nothing we can read (then the row is taken as being in the file's own currency,
+// never skipped for a symbol). "$" is read as US dollars.
+const CURRENCY_WORDS: Record<string, string> = { "₹": "INR", RS: "INR", "RS.": "INR", "$": "USD", US$: "USD", "£": "GBP", "€": "EUR" };
+export function currencyCell(raw: string | undefined): string {
+  const t = (raw ?? "").trim().toUpperCase().replace(/\s+/g, "");
+  if (!t) return "";
+  if (CURRENCY_WORDS[t]) return CURRENCY_WORDS[t];
+  return /^[A-Z]{3}$/.test(t) ? t : "";
+}
+
 export function detectFormat(text: string): Detected {
   if (text.length > MAX_IMPORT_BYTES) return { ok: false, error: "That file is too big. Export one group at a time." };
   const table = readCsv(text).filter((r) => r.some((c) => c.trim() !== ""));
@@ -58,7 +69,7 @@ export function detectFormat(text: string): Detected {
   if (curCol >= 0) {
     const counts = new Map<string, number>();
     for (const r of table.slice(1)) {
-      const c = (r[curCol] ?? "").trim().toUpperCase();
+      const c = currencyCell(r[curCol]);
       if (isSupportedCurrency(c)) counts.set(c, (counts.get(c) ?? 0) + 1);
     }
     currency = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "INR";
@@ -245,7 +256,7 @@ export function parseGenericCsv(text: string, map: ColumnMap, currency: string):
   // A currency column (if any): rows in another currency than the group's are left out and listed,
   // never read as if they were in the group's currency (10 USD is not 10 rupees).
   const curCol = head.findIndex((x) => /^currency$|currency code/.test(lower(x)));
-  const rowCurrency = (r: string[]) => (curCol >= 0 ? (r[curCol] ?? "").trim().toUpperCase() : "");
+  const rowCurrency = (r: string[]) => (curCol >= 0 ? currencyCell(r[curCol]) : "");
   const isOther = (r: string[]) => {
     const c = rowCurrency(r);
     return c !== "" && c !== currency;

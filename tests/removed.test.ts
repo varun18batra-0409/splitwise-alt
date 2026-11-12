@@ -234,7 +234,10 @@ describe("a new invite link", () => {
     expect(await waitingInvites(f.groupId)).toBe(0);
     await db.invite.create({ data: { groupId: f.groupId, email: `waiting-${stamp}@example.test`, invitedById: f.asha } });
     expect(await waitingInvites(f.groupId)).toBe(1);
-    await db.invite.updateMany({ where: { groupId: f.groupId }, data: { acceptedAt: new Date() } });
+    // A closed invitation (declined, cancelled, or closed by a new link) is not waiting.
+    await db.invite.updateMany({ where: { groupId: f.groupId }, data: { declinedAt: new Date() } });
+    expect(await waitingInvites(f.groupId)).toBe(0);
+    await db.invite.updateMany({ where: { groupId: f.groupId }, data: { declinedAt: null, acceptedAt: new Date() } });
     expect(await waitingInvites(f.groupId)).toBe(0);
   });
 });

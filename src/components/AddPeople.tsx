@@ -5,7 +5,7 @@ import { addPerson, invitePeople } from "@/app/actions";
 import { InviteIcon, SearchIcon } from "./icons";
 import { reportSpeed } from "./speedReport";
 import { whatsappLink } from "@/lib/whatsapp";
-import { inviteLabel, type InviteChannel } from "@/lib/invite-label";
+import { INVITE_EMAIL_HINT, inviteLabel, type InviteChannel } from "@/lib/invite-label";
 
 type Found = { accountId: string; name: string; inGroup: boolean; known: boolean; invited?: boolean; removed?: boolean; mayAdd?: boolean };
 const isEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(s.trim());
@@ -120,7 +120,7 @@ export function PeopleSearch({ groupId }: { groupId: string }) {
             <li className="flex items-center gap-3 px-3 py-2.5">
               <span className="min-w-0 flex-1 text-sm">
                 <span className="block truncate">{q.trim()}</span>
-                <span className="block text-xs text-gray-400">In the group now, and emailed an invitation</span>
+                <span className="block text-xs text-gray-400">{INVITE_EMAIL_HINT}</span>
               </span>
               <form action={invitePeople}>
                 <input type="hidden" name="groupId" value={groupId} />

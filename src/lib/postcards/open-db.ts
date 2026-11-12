@@ -6,6 +6,8 @@ import { noteItem } from "@/lib/account-notify";
 // Each postcard is CLAIMED (openNoted false -> true, only if still false) and its note in Alerts is written in the same
 // transaction, so a run that stops half way can't leave a postcard marked as told with no note, and two runs at once can't
 // both tell. The phone push goes afterwards (a push that fails never undoes the note).
+const BATCH = 100;
+
 export async function noteOpenedPostcards(now = new Date()): Promise<{ sent: number }> {
   const due = await db.postcard.findMany({ where: { opensAt: { lte: now }, openNoted: false }, select: { id: true, fromId: true, toId: true }, take: 500 });
   if (!due.length) return { sent: 0 };
@@ -19,19 +21,32 @@ export async function noteOpenedPostcards(now = new Date()): Promise<{ sent: num
 
   const toPush: { to: string; fromId: string; title: string; body: string; url: string; tag: string }[] = [];
   let sent = 0;
-  await db.$transaction(async (tx) => {
-    for (const p of due) {
-      const claimed = await tx.postcard.updateMany({ where: { id: p.id, openNoted: false }, data: { openNoted: true } });
-      if (claimed.count !== 1) continue; // someone else already told this one
-      sent++;
-      if (!recipients.has(p.toId) || blockedBy.get(p.fromId)?.has(p.toId)) continue;
-      const title = "Your sealed postcard is open";
-      const body = `${first.get(p.fromId) ?? "A friend"} wrote it for today.`;
-      const url = `/postcards/${p.id}`;
-      await tx.accountNote.create({ data: { accountId: p.toId, kind: "postcard", title: title.slice(0, 80), body: body.slice(0, 300), url } });
-      toPush.push({ to: p.toId, fromId: p.fromId, title, body, url, tag: `postcard-open-${p.id}` });
-    }
-  });
+  // At most 100 cards per transaction (each does a few writes), with room to finish: a long list can't hit the default time limit.
+  for (let i = 0; i < due.length; i += BATCH) {
+    const batch = due.slice(i, i + BATCH);
+    const pushed: typeof toPush = [];
+    let claimedHere = 0;
+    await db.$transaction(
+      async (tx) => {
+        pushed.length = 0;
+        claimedHere = 0;
+        for (const p of batch) {
+          const claimed = await tx.postcard.updateMany({ where: { id: p.id, openNoted: false }, data: { openNoted: true } });
+          if (claimed.count !== 1) continue; // someone else already told this one
+          claimedHere++;
+          if (!recipients.has(p.toId) || blockedBy.get(p.fromId)?.has(p.toId)) continue;
+          const title = "Your sealed postcard is open";
+          const body = `${first.get(p.fromId) ?? "A friend"} wrote it for today.`;
+          const url = `/postcards/${p.id}`;
+          await tx.accountNote.create({ data: { accountId: p.toId, kind: "postcard", title: title.slice(0, 80), body: body.slice(0, 300), url } });
+          pushed.push({ to: p.toId, fromId: p.fromId, title, body, url, tag: `postcard-open-${p.id}` });
+        }
+      },
+      { timeout: 30000 },
+    );
+    sent += claimedHere;
+    toPush.push(...pushed);
+  }
   for (const n of toPush) {
     try {
       await sendPushToAccounts([n.to], { title: n.title, body: n.body, url: n.url, tag: n.tag }, noteItem("postcard"));

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
-import { RECEIPT_GONE, saveExpense, type SaveExpenseInput } from "@/lib/save-expense";
+import { ITEMS_TOO_MANY, RECEIPT_GONE, itemsDisagree, saveExpense, type SaveExpenseInput } from "@/lib/save-expense";
 import type { RateAnswer } from "@/lib/rate-cache";
 
 // An expense, its item lines and its bill photo are saved together or not at all.
@@ -166,5 +166,32 @@ describe("LC-04: item lines must agree with the shares", () => {
     const bad = await saveExpense(input({ exact: { [a]: "500", [b]: "500" } }), a, rate, { attach: { items: [{ name: "Too much", amount: 150000, people: [a, b] }] } });
     expect(bad.ok).toBe(false);
     expect(await expenseCount()).toBe(0);
+  });
+
+  it("more than 40 item lines is refused with a plain sentence (nothing saved); exactly 40 is accepted", async () => {
+    await db.expense.deleteMany({ where: { groupId } });
+    const many = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `Item ${i + 1}`, amount: 2500, people: [a, b] }));
+    // 41 lines of 2500 would be 102500: over the 100000 bill anyway, but the count is what is refused.
+    const bad = await saveExpense(input({ exact: { [a]: "500", [b]: "500" } }), a, rate, { attach: { items: many(41) } });
+    expect(bad).toEqual({ ok: false, error: ITEMS_TOO_MANY });
+    expect(await expenseCount()).toBe(0);
+    // 40 x 2500 = 100000, shared by A and B: 50000 each, the same as 500 / 500.
+    const good = await saveExpense(input({ exact: { [a]: "500", [b]: "500" } }), a, rate, { attach: { items: many(40) } });
+    expect(good.ok).toBe(true);
+  });
+});
+
+describe("LC-04: a tiny foreign-currency item that rounds to nothing", () => {
+  const line = (name: string, amount: number, people: string[]) => ({ position: 0, name, amount, people: JSON.stringify(people) });
+  it("items 10000 (A) and 1 (B) of a 10001 bill, converted to a final total of 101: A 100.99 -> 101, B 0.0099 -> 0; B having no share is fine", () => {
+    // Exact values: 101 x 10000 / 10001 = 100.99 (rounded down 100, up 101); 101 x 1 / 10001 = 0.0099 (down 0, up 1).
+    const lines = [line("Big", 10000, ["A"]), line("Tiny", 1, ["B"])];
+    expect(itemsDisagree(lines, { originalAmount: 10001, amount: 101, shares: [{ memberId: "A", amount: 101 }] })).toBeNull();
+    expect(itemsDisagree(lines, { originalAmount: 10001, amount: 101, shares: [{ memberId: "A", amount: 100 }, { memberId: "B", amount: 1 }] })).toBeNull();
+  });
+  it("still refuses a real difference, and a share for someone with no item", () => {
+    const lines = [line("Big", 10000, ["A"]), line("Tiny", 1, ["B"])];
+    expect(itemsDisagree(lines, { originalAmount: 10001, amount: 101, shares: [{ memberId: "A", amount: 50 }, { memberId: "B", amount: 51 }] })).not.toBeNull();
+    expect(itemsDisagree(lines, { originalAmount: 10001, amount: 101, shares: [{ memberId: "A", amount: 100 }, { memberId: "C", amount: 1 }] })).not.toBeNull();
   });
 });

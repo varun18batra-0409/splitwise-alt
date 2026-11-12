@@ -256,11 +256,13 @@ add(`Commit: ${EXPECTED_COMMIT || "(unknown)"}  `);
 add(`Written: ${new Date().toISOString()}  `);
 if (jobs) add(`Jobs: ${jobs}`);
 add("");
-add(problems.length ? `## Verdict: FAILED, ${problems.length} thing(s) to look at` : "## Verdict: CLEAN, nothing failed and nothing is missing", "");
+// A clean run that still has steps not run or tests skipped says so in the verdict line itself (never a bare CLEAN).
+const notRunNote = warnings.length ? ` (with ${warnings.length} step${warnings.length === 1 ? "" : "s"} not run, listed below)` : "";
+add(problems.length ? `## Verdict: FAILED, ${problems.length} thing(s) to look at` : `## Verdict: CLEAN${notRunNote}, nothing failed and nothing is missing`, "");
 for (const p of problems) add(`- ${p}`);
 if (problems.length) add("");
 if (warnings.length) {
-  add("Not failures, but not passes either (each has its reason):", "");
+  add("Not failures, but not passes either (each has its reason). These are the steps and tests that did not run:", "");
   for (const w of warnings) add(`- ${w}`);
   add("");
 }
@@ -385,4 +387,4 @@ if (problems.length) {
   console.log(`::error title=Exercise A::FAILED with ${problems.length} problem(s); the run must not be handed on.`);
   process.exit(1);
 }
-console.log("::notice title=Exercise A::CLEAN: every job succeeded and every expected result is present.");
+console.log(`::notice title=Exercise A::CLEAN${notRunNote}: every job succeeded and every expected result is present.`);

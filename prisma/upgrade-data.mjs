@@ -1,8 +1,9 @@
 // Brings data saved by older versions of the app up to date.
 // Safe to run any number of times: it only touches rows that still need it.
-// The only things it deletes: groups deleted more than 30 days ago (they can
-// be restored until then) and expired housekeeping rows (old sign-in codes,
-// rate-limit counters, old error logs). Runs before `npm run dev` and on deploy.
+// The only things it deletes are expired housekeeping rows (old sign-in codes,
+// rate-limit counters, old error logs). It never deletes groups: erasing groups
+// deleted more than 30 days ago is the daily job's work (eraseExpiredGroups in
+// src/lib/purge.ts). Runs before `npm run dev` and on deploy.
 import { PrismaClient } from "@prisma/client";
 
 // Preview builds of unfinished branches must never change live data.

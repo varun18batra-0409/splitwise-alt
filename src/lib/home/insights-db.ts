@@ -11,7 +11,7 @@ import { coveredByOldRecord, markSentByOldPath, splitByZone, zonesOf } from "../
 import { monthSummary } from "./summary";
 import { buildExpense } from "../expense";
 import { allocateByWeights } from "../split";
-import { billExpenseInput } from "./bills-db";
+import { billExpenseInput, splitProblem } from "./bills-db";
 import { categoryJumps, forecast, monthlySummaryText, sameDayDuplicates, utilityJumps } from "./insights";
 
 type Expenses = (Parameters<typeof monthSummary>[0][number] & { id: string; description: string })[];
@@ -82,6 +82,9 @@ export async function monthInsights(groupId: string, expenses: Expenses, myId: s
     const groceryMine = totalW ? allocateByWeights(groceryTotal, Object.entries(weights).map(([memberId, weight]) => ({ memberId, weight }))).find((x) => x.memberId === myId)?.amount ?? 0 : 0;
     const billMine = (bill: (typeof bills)[number], amount: number): number => {
       if (amount <= 0) return 0;
+      // A split that can't be used now (everyone chosen for a "some" bill has left, or someone in a percent / amounts split
+      // has): the real run holds that bill, so it adds nothing to anyone's share.
+      if (splitProblem(bill.split, active.map((m) => m.id))) return 0;
       const payer = active.find((m) => m.id === myId)?.id ?? active[0]?.id ?? myId;
       const built = buildExpense(billExpenseInput(bill, groupId, currency, next, amount, payer, members), { memberIds: active.map((m) => m.id), baseCurrency: currency, groupMarkupBp: 0, rate: "1" });
       // A split that can't be worked out now (someone in it has left): that bill is left out of "your share" rather than guessed.

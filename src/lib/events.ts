@@ -275,7 +275,7 @@ async function touchesFromDb(db: Db, e: { expenseId?: string; paymentId?: string
 export type UndoMark = { eventId: string; actorId: string };
 export class UndoTaken extends Error {
   constructor() {
-    super("already undone");
+    super("That change was already undone.");
   }
 }
 export async function markUndone(tx: Db, mark?: UndoMark): Promise<void> {

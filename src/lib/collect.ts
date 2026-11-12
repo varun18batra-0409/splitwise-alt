@@ -202,6 +202,11 @@ function paidNote(c: { title: string; organiser: string; currency: string; code:
   return accountId ? [{ fromAccountId: c.accountId, accountIds: [accountId], kind: "collect_paid", title: c.title, body: `${c.organiser} got your ${formatMoney(amount, c.currency)} ✓ You’re all done.`, url: `/c/${c.code}`, tag: `collect:${c.code}` }] : [];
 }
 
+// How many collections I organise in all (Home lists only the first few, but "See all N" must be the real number).
+export async function countMyCollections(accountId: string): Promise<number> {
+  return db.collection.count({ where: { accountId, deletedAt: null } });
+}
+
 // Home: the collections I organise (open first, newest first).
 export async function myCollections(accountId: string, take = 20) {
   const list = await db.collection.findMany({

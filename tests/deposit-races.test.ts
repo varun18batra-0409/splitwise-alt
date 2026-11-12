@@ -93,3 +93,19 @@ describe("a stale deposit form", () => {
     expect((await sharesOf(g.id))[g.ids.A]).toEqual({ amount: 15000, status: "held" });
   });
 });
+
+describe("saving the form keeps a leaver's deposit on record", () => {
+  it("Kabir moved out with 20000 held; saving the form for the others leaves his 20000 held, and a cleared box still removes that person's share", async () => {
+    const g = await flat(["You", "Asha", "Kabir"]);
+    expect((await saveDepositFor(g.id, g.ids.You, { heldBy: "Landlord", amounts: { [g.ids.You]: "100", [g.ids.Asha]: "100", [g.ids.Kabir]: "200" } })).ok).toBe(true);
+    // Kabir moves out and keeps his deposit on record (no one to hand it to).
+    expect((await moveOut(g.id, g.ids.You, { leaverId: g.ids.Kabir, lastDay: "2026-11-10", requestKey: key("kabir") }, now)).ok).toBe(true);
+    // The form has boxes for You and Asha only; Asha's is cleared.
+    expect((await saveDepositFor(g.id, g.ids.You, { heldBy: "Landlord", amounts: { [g.ids.You]: "150", [g.ids.Asha]: "" } })).ok).toBe(true);
+    const s = await sharesOf(g.id);
+    expect(s[g.ids.Kabir]).toEqual({ amount: 20000, status: "held" });
+    expect(s[g.ids.You]).toEqual({ amount: 15000, status: "held" });
+    expect(s[g.ids.Asha]).toBeUndefined();
+  });
+});
+

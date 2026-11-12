@@ -3,6 +3,9 @@
 // what each person had, like restaurants do. Works in whole minor units (paise,
 // cents) and always adds up to the bill exactly. Pure.
 
+// A bill can be split over at most this many item lines (the server keeps no more, so the form stops here too).
+export const MAX_ITEM_LINES = 40;
+
 export type BillItem = { name: string; amount: number; people: string[] };
 export type ItemSplitResult =
   | { ok: true; amounts: Record<string, number>; itemsTotal: number; extra: number }

@@ -73,7 +73,7 @@ describe("download my data: the extra parts", () => {
 
   it("the privacy page names every part of the file", () => {
     const privacy = readFileSync("src/app/privacy/page.tsx", "utf8");
-    for (const word of ["postcards", "passport", "collections", "notification settings", "Anyone signed in"]) expect(privacy).toContain(word);
+    for (const word of ["postcards", "passport", "collections", "notification settings", "Anyone signed in", "current Loopin name", "the date", "postmark place"]) expect(privacy).toContain(word);
   });
 
   it("the account page shows the download to any signed-in user", () => {

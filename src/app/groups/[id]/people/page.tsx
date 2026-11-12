@@ -21,6 +21,7 @@ import { groupPeople } from "@/lib/people";
 import { membersAsOf } from "@/lib/left-view";
 import { db } from "@/lib/db";
 import { inviteMemberId } from "@/lib/invites";
+import { invitedNotice } from "@/lib/invite-label";
 import { SafetyLinks } from "@/components/SafetyLinks";
 
 // Everyone in the group: fix a name, remove someone (the admin) or
@@ -253,7 +254,7 @@ export default async function PeoplePage({
       )}
       {sp.invited && (
         <Notice tone="success" params={["invited"]} className="mb-4">
-          Invite sent to {sp.invited.slice(0, 80)}. When they join, they take over their name with its expenses.
+          {invitedNotice(sp.invited.slice(0, 80))} When they join, they take over their name with its expenses.
         </Notice>
       )}
 

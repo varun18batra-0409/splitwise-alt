@@ -9,8 +9,8 @@ import type { Transfer } from "./settle";
 // you ₹400 → across groups, you pay Asha ₹600.
 //
 // The same person is recognised by their Loopin account (signed in with a
-// verified email), else by their full international phone number (a number typed
-// with or without the country code is the same number; +1 650… and +91 650… are not). Two people who only
+// verified email), else by their phone number (a number typed with or without the country code is the same number;
+// two numbers that both carry a code match only if the codes match: +1 650… and +91 650… are not). Two people who only
 // share a name are NEVER merged: someone added by name alone is settled group by
 // group (each group's own row), because a name can't prove it's the same person.
 // Recording it as paid records the underlying payment in each group, so every
@@ -75,12 +75,50 @@ export function fullPhoneDigits(raw: string, region = ""): string {
   return local;
 }
 
+// A phone number split into the country code it CARRIES (only a "+" or "00" start counts as carrying one; "" if none) and
+// the national number. A number typed without a country code keeps cc "" whatever group it is in, because the group's
+// country is only a guess about the person. National numbers longer than 10 digits keep their last 10.
+function phoneParts(raw: string, region = ""): { cc: string; national: string } {
+  const trimmed = raw.trim();
+  const digits = trimmed.replace(/\D/g, "");
+  if (trimmed.startsWith("+") || digits.startsWith("00")) {
+    const full = digits.replace(/^0+/, "");
+    const known = Object.values(CALLING).find((c) => full.startsWith(c.code) && c.national.includes(full.length - c.code.length));
+    if (known) return { cc: known.code, national: full.slice(known.code.length) };
+    return full.length > 10 ? { cc: full.slice(0, full.length - 10), national: full.slice(-10) } : { cc: "", national: full };
+  }
+  const local = digits.replace(/^0+/, "");
+  const info = CALLING[region.toUpperCase()];
+  if (info && local.startsWith(info.code) && info.national.includes(local.length - info.code.length)) return { cc: "", national: local.slice(info.code.length) };
+  return { cc: "", national: local.length > 10 ? local.slice(-10) : local };
+}
+
 export function personKey(m: { id?: string; name: string; phone: string; accountId?: string | null }, groupId = "", region = ""): string {
   if (m.accountId) return `acc:${m.accountId}`;
   const digits = m.phone.replace(/\D/g, "");
-  if (digits.length >= 8) return `tel:${fullPhoneDigits(m.phone, region)}`;
+  if (digits.length >= 8) {
+    const { cc, national } = phoneParts(m.phone, region);
+    return `tel:${cc}:${national}`;
+  }
   // Name only: never matched across groups. Its own row, in its own group.
   return `solo:${groupId}:${m.id ?? m.name.trim().replace(/\s+/g, " ").toLowerCase()}`;
+}
+
+// Across all the people being compared: a number WITHOUT a country code joins the one number WITH a country code that
+// has the same national digits ("98765 43210" in a Thai trip group and "+91 98765 43210" in an Indian flat are one
+// person). Two numbers that both carry a code only match when the codes match (+1 650… is not +91 650…); if the
+// same digits appear under two different codes, a number without a code is left on its own rather than guessed.
+export function phoneKeyResolver(keys: Iterable<string>): (key: string) => string {
+  const codes = new Map<string, Set<string>>();
+  for (const k of keys) {
+    const m = /^tel:(\d+):(\d+)$/.exec(k);
+    if (m) (codes.get(m[2]) ?? codes.set(m[2], new Set()).get(m[2])!).add(m[1]);
+  }
+  return (k) => {
+    const m = /^tel::(\d+)$/.exec(k);
+    const set = m ? codes.get(m[1]) : undefined;
+    return m && set && set.size === 1 ? `tel:${[...set][0]}:${m[1]}` : k;
+  };
 }
 
 // The id of a person's row on the all-groups Settle up, so Home can link straight to it ("/settle#pay-acc_x1").
@@ -95,6 +133,15 @@ export function crossSettle(
 ): { items: CrossItem[]; skippedGroups: string[] } {
   const byPerson = new Map<string, CrossItem>();
   const skippedGroups: string[] = [];
+  const resolve = phoneKeyResolver(
+    groups.flatMap((g) =>
+      g.transfers
+        .filter((t) => t.from === g.myId || t.to === g.myId)
+        .map((t) => g.members.find((m) => m.id === (t.from === g.myId ? t.to : t.from)))
+        .filter((m): m is NonNullable<typeof m> => Boolean(m))
+        .map((m) => personKey(m, g.groupId, regionForGroup(g))),
+    ),
+  );
 
   for (const g of groups) {
     const member = (id: string) => g.members.find((m) => m.id === id);
@@ -108,7 +155,7 @@ export function crossSettle(
         if (!skippedGroups.includes(g.groupName)) skippedGroups.push(g.groupName);
         continue;
       }
-      const key = personKey(other, g.groupId, regionForGroup(g));
+      const key = resolve(personKey(other, g.groupId, regionForGroup(g)));
       const item = byPerson.get(key) ?? { key, name: other.name, net: 0, parts: [], converted: false };
       const iPay = t.from === g.myId;
       item.net += iPay ? -amountCommon : amountCommon;

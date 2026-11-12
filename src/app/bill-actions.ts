@@ -224,7 +224,7 @@ export async function tripFromGoal(formData: FormData) {
   const made = await tripFromGoalOnce(goal.id, () => createGroupFor(account, { type: "trip", name: goal.name, yourName: meMember.name, currency: goal.group.currency }));
   if ("existing" in made) {
     // Straight to the trip if you are in it (your own retry); otherwise back to this group (someone else already made it).
-    const inIt = await db.member.findFirst({ where: { groupId: made.existing, accountId: account.id, leftAt: null }, select: { id: true } });
+    const inIt = made.existing && await db.member.findFirst({ where: { groupId: made.existing, accountId: account.id, leftAt: null }, select: { id: true } });
     redirect(inIt ? `/groups/${made.existing}` : `/groups/${groupId}`);
   }
   if ("busy" in made) redirect(`/groups/${groupId}`);

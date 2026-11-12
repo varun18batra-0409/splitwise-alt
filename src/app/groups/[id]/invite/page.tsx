@@ -18,6 +18,7 @@ import { CopyButton } from "@/components/CollectBits";
 import { GroupCover } from "@/components/GroupCover";
 import { coverFor } from "@/lib/covers";
 import { inviteMemberId, inviteRowLabel } from "@/lib/invites";
+import { invitedNotice } from "@/lib/invite-label";
 
 // "invited" in the address: who was just added, as [name, email] pairs. The email is only there when the
 // person typed it themselves ("By email"); someone found by search carries their name alone.
@@ -128,7 +129,7 @@ export default async function AddPeoplePage({
           <Notice key={`${name}-${email}`} tone="success" params={["invited"]} className="mb-4">
             <span className="block font-semibold" data-invited-title>{name} is in the group</span>
             <span className="block text-sm">
-              You can add {name} to expenses now. We’ve sent an invitation{email ? ` to ${email}` : ""} so they can see the group on their phone.
+              You can add {name} to expenses now. {invitedNotice(email)}
             </span>
           </Notice>
         ))}

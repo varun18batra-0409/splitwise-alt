@@ -55,4 +55,14 @@ describe("noteOpenedPostcards", () => {
     expect((await db.postcard.findUniqueOrThrow({ where: { id: p.id } })).openNoted).toBe(true);
     expect(await db.accountNote.count({ where: { accountId: to.id } })).toBe(0);
   });
+
+  it("more than 100 due cards are all handled (in batches of 100), each with its note", async () => {
+    const from = await account("Sender4");
+    const to = await account("Reader4");
+    await db.postcard.createMany({ data: Array.from({ length: 120 }, (_, i) => ({ fromId: from.id, toId: to.id, front: "print:beach", message: `card ${i}`, opensAt: new Date(Date.now() - 60_000) })) });
+    const r = await noteOpenedPostcards();
+    expect(r.sent).toBeGreaterThanOrEqual(120);
+    expect(await db.postcard.count({ where: { fromId: from.id, openNoted: false } })).toBe(0);
+    expect(await db.accountNote.count({ where: { accountId: to.id, kind: "postcard" } })).toBe(120);
+  });
 });

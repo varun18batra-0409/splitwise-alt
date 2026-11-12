@@ -123,7 +123,7 @@ export async function joinNew(code: string, account: JoinAccount, typedName: str
 
 // How many email invites are still waiting (they stop working with a new link).
 export async function waitingInvites(groupId: string): Promise<number> {
-  return db.invite.count({ where: { groupId, acceptedAt: null } });
+  return db.invite.count({ where: { groupId, acceptedAt: null, declinedAt: null } }); // closed (cancelled, declined, or by a new link) ones are not waiting
 }
 
 export const NEW_LINK_ADMIN_ONLY = "Only the person who looks after this group can make a new invite link.";

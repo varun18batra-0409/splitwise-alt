@@ -2,7 +2,7 @@
 // you owe -> Settle up is bright; you're owed or it evens out -> Add expense is bright;
 // all square -> Add expense is bright and the second button becomes New group (there is nothing to settle).
 import type { TripPhase } from "../countdown";
-import { personKey, regionForGroup, settleRowId } from "../cross-settle";
+import { personKey, phoneKeyResolver, regionForGroup, settleRowId } from "../cross-settle";
 import { homeMoney } from "./display";
 import { formatMoney } from "../money";
 
@@ -65,6 +65,15 @@ export type PeopleGroup = {
 // Amounts are positive minor units. Together (one currency) they add up to that side's total.
 export function moneyPeople(groups: PeopleGroup[], side: "owe" | "owed", common: string, toCommon: (amount: number, currency: string) => number | null): MoneyPerson[] {
   const acc = new Map<string, MoneyPerson & { signed: number }>();
+  const resolve = phoneKeyResolver(
+    groups.flatMap((g) =>
+      g.transfers
+        .filter((t) => t.from === g.myId || t.to === g.myId)
+        .map((t) => g.members.find((m) => m.id === (t.from === g.myId ? t.to : t.from)))
+        .filter((m): m is NonNullable<typeof m> => Boolean(m))
+        .map((m) => personKey(m, g.groupId, regionForGroup(g))),
+    ),
+  );
   for (const g of groups) {
     for (const t of g.transfers) {
       if (t.from !== g.myId && t.to !== g.myId) continue;
@@ -74,7 +83,7 @@ export function moneyPeople(groups: PeopleGroup[], side: "owe" | "owed", common:
       const conv = g.currency === common ? t.amount : toCommon(t.amount, g.currency);
       const currency = conv === null ? g.currency : common;
       const amount = conv === null ? t.amount : conv;
-      const key = personKey(other, g.groupId, regionForGroup(g));
+      const key = resolve(personKey(other, g.groupId, regionForGroup(g)));
       const slot = `${key}|${currency}`;
       const e = acc.get(slot) ?? { key, name: other.name, groupName: g.groupName, solo: key.startsWith("solo:"), amount: 0, currency, approx: false, parts: [], signed: 0 };
       e.signed += iPay ? -amount : amount;

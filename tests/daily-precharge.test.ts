@@ -328,7 +328,7 @@ describe("the move-out charge after it was changed, and who is credited for it",
     await runBillsForGroup(f.groupId, monthEnd);
     expect(await db.billRun.findUniqueOrThrow({ where: { billId_period: { billId: f.billId, period: "2026-11" } } })).toMatchObject({ status: "skipped", reason: "covered" });
     const r = await setExpenseDeleted(pre.id, f.asha, true);
-    expect(r).toEqual({ ok: false, error: "This was counted in this month’s Milk. Edit Milk instead." });
+    expect(r).toEqual({ ok: false, error: "This month’s Milk was already covered, so this charge stays." });
     expect((await db.expense.findUniqueOrThrow({ where: { id: pre.id } })).deletedAt).toBeNull();
   });
 

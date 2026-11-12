@@ -16,7 +16,7 @@ import { SpinWheel } from "./SpinWheel";
 import { CurrencyPicker } from "./CurrencyPicker";
 import { expensePairs, payersJson } from "@/lib/payers";
 import { participantsFor, type ForMode, type SplitType } from "@/lib/split";
-import { splitByItems } from "@/lib/item-split";
+import { MAX_ITEM_LINES, splitByItems } from "@/lib/item-split";
 import { chooseSplit, splitFields, type SplitAction } from "@/lib/split-draft";
 import { niceDate, rateText } from "@/lib/format";
 import { dayKey, todayKey } from "@/lib/dates";
@@ -379,7 +379,7 @@ export function AddExpenseForm({
       if (b.date !== today) setShowDate(true);
     }
     if (b.items.length) {
-      setItems(b.items.map((x, i) => ({ k: i + 1, name: x.name, amount: String(x.price), people: [] })));
+      setItems(b.items.slice(0, MAX_ITEM_LINES).map((x, i) => ({ k: i + 1, name: x.name, amount: String(x.price), people: [] })));
       setScannedItems(b.items.length);
     }
     return switched;
@@ -1120,13 +1120,17 @@ export function AddExpenseForm({
                         </div>
                       );
                     })}
-                    <button
-                      type="button"
-                      onClick={() => setItems((list) => [...list, { k: Math.max(0, ...list.map((x) => x.k)) + 1, name: "", amount: "", people: [] }])}
-                      className="flex min-h-11 items-center gap-2 text-sm font-medium text-fg"
-                    >
-                      <span className="text-lg leading-none">＋</span> Add item
-                    </button>
+                    {items.length < MAX_ITEM_LINES ? (
+                      <button
+                        type="button"
+                        onClick={() => setItems((list) => (list.length >= MAX_ITEM_LINES ? list : [...list, { k: Math.max(0, ...list.map((x) => x.k)) + 1, name: "", amount: "", people: [] }]))}
+                        className="flex min-h-11 items-center gap-2 text-sm font-medium text-fg"
+                      >
+                        <span className="text-lg leading-none">＋</span> Add item
+                      </button>
+                    ) : (
+                      <p className="text-xs text-gray-500" data-item-limit>That&apos;s the most a bill can have ({MAX_ITEM_LINES} items). Put small things together as one line.</p>
+                    )}
                     {itemSplit && (itemSplit.ok ? (
                       <div className="rounded-2xl bg-mist px-4 py-3 text-sm" data-item-result>
                         <p className="text-gray-500">

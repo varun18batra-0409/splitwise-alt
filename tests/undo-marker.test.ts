@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { saveExpense, type SaveExpenseInput } from "@/lib/save-expense";
 import { parseUndo } from "@/lib/events";
 import { revertExpense, undoEvent } from "@/lib/undo";
+import { setExpenseDeleted } from "@/lib/save-expense";
 import type { RateAnswer } from "@/lib/rate-cache";
 
 // INV-01: the "undone" mark is saved in the same transaction as the reversal, never before it.
@@ -39,7 +40,7 @@ async function edited() {
   if (!first.ok) throw new Error(first.error);
   const edit = await saveExpense({ ...draft(g.id, asha, { amount: "600" }), expenseId: first.id }, asha, rate);
   if (!edit.ok || !edit.eventId) throw new Error("edit failed");
-  return { groupId: g.id, asha, bina, expenseId: first.id, eventId: edit.eventId };
+  return { groupId: g.id, asha, bina, expenseId: first.id, eventId: edit.eventId, addedEventId: first.eventId! };
 }
 const sharesOf = async (expenseId: string) => Object.fromEntries((await db.expenseShare.findMany({ where: { expenseId } })).map((s) => [s.memberId, s.amount]));
 
@@ -76,3 +77,43 @@ describe("the undone mark and the reversal are saved together", () => {
     expect(await db.groupEvent.count({ where: { groupId: w.groupId, text: { startsWith: "undid a change to" } } })).toBe(1);
   });
 });
+
+describe("someone else already marked it undone (as if from another server)", () => {
+  it("an edit's reversal that starts after the mark was set elsewhere fails with 'That change was already undone.' and changes nothing", async () => {
+    const w = await edited();
+    const p = parseUndo((await db.groupEvent.findUniqueOrThrow({ where: { id: w.eventId } })).undo);
+    if (p?.type !== "expense_revert") throw new Error("not a revert");
+    const before = await db.expense.findUniqueOrThrow({ where: { id: w.expenseId } });
+    await expect(
+      revertExpense(w.expenseId, p.before, w.asha, {
+        mark: { eventId: w.eventId, actorId: w.asha },
+        // The gap between reading and writing: the other server marks it now.
+        afterRead: async () => {
+          await db.groupEvent.update({ where: { id: w.eventId }, data: { undoneAt: new Date(), undoneById: w.bina } });
+        },
+      }),
+    ).rejects.toThrow("That change was already undone.");
+    expect(await sharesOf(w.expenseId)).toEqual({ [w.asha]: 30000, [w.bina]: 30000 }); // still the edited 600
+    const after = await db.expense.findUniqueOrThrow({ where: { id: w.expenseId } });
+    expect([after.amount, after.editedAt?.getTime()]).toEqual([before.amount, before.editedAt?.getTime()]);
+    const ev = await db.groupEvent.findUniqueOrThrow({ where: { id: w.eventId } });
+    expect(ev.undoneById).toBe(w.bina); // the other server's mark stands
+    expect(await db.groupEvent.count({ where: { groupId: w.groupId, text: { startsWith: "undid a change to" } } })).toBe(0);
+  });
+
+  it("a delete's reversal does the same: the expense stays as it is and no second event is written", async () => {
+    const w = await edited();
+    const eventsBefore = await db.groupEvent.count({ where: { groupId: w.groupId } });
+    await expect(
+      setExpenseDeleted(w.expenseId, w.asha, true, {
+        mark: { eventId: w.addedEventId, actorId: w.asha },
+        afterRead: async () => {
+          await db.groupEvent.update({ where: { id: w.addedEventId }, data: { undoneAt: new Date(), undoneById: w.bina } });
+        },
+      }),
+    ).rejects.toThrow("That change was already undone.");
+    expect((await db.expense.findUniqueOrThrow({ where: { id: w.expenseId } })).deletedAt).toBeNull();
+    expect(await db.groupEvent.count({ where: { groupId: w.groupId } })).toBe(eventsBefore);
+  });
+});
+

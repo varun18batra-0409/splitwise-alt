@@ -132,6 +132,13 @@ async function stepOn(only: Profile[], why: string, page: Page | null, area: str
   results.push({ n: results.length + 1, area, name, status: "na", detail: `not applicable on ${PROFILE}: ${why} (runs on ${only.join(", ")})`, only });
   console.log("–", area, "—", name, `(not applicable on ${PROFILE})`);
 }
+// No Remind link on Settle. If the independent ledger says Varun IS owed money, that is a failure; only when
+// nobody owes him is the step genuinely not applicable (and then it is recorded as not run, never as a pass).
+function noRemind(before: string): NotRun {
+  const owed = expected().Varun;
+  assert(!(owed > 0), `${before}Varun is owed ${rupees(owed)} by the ledger, but Settle shows no Remind link`);
+  return notRun(`${before}nobody owes Varun right now, so there was nothing to remind`);
+}
 // Old and new names for the same time zone (Chrome says Asia/Calcutta, the standard list says Asia/Kolkata).
 const ZONE_ALIAS: Record<string, string> = { "Asia/Calcutta": "Asia/Kolkata", "Asia/Saigon": "Asia/Ho_Chi_Minh", "Asia/Katmandu": "Asia/Kathmandu", "Asia/Rangoon": "Asia/Yangon" };
 const sameZone = (a: string, b: string) => (ZONE_ALIAS[a] ?? a) === (ZONE_ALIAS[b] ?? b);
@@ -520,7 +527,7 @@ async function main() {
     for (const t of ["People on Loopin", "From your contacts", "By email"]) await V.getByText(t, { exact: true }).waitFor();
     // F3: the "(you)" row never says "Not on Loopin yet". F14: WhatsApp and Copy link up front, the rest under More ways, WhatsApp in Loopin's own green.
     assert(!/Not on Loopin yet/.test(await V.locator("li").filter({ hasText: "(you)" }).first().innerText()), "the (you) row says “Not on Loopin yet”");
-    await V.getByText("More ways", { exact: true }).waitFor();
+    await V.locator("[data-more-ways] > summary").waitFor();
     await V.getByRole("button", { name: "Copy link" }).waitFor();
     const wa = await V.locator("[data-invite-whatsapp]").evaluate("el => getComputedStyle(el).backgroundColor");
     assert(wa === "rgb(111, 227, 168)", `the WhatsApp invite button is ${wa}, not Loopin's green (#6fe3a8)`);
@@ -1416,7 +1423,7 @@ async function main() {
   await step(V, "Home", "F5: an open story's full-screen photo is requested big and sharp (its image address asks for 1920px or wider, quality 90)", async () => {
     await go(V, "/");
     const first = V.locator("[data-stories] button").first();
-    if (!(await first.count())) return "no story on Home to open";
+    if (!(await first.count())) return notRun("no story on Home to open (it depends on trips with dates)");
     await first.click();
     await V.waitForTimeout(700);
     const imgs = (await V.evaluate(
@@ -2559,7 +2566,7 @@ async function main() {
     });
   await step(null, "New address", "The old address forwards to loopinapps.com, and a signed-in person arrives still signed in after one tap (once)", async () => {
     // Pretending to be the old address only works on a server of our own; on Vercel it would reach the live app.
-    if (hosted) return "checked on the GitHub test server only (on Vercel this would reach the live app)";
+    if (hosted) return notRun("checked on the GitHub test server only (on Vercel this would reach the live app)");
     const plain = await raw("/how-it-works", "getloopin.vercel.app");
     assert(plain.status === 307 && plain.location === "https://loopinapps.com/how-it-works", `not signed in: ${plain.status} ${plain.location}`);
     const me = (await varun.ctx.cookies()).find((c) => c.name === "sw_me");
@@ -2607,7 +2614,7 @@ async function main() {
     const googleShown = (await page.getByRole("link", { name: "Continue with Google" }).count()) > 0;
     if (hosted && !googleShown) {
       await ctx.close();
-      return "Google isn't switched on for the test copy (it is on the live app)";
+      return notRun("Google isn't switched on for the test copy (it is on the live app)");
     }
     const href = (await page.getByRole("link", { name: "Continue with Google" }).getAttribute("href")) ?? "";
     assert(href.startsWith("/api/auth/google/start"), `Google button links to ${href}`);
@@ -2902,7 +2909,7 @@ async function main() {
   await step(V, "Settle", "Remind opens WhatsApp with the amount and who owes it", async () => {
     await go(V, `${g}/settle`);
     const link = V.getByRole("link", { name: /Remind/ }).first();
-    if (!(await link.count())) return "nobody owes Varun right now (nothing to remind)";
+    if (!(await link.count())) return noRemind("");
     // Remind goes through Loopin (to make the "I've paid" link), then on to WhatsApp.
     const res = await V.request.get(base + ((await link.getAttribute("href")) ?? ""), { maxRedirects: 0 });
     const href = res.headers()["location"] ?? "";
@@ -2922,7 +2929,7 @@ async function main() {
 
   await step(V, "Add people", "The invite screen shows the group's link and a QR code", async () => {
     await go(V, `${g}/invite`);
-    await V.getByText("More ways", { exact: true }).click(); // F14: WhatsApp and Copy link are the main ways; the rest is under More ways
+    await V.locator("[data-more-ways] > summary").click(); // F14: WhatsApp and Copy link are the main ways; the rest is under More ways
     await V.getByText("Share the group link or QR code").click();
     await V.waitForTimeout(500);
     assert((await V.locator("svg").filter({ has: V.locator("path") }).count()) > 0, "no QR code");
@@ -3287,7 +3294,7 @@ async function main() {
     await settleNav(V);
     await go(V, `${g}/settle`);
     const link = V.locator("[data-remind]").first();
-    if (!(await link.count())) return "saved; nobody owes Varun right now (nothing to remind)";
+    if (!(await link.count())) return noRemind("the pay details were saved, but ");
     const res = await V.request.get(base + ((await link.getAttribute("href")) ?? ""), { maxRedirects: 0 });
     assert(res.status() === 303, `Remind answered ${res.status()}`);
     const wa = decodeURIComponent(res.headers()["location"] ?? "");
@@ -3316,7 +3323,7 @@ async function main() {
     await settleNav(V);
     await go(V, `${g}/settle`);
     const link = V.locator("[data-remind]").first();
-    if (!(await link.count())) return "saved; nobody owes Varun right now (nothing to remind)";
+    if (!(await link.count())) return noRemind("the pay details were saved, but ");
     const res = await V.request.get(base + ((await link.getAttribute("href")) ?? ""), { maxRedirects: 0 });
     assert(res.status() === 303, `Remind answered ${res.status()}`);
     const payPath = new URL(res.headers()["x-pay-link"] ?? "").pathname;
@@ -3332,7 +3339,7 @@ async function main() {
 
   await step(V, "Fun", "React 🔥 to an expense: it shows under the expense; tapping 🔥 again takes it back", async () => {
     const ex = await db.expense.findFirst({ where: { groupId: g.split("/").pop()!, deletedAt: null }, orderBy: { createdAt: "desc" } });
-    if (!ex) return "no expense to react to";
+    assert(ex, "the group has no expense to react to, but the steps above add several");
     await go(V, `${g}?tab=activity&open=${ex.id}`);
     const react = V.getByRole("group", { name: "React" }).first();
     await react.getByRole("button", { name: "React 🔥" }).click();
@@ -3779,7 +3786,7 @@ async function main() {
     assert((await R.getByRole("button", { name: /Delete (this )?group/i }).count()) === 0, "an ordinary member is offered Delete group");
     assert((await R.locator('select[name="currency"]').count()) === 0, "an ordinary member can change the currency");
   });
-  await step(V, "Money", `“Yesterday” is yesterday where the person is (${P.timezoneId}): the saved day, and the time zone the app was told, both match`, async () => {
+  await step(V, "Money", "“Yesterday” is yesterday where the person is: the saved day, and the time zone the app was told, both match", async () => {
     const o = { me: "Varun", name: "Snack", amount: "100", date: "Yesterday" as const, split: { kind: "one" as const, who: "Varun" } };
     await go(V, `${rules}/add`);
     await fillExpense(V, o);
@@ -3832,7 +3839,7 @@ async function main() {
   });
 
   // ----- Layout: no sideways scroll at this device's own size; the desktop column -----
-  await step(V, "Regression", `No screen scrolls sideways at this device's own size (${P.context.viewport?.width ?? "?"} px wide), including the 12-person and yen groups`, async () => {
+  await step(V, "Regression", "No screen scrolls sideways at this device's own size, including the 12-person and yen groups", async () => {
     const pages = ["/", g, `${g}?tab=balances`, `${g}/settle`, `${g}/add`, `${g}/settings`, `${tw.path}?tab=balances`, `${tw.path}/settle`, `${tw.path}/add`, `${osaka.path}?tab=balances`, `${osaka.path}/settle`, "/import", "/passport", "/account", "/notifications"];
     const wide: string[] = [];
     for (const p of pages) {
@@ -3841,7 +3848,7 @@ async function main() {
       if (over > 1) wide.push(`${p.replace(/[a-z0-9]{20,}/g, ":id")} (+${over}px)`);
     }
     assert(wide.length === 0, `scrolls sideways: ${wide.join(", ")}`);
-    return `${pages.length} screens`;
+    return `${pages.length} screens at ${P.context.viewport?.width ?? "?"} px wide`;
   });
   await stepOn(["desktop"], "a wide window only exists on a computer", V, "Regression", "On a 1440 px wide screen the app stays one tidy, centred column (no stretched screens)", async () => {
     await go(V, "/");

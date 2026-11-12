@@ -18,7 +18,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const { group, expenses, payments, transfers } = data;
   // The picture says "Nobody owes anybody": only made when that is true (settled, with at least one expense).
   if (!isSquare({ transfers, expenses })) return new Response("This group isn’t all square yet.", { status: 409, headers: { "Cache-Control": "private, no-store" } });
-  const people = group.members.filter((m) => !m.leftAt);
+  const people = data.people.filter((m) => !m.leftAt); // the scoped list (as Wrapped does), so a leaver is not shown people from after they left
   const n = squareNumbers({ expenses, payments, people: people.length, tripStart: group.tripStart, tripEnd: group.tripEnd });
   const origin = new URL(req.url).origin;
   const [photo, fonts] = await Promise.all([photoData(group, origin), loadOgFonts(origin)]);

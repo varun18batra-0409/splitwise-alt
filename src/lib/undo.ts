@@ -157,7 +157,7 @@ async function undoOnce(eventId: string, actorId: string | undefined, tz: string
   try {
     result = await apply(payload, ev.groupId, actorId, ev.text, mark);
   } catch (err) {
-    if (err instanceof UndoTaken) return { ok: false, error: "That change was already undone." };
+    if (err instanceof UndoTaken) return { ok: false, error: err.message };
     throw err;
   }
   // A reversal that found nothing left to do (it was already in that state) wrote no transaction of its own:
@@ -215,7 +215,7 @@ export async function revertExpense(expenseId: string, before: Parameters<typeof
   if (await isGameResult(expenseId)) return { ok: false, error: POT_EDIT_ERROR };
   if (before.baseCurrency !== e.group.currency) return { ok: false, error: "The group currency changed since, so this edit can’t be undone." };
   const locked = await chargeLock(db, e.groupId, expenseId);
-  if (locked) return { ok: false, error: chargeLockedText(locked.bill) };
+  if (locked) return { ok: false, error: chargeLockedText(locked.bill, locked.status) };
   const memberIds = new Set(e.group.members.map((m) => m.id));
   if (!memberIds.has(before.paidById) || before.shares.some((s) => !memberIds.has(s.memberId)) || parsePayers(before.payers).some((p) => !memberIds.has(p.memberId))) {
     return { ok: false, error: "Someone in that version is no longer in the group." };
@@ -244,7 +244,7 @@ export async function revertExpense(expenseId: string, before: Parameters<typeof
     const claim = await tx.expense.updateMany({ where: { id: expenseId, editedAt: e.editedAt, deletedAt: null }, data: { editedAt: new Date() } });
     if (claim.count !== 1) throw new RevertClash();
     const lockedNow = await chargeLock(tx, e.groupId, expenseId);
-    if (lockedNow) throw new ChargeLockedNow(lockedNow.bill);
+    if (lockedNow) throw new ChargeLockedNow(lockedNow.bill, lockedNow.status);
     // A leaver may only end with the balance they had, or 0.
     const back = { id: expenseId, paidById: before.paidById, amount: before.amount, payers: before.payers, kind: before.kind, shares: before.shares };
     const gone = await leaverBalanceBreaks(tx, e.groupId, [...new Set([...returning, ...movedByUndo])], (l) => ({ ...l, expenses: [...l.expenses.filter((x) => x.id !== expenseId), back] }));
@@ -289,14 +289,18 @@ export async function revertExpense(expenseId: string, before: Parameters<typeof
       if (err.reason === "left") return { ok: false, error: `${err.detail || "Someone"} has left the group, so this can't be undone.` };
       return { ok: false, error: err.reason === "currency" ? "The group currency changed since, so this edit can’t be undone." : groupChangedText(err) };
     }
-    if (err instanceof ChargeLockedNow) return { ok: false, error: chargeLockedText(err.message) };
+    if (err instanceof ChargeLockedNow) return { ok: false, error: chargeLockedText(err.message, err.status) };
     throw err;
   }
   return { ok: true, eventId };
 }
 
 class RevertClash extends Error {}
-class ChargeLockedNow extends Error {}
+class ChargeLockedNow extends Error {
+  constructor(bill: string, public status?: "adding" | "added" | "covered") {
+    super(bill);
+  }
+}
 
 // Rename / markup / second currency / close-reopen back to what it was.
 async function applyGroupSettings(

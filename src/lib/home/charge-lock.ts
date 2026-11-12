@@ -30,4 +30,5 @@ export async function moveOutLeavers(client: PrismaClient | Prisma.TransactionCl
   return bills.flatMap((b) => Object.values(parsePrepaid(b.prepaid)).flatMap((list) => list.filter((x) => x.e === expenseId).map((x) => x.m)));
 }
 
-export const chargeLockedText = (bill: string) => `This was counted in this month’s ${bill}. Edit ${bill} instead.`;
+export const chargeLockedText = (bill: string, status?: ChargeLock["status"]) =>
+  status === "covered" ? `This month’s ${bill} was already covered, so this charge stays.` : `This was counted in this month’s ${bill}. Edit ${bill} instead.`;

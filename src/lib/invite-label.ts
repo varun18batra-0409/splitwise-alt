@@ -8,3 +8,12 @@ export function inviteLabel(channel: InviteChannel): string {
   if (channel === "sms") return "SMS opened";
   return "Sending the email…";
 }
+
+// The notice after "invite by email". One wording for everyone, whoever the email belongs to (a reply that differed could show
+// that someone blocked the inviter), and honest: the email goes out after the reply and Loopin cannot see if it arrives.
+export function invitedNotice(email: string): string {
+  return `We’re emailing an invitation${email ? ` to ${email}` : ""}. If it doesn’t arrive, share the invite link.`;
+}
+
+// The small line under an address typed on Add people, before it is added.
+export const INVITE_EMAIL_HINT = "In the group now. We’ll email an invitation";

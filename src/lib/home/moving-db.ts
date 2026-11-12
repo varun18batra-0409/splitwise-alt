@@ -377,7 +377,10 @@ export async function saveDepositFor(groupId: string, actorId: string, input: { 
         const cur = await tx.depositShare.findUnique({ where: { depositId_memberId: { depositId: dep.id, memberId: r.memberId } } });
         if (cur && cur.status !== "held") throw new Error("DEPOSIT_CHANGED");
       }
-      await tx.depositShare.deleteMany({ where: { depositId: dep.id, status: "held", memberId: { notIn: rows.map((r) => r.memberId) } } });
+      // A cleared box removes that person's held share, but only for people who are in the flat now (the form only has boxes
+      // for them). Someone who moved out and kept their deposit on record has no box: their share is never touched.
+      const inFlat = flat.members.filter((m) => !m.leftAt && !rows.some((r) => r.memberId === m.id)).map((m) => m.id);
+      if (inFlat.length) await tx.depositShare.deleteMany({ where: { depositId: dep.id, status: "held", memberId: { in: inFlat } } });
       for (const r of rows) {
         const cur = await tx.depositShare.findUnique({ where: { depositId_memberId: { depositId: dep.id, memberId: r.memberId } } });
         if (!cur) {

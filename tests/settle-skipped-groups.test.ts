@@ -3,7 +3,7 @@ import { afterAll, describe, expect, it, vi } from "vitest";
 // UISEQ-07: the all-groups Settle page must never say "All square" while a group is left out for want of an
 // exchange rate. loadOverview now says which groups those are (name and id, for a link to settle inside the group).
 //
-// Fixture: two rupee groups with no spending (square), and one dollar group where B owes A $100 (10000 cents).
+// Fixture: two rupee groups with no spending (square), and one dollar group where A paid $100 (10000 cents) for both, so B owes A $50 (5000 cents).
 // Rupees are the common currency (2 groups to 1); no saved rate for USD -> INR, so the dollar group is left out.
 vi.mock("@/lib/rate-cache", async (orig) => ({ ...(await orig<typeof import("@/lib/rate-cache")>()), displayRate: async () => ({ ok: false, message: "no rate" }) }));
 vi.mock("react", async (orig) => ({ ...(await orig<typeof import("react")>()), cache: <T,>(f: T) => f }));

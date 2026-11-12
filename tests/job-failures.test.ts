@@ -76,6 +76,28 @@ describe("daily budgets part", () => {
   });
 });
 
+describe("daily budgets part: failure then time runs out", () => {
+  it("is marked failed AND the rest is deferred (not thrown away)", async () => {
+    for (const tag of ["x", "y"]) {
+      const g = await db.group.create({ data: { name: `JF2${tag} ${stamp}`, inviteCode: `jf2${tag}-${stamp}`, members: { create: [{ name: "Ann" }] } } });
+      groupIds.push(g.id);
+      await db.budget.create({ data: { groupId: g.id, category: "food", amount: 1000 } });
+    }
+    fake.budgetsBreak = true;
+    try {
+      // stop() is asked: once before the part, once before group 1 (carry on, it breaks), then before group 2 (time is up).
+      let calls = 0;
+      const stop = () => ++calls >= 3;
+      const failed: string[] = [];
+      const report = await runClaimedParts(new Date(), stop, failed, ["budgets"]);
+      expect(failed).toEqual(["budgets"]);
+      expect(report.deferred).toEqual(["budgets"]);
+    } finally {
+      fake.budgetsBreak = false;
+    }
+  });
+});
+
 describe("daily check email", () => {
   it("a photo-delete check that couldn't run is a problem in itself, not 'all quiet'", async () => {
     process.env.ADMIN_EMAIL = `ops-${stamp}@example.test`;
