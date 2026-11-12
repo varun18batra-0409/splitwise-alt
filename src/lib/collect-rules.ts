@@ -59,6 +59,18 @@ export function progress(entries: EntryLike[], perPerson: number) {
   return { paidCount: paid.length, dueCount: due.length, people, confirmedAmount, reportedAmount, target, checked: paid.filter((e) => e.status === "confirmed").length };
 }
 
+// The counts, in words that don't claim more than is known: how many SAY they've paid, and how many the organiser has
+// checked. "3 of 6 say they've paid · 2 checked". The paper stamp counts only the checked ones.
+export function countsLine(p: { paidCount: number; people: number; checked: number }): string {
+  const of = p.people || p.paidCount;
+  if (p.paidCount === 0) return of > 0 ? `No one has said they've paid yet` : "No one yet";
+  return `${p.paidCount} of ${of} say they've paid${p.checked > 0 ? ` · ${p.checked} checked` : ""}`;
+}
+
+export function stampCounts(p: { people: number; checked: number }): { n: number; of: number | null; word: string } {
+  return { n: p.checked, of: p.people > 0 ? p.people : null, word: "checked" };
+}
+
 // The bar's two fills, in whole percent: confirmed (solid) and reported-but-unchecked (lighter, after it). Together never past 100.
 // With "any amount" there is no target, so the bar counts people instead (checked, then said-paid).
 export function progressBar(p: ReturnType<typeof progress>): { confirmedPct: number; reportedPct: number } {

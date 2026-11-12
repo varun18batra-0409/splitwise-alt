@@ -5,6 +5,7 @@ import { getTimeZone } from "@/lib/tz";
 import { dayKey } from "@/lib/dates";
 import { readableWhere } from "@/lib/left-view-db";
 import { hideLaterNotes, leaverCut } from "@/lib/left-view";
+import { loadMyDataExtra } from "@/lib/my-data-extra";
 
 // "Download all my data" (Account): one CSV with every group I'm in on this
 // phone or account. Only ever my own groups; nothing for a stranger.
@@ -22,6 +23,16 @@ export async function GET() {
   });
   const tz = await getTimeZone();
   const now = new Date();
+  const mine = groups.filter((g) => g.members.some((m) => m.id === memberships[g.id]));
+  const extra = account
+    ? await loadMyDataExtra(
+        account,
+        Object.fromEntries(mine.map((g) => [g.id, memberships[g.id]])),
+        Object.fromEntries(mine.map((g) => [g.id, g.name])),
+        now,
+        tz,
+      )
+    : {};
   const body = myDataCsv(
     account ? { email: account.email, name: account.name ?? "", createdAt: account.createdAt } : null,
     await Promise.all(
@@ -46,6 +57,7 @@ export async function GET() {
     now,
     tz,
     account ? await db.report.findMany({ where: { kind: "support", reporterId: account.id }, orderBy: { createdAt: "asc" }, select: { createdAt: true, note: true, contact: true, status: true }, take: 500 }) : [],
+    extra,
   );
   return new Response(body, {
     headers: {

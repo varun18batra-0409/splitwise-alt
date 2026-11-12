@@ -179,6 +179,15 @@ describe("adding people", () => {
     }
   });
 
+  it("two addresses that give the same name in one go become \"Same\" and \"Same 2\"", async () => {
+    const a = `same@a-${stamp}.test`;
+    const b = `same@b-${stamp}.test`;
+    const r = await inviteByEmail(g2, meG2, `${a}, ${b}`, "https://loopin.test");
+    expect(r.bad).toEqual([]);
+    expect(r.people.map((p) => p.name)).toEqual(["Same", "Same 2"]);
+    expect(await db.member.count({ where: { groupId: g2, name: { in: ["Same", "Same 2"] } } })).toBe(2);
+  });
+
   it("refuses people who aren't in the group", async () => {
     const r = await addRegistered(g2, "not-a-member", stranger, "https://loopin.test");
     expect(r.ok).toBe(false);

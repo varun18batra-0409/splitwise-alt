@@ -110,6 +110,7 @@ export async function sendEventPush(eventId: string): Promise<number> {
     const payload = JSON.stringify(base);
     const keys = await vapidKeys();
     let sent = 0;
+    let failed = 0;
     const seen = new Set<string>(); // one phone can be several people in one group: notify once
     for (const s of subs) {
       if (seen.has(s.endpoint)) continue;
@@ -124,11 +125,25 @@ export async function sendEventPush(eventId: string): Promise<number> {
       } catch (err) {
         const status = (err as { statusCode?: number }).statusCode;
         if (status === 404 || status === 410) await db.pushSubscription.deleteMany({ where: { endpoint: s.endpoint } });
+        else failed++; // a send that really failed (not just a phone that is gone): counted, not hidden
       }
     }
+    if (failed) await recordPushFailure("sendEventPush", `${failed} send(s) failed`);
     return sent;
-  } catch {
+  } catch (err) {
+    await recordPushFailure("sendEventPush", err);
     return 0;
+  }
+}
+
+// A push that failed is written to the error list (counted in the daily check), never silently treated as "nothing to send".
+// Only the kind of failure is kept: no addresses, no names. Never throws.
+async function recordPushFailure(where: string, what: unknown): Promise<void> {
+  try {
+    const detail = typeof what === "string" ? what : `${(what as { name?: string } | null)?.name ?? "Error"}${(what as { statusCode?: number } | null)?.statusCode ? ` ${(what as { statusCode?: number }).statusCode}` : ""}`;
+    await db.errorLog.create({ data: { path: "push", message: `${where}: ${detail}`.slice(0, 200) } });
+  } catch {
+    // nowhere left to write it
   }
 }
 
@@ -157,6 +172,7 @@ export async function sendPushTo(memberIds: string[], p: { title: string; body: 
     const keys = await vapidKeys();
     const payload = JSON.stringify({ title: p.title, body: p.body.length > 140 ? `${p.body.slice(0, 139)}…` : p.body, url: p.url, tag: p.tag });
     let sent = 0;
+    let failed = 0;
     const seen = new Set<string>();
     for (const s of wanted) {
       if (seen.has(s.endpoint)) continue;
@@ -171,10 +187,13 @@ export async function sendPushTo(memberIds: string[], p: { title: string; body: 
       } catch (err) {
         const status = (err as { statusCode?: number }).statusCode;
         if (status === 404 || status === 410) await db.pushSubscription.deleteMany({ where: { endpoint: s.endpoint } });
+        else failed++; // a send that really failed (not just a phone that is gone): counted, not hidden
       }
     }
+    if (failed) await recordPushFailure("sendPushTo", `${failed} send(s) failed`);
     return sent;
-  } catch {
+  } catch (err) {
+    await recordPushFailure("sendPushTo", err);
     return 0;
   }
 }
@@ -193,6 +212,7 @@ export async function sendPushToAccounts(accountIds: string[], p: { title: strin
     const keys = await vapidKeys();
     const payload = JSON.stringify({ title: p.title, body: p.body.length > 140 ? `${p.body.slice(0, 139)}…` : p.body, url: p.url, tag: p.tag });
     let sent = 0;
+    let failed = 0;
     const seen = new Set<string>();
     for (const s of subs) {
       if (seen.has(s.endpoint)) continue;
@@ -207,10 +227,13 @@ export async function sendPushToAccounts(accountIds: string[], p: { title: strin
       } catch (err) {
         const status = (err as { statusCode?: number }).statusCode;
         if (status === 404 || status === 410) await db.pushSubscription.deleteMany({ where: { endpoint: s.endpoint } });
+        else failed++; // a send that really failed (not just a phone that is gone): counted, not hidden
       }
     }
+    if (failed) await recordPushFailure("sendPushToAccounts", `${failed} send(s) failed`);
     return sent;
-  } catch {
+  } catch (err) {
+    await recordPushFailure("sendPushToAccounts", err);
     return 0;
   }
 }

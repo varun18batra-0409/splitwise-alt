@@ -8,12 +8,14 @@ import { passportShared } from "@/lib/passport";
 import { countryOf } from "@/lib/geo";
 import { Avatar, PageHeader, primaryButtonClass } from "@/components/ui";
 import { FriendSearch } from "@/components/FriendSearch";
+import { pickFriends } from "@/lib/friend-list";
 
 export const metadata = { title: "Friends’ passports", robots: { index: false } };
 
 // Everyone you've shared a group with (on Loopin), and where they've been.
 // Tap anyone to open their passport.
-export default async function FriendsPassports() {
+export default async function FriendsPassports({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  const { q = "" } = await searchParams;
   const account = await getAccount();
   if (!account)
     return (
@@ -26,7 +28,7 @@ export default async function FriendsPassports() {
       </>
     );
   const today = todayKey(new Date(), await getTimeZone());
-  const friends = (await passportFriends(account.id)).slice(0, 80);
+  const { shown: friends, matched, total } = pickFriends(await passportFriends(account.id), q.slice(0, 60), 80);
   const owners = await Promise.all(
     friends.map(async (f) => {
       const { db } = await import("@/lib/db");
@@ -41,7 +43,16 @@ export default async function FriendsPassports() {
     <>
       <PageHeader title="Friends’ passports" back="/passport" />
       <p className="-mt-2 mb-4 text-sm text-gray-500">Everyone you’ve shared a group with. Tap anyone to flip through their stamps.</p>
-      {owners.length === 0 ? (
+      {total > 80 && (
+        // A long list: the page shows 80 at a time, and this searches everyone by name.
+        <form method="get" role="search" className="mb-4">
+          <input name="q" defaultValue={q} placeholder={`Search all ${total} friends by name`} aria-label="Search all friends by name" autoComplete="off" enterKeyHint="search" className="w-full rounded-xl border border-line bg-transparent px-4 py-3 text-base outline-none focus:border-fg/50" />
+          {matched > owners.length && <p className="mt-2 text-xs text-gray-500">Showing {owners.length} of {matched}. Type more of the name to narrow it down.</p>}
+        </form>
+      )}
+      {owners.length === 0 && total > 0 && q ? (
+        <p className="py-6 text-center text-sm text-gray-500">Nobody matches “{q}”.</p>
+      ) : owners.length === 0 ? (
         <div className="rounded-2xl bg-mist px-5 py-8 text-center">
           <span aria-hidden className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-owed/40 text-owed">
             <PeoplePassportsIcon size={26} />
@@ -62,10 +73,18 @@ export default async function FriendsPassports() {
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">{f.name}</span>
                     <span className="block truncate text-xs text-gray-400">
-                      {f.private ? (f.unshared ? "Hasn’t shared their passport yet" : "Keeps their passport private") : f.stats ? [f.stats.countries ? `${f.stats.countries} ${f.stats.countries === 1 ? "country" : "countries"}` : "", f.stats.cities ? `${f.stats.cities} ${f.stats.cities === 1 ? "city" : "cities"}` : ""].filter(Boolean).join(" · ") : ""}
-                      {" · "}
-                      {f.groups.slice(0, 2).join(", ")}
-                      {f.groups.length > 2 ? ` +${f.groups.length - 2}` : ""}
+                      {[
+                        f.private
+                          ? f.unshared
+                            ? "Hasn’t shared their passport yet"
+                            : "Keeps their passport private"
+                          : f.stats
+                            ? [f.stats.countries ? `${f.stats.countries} ${f.stats.countries === 1 ? "country" : "countries"}` : "", f.stats.cities ? `${f.stats.cities} ${f.stats.cities === 1 ? "city" : "cities"}` : ""].filter(Boolean).join(" · ")
+                            : "",
+                        `${f.groups.slice(0, 2).join(", ")}${f.groups.length > 2 ? ` +${f.groups.length - 2}` : ""}`,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
                     </span>
                   </span>
                   <span className="shrink-0 text-base tracking-tight" aria-hidden>

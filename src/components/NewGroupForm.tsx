@@ -76,9 +76,9 @@ export function NewGroupForm({
                 <Link
                   key="collect"
                   href="/collect/new"
-                  className="relative flex h-[140px] flex-col justify-between overflow-hidden rounded-[18px] border border-line bg-white p-4 text-left active:bg-mist"
+                  className="relative flex h-[156px] flex-col justify-between overflow-hidden rounded-[18px] border border-line bg-white p-4 text-left active:bg-mist"
                 >
-                  <span aria-hidden className="absolute -right-1.5 top-3 flex h-[68px] w-[52px] rotate-[9deg] items-center justify-center rounded-[4px] border-[3px] border-fg bg-[#1d3b2f] text-[26px] shadow-lg shadow-black/50">
+                  <span aria-hidden className="absolute -right-1.5 top-2.5 flex h-[60px] w-[46px] rotate-[9deg] items-center justify-center rounded-[4px] border-[3px] border-fg bg-[#1d3b2f] text-[26px] shadow-lg shadow-black/50">
                     🫙
                   </span>
                   <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -95,9 +95,9 @@ export function NewGroupForm({
                 type="button"
                 aria-pressed={type === t.id}
                 onClick={() => setType(t.id)}
-                className={`relative flex h-[140px] flex-col justify-between overflow-hidden rounded-[18px] border p-4 text-left ${type === t.id ? "border-fg bg-accent-soft" : "border-line bg-white"}`}
+                className={`relative flex h-[156px] flex-col justify-between overflow-hidden rounded-[18px] border p-4 text-left ${type === t.id ? "border-fg bg-accent-soft" : "border-line bg-white"}`}
               >
-                <span aria-hidden className="absolute -right-1.5 top-3 h-[68px] w-[52px] rotate-[9deg] overflow-hidden rounded-[4px] border-[3px] border-fg shadow-lg shadow-black/50">
+                <span aria-hidden className="absolute -right-1.5 top-2.5 h-[60px] w-[46px] rotate-[9deg] overflow-hidden rounded-[4px] border-[3px] border-fg shadow-lg shadow-black/50">
                   <GroupCover kind={coverOf({ type: t.id })} uid={`type-${t.id}`} />
                 </span>
                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden>

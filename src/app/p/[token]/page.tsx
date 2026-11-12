@@ -70,7 +70,7 @@ export default async function PayLinkPage({ params, searchParams }: Props) {
         {header}
         <section className="vault rounded-[24px] px-6 py-10 text-center" data-paylink="gone">
           <Mark tone="rest" />
-          <h1 className="mt-5 font-display text-[26px] font-semibold leading-tight tracking-tight">This link has done its job</h1>
+          <h1 className="mt-5 font-display text-[26px] font-semibold leading-tight tracking-tight">This link has closed</h1>
           <p className="mx-auto mt-2 max-w-[19rem] text-sm text-fg/60">Payment links last 30 days and stop once you’re square. If you still owe something, ask for a fresh reminder.</p>
           <Link href="/" className="pop mt-7 inline-block bg-fg px-6 py-3 text-sm font-semibold text-canvas [--pop-edge:#6e6b63]">
             Open Loopin

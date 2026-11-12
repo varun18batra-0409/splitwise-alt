@@ -2,9 +2,12 @@
 //   node scripts/restore.mjs backup.json file:/tmp/restored.db
 //   node scripts/restore.mjs backup.json libsql://new-db.turso.io   (+ TURSO_AUTH_TOKEN)
 // The target must be EMPTY (a new database): it never overwrites live data.
-// Prints a row count per table and checks they match the backup.
+// Prints a row count per table and checks they match the backup, then checks the restored data is whole:
+// database integrity, PRAGMA foreign_key_check, and Loopin's money rules (see scripts/restore-checks.mjs).
+// Exits 0 only when everything checks out; 2 if anything is off.
 import { readFileSync } from "node:fs";
 import { createClient } from "@libsql/client";
+import { checkRestored } from "./restore-checks.mjs";
 
 const [file, url] = process.argv.slice(2);
 if (!file || !url) {
@@ -44,5 +47,10 @@ for (const [name, t] of Object.entries(backup.tables)) {
 }
 for (const sql of backup.indexes ?? []) await client.execute(sql);
 if (backup.indexes?.length) console.log(`✓ ${backup.indexes.length} indexes`);
+// Row counts alone can hide broken references, so check the data itself too.
+const checks = await checkRestored(client);
+for (const n of checks.notes) console.log(`✓ ${n}`);
+for (const p of checks.problems) console.log(`✗ ${p}`);
+ok &&= checks.problems.length === 0;
 console.log(ok ? `Restore complete and verified (backup taken ${backup.takenAt}).` : "Restore finished with differences — check above.");
 process.exit(ok ? 0 : 2);

@@ -3,6 +3,7 @@ import { PLAIN_WORDS, getCategory } from "./categories";
 import { DEFAULT_TIME_ZONE, dayKey, formatter, isDayMarker, isTimeZone } from "./dates";
 import { moneyLines, payerIds, scalePayers } from "./payers";
 import { parseAmount } from "./money";
+import { addDays } from "./local-time";
 
 // One history list for a group: expenses, settle-up payments and group changes
 // (renamed, currency changed, people added, closed…), newest first, each with
@@ -153,7 +154,7 @@ export function dayLabel(date: Date, now = new Date(), timeZone: string = DEFAUL
   const tz = timeZone;
   const key = (d: Date) => dayKey(d, tz); // YYYY-MM-DD
   const today = key(now);
-  const yesterday = key(new Date(now.getTime() - 86_400_000));
+  const yesterday = addDays(today, -1); // calendar day before, right across clock changes
   const k = key(date);
   if (k === today) return "Today";
   if (k === yesterday) return "Yesterday";
@@ -239,4 +240,22 @@ export function filterActivity(items: ActivityItem[], f: ActivityFilter, nameOf:
     if (f.who && !paidBy.includes(f.who) && !item.people.includes(f.who)) return false;
     return matches(`${item.title} ${item.notes ?? ""} ${cat.label} ${PLAIN_WORDS[cat.id] ?? ""} ${paidBy.map(nameOf).join(" ")} ${item.people.map(nameOf).join(" ")}`);
   });
+}
+
+// The address for "Show more" on Activity: the same group and tab, with every filter kept and the longer list.
+export function activityMoreHref(groupId: string, f: ActivityFilter, n: number): string {
+  const q = new URLSearchParams({ tab: "activity", n: String(n) });
+  const keep: [string, string | undefined][] = [
+    ["q", f.q],
+    ["cat", f.cat],
+    ["who", f.who],
+    ["type", f.type],
+    ["from", f.from],
+    ["to", f.to],
+    ["by", f.by],
+    ["min", f.min?.trim()],
+    ["max", f.max?.trim()],
+  ];
+  for (const [k, v] of keep) if (v) q.set(k, v);
+  return `/groups/${groupId}?${q}`;
 }

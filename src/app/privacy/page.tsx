@@ -134,14 +134,14 @@ export default function Privacy() {
         </li>
         <li>Support messages that were already emailed to Loopin’s support inbox aren’t erased by the app, and messages sent while signed out aren’t linked to an account, so deleting your account doesn’t reach them. To have one removed, use <a href="/support" className="underline underline-offset-4">Contact support</a>.</li>
         <li>Reports stay with us so we can act on them: the ones you made, and reports made about you, including the reporter’s note, are kept even after you delete your account.</li>
-        <li>“You → Download all my data” gives you your account details, your groups, expenses and payments, and your messages to support, in one spreadsheet. Reports you sent and reports about you are not in it.</li>
+        <li>“You → Download all my data” gives you, in one spreadsheet: your account details; your groups, expenses and payments; your messages to support; your postcards, sent and received (the words and message only, no photos, and only the names printed on your cards; a postcard still sealed for you is left out); your passport (home country, places and countries); the collections you organise (the title, amount, date, and how many people are listed, have said they paid and are checked, but not their names or phone numbers) and the collections you are on the list of (your own line); and your notification settings. Reports you sent and reports about you are not in it. Anyone signed in can download it.</li>
         <li>Encrypted backups are kept for 14 days and then removed. Something you delete can stay in a backup until then.</li>
       </ul>
 
       <h2 className={h}>Your rights</h2>
       <p className={p}>
         Under India’s Digital Personal Data Protection Act, 2023, you can ask to see the data we hold about you, correct it, have it erased, and complain if
-        something is wrong. The quickest way is in the app: “You → Download all my data” gives you your account details, groups, expenses, payments and messages to support (not reports or our own records; use Contact support for those), edit things in the app to correct them, and “You → Delete my
+        something is wrong. The quickest way is in the app: “You → Download all my data” gives you your account details, groups, expenses, payments, postcards, passport, collections, notification settings and messages to support (not reports or our own records; use Contact support for those), edit things in the app to correct them, and “You → Delete my
         email &amp; sign-in” to erase it.
         {contactReady ? (
           <>

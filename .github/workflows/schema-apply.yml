@@ -15,15 +15,23 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
+      # Runs the sync and the plan, keeps the log and each command's real exit status, and never stops here:
+      # the log is saved first, then the last step turns the job red if either command failed.
       - name: Apply
         env:
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
-        run: |
-          { node scripts/turso-sync.mjs; echo "exit: $?"; node scripts/turso-sync.mjs --plan; } > plan.log 2>&1 || true
+          NO_TARGET: fail # run by hand on purpose: no database set is a failure, not a quiet pass
+        run: bash scripts/schema-run.sh run apply
       - name: Save the output to the "schema-plan" branch
+        if: always()
         run: |
+          [ -f plan.log ] || echo "No output was produced (an earlier step stopped)." > plan.log
+          [ ! -f schema-result.env ] || cat schema-result.env >> plan.log
           mkdir /tmp/r && cp plan.log /tmp/r/ && cd /tmp/r
           git init -q -b schema-plan && git add plan.log
           git -c user.name=ci -c user.email=ci@loopin.invalid commit -qm "Schema apply for ${GITHUB_SHA::7}"
           git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" schema-plan
+      - name: Result (red if the apply or the plan failed; SKIPPED is shown as skipped, not as success)
+        if: always()
+        run: bash scripts/schema-run.sh verdict

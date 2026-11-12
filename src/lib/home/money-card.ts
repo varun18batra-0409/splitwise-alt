@@ -2,7 +2,7 @@
 // you owe -> Settle up is bright; you're owed or it evens out -> Add expense is bright;
 // all square -> Add expense is bright and the second button becomes New group (there is nothing to settle).
 import type { TripPhase } from "../countdown";
-import { personKey, settleRowId } from "../cross-settle";
+import { personKey, regionForGroup, settleRowId } from "../cross-settle";
 import { homeMoney } from "./display";
 import { formatMoney } from "../money";
 
@@ -74,7 +74,7 @@ export function moneyPeople(groups: PeopleGroup[], side: "owe" | "owed", common:
       const conv = g.currency === common ? t.amount : toCommon(t.amount, g.currency);
       const currency = conv === null ? g.currency : common;
       const amount = conv === null ? t.amount : conv;
-      const key = personKey(other, g.groupId);
+      const key = personKey(other, g.groupId, regionForGroup(g));
       const slot = `${key}|${currency}`;
       const e = acc.get(slot) ?? { key, name: other.name, groupName: g.groupName, solo: key.startsWith("solo:"), amount: 0, currency, approx: false, parts: [], signed: 0 };
       e.signed += iPay ? -amount : amount;

@@ -101,7 +101,7 @@ export function BillScan({
         <div className="flex items-center gap-3 rounded-2xl border border-line p-2" data-bill-current>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={`/api/receipt/${existingId}`} alt="The bill" className="h-12 w-12 shrink-0 rounded-xl object-cover" />
-          <p className="min-w-0 flex-1 text-sm text-gray-500">The bill</p>
+          <p className="min-w-0 flex-1 text-sm text-gray-500">{note || "The bill"}</p>
           <button type="button" onClick={() => input.current?.click()} className="min-h-11 px-2 text-sm font-medium text-fg">
             Replace
           </button>
@@ -130,9 +130,13 @@ export function BillScan({
             type="button"
             aria-label="Remove the bill photo"
             onClick={() => {
+              // Nothing is replaced any more: with an original photo, its row comes back.
               onAttach("");
               setState("idle");
-              setNote("");
+              if (existingId) {
+                setKept(true);
+                setNote("Kept the original bill photo");
+              } else setNote("");
             }}
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xl leading-none text-gray-400 active:bg-mist"
           >

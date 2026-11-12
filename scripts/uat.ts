@@ -47,10 +47,19 @@ const PROFILE = requested as Profile;
 const P = PROFILES[PROFILE];
 
 // pass / fail / na ("not applicable": the step is for other devices, and says which).
-type Status = "pass" | "fail" | "na";
+// "skip" = NOT RUN: a conditional step found nothing to do. It is never counted as a pass (TEST-02).
+type Status = "pass" | "fail" | "na" | "skip";
 type Result = { n: number; area: string; name: string; status: Status; detail: string; only?: Profile[] };
 const results: Result[] = [];
 let shotNo = 0;
+// A step returns notRun("why") when its situation did not come up (nothing to pay, no key set...).
+// It is recorded as "skip" with the reason, listed in the reports, and never counted as passed.
+class NotRun {
+  constructor(public reason: string) {}
+}
+const notRun = (reason: string) => new NotRun(reason);
+// Older style: a note ending in "(skipped)" is treated as not run too, so it can never slip in as a pass.
+const SKIPPED_NOTE = /\(skipped\)\s*$/;
 
 // ---------- an independent model of what everyone should owe ----------
 type Person = "Varun" | "Asha" | "Ravi" | "Zoe";
@@ -82,7 +91,7 @@ const rupees = (paise: number) => `₹${(paise / 100).toFixed(2)}`;
 // A step that hangs (a screen that never finishes on the hosted copy) fails on
 // its own after two minutes instead of stopping the whole run.
 const STEP_LIMIT_MS = 120_000;
-async function step(page: Page | null, area: string, name: string, fn: () => Promise<void | string>, only?: Profile[], limitMs = STEP_LIMIT_MS) {
+async function step(page: Page | null, area: string, name: string, fn: () => Promise<void | string | NotRun>, only?: Profile[], limitMs = STEP_LIMIT_MS) {
   const n = results.length + 1;
   try {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -92,8 +101,14 @@ async function step(page: Page | null, area: string, name: string, fn: () => Pro
         timer = setTimeout(() => reject(new Error(`still not done after ${limitMs / 1000} s`)), limitMs);
       }),
     ]).finally(() => clearTimeout(timer));
-    results.push({ n, area, name, status: "pass", detail: typeof note === "string" ? note : "", only });
-    console.log("✓", area, "—", name);
+    const why = note instanceof NotRun ? note.reason : typeof note === "string" && SKIPPED_NOTE.test(note) ? note.replace(SKIPPED_NOTE, "").trim() : null;
+    if (why !== null) {
+      results.push({ n, area, name, status: "skip", detail: `not run: ${why || "no reason given"}`, only });
+      console.log("○", area, "—", name, `(not run: ${why})`);
+    } else {
+      results.push({ n, area, name, status: "pass", detail: typeof note === "string" ? note : "", only });
+      console.log("✓", area, "—", name);
+    }
   } catch (e) {
     const lines = String((e as Error)?.message ?? e).split("\n").map((l) => l.trim()).filter(Boolean);
     // Database errors put the real reason on their last line ("Invalid `db.x()` invocation … <reason>"), so keep it.
@@ -112,7 +127,7 @@ async function step(page: Page | null, area: string, name: string, fn: () => Pro
 }
 // A step for some devices only. On the others it is listed as "not applicable"
 // with the reason, so nothing is ever skipped quietly.
-async function stepOn(only: Profile[], why: string, page: Page | null, area: string, name: string, fn: () => Promise<void | string>) {
+async function stepOn(only: Profile[], why: string, page: Page | null, area: string, name: string, fn: () => Promise<void | string | NotRun>) {
   if (only.includes(PROFILE)) return step(page, area, name, fn, only);
   results.push({ n: results.length + 1, area, name, status: "na", detail: `not applicable on ${PROFILE}: ${why} (runs on ${only.join(", ")})`, only });
   console.log("–", area, "—", name, `(not applicable on ${PROFILE})`);
@@ -966,7 +981,7 @@ async function main() {
   });
   await step(V, "Settle", "Undo a payment from the bar", async () => {
     await go(V, `${g}/settle`);
-    if ((await settleCards(V).count()) === 0) return "nothing left to pay (skipped)";
+    if ((await settleCards(V).count()) === 0) return notRun("nothing left to pay");
     const [from, to, amt] = await cardPeople(V, 0, "Varun");
     await rowRecord(V, 0);
     await V.waitForURL(/paid=1/);
@@ -978,11 +993,11 @@ async function main() {
   await step(V, "Settle", "“I’ve paid” is only a claim: balances don't move until Asha taps Confirm received", async () => {
     await go(V, `${g}/settle`);
     const mine = settleCards(V).filter({ has: V.locator("[data-i-paid]") });
-    if (!(await mine.count())) return "Varun pays nobody who has joined right now (skipped)";
+    if (!(await mine.count())) return notRun("Varun pays nobody who has joined right now");
     const t = (await mine.first().innerText()).replace(/\s+/g, " ");
     const m = /You pay (\w+) (₹[\d,.]+)/.exec(t);
     assert(m, `can't read the row: ${t}`);
-    if (m[1] !== "Asha") return `Varun pays ${m[1]}, who isn't one of the signed-in phones here (skipped)`;
+    if (m[1] !== "Asha") return notRun(`Varun pays ${m[1]}, who isn't one of the signed-in phones here`);
     const amt = minor(m[2]);
     const before = await checkBalances(V, g);
     await mine.first().locator("[data-i-paid]").click();
@@ -1700,7 +1715,7 @@ async function main() {
     await go(V, `${g}/people`);
     const before = await shownBalances(V, g);
     const debtor = PEOPLE.find((p) => p !== "Varun" && (before[p] ?? 0) !== 0);
-    if (!debtor) return "everyone settled (skipped)";
+    if (!debtor) return notRun("everyone settled");
     await go(V, `${g}/people`);
     await V.locator("details summary").filter({ hasText: debtor }).first().click();
     assert(await V.locator("details[open]").getByRole("button", { name: "Settle up first" }).isDisabled(), "leave button isn't disabled");
@@ -2234,7 +2249,7 @@ async function main() {
 
   // ===== 10. More checks: the daily job's key, joining when signed in, bills, deposit, speed =====
   await step(null, "Daily job", "Without the key the daily job is refused; with it, it runs", async () => {
-    if (!process.env.CRON_SECRET) return "no key set on this test server (skipped)";
+    if (!process.env.CRON_SECRET) return notRun("no key set on this test server");
     const no = await fetch(`${base}/api/cron/daily`);
     assert(no.status === 401, `without the key it answered ${no.status}`);
     const wrong = await fetch(`${base}/api/cron/daily`, { headers: { authorization: "Bearer wrong" } });
@@ -3965,22 +3980,24 @@ function writeReports() {
   const passed = count("pass");
   const failed = count("fail");
   const na = count("na");
-  const head = `${passed} passed, ${failed} failed, ${na} not applicable · profile: ${PROFILE} (${P.label})`;
+  const notRunCount = count("skip");
+  const mark = (st: Status) => (st === "pass" ? "✅" : st === "fail" ? "❌" : st === "skip" ? "⏭️" : "➖");
+  const head = `${passed} passed, ${failed} failed, ${na} not applicable${notRunCount ? `, ${notRunCount} NOT RUN` : ""} · profile: ${PROFILE} (${P.label})`;
   const lines = [
     `# UAT report`,
     ``,
     `Profile: **${PROFILE}**: ${P.label}`,
     ``,
-    `${passed} passed · ${failed} failed · ${na} not applicable · ${results.length} steps`,
+    `${passed} passed · ${failed} failed · ${na} not applicable · ${notRunCount} not run · ${results.length} steps`,
     ``,
     `| | Area | What a person did | Notes |`,
     `|---|---|---|---|`,
-    ...results.map((r) => `| ${r.status === "pass" ? "✅" : r.status === "fail" ? "❌" : "➖"} | ${r.area} | ${r.name} | ${r.detail.replace(/\|/g, "/")} |`),
+    ...results.map((r) => `| ${mark(r.status)} | ${r.area} | ${r.name} | ${r.detail.replace(/\|/g, "/")} |`),
   ];
   writeFileSync(`${out}/report.md`, lines.join("\n"));
   // The first line is read by the CI workflows; failures follow, one per line, starting with ✗.
-  writeFileSync(`${out}/summary.txt`, `${head}\n${results.filter((r) => r.status === "fail").map((r) => `✗ ${r.area} — ${r.name}: ${r.detail}`).join("\n")}`);
-  console.log(`\nUAT (${PROFILE}): ${passed} passed, ${failed} failed, ${na} not applicable`);
+  writeFileSync(`${out}/summary.txt`, `${head}\n${results.filter((r) => r.status === "fail").map((r) => `✗ ${r.area} — ${r.name}: ${r.detail}`).concat(results.filter((r) => r.status === "skip").map((r) => `○ ${r.area} — ${r.name}: ${r.detail}`)).join("\n")}`);
+  console.log(`\nUAT (${PROFILE}): ${passed} passed, ${failed} failed, ${na} not applicable, ${notRunCount} not run`);
 
   // Coverage: every step mapped to an area.
   const steps = results.map((r) => ({
@@ -3990,24 +4007,24 @@ function writeReports() {
   const areas = Object.fromEntries(
     COVER.map((a) => {
       const mine = steps.filter((x) => x.coverage === a);
-      return [a, { steps: mine.length, passed: mine.filter((x) => x.status === "pass").length, failed: mine.filter((x) => x.status === "fail").length, notApplicable: mine.filter((x) => x.status === "na").length }];
+      return [a, { steps: mine.length, passed: mine.filter((x) => x.status === "pass").length, failed: mine.filter((x) => x.status === "fail").length, notApplicable: mine.filter((x) => x.status === "na").length, notRun: mine.filter((x) => x.status === "skip").length }];
     }),
   );
   const thin = COVER.filter((a) => areas[a].steps < 5);
   writeFileSync(
     `${out}/coverage.json`,
-    JSON.stringify({ profile: PROFILE, label: P.label, totals: { steps: results.length, passed, failed, notApplicable: na }, areas, thinAreas: thin, steps }, null, 2),
+    JSON.stringify({ profile: PROFILE, label: P.label, totals: { steps: results.length, passed, failed, notApplicable: na, notRun: notRunCount }, areas, thinAreas: thin, steps }, null, 2),
   );
   const md = [
     `# UAT coverage: ${PROFILE}`,
     ``,
     `${P.label}`,
     ``,
-    `${results.length} steps: ${passed} passed, ${failed} failed, ${na} not applicable.`,
+    `${results.length} steps: ${passed} passed, ${failed} failed, ${na} not applicable, ${notRunCount} not run.`,
     ``,
-    `| Area | Steps | Passed | Failed | Not applicable |`,
-    `|---|---|---|---|---|`,
-    ...COVER.map((a) => `| ${a} | ${areas[a].steps} | ${areas[a].passed} | ${areas[a].failed} | ${areas[a].notApplicable} |`),
+    `| Area | Steps | Passed | Failed | Not applicable | Not run |`,
+    `|---|---|---|---|---|---|`,
+    ...COVER.map((a) => `| ${a} | ${areas[a].steps} | ${areas[a].passed} | ${areas[a].failed} | ${areas[a].notApplicable} | ${areas[a].notRun} |`),
     ``,
     thin.length ? `Areas with fewer than 5 steps: ${thin.map((a) => `${a} (${areas[a].steps})`).join(", ")}.` : `Every area has at least 5 steps.`,
     ``,
@@ -4015,7 +4032,7 @@ function writeReports() {
       `## ${a}`,
       ``,
       ...(steps.filter((x) => x.coverage === a).length
-        ? steps.filter((x) => x.coverage === a).map((x) => `- ${x.status === "pass" ? "✅" : x.status === "fail" ? "❌" : "➖"} ${x.n}. ${x.name}${x.runsOn.length < ALL_PROFILES.length ? ` _(only on ${x.runsOn.join(", ")})_` : ""}`)
+        ? steps.filter((x) => x.coverage === a).map((x) => `- ${mark(x.status)} ${x.n}. ${x.name}${x.runsOn.length < ALL_PROFILES.length ? ` _(only on ${x.runsOn.join(", ")})_` : ""}`)
         : ["- (no steps)"]),
       ``,
     ]),

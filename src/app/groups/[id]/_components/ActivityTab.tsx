@@ -1,5 +1,5 @@
 import Link from "@/components/Link";
-import { buildActivity, byDay, filterActivity, hasFilter, type ActivityFilter } from "@/lib/activity";
+import { activityMoreHref, buildActivity, byDay, filterActivity, hasFilter, type ActivityFilter } from "@/lib/activity";
 import { CATEGORIES, getCategory } from "@/lib/categories";
 import { originalShares } from "@/lib/currency-ledgers";
 import { fxLine, rateSourceLine } from "@/lib/conversion";
@@ -141,9 +141,9 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                 </select>
                 <select name="who" defaultValue={filter.who ?? ""} aria-label="Person" className={`${field} flex-1`}>
                   <option value="">Everyone</option>
-                  {group.members.map((m) => (
+                  {v.people.map((m) => (
                     <option key={m.id} value={m.id}>
-                      {m.id === myId ? "You" : m.name}
+                      {m.id === myId ? "You" : m.name}{m.leftAt || m.removedAt ? " (left)" : ""}
                     </option>
                   ))}
                 </select>
@@ -151,9 +151,9 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
               <div className="flex gap-2">
                 <select name="by" defaultValue={filter.by ?? ""} aria-label="Paid by" className={`${field} flex-1`}>
                   <option value="">Paid by anyone</option>
-                  {group.members.map((m) => (
+                  {v.people.map((m) => (
                     <option key={m.id} value={m.id}>
-                      Paid by {m.id === myId ? "you" : m.name}
+                      Paid by {m.id === myId ? "you" : m.name}{m.leftAt || m.removedAt ? " (left)" : ""}
                     </option>
                   ))}
                 </select>
@@ -444,7 +444,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
       ))}
       {items.length > page.length && (
         <Link
-          href={`/groups/${group.id}?${new URLSearchParams({ tab: "activity", n: String(limit + PAGE * 2), ...(filter.q ? { q: filter.q } : {}), ...(filter.cat ? { cat: filter.cat } : {}), ...(filter.who ? { who: filter.who } : {}) })}`}
+          href={activityMoreHref(group.id, filter, limit + PAGE * 2)}
           className="block border border-line py-3 text-center text-sm font-medium text-fg active:bg-mist"
         >
           Show more ({items.length - page.length} older)

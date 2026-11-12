@@ -137,6 +137,10 @@ export async function newInviteLink(groupId: string, actorId: string): Promise<{
   if (!me) return { ok: false, error: "Only people in this group can do this." };
   if (me.leftAt || !(await isGroupAdmin(groupId, actorId))) return { ok: false, error: NEW_LINK_ADMIN_ONLY };
   const code = newInviteCode();
-  await db.group.update({ where: { id: groupId }, data: { inviteCode: code } });
+  // The old email invitations carry the old link, so they close in the same step as the code changes (never one without the other).
+  await db.$transaction([
+    db.group.update({ where: { id: groupId }, data: { inviteCode: code } }),
+    db.invite.updateMany({ where: { groupId, acceptedAt: null, declinedAt: null }, data: { declinedAt: new Date() } }),
+  ]);
   return { ok: true, code };
 }

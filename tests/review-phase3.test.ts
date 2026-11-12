@@ -10,13 +10,25 @@ import { spentByCurrency } from "@/lib/secondary";
 
 describe("who owes whom for one expense (the Add screen's preview)", () => {
   const shares = [{ memberId: "you", amount: 112500 }, { memberId: "asha", amount: 93750 }, { memberId: "rohan", amount: 93750 }];
-  it("two payers: everyone owes the payers in proportion, netted per pair", () => {
+  it("two payers: the pairs come from each person's net, not from rounding each debtor separately", () => {
     const pairs = expensePairs({ paidById: "you", amount: 300000, payers: JSON.stringify([{ m: "you", a: 200000 }, { m: "asha", a: 100000 }]), shares });
+    // By hand: you paid 200000 and owe 112500 -> +87500. Asha paid 100000 and owes 93750 -> +6250. Rohan owes 93750 -> -93750 (= 87500 + 6250).
+    // So only Rohan pays, and Asha is not shown owing you anything.
     expect(pairs).toEqual([
-      { from: "asha", to: "you", amount: 25000 },
-      { from: "rohan", to: "you", amount: 62500 },
-      { from: "rohan", to: "asha", amount: 31250 },
+      { from: "rohan", to: "you", amount: 87500 },
+      { from: "rohan", to: "asha", amount: 6250 },
     ]);
+  });
+  it("paid 1 and 1, shares 1 and 1: nobody owes anyone", () => {
+    expect(expensePairs({ paidById: "a", amount: 2, payers: JSON.stringify([{ m: "a", a: 1 }, { m: "b", a: 1 }]), shares: [{ memberId: "a", amount: 1 }, { memberId: "b", amount: 1 }] })).toEqual([]);
+  });
+  it("A paid 200, B paid 100, shares 100 / 100 / 100: only C pays, and pays A 100", () => {
+    const pairs = expensePairs({
+      paidById: "a", amount: 30000, payers: JSON.stringify([{ m: "a", a: 20000 }, { m: "b", a: 10000 }]),
+      shares: [{ memberId: "a", amount: 10000 }, { memberId: "b", amount: 10000 }, { memberId: "c", amount: 10000 }],
+    });
+    // Nets: A +10000, B 0, C -10000.
+    expect(pairs).toEqual([{ from: "c", to: "a", amount: 10000 }]);
   });
   it("money back: whoever got it owes the others", () => {
     const pairs = expensePairs({

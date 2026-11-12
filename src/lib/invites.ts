@@ -290,11 +290,14 @@ export async function inviteByEmail(groupId: string, actorId: string, rawEmails:
       people.push({ name: wanted, email });
       continue;
     }
-    const r = await inviteOne(group, actor, email, wanted, { origin, account, mail, later: opts.later });
+    // A name clash (or any failure) is an error for this address only; the others carry on.
+    const r = await inviteOne(group, actor, email, wanted, { origin, account, mail, later: opts.later }).catch(() => ({ error: "Couldn’t add this one. Try again." }));
     if ("error" in r) {
       bad.push(`${email} (${r.error})`);
       continue;
     }
+    // The new name is now taken in this group, so the next address with the same inferred name becomes "Same 2".
+    group.members.push({ id: r.memberId, name: r.name, accountId: null, leftAt: null, removedAt: null });
     people.push({ name: r.name, email });
   }
   // No Undo bar for any email invite, so the reply looks the same whoever the email belongs to.
@@ -339,7 +342,7 @@ export async function cancelInvitation(groupId: string, actorId: string, memberI
 // "Invite by email" for someone added by name only (before email sign-up):
 // the link opens the group's join page on "Continue as <name>", so their
 // expenses and balance stay theirs.
-export async function inviteToClaim(groupId: string, actorId: string, memberId: string, rawEmail: string, origin: string): Promise<{ ok: true; email: string } | { ok: false; error: string }> {
+export async function inviteToClaim(groupId: string, actorId: string, memberId: string, rawEmail: string, origin: string, opts: { later?: Later } = {}): Promise<{ ok: true; email: string } | { ok: false; error: string }> {
   const email = cleanEmail(rawEmail);
   if (!email) return { ok: false, error: "Enter an email address, like name@gmail.com." };
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: true } });
@@ -377,19 +380,24 @@ export async function inviteToClaim(groupId: string, actorId: string, memberId: 
     }),
   ]);
   const link = `${origin}/join/${group.inviteCode}?${new URLSearchParams({ e: email, as: member.id })}`;
-  // If that email belongs to someone who blocked the inviter, nothing is sent. The email goes through exactly the same checks and
-  // counters as a real one (opted out, switched off, daily limits, mail not set up) and gives the same answer, but is never
-  // handed to the mail service (`suppress`), so the reply can't be used to find out whether someone blocked you.
-  const theirAccount = await db.account.findUnique({ where: { email }, select: { id: true } });
-  const blocked = Boolean(theirAccount && actor.accountId && (await hasBlocked(theirAccount.id, actor.accountId).catch(() => true)));
-  const sent = await sendMail(
-    email,
-    `${actor.name} added you to ${group.name} on Loopin`,
-    `${actor.name} added you as “${member.name}” in “${group.name}” on Loopin. Tap to join and see your share:\n\n${link}`,
-    `<div style="font-family:system-ui,sans-serif;max-width:440px"><p style="font-size:16px"><strong>${esc(actor.name)}</strong> added you as <strong>${esc(member.name)}</strong> in <strong>${esc(group.name)}</strong> on Loopin.</p><p><a href="${link}" style="display:inline-block;background:#0d0d0f;color:#f4f2ec;padding:12px 18px;text-decoration:none;font-weight:600">Join as ${esc(member.name)}</a></p></div>`,
-    { optOut: true, item: "groups.added", suppress: blocked },
-  );
-  if (!sent) return { ok: false, error: "The email couldn’t be sent. Share the group’s invite link instead." };
+  // The email goes out AFTER the reply (like inviteOne), so the reply comes from the checks above alone and takes the same time
+  // whether or not the person blocked the inviter. The invitation is in place either way; if the email can't go (opted out,
+  // daily limits, mail not set up) the reply is still the same for everyone.
+  const job = async () => {
+    // If that email belongs to someone who blocked the inviter, nothing is sent. The email goes through exactly the same checks and
+    // counters as a real one but is never handed to the mail service (`suppress`).
+    const theirAccount = await db.account.findUnique({ where: { email }, select: { id: true } });
+    const blocked = Boolean(theirAccount && actor.accountId && (await hasBlocked(theirAccount.id, actor.accountId).catch(() => true)));
+    await sendMail(
+      email,
+      `${actor.name} added you to ${group.name} on Loopin`,
+      `${actor.name} added you as “${member.name}” in “${group.name}” on Loopin. Tap to join and see your share:\n\n${link}`,
+      `<div style="font-family:system-ui,sans-serif;max-width:440px"><p style="font-size:16px"><strong>${esc(actor.name)}</strong> added you as <strong>${esc(member.name)}</strong> in <strong>${esc(group.name)}</strong> on Loopin.</p><p><a href="${link}" style="display:inline-block;background:#0d0d0f;color:#f4f2ec;padding:12px 18px;text-decoration:none;font-weight:600">Join as ${esc(member.name)}</a></p></div>`,
+      { optOut: true, item: "groups.added", suppress: blocked },
+    ).catch(() => false);
+  };
   await logEvent(db, { groupId, actorId, kind: "member_invited", text: `invited ${member.name} to join` });
+  if (opts.later) opts.later(job);
+  else await job();
   return { ok: true, email };
 }

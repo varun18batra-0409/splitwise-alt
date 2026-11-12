@@ -203,12 +203,12 @@ function paidNote(c: { title: string; organiser: string; currency: string; code:
 }
 
 // Home: the collections I organise (open first, newest first).
-export async function myCollections(accountId: string) {
+export async function myCollections(accountId: string, take = 20) {
   const list = await db.collection.findMany({
     where: { accountId, deletedAt: null },
     include: { entries: { select: { name: true, amount: true, status: true } } },
     orderBy: { createdAt: "desc" },
-    take: 20,
+    take,
   });
   return list.sort((a, b) => Number(Boolean(a.closedAt)) - Number(Boolean(b.closedAt)));
 }

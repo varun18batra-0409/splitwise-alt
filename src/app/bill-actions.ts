@@ -7,6 +7,7 @@ import { redirect } from "@/lib/fresh-redirect";
 import { billCommand, saveBillFor, toggleMissedDayFor } from "@/lib/home/bill-setup";
 import { addListItem, buyListItems, goingShopping, removeListItem, toggleListItem } from "@/lib/home/list-db";
 import { cleanKey } from "@/lib/once";
+import { tripFromGoalOnce } from "@/lib/goal-trip";
 import { saveBudgetsFor } from "@/lib/home/budgets-db";
 import { moveOut, returnDepositFor, saveDepositFor } from "@/lib/home/moving-db";
 import { db } from "@/lib/db";
@@ -18,7 +19,6 @@ import { createGroupFor } from "@/lib/group-setup";
 import { addRegistered } from "@/lib/invites";
 import { headers } from "next/headers";
 import { after } from "next/server";
-import { claimOnce } from "@/lib/push";
 
 // Home & Couple groups: bills (set up, change, skip / pause / stop, the daily
 // calendar), settle-up rules, and the shopping list.
@@ -220,9 +220,15 @@ export async function tripFromGoal(formData: FormData) {
   const goal = await db.goal.findFirst({ where: { id: String(formData.get("goalId") ?? ""), groupId, deletedAt: null, reachedAt: { not: null } }, include: { group: { include: { members: true } } } });
   const meMember = goal?.group.members.find((m) => m.id === actor);
   if (!goal || !account || !meMember) redirect(`/groups/${groupId}`);
-  // Once per goal: a second tap (or a retry) doesn't make a second trip.
-  if (!(await claimOnce(`trip-from-goal:${goal.id}`))) redirect("/");
-  const trip = await createGroupFor(account, { type: "trip", name: goal.name, yourName: meMember.name, currency: goal.group.currency });
+  // Once per goal (see goal-trip.ts): a second tap goes to the trip the first one made; a failed attempt can be retried.
+  const made = await tripFromGoalOnce(goal.id, () => createGroupFor(account, { type: "trip", name: goal.name, yourName: meMember.name, currency: goal.group.currency }));
+  if ("existing" in made) {
+    // Straight to the trip if you are in it (your own retry); otherwise back to this group (someone else already made it).
+    const inIt = await db.member.findFirst({ where: { groupId: made.existing, accountId: account.id, leftAt: null }, select: { id: true } });
+    redirect(inIt ? `/groups/${made.existing}` : `/groups/${groupId}`);
+  }
+  if ("busy" in made) redirect(`/groups/${groupId}`);
+  const trip = made.trip;
   await setMyMemberId(trip.id, trip.members[0].id);
   const { origin } = await originOf();
   for (const m of goal.group.members) if (!m.leftAt && m.accountId && m.id !== actor) await addRegistered(trip.id, trip.members[0].id, m.accountId, origin, { later: (job) => after(job) });

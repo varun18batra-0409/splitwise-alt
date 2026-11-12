@@ -1,5 +1,9 @@
 import { spentAmount } from "./payers";
 
+// Is the group really square: nobody owes anybody, and there is at least one expense (an empty group isn't "square",
+// it just hasn't started). The All square page and its shareable picture use the same rule.
+export const isSquare = (g: { transfers: unknown[]; expenses: unknown[] }) => g.transfers.length === 0 && g.expenses.length > 0;
+
 // "All square": the numbers for the celebration card. Pure.
 export function squareNumbers(g: {
   expenses: { amount: number; kind?: string | null; spentAt?: Date | null; createdAt: Date }[];

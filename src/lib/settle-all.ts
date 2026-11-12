@@ -2,7 +2,7 @@ import { db } from "./db";
 import { hasLeft, LEFT_ERROR } from "./active";
 import { claimKey, fingerprintOf, isDuplicateKey, keyState, STALE_KEY_ERROR, withRetry } from "./once";
 import { loadGroup } from "./group-data";
-import { logEvent } from "./events";
+import { logEvent, markUndone, type UndoMark } from "./events";
 import { formatMoney } from "./money";
 import { createPayment, RestoreRefused, restorePayments } from "./payments";
 import type { Transfer } from "./settle";
@@ -78,7 +78,7 @@ async function settleAllOnce(groupId: string, actorId: string, expectedPlan: str
 
 // Undo (apply = false): take the payments back out and reopen.
 // Redo (apply = true): put them back and close again.
-export async function applySettleAll(groupId: string, actorId: string, paymentIds: string[], apply: boolean, opts: { afterRead?: () => Promise<void> } = {}): Promise<Result> {
+export async function applySettleAll(groupId: string, actorId: string, paymentIds: string[], apply: boolean, opts: { afterRead?: () => Promise<void>; mark?: UndoMark } = {}): Promise<Result> {
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (!group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can do this." };
@@ -92,6 +92,7 @@ export async function applySettleAll(groupId: string, actorId: string, paymentId
     // First: the group is in the same currency and this person still in it; closed is checked just below (undo needs it
     // closed, redo needs it open).
     await guardGroup(tx, groupId, { currency: group.currency, actorId, allowClosed: !apply });
+    await markUndone(tx, opts.mark); // an undo is marked in this same transaction
     if (!apply) {
       const open = await tx.group.updateMany({ where: { id: groupId, closed: true }, data: { closed: true } });
       if (open.count !== 1) throw new Error("reopened-since");
@@ -201,7 +202,7 @@ export async function markAllPaid(groupId: string, actorId: string, pickIn: Pick
 }
 
 // Undo / redo of "Mark all paid": take those payments out, or put them back.
-export async function setPaymentsDeleted(groupId: string, actorId: string, paymentIds: string[], deleted: boolean, opts: { afterRead?: () => Promise<void> } = {}): Promise<Result> {
+export async function setPaymentsDeleted(groupId: string, actorId: string, paymentIds: string[], deleted: boolean, opts: { afterRead?: () => Promise<void>; mark?: UndoMark } = {}): Promise<Result> {
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (!group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can do this." };
@@ -213,6 +214,7 @@ export async function setPaymentsDeleted(groupId: string, actorId: string, payme
    eventId = await db.$transaction(async (tx) => {
     // First: the group is still open, in the same currency, and this person still in it.
     await guardGroup(tx, groupId, { currency: group.currency, actorId });
+    await markUndone(tx, opts.mark);
     // Someone who has left may only end with the balance they had, or 0.
     const goneHere = deleted ? await removedPaymentsBreak(tx, groupId, paymentIds) : await restoredPaymentsBreak(tx, groupId, paymentIds);
     if (goneHere.length) throw new LeaverBreak(goneHere[0], deleted ? "undone" : "redone"); // this is the Undo / Redo of "Mark all paid"

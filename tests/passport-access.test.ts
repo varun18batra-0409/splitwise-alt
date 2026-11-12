@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
-import { canSeePassport, passportFriends, passportRoster, recordPassportChoice } from "@/lib/passport-db";
+import { canSeePassport, loadPassport, passportFriends, passportRoster, recordPassportChoice } from "@/lib/passport-db";
 import { passportNeedsAnswer, passportShared } from "@/lib/passport";
 
 // Who may open whose passport. The rule: both people have really joined a group
@@ -265,5 +265,45 @@ describe("passport: hidden until the owner says yes", () => {
     expect(passportShared({ passportShare: "groups", passportChoiceAt: null })).toBe(false);
     expect(passportShared({ passportShare: "private", passportChoiceAt: now })).toBe(false);
     expect(passportShared({ passportShare: "private", passportChoiceAt: null })).toBe(false);
+  });
+});
+
+describe("loadPassport counts only trips you really joined", () => {
+  const tripGroup = async (name: string, row: Row) => {
+    const g = await db.group.create({
+      data: {
+        name: `${name} ${stamp}`,
+        type: "trip",
+        inviteCode: `lp-${name}-${stamp}`,
+        tripStart: "2024-03-01",
+        tripEnd: "2024-03-05",
+        tripPlace: "Bangkok",
+        tripCountry: "TH",
+        members: {
+          create: [{
+            name: row.account.name,
+            accountId: row.account.id,
+            claimedAt: new Date(),
+            addedBy: row.added ? "someone-else" : "",
+            seenAt: row.added && row.seen ? new Date() : null,
+            leftAt: row.left ? new Date() : null,
+          }],
+        },
+      },
+    });
+    groupIds.push(g.id);
+    return g;
+  };
+
+  it("a trip someone added you to and you never opened is not a stamp; opened, or left later, it is", async () => {
+    const me = await account("LpMe");
+    const pending = await tripGroup("LpPending", { account: me, added: true, seen: false });
+    const opened = await tripGroup("LpOpened", { account: me, added: true, seen: true });
+    const left = await tripGroup("LpLeft", { account: me, left: true }); // left after the trip: still counts
+    const p = await loadPassport({ id: me.id, homeCountry: "IN", places: "" }, "IN", "2025-01-01");
+    const th = p.index.find((c) => c.code === "TH");
+    expect(th?.trips).toBe(2); // opened + left; the never-opened one is not counted
+    expect(pending.id).not.toBe(opened.id);
+    expect(left.id).not.toBe(opened.id);
   });
 });

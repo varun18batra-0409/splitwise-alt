@@ -5,6 +5,7 @@ import { addPerson, invitePeople } from "@/app/actions";
 import { InviteIcon, SearchIcon } from "./icons";
 import { reportSpeed } from "./speedReport";
 import { whatsappLink } from "@/lib/whatsapp";
+import { inviteLabel, type InviteChannel } from "@/lib/invite-label";
 
 type Found = { accountId: string; name: string; inGroup: boolean; known: boolean; invited?: boolean; removed?: boolean; mayAdd?: boolean };
 const isEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(s.trim());
@@ -153,7 +154,7 @@ function contactsApi(): ContactsManager | null {
 export function ContactInvite({ groupId, groupName, link }: { groupId: string; groupName: string; link: string }) {
   const [picker, setPicker] = useState<boolean | null>(null);
   const [picked, setPicked] = useState<Contact[]>([]);
-  const [sent, setSent] = useState<Record<string, boolean>>({});
+  const [sent, setSent] = useState<Record<string, InviteChannel>>({});
   const [msg, setMsg] = useState("");
   useEffect(() => setPicker(contactsApi() !== null), []);
 
@@ -214,12 +215,12 @@ export function ContactInvite({ groupId, groupName, link }: { groupId: string; g
           {picked.map((c, i) => {
             const key = `${c.name}-${c.tel}-${c.email}-${i}`;
             const first = c.name.split(" ")[0];
-            const mark = () => setSent((s) => ({ ...s, [key]: true }));
+            const mark = (ch: InviteChannel) => () => setSent((s) => ({ ...s, [key]: ch }));
             return (
               <li key={key} className="px-3 py-2.5">
                 <p className="truncate font-medium">
                   {c.name || c.tel || c.email}
-                  {sent[key] && <span className="ml-2 text-xs font-normal text-owed">Invite sent ✓</span>}
+                  {sent[key] && <span className="ml-2 text-xs font-normal text-owed">{inviteLabel(sent[key])}</span>}
                 </p>
                 <p className="truncate text-xs text-gray-400">{[c.tel, c.email].filter(Boolean).join(" · ")}</p>
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -228,19 +229,19 @@ export function ContactInvite({ groupId, groupName, link }: { groupId: string; g
                       href={whatsappLink(text(first), c.tel.replace(/\D/g, ""))}
                       target="_blank"
                       rel="noopener noreferrer"
-                      onClick={mark}
+                      onClick={mark("whatsapp")}
                       className="border border-line px-3 py-1.5 text-sm text-fg active:bg-mist rounded-full"
                     >
                       WhatsApp
                     </a>
                   )}
                   {c.tel && (
-                    <a href={`sms:${c.tel}?&body=${encodeURIComponent(text(first))}`} onClick={mark} className="border border-line px-3 py-1.5 text-sm text-fg active:bg-mist rounded-full">
+                    <a href={`sms:${c.tel}?&body=${encodeURIComponent(text(first))}`} onClick={mark("sms")} className="border border-line px-3 py-1.5 text-sm text-fg active:bg-mist rounded-full">
                       SMS
                     </a>
                   )}
                   {c.email && (
-                    <form action={invitePeople} onSubmit={mark}>
+                    <form action={invitePeople} onSubmit={mark("email")}>
                       <input type="hidden" name="groupId" value={groupId} />
                       <input type="hidden" name="emails" value={c.email} />
                       <button type="submit" className="border border-line px-3 py-1.5 text-sm text-fg active:bg-mist rounded-full">

@@ -1,3 +1,4 @@
+import { closeHint, sharesHint } from "@/lib/settings-words";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getMyMemberId, privatePath } from "@/lib/identity";
@@ -220,9 +221,7 @@ export default async function GroupSettings({
           <fieldset>
             <legend className="mb-1 text-base font-semibold">{group.type === "couple" ? "Each person’s %" : "Shares"}</legend>
             <p className="mb-3 text-sm text-gray-500">
-              {group.type === "couple"
-                ? "Your split for every expense, e.g. 55 and 45."
-                : "Everyone pays 1 share unless you change it, e.g. 1.5 for a bigger room."}
+              {sharesHint(group.type)}
             </p>
             <ul className="divide-y divide-line rounded-2xl border border-line">
               {active.map((m) => (
@@ -323,7 +322,7 @@ export default async function GroupSettings({
       <section id="close" className="mt-6 scroll-mt-6">
         <h3 className="mb-1 text-base font-semibold">{group.closed ? "This group is closed" : "Close this group"}</h3>
         <p className="mb-4 text-sm text-gray-500">
-          {group.closed ? "New expenses are paused. History is kept." : "Trip over? Close it. History is kept and you can reopen it any time."}
+          {closeHint(group.type, group.closed)}
         </p>
         <form action={setGroupClosed}>
           <input type="hidden" name="groupId" value={group.id} />

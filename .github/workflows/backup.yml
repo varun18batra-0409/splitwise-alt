@@ -4,7 +4,8 @@
 # BACKUP_PASSPHRASE. Without them it skips quietly.
 #
 # Every run also does a restore drill: the backup is rebuilt into a scratch
-# database and every table is checked.
+# database, every table is checked, and so is the data (references, shares,
+# balances). A drill that finds a problem fails the run.
 #
 # To restore for real: download the "db-backup" file from the run, then
 #   openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in backup.json.enc -out backup.json
@@ -51,15 +52,27 @@ jobs:
           openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:BACKUP_PASSPHRASE \
             -in "$RUNNER_TEMP/backup.json.enc" -out "$RUNNER_TEMP/check.json"
           grep -q '"takenAt"' "$RUNNER_TEMP/check.json"
-          # Restore drill: rebuild the whole database from the backup in a
-          # scratch file and check every table's row count matches.
-          node scripts/restore.mjs "$RUNNER_TEMP/check.json" "file:$RUNNER_TEMP/drill.db" | tee "$RUNNER_TEMP/drill.log"
-          echo "::notice title=Restore drill::$(tail -1 "$RUNNER_TEMP/drill.log") $(grep -c '✓' "$RUNNER_TEMP/drill.log") tables OK."
+          # Restore drill: rebuild the whole database from the backup in a scratch
+          # file, check every table's row count matches, then check the data is whole:
+          # database integrity, PRAGMA foreign_key_check, every expense's shares add up,
+          # every group's balances net to 0, nothing points to a missing member.
+          # Any problem fails this step (and so the backup run).
+          drill=0
+          node scripts/restore.mjs "$RUNNER_TEMP/check.json" "file:$RUNNER_TEMP/drill.db" > "$RUNNER_TEMP/drill.log" 2>&1 || drill=$?
+          cat "$RUNNER_TEMP/drill.log"
+          if [ "$drill" -ne 0 ] || grep -q '^✗' "$RUNNER_TEMP/drill.log"; then
+            echo "::error title=Restore drill FAILED::exit $drill. $(grep '^✗' "$RUNNER_TEMP/drill.log" | head -8 | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"
+            rm -f "$RUNNER_TEMP/check.json" "$RUNNER_TEMP/drill.db"
+            exit 1
+          fi
+          echo "::notice title=Restore drill::$(tail -1 "$RUNNER_TEMP/drill.log") $(grep -c '✓' "$RUNNER_TEMP/drill.log") checks OK."
           rm -f "$RUNNER_TEMP/check.json" "$RUNNER_TEMP/drill.db"
           echo "::notice title=Backup::Encrypted backup saved ($(du -h "$RUNNER_TEMP/backup.json.enc" | cut -f1))."
+      # Kept even when the drill failed (the run is red, but the file is still the best copy there is).
       - uses: actions/upload-artifact@v4
-        if: steps.ready.outputs.ok == '1'
+        if: always() && steps.ready.outputs.ok == '1'
         with:
           name: db-backup
           path: ${{ runner.temp }}/backup.json.enc
           retention-days: 14
+          if-no-files-found: warn

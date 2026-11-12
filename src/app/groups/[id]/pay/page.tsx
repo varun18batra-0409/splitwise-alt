@@ -5,6 +5,7 @@ import { getMyMemberId, privatePath } from "@/lib/identity";
 import { loadGroup } from "@/lib/group-data";
 import { formatMoney, parseAmount, PAYMENT_LINE, toInputAmount } from "@/lib/money";
 import { overpayQuestion } from "@/lib/pay-record";
+import { defaultPayment } from "@/lib/pay-default";
 import { PayAmountField } from "@/components/AmountEcho";
 import { recordCustomPayment } from "@/app/actions";
 import { FreshKey } from "@/components/FreshKey";
@@ -29,8 +30,13 @@ export default async function RecordPayment({
 
   const people = group.members.filter((m) => !m.leftAt); // people who left aren't offered
   const isMember = (x?: string) => Boolean(x && people.some((m) => m.id === x));
-  const from = isMember(sp.from) ? sp.from! : myId;
-  const to = isMember(sp.to) && sp.to !== from ? sp.to! : "";
+  // Opened with nothing filled in while you're owed: start from the top suggestion to you.
+  const pre = !sp.from && !sp.to && !sp.amount ? defaultPayment(transfers, myId, net[myId] ?? 0, isMember) : null;
+  const qFrom = sp.from ?? pre?.from;
+  const qTo = sp.to ?? pre?.to;
+  const qAmount = sp.amount ?? (pre ? toInputAmount(pre.amount, group.currency) : "");
+  const from = isMember(qFrom) ? qFrom! : myId;
+  const to = isMember(qTo) && qTo !== from ? qTo! : "";
   const nameOf = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");
   const money = (m: number) => formatMoney(m, group.currency);
   const fill = (f: string, t: string, a: number) =>
@@ -107,7 +113,7 @@ export default async function RecordPayment({
 
         <label className="block">
           <span className="mb-2 block text-sm font-medium text-gray-600">Amount ({group.currency})</span>
-          <PayAmountField currency={group.currency} defaultValue={sp.amount ?? ""} />
+          <PayAmountField currency={group.currency} defaultValue={qAmount} />
           <span className="mt-2 block text-xs text-gray-400">Full or part. You can record the rest later.</span>
         </label>
 

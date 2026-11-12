@@ -11,6 +11,8 @@ import { getTimeZone } from "@/lib/tz";
 import { FreshKey } from "@/components/FreshKey";
 import { addMonths } from "@/lib/home/month";
 import { leaverOf } from "@/lib/left-view-db";
+import { MoveOutButton } from "@/components/MoveOutButton";
+import { moveOutConfirm } from "@/lib/move-confirm";
 
 const monthLabel = (period: string) => new Date(`${period}-15T12:00:00Z`).toLocaleDateString("en-IN", { month: "short", timeZone: "UTC" });
 
@@ -203,9 +205,13 @@ export default async function MoveOutPage({
           </section>
 
           <div>
-            <button type="submit" className={primaryButtonClass}>
+            <MoveOutButton
+              className={primaryButtonClass}
+              plain={moveOutConfirm({ leaverName: name(leaver.id), payments: p.payments, nameOf: Name, money })}
+              withDaily={p.daily.length > 0 ? moveOutConfirm({ leaverName: name(leaver.id), payments: p.paymentsWithDaily, nameOf: Name, money }) : undefined}
+            >
               Settle {leaver.id === myId ? "up" : leaver.name} &amp; mark as moved out
-            </button>
+            </MoveOutButton>
             <p className="mt-3 text-center text-xs leading-relaxed text-gray-500">
               {Name(leaver.id)} stay{leaver.id === myId ? "" : "s"} in the history and leave{leaver.id === myId ? "" : "s"} the bills after {niceDate(lastDay)}.
               <br />

@@ -47,7 +47,8 @@ export function tripReport(input: { name: string; type?: string; currency: strin
   const { members, expenses, tz } = input;
   const nameOf = (id: string) => members.find((m) => m.id === id)?.name ?? "Someone";
   const total = expenses.reduce((s, e) => s + spentAmount(e), 0);
-  const dayList = expenses.map((e) => dayKey(expenseDate(e), tz)).sort();
+  // A card game's result isn't spending, so its date can't stretch the trip's first and last day.
+  const dayList = expenses.filter((e) => e.kind !== "pot").map((e) => dayKey(expenseDate(e), tz)).sort();
   const from = dayList[0] ?? "";
   const to = dayList[dayList.length - 1] ?? "";
   const days = from ? Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1 : 0;

@@ -12,7 +12,7 @@ import { getAccount } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
 import { todayKey } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
-import { loadCollection, loopinFriends, personalReminder, progress, progressBar, progressLines, reminderText, upiLink, whatsappTo } from "@/lib/collect";
+import { countsLine, loadCollection, loopinFriends, personalReminder, progress, stampCounts, progressBar, progressLines, reminderText, upiLink, whatsappTo } from "@/lib/collect";
 import { FriendPicker } from "@/components/FriendPicker";
 import { PickContacts } from "@/components/PickContacts";
 import { organiserActionForm, undoPaidAction } from "@/app/collect-actions";
@@ -51,6 +51,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
   const p = progress(c.entries, c.amount);
   const bar = progressBar(p);
   const lines = progressLines(p, c.currency);
+  const stamp = stampCounts(p);
   const money = (n: number) => formatMoney(n, c.currency);
   const late = c.dueDate && c.dueDate < todayKey(new Date(), tz);
   const closed = Boolean(c.closedAt);
@@ -160,11 +161,11 @@ export default async function CollectionPage({ params, searchParams }: Props) {
           style={{ color: INK }}
         >
           <span className="block font-hand text-[26px] font-bold leading-none tabular-nums">
-            {p.paidCount}
-            {p.people > 0 && <span className="text-[18px]">/{p.people}</span>}
+            {stamp.n}
+            {stamp.of !== null && <span className="text-[18px]">/{stamp.of}</span>}
           </span>
           <span className="block text-[10px] font-semibold uppercase tracking-wide" style={{ color: INK_OWED }}>
-            paid
+            {stamp.word}
           </span>
         </span>
         <p className="pr-20 font-hand text-[24px] font-bold leading-none text-fg/75">{c.organiser} is collecting</p>
@@ -183,7 +184,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
         </div>
         <p className="mt-2 flex items-baseline justify-between gap-3 text-sm" data-collection-progress>
           <span className="text-fg/70">
-            {p.paidCount} of {p.people || p.paidCount} paid
+            {countsLine(p)}
           </span>
           <span className="font-semibold tabular-nums" data-collection-confirmed>
             {lines.confirmed}

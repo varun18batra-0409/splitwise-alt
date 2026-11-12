@@ -631,13 +631,14 @@ html.lp-opened .lp-open {
 .lp-slide-in {
   animation: lp-slide-in 260ms ease-out both;
 }
-@keyframes lp-ring {
+/* The Wrapped deck's ring draws itself in (its own name: Settle up's ring below is a different animation). */
+@keyframes lp-wrap-ring {
   from {
     stroke-dasharray: 0 999;
   }
 }
-.lp-ring {
-  animation: lp-ring 900ms cubic-bezier(0.3, 0.7, 0.2, 1) both;
+.lp-wrap-ring {
+  animation: lp-wrap-ring 900ms cubic-bezier(0.3, 0.7, 0.2, 1) both;
 }
 @keyframes lp-bar {
   from {
@@ -659,7 +660,7 @@ html.lp-opened .lp-open {
 }
 @media (prefers-reduced-motion: reduce) {
   .lp-slide-in,
-  .lp-ring,
+  .lp-wrap-ring,
   .lp-bar,
   .lp-card {
     animation: none;

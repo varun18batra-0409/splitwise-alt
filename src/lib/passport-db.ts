@@ -26,7 +26,7 @@ export function passportRoster<T extends RosterMember>(members: T[], viewerId: s
 // Your passport, from every trip group you're in (any phone you signed in on).
 export async function loadPassport(account: { id: string; homeCountry: string; places: string }, fallbackHome: string, today: string, opts: { forFriend?: boolean } = {}) {
   const groups = await db.group.findMany({
-    where: { type: "trip", deletedAt: null, members: { some: { accountId: account.id } } },
+    where: { type: "trip", deletedAt: null, members: { some: { accountId: account.id, ...JOINED } } }, // added-but-never-opened trips don't count; people who left still do
     select: {
       id: true, name: true, tripStart: true, tripEnd: true, tripPlace: true, tripCountry: true, createdAt: true,
       _count: { select: { members: true, expenses: { where: { deletedAt: null } } } },

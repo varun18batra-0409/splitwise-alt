@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useFocusTrap } from "@/lib/use-focus-trap";
 import { setAiConsentAction } from "@/app/ai-actions";
 
 export type AiWhat = "line" | "bill photo";
@@ -37,10 +38,11 @@ export function useAiConsent() {
     r?.(yes && saved);
   }
 
+  const layer = useFocusTrap(what !== null);
   const sheet =
     what && typeof document !== "undefined"
       ? createPortal(
-          <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/60">
+          <div ref={layer} className="fixed inset-0 z-[70] flex items-end justify-center bg-black/60">
             <div
               role="dialog"
               aria-modal="true"

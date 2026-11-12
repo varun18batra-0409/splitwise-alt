@@ -182,7 +182,7 @@ function makeSlides(L: Local): Slide[] {
     {
       id: "settle",
       title: "See who owes. Then settle.",
-      caption: "Pay each other however you like. Loopin never moves money; it just keeps the score straight.",
+      caption: "Pay each other however you like. It counts once the person you paid confirms. Loopin never moves money; it just keeps the score straight.",
       art: (
         <Card>
           <div className="rise flex items-center gap-3">
@@ -195,7 +195,7 @@ function makeSlides(L: Local): Slide[] {
           </div>
           <div className="rise rise-3 mt-4 rounded-2xl bg-mist p-3">
             <p className="text-sm">
-              Ravi tapped <strong>I’ve paid</strong>
+              Ravi says they paid
             </p>
             <div className="mt-2 grid grid-cols-2 gap-2 text-center text-[13px] font-semibold">
               <span className="rounded-full bg-fg px-3 py-2 text-canvas">Confirm received</span>
@@ -220,7 +220,7 @@ function makeSlides(L: Local): Slide[] {
     {
       id: "passport",
       title: "Collect your passport.",
-      caption: "Every trip adds a stamp. See the places you’ve been to, and share the page if you like.",
+      caption: "Every trip adds a stamp. See the places you’ve been to. It’s private until you choose to share it.",
       art: <PassportArt />,
     },
   ];
@@ -339,6 +339,11 @@ export function IntroTour({
             {last ? "↺ See it again" : "Next →"}
           </button>
         </div>
+        {last && (
+          <Link href="/how-it-works" onClick={seen} className="block text-center text-xs text-gray-500" data-tour-guide-link>
+            <span className="font-medium text-fg underline underline-offset-4">Every feature, explained</span>
+          </Link>
+        )}
         {signInHref && (
           <Link href={signInHref} className="block text-center text-xs text-gray-500">
             Save your groups to your email · <span className="font-medium text-fg underline underline-offset-4">Sign up or sign in</span>

@@ -105,15 +105,25 @@ export function PhoneStatus({ compact = false }: { compact?: boolean }) {
   }
 
   async function turnOff() {
+    setError("");
     setState("working");
+    // Switch off on the phone first: only once that worked do we tell Loopin to forget it. If the phone
+    // refuses, the switch stays on (it really is still on) and we say so.
     try {
       const { sub } = await currentSubscription();
       if (sub) {
-        await removePushSubscription(sub.endpoint);
-        await sub.unsubscribe();
+        const ok = await sub.unsubscribe();
+        if (!ok) throw new Error("unsubscribe");
+        try {
+          await removePushSubscription(sub.endpoint);
+        } catch {
+          /* the phone is already off; the server entry is cleaned up when a send to it fails */
+        }
       }
     } catch {
-      /* already off */
+      setError("Couldn't turn off on this phone. Try again.");
+      setState("on");
+      return;
     }
     setState("off");
   }

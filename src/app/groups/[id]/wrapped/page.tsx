@@ -24,7 +24,7 @@ export default async function WrappedPage({ params }: { params: Promise<{ id: st
     name: group.name,
     currency: group.currency,
     tz: await getTimeZone(),
-    people: group.members.filter((m) => !m.leftAt).map((m) => ({ id: m.id, name: m.name })),
+    people: data.people.filter((m) => !m.leftAt).map((m) => ({ id: m.id, name: m.name })),
     expenses,
     tripStart: group.tripStart,
     tripEnd: group.tripEnd,

@@ -115,3 +115,19 @@ describe("Paste the bill (text from Google Lens / Live Text)", () => {
     expect(parseBillText("", "INR").items).toEqual([]);
   });
 });
+
+describe("pasted bills with 3-decimal currencies (LC-01)", () => {
+  it("Coffee 1.234 in KWD is 1234 fils, not 'Coffee 1.' at 234", () => {
+    const r = parseBillText("Coffee 1.234", "KWD");
+    expect(r.items).toEqual([{ name: "Coffee", price: 1234 }]);
+  });
+  it("Naan 1,234.50 in INR is 123450 paise", () => {
+    expect(parseBillText("Naan 1,234.50", "INR").items).toEqual([{ name: "Naan", price: 123450 }]);
+  });
+  it("Ramen 1200 in JPY is 1200 yen", () => {
+    expect(parseBillText("Ramen 1200", "JPY").items).toEqual([{ name: "Ramen", price: 1200 }]);
+  });
+  it("3 decimals in rupees are refused rather than read as a different number", () => {
+    expect(parseBillText("Coffee 1.234", "INR").items).toEqual([]);
+  });
+});

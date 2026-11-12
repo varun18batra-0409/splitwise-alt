@@ -192,7 +192,7 @@ export type BillBadge = { id: "needs-amount" | "needs-add" | "needs-fix" | "need
 //   Add it        – a fixed or daily bill is waiting and nothing is wrong with it now (orange)
 //   Needs a fix   – held for a problem (e.g. someone in its split has left); fix it in the bill's settings (orange)
 //   Needs a payer – it is waiting and the person who pays has left (orange)
-//   Recorded      – this month's is already added (green)
+//   Added this month – this month's is already added (green)
 //   Due today     – it is due today and not added yet (gold)
 export function billBadge(b: {
   nature: string;
@@ -215,7 +215,7 @@ export function billBadge(b: {
           ? { id: "needs-add", label: "Add it", tone: "orange" }
           : { id: "needs-fix", label: "Needs a fix", tone: "orange" };
   }
-  if (b.recordedThisMonth) return { id: "recorded", label: "Recorded", tone: "green" };
+  if (b.recordedThisMonth) return { id: "recorded", label: "Added this month", tone: "green" };
   if (b.due && b.due === dayKey(b.now, b.tz || DEFAULT_TIME_ZONE)) return { id: "due-today", label: "Due today", tone: "gold" };
   return null;
 }

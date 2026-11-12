@@ -9,6 +9,7 @@ import { ColumnChart, HBarChart } from "@/components/Charts";
 import type { GroupExpense, GroupView } from "./view";
 import Link from "@/components/Link";
 import { spendingOnly } from "@/lib/chart-rows";
+import { backMoney, percentText } from "@/lib/chart-labels";
 import { insightLines, tripReport } from "@/lib/trip-report";
 
 // Category, currency, day-by-day, who paid, and each person's share.
@@ -28,19 +29,20 @@ export function ChartsTab({ v }: { v: GroupView }) {
   const catData = CATEGORIES.filter((c) => byCat.has(c.id))
     .map((c) => {
       const value = byCat.get(c.id)!;
-      return { key: c.id, label: c.label, icon: <ExpenseGlyph title="" category={c.id} size={22} className="rounded-[7px]!" />, value, valueText: `${money(value)} · ${Math.round((value / spent) * 100)}%`, href: `/search?g=${group.id}&c=${c.id}` };
+      return { key: c.id, label: c.label, icon: <ExpenseGlyph title="" category={c.id} size={22} className="rounded-[7px]!" />, value, valueText: `${backMoney(value, money)} · ${percentText(value, spent)}`, href: `/search?g=${group.id}&c=${c.id}` };
     })
     .sort((a, b) => b.value - a.value);
 
   const sign = (e: GroupExpense) => (e.kind === "refund" ? -1 : 1);
   const paid = sumBy((e) => payerIds(e), (e, k) => sign(e) * (payersOf(e).find((p) => p.memberId === k)?.amount ?? 0), spendingOnly(expenses));
   const people = (m: Map<string, number>) =>
-    group.members
-      .map((mem) => ({ key: mem.id, label: mem.id === myId ? "You" : mem.name, value: m.get(mem.id) ?? 0, valueText: money(m.get(mem.id) ?? 0) }))
+    v.people
+      .filter((mem) => !(mem.leftAt || mem.removedAt) || (m.get(mem.id) ?? 0) !== 0) // someone who left shows only if they paid
+      .map((mem) => ({ key: mem.id, label: mem.id === myId ? "You" : `${mem.name}${mem.leftAt || mem.removedAt ? " (left)" : ""}`, value: m.get(mem.id) ?? 0, valueText: backMoney(m.get(mem.id) ?? 0, money) }))
       .sort((a, b) => b.value - a.value);
 
   // Each person's share, split by category: what each of us spent on stays, food, travel…
-  const byPerson = group.members
+  const byPerson = v.people
     .map((mem) => {
       const cats = new Map<string, number>();
       for (const e of spendingOnly(expenses)) {
@@ -52,7 +54,7 @@ export function ChartsTab({ v }: { v: GroupView }) {
       const parts = CATEGORIES.filter((c) => (cats.get(c.id) ?? 0) > 0)
         .map((c) => ({ id: c.id, label: c.short, amount: cats.get(c.id)!, href: `/search?g=${group.id}&c=${c.id}` }))
         .sort((a, b) => b.amount - a.amount);
-      return { id: mem.id, name: mem.id === myId ? "You" : mem.name, total: parts.reduce((t, x) => t + x.amount, 0), parts };
+      return { id: mem.id, name: mem.id === myId ? "You" : `${mem.name}${mem.leftAt || mem.removedAt ? " (left)" : ""}`, total: parts.reduce((t, x) => t + x.amount, 0), parts };
     })
     .filter((r) => r.total > 0)
     .sort((a, b) => Number(b.id === myId) - Number(a.id === myId) || b.total - a.total);
@@ -69,7 +71,7 @@ export function ChartsTab({ v }: { v: GroupView }) {
     key: k,
     label: niceDate(k).replace(/ \d{4}$/, ""),
     value: perDay.get(k) ?? 0,
-    valueText: money(perDay.get(k) ?? 0),
+    valueText: backMoney(perDay.get(k) ?? 0, money),
   }));
 
   // A few plain-English lines on top (trips and other groups; flats have their own on This month).

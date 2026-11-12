@@ -139,3 +139,37 @@ describe("another app's spreadsheet", () => {
     expect(nets(row("Game result")).net).toEqual(nets(row("Card game")).net);
   });
 });
+
+describe("another app's file with several currencies (LC-05)", () => {
+  const file = "Title,Amount,Currency,Paid by,For\nDinner,100,INR,A,\"A, B\"\nTaxi,10,USD,C,\"A, C\"\n";
+  it("leaves the other-currency row out and lists it", () => {
+    const p = parseImport(file);
+    expect(p.ok).toBe(true);
+    if (!p.ok) return;
+    expect(p.currency).toBe("INR");
+    expect(p.rows).toHaveLength(1);
+    expect(p.rows[0].cost).toBe(10000); // 100 rupees, in paise
+    expect(p.skipped).toEqual([{ line: 3, reason: "in USD" }]);
+    expect(p.otherCurrencies).toEqual(["USD"]);
+    // C only appears in the left-out row, so C isn't added as a person.
+    expect(p.people).toEqual(["A", "B"]);
+  });
+});
+
+describe("money back in another app's file (LC-06)", () => {
+  it("a negative row that isn't a payment is a refund with the right effect", () => {
+    const { p, net } = nets("Title,Amount,Paid by,For\nRefund,-100,A,B\n");
+    expect(p.rows[0].kind).toBe("refund");
+    expect(p.rows[0].payment).toBe(false);
+    // A got ₹100 back that B shared in: A −10000 paise, B +10000 paise; they sum to 0.
+    expect(net).toEqual({ A: -10000, B: 10000 });
+    expect(Object.values(net).reduce((a, b) => a + b, 0)).toBe(0);
+    // Spending goes DOWN by 10000 (a refund subtracts): the plan is marked refund with amount 10000.
+    const plan = planRow(p.rows[0]);
+    expect(plan).toMatchObject({ type: "expense", kind: "refund", amount: 10000 });
+  });
+  it("a positive row is an ordinary expense (no kind)", () => {
+    const { p } = nets("Title,Amount,Paid by,For\nDinner,100,A,B\n");
+    expect(p.rows[0].kind).toBeUndefined();
+  });
+});

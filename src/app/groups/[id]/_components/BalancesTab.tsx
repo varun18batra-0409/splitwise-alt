@@ -48,30 +48,8 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
             <span className="block font-display text-lg font-semibold text-fg">
               {transfers.length} {transfers.length === 1 ? "payment clears" : "payments clear"} everything
             </span>
-            {before > transfers.length ? `Instead of ${before}, thanks to Smart Settle.` : "As few payments as it takes."}
+            {before > transfers.length ? `Instead of ${before}, thanks to Smart Settle.` : `Just ${transfers.length} ${transfers.length === 1 ? "payment" : "payments"}.`}
           </p>
-        </section>
-      )}
-
-      {/* Everyone's title: a quiet list, like credits at the end of a film. */}
-      {titles.length > 0 && (
-        <section aria-label="Fun titles">
-          <h2 className="font-display text-lg font-semibold tracking-tight">Titles</h2>
-          <p className="mb-3 text-sm text-gray-500">Earned on this {group.type === "trip" ? "trip" : "group"} so far.</p>
-          <ul className="divide-y divide-line rounded-[20px] border border-line px-4" data-titles>
-            {titles.map((t) => {
-              const m = group.members.find((x) => x.id === t.memberId);
-              return (
-                <li key={t.memberId} className="py-3" data-title-card={t.title}>
-                  <p className="flex items-baseline justify-between gap-3">
-                    <span className="font-display text-[15px] italic text-fg/90">{t.title}</span>
-                    <span className="shrink-0 text-[13px] font-semibold text-fg/70">{m ? (m.id === myId ? "You" : m.name.split(" ")[0]) : "Someone"}</span>
-                  </p>
-                  <p className="mt-0.5 text-xs leading-snug text-gray-500">{t.why}</p>
-                </li>
-              );
-            })}
-          </ul>
         </section>
       )}
 
@@ -150,7 +128,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
       {ledgers.length > 0 && mine !== 0 && (
         <section>
           <h2 className="font-display text-lg font-semibold tracking-tight">Spent in other currencies</h2>
-          <p className="mb-3 text-sm text-gray-500">Your share of those expenses in their own currency, without card fees.</p>
+          <p className="mb-3 text-sm text-gray-500">Where you stand in each currency, before card fees.</p>
           <ul className="divide-y divide-line rounded-2xl border border-line">
             {ledgers.map((l) => {
               const val = l.net[myId] ?? 0;

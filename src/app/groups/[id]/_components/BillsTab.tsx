@@ -1,3 +1,4 @@
+import { roundToWhole } from "@/lib/round-whole";
 import Link from "@/components/Link";
 import type { BillStatus } from "@/lib/home/bills-db";
 import { Notice } from "@/components/Notice";
@@ -96,9 +97,9 @@ export function BillsTab({ v, bills, saved }: { v: GroupView; bills: BillStatus[
       {saved && <Notice tone="success" params={["saved"]} className="mb-4">Bill saved. Everyone in the group has been told.</Notice>}
       <div className="flex items-end justify-between gap-3">
         <div>
-          <p className="text-sm text-gray-500">Regular bills, every month</p>
-          <p className="money text-[30px] font-semibold tabular-nums">{money(total)}</p>
-          {total > 0 && <p className="text-sm text-gray-500">Your share about {money(Math.round(mine / 100) * 100)}</p>}
+          <p className="text-sm text-gray-500">Regular bills</p>
+          <p className="money text-[28px] font-semibold tabular-nums">{total > 0 ? `About ${money(total)} a month` : money(total)}</p>
+          {total > 0 && <p className="text-sm text-gray-500">Your share about {money(roundToWhole(mine, group.currency))}</p>}
         </div>
         {!group.closed && (
           <Link href={`/groups/${group.id}/bills/new`} className="pop shrink-0 bg-fg px-4 py-2.5 text-sm font-semibold text-canvas [--pop-edge:#6e6b63]">

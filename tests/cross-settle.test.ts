@@ -48,7 +48,7 @@ describe("Smart Settle across groups", () => {
   });
 
   it("recognises people by Loopin account first, then by phone; a name alone never matches across groups", () => {
-    expect(personKey({ name: "Asha", phone: "+91 98765 43210" })).toBe(personKey({ name: "A. Sharma", phone: "098765-43210" }));
+    expect(personKey({ name: "Asha", phone: "+91 98765 43210" })).toBe(personKey({ name: "A. Sharma", phone: "098765-43210" }, "g1", "IN"));
     expect(personKey({ name: "Ravi", phone: "" })).not.toBe(personKey({ name: "Ravi", phone: "9999999999" }));
     // On Loopin: the account decides. Two different Rahuls are never merged; one Rahul is, whatever he's called.
     expect(personKey({ name: "Rahul", phone: "", accountId: "a1" })).not.toBe(personKey({ name: "Rahul", phone: "", accountId: "a2" }));
@@ -142,5 +142,33 @@ describe("the all-groups Settle opener uses different words from a group's claim
     expect(crossActionLabel(-20000)).toBe("Record payment");
     expect(crossActionLabel(20000)).toBe("They’ve paid me");
     expect(crossActionLabel(0)).toBe("Mark paid");
+  });
+
+  it("matches on the full international number: same last 10 digits under different country codes are two people", () => {
+    const grp = (id: string, phone: string): GroupForSettle => ({
+      groupId: id,
+      groupName: id,
+      currency: "USD",
+      myId: `me-${id}`,
+      members: [{ id: `me-${id}`, name: "Me", phone: "" }, { id: `p-${id}`, name: "Sam", phone }],
+      transfers: [{ from: `me-${id}`, to: `p-${id}`, amount: 1000 }],
+    });
+    const { items } = crossSettle([grp("us", "+16505550123"), grp("in", "+916505550123")], "USD", () => null);
+    expect(items).toHaveLength(2);
+  });
+
+  it("an Indian number with or without +91 is one person in an Indian group", () => {
+    const grp = (id: string, phone: string): GroupForSettle => ({
+      groupId: id,
+      groupName: id,
+      currency: "INR",
+      myId: `me-${id}`,
+      members: [{ id: `me-${id}`, name: "Me", phone: "" }, { id: `p-${id}`, name: "Asha", phone }],
+      transfers: [{ from: `me-${id}`, to: `p-${id}`, amount: 1000 }],
+    });
+    const { items } = crossSettle([grp("a", "+91 98765 43210"), grp("b", "98765 43210")], "INR", () => null);
+    expect(items).toHaveLength(1);
+    expect(items[0].net).toBe(-2000);
+    expect(personKey({ name: "x", phone: "919876543210" }, "g", "IN")).toBe(personKey({ name: "x", phone: "9876543210" }, "g", "IN"));
   });
 });

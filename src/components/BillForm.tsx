@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { saveBill } from "@/app/bill-actions";
 import { BILL_TEMPLATES } from "@/lib/home/bills";
+import { billAmountText, billEachText } from "@/lib/bill-preview";
+import { formatMoney, parseAmount } from "@/lib/money";
 import { inputClass, primaryButtonClass } from "./ui";
 
 type Member = { id: string; name: string };
@@ -83,7 +85,8 @@ export function BillForm({
   const [amt, setAmt] = useState<Record<string, string>>(initial?.amt ?? {});
   const num = (v: string | undefined) => Number((v ?? "").replace(/[^\d.]/g, "")) || 0;
   const pctTotal = Math.round(members.reduce((t, m) => t + num(pct[m.id]) * 100, 0)) / 100;
-  const amtTotal = members.reduce((t, m) => t + num(amt[m.id]), 0);
+  const minorOf = (v: string | undefined) => (v && v.trim() ? parseAmount(v, currency) ?? 0 : 0);
+  const amtTotal = members.reduce((t, m) => t + minorOf(amt[m.id]), 0); // smallest units, like the real split
   const [ids, setIds] = useState<string[]>(initial?.ids ?? members.map((m) => m.id));
   const who = (id: string) => (id === myId ? "you" : members.find((m) => m.id === id)?.name ?? "someone");
   const editing = Boolean(initial?.billId);
@@ -99,16 +102,17 @@ export function BillForm({
 
   const chip = (on: boolean) =>
     `rounded-full border px-3.5 py-2 text-sm ${on ? "border-fg bg-accent-soft font-semibold text-fg" : "border-line text-fg"}`;
-  const amountNum = Number(amount.replace(/[^\d.]/g, "")) || 0;
+  const amountNum = parseAmount(amount, currency) ?? 0; // smallest units
   const people = split === "some" ? ids.length : members.length;
   const dayText = day >= 31 ? "on the last day" : `on the ${DAYS.find((d) => d[0] === day)?.[1] ?? `${day}th`}`;
   const payerText = payer === "turns" ? "taking turns" : `paid by ${who(payer)}`;
+  const each = billEachText(amount, people, currency);
   const summary =
     nature === "varies"
       ? `${payer === "turns" ? "Whoever’s turn it is gets" : payer === myId ? "You get" : `${who(payer)} gets`} a nudge to enter the amount ${dayText}.`
       : nature === "daily"
-        ? `${amount ? `${currency} ${amount} a day` : "The price per day"} is added up at month end, ${payerText}.`
-        : `${amount ? `${currency} ${amount}` : "The amount"} is added ${dayText}, ${payerText}${amountNum && (split === "equal" || split === "some") && people ? `, ${currency} ${(amountNum / people).toFixed(0)} each` : ""}.`;
+        ? `${amount ? `${billAmountText(amount, currency)} a day` : "The price per day"} is added up at month end, ${payerText}.`
+        : `${amount ? billAmountText(amount, currency) : "The amount"} is added ${dayText}, ${payerText}${each && (split === "equal" || split === "some") ? `, ${each}` : ""}.`;
 
   return (
     <form action={saveBill} className="space-y-7">
@@ -294,8 +298,8 @@ export function BillForm({
                   ? "Adds up to 100% ✓"
                   : `Adds up to ${pctTotal}%, needs to be 100%`
                 : amtTotal === amountNum && amountNum > 0
-                  ? `Adds up to ${currency} ${amount} ✓`
-                  : `Adds up to ${currency} ${amtTotal.toLocaleString("en-IN")}, needs to be ${currency} ${amountNum ? amountNum.toLocaleString("en-IN") : "the amount above"}`}
+                  ? `Adds up to ${formatMoney(amountNum, currency)} ✓`
+                  : `Adds up to ${formatMoney(amtTotal, currency)}, needs to be ${amountNum ? formatMoney(amountNum, currency) : "the amount above"}`}
             </p>
           </div>
         )}

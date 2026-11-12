@@ -9,6 +9,7 @@ import { avatarTone } from "@/components/ui";
 import { buzz } from "@/lib/haptics";
 import { LOOKS, PLACES, SEAL_COLOURS, SEAL_DESIGNS, TOUCHES, lookCss, waxSeal } from "@/lib/postcards/looks";
 import { COUNTRY_STAMP_IDS, HANDS, INKS, TONES, LETTERINGS, OPENERS, PAPERS, paperTones, PRINTS, THEME_STAMP_IDS, printSvg, stampSvg, withHome } from "@/lib/postcards/catalog";
+import { MESSAGE_MAX, messageFit, overText, withOpener, roughMeasure, type MeasureEm } from "@/lib/postcards/fit";
 import { sendPostcardAction } from "@/app/postcard-actions";
 import type { PostcardGroup } from "@/lib/postcards/people";
 
@@ -110,6 +111,19 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
   }
   const toggle = (id: string) => setTo((t) => (t.includes(id) ? t.filter((x) => x !== id) : [...t, id]));
   const showBack = tab !== "front";
+  // Does the message fit on the card? Measured with the chosen handwriting when the phone can, roughly otherwise.
+  const handDef = HANDS.find((h) => h.id === hand);
+  const measure = useMemo<MeasureEm>(() => {
+    try {
+      const ctx = document.createElement("canvas").getContext("2d");
+      if (!ctx || !handDef) return roughMeasure;
+      ctx.font = `100px '${handDef.family}', cursive`;
+      return (t) => ctx.measureText(t).width / 100;
+    } catch {
+      return roughMeasure;
+    }
+  }, [handDef]);
+  const fit = messageFit(`${message}`, handDef?.size ?? 1, measure);
   const tile = (on: boolean) => `relative shrink-0 overflow-hidden rounded-[6px] transition-transform active:scale-95 ${on ? "outline outline-2 outline-offset-2 outline-fg" : "opacity-85"}`;
   const label = "mb-2.5 mt-6 block text-[13px] font-semibold text-fg/55";
   const chip = (on: boolean) => `inline-flex h-9 shrink-0 items-center rounded-full border px-4 text-[13.5px] font-semibold transition-transform active:scale-95 ${on ? "border-fg bg-fg text-canvas" : "border-line bg-mist text-fg/85"}`;
@@ -176,7 +190,8 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
         <section aria-label="Front">
           <span className={label}>Picture</span>
           <div className="-mx-5 flex gap-2.5 overflow-x-auto px-5 pb-2 [scrollbar-width:none]" data-front-choices>
-            <button type="button" onClick={() => (own ? setFront("own") : fileRef.current?.click())} className={`${tile(front === "own")} flex h-[72px] w-[108px] flex-col items-center justify-center gap-1 border border-dashed border-fg/30 bg-mist text-[11.5px] font-semibold`}>
+            <div className="relative shrink-0">
+            <button type="button" onClick={() => (own ? setFront("own") : fileRef.current?.click())} aria-label={own ? (front === "own" ? "Your photo, selected" : "Your photo") : undefined} aria-pressed={own ? front === "own" : undefined} className={`${tile(front === "own")} flex h-[72px] w-[108px] flex-col items-center justify-center gap-1 border border-dashed border-fg/30 bg-mist text-[11.5px] font-semibold`}>
               {own ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={own.url} alt="" className="absolute inset-0 h-full w-full object-cover" />
@@ -190,6 +205,12 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
                 </>
               )}
             </button>
+            {own && (
+              <button type="button" onClick={() => fileRef.current?.click()} aria-label="Change your photo" className="absolute bottom-1 right-1 z-10 rounded-full bg-canvas/85 px-2 py-0.5 text-[10.5px] font-semibold text-fg">
+                Change
+              </button>
+            )}
+            </div>
             {photos.map((src) => (
               <button key={src} type="button" onClick={() => setFront(`photo:${src}`)} className={`${tile(front === `photo:${src}`)} h-[72px] w-[108px]`} aria-label="Trip photo">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -203,11 +224,6 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
             ))}
           </div>
           <input ref={fileRef} type="file" accept="image/*" className="sr-only" aria-label="Choose your own photo" onChange={(e) => pickPhoto(e.target.files?.[0])} />
-          {own && (
-            <button type="button" onClick={() => fileRef.current?.click()} className="mt-1 text-[13px] font-semibold text-fg/70 underline underline-offset-4">
-              Change your photo
-            </button>
-          )}
           {photoState && <p className="mt-1 text-[13px] text-fg/60" role="status">{photoState}</p>}
 
           <span className={label}>Words on the front</span>
@@ -312,7 +328,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
           <span className={label}>Start with</span>
           <div className="-mx-5 flex gap-2 overflow-x-auto px-5 [scrollbar-width:none]">
             {OPENERS.map((o) => (
-              <button key={o} type="button" className={chip(false)} onClick={() => setMessage((m) => (m.trim() ? `${o.trim()} ${m}` : o))}>
+              <button key={o} type="button" className={chip(false)} onClick={() => setMessage((m) => withOpener(m, o))}>
                 {o.trim().replace(/ $/, "")}
                 {o.endsWith(" ") ? "…" : ""}
               </button>
@@ -322,14 +338,19 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
             <span className="sr-only">Your message</span>
             <textarea
               value={message}
-              onChange={(e) => setMessage(e.target.value.slice(0, 500))}
+              onChange={(e) => setMessage(e.target.value.slice(0, MESSAGE_MAX))}
               rows={5}
               placeholder="Write something they’ll want to keep…"
               className="w-full resize-none rounded-[20px] border border-line bg-[#f4eee2] px-4 py-3 text-[19px] leading-snug text-[#2b2a5a] outline-none placeholder:text-[#2b2a5a]/40"
               style={{ fontFamily: `'${HANDS.find((h) => h.id === hand)?.family}', cursive`, color: INKS.find((i) => i.id === ink)?.c }}
             />
           </label>
-          <p className="mt-1 text-right text-xs text-fg/60">{message.length}/500</p>
+          <p className="mt-1 text-right text-xs text-fg/60">{message.length}/{MESSAGE_MAX}</p>
+          {fit.over > 0 && (
+            <p className="mt-1 text-right text-xs text-red-600" role="status" data-message-over>
+              {overText(fit.over)}
+            </p>
+          )}
 
           <span className={label}>Handwriting</span>
           <div className="-mx-5 flex gap-2 overflow-x-auto px-5 [scrollbar-width:none]" data-hands>
@@ -449,8 +470,8 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
             className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-base outline-none focus:border-fg/40"
           />
           <p className="mt-1.5 text-xs text-fg/60">How it’s signed at the end: your name, a nickname, “Mom &amp; Dad”, anything.</p>
-          <button type="button" onClick={() => setTab("send")} disabled={!message.trim()} className="pop mt-8 flex h-12 w-full items-center justify-center bg-fg text-[15px] font-semibold text-canvas disabled:opacity-50">
-            {message.trim() ? "Next: send it" : "Write a few words first"}
+          <button type="button" onClick={() => setTab("send")} disabled={!message.trim() || fit.over > 0} className="pop mt-8 flex h-12 w-full items-center justify-center bg-fg text-[15px] font-semibold text-canvas disabled:opacity-50">
+            {fit.over > 0 ? "Trim it to fit the card" : message.trim() ? "Next: send it" : "Write a few words first"}
           </button>
         </section>
       )}

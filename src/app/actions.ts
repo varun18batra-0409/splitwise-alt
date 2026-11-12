@@ -461,34 +461,6 @@ export async function convertGroupCurrency(formData: FormData) {
   redirect(`/groups/${group.id}?saved=settings${r.eventId ? `&did=${r.eventId}` : ""}`);
 }
 
-// Records that one person paid another back (from Smart Settle's "They’ve paid me" / "I’ve paid").
-// This is only a record — the app never moves real money.
-export async function recordPayment(formData: FormData) {
-  const groupId = String(formData.get("groupId") ?? "");
-  const fromId = String(formData.get("fromId") ?? "");
-  const toId = String(formData.get("toId") ?? "");
-  const amount = Number(formData.get("amount") ?? 0);
-
-  const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
-  if (!group) redirect("/");
-  const ids = group.members.map((m) => m.id);
-  const myId = await getMyMemberId(group.id);
-  if (!myId || !ids.includes(myId)) redirect("/private");
-  if (await hasLeft(group.id, myId)) redirect(`/groups/${group.id}?tab=balances&error=${encodeURIComponent(LEFT_ERROR)}`);
-  if (!ids.includes(fromId) || !ids.includes(toId) || fromId === toId) redirect(`/groups/${group.id}?tab=balances`);
-  if (group.closed || group.deletedAt) redirect(`/groups/${group.id}`);
-  if (!Number.isSafeInteger(amount) || amount <= 0 || amount > 2_000_000_000) redirect(`/groups/${group.id}?tab=balances`);
-
-  const key = cleanKey(formData.get("rid"));
-  const fp = fingerprintOf("pay", group.id, fromId, toId, amount);
-  const ks = await keyState(key, fp);
-  if (ks.state === "stale") redirect(`/groups/${group.id}?tab=balances&error=${encodeURIComponent(STALE_KEY_ERROR)}`);
-  if (ks.state === "done" || (!key && (await isDoubleTap(group.id, fromId, toId, amount, myId)))) redirect(`/groups/${group.id}?tab=balances&paid=1`);
-  const r = await recordPaymentCore({ groupId: group.id, fromId, toId, amount, currency: group.currency, myId, key, fp, warnOver: false });
-  if (r.kind === "refused") redirect(`/groups/${group.id}?tab=balances&error=${encodeURIComponent(r.error)}`);
-  redirect(`/groups/${group.id}?tab=balances&paid=1${r.kind === "done" && r.did ? `&did=${r.did}` : ""}`);
-}
-
 // Close a group (hide it from the main list, stop new expenses) or reopen it.
 export async function setGroupClosed(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");
@@ -782,10 +754,14 @@ export async function restoreGroup(formData: FormData) {
   if (!myId || !group.members.some((m) => m.id === myId)) redirect("/");
   // Bringing a deleted group back is for whoever deleted it or looks after it, and not for someone who left.
   if (!canRestoreGroup(group, group.members, myId)) redirect("/");
-  await db.$transaction(async (tx) => {
-    await tx.group.update({ where: { id: group.id }, data: { deletedAt: null, deletedById: "" } });
+  // One conditional write limited to the 30-day window: if the daily erase got there first (or the window just closed), nothing comes back.
+  const { restoreIfInWindow } = await import("@/lib/purge");
+  const back = await db.$transaction(async (tx) => {
+    if (!(await restoreIfInWindow(tx, group.id))) return false;
     await logEvent(tx, { groupId: group.id, actorId: myId, kind: "group_restored", text: "restored the group" });
+    return true;
   });
+  if (!back) redirect("/groups");
   redirect(`/groups/${group.id}`);
 }
 
@@ -806,7 +782,7 @@ export async function invitePersonByEmail(formData: FormData) {
   const { origin, ip } = await originAndIp();
   if (!(await allow(`invite:${ip}`, 40, 3600))) redirect(`/groups/${group.id}/people?error=${encodeURIComponent("Too many invites from here. Wait a bit.")}`);
   const { inviteToClaim } = await import("@/lib/invites");
-  const r = await inviteToClaim(group.id, me.id, String(formData.get("memberId") ?? ""), String(formData.get("email") ?? ""), origin);
+  const r = await inviteToClaim(group.id, me.id, String(formData.get("memberId") ?? ""), String(formData.get("email") ?? ""), origin, { later: (job) => after(job) });
   redirect(`/groups/${group.id}/people?${r.ok ? new URLSearchParams({ invited: r.email }) : new URLSearchParams({ error: r.error })}`);
 }
 

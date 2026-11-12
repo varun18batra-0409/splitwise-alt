@@ -122,9 +122,9 @@ describe("expense + item lines + bill photo", () => {
     await db.expense.deleteMany({ where: { groupId } });
     const first = await saveExpense(input(), a, rate, { attach: { items: lines() } });
     if (!first.ok) throw new Error(first.error);
-    const edit = await saveExpense(input({ expenseId: first.id }), a, rate, { attach: { items: [{ name: "Everything", amount: 100000, people: [a, b] }] } });
+    const edit = await saveExpense(input({ expenseId: first.id }), a, rate, { attach: { items: [{ name: "Pizza", amount: 60000, people: [a, b] }, { name: "Beer and more", amount: 40000, people: [b] }] } });
     expect(edit.ok).toBe(true);
-    expect((await db.expenseItem.findMany({ where: { expenseId: first.id } })).map((i) => i.name)).toEqual(["Everything"]);
+    expect((await db.expenseItem.findMany({ where: { expenseId: first.id } })).map((i) => i.name).sort()).toEqual(["Beer and more", "Pizza"]);
     // [] means "not split by item any more".
     await saveExpense(input({ expenseId: first.id }), a, rate, { attach: { items: [] } });
     expect(await db.expenseItem.count({ where: { expenseId: first.id } })).toBe(0);
@@ -142,5 +142,29 @@ describe("expense + item lines + bill photo", () => {
     expect(await expenseCount()).toBe(1);
     expect(await db.expenseItem.count({ where: { expenseId: one.id } })).toBe(2);
     expect(await db.receipt.count({ where: { groupId, expenseId: one.id } })).toBe(1);
+  });
+});
+
+describe("LC-04: item lines must agree with the shares", () => {
+  it("INR 1000 with exact A300/B700 and one 100000 item for [A,B] is refused; nothing is saved", async () => {
+    await db.expense.deleteMany({ where: { groupId } });
+    // The item splits 100000 as 50000 / 50000, but the shares say 30000 / 70000.
+    const bad = await saveExpense(input(), a, rate, { attach: { items: [{ name: "Everything", amount: 100000, people: [a, b] }] } });
+    expect(bad.ok).toBe(false);
+    expect(await expenseCount()).toBe(0);
+  });
+  it("500/500 with the same item is accepted, and the shares are 50000 each", async () => {
+    await db.expense.deleteMany({ where: { groupId } });
+    const good = await saveExpense(input({ exact: { [a]: "500", [b]: "500" } }), a, rate, { attach: { items: [{ name: "Everything", amount: 100000, people: [a, b] }] } });
+    expect(good.ok).toBe(true);
+    if (!good.ok) return;
+    const shares = await db.expenseShare.findMany({ where: { expenseId: good.id } });
+    expect(Object.fromEntries(shares.map((x) => [x.memberId, x.amount]))).toEqual({ [a]: 50000, [b]: 50000 });
+  });
+  it("items that add up to more than the bill are refused", async () => {
+    await db.expense.deleteMany({ where: { groupId } });
+    const bad = await saveExpense(input({ exact: { [a]: "500", [b]: "500" } }), a, rate, { attach: { items: [{ name: "Too much", amount: 150000, people: [a, b] }] } });
+    expect(bad.ok).toBe(false);
+    expect(await expenseCount()).toBe(0);
   });
 });

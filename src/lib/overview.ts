@@ -85,8 +85,14 @@ export async function loadOverview(memberships: Record<string, string>) {
     toCommon,
   );
 
+  // Groups with a payment for you that can't be added up yet (no exchange rate right now), with where to settle them:
+  // "All square" must never be said while one of these is left out.
+  const skippedLinks = open
+    .filter((g) => g.group.currency !== common && g.transfers.some((t) => (t.from === g.myId || t.to === g.myId) && toCommon(t.amount, g.group.currency) === null))
+    .map((g) => ({ id: g.group.id, name: g.group.name }));
+
   // Groups where other people still need to settle with each other.
   const othersPending = all.filter((g) => g.transfers.some((t) => t.from !== g.myId && t.to !== g.myId));
 
-  return { all, open, closed, owedLines, oweLines, common, netCommon, netLines, netValue, settleItems, skippedGroups, othersPending, toCommon };
+  return { all, open, closed, owedLines, oweLines, common, netCommon, netLines, netValue, settleItems, skippedGroups, skippedLinks, othersPending, toCommon };
 }

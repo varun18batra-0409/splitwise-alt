@@ -20,6 +20,7 @@ import { splitByItems } from "@/lib/item-split";
 import { chooseSplit, splitFields, type SplitAction } from "@/lib/split-draft";
 import { niceDate, rateText } from "@/lib/format";
 import { dayKey, todayKey } from "@/lib/dates";
+import { addDays } from "@/lib/local-time";
 import { inputClass, primaryButtonClass } from "./ui";
 import { errorNeedsMore, fasterEntryColumns, shouldOpenMore } from "@/lib/add-expense-more";
 
@@ -78,7 +79,7 @@ export function AddExpenseForm({
   const [name, setName] = useState(initial?.name ?? "");
   const [amount, setAmount] = useState(initial?.amount ?? "");
   const today = todayKey(new Date(), tz);
-  const yesterday = dayKey(new Date(Date.now() - 86_400_000), tz);
+  const yesterday = addDays(today, -1);
   const [date, setDate] = useState(initial?.date ?? today);
   const [pickingDate, setPickingDate] = useState(Boolean(initial && initial.date !== today && initial.date !== yesterday));
   const [showDate, setShowDate] = useState(false);

@@ -269,6 +269,21 @@ async function touchesFromDb(db: Db, e: { expenseId?: string; paymentId?: string
   return [...ids];
 }
 
+// Undoing a change marks the original as undone. That mark is written INSIDE the same transaction as the reversal
+// (each reversal calls markUndone first), so the two are saved together or not at all: no crash or error can leave
+// a change marked "undone" with nothing reversed, or reversed and still undoable.
+export type UndoMark = { eventId: string; actorId: string };
+export class UndoTaken extends Error {
+  constructor() {
+    super("already undone");
+  }
+}
+export async function markUndone(tx: Db, mark?: UndoMark): Promise<void> {
+  if (!mark) return;
+  const c = await tx.groupEvent.updateMany({ where: { id: mark.eventId, undoneAt: null }, data: { undoneAt: new Date(), undoneById: mark.actorId } });
+  if (c.count !== 1) throw new UndoTaken();
+}
+
 export async function logEvent(
   db: Db,
   e: {

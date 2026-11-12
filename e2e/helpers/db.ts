@@ -22,10 +22,20 @@ export async function latestCode(email: string, since: Date, timeoutMs = 20_000)
 // Removes test people and the groups they made. Only ever touches accounts on
 // the test domain, and only groups whose signed-in members are ALL test
 // accounts, so a real person's group can never be deleted.
-export async function cleanUp(match: { runId?: string } = {}): Promise<{ groups: number; accounts: number }> {
+//
+// Which test people (AUTO-03: one run must never wipe another run's people):
+//   { runId }       only that run's people (the run's own teardown).
+//   { olderThanMs } only test people created longer ago than that: leftovers of crashed runs.
+//                   Anyone newer may belong to a run that is still going, and is left alone.
+// Calling it with neither is refused, so nobody can sweep the whole test domain by accident.
+export async function cleanUp(match: { runId?: string; olderThanMs?: number; now?: Date } = {}): Promise<{ groups: number; accounts: number }> {
+  if (!match.runId && !(typeof match.olderThanMs === "number" && match.olderThanMs > 0)) {
+    throw new Error("cleanUp needs a runId or an expiry age (olderThanMs); it will not clear every test account.");
+  }
   const prefix = match.runId ? `e2e-${match.runId.toLowerCase()}-` : "e2e-";
+  const cutoff = match.olderThanMs ? new Date((match.now ?? new Date()).getTime() - match.olderThanMs) : undefined;
   const accounts = await db.account.findMany({
-    where: { email: { startsWith: prefix, endsWith: `@${TEST_DOMAIN}` } },
+    where: { email: { startsWith: prefix, endsWith: `@${TEST_DOMAIN}` }, ...(cutoff ? { createdAt: { lt: cutoff } } : {}) },
     select: { id: true, email: true },
   });
   if (!accounts.length) return { groups: 0, accounts: 0 };

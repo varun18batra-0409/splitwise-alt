@@ -136,12 +136,46 @@ const CLAIM_STATUS: Record<string, string> = {
 // "Download all my data": one spreadsheet with every expense and payment in
 // every group I'm in (deleted ones marked), my share and how each changed my
 // balance, under a few lines about my account.
+//
+// Also in the file (text only, nothing from other people beyond the names that are on your cards): your postcards sent and received,
+// your passport (home country, places and countries), the collections you organise or are on, and your notification settings.
+export type MyDataExtra = {
+  postcards?: { createdAt: Date; sent: boolean; other: string; words: string; message: string; place: string }[];
+  passport?: { home: string; sharing: string; countries: { name: string; trips: number; places: string[]; byHand: boolean }[] };
+  collections?: { organiser: boolean; title: string; currency: string; amount: number; dueDate: string; status: string; people: number; paid: number; checked: number; yours: string }[];
+  settings?: { setting: string; where: string; status: string }[];
+};
+
+function extraLines(extra: MyDataExtra, tz?: string): (string | number)[][] {
+  const out: (string | number)[][] = [];
+  if (extra.postcards) {
+    out.push([], ["Your postcards (sent and received; text only, no photos)"], ["Date", "Sent or received", "With", "Words on the front", "Message", "Postmark"]);
+    for (const c of extra.postcards) out.push([dayKey(c.createdAt, tz), c.sent ? "Sent" : "Received", c.other, c.words, c.message, c.place]);
+  }
+  if (extra.passport) {
+    out.push([], ["Your passport"], ["Home country", extra.passport.home], ["Who can see it", extra.passport.sharing], ["Country", "Trips on Loopin", "Places", "Added by hand"]);
+    for (const c of extra.passport.countries) out.push([c.name, c.trips || "", c.places.join("; "), c.byHand ? "Yes" : ""]);
+  }
+  if (extra.collections) {
+    out.push([], ["Collections you organise or are on"], ["Your part", "Title", "Currency", "Per person", "Pay by", "Status", "People listed", "Say they've paid", "Checked", "Your own entry"]);
+    for (const c of extra.collections) {
+      out.push([c.organiser ? "Organiser" : "On the list", c.title, c.currency, c.amount ? plain(c.amount, c.currency) : "", c.dueDate, c.status, c.organiser ? c.people : "", c.organiser ? c.paid : "", c.organiser ? c.checked : "", c.yours]);
+    }
+  }
+  if (extra.settings) {
+    out.push([], ["Your notification settings"], ["Setting", "Where", "Status"]);
+    for (const x of extra.settings) out.push([x.setting, x.where, x.status]);
+  }
+  return out;
+}
+
 export function myDataCsv(
   account: { email: string; name: string; createdAt: Date } | null,
   groups: { name: string; currency: string; type: string; closed: boolean; myId: string; members: Member[]; expenses: Expense[]; payments: Payment[]; claims?: ClaimRow[] }[],
   now: Date,
   tz?: string,
   support: { createdAt: Date; note: string; contact: string; status: string }[] = [],
+  extra: MyDataExtra = {},
 ): string {
   const top: (string | number)[][] = [
     ["Loopin: all your data"],
@@ -202,6 +236,6 @@ export function myDataCsv(
   const mine: (string | number)[][] = support.length
     ? [[], ["Your messages to support"], ["Date", "Message", "Reply email", "Status"], ...support.map((m) => [dayKey(m.createdAt, tz), m.note, m.contact, m.status === "resolved" ? "Dealt with" : "Received"])]
     : [];
-  const lines = [...top, header, ...rows.map((r) => r.cells), ...mine].map((r) => r.map(cell).join(","));
+  const lines = [...top, header, ...rows.map((r) => r.cells), ...mine, ...extraLines(extra, tz)].map((r) => r.map(cell).join(","));
   return "﻿" + lines.join("\r\n") + "\r\n";
 }

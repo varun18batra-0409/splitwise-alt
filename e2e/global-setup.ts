@@ -1,5 +1,5 @@
 // Before any test: check it's safe and reachable, then clear leftovers from
-// earlier runs (test accounts only). Fails with a plain message if not.
+// crashed runs (expired test accounts only, never another run's live data). Fails with a plain message if not.
 import { assertSafeTarget, baseURL, bypassHeaders, hosted } from "./env";
 
 export default async function globalSetup() {
@@ -22,6 +22,11 @@ export default async function globalSetup() {
   // The throwaway copy on this machine only: start each pass with fresh anti-spam
   // counters (the Android and iPhone passes come from the same machine).
   if (!hosted) await db.rateLimit.deleteMany();
-  const old = await cleanUp(); // anything a crashed earlier run left behind
-  if (old.accounts) console.log(`Cleared ${old.groups} test group(s) and ${old.accounts} test account(s) left by earlier runs.`);
+  // Leftovers of crashed runs only: test people older than the expiry age. Newer ones may belong to a run
+  // that is still going (AUTO-03), so they are left alone; each run clears its own people in global-teardown.
+  // On the hosted copy the age can't be set below an hour (the staging job is limited to 50 minutes).
+  const hours = Number(process.env.E2E_STALE_HOURS ?? 6);
+  const staleHours = Number.isFinite(hours) && hours > 0 ? hours : 6;
+  const old = await cleanUp({ olderThanMs: (hosted ? Math.max(staleHours, 1) : staleHours) * 3_600_000 });
+  if (old.accounts) console.log(`Cleared ${old.groups} test group(s) and ${old.accounts} test account(s) left by earlier runs (older than ${staleHours} h).`);
 }

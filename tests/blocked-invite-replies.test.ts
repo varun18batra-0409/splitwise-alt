@@ -4,6 +4,8 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 // situation, so nobody can work out from the reply whether they were blocked. The blocked email goes through the same checks
 // and counters (opted out, invite emails switched off, daily cap, mail not set up, one address's daily limit) and gives the
 // same answer; the only difference is that it is never handed to the mail service.
+// The reply is given from the checks alone: the email goes after the reply (the `later` job), so a blocked invite can't be told
+// apart by how long it takes, and a send that can't go (opted out, caps, mail not set up) does not change the reply either.
 // nodemailer is replaced by a stand-in: nothing leaves this machine. The mail counters are this file's own (MAIL_COUNTER_PREFIX).
 const mail = vi.hoisted(() => ({ send: vi.fn(async (_m: unknown) => ({})) }));
 vi.mock("nodemailer", () => ({ default: { createTransport: () => ({ sendMail: mail.send, close: () => undefined }) } }));
@@ -94,33 +96,57 @@ describe("a blocked invitation gives the same reply as a real one", () => {
     expect(r.sentToBlocker + r.sentToFriend).toBe(0);
   });
 
-  it("the daily cap is reached: both are refused with the same words", async () => {
+  it("the daily cap is reached: the same reply for both; nothing is sent", async () => {
     // The shared budget is full within the provider's current day (both counters cover the same 24 hours).
     for (const [k, c] of [["mail:all", 65], ["mail:other", 65]] as const) {
       await db.rateLimit.upsert({ where: { key: `${PREFIX}${k}` }, create: { key: `${PREFIX}${k}`, count: c, resetAt: new Date(Date.now() + 86_400_000) }, update: { count: c, resetAt: new Date(Date.now() + 86_400_000) } });
     }
     const r = await bothReplies();
-    expect(r.open.ok).toBe(false);
+    expect(r.open.ok).toBe(true);
     expect(r.blocked).toEqual(r.open);
     expect(r.sentToBlocker + r.sentToFriend).toBe(0);
   });
 
-  it("mail is not set up: both are refused with the same words", async () => {
+  it("mail is not set up: the same reply for both; nothing is sent", async () => {
     delete process.env.SMTP_USER;
     delete process.env.SMTP_PASS;
     const r = await bothReplies();
-    expect(r.open.ok).toBe(false);
+    expect(r.open.ok).toBe(true);
     expect(r.blocked).toEqual(r.open);
   });
 
-  it("one address has had its 10 for the day: both are refused with the same words", async () => {
+  it("one address has had its 10 for the day: the same reply for both; nothing is sent", async () => {
     const r = await bothReplies(async (email) => {
       const key = `mail:to:${email.toLowerCase()}`;
       await db.rateLimit.upsert({ where: { key }, create: { key, count: 10, resetAt: new Date(Date.now() + 86_400_000) }, update: { count: 10 } });
     });
-    expect(r.open.ok).toBe(false);
+    expect(r.open.ok).toBe(true);
     expect(r.blocked).toEqual(r.open);
     expect(r.sentToBlocker + r.sentToFriend).toBe(0);
+  });
+
+  it("the reply does not wait for the send: nothing reaches the mail service until the after-reply job runs", async () => {
+    const inviter = await account("inviter");
+    const blocker = await account("blocker");
+    const friend = await account("friend");
+    const g = await db.group.create({
+      data: { name: `BI ${stamp} later`, inviteCode: `bi-later-${stamp}`, members: { create: [{ name: "Inviter", accountId: inviter.id, claimedAt: new Date() }, { name: "Name A" }, { name: "Name B" }] } },
+      include: { members: { orderBy: { createdAt: "asc" } } },
+    });
+    groupIds.push(g.id);
+    const [me, a, b] = g.members;
+    await blockAccount(blocker.id, inviter.id);
+    mail.send.mockClear();
+    const jobs: (() => Promise<unknown>)[] = [];
+    const later = (job: () => Promise<unknown>) => void jobs.push(job);
+    const r1 = await inviteToClaim(g.id, me.id, a.id, blocker.email, "https://loopin.test", { later });
+    const r2 = await inviteToClaim(g.id, me.id, b.id, friend.email, "https://loopin.test", { later });
+    expect(r1).toEqual({ ok: true, email: blocker.email });
+    expect(r2).toEqual({ ok: true, email: friend.email });
+    expect(jobs).toHaveLength(2); // one background job each, handled the same way
+    expect(mail.send).not.toHaveBeenCalled(); // nothing was sent while replying
+    for (const job of jobs) await job();
+    expect(mail.send).toHaveBeenCalledTimes(1); // only the real one goes out
   });
 
   it("and the blocked one uses the same counters: after one of each, mail:other and mail:all are at 2", async () => {

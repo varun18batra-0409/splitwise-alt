@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { LEFT_ERROR } from "./active";
 import { netBalances } from "./balances";
-import { logEvent } from "./events";
+import { logEvent, markUndone, type UndoMark } from "./events";
 import { cleanNames, sameName } from "./names";
 import { formatMoney } from "./money";
 import { isGroupAdmin, pickAdmin } from "./group-admin";
@@ -37,7 +37,7 @@ export async function setMember(
   memberId: string,
   data: { name?: string; leftAt?: string | null; removedAt?: string | null; removedById?: string },
   undoing = false,
-  opts: { afterRead?: () => Promise<void> } = {}, // tests only: runs after the reads, before the write
+  opts: { afterRead?: () => Promise<void>; mark?: UndoMark } = {}, // afterRead: tests only, runs after the reads, before the write. mark: the undo being carried out, marked in the same transaction
 ): Promise<Result> {
   const group = await db.group.findUnique({
     where: { id: groupId },
@@ -59,6 +59,7 @@ export async function setMember(
     const clash = group.members.find((x) => x.id !== memberId && sameName(x.name, name));
     if (clash) return { ok: false, error: `Someone called ${clash.name} is already in the group.` };
     const eventId = await db.$transaction(async (tx) => {
+      await markUndone(tx, opts.mark);
       await tx.member.update({ where: { id: memberId }, data: { name } });
       return logEvent(tx, {
         groupId,
@@ -108,6 +109,7 @@ export async function setMember(
     await opts.afterRead?.();
     try {
     const eventId = await db.$transaction(async (tx) => {
+      await markUndone(tx, opts.mark);
       if (leaving && !alreadyLeft) {
         // Leaving only with a zero balance - checked again here, inside the write, with the write lock held: an expense
         // saved after the first check would otherwise leave this person owing money they can no longer be asked for.

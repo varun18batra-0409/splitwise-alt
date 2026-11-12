@@ -23,7 +23,7 @@ const PLACES: [RegExp, string][] = [
   [/\b(jaipur|rajasthan|jodhpur|pushkar)\b/i, "place-jaipur"],
   [/\b(nepal|kathmandu|pokhara|everest|annapurna)\b/i, "place-nepal"],
   [/\b(andaman|havelock|port ?blair|neil island)\b/i, "place-andaman"],
-  [/\b(rishikesh|haridwar|uttarakhand|mussoorie|auli)\b/i, "place-rishikesh"],
+  [/\b(rishikesh|haridwar|uttarakhand|auli)\b/i, "place-rishikesh"],
   [/\b(new ?york|nyc|manhattan|brooklyn)\b/i, "place-newyork"],
   [/\b(santorini|greece|mykonos|athens|greek)\b/i, "place-santorini"],
   [/\b(bhutan|thimphu|paro|punakha)\b/i, "place-bhutan"],

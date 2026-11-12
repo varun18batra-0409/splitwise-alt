@@ -35,7 +35,7 @@ export async function loadGroup(id: string, opts: { events?: boolean; viewer?: s
   const transfers = smartSettle(net);
   const me = opts.viewer ? group.members.find((m) => m.id === opts.viewer) : undefined;
   const cut = me ? leaverCut(me) : null;
-  if (!me || !cut) return { group, expenses, payments, net, transfers, leaver: null as LeaverCut | null };
+  if (!me || !cut) return { group, expenses, payments, net, transfers, leaver: null as LeaverCut | null, people: group.members };
 
   const { before, after } = await leaverEvents(id, cut.leftAt, opts.events === false ? 0 : 500);
   const scoped = scopeForLeaver({ expenses: group.expenses, payments: group.payments, events: [...after, ...before] }, me.id, cut.leftAt);
@@ -54,6 +54,8 @@ export async function loadGroup(id: string, opts: { events?: boolean; viewer?: s
     net: mine.net,
     transfers: mine.transfers,
     leaver: cut as LeaverCut | null,
+    // The people as they were the day this viewer left (the filters, charts and Wrapped use these; names on rows still use group.members).
+    people: membersAsOf(group.members, me.id, cut.leftAt),
   };
 }
 
@@ -81,7 +83,7 @@ export async function loadGroupView(id: string, opts: { events?: boolean; viewer
   const transfers = smartSettle(net);
   const me = opts.viewer ? group.members.find((m) => m.id === opts.viewer) : undefined;
   const cut = me ? leaverCut(me) : null;
-  if (!me || !cut) return { group, expenses, payments, net, transfers, leaver: null as LeaverCut | null };
+  if (!me || !cut) return { group, expenses, payments, net, transfers, leaver: null as LeaverCut | null, people: group.members };
 
   const { before, after } = await leaverEvents(id, cut.leftAt, opts.events === false ? 0 : 500);
   const scoped = scopeForLeaver({ expenses: group.expenses, payments: group.payments, events: [...after, ...before] }, me.id, cut.leftAt);
@@ -99,6 +101,8 @@ export async function loadGroupView(id: string, opts: { events?: boolean; viewer
     net: mine.net,
     transfers: mine.transfers,
     leaver: cut as LeaverCut | null,
+    // The people as they were the day this viewer left (the filters, charts and Wrapped use these; names on rows still use group.members).
+    people: membersAsOf(group.members, me.id, cut.leftAt),
   };
 }
 

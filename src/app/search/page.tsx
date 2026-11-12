@@ -1,3 +1,4 @@
+import { recapScope } from "@/lib/recap-scope";
 import Link from "@/components/Link";
 import { getMemberships } from "@/lib/identity";
 import { loadMyGroups } from "@/lib/group-data";
@@ -270,6 +271,7 @@ export default async function SearchPage({
     </>
   );
   const chart = all.length > 0 && <Insights d={insights} />;
+  const scope = recapScope({ groupName: groupId ? groups[0]?.group.name : undefined, groupCount: groups.length, currency: chartCurrency, converted: ins.converted });
   return (
     <>
       <PageHeader title="Recap" back={back} />
@@ -294,6 +296,7 @@ export default async function SearchPage({
           className="w-full rounded-full border border-line bg-mist py-3 pl-11 pr-4 text-base text-fg outline-none placeholder:text-gray-400 focus:border-accent"
         />
       </form>
+      {all.length > 0 && !q && !cat && <p className="-mt-3 mb-5 text-xs text-gray-400" data-recap-scope>{scope}</p>}
       {cat && (
         <div className="mb-6 flex items-center gap-3 rounded-[20px] border border-line bg-mist/60 px-4 py-3" data-category-filter={cat}>
           <ExpenseGlyph title="" category={cat} size={34} />

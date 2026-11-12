@@ -109,14 +109,15 @@ describe("SEC-02: undo puts back the bill's item lines too", () => {
   it("an edit that changes only the item lines is logged ('Item lines changed') and undo brings the old lines back", async () => {
     const w = await bill();
     const edit = await saveExpense({ ...draft(w.g.id, w.a, w.split("300", "700")), expenseId: w.expenseId }, w.a, rate1, {
-      attach: { items: [w.items[0], { name: "Beer", amount: 40000, people: [w.a, w.b] }] },
+      // Beer 40000 is now two lines (Beer 20000 + Chips 20000), both for Bina: the shares stay 30000 / 70000.
+      attach: { items: [w.items[0], { name: "Beer", amount: 20000, people: [w.b] }, { name: "Chips", amount: 20000, people: [w.b] }] },
     });
     if (!edit.ok) throw new Error(edit.error);
     const ev = await db.groupEvent.findUniqueOrThrow({ where: { id: edit.eventId! } });
     expect([ev.kind, JSON.parse(ev.details)]).toEqual(["expense_edited", ["Item lines changed"]]);
-    expect((await lines(w.expenseId))[1].people).toEqual([w.a, w.b]);
+    expect((await lines(w.expenseId)).map((l) => l.name)).toEqual(["Pizza", "Beer", "Chips"]);
     expect((await undoEvent(edit.eventId!, w.a)).ok).toBe(true);
-    expect((await lines(w.expenseId))[1].people).toEqual([w.b]);
+    expect((await lines(w.expenseId)).map((l) => [l.name, l.amount])).toEqual([["Pizza", 60000], ["Beer", 40000]]);
     await invariants(w.g.id);
   });
 

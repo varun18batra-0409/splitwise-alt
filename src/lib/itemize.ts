@@ -61,7 +61,7 @@ export function parseBillText(text: string, currency: string): PastedBill {
   for (const raw of String(text ?? "").split(/\r?\n/).slice(0, 120)) {
     const line = raw.replace(/[₹$£€¥]|\b(rs|inr|usd)\.?(?=\s|\d)/gi, " ").replace(/\/-/g, "").replace(/\s+/g, " ").trim();
     if (!line) continue;
-    const m = line.match(/^(.*?)(\d[\d,]*(?:\.\d{1,2})?)\s*$/);
+    const m = line.match(/^(.*?)(?<![\d.,])(\d[\d,]*(?:\.\d{1,3})?)\s*$/);
     if (!m) continue;
     const amount = parseAmount(m[2].replace(/,/g, ""), currency);
     if (amount === null || amount <= 0) continue;

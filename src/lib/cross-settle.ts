@@ -9,7 +9,8 @@ import type { Transfer } from "./settle";
 // you ₹400 → across groups, you pay Asha ₹600.
 //
 // The same person is recognised by their Loopin account (signed in with a
-// verified email), else by phone number (last 10 digits). Two people who only
+// verified email), else by their full international phone number (a number typed
+// with or without the country code is the same number; +1 650… and +91 650… are not). Two people who only
 // share a name are NEVER merged: someone added by name alone is settled group by
 // group (each group's own row), because a name can't prove it's the same person.
 // Recording it as paid records the underlying payment in each group, so every
@@ -19,6 +20,7 @@ export type GroupForSettle = {
   groupId: string;
   groupName: string;
   currency: string;
+  region?: string; // the group's country (ISO code like "IN"); local numbers are read in it. Left out: guessed from the currency
   myId: string;
   members: { id: string; name: string; phone: string; accountId?: string | null }[];
   transfers: Transfer[];
@@ -42,10 +44,41 @@ export type CrossItem = {
   converted: boolean; // some parts were converted from another currency
 };
 
-export function personKey(m: { id?: string; name: string; phone: string; accountId?: string | null }, groupId = ""): string {
+// Country calling code and the lengths of a number without it (after dropping a leading trunk 0).
+const CALLING: Record<string, { code: string; national: number[] }> = {
+  IN: { code: "91", national: [10] },
+  US: { code: "1", national: [10] },
+  CA: { code: "1", national: [10] },
+  GB: { code: "44", national: [10] },
+  AU: { code: "61", national: [9] },
+  SG: { code: "65", national: [8] },
+  AE: { code: "971", national: [9] },
+};
+const CURRENCY_REGION: Record<string, string> = { INR: "IN", USD: "US", CAD: "CA", GBP: "GB", AUD: "AU", SGD: "SG", AED: "AE" };
+
+export function regionForGroup(g: { region?: string; currency: string }): string {
+  return (g.region || CURRENCY_REGION[g.currency] || "").toUpperCase();
+}
+
+// A phone number as full international digits (no +): "+91 98765 43210", "098765-43210" and "98765 43210" in an Indian
+// group are all "919876543210". With no usable country, the digits are kept as typed (minus a leading 0).
+export function fullPhoneDigits(raw: string, region = ""): string {
+  const trimmed = raw.trim();
+  const digits = trimmed.replace(/\D/g, "");
+  if (trimmed.startsWith("+")) return digits.replace(/^0+/, "");
+  if (digits.startsWith("00")) return digits.replace(/^0+/, "");
+  const info = CALLING[region.toUpperCase()];
+  const local = digits.replace(/^0+/, "");
+  if (!info) return local;
+  if (local.startsWith(info.code) && info.national.includes(local.length - info.code.length)) return local;
+  if (info.national.includes(local.length)) return info.code + local;
+  return local;
+}
+
+export function personKey(m: { id?: string; name: string; phone: string; accountId?: string | null }, groupId = "", region = ""): string {
   if (m.accountId) return `acc:${m.accountId}`;
   const digits = m.phone.replace(/\D/g, "");
-  if (digits.length >= 8) return `tel:${digits.slice(-10)}`;
+  if (digits.length >= 8) return `tel:${fullPhoneDigits(m.phone, region)}`;
   // Name only: never matched across groups. Its own row, in its own group.
   return `solo:${groupId}:${m.id ?? m.name.trim().replace(/\s+/g, " ").toLowerCase()}`;
 }
@@ -75,7 +108,7 @@ export function crossSettle(
         if (!skippedGroups.includes(g.groupName)) skippedGroups.push(g.groupName);
         continue;
       }
-      const key = personKey(other, g.groupId);
+      const key = personKey(other, g.groupId, regionForGroup(g));
       const item = byPerson.get(key) ?? { key, name: other.name, net: 0, parts: [], converted: false };
       const iPay = t.from === g.myId;
       item.net += iPay ? -amountCommon : amountCommon;

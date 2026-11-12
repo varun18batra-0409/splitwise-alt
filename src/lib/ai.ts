@@ -1,4 +1,5 @@
 import { allow } from "./rate-limit";
+import { decimalsOf, isSupportedCurrency } from "./money";
 
 // Reading bills and spoken expenses with Claude (Anthropic). Off unless the
 // ANTHROPIC_API_KEY is set in the hosting settings; then a fast model reads
@@ -88,13 +89,15 @@ const BILL_SYSTEM =
 
 export function cleanBill(raw: Record<string, unknown> | null): ReadBill | null {
   if (!raw || raw.is_bill === false) return null;
-  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0 && v < 1e9 ? Math.round(v * 100) / 100 : null);
+  // Up to 3 decimals (dinar, rial); a currency with fewer is rounded to its own, so the form never gets a number it would refuse.
+  const currency = /^[A-Z]{3}$/.test(String(raw.currency ?? "").toUpperCase()) ? String(raw.currency).toUpperCase() : "";
+  const scale = 10 ** (currency && isSupportedCurrency(currency) ? decimalsOf(currency) : 3);
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0 && v < 1e9 ? Math.round(v * scale) / scale : null);
   const total = num(raw.total);
   const items = (Array.isArray(raw.items) ? raw.items : [])
     .map((x) => ({ name: String((x as { name?: unknown })?.name ?? "").trim().slice(0, 40), price: num((x as { price?: unknown })?.price) ?? 0 }))
     .filter((x) => x.name && x.price > 0)
     .slice(0, 40);
-  const currency = /^[A-Z]{3}$/.test(String(raw.currency ?? "").toUpperCase()) ? String(raw.currency).toUpperCase() : "";
   const date = /^\d{4}-\d{2}-\d{2}$/.test(String(raw.date ?? "")) ? String(raw.date) : "";
   return { merchant: String(raw.merchant ?? "").trim().slice(0, 60), total, currency, date, items, extras: num(raw.extras) ?? 0 };
 }
@@ -145,7 +148,7 @@ export async function readLine(text: string, people: { id: string; name: string 
   );
   if (!raw) return null;
   const ids = new Set(people.map((p) => p.id));
-  const amount = typeof raw.amount === "number" && Number.isFinite(raw.amount) && raw.amount > 0 && raw.amount < 1e9 ? Math.round(raw.amount * 100) / 100 : null;
+  const amount = typeof raw.amount === "number" && Number.isFinite(raw.amount) && raw.amount > 0 && raw.amount < 1e9 ? Math.round(raw.amount * 1000) / 1000 : null;
   const forIds = Array.isArray(raw.for_ids) ? [...new Set(raw.for_ids.map(String).filter((x) => ids.has(x)))] : null;
   return {
     name: String(raw.name ?? "").trim().slice(0, 80),

@@ -70,32 +70,28 @@ export function spentAmount(e: { amount: number; kind?: string | null }): number
   return e.kind === "refund" ? -e.amount : e.amount;
 }
 
-// "Who owes whom" for one expense: each person's share is owed to the payers in
-// proportion to what they paid; then netted per pair. (Money back: whoever got
-// it owes the others.) Pairs are listed in the order people appear in the shares.
+// "Who owes whom" for one expense, worked out from each person's net for this expense (what they put in
+// minus their share; money back flips it), then matched up debtor to creditor. Working from the nets means
+// nobody is shown owing someone they are actually owed by, the pairs are as few as can be, and what each person
+// owes or is owed adds up exactly with the balances. Debtors and creditors keep the order they appear in.
 export function expensePairs(e: LinesLike): { from: string; to: string; amount: number }[] {
   const { credits, debits } = moneyLines(e);
-  const net = new Map<string, number>(); // "a|b": a owes b
-  const order: string[] = [];
-  const add = (from: string, to: string, amount: number) => {
-    if (from === to || amount === 0) return;
-    const key = `${from}|${to}`;
-    const back = `${to}|${from}`;
-    if (net.has(back)) net.set(back, net.get(back)! - amount);
-    else {
-      if (!net.has(key)) order.push(key);
-      net.set(key, (net.get(key) ?? 0) + amount);
+  const net = new Map<string, number>();
+  for (const c of credits) net.set(c.memberId, (net.get(c.memberId) ?? 0) + c.amount);
+  for (const d of debits) net.set(d.memberId, (net.get(d.memberId) ?? 0) - d.amount);
+  const seen = (list: Payer[]) => [...new Set(list.map((x) => x.memberId))];
+  const owe = seen(debits).filter((id) => (net.get(id) ?? 0) < 0).map((id) => ({ id, left: -(net.get(id) ?? 0) }));
+  const owed = seen(credits).filter((id) => (net.get(id) ?? 0) > 0).map((id) => ({ id, left: net.get(id) ?? 0 }));
+  const out: { from: string; to: string; amount: number }[] = [];
+  let j = 0;
+  for (const d of owe) {
+    while (d.left > 0 && j < owed.length) {
+      const pay = Math.min(d.left, owed[j].left);
+      out.push({ from: d.id, to: owed[j].id, amount: pay });
+      d.left -= pay;
+      owed[j].left -= pay;
+      if (owed[j].left === 0) j++;
     }
-  };
-  for (const d of debits) {
-    const parts = credits.length === 1 ? [{ memberId: credits[0].memberId, amount: d.amount }] : allocateByWeights(d.amount, credits.map((c) => ({ memberId: c.memberId, weight: c.amount })));
-    for (const p of parts) add(d.memberId, p.memberId, p.amount);
   }
-  return order
-    .map((k) => {
-      const [a, b] = k.split("|");
-      const v = net.get(k) ?? 0;
-      return v >= 0 ? { from: a, to: b, amount: v } : { from: b, to: a, amount: -v };
-    })
-    .filter((p) => p.amount > 0);
+  return out;
 }

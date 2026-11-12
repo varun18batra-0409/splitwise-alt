@@ -3,7 +3,7 @@ import { chargeLock, chargeLockedText } from "./home/charge-lock";
 import { LEFT_ERROR } from "./active";
 import { db } from "./db";
 import { withRetry } from "./once";
-import { diffExpense, expenseState, itemsForState, logEvent, parseUndo, touchedByExpense, type UndoPayload } from "./events";
+import { diffExpense, expenseState, itemsForState, logEvent, markUndone, parseUndo, touchedByExpense, UndoTaken, type UndoMark, type UndoPayload } from "./events";
 import { POT_EDIT_ERROR, setExpenseDeleted, setPaymentDeleted } from "./save-expense";
 import { isGameResult } from "./pot-result";
 import { formatPercent } from "./money";
@@ -149,49 +149,50 @@ async function undoOnce(eventId: string, actorId: string | undefined, tz: string
     return { ok: false, error: "Only the person who looks after this group can undo that." };
   }
 
-  // Claim the undo first (only if nobody did it yet), so a repeated tap or
-  // two people at once can never undo the same change twice.
-  const claim = await db.groupEvent.updateMany({ where: { id: ev.id, undoneAt: null }, data: { undoneAt: new Date(), undoneById: actorId } });
-  if (claim.count !== 1) return { ok: false, error: "That change was already undone." };
-  const release = () => db.groupEvent.update({ where: { id: ev.id }, data: { undoneAt: null, undoneById: null } });
+  // The "undone" mark is written inside the reversal's own transaction (see markUndone), so it is saved together
+  // with the reversal or not at all. Two people at once, or a repeated tap, can never undo the same change twice:
+  // the mark only takes if nobody else's did, and the loser's whole reversal is rolled back.
+  const mark: UndoMark = { eventId: ev.id, actorId };
   let result: UndoResult;
   try {
-    result = await apply(payload, ev.groupId, actorId, ev.text);
+    result = await apply(payload, ev.groupId, actorId, ev.text, mark);
   } catch (err) {
-    await release(); // nothing was undone: let it be tried again
+    if (err instanceof UndoTaken) return { ok: false, error: "That change was already undone." };
     throw err;
   }
-  if (!result.ok) await release();
+  // A reversal that found nothing left to do (it was already in that state) wrote no transaction of its own:
+  // the change is still marked as undone, as it always was.
+  if (result.ok) await db.groupEvent.updateMany({ where: { id: ev.id, undoneAt: null }, data: { undoneAt: new Date(), undoneById: actorId } });
   return result;
 }
 
-async function apply(p: UndoPayload, groupId: string, actorId: string, originalText: string): Promise<UndoResult> {
+async function apply(p: UndoPayload, groupId: string, actorId: string, originalText: string, mark: UndoMark): Promise<UndoResult> {
   switch (p.type) {
     case "expense_delete":
-      return fromResult(await setExpenseDeleted(p.expenseId, actorId, true));
+      return fromResult(await setExpenseDeleted(p.expenseId, actorId, true, { mark }));
     case "expense_restore":
-      return fromResult(await setExpenseDeleted(p.expenseId, actorId, false, { undoing: true }));
+      return fromResult(await setExpenseDeleted(p.expenseId, actorId, false, { undoing: true, mark }));
     case "payment_delete":
-      return fromResult(await setPaymentDeleted(p.paymentId, actorId, true));
+      return fromResult(await setPaymentDeleted(p.paymentId, actorId, true, { mark }));
     case "payment_restore":
-      return fromResult(await setPaymentDeleted(p.paymentId, actorId, false, { undoing: true }));
+      return fromResult(await setPaymentDeleted(p.paymentId, actorId, false, { undoing: true, mark }));
     case "expense_revert":
-      return revertExpense(p.expenseId, p.before, actorId);
+      return revertExpense(p.expenseId, p.before, actorId, { mark });
     case "group_set":
-      return applyGroupSettings(groupId, actorId, p.data, originalText);
+      return applyGroupSettings(groupId, actorId, p.data, originalText, mark);
     case "currency_restore":
-      return restoreCurrency(groupId, actorId, p);
+      return restoreCurrency(groupId, actorId, p, { mark });
     case "members_remove":
-      return removeMembers(groupId, actorId, p.memberIds);
+      return removeMembers(groupId, actorId, p.memberIds, true, mark);
     case "members_restore":
-      return restoreMembers(groupId, actorId, p.members);
+      return restoreMembers(groupId, actorId, p.members, mark);
     case "settle_all":
-      return fromResult(await applySettleAll(groupId, actorId, p.paymentIds, p.apply));
+      return fromResult(await applySettleAll(groupId, actorId, p.paymentIds, p.apply, { mark }));
     case "payments_set":
-      return fromResult(await setPaymentsDeleted(groupId, actorId, p.paymentIds, p.deleted));
+      return fromResult(await setPaymentsDeleted(groupId, actorId, p.paymentIds, p.deleted, { mark }));
     case "member_set":
-      if (p.moveOut && p.data.leftAt === null) return fromResult(await undoMoveOut(groupId, actorId, p.memberId, p.moveOut));
-      return fromResult(await setMember(groupId, actorId, p.memberId, p.data, true));
+      if (p.moveOut && p.data.leftAt === null) return fromResult(await undoMoveOut(groupId, actorId, p.memberId, p.moveOut, mark));
+      return fromResult(await setMember(groupId, actorId, p.memberId, p.data, true, { mark }));
   }
 }
 
@@ -206,7 +207,7 @@ const sharesSig = (xs: { memberId: string; amount: number }[]) => xs.map((x) => 
 
 // Put an expense back exactly as it was before an edit: its fields, its shares and (for edits saved with them) its bill's
 // item lines. `afterRead` is for tests only: it runs after the reads and before the write begins.
-export async function revertExpense(expenseId: string, before: Parameters<typeof expenseState>[0], actorId: string, opts: { afterRead?: () => Promise<void> } = {}): Promise<UndoResult> {
+export async function revertExpense(expenseId: string, before: Parameters<typeof expenseState>[0], actorId: string, opts: { afterRead?: () => Promise<void>; mark?: UndoMark } = {}): Promise<UndoResult> {
   const e = await db.expense.findUnique({ where: { id: expenseId }, include: { shares: true, items: { orderBy: [{ position: "asc" }, { id: "asc" }] }, group: { include: { members: true } } } });
   if (!e) return { ok: false, error: "That expense no longer exists." };
   if (e.group.closed) return { ok: false, error: "This group is closed. Reopen it to change expenses." };
@@ -239,6 +240,7 @@ export async function revertExpense(expenseId: string, before: Parameters<typeof
     // First a write: the group is still in this currency and open; then the expense is claimed as it was read. Any edit
     // since (even one that only changed the item lines) moved editedAt, so this undo would overwrite newer work: refused.
     await guardGroup(tx, e.groupId, { currency });
+    await markUndone(tx, opts.mark);
     const claim = await tx.expense.updateMany({ where: { id: expenseId, editedAt: e.editedAt, deletedAt: null }, data: { editedAt: new Date() } });
     if (claim.count !== 1) throw new RevertClash();
     const lockedNow = await chargeLock(tx, e.groupId, expenseId);
@@ -302,6 +304,7 @@ async function applyGroupSettings(
   actorId: string,
   data: { name?: string; cardMarkupBp?: number; secondaryCurrency?: string; closed?: boolean; closedAt?: string | null },
   originalText: string,
+  mark?: UndoMark,
 ): Promise<UndoResult> {
   const g = await db.group.findUnique({ where: { id: groupId } });
   if (!g) return { ok: false, error: "This group no longer exists." };
@@ -342,6 +345,7 @@ async function applyGroupSettings(
   }
 
   const eventId = await db.$transaction(async (tx) => {
+    await markUndone(tx, mark);
     await tx.group.update({ where: { id: groupId }, data: update });
     return logEvent(tx, { groupId, actorId, kind, text, details, undo: { type: "group_set", data: redo } });
   });
@@ -360,7 +364,7 @@ const moneySig = (
   ]);
 
 // `afterRead` is for tests only: it runs after the reads and before the write begins.
-export async function restoreCurrency(groupId: string, actorId: string, p: Extract<UndoPayload, { type: "currency_restore" }>, opts: { afterRead?: () => Promise<void> } = {}): Promise<UndoResult> {
+export async function restoreCurrency(groupId: string, actorId: string, p: Extract<UndoPayload, { type: "currency_restore" }>, opts: { afterRead?: () => Promise<void>; mark?: UndoMark } = {}): Promise<UndoResult> {
   const g = await db.group.findUnique({ where: { id: groupId }, include: { expenses: { include: { shares: true } }, payments: true } });
   if (!g) return { ok: false, error: "This group no longer exists." };
   const current: Extract<UndoPayload, { type: "currency_restore" }> = {
@@ -388,6 +392,7 @@ export async function restoreCurrency(groupId: string, actorId: string, p: Extra
   eventId = await db.$transaction(async (tx) => {
     // First a write: the group is still in the currency this undo expects (closed is fine, as before).
     await guardGroup(tx, groupId, { currency: g.currency, allowClosed: true });
+    await markUndone(tx, opts.mark);
     // Everything that holds money, looked at again now that nobody else can write: anything added or changed since the
     // first look (an expense in the gap) means putting the old amounts back would mix currencies, so refuse.
     const [ex, pay] = await Promise.all([
@@ -430,7 +435,7 @@ export async function restoreCurrency(groupId: string, actorId: string, p: Extra
 class CurrencyMoved extends Error {}
 
 // Take back "added people" — only if they haven't been used anywhere yet.
-export async function removeMembers(groupId: string, actorId: string, memberIds: string[], undoing = true): Promise<UndoResult> {
+export async function removeMembers(groupId: string, actorId: string, memberIds: string[], undoing = true, mark?: UndoMark): Promise<UndoResult> {
   if (memberIds.includes(actorId)) return { ok: false, error: "You can’t remove yourself. Use “Leave group” instead." };
   const members = await db.member.findMany({ where: { id: { in: memberIds }, groupId } });
   for (const m of members) {
@@ -444,6 +449,7 @@ export async function removeMembers(groupId: string, actorId: string, memberIds:
   }
   if (members.length === 0) return { ok: true };
   const eventId = await db.$transaction(async (tx) => {
+    await markUndone(tx, mark);
     await tx.member.deleteMany({ where: { id: { in: members.map((m) => m.id) } } });
     return logEvent(tx, {
       groupId,
@@ -475,11 +481,12 @@ export async function removeMembers(groupId: string, actorId: string, memberIds:
   return { ok: true, eventId };
 }
 
-async function restoreMembers(groupId: string, actorId: string, members: Extract<UndoPayload, { type: "members_restore" }>["members"]): Promise<UndoResult> {
+async function restoreMembers(groupId: string, actorId: string, members: Extract<UndoPayload, { type: "members_restore" }>["members"], mark?: UndoMark): Promise<UndoResult> {
   const existing = await db.member.findMany({ where: { groupId } });
   const clash = members.find((m) => existing.some((x) => x.name.toLowerCase() === m.name.toLowerCase()));
   if (clash) return { ok: false, error: `Someone called ${clash.name} is already in the group.` };
   const eventId = await db.$transaction(async (tx) => {
+    await markUndone(tx, mark);
     for (const m of members) {
       // Back as they were: still linked to their sign-in (unless they've joined again since), same share.
       const accountId = m.accountId && !existing.some((x) => x.accountId === m.accountId) ? m.accountId : null;

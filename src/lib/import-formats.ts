@@ -162,12 +162,12 @@ export function splitNames(cell: string): string[] {
     .filter(Boolean);
 }
 
-function finish(people: string[], rows: SwRow[], skipped: { line: number; reason: string }[], currency: string): SwParsed {
+function finish(people: string[], rows: SwRow[], skipped: { line: number; reason: string }[], currency: string, otherCurrencies: string[] = []): SwParsed {
   if (!people.length) return { ok: false, error: "No people were found in this file." };
   if (people.length > 50) return { ok: false, error: "Loopin groups can have up to 50 people." };
   if (!rows.length) return { ok: false, error: skipped.length ? `None of the ${skipped.length} lines could be read (${skipped[0].reason}).` : "There are no expenses in this file." };
   if (!isSupportedCurrency(currency)) return { ok: false, error: `Loopin doesn’t support ${currency} yet.` };
-  return { ok: true, people, currency, rows, skipped, otherCurrencies: [], expected: null };
+  return { ok: true, people, currency, rows, skipped, otherCurrencies, expected: null };
 }
 
 // 2. A Loopin group spreadsheet: Date, Type, Description, Notes, Category,
@@ -242,6 +242,20 @@ export function parseGenericCsv(text: string, map: ColumnMap, currency: string):
   if (map.split === "column" && (map.forCol === undefined || map.forCol < 0)) return { ok: false, error: "Pick the column that says who each one was for." };
   if (map.split === "shares" && (map.shareCols ?? []).length < 2) return { ok: false, error: "Tick each person’s share column (at least two)." };
 
+  // A currency column (if any): rows in another currency than the group's are left out and listed,
+  // never read as if they were in the group's currency (10 USD is not 10 rupees).
+  const curCol = head.findIndex((x) => /^currency$|currency code/.test(lower(x)));
+  const rowCurrency = (r: string[]) => (curCol >= 0 ? (r[curCol] ?? "").trim().toUpperCase() : "");
+  const isOther = (r: string[]) => {
+    const c = rowCurrency(r);
+    return c !== "" && c !== currency;
+  };
+  const otherCurrencies: string[] = [];
+  for (const r of body) {
+    const c = rowCurrency(r);
+    if (isOther(r) && !otherCurrencies.includes(c)) otherCurrencies.push(c);
+  }
+
   // Everyone in the file: payers, names in the "for" column, or the share columns' names.
   const names: string[] = [];
   const add = (n: string) => {
@@ -252,6 +266,7 @@ export function parseGenericCsv(text: string, map: ColumnMap, currency: string):
   const shareName = (i: number) => head[i].replace(/['’]s\b|\b(share|owes?|owed|portion|part)\b|\(.*?\)/gi, "").trim() || head[i];
   for (const i of shareCols) add(shareName(i));
   for (const r of body) {
+    if (isOther(r)) continue; // someone who only appears in a left-out row isn't added
     for (const p of splitNames(cell(r, map.paidBy))) add(p);
     if (map.split === "column") for (const p of splitNames(cell(r, map.forCol))) add(p);
   }
@@ -261,6 +276,7 @@ export function parseGenericCsv(text: string, map: ColumnMap, currency: string):
   const skipped: { line: number; reason: string }[] = [];
   body.forEach((r, k) => {
     const line = k + 2;
+    if (isOther(r)) return skipped.push({ line, reason: `in ${rowCurrency(r)}` });
     const amount = looseAmount(cell(r, map.amount), currency);
     if (amount === null) return skipped.push({ line, reason: "the amount couldn’t be read" });
     if (amount === 0) return skipped.push({ line, reason: "no amount" });
@@ -300,9 +316,11 @@ export function parseGenericCsv(text: string, map: ColumnMap, currency: string):
       cost: Math.abs(amount),
       nets: signed.map((x) => (x === 0 ? 0 : x)),
       payment,
+      // Money back that isn't a payment stays money back: it reduces spending, not adds to it.
+      ...(amount < 0 && !payment ? { kind: "refund" as const } : {}),
     });
   });
-  return finish(names, rows, skipped, currency);
+  return finish(names, rows, skipped, currency, otherCurrencies);
 }
 
 // An amount split as evenly as possible, the odd paise going to the first people.

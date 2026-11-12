@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useFocusTrap } from "@/lib/use-focus-trap";
 import { useDragToClose } from "@/lib/use-drag-close";
 
 // Share a story-sized picture (All square, Wrapped, your passport): WhatsApp
@@ -47,10 +48,8 @@ export function ShareSheet({
       const base = fileName.replace(/\.png$/, "");
       pages.current ??= Promise.all(album.map((src, i) => grab(src, `${base}-${i + 1}.png`))).then((fs) => (fs.every(Boolean) ? (fs as File[]) : []));
     }
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    window.addEventListener("keydown", esc);
-    return () => window.removeEventListener("keydown", esc);
   }, [open, image, fileName, many, album]);
+  const layer = useFocusTrap(open, { onEscape: () => setOpen(false) });
 
   async function shareFiles(files: File[]): Promise<"shared" | "closed" | "cant"> {
     if (files.length && navigator.canShare?.({ files })) {
@@ -103,7 +102,7 @@ export function ShareSheet({
       </button>
       {open &&
         createPortal(
-          <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/60" onClick={() => setOpen(false)}>
+          <div ref={layer} className="fixed inset-0 z-[70] flex items-end justify-center bg-black/60" onClick={() => setOpen(false)}>
             <div
               role="dialog"
               aria-modal="true"

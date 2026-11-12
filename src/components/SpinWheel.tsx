@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useFocusTrap } from "@/lib/use-focus-trap";
 
 // Spin the wheel: can't decide who pays tonight? Spin, and whoever it lands on
 // becomes the payer of this expense (you can still change it). The pick is
@@ -45,12 +46,9 @@ export function SpinWheel({ people, onPick, roomy = false }: { people: { id: str
     still.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     return () => clearTimeout(timer.current);
   }, []);
-  useEffect(() => {
-    if (!open) return;
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && !spinning && setOpen(false);
-    window.addEventListener("keydown", esc);
-    return () => window.removeEventListener("keydown", esc);
-  }, [open, spinning]);
+  const spinningNow = useRef(false);
+  spinningNow.current = spinning;
+  const layer = useFocusTrap(open, { onEscape: () => !spinningNow.current && setOpen(false) });
   if (people.length < 2) return null;
 
   const n = people.length;
@@ -97,7 +95,7 @@ export function SpinWheel({ people, onPick, roomy = false }: { people: { id: str
       </button>
       {open &&
         createPortal(
-          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 px-5 backdrop-blur-[2px]" onClick={() => !spinning && setOpen(false)}>
+          <div ref={layer} className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 px-5 backdrop-blur-[2px]" onClick={() => !spinning && setOpen(false)}>
             <div
               role="dialog"
               aria-modal="true"
@@ -171,7 +169,7 @@ export function SpinWheel({ people, onPick, roomy = false }: { people: { id: str
                     <p className="lp-slide-in mt-1 font-display text-[32px] font-semibold leading-tight">{win.label}</p>
                   </>
                 ) : (
-                  <p className="pt-4 text-sm text-[#f7f4ec]/60">{spinning ? "Round and round it goes…" : "Fair and random. No take-backs."}</p>
+                  <p className="pt-4 text-sm text-[#f7f4ec]/60">{spinning ? "Round and round it goes…" : "Fair and random."}</p>
                 )}
               </div>
               {win ? (

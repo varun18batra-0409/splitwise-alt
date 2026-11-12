@@ -71,8 +71,9 @@ const notFound = (err: unknown) => (err as { name?: string })?.name === "BlobNot
 
 // Delete what's due from the to-delete list. Keys still used by a photo row are dropped
 // from the list without being touched. Never throws. `now` is for tests.
-export async function flushPhotoDeletes(limit = 50, now = new Date()): Promise<{ deleted: number; failed: number; kept: number }> {
-  const result = { deleted: 0, failed: 0, kept: 0 };
+// A run that broke part way is NOT an empty success: `error` says so and `failed` is at least 1 (the daily job counts it as failed).
+export async function flushPhotoDeletes(limit = 50, now = new Date()): Promise<{ deleted: number; failed: number; kept: number; error?: string }> {
+  const result: { deleted: number; failed: number; kept: number; error?: string } = { deleted: 0, failed: 0, kept: 0 };
   try {
     if (!blobOn()) return result; // storage not connected: the keys wait
     const { db } = await import("./db");
@@ -113,6 +114,8 @@ export async function flushPhotoDeletes(limit = 50, now = new Date()): Promise<{
     result.failed = todo.length;
   } catch (err) {
     console.error("photo store: clean-up failed", String(err).slice(0, 160));
+    result.error = String(err).slice(0, 160);
+    result.failed = Math.max(result.failed, 1);
   }
   return result;
 }
@@ -149,6 +152,10 @@ export async function replaceGroupPhoto(
 ): Promise<boolean> {
   const { db } = await import("./db");
   return db.$transaction(async (tx) => {
+    // Checked again here, inside the step that saves: the group may have been deleted, or this person removed or gone, since the
+    // page checked (the upload takes a while). Nothing changes then, and the caller drops the uploaded file.
+    const live = await tx.group.findFirst({ where: { id: groupId, deletedAt: null, members: { some: { id: data.createdById, leftAt: null, removedAt: null } } }, select: { id: true } });
+    if (!live) return false;
     let oldKey = "";
     if (seen) {
       const current = await tx.groupPhoto.findUnique({ where: { groupId }, select: { blobKey: true } });

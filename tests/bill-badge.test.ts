@@ -14,8 +14,8 @@ describe("billBadge", () => {
   it("not added yet, due today: Due today (gold)", () => {
     expect(billBadge(f)).toEqual({ id: "due-today", label: "Due today", tone: "gold" });
   });
-  it("added this month: Recorded (green), even though the next one is a month away", () => {
-    expect(billBadge({ ...f, recordedThisMonth: true, due: "2026-12-01" })).toEqual({ id: "recorded", label: "Recorded", tone: "green" });
+  it("added this month: shows Added this month (green), even though the next one is a month away", () => {
+    expect(billBadge({ ...f, recordedThisMonth: true, due: "2026-12-01" })).toEqual({ id: "recorded", label: "Added this month", tone: "green" });
   });
   it("a bill that varies and waits for its amount: Needs amount (orange)", () => {
     expect(billBadge({ ...f, status: "waiting" })).toEqual({ id: "needs-amount", label: "Needs amount", tone: "orange" });

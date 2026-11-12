@@ -13,8 +13,9 @@ import { allocateByWeights } from "./split";
 //     money back (a refund) flips both signs;
 //   - payments: the payer goes up, the person paid goes down;
 //   - deleted expenses and payments never count.
-// Expenses with MORE than one payer (`payers` is not empty) are few, so they are fetched and run through
-// moneyLines() / payersOf(), the same code the full method uses (it keeps proportions when a saved list
+// Expenses with MORE than one payer (`payers` is not empty) are few, so their rows come back in the SAME SQL
+// statement as the sums (one extra UNION branch, so one moment in time even without a transaction) and are run
+// through moneyLines() / payersOf(), the same code the full method uses (it keeps proportions when a saved list
 // doesn't add up).
 //
 // People come in the order of `members` (createdAt, then id): Smart Settle's exact-match step depends on the
@@ -31,48 +32,75 @@ export type GroupBalances = {
   fallback: boolean; // true: worked out by the full method (money belonged to a non-member)
 };
 
-type SumRow = { g: string; m: string; v: bigint | number | null };
+// One row of the single statement. Sum rows have only g, m, v. A several-payers expense comes back as one row per
+// share (x = the expense id, with its payer, payers list, kind and amount; m and v are the share, or null if it has none).
+type SumRow = {
+  g: string;
+  m: string | null;
+  v: bigint | number | null;
+  x?: string | null;
+  pb?: string | null;
+  pj?: string | null;
+  kd?: string | null;
+  am?: bigint | number | null;
+};
 
 const CHUNK = 100; // groups per round trip (SQLite limits how many ? marks one query may have)
 
 // All the reads for a set of groups, built but not yet run. Prisma queries only start when awaited, so they can be
-// handed to one db.$transaction([...]) and answer from ONE snapshot: the sums and the several-payers rows can't
-// come from two different moments (a payment landing between them would otherwise be counted in one and not the other).
+// handed to one db.$transaction([...]) and answer from ONE snapshot.
 type Query<T> = Prisma.PrismaPromise<T>;
 type MemberRow = { id: string; groupId: string };
-type ManyRow = Awaited<ReturnType<typeof manyQuery>>[number];
-const manyQuery = (ids: string[]) =>
-  db.expense.findMany({
-    where: { groupId: { in: ids }, deletedAt: null, payers: { not: "" } },
-    select: { groupId: true, paidById: true, amount: true, payers: true, kind: true, shares: { select: { memberId: true, amount: true } } },
-  });
+type ManyRow = { groupId: string; paidById: string; amount: number; payers: string; kind: string; shares: { memberId: string; amount: number }[] };
 
 function readChunk(ids: string[], given?: Record<string, string[]>) {
   const list = Prisma.join(ids);
   const haveMembers = Boolean(given) && ids.every((id) => Array.isArray(given![id]));
   const members: Query<MemberRow[]> | null = haveMembers ? null : db.member.findMany({ where: { groupId: { in: ids } }, select: { id: true, groupId: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
   const sums = db.$queryRaw<SumRow[]>(Prisma.sql`
-      SELECT e."groupId" AS g, e."paidById" AS m, SUM(CASE WHEN e."kind" = 'refund' THEN -e."amount" ELSE e."amount" END) AS v
+      SELECT e."groupId" AS g, e."paidById" AS m, SUM(CASE WHEN e."kind" = 'refund' THEN -e."amount" ELSE e."amount" END) AS v,
+             NULL AS x, NULL AS pb, NULL AS pj, NULL AS kd, NULL AS am
         FROM "Expense" e
        WHERE e."groupId" IN (${list}) AND e."deletedAt" IS NULL AND e."payers" = ''
        GROUP BY e."groupId", e."paidById"
       UNION ALL
-      SELECT e."groupId", s."memberId", SUM(CASE WHEN e."kind" = 'refund' THEN s."amount" ELSE -s."amount" END)
+      SELECT e."groupId", s."memberId", SUM(CASE WHEN e."kind" = 'refund' THEN s."amount" ELSE -s."amount" END),
+             NULL, NULL, NULL, NULL, NULL
         FROM "ExpenseShare" s JOIN "Expense" e ON e."id" = s."expenseId"
        WHERE e."groupId" IN (${list}) AND e."deletedAt" IS NULL AND e."payers" = ''
        GROUP BY e."groupId", s."memberId"
       UNION ALL
-      SELECT p."groupId", p."fromId", SUM(p."amount")
+      SELECT p."groupId", p."fromId", SUM(p."amount"), NULL, NULL, NULL, NULL, NULL
         FROM "Payment" p
        WHERE p."groupId" IN (${list}) AND p."deletedAt" IS NULL
        GROUP BY p."groupId", p."fromId"
       UNION ALL
-      SELECT p."groupId", p."toId", -SUM(p."amount")
+      SELECT p."groupId", p."toId", -SUM(p."amount"), NULL, NULL, NULL, NULL, NULL
         FROM "Payment" p
        WHERE p."groupId" IN (${list}) AND p."deletedAt" IS NULL
        GROUP BY p."groupId", p."toId"
+      UNION ALL
+      SELECT e."groupId", s."memberId", s."amount", e."id", e."paidById", e."payers", e."kind", e."amount"
+        FROM "Expense" e LEFT JOIN "ExpenseShare" s ON s."expenseId" = e."id"
+       WHERE e."groupId" IN (${list}) AND e."deletedAt" IS NULL AND e."payers" <> ''
     `);
-  return { ids, given, members, sums, many: manyQuery(ids) };
+  return { ids, given, members, sums };
+}
+
+// The several-payers rows of the one statement, put back together as expenses.
+function manyFrom(rows: SumRow[]): { plain: SumRow[]; many: ManyRow[] } {
+  const plain: SumRow[] = [];
+  const byId = new Map<string, ManyRow>();
+  for (const r of rows) {
+    if (r.x == null) {
+      plain.push(r);
+      continue;
+    }
+    let e = byId.get(r.x);
+    if (!e) byId.set(r.x, (e = { groupId: r.g, paidById: r.pb ?? "", amount: Number(r.am ?? 0), payers: r.pj ?? "", kind: r.kd ?? "expense", shares: [] }));
+    if (r.m != null) e.shares.push({ memberId: r.m, amount: Number(r.v ?? 0) });
+  }
+  return { plain, many: [...byId.values()] };
 }
 
 // The balance reads for these groups (every chunk of 100), and how to turn what they return into the answer.
@@ -81,15 +109,14 @@ function balancePlan(groupIds: string[], given?: Record<string, string[]>) {
   const ids = [...new Set(groupIds)];
   const chunks: ReturnType<typeof readChunk>[] = [];
   for (let i = 0; i < ids.length; i += CHUNK) chunks.push(readChunk(ids.slice(i, i + CHUNK), given));
-  const queries: Query<unknown>[] = chunks.flatMap((c) => (c.members ? [c.sums, c.many, c.members] : [c.sums, c.many]));
+  const queries: Query<unknown>[] = chunks.flatMap((c) => (c.members ? [c.sums, c.members] : [c.sums]));
   const finish = async (results: unknown[]): Promise<Map<string, GroupBalances>> => {
     const out = new Map<string, GroupBalances>();
     let k = 0;
     for (const c of chunks) {
       const sums = results[k++] as SumRow[];
-      const many = results[k++] as ManyRow[];
       const memberRows = c.members ? (results[k++] as MemberRow[]) : null;
-      for (const [id, v] of await balancesFrom(c.ids, c.given, sums, many, memberRows)) out.set(id, v);
+      for (const [id, v] of await balancesFrom(c.ids, c.given, sums, memberRows)) out.set(id, v);
     }
     return out;
   };
@@ -107,7 +134,8 @@ export async function netBalancesDb(groupIds: string[], opts: { members?: Record
   return plan.finish(results);
 }
 
-async function balancesFrom(ids: string[], given: Record<string, string[]> | undefined, sums: SumRow[], many: ManyRow[], memberRows: MemberRow[] | null): Promise<Map<string, GroupBalances>> {
+async function balancesFrom(ids: string[], given: Record<string, string[]> | undefined, rows: SumRow[], memberRows: MemberRow[] | null): Promise<Map<string, GroupBalances>> {
+  const { plain: sums, many } = manyFrom(rows);
   const order = new Map<string, string[]>(ids.map((id) => [id, []]));
   if (memberRows) for (const m of memberRows) order.get(m.groupId)?.push(m.id);
   else for (const id of ids) order.set(id, given![id]);
@@ -128,7 +156,7 @@ async function balancesFrom(ids: string[], given: Record<string, string[]> | und
       if (!isMember.has(who)) stranger = true;
       else net[who] += by;
     };
-    for (const r of sumsBy.get(gid) ?? []) bump(r.m, Number(r.v ?? 0));
+    for (const r of sumsBy.get(gid) ?? []) bump(r.m as string, Number(r.v ?? 0));
     for (const e of manyBy.get(gid) ?? []) {
       const { credits, debits } = moneyLines(e);
       for (const c of credits) bump(c.memberId, c.amount);
