@@ -15,7 +15,7 @@ export default async function ImportPage({ searchParams }: { searchParams: Promi
       <PageHeader title="From another app" back="/" />
       <h1 className="font-display text-[28px] font-semibold leading-tight">Bring a group over</h1>
       <p className="mt-2 text-sm text-gray-500">
-        Every expense and payment comes across, with the same people and the same balances. The other app keeps its copy; nothing there changes.
+        Loopin brings in the expenses and payments it can read and shows them for you to check before saving. The other app keeps its copy; nothing there changes.
       </p>
 
       <ol className="mt-5 space-y-2 rounded-[18px] bg-mist px-5 py-4 text-sm text-gray-600" aria-label="How to export from the other app">

@@ -10,7 +10,6 @@ import { blockedEitherWay } from "@/lib/blocks";
 import { passportShared } from "@/lib/passport";
 import { countryOf } from "@/lib/geo";
 import { Avatar, PageHeader } from "@/components/ui";
-import { WorldMap } from "@/components/PassportBook";
 import map from "@/generated/map.json";
 
 export const metadata = { title: "Our passports", robots: { index: false } };
@@ -72,15 +71,10 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
     <>
       <PageHeader title="Our passports" back={back} />
       <section aria-label="Together" className="rounded-[22px] border border-line bg-white px-5 py-5">
-        <p className="text-sm text-gray-500">{group.name}, together</p>
+        <p className="text-sm text-gray-500">{group.name}</p>
         <p className="mt-1 font-display text-[28px] font-semibold leading-tight" data-group-countries={together.length}>
-          {together.length} {together.length === 1 ? "country" : "countries"}
+          {together.length === 0 ? "No countries yet" : `Between you: ${together.length} ${together.length === 1 ? "country" : "countries"}`}
         </p>
-        {together.length > 0 && (map as { ok: boolean }).ok && (
-          <div className="mt-3 rounded-[14px] bg-[#efe8d6] p-2">
-            <WorldMap className="" index={together.map((c) => ({ code: c, name: countryOf(c)?.name ?? c, trips: 1 }))} />
-          </div>
-        )}
         {lines.length > 0 && (
           <ul className="mt-4 space-y-1.5 text-sm text-fg/85">
             {lines.map((l) => (
@@ -90,6 +84,7 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
         )}
         {together.length > 0 && (
           <PassportCompare
+            showMap={(map as { ok: boolean }).ok}
             sets={[
               { key: "all", label: "Everywhere", countries: together.map(c3) },
               ...(shared.length > 0 ? [{ key: "shared", label: "Shared", countries: shared.map(c3) }] : []),

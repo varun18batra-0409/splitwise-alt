@@ -1,3 +1,4 @@
+import { opensLine } from "@/lib/postcards/opens";
 import { notFound, redirect } from "next/navigation";
 import Link from "@/components/Link";
 import { db } from "@/lib/db";
@@ -65,7 +66,7 @@ export default async function PostcardPage({ params, searchParams }: { params: P
           </div>
           <p className="mt-6 text-center text-sm leading-relaxed text-fg/60">
             {first(from?.name)} wrote this for {opens}.<br />
-            It opens that morning. We’ll let you know.
+            {p.opensAt ? opensLine(p.opensAt, tz) : "It opens on the day"}. We’ll let you know.
           </p>
         </>
       ) : (

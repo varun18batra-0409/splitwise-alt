@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { WorldMap } from "@/components/PassportBook";
 
 // Our passports, in one small box: tabs for every country between you, the
 // ones you've all been to ("Shared"), and the ones only one of you has (the tabs wrap onto a second row, none is ever cut off); under them, the
 // flags with a short name each.
 export type CompareSet = { key: string; label: string; countries: { code: string; flag: string; name: string }[] };
 
-export function PassportCompare({ sets }: { sets: CompareSet[] }) {
+export function PassportCompare({ sets, showMap = false }: { sets: CompareSet[]; showMap?: boolean }) {
   const [on, setOn] = useState(sets[0]?.key);
   const set = sets.find((s) => s.key === on) ?? sets[0];
   if (!set) return null;
@@ -28,6 +29,12 @@ export function PassportCompare({ sets }: { sets: CompareSet[] }) {
           </button>
         ))}
       </div>
+      {showMap && set.countries.length > 0 && (
+        // The map follows the chosen tab: the same countries as the flags below.
+        <div className="mt-3 rounded-[14px] bg-[#efe8d6] p-2" data-compare-map={set.key}>
+          <WorldMap className="" index={set.countries.map((c) => ({ code: c.code, name: c.name, trips: 1 }))} />
+        </div>
+      )}
       <ul role="tabpanel" className="mt-3 grid grid-cols-5 gap-x-1 gap-y-2.5" data-compare-list={set.key}>
         {set.countries.map((c) => (
           <li key={c.code} className="flex min-w-0 flex-col items-center" title={c.name}>

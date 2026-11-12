@@ -6,7 +6,8 @@ import { MESSAGE_MAX, maxMessageLines, messageFit, overText, withOpener } from "
 import { trimWindow, windowFor } from "@/lib/paging";
 import { pickFriends } from "@/lib/friend-list";
 import { backMoney, barSize, compactMoney, percentText, signedMoney } from "@/lib/chart-labels";
-import { activityMoreHref, dayLabel } from "@/lib/activity";
+import { activityHref, activityMoreHref, dayLabel, filterChips } from "@/lib/activity";
+import { opensLine } from "@/lib/postcards/opens";
 import { countsLine, stampCounts } from "@/lib/collect-rules";
 import { inviteLabel } from "@/lib/invite-label";
 import { defaultPayment } from "@/lib/pay-default";
@@ -253,5 +254,47 @@ describe("travel facts (SEQ-FEAT-07)", () => {
   it("Mussoorie maps to its own place, not Rishikesh", () => {
     expect(placeSlot("Mussoorie trip")).toBe("place-mussoorie");
     expect(placeSlot("Rishikesh rafting")).toBe("place-rishikesh");
+  });
+});
+
+describe("activity filter chips", () => {
+  const words = { cat: (id: string) => (id === "food" ? "Food" : id), person: (id: string) => (id === "a" ? "Asha" : "Ben") };
+  it("no filters, no chips", () => {
+    expect(filterChips("g1", {}, words)).toEqual([]);
+  });
+  it("one chip per filter; each link drops only that filter", () => {
+    const f = { q: "pizza", cat: "food", who: "a", type: "expense" as const, by: "b" };
+    const chips = filterChips("g1", f, words);
+    expect(chips.map((c) => c.key)).toEqual(["q", "type", "cat", "who", "by"]);
+    expect(chips.map((c) => c.label)).toEqual(["“pizza”", "Expenses", "Food", "Asha", "Paid by Ben"]);
+    const q = chips.find((c) => c.key === "q")!;
+    expect(q.href).toBe(activityHref("g1", { cat: "food", who: "a", type: "expense", by: "b" }));
+    expect(q.href).not.toContain("q=");
+    expect(q.href).toContain("cat=food");
+  });
+  it("dates and amounts are one chip each and clear together", () => {
+    const chips = filterChips("g1", { from: "2026-10-01", to: "2026-10-31", min: "100", max: "500" }, words);
+    expect(chips.map((c) => c.label)).toEqual(["1 Oct – 31 Oct", "100 – 500"]);
+    expect(chips[0].href).toBe("/groups/g1?tab=activity&min=100&max=500");
+    expect(chips[1].href).toBe("/groups/g1?tab=activity&from=2026-10-01&to=2026-10-31");
+    expect(filterChips("g1", { from: "2026-10-01" }, words)[0].label).toBe("From 1 Oct");
+    expect(filterChips("g1", { to: "2026-10-31" }, words)[0].label).toBe("Until 31 Oct");
+    expect(filterChips("g1", { min: "100" }, words)[0].label).toBe("From 100");
+    expect(filterChips("g1", { max: "500" }, words)[0].label).toBe("Up to 500");
+  });
+  it("a long search term is shortened", () => {
+    expect(filterChips("g1", { q: "x".repeat(40) }, words)[0].label).toBe(`“${"x".repeat(24)}”`);
+  });
+});
+
+describe("postcard opens line", () => {
+  it("the same instant reads differently in each reader's zone", () => {
+    const at = new Date("2026-12-31T18:30:00Z"); // 00:00 on 1 Jan 2027 in Asia/Kolkata
+    expect(opensLine(at, "Asia/Kolkata")).toBe("Opens 1 January 2027 at 00:00 your time");
+    expect(opensLine(at, "Europe/London")).toBe("Opens 31 December 2026 at 18:30 your time");
+    expect(opensLine(at, "America/New_York")).toBe("Opens 31 December 2026 at 13:30 your time");
+  });
+  it("an unknown zone falls back to UTC", () => {
+    expect(opensLine(new Date("2026-12-31T18:30:00Z"), "Not/AZone")).toBe("Opens 31 December 2026 at 18:30 your time");
   });
 });

@@ -191,7 +191,7 @@ const sections = (): { title: string; items: QA[] }[] => [
         q: "Can I bring my groups over from another app?",
         a: (
           <>
-            Yes. Export the group as a spreadsheet (CSV) from the other app, then tap <strong>Bring a group over</strong> and pick the file. Every expense and payment comes across, and the other app keeps its copy.{" "}
+            Yes. Export the group as a spreadsheet (CSV) from the other app, then tap <strong>Bring a group over</strong> and pick the file. Loopin brings in the expenses and payments it can read and shows them for you to check before saving. The other app keeps its copy.{" "}
             <Link href="/import" className={link}>
               Bring a group over
             </Link>

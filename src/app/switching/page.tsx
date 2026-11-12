@@ -6,7 +6,7 @@ export const metadata = { title: "Coming from another app?", description: "Switc
 const POINTS: [string, string][] = [
   ["No limits", "Add as many expenses as you like, every day."],
   ["Your groups come with you", "Bring a group over from the other app’s spreadsheet export (any app that can export a spreadsheet, or a sheet you kept): every expense, every payment, the same balances."],
-  ["Made for trips abroad", "Spend in any currency. Loopin uses the day’s rate and can add your card’s foreign-transaction fee, so the totals match your bank."],
+  ["Made for trips abroad", "Spend in any currency. Loopin uses the day’s rate and can add your card’s foreign-transaction fee, so the totals come out close to your bank’s total."],
   ["Flats that run themselves", "Set rent and bills to repeat monthly and Loopin adds them on the day; a shared shopping list turns into one Groceries expense, and moving in or out mid-month is handled."],
   ["Couples, your own split", "55/45 by income, or any split you choose, with a running “who’s ahead” and savings goals."],
   ["Fewer payments to settle", "Loopin cuts down the number of payments, across all your groups at once if you like."],

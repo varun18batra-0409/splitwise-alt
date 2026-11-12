@@ -242,9 +242,9 @@ export function filterActivity(items: ActivityItem[], f: ActivityFilter, nameOf:
   });
 }
 
-// The address for "Show more" on Activity: the same group and tab, with every filter kept and the longer list.
-export function activityMoreHref(groupId: string, f: ActivityFilter, n: number): string {
-  const q = new URLSearchParams({ tab: "activity", n: String(n) });
+// The address of the Activity tab with the given filters (and, for "Show more", a longer list).
+export function activityHref(groupId: string, f: ActivityFilter, n?: number): string {
+  const q = new URLSearchParams({ tab: "activity", ...(n ? { n: String(n) } : {}) });
   const keep: [string, string | undefined][] = [
     ["q", f.q],
     ["cat", f.cat],
@@ -258,4 +258,34 @@ export function activityMoreHref(groupId: string, f: ActivityFilter, n: number):
   ];
   for (const [k, v] of keep) if (v) q.set(k, v);
   return `/groups/${groupId}?${q}`;
+}
+
+// "Show more" keeps every filter.
+export function activityMoreHref(groupId: string, f: ActivityFilter, n: number): string {
+  return activityHref(groupId, f, n);
+}
+
+const DAY = (iso: string) => new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${iso}T12:00:00Z`));
+const TYPE_WORDS: Record<string, string> = { expense: "Expenses", payment: "Payments", refund: "Money back", change: "Changes" };
+
+// One small chip for each filter in use; tapping a chip opens the same list without that one filter.
+export function filterChips(
+  groupId: string,
+  f: ActivityFilter,
+  words: { cat: (id: string) => string; person: (id: string) => string },
+): { key: string; label: string; href: string }[] {
+  const without = (...keys: (keyof ActivityFilter)[]) => {
+    const rest = { ...f };
+    for (const k of keys) delete rest[k];
+    return activityHref(groupId, rest);
+  };
+  const out: { key: string; label: string; href: string }[] = [];
+  if (f.q?.trim()) out.push({ key: "q", label: `“${f.q.trim().slice(0, 24)}”`, href: without("q") });
+  if (f.type) out.push({ key: "type", label: TYPE_WORDS[f.type] ?? f.type, href: without("type") });
+  if (f.cat) out.push({ key: "cat", label: words.cat(f.cat), href: without("cat") });
+  if (f.who) out.push({ key: "who", label: words.person(f.who), href: without("who") });
+  if (f.by) out.push({ key: "by", label: `Paid by ${words.person(f.by)}`, href: without("by") });
+  if (f.from || f.to) out.push({ key: "dates", label: f.from && f.to ? `${DAY(f.from)} – ${DAY(f.to)}` : f.from ? `From ${DAY(f.from)}` : `Until ${DAY(f.to!)}`, href: without("from", "to") });
+  if (f.min?.trim() || f.max?.trim()) out.push({ key: "amount", label: f.min?.trim() && f.max?.trim() ? `${f.min.trim()} – ${f.max.trim()}` : f.min?.trim() ? `From ${f.min.trim()}` : `Up to ${f.max!.trim()}`, href: without("min", "max") });
+  return out;
 }

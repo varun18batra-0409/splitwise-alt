@@ -209,7 +209,7 @@ export default async function HowItWorks() {
           ]}
         />
         <p>
-          <strong>Got the bill?</strong> Tap <strong>Scan a bill</strong> and Loopin reads the shop, total, date and every line, ready to split
+          <strong>Got the bill?</strong> Tap <strong>Scan a bill</strong> and Loopin reads the shop, total, date and the lines it can, ready to split
           by item. The photo stays with the expense for everyone in the group. <strong>Hands full?</strong> Tap <strong>Speak</strong> and say it: “Dinner 2400,
           Ravi paid, everyone except Dev.” Or tap <strong>Type a line</strong>: “Cab 600 except Leo”. Nothing saves until you tap Save.
         </p>
@@ -240,8 +240,8 @@ export default async function HowItWorks() {
           <p className="mb-2 font-medium">🍜 Ramen in Shibuya · paid by card</p>
           <dl className="space-y-1 tabular-nums">
             <div className="flex justify-between"><dt className="text-gray-500">¥6,000 at today’s rate</dt><dd>{m(x.yen)}</dd></div>
-            <div className="flex justify-between"><dt className="text-gray-500">Your bank’s 3% card fee</dt><dd>+ {m(x.fee)}</dd></div>
-            <div className="flex justify-between border-t border-line pt-1 font-semibold"><dt>Split four ways</dt><dd>{m(x.four)} each</dd></div>
+            <div className="flex justify-between"><dt className="text-gray-500">About a 3% card fee (an example)</dt><dd>+ ≈ {m(x.fee)}</dd></div>
+            <div className="flex justify-between border-t border-line pt-1 font-semibold"><dt>Split four ways</dt><dd>≈ {m(x.four)} each</dd></div>
           </dl>
         </div>
         <p>150+ currencies. Cash? No fee added. Better rate from the exchange booth? Type it in.</p>
@@ -428,7 +428,7 @@ export default async function HowItWorks() {
       <div id="safe" className="scroll-mt-4" />
       <section className="mt-12 space-y-3 text-[15px] leading-relaxed text-gray-600">
         <h2 className="font-display text-[26px] font-semibold tracking-tight text-fg">Mistakes happen. Fix them.</h2>
-        <p>Every change can be undone, and the history shows who changed what. Undo works on the latest change to something: once a newer change has touched it, undo that first. It won’t change the balance of someone who has left the group. Everyone in the group gets an alert; you choose which alerts per group in its settings. To choose what Loopin sends you everywhere, on your phone and by email, open <strong>You</strong> and then <strong>Notifications &amp; email</strong>.</p>
+        <p>Most changes can be undone, and the history shows who changed what. Undo works on the latest change to something: once a newer change has touched it, undo that first. It won’t change the balance of someone who has left the group. Everyone in the group gets an alert; you choose which alerts per group in its settings. To choose what Loopin sends you everywhere, on your phone and by email, open <strong>You</strong> and then <strong>Notifications &amp; email</strong>.</p>
         <p>
           Left a group? You still see it as it was the day you left, plus any later change to your own share. Something unwelcome? <strong>Report</strong> or <strong>Block</strong> someone;
           you’ll both still see shared group money, because it has to add up. Questions or problems: <strong>You → Privacy and safety → Contact support</strong>.
@@ -444,7 +444,7 @@ export default async function HowItWorks() {
         <h2 className="font-display text-[26px] font-semibold tracking-tight text-fg">Coming from another app?</h2>
         <p>
           Export the group as a spreadsheet (CSV) from the other app (look for <strong>Export</strong> or <strong>Download</strong> in the group’s settings or menu).
-          In Loopin, tap <strong>Bring a group over</strong> and pick that file: every expense and payment comes across. Files from some apps are
+          In Loopin, tap <strong>Bring a group over</strong> and pick that file: it brings in the expenses and payments it can read, and you check them before saving. Files from some apps are
           checked against their own totals; for others, you say which column is which.{" "}
           <Link href="/switching" className="underline underline-offset-4">What’s different</Link>
         </p>

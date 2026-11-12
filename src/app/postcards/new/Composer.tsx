@@ -478,7 +478,12 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
 
       {tab === "send" && (
         <section aria-label="Send to">
-          {!message.trim() && <p className="mt-6 rounded-[18px] bg-mist px-4 py-3 text-sm text-fg/70">Write a few words on the back first.</p>}
+          {!message.trim() && (
+            <button type="button" onClick={() => setTab("back")} className="mt-6 flex w-full items-center justify-between rounded-[18px] bg-mist px-4 py-3 text-left text-sm text-fg/80 active:opacity-80" data-write-first>
+              <span>Write a few words on the back first</span>
+              <span aria-hidden>›</span>
+            </button>
+          )}
           {message.trim() && (
             <div className="mt-6 rounded-[20px] border border-line bg-mist/60 px-4 py-4" data-whatsapp-anyone>
               <p className="mb-3 text-[15px] font-semibold">Send to anyone on WhatsApp</p>

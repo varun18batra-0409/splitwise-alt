@@ -1,5 +1,5 @@
 import Link from "@/components/Link";
-import { activityMoreHref, buildActivity, byDay, filterActivity, hasFilter, type ActivityFilter } from "@/lib/activity";
+import { activityMoreHref, filterChips, buildActivity, byDay, filterActivity, hasFilter, type ActivityFilter } from "@/lib/activity";
 import { CATEGORIES, getCategory } from "@/lib/categories";
 import { originalShares } from "@/lib/currency-ledgers";
 import { fxLine, rateSourceLine } from "@/lib/conversion";
@@ -44,6 +44,8 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
   };
   const items = filterActivity(all, filter, searchName);
   const filtering = hasFilter(filter);
+  const personName = (id: string) => (id === myId ? "You" : group.members.find((m) => m.id === id)?.name ?? "Someone");
+  const chips = filtering ? filterChips(group.id, filter, { cat: (id) => getCategory(id).short, person: personName }) : [];
   // Each item's history, worked out once for the whole list.
   const byItem = new Map<string, GroupEvent[]>();
   for (const ev of group.events) {
@@ -91,7 +93,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
       {(all.length >= 6 || filtering) && (
         <div>
           <details className="group/filter">
-            <summary className="flex cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
+            <summary className="flex cursor-pointer list-none flex-wrap items-center gap-2 [&::-webkit-details-marker]:hidden">
               <span className="rounded-full border border-line px-4 py-1.5 text-sm font-medium text-fg group-open/filter:bg-mist">
                 {filtering ? `Filtered · ${items.length} ${items.length === 1 ? "match" : "matches"}` : "Filter"}
               </span>
@@ -100,6 +102,12 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                   Clear
                 </Link>
               )}
+              {/* One small chip for each filter in use; tap it to drop just that one. */}
+              {chips.map((c) => (
+                <Link key={c.key} href={c.href} aria-label={`Remove filter: ${c.label}`} className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-line px-3 py-1 text-sm text-fg active:bg-mist" data-filter-chip={c.key}>
+                  {c.label} <span aria-hidden className="text-fg/60">✕</span>
+                </Link>
+              ))}
             </summary>
             <form method="get" action={`/groups/${group.id}`} role="search" className="mt-3 space-y-2">
               <input type="hidden" name="tab" value="activity" />
