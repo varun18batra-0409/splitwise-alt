@@ -550,10 +550,7 @@ describe("blocking: invitations from someone you blocked", () => {
     const r1 = await inviteToClaim(t.g.id, t.ma.id, n1.id, dev.email, "https://loopin.test");
     expect(r1).toEqual({ ok: true, email: dev.email });
     expect(await db.outbox.count({ where: { to: dev.email } })).toBe(0);
-    // The per-address daily limit is counted on the blocked path too (10 a day), so the 11th gets the same answer a real send would.
-    rateKeys.push(`mail:to:${dev.email.toLowerCase()}`);
-    for (let i = 0; i < 9; i++) expect(await inviteToClaim(t.g.id, t.ma.id, n1.id, dev.email, "https://loopin.test")).toEqual({ ok: true, email: dev.email });
-    expect(await inviteToClaim(t.g.id, t.ma.id, n1.id, dev.email, "https://loopin.test")).toMatchObject({ ok: false });
+    // That the blocked reply matches a real send in every case (limits, opt-outs, caps) is shown in blocked-invite-replies.test.ts.
     const other = `rb-other-${stamp}-ie@example.test`;
     const r2 = await inviteToClaim(t.g.id, t.ma.id, n2.id, other, "https://loopin.test");
     expect(r2.ok).toBe(true);
