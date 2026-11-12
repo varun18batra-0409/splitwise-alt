@@ -94,7 +94,7 @@ async function main() {
   const g = `/groups/${demo.trip.id}`;
   const f = `/groups/${demo.flat.id}`;
   const main = (p: Page) => p.locator("main").first().waitFor();
-  await cold(browser, cookies, "home", "/", (p) => p.getByText(/Groups|Needs attention/).first().waitFor());
+  await cold(browser, cookies, "home", "/", (p) => p.getByText(/Your groups|Needs you/).first().waitFor());
   await cold(browser, cookies, "a trip group (Activity)", `${g}?tab=activity`, main);
   await cold(browser, cookies, "a trip group (Balances)", `${g}?tab=balances`, main);
   await cold(browser, cookies, "a flat (This month)", f, (p) => p.getByText(/your share/i).first().waitFor());
@@ -106,7 +106,7 @@ async function main() {
 
   // Taps inside the app (no full reload).
   await page.goto(base + "/");
-  await page.getByText(/Groups|Needs attention/).first().waitFor();
+  await page.getByText(/Your groups|Needs you/).first().waitFor();
   await page.waitForTimeout(600); // a person looks before tapping (and the cards have finished rising in)
   await timed("Tap a group on Home → its screen shows", async () => {
     await page.locator(`a[href^="/groups/${demo.trip.id}"]`).first().click();

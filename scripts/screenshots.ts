@@ -193,7 +193,13 @@ await shot("64-switching", "/switching");
 await shot("65-import", "/import");
 await shot("66-people-not-on-loopin", `${g}/people`);
 await shot("67-splash", "/splash", undefined, false);
-await shot("68-home-first-screen", "/", undefined, false);
+// The first screen of a small phone (375×667): header, stories, the money card with both buttons, the start of the group row.
+const wide = page.viewportSize();
+await shot("68-home-first-screen", "/", async (p) => {
+  await p.setViewportSize({ width: 375, height: 667 });
+  await p.waitForTimeout(400);
+}, false);
+if (wide) await page.setViewportSize(wide);
 for (const n of [2, 3, 4]) {
   await shot(`69-home-card-${n}`, "/", async (p) => {
     await p.getByRole("button", { name: /Pause the highlights/ }).click();
@@ -403,6 +409,7 @@ if (!hosted) {
     await db.payment.create({ data: { groupId: lona.id, fromId: lr, toId: lv, amount: 400000, createdById: lr } });
     await shot("105-all-square", `/groups/${lona.id}/square`);
     await shot("105b-all-square-amounts-hidden", `/groups/${lona.id}/square?amounts=0`); // "Hide amounts" on: counts instead of money
+    // Stories as a row of circles under the header: gold ring for new, faint for seen.
     await shot("106-home-stories", "/", undefined, false);
     await shot("107-story-open", "/", async (p) => {
       await p.locator("[data-stories] button").first().click();

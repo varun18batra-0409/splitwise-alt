@@ -31,6 +31,17 @@ export function moneyLead(mode: MoneyMode, acrossCurrencies = false): string {
   return mode === "owed" ? "Coming back to you" : mode === "owe" ? "You owe" : mode === "even" ? "It all evens out" : "All square";
 }
 
+// The label on the slim money card, left of the amount: "Coming back to you", "You owe, to 2 people", "Nobody owes anybody".
+// "to N people" counts only those you owe (the same rule as moneySub).
+export function moneyLabel(x: { mode: MoneyMode; acrossCurrencies?: boolean; people: { name: string; net?: number }[] }): string {
+  if (x.acrossCurrencies) return "Across currencies";
+  if (x.mode === "square") return "Nobody owes anybody";
+  if (x.mode === "owed") return "Coming back to you";
+  if (x.mode === "even") return "It all evens out";
+  const owed = x.people.filter((p) => p.net === undefined || p.net < 0);
+  return owed.length === 0 ? "You owe" : owed.length === 1 ? `You owe, to ${owed[0].name}` : `You owe, to ${owed.length} people`;
+}
+
 // "across 3 groups, from 4 people": groups with something open, and who it is with.
 export function moneySub(x: { mode: MoneyMode; groups: number; allGroups: number; people: { name: string; net?: number }[] }): string {
   if (x.mode === "square") return x.allGroups === 1 ? "Nobody owes anybody in your group" : x.allGroups === 0 ? "Nobody owes anybody" : `Nobody owes anybody in your ${x.allGroups} groups`;

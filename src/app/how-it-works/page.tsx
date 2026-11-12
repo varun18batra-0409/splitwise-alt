@@ -335,7 +335,7 @@ export default async function HowItWorks() {
       <div id="stories" className="scroll-mt-4" />
       <Section slot="place-goa" title="Home, told as stories">
         <p>
-          Under your groups on Home is a row of little polaroids. Each one is a <strong>story</strong> from your groups, a few slides you tap through: the
+          At the top of Home is a row of little circles with a gold ring. Each one is a <strong>story</strong> from your groups, a few slides you tap through: the
           countdown to a trip with photos of where you’re going and the crew, <strong>today’s spend</strong> while you’re away, last night’s{" "}
           <strong>card game</strong> with everyone’s result and who pays whom, a group that just got <strong>all square</strong>, and a trip from a year ago.
         </p>

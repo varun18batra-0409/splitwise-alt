@@ -1069,16 +1069,18 @@ async function main() {
   await step(V, "Home", "Home opens on the money card (net amount, Add expense and Settle up), then Your groups and the bottom bar, which keeps its “+”", async () => {
     await go(V, "/");
     const money = V.getByRole("region", { name: "Your money" });
-    await money.getByText(/Coming back to you|You owe|It all evens out|Good (morning|afternoon|evening)/).first().waitFor();
+    await money.getByText(/Coming back to you|You owe|It all evens out|Nobody owes anybody|Across currencies/).first().waitFor();
     await money.locator("[data-net-balance]").waitFor();
     const second = (await money.locator("[data-money-action]").evaluateAll((els) => els.map((e) => e.getAttribute("data-money-action")))).join(",");
     assert(/^add,(settle|new-group)$/.test(second), `the money card buttons are ${second}`);
     await V.getByRole("heading", { name: "Your groups" }).waitFor();
+    await V.getByRole("link", { name: "See all" }).first().waitFor();
+    await V.locator("[data-group-card]").first().waitFor();
     const nav = V.getByRole("navigation", { name: "Main" });
     await nav.waitFor();
     assert(await nav.getByRole("link", { name: "Add expense" }).count(), "the bottom bar lost its “+”");
   });
-  await step(V, "Home", "On a small phone (375×667) the money card with both buttons sits fully inside the first screen; Add expense goes to the group picker or the only group", async () => {
+  await step(V, "Home", "On a small phone (375×667) the header, the money card with both buttons (44px tall) and at least one group card sit inside the first screen, above the bottom bar; Add expense goes to the group picker or the only group", async () => {
     const was = V.viewportSize();
     await V.setViewportSize({ width: 375, height: 667 });
     await go(V, "/");
@@ -1090,9 +1092,37 @@ async function main() {
       const bb = (await b.boundingBox())!;
       assert(bb.height >= 44 && bb.y + bb.height <= 667, `a money button is ${Math.round(bb.height)}px tall, ending at ${Math.round(bb.y + bb.height)}`);
     }
+    const emphasis = await card.locator("[data-money-action]").evaluateAll((els) => els.map((e) => e.getAttribute("data-emphasis")));
+    assert(emphasis.filter((e) => e === "bright").length === 1, `money buttons emphasis: ${emphasis.join(",")}`);
+    // At least the first group card is whole above the fold, and above the bottom bar.
+    const nav = (await V.getByRole("navigation", { name: "Main" }).boundingBox())!;
+    const first = (await V.locator("[data-group-card]").first().boundingBox())!;
+    assert(first.y + first.height <= 667 && first.y + first.height <= nav.y + 1, `the first group card ends at ${Math.round(first.y + first.height)}px (bottom bar starts at ${Math.round(nav.y)}px, screen is 667px)`);
+    // The stories row, when there is one, is above the money card with 64px circles.
+    if (await V.locator("[data-stories]").count()) {
+      const st = (await V.locator("[data-stories] button").first().boundingBox())!;
+      assert(st.y + st.height <= box.y, "the stories row isn't above the money card");
+      const ring = (await V.locator("[data-stories] li").first().locator("span").first().boundingBox())!;
+      assert(Math.round(ring.width) === 64 && Math.round(ring.height) === 64, `a story circle is ${Math.round(ring.width)}×${Math.round(ring.height)}px`);
+    }
     await card.locator("[data-money-action='add']").click();
     await V.waitForURL((u) => u.pathname === "/add" || /\/groups\/[^/]+\/add$/.test(u.pathname));
     if (was) await V.setViewportSize(was);
+  });
+  await step(V, "Home", "Home lists each group once: polaroid cards only (no old vertical list, no “Show all N groups”), each open group on one card, and the stories row is absent when there are no stories", async () => {
+    await go(V, "/");
+    assert((await V.locator("[data-group-line]").count()) === 0, "the old vertical group list is still on Home");
+    assert((await V.getByText(/^Show all \d+ groups$/).count()) === 0, "“Show all N groups” is still on Home");
+    const hrefs = await V.locator("[data-group-card]").evaluateAll((els) => els.map((e) => e.getAttribute("href") ?? ""));
+    assert(hrefs.length > 0 && new Set(hrefs).size === hrefs.length, `group cards: ${hrefs.join(" ")}`);
+    // Every card says where you stand in words that are not just a colour.
+    for (const t of await V.locator("[data-group-card]").evaluateAll((els) => els.map((e) => ({ tone: e.getAttribute("data-tone"), text: (e as HTMLElement).innerText })))) {
+      if (t.tone === "square") assert(/square/.test(t.text), `a square card says: ${t.text}`);
+      else assert(t.tone === "owed" ? /\+/.test(t.text) : /−/.test(t.text), `a ${t.tone} card says: ${t.text}`);
+    }
+    // One stories row at most, and not again lower down; no row at all when there are no stories.
+    assert((await V.locator("[data-stories]").count()) <= 1, "stories show twice on Home");
+    if ((await V.locator("[data-story]").count()) === 0) assert((await V.getByRole("region", { name: "Stories" }).count()) === 0, "an empty stories row is showing");
   });
   await step(V, "Home", "The sliding cards at the top: 4 to 7 of them, no two the same, each with words and a button that goes somewhere; no “Coming from another app?” card", async () => {
     await go(V, "/");
@@ -1366,9 +1396,8 @@ async function main() {
     await go(A, "/signin");
     await signup(A, "Asha", email("asha"));
     await go(A, "/");
-    // Home shows 4 groups; the rest are behind "Show all N groups".
-    const more = A.getByText(/^Show all \d+ groups$/);
-    if (await more.count()) await more.click();
+    // Home shows its groups as polaroids in a row; past ten there is a “See all” card that opens the full list.
+    if (await A.locator("[data-group-card-end='all']").count()) await go(A, "/groups");
     for (const name of ["UAT Goa trip", "UAT Flat"]) await A.getByText(name).first().waitFor();
   });
   await step(null, "Account", "Delete my email & sign-in", async () => {
