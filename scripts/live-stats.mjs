@@ -64,6 +64,24 @@ log("");
 log("## Table sizes");
 for (const t of ["Expense", "ExpenseShare", "GroupEvent", "RateLimit", "RequestKey", "NotifyLog", "LoginCode"]) log(`- ${t}: ${await one(`SELECT COUNT(*) FROM "${t}"`)}`);
 
+// Leftovers from groups erased by the old deploy-time clean-up: rows that point at a group that no longer exists.
+// Read-only counts; nothing is changed.
+log("## Leftover rows from erased groups (read-only count)");
+for (const [label, sql] of [
+  ["Card games (PotGame)", "SELECT COUNT(*) FROM PotGame WHERE groupId NOT IN (SELECT id FROM \"Group\")"],
+  ["Card-game moves (PotMove)", "SELECT COUNT(*) FROM PotMove WHERE gameId IN (SELECT id FROM PotGame WHERE groupId NOT IN (SELECT id FROM \"Group\"))"],
+  ["Payment claims (PaymentClaim)", "SELECT COUNT(*) FROM PaymentClaim WHERE groupId NOT IN (SELECT id FROM \"Group\")"],
+  ["Groups deleted and waiting to be erased", "SELECT COUNT(*) FROM \"Group\" WHERE deletedAt IS NOT NULL"],
+  ["Photo files queued for deletion (BlobTrash)", "SELECT COUNT(*) FROM BlobTrash"],
+]) {
+  try {
+    log(`- ${label}: ${await one(sql)}`);
+  } catch (e) {
+    log(`- ${label}: could not count (${String(e.message ?? e).split("\n")[0].slice(0, 80)})`);
+  }
+}
+log("(Photo files already removed from the database can't be counted from here: that needs a file-storage listing.)");
+log();
 // Also as notes on the run (readable without opening the log), one per section.
 const esc = (t) => t.replace(/%/g, "%25").replace(/\r/g, "").replace(/\n/g, "%0A");
 let title = "", body = [];
