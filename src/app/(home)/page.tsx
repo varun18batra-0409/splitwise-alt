@@ -80,7 +80,7 @@ export default async function Home({
   const [tz, memberships] = await Promise.all([getTimeZone(), getMemberships()]);
   // Independent reads, all at once.
   const [overview, unread, deletedGroups, account, collections, invitations] = await Promise.all([
-    loadOverview(memberships),
+    loadOverview(memberships, { lean: true }),
     getAccount().then((a) => countAllUnread(memberships, a?.id)),
     loadDeletedGroups(memberships),
     getAccount(),

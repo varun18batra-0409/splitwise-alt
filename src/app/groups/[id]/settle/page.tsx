@@ -4,7 +4,7 @@ import { SquareSeal } from "@/components/DrawnIcons";
 import { notFound, redirect } from "next/navigation";
 import { Notice } from "@/components/Notice";
 import { getMyMemberId } from "@/lib/identity";
-import { loadGroup } from "@/lib/group-data";
+import { eventsFrom, loadGroup } from "@/lib/group-data";
 import { formatMoney, overpayLine, PAYMENT_LINE, toInputAmount } from "@/lib/money";
 import { applySettleMin, pairwiseDebtCount } from "@/lib/settle";
 import { planKey } from "@/lib/settle-all";
@@ -41,7 +41,7 @@ export default async function GroupSettle({
 }) {
   const { id } = await params;
   const sp = await searchParams;
-  const data = await loadGroup(id, { viewer: await getMyMemberId(id) });
+  const data = await loadGroup(id, { viewer: await getMyMemberId(id), events: false });
   if (!data) notFound();
   const { group, transfers, expenses, payments } = data;
   const myId = await getMyMemberId(group.id);
@@ -56,9 +56,12 @@ export default async function GroupSettle({
     ...shown.filter((t) => t.from === myId || t.to === myId),
     ...shown.filter((t) => t.from !== myId && t.to !== myId),
   ];
-  const justDid = sp.did ? group.events.find((e) => e.id === sp.did) : undefined;
+  // The history isn't loaded here; the Undo bar needs only that change and the ones after it
+  // (someone who left keeps the full, scoped history).
+  const undoEvents: Awaited<ReturnType<typeof eventsFrom>> = sp.did ? (data.leaver ? ((await loadGroup(id, { viewer: myId }))?.group.events ?? []) : await eventsFrom(group.id, sp.did)) : [];
+  const justDid = sp.did ? undoEvents.find((e) => e.id === sp.did) : undefined;
   // (Someone who left can answer "Confirm received" / "Not received" but can't undo it, so no Undo bar for them.)
-  const showUndo = justDid && !group.members.find((m) => m.id === myId)?.leftAt && canUndo(justDid, group.events).ok;
+  const showUndo = justDid && !group.members.find((m) => m.id === myId)?.leftAt && canUndo(justDid, undoEvents).ok;
 
   // How each person here likes to be paid (from their You page), my own account,
   // payments others recorded to me that wait for my "Confirm received" (older ones that already count),

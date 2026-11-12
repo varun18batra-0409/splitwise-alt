@@ -1,7 +1,18 @@
 // Next.js calls this whenever a page or action crashes on the server. We keep
 // a short note (personal details removed; kept 30 days) so problems show up
 // on the private stats page, and could email an alert later.
-export async function register() {}
+export async function register() {
+  // Speed measurement only (LOOPIN_PERF=1, the CI load-test server): how long the server's single
+  // thread is held up, once a second, as p99 and max milliseconds. Not used on the live app.
+  if (process.env.NEXT_RUNTIME !== "nodejs" || process.env.LOOPIN_PERF !== "1") return;
+  const { monitorEventLoopDelay } = await import("node:perf_hooks");
+  const h = monitorEventLoopDelay({ resolution: 10 });
+  h.enable();
+  setInterval(() => {
+    console.log(`LOOPIN_PERF_LOOP ${JSON.stringify({ t: Date.now(), p99: Math.round(h.percentile(99) / 1e4) / 100, max: Math.round(h.max / 1e4) / 100 })}`);
+    h.reset();
+  }, 1000).unref();
+}
 
 export async function onRequestError(
   err: unknown,

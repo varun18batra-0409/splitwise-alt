@@ -8,6 +8,7 @@ import { Avatar } from "@/components/ui";
 import type { GroupView } from "./view";
 import { WhyPanel } from "./WhyPanel";
 import { funTitles } from "@/lib/wrapped";
+import { explainAll } from "@/lib/explain";
 
 // Balances answers one question: who owes what, and why.
 // Paying (They’ve paid me, Part, Remind, Settle everything) lives on Settle up,
@@ -21,6 +22,9 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
   // Fun titles (habits, never money rankings): one per person at most.
   const leaver = v.leaver;
   const titles = group.type === "pot" || leaver ? [] : funTitles(expenses, people.map((m) => m.id), v.tz, group.currency);
+
+  // Everyone's "Why?" totals in one pass; only the open one gets its item list.
+  const whyTotals = explainAll(group.members.map((m) => m.id), expenses, payments);
 
   return (
     <div className="space-y-10">
@@ -127,7 +131,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
                         <PassportIcon size={14} /> {m.name.trim().split(/\s+/)[0]}’s passport
                       </Link>
                     )}
-                    <WhyPanel v={v} memberId={m.id} open={why === m.id} />
+                    <WhyPanel v={v} memberId={m.id} open={why === m.id} summary={whyTotals[m.id]} />
                     {theirs.length === 0 ? (
                       <p className="text-sm text-gray-500">Nothing due between {m.id === myId ? "you" : m.name} and anyone.</p>
                     ) : (

@@ -124,9 +124,18 @@ jobs:
           echo "::notice title=Phone speed::$(grep -E '^\| (Open|Tap|Type|People)' screenshots/uat/perf.md | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"
       - name: Load test (realistic data, many people at once)
         run: |
-          npx tsx scripts/load.ts 2>&1 | tee load.log || true
+          # A fresh server just for this test, with speed measuring on (LOOPIN_PERF=1 is set nowhere else):
+          # it logs every database call and how busy the server is, to perf-server.log.
+          pkill -f next-server || true
+          sleep 2
+          (LOOPIN_PERF=1 npm run start > perf-server.log 2>&1 &)
+          npx --yes wait-on@8.0.1 -t 60000 http://localhost:3000 || echo "::warning title=Load test server::the measuring server did not start in time"
+          LOOPIN_PERF_LOG=perf-server.log npx tsx scripts/load.ts 2>&1 | tee load.log || true
           echo "::notice title=Load test::$(grep -E '^\|' screenshots/uat/load.md | tail -n +3 | tr '\n' ' ' | cut -c1-900)"
           echo "::notice title=Load test saves::$(grep -E 'expenses from|zero' screenshots/uat/load.md | tr '\n' ' ')"
+          echo "::notice title=Speed per screen::$(awk '/One person at a time/{f=1} f && /^\|/' screenshots/uat/load.md | tail -n +3 | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g' | cut -c1-1800)"
+          echo "::notice title=Server busy-ness::$(grep -E 'Server busy-ness' screenshots/uat/load.md | tr '\n' ' ')"
+          node scripts/load-gates.mjs || true
       - name: Save to the screenshots branch
         run: |
           cd screenshots

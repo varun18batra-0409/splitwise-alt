@@ -4,14 +4,14 @@ import { getAccount, getMemberships } from "@/lib/identity";
 import { invitationFor } from "@/lib/invitations";
 import { PendingGroup } from "./_components/PendingGroup";
 import { LeftBanner, LeftFootnote, LeftSections } from "./_components/LeftBanner";
-import { loadGroup, loadSwitchList } from "@/lib/group-data";
+import { eventsFrom, loadGroupView, loadSwitchList } from "@/lib/group-data";
 import { db } from "@/lib/db";
 import { canUndo } from "@/lib/undo";
 import { UndoBar } from "@/components/UndoBar";
 import { SendPostcardCard } from "@/components/postcards/SendCard";
 import { placePhoto } from "@/lib/places";
 import { placeOf } from "@/lib/countdown";
-import { buildGroupView } from "./_components/view";
+import { buildGroupView, type GroupEvent } from "./_components/view";
 import { getTimeZone } from "@/lib/tz";
 import { GroupHeader } from "./_components/GroupHeader";
 import { PhoneOnlyNote } from "@/components/PhoneOnlyNote";
@@ -100,7 +100,9 @@ export default async function GroupPage({
     if (invitation) return <PendingGroup inv={invitation} />;
     redirect("/private");
   }
-  const [data, tz, switchTo, account] = await Promise.all([loadGroup(id, { viewer: myId }), getTimeZone(), loadSwitchList(memberships, id), getAccount()]);
+  // Balances and Charts never show the history, so they skip it (up to 500 rows). An Undo bar loads just what it needs below.
+  const noHistory = sp.tab === "balances" || sp.tab === "charts";
+  const [data, tz, switchTo, account] = await Promise.all([loadGroupView(id, noHistory ? { viewer: myId, events: false } : { viewer: myId }), getTimeZone(), loadSwitchList(memberships, id), getAccount()]);
   if (!data) notFound();
   // Still in it? (A removed person's phone can remember the group.)
   if (!data.group.members.some((m) => m.id === myId)) redirect("/private");
@@ -172,8 +174,13 @@ export default async function GroupPage({
   const goals = goalRows.map((g) => ({ id: g.id, name: g.name, target: g.target, saved: g.entries.reduce((s, e) => s + e.amount, 0) }));
 
   // Right after a change: offer Undo (or Redo after an undo).
-  const justDid = sp.did ? group.events.find((x) => x.id === sp.did) : undefined;
-  const showUndo = justDid && canUndo(justDid, group.events).ok;
+  // (Without the history: that change and the ones after it. Someone who left keeps the full, scoped history.)
+  let undoEvents: GroupEvent[] = group.events;
+  if (noHistory && sp.did) {
+    undoEvents = leaver ? ((await loadGroupView(id, { viewer: myId }))?.group.events ?? []) : await eventsFrom(group.id, sp.did);
+  }
+  const justDid = sp.did ? undoEvents.find((x) => x.id === sp.did) : undefined;
+  const showUndo = justDid && canUndo(justDid, undoEvents).ok;
 
   return (
     <>
