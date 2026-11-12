@@ -1459,7 +1459,7 @@ function Chip({ on, onClick, children, face }: { on: boolean; onClick: () => voi
           {face.trim().charAt(0).toUpperCase()}
         </span>
       )}
-      {children}
+      <span className="min-w-0 max-w-[11rem] truncate">{children}</span>
     </button>
   );
 }

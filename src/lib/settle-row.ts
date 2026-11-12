@@ -62,7 +62,8 @@ export function planSettleRow(f: RowFacts): RowPlan {
   else if (claimable) action = "claim";
   else if (canRecord && !f.theirClaimWaiting) action = "record";
   else if (f.theirClaimWaiting) status = "their-claim";
-  const actionFilled = action !== null && main === null;
+  // Only my own action can be the filled one; "Mark paid" on a payment between two other people stays an outline button, so it never competes with mine.
+  const actionFilled = action !== null && main === null && (f.iPay || f.iAmPaid);
   const actionLabel = action === null ? null : f.iPay ? "I’ve paid" : f.iAmPaid ? "They’ve paid me" : "Mark paid";
   return {
     main,

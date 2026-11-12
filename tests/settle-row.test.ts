@@ -34,9 +34,9 @@ describe("a Settle up row", () => {
     const p = planSettleRow({ ...base, iPay: true, receiverCanConfirm: false });
     expect(p).toMatchObject({ action: "record", actionLabel: "I’ve paid", actionFilled: true });
   });
-  it("two other people: Mark paid is the row's one button (filled, as there is nothing else on it)", () => {
+  it("two other people: Mark paid is an outline button, never the filled one", () => {
     const p = planSettleRow({ ...base });
-    expect(p).toMatchObject({ main: null, action: "record", actionLabel: "Mark paid", filledButtons: 1 });
+    expect(p).toMatchObject({ main: null, action: "record", actionLabel: "Mark paid", actionFilled: false, filledButtons: 0 });
   });
   it("a closed group offers nothing to press; someone who left can't say they paid", () => {
     expect(planSettleRow({ ...base, iPay: true, closed: true, payApps: 1 })).toMatchObject({ action: null, differentAmount: false });

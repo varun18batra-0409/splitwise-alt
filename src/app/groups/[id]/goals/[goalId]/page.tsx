@@ -137,7 +137,7 @@ export default async function GoalPage({
           <FreshKey name="rid" />
           <span className="flex items-center gap-2 rounded-xl border border-line bg-mist px-4 focus-within:border-accent">
             <span className="nobreak shrink-0 text-sm text-gray-400">{group.currency}</span>
-            <input name="amount" required inputMode="decimal" aria-label="Amount set aside" defaultValue={plan.perPerson.find((p) => p.memberId === myId) ? toInputAmount(plan.perPerson.find((p) => p.memberId === myId)!.amount, group.currency) : ""} className="w-full bg-transparent py-3 font-display text-xl outline-none" />
+            <input name="amount" required inputMode="decimal" aria-label="Amount set aside" defaultValue={plan.perPerson.find((p) => p.memberId === myId) ? toInputAmount(plan.perPerson.find((p) => p.memberId === myId)!.amount, group.currency) : ""} className="w-full money bg-transparent py-3 text-xl outline-none" />
           </span>
           <button type="submit" className={primaryButtonClass}>
             I set money aside

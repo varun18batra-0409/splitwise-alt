@@ -45,7 +45,13 @@ export function CollectionsSection({ list, limit, total, className = "mt-8" }: {
                 <span className="mt-1.5 flex justify-between gap-3 text-xs text-gray-400">
                   <span>
                     {c.closedAt ? "Closed · " : ""}
-                    {countsLine(p)}
+                    {countsLine(p).split(" · ").map((part, i) => (
+                      // Each part stays whole: "2 checked" never splits across two lines.
+                      <span key={i} className="whitespace-nowrap">
+                        {i > 0 && " · "}
+                        {part}
+                      </span>
+                    ))}
                   </span>
                   {toCheck > 0 && !c.closedAt && (
                     <span className="shrink-0 font-medium text-owed">

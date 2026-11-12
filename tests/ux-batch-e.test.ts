@@ -1,16 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { foreignPartLine } from "@/lib/foreign-part";
+import { foreignPartLine, ledgerSummary } from "@/lib/foreign-part";
 
 describe("F2: the foreign-currency sub-line on Balances", () => {
-  it("names the currency in the amount and the spends it came from", () => {
-    expect(foreignPartLine([{ currency: "THB", amount: -509917 }])).toBe("Includes THB 5,099.17 from Thai baht spends");
-    expect(foreignPartLine([{ currency: "THB", amount: 509917 }])).toBe("Includes THB 5,099.17 from Thai baht spends");
+  it("says which way the foreign part goes, with the currency in the amount", () => {
+    expect(foreignPartLine([{ currency: "THB", amount: -509917 }], true)).toBe("Thai baht part: you owe THB 5,099.17");
+    expect(foreignPartLine([{ currency: "THB", amount: 509917 }], true)).toBe("Thai baht part: you’re owed THB 5,099.17");
+    expect(foreignPartLine([{ currency: "THB", amount: -509917 }])).toBe("Thai baht part: owes THB 5,099.17");
+    expect(foreignPartLine([{ currency: "THB", amount: 509917 }])).toBe("Thai baht part: is owed THB 5,099.17");
   });
   it("skips a zero part and joins several currencies", () => {
     expect(foreignPartLine([{ currency: "THB", amount: 0 }])).toBe("");
     expect(foreignPartLine([{ currency: "THB", amount: 100000 }, { currency: "KWD", amount: -1234567 }])).toBe(
-      "Includes THB 1,000 from Thai baht spends · KWD 1,234.567 from Kuwaiti dinar spends",
+      "Thai baht part: is owed THB 1,000 · Kuwaiti dinar part: owes KWD 1,234.567",
     );
+  });
+  it("the box and the row say the same true thing when the foreign part is the opposite of the overall balance", () => {
+    // Owed ₹17,618.19 overall, yet owing THB 5,099.17 in baht alone (the ledger's sign: negative = owes).
+    const parts = [{ currency: "THB", amount: -509917 }];
+    expect(foreignPartLine(parts, true)).toBe("Thai baht part: you owe THB 5,099.17");
+    expect(ledgerSummary(parts, 1761819, "INR")).toBe("In THB alone, you owe THB 5,099.17. Overall you’re owed ₹17,618.19.");
+    expect(ledgerSummary(parts, -1761819, "INR")).toBe("In THB alone, you owe THB 5,099.17. Overall you owe ₹17,618.19.");
+    expect(ledgerSummary([{ currency: "THB", amount: 0 }], 500, "INR")).toBe("Overall you’re owed ₹5.");
   });
 });
 

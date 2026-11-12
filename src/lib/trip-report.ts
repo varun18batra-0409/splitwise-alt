@@ -40,7 +40,7 @@ export type TripReport = {
   topPayer: { id: string; name: string; amount: number } | null;
   busiestDay: { day: string; amount: number } | null;
   shares: { id: string; name: string; amount: number }[]; // what each person's part came to, biggest first
-  settle: { from: string; to: string; amount: number }[]; // names
+  settle: { from: string; to: string; fromId: string; toId: string; amount: number }[]; // names, and who they are
 };
 
 export function tripReport(input: { name: string; type?: string; currency: string; members: Member[]; expenses: Expense[]; transfers: Transfer[]; tz: string }): TripReport {
@@ -98,7 +98,7 @@ export function tripReport(input: { name: string; type?: string; currency: strin
     topPayer: top ? { id: top[0], name: nameOf(top[0]), amount: top[1] } : null,
     busiestDay: busy && days > 1 ? { day: busy[0], amount: busy[1] } : null,
     shares: involved.map((m) => ({ id: m.id, name: m.name, amount: share.get(m.id) ?? 0 })).sort((a, b) => b.amount - a.amount),
-    settle: input.transfers.map((t) => ({ from: nameOf(t.from), to: nameOf(t.to), amount: t.amount })),
+    settle: input.transfers.map((t) => ({ from: nameOf(t.from), to: nameOf(t.to), fromId: t.from, toId: t.to, amount: t.amount })),
   };
 }
 

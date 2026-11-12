@@ -40,8 +40,9 @@ export function GroupSummary({ v, sp, compact }: { v: GroupView; sp: Notices; co
         {/* Home and Couple groups show the balance on This month instead. */}
         {!compact && (
           <div className="glass rounded-[26px] px-[18px] py-4" data-group-balance>
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
+            {/* Wraps: on a narrow phone Settle up drops under the amount instead of touching it. */}
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+              <div className="min-w-0 max-w-full">
                 <p className="text-sm text-fg/65">{mine > 0 ? "You’re owed" : mine < 0 ? "You owe" : "Your balance"}</p>
                 <p className={`money whitespace-nowrap leading-[1.1] ${amountSize(mine === 0 ? "All square" : money(Math.abs(mine)))} ${mine > 0 ? "text-owed" : mine < 0 ? "text-owe" : ""}`}>{mine === 0 ? "All square" : money(Math.abs(mine))}</p>
               </div>

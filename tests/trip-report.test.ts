@@ -46,7 +46,11 @@ describe("trip report", () => {
     expect(r.biggest).toEqual({ description: "Hotel", amount: 900000 });
     expect(r.topPayer).toMatchObject({ name: "Asha", amount: 900000 });
     expect(r.busiestDay).toEqual({ day: "2026-10-10", amount: 1200000 });
-    expect(r.settle).toEqual([{ from: "Ravi", to: "Asha", amount: 120000 }]);
+    expect(r.settle).toMatchObject([{ from: "Ravi", to: "Asha", amount: 120000 }]);
+    // Who they are, so the report can colour an amount by whether it is yours to pay, yours to get, or between others.
+    expect(r.settle[0].fromId).toBeTruthy();
+    expect(r.settle[0].toId).toBeTruthy();
+    expect(r.settle[0].fromId).not.toBe(r.settle[0].toId);
   });
 
   it("writes the WhatsApp message, with no link to the group", () => {

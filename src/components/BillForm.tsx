@@ -196,7 +196,7 @@ export function BillForm({
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder={nature === "daily" ? "60" : "4,000"}
-            className="w-full bg-transparent py-3.5 font-display text-xl outline-none"
+            className="money w-full bg-transparent py-3.5 text-xl outline-none"
           />
         </span>
       </label>

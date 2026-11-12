@@ -693,21 +693,22 @@ export default async function Home({
                   </p>
                   <p className="relative text-sm text-[#d9b38c]">{month.wrapped ? "Your month, wrapped" : "Your month so far"}</p>
                   <p className="relative mt-1 font-display text-[27px] font-semibold leading-[1.1]">{month.name} in numbers</p>
-                  <div className="relative mt-auto flex gap-5">
-                    <p>
+                  <div className="relative mt-auto flex flex-wrap items-end gap-x-4 gap-y-2 min-[360px]:gap-x-5" data-month-stats>
+                    <p className="shrink-0">
                       <span className="block money text-[19px] font-semibold tabular-nums" data-month-share>
                         {month.converted ? "≈ " : ""}
                         {formatMoney(month.share, month.currency)}
                       </span>
-                      <span className="block text-xs text-gray-600">your share</span>
+                      <span className="block whitespace-nowrap text-xs text-gray-600">your share</span>
                     </p>
-                    <p>
+                    <p className="shrink-0">
                       <span className="block money text-[19px] font-semibold tabular-nums">{month.count}</span>
-                      <span className="block text-xs text-gray-600">{month.count === 1 ? "expense" : "expenses"}</span>
+                      <span className="block whitespace-nowrap text-xs text-gray-600">{month.count === 1 ? "expense" : "expenses"}</span>
                     </p>
                     {month.top && (
-                      <p className="min-w-0">
-                        <span className="block truncate font-display text-[19px] font-semibold">{month.top}</span>
+                      // Whole words only: a long category wraps between words, never inside one.
+                      <p className="min-w-[4.5rem] flex-1 [overflow-wrap:normal]">
+                        <span className="block font-display text-[19px] font-semibold leading-tight">{month.top}</span>
                         <span className="block text-xs text-gray-600">most spent on</span>
                       </p>
                     )}

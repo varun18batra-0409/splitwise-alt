@@ -128,7 +128,7 @@ export default async function GroupSettle({
           </p>
           <p className="mt-1.5 text-[13px] leading-snug text-fg/55">
             {group.name}
-            {transfers.length > 0 && before > transfers.length ? `: ${transfers.length} instead of ${before}` : ""}
+            {transfers.length > 0 && before > transfers.length ? `: ${transfers.length}\u00a0instead\u00a0of\u00a0${before}` : ""}
           </p>
         </div>
       </div>
@@ -377,7 +377,7 @@ export default async function GroupSettle({
             </form>
           )}
           <details className="group text-center" data-more-options="settle">
-            <summary className="inline-flex min-h-11 cursor-pointer list-none items-center text-sm font-medium text-fg/70 underline underline-offset-4 [&::-webkit-details-marker]:hidden">More options</summary>
+            <summary className="inline-flex min-h-11 cursor-pointer list-none items-center text-sm font-medium text-fg/70 underline underline-offset-4 [&::-webkit-details-marker]:hidden">Other ways to settle</summary>
             <div className="space-y-1">
               {/* Only other people's payments: your own go through "I've paid", so they can be confirmed. */}
               {othersToMark.length > 1 && (

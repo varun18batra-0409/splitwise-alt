@@ -185,7 +185,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                 <span>–</span>
                 <input name="max" inputMode="decimal" defaultValue={filter.max ?? ""} placeholder="to" aria-label="Amount to" className={`${field} flex-1`} />
               </div>
-              <button type="submit" className="w-full border border-line py-2 text-sm font-medium text-fg active:bg-mist">
+              <button type="submit" className="min-h-11 w-full rounded-full border border-line px-4 py-2 text-sm font-semibold text-fg active:bg-mist">
                 Show results
               </button>
             </form>

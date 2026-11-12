@@ -112,7 +112,8 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
                     <span>
                       {s.from} → {s.to}
                     </span>
-                    <span className="tabular-nums text-owe">{m(s.amount)}</span>
+                    {/* The colour rule: orange only when it is money you pay, green when it is coming to you, plain when it is between two others. */}
+                    <span className={`tabular-nums ${s.fromId === myId ? "text-owe" : s.toId === myId ? "text-owed" : "text-fg/80"}`}>{m(s.amount)}</span>
                   </li>
                 ))}
               </ul>

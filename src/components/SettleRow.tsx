@@ -110,7 +110,7 @@ export function SettleRow({
       <div className="flex items-center gap-3">
         <Avatar name={avatarName} />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-semibold">{title}</p>
+          <p className="line-clamp-2 break-words text-[15px] font-semibold leading-snug">{title}</p>
           <p className={`money text-[22px] leading-tight ${amountColor}`}>{amount}</p>
         </div>
       </div>

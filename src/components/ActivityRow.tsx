@@ -128,7 +128,18 @@ export function ActivityRow({
         <p className={meta}>
           {deleted
             ? `${deletedNote} · ${shown(o?.amount ?? 0, item.amount)}`
-            : `${(item.payerIds ?? [item.paidById]).map(nameOf).join(" + ")} ${item.refund ? "got back" : "paid"} ${shown(o?.amount ?? 0, item.amount)}`}
+            : (
+                <>
+                  {(item.payerIds ?? [item.paidById]).map((id, i) => (
+                    // A long name is cut with "…" so "paid THB 225" always stays on the row.
+                    <span key={id}>
+                      {i > 0 && " + "}
+                      <span className="inline-block max-w-[8.5rem] truncate align-bottom" title={nameOf(id)}>{nameOf(id)}</span>
+                    </span>
+                  ))}{" "}
+                  {item.refund ? "got back" : "paid"} {shown(o?.amount ?? 0, item.amount)}
+                </>
+              )}
           {item.edited && !deleted && " · edited"}
           {groupName && ` · ${groupName}`}
         </p>

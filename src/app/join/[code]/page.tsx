@@ -112,7 +112,7 @@ export default async function JoinPage({
       {!account ? (
         <>
           {asMember && <p className="mb-4 rounded-[18px] bg-mist px-4 py-3 text-sm">You were added as <strong>{asMember.name}</strong>. Join to see your share.</p>}
-          <div className="space-y-2.5">
+          <div className="mt-7 space-y-2.5">
             {googleConfigured() && (
               <a href={`/api/auth/google/start?${new URLSearchParams({ back })}`} className="pop flex h-14 w-full items-center justify-center gap-3 bg-fg text-base font-semibold text-canvas">
                 <GoogleG />

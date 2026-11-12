@@ -16,7 +16,7 @@ import { canRunGame, gameSettlement, inPlay, loadGame } from "@/lib/pot-db";
 import { parsePlayers, potGameLabel, potResultLine, potSummary } from "@/lib/pot";
 import { UndoBar } from "@/components/UndoBar";
 import { canUndo } from "@/lib/undo";
-import { decimalsOf, formatMoney, PAYMENT_LINE, toInputAmount } from "@/lib/money";
+import { decimalsOf, formatMoney, toInputAmount } from "@/lib/money";
 import { recordCustomPayment } from "@/app/actions";
 import { actionFormClass, DifferentAmountLink, differentAmountFor, filledActionClass, SettleRow } from "@/components/SettleRow";
 import { FreshKey } from "@/components/FreshKey";
@@ -140,7 +140,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
               </ConfirmButton>
             </form>
           )}
-          <p className="mt-3 text-xs text-gray-400">{PAYMENT_LINE}</p>
+          {/* (One disclaimer on this page: the Game night note under the tally says the same.) */}
           <p className="mt-3 text-sm text-gray-500" data-still-owed={stillOwed}>
             {stillOwed > 0 ? `Still to settle in this group: ${money(stillOwed)}.` : "Everyone in this group is square ✓"}
           </p>

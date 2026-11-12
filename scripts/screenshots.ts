@@ -22,6 +22,7 @@ const context = await browser.newContext({
   deviceScaleFactor: desktop ? 1 : 2,
   ...(ios ? { isMobile: true, hasTouch: true, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1" } : {}),
   colorScheme: "dark",
+  reducedMotion: "reduce", // the Home cards stop sliding, so a picture never catches a card half-way
   locale: "en-IN",
   timezoneId: "Asia/Kolkata",
 });
@@ -92,7 +93,7 @@ await shot("21b-insights-week", "/search?p=w", undefined, false);
 await shot("21c-insights-spent-year", "/search?v=spent&p=y", undefined, false);
 await shot("21d-insights-flat", `/search?g=${demo.flat.id}`);
 await shot("22-settle-everything", `${g}/settle`, async (p) => {
-  await p.getByText("More options").last().click();
+  await p.getByText("Other ways to settle").click();
   await p.getByRole("button", { name: /Settle everything/ }).scrollIntoViewIfNeeded();
 }, false);
 await shot("23-add-expense-differently", `${g}/add`, async (p) => {

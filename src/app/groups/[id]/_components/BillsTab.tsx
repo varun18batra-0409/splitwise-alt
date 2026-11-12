@@ -98,7 +98,7 @@ export function BillsTab({ v, bills, saved }: { v: GroupView; bills: BillStatus[
       <div className="flex items-end justify-between gap-3">
         <div>
           <p className="text-sm text-gray-500">Regular bills</p>
-          <p className="money text-[28px] font-semibold tabular-nums">{total > 0 ? `About ${money(total)} a month` : money(total)}</p>
+          <p className="money text-[28px] font-semibold tabular-nums">{total > 0 ? `About ${money(total)} a\u00a0month` : money(total)}</p>
           {total > 0 && <p className="text-sm text-gray-500">Your share about {money(roundToWhole(mine, group.currency))}</p>}
         </div>
         {!group.closed && (

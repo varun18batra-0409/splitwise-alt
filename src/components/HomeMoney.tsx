@@ -66,7 +66,7 @@ export function MoneyCard({
   );
   const coloured = tone !== "plain";
   const buttons = (
-    <div className={`${coloured ? "mt-2" : who ? "mt-0.5" : "mt-2.5"} grid ${first.key === "pay" || first.key === "remind" ? "grid-cols-[1.3fr_1fr]" : "grid-cols-2"} gap-2`}>
+    <div className={`${coloured ? "mt-2" : who ? "mt-0.5" : "mt-2.5"} grid ${first.key === "pay" || first.key === "remind" ? "grid-cols-[1.3fr_1fr]" : "grid-cols-2"} gap-2 max-[339px]:grid-cols-1`}>
       {btn(first)}
       {btn(second)}
     </div>

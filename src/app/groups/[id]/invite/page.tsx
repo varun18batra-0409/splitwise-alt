@@ -242,7 +242,7 @@ export default async function AddPeoplePage({
               ? { text: "On Loopin ✓", cls: "bg-owed/15 text-owed" }
               : me
                 ? // F3: you are never "not on Loopin yet": signed out, it's this phone only.
-                  { text: "This phone only · Sign in to save", cls: "bg-mist text-gray-500" }
+                  { text: "Only on this phone", cls: "bg-mist text-gray-500" }
                 : invitedRows.has(m.id)
                   ? { text: "Invited · hasn’t joined yet", cls: "bg-mist text-gray-500" }
                   : { text: "Not on Loopin yet", cls: "bg-mist text-gray-500" };
@@ -253,7 +253,7 @@ export default async function AddPeoplePage({
                 {m.name}
                 {me && <span className="text-gray-400"> (you)</span>}
               </span>
-              <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${me && !m.accountId ? "max-w-[10.5rem] text-center leading-snug" : ""} ${status.cls}`} data-member-status={me ? "me" : undefined}>
+              <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap ${status.cls}`} data-member-status={me ? "me" : undefined}>
                 {status.text}
               </span>
             </li>

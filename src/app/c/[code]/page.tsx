@@ -184,11 +184,21 @@ export default async function CollectionPage({ params, searchParams }: Props) {
         </div>
         <p className="mt-2 flex items-baseline justify-between gap-3 text-sm" data-collection-progress>
           <span className="text-fg/70">
-            {countsLine(p)}
+            {countsLine(p).split(" · ").map((part, i) => (
+              <span key={i} className="whitespace-nowrap">
+                {i > 0 && " · "}
+                {part}
+              </span>
+            ))}
           </span>
           <span className="font-semibold tabular-nums" data-collection-confirmed>
-            {lines.confirmed}
-            {p.target > 0 && <span className="font-normal text-fg/60"> of {money(p.target)}</span>}
+            <span className="whitespace-nowrap">{lines.confirmed}</span>
+            {p.target > 0 && (
+              <>
+                {" "}
+                <span className="whitespace-nowrap font-normal text-fg/60">of {money(p.target)}</span>
+              </>
+            )}
           </span>
         </p>
         {lines.reported && (
