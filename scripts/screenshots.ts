@@ -667,7 +667,7 @@ if (!hosted) {
     await p.getByRole("button", { name: /Next/ }).click();
   }, false);
   await step("81-us-tour-4", async () => {
-    for (let k = 0; k < 3; k++) {
+    for (let k = 0; k < 2; k++) { // already on slide 2: two more taps reach slide 4 (the last)
       await p.getByRole("button", { name: /Next/ }).click();
       await p.waitForTimeout(450);
     }
