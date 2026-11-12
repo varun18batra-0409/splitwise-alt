@@ -109,6 +109,10 @@ jobs:
         run: |
           SHOT_ENGINE=webkit npx tsx scripts/screenshots.ts 2>&1 | tee shots-ios.log || true
           echo "::notice title=iPhone screens::$(grep -c '^✓' shots-ios.log) taken, $(grep -c '^✗' shots-ios.log) failed $(grep '^✗' shots-ios.log | head -5 | tr '\n' ' ')"
+      - name: Screenshots on a desktop (1440×900)
+        run: |
+          SHOT_ENGINE=desktop npx tsx scripts/screenshots.ts 2>&1 | tee shots-desktop.log || true
+          echo "::notice title=Desktop screens::$(grep -c '^✓' shots-desktop.log) taken, $(grep -c '^✗' shots-desktop.log) failed $(grep '^✗' shots-desktop.log | head -5 | tr '\n' ' ')"
       - name: UAT (a person tapping through every feature)
         run: |
           npx tsx scripts/uat.ts 2>&1 | tee uat.log || true

@@ -8,15 +8,18 @@ import { guessCategory } from "../src/lib/categories";
 import { base, hosted, signInOnTestCopy, withBypass } from "./hosted";
 const demo = JSON.parse(readFileSync(".demo.json", "utf8"));
 // SHOT_ENGINE=webkit: the same screens in Safari's engine (iPhone), saved to screenshots/ios.
+// SHOT_ENGINE=desktop: the same screens on a 1440×900 desktop (Chromium, no touch), saved to screenshots/desktop.
 const ios = process.env.SHOT_ENGINE === "webkit";
-const out = ios ? "screenshots/ios" : "screenshots";
+const desktop = process.env.SHOT_ENGINE === "desktop";
+const out = ios ? "screenshots/ios" : desktop ? "screenshots/desktop" : "screenshots";
+const screen = desktop ? { width: 1440, height: 900 } : { width: 390, height: 844 };
 mkdirSync(out, { recursive: true });
 
 async function main() {
 const browser = withBypass(await (ios ? webkit : chromium).launch());
 const context = await browser.newContext({
-  viewport: { width: 390, height: 844 },
-  deviceScaleFactor: 2,
+  viewport: screen,
+  deviceScaleFactor: desktop ? 1 : 2,
   ...(ios ? { isMobile: true, hasTouch: true, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1" } : {}),
   colorScheme: "dark",
   locale: "en-IN",
@@ -184,7 +187,7 @@ for (const [n, w, h] of [["26b-signin-320x568", 320, 568], ["26c-signin-375x667"
   await page.setViewportSize({ width: w, height: h });
   await shot(n, "/signin", undefined, false);
 }
-await page.setViewportSize({ width: 390, height: 844 });
+await page.setViewportSize(screen);
 await shot("27-privacy", "/privacy");
 // Phase 5
 await shot("62-trip-report", `${g}/report`);
@@ -290,7 +293,7 @@ if (!hosted) {
     await row.evaluate((el) => el.scrollTo({ left: el.clientWidth }));
     await p.waitForTimeout(500);
   }, false);
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setViewportSize(screen);
   await shot("77-group-countdown", `/groups/${goa.id}`, undefined, false);
   await shot("77b-group-weather", `/groups/${goa.id}`, async (p) => {
     await p.locator("[data-trip-weather] summary").click();
@@ -647,8 +650,8 @@ if (!hosted) {
   if (old) await db.member.updateMany({ where: { accountId: old.id }, data: { accountId: null } });
   const acc = await db.account.upsert({ where: { email }, update: { name: "Varu" }, create: { email, name: "Varu" } });
   const us = await browser.newContext({
-    viewport: { width: 390, height: 844 },
-    deviceScaleFactor: 2,
+    viewport: screen,
+    deviceScaleFactor: desktop ? 1 : 2,
     ...(ios ? { isMobile: true, hasTouch: true } : {}),
     colorScheme: "dark",
     locale: "en-US",
