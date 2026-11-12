@@ -218,6 +218,7 @@ async function settleNav(page: Page) {
   await page.waitForLoadState("load", { timeout: 10_000 }).catch(() => undefined);
   if (PROFILE === "iphone") await page.waitForLoadState("networkidle", { timeout: 2_000 }).catch(() => undefined);
 }
+const slowLoads: string[] = []; // pages whose "load" took over 10 s during a layout sweep (reported, not failed)
 async function go(page: Page, path: string, opts: { quick?: boolean } = {}) {
   for (let attempt = 0; ; attempt++) {
     await settleNav(page);
@@ -225,7 +226,10 @@ async function go(page: Page, path: string, opts: { quick?: boolean } = {}) {
       // The hosted test copy keeps a connection open (Vercel's preview tools), so the network never goes quiet there.
       // "quick": layout sweeps only measure the page, so wait for load and fonts, not for every poll to finish.
       if (opts.quick) {
-        await page.goto(base + path, { waitUntil: "load", timeout: 30_000 });
+        await page.goto(base + path, { waitUntil: "domcontentloaded", timeout: 30_000 });
+        // Layout only needs the page drawn: wait for load if it comes within 10 s, and say so if it doesn't.
+        const loaded = await page.waitForLoadState("load", { timeout: 10_000 }).then(() => true, () => false);
+        if (!loaded) slowLoads.push(path);
         await page.evaluate("document.fonts ? document.fonts.ready.then(() => true) : true").catch(() => undefined);
         await page.waitForTimeout(300);
       } else if (hosted) await page.goto(base + path, { waitUntil: "load", timeout: 30_000 });
@@ -2162,7 +2166,8 @@ async function main() {
     }
     await ctx.close();
     assert(wide.length === 0, `scrolls sideways: ${wide.join(", ")}`);
-    return `${pages.length} screens checked in ${Math.round((Date.now() - started) / 1000)} s`;
+    const slow = slowLoads.splice(0).map((p) => p.replace(/[a-z0-9]{20,}/g, ":id"));
+    return `${pages.length} screens checked in ${Math.round((Date.now() - started) / 1000)} s${slow.length ? `; still loading after 10 s (measured anyway): ${slow.join(", ")}` : ""}`;
   }, undefined, 300_000);
 
   await step(null, "Layout", "Sign-in on small phones (320×568 and 375×667): Google and the email box are both on the first screen, no scrolling", async () => {
