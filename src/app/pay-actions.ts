@@ -65,7 +65,7 @@ export async function claimPaidAction(f: FormData) {
   if (!r.already) {
     const g = await db.group.findUnique({ where: { id: groupId }, select: { name: true, currency: true } });
     const me = await db.member.findUnique({ where: { id: myId }, select: { name: true } });
-    tellReceiver({ claimId: r.claimId, groupId, groupName: g?.name ?? "Loopin", toId, fromName: me?.name ?? "Someone", amountText: formatMoney(r.amount ?? 0, g?.currency ?? "INR") });
+    tellReceiver({ claimId: r.claimId, groupId, groupName: g?.name ?? "Loopin", toId, fromName: me?.name ?? "Someone", amountText: formatMoney(r.amount ?? 0, g?.currency ?? "INR"), fromId });
   }
   redirect(settleUrl(groupId, { claimed: "1" }));
 }

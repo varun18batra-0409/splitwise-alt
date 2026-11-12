@@ -95,9 +95,12 @@ describe("a leaver does not see notes changed after they left", () => {
     expect(find(asA!, A, "secret-dinner-note")).toEqual(["Dinner"]);
     const item = buildActivity(asR!.group.expenses, asR!.group.payments, R).find((i) => i.kind === "expense" && i.title === "Dinner")!;
     expect(item).toMatchObject({ notes: "", notesHidden: true });
-    // The cross-group search page's loader too.
+    // The cross-group search page's loader too. The search page reads the scoped `expenses` (not `group`, which is the raw group row).
     const mine = await loadMyGroups({ [gid]: R });
-    expect(notesOf(mine[0].group.expenses)).toEqual({ Dinner: "", Lunch: "visible-lunch-note", Taxi: "plain-taxi-note" });
+    expect(notesOf(mine[0].expenses)).toEqual({ Dinner: "", Lunch: "visible-lunch-note", Taxi: "plain-taxi-note" });
+    const searchFor = (q: string) => filterActivity(buildActivity(mine[0].expenses, mine[0].payments, R), { q }, nameOf).map((i) => (i.kind === "expense" ? i.title : ""));
+    expect(searchFor("secret-dinner-note")).toEqual([]);
+    expect(searchFor("visible-lunch-note")).toEqual(["Lunch"]);
   });
   it("the group's CSV download", async () => {
     await guest(R);

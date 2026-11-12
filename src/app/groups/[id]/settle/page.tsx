@@ -4,7 +4,7 @@ import Link from "@/components/Link";
 import { SquareSeal } from "@/components/DrawnIcons";
 import { notFound, redirect } from "next/navigation";
 import { Notice } from "@/components/Notice";
-import { getMyMemberId } from "@/lib/identity";
+import { getMyMemberId, privatePath } from "@/lib/identity";
 import { eventsFrom, loadGroup, loadGroupSettle } from "@/lib/group-data";
 import { formatMoney, overpayLine, PAYMENT_LINE, toInputAmount } from "@/lib/money";
 import { applySettleMin } from "@/lib/settle";
@@ -48,7 +48,7 @@ export default async function GroupSettle({
   if (!data) notFound();
   const { group, transfers, expenseCount, paymentCount, paidSoFar, before } = data;
   const myId = await getMyMemberId(group.id);
-  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
 
   const nameOf = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");
   const money = (n: number) => formatMoney(n, group.currency);

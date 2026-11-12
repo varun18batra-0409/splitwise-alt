@@ -1,12 +1,15 @@
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 // POL-03: report and block. Blocking stops postcards, passports, nudges and their pushes, both ways for passports;
 // it never touches group expenses or balances. Reports are saved and the operator is emailed (kept in the test outbox).
 
-const state = vi.hoisted(() => ({ session: "" }));
+const state = vi.hoisted(() => ({ session: "", ip: "" }));
+// web-push is replaced by a stand-in that records who was sent to; nothing leaves this machine.
+const push = vi.hoisted(() => ({ send: vi.fn(async (_s: { endpoint: string }, _p?: unknown, _o?: unknown) => ({})) }));
+vi.mock("web-push", () => ({ default: { sendNotification: push.send, generateVAPIDKeys: () => ({ publicKey: "pub", privateKey: "priv" }) } }));
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: (n: string) => (n === "sw_me" && state.session ? { value: state.session } : undefined), set: () => undefined, delete: () => undefined }),
-  headers: async () => new Headers(),
+  headers: async () => new Headers(state.ip ? { "x-forwarded-for": state.ip } : {}),
 }));
 vi.mock("react", async (orig) => ({ ...(await orig<typeof import("react")>()), cache: <T,>(f: T) => f }));
 // A server action ends by redirecting; here the redirect is caught and its address handed back.
@@ -18,7 +21,7 @@ vi.mock("@/lib/fresh-redirect", () => ({
 
 const { db } = await import("@/lib/db");
 const { encodeSession, today } = await import("@/lib/session");
-const { blockAccount, unblockAccount, blockedByMe, blockedEitherWay, unreadPostcards } = await import("@/lib/blocks");
+const { blockAccount, unblockAccount, blockedByMe, blockedEitherWay, unreadPostcards, isBlockedEitherWay } = await import("@/lib/blocks");
 const { canSendTo, postcardPeople } = await import("@/lib/postcards/people");
 const { canSeePassport, passportFriends } = await import("@/lib/passport-db");
 const { deliverNotes } = await import("@/lib/account-notes");
@@ -29,6 +32,13 @@ const { reportAction, blockAction, unblockAction, resolveReportAction } = await 
 const { requireOwner, isOwner } = await import("@/lib/owner");
 const { netBalances } = await import("@/lib/balances");
 const { deleteAccount } = await import("@/lib/auth");
+const { loopinFriends, createCollection, organiserAction } = await import("@/lib/collect");
+const { addRegistered } = await import("@/lib/invites");
+const { sendEventPush, sendPushTo } = await import("@/lib/push");
+const { contactSupportAction } = await import("@/app/safety-actions");
+const { loadReportsForOwner, saveSupportMessage } = await import("@/lib/reports");
+const photoRoute = await import("@/app/api/postcard-photo/[id]/route");
+const { GOOD_AUTH, GOOD_P256DH, goodEndpoint } = await import("./helpers/push-keys");
 
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const accountIds: string[] = [];
@@ -80,11 +90,22 @@ async function redirected(fn: () => Promise<unknown>): Promise<string> {
   throw new Error("expected a redirect");
 }
 
+let hadKeys = true;
+const rateKeys: string[] = [];
+beforeAll(async () => {
+  hadKeys = Boolean(await db.appSetting.findUnique({ where: { key: "vapid" } }));
+});
 beforeEach(() => {
   state.session = "";
+  state.ip = "";
+  push.send.mockClear();
   delete process.env.ADMIN_EMAIL;
 });
 afterAll(async () => {
+  if (!hadKeys) await db.appSetting.deleteMany({ where: { key: "vapid" } }); // the stand-in keys made here
+  await db.rateLimit.deleteMany({ where: { key: { in: rateKeys } } });
+  await db.report.deleteMany({ where: { note: { contains: stamp } } });
+  await db.collection.deleteMany({ where: { accountId: { in: accountIds } } });
   await db.report.deleteMany({ where: { reporterId: { in: accountIds } } });
   await db.block.deleteMany({ where: { OR: [{ blockerId: { in: accountIds } }, { blockedId: { in: accountIds } }] } });
   await db.postcard.deleteMany({ where: { OR: [{ fromId: { in: accountIds } }, { toId: { in: accountIds } }] } });
@@ -235,7 +256,8 @@ describe("reports", () => {
     const mail = await db.outbox.findMany({ where: { to: opEmail } });
     expect(mail).toHaveLength(1);
     expect(mail[0].text).toContain("/stats/reports");
-    expect(mail[0].text).toContain("abusive");
+    // L5: the email only says a report came in. The reporter's own words, and the reason, stay in the owner-only page.
+    expect(mail[0].text).not.toContain("rude");
     expect(mail[0].text).not.toContain("secret-photo-id");
     expect(mail[0].text).not.toContain("private words");
   });
@@ -284,5 +306,192 @@ describe("owner only", () => {
     const after = await db.report.findUniqueOrThrow({ where: { id: r.id } });
     expect(after.status).toBe("resolved");
     expect(after.resolvedAt).not.toBeNull();
+  });
+});
+
+
+// ---------- M2: blocking can't be got round ----------
+describe("blocking: collections", () => {
+  const input = { title: "Gift", note: "", currency: "INR", amount: "300", dueDate: "", upiId: "", payLink: "", names: "" };
+
+  it("friends you can pick leave out anyone you blocked and anyone who blocked you; others stay", async () => {
+    const t = await crew("cf");
+    expect((await loopinFriends(t.asha.id)).map((f) => f.id).sort()).toEqual([t.ben.id, t.cleo.id].sort());
+    await blockAccount(t.asha.id, t.ben.id); // Asha blocked Ben
+    expect((await loopinFriends(t.asha.id)).map((f) => f.id)).toEqual([t.cleo.id]);
+    expect((await loopinFriends(t.ben.id)).map((f) => f.id)).toEqual([t.cleo.id]); // and Ben can't pick Asha
+    expect((await loopinFriends(t.cleo.id)).map((f) => f.id).sort()).toEqual([t.asha.id, t.ben.id].sort());
+  });
+
+  it("a new collection puts only the unblocked friend on the list and tells only them", async () => {
+    const t = await crew("cc");
+    await blockAccount(t.asha.id, t.ben.id);
+    const r = await createCollection({ id: t.asha.id, name: "Asha" }, { ...input, friends: [t.ben.id, t.cleo.id] });
+    if (!r.ok) throw new Error(r.error);
+    const entries = await db.collectionEntry.findMany({ where: { collection: { code: r.code } } });
+    expect(entries.map((e) => e.accountId)).toEqual([t.cleo.id]);
+    expect(r.notify[0].accountIds).toEqual([t.cleo.id]);
+    expect(r.notify[0].fromAccountId).toBe(t.asha.id);
+  });
+
+  it("the other way round: the blocked person can't add the blocker to a collection either", async () => {
+    const t = await crew("cb");
+    await blockAccount(t.asha.id, t.ben.id);
+    const r = await createCollection({ id: t.ben.id, name: "Ben" }, { ...input, friends: [t.asha.id] });
+    if (!r.ok) throw new Error(r.error);
+    expect(await db.collectionEntry.count({ where: { collection: { code: r.code }, accountId: t.asha.id } })).toBe(0);
+    expect(r.notify).toEqual([]);
+  });
+
+  it("'add' later skips a blocked friend; a reminder and an 'added you' note carry the sender, so they are dropped", async () => {
+    const t = await crew("ca");
+    const r = await createCollection({ id: t.asha.id, name: "Asha" }, { ...input, friends: [t.cleo.id] });
+    if (!r.ok) throw new Error(r.error);
+    await blockAccount(t.asha.id, t.ben.id);
+    const add = await organiserAction(r.code, t.asha.id, { kind: "add", friends: [t.ben.id] });
+    expect(add.ok).toBe(false); // nothing new to add: Ben is not on offer
+    expect(await db.collectionEntry.count({ where: { collection: { code: r.code }, accountId: t.ben.id } })).toBe(0);
+    // A new name added alongside the blocked friend: the name lands, Ben is not linked or told.
+    const mixed = await organiserAction(r.code, t.asha.id, { kind: "add", names: "Zed", friends: [t.ben.id] });
+    expect(mixed).toEqual({ ok: true });
+    expect(await db.collectionEntry.count({ where: { collection: { code: r.code }, name: "Zed", accountId: "" } })).toBe(1);
+    // Ben was already on Asha's list (added before she blocked him): her reminder carries her as the sender and is dropped.
+    const hers = await createCollection({ id: t.asha.id, name: "Asha" }, { ...input, friends: [t.cleo.id] });
+    if (!hers.ok) throw new Error(hers.error);
+    await db.collectionEntry.create({ data: { collectionId: (await db.collection.findUniqueOrThrow({ where: { code: hers.code } })).id, name: "Ben", status: "due", accountId: t.ben.id } });
+    const reminder = await organiserAction(hers.code, t.asha.id, { kind: "nudge", entryId: (await db.collectionEntry.findFirstOrThrow({ where: { accountId: t.ben.id, collection: { code: hers.code } } })).id });
+    if (!reminder.ok || !reminder.notify) throw new Error("expected a reminder");
+    expect(reminder.notify[0].fromAccountId).toBe(t.asha.id);
+    await deliverNotes(reminder.notify);
+    expect(await db.accountNote.count({ where: { accountId: t.ben.id } })).toBe(0);
+    const cleoEntry = await db.collectionEntry.findFirstOrThrow({ where: { accountId: t.cleo.id, collection: { code: hers.code } } });
+    const ok = await organiserAction(hers.code, t.asha.id, { kind: "nudge", entryId: cleoEntry.id });
+    if (!ok.ok || !ok.notify) throw new Error("expected a reminder");
+    await deliverNotes(ok.notify);
+    expect(await db.accountNote.count({ where: { accountId: t.cleo.id, kind: "collect_reminder" } })).toBe(1);
+  });
+});
+
+describe("blocking: group invites", () => {
+  it("the invitee still lands in the group, but if they blocked the inviter they get no email and no alert; another invitee gets both", async () => {
+    const t = await crew("gi");
+    const dev = await account(`Dev${stamp.slice(-4)}`);
+    const eve = await account(`Eve${stamp.slice(-4)}`);
+    await blockAccount(dev.id, t.asha.id); // Dev blocked Asha
+    const toDev = await addRegistered(t.g.id, t.ma.id, dev.id, "https://loopin.test");
+    const toEve = await addRegistered(t.g.id, t.ma.id, eve.id, "https://loopin.test");
+    expect(toDev.ok && toEve.ok).toBe(true);
+    // Group money keeps working: both are in the group.
+    expect(await db.member.count({ where: { groupId: t.g.id, accountId: { in: [dev.id, eve.id] } } })).toBe(2);
+    expect(await db.outbox.count({ where: { to: dev.email } })).toBe(0);
+    expect(await db.accountNote.count({ where: { accountId: dev.id } })).toBe(0);
+    expect(await db.outbox.count({ where: { to: eve.email } })).toBe(1);
+    expect(await db.accountNote.count({ where: { accountId: eve.id, kind: "group_invite" } })).toBe(1);
+  });
+});
+
+describe("blocking: group pushes", () => {
+  it("Asha's expense pushes to Cleo but not to Ben, who blocked Asha; the activity list and money are unchanged", async () => {
+    const t = await crew("gp");
+    const epB = goodEndpoint(`b-${stamp}-gp`);
+    const epC = goodEndpoint(`c-${stamp}-gp`);
+    for (const [memberId, endpoint] of [[t.mb.id, epB], [t.mc.id, epC]]) await db.pushSubscription.create({ data: { memberId, endpoint, p256dh: GOOD_P256DH, auth: GOOD_AUTH } });
+    await blockAccount(t.ben.id, t.asha.id);
+    const ev = await db.groupEvent.create({ data: { groupId: t.g.id, actorId: t.ma.id, kind: "expense_added", text: "added Lunch (₹300)" } });
+    await sendEventPush(ev.id);
+    expect(new Set(push.send.mock.calls.map((c) => c[0].endpoint))).toEqual(new Set([epC]));
+    expect(await db.groupEvent.count({ where: { groupId: t.g.id } })).toBe(1);
+    expect(await db.expense.count({ where: { groupId: t.g.id, deletedAt: null } })).toBe(1);
+  });
+  it("a person-to-person push (a reaction, 'I've paid', going shopping) from Asha skips Ben, who blocked her, and still reaches Cleo", async () => {
+    const t = await crew("pp");
+    const epB = goodEndpoint(`b-${stamp}-pp`);
+    const epC = goodEndpoint(`c-${stamp}-pp`);
+    for (const [memberId, endpoint] of [[t.mb.id, epB], [t.mc.id, epC]]) await db.pushSubscription.create({ data: { memberId, endpoint, p256dh: GOOD_P256DH, auth: GOOD_AUTH } });
+    await blockAccount(t.ben.id, t.asha.id);
+    push.send.mockClear();
+    await sendPushTo([t.mb.id, t.mc.id], { title: "t", body: "b", url: "/", tag: "pp" }, "expenses.reactions", t.ma.id);
+    expect(new Set(push.send.mock.calls.map((c) => c[0].endpoint))).toEqual(new Set([epC]));
+    // Without a sender (a reminder Loopin sends itself), both are reached.
+    push.send.mockClear();
+    await sendPushTo([t.mb.id, t.mc.id], { title: "t", body: "b", url: "/", tag: "pp2" }, "expenses.reactions");
+    expect(new Set(push.send.mock.calls.map((c) => c[0].endpoint))).toEqual(new Set([epB, epC]));
+  });
+});
+
+describe("blocking: postcards sent before the block", () => {
+  it("Ben no longer sees Asha's old postcard in his new-card count or on its photo route; the same when the recipient is the blocker", async () => {
+    const t = await crew("po");
+    const photo = await db.postcardPhoto.create({ data: { data: Buffer.from([1, 2, 3]), type: "image/webp" } });
+    const card = await db.postcard.create({ data: { fromId: t.asha.id, toId: t.ben.id, front: "own", photoId: photo.id, message: "hi" } });
+    const get = async (who: { id: string }) => {
+      await signedInAs(who);
+      return photoRoute.GET(new Request("https://loopin.test/x"), { params: Promise.resolve({ id: photo.id }) });
+    };
+    // Before the block: the recipient and the sender both see it.
+    expect((await get(t.ben)).status).toBe(200);
+    expect(await unreadPostcards(t.ben.id)).toBe(1);
+    await blockAccount(t.asha.id, t.ben.id); // Asha blocks Ben, after sending
+    expect(await unreadPostcards(t.ben.id)).toBe(0);
+    expect((await get(t.ben)).status).toBe(404);
+    expect((await get(t.asha)).status).toBe(200); // the sender keeps her own sent card
+    // And the other direction: Cleo blocks Asha; a card Asha sent Cleo is hidden from Cleo as well.
+    const toCleo = await db.postcard.create({ data: { fromId: t.asha.id, toId: t.cleo.id, front: "print:beach", message: "yo" } });
+    expect(await unreadPostcards(t.cleo.id)).toBe(1);
+    await blockAccount(t.cleo.id, t.asha.id);
+    expect(await unreadPostcards(t.cleo.id)).toBe(0);
+    expect(await isBlockedEitherWay(t.cleo.id, toCleo.fromId)).toBe(true);
+    expect(await isBlockedEitherWay(t.ben.id, card.fromId)).toBe(true);
+    await unblockAccount(t.asha.id, t.ben.id);
+    expect((await get(t.ben)).status).toBe(200);
+  });
+});
+
+// ---------- M3: support messages are kept ----------
+describe("support messages", () => {
+  const send = (message: string, extra: Record<string, string> = {}) => redirected(() => contactSupportAction(form({ message, ...extra })));
+
+  it("operator email not set up: the message is still saved, and the person still sees the thanks", async () => {
+    const t = await crew("s1");
+    await signedInAs(t.asha);
+    const note = `please help ${stamp} s1`;
+    expect(await send(note, { reply: "asha@example.test" })).toBe("/support?sent=1");
+    const rows = await db.report.findMany({ where: { note } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ kind: "support", reporterId: t.asha.id, contact: "asha@example.test", status: "open", reason: "support" });
+  });
+
+  it("someone who is not signed in can send 5 an hour from one address; the 6th is turned away politely and not saved", async () => {
+    state.ip = `203.0.113.${Math.floor(Math.random() * 200) + 1}-${stamp}`;
+    rateKeys.push(`support:${state.ip}`);
+    for (let i = 0; i < 5; i++) expect(await send(`anon ${i} ${stamp}`)).toBe("/support?sent=1");
+    expect(await send(`anon 6 ${stamp}`)).toContain("error=");
+    const rows = await db.report.findMany({ where: { note: { startsWith: "anon " }, AND: { note: { contains: stamp } } } });
+    expect(rows).toHaveLength(5);
+    expect(rows.every((r) => r.reporterId === "" && r.kind === "support")).toBe(true);
+  });
+
+  it("a message that is too short is refused and not saved", async () => {
+    const before = await db.report.count({ where: { kind: "support" } });
+    expect(await send("hi")).toContain("error=");
+    expect(await db.report.count({ where: { kind: "support" } })).toBe(before);
+  });
+
+  it("only the owner can read support messages; signed-out people and other accounts get 'not found'", async () => {
+    const t = await crew("s4");
+    const note = `owner only ${stamp} s4`;
+    await saveSupportMessage({ reporterId: t.asha.id, message: note });
+    process.env.ADMIN_EMAIL = "boss-s4@example.test";
+    await expect(loadReportsForOwner(null)).rejects.toThrow();
+    await expect(loadReportsForOwner({ email: t.asha.email })).rejects.toThrow(); // even the person who wrote it
+    const rows = await loadReportsForOwner({ email: "Boss-S4@Example.test" });
+    expect(rows.find((r) => r.note === note)).toMatchObject({ kind: "support", reporterId: t.asha.id });
+  });
+
+  it("a support message can't be filed through the report form", async () => {
+    const t = await crew("s5");
+    await signedInAs(t.asha);
+    const url = await redirected(() => reportAction(form({ kind: "support", id: t.ben.id, reason: "spam", back: "/account" })));
+    expect(url).toContain("error=");
   });
 });

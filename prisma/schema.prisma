@@ -766,11 +766,12 @@ model Block {
 model Report {
   id              String    @id @default(cuid())
   reporterId      String // account
-  kind            String // "postcard" | "passport" | "person"
+  kind            String // "postcard" | "passport" | "person" | "support" (a message to support: no target, reporterId is "" when not signed in)
   targetId        String // the postcard id, or the account id for a passport / person
   targetAccountId String // the account being reported
-  reason          String // "spam" | "abusive" | "other"
+  reason          String // "spam" | "abusive" | "other" | "support"
   note            String    @default("")
+  contact         String    @default("") // support messages: the email the person left to be written back to (optional)
   status          String    @default("open") // "open" | "resolved"
   createdAt       DateTime  @default(now())
   resolvedAt      DateTime?

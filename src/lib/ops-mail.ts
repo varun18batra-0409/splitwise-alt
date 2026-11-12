@@ -14,7 +14,7 @@ export async function mailOperator(subject: string, lines: string[]): Promise<bo
   let any = false;
   for (const addr of to) {
     try {
-      if (await sendMail(addr, subject, text, html, { item: "ops" })) any = true;
+      if (await sendMail(addr, subject, text, html, { item: "ops", ops: true })) any = true;
     } catch {
       // the report is already saved; the email is best effort
     }

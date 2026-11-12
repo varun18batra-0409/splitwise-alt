@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { PassportIcon } from "@/components/DrawnIcons";
 import Link from "@/components/Link";
 import { db } from "@/lib/db";
-import { getMyMemberId } from "@/lib/identity";
+import { getMyMemberId, privatePath } from "@/lib/identity";
 import { PageHeader } from "@/components/ui";
 import { Locked } from "@/components/PassportFriend";
 
@@ -13,7 +13,7 @@ export const metadata = { title: "Passport", robots: { index: false } };
 export default async function MemberPassport({ params }: { params: Promise<{ id: string; memberId: string }> }) {
   const { id, memberId } = await params;
   const myId = await getMyMemberId(id);
-  if (!myId) redirect("/private");
+  if (!myId) redirect(await privatePath(id));
   const them = /^[A-Za-z0-9_-]{6,40}$/.test(memberId) ? await db.member.findUnique({ where: { id: memberId }, select: { groupId: true, name: true, accountId: true } }) : null;
   if (!them || them.groupId !== id) return <Locked />;
   if (them.accountId) redirect(`/passport/friends/${them.accountId}?from=${encodeURIComponent(id)}`);

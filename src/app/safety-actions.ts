@@ -9,7 +9,7 @@ import { headers } from "next/headers";
 import { blockAccount, sharesGroup, unblockAccount } from "@/lib/blocks";
 import { isOwner } from "@/lib/owner";
 import { appUrl, mailOperator } from "@/lib/ops-mail";
-import { REPORT_KINDS, REPORT_REASONS, resolveReportTarget } from "@/lib/reports";
+import { REPORT_KINDS, REPORT_REASONS, resolveReportTarget, saveSupportMessage } from "@/lib/reports";
 
 const field = (f: FormData, k: string, max = 200) => String(f.get(k) ?? "").replace(/\r/g, "").slice(0, max);
 const ID = /^[A-Za-z0-9_-]{6,40}$/;
@@ -34,14 +34,8 @@ export async function reportAction(f: FormData) {
   const already = await db.report.findFirst({ where: { reporterId: me!.id, kind, targetId: id, status: "open" }, select: { id: true } });
   if (!already) {
     await db.report.create({ data: { reporterId: me!.id, kind, targetId: id, targetAccountId: target!.accountId, reason, note } });
-    await mailOperator(`Loopin: a ${reason} report to look at`, [
-      "Someone reported something on Loopin.",
-      `What: ${kind}`,
-      `Reason: ${reason}`,
-      note ? `Their note: ${note}` : "",
-      "",
-      `Look at it (owner only): ${appUrl()}/stats/reports`,
-    ].filter((l, i, a) => l !== "" || a[i - 1] !== ""));
+    // The reporter's own words stay in the app (owner-only page); the email only says a report came in.
+    await mailOperator("Loopin: a new report to look at", ["A new report came in on Loopin.", "", `Open it (owner only): ${appUrl()}/stats/reports`]);
   }
   redirect(`${here}&done=1`);
 }
@@ -84,12 +78,16 @@ export async function contactSupportAction(f: FormData) {
   if (message.length < 5) fail("Write a few words so we know how to help.");
   if (reply && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(reply)) fail("That email doesn’t look right. Check it, or leave it empty.");
   if (!(await allow(`support:${me?.id ?? clientIp(await headers())}`, 5, 3600))) fail("You’ve sent a few already. We’ll get back to you.");
+  // Saved first: the message is kept even if the email below can't be sent (down, or over its daily allowance).
+  await saveSupportMessage({ reporterId: me?.id, message, contact: reply });
   await mailOperator("Loopin: a message for support", [
     "Someone wrote to Loopin support.",
     me ? `Signed in as: ${me.email}` : "Not signed in.",
     reply ? `Reply to: ${reply}` : "",
     "",
     message,
+    "",
+    `Also saved (owner only): ${appUrl()}/stats/reports`,
   ]);
   redirect("/support?sent=1");
 }

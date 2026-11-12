@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "@/components/Link";
 import { db } from "@/lib/db";
 import { getAccount } from "@/lib/identity";
-import { blockedByMe } from "@/lib/blocks";
+import { isBlockedEitherWay } from "@/lib/blocks";
 import { getTimeZone } from "@/lib/tz";
 import { PageHeader } from "@/components/ui";
 import { Notice } from "@/components/Notice";
@@ -25,8 +25,8 @@ export default async function PostcardPage({ params, searchParams }: { params: P
   if (!me) redirect(`/signin?back=/postcards/${id}`);
   const p = await db.postcard.findFirst({ where: { id, OR: [{ fromId: me.id }, { toId: me.id }] } });
   if (!p) notFound();
-  // A card from someone you blocked is gone from your view.
-  if (p.toId === me.id && (await blockedByMe(me.id)).includes(p.fromId)) notFound();
+  // A card from someone you blocked, or from someone who blocked you (even one sent before), is gone from your view.
+  if (p.toId === me.id && (await isBlockedEitherWay(me.id, p.fromId))) notFound();
   const mine = p.fromId === me.id;
   const shut = Boolean(p.opensAt && p.opensAt > new Date());
   if (!mine && !p.readAt && !shut) await db.postcard.update({ where: { id }, data: { readAt: new Date() } });

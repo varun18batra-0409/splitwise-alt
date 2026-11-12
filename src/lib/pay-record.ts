@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "./db";
-import { claimKey, isDuplicateKey } from "./once";
+import { claimKey, isDuplicateKey, retryOnceIfBusy } from "./once";
 import { logEvent } from "./events";
 import { formatMoney } from "./money";
 import { createPayment } from "./payments";
@@ -44,6 +44,7 @@ export type PayOutcome =
   | { kind: "over"; limit: number; side: "to" | "from" } // more than the limit, and "Record it anyway" wasn't ticked
   | { kind: "refused"; error: string };
 
+class Used extends Error {}
 class Over extends Error {
   constructor(public limit: number, public side: "to" | "from") {
     super("over the limit");
@@ -68,8 +69,10 @@ export async function recordPaymentCore(i: PayInput, opts: { afterRead?: () => P
   const nameOf = (id: string) => group.members.find((m) => m.id === id)?.name ?? "Someone";
   await opts.afterRead?.();
   try {
-    const did = await db.$transaction(async (tx: Prisma.TransactionClient) => {
+    const did = await retryOnceIfBusy(() => db.$transaction(async (tx: Prisma.TransactionClient) => {
       await guardGroup(tx, i.groupId, { currency: i.currency, actorId: i.myId });
+      // The same request again (a double tap, a retry): it already happened, whatever the balances say now.
+      if (i.key && (await tx.requestKey.findUnique({ where: { key: i.key }, select: { key: true } }))) throw new Used();
       if (i.warnOver) {
         const { net } = await ledgerInTx(tx, i.groupId);
         const { limit, side } = overpayLimit(net, i.fromId, i.toId);
@@ -85,9 +88,10 @@ export async function recordPaymentCore(i: PayInput, opts: { afterRead?: () => P
         paymentId: p.id,
         undo: { type: "payment_delete", paymentId: p.id },
       });
-    });
+    }, { timeout: 15000 }));
     return { kind: "done", did };
   } catch (err) {
+    if (err instanceof Used) return { kind: "duplicate" };
     if (err instanceof Over) return { kind: "over", limit: err.limit, side: err.side };
     if (err instanceof GroupChanged) return { kind: "refused", error: groupChangedText(err) };
     if (isDuplicateKey(err)) return { kind: "duplicate" };

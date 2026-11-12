@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "@/components/Link";
 import { db } from "@/lib/db";
-import { getMyMemberId } from "@/lib/identity";
+import { getMyMemberId, privatePath } from "@/lib/identity";
 import { ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/components/ui";
 import { startGameAction } from "@/app/pot-actions";
 import { POT_GAMES } from "@/lib/pot";
@@ -14,7 +14,7 @@ export default async function NewGamePage({ params, searchParams }: { params: Pr
   const group = await db.group.findUnique({ where: { id }, include: { members: { where: { leftAt: null }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } });
   if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
-  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
   if (group.type !== "pot") redirect(`/groups/${group.id}`);
   const chip =
     "relative flex h-14 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-xl border border-line text-[13px] font-semibold has-[:checked]:border-fg has-[:checked]:bg-fg has-[:checked]:text-canvas has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent";

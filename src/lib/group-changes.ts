@@ -165,7 +165,8 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
       throw new Refused({ ok: false, error: "Something in the group changed just now. Check it and try again." });
     }
     for (const { e, r } of expenseUpdates) {
-      await tx.expense.update({
+      // updateMany + a count: an edit that replaced this expense's shares in the gap is a calm "changed", not an error.
+      const wrote = await tx.expense.updateMany({
         where: { id: e.id },
         data: {
           baseCurrency: r!.baseCurrency,
@@ -177,9 +178,16 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
           payers: r!.payers,
         },
       });
-      for (const s of r!.shares) await tx.expenseShare.update({ where: { id: s.id }, data: { amount: s.amount } });
+      if (wrote.count !== 1) throw new Refused({ ok: false, error: "Something in the group changed just now. Check it and try again." });
+      for (const s of r!.shares) {
+        const one = await tx.expenseShare.updateMany({ where: { id: s.id }, data: { amount: s.amount } });
+        if (one.count !== 1) throw new Refused({ ok: false, error: "Something in the group changed just now. Check it and try again." });
+      }
     }
-    for (const { p, amount } of paymentUpdates) await tx.payment.update({ where: { id: p.id }, data: { amount: amount! } });
+    for (const { p, amount } of paymentUpdates) {
+      const one = await tx.payment.updateMany({ where: { id: p.id }, data: { amount: amount! } });
+      if (one.count !== 1) throw new Refused({ ok: false, error: "Something in the group changed just now. Check it and try again." });
+    }
     await writeOtherMoney(tx, otherAfter);
     await tx.group.update({ where: { id: group.id }, data: { currency: newCurrency, settleMin: otherAfter.settleMin } });
     return logEvent(tx, {
@@ -196,7 +204,7 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
           ]
         : [`Currency: ${oldCurrency} → ${newCurrency}`],
     });
-  });
+  }, { timeout: 15000 });
   return { ok: true, eventId };
   } catch (e) {
     if (e instanceof Refused) return e.result;

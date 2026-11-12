@@ -173,3 +173,38 @@ describe("the other order, and a name linked to a different account", () => {
     });
   });
 });
+
+describe("undoing a removal does not bring old phone-only copies back", () => {
+  // Hand-worked: V is removed while at epoch 2 (the payload keeps 2). The undo recreates V one step ahead: 2 + 1 = 3.
+  // So the copy a phone saved before ("V~2", or the plain id = epoch 0) is refused, and only "V~3" works.
+  it("remove V (epoch 2), undo: V comes back at epoch 3 and 'V~2' no longer grants access", async () => {
+    const { removeMembers, undoEvent } = await import("@/lib/undo");
+    const v = await db.member.create({ data: { name: "V", groupId: G, grantEpoch: 2 } });
+    expect(await as(await cookie({ [G]: `${v.id}~2` }))).toEqual({ [G]: v.id }); // before: the copy works
+
+    const removed = await removeMembers(G, id.Y, [v.id], false);
+    if (!removed.ok) throw new Error(removed.error);
+    expect(await db.member.count({ where: { id: v.id } })).toBe(0);
+
+    const undone = await undoEvent(removed.eventId!, id.Y);
+    if (!undone.ok) throw new Error(undone.error);
+    expect(await epochOf(v.id)).toBe(3);
+    expect(await as(await cookie({ [G]: `${v.id}~2` }))).toEqual({});
+    expect(await as(await cookie({ [G]: v.id }))).toEqual({});
+    expect(await as(await cookie({ [G]: `${v.id}~3` }))).toEqual({ [G]: v.id });
+  });
+
+  it("an older payload with no epoch counts as 0, so the member comes back at epoch 1", async () => {
+    const { undoEvent } = await import("@/lib/undo");
+    const ghostId = `old-${stamp}`;
+    const ev = await db.groupEvent.create({
+      data: {
+        groupId: G, actorId: id.Y, kind: "members_removed", text: "removed Old (old payload)",
+        undo: JSON.stringify({ type: "members_restore", members: [{ id: ghostId, name: "Old", phone: "", createdAt: new Date().toISOString() }] }),
+      },
+    });
+    const undone = await undoEvent(ev.id, id.Y);
+    if (!undone.ok) throw new Error(undone.error);
+    expect(await epochOf(ghostId)).toBe(1);
+  });
+});

@@ -100,7 +100,7 @@ const sections = (): { title: string; items: QA[] }[] => [
       },
       {
         q: "Can I just type an expense?",
-        a: "Yes. Tap Type a line (or Speak) and write it the way you’d say it: “Dinner 2400 Ravi paid split with Asha Meera” or “Cab 600 except Dev”. Loopin fills in the form for you to check. Nothing saves until you tap Save. Simple lines are read on your phone; a line it can’t follow is sent to Anthropic’s Claude to read, with the group’s first names, and you check the result before saving.",
+        a: "Yes. Tap Type a line (or Speak) and write it the way you’d say it: “Dinner 2400 Ravi paid split with Asha Meera” or “Cab 600 except Dev”. Loopin fills in the form for you to check. Nothing saves until you tap Save. Simple lines are read on your phone; a line it can’t follow is sent to Anthropic’s Claude to read, with the group’s first names, only if you’ve said yes (Loopin asks you the first time, and you can change it any time in You → Privacy and safety). Anthropic doesn’t use it to train its models. Either way, you check the result before saving.",
       },
       {
         q: "Two people paid, or we got money back?",
@@ -264,7 +264,7 @@ const sections = (): { title: string; items: QA[] }[] => [
       },
       {
         q: "What does someone who left a group still see?",
-        a: "Someone who left sees the group as it was the day they left. Notes on expenses that were edited after they left are not shown to them.",
+        a: "Someone who left sees the group as it was the day they left, plus any later change to their own share. Notes on expenses that were edited after they left are not shown to them.",
       },
       {
         q: "How do I contact support?",

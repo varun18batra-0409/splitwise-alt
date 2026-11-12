@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { Notice } from "@/components/Notice";
 import QRCode from "qrcode";
 import { db } from "@/lib/db";
-import { getMyMemberId } from "@/lib/identity";
+import { getMyMemberId, privatePath } from "@/lib/identity";
 import { invitePeople, makeNewInviteLink } from "@/app/actions";
 import { pickAdmin } from "@/lib/group-admin";
 import { ConfirmButton } from "@/components/ConfirmButton";
@@ -69,7 +69,7 @@ export default async function AddPeoplePage({
   });
   if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
-  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
   // Someone who left keeps the history, but not the invite link.
   if (group.members.find((m) => m.id === myId)?.leftAt)
     return (

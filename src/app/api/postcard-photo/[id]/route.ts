@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { getAccount } from "@/lib/identity";
-import { blockedByMe } from "@/lib/blocks";
+import { blockedEitherWay } from "@/lib/blocks";
 import { readPhoto } from "@/lib/photo-store";
 
 // A postcard's own photo: only for the person who sent it and the people it went to.
@@ -11,7 +11,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const me = await getAccount();
   const no = () => new Response("Not found", { status: 404, headers: { "Cache-Control": "private, no-store" } });
   if (!me) return no();
-  const hidden = await blockedByMe(me.id);
+  const hidden = [...(await blockedEitherWay(me.id))];
   const card = await db.postcard.findFirst({ where: { photoId: id, OR: [{ fromId: me.id }, { toId: me.id, fromId: { notIn: hidden } }] }, select: { id: true } });
   if (!card) return no();
   const photo = await db.postcardPhoto.findUnique({ where: { id } });

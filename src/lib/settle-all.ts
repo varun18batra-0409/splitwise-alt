@@ -6,6 +6,7 @@ import { logEvent } from "./events";
 import { formatMoney } from "./money";
 import { createPayment, RestoreRefused, restorePayments } from "./payments";
 import type { Transfer } from "./settle";
+import type { Prisma } from "@prisma/client";
 import { GroupChanged, groupChangedText, guardGroup, ledgerInTx } from "./money-guard";
 
 // "We settled outside the app": record every Smart Settle payment at once and
@@ -77,7 +78,7 @@ async function settleAllOnce(groupId: string, actorId: string, expectedPlan: str
 
 // Undo (apply = false): take the payments back out and reopen.
 // Redo (apply = true): put them back and close again.
-export async function applySettleAll(groupId: string, actorId: string, paymentIds: string[], apply: boolean): Promise<Result> {
+export async function applySettleAll(groupId: string, actorId: string, paymentIds: string[], apply: boolean, opts: { afterRead?: () => Promise<void> } = {}): Promise<Result> {
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (!group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can do this." };
@@ -85,10 +86,23 @@ export async function applySettleAll(groupId: string, actorId: string, paymentId
   if (!apply && !group.closed) return { ok: false, error: "The group was reopened since, so this can’t be undone. Delete the payments one by one instead." };
   if (apply && group.closed) return { ok: false, error: "The group is already closed." };
   let eventId: string;
+  await opts.afterRead?.();
   try {
    eventId = await db.$transaction(async (tx) => {
-    if (apply) await restorePayments(tx, paymentIds, actorId, groupId);
-    else await tx.payment.updateMany({ where: { id: { in: paymentIds }, groupId }, data: { deletedAt: new Date(), deletedById: actorId } });
+    // First: the group is in the same currency and this person still in it; closed is checked just below (undo needs it
+    // closed, redo needs it open).
+    await guardGroup(tx, groupId, { currency: group.currency, actorId, allowClosed: !apply });
+    if (!apply) {
+      const open = await tx.group.updateMany({ where: { id: groupId, closed: true }, data: { closed: true } });
+      if (open.count !== 1) throw new Error("reopened-since");
+    }
+    if (apply) {
+      await restorePayments(tx, paymentIds, actorId, groupId);
+      // "Settle everything" left every balance at 0. If an expense or payment was added since it was undone, putting
+      // the payments back would close the group with someone still owing: refuse, and nothing changes.
+      const now = await ledgerInTx(tx, groupId);
+      if (Object.values(now.net).some((v) => v !== 0)) throw new Error("not-square");
+    } else await tx.payment.updateMany({ where: { id: { in: paymentIds }, groupId }, data: { deletedAt: new Date(), deletedById: actorId } });
     await tx.group.update({ where: { id: groupId }, data: { closed: apply, closedAt: apply ? new Date() : null } });
     return logEvent(tx, {
       groupId,
@@ -97,9 +111,13 @@ export async function applySettleAll(groupId: string, actorId: string, paymentId
       text: apply ? "marked everyone settled up and closed the group again (redo)" : "undid “settle everything”: payments taken out, group reopened",
       undo: { type: "settle_all", paymentIds, apply: !apply },
     });
-   });
+   }, { timeout: 15000 });
   } catch (err) {
     if (err instanceof RestoreRefused) return { ok: false, error: err.message };
+    if (err instanceof GroupChanged) return { ok: false, error: err.reason === "closed" ? "The group is already closed." : groupChangedText(err) };
+    const msg = String((err as Error)?.message);
+    if (msg === "not-square") return { ok: false, error: "Balances changed since, so this can't be redone." };
+    if (msg === "reopened-since") return { ok: false, error: "The group was reopened since, so this can’t be undone. Delete the payments one by one instead." };
     throw err;
   }
   return { ok: true, eventId };
@@ -111,7 +129,7 @@ export async function applySettleAll(groupId: string, actorId: string, paymentId
 // Settle payments; a card game passes its own (already checked) payments.
 class PlanChanged extends Error {}
 type Pick = { from: string; to: string; amount: number }[];
-export async function markAllPaid(groupId: string, actorId: string, pickIn: Pick | (() => Promise<Pick>), label: string, checkPlan = true, key?: string, opts: { afterRead?: () => Promise<void> } = {}): Promise<Result> {
+export async function markAllPaid(groupId: string, actorId: string, pickIn: Pick | (() => Promise<Pick>), label: string, checkPlan = true, key?: string, opts: { afterRead?: () => Promise<void>; recheck?: (tx: Prisma.TransactionClient) => Promise<Pick> } = {}): Promise<Result> {
   // The same tap arriving twice (a slow network, two servers) is recorded once.
   // (A card game works out its own list later, so for it the group and label stand for the request.)
   const fp = fingerprintOf("settle-all", groupId, label, checkPlan, ...(typeof pickIn === "function" ? [] : pickIn.map((p) => `${p.from}|${p.to}|${p.amount}`).sort()));
@@ -148,6 +166,11 @@ export async function markAllPaid(groupId: string, actorId: string, pickIn: Pick
           if (!t || p.amount > t.amount) throw new PlanChanged();
         }
       }
+      // A card game works out its own list: worked out again here, it must be exactly what is about to be recorded.
+      if (opts.recheck) {
+        const sig = (xs: Pick) => xs.map((p) => `${p.from}|${p.to}|${p.amount}`).sort().join(",");
+        if (sig(await opts.recheck(tx)) !== sig(pick)) throw new PlanChanged();
+      }
       await claimKey(tx, key, "paid", fp);
       const ids: string[] = [];
       for (const t of pick) {
@@ -175,15 +198,18 @@ export async function markAllPaid(groupId: string, actorId: string, pickIn: Pick
 }
 
 // Undo / redo of "Mark all paid": take those payments out, or put them back.
-export async function setPaymentsDeleted(groupId: string, actorId: string, paymentIds: string[], deleted: boolean): Promise<Result> {
+export async function setPaymentsDeleted(groupId: string, actorId: string, paymentIds: string[], deleted: boolean, opts: { afterRead?: () => Promise<void> } = {}): Promise<Result> {
   const group = await db.group.findUnique({ where: { id: groupId }, include: { members: { select: { id: true } } } });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (!group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can do this." };
   if (await hasLeft(groupId, actorId)) return { ok: false, error: LEFT_ERROR };
   if (group.closed) return { ok: false, error: "This group is closed. Reopen it to change payments." };
   let eventId: string;
+  await opts.afterRead?.();
   try {
    eventId = await db.$transaction(async (tx) => {
+    // First: the group is still open, in the same currency, and this person still in it.
+    await guardGroup(tx, groupId, { currency: group.currency, actorId });
     if (deleted) await tx.payment.updateMany({ where: { id: { in: paymentIds }, groupId }, data: { deletedAt: new Date(), deletedById: actorId } });
     else await restorePayments(tx, paymentIds, actorId, groupId);
     return logEvent(tx, {
@@ -196,6 +222,7 @@ export async function setPaymentsDeleted(groupId: string, actorId: string, payme
    });
   } catch (err) {
     if (err instanceof RestoreRefused) return { ok: false, error: err.message };
+    if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
     throw err;
   }
   return { ok: true, eventId };

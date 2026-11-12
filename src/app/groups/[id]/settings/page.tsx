@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { getMyMemberId } from "@/lib/identity";
+import { getMyMemberId, privatePath } from "@/lib/identity";
 import { convertGroupCurrency, deleteGroup, saveGroupSettings, setGroupClosed } from "@/app/actions";
 import { NOTIFY_KINDS, parseNotify } from "@/lib/notify-prefs";
 import { GROUP_TYPES, sharingInputs } from "@/lib/group-types";
@@ -54,7 +54,7 @@ export default async function GroupSettings({
   });
   if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
-  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
   // Someone who left can still read the group, but not change it.
   if (group.members.find((m) => m.id === myId)?.leftAt) redirect(`/groups/${group.id}/people?error=${encodeURIComponent("You left this group. Rejoin it to change its settings.")}`);
 

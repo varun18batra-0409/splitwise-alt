@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { loadGroup } from "@/lib/group-data";
-import { getMyMemberId } from "@/lib/identity";
+import { getMyMemberId, privatePath } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
 import { PageHeader } from "@/components/ui";
 import { WrappedDeck } from "@/components/WrappedDeck";
@@ -18,7 +18,7 @@ export default async function WrappedPage({ params }: { params: Promise<{ id: st
   if (!data) notFound();
   const { group, expenses, transfers } = data;
   const myId = await getMyMemberId(group.id);
-  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
   const still = transfers.reduce((s, t) => s + t.amount, 0);
   const { slides } = wrapSlides({
     name: group.name,

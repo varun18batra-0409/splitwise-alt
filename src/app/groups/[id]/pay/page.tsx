@@ -1,7 +1,7 @@
 import Link from "@/components/Link";
 import { FocusOnShow } from "@/components/FocusOnShow";
 import { notFound, redirect } from "next/navigation";
-import { getMyMemberId } from "@/lib/identity";
+import { getMyMemberId, privatePath } from "@/lib/identity";
 import { loadGroup } from "@/lib/group-data";
 import { formatMoney, parseAmount, PAYMENT_LINE, toInputAmount } from "@/lib/money";
 import { overpayQuestion } from "@/lib/pay-record";
@@ -25,7 +25,7 @@ export default async function RecordPayment({
   if (!data) notFound();
   const { group, transfers, net } = data;
   const myId = await getMyMemberId(group.id);
-  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
 
   const people = group.members.filter((m) => !m.leftAt); // people who left aren't offered
   const isMember = (x?: string) => Boolean(x && people.some((m) => m.id === x));

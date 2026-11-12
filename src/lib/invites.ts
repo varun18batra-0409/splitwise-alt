@@ -5,6 +5,7 @@ import { cleanEmail } from "./auth";
 import { sendMail } from "./mail";
 import { allow } from "./rate-limit";
 import { deliverNotes } from "./account-notes";
+import { hasBlocked } from "./blocks";
 import { groupAdminId } from "./group-admin";
 import { setMember } from "./people";
 import { randomBytes } from "node:crypto";
@@ -174,6 +175,9 @@ async function inviteOne(
 
   const link = `${o.origin}/join/${group.inviteCode}?${new URLSearchParams({ e: email, as: memberId })}`;
   const job = async () => {
+    // They are in the group (the money has to work), but if this person has blocked the inviter, nothing is sent:
+    // no email, no alert, no push. (If the lookup fails, nothing is sent either.)
+    if (o.account && actor.accountId && (await hasBlocked(o.account.id, actor.accountId).catch(() => true))) return;
     if (o.mail) {
       await sendMail(
         email,

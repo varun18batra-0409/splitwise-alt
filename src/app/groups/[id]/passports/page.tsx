@@ -2,7 +2,7 @@ import { PassportCompare } from "@/components/PassportCompare";
 import { notFound, redirect } from "next/navigation";
 import Link from "@/components/Link";
 import { db } from "@/lib/db";
-import { getMyMemberId } from "@/lib/identity";
+import { getMyMemberId, privatePath } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
 import { todayKey } from "@/lib/dates";
 import { loadPassport, passportRoster } from "@/lib/passport-db";
@@ -21,7 +21,7 @@ export const metadata = { title: "Our passports", robots: { index: false } };
 export default async function GroupPassports({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const myId = await getMyMemberId(id);
-  if (!myId) redirect("/private");
+  if (!myId) redirect(await privatePath(id));
   const group = await db.group.findUnique({
     where: { id },
     select: { id: true, name: true, deletedAt: true, members: { select: { id: true, name: true, accountId: true, claimedAt: true, leftAt: true, addedBy: true, seenAt: true, removedAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
@@ -29,7 +29,7 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
   if (!group || group.deletedAt || !group.members.some((m) => m.id === myId)) notFound();
   // Only someone who really joined (and wasn't removed) can open it, and it lists only people who did too.
   const everyone = passportRoster(group.members, myId);
-  if (!everyone) redirect("/private");
+  if (!everyone) redirect(await privatePath(id));
   // Someone blocked (either way round) is left out of Our passports; the group itself is untouched.
   const myAccountId = group.members.find((m) => m.id === myId)?.accountId;
   const hidden = myAccountId ? await blockedEitherWay(myAccountId) : new Set<string>();

@@ -3,7 +3,7 @@ import { setMoveIn } from "@/app/bill-actions";
 import { PassportIcon, PeoplePassportsIcon } from "@/components/DrawnIcons";
 import { payerIds } from "@/lib/payers";
 import { notFound, redirect } from "next/navigation";
-import { getAccount, getMyMemberId } from "@/lib/identity";
+import { getAccount, getMyMemberId, privatePath } from "@/lib/identity";
 import { loadGroup } from "@/lib/group-data";
 import { canUndo } from "@/lib/undo";
 import { formatMoney } from "@/lib/money";
@@ -38,7 +38,7 @@ export default async function PeoplePage({
   if (!data) notFound();
   const { group, net } = data;
   const myId = await getMyMemberId(group.id);
-  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
 
   const used = new Set<string>();
   for (const e of group.expenses) {

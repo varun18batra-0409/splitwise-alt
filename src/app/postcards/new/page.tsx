@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { getAccount } from "@/lib/identity";
-import { blockedByMe } from "@/lib/blocks";
+import { blockedEitherWay } from "@/lib/blocks";
 import { getTimeZone } from "@/lib/tz";
 import { visitorRegion } from "@/lib/region";
 import { countryOf, tripStops } from "@/lib/geo";
@@ -25,7 +25,7 @@ export default async function NewPostcardPage({ searchParams }: { searchParams: 
 
   // Reusing a card: one you sent comes back with everything it had; one you were sent comes back
   // with its look only (front, colours, stamp, seal, paper), never their words or their own photo.
-  const hidden = await blockedByMe(me.id);
+  const hidden = [...(await blockedEitherWay(me.id))];
   const found = sp.from ? await db.postcard.findFirst({ where: { id: sp.from, OR: [{ fromId: me.id }, { toId: me.id, fromId: { notIn: hidden }, OR: [{ opensAt: null }, { opensAt: { lte: new Date() } }] }] } }) : null;
   const theirs = Boolean(found && found.fromId !== me.id);
   const again = found && theirs ? { ...found, message: "", address: "[]", place: "", front: found.front === "own" ? "print:beach" : found.front, photoId: found.front === "own" ? "" : found.photoId, groupId: "" } : found;

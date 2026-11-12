@@ -6,7 +6,7 @@ import { formatMoney, isSupportedCurrency } from "./money";
 import { RestoreRefused, restorePayments } from "./payments";
 import { cleanRateText, parseRate, PAYMENT_METHODS } from "./conversion";
 import { diffExpense, expenseState, logEvent, touchedByExpense, type ExpenseSnapshot } from "./events";
-import { GroupChanged, groupChangedText, guardGroup, peopleInExpense } from "./money-guard";
+import { GroupChanged, groupChangedText, guardGroup, leftAmong, peopleInExpense } from "./money-guard";
 import type { RateAnswer } from "./rate-cache";
 import { dayKey, parseDay } from "./dates";
 import { claimKey, isDuplicateKey, previousResult, withRetry } from "./once";
@@ -84,6 +84,8 @@ export async function saveExpense(
 }
 
 class Clash extends Error {}
+class LeaverStays extends Error {}
+class LeaverBack extends Error {}
 class ReceiptGone extends Error {}
 class MonthAdded extends Error {}
 class ChargeLocked extends Error {}
@@ -317,12 +319,18 @@ async function saveExpenseOnce(
   if (changes.length === 0 && !attachDiff.lines && !attachDiff.photo) return { ok: true, id: existing.id };
 
   // Only people who weren't already in this expense have to still be in the group.
+  // Whose balance this edit moves. Someone who has left may stay in the expense, but their share and what they paid can't change.
+  const moved = touchedByExpense(existing, { paidById: fields.paidById, amount: fields.amount, payers: fields.payers, kind: fields.kind, shares: e.shares });
   const newcomers = peopleInExpense({ paidById: fields.paidById, payers: e.payers, shares: e.shares }).filter((id) => !inExisting(id));
   await opts.afterRead?.();
   let eventId: string;
   try {
    eventId = await db.$transaction(async (tx) => {
     await guardGroup(tx, group.id, { currency: group.currency, actorId: actingMemberId, involvedIds: newcomers });
+    if (changes.length) {
+      const gone = await leftAmong(tx, group.id, moved);
+      if (gone.length) throw new LeaverStays(`${gone[0]} has left the group, so their share can't change. Ask them to rejoin first.`);
+    }
     // Only if nobody else saved a change in the meantime (checked and written in one step).
     // A move-out daily charge is part of its month's bill once that bill is being added or was added: edit the bill instead.
     const locked = await chargeLock(tx, group.id, existing.id);
@@ -357,6 +365,7 @@ async function saveExpenseOnce(
    });
   } catch (err) {
     if (err instanceof ChargeLocked) return { ok: false, error: chargeLockedText(err.message) };
+    if (err instanceof LeaverStays) return { ok: false, error: err.message };
     if (err instanceof Clash) return { ok: false, error: "Someone changed this expense a moment ago. Go back and open it again to see the latest version." };
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
     if (err instanceof ReceiptGone) return { ok: false, error: RECEIPT_GONE };
@@ -372,10 +381,11 @@ function snapshot(x: Omit<ExpenseSnapshot, "shares"> & { shares: { memberId: str
 
 // Delete or restore an expense. Deleted expenses stay in history (crossed out)
 // but stop counting towards balances, Smart Settle and charts.
-export async function setExpenseDeleted(expenseId: string, actingMemberId: string | undefined, deleted: boolean): Promise<Result> {
-  return withRetry(() => setExpenseDeletedOnce(expenseId, actingMemberId, deleted));
+// `opts.afterRead` is for tests only: it runs after the reads and before the write begins.
+export async function setExpenseDeleted(expenseId: string, actingMemberId: string | undefined, deleted: boolean, opts: { afterRead?: () => Promise<void>; undoing?: boolean } = {}): Promise<Result> {
+  return withRetry(() => setExpenseDeletedOnce(expenseId, actingMemberId, deleted, opts));
 }
-async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string | undefined, deleted: boolean): Promise<Result> {
+async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string | undefined, deleted: boolean, opts: { afterRead?: () => Promise<void>; undoing?: boolean }): Promise<Result> {
   const expense = await db.expense.findUnique({ where: { id: expenseId }, include: { group: { include: { members: { select: { id: true } } } } } });
   if (!expense) return { ok: false, error: "That expense no longer exists." };
   if (!actingMemberId || !expense.group.members.some((m) => m.id === actingMemberId)) {
@@ -389,8 +399,17 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
   if (Boolean(expense.deletedAt) === deleted) return { ok: true, id: expense.id };
 
   let eventId: string;
+  await opts.afterRead?.();
   try {
    eventId = await db.$transaction(async (tx) => {
+    // First: the group is still open, in the same currency, and this person still in it.
+    await guardGroup(tx, expense.groupId, { currency: expense.group.currency, actorId: actingMemberId });
+    if (!deleted) {
+      // Bringing it back puts its amounts back into everyone's balance. Someone who has left can't have theirs changed.
+      const now = await tx.expense.findUnique({ where: { id: expense.id }, include: { shares: true } });
+      const gone = now ? await leftAmong(tx, expense.groupId, peopleInExpense({ paidById: now.paidById, payers: parsePayers(now.payers), shares: now.shares })) : [];
+      if (gone.length) throw new LeaverBack(`${gone[0]} has left the group, so this can't be ${opts.undoing ? "undone" : "brought back"}.`);
+    }
     // A move-out daily charge can't be deleted, or come back, once that month's bill is being added or was added: the bill took it off its total.
     const locked = await chargeLock(tx, expense.groupId, expense.id);
     if (locked) throw deleted ? new ChargeLocked(locked.bill) : new MonthAdded(locked.bill);
@@ -410,6 +429,8 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
     });
    });
   } catch (err) {
+    if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
+    if (err instanceof LeaverBack) return { ok: false, error: err.message };
     if (err instanceof MonthAdded) return { ok: false, error: `This month’s ${err.message} was already added, so this charge can’t come back. Add it again by hand if needed.` };
     if (err instanceof ChargeLocked) return { ok: false, error: chargeLockedText(err.message) };
     throw err;
@@ -423,10 +444,10 @@ export async function deletePayment(paymentId: string, actingMemberId: string | 
 }
 
 // Delete or restore a settle-up payment. Deleted payments stay in history.
-export async function setPaymentDeleted(paymentId: string, actingMemberId: string | undefined, deleted: boolean): Promise<Result> {
-  return withRetry(() => setPaymentDeletedOnce(paymentId, actingMemberId, deleted));
+export async function setPaymentDeleted(paymentId: string, actingMemberId: string | undefined, deleted: boolean, opts: { afterRead?: () => Promise<void>; undoing?: boolean } = {}): Promise<Result> {
+  return withRetry(() => setPaymentDeletedOnce(paymentId, actingMemberId, deleted, opts));
 }
-async function setPaymentDeletedOnce(paymentId: string, actingMemberId: string | undefined, deleted: boolean): Promise<Result> {
+async function setPaymentDeletedOnce(paymentId: string, actingMemberId: string | undefined, deleted: boolean, opts: { afterRead?: () => Promise<void>; undoing?: boolean }): Promise<Result> {
   const payment = await db.payment.findUnique({
     where: { id: paymentId },
     include: { group: { include: { members: { select: { id: true } } } }, from: true, to: true },
@@ -440,8 +461,15 @@ async function setPaymentDeletedOnce(paymentId: string, actingMemberId: string |
   if (payment.group.closed) return { ok: false, error: "This group is closed. Reopen it to change payments." };
   if (Boolean(payment.deletedAt) === deleted) return { ok: true, id: payment.id };
   let eventId: string;
+  await opts.afterRead?.();
   try {
    eventId = await db.$transaction(async (tx) => {
+    // First: the group is still open, in the same currency, and this person still in it.
+    await guardGroup(tx, payment.groupId, { currency: payment.group.currency, actorId: actingMemberId });
+    if (!deleted) {
+      const gone = await leftAmong(tx, payment.groupId, [payment.fromId, payment.toId]);
+      if (gone.length) throw new LeaverBack(`${gone[0]} has left the group, so this can't be ${opts.undoing ? "undone" : "brought back"}.`);
+    }
     let moved: boolean;
     if (deleted) {
       moved = (await tx.payment.updateMany({ where: { id: payment.id, deletedAt: null }, data: { deletedAt: new Date(), deletedById: actingMemberId } })).count === 1;
@@ -461,6 +489,8 @@ async function setPaymentDeletedOnce(paymentId: string, actingMemberId: string |
    });
   } catch (err) {
     if (err instanceof RestoreRefused) return { ok: false, error: err.message };
+    if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
+    if (err instanceof LeaverBack) return { ok: false, error: err.message };
     throw err;
   }
   return { ok: true, id: payment.id, eventId: eventId || undefined };

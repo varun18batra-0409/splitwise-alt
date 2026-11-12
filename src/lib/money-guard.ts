@@ -76,6 +76,14 @@ export async function guardGroup(tx: Tx, groupId: string, o: GuardOptions): Prom
   }
 }
 
+// Of these people, the names of those who have left the group (read inside the transaction). Used to refuse changes that
+// would move a leaver's balance: they left square, and only they can come back to change it.
+export async function leftAmong(tx: Tx, groupId: string, ids: string[]): Promise<string[]> {
+  if (!ids.length) return [];
+  const rows = await tx.member.findMany({ where: { groupId, id: { in: [...new Set(ids)] }, leftAt: { not: null } }, select: { name: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
+  return rows.map((m) => m.name);
+}
+
 // The group's balances and settle-up plan, read INSIDE the transaction (after guardGroup). The same working as
 // loadGroup: every member (oldest first), and the expenses and payments that aren't deleted.
 export async function ledgerInTx(tx: Tx, groupId: string): Promise<{ memberIds: string[]; net: Record<string, number>; transfers: Transfer[] }> {

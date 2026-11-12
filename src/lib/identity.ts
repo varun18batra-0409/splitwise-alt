@@ -48,10 +48,17 @@ export function parseGrant(v: string): { id: string; epoch: number } {
   return Number.isInteger(n) && n >= 0 ? { id: v.slice(0, i), epoch: n } : { id: v, epoch: 0 };
 }
 
+// A phone that loses a name must also stop hearing about it: when a name's epoch goes up, its notification rows go too,
+// except `keepEndpoint` (the phone doing this, when the caller knows its address; that phone re-subscribes on its own anyway).
+const dropPush = (memberIds: string[], keepEndpoint?: string) =>
+  db.pushSubscription.deleteMany({ where: { memberId: { in: memberIds }, ...(keepEndpoint ? { endpoint: { not: keepEndpoint } } : {}) } });
+
 // Used inside a transaction (e.g. when an account is deleted and its members are unlinked): every old guest copy of
-// these members' cookies stops working.
-export async function bumpGrantEpochs(tx: Pick<Prisma.TransactionClient, "member">, memberIds: string[]) {
-  if (memberIds.length) await tx.member.updateMany({ where: { id: { in: memberIds } }, data: { grantEpoch: { increment: 1 } } });
+// these members' cookies stops working, and so do their phone notifications.
+export async function bumpGrantEpochs(tx: Pick<Prisma.TransactionClient, "member" | "pushSubscription">, memberIds: string[], opts: { keepEndpoint?: string } = {}) {
+  if (!memberIds.length) return;
+  await tx.member.updateMany({ where: { id: { in: memberIds } }, data: { grantEpoch: { increment: 1 } } });
+  await tx.pushSubscription.deleteMany({ where: { memberId: { in: memberIds }, ...(opts.keepEndpoint ? { endpoint: { not: opts.keepEndpoint } } : {}) } });
 }
 
 // { groupId: memberId } for this phone, including every group of a signed-in account.
@@ -101,7 +108,7 @@ export async function getMyMemberId(groupId: string): Promise<string | undefined
 export const getAccount = readAccount;
 
 // Only works inside a server action (form submit) or route handler.
-export async function setMyMemberId(groupId: string, memberId: string) {
+export async function setMyMemberId(groupId: string, memberId: string, opts: { keepEndpoint?: string } = {}) {
   const s = await readSession();
   const acc = await readAccount();
   if (acc) {
@@ -109,6 +116,8 @@ export async function setMyMemberId(groupId: string, memberId: string) {
     // Linking ends every older guest copy of this name (their epoch no longer matches).
     const linked = await db.member.updateMany({ where: { id: memberId, OR: [{ accountId: null }, { accountId: acc.id }] }, data: { accountId: acc.id, grantEpoch: { increment: 1 } } });
     if (linked.count === 1) {
+      // The name's epoch went up: other phones holding it as a guest lose it, and stop getting its notifications.
+      await dropPush([memberId], opts.keepEndpoint);
       const m = { ...s.m };
       delete m[groupId];
       await writeSession({ ...s, m });
@@ -121,12 +130,18 @@ export async function setMyMemberId(groupId: string, memberId: string) {
 
 // After a successful email sign-in: everyone this phone already is joins the
 // account, and the account's groups come to this phone.
-export async function signInAs(accountId: string) {
+export async function signInAs(accountId: string, opts: { keepEndpoint?: string } = {}) {
   const s = await readSession();
   const entries = Object.values(s.m).map(parseGrant);
   // Only names this phone still holds validly (same epoch, not linked to anyone) join the account; an old copy can't.
   // Linking raises the epoch, so any other phone still holding the guest name loses it.
-  for (const e of entries) await db.member.updateMany({ where: { id: e.id, accountId: null, grantEpoch: e.epoch }, data: { accountId, grantEpoch: { increment: 1 } } });
+  const nowLinked: string[] = [];
+  for (const e of entries) {
+    const r = await db.member.updateMany({ where: { id: e.id, accountId: null, grantEpoch: e.epoch }, data: { accountId, grantEpoch: { increment: 1 } } });
+    if (r.count === 1) nowLinked.push(e.id);
+  }
+  // Another phone that held one of these names as a guest no longer gets its notifications.
+  if (nowLinked.length) await dropPush(nowLinked, opts.keepEndpoint);
   const ids = entries.map((e) => e.id);
   const acc = await db.account.findUnique({ where: { id: accountId }, select: { sessionVersion: true } });
   // Groups now linked to the account live in the database; the cookie keeps only the rest.
@@ -156,6 +171,12 @@ export async function keepGroupsDropAccount(groups: Record<string, string>) {
   const m: Record<string, string> = {};
   for (const [groupId, id] of Object.entries(groups)) if (epoch.has(id)) m[groupId] = grantValue(id, epoch.get(id) ?? 0);
   await writeSession({ m });
+}
+
+// Where a group page sends someone who isn't in the group on this phone: "/private", or "/private?linked=1" when this
+// phone's old guest name for the group is now linked to an email (so the page can say "sign in with that email").
+export async function privatePath(groupId: string): Promise<string> {
+  return (await getLinkedAwayGroups()).includes(groupId) ? "/private?linked=1" : "/private";
 }
 
 // "Sign out of this phone": forgets everything on this phone (your groups

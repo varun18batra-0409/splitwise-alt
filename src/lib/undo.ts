@@ -13,7 +13,7 @@ import { loadOtherMoney, sameOtherMoney, writeOtherMoney } from "./group-changes
 import { isGroupAdmin } from "./group-admin";
 import { undoMoveOut } from "./home/moving-db";
 import { DEFAULT_TIME_ZONE } from "./dates";
-import { GroupChanged, groupChangedText, guardGroup } from "./money-guard";
+import { GroupChanged, groupChangedText, guardGroup, peopleInExpense } from "./money-guard";
 
 // Undo any change in a group. Undoing is itself a logged change that everyone
 // is notified about, and it can be undone too ("redo").
@@ -170,11 +170,11 @@ async function apply(p: UndoPayload, groupId: string, actorId: string, originalT
     case "expense_delete":
       return fromResult(await setExpenseDeleted(p.expenseId, actorId, true));
     case "expense_restore":
-      return fromResult(await setExpenseDeleted(p.expenseId, actorId, false));
+      return fromResult(await setExpenseDeleted(p.expenseId, actorId, false, { undoing: true }));
     case "payment_delete":
       return fromResult(await setPaymentDeleted(p.paymentId, actorId, true));
     case "payment_restore":
-      return fromResult(await setPaymentDeleted(p.paymentId, actorId, false));
+      return fromResult(await setPaymentDeleted(p.paymentId, actorId, false, { undoing: true }));
     case "expense_revert":
       return revertExpense(p.expenseId, p.before, actorId);
     case "group_set":
@@ -224,6 +224,13 @@ export async function revertExpense(expenseId: string, before: Parameters<typeof
   const { shares, items: beforeItems, ...fields } = before;
   const currency = e.group.currency;
 
+  // People the restored version puts back who aren't in it now: they must still be in the group (not have left).
+  const nowIn = new Set(peopleInExpense({ paidById: e.paidById, payers: parsePayers(e.payers), shares: e.shares }));
+  const returning = peopleInExpense({ paidById: before.paidById, payers: parsePayers(before.payers), shares: before.shares }).filter((id) => !nowIn.has(id));
+
+  // Everyone whose share or paid amount this undo changes: if one of them has left, their balance can't be changed.
+  const movedByUndo = touchedByExpense(e, before);
+
   await opts.afterRead?.();
   // Checked again inside the transaction: a bill run could have counted the charge since the first look.
   let eventId: string;
@@ -231,7 +238,7 @@ export async function revertExpense(expenseId: string, before: Parameters<typeof
    eventId = await db.$transaction(async (tx) => {
     // First a write: the group is still in this currency and open; then the expense is claimed as it was read. Any edit
     // since (even one that only changed the item lines) moved editedAt, so this undo would overwrite newer work: refused.
-    await guardGroup(tx, e.groupId, { currency });
+    await guardGroup(tx, e.groupId, { currency, involvedIds: [...new Set([...returning, ...movedByUndo])] });
     const claim = await tx.expense.updateMany({ where: { id: expenseId, editedAt: e.editedAt, deletedAt: null }, data: { editedAt: new Date() } });
     if (claim.count !== 1) throw new RevertClash();
     const lockedNow = await chargeLock(tx, e.groupId, expenseId);
@@ -269,10 +276,13 @@ export async function revertExpense(expenseId: string, before: Parameters<typeof
       undo: { type: "expense_revert", expenseId, before: current },
       touches: touchedByExpense(current, before),
     });
-   });
+   }, { timeout: 15000 });
   } catch (err) {
     if (err instanceof RevertClash) return { ok: false, error: REVERT_CLASH };
-    if (err instanceof GroupChanged) return { ok: false, error: err.reason === "currency" ? "The group currency changed since, so this edit can’t be undone." : groupChangedText(err) };
+    if (err instanceof GroupChanged) {
+      if (err.reason === "left") return { ok: false, error: `${err.detail || "Someone"} has left the group, so this can't be undone.` };
+      return { ok: false, error: err.reason === "currency" ? "The group currency changed since, so this edit can’t be undone." : groupChangedText(err) };
+    }
     if (err instanceof ChargeLockedNow) return { ok: false, error: chargeLockedText(err.message) };
     throw err;
   }
@@ -335,7 +345,18 @@ async function applyGroupSettings(
 }
 
 // Put every amount back exactly as it was before a currency change.
-async function restoreCurrency(groupId: string, actorId: string, p: Extract<UndoPayload, { type: "currency_restore" }>): Promise<UndoResult> {
+// The expenses and payments exactly as they are (to tell whether anything moved between two looks).
+const moneySig = (
+  expenses: { id: string; amount: number; payers: string; deletedAt: Date | null; shares: { id: string; amount: number }[] }[],
+  payments: { id: string; amount: number; deletedAt: Date | null }[],
+) =>
+  JSON.stringify([
+    [...expenses].sort((a, b) => a.id.localeCompare(b.id)).map((e) => [e.id, e.amount, e.payers, e.deletedAt?.getTime() ?? 0, [...e.shares].sort((a, b) => a.id.localeCompare(b.id)).map((x) => [x.id, x.amount])]),
+    [...payments].sort((a, b) => a.id.localeCompare(b.id)).map((x) => [x.id, x.amount, x.deletedAt?.getTime() ?? 0]),
+  ]);
+
+// `afterRead` is for tests only: it runs after the reads and before the write begins.
+export async function restoreCurrency(groupId: string, actorId: string, p: Extract<UndoPayload, { type: "currency_restore" }>, opts: { afterRead?: () => Promise<void> } = {}): Promise<UndoResult> {
   const g = await db.group.findUnique({ where: { id: groupId }, include: { expenses: { include: { shares: true } }, payments: true } });
   if (!g) return { ok: false, error: "This group no longer exists." };
   const current: Extract<UndoPayload, { type: "currency_restore" }> = {
@@ -357,7 +378,25 @@ async function restoreCurrency(groupId: string, actorId: string, p: Extract<Undo
   if (p.after && current.other && !sameOtherMoney(current.other, p.after)) {
     return { ok: false, error: "Bills, budgets, goals, the deposit or a game changed after the currency change, so it can’t be undone safely. Change the currency again instead." };
   }
-  const eventId = await db.$transaction(async (tx) => {
+  await opts.afterRead?.();
+  let eventId: string;
+  try {
+  eventId = await db.$transaction(async (tx) => {
+    // First a write: the group is still in the currency this undo expects (closed is fine, as before).
+    await guardGroup(tx, groupId, { currency: g.currency, allowClosed: true });
+    // Everything that holds money, looked at again now that nobody else can write: anything added or changed since the
+    // first look (an expense in the gap) means putting the old amounts back would mix currencies, so refuse.
+    const [ex, pay] = await Promise.all([
+      tx.expense.findMany({ where: { groupId }, include: { shares: true } }),
+      tx.payment.findMany({ where: { groupId } }),
+    ]);
+    if (moneySig(ex, pay) !== moneySig(g.expenses, g.payments)) throw new CurrencyMoved();
+    // The first look above is the undo's own: money committed before it would match it. So also require that every live
+    // expense and payment is one the currency change converted (it is listed in the saved payload).
+    const converted = new Set(p.expenses.map((x) => x.id));
+    const convertedPay = new Set(p.payments.map((x) => x.id));
+    if (ex.some((x) => !x.deletedAt && !converted.has(x.id)) || pay.some((x) => !x.deletedAt && !convertedPay.has(x.id))) throw new CurrencyMoved();
+    if (p.after && !sameOtherMoney(await loadOtherMoney(groupId, g.settleMin, tx), p.after)) throw new CurrencyMoved();
     // Rows removed since (a card game's result after it was reopened) are skipped.
     for (const e of p.expenses) {
       const { shares, id, ...fields } = e;
@@ -375,9 +414,16 @@ async function restoreCurrency(groupId: string, actorId: string, p: Extract<Undo
       details: [`Currency: ${g.currency} → ${p.currency}`, "Every amount is back exactly as it was"],
       undo: current,
     });
-  });
+  }, { timeout: 15000 });
+  } catch (err) {
+    if (err instanceof CurrencyMoved) return { ok: false, error: "Expenses, payments or other money in the group changed after the currency change, so it can’t be undone safely. Change the currency again instead." };
+    if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
+    throw err;
+  }
   return { ok: true, eventId };
 }
+
+class CurrencyMoved extends Error {}
 
 // Take back "added people" — only if they haven't been used anywhere yet.
 export async function removeMembers(groupId: string, actorId: string, memberIds: string[], undoing = true): Promise<UndoResult> {
@@ -416,6 +462,8 @@ export async function removeMembers(groupId: string, actorId: string, memberIds:
           // else, never opened the group" into "joined themselves" (passport privacy).
           addedBy: m.addedBy,
           seenAt: m.seenAt?.toISOString() ?? null,
+          // Kept so the restored person can start one step ahead of it (old phone-only copies must not come back).
+          grantEpoch: m.grantEpoch,
         })),
       },
     });
@@ -440,6 +488,9 @@ async function restoreMembers(groupId: string, actorId: string, members: Extract
           createdAt: new Date(m.createdAt),
           accountId,
           claimedAt: accountId && m.claimedAt ? new Date(m.claimedAt) : null,
+          // One past what it was: a copy of this name saved on a phone before the removal ("id" or "id~epoch") no longer matches.
+          // (Payloads saved before the epoch was kept count as 0.)
+          grantEpoch: (m.grantEpoch ?? 0) + 1,
           ...(m.splitWeight ? { splitWeight: m.splitWeight } : {}),
           ...(m.notify ? { notify: m.notify } : {}),
           ...(m.joinedFrom ? { joinedFrom: new Date(m.joinedFrom) } : {}),

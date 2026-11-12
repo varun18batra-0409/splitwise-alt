@@ -727,11 +727,10 @@ export async function signOutOtherPhonesAction(formData?: FormData) {
 }
 
 export async function signOutThisPhone(formData?: FormData) {
-  // This phone stops getting notifications for the groups it was signed in to.
+  // This phone stops getting notifications for every name it ever held (by its address, whoever the name is now).
   const endpoint = String(formData?.get("endpoint") ?? "");
   if (endpoint.startsWith("https://") && endpoint.length < 1000) {
-    const memberIds = Object.values(await getMemberships());
-    if (memberIds.length) await db.pushSubscription.deleteMany({ where: { endpoint, memberId: { in: memberIds } } }).catch(() => undefined);
+    await db.pushSubscription.deleteMany({ where: { endpoint } }).catch(() => undefined);
   }
   await forgetThisPhone();
   redirect("/");

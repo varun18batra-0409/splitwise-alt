@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { blockedEitherWay } from "./blocks";
 import { JOINED } from "./membership";
 import type { Note } from "./account-notes";
 import { cleanNames, sameName } from "./names";
@@ -26,7 +27,9 @@ export async function loopinFriends(accountId: string): Promise<{ id: string; na
     where: { groupId: { in: mine.map((m) => m.groupId) }, leftAt: null, accountId: { not: null }, ...JOINED },
     select: { accountId: true, name: true },
   });
-  const ids = [...new Set(others.map((o) => o.accountId!).filter((id) => id !== accountId))];
+  // Not anyone this person blocked, nor anyone who blocked them: they can't be picked, so they can't be added or told.
+  const blocked = await blockedEitherWay(accountId);
+  const ids = [...new Set(others.map((o) => o.accountId!).filter((id) => id !== accountId && !blocked.has(id)))];
   if (!ids.length) return [];
   const accounts = await db.account.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } });
   return accounts
@@ -56,7 +59,7 @@ export async function createCollection(account: { id: string; name: string }, in
   await db.collection.create({ data: { ...r.data, code, accountId: account.id, organiser, entries: { create: rows } } });
   const onList = [...new Set(rows.map((x) => x.accountId).filter(Boolean))];
   const notify: CollectNote[] = onList.length
-    ? [{ accountIds: onList, kind: "collect_added", title: r.data.title, body: `${organiser} added you: ${each(r.data)}. Tap to pay and tick your name.`, url: `/c/${code}`, tag: `collect:${code}` }]
+    ? [{ fromAccountId: account.id, accountIds: onList, kind: "collect_added", title: r.data.title, body: `${organiser} added you: ${each(r.data)}. Tap to pay and tick your name.`, url: `/c/${code}`, tag: `collect:${code}` }]
     : [];
   return { ok: true as const, code, notify };
 }
@@ -152,7 +155,7 @@ export async function organiserAction(
       if (c.closedAt) return { ok: false, error: "This collection is closed." };
       return {
         ok: true,
-        notify: [{ accountIds: [e.accountId], kind: "collect_reminder", title: c.title, body: `Reminder from ${c.organiser}: ${each(c)}${c.dueDate ? ` by ${new Date(`${c.dueDate}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}` : ""}. Tap to pay and tick your name.`, url: `/c/${c.code}`, tag: `collect:${c.code}` }],
+        notify: [{ fromAccountId: accountId, accountIds: [e.accountId], kind: "collect_reminder", title: c.title, body: `Reminder from ${c.organiser}: ${each(c)}${c.dueDate ? ` by ${new Date(`${c.dueDate}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}` : ""}. Tap to pay and tick your name.`, url: `/c/${c.code}`, tag: `collect:${c.code}` }],
       };
     case "remove":
       if (!e) return { ok: false, error: "That name isn’t on the list." };
@@ -180,7 +183,7 @@ export async function organiserAction(
       // Told only if they really landed on the list (added now, or linked to their name).
       const told = [...new Set([...rows.map((x) => x.accountId), ...link.map((x) => friends.find((f) => sameName(f.name, x.name))!.id)].filter(Boolean))];
       return told.length
-        ? { ok: true, notify: [{ accountIds: told, kind: "collect_added", title: c.title, body: `${c.organiser} added you: ${each(c)}. Tap to pay and tick your name.`, url: `/c/${c.code}`, tag: `collect:${c.code}` }] }
+        ? { ok: true, notify: [{ fromAccountId: accountId, accountIds: told, kind: "collect_added", title: c.title, body: `${c.organiser} added you: ${each(c)}. Tap to pay and tick your name.`, url: `/c/${c.code}`, tag: `collect:${c.code}` }] }
         : { ok: true };
     }
     case "close":
@@ -195,8 +198,8 @@ export async function organiserAction(
   }
 }
 
-function paidNote(c: { title: string; organiser: string; currency: string; code: string }, accountId: string, amount: number): CollectNote[] {
-  return accountId ? [{ accountIds: [accountId], kind: "collect_paid", title: c.title, body: `${c.organiser} got your ${formatMoney(amount, c.currency)} ✓ You’re all done.`, url: `/c/${c.code}`, tag: `collect:${c.code}` }] : [];
+function paidNote(c: { title: string; organiser: string; currency: string; code: string; accountId: string }, accountId: string, amount: number): CollectNote[] {
+  return accountId ? [{ fromAccountId: c.accountId, accountIds: [accountId], kind: "collect_paid", title: c.title, body: `${c.organiser} got your ${formatMoney(amount, c.currency)} ✓ You’re all done.`, url: `/c/${c.code}`, tag: `collect:${c.code}` }] : [];
 }
 
 // Home: the collections I organise (open first, newest first).

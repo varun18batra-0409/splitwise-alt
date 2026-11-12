@@ -1,10 +1,9 @@
 import { db } from "@/lib/db";
 import { getAccount } from "@/lib/identity";
-import { requireOwner } from "@/lib/owner";
 import { getTimeZone } from "@/lib/tz";
 import { PageHeader } from "@/components/ui";
 import { resolveReportAction } from "@/app/safety-actions";
-import { REASON_LABELS } from "@/lib/reports";
+import { REASON_LABELS, loadReportsForOwner } from "@/lib/reports";
 
 export const metadata = { title: "Reports", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -13,9 +12,8 @@ export const dynamic = "force-dynamic";
 // Shows who and what, never the private photo itself.
 export default async function Reports() {
   const account = await getAccount();
-  requireOwner(account);
-  const rows = await db.report.findMany({ orderBy: [{ status: "asc" }, { createdAt: "desc" }], take: 200 });
-  const ids = [...new Set(rows.flatMap((r) => [r.reporterId, r.targetAccountId]))];
+  const rows = await loadReportsForOwner(account);
+  const ids = [...new Set(rows.flatMap((r) => [r.reporterId, r.targetAccountId]).filter(Boolean))];
   const people = ids.length ? await db.account.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, email: true } }) : [];
   const who = new Map(people.map((p) => [p.id, `${p.name || "No name"} (${p.email})`]));
   const tz = await getTimeZone();
@@ -31,10 +29,11 @@ export default async function Reports() {
         {rows.map((r) => (
           <li key={r.id} className="py-4" data-report={r.id} data-status={r.status}>
             <p className="text-sm font-semibold">
-              {REASON_LABELS[r.reason] ?? r.reason} · {r.kind} · {when(r.createdAt)}
+              {r.kind === "support" ? "Message for support" : `${REASON_LABELS[r.reason] ?? r.reason} · ${r.kind}`} · {when(r.createdAt)}
             </p>
-            <p className="mt-1 text-sm text-gray-500">About: {who.get(r.targetAccountId) ?? "an account that no longer exists"}</p>
-            <p className="text-sm text-gray-500">From: {who.get(r.reporterId) ?? "an account that no longer exists"}</p>
+            {r.kind !== "support" && <p className="mt-1 text-sm text-gray-500">About: {who.get(r.targetAccountId) ?? "an account that no longer exists"}</p>}
+            <p className="text-sm text-gray-500">From: {r.reporterId ? (who.get(r.reporterId) ?? "an account that no longer exists") : "someone not signed in"}</p>
+            {r.contact && <p className="text-sm text-gray-500">Reply to: {r.contact}</p>}
             {r.note && <p className="mt-1 break-words text-sm">“{r.note}”</p>}
             {r.status === "open" ? (
               <form action={resolveReportAction} className="mt-2">

@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { TrophyIcon } from "@/components/DrawnIcons";
 import Link from "@/components/Link";
 import { db } from "@/lib/db";
-import { getMyMemberId } from "@/lib/identity";
+import { getMyMemberId, privatePath } from "@/lib/identity";
 import { ErrorNote, PageHeader, inputClass, secondaryButtonClass } from "@/components/ui";
 import { Notice } from "@/components/Notice";
 import { ConfirmButton } from "@/components/ConfirmButton";
@@ -36,7 +36,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
   const group = await db.group.findUnique({ where: { id }, include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } });
   if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
-  if (!myId || !group.members.some((m) => m.id === myId && !m.leftAt)) redirect("/private");
+  if (!myId || !group.members.some((m) => m.id === myId && !m.leftAt)) redirect(await privatePath(id));
   const game = await loadGame(group.id, gameId);
   if (!game) notFound();
   const tz = await getTimeZone();

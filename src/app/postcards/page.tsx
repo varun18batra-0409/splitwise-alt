@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "@/components/Link";
 import { db } from "@/lib/db";
 import { getAccount } from "@/lib/identity";
-import { blockedByMe } from "@/lib/blocks";
+import { blockedEitherWay } from "@/lib/blocks";
 import { getTimeZone } from "@/lib/tz";
 import { PageHeader } from "@/components/ui";
 import { PostcardFront } from "@/components/postcards/Card";
@@ -18,7 +18,7 @@ export const metadata = { title: "Postcards", robots: { index: false } };
 export default async function PostcardsPage() {
   const me = await getAccount();
   if (!me) redirect("/signin?back=/postcards");
-  const hidden = await blockedByMe(me.id); // cards from people you blocked are gone from your view
+  const hidden = [...(await blockedEitherWay(me.id))]; // cards from people you blocked, or who blocked you, are gone from your view
   const [got, sent, tz] = await Promise.all([
     db.postcard.findMany({ where: { toId: me.id, fromId: { notIn: hidden } }, orderBy: { createdAt: "desc" }, take: 60 }),
     db.postcard.findMany({ where: { fromId: me.id }, orderBy: { createdAt: "desc" }, take: 60 }),

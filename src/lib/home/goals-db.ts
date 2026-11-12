@@ -1,6 +1,7 @@
 import { db } from "../db";
 import { logEvent } from "../events";
 import { formatMoney, parseAmount } from "../money";
+import { GroupChanged, groupChangedText, guardGroup } from "../money-guard";
 import { claimKey, fingerprintOf, isDuplicateKey, keyState, STALE_KEY_ERROR } from "../once";
 
 type Result = { ok: true; id: string } | { ok: false; error: string };
@@ -22,15 +23,31 @@ export async function saveGoalFor(groupId: string, actorId: string, input: { goa
   if (input.goalId) {
     const g = await db.goal.findFirst({ where: { id: input.goalId, groupId, deletedAt: null } });
     if (!g) return { ok: false, error: "That goal no longer exists." };
-    await db.goal.update({ where: { id: g.id }, data: { name, target, byDate } });
-    await logEvent(db, { groupId, actorId, kind: "bill_changed", text: `changed the goal ${name} (${formatMoney(target, group.currency)})` });
+    try {
+      await db.$transaction(async (tx) => {
+        await guardGroup(tx, groupId, { currency: group.currency, actorId, allowClosed: true });
+        await tx.goal.update({ where: { id: g.id }, data: { name, target, byDate } });
+        await logEvent(tx, { groupId, actorId, kind: "bill_changed", text: `changed the goal ${name} (${formatMoney(target, group.currency)})` });
+      });
+    } catch (err) {
+      if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
+      throw err;
+    }
     return { ok: true, id: g.id };
   }
-  const g = await db.$transaction(async (tx) => {
+  let g;
+  try {
+  g = await db.$transaction(async (tx) => {
+    // The target was typed in the group's currency as read: still the same one?
+    await guardGroup(tx, groupId, { currency: group.currency, actorId, allowClosed: true });
     const created = await tx.goal.create({ data: { groupId, name, target, byDate, createdById: actorId } });
     await logEvent(tx, { groupId, actorId, kind: "bill_changed", text: `started a goal: ${name} (${formatMoney(target, group.currency)})` });
     return created;
   });
+  } catch (err) {
+    if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
+    throw err;
+  }
   return { ok: true, id: g.id };
 }
 
@@ -57,6 +74,8 @@ export async function addGoalEntryFor(groupId: string, actorId: string, goalId: 
   if (amount === null || amount === 0) return { ok: false, error: "Enter the amount you set aside." };
   try {
     await db.$transaction(async (tx) => {
+      // The amount was typed in the group's currency as read: still the same one?
+      await guardGroup(tx, groupId, { currency: goal.group.currency, actorId, allowClosed: true });
       // No key from the screen: a key worked out from who, which goal, how much and the current 10 seconds, so two taps
       // racing each other can only save once (the second one finds the key already taken).
       await claimKey(tx, requestKey || tapKey(actorId, goal.id, amount), goal.id, requestKey ? fp : "");
@@ -75,6 +94,7 @@ export async function addGoalEntryFor(groupId: string, actorId: string, goalId: 
     });
   } catch (err) {
     if (isDuplicateKey(err)) return { ok: true, id: goalId };
+    if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
     throw err;
   }
   return { ok: true, id: goal.id };
@@ -84,7 +104,16 @@ export async function deleteGoalFor(groupId: string, actorId: string, goalId: st
   if (!(await member(groupId, actorId))) return { ok: false, error: "Only people in this group can do this." };
   const g = await db.goal.findFirst({ where: { id: goalId, groupId, deletedAt: null } });
   if (!g) return { ok: false, error: "That goal no longer exists." };
-  await db.goal.update({ where: { id: g.id }, data: { deletedAt: new Date() } });
-  await logEvent(db, { groupId, actorId, kind: "bill_changed", text: `removed the goal ${g.name}` });
+  const group = await db.group.findUnique({ where: { id: groupId }, select: { currency: true } });
+  try {
+    await db.$transaction(async (tx) => {
+      await guardGroup(tx, groupId, { currency: group?.currency ?? "INR", actorId, allowClosed: true });
+      await tx.goal.update({ where: { id: g.id }, data: { deletedAt: new Date() } });
+      await logEvent(tx, { groupId, actorId, kind: "bill_changed", text: `removed the goal ${g.name}` });
+    });
+  } catch (err) {
+    if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
+    throw err;
+  }
   return { ok: true, id: g.id };
 }

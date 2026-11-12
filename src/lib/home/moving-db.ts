@@ -10,7 +10,7 @@ import { DEFAULT_TIME_ZONE, dayKey } from "../dates";
 import { addPrepaid, dailyPrecharge, depositRefunds, leaverPayments, parsePrepaid, proRataShares, removePrepaid, type DailyPrecharge } from "./moving";
 import { monthsBetween, payerFor } from "./bills";
 import type { Transfer } from "../settle";
-import { GroupChanged, groupChangedText, guardGroup } from "../money-guard";
+import { GroupChanged, groupChangedText, guardGroup, ledgerInTx } from "../money-guard";
 
 // Moving out, the deposit — database side.
 
@@ -161,6 +161,7 @@ export async function moveOut(
   actorId: string,
   input: { leaverId: string; lastDay: string; depositTo?: string; addDaily?: boolean; requestKey: string },
   now = new Date(),
+  opts: { afterRead?: () => Promise<void> } = {}, // tests only: runs after the reads, before the write begins
 ): Promise<{ ok: true; payments: Transfer[] } | Fail> {
   const fp = fingerprintOf("move-out", groupId, input.leaverId, input.lastDay, input.depositTo ?? "", input.addDaily ? "daily" : "");
   const ks = await keyState(input.requestKey, fp);
@@ -186,10 +187,18 @@ export async function moveOut(
   const name = (id: string) => flat.members.find((m) => m.id === id)?.name ?? "Someone";
   const money = (n: number) => formatMoney(n, flat.currency);
 
+  const netBefore = netBalances(flat.members.map((m) => m.id), flat.expenses, flat.payments);
+  await opts.afterRead?.();
   try {
     await db.$transaction(async (tx) => {
       // First: the flat must still be in the currency the amounts were worked out in, and the person doing it still in it.
       await guardGroup(tx, groupId, { currency: flat.currency, actorId, allowClosed: true });
+      // The square-up payments were worked out from these balances: if anything moved since (an expense or payment that
+      // landed meanwhile), they would be wrong, so nothing is recorded and the person looks again.
+      const netNow = (await ledgerInTx(tx, groupId)).net;
+      // (Someone who joined meanwhile with nothing owed either way is not a change.)
+      const sig = (n: Record<string, number>) => JSON.stringify(Object.entries(n).filter(([, v]) => v !== 0).sort(([a], [b]) => a.localeCompare(b)));
+      if (sig(netNow) !== sig(netBefore)) throw new Error("BALANCES_CHANGED");
       await claimKey(tx, input.requestKey, "moved", fp);
       // Claim the move-out first: if two people confirm it at the same moment,
       // only the first one goes through (the second finds them already gone).
@@ -322,12 +331,13 @@ export async function moveOut(
         ],
         undo: { type: "member_set", memberId: leaver.id, data: { leftAt: null }, moveOut: undoInfo },
       });
-    });
+    }, { timeout: 15000 });
   } catch (err) {
     if (isDuplicateKey(err)) return { ok: true, payments: [] };
     const msg = String((err as Error)?.message ?? err);
     if (msg.includes("ALREADY_MOVED")) return { ok: false, error: `${leaver.name} has already moved out.` };
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
+    if (msg.includes("BALANCES_CHANGED")) return { ok: false, error: "Balances just changed. Check the move-out again." };
     if (msg.includes("BILLS_CHANGED")) return { ok: false, error: "A bill changed just now. Check it and try again." };
     throw err;
   }
@@ -421,6 +431,8 @@ export async function undoMoveOut(groupId: string, actorId: string, memberId: st
   if (!m.leftAt) return { ok: false, error: `${m.name} is already back in the flat.` };
   try {
     const eventId = await db.$transaction(async (tx) => {
+      // First: the flat is open, in the same currency, and this person still in it (a closed flat is changed by reopening it first).
+      await guardGroup(tx, groupId, { currency: group.currency, actorId });
       if (info.deposit) {
         const d = info.deposit;
         const leaverShare = await tx.depositShare.findUnique({ where: { id: d.leaverShareId } });
@@ -476,6 +488,7 @@ export async function undoMoveOut(groupId: string, actorId: string, memberId: st
       const bill = msg.slice(at + "MONTH_ADDED:".length).split("\n")[0].trim();
       return { ok: false, error: `This month’s ${bill} was already added, so the move-out can’t be undone. Edit ${bill} instead.` };
     }
+    if (err instanceof GroupChanged) return { ok: false, error: err.reason === "closed" ? "This group is closed. Reopen it to change expenses." : groupChangedText(err) };
     if (msg.includes("DEPOSIT_CHANGED")) {
       return { ok: false, error: "The deposit changed since the move-out (returned or handed on), so this can’t be undone. Change the deposit back first." };
     }

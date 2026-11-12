@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "@/components/Link";
 import { db } from "@/lib/db";
-import { getMyMemberId } from "@/lib/identity";
+import { getMyMemberId, privatePath } from "@/lib/identity";
 import { PageHeader, ErrorNote, secondaryButtonClass } from "@/components/ui";
 import { BillForm } from "@/components/BillForm";
 import { ConfirmButton } from "@/components/ConfirmButton";
@@ -32,7 +32,7 @@ export default async function BillPage({
   });
   if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
-  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
   // Someone who left (or was removed) reads the group only on its main screen, up to the day they left.
   if (await leaverOf(myId)) redirect(`/groups/${group.id}`);
   const bill = await db.bill.findFirst({ where: { id: billId, groupId: group.id, deletedAt: null }, include: { runs: { orderBy: { period: "desc" }, take: 6 } } });

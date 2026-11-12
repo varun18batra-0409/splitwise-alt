@@ -138,7 +138,7 @@ export async function setMember(
               : { leftAt: m.leftAt!.toISOString() },
         },
       });
-    });
+    }, { timeout: 15000 });
     return { ok: true, eventId };
     } catch (err) {
       if (err instanceof StillOwes) return { ok: false, error: owesText(err.net, group.currency, memberId === actorId, m.name) };
