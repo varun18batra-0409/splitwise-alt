@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { logEvent } from "./events";
 import { formatMoney } from "./money";
-import { GroupChanged, groupChangedText, guardGroup } from "./money-guard";
+import { GroupChanged, groupChangedText, guardGroup, LeaverBreak, removedPaymentsBreak } from "./money-guard";
 
 // Payment tracking (older payments only: new "I've paid" taps are claims, see payment-claims.ts). When someone other than the person paid records a payment
 // ("Ravi paid Asha ₹300"), it counts straight away (as before) but Asha is
@@ -47,6 +47,10 @@ export async function rejectPayment(paymentId: string, myMemberId: string | unde
   eventId = await db.$transaction(async (tx) => {
     // First: the group is still open and in the same currency. (No actor check: a receiver who has left may still answer.)
     await guardGroup(tx, p.groupId, { currency: p.group.currency });
+    // Taking a payment off the balances must not leave someone who has left owing (or owed) anything new. (Answering a
+    // claim is different and stays open to a receiver who has left.)
+    const gone = await removedPaymentsBreak(tx, p.groupId, [p.id]);
+    if (gone.length) throw new LeaverBreak(gone[0], "changed here");
     const changed = await tx.payment.updateMany({ where: { id: p.id, deletedAt: null, okAt: null }, data: { deletedAt: new Date(), deletedById: myMemberId } });
     if (changed.count !== 1) return "";
     return logEvent(tx, {
@@ -59,6 +63,7 @@ export async function rejectPayment(paymentId: string, myMemberId: string | unde
     });
   });
   } catch (err) {
+    if (err instanceof LeaverBreak) return { ok: false, error: err.message };
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
     throw err;
   }

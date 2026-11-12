@@ -36,10 +36,14 @@ function transport() {
 }
 
 // `signInCode`: sign-in codes always get through first. Everything else
-// (invites, "you were added") stops a little before the daily ceiling, so a
+// (invites, "you were added", operator mail) stops 30 places before the daily ceiling, so a
 // burst of invites can never lock people out of signing in.
+// `suppress`: runs every check and counter exactly as a real send and gives the same answer, but never hands the email to
+// the mail service (or the test outbox). Used so a blocked invite looks identical to a real one from the outside.
 export const OPS_MAIL_PER_DAY = 20;
-export async function sendMail(to: string, subject: string, text: string, html: string, opts: { signInCode?: boolean; optOut?: boolean; item?: string; ops?: boolean } = {}): Promise<boolean> {
+// Tests only: MAIL_COUNTER_PREFIX gives a test its own app-wide counters, so it never touches the real ones.
+const counter = (name: string) => `${process.env.MAIL_COUNTER_PREFIX ?? ""}${name}`;
+export async function sendMail(to: string, subject: string, text: string, html: string, opts: { signInCode?: boolean; optOut?: boolean; item?: string; ops?: boolean; suppress?: boolean } = {}): Promise<boolean> {
   if (!mailConfigured()) return false;
   // An optional email that belongs to a "Notifications & email" switch: skipped (reported as sent, like an unsubscribe,
   // so the sender learns nothing about the other person) when that person's account has it off.
@@ -69,13 +73,13 @@ export async function sendMail(to: string, subject: string, text: string, html: 
   if (isTestAddress(to) && !outbox()) {
     if (!testCopy()) return true; // live app: never sent, never stored
     const { db } = await import("./db");
-    await db.outbox.create({ data: { to, subject, text } });
+    if (!opts.suppress) await db.outbox.create({ data: { to, subject, text } });
     return true;
   }
   if (outbox()) {
     // Automated tests: keep the email instead of sending it.
     const { db } = await import("./db");
-    await db.outbox.create({ data: { to, subject, text } });
+    if (!opts.suppress) await db.outbox.create({ data: { to, subject, text } });
     return true;
   }
   const { allow } = await import("./rate-limit");
@@ -84,28 +88,34 @@ export async function sendMail(to: string, subject: string, text: string, html: 
   // Checked BEFORE the app-wide daily ceiling: an email refused here is never sent,
   // so it must not use up a place meant for emails that are (otherwise repeated
   // invites to one address could use the whole day's budget and block sign-in codes).
-  // Mail to the operator (reports, support) has a small budget of its own: 20 a day in all (each address is one send). It is
-  // counted in the app-wide total (mail:all), so the provider's daily limit is never passed, but not in the invite budget
-  // (mail:other). Like invites it stops 30 places before the ceiling: those 30 are kept for sign-in codes.
-  // (Reports and support messages are saved in the app anyway, so a refused operator email loses nothing.)
-  const [capKey, capMax]: [string, number] = opts.ops ? ["mail:ops", OPS_MAIL_PER_DAY] : [`${opts.signInCode ? "mail:code" : "mail:to"}:${to.toLowerCase()}`, opts.signInCode ? 12 : 10];
-  if (!(await allow(capKey, capMax, 86_400))) return false;
-  // A daily ceiling for the whole app, so nobody can use up the quota and stop
-  // sign-in codes reaching everyone else. Under the sending service's own limit:
-  // Resend's free plan allows 100 a day, Gmail about 500. (MAIL_DAILY_CAP overrides.)
+  // Three budgets, so each protects the others:
+  //  - per address: 10 a day for invite-type mail (12 for sign-in codes), checked first, so a refusal here uses no place below;
+  //  - mail:other, shared by invites AND operator mail: at most (ceiling - 30) a day between them;
+  //  - mail:all, everything the provider sends: sign-in codes may use it right up to the ceiling.
+  // So sign-in codes can always use at least 30 places, invites and operator mail together never pass ceiling - 30, and the
+  // provider's daily limit is never passed. Sign-in codes themselves never count against mail:other.
+  // Operator mail also has 20 a day of its own (mail:ops): looked at first without using a place, and counted last, so an
+  // operator email refused for any reason uses no place anywhere. (Reports and support are saved in the app anyway.)
   const cap = Number(process.env.MAIL_DAILY_CAP ?? (/resend/i.test(process.env.SMTP_HOST ?? "") ? 95 : 400));
-  if (!opts.signInCode && !opts.ops && !(await allow("mail:other", Math.max(1, cap - 30), 86_400))) {
+  if (opts.ops) {
+    const { db } = await import("./db");
+    const row = await db.rateLimit.findUnique({ where: { key: counter("mail:ops") } }).catch(() => null);
+    if (row && row.resetAt > new Date() && row.count >= OPS_MAIL_PER_DAY) return false;
+  } else if (!(await allow(`${opts.signInCode ? "mail:code" : "mail:to"}:${to.toLowerCase()}`, opts.signInCode ? 12 : 10, 86_400))) {
+    return false;
+  }
+  if (!opts.signInCode && !(await allow(counter("mail:other"), Math.max(1, cap - 30), 86_400))) {
     console.error("sendMail: daily cap for invites reached (kept for sign-in codes)");
     await noteFailure("cap");
     return false;
   }
-  // Everything except sign-in codes (invites and operator mail) stops 30 places before the ceiling, so together they can never
-  // use the places kept for codes. Sign-in codes may use all the way up to the ceiling.
-  if (!(await allow("mail:all", opts.signInCode ? cap : Math.max(1, cap - 30), 86_400))) {
+  if (!(await allow(counter("mail:all"), cap, 86_400))) {
     console.error("sendMail: daily email cap reached");
     await noteFailure("cap");
     return false;
   }
+  if (opts.ops && !(await allow(counter("mail:ops"), OPS_MAIL_PER_DAY, 86_400))) return false;
+  if (opts.suppress) return true;
   const message = {
     from: process.env.MAIL_FROM ?? `Loopin <${process.env.SMTP_USER}>`,
     to,

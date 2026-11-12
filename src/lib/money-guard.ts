@@ -117,8 +117,8 @@ export async function leaverBalanceBreaks(
 
 // A refusal because a leaver's balance would move. `how`: "deleted" (plus "Ask them to rejoin first."), "undone", "redone".
 export class LeaverBreak extends Error {
-  constructor(name: string, how: "deleted" | "undone" | "redone" | "brought back") {
-    super(`${name} has left the group, so this can't be ${how}.${how === "deleted" ? " Ask them to rejoin first." : ""}`);
+  constructor(name: string, how: "deleted" | "undone" | "redone" | "brought back" | "changed here") {
+    super(`${name} has left the group, so this can't be ${how}.${how === "deleted" || how === "changed here" ? " Ask them to rejoin first." : ""}`);
   }
 }
 

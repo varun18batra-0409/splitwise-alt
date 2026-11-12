@@ -17,7 +17,7 @@ import { CurrencyPicker } from "./CurrencyPicker";
 import { expensePairs, payersJson } from "@/lib/payers";
 import { participantsFor, type ForMode, type SplitType } from "@/lib/split";
 import { splitByItems } from "@/lib/item-split";
-import { splitFields } from "@/lib/split-draft";
+import { chooseSplit, splitFields, type SplitAction } from "@/lib/split-draft";
 import { niceDate, rateText } from "@/lib/format";
 import { dayKey, todayKey } from "@/lib/dates";
 import { inputClass, primaryButtonClass } from "./ui";
@@ -190,10 +190,16 @@ export function AddExpenseForm({
     }
   }
 
+  // Every split choice goes through chooseSplit, so picking anything but "Items" leaves item mode.
+  function pickSplit(a: SplitAction) {
+    const n = chooseSplit({ byItem, forMode, splitType }, a);
+    setByItem(n.byItem);
+    setForMode(n.forMode);
+    setSplitType(n.splitType);
+  }
+
   function resetSplit() {
-    setByItem(false); // choosing "Everyone equally" leaves item mode, or the item amounts would still be sent
-    setForMode("everyone");
-    setSplitType("equal");
+    pickSplit({ kind: "everyone-equally" });
     setSelected(memberIds);
     setShowPeople(false);
     setShowOnly(false);
@@ -904,11 +910,9 @@ export function AddExpenseForm({
             <Chip
               on={!byItem && !showPeople && !showOnly && groupSplitOn}
               onClick={() => {
-                setByItem(false);
+                pickSplit({ kind: "group-split" });
                 setShowPeople(false);
                 setShowOnly(false);
-                setForMode("everyone");
-                setSplitType("shares");
                 setShares(groupShares);
               }}
             >
@@ -925,14 +929,11 @@ export function AddExpenseForm({
             <Chip
               on={!byItem && (showOnly || (!showPeople && forMode === "selected" && splitType === "equal"))}
               onClick={() => {
-                setByItem(false);
+                const wasSelected = forMode === "selected" && !byItem;
+                pickSplit({ kind: "only-some" });
                 setShowPeople(false);
                 setShowOnly(true);
-                setSplitType("equal");
-                if (forMode !== "selected") {
-                  setForMode("selected");
-                  setSelected([]);
-                }
+                if (!wasSelected) setSelected([]);
               }}
             >
               Only some
@@ -990,6 +991,9 @@ export function AddExpenseForm({
         )}
         {showPeople && (
           <div className="mt-3 space-y-6 rounded-2xl border border-line px-4 pb-4 pt-4">
+            {byItem ? (
+              <p className="text-sm text-gray-500" data-item-note>Split by item: each line says who it’s for.</p>
+            ) : (
             <div>
               <span className={labelClass}>Who was it for?</span>
               <Segmented
@@ -1030,6 +1034,7 @@ export function AddExpenseForm({
                 </div>
               )}
             </div>
+            )}
 
             {participants.length > 1 ? (
               <div>
@@ -1044,8 +1049,7 @@ export function AddExpenseForm({
                   ]}
                   value={byItem ? "items" : splitType}
                   onChange={(v) => {
-                    setByItem(v === "items");
-                    if (v !== "items") setSplitType(v as SplitType);
+                    pickSplit({ kind: "how", id: v as SplitType | "items" });
                   }}
                 />
                 {byItem && (

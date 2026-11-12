@@ -14,7 +14,7 @@ import { parsePayers, payersJson, payersLabel } from "./payers";
 import { isGameResult } from "./pot-result";
 import { findLikelyDuplicate } from "./duplicates";
 import { queuePhotoDeletes } from "./photo-store";
-import { chargeLock, chargeLockedText, isMoveOutCharge } from "./home/charge-lock";
+import { chargeLock, chargeLockedText, moveOutLeavers } from "./home/charge-lock";
 import type { Prisma } from "@prisma/client";
 
 export type SaveExpenseInput = ExpenseDraft & {
@@ -408,10 +408,12 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
     // A move-out daily charge can't be deleted, or come back, once that month's bill is being added or was added: the bill took it off its total.
     const locked = await chargeLock(tx, expense.groupId, expense.id);
     if (locked) throw deleted ? new ChargeLocked(locked.bill) : new MonthAdded(locked.bill);
-    if (deleted && !(await isMoveOutCharge(tx, expense.groupId, expense.id))) {
+    if (deleted) {
       // Deleting takes its amounts out of everyone's balance: a leaver can't end anywhere but where they were, or 0.
-      // (A move-out daily charge is exempt: deleting it is the tested way to take it back.)
-      const gone = await leaverBalanceBreaks(tx, expense.groupId, peopleInExpense({ paidById: expense.paidById, payers: parsePayers(expense.payers), shares: expense.shares }), (l) => ({ ...l, expenses: l.expenses.filter((x) => x.id !== expense.id) }));
+      // A move-out daily charge is exempt only for the leaver it was made for (deleting it is the tested way to take it
+      // back); anyone else on it, such as the payer, is still checked.
+      const exempt = new Set(await moveOutLeavers(tx, expense.groupId, expense.id));
+      const gone = await leaverBalanceBreaks(tx, expense.groupId, peopleInExpense({ paidById: expense.paidById, payers: parsePayers(expense.payers), shares: expense.shares }).filter((id) => !exempt.has(id)), (l) => ({ ...l, expenses: l.expenses.filter((x) => x.id !== expense.id) }));
       if (gone.length) throw new LeaverBreak(gone[0], "deleted");
     }
     if (!deleted) {

@@ -20,10 +20,11 @@ export async function chargeLock(client: PrismaClient | Prisma.TransactionClient
   return null;
 }
 
-// Is this expense a move-out daily charge, i.e. listed in any bill's prepaid list (whatever the month's status)?
-export async function isMoveOutCharge(client: PrismaClient | Prisma.TransactionClient, groupId: string, expenseId: string): Promise<boolean> {
+// The leavers a move-out daily charge was made for: the member ids (`m`) on this expense's entries in any bill's prepaid
+// list, whatever the month's status. Empty if it isn't a move-out charge.
+export async function moveOutLeavers(client: PrismaClient | Prisma.TransactionClient, groupId: string, expenseId: string): Promise<string[]> {
   const bills = await client.bill.findMany({ where: { groupId, prepaid: { contains: expenseId } }, select: { prepaid: true } });
-  return bills.some((b) => Object.values(parsePrepaid(b.prepaid)).some((list) => list.some((x) => x.e === expenseId)));
+  return bills.flatMap((b) => Object.values(parsePrepaid(b.prepaid)).flatMap((list) => list.filter((x) => x.e === expenseId).map((x) => x.m)));
 }
 
 export const chargeLockedText = (bill: string) => `This was counted in this month’s ${bill}. Edit ${bill} instead.`;

@@ -38,7 +38,7 @@ const { loopinFriends, createCollection, organiserAction } = await import("@/lib
 const { addRegistered } = await import("@/lib/invites");
 const { sendEventPush, sendPushTo } = await import("@/lib/push");
 const { contactSupportAction } = await import("@/app/safety-actions");
-const { loadReportsForOwner, saveSupportMessage } = await import("@/lib/reports");
+const { loadReportsForOwner, saveSupportMessage, openLabel } = await import("@/lib/reports");
 const { loadInvitations } = await import("@/lib/invitations");
 const { inviteToClaim } = await import("@/lib/invites");
 const { markPaidAction } = await import("@/app/collect-actions");
@@ -502,6 +502,10 @@ describe("support messages", () => {
     expect(rows.reports.every((r) => r.kind !== "support")).toBe(true);
   });
 
+  it("the 'to look at' count shows 100+ once a full page is open, and the exact number below that", () => {
+    expect([0, 1, 7, 99, 100, 101, 250].map(openLabel)).toEqual(["0", "1", "7", "99", "100+", "100+", "100+"]);
+  });
+
   it("a support message can't be filed through the report form", async () => {
     const t = await crew("s5");
     await signedInAs(t.asha);
@@ -591,6 +595,10 @@ describe("blocking: collection ticks and wax seals", () => {
     await redirected(() => markPaidAction(form({ code: made.code, entryId: entry.id })));
     for (const fn of state.pending.splice(0)) await fn();
     expect(await db.accountNote.count({ where: { accountId: t.asha.id, kind: "collect_ticked" } })).toBe(0);
+    // The tick itself really happened (Cleo's name is marked paid), so the missing note is the block's doing, not a failed tick.
+    const after = await db.collectionEntry.findUniqueOrThrow({ where: { id: entry.id } });
+    expect(after.status).toBe("paid");
+    expect(entry.status).toBe("due");
   });
 
   it("a signed-out tick still tells the organiser", async () => {

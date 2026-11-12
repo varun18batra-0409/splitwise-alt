@@ -27,6 +27,9 @@ export async function saveSupportMessage(o: { reporterId?: string; message: stri
 
 export const REPORTS_PAGE_SIZE = 100;
 
+// "7 to look at" / "100+ to look at": open ones come first and only a page of them is loaded, so a full page means "at least this many".
+export const openLabel = (open: number): string => (open >= REPORTS_PAGE_SIZE ? `${REPORTS_PAGE_SIZE}+` : String(open));
+
 // What /stats/reports shows. Owner only: anyone else gets "not found" before anything is read.
 export async function loadReportsForOwner(account: { email: string } | null | undefined) {
   requireOwner(account);

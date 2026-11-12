@@ -12,7 +12,9 @@ import { restoreCurrency, undoEvent } from "@/lib/undo";
 import { moveOut } from "@/lib/home/moving-db";
 import { GroupChanged, guardGroup, leaverBalanceBreaks, ledgerInTx } from "@/lib/money-guard";
 import { overpayLimit, overpayQuestion, recordPaymentCore } from "@/lib/pay-record";
-import { splitFields } from "@/lib/split-draft";
+import { rejectPayment } from "@/lib/payment-ok";
+import { chooseSplit, splitFields } from "@/lib/split-draft";
+import { removedPaymentsBreak } from "@/lib/money-guard";
 import { settleAcrossCore } from "@/lib/cross-settle-db";
 import { applySettleAll, markAllPaid, planKey, setPaymentsDeleted, settleAllAndClose } from "@/lib/settle-all";
 import { loadGroup } from "@/lib/group-data";
@@ -792,9 +794,9 @@ describe("review fixes: undo, move-out, deletes and redo re-check inside the wri
     expect((await net(g.id))[g.ids.C]).toBe(0);
   });
 
-  it("N10: deleting the same payment through 'undo Mark all paid' (setPaymentsDeleted) is refused too", async () => {
+  it("N10: undoing 'Mark all paid' (setPaymentsDeleted) over C's payment is refused with the 'undone' wording", async () => {
     const g = await cLeftSquare();
-    expect(await setPaymentsDeleted(g.id, g.ids.A, [g.pay.id], true)).toEqual({ ok: false, error: deleteText });
+    expect(await setPaymentsDeleted(g.id, g.ids.A, [g.pay.id], true)).toEqual({ ok: false, error: "C has left the group, so this can't be undone." });
     expect((await net(g.id))[g.ids.C]).toBe(0);
   });
 
@@ -873,12 +875,86 @@ describe("review fixes: undo, move-out, deletes and redo re-check inside the wri
     expect(Object.fromEntries(shares.map((x) => [x.memberId, x.amount]))).toEqual({ [Alice]: 8000, [Bob]: 2000 });
   });
 
-  it("SEQ-UI-01: every handler that picks a non-item split leaves item mode", () => {
+  it("SEQ-UI-01: the equal / only-some / group chips show as not selected in item mode", () => {
     const src = readFileSync(path.resolve(__dirname, "..", "src/components/AddExpenseForm.tsx"), "utf8");
-    expect(src.slice(src.indexOf("function resetSplit"), src.indexOf("function resetSplit") + 120)).toMatch(/setByItem\(false\)/);
-    expect(src).toMatch(/onClick=\{\(\) => \{\s*setByItem\(false\);\s*setShowPeople\(false\);\s*setShowOnly\(false\);\s*setForMode\("everyone"\);\s*setSplitType\("shares"\)/); // the group-split chip
-    expect(src).toMatch(/setByItem\(false\);\s*setShowPeople\(false\);\s*setShowOnly\(true\)/); // "Only some"
-    expect(src).toMatch(/on=\{!byItem && !showPeople && !showOnly && forMode === "everyone"/); // not shown as selected in item mode
+    expect(src).toMatch(/on=\{!byItem && !showPeople && !showOnly && forMode === "everyone" && splitType === "equal"\}/);
+    expect(src).toMatch(/on=\{!byItem && !showPeople && !showOnly && groupSplitOn\}/);
+    expect(src).toMatch(/on=\{!byItem && \(showOnly/);
+  });
+
+  it("N4: 'Not received' on B's ₹300 payment to C is refused once B has left: B stays at 0", async () => {
+    const g = await make(["B", "C"]);
+    await addExpense(g.id, g.ids.C, 30000, [[g.ids.B, 30000]], "Taxi"); // B owes C 30000
+    const pay = await payNow(g.id, g.ids.B, g.ids.C, 30000); // B pays: 0 / 0
+    await db.member.update({ where: { id: g.ids.B }, data: { leftAt: new Date() } });
+    expect(await rejectPayment(pay.id, g.ids.C)).toEqual({ ok: false, error: "B has left the group, so this can't be changed here. Ask them to rejoin first." });
+    expect((await db.payment.findUniqueOrThrow({ where: { id: pay.id } })).deletedAt).toBeNull();
+    expect(await net(g.id)).toEqual({ [g.ids.B]: 0, [g.ids.C]: 0 });
+  });
+
+  it("N4: 'Not received' still works when nobody involved has left (B owes C 30000 again)", async () => {
+    const g = await make(["B", "C"]);
+    await addExpense(g.id, g.ids.C, 30000, [[g.ids.B, 30000]], "Taxi");
+    const pay = await payNow(g.id, g.ids.B, g.ids.C, 30000);
+    expect((await rejectPayment(pay.id, g.ids.C)).ok).toBe(true);
+    expect(await net(g.id)).toEqual({ [g.ids.B]: -30000, [g.ids.C]: 30000 });
+  });
+
+  it("N4: the pay-link take-back uses the same rule (C, who was paid 30000 and left, would be left at +30000)", async () => {
+    const g = await make(["B", "C"]);
+    await addExpense(g.id, g.ids.C, 30000, [[g.ids.B, 30000]], "Taxi");
+    const pay = await payNow(g.id, g.ids.B, g.ids.C, 30000); // C: +30000 − 30000 = 0
+    await db.member.update({ where: { id: g.ids.C }, data: { leftAt: new Date() } });
+    expect(await db.$transaction((tx) => removedPaymentsBreak(tx, g.id, [pay.id]))).toEqual(["C"]);
+    const src = readFileSync(path.resolve(__dirname, "..", "src/app/pay-link-actions.ts"), "utf8");
+    expect(src.indexOf("removedPaymentsBreak(tx")).toBeGreaterThan(src.indexOf("guardGroup(tx"));
+    expect(src.indexOf("removedPaymentsBreak(tx")).toBeLessThan(src.indexOf("tx.payment.updateMany"));
+  });
+
+  // L1: a move-out charge (Ravi's share 20800, paid by Asha) is exempt only for Ravi.
+  async function chargeFlat() {
+    const g = await make(["Asha", "Ravi", "Meera"]);
+    const charge = await addExpense(g.id, g.ids.Asha, 20800, [[g.ids.Ravi, 20800]], "Milk (Ravi’s share)");
+    await payNow(g.id, g.ids.Ravi, g.ids.Asha, 20800); // Asha 0, Ravi 0
+    await db.bill.create({ data: { groupId: g.id, name: "Milk", nature: "daily", amount: 4800, day: 1, startMonth: "2026-11", payer: g.ids.Meera, prepaid: JSON.stringify({ "2026-11": [{ m: g.ids.Ravi, a: 20800, e: charge.id, d: "2026-11-14" }] }) } });
+    return { ...g, charge };
+  }
+
+  it("L1: only Ravi has left: deleting his move-out charge is allowed (the exempt case: he ends at +20800)", async () => {
+    const g = await chargeFlat();
+    await db.member.update({ where: { id: g.ids.Ravi }, data: { leftAt: new Date() } });
+    expect((await setExpenseDeleted(g.charge.id, g.ids.Meera, true)).ok).toBe(true);
+  });
+
+  it("L1: Asha (the payer) also left: deleting the charge would put her at −20800 (paid 20800 back, no expense): refused", async () => {
+    const g = await chargeFlat();
+    await db.member.updateMany({ where: { id: { in: [g.ids.Ravi, g.ids.Asha] } }, data: { leftAt: new Date() } });
+    expect(await setExpenseDeleted(g.charge.id, g.ids.Meera, true)).toEqual({ ok: false, error: "Asha has left the group, so this can't be deleted. Ask them to rejoin first." });
+    expect((await db.expense.findUniqueOrThrow({ where: { id: g.charge.id } })).deletedAt).toBeNull();
+  });
+
+  it("SEQ-UI-01: choosing 'Everyone equally' while item mode is on gives equal fields (fails if the choice keeps item mode)", () => {
+    const inItems = { byItem: true, forMode: "everyone" as const, splitType: "exact" as const };
+    const itemExactAmounts = { A: "80", B: "20" };
+    for (const kind of ["everyone-equally", "only-some", "group-split"] as const) {
+      const n = chooseSplit(inItems, { kind });
+      expect(n.byItem, kind).toBe(false);
+      expect(splitFields({ ...n, exact: {}, itemExact: itemExactAmounts }).exact, kind).toEqual({});
+    }
+    const eq = chooseSplit(inItems, { kind: "everyone-equally" });
+    expect(splitFields({ ...eq, exact: {}, itemExact: itemExactAmounts })).toEqual({ forMode: "everyone", splitType: "equal", exact: {} });
+    // Picking Items turns it on again; picking Amounts/% leaves it.
+    expect(chooseSplit(eq, { kind: "how", id: "items" }).byItem).toBe(true);
+    expect(chooseSplit(inItems, { kind: "how", id: "percent" })).toEqual({ byItem: false, forMode: "everyone", splitType: "percent" });
+  });
+
+  it("SEQ-UI-01: while item mode is on, the Who-was-it-for control is hidden and every split chip goes through chooseSplit", () => {
+    const src = readFileSync(path.resolve(__dirname, "..", "src/components/AddExpenseForm.tsx"), "utf8");
+    expect(src).toMatch(/\{byItem \? \(\s*<p[^>]*data-item-note>Split by item: each line says who it’s for\./);
+    expect(src).toMatch(/pickSplit\(\{ kind: "everyone-equally" \}\)/);
+    expect(src).toMatch(/pickSplit\(\{ kind: "only-some" \}\)/);
+    expect(src).toMatch(/pickSplit\(\{ kind: "group-split" \}\)/);
+    expect(src).toMatch(/pickSplit\(\{ kind: "how"/);
   });
 });
 

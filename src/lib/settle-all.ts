@@ -215,7 +215,7 @@ export async function setPaymentsDeleted(groupId: string, actorId: string, payme
     await guardGroup(tx, groupId, { currency: group.currency, actorId });
     // Someone who has left may only end with the balance they had, or 0.
     const goneHere = deleted ? await removedPaymentsBreak(tx, groupId, paymentIds) : await restoredPaymentsBreak(tx, groupId, paymentIds);
-    if (goneHere.length) throw new LeaverBreak(goneHere[0], deleted ? "deleted" : "redone");
+    if (goneHere.length) throw new LeaverBreak(goneHere[0], deleted ? "undone" : "redone"); // this is the Undo / Redo of "Mark all paid"
     if (deleted) await tx.payment.updateMany({ where: { id: { in: paymentIds }, groupId }, data: { deletedAt: new Date(), deletedById: actorId } });
     else await restorePayments(tx, paymentIds, actorId, groupId);
     return logEvent(tx, {

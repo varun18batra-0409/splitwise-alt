@@ -54,7 +54,7 @@ export default function Privacy() {
         <li>Your Trip passport details: the home country you pick and any places you add by hand. Its trips come from your trip groups.</li>
         <li>Postcards you send or get: the card, your message and, if you add one, your own photo.</li>
         <li>Your answer to “Let AI read bills and lines”, on your account (or on your phone, if you have no account).</li>
-        <li>Messages you send to support: the message, the date and any reply email you leave. If you’re signed in it’s saved with your account. If you’re not, it isn’t linked to an account, and your network address is kept for up to two days, only to limit abuse.</li>
+        <li>Messages you send to support: the message, the date and any reply email you leave. If you’re signed in it’s saved with your account. If you’re not, it isn’t linked to an account, and your network address is kept for about two days, only to limit abuse.</li>
         <li>Blocks you make, and reports you send about something another person sent you (what, why and your note).</li>
       </ul>
 
@@ -108,7 +108,7 @@ export default function Privacy() {
       <ul className={`mt-2 ${ul}`}>
         <li><strong>Vercel:</strong> runs the app (our servers are in Mumbai) and keeps your photos in its private file storage.</li>
         <li><strong>Turso:</strong> keeps the database: your groups, expenses, accounts and the rest.</li>
-        <li><strong>Resend:</strong> sends our emails. It gets the address, and the words of the email (sign-in codes, invites), and it carries the support messages and reply email you send us.</li>
+        <li><strong>Resend:</strong> sends our emails. It gets the address, and the words of the email (sign-in codes, invites), and it carries the support messages and reply email you send us, and for a message sent while signed in, the email address you signed in with.</li>
         <li><strong>Anthropic (Claude):</strong> reads a bill photo you scan, or a typed or spoken expense Loopin can’t follow on its own, but only after you say yes. Loopin asks you the first time. It gets that photo or line, and the first names in the group. Anthropic doesn’t use it to train its models. Say no, or change your mind any time, in You → Privacy and safety; then bill photos are only attached and lines stay as you typed them.</li>
         <li><strong>Google:</strong> if you choose Continue with Google, it tells us your email and name. Speaking an expense uses your browser’s own voice typing (Google’s in Chrome, Apple’s in Safari); Loopin only receives the words. Postcard lettering is loaded by your browser from Google Fonts.</li>
         <li><strong>Frankfurter:</strong> gives us currency exchange rates. It is only asked for rates, never about you.</li>
@@ -132,7 +132,7 @@ export default function Privacy() {
         <li>
           What stays in shared groups: your name in their history, an invitation that holds your email, and a phone number someone else saved for you. They are other people’s shared records, so deleting your account doesn’t rewrite them.
         </li>
-        <li>Support messages that were already emailed to Loopin’s support inbox aren’t erased by the app, and messages sent while signed out aren’t linked to an account, so deleting your account doesn’t reach them. Write to us if you want one removed.</li>
+        <li>Support messages that were already emailed to Loopin’s support inbox aren’t erased by the app, and messages sent while signed out aren’t linked to an account, so deleting your account doesn’t reach them. To have one removed, use <a href="/support" className="underline underline-offset-4">Contact support</a>.</li>
         <li>Reports stay with us so we can act on them: the ones you made, and reports made about you, including the reporter’s note, are kept even after you delete your account.</li>
         <li>“You → Download all my data” gives you your account details, your groups, expenses and payments, and your messages to support, in one spreadsheet. Reports you sent and reports about you are not in it.</li>
         <li>Encrypted backups are kept for 14 days and then removed. Something you delete can stay in a backup until then.</li>
@@ -141,7 +141,7 @@ export default function Privacy() {
       <h2 className={h}>Your rights</h2>
       <p className={p}>
         Under India’s Digital Personal Data Protection Act, 2023, you can ask to see the data we hold about you, correct it, have it erased, and complain if
-        something is wrong. The quickest way is in the app: “You → Download all my data” gives you your account details, groups, expenses, payments and messages to support (not reports or our own records, so write to us for those), edit things in the app to correct them, and “You → Delete my
+        something is wrong. The quickest way is in the app: “You → Download all my data” gives you your account details, groups, expenses, payments and messages to support (not reports or our own records; use Contact support for those), edit things in the app to correct them, and “You → Delete my
         email &amp; sign-in” to erase it.
         {contactReady ? (
           <>

@@ -375,21 +375,17 @@ export async function inviteToClaim(groupId: string, actorId: string, memberId: 
     }),
   ]);
   const link = `${origin}/join/${group.inviteCode}?${new URLSearchParams({ e: email, as: member.id })}`;
-  // If that email belongs to someone who blocked the inviter, nothing is sent (the reply is the same, and the name stays in the group).
+  // If that email belongs to someone who blocked the inviter, nothing is sent. The email goes through exactly the same checks and
+  // counters as a real one (opted out, switched off, daily limits, mail not set up) and gives the same answer, but is never
+  // handed to the mail service (`suppress`), so the reply can't be used to find out whether someone blocked you.
   const theirAccount = await db.account.findUnique({ where: { email }, select: { id: true } });
-  if (theirAccount && actor.accountId && (await hasBlocked(theirAccount.id, actor.accountId).catch(() => true))) {
-    // Counted against the same per-address daily limit as a real send, so the 11th invite to one address gets the same
-    // answer whether or not it was blocked (the reply can't be used to find out).
-    if (!(await allow(`mail:to:${email.toLowerCase()}`, 10, 86_400))) return { ok: false, error: "The email couldn’t be sent. Share the group’s invite link instead." };
-    await logEvent(db, { groupId, actorId, kind: "member_invited", text: `invited ${member.name} to join` });
-    return { ok: true, email };
-  }
+  const blocked = Boolean(theirAccount && actor.accountId && (await hasBlocked(theirAccount.id, actor.accountId).catch(() => true)));
   const sent = await sendMail(
     email,
     `${actor.name} added you to ${group.name} on Loopin`,
     `${actor.name} added you as “${member.name}” in “${group.name}” on Loopin. Tap to join and see your share:\n\n${link}`,
     `<div style="font-family:system-ui,sans-serif;max-width:440px"><p style="font-size:16px"><strong>${esc(actor.name)}</strong> added you as <strong>${esc(member.name)}</strong> in <strong>${esc(group.name)}</strong> on Loopin.</p><p><a href="${link}" style="display:inline-block;background:#0d0d0f;color:#f4f2ec;padding:12px 18px;text-decoration:none;font-weight:600">Join as ${esc(member.name)}</a></p></div>`,
-    { optOut: true, item: "groups.added" },
+    { optOut: true, item: "groups.added", suppress: blocked },
   );
   if (!sent) return { ok: false, error: "The email couldn’t be sent. Share the group’s invite link instead." };
   await logEvent(db, { groupId, actorId, kind: "member_invited", text: `invited ${member.name} to join` });

@@ -8,7 +8,7 @@ import { formatMoney } from "@/lib/money";
 import { makeClaim, tellReceiver, withdrawClaim } from "@/lib/payment-claims";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { readPayLink, recordLinkPayment } from "@/lib/pay-link";
-import { GroupChanged, groupChangedText, guardGroup } from "@/lib/money-guard";
+import { GroupChanged, groupChangedText, guardGroup, LeaverBreak, removedPaymentsBreak } from "@/lib/money-guard";
 
 // The "I've paid" link (no sign-in): say you paid what you owe (a claim that counts
 // only once the other person taps "Confirm received"), or take it back while it's waiting.
@@ -63,6 +63,8 @@ export async function undoIPaidAction(f: FormData) {
   await db.$transaction(async (tx) => {
     // First: the group is still open and in the same currency (a closed group's payments are not changed from here).
     await guardGroup(tx, s.group.id, { currency: s.group.currency, actorId: s.link.fromId });
+    const leaver = await removedPaymentsBreak(tx, s.group.id, [s.link.paymentId]);
+    if (leaver.length) throw new LeaverBreak(leaver[0], "changed here");
     const gone = await tx.payment.updateMany({ where: { id: s.link.paymentId, okAt: null, deletedAt: null }, data: { deletedAt: new Date(), deletedById: s.link.fromId } });
     if (gone.count !== 1) return;
     await tx.payLink.update({ where: { id: s.link.id }, data: { paymentId: "" } });
@@ -75,6 +77,7 @@ export async function undoIPaidAction(f: FormData) {
     });
   });
   } catch (err) {
+    if (err instanceof LeaverBreak) back(token, { error: err.message });
     if (err instanceof GroupChanged) back(token, { error: err.reason === "closed" ? "This group is closed, so this can’t be taken back here." : err.reason === "actor_left" ? "You’re no longer in this group, so this can’t be taken back here." : groupChangedText(err) });
     throw err;
   }
