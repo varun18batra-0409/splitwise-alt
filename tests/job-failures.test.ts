@@ -40,9 +40,9 @@ afterAll(async () => {
 
 describe("photo clean-up", () => {
   it("a run that breaks says so (error, failed >= 1) instead of returning an empty success", async () => {
-    const spy = vi.spyOn(db.blobTrash, "findMany").mockRejectedValueOnce(new Error("db down"));
+    // Fails once, then calls through to the real one. (No mockRestore: on the database client it removes the real method.)
+    vi.spyOn(db.blobTrash, "findMany").mockRejectedValueOnce(new Error("db down"));
     const r = await flushPhotoDeletes();
-    spy.mockRestore();
     expect(r.error).toContain("db down");
     expect(r.failed).toBeGreaterThanOrEqual(1);
     // A normal run has no error field.
@@ -50,10 +50,10 @@ describe("photo clean-up", () => {
   });
 
   it("the daily 'blob-trash' part is listed as failed when the clean-up broke", async () => {
-    const spy = vi.spyOn(db.blobTrash, "findMany").mockRejectedValueOnce(new Error("db down"));
+    // Fails once, then calls through to the real one. (No mockRestore: on the database client it removes the real method.)
+    vi.spyOn(db.blobTrash, "findMany").mockRejectedValueOnce(new Error("db down"));
     const failed: string[] = [];
     const report = await runClaimedParts(new Date(), () => false, failed, ["blob-trash"]);
-    spy.mockRestore();
     expect(failed).toEqual(["blob-trash"]);
     expect(report.results["blob-trash"]).toEqual({ error: "failed" });
   });
@@ -81,22 +81,18 @@ describe("daily budgets part", () => {
 describe("daily check email", () => {
   it("a photo-delete check that couldn't run is a problem in itself, not 'all quiet'", async () => {
     process.env.ADMIN_EMAIL = `ops-${stamp}@example.test`;
-    const spy = vi.spyOn(db.blobTrash, "count").mockRejectedValue(new Error("db down"));
-    try {
-      const r = await sendOpsDigest(new Date(), []);
-      expect(r.reason).toBe("issues");
-    } finally {
-      spy.mockRestore();
-    }
+    // Fails once, then calls through (no mockRestore on the database client: it would remove the real method).
+    vi.spyOn(db.blobTrash, "count").mockRejectedValueOnce(new Error("db down"));
+    const r = await sendOpsDigest(new Date(), []);
+    expect(r.reason).toBe("issues");
   });
 });
 
 describe("push sends", () => {
   it("a send that broke is written to the error list and still returns 0", async () => {
     const before = await db.errorLog.count({ where: { path: "push", message: { startsWith: "sendPushTo" } } });
-    const spy = vi.spyOn(db.pushSubscription, "findMany").mockRejectedValueOnce(new Error("db down"));
+    vi.spyOn(db.pushSubscription, "findMany").mockRejectedValueOnce(new Error("db down"));
     const sent = await sendPushTo(["someone"], { title: "t", body: "b", url: "/", tag: "x" }, "expenses.added");
-    spy.mockRestore();
     expect(sent).toBe(0);
     expect(await db.errorLog.count({ where: { path: "push", message: { startsWith: "sendPushTo" } } })).toBe(before + 1);
   });
