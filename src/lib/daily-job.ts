@@ -133,6 +133,7 @@ export async function runClaimedParts(now: Date, stop: () => boolean, failed: st
     } catch (err) {
       console.error(`daily job: ${name} failed`, String(err).slice(0, 300));
       failed.push(name);
+      if ((err as { deferred?: boolean } | null)?.deferred === true) deferred.push(name); // failed AND unfinished: the evening run finishes it
       results[name] = { error: "failed" };
     }
   };
@@ -152,15 +153,31 @@ export async function runClaimedParts(now: Date, stop: () => boolean, failed: st
   await part("budgets", async () => {
     const groups = await db.budget.findMany({ select: { groupId: true }, distinct: ["groupId"], orderBy: { groupId: "asc" } });
     let sent = 0;
+    let errors = 0;
     for (const b of groups) {
-      if (stop()) return { sent, deferred: true };
-      sent += (await checkBudgets(b.groupId, now).catch(() => [])).length;
+      if (stop()) {
+        // Time is up: the rest is deferred as before, but a group that already failed still marks the part as failed.
+        if (errors) throw Object.assign(new Error(`budgets: ${errors} group(s) failed`), { deferred: true });
+        return { sent, deferred: true };
+      }
+      // A group whose check broke is counted (and the part reported as failed), not passed off as "nothing to send".
+      try {
+        sent += (await checkBudgets(b.groupId, now)).length;
+      } catch (err) {
+        errors++;
+        console.error("daily job: budgets check failed", String(err).slice(0, 200));
+      }
     }
+    if (errors) throw new Error(`budgets: ${errors} group(s) failed`);
     return { sent, deferred: false };
   });
   await part("summaries", () => nudge((legacy) => sendMonthlySummaries(now, stop, { legacy })));
   await part("memories", () => nudge((legacy) => sendMemoryLane(now, stop, { legacy })));
   await part("postcards", () => noteOpenedPostcards(now));
-  await part("blob-trash", async () => (await import("./photo-store")).flushPhotoDeletes(200, now));
+  await part("blob-trash", async () => {
+    const r = await (await import("./photo-store")).flushPhotoDeletes(200, now);
+    if (r.error) throw new Error(`blob-trash: ${r.error}`); // the clean-up itself broke: a failure, not an empty success
+    return r;
+  });
   return { results, deferred };
 }

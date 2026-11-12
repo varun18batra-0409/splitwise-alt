@@ -2,6 +2,7 @@
 
 import Link from "@/components/Link";
 import { useEffect, useRef, useState } from "react";
+import { trapFocus } from "@/lib/focus-trap";
 import { markSheetSeen, shouldShowSheet, sheetFor, type SheetCard } from "@/lib/group-type-sheet";
 
 const ICONS: Record<SheetCard["icon"], React.ReactNode> = {
@@ -54,33 +55,7 @@ export function GroupTypeSheet({ groupId, type }: { groupId: string; type: strin
   // While open: focus moves into the sheet, Tab stays inside it, Escape closes, and focus goes back to where it was.
   useEffect(() => {
     if (!open) return;
-    const before = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    heading.current?.focus({ preventScroll: true });
-    const keys = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        close();
-        return;
-      }
-      if (e.key !== "Tab") return;
-      const items = Array.from(box.current?.querySelectorAll<HTMLElement>("a[href], button:not([disabled]), [tabindex]:not([tabindex='-1'])") ?? []);
-      if (items.length === 0) return;
-      const first = items[0];
-      const last = items[items.length - 1];
-      const now = document.activeElement;
-      const inside = box.current?.contains(now) ?? false;
-      if (e.shiftKey && (now === first || now === heading.current || !inside)) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && (now === last || !inside)) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-    window.addEventListener("keydown", keys);
-    return () => {
-      window.removeEventListener("keydown", keys);
-      if (before && document.contains(before)) before.focus({ preventScroll: true });
-    };
+    return trapFocus(box.current, { onEscape: close, start: heading.current });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 

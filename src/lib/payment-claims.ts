@@ -6,6 +6,7 @@ import { formatMoney } from "./money";
 import { createPayment } from "./payments";
 import { withRetry } from "./once";
 import { needsOkFor } from "./payment-ok";
+import { GroupChanged, groupChangedText, guardGroup, ledgerInTx } from "./money-guard";
 
 // "I've paid" claims. Ravi says he paid Asha. That is a claim, NOT a payment:
 // it never changes a balance. It waits for Asha's "Confirm received", which
@@ -25,11 +26,11 @@ export const claimRef = (claimId: string) => `claim:${claimId}`;
 const notThere = "That one isn’t there any more.";
 
 // Phone notification for one person (the group's history line is separate).
-function pushToReceiver(toId: string, p: { title: string; body: string; url: string; tag: string }, item: "payments.claimed" | "payments.answered") {
+function pushToReceiver(toId: string, p: { title: string; body: string; url: string; tag: string }, item: "payments.claimed" | "payments.answered", fromId?: string) {
   try {
     after(async () => {
       const { sendPushTo } = await import("./push");
-      await sendPushTo([toId], p, item);
+      await sendPushTo([toId], p, item, fromId);
     });
   } catch {
     /* not inside a request (tests, scripts): nothing is sent */
@@ -89,8 +90,8 @@ async function makeClaimOnce(input: MakeInput): Promise<ClaimResult> {
 }
 
 // After makeClaim succeeded for the first time: tell the person paid.
-export function tellReceiver(c: { claimId: string; groupId: string; groupName: string; toId: string; fromName: string; amountText: string }) {
-  pushToReceiver(c.toId, { title: `💸 ${c.groupName}`, body: `${c.fromName} says they paid you ${c.amountText}. Tap to confirm.`, url: `/groups/${c.groupId}/settle`, tag: `claim-${c.claimId}` }, "payments.claimed");
+export function tellReceiver(c: { claimId: string; groupId: string; groupName: string; toId: string; fromName: string; amountText: string; fromId?: string }) {
+  pushToReceiver(c.toId, { title: `💸 ${c.groupName}`, body: `${c.fromName} says they paid you ${c.amountText}. Tap to confirm.`, url: `/groups/${c.groupId}/settle`, tag: `claim-${c.claimId}` }, "payments.claimed", c.fromId);
 }
 
 // The payer takes it back while it's still waiting. Allowed only for the person who made it.
@@ -127,7 +128,7 @@ async function declineClaimOnce(claimId: string, myMemberId: string | undefined)
   // The payer is told too (the group-wide push skips these notes), so they check their payment app.
   const to = await db.member.findUnique({ where: { id: claim.toId }, select: { name: true } });
   const g = await db.group.findUnique({ where: { id: claim.groupId }, select: { name: true } });
-  pushToReceiver(claim.fromId, { title: `💬 ${g?.name ?? "Loopin"}`, body: declinedNote(to?.name ?? "They", claim.amount, claim.currency), url: `/groups/${claim.groupId}/settle`, tag: `claim-declined-${claim.id}` }, "payments.answered");
+  pushToReceiver(claim.fromId, { title: `💬 ${g?.name ?? "Loopin"}`, body: declinedNote(to?.name ?? "They", claim.amount, claim.currency), url: `/groups/${claim.groupId}/settle`, tag: `claim-declined-${claim.id}` }, "payments.answered", myMemberId);
   return { ok: true, claimId, eventId: done };
 }
 
@@ -135,6 +136,12 @@ async function declineClaimOnce(claimId: string, myMemberId: string | undefined)
 // All in one transaction: the claim moves waiting → confirmed (exactly one row
 // must move, so tapping twice records one payment), then the payment is made.
 export const confirmClaim = (claimId: string, myMemberId: string | undefined, o: { over?: boolean } = {}): Promise<ClaimResult> => withRetry(() => confirmClaimOnce(claimId, myMemberId, o));
+
+class OverClaim extends Error {
+  constructor(public over: number) {
+    super("more than owed");
+  }
+}
 
 async function confirmClaimOnce(claimId: string, myMemberId: string | undefined, o: { over?: boolean }): Promise<ClaimResult> {
   const claim = await db.paymentClaim.findUnique({ where: { id: claimId } });
@@ -145,7 +152,7 @@ async function confirmClaimOnce(claimId: string, myMemberId: string | undefined,
 
   const data = await loadGroup(claim.groupId, { events: false });
   if (!data) return { ok: false, error: "This group no longer exists." };
-  const { group, transfers } = data;
+  const { group } = data;
   const from = group.members.find((m) => m.id === claim.fromId);
   const to = group.members.find((m) => m.id === claim.toId);
   if (!from || !to) return { ok: false, error: notThere };
@@ -155,14 +162,18 @@ async function confirmClaimOnce(claimId: string, myMemberId: string | undefined,
     await db.paymentClaim.updateMany({ where: { id: claim.id, status: "waiting" }, data: { status: "expired", slot: claim.id, decidedAt: new Date(), decidedById: myMemberId } });
     return { ok: false, error: `The group’s currency changed after ${from.name} said they paid, so that note is out of date. Ask ${from.name} to tap I’ve paid again.` };
   }
-  // More than they owe THIS person now (the expense was edited, or part was paid another way): ask once.
-  // Compared with what the payer owes the receiver in the settle plan, never their total debt to everyone,
-  // so a payer who owes two people can't have a claim to one pass as if it were a claim to the other.
-  const owes = transfers.find((t) => t.from === claim.fromId && t.to === claim.toId)?.amount ?? 0;
-  if (claim.amount > owes && !o.over) return { ok: false, error: "More than what’s owed.", over: claim.amount - owes };
-
   const amountText = formatMoney(claim.amount, claim.currency);
-  const result = await db.$transaction(async (tx) => {
+  let result: { paymentId: string; eventId: string } | null;
+  try {
+  result = await db.$transaction(async (tx) => {
+    // The group must still be as read (same currency, open). No actor check: a receiver who has left may still confirm.
+    await guardGroup(tx, claim.groupId, { currency: claim.currency });
+    // More than they owe THIS person now (the expense was edited, or part was paid another way): ask once.
+    // Compared with what the payer owes the receiver in the settle plan, never their total debt to everyone,
+    // so a payer who owes two people can't have a claim to one pass as if it were a claim to the other.
+    // Worked out here, inside the write, so a change made since the page loaded can't slip past.
+    const owes = (await ledgerInTx(tx, claim.groupId)).transfers.find((t) => t.from === claim.fromId && t.to === claim.toId)?.amount ?? 0;
+    if (claim.amount > owes && !o.over) throw new OverClaim(claim.amount - owes);
     const moved = await tx.paymentClaim.updateMany({ where: { id: claim.id, status: "waiting" }, data: { status: "confirmed", slot: claim.id, decidedAt: new Date(), decidedById: myMemberId } });
     if (moved.count !== 1) return null; // somebody else got there first: record nothing
     const payment = await createPayment(tx, { groupId: claim.groupId, fromId: claim.fromId, toId: claim.toId, amount: claim.amount, createdById: claim.fromId, okAt: new Date() });
@@ -183,7 +194,12 @@ async function confirmClaimOnce(claimId: string, myMemberId: string | undefined,
       undo: { type: "payment_delete", paymentId: payment.id },
     });
     return { paymentId: payment.id, eventId };
-  });
+  }, { timeout: 15000 });
+  } catch (err) {
+    if (err instanceof OverClaim) return { ok: false, error: "More than what’s owed.", over: err.over };
+    if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
+    throw err;
+  }
   if (!result) {
     const now = await db.paymentClaim.findUnique({ where: { id: claim.id }, select: { status: true, paymentId: true } });
     if (now?.status === "confirmed") return { ok: true, claimId, already: true, paymentId: now.paymentId || undefined };

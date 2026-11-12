@@ -1,6 +1,7 @@
+import { closeHint, sharesHint } from "@/lib/settings-words";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { getMyMemberId } from "@/lib/identity";
+import { getMyMemberId, privatePath } from "@/lib/identity";
 import { convertGroupCurrency, deleteGroup, saveGroupSettings, setGroupClosed } from "@/app/actions";
 import { NOTIFY_KINDS, parseNotify } from "@/lib/notify-prefs";
 import { GROUP_TYPES, sharingInputs } from "@/lib/group-types";
@@ -54,7 +55,7 @@ export default async function GroupSettings({
   });
   if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
-  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
   // Someone who left can still read the group, but not change it.
   if (group.members.find((m) => m.id === myId)?.leftAt) redirect(`/groups/${group.id}/people?error=${encodeURIComponent("You left this group. Rejoin it to change its settings.")}`);
 
@@ -220,9 +221,7 @@ export default async function GroupSettings({
           <fieldset>
             <legend className="mb-1 text-base font-semibold">{group.type === "couple" ? "Each person’s %" : "Shares"}</legend>
             <p className="mb-3 text-sm text-gray-500">
-              {group.type === "couple"
-                ? "Your split for every expense, e.g. 55 and 45."
-                : "Everyone pays 1 share unless you change it, e.g. 1.5 for a bigger room."}
+              {sharesHint(group.type)}
             </p>
             <ul className="divide-y divide-line rounded-2xl border border-line">
               {active.map((m) => (
@@ -323,7 +322,7 @@ export default async function GroupSettings({
       <section id="close" className="mt-6 scroll-mt-6">
         <h3 className="mb-1 text-base font-semibold">{group.closed ? "This group is closed" : "Close this group"}</h3>
         <p className="mb-4 text-sm text-gray-500">
-          {group.closed ? "New expenses are paused. History is kept." : "Trip over? Close it. History is kept and you can reopen it any time."}
+          {closeHint(group.type, group.closed)}
         </p>
         <form action={setGroupClosed}>
           <input type="hidden" name="groupId" value={group.id} />

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "@/components/Link";
 import { db } from "@/lib/db";
 import { getAccount } from "@/lib/identity";
+import { blockedEitherWay } from "@/lib/blocks";
 import { getTimeZone } from "@/lib/tz";
 import { PageHeader } from "@/components/ui";
 import { PostcardFront } from "@/components/postcards/Card";
@@ -9,19 +10,26 @@ import { headers } from "next/headers";
 import { visitorRegion } from "@/lib/region";
 import { POSTCARD_FONTS_URL, openRareStamps, stampSvg, withHome } from "@/lib/postcards/catalog";
 import { cardProps } from "@/lib/postcards/view";
+import { trimWindow, windowFor } from "@/lib/paging";
 import { SealedEnvelope, SealMark } from "@/components/postcards/Sealed";
 
 export const metadata = { title: "Postcards", robots: { index: false } };
 
 // Your postcards: the ones people sent you (new ones first) and the ones you sent.
-export default async function PostcardsPage() {
+export default async function PostcardsPage({ searchParams }: { searchParams: Promise<{ rn?: string; sn?: string }> }) {
+  const sp = await searchParams;
+  const rw = windowFor(sp.rn);
+  const sw = windowFor(sp.sn);
   const me = await getAccount();
   if (!me) redirect("/signin?back=/postcards");
-  const [got, sent, tz] = await Promise.all([
-    db.postcard.findMany({ where: { toId: me.id }, orderBy: { createdAt: "desc" }, take: 60 }),
-    db.postcard.findMany({ where: { fromId: me.id }, orderBy: { createdAt: "desc" }, take: 60 }),
+  const hidden = [...(await blockedEitherWay(me.id))]; // cards from people you blocked, or who blocked you, are gone from your view
+  const [gotRows, sentRows, tz] = await Promise.all([
+    db.postcard.findMany({ where: { toId: me.id, fromId: { notIn: hidden } }, orderBy: { createdAt: "desc" }, take: rw.take }),
+    db.postcard.findMany({ where: { fromId: me.id }, orderBy: { createdAt: "desc" }, take: sw.take }),
     getTimeZone(),
   ]);
+  const { rows: got, more: moreGot } = trimWindow(gotRows, rw);
+  const { rows: sent, more: moreSent } = trimWindow(sentRows, sw);
   const ids = [...new Set([...got.map((p) => p.fromId), ...sent.map((p) => p.toId)])];
   const names = new Map((ids.length ? await db.account.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } }) : []).map((a) => [a.id, a.name.trim().split(/\s+/)[0] || "A friend"]));
   const now = new Date();
@@ -63,8 +71,18 @@ export default async function PostcardsPage() {
       </Link>
       <h2 className="mb-4 font-display text-[22px] font-semibold tracking-tight">Received</h2>
       {got.length ? shelf(got, (p) => `From ${names.get(p.fromId) ?? "a friend"}`, "Received") : <p className="mb-2 rounded-[18px] bg-mist px-4 py-6 text-center text-sm text-fg/55">Postcards people send you land here.</p>}
+      {moreGot !== null && <Older href={`/postcards?${new URLSearchParams({ rn: String(moreGot), ...(sw.shown > 60 ? { sn: String(sw.shown) } : {}) })}`} />}
       <h2 className="mb-4 mt-10 font-display text-[22px] font-semibold tracking-tight">Sent</h2>
       {sent.length ? shelf(sent, (p) => `To ${names.get(p.toId) ?? "a friend"}`, "Sent") : <p className="rounded-[18px] bg-mist px-4 py-6 text-center text-sm text-fg/55">Nothing sent yet.</p>}
+      {moreSent !== null && <Older href={`/postcards?${new URLSearchParams({ sn: String(moreSent), ...(rw.shown > 60 ? { rn: String(rw.shown) } : {}) })}`} />}
     </>
+  );
+}
+
+function Older({ href }: { href: string }) {
+  return (
+    <Link href={href} className="mt-6 block border border-line py-3 text-center text-sm font-medium text-fg active:bg-mist">
+      Show older
+    </Link>
   );
 }

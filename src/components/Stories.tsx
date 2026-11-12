@@ -36,9 +36,14 @@ function writeSeen(s: Set<string>) {
   }
 }
 
+// Full-screen story photos (UX-F5). A landscape picture cropped to a portrait screen is scaled to the screen's HEIGHT, so it is shown
+// about twice as wide as the screen: ask the image service for twice the width (the old "100vw" gave a soft, blocky picture), at high quality.
+export const STORY_SIZES = "(max-width: 448px) 220vw, 960px";
+export const STORY_QUALITY = 90;
+
 function Picture({ s, uid, big }: { s: Story; uid: string; big?: boolean }) {
   // Sized for where it shows: a small copy for the polaroid, a sharp one full screen.
-  if (s.photo) return <Image src={s.photo} alt="" aria-hidden fill sizes={big ? "(max-width: 448px) 100vw, 448px" : "72px"} quality={big ? 82 : 70} priority={big} className={`object-cover ${big ? "lp-drift" : ""}`} />;
+  if (s.photo) return <Image src={s.photo} alt="" aria-hidden fill sizes={big ? STORY_SIZES : "72px"} quality={big ? STORY_QUALITY : 70} priority={big} className={`object-cover ${big ? "lp-drift" : ""}`} />;
   if (s.cover && !s.art) return <GroupCover kind={s.cover.kind as CoverChoice} src={s.cover.src} uid={uid} sizes={big ? "448px" : "72px"} drift={big} />;
   // No photo: designed artwork (green felt for a card night, a jar for a collection…).
   return <StoryArt kind={s.art ?? s.kind} uid={uid} />;
@@ -118,7 +123,7 @@ function Slide({ f, uid }: { f: Frame; uid: string }) {
   if (f.kind === "photo" || f.kind === "art")
     return (
       <>
-        {f.kind === "photo" ? <Image src={f.photo} alt="" aria-hidden fill sizes="(max-width: 448px) 100vw, 448px" quality={82} priority className="lp-drift object-cover" /> : <StoryArt kind={f.art} uid={uid} />}
+        {f.kind === "photo" ? <Image src={f.photo} alt="" aria-hidden fill sizes={STORY_SIZES} quality={STORY_QUALITY} priority className="lp-drift object-cover" /> : <StoryArt kind={f.art} uid={uid} />}
         <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.5)_0%,transparent_22%,transparent_42%,rgba(0,0,0,0.9)_100%)]" />
         <Words kicker={f.kicker} head={f.head} line={f.line} />
       </>
@@ -169,6 +174,8 @@ function Slide({ f, uid }: { f: Frame; uid: string }) {
 function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: number; onSeen: (id: string) => void; onClose: () => void }) {
   const [at, setAt] = useState({ s: start, f: 0 });
   const [paused, setPaused] = useState(false);
+  const [userPaused, setUserPaused] = useState(false); // the Pause / Play button
+  const [tabHidden, setTabHidden] = useState(false); // another tab or app is on top: don't run the clock
   const [still, setStill] = useState(false); // the phone asks for less motion: no auto-advance
   // Gestures: hold to pause, drag down to close, swipe sideways for the next or previous story,
   // swipe up to do the story's one thing. A hold or a swipe never also counts as a tap.
@@ -177,6 +184,7 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
   const notATap = useRef(false);
   const cta = useRef<HTMLAnchorElement>(null);
   const [dy, setDy] = useState(0);
+  const stopped = paused || userPaused || tabHidden;
   const story = stories[at.s];
   const frames = story?.frames.length ? story.frames : [];
 
@@ -239,11 +247,15 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
       if (e.key === "ArrowRight") next();
       if (e.key === "ArrowLeft") prev();
     };
+    const vis = () => setTabHidden(document.visibilityState === "hidden");
+    vis();
+    document.addEventListener("visibilitychange", vis);
     window.addEventListener("popstate", pop);
     window.addEventListener("keydown", key);
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
+      document.removeEventListener("visibilitychange", vis);
       window.removeEventListener("popstate", pop);
       window.removeEventListener("keydown", key);
       document.body.style.overflow = prevOverflow;
@@ -257,10 +269,10 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
   }, [at.s, stories, onSeen, close]);
 
   useEffect(() => {
-    if (still || paused || at.s >= stories.length) return;
+    if (still || stopped || at.s >= stories.length) return;
     const t = setTimeout(next, DURATION);
     return () => clearTimeout(t);
-  }, [at, paused, still, stories.length, next]);
+  }, [at, stopped, still, stories.length, next]);
 
   if (!story) return null;
   const f = frames[Math.min(at.f, frames.length - 1)];
@@ -306,21 +318,35 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
               <span
                 key={`${at.s}-${at.f}-${k}`}
                 className={`block h-full ${k < at.f ? "w-full" : k > at.f ? "w-0" : still ? "w-full" : "lp-story-bar"}`}
-                style={{ background: ink, ...(k === at.f && !still ? { animationDuration: `${DURATION}ms`, animationPlayState: paused ? "paused" : "running" } : {}) }}
+                style={{ background: ink, ...(k === at.f && !still ? { animationDuration: `${DURATION}ms`, animationPlayState: stopped ? "paused" : "running" } : {}) }}
               />
             </span>
           ))}
         </div>
         {/* Whose story: the little picture and its name. */}
-        <div className="pointer-events-none absolute left-4 top-[max(26px,calc(env(safe-area-inset-top)+14px))] z-20 flex items-center gap-2.5" style={{ color: ink }}>
-          <span className="relative block h-8 w-8 overflow-hidden rounded-full border-2" style={{ borderColor: ink }}>
+        <div className="pointer-events-none absolute left-4 top-[max(26px,calc(env(safe-area-inset-top)+14px))] z-20 flex max-w-[calc(100%-8.5rem)] items-center gap-2.5" style={{ color: ink }}>
+          <span className="relative block h-8 w-8 shrink-0 overflow-hidden rounded-full border-2" style={{ borderColor: ink }}>
             <Picture s={story} uid={`sva-${story.id}`} />
           </span>
-          <span className="text-sm font-semibold">{story.label}</span>
+          <span className="truncate text-sm font-semibold">{story.label}</span>
         </div>
         <button type="button" onClick={close} aria-label="Close" className="glass absolute right-3 top-[max(22px,calc(env(safe-area-inset-top)+10px))] z-30 flex h-11 w-11 items-center justify-center rounded-full" style={{ color: ink }}>
           <svg aria-hidden width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
             <path d="M6 6l12 12M18 6 6 18" />
+          </svg>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setUserPaused((p) => !p)}
+          aria-label={userPaused ? "Play" : "Pause"}
+          aria-pressed={userPaused}
+          className="glass absolute right-[4.25rem] top-[max(22px,calc(env(safe-area-inset-top)+10px))] z-30 flex h-11 w-11 items-center justify-center rounded-full"
+          style={{ color: ink }}
+          data-story-pause
+        >
+          <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            {userPaused ? <path d="M8 5.5v13l11-6.5z" /> : <path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" />}
           </svg>
         </button>
 

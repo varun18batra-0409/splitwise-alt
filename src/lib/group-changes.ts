@@ -5,6 +5,7 @@ import { allocateByWeights } from "./split";
 import { formatMoney, formatPercent, isSupportedCurrency } from "./money";
 import { parseRate } from "./conversion";
 import { rebaseExpense, rebasePayment } from "./rebase";
+import { GroupChanged } from "./money-guard";
 
 type Result = { ok: true; eventId?: string } | { ok: false; error: string; needsRate?: true };
 
@@ -138,6 +139,15 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
   await opts?.afterRead?.();
   try {
   const eventId = await db.$transaction(async (tx) => {
+    // First a write that only matches if the group is still as read (same currency, not deleted; closed is fine here):
+    // it takes the write lock, so every count below is current and no other money save can slip in until we commit.
+    // (Money saves do the same with guardGroup, so one of the two always loses cleanly.)
+    const held = await tx.group.updateMany({ where: { id: groupId, deletedAt: null, currency: oldCurrency }, data: { currency: oldCurrency } });
+    if (held.count !== 1) throw new Refused({ ok: false, error: "The group’s currency was changed just now. Check and try again." });
+    // A game that was started (or is still open) while we were reading: its chips would come out a cent off.
+    if (await tx.potGame.count({ where: { groupId, status: "open", deletedAt: null } })) {
+      throw new Refused({ ok: false, error: "Finish (or delete) the game that’s still open first, then change the currency." });
+    }
     // The checks above were made before this transaction began. Count again inside it: money that turned up in the
     // gap would otherwise be left in the old currency (or, for a group thought empty, be converted at rate 1).
     const [expensesNow, paymentsNow, settleNow] = await Promise.all([
@@ -155,7 +165,8 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
       throw new Refused({ ok: false, error: "Something in the group changed just now. Check it and try again." });
     }
     for (const { e, r } of expenseUpdates) {
-      await tx.expense.update({
+      // updateMany + a count: an edit that replaced this expense's shares in the gap is a calm "changed", not an error.
+      const wrote = await tx.expense.updateMany({
         where: { id: e.id },
         data: {
           baseCurrency: r!.baseCurrency,
@@ -167,9 +178,16 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
           payers: r!.payers,
         },
       });
-      for (const s of r!.shares) await tx.expenseShare.update({ where: { id: s.id }, data: { amount: s.amount } });
+      if (wrote.count !== 1) throw new Refused({ ok: false, error: "Something in the group changed just now. Check it and try again." });
+      for (const s of r!.shares) {
+        const one = await tx.expenseShare.updateMany({ where: { id: s.id }, data: { amount: s.amount } });
+        if (one.count !== 1) throw new Refused({ ok: false, error: "Something in the group changed just now. Check it and try again." });
+      }
     }
-    for (const { p, amount } of paymentUpdates) await tx.payment.update({ where: { id: p.id }, data: { amount: amount! } });
+    for (const { p, amount } of paymentUpdates) {
+      const one = await tx.payment.updateMany({ where: { id: p.id }, data: { amount: amount! } });
+      if (one.count !== 1) throw new Refused({ ok: false, error: "Something in the group changed just now. Check it and try again." });
+    }
     await writeOtherMoney(tx, otherAfter);
     await tx.group.update({ where: { id: group.id }, data: { currency: newCurrency, settleMin: otherAfter.settleMin } });
     return logEvent(tx, {
@@ -186,10 +204,11 @@ export async function changeGroupCurrency(groupId: string, actorId: string, newC
           ]
         : [`Currency: ${oldCurrency} → ${newCurrency}`],
     });
-  });
+  }, { timeout: 15000 });
   return { ok: true, eventId };
   } catch (e) {
     if (e instanceof Refused) return e.result;
+    if (e instanceof GroupChanged) return { ok: false, error: "The group’s currency was changed just now. Check and try again." };
     throw e;
   }
 }

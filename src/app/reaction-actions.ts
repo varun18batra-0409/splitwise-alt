@@ -26,7 +26,7 @@ export async function reactAction(f: FormData) {
     await db.reaction.upsert({ where: { expenseId_memberId: { expenseId: e.id, memberId: myId } }, create: { expenseId: e.id, memberId: myId, emoji }, update: { emoji } });
     if (e.createdById && e.createdById !== myId) {
       const me = await db.member.findUnique({ where: { id: myId }, select: { name: true } });
-      await sendPushTo([e.createdById], { title: `${emoji} ${e.group.name}`, body: `${me?.name ?? "Someone"} reacted ${emoji} to ${e.description}`, url: back, tag: `react-${e.id}` }, "expenses.reactions");
+      await sendPushTo([e.createdById], { title: `${emoji} ${e.group.name}`, body: `${me?.name ?? "Someone"} reacted ${emoji} to ${e.description}`, url: back, tag: `react-${e.id}` }, "expenses.reactions", myId);
     }
   }
   redirect(back);

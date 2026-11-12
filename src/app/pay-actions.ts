@@ -65,7 +65,7 @@ export async function claimPaidAction(f: FormData) {
   if (!r.already) {
     const g = await db.group.findUnique({ where: { id: groupId }, select: { name: true, currency: true } });
     const me = await db.member.findUnique({ where: { id: myId }, select: { name: true } });
-    tellReceiver({ claimId: r.claimId, groupId, groupName: g?.name ?? "Loopin", toId, fromName: me?.name ?? "Someone", amountText: formatMoney(r.amount ?? 0, g?.currency ?? "INR") });
+    tellReceiver({ claimId: r.claimId, groupId, groupName: g?.name ?? "Loopin", toId, fromName: me?.name ?? "Someone", amountText: formatMoney(r.amount ?? 0, g?.currency ?? "INR"), fromId });
   }
   redirect(settleUrl(groupId, { claimed: "1" }));
 }
@@ -89,7 +89,7 @@ export async function declineClaimAction(f: FormData) {
   redirect(settleUrl(c.groupId, r.ok ? { declined: "1" } : { error: r.error }));
 }
 
-// Settle up → "Mark all paid": every payment shown, recorded at once; the group stays open.
+// Settle up → "Mark all N paid": every payment shown that someone else makes, recorded at once; the group stays open.
 export async function markAllPaidAction(f: FormData) {
   const groupId = field(f, "groupId");
   const myId = await getMyMemberId(groupId);
@@ -102,6 +102,7 @@ export async function markAllPaidAction(f: FormData) {
   if (planKey(data.transfers) !== field(f, "plan")) redirect(`/groups/${groupId}/settle?${new URLSearchParams({ error: "Balances changed since you opened this. Check the updated list and try again." })}`);
   const { shown } = applySettleMin(data.transfers, data.group.settleMin);
   const { cleanKey } = await import("@/lib/once");
-  const r = await markAllPaid(groupId, myId, shown.map((t) => ({ from: t.from, to: t.to, amount: t.amount })), "", true, cleanKey(f.get("rid")));
+  // Only other people's payments: the ones I make myself go through "I've paid" (a claim the other person confirms).
+  const r = await markAllPaid(groupId, myId, shown.filter((t) => t.from !== myId).map((t) => ({ from: t.from, to: t.to, amount: t.amount })), "", true, cleanKey(f.get("rid")));
   redirect(`/groups/${groupId}/settle?${new URLSearchParams(r.ok ? { paid: "all", ...(r.eventId ? { did: r.eventId } : {}) } : { error: r.error })}`);
 }

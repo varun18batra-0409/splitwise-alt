@@ -83,10 +83,35 @@ export type ExpenseState = {
   spentAt: string | null; // the chosen day, as an ISO time; null = the day it was added
   notes?: string; // missing in changes saved before notes existed
   shares: { memberId: string; amount: number }[];
+  items?: { name: string; amount: number; people: string[] }[]; // the bill's item lines; missing in changes saved before they were kept
 };
 
+// Item lines as saved in the state: people as a list (the database keeps them as JSON text).
+export function itemsForState(items: { name: string; amount: number; people: string | string[] }[] | undefined): ExpenseState["items"] {
+  if (!items) return undefined;
+  return items.map((i) => {
+    let people: string[] = [];
+    if (Array.isArray(i.people)) people = i.people;
+    else {
+      try {
+        const v = JSON.parse(i.people);
+        if (Array.isArray(v)) people = v.filter((p): p is string => typeof p === "string");
+      } catch {
+        /* not JSON: no people */
+      }
+    }
+    return { name: i.name, amount: i.amount, people };
+  });
+}
+
 export function expenseState(
-  e: Omit<ExpenseState, "spentAt" | "notes" | "payers" | "kind"> & { spentAt?: Date | string | null; notes?: string; payers?: string | null; kind?: string | null },
+  e: Omit<ExpenseState, "spentAt" | "notes" | "payers" | "kind" | "items"> & {
+    spentAt?: Date | string | null;
+    notes?: string;
+    payers?: string | null;
+    kind?: string | null;
+    items?: { name: string; amount: number; people: string | string[] }[];
+  },
 ): ExpenseState {
   return {
     description: e.description,
@@ -110,6 +135,7 @@ export function expenseState(
     spentAt: e.spentAt instanceof Date ? e.spentAt.toISOString() : (e.spentAt ?? null),
     notes: e.notes ?? "",
     shares: e.shares.map((s) => ({ memberId: s.memberId, amount: s.amount })),
+    ...(e.items ? { items: itemsForState(e.items) } : {}),
   };
 }
 
@@ -146,7 +172,7 @@ export type UndoPayload =
   | {
       type: "members_restore";
       // accountId … joinedFrom: missing in changes saved before they were kept.
-      members: { id: string; name: string; phone: string; createdAt: string; accountId?: string | null; claimedAt?: string | null; splitWeight?: number; notify?: string; joinedFrom?: string | null; addedBy?: string; seenAt?: string | null }[];
+      members: { id: string; name: string; phone: string; createdAt: string; accountId?: string | null; claimedAt?: string | null; splitWeight?: number; notify?: string; joinedFrom?: string | null; addedBy?: string; seenAt?: string | null; grantEpoch?: number }[];
     }
   | { type: "member_set"; memberId: string; data: { name?: string; leftAt?: string | null; removedAt?: string | null; removedById?: string }; moveOut?: MoveOutUndo }
   | { type: "settle_all"; paymentIds: string[]; apply: boolean }
@@ -241,6 +267,21 @@ async function touchesFromDb(db: Db, e: { expenseId?: string; paymentId?: string
     /* never let this break the change being logged */
   }
   return [...ids];
+}
+
+// Undoing a change marks the original as undone. That mark is written INSIDE the same transaction as the reversal
+// (each reversal calls markUndone first), so the two are saved together or not at all: no crash or error can leave
+// a change marked "undone" with nothing reversed, or reversed and still undoable.
+export type UndoMark = { eventId: string; actorId: string };
+export class UndoTaken extends Error {
+  constructor() {
+    super("That change was already undone.");
+  }
+}
+export async function markUndone(tx: Db, mark?: UndoMark): Promise<void> {
+  if (!mark) return;
+  const c = await tx.groupEvent.updateMany({ where: { id: mark.eventId, undoneAt: null }, data: { undoneAt: new Date(), undoneById: mark.actorId } });
+  if (c.count !== 1) throw new UndoTaken();
 }
 
 export async function logEvent(

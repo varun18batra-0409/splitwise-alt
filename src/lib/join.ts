@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { setPushResyncCookie } from "./identity";
 import { logEvent } from "./events";
 import { cleanNames } from "./names";
 import { freeName } from "./invites";
@@ -71,8 +72,16 @@ export async function joinExisting(code: string, account: JoinAccount, memberId:
   // A name someone was invited as (by email) belongs to that invitation: only the invited email can take it.
   const open = await openInviteEmails(group.id, member.id);
   if (open.length && !open.includes(account.email.toLowerCase())) return { ok: false, reason: "claimed" };
-  const won = await db.member.updateMany({ where: { id: member.id, accountId: null, claimedAt: null, removedAt: null }, data: { accountId: account.id, claimedAt: new Date(), seenAt: new Date() } });
+  // The name changes owner: in the same write its epoch goes up (an old guest copy of it on another phone stops working) and
+  // its notification rows go (that phone stops hearing about it). The callers copy the joiner's own phones onto it afterwards.
+  const won = await db.$transaction(async (tx) => {
+    const w = await tx.member.updateMany({ where: { id: member.id, accountId: null, claimedAt: null, removedAt: null }, data: { accountId: account.id, claimedAt: new Date(), seenAt: new Date(), grantEpoch: { increment: 1 } } });
+    const dropped = w.count === 1 ? (await tx.pushSubscription.deleteMany({ where: { memberId: member.id } })).count : 0;
+    return { count: w.count, dropped };
+  });
   if (won.count !== 1) return { ok: false, reason: "claimed" };
+  // Only when this name's notification rows actually went (the joiner's phones then re-register at once).
+  if (won.dropped > 0) await setPushResyncCookie();
   if (!account.name) await db.account.update({ where: { id: account.id }, data: { name: member.name } });
   await logEvent(db, { groupId: group.id, actorId: member.id, kind: "members_added", text: "joined the group" });
   return { ok: true, memberId: member.id };
@@ -114,7 +123,7 @@ export async function joinNew(code: string, account: JoinAccount, typedName: str
 
 // How many email invites are still waiting (they stop working with a new link).
 export async function waitingInvites(groupId: string): Promise<number> {
-  return db.invite.count({ where: { groupId, acceptedAt: null } });
+  return db.invite.count({ where: { groupId, acceptedAt: null, declinedAt: null } }); // closed (cancelled, declined, or by a new link) ones are not waiting
 }
 
 export const NEW_LINK_ADMIN_ONLY = "Only the person who looks after this group can make a new invite link.";
@@ -128,6 +137,10 @@ export async function newInviteLink(groupId: string, actorId: string): Promise<{
   if (!me) return { ok: false, error: "Only people in this group can do this." };
   if (me.leftAt || !(await isGroupAdmin(groupId, actorId))) return { ok: false, error: NEW_LINK_ADMIN_ONLY };
   const code = newInviteCode();
-  await db.group.update({ where: { id: groupId }, data: { inviteCode: code } });
+  // The old email invitations carry the old link, so they close in the same step as the code changes (never one without the other).
+  await db.$transaction([
+    db.group.update({ where: { id: groupId }, data: { inviteCode: code } }),
+    db.invite.updateMany({ where: { groupId, acceptedAt: null, declinedAt: null }, data: { declinedAt: new Date() } }),
+  ]);
   return { ok: true, code };
 }

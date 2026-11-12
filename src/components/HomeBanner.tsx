@@ -3,7 +3,9 @@
 import { Children, useEffect, useRef, useState } from "react";
 
 function slideTo(el: HTMLElement | null, i: number) {
-  if (el) el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
+  // Lands exactly on the start of slide i; with animations turned off it jumps instead of gliding.
+  const still = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  if (el) el.scrollTo({ left: i * el.clientWidth, behavior: still ? "auto" : "smooth" });
 }
 
 // The cards at the top of Home that slide by on their own (like a photo
@@ -53,7 +55,7 @@ export function HomeBanner({ children, seconds = 5 }: { children: React.ReactNod
         className="flex snap-x snap-mandatory overflow-x-auto rounded-[24px] border border-line [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {slides.map((s, i) => (
-          <div key={i} role="group" aria-roledescription="slide" aria-label={`${i + 1} of ${n}`} className="relative w-full shrink-0 snap-start">
+          <div key={i} role="group" aria-roledescription="slide" aria-label={`${i + 1} of ${n}`} className="relative w-full shrink-0 snap-start snap-always">
             {s}
           </div>
         ))}

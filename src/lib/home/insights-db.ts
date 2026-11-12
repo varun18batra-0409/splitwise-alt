@@ -9,6 +9,9 @@ import { addMonths, daysInMonth, monthKey } from "./month";
 import { addDays } from "../local-time";
 import { coveredByOldRecord, markSentByOldPath, splitByZone, zonesOf } from "../nudge-zones";
 import { monthSummary } from "./summary";
+import { buildExpense } from "../expense";
+import { allocateByWeights } from "../split";
+import { billExpenseInput, splitProblem } from "./bills-db";
 import { categoryJumps, forecast, monthlySummaryText, sameDayDuplicates, utilityJumps } from "./insights";
 
 type Expenses = (Parameters<typeof monthSummary>[0][number] & { id: string; description: string })[];
@@ -47,6 +50,7 @@ export async function monthInsights(groupId: string, expenses: Expenses, myId: s
   // Next month, about.
   const bills = await db.bill.findMany({ where: { groupId, deletedAt: null, paused: false } });
   let estimate = 0;
+  let mine = 0;
   if (bills.length) {
     const next = addMonths(month, 1);
     const billExpenseIds = new Set((await db.billRun.findMany({ where: { bill: { groupId } }, select: { expenseId: true } })).map((r) => r.expenseId));
@@ -56,18 +60,46 @@ export async function monthInsights(groupId: string, expenses: Expenses, myId: s
         .filter((e) => !billExpenseIds.has(e.id) && getCategory(e.category).id === "groceries" && dayKey(e.spentAt ?? e.createdAt, tz).startsWith(k))
         .reduce((s, e) => s + (e.kind === "refund" ? -e.amount : e.amount), 0);
     }).filter((x) => x > 0);
+    // A bill the real run will hold (nobody left to share it, or someone in its split has left) isn't added next month, so it
+    // is left out of the total as well as out of "your share".
+    const members = await db.member.findMany({ where: { groupId }, select: { id: true, name: true, leftAt: true, splitWeight: true, joinedFrom: true } });
+    const active = members.filter((m) => !m.leftAt);
+    const usable = bills.filter((b) => !splitProblem(b.split, active.map((m) => m.id)));
+    const perBillFixed = usable.filter((b) => b.nature === "fixed").map((b) => ({ b, amount: Math.round(b.amount / Math.max(1, b.every)) }));
+    const perBillVaries = usable.filter((b) => b.nature === "varies").map((b) => {
+      const past = history.filter((h) => h.name === b.name).slice(0, 3).map((h) => h.amount);
+      return { b, past: past.length ? past : b.amount ? [b.amount] : [] };
+    });
+    const perBillDaily = usable.filter((b) => b.nature === "daily").map((b) => ({ b, rate: b.amount, days: daysInMonth(next) }));
     estimate = forecast({
-      fixed: bills.filter((b) => b.nature === "fixed").map((b) => Math.round(b.amount / Math.max(1, b.every))),
-      varies: bills.filter((b) => b.nature === "varies").map((b) => {
-        const past = history.filter((h) => h.name === b.name).slice(0, 3).map((h) => h.amount);
-        return past.length ? past : b.amount ? [b.amount] : [];
-      }),
-      daily: bills.filter((b) => b.nature === "daily").map((b) => ({ rate: b.amount, days: daysInMonth(next) })),
+      fixed: perBillFixed.map((x) => x.amount),
+      varies: perBillVaries.map((x) => x.past),
+      daily: perBillDaily.map((x) => ({ rate: x.rate, days: x.days })),
       groceries,
     });
+    // "Your share": each bill is shared the way that bill is (its own split, the days people are there), worked out
+    // with the same code that will split the real expense, in the currency's own minor units. The usual groceries are
+    // shared by the group's weights.
+    const groceryTotal = forecast({ fixed: [], varies: [], daily: [], groceries });
+    const totalW = Object.values(weights).reduce((s, w) => s + w, 0);
+    const groceryMine = totalW ? allocateByWeights(groceryTotal, Object.entries(weights).map(([memberId, weight]) => ({ memberId, weight }))).find((x) => x.memberId === myId)?.amount ?? 0 : 0;
+    const billMine = (bill: (typeof bills)[number], amount: number): number => {
+      if (amount <= 0) return 0;
+      // A split that can't be used now (everyone chosen for a "some" bill has left, or someone in a percent / amounts split
+      // has): the real run holds that bill, so it adds nothing to anyone's share.
+      if (splitProblem(bill.split, active.map((m) => m.id))) return 0;
+      const payer = active.find((m) => m.id === myId)?.id ?? active[0]?.id ?? myId;
+      const built = buildExpense(billExpenseInput(bill, groupId, currency, next, amount, payer, members), { memberIds: active.map((m) => m.id), baseCurrency: currency, groupMarkupBp: 0, rate: "1" });
+      // A split that can't be worked out now (someone in it has left): that bill is left out of "your share" rather than guessed.
+      return built.ok ? (built.expense.shares.find((s) => s.memberId === myId)?.amount ?? 0) : 0;
+    };
+    const avgOf = (xs: number[]) => (xs.length ? Math.round(xs.reduce((s, x) => s + x, 0) / xs.length) : 0);
+    mine =
+      perBillFixed.reduce((s, x) => s + billMine(x.b, x.amount), 0) +
+      perBillVaries.reduce((s, x) => s + billMine(x.b, avgOf(x.past)), 0) +
+      perBillDaily.reduce((s, x) => s + billMine(x.b, x.rate * x.days), 0) +
+      groceryMine;
   }
-  const totalW = Object.values(weights).reduce((s, w) => s + w, 0);
-  const mine = totalW ? Math.round((estimate * (weights[myId] ?? 0)) / totalW) : 0;
   return { insights: insights.slice(0, 4), forecast: estimate > 0 ? { total: estimate, mine } : null };
 }
 

@@ -18,10 +18,10 @@ test("titles, Wrapped, the passport and a game night: in, around, back out, and 
   await joinGroup(R, trip.invite, trip.path);
   for (const [n, a] of [["Dinner", "1200"], ["Cab", "600"], ["Snacks", "300"], ["Villa", "6000"]]) await addEqualExpense(page, trip.path, n, a);
 
-  // Everyone has a title, as cards on Balances.
+  // Everyone has a title, as a small chip on their row in Balances.
   await page.goto(`${trip.path}?tab=balances`);
   await settled(page);
-  await expect(page.locator("[data-title-card]")).toHaveCount(2);
+  await expect(page.locator("[data-title]")).toHaveCount(2);
 
   // Passports are hidden until their owner says yes: Ravi taps Show on the one-time question first.
   await R.goto("/passport");

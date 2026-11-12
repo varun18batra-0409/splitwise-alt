@@ -39,6 +39,27 @@ export type Detected =
 
 const lower = (s: string | undefined) => (s ?? "").trim().toLowerCase();
 
+// A currency cell as people write it: a code ("INR", "usd"), or a common symbol or short form ("₹", "Rs", "฿", "A$", "RM"…).
+//   code set            = a currency we can read
+//   code "" and text "" = an empty cell: the row is in the file's own currency
+//   code "" and text    = something written that we can't read ("dollars", "baht"): never taken as the file's currency
+// "$" is read as the file's own currency when that is a dollar currency, otherwise as US dollars.
+const DOLLARS = ["USD", "AUD", "CAD", "SGD", "NZD", "HKD"];
+const CURRENCY_WORDS: Record<string, string> = {
+  "₹": "INR", RS: "INR", "RS.": "INR", "US$": "USD", "£": "GBP", "€": "EUR", "฿": "THB",
+  "A$": "AUD", "S$": "SGD", "C$": "CAD", "HK$": "HKD", RM: "MYR", RP: "IDR",
+};
+export function currencyCell(raw: string | undefined, main = ""): { code: string; text: string } {
+  const text = (raw ?? "").trim();
+  const t = text.toUpperCase().replace(/\s+/g, "");
+  if (!t) return { code: "", text: "" };
+  if (t === "$") return { code: DOLLARS.includes(main) ? main : "USD", text };
+  // "¥" is both yen and yuan: it follows the file's own currency when that is one of them, otherwise yen.
+  if (t === "¥" || t === "￥") return { code: main === "CNY" ? "CNY" : "JPY", text };
+  if (CURRENCY_WORDS[t]) return { code: CURRENCY_WORDS[t], text };
+  return /^[A-Z]{3}$/.test(t) ? { code: t, text } : { code: "", text };
+}
+
 export function detectFormat(text: string): Detected {
   if (text.length > MAX_IMPORT_BYTES) return { ok: false, error: "That file is too big. Export one group at a time." };
   const table = readCsv(text).filter((r) => r.some((c) => c.trim() !== ""));
@@ -57,9 +78,20 @@ export function detectFormat(text: string): Detected {
   let currency = "INR";
   if (curCol >= 0) {
     const counts = new Map<string, number>();
+    let bare = 0; // rows that just say "$": read as the file's own dollar currency when it has one
     for (const r of table.slice(1)) {
-      const c = (r[curCol] ?? "").trim().toUpperCase();
-      if (isSupportedCurrency(c)) counts.set(c, (counts.get(c) ?? 0) + 1);
+      if ((r[curCol] ?? "").trim() === "$") bare++;
+      else {
+        const c = currencyCell(r[curCol]).code;
+        if (isSupportedCurrency(c)) counts.set(c, (counts.get(c) ?? 0) + 1);
+      }
+    }
+    if (bare) {
+      // "$" rows join a dollar currency written out in the file only when that currency has at least as many rows as the
+      // bare "$" rows (an AUD file with a few "$"); one stray "SGD" row never turns fifty "$" rows into Singapore dollars.
+      const top = [...counts.entries()].sort((x, y) => y[1] - x[1])[0];
+      const d = top && DOLLARS.includes(top[0]) && top[1] >= bare ? top[0] : "USD";
+      counts.set(d, (counts.get(d) ?? 0) + bare);
     }
     currency = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "INR";
   } else {
@@ -162,12 +194,12 @@ export function splitNames(cell: string): string[] {
     .filter(Boolean);
 }
 
-function finish(people: string[], rows: SwRow[], skipped: { line: number; reason: string }[], currency: string): SwParsed {
+function finish(people: string[], rows: SwRow[], skipped: { line: number; reason: string }[], currency: string, otherCurrencies: string[] = []): SwParsed {
   if (!people.length) return { ok: false, error: "No people were found in this file." };
   if (people.length > 50) return { ok: false, error: "Loopin groups can have up to 50 people." };
   if (!rows.length) return { ok: false, error: skipped.length ? `None of the ${skipped.length} lines could be read (${skipped[0].reason}).` : "There are no expenses in this file." };
   if (!isSupportedCurrency(currency)) return { ok: false, error: `Loopin doesn’t support ${currency} yet.` };
-  return { ok: true, people, currency, rows, skipped, otherCurrencies: [], expected: null };
+  return { ok: true, people, currency, rows, skipped, otherCurrencies, expected: null };
 }
 
 // 2. A Loopin group spreadsheet: Date, Type, Description, Notes, Category,
@@ -242,6 +274,26 @@ export function parseGenericCsv(text: string, map: ColumnMap, currency: string):
   if (map.split === "column" && (map.forCol === undefined || map.forCol < 0)) return { ok: false, error: "Pick the column that says who each one was for." };
   if (map.split === "shares" && (map.shareCols ?? []).length < 2) return { ok: false, error: "Tick each person’s share column (at least two)." };
 
+  // A currency column (if any): rows in another currency than the group's are left out and listed,
+  // never read as if they were in the group's currency (10 USD is not 10 rupees).
+  const curCol = head.findIndex((x) => /^currency$|currency code/.test(lower(x)));
+  // What a row says its currency is: "" for an empty cell (the file's own); the code if readable; otherwise the text as
+  // written, which is never the file's currency (so it is left out and listed, not imported by guessing).
+  const rowCurrency = (r: string[]) => {
+    if (curCol < 0) return "";
+    const c = currencyCell(r[curCol], currency);
+    return c.code || c.text;
+  };
+  const isOther = (r: string[]) => {
+    const c = rowCurrency(r);
+    return c !== "" && c !== currency;
+  };
+  const otherCurrencies: string[] = [];
+  for (const r of body) {
+    const c = rowCurrency(r);
+    if (isOther(r) && !otherCurrencies.includes(c)) otherCurrencies.push(c);
+  }
+
   // Everyone in the file: payers, names in the "for" column, or the share columns' names.
   const names: string[] = [];
   const add = (n: string) => {
@@ -252,6 +304,7 @@ export function parseGenericCsv(text: string, map: ColumnMap, currency: string):
   const shareName = (i: number) => head[i].replace(/['’]s\b|\b(share|owes?|owed|portion|part)\b|\(.*?\)/gi, "").trim() || head[i];
   for (const i of shareCols) add(shareName(i));
   for (const r of body) {
+    if (isOther(r)) continue; // someone who only appears in a left-out row isn't added
     for (const p of splitNames(cell(r, map.paidBy))) add(p);
     if (map.split === "column") for (const p of splitNames(cell(r, map.forCol))) add(p);
   }
@@ -261,6 +314,10 @@ export function parseGenericCsv(text: string, map: ColumnMap, currency: string):
   const skipped: { line: number; reason: string }[] = [];
   body.forEach((r, k) => {
     const line = k + 2;
+    if (isOther(r)) {
+      const c = rowCurrency(r);
+      return skipped.push({ line, reason: /^[A-Z]{3}$/.test(c) ? `in ${c}` : `in “${c}”` });
+    }
     const amount = looseAmount(cell(r, map.amount), currency);
     if (amount === null) return skipped.push({ line, reason: "the amount couldn’t be read" });
     if (amount === 0) return skipped.push({ line, reason: "no amount" });
@@ -300,9 +357,11 @@ export function parseGenericCsv(text: string, map: ColumnMap, currency: string):
       cost: Math.abs(amount),
       nets: signed.map((x) => (x === 0 ? 0 : x)),
       payment,
+      // Money back that isn't a payment stays money back: it reduces spending, not adds to it.
+      ...(amount < 0 && !payment ? { kind: "refund" as const } : {}),
     });
   });
-  return finish(names, rows, skipped, currency);
+  return finish(names, rows, skipped, currency, otherCurrencies);
 }
 
 // An amount split as evenly as possible, the odd paise going to the first people.

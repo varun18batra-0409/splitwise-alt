@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "@/components/Link";
 import { loadGroup } from "@/lib/group-data";
-import { getMyMemberId } from "@/lib/identity";
+import { getMyMemberId, privatePath } from "@/lib/identity";
 import { formatMoney } from "@/lib/money";
 import { PageHeader, secondaryButtonClass } from "@/components/ui";
 import { GroupCover } from "@/components/GroupCover";
@@ -19,7 +19,7 @@ export default async function SquarePage({ params, searchParams }: { params: Pro
   if (!data) notFound();
   const { group, expenses, payments, transfers } = data;
   const myId = await getMyMemberId(group.id);
-  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
   const people = group.members.filter((m) => !m.leftAt).length;
   const n = squareNumbers({ expenses, payments, people, tripStart: group.tripStart, tripEnd: group.tripEnd });
   const money = (x: number) => formatMoney(x, group.currency);

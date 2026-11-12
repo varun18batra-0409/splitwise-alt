@@ -75,7 +75,7 @@ function Category({ d }: { d: Extract<SlideData, { kind: "category" }> }) {
       <div className="relative h-[210px] w-[210px]">
         <svg viewBox="0 0 180 180" className="h-full w-full -rotate-90" aria-hidden>
           <circle cx="90" cy="90" r={r} fill="none" stroke={FG} strokeOpacity="0.1" strokeWidth="18" />
-          <circle cx="90" cy="90" r={r} fill="none" stroke={ACCENT.category} strokeWidth="18" strokeDasharray={`${(d.pct / 100) * c} ${c}`} strokeLinecap="round" className="lp-ring" />
+          <circle cx="90" cy="90" r={r} fill="none" stroke={ACCENT.category} strokeWidth="18" strokeDasharray={`${(d.pct / 100) * c} ${c}`} strokeLinecap="round" className="lp-wrap-ring" />
         </svg>
         <span className="absolute inset-0 flex flex-col items-center justify-center">
           <span className="font-display text-[52px] font-semibold leading-none tabular-nums">{d.pct}%</span>

@@ -11,6 +11,7 @@ import { visitorRegion } from "@/lib/region";
 import { GAME_NIGHT_GAMES } from "@/lib/group-types";
 import { getTimeZone } from "@/lib/tz";
 import { getAccount, getMemberships } from "@/lib/identity";
+import { unreadPostcards } from "@/lib/blocks";
 import { PasskeyOffer } from "@/components/Passkeys";
 
 import { loadDeletedGroups } from "@/lib/group-data";
@@ -38,7 +39,9 @@ import { gameVisible, stillIn } from "@/lib/left-view";
 import { canUndo } from "@/lib/undo";
 import { UndoBar } from "@/components/UndoBar";
 import { PersonIcon, iconButtonClass } from "@/components/icons";
-import { myCollections, progress } from "@/lib/collect";
+import { countMyCollections, myCollections, progress } from "@/lib/collect";
+import { CollectionsSection } from "@/components/CollectionsList";
+import { FooterLinks, HOME_FOOTER_LINKS } from "@/components/FooterLinks";
 import { countdownWords, placeOf, tripPhase, type TripPhase } from "@/lib/countdown";
 import { todayKey } from "@/lib/dates";
 import { TripCountdown } from "@/components/TripCountdown";
@@ -83,11 +86,12 @@ export default async function Home({
   const { closed: justClosed, did, g: didGroup, undone, error, deleted, signedin, moved, collection } = await searchParams;
   const [tz, memberships] = await Promise.all([getTimeZone(), getMemberships()]);
   // Independent reads, all at once.
-  const [overview, deletedGroups, account, collections, invitations, needs] = await Promise.all([
+  const [overview, deletedGroups, account, collections, collectionsTotal, invitations, needs] = await Promise.all([
     loadOverview(memberships),
     loadDeletedGroups(memberships),
     getAccount(),
     getAccount().then((a) => (a ? myCollections(a.id) : [])),
+    getAccount().then((a) => (a ? countMyCollections(a.id) : 0)),
     // Groups someone added you to, waiting for Join or Not now.
     getAccount().then((a) => loadInvitations(a)),
     // Things only you can answer (someone says they paid you, a bill waiting for its amount): the top two show on Home.
@@ -327,9 +331,11 @@ export default async function Home({
           title: c.title,
           paid: pr.paidCount,
           people: pr.people,
-          in: formatMoney(pr.collected, c.currency),
+          in: formatMoney(pr.confirmedAmount, c.currency),
+          reported: pr.reportedAmount > 0 ? formatMoney(pr.reportedAmount, c.currency) : undefined,
           target: pr.target ? formatMoney(pr.target, c.currency) : undefined,
-          paidNames: c.entries.filter((e) => e.status === "paid" || e.status === "confirmed").map((e) => first(e.name)),
+          paidNames: c.entries.filter((e) => e.status === "confirmed").map((e) => first(e.name)),
+          reportedNames: c.entries.filter((e) => e.status === "paid").map((e) => first(e.name)),
           dueNames: c.entries.filter((e) => e.status === "due").map((e) => first(e.name)),
         };
       }),
@@ -395,7 +401,7 @@ export default async function Home({
   const stopsOf = (g: (typeof all)[number]) => tripStops(g.group.name, g.group.tripPlace ?? "", g.group.tripCountry ?? "");
   const homeCountry = (account?.homeCountry || region.country || "IN").toUpperCase();
   const [postcardsNew, billRows] = await Promise.all([
-    account ? db.postcard.count({ where: { toId: account.id, readAt: null, OR: [{ opensAt: null }, { opensAt: { lte: new Date() } }] } }) : Promise.resolve(0),
+    account ? unreadPostcards(account.id) : Promise.resolve(0),
     // A group they left shows no bills.
     db.bill.findMany({ where: { groupId: { in: open.filter((g) => !g.leaver).map((g) => g.group.id) }, deletedAt: null, paused: false }, take: 20 }),
   ]);
@@ -530,8 +536,8 @@ export default async function Home({
           {!account && (
             <Link href="/signin" className="mt-4 flex items-center gap-3 rounded-2xl border border-line px-4 py-3.5 active:bg-mist">
               <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold">Sign up to keep your groups</span>
-                <span className="block text-xs text-fg/60">Get them back on a new phone. Google or your email, no password.</span>
+                <span className="block text-sm font-semibold">Sign in to start</span>
+                <span className="block text-xs text-fg/60">Google or email, no password. Your groups follow you to a new phone.</span>
               </span>
               <span className="text-gray-400" aria-hidden>
                 ›
@@ -569,7 +575,7 @@ export default async function Home({
           </section>
 
           {stories.length > 0 && <Stories stories={stories} className="mt-8" />}
-          {collections.length > 0 && <CollectionsSection list={collections} />}
+          {collections.length > 0 && <CollectionsSection list={collections} limit={6} total={collectionsTotal} />}
         </>
       ) : (
         <>
@@ -654,7 +660,7 @@ export default async function Home({
             </section>
           )}
 
-          {collections.length > 0 && <CollectionsSection list={collections} />}
+          {collections.length > 0 && <CollectionsSection list={collections} limit={6} total={collectionsTotal} />}
 
           {/* New here (one group, no expenses yet): a gentle pointer to the 1-minute tour. */}
           {open.length <= 1 && open.every((g) => g.expenseCount === 0) && (
@@ -687,21 +693,22 @@ export default async function Home({
                   </p>
                   <p className="relative text-sm text-[#d9b38c]">{month.wrapped ? "Your month, wrapped" : "Your month so far"}</p>
                   <p className="relative mt-1 font-display text-[27px] font-semibold leading-[1.1]">{month.name} in numbers</p>
-                  <div className="relative mt-auto flex gap-5">
-                    <p>
+                  <div className="relative mt-auto flex flex-wrap items-end gap-x-4 gap-y-2 min-[360px]:gap-x-5" data-month-stats>
+                    <p className="shrink-0">
                       <span className="block money text-[19px] font-semibold tabular-nums" data-month-share>
                         {month.converted ? "≈ " : ""}
                         {formatMoney(month.share, month.currency)}
                       </span>
-                      <span className="block text-xs text-gray-600">your share</span>
+                      <span className="block whitespace-nowrap text-xs text-gray-600">your share</span>
                     </p>
-                    <p>
+                    <p className="shrink-0">
                       <span className="block money text-[19px] font-semibold tabular-nums">{month.count}</span>
-                      <span className="block text-xs text-gray-600">{month.count === 1 ? "expense" : "expenses"}</span>
+                      <span className="block whitespace-nowrap text-xs text-gray-600">{month.count === 1 ? "expense" : "expenses"}</span>
                     </p>
                     {month.top && (
-                      <p className="min-w-0">
-                        <span className="block truncate font-display text-[19px] font-semibold">{month.top}</span>
+                      // Whole words only: a long category wraps between words, never inside one.
+                      <p className="min-w-[4.5rem] flex-1 [overflow-wrap:normal]">
+                        <span className="block font-display text-[19px] font-semibold leading-tight">{month.top}</span>
                         <span className="block text-xs text-gray-600">most spent on</span>
                       </p>
                     )}
@@ -726,61 +733,8 @@ export default async function Home({
       {/* Not signed in: these groups live only on this phone. Just above the footer, out of the way of the groups and Latest. */}
       {all.length > 0 && !account && <PhoneOnlyNote plural className="mt-6" />}
 
-      <p className="mt-8 pb-6 text-center text-xs text-gray-400">
-        <Link href="/faq" className="underline underline-offset-4">
-          FAQ
-        </Link>
-        <span aria-hidden> · </span>
-        <Link href="/privacy" className="underline underline-offset-4">
-          Privacy
-        </Link>
-        <span aria-hidden> · </span>
-        <Link href="/terms" className="underline underline-offset-4">
-          Terms
-        </Link>
-      </p>
+      <FooterLinks links={HOME_FOOTER_LINKS} className="mt-6 pb-6" />
     </>
-  );
-}
-
-// Collect: the collections you're running (open first), each with how far along it is.
-function CollectionsSection({ list }: { list: Awaited<ReturnType<typeof myCollections>> }) {
-  return (
-    <section className="mt-8" aria-label="Collections">
-      <div className="mb-2 flex items-center justify-between">
-        <h2 className="font-display text-lg font-semibold tracking-tight">Collecting</h2>
-        <Link href="/collect/new" className="text-sm text-gray-500">
-          ＋ New
-        </Link>
-      </div>
-      <ul className="lp-rise space-y-2">
-        {list.slice(0, 6).map((c) => {
-          const p = progress(c.entries, c.amount);
-          const pct = p.target > 0 ? Math.min(100, Math.round((p.collected / p.target) * 100)) : p.people > 0 ? Math.round((p.paidCount / p.people) * 100) : 0;
-          const toCheck = p.paidCount - p.checked;
-          return (
-            <li key={c.id}>
-              <Link href={`/c/${c.code}`} className={`block rounded-2xl border border-line px-4 py-3.5 active:bg-mist ${c.closedAt ? "opacity-60" : ""}`}>
-                <span className="flex items-baseline justify-between gap-3">
-                  <span className="truncate text-[15px] font-semibold">{c.title}</span>
-                  <span className="shrink-0 text-sm font-semibold tabular-nums">{formatMoney(p.collected, c.currency)}</span>
-                </span>
-                <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-fg/[0.08]">
-                  <span className="lp-bar-x block h-full rounded-full bg-meter-up" style={{ width: `${Math.max(pct, p.paidCount ? 4 : 0)}%` }} />
-                </span>
-                <span className="mt-1.5 flex justify-between text-xs text-gray-400">
-                  <span>
-                    {c.closedAt ? "Closed · " : ""}
-                    {p.paidCount} of {p.people || p.paidCount} paid
-                  </span>
-                  {toCheck > 0 && !c.closedAt && <span className="font-medium text-owed">{toCheck} to check</span>}
-                </span>
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
   );
 }
 

@@ -40,14 +40,15 @@ export type TripReport = {
   topPayer: { id: string; name: string; amount: number } | null;
   busiestDay: { day: string; amount: number } | null;
   shares: { id: string; name: string; amount: number }[]; // what each person's part came to, biggest first
-  settle: { from: string; to: string; amount: number }[]; // names
+  settle: { from: string; to: string; fromId: string; toId: string; amount: number }[]; // names, and who they are
 };
 
 export function tripReport(input: { name: string; type?: string; currency: string; members: Member[]; expenses: Expense[]; transfers: Transfer[]; tz: string }): TripReport {
   const { members, expenses, tz } = input;
   const nameOf = (id: string) => members.find((m) => m.id === id)?.name ?? "Someone";
   const total = expenses.reduce((s, e) => s + spentAmount(e), 0);
-  const dayList = expenses.map((e) => dayKey(expenseDate(e), tz)).sort();
+  // A card game's result isn't spending, so its date can't stretch the trip's first and last day.
+  const dayList = expenses.filter((e) => e.kind !== "pot").map((e) => dayKey(expenseDate(e), tz)).sort();
   const from = dayList[0] ?? "";
   const to = dayList[dayList.length - 1] ?? "";
   const days = from ? Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1 : 0;
@@ -97,7 +98,7 @@ export function tripReport(input: { name: string; type?: string; currency: strin
     topPayer: top ? { id: top[0], name: nameOf(top[0]), amount: top[1] } : null,
     busiestDay: busy && days > 1 ? { day: busy[0], amount: busy[1] } : null,
     shares: involved.map((m) => ({ id: m.id, name: m.name, amount: share.get(m.id) ?? 0 })).sort((a, b) => b.amount - a.amount),
-    settle: input.transfers.map((t) => ({ from: nameOf(t.from), to: nameOf(t.to), amount: t.amount })),
+    settle: input.transfers.map((t) => ({ from: nameOf(t.from), to: nameOf(t.to), fromId: t.from, toId: t.to, amount: t.amount })),
   };
 }
 

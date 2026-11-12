@@ -25,7 +25,7 @@ export function PageHeader({
         </Link>
       )}
       {hideTitle && <span aria-hidden className="flex-1" />}
-      <h1 className={`${hideTitle ? "sr-only" : "min-w-0 flex-1"} line-clamp-2 break-words font-display text-[28px] font-semibold leading-tight tracking-[-0.02em]`}>{title}</h1>
+      <h1 className={`${hideTitle ? "sr-only" : "min-w-0 flex-1"} line-clamp-2 text-balance break-words font-display text-[28px] font-semibold leading-tight tracking-[-0.02em]`}>{title}</h1>
       {action && (
         <Link href={action.href} aria-label={action.label} className={iconButtonClass}>
           {action.icon}
@@ -53,7 +53,7 @@ export const secondaryButtonClass =
 
 export function ErrorNote({ children }: { children: React.ReactNode }) {
   return (
-    <Notice tone="error" params={["error"]} className="mb-4">
+    <Notice key={typeof children === "string" ? children : undefined} tone="error" params={["error"]} className="mb-4">
       {children}
     </Notice>
   );

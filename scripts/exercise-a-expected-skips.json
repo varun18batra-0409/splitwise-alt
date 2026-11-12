@@ -1,0 +1,23 @@
+[
+  {
+    "file": "05-splitwise-import.spec.ts",
+    "devices": ["Android", "iPhone", "Desktop"],
+    "reasonIncludes": "BLOCKED: the Splitwise CSV wasn't supplied",
+    "owner": "founder (supplies the secret for staging runs)",
+    "compensating": "Import parsing is covered by unit tests; the real-file import runs in the staging E2E when the secret is set"
+  },
+  {
+    "file": "10-auth.spec.ts",
+    "devices": ["iPhone"],
+    "reasonIncludes": "Uses Chrome's built-in test fingerprint reader",
+    "owner": "founder (release checklist)",
+    "compensating": "The Android (phone) run covers it; fingerprint or face sign-in on a real iPhone is a manual release-checklist item"
+  },
+  {
+    "file": "38-gestures.spec.ts",
+    "devices": ["iPhone"],
+    "reasonIncludes": "Touch drags are built with Chrome's Touch objects",
+    "owner": "founder (release checklist)",
+    "compensating": "The Android (phone) run does the same swipe, drag and confetti test; drag, swipe, keyboard, back gesture and scroll recovery on a real iPhone are manual release-checklist items"
+  }
+]

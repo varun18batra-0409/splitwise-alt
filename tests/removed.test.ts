@@ -214,12 +214,30 @@ describe("a new invite link", () => {
     expect(joined.ok).toBe(true);
   });
 
+  it("also closes the open email invitations in the same step; accepted ones stay accepted", async () => {
+    const f = await flat("lc07");
+    const open = await db.invite.create({ data: { groupId: f.groupId, email: `lc07-open-${stamp}@example.test`, invitedById: f.asha } });
+    const accepted = await db.invite.create({ data: { groupId: f.groupId, email: `lc07-done-${stamp}@example.test`, invitedById: f.asha, acceptedAt: new Date() } });
+    // A non-admin changes nothing.
+    await newInviteLink(f.groupId, f.sam);
+    expect((await db.invite.findUniqueOrThrow({ where: { id: open.id } })).declinedAt).toBeNull();
+    const made = await newInviteLink(f.groupId, f.asha);
+    expect(made.ok).toBe(true);
+    expect((await db.invite.findUniqueOrThrow({ where: { id: open.id } })).declinedAt).not.toBeNull();
+    const kept = await db.invite.findUniqueOrThrow({ where: { id: accepted.id } });
+    expect(kept.declinedAt).toBeNull();
+    expect(kept.acceptedAt).not.toBeNull();
+  });
+
   it("knows when email invites are still waiting (they stop working with the old link)", async () => {
     const f = await flat("i");
     expect(await waitingInvites(f.groupId)).toBe(0);
     await db.invite.create({ data: { groupId: f.groupId, email: `waiting-${stamp}@example.test`, invitedById: f.asha } });
     expect(await waitingInvites(f.groupId)).toBe(1);
-    await db.invite.updateMany({ where: { groupId: f.groupId }, data: { acceptedAt: new Date() } });
+    // A closed invitation (declined, cancelled, or closed by a new link) is not waiting.
+    await db.invite.updateMany({ where: { groupId: f.groupId }, data: { declinedAt: new Date() } });
+    expect(await waitingInvites(f.groupId)).toBe(0);
+    await db.invite.updateMany({ where: { groupId: f.groupId }, data: { declinedAt: null, acceptedAt: new Date() } });
     expect(await waitingInvites(f.groupId)).toBe(0);
   });
 });

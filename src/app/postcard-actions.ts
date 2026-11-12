@@ -13,6 +13,7 @@ import { visitorRegion } from "@/lib/region";
 import { isPrint, isSitePhoto, isStampId, rareFor, rareOpen, HANDS, LETTERINGS, paperOf, inkOf, toneOf } from "@/lib/postcards/catalog";
 import { canSendTo } from "@/lib/postcards/people";
 import { deliverNotes } from "@/lib/account-notes";
+import { isBlockedEitherWay } from "@/lib/blocks";
 
 const field = (f: FormData, k: string, max = 200) => String(f.get(k) ?? "").replace(/\r/g, "").slice(0, max);
 
@@ -150,6 +151,7 @@ export async function sendPostcardAction(f: FormData) {
       body: opensAt ? `It opens on ${new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" }).format(opensAt)}. No peeking.` : data.words ? `Greetings from ${data.words}` : message.slice(0, 80),
       url: `/postcards/${p.id}`,
       tag: `postcard-${p.id}`,
+      fromAccountId: me.id,
     })),
   );
   redirect(`/postcards/${made[0].id}?sent=${made.length}`);
@@ -163,11 +165,13 @@ export async function reactPostcardAction(f: FormData) {
   const r = reactionOf(field(f, "reaction", 10));
   const p = await db.postcard.findFirst({ where: { id, toId: me.id }, select: { id: true, fromId: true, reaction: true, opensAt: true } });
   if (!p || !r || (p.opensAt && p.opensAt > new Date())) redirect(`/postcards/${id}`);
+  // No seal either way once one of them has blocked the other.
+  if (await isBlockedEitherWay(me.id, p!.fromId)) redirect(`/postcards/${id}`);
   if (!(await allow(`postcard-seal:${me.id}`, 60, 86_400))) redirect(`/postcards/${id}`);
   await db.postcard.update({ where: { id: p!.id }, data: { reaction: r!.id, reactedAt: new Date() } });
   if (p!.reaction !== r!.id) {
     const who = me.name.trim().split(/\s+/)[0] || "A friend";
-    await deliverNotes([{ accountIds: [p!.fromId], kind: "postcard", title: `${who} sealed your postcard`, body: `“${r!.name}”`, url: `/postcards/${p!.id}`, tag: `postcard-seal-${p!.id}` }]);
+    await deliverNotes([{ accountIds: [p!.fromId], kind: "postcard", title: `${who} sealed your postcard`, body: `“${r!.name}”`, url: `/postcards/${p!.id}`, tag: `postcard-seal-${p!.id}`, fromAccountId: me.id }]);
   }
   redirect(`/postcards/${id}?sealed=1`);
 }

@@ -1,4 +1,5 @@
 import Link from "@/components/Link";
+import { barSize } from "@/lib/chart-labels";
 // Simple, accessible charts drawn with plain HTML (no chart library).
 // Single-series charts use the one accent colour; every bar carries its value
 // as text, and a table view is one tap away for screen readers and exact numbers.
@@ -42,7 +43,7 @@ export function ColumnChart({ title, data, total }: { title: string; data: BarDa
           <div key={d.key} className="flex h-full flex-1 items-end" title={`${d.label}: ${d.valueText}`}>
             <div
               className={`w-full rounded-t-[4px] ${d === peak ? "bg-meter-up" : "bg-meter-up/50"}`}
-              style={{ height: `${Math.max(2, (d.value / max) * 100)}%` }}
+              style={{ height: `${barSize(d.value, max)}%` }}
             />
           </div>
         ))}
@@ -88,7 +89,7 @@ function BarRow({ d, max }: { d: BarDatum; max: number }) {
         </span>
       </div>
       <div className="h-2 rounded-full bg-mist">
-        <div className="h-2 rounded-r-[4px] rounded-l-full bg-meter-up" style={{ width: `${Math.max(2, (d.value / max) * 100)}%` }} />
+        <div className="h-2 rounded-r-[4px] rounded-l-full bg-meter-up" style={{ width: `${barSize(d.value, max)}%` }} />
       </div>
     </>
   );

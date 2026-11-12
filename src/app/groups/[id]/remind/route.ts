@@ -1,4 +1,4 @@
-import { getMyMemberId } from "@/lib/identity";
+import { getMyMemberId, privatePath } from "@/lib/identity";
 import { loadGroup } from "@/lib/group-data";
 import { formatMoney } from "@/lib/money";
 import { nudgeLink } from "@/lib/nudge";
@@ -18,7 +18,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const myId = await getMyMemberId(id);
   // Someone who left reads only their own part of the ledger (their own Smart Settle payments), never the rest.
   const data = myId ? await loadGroup(id, { events: false, viewer: myId }) : null;
-  if (!data || !myId || !data.group.members.some((m) => m.id === myId)) return Response.redirect(new URL("/private", url.origin), 303);
+  if (!data || !myId || !data.group.members.some((m) => m.id === myId)) return Response.redirect(new URL(await privatePath(id), url.origin), 303);
   const { group, transfers } = data;
   const t = transfers.find((x) => x.from === fromId && x.to === myId);
   if (!t || group.closed) return Response.redirect(home, 303);

@@ -1,7 +1,7 @@
 import Link from "@/components/Link";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { getMyMemberId } from "@/lib/identity";
+import { getMyMemberId, privatePath } from "@/lib/identity";
 import { dayKey } from "@/lib/dates";
 import { getTimeZone } from "@/lib/tz";
 import { splitNameFor } from "@/lib/group-types";
@@ -29,7 +29,7 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
   if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
   const tz = await getTimeZone();
-  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
 
   // Someone who left (or was removed) can't change anything, and can't open an expense the group added without them.
   const access = await expenseAccess(group.id, myId, expenseId);

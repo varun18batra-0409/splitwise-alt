@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { shareCountdownInLoopin } from "@/app/countdown-actions";
+import { useFocusTrap } from "@/lib/use-focus-trap";
 import { useDragToClose } from "@/lib/use-drag-close";
 
 // "Share": a small panel with three ways to share the countdown.
@@ -27,10 +28,8 @@ export function ShareCountdown({ groupId, line, className }: { groupId: string; 
     pic.current ??= fetch(url)
       .then(async (res) => (res.ok ? new File([await res.blob()], "countdown.png", { type: "image/png" }) : null))
       .catch(() => null);
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    window.addEventListener("keydown", esc);
-    return () => window.removeEventListener("keydown", esc);
   }, [open, url]);
+  const layer = useFocusTrap(open, { onEscape: () => setOpen(false) });
 
   async function shareFile(): Promise<"shared" | "closed" | "cant"> {
     const file = await (pic.current ?? Promise.resolve(null));
@@ -98,7 +97,7 @@ export function ShareCountdown({ groupId, line, className }: { groupId: string; 
       </button>
       {open &&
         createPortal(
-        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/60" onClick={() => setOpen(false)}>
+        <div ref={layer} className="fixed inset-0 z-[70] flex items-end justify-center bg-black/60" onClick={() => setOpen(false)}>
           <div
             role="dialog"
             aria-modal="true"

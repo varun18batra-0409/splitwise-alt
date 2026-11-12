@@ -12,7 +12,7 @@ import { getAccount } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
 import { todayKey } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
-import { loadCollection, loopinFriends, personalReminder, progress, reminderText, upiLink, whatsappTo } from "@/lib/collect";
+import { countsLine, loadCollection, loopinFriends, personalReminder, progress, stampCounts, progressBar, progressLines, reminderText, upiLink, whatsappTo } from "@/lib/collect";
 import { FriendPicker } from "@/components/FriendPicker";
 import { PickContacts } from "@/components/PickContacts";
 import { organiserActionForm, undoPaidAction } from "@/app/collect-actions";
@@ -49,7 +49,9 @@ export default async function CollectionPage({ params, searchParams }: Props) {
   const due = c.entries.filter((e) => e.status === "due");
   const paid = c.entries.filter((e) => e.status !== "due").sort((a, b) => (b.paidAt?.getTime() ?? 0) - (a.paidAt?.getTime() ?? 0));
   const p = progress(c.entries, c.amount);
-  const pct = p.target > 0 ? Math.min(100, Math.round((p.collected / p.target) * 100)) : p.people > 0 ? Math.round((p.paidCount / p.people) * 100) : 0;
+  const bar = progressBar(p);
+  const lines = progressLines(p, c.currency);
+  const stamp = stampCounts(p);
   const money = (n: number) => formatMoney(n, c.currency);
   const late = c.dueDate && c.dueDate < todayKey(new Date(), tz);
   const closed = Boolean(c.closedAt);
@@ -159,11 +161,11 @@ export default async function CollectionPage({ params, searchParams }: Props) {
           style={{ color: INK }}
         >
           <span className="block font-hand text-[26px] font-bold leading-none tabular-nums">
-            {p.paidCount}
-            {p.people > 0 && <span className="text-[18px]">/{p.people}</span>}
+            {stamp.n}
+            {stamp.of !== null && <span className="text-[18px]">/{stamp.of}</span>}
           </span>
           <span className="block text-[10px] font-semibold uppercase tracking-wide" style={{ color: INK_OWED }}>
-            paid
+            {stamp.word}
           </span>
         </span>
         <p className="pr-20 font-hand text-[24px] font-bold leading-none text-fg/75">{c.organiser} is collecting</p>
@@ -176,18 +178,34 @@ export default async function CollectionPage({ params, searchParams }: Props) {
           {c.dueDate && <span className={`rounded-full px-2.5 py-1 ${late && !closed ? "bg-owe/15 text-owe" : "bg-fg/[0.08] text-fg/70"}`}>{late ? `Was due ${when(c.dueDate)}` : `By ${when(c.dueDate)}`}</span>}
           {closed && <span className="rounded-full bg-fg/[0.08] px-2.5 py-1 text-fg/70">Closed</span>}
         </div>
-        <div className="mt-5 h-2.5 overflow-hidden rounded-full bg-fg/10" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="How much is in">
-          <span className="lp-bar-x block h-full rounded-full bg-meter-up shadow-[0_0_16px_-2px_rgba(37,169,111,0.8)]" style={{ width: `${Math.max(pct, p.paidCount ? 4 : 0)}%` }} />
+        <div className="mt-5 flex h-2.5 overflow-hidden rounded-full bg-fg/10" role="progressbar" aria-valuenow={bar.confirmedPct} aria-valuemin={0} aria-valuemax={100} aria-label="How much is confirmed" data-collection-bar>
+          <span className="lp-bar-x block h-full bg-meter-up shadow-[0_0_16px_-2px_rgba(37,169,111,0.8)]" style={{ width: `${Math.max(bar.confirmedPct, p.checked ? 4 : 0)}%` }} data-bar-confirmed />
+          <span className="block h-full bg-meter-up/35" style={{ width: `${bar.reportedPct}%` }} data-bar-reported />
         </div>
-        <p className="mt-2 flex items-baseline justify-between text-sm" data-collection-progress>
+        <p className="mt-2 flex items-baseline justify-between gap-3 text-sm" data-collection-progress>
           <span className="text-fg/70">
-            {p.paidCount} of {p.people || p.paidCount} paid
+            {countsLine(p).split(" · ").map((part, i) => (
+              <span key={i} className="whitespace-nowrap">
+                {i > 0 && " · "}
+                {part}
+              </span>
+            ))}
           </span>
-          <span className="font-semibold tabular-nums">
-            {money(p.collected)}
-            {p.target > 0 && <span className="font-normal text-fg/60"> of {money(p.target)}</span>}
+          <span className="font-semibold tabular-nums" data-collection-confirmed>
+            <span className="whitespace-nowrap">{lines.confirmed}</span>
+            {p.target > 0 && (
+              <>
+                {" "}
+                <span className="whitespace-nowrap font-normal text-fg/60">of {money(p.target)}</span>
+              </>
+            )}
           </span>
         </p>
+        {lines.reported && (
+          <p className="mt-0.5 text-right text-[13px] tabular-nums text-fg/70" data-collection-reported>
+            {lines.reported}
+          </p>
+        )}
       </section>
 
       {/* The organiser: share, remind, add names */}

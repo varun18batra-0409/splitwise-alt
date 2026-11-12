@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
+import { clearResyncCookieString, pushSyncPlan } from "@/lib/push-resync";
 import { BellIcon } from "./DrawnIcons";
 import { phoneStatusLabel, type PhoneState } from "@/lib/phone-status";
 import { pushPublicKey, removePushSubscription, savePushSubscription } from "@/app/actions";
@@ -89,6 +91,11 @@ export function PhoneStatus({ compact = false }: { compact?: boolean }) {
         (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(key) }));
       const json = sub.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } };
       const res = await savePushSubscription(json);
+      if (res.unsupported) {
+        setError("This browser's notification service isn't supported. Try Chrome, Safari, Firefox or Edge.");
+        setState("off");
+        return;
+      }
       if (!res.ok) throw new Error("save");
       setState("on");
     } catch {
@@ -98,15 +105,25 @@ export function PhoneStatus({ compact = false }: { compact?: boolean }) {
   }
 
   async function turnOff() {
+    setError("");
     setState("working");
+    // Switch off on the phone first: only once that worked do we tell Loopin to forget it. If the phone
+    // refuses, the switch stays on (it really is still on) and we say so.
     try {
       const { sub } = await currentSubscription();
       if (sub) {
-        await removePushSubscription(sub.endpoint);
-        await sub.unsubscribe();
+        const ok = await sub.unsubscribe();
+        if (!ok) throw new Error("unsubscribe");
+        try {
+          await removePushSubscription(sub.endpoint);
+        } catch {
+          /* the phone is already off; the server entry is cleaned up when a send to it fails */
+        }
       }
     } catch {
-      /* already off */
+      setError("Couldn't turn off on this phone. Try again.");
+      setState("on");
+      return;
     }
     setState("off");
   }
@@ -162,26 +179,35 @@ export function PhoneStatus({ compact = false }: { compact?: boolean }) {
 // sure groups joined since then are included. A plain request, a few seconds
 // after opening, so it never holds up the first taps.
 export function PushSync() {
+  // Checked again on each page change, so a sign-in that ends with a redirect (no full reload) is still noticed.
+  const pathname = usePathname();
   useEffect(() => {
-    if (!supported() || Notification.permission !== "granted") return;
+    if (!supported()) return;
     let last = 0;
     try {
       last = Number(localStorage.getItem("lp_push_sync") ?? 0);
     } catch {}
-    if (Date.now() - last < 6 * 3600_000) return;
+    const plan = pushSyncPlan({ granted: Notification.permission === "granted", cookieHeader: document.cookie, lastSyncMs: last, nowMs: Date.now() });
+    if (!plan.run) return;
     const t = window.setTimeout(() => {
       currentSubscription()
         .then(async ({ sub }) => {
-          if (!sub) return;
+          if (!sub) {
+            // Allowed but not subscribed: nothing to put back, so the note is cleared rather than re-run on every page.
+            if (plan.resync) document.cookie = clearResyncCookieString();
+            return;
+          }
           const r = await fetch("/api/push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sub.toJSON()) });
-          if (r.ok)
+          if (r.ok) {
+            if (plan.resync) document.cookie = clearResyncCookieString();
             try {
               localStorage.setItem("lp_push_sync", String(Date.now()));
             } catch {}
+          }
         })
         .catch(() => {});
-    }, 4000);
+    }, plan.resync ? 500 : 4000);
     return () => window.clearTimeout(t);
-  }, []);
+  }, [pathname]);
   return null;
 }

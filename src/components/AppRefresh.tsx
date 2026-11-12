@@ -27,7 +27,9 @@ export function AppRefresh() {
       window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
     if (!standalone) return () => document.removeEventListener("visibilitychange", onVis);
 
+    const pullRef = { current: 0 };
     const onStart = (e: TouchEvent) => {
+      pullRef.current = 0; // each touch starts from nothing pulled
       start.current = window.scrollY <= 0 && !document.querySelector("[role=dialog]") ? e.touches[0].clientY : null;
     };
     const onMove = (e: TouchEvent) => {
@@ -42,9 +44,9 @@ export function AppRefresh() {
         setTimeout(() => setBusy(false), 900);
       }
       start.current = null;
+      pullRef.current = 0;
       setPull(0);
     };
-    const pullRef = { current: 0 };
     const track = (e: TouchEvent) => {
       onMove(e);
       if (start.current === null) return;
@@ -55,11 +57,13 @@ export function AppRefresh() {
     window.addEventListener("touchstart", onStart, { passive: true });
     window.addEventListener("touchmove", track, { passive: true });
     window.addEventListener("touchend", onEnd);
+    window.addEventListener("touchcancel", onEnd);
     return () => {
       document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener("touchstart", onStart);
       window.removeEventListener("touchmove", track);
       window.removeEventListener("touchend", onEnd);
+      window.removeEventListener("touchcancel", onEnd);
     };
   }, [router]);
 

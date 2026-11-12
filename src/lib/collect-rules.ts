@@ -47,14 +47,45 @@ export function upiLink(c: { upiId: string; organiser: string; title: string }, 
   return `upi://pay?${q.join("&")}`;
 }
 
-// Totals for the progress bar: who's paid (said so or checked), and how much.
+// Totals for the progress bar: who's paid (said so or checked), and how much. Money people only SAY they paid ("paid") is kept
+// apart from money the organiser has checked ("confirmed"): `confirmedAmount` and `reportedAmount` never get added into one "collected".
 export function progress(entries: EntryLike[], perPerson: number) {
   const paid = entries.filter((e) => e.status === "paid" || e.status === "confirmed");
   const due = entries.filter((e) => e.status === "due");
-  const collected = paid.reduce((s, e) => s + e.amount, 0);
+  const confirmedAmount = entries.filter((e) => e.status === "confirmed").reduce((s, e) => s + e.amount, 0);
+  const reportedAmount = entries.filter((e) => e.status === "paid").reduce((s, e) => s + e.amount, 0);
   const people = paid.length + due.length;
   const target = perPerson > 0 && people > 0 ? perPerson * people : 0;
-  return { paidCount: paid.length, dueCount: due.length, people, collected, target, checked: paid.filter((e) => e.status === "confirmed").length };
+  return { paidCount: paid.length, dueCount: due.length, people, confirmedAmount, reportedAmount, target, checked: paid.filter((e) => e.status === "confirmed").length };
+}
+
+// The counts, in words that don't claim more than is known: how many SAY they've paid, and how many the organiser has
+// checked. "3 of 6 say they've paid · 2 checked". The paper stamp counts only the checked ones.
+export function countsLine(p: { paidCount: number; people: number; checked: number }): string {
+  const of = p.people || p.paidCount;
+  if (p.paidCount === 0) return of > 0 ? `No one has said they've paid yet` : "No one yet";
+  return `${p.paidCount} of ${of} say they've paid${p.checked > 0 ? ` · ${p.checked} checked` : ""}`;
+}
+
+export function stampCounts(p: { people: number; checked: number }): { n: number; of: number | null; word: string } {
+  return { n: p.checked, of: p.people > 0 ? p.people : null, word: "checked" };
+}
+
+// The bar's two fills, in whole percent: confirmed (solid) and reported-but-unchecked (lighter, after it). Together never past 100.
+// With "any amount" there is no target, so the bar counts people instead (checked, then said-paid).
+export function progressBar(p: ReturnType<typeof progress>): { confirmedPct: number; reportedPct: number } {
+  const total = p.target > 0 ? p.target : p.people;
+  if (total <= 0) return { confirmedPct: 0, reportedPct: 0 };
+  const c = p.target > 0 ? p.confirmedAmount : p.checked;
+  const r = p.target > 0 ? p.reportedAmount : p.paidCount - p.checked;
+  const confirmedPct = Math.min(100, Math.round((c / total) * 100));
+  const reportedPct = Math.min(100 - confirmedPct, Math.round((r / total) * 100));
+  return { confirmedPct, reportedPct };
+}
+
+// The two money lines, always apart: "Confirmed ₹600" and "Reported, awaiting check ₹300" (the second only when there is some).
+export function progressLines(p: ReturnType<typeof progress>, currency: string): { confirmed: string; reported: string | null } {
+  return { confirmed: `Confirmed ${formatMoney(p.confirmedAmount, currency)}`, reported: p.reportedAmount > 0 ? `Reported, awaiting check ${formatMoney(p.reportedAmount, currency)}` : null };
 }
 
 // The message the organiser sends to the group ("still to pay: …").

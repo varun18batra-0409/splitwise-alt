@@ -1,5 +1,6 @@
 import { db } from "../db";
 import { logEvent, type Db } from "../events";
+import { withRetry } from "../once";
 import { formatMoney, formatPercent, parseAmount, parsePercent } from "../money";
 import { BILL_TEMPLATES, addMissed, daysBefore, daysInRange, firstMonth, monthsBetween, ordinalDay, periodsDue, toggleMissed } from "./bills";
 import { addMonths, dueKey } from "./month";
@@ -160,10 +161,24 @@ export async function toggleMissedDayFor(groupId: string, actorId: string, billI
   if (!bill) return { ok: false, error: "That bill no longer exists." };
   if (!bill.group.members.some((m) => m.id === actorId && !m.leftAt)) return { ok: false, error: "Only people in this group can change bills." };
   if (!/^\d{4}-\d{2}$/.test(period) || !Number.isInteger(day)) return { ok: false, error: "That day isn’t valid." };
-  // Only months not added yet can change.
-  if (await db.billRun.findUnique({ where: { billId_period: { billId, period } } })) return { ok: false, error: "That month has already been added." };
-  await db.bill.update({ where: { id: billId }, data: { missed: toggleMissed(bill.missed, period, day) } });
-  return { ok: true, id: billId };
+  // Compare and set: the new list is written only if the bill's list is still the one it was worked out from, and the
+  // month still isn't added. If another tap got in first (a second phone, a double tap), read again and apply this
+  // tap on top of theirs, so neither day is lost.
+  let current = bill.missed;
+  for (let tries = 0; tries < 6; tries++) {
+    const done = await withRetry(() => db.$transaction(async (tx) => {
+      // Only months not added yet can change.
+      if (await tx.billRun.findUnique({ where: { billId_period: { billId, period } } })) return "added" as const;
+      const set = await tx.bill.updateMany({ where: { id: billId, deletedAt: null, missed: current }, data: { missed: toggleMissed(current, period, day) } });
+      return set.count === 1 ? ("saved" as const) : ("moved" as const);
+    }));
+    if (done === "added") return { ok: false, error: "That month has already been added." };
+    if (done === "saved") return { ok: true, id: billId };
+    const fresh = await db.bill.findFirst({ where: { id: billId, groupId, deletedAt: null, nature: "daily" }, select: { missed: true } });
+    if (!fresh) return { ok: false, error: "That bill no longer exists." };
+    current = fresh.missed;
+  }
+  return { ok: false, error: "That bill is changing right now. Try again in a moment." };
 }
 
 // Settings → "Reminders and settling up".

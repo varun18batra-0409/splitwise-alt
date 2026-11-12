@@ -112,7 +112,7 @@ export default async function JoinPage({
       {!account ? (
         <>
           {asMember && <p className="mb-4 rounded-[18px] bg-mist px-4 py-3 text-sm">You were added as <strong>{asMember.name}</strong>. Join to see your share.</p>}
-          <div className="space-y-2.5">
+          <div className="mt-7 space-y-2.5">
             {googleConfigured() && (
               <a href={`/api/auth/google/start?${new URLSearchParams({ back })}`} className="pop flex h-14 w-full items-center justify-center gap-3 bg-fg text-base font-semibold text-canvas">
                 <GoogleG />
@@ -123,10 +123,10 @@ export default async function JoinPage({
               href={`/signin?${new URLSearchParams({ back, ...(invitedEmail ? { e: invitedEmail } : {}) })}`}
               className={googleConfigured() ? "flex h-14 w-full items-center justify-center rounded-full border border-fg/15 bg-fg/[0.06] text-base font-semibold text-fg transition-transform active:scale-[0.97]" : "pop flex h-14 w-full items-center justify-center bg-fg text-base font-semibold text-canvas"}
             >
-              Sign up to join with email
+              Continue with email
             </Link>
           </div>
-          <p className="mt-3 text-center text-[13px] text-fg/50">30 seconds, no password. Your groups follow you to any phone.</p>
+          <p className="mt-3 text-center text-[13px] text-fg/50">About 30 seconds, no password. Your groups follow you to any phone.</p>
         </>
       ) : (
         <>

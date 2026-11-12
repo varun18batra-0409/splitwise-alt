@@ -22,6 +22,7 @@ const context = await browser.newContext({
   deviceScaleFactor: desktop ? 1 : 2,
   ...(ios ? { isMobile: true, hasTouch: true, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1" } : {}),
   colorScheme: "dark",
+  reducedMotion: "reduce", // the Home cards stop sliding, so a picture never catches a card half-way
   locale: "en-IN",
   timezoneId: "Asia/Kolkata",
 });
@@ -62,7 +63,9 @@ await shot("07-group-switcher", g, async (p) => {
   await p.waitForTimeout(300);
 }, false);
 await shot("08-invite", `${g}/invite`, async (p) => {
-  await p.locator("details.group\\/qr summary").click();
+  // The QR code now sits under "More ways".
+  await p.locator("[data-more-ways] > summary").click();
+  await p.locator("[data-more-ways] details.group\\/link > summary").click();
   await p.waitForTimeout(300);
 });
 await shot("09-add-expense", `${g}/add`, undefined, false);
@@ -90,6 +93,7 @@ await shot("21b-insights-week", "/search?p=w", undefined, false);
 await shot("21c-insights-spent-year", "/search?v=spent&p=y", undefined, false);
 await shot("21d-insights-flat", `/search?g=${demo.flat.id}`);
 await shot("22-settle-everything", `${g}/settle`, async (p) => {
+  await p.getByText("Other ways to settle").click();
   await p.getByRole("button", { name: /Settle everything/ }).scrollIntoViewIfNeeded();
 }, false);
 await shot("23-add-expense-differently", `${g}/add`, async (p) => {
@@ -189,6 +193,33 @@ for (const [n, w, h] of [["26b-signin-320x568", 320, 568], ["26c-signin-375x667"
 }
 await page.setViewportSize(screen);
 await shot("27-privacy", "/privacy");
+// Narrow phones (320 and 360 wide): the screens people use most and the ones changed lately, with a long name in the
+// group, so a reviewer can check nothing is cut off, overlapping or pushed sideways. (Phones only, not desktop.)
+if (!desktop && !hosted) {
+  const { db } = await import("../src/lib/db");
+  const other = await db.member.findFirst({ where: { groupId: demo.trip.id, accountId: null, leftAt: null }, orderBy: { createdAt: "asc" } });
+  const was = other?.name;
+  if (other) await db.member.update({ where: { id: other.id }, data: { name: "Bhagyalakshmi Venkataraman" } }).catch(() => undefined);
+  for (const w of [320, 360] as const) {
+    await page.setViewportSize({ width: w, height: w === 320 ? 640 : 780 });
+    for (const [n, path] of [
+      ["home", "/"],
+      ["activity", `${g}?tab=activity`],
+      ["balances", `${g}?tab=balances`],
+      ["settle", `${g}/settle`],
+      ["add", `${g}/add`],
+      ["pay", `${g}/pay`],
+      ["account", "/account"],
+      ["notifications", "/account/notifications"],
+      ["support", "/support"],
+      ["tour", "/welcome"],
+    ] as const) {
+      await shot(`n${w}-${n}`, path);
+    }
+  }
+  if (other && was) await db.member.update({ where: { id: other.id }, data: { name: was } }).catch(() => undefined);
+  await page.setViewportSize(screen);
+}
 // Phase 5
 await shot("62-trip-report", `${g}/report`);
 await shot("63-charts-insights", `${g}?tab=charts`, undefined, false);
@@ -629,7 +660,7 @@ if (collectCode) {
   await context.addCookies([{ name: "lp_payer", value: "shotsPayerKey0000000001", url: `${base}/c/` }]);
   await shot("75-collect-payer-ticked", `/c/${collectCode}`);
 }
-for (const n of [2, 3, 4]) {
+for (const n of [2, 3, 4, 5, 6]) {
   await shot(`24-tour-${n}`, "/", async (p) => {
     for (let k = 1; k < n; k++) {
       await p.getByRole("button", { name: /Next/ }).click();
@@ -678,8 +709,8 @@ if (!hosted) {
     await p.goto(base + "/", { waitUntil: "networkidle" });
     await p.getByRole("button", { name: /Next/ }).click();
   }, false);
-  await step("81-us-tour-4", async () => {
-    for (let k = 0; k < 2; k++) { // already on slide 2: two more taps reach slide 4 (the last)
+  await step("81-us-tour-6", async () => {
+    for (let k = 0; k < 4; k++) { // already on slide 2: four more taps reach slide 6 (the last)
       await p.getByRole("button", { name: /Next/ }).click();
       await p.waitForTimeout(450);
     }

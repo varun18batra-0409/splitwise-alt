@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { noticeIdentity } from "@/lib/notice-identity";
 
 // A message at the top of a screen, with a small ✕ to close it.
 // - params: the address markers that showed it (e.g. "saved"), removed on
@@ -27,19 +28,21 @@ export function Notice({
   className?: string;
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(true);
+  // Closed "for" one identity: a new message (or a different remember key) shows again.
+  const id = noticeIdentity(remember, params, children);
+  const [closedFor, setClosedFor] = useState<string | null>(null);
   useEffect(() => {
     if (!remember) return;
     try {
-      if (localStorage.getItem(`hide:${remember}`) === "1") setOpen(false);
+      if (localStorage.getItem(`hide:${remember}`) === "1") setClosedFor(id);
     } catch {
       // storage unavailable: just show it
     }
-  }, [remember]);
-  if (!open) return null;
+  }, [remember, id]);
+  if (closedFor === id) return null;
 
   function close() {
-    setOpen(false);
+    setClosedFor(id);
     if (remember) {
       try {
         localStorage.setItem(`hide:${remember}`, "1");

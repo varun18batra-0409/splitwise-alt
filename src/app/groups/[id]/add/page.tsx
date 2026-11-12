@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { aiReady } from "@/lib/ai";
 import { db } from "@/lib/db";
 import { Notice } from "@/components/Notice";
-import { getMyMemberId } from "@/lib/identity";
+import { getMyMemberId, privatePath } from "@/lib/identity";
 import { PageHeader, primaryButtonClass } from "@/components/ui";
 import { setGroupClosed } from "@/app/actions";
 import { AddExpenseForm } from "@/components/AddExpenseForm";
@@ -34,7 +34,7 @@ export default async function AddExpensePage({
   if (!group || group.deletedAt) notFound();
 
   const myId = await getMyMemberId(group.id);
-  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
 
   if (group.closed) {
     return (

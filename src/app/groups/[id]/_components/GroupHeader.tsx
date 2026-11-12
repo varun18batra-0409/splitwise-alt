@@ -66,7 +66,7 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
   );
 
   const switcher = (big: boolean) => (
-    <details className="group/switch relative min-w-0 flex-1">
+    <details className={`group/switch relative min-w-0 ${big ? "max-w-full" : "flex-1"}`}>
       <summary className="flex cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden">
         <h1 className={`font-display font-semibold tracking-[-0.02em] ${big ? "line-clamp-2 text-[clamp(32px,10vw,44px)] leading-[1.02]" : "truncate text-[24px]"}`}>{group.name}</h1>
         <span className={`shrink-0 transition-transform group-open/switch:rotate-180 ${big ? "text-fg/80" : "text-gray-400"}`}>
@@ -144,7 +144,7 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
         ) : (
           <GroupCover {...coverFor(group)} uid={`head-${group.id}`} letter={group.name} sizes="(max-width: 448px) 100vw, 448px" priority drift />
         )}
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.5)_0%,rgba(0,0,0,0)_30%,rgba(0,0,0,0.18)_55%,var(--color-canvas)_100%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.5)_0%,rgba(0,0,0,0)_30%,rgba(0,0,0,0.5)_62%,var(--color-canvas)_100%)]" />
       </div>
       <div className="relative flex items-center gap-2">
         <Link href="/" aria-label="Back to all groups" className={glass}>

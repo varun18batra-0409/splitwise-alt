@@ -75,7 +75,7 @@ export async function markPaidAction(f: FormData) {
   const viewer = await getAccount();
   const r = await markPaid(code, { entryId: entryId && entryId !== "new" ? entryId : undefined, name: field(f, "name"), amount: field(f, "amount"), viewerAccountId: viewer?.id }, key);
   if (!r.ok) redirect(back({ error: r.error }));
-  after(() => tellOrganiser(code, r.entryId));
+  after(() => tellOrganiser(code, r.entryId, viewer?.id));
   redirect(back({ ticked: "1" }));
 }
 
@@ -109,12 +109,14 @@ export async function organiserActionForm(f: FormData) {
 }
 
 // For the organiser (in Alerts and on their phones): "Ravi says they paid ₹300".
-async function tellOrganiser(code: string, entryId: string) {
+async function tellOrganiser(code: string, entryId: string, tickerAccountId?: string) {
   const c = await loadCollection(code);
   const e = c?.entries.find((x) => x.id === entryId);
   if (!c || !e) return;
   await deliverNotes([
-    { accountIds: [c.accountId], kind: "collect_ticked", title: c.title, body: `${e.name} says they paid ${formatMoney(e.amount, c.currency)}. Tap to check it off.`, url: `/c/${c.code}`, tag: `collect:${c.code}` },
+    // From the person who ticked (the signed-in account on this request, if any; not the entry's own account, which may be
+    // someone else's), so an organiser who blocked them isn't told.
+    { fromAccountId: tickerAccountId, accountIds: [c.accountId], kind: "collect_ticked", title: c.title, body: `${e.name} says they paid ${formatMoney(e.amount, c.currency)}. Tap to check it off.`, url: `/c/${c.code}`, tag: `collect:${c.code}` },
   ]);
 }
 

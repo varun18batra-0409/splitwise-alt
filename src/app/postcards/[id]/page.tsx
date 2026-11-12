@@ -1,7 +1,9 @@
+import { opensLine } from "@/lib/postcards/opens";
 import { notFound, redirect } from "next/navigation";
 import Link from "@/components/Link";
 import { db } from "@/lib/db";
 import { getAccount } from "@/lib/identity";
+import { canViewPostcard } from "@/lib/blocks";
 import { getTimeZone } from "@/lib/tz";
 import { PageHeader } from "@/components/ui";
 import { Notice } from "@/components/Notice";
@@ -11,6 +13,7 @@ import { cardProps } from "@/lib/postcards/view";
 import { SealedEnvelope, SealMark } from "@/components/postcards/Sealed";
 import { REACTIONS, reactionOf } from "@/lib/postcards/looks";
 import { reactPostcardAction } from "@/app/postcard-actions";
+import { SafetyLinks } from "@/components/SafetyLinks";
 
 export const metadata = { title: "Postcard", robots: { index: false } };
 
@@ -23,6 +26,8 @@ export default async function PostcardPage({ params, searchParams }: { params: P
   if (!me) redirect(`/signin?back=/postcards/${id}`);
   const p = await db.postcard.findFirst({ where: { id, OR: [{ fromId: me.id }, { toId: me.id }] } });
   if (!p) notFound();
+  // A card from someone you blocked, or from someone who blocked you (even one sent before), is gone from your view.
+  if (!(await canViewPostcard(me.id, p))) notFound();
   const mine = p.fromId === me.id;
   const shut = Boolean(p.opensAt && p.opensAt > new Date());
   if (!mine && !p.readAt && !shut) await db.postcard.update({ where: { id }, data: { readAt: new Date() } });
@@ -61,7 +66,7 @@ export default async function PostcardPage({ params, searchParams }: { params: P
           </div>
           <p className="mt-6 text-center text-sm leading-relaxed text-fg/60">
             {first(from?.name)} wrote this for {opens}.<br />
-            It opens that morning. We’ll let you know.
+            {p.opensAt ? opensLine(p.opensAt, tz) : "It opens on the day"}. We’ll let you know.
           </p>
         </>
       ) : (
@@ -120,6 +125,7 @@ export default async function PostcardPage({ params, searchParams }: { params: P
           </Link>
         )}
         {!shut || mine ? <PostcardShare front={c.front} back={c.back} name={`postcard-${p.id.slice(-6)}`} /> : null}
+        {!mine && <SafetyLinks kind="postcard" targetId={p.id} accountId={p.fromId} name={first(from?.name)} back="/postcards" className="pt-2" />}
       </div>
     </>
   );

@@ -3,8 +3,10 @@ import { parseNotify, wantsPush } from "./notify-prefs";
 import { allows, bothAllow, eventItem, type ItemId } from "./account-notify";
 import webpush from "web-push";
 import { db } from "./db";
+import { pushHostForLog, validSub } from "./push-subs";
 import { isBigExpense } from "./big-expense";
 import { JOINED } from "./membership";
+import { blockersOf } from "./blocks";
 
 // Phone notifications (Web Push). When someone changes something in a group,
 // everyone else in it who turned notifications on gets a short message.
@@ -89,10 +91,13 @@ export async function sendEventPush(eventId: string): Promise<number> {
       db.pushSubscription.findMany({ where: { memberId: ev.actorId }, select: { endpoint: true } }),
     ]);
     const actorPhones = new Set(own.map((o) => o.endpoint));
+    // Anyone who blocked the person who did this hears nothing about it (the group's money and activity list are unchanged).
+    const actorAccountId = (await db.member.findUnique({ where: { id: ev.actorId }, select: { accountId: true } }))?.accountId;
+    const blockers = actorAccountId ? await blockersOf(actorAccountId) : new Set<string>();
     // Both must agree: the person's account choices and the group's own settings.
     const prefs = await accountPrefs(all.map((s) => s.member.accountId));
     const item = eventItem(ev.kind);
-    const subs = all.filter((s) => !actorPhones.has(s.endpoint) && bothAllow(s.member.accountId ? prefs.get(s.member.accountId) : "", "push", item, wantsPush(parseNotify(s.member.notify), ev.kind)));
+    const subs = all.filter((s) => !actorPhones.has(s.endpoint) && !(s.member.accountId && blockers.has(s.member.accountId)) && bothAllow(s.member.accountId ? prefs.get(s.member.accountId) : "", "push", item, wantsPush(parseNotify(s.member.notify), ev.kind)));
     if (subs.length === 0) return 0;
     const actor = await db.member.findUnique({ where: { id: ev.actorId }, select: { name: true } });
     const base = pushPayload({ groupId: ev.group.id, groupName: ev.group.name, actorName: actor?.name ?? "Someone", text: neutralGameText(ev.text), eventId, kind: ev.kind });
@@ -105,10 +110,12 @@ export async function sendEventPush(eventId: string): Promise<number> {
     const payload = JSON.stringify(base);
     const keys = await vapidKeys();
     let sent = 0;
+    let failed = 0;
     const seen = new Set<string>(); // one phone can be several people in one group: notify once
     for (const s of subs) {
       if (seen.has(s.endpoint)) continue;
       seen.add(s.endpoint);
+      if (!(await usable(s))) continue;
       try {
         await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, {
           vapidDetails: { subject: SUBJECT, publicKey: keys.publicKey, privateKey: keys.privateKey },
@@ -118,30 +125,59 @@ export async function sendEventPush(eventId: string): Promise<number> {
       } catch (err) {
         const status = (err as { statusCode?: number }).statusCode;
         if (status === 404 || status === 410) await db.pushSubscription.deleteMany({ where: { endpoint: s.endpoint } });
+        else failed++; // a send that really failed (not just a phone that is gone): counted, not hidden
       }
     }
+    if (failed) await recordPushFailure("sendEventPush", `${failed} send(s) failed`);
     return sent;
-  } catch {
+  } catch (err) {
+    await recordPushFailure("sendEventPush", err);
     return 0;
   }
 }
 
+// A push that failed is written to the error list (counted in the daily check), never silently treated as "nothing to send".
+// Only the kind of failure is kept: no addresses, no names. Never throws.
+async function recordPushFailure(where: string, what: unknown): Promise<void> {
+  try {
+    const detail = typeof what === "string" ? what : `${(what as { name?: string } | null)?.name ?? "Error"}${(what as { statusCode?: number } | null)?.statusCode ? ` ${(what as { statusCode?: number }).statusCode}` : ""}`;
+    await db.errorLog.create({ data: { path: "push", message: `${where}: ${detail}`.slice(0, 200) } });
+  } catch {
+    // nowhere left to write it
+  }
+}
+
+// Checked again before every send: a stored row that is not a real push address from a supported service (or has bad keys)
+// is deleted and never sent to. Only the host is logged.
+async function usable(s: { endpoint: string; p256dh: string; auth: string }): Promise<boolean> {
+  if (validSub({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } })) return true;
+  await db.pushSubscription.deleteMany({ where: { endpoint: s.endpoint } }).catch(() => undefined);
+  console.warn(`push: removed an unsupported subscription (host ${pushHostForLog(s.endpoint)})`);
+  return false;
+}
+
 // Send a message to particular people (reminders, budget alerts…), on every
 // phone they turned notifications on for in that group. Never throws.
-export async function sendPushTo(memberIds: string[], p: { title: string; body: string; url: string; tag: string }, item: ItemId): Promise<number> {
+// fromMemberId: the person whose action this is about (a reaction, "I've paid", going shopping). Anyone who has
+// blocked that person's account isn't told.
+export async function sendPushTo(memberIds: string[], p: { title: string; body: string; url: string; tag: string }, item: ItemId, fromMemberId?: string): Promise<number> {
   try {
     if (memberIds.length === 0) return 0;
     const subs = await db.pushSubscription.findMany({ where: { memberId: { in: memberIds }, member: JOINED }, include: { member: { select: { notify: true, accountId: true } } } });
+    const fromAccountId = fromMemberId ? (await db.member.findUnique({ where: { id: fromMemberId }, select: { accountId: true } }))?.accountId : null;
+    const blockers = fromAccountId ? await blockersOf(fromAccountId) : new Set<string>();
     const prefs = await accountPrefs(subs.map((s) => s.member.accountId));
-    const wanted = subs.filter((s) => bothAllow(s.member.accountId ? prefs.get(s.member.accountId) : "", "push", item, !parseNotify(s.member.notify).off));
+    const wanted = subs.filter((s) => !(s.member.accountId && blockers.has(s.member.accountId)) && bothAllow(s.member.accountId ? prefs.get(s.member.accountId) : "", "push", item, !parseNotify(s.member.notify).off));
     if (wanted.length === 0) return 0;
     const keys = await vapidKeys();
     const payload = JSON.stringify({ title: p.title, body: p.body.length > 140 ? `${p.body.slice(0, 139)}…` : p.body, url: p.url, tag: p.tag });
     let sent = 0;
+    let failed = 0;
     const seen = new Set<string>();
     for (const s of wanted) {
       if (seen.has(s.endpoint)) continue;
       seen.add(s.endpoint);
+      if (!(await usable(s))) continue;
       try {
         await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, {
           vapidDetails: { subject: SUBJECT, publicKey: keys.publicKey, privateKey: keys.privateKey },
@@ -151,10 +187,13 @@ export async function sendPushTo(memberIds: string[], p: { title: string; body: 
       } catch (err) {
         const status = (err as { statusCode?: number }).statusCode;
         if (status === 404 || status === 410) await db.pushSubscription.deleteMany({ where: { endpoint: s.endpoint } });
+        else failed++; // a send that really failed (not just a phone that is gone): counted, not hidden
       }
     }
+    if (failed) await recordPushFailure("sendPushTo", `${failed} send(s) failed`);
     return sent;
-  } catch {
+  } catch (err) {
+    await recordPushFailure("sendPushTo", err);
     return 0;
   }
 }
@@ -173,10 +212,12 @@ export async function sendPushToAccounts(accountIds: string[], p: { title: strin
     const keys = await vapidKeys();
     const payload = JSON.stringify({ title: p.title, body: p.body.length > 140 ? `${p.body.slice(0, 139)}…` : p.body, url: p.url, tag: p.tag });
     let sent = 0;
+    let failed = 0;
     const seen = new Set<string>();
     for (const s of subs) {
       if (seen.has(s.endpoint)) continue;
       seen.add(s.endpoint);
+      if (!(await usable(s))) continue;
       try {
         await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, {
           vapidDetails: { subject: SUBJECT, publicKey: keys.publicKey, privateKey: keys.privateKey },
@@ -186,10 +227,13 @@ export async function sendPushToAccounts(accountIds: string[], p: { title: strin
       } catch (err) {
         const status = (err as { statusCode?: number }).statusCode;
         if (status === 404 || status === 410) await db.pushSubscription.deleteMany({ where: { endpoint: s.endpoint } });
+        else failed++; // a send that really failed (not just a phone that is gone): counted, not hidden
       }
     }
+    if (failed) await recordPushFailure("sendPushToAccounts", `${failed} send(s) failed`);
     return sent;
-  } catch {
+  } catch (err) {
+    await recordPushFailure("sendPushToAccounts", err);
     return 0;
   }
 }

@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { blockedEitherWay } from "./blocks";
 import { JOINED } from "./membership";
 import type { Note } from "./account-notes";
 import { cleanNames, sameName } from "./names";
@@ -26,7 +27,9 @@ export async function loopinFriends(accountId: string): Promise<{ id: string; na
     where: { groupId: { in: mine.map((m) => m.groupId) }, leftAt: null, accountId: { not: null }, ...JOINED },
     select: { accountId: true, name: true },
   });
-  const ids = [...new Set(others.map((o) => o.accountId!).filter((id) => id !== accountId))];
+  // Not anyone this person blocked, nor anyone who blocked them: they can't be picked, so they can't be added or told.
+  const blocked = await blockedEitherWay(accountId);
+  const ids = [...new Set(others.map((o) => o.accountId!).filter((id) => id !== accountId && !blocked.has(id)))];
   if (!ids.length) return [];
   const accounts = await db.account.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } });
   return accounts
@@ -56,7 +59,7 @@ export async function createCollection(account: { id: string; name: string }, in
   await db.collection.create({ data: { ...r.data, code, accountId: account.id, organiser, entries: { create: rows } } });
   const onList = [...new Set(rows.map((x) => x.accountId).filter(Boolean))];
   const notify: CollectNote[] = onList.length
-    ? [{ accountIds: onList, kind: "collect_added", title: r.data.title, body: `${organiser} added you: ${each(r.data)}. Tap to pay and tick your name.`, url: `/c/${code}`, tag: `collect:${code}` }]
+    ? [{ fromAccountId: account.id, accountIds: onList, kind: "collect_added", title: r.data.title, body: `${organiser} added you: ${each(r.data)}. Tap to pay and tick your name.`, url: `/c/${code}`, tag: `collect:${code}` }]
     : [];
   return { ok: true as const, code, notify };
 }
@@ -99,13 +102,21 @@ export async function markPaid(code: string, input: { entryId?: string; name?: s
   return { ok: true, entryId: e.id };
 }
 
+// Tests only: runs after the reads and before the write (the gap in which the other person can act).
+type Hooks = { afterRead?: () => Promise<void> };
+const CHANGED = "This payment changed just now. Check the list again.";
+
 // "I haven't paid after all": the payer takes back their own tick (until it's checked).
-export async function undoPaid(code: string, entryId: string, payerKey: string): Promise<Ok<object> | Fail> {
+export async function undoPaid(code: string, entryId: string, payerKey: string, opts: Hooks = {}): Promise<Ok<object> | Fail> {
   const c = await loadCollection(code);
   const e = c?.entries.find((x) => x.id === entryId);
   if (!c || !e || !payerKey || e.payerKey !== payerKey) return { ok: false, error: "Only the phone that ticked it can undo it." };
   if (e.status === "confirmed") return { ok: false, error: `${c.organiser} has already checked this payment. Ask them to change it.` };
-  await db.collectionEntry.update({ where: { id: e.id }, data: { status: "due", amount: 0, payerKey: "", paidAt: null, method: "" } });
+  await opts.afterRead?.();
+  // Only the tick that was seen (its time is its version): if the organiser checked it, or it was ticked again, in the
+  // meantime, this takes nothing back.
+  const done = await db.collectionEntry.updateMany({ where: { id: e.id, status: "paid", payerKey, paidAt: e.paidAt }, data: { status: "due", amount: 0, payerKey: "", paidAt: null, method: "" } });
+  if (done.count !== 1) return { ok: false, error: `${c.organiser} checked this payment just now, so it can’t be undone here. Ask them to change it.` };
   return { ok: true };
 }
 
@@ -114,6 +125,7 @@ export async function organiserAction(
   code: string,
   accountId: string,
   action: { kind: "confirm" | "unconfirm" | "remove" | "cash" | "add" | "nudge" | "close" | "reopen" | "delete"; entryId?: string; names?: string; contacts?: string; friends?: string[] },
+  opts: Hooks = {},
 ): Promise<Ok<{ notify?: CollectNote[] }> | Fail> {
   const c = await loadCollection(code);
   if (!c || c.accountId !== accountId) return { ok: false, error: "Only the organiser can change this collection." };
@@ -121,16 +133,21 @@ export async function organiserAction(
   switch (action.kind) {
     case "confirm":
       if (!e || e.status === "due") return { ok: false, error: "Nothing to check there." };
-      await db.collectionEntry.update({ where: { id: e.id }, data: { status: "confirmed", confirmedAt: new Date() } });
+      await opts.afterRead?.();
+      // Only the tick that was seen (same amount, same time): a payer who took it back or ticked again meanwhile wins.
+      if ((await db.collectionEntry.updateMany({ where: { id: e.id, status: "paid", amount: e.amount, paidAt: e.paidAt }, data: { status: "confirmed", confirmedAt: new Date() } })).count !== 1) return { ok: false, error: CHANGED };
       return { ok: true, notify: paidNote(c, e.accountId, e.amount) };
     case "unconfirm":
       if (!e || e.status !== "confirmed") return { ok: false, error: "Nothing to change there." };
-      await db.collectionEntry.update({ where: { id: e.id }, data: { status: "paid", confirmedAt: null } });
+      await opts.afterRead?.();
+      if ((await db.collectionEntry.updateMany({ where: { id: e.id, status: "confirmed", confirmedAt: e.confirmedAt }, data: { status: "paid", confirmedAt: null } })).count !== 1) return { ok: false, error: CHANGED };
       return { ok: true };
     case "cash":
       if (!e || e.status !== "due") return { ok: false, error: "They’re already marked as paid." };
       if (!c.amount) return { ok: false, error: "For “any amount” collections, ask them to tick their own amount." };
-      await db.collectionEntry.update({ where: { id: e.id }, data: { status: "confirmed", amount: c.amount, method: "cash", paidAt: new Date(), confirmedAt: new Date() } });
+      await opts.afterRead?.();
+      // Only if they are still unpaid: a payer who ticked their own meanwhile keeps their tick.
+      if ((await db.collectionEntry.updateMany({ where: { id: e.id, status: "due" }, data: { status: "confirmed", amount: c.amount, method: "cash", paidAt: new Date(), confirmedAt: new Date() } })).count !== 1) return { ok: false, error: CHANGED };
       return { ok: true, notify: paidNote(c, e.accountId, c.amount) };
     case "nudge":
       // A reminder inside Loopin, for someone on Loopin who hasn't paid yet.
@@ -138,11 +155,13 @@ export async function organiserAction(
       if (c.closedAt) return { ok: false, error: "This collection is closed." };
       return {
         ok: true,
-        notify: [{ accountIds: [e.accountId], kind: "collect_reminder", title: c.title, body: `Reminder from ${c.organiser}: ${each(c)}${c.dueDate ? ` by ${new Date(`${c.dueDate}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}` : ""}. Tap to pay and tick your name.`, url: `/c/${c.code}`, tag: `collect:${c.code}` }],
+        notify: [{ fromAccountId: accountId, accountIds: [e.accountId], kind: "collect_reminder", title: c.title, body: `Reminder from ${c.organiser}: ${each(c)}${c.dueDate ? ` by ${new Date(`${c.dueDate}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}` : ""}. Tap to pay and tick your name.`, url: `/c/${c.code}`, tag: `collect:${c.code}` }],
       };
     case "remove":
       if (!e) return { ok: false, error: "That name isn’t on the list." };
-      await db.collectionEntry.delete({ where: { id: e.id } });
+      await opts.afterRead?.();
+      // Only the entry as it was seen: a fresh tick (or the organiser's own check) means the list changed.
+      if ((await db.collectionEntry.deleteMany({ where: { id: e.id, status: e.status, paidAt: e.paidAt } })).count !== 1) return { ok: false, error: CHANGED };
       return { ok: true };
     case "add": {
       const typed = cleanNames(String(action.names ?? "").split(/[\n,]+/));
@@ -164,7 +183,7 @@ export async function organiserAction(
       // Told only if they really landed on the list (added now, or linked to their name).
       const told = [...new Set([...rows.map((x) => x.accountId), ...link.map((x) => friends.find((f) => sameName(f.name, x.name))!.id)].filter(Boolean))];
       return told.length
-        ? { ok: true, notify: [{ accountIds: told, kind: "collect_added", title: c.title, body: `${c.organiser} added you: ${each(c)}. Tap to pay and tick your name.`, url: `/c/${c.code}`, tag: `collect:${c.code}` }] }
+        ? { ok: true, notify: [{ fromAccountId: accountId, accountIds: told, kind: "collect_added", title: c.title, body: `${c.organiser} added you: ${each(c)}. Tap to pay and tick your name.`, url: `/c/${c.code}`, tag: `collect:${c.code}` }] }
         : { ok: true };
     }
     case "close":
@@ -179,17 +198,22 @@ export async function organiserAction(
   }
 }
 
-function paidNote(c: { title: string; organiser: string; currency: string; code: string }, accountId: string, amount: number): CollectNote[] {
-  return accountId ? [{ accountIds: [accountId], kind: "collect_paid", title: c.title, body: `${c.organiser} got your ${formatMoney(amount, c.currency)} ✓ You’re all done.`, url: `/c/${c.code}`, tag: `collect:${c.code}` }] : [];
+function paidNote(c: { title: string; organiser: string; currency: string; code: string; accountId: string }, accountId: string, amount: number): CollectNote[] {
+  return accountId ? [{ fromAccountId: c.accountId, accountIds: [accountId], kind: "collect_paid", title: c.title, body: `${c.organiser} got your ${formatMoney(amount, c.currency)} ✓ You’re all done.`, url: `/c/${c.code}`, tag: `collect:${c.code}` }] : [];
+}
+
+// How many collections I organise in all (Home lists only the first few, but "See all N" must be the real number).
+export async function countMyCollections(accountId: string): Promise<number> {
+  return db.collection.count({ where: { accountId, deletedAt: null } });
 }
 
 // Home: the collections I organise (open first, newest first).
-export async function myCollections(accountId: string) {
+export async function myCollections(accountId: string, take = 20) {
   const list = await db.collection.findMany({
     where: { accountId, deletedAt: null },
     include: { entries: { select: { name: true, amount: true, status: true } } },
     orderBy: { createdAt: "desc" },
-    take: 20,
+    take,
   });
   return list.sort((a, b) => Number(Boolean(a.closedAt)) - Number(Boolean(b.closedAt)));
 }

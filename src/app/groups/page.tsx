@@ -20,11 +20,11 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
   const live = stillIn(open).sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
   // Right after a delete (or opening a deleted group's old link), Recently deleted comes first, open, under the message;
   // otherwise it sits at the bottom, closed. (A redirect can't be relied on to keep a #anchor, so the page orders itself.)
-  const justDeleted = deleted === "group" || deleted === "gone";
+  const justDeleted = deleted === "group" || deleted === "gone" || deleted === "trip";
   const deletedBlock =
     deletedGroups.length > 0 ? (
 
-        <details id="deleted" className={`group/deleted scroll-mt-6 ${justDeleted ? "mb-6" : "mt-8"}`} open={deleted === "group" || deleted === "gone"} data-recently-deleted>
+        <details id="deleted" className={`group/deleted scroll-mt-6 ${justDeleted ? "mb-6" : "mt-8"}`} open={justDeleted} data-recently-deleted>
           <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-full border border-line px-4 py-2 text-sm text-gray-600 active:bg-mist [&::-webkit-details-marker]:hidden">
             <span className="group-open/deleted:hidden">Recently deleted ({deletedGroups.length})</span>
             <span className="hidden group-open/deleted:inline">Hide recently deleted</span>
@@ -53,9 +53,13 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
   return (
     <>
       <PageHeader title="Your groups" back="/" />
-      {(deleted === "group" || deleted === "gone") && (
+      {justDeleted && (
         <Notice params={["deleted"]} className="mb-4">
-          {deleted === "group" ? "Group deleted. You can restore it here for 30 days." : "That group was deleted. If you started it or look after it, you can restore it here for 30 days."}
+          {deleted === "group"
+            ? "Group deleted. You can restore it here for 30 days."
+            : deleted === "trip"
+              ? "That trip was deleted. If you started it or look after it, you can bring it back from Recently deleted."
+              : "That group was deleted. If you started it or look after it, you can restore it here for 30 days."}
         </Notice>
       )}
       {justDeleted && deletedBlock}

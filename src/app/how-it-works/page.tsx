@@ -188,7 +188,7 @@ export default async function HowItWorks() {
       <Section slot="roadtrip" kicker="1 · Create a group" title="Create a group, bring everyone in">
         <Steps
           items={[
-            <>Tap <strong>New group</strong> and pick what it’s for: <strong>Trip</strong>, <strong>Home</strong>, <strong>Couple</strong>, <strong>Game night</strong> or <strong>Anything Goes</strong>. Collecting for a gift or a booking? <strong>Collect</strong> is right there too. Give it a name (“Euro trip”) and a currency. First time? Sign in with Google or your email in 30 seconds (no password). Next time, one touch with your fingerprint or face.</>,
+            <>Tap <strong>New group</strong> and pick what it’s for: <strong>Trip</strong>, <strong>Home</strong>, <strong>Couple</strong>, <strong>Game night</strong> or <strong>Anything Goes</strong>. Collecting for a gift or a booking? <strong>Collect</strong> is right there too. Give it a name (“Euro trip”) and a currency. First time? Sign in with Google or your email in about 30 seconds (no password). Next time, one touch with your fingerprint or face.</>,
             <>Add people: friends already on Loopin, people from your contacts, or anyone by email.</>,
             <>Or share the group’s link or QR code. People confirm their email and they’re in, and show up on the People screen. From then on everyone is told about every change.</>,
           ]}
@@ -209,9 +209,13 @@ export default async function HowItWorks() {
           ]}
         />
         <p>
-          <strong>Got the bill?</strong> Tap <strong>Scan a bill</strong> and Loopin reads the shop, total, date and every line, ready to split
+          <strong>Got the bill?</strong> Tap <strong>Scan a bill</strong> and Loopin reads the shop, total, date and the lines it can, ready to split
           by item. The photo stays with the expense for everyone in the group. <strong>Hands full?</strong> Tap <strong>Speak</strong> and say it: “Dinner 2400,
           Ravi paid, everyone except Dev.” Or tap <strong>Type a line</strong>: “Cab 600 except Leo”. Nothing saves until you tap Save.
+        </p>
+        <p>
+          Reading a bill or a line with AI is always your choice: the first time, Loopin asks before anything is sent. Say <strong>Not now</strong> and the photo is still attached, and you fill in the rest.
+          Change it any time in <strong>You → Privacy and safety</strong>.
         </p>
         <p>Change the date if it wasn’t today, and add a note if it helps (“Sam paid the tip”). Next time, Loopin starts with the same split you used last.</p>
         <p>
@@ -236,8 +240,8 @@ export default async function HowItWorks() {
           <p className="mb-2 font-medium">🍜 Ramen in Shibuya · paid by card</p>
           <dl className="space-y-1 tabular-nums">
             <div className="flex justify-between"><dt className="text-gray-500">¥6,000 at today’s rate</dt><dd>{m(x.yen)}</dd></div>
-            <div className="flex justify-between"><dt className="text-gray-500">Your bank’s 3% card fee</dt><dd>+ {m(x.fee)}</dd></div>
-            <div className="flex justify-between border-t border-line pt-1 font-semibold"><dt>Split four ways</dt><dd>{m(x.four)} each</dd></div>
+            <div className="flex justify-between"><dt className="text-gray-500">About a 3% card fee (an example)</dt><dd>+ ≈ {m(x.fee)}</dd></div>
+            <div className="flex justify-between border-t border-line pt-1 font-semibold"><dt>Split four ways</dt><dd>≈ {m(x.four)} each</dd></div>
           </dl>
         </div>
         <p>150+ currencies. Cash? No fee added. Better rate from the exchange booth? Type it in.</p>
@@ -246,15 +250,17 @@ export default async function HowItWorks() {
       <div id="balances" className="scroll-mt-4" />
       <Section slot="friends" kicker="4 · Balances" title="Who owes what, and why">
         <p>
-          Home shows your <strong>net balance</strong> across all groups, and a <strong>Needs attention</strong> list: who owes you,
-          who you owe, and what changed.
+          The money card at the top of Home shows where you stand across all your groups: <strong>Coming back to you</strong> in green, <strong>You owe</strong> in orange,
+          or <strong>Nobody owes anybody</strong>. Under it, the people the money is with, largest first. When you owe, the main button is <strong>Pay</strong> (the person you owe most);
+          when you’re owed, it’s <strong>Remind</strong> (the person who owes you most, on WhatsApp). <strong>Add expense</strong> is always beside it.
+          If a payment is waiting for you to confirm, it shows as a line on the card.
         </p>
         <p>
           Not sure about a number? Tap <strong>Why?</strong> under any balance. You’ll see every expense and payment behind it, including card fees, and it always adds up exactly.
         </p>
         <p className="mt-4">
           <strong>Recap</strong> (in the bottom bar) charts your spending and finds any expense across your groups. <strong>Download</strong> in a group’s settings
-          gives you its expenses as a spreadsheet.
+          gives you its expenses as a spreadsheet, and <strong>You → Download all my data</strong> gives you everything of yours in one file.
         </p>
       </Section>
 
@@ -262,8 +268,8 @@ export default async function HowItWorks() {
       <Section slot="sunset" kicker="3 · Record a payment" title="Settle up with fewer payments">
         <Steps
           items={[
-            <>In a group, tap <strong>Settle up</strong>. Loopin shows a short list of payments that clears everything.</>,
-            <>Pay the person however you like. If they added a UPI ID or PayPal / Venmo link, <strong>Open payment app</strong> fills in the amount. Then tap <strong>I’ve paid</strong>: it counts once they tap <strong>Confirm received</strong> (or <strong>Not received</strong>, and nothing changes). Paid a different amount? Tap <strong>Paid a different amount?</strong>.</>,
+            <>In a group, tap <strong>Settle up</strong>. Loopin shows a short list that clears everything: “Just 3 payments”, say.</>,
+            <>Pay the person however you like. If they added a UPI ID or PayPal / Venmo link, <strong>Open payment app</strong> fills in the amount. Then tap <strong>I’ve paid</strong>. Until the other person taps <strong>Confirm received</strong>, it shows as “says they paid, to be confirmed” and the balances don’t move. (<strong>Not received</strong> leaves everything as it was.) Paid a different amount? Tap <strong>Paid a different amount?</strong>.</>,
             <>Someone owes you? Tap <strong>Remind</strong>: WhatsApp opens with a friendly note, your UPI ID and an <strong>I’ve paid</strong> link they can tap without signing in.</>,
             <>Owe the same friend in two groups? <strong>Settle up</strong> on Home combines them into one payment, and shows each group’s part before it records anything.</>,
           ]}
@@ -361,7 +367,7 @@ export default async function HowItWorks() {
       <Section slot="place-santorini" title="Your trip passport">
         <p>
           Every trip stamps your <strong>passport</strong>: a city stamp at home, a country stamp abroad. Add the countries you went to before Loopin
-          with a few ticks. Open it from the <strong>You</strong> page, flip the pages, and share it to WhatsApp as a picture of your passport.
+          with a few ticks. Open it from the <strong>You</strong> page, flip the pages, and share it to WhatsApp as a picture of your passport. It’s yours to show or keep private.
         </p>
         <Steps
           items={[
@@ -392,6 +398,7 @@ export default async function HowItWorks() {
             <><strong>Write back.</strong> Press a wax seal back on a card you got, or reply with your own.</>,
             <><strong>Reuse a design.</strong> Send the same card to someone else, or borrow the look of one you received.</>,
             <><strong>Stamp album.</strong> Every stamp you send or get is kept: You → Your postcards → Stamp album.</>,
+            <><strong>Report or block.</strong> Something unwelcome? Tap <strong>Report</strong> or <strong>Block</strong> on the card, a friend’s passport or a person in People. You’ll still see shared group expenses and balances. Unblock in You → Privacy and safety.</>,
           ]}
         />
       </Section>
@@ -413,17 +420,22 @@ export default async function HowItWorks() {
         <p>
           Gathering money for a gift, a farewell or a booking? Tap <strong>New group → Collect</strong>. Set the amount each, your UPI ID (or a pay
           link), and share the link in your WhatsApp group. People pay you directly, tick their name (no sign-up), and you tap <strong>Got it</strong> once you
-          see the money. Friends on Loopin hear about it in the app.
+          see the money. Until you do, a payment shows as <strong>says paid</strong> (reported); after, as <strong>checked</strong>. Loopin keeps the two apart, and only checked money counts as collected.
+          Friends on Loopin hear about it in the app.
         </p>
       </Section>
 
       <div id="safe" className="scroll-mt-4" />
       <section className="mt-12 space-y-3 text-[15px] leading-relaxed text-gray-600">
         <h2 className="font-display text-[26px] font-semibold tracking-tight text-fg">Mistakes happen. Fix them.</h2>
-        <p>Every change can be undone, and the history shows who changed what. Everyone in the group gets an alert; you choose which alerts per group in its settings. To choose what Loopin sends you everywhere, on your phone and by email, open <strong>You</strong> and then <strong>Notifications &amp; email</strong>.</p>
+        <p>Most changes can be undone, and the history shows who changed what. Undo works on the latest change to something: once a newer change has touched it, undo that first. It won’t change the balance of someone who has left the group. Everyone in the group gets an alert; you choose which alerts per group in its settings. To choose what Loopin sends you everywhere, on your phone and by email, open <strong>You</strong> and then <strong>Notifications &amp; email</strong>.</p>
+        <p>
+          Left a group? You still see it as it was the day you left, plus any later change to your own share. Something unwelcome? <strong>Report</strong> or <strong>Block</strong> someone;
+          you’ll both still see shared group money, because it has to add up. Questions or problems: <strong>You → Privacy and safety → Contact support</strong>.
+        </p>
         <p>
           You sign in with Google, your email (a code, no password) or your fingerprint or face, so your groups come back on any phone. Only people in a group can see it.
-          No ads, and your data isn’t sold. <Link href="/privacy" className="underline underline-offset-4">Privacy</Link>
+          No ads, and we don’t sell your data. <strong>You → Download all my data</strong> gives you a copy. <Link href="/privacy" className="underline underline-offset-4">Privacy</Link>
         </p>
       </section>
 
@@ -432,7 +444,7 @@ export default async function HowItWorks() {
         <h2 className="font-display text-[26px] font-semibold tracking-tight text-fg">Coming from another app?</h2>
         <p>
           Export the group as a spreadsheet (CSV) from the other app (look for <strong>Export</strong> or <strong>Download</strong> in the group’s settings or menu).
-          In Loopin, tap <strong>Bring a group over</strong> and pick that file: every expense and payment comes across. Files from some apps are
+          In Loopin, tap <strong>Bring a group over</strong> and pick that file: it brings in the expenses and payments it can read, and you check them before saving. Files from some apps are
           checked against their own totals; for others, you say which column is which.{" "}
           <Link href="/switching" className="underline underline-offset-4">What’s different</Link>
         </p>

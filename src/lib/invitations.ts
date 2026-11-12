@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { blockedByMe } from "./blocks";
 import { copyPushTo, inviteMemberId } from "./invites";
 import { joinExisting, joinNew, NAME_NEEDED, type JoinFail, type JoinOk } from "./join";
 
@@ -46,8 +47,15 @@ export async function loadInvitations(account: Account | null): Promise<Invitati
     }),
   ]);
   const out: Invitation[] = [];
+  // An invitation from someone this person blocked doesn't show (the name stays in the group, so the money still works).
+  const blocked = new Set(await blockedByMe(account.id));
+  const fromBlocked = (members: { id: string; accountId: string | null }[], inviterMemberId: string) => {
+    const a = members.find((m) => m.id === inviterMemberId)?.accountId;
+    return Boolean(a && blocked.has(a));
+  };
   for (const i of invites) {
     const g = i.group;
+    if (fromBlocked(g.members, i.invitedById)) continue;
     const own = g.members.find((m) => m.accountId === account.id);
     // Already in, or taken out of, that group: nothing to answer. (Someone who left on their own and was invited to their own row does have something to answer.)
     if (own && !(own.leftAt && !own.removedAt && own.id === inviteMemberId(i))) continue;
@@ -64,6 +72,7 @@ export async function loadInvitations(account: Account | null): Promise<Invitati
   }
   for (const m of olds) {
     const g = m.group;
+    if (fromBlocked(g.members, m.addedBy)) continue;
     out.push({
       key: `m:${m.id}`, token: "", memberId: m.id, groupId: g.id, groupName: g.name, type: g.type,
       cover: { id: g.id, type: g.type, cover: g.cover, coverAt: g.coverAt },

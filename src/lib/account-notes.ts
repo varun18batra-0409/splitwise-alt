@@ -4,12 +4,19 @@ import { noteItem } from "./account-notify";
 
 // Notifications for a person (not a group): saved for Alerts, and sent to
 // their phones when they want collection notifications. Never throws.
-export type Note = { accountIds: string[]; kind: string; title: string; body: string; url: string; tag: string };
+// `fromAccountId`: set when the note comes from another person's direct action (postcard, passport, nudge):
+// people who blocked that person (or were blocked by them) get nothing, not even in Alerts.
+export type Note = { accountIds: string[]; kind: string; title: string; body: string; url: string; tag: string; fromAccountId?: string };
 
 export async function deliverNotes(notes: Note[]) {
   for (const n of notes) {
     try {
-      const ids = [...new Set(n.accountIds.filter(Boolean))];
+      let ids = [...new Set(n.accountIds.filter(Boolean))];
+      if (n.fromAccountId) {
+        const { blockedEitherWay } = await import("./blocks");
+        const blocked = await blockedEitherWay(n.fromAccountId);
+        ids = ids.filter((id) => !blocked.has(id));
+      }
       if (!ids.length) continue;
       const real = await db.account.findMany({ where: { id: { in: ids } }, select: { id: true } });
       if (!real.length) continue;

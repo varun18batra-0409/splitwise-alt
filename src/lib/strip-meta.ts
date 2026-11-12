@@ -109,25 +109,32 @@ function stripPng(b: Uint8Array<ArrayBuffer>): Uint8Array<ArrayBuffer> {
   return unsure(b);
 }
 
-// WebP: drop EXIF and XMP chunks and clear their flags.
+// WebP: drop EXIF and XMP chunks and clear their flags. The file's own size field decides where the picture ends:
+// anything after it is dropped, and a file whose chunks don't add up exactly to that size is "unsure".
+// The output is always rebuilt from the parsed chunks.
+const u32le = (b: Uint8Array, at: number) => (b[at] | (b[at + 1] << 8) | (b[at + 2] << 16) | (b[at + 3] << 24)) >>> 0;
 function stripWebp(b: Uint8Array<ArrayBuffer>): Uint8Array<ArrayBuffer> {
+  if (b.length < 12) return unsure(b);
+  const riffEnd = 8 + u32le(b, 4);
+  if (riffEnd < 12 || riffEnd > b.length) return unsure(b);
   const parts: Uint8Array[] = [];
   let i = 12;
-  let removed = false;
-  while (i + 8 <= b.length) {
+  while (i + 8 <= riffEnd) {
     const type = ascii(b, i, 4);
-    const len = b[i + 4] | (b[i + 5] << 8) | (b[i + 6] << 16) | (b[i + 7] << 24);
+    const len = u32le(b, i + 4);
     const end = i + 8 + len + (len & 1);
-    if (len < 0 || end > b.length) return unsure(b);
-    if (type === "EXIF" || type === "XMP ") removed = true;
-    else if (type === "VP8X") {
+    if (end > riffEnd) return unsure(b);
+    if (type === "EXIF" || type === "XMP ") {
+      // dropped
+    } else if (type === "VP8X") {
       const c = new Uint8Array(b.subarray(i, end));
+      if (c.length < 9) return unsure(b);
       c[8] &= ~(0x08 | 0x04); // the "has Exif" and "has XMP" flags
       parts.push(c);
     } else parts.push(b.subarray(i, end));
     i = end;
   }
-  if (!removed) return b;
+  if (i !== riffEnd) return unsure(b);
   const body = concat(parts);
   const size = body.length + 4;
   const head = new Uint8Array([0x52, 0x49, 0x46, 0x46, size & 0xff, (size >> 8) & 0xff, (size >> 16) & 0xff, (size >> 24) & 0xff, 0x57, 0x45, 0x42, 0x50]);

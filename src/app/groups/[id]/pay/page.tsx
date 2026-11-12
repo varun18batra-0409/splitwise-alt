@@ -1,9 +1,11 @@
 import Link from "@/components/Link";
 import { FocusOnShow } from "@/components/FocusOnShow";
 import { notFound, redirect } from "next/navigation";
-import { getMyMemberId } from "@/lib/identity";
+import { getMyMemberId, privatePath } from "@/lib/identity";
 import { loadGroup } from "@/lib/group-data";
-import { formatMoney, overpayLine, parseAmount, PAYMENT_LINE, toInputAmount } from "@/lib/money";
+import { formatMoney, parseAmount, PAYMENT_LINE, toInputAmount } from "@/lib/money";
+import { overpayQuestion } from "@/lib/pay-record";
+import { defaultPayment } from "@/lib/pay-default";
 import { PayAmountField } from "@/components/AmountEcho";
 import { recordCustomPayment } from "@/app/actions";
 import { FreshKey } from "@/components/FreshKey";
@@ -16,7 +18,7 @@ export default async function RecordPayment({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ from?: string; to?: string; amount?: string; error?: string; owes?: string; back?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; amount?: string; error?: string; owes?: string; side?: string; back?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -24,12 +26,17 @@ export default async function RecordPayment({
   if (!data) notFound();
   const { group, transfers, net } = data;
   const myId = await getMyMemberId(group.id);
-  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
 
   const people = group.members.filter((m) => !m.leftAt); // people who left aren't offered
   const isMember = (x?: string) => Boolean(x && people.some((m) => m.id === x));
-  const from = isMember(sp.from) ? sp.from! : myId;
-  const to = isMember(sp.to) && sp.to !== from ? sp.to! : "";
+  // Opened with nothing filled in while you're owed: start from the top suggestion to you.
+  const pre = !sp.from && !sp.to && !sp.amount ? defaultPayment(transfers, myId, net[myId] ?? 0, isMember) : null;
+  const qFrom = sp.from ?? pre?.from;
+  const qTo = sp.to ?? pre?.to;
+  const qAmount = sp.amount ?? (pre ? toInputAmount(pre.amount, group.currency) : "");
+  const from = isMember(qFrom) ? qFrom! : myId;
+  const to = isMember(qTo) && qTo !== from ? qTo! : "";
   const nameOf = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");
   const money = (m: number) => formatMoney(m, group.currency);
   const fill = (f: string, t: string, a: number) =>
@@ -39,7 +46,10 @@ export default async function RecordPayment({
   const owes = /^\d{1,12}$/.test(sp.owes ?? "") ? Number(sp.owes) : null;
   const typed = parseAmount(sp.amount ?? "", group.currency);
   // More than the payer owes (often an extra zero): asked once, with Cancel first.
-  const overLine = owes !== null && typed !== null ? overpayLine(typed, owes, group.currency) : null;
+  // `owes` is the most that can be paid without either person flipping to the other side; `side` says who sets that limit.
+  const side = sp.side === "to" ? "to" : "from";
+  const plain = (mid: string) => group.members.find((m) => m.id === mid)?.name ?? "Someone";
+  const overLine = owes !== null && typed !== null ? overpayQuestion({ typed, limit: owes, side, currency: group.currency, fromName: plain(from), toName: plain(sp.to ?? "") }) : null;
   const cancelHref = `/groups/${group.id}/pay?${new URLSearchParams({ from, ...(to ? { to } : {}), amount: sp.amount ?? "", ...(fromSettle ? { back: "settle" } : {}) })}`;
   const chip = "flex items-center gap-2 rounded-full border border-line bg-mist px-4 py-2 text-sm font-medium has-[:checked]:border-fg has-[:checked]:bg-fg has-[:checked]:font-medium has-[:checked]:text-canvas";
 
@@ -103,7 +113,7 @@ export default async function RecordPayment({
 
         <label className="block">
           <span className="mb-2 block text-sm font-medium text-gray-600">Amount ({group.currency})</span>
-          <PayAmountField currency={group.currency} defaultValue={sp.amount ?? ""} />
+          <PayAmountField currency={group.currency} defaultValue={qAmount} />
           <span className="mt-2 block text-xs text-gray-400">Full or part. You can record the rest later.</span>
         </label>
 

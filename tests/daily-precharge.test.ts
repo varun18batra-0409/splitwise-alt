@@ -318,6 +318,34 @@ describe("the move-out charge after it was changed, and who is credited for it",
     expect(await db.billRun.findUniqueOrThrow({ where: { billId_period: { billId: f.billId, period: "2026-11" } } })).toMatchObject({ status: "skipped", reason: "covered" });
   });
 
+  it("INV-05: once the month is closed as 'covered', the charge is locked: deleting it is refused and nothing changes", async () => {
+    const f = await flat("covlock", { rate: 100, split: equal });
+    const now = new Date("2026-11-14T06:00:00Z");
+    expect((await moveOut(f.groupId, f.asha, { leaverId: f.ravi, lastDay: "2026-11-14", addDaily: true, requestKey: key("covlock") }, now)).ok).toBe(true);
+    const pre = await chargeOf(f.groupId);
+    // The charge now equals the month's whole cost: 30 days x 100 = 3000.
+    await db.expense.update({ where: { id: pre.id }, data: { amount: 3000, originalAmount: 3000, convertedAmount: 3000, shares: { updateMany: { where: { memberId: f.ravi }, data: { amount: 3000 } } } } });
+    await runBillsForGroup(f.groupId, monthEnd);
+    expect(await db.billRun.findUniqueOrThrow({ where: { billId_period: { billId: f.billId, period: "2026-11" } } })).toMatchObject({ status: "skipped", reason: "covered" });
+    const r = await setExpenseDeleted(pre.id, f.asha, true);
+    expect(r).toEqual({ ok: false, error: "This month’s Milk was already covered, so this charge stays." });
+    expect((await db.expense.findUniqueOrThrow({ where: { id: pre.id } })).deletedAt).toBeNull();
+  });
+
+  it("a charge that is deleted while its month is 'covered' can't come back, and says so in covered words", async () => {
+    const f = await flat("covrestore", { rate: 100, split: equal });
+    const now = new Date("2026-11-14T06:00:00Z");
+    expect((await moveOut(f.groupId, f.asha, { leaverId: f.ravi, lastDay: "2026-11-14", addDaily: true, requestKey: key("covrestore") }, now)).ok).toBe(true);
+    const pre = await chargeOf(f.groupId);
+    await db.expense.update({ where: { id: pre.id }, data: { amount: 3000, originalAmount: 3000, convertedAmount: 3000, shares: { updateMany: { where: { memberId: f.ravi }, data: { amount: 3000 } } } } });
+    await runBillsForGroup(f.groupId, monthEnd);
+    // Marked deleted behind the app's back (the app itself refuses to delete it), then someone tries to bring it back.
+    await db.expense.update({ where: { id: pre.id }, data: { deletedAt: new Date() } });
+    const r = await setExpenseDeleted(pre.id, f.asha, false);
+    expect(r).toEqual({ ok: false, error: "This month’s Milk was already covered, so this charge can’t come back." });
+    expect((await db.expense.findUniqueOrThrow({ where: { id: pre.id } })).deletedAt).not.toBeNull();
+  });
+
   it("deleted, then the month is added, then restore is refused with a plain sentence and nothing changes", async () => {
     const f = await flat("restore", { rate: 4800, split: equal, missed: JSON.stringify({ "2026-11": [5] }) });
     const now = new Date("2026-11-14T06:00:00Z");

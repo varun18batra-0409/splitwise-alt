@@ -1,6 +1,7 @@
 import { ExpenseGlyph } from "@/components/ExpenseGlyph";
 import Link from "@/components/Link";
 import { formatMoney } from "@/lib/money";
+import { compactMoney, signedMoney } from "@/lib/chart-labels";
 import { getCategory } from "@/lib/categories";
 import { bucketLabel, bucketTitle, type Grain } from "@/lib/search";
 
@@ -23,17 +24,6 @@ export type InsightsData = {
   link: (over: { v?: string; p?: string }) => string;
   catHref?: (id: string) => string; // all the expenses in one category
 };
-
-// ₹30K, ₹1.2L, $4.5K: short enough for the chart's scale.
-function compact(minor: number, currency: string): string {
-  const digits = currency === "JPY" || currency === "KRW" || currency === "VND" || currency === "IDR" ? 0 : 2;
-  const v = minor / 10 ** digits;
-  try {
-    return new Intl.NumberFormat(currency === "INR" ? "en-IN" : "en-US", { style: "currency", currency, notation: "compact", minimumFractionDigits: 0, maximumFractionDigits: 1 }).format(v);
-  } catch {
-    return `${currency} ${Math.round(v)}`;
-  }
-}
 
 // A round top for the scale (₹30K rather than ₹27,431).
 function niceMax(n: number): number {
@@ -65,7 +55,7 @@ export function Insights({ d }: { d: InsightsData }) {
       {/* Your share | Group spend */}
       <div className="grid grid-cols-2 gap-1 rounded-full bg-mist p-1" role="tablist" aria-label="What to show">
         <Link href={d.link({ v: "share" })} role="tab" aria-selected={d.view === "share"} className={pill(d.view === "share")}>
-          My cut
+          Your share
         </Link>
         <Link href={d.link({ v: "spent" })} role="tab" aria-selected={d.view === "spent"} className={pill(d.view === "spent")}>
           Group total
@@ -77,11 +67,11 @@ export function Insights({ d }: { d: InsightsData }) {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs text-fg/55">
-              {d.view === "share" ? "My cut" : "Group total"} · {bucketTitle(d.selected, d.grain)}
+              {d.view === "share" ? "Your share" : "Group total"} · {bucketTitle(d.selected, d.grain)}
             </p>
             <p className="mt-1 money text-[34px] font-semibold leading-none tracking-tight tabular-nums" data-insights-total>
               {approx}
-              {formatMoney(Math.max(0, now), d.currency)}
+              {signedMoney(now, d.currency)}
             </p>
             <p className="mt-2 text-xs">
               {running ? (
@@ -114,23 +104,23 @@ export function Insights({ d }: { d: InsightsData }) {
 
         {/* Where it leaves you: your cut of the costs vs what you paid. Answers "why isn't this what I owe?" */}
         {(d.me.share !== 0 || d.me.paid !== 0) && (
-          <div className="mt-4 grid grid-cols-3 divide-x divide-fg/10 rounded-2xl bg-fg/[0.05] py-2.5 text-center" aria-label="My cut, what I paid, and where that leaves me">
+          <div className="mt-4 grid grid-cols-3 divide-x divide-fg/10 rounded-2xl bg-fg/[0.05] py-2.5 text-center" aria-label="Your share, what you paid, and where that leaves you">
             <p className="px-1">
-              <span className="block text-[11px] text-fg/50">My cut</span>
+              <span className="block text-[11px] text-fg/50">Your share</span>
               <span className="block text-sm font-semibold tabular-nums">
                 {approx}
-                {formatMoney(Math.abs(d.me.share), d.currency)}
+                {signedMoney(d.me.share, d.currency)}
               </span>
             </p>
             <p className="px-1">
-              <span className="block text-[11px] text-fg/50">I paid</span>
+              <span className="block text-[11px] text-fg/50">You paid</span>
               <span className="block text-sm font-semibold tabular-nums">
                 {approx}
-                {formatMoney(Math.abs(d.me.paid), d.currency)}
+                {signedMoney(d.me.paid, d.currency)}
               </span>
             </p>
             <p className="px-1">
-              <span className="block text-[11px] text-fg/50">{d.me.net < 0 ? "I owe" : d.me.net > 0 ? "I’m owed" : "Even"}</span>
+              <span className="block text-[11px] text-fg/50">{d.me.net < 0 ? "You owe" : d.me.net > 0 ? "You’re owed" : "Even"}</span>
               <span className={`block text-sm font-semibold tabular-nums ${d.me.net < 0 ? "text-owe" : d.me.net > 0 ? "text-owed" : ""}`}>
                 {approx}
                 {formatMoney(Math.abs(d.me.net), d.currency)}
@@ -163,16 +153,16 @@ export function Insights({ d }: { d: InsightsData }) {
         >
           {[1, 0.5, 0].map((f) => (
             <div key={f} aria-hidden className="absolute inset-x-0 flex items-center" style={{ bottom: `${f * 140 + 22}px` }}>
-              <span className="w-10 shrink-0 text-right text-[10px] tabular-nums text-fg/60">{compact(Math.round(top * f), d.currency)}</span>
+              <span className="w-10 shrink-0 text-right text-[10px] tabular-nums text-fg/60">{compactMoney(Math.round(top * f), d.currency)}</span>
               <span className="ml-1 h-px flex-1 border-t border-dashed border-fg/10" />
             </div>
           ))}
           <div className="relative flex h-full items-end gap-2">
             {d.bars.map((b) => {
               const on = b.key === d.selected;
-              const h = Math.max(4, Math.round((Math.max(0, b.value) / top) * 140));
+              const h = b.value > 0 ? Math.max(4, Math.round((b.value / top) * 140)) : 0; // no bar at zero
               return (
-                <Link key={b.key} href={b.href} aria-label={`${bucketTitle(b.key, d.grain)}: ${formatMoney(Math.max(0, b.value), d.currency)}`} className="group flex h-full flex-1 flex-col items-center justify-end">
+                <Link key={b.key} href={b.href} aria-label={`${bucketTitle(b.key, d.grain)}: ${signedMoney(b.value, d.currency)}`} className="group flex h-full flex-1 flex-col items-center justify-end">
                   <span
                     className={`lp-bar-up w-full max-w-[30px] rounded-full ${on ? "bg-meter-up shadow-[0_0_22px_-4px_rgba(37,169,111,0.8)]" : "bg-fg/[0.13] group-active:bg-fg/25"}`}
                     style={{ height: `${h}px` }}
@@ -199,10 +189,10 @@ export function Insights({ d }: { d: InsightsData }) {
                   <ExpenseGlyph title="" category={c.id} />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline justify-between gap-2 text-sm">
-                      <span className="truncate font-medium">{cat.label}</span>
+                      <span className="line-clamp-2 min-w-0 break-words font-medium leading-tight" data-category-name>{cat.label}</span>
                       <span className="shrink-0 tabular-nums text-fg/80">
                         {approx}
-                        {formatMoney(Math.max(0, c.amount), d.currency)} <span className="text-xs text-fg/60">· {pct}%</span>
+                        {formatMoney(c.amount, d.currency)} <span className="text-xs text-fg/60">· {pct}%</span>
                       </span>
                     </span>
                     <span className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-fg/[0.07]">

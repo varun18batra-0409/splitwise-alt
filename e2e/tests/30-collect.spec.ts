@@ -38,7 +38,7 @@ test("the form refuses a bad UPI ID (and keeps what was typed), then makes the l
   await org.waitForURL(/\/c\/[A-Za-z0-9_-]+\?new=1/);
   link = new URL(org.url()).pathname;
   await expect(org.locator("[data-collection-title]")).toHaveText(title);
-  await expect(org.locator("[data-collection-progress]")).toContainText("0 of 2 paid");
+  await expect(org.locator("[data-collection-progress]")).toContainText("No one has said they've paid yet");
   await expect(org.getByRole("button", { name: "Share the link" })).toBeVisible();
 });
 
@@ -55,16 +55,16 @@ test("someone without an account pays by UPI, ticks their name, can undo it", as
   await page.getByRole("button", { name: "I’ve paid ✓" }).click();
   await page.waitForURL(/ticked=1/);
   await expect(page.getByRole("region", { name: "You're on the list" })).toContainText("Ravi · ₹300");
-  await expect(page.locator("[data-collection-progress]")).toContainText("1 of 2 paid");
+  await expect(page.locator("[data-collection-progress]")).toContainText("1 of 2 say they've paid");
 
   await page.getByRole("button", { name: "Undo" }).click();
   await page.waitForURL(/undone=1/);
-  await expect(page.locator("[data-collection-progress]")).toContainText("0 of 2 paid");
+  await expect(page.locator("[data-collection-progress]")).toContainText("No one has said they've paid yet");
 
   await page.locator('select[name="entryId"]').selectOption({ label: "Ravi" });
   await page.getByRole("button", { name: "I’ve paid ✓" }).click();
   await page.waitForURL(/ticked=1/);
-  await expect(page.locator("[data-collection-progress]")).toContainText("1 of 2 paid");
+  await expect(page.locator("[data-collection-progress]")).toContainText("1 of 2 say they've paid");
 });
 
 test("the organiser checks Ravi off, marks Meera's cash, sees it on Home, and closes it", async ({ page, context }) => {
@@ -76,7 +76,7 @@ test("the organiser checks Ravi off, marks Meera's cash, sees it on Home, and cl
   await expect(org.getByRole("region", { name: "Paid", exact: true })).toContainText("checked by you");
 
   await org.getByRole("region", { name: "Still to pay", exact: true }).getByRole("button", { name: "Paid cash" }).click();
-  await expect(org.locator("[data-collection-progress]")).toContainText("2 of 2 paid");
+  await expect(org.locator("[data-collection-progress]")).toContainText("2 of 2 say they've paid");
   await expect(org.locator("[data-collection-progress]")).toContainText("₹600 of ₹600");
 
   await org.goto("/");

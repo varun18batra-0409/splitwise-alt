@@ -22,33 +22,37 @@ export async function createGroupFor(account: { id: string }, input: NewGroupInp
   // Your own photo, picked while making it: kept only if it's really a small photo and chosen as the picture.
   const photo = input.cover === "own" && input.photo && input.photo.length <= MAX_PHOTO_BYTES ? input.photo : undefined;
   const photoKind = photo ? photoType(photo) : null;
-  const group = await db.group.create({
-    data: {
-      name: input.name.trim().replace(/\s+/g, " ").slice(0, 60),
-      type,
-      currency: isSupportedCurrency(input.currency) ? input.currency : "INR",
-      inviteCode: newInviteCode(),
-      joinWeight: couple ? 100 - ratio : 100,
-      cover: cleanCover(input.cover ?? "", type),
-      ...(type === "trip" ? tripDatesOrNone(input.tripStart, input.tripEnd) : {}),
-      ...(type === "trip" ? wherePlace(input.tripPlace, input.tripCountry) : {}),
-      members: { create: [{ name: input.yourName, claimedAt: new Date(), accountId: account.id, splitWeight: couple ? ratio : 100 }] },
-    },
-    include: { members: true },
-  });
-  // A photo that can't be checked for hidden details is left out (the group
-  // gets its usual cover; a photo can be added later).
+  // A photo that can't be checked for hidden details is left out (the group gets its usual cover; a photo can be added later).
+  // The file is stored FIRST, then the group and its photo are made in ONE create: the group never exists without the photo it
+  // was made with, and a failed attempt leaves no group behind (so trying again makes one group, not two). If the create fails,
+  // the stored file goes on the to-delete list.
   const clean = photo && photoKind ? cleanPhoto(photo) : null;
-  if (clean && photoKind) {
-    const now = new Date();
-    const { storePhoto } = await import("./photo-store");
-    const stored = await storePhoto("group", clean, photoKind);
-    await db.$transaction([
-      db.groupPhoto.create({ data: { groupId: group.id, data: stored.data, blobKey: stored.blobKey, type: photoKind, createdById: group.members[0].id, updatedAt: now } }),
-      db.group.update({ where: { id: group.id }, data: { cover: "own", coverAt: now } }),
-    ]);
+  const now = new Date();
+  const memberId = `c${randomBytes(12).toString("hex")}`; // chosen now so the photo can name its creator in the same create
+  const stored = clean && photoKind ? await (await import("./photo-store")).storePhoto("group", clean, photoKind) : null;
+  try {
+    return await db.group.create({
+      data: {
+        name: input.name.trim().replace(/\s+/g, " ").slice(0, 60),
+        type,
+        currency: isSupportedCurrency(input.currency) ? input.currency : "INR",
+        inviteCode: newInviteCode(),
+        joinWeight: couple ? 100 - ratio : 100,
+        cover: stored ? "own" : cleanCover(input.cover ?? "", type),
+        ...(stored ? { coverAt: now, photo: { create: { data: stored.data, blobKey: stored.blobKey, type: photoKind!, createdById: memberId, updatedAt: now } } } : {}),
+        ...(type === "trip" ? tripDatesOrNone(input.tripStart, input.tripEnd) : {}),
+        ...(type === "trip" ? wherePlace(input.tripPlace, input.tripCountry) : {}),
+        members: { create: [{ id: memberId, name: input.yourName, claimedAt: new Date(), accountId: account.id, splitWeight: couple ? ratio : 100 }] },
+      },
+      include: { members: true },
+    });
+  } catch (err) {
+    if (stored?.blobKey) {
+      const { removePhotos } = await import("./photo-store");
+      await removePhotos([stored.blobKey]).catch(() => undefined);
+    }
+    throw err;
   }
-  return group;
 }
 
 // Dates typed when making a trip: kept only if they make sense (otherwise left for settings).

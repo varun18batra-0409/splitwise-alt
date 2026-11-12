@@ -1,7 +1,7 @@
 import { ExpenseGlyph } from "@/components/ExpenseGlyph";
 import Link from "@/components/Link";
 import { notFound, redirect } from "next/navigation";
-import { getMyMemberId } from "@/lib/identity";
+import { getMyMemberId, privatePath } from "@/lib/identity";
 import { loadGroup } from "@/lib/group-data";
 import { getTimeZone } from "@/lib/tz";
 import { formatMoney } from "@/lib/money";
@@ -19,7 +19,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
   const myId = await getMyMemberId(id);
   const data = await loadGroup(id, { events: false, viewer: await getMyMemberId(id) });
   if (!data) notFound();
-  if (!myId || !data.group.members.some((m) => m.id === myId)) redirect("/private");
+  if (!myId || !data.group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
   const { group, expenses, transfers } = data;
   const r = tripReport({ name: group.name, type: group.type, currency: group.currency, members: group.members, expenses, transfers, tz: await getTimeZone() });
   const m = (x: number) => formatMoney(x, group.currency);
@@ -112,7 +112,8 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
                     <span>
                       {s.from} → {s.to}
                     </span>
-                    <span className="tabular-nums text-owe">{m(s.amount)}</span>
+                    {/* The colour rule: orange only when it is money you pay, green when it is coming to you, plain when it is between two others. */}
+                    <span className={`tabular-nums ${s.fromId === myId ? "text-owe" : s.toId === myId ? "text-owed" : "text-fg/80"}`}>{m(s.amount)}</span>
                   </li>
                 ))}
               </ul>

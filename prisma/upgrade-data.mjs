@@ -1,8 +1,9 @@
 // Brings data saved by older versions of the app up to date.
 // Safe to run any number of times: it only touches rows that still need it.
-// The only things it deletes: groups deleted more than 30 days ago (they can
-// be restored until then) and expired housekeeping rows (old sign-in codes,
-// rate-limit counters, old error logs). Runs before `npm run dev` and on deploy.
+// The only things it deletes are expired housekeeping rows (old sign-in codes,
+// rate-limit counters, old error logs). It never deletes groups: erasing groups
+// deleted more than 30 days ago is the daily job's work (eraseExpiredGroups in
+// src/lib/purge.ts). Runs before `npm run dev` and on deploy.
 import { PrismaClient } from "@prisma/client";
 
 // Preview builds of unfinished branches must never change live data.
@@ -82,22 +83,8 @@ for (const e of dated) {
   }
 }
 
-// 6. Groups deleted more than 30 days ago are erased for good.
-const cutoff = new Date(Date.now() - 30 * 86_400_000);
-const gone = await db.group.findMany({ where: { deletedAt: { lt: cutoff } }, select: { id: true } });
-for (const g of gone) {
-  const members = await db.member.findMany({ where: { groupId: g.id }, select: { id: true } });
-  const expenses = await db.expense.findMany({ where: { groupId: g.id }, select: { id: true } });
-  await db.$transaction([
-    db.expenseShare.deleteMany({ where: { expenseId: { in: expenses.map((e) => e.id) } } }),
-    db.expense.deleteMany({ where: { groupId: g.id } }),
-    db.payment.deleteMany({ where: { groupId: g.id } }),
-    db.groupEvent.deleteMany({ where: { groupId: g.id } }),
-    db.pushSubscription.deleteMany({ where: { memberId: { in: members.map((m) => m.id) } } }),
-    db.member.deleteMany({ where: { groupId: g.id } }),
-    db.group.delete({ where: { id: g.id } }),
-  ]);
-}
+// 6. (Erasing groups deleted over 30 days ago is the daily job's work: eraseExpiredGroups in src/lib/purge.ts. It also removes
+//    photos, receipts, games and claims, and queues the stored files for deletion, which a build-time step cannot do.)
 
 // 7. Housekeeping.
 const dayAgo = new Date(Date.now() - 86_400_000);
@@ -107,7 +94,7 @@ await db.outbox.deleteMany({ where: { createdAt: { lt: dayAgo } } });
 await db.requestKey.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 7 * 86_400_000) } } });
 await db.errorLog.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 30 * 86_400_000) } } });
 
-if (redated || gone.length) console.log(`Data upgrade: ${redated} expense days moved to noon UTC, ${gone.length} deleted groups erased.`);
+if (redated) console.log(`Data upgrade: ${redated} expense days moved to noon UTC.`);
 if (joined.count || moved || old.length || noCreator.length || noRecorder.length) {
   console.log(
     `Data upgrade: ${moved} categories updated, ${old.length} expenses given currency details, ` +

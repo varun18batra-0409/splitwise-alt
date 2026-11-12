@@ -1,4 +1,5 @@
 import { allow } from "./rate-limit";
+import { decimalsOf, isSupportedCurrency } from "./money";
 
 // Reading bills and spoken expenses with Claude (Anthropic). Off unless the
 // ANTHROPIC_API_KEY is set in the hosting settings; then a fast model reads
@@ -86,32 +87,42 @@ const BILL_TOOL: Tool = {
 const BILL_SYSTEM =
   "You read photos of bills and receipts (often Indian: GST, CGST/SGST, service charge, round-off) for a bill-splitting app. Read the numbers exactly as printed; never guess a total that isn't there. Item names short and readable, as on the bill.";
 
-export function cleanBill(raw: Record<string, unknown> | null): ReadBill | null {
+// Rounds half up on the decimal digits as written (12.345 is 12.35, though 12.345 * 100 is 1234.4999999999998 in floating point).
+export function roundTo(v: number, decimals: number): number {
+  const scale = 10 ** decimals;
+  return Math.round(Number((v * scale).toPrecision(15))) / scale;
+}
+
+export function cleanBill(raw: Record<string, unknown> | null, groupCurrency = ""): ReadBill | null {
   if (!raw || raw.is_bill === false) return null;
-  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0 && v < 1e9 ? Math.round(v * 100) / 100 : null);
+  // Rounded to the bill currency's own decimals (3 only for a dinar or rial), so the form never gets a number it would
+  // refuse. With no currency, or one we don't know, 2.
+  const currency = /^[A-Z]{3}$/.test(String(raw.currency ?? "").toUpperCase()) ? String(raw.currency).toUpperCase() : "";
+  // The currency the bill says, else the group's (the form fills in the group's currency when the bill is silent), else 2.
+  const useCur = isSupportedCurrency(currency) ? currency : isSupportedCurrency(groupCurrency) ? groupCurrency : "";
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0 && v < 1e9 ? roundTo(v, useCur ? decimalsOf(useCur) : 2) : null);
   const total = num(raw.total);
   const items = (Array.isArray(raw.items) ? raw.items : [])
     .map((x) => ({ name: String((x as { name?: unknown })?.name ?? "").trim().slice(0, 40), price: num((x as { price?: unknown })?.price) ?? 0 }))
     .filter((x) => x.name && x.price > 0)
     .slice(0, 40);
-  const currency = /^[A-Z]{3}$/.test(String(raw.currency ?? "").toUpperCase()) ? String(raw.currency).toUpperCase() : "";
   const date = /^\d{4}-\d{2}-\d{2}$/.test(String(raw.date ?? "")) ? String(raw.date) : "";
   return { merchant: String(raw.merchant ?? "").trim().slice(0, 60), total, currency, date, items, extras: num(raw.extras) ?? 0 };
 }
 
 // Fast model first; the stronger one only if it read a bill but found no total.
-export async function readBill(image: Uint8Array, type: string): Promise<ReadBill | null> {
+export async function readBill(image: Uint8Array, type: string, groupCurrency = ""): Promise<ReadBill | null> {
   const content: Content[] = [
     { type: "image", source: { type: "base64", media_type: type, data: Buffer.from(image).toString("base64") } },
     { type: "text", text: "Read this bill." },
   ];
   const raw = await call<Record<string, unknown>>(FAST, BILL_SYSTEM, content, BILL_TOOL, 1500);
-  const first = cleanBill(raw);
+  const first = cleanBill(raw, groupCurrency);
   if (first?.total) return first;
   // The stronger model only when the fast one did read a bill but found no total:
   // not for a photo that isn't a bill, and not after a failed call (each is a paid call).
   if (!raw || raw.is_bill === false) return null;
-  return cleanBill(await call<Record<string, unknown>>(STRONG, BILL_SYSTEM, content, BILL_TOOL, 1500)) ?? first;
+  return cleanBill(await call<Record<string, unknown>>(STRONG, BILL_SYSTEM, content, BILL_TOOL, 1500), groupCurrency) ?? first;
 }
 
 // ---- A spoken or typed line ---------------------------------------------
@@ -134,7 +145,7 @@ const LINE_TOOL: Tool = {
   },
 };
 
-export async function readLine(text: string, people: { id: string; name: string }[], meId: string): Promise<ReadLine | null> {
+export async function readLine(text: string, people: { id: string; name: string }[], meId: string, groupCurrency = ""): Promise<ReadLine | null> {
   const list = people.map((p) => `${p.id}: ${p.name}${p.id === meId ? " (the speaker)" : ""}`).join("\n");
   const raw = await call<Record<string, unknown>>(
     FAST,
@@ -145,7 +156,10 @@ export async function readLine(text: string, people: { id: string; name: string 
   );
   if (!raw) return null;
   const ids = new Set(people.map((p) => p.id));
-  const amount = typeof raw.amount === "number" && Number.isFinite(raw.amount) && raw.amount > 0 && raw.amount < 1e9 ? Math.round(raw.amount * 100) / 100 : null;
+  // Rounded to the decimals of the currency said, else the group's, else 2.
+  const said = /^[A-Z]{3}$/.test(String(raw.currency ?? "").toUpperCase()) ? String(raw.currency).toUpperCase() : "";
+  const useCur = isSupportedCurrency(said) ? said : isSupportedCurrency(groupCurrency) ? groupCurrency : "";
+  const amount = typeof raw.amount === "number" && Number.isFinite(raw.amount) && raw.amount > 0 && raw.amount < 1e9 ? roundTo(raw.amount, useCur ? decimalsOf(useCur) : 2) : null;
   const forIds = Array.isArray(raw.for_ids) ? [...new Set(raw.for_ids.map(String).filter((x) => ids.has(x)))] : null;
   return {
     name: String(raw.name ?? "").trim().slice(0, 80),

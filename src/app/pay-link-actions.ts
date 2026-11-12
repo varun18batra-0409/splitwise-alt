@@ -8,6 +8,7 @@ import { formatMoney } from "@/lib/money";
 import { makeClaim, tellReceiver, withdrawClaim } from "@/lib/payment-claims";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { readPayLink, recordLinkPayment } from "@/lib/pay-link";
+import { GroupChanged, groupChangedText, guardGroup, LeaverBreak, removedPaymentsBreak } from "@/lib/money-guard";
 
 // The "I've paid" link (no sign-in): say you paid what you owe (a claim that counts
 // only once the other person taps "Confirm received"), or take it back while it's waiting.
@@ -41,7 +42,7 @@ export async function iPaidAction(f: FormData) {
     back(token, { paid: "1" });
   }
   if (!r.ok) back(token, { error: r.error });
-  else if (!r.already) tellReceiver({ claimId: r.claimId, groupId: s.group.id, groupName: s.group.name, toId: s.link.toId, fromName: s.fromName, amountText: formatMoney(s.amount, s.group.currency) });
+  else if (!r.already) tellReceiver({ claimId: r.claimId, groupId: s.group.id, groupName: s.group.name, toId: s.link.toId, fromName: s.fromName, amountText: formatMoney(s.amount, s.group.currency), fromId: s.link.fromId });
   back(token, { paid: "1" });
 }
 
@@ -58,7 +59,12 @@ export async function undoIPaidAction(f: FormData) {
     back(token, w.ok ? { undone: "1" } : { error: w.error });
   }
   const amountText = formatMoney(s.amount, s.currency);
+  try {
   await db.$transaction(async (tx) => {
+    // First: the group is still open and in the same currency (a closed group's payments are not changed from here).
+    await guardGroup(tx, s.group.id, { currency: s.group.currency, actorId: s.link.fromId });
+    const leaver = await removedPaymentsBreak(tx, s.group.id, [s.link.paymentId]);
+    if (leaver.length) throw new LeaverBreak(leaver[0], "changed here");
     const gone = await tx.payment.updateMany({ where: { id: s.link.paymentId, okAt: null, deletedAt: null }, data: { deletedAt: new Date(), deletedById: s.link.fromId } });
     if (gone.count !== 1) return;
     await tx.payLink.update({ where: { id: s.link.id }, data: { paymentId: "" } });
@@ -70,5 +76,10 @@ export async function undoIPaidAction(f: FormData) {
       paymentId: s.link.paymentId,
     });
   });
+  } catch (err) {
+    if (err instanceof LeaverBreak) back(token, { error: err.message });
+    if (err instanceof GroupChanged) back(token, { error: err.reason === "closed" ? "This group is closed, so this can’t be taken back here." : err.reason === "actor_left" ? "You’re no longer in this group, so this can’t be taken back here." : groupChangedText(err) });
+    throw err;
+  }
   back(token, { undone: "1" });
 }

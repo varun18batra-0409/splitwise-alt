@@ -338,10 +338,28 @@ export function stampSvg(id: string, k = "s"): string {
 }
 
 // The round postmark: the place around the edge, the date in the middle.
+// Longer address lines get smaller writing so the whole line fits (about 12 letters at full size), but never below 0.62 of the size: below
+// that the handwriting is too small to read ("the flat that never has milk" was a hair-thin scrawl). A very long line wraps to a second row instead.
+export const ADDRESS_MIN_SCALE = 0.62;
+export const addressLineScale = (len: number) => Math.max(ADDRESS_MIN_SCALE, Math.min(1, 10 / Math.max(1, len)));
+
+// The postmark's date, in lines that fit inside the inner ring (54 wide): "12 NOV 2026" is too wide for one line at a readable size,
+// so the day and month go on the first line and the year on the second. Any other date stays on one line (squeezed to fit, see below).
+export function postmarkDateLines(date: string): string[] {
+  const m = /^(\S+\s+\S+)\s+(\d{4})$/.exec(date.trim());
+  return m ? [m[1], m[2]] : [date.trim()];
+}
+
 export function postmarkSvg(place: string, date: string, k = "p"): string {
   const pid = `pm${k.replace(/[^a-z0-9]/gi, "")}`;
   const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;");
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 84 84" width="84" height="84"><circle cx="42" cy="42" r="36" fill="none" stroke="#3a3540" stroke-width="1.6"/><circle cx="42" cy="42" r="27" fill="none" stroke="#3a3540" stroke-width="1"/><defs><path id="${pid}" d="M14 42 a28 28 0 1 1 56 0"/></defs><text font-family="Arial, Helvetica, sans-serif" font-size="8.5" font-weight="700" letter-spacing="2.2" fill="#3a3540"><textPath href="#${pid}" startOffset="50%" text-anchor="middle">${esc(place.toUpperCase().slice(0, 18))}</textPath></text><text x="42" y="46" text-anchor="middle" font-family="Georgia, serif" font-size="9.5" font-weight="700" fill="#3a3540">${esc(date)}</text><text x="42" y="61" text-anchor="middle" font-family="Arial, sans-serif" font-size="6.5" letter-spacing="2" fill="#3a3540">LOOPIN</text></svg>`;
+  const lines = postmarkDateLines(date);
+  // Two lines: day-month (bigger) then year. One line: at most 44 wide (textLength squeezes it), always inside the inner ring.
+  const dateText =
+    lines.length === 2
+      ? `<text x="42" y="41" text-anchor="middle" font-family="Georgia, serif" font-size="9.5" font-weight="700" fill="#3a3540" textLength="${Math.min(40, lines[0].length * 6)}" lengthAdjust="spacingAndGlyphs">${esc(lines[0])}</text><text x="42" y="51" text-anchor="middle" font-family="Georgia, serif" font-size="8.5" font-weight="700" fill="#3a3540">${esc(lines[1])}</text>`
+      : `<text x="42" y="46" text-anchor="middle" font-family="Georgia, serif" font-size="9" font-weight="700" fill="#3a3540" textLength="${Math.min(44, Math.max(10, lines[0].length * 5.6))}" lengthAdjust="spacingAndGlyphs">${esc(lines[0])}</text>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 84 84" width="84" height="84"><circle cx="42" cy="42" r="36" fill="none" stroke="#3a3540" stroke-width="1.6"/><circle cx="42" cy="42" r="27" fill="none" stroke="#3a3540" stroke-width="1"/><defs><path id="${pid}" d="M14 42 a28 28 0 1 1 56 0"/></defs><text font-family="Arial, Helvetica, sans-serif" font-size="8.5" font-weight="700" letter-spacing="2.2" fill="#3a3540"><textPath href="#${pid}" startOffset="50%" text-anchor="middle">${esc(place.toUpperCase().slice(0, 18))}</textPath></text>${dateText}<text x="42" y="63" text-anchor="middle" font-family="Arial, sans-serif" font-size="6" letter-spacing="2" fill="#3a3540">LOOPIN</text></svg>`;
 }
 
 export const WAVES_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 50" width="200" height="50">${[0, 1, 2, 3]

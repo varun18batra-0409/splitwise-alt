@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { db } from "./db";
 import { decodeSession } from "./session";
+import { parseGrant } from "./identity";
 
 // Moving someone's sign-in from the old address to the new one: a one-time
 // pass, random, usable once, for two minutes. Only a valid (signed) session
@@ -37,7 +38,7 @@ export async function peekMovePass(token: string | null | undefined, now = new D
       email = acc?.email ?? "";
     }
     if (!name.trim()) {
-      const ids = Object.values(session.m);
+      const ids = Object.values(session.m).map((v) => parseGrant(v).id); // a cookie value is "id~epoch"
       if (ids.length) name = (await db.member.findFirst({ where: { id: { in: ids } }, select: { name: true } }))?.name ?? "";
     }
     return { firstName: name.trim().split(/\s+/)[0] ?? "", email };

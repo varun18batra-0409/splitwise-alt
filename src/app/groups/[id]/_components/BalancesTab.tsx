@@ -3,6 +3,7 @@ import { PassportIcon, PeoplePassportsIcon, SquareSeal } from "@/components/Draw
 import { pairwiseDebtCount } from "@/lib/settle";
 import { Notice } from "@/components/Notice";
 import { formatMoney, formatPercent } from "@/lib/money";
+import { foreignPartLine, ledgerSummary } from "@/lib/foreign-part";
 import { niceDate } from "@/lib/format";
 import { Avatar } from "@/components/ui";
 import type { GroupView } from "./view";
@@ -47,30 +48,9 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
             <span className="block font-display text-lg font-semibold text-fg">
               {transfers.length} {transfers.length === 1 ? "payment clears" : "payments clear"} everything
             </span>
-            {before > transfers.length ? `Instead of ${before}, thanks to Smart Settle.` : "As few payments as it takes."}
+            {/* One count only: the headline says it; this line adds the "instead of" when Smart Settle saved some. */}
+            {before > transfers.length ? `Instead of ${before}, thanks to Smart Settle.` : null}
           </p>
-        </section>
-      )}
-
-      {/* Everyone's title: a quiet list, like credits at the end of a film. */}
-      {titles.length > 0 && (
-        <section aria-label="Fun titles">
-          <h2 className="font-display text-lg font-semibold tracking-tight">Titles</h2>
-          <p className="mb-3 text-sm text-gray-500">Earned on this {group.type === "trip" ? "trip" : "group"} so far.</p>
-          <ul className="divide-y divide-line rounded-[20px] border border-line px-4" data-titles>
-            {titles.map((t) => {
-              const m = group.members.find((x) => x.id === t.memberId);
-              return (
-                <li key={t.memberId} className="py-3" data-title-card={t.title}>
-                  <p className="flex items-baseline justify-between gap-3">
-                    <span className="font-display text-[15px] italic text-fg/90">{t.title}</span>
-                    <span className="shrink-0 text-[13px] font-semibold text-fg/70">{m ? (m.id === myId ? "You" : m.name.split(" ")[0]) : "Someone"}</span>
-                  </p>
-                  <p className="mt-0.5 text-xs leading-snug text-gray-500">{t.why}</p>
-                </li>
-              );
-            })}
-          </ul>
         </section>
       )}
 
@@ -90,18 +70,8 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
           {group.members.filter((m) => (leaver ? m.id === myId : !m.leftAt || (net[m.id] ?? 0) !== 0)).map((m) => {
             const b = net[m.id] ?? 0;
             const theirs = transfers.filter((t) => t.from === m.id || t.to === m.id);
-            // Their part of the spending in each foreign currency, said plainly.
-            const foreign =
-              b === 0
-                ? ""
-                : ledgers
-                    .map((l) => {
-                      const x = l.net[m.id] ?? 0;
-                      // "THB part: owes 5,099.17" (the currency named once).
-                      return x === 0 ? "" : `${l.currency} part: ${x > 0 ? "gets" : "owes"} ${formatMoney(Math.abs(x), l.currency).replace(`${l.currency} `, "")}`;
-                    })
-                    .filter(Boolean)
-                    .join(" · ");
+            // Their part of the spending in each foreign currency, said plainly: "Thai baht part: you owe THB 5,099.17".
+            const foreign = b === 0 ? "" : foreignPartLine(ledgers.map((l) => ({ currency: l.currency, amount: l.net[m.id] ?? 0 })), m.id === myId);
             return (
               <li key={m.id}>
                 <details className="group/person" open={why === m.id}>
@@ -117,7 +87,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
                           </span>
                         ) : null;
                       })()}
-                      <span className="block truncate text-xs text-gray-400">
+                      <span className={`block text-xs text-gray-400 ${foreign ? "break-words" : "truncate"}`} data-foreign-part={foreign ? "1" : undefined}>
                         {foreign || eq(b) || (theirs.length ? `${theirs.length} payment${theirs.length === 1 ? "" : "s"} to settle` : "settled up")}
                       </span>
                     </span>
@@ -159,7 +129,9 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
       {ledgers.length > 0 && mine !== 0 && (
         <section>
           <h2 className="font-display text-lg font-semibold tracking-tight">Spent in other currencies</h2>
-          <p className="mb-3 text-sm text-gray-500">Your share of those expenses in their own currency, without card fees.</p>
+          <p className="mb-3 text-sm text-gray-500" data-ledger-summary>
+            {ledgerSummary(ledgers.map((l) => ({ currency: l.currency, amount: l.net[myId] ?? 0 })), mine, group.currency)} Before card fees.
+          </p>
           <ul className="divide-y divide-line rounded-2xl border border-line">
             {ledgers.map((l) => {
               const val = l.net[myId] ?? 0;
@@ -173,7 +145,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
                     </span>
                   </span>
                   <span className={`shrink-0 text-right money tabular-nums ${val > 0 ? "text-owed" : val < 0 ? "text-owe" : "text-gray-400"}`}>
-                    {val > 0 ? `owed ${formatMoney(val, l.currency)}` : val < 0 ? `owe ${formatMoney(-val, l.currency)}` : "even"}
+                    {val > 0 ? `you’re owed ${formatMoney(val, l.currency)}` : val < 0 ? `you owe ${formatMoney(-val, l.currency)}` : "even"}
                   </span>
                 </li>
               );

@@ -1,3 +1,4 @@
+import { roundToWhole } from "@/lib/round-whole";
 import Link from "@/components/Link";
 import { getCategory } from "@/lib/categories";
 import { daysLeft, monthKey } from "@/lib/home/month";
@@ -94,7 +95,7 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className={`money text-[22px] font-semibold tabular-nums ${mine > 0 ? "text-owed" : mine < 0 ? "text-owe" : ""}`}>
-                  {mine > 0 ? `You’re owed ${money(mine)}` : mine < 0 ? `You owe ${money(-mine)}` : "All square"}
+                  {mine > 0 ? `Overall you’re owed ${money(mine)}` : mine < 0 ? `Overall you owe ${money(-mine)}` : "Overall you’re all square"}
                 </p>
                 {settleDayText && <p className="mt-0.5 text-xs text-gray-500">{settleDayText}</p>}
               </div>
@@ -164,7 +165,7 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
           <ul className="space-y-3 text-sm">
             {s.byCategory.slice(0, 6).map((c) => (
               <li key={c.id} className="grid grid-cols-[96px_1fr_84px] items-center gap-2.5">
-                <span className="truncate">{getCategory(c.id).short}</span>
+                <span className="line-clamp-2 break-words leading-tight" data-category-name>{getCategory(c.id).short}</span>
                 <span className="h-2 overflow-hidden rounded-full bg-mist">
                   <span className="block h-full rounded-full bg-gray-600" style={{ width: `${Math.max(2, Math.round((Math.max(0, c.amount) * 100) / Math.max(1, s.byCategory[0].amount)))}%` }} />
                 </span>
@@ -216,8 +217,8 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
           {extras.forecast && (
             <div className={`${card} p-3.5`}>
               <p className="text-xs text-gray-500">Next month, about</p>
-              <p className="mt-1 money text-[22px] font-semibold tabular-nums">{money(Math.round(extras.forecast.total / 100) * 100)}</p>
-              <p className="mt-0.5 text-xs text-gray-500">Your share {money(Math.round(extras.forecast.mine / 100) * 100)}</p>
+              <p className="mt-1 money text-[22px] font-semibold tabular-nums">{money(roundToWhole(extras.forecast.total, group.currency))}</p>
+              <p className="mt-0.5 text-xs text-gray-500">Your share {money(roundToWhole(extras.forecast.mine, group.currency))}</p>
             </div>
           )}
           {extras.deposit && (

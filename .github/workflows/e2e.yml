@@ -4,7 +4,9 @@
 # - Pull requests and pushes: a throwaway copy of the app is built and started
 #   right here on GitHub's machine, with its own empty database.
 # - The "staging" branch, or "Run workflow" by hand: the private test copy on
-#   Vercel, with the staging database. Never the live app.
+#   Vercel, with the staging database. Never the live app. Only one staging run
+#   at a time (job-level concurrency), and each run only clears its own test
+#   people plus ones older than six hours (e2e/global-setup.ts).
 name: E2E tests
 on:
   pull_request:
@@ -44,14 +46,22 @@ jobs:
           node-version: 22
       - run: npm ci
       # The browsers, kept between runs: downloading them sometimes hangs on GitHub's machines.
+      # The cache is named after the Playwright version in the lockfile and the browsers in it; the install
+      # step below always runs, so a cache with only one browser (or an older version) is topped up, never trusted.
+      - name: Playwright version (from the lockfile)
+        id: pw
+        run: echo "version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")" >> "$GITHUB_OUTPUT"
       - name: Browser cache
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: pw-${{ runner.os }}-${{ hashFiles('package.json') }}
+          key: pw-${{ runner.os }}-${{ steps.pw.outputs.version }}-chromium-webkit
       - name: Test browsers (system packages, then the browsers with retries)
         timeout-minutes: 15
         run: bash scripts/ci-browsers.sh chromium webkit
+      - name: Both browsers start (Android's Chrome and iPhone's Safari engine)
+        run: |
+          node -e "(async()=>{const pw=require('@playwright/test');for(const t of ['chromium','webkit']){const b=await pw[t].launch();console.log('::notice title=Browser '+t+'::launched, version '+b.version());await b.close();}})().catch(e=>{console.log('::error title=Browser did not start::'+String(e.message).split('\\n')[0]);process.exit(1)})"
       - name: Empty database and app build
         run: |
           npx prisma db push --skip-generate
@@ -104,6 +114,11 @@ jobs:
     if: (github.event_name == 'push' && github.ref == 'refs/heads/staging') || (github.event_name == 'workflow_dispatch' && inputs.target == 'staging')
     runs-on: ubuntu-24.04
     timeout-minutes: 50
+    # One staging run at a time, whatever branch started it: they all share the same test copy and database,
+    # so a second run waits its turn instead of clearing the first one's test people (AUTO-03).
+    concurrency:
+      group: e2e-staging-target
+      cancel-in-progress: false
     permissions:
       contents: read
       deployments: read
@@ -128,14 +143,22 @@ jobs:
           [ "$TURSO_DATABASE_URL" != "$LIVE_TURSO_DATABASE_URL" ] || { echo "::error title=Stopped::The staging database is the LIVE database."; exit 1; }
       - run: npm ci
       # The browsers, kept between runs: downloading them sometimes hangs on GitHub's machines.
+      # The cache is named after the Playwright version in the lockfile and the browsers in it; the install
+      # step below always runs, so a cache with only one browser (or an older version) is topped up, never trusted.
+      - name: Playwright version (from the lockfile)
+        id: pw
+        run: echo "version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")" >> "$GITHUB_OUTPUT"
       - name: Browser cache
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: pw-${{ runner.os }}-${{ hashFiles('package.json') }}
+          key: pw-${{ runner.os }}-${{ steps.pw.outputs.version }}-chromium-webkit
       - name: Test browsers (system packages, then the browsers with retries)
         timeout-minutes: 15
-        run: bash scripts/ci-browsers.sh chromium
+        run: bash scripts/ci-browsers.sh chromium webkit
+      - name: Both browsers start (Android's Chrome and iPhone's Safari engine)
+        run: |
+          node -e "(async()=>{const pw=require('@playwright/test');for(const t of ['chromium','webkit']){const b=await pw[t].launch();console.log('::notice title=Browser '+t+'::launched, version '+b.version());await b.close();}})().catch(e=>{console.log('::error title=Browser did not start::'+String(e.message).split('\\n')[0]);process.exit(1)})"
       - name: Tables on the staging database (adds only)
         run: node scripts/turso-sync.mjs
       - name: Find the test copy (the staging branch's latest Vercel build)
@@ -161,6 +184,9 @@ jobs:
       - name: Run the tests
         # Named projects: the computer-sized "desktop" project is for Exercise A (exercise-a.yml).
         run: npx playwright test --project=phone --project=iphone
+      - name: Both phone and iPhone really ran
+        if: always()
+        run: node scripts/e2e-projects-check.mjs e2e-results/results.json phone iphone
       - name: Summary
         if: always()
         run: node e2e/summary.mjs

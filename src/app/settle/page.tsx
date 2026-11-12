@@ -16,7 +16,7 @@ import { payButtons } from "@/lib/pay-links";
 // Smart Settle across all your groups: one payment per person.
 export default async function SettlePage({ searchParams }: { searchParams: Promise<{ settle?: string }> }) {
   const { settle: notice } = await searchParams;
-  const { all, common, settleItems, skippedGroups, othersPending } = await loadOverview(await getMemberships());
+  const { all, common, settleItems, skippedLinks, othersPending } = await loadOverview(await getMemberships());
   // Pay buttons for people you owe who added their UPI ID / pay link.
   const owedAccounts = settleItems.filter((it) => it.net < 0 && !it.converted && it.key.startsWith("acc:")).map((it) => it.key.slice(4));
   const accounts = owedAccounts.length ? await db.account.findMany({ where: { id: { in: owedAccounts } }, select: { id: true, upiId: true, payLink: true } }) : [];
@@ -28,7 +28,8 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
         <div className="relative -mt-2 mb-6">
           <span aria-hidden className="pointer-events-none absolute -left-24 -top-28 h-80 w-80 rounded-full bg-[radial-gradient(circle,rgba(111,227,168,0.14),transparent_65%)]" />
           <p className="relative font-display text-[34px] font-semibold leading-[1.04] tracking-[-0.02em]">
-            {settleItems.length === 1 ? "One payment" : `${settleItems.length} payments`} and you’re all square
+            {settleItems.length === 1 ? "One payment" : `${settleItems.length} payments`}
+            {skippedLinks.length ? " to settle here" : " and you’re all square"}
           </p>
           <p className="relative mt-2 text-sm leading-relaxed text-fg/60">One payment per person, across all your groups. Each one clears itself when it’s marked paid.</p>
         </div>
@@ -44,6 +45,12 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
           Once you add shared costs, you’ll see who to pay here.{" "}
           <Link href="/groups/new" className="text-fg underline underline-offset-4">Create a group</Link>, or open an invite link from a friend.
         </p>
+      ) : settleItems.length === 0 && skippedLinks.length > 0 ? (
+        // Nothing to add up here, but some groups are left out: never "All square" while they are.
+        <div className="rounded-[26px] bg-mist px-5 py-8 text-center">
+          <p className="font-display text-2xl font-semibold">Nothing to add up yet</p>
+          <p className="mt-1 text-sm text-gray-600">Some groups are waiting on an exchange rate. Settle those inside each group.</p>
+        </div>
       ) : settleItems.length === 0 ? (
         <div className="rounded-[26px] bg-mist px-5 py-10 text-center">
           <SquareSeal size={56} className="mx-auto" />
@@ -146,8 +153,19 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
           })}
         </>
       )}
-      {skippedGroups.length > 0 && (
-        <p className="mt-2 text-xs text-gray-400">No exchange rate right now for {skippedGroups.join(", ")}. Settle those inside the group.</p>
+      {skippedLinks.length > 0 && (
+        <div className="mt-4">
+          <p className="mb-2 text-sm text-gray-500">No exchange rate right now, so these aren’t in the total. Settle them inside the group:</p>
+          <ul className="flex flex-wrap gap-2">
+            {skippedLinks.map((g) => (
+              <li key={g.id}>
+                <Link href={`/groups/${g.id}/settle`} className="inline-block rounded-full border border-line px-3.5 py-2 text-sm active:bg-mist">
+                  {g.name}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {othersPending.length > 0 && (

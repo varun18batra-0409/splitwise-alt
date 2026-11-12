@@ -30,7 +30,7 @@ test("an invite link: without signing in you can't join (no name box); after sig
   await allowTestCopy(context);
   await page.goto(g.invite);
   await settled(page);
-  await expect(page.getByRole("link", { name: /sign up to join/i })).toBeVisible();
+  await expect(page.getByRole("link", { name: /^Continue with email$/i })).toBeVisible();
   await expect(page.locator('input[name="name"]')).toHaveCount(0);
 
   const ivan = await signUp("Ivan", testEmail("ivan"));
@@ -55,7 +55,7 @@ test("add by email: in the group at once as a name; the invitee gets a Join card
   await host.waitForURL(/invited=/);
   // The adder's reply, and the name in the list.
   await expect(host.locator("[data-invited-title]")).toContainText("is in the group");
-  await expect(host.getByText(`We’ve sent an invitation to ${email}`)).toBeVisible();
+  await expect(host.getByText(`We’re emailing an invitation to ${email}`)).toBeVisible();
   await expect(host.getByText("Invited · hasn’t joined yet").first()).toBeVisible();
   const row = (await members()).find((m) => m.accountId === null && m.name.endsWith("Jaya"));
   expect(row, "a name-only row for the invited person").toBeTruthy();

@@ -33,7 +33,7 @@ test.afterAll(async () => {
 
 test("equal split across three people: ₹900 dinner → Alice gets ₹600, Bob and Cara owe ₹300 each", async () => {
   await addEqualExpense(A, group.path, "Dinner", "900");
-  await expect(A.locator("details summary").filter({ hasText: "Dinner" }).first()).toBeVisible();
+  await expect(A.locator('li[id^="item-"] details > summary').filter({ hasText: "Dinner" }).first()).toBeVisible();
 
   const seenByAlice = await readBalances(A, group.path);
   expect(seenByAlice).toEqual({ Alice: 60000, Bob: -30000, Cara: -30000 });
@@ -57,7 +57,7 @@ test("edit the amount (₹900 → ₹1,200): balances recalculate to +₹800 / �
   await A.getByRole("button", { name: "Save changes" }).click();
   await A.waitForURL(/tab=activity/);
   await settled(A);
-  await expect(A.locator("details summary").filter({ hasText: "Dinner" }).first()).toContainText("1,200");
+  await expect(A.locator('li[id^="item-"] details > summary').filter({ hasText: "Dinner" }).first()).toContainText("1,200");
 
   expect(await readBalances(A, group.path)).toEqual({ Alice: 80000, Bob: -40000, Cara: -40000 });
   expect(await readBalances(B, group.path)).toEqual({ Alice: 80000, Bob: -40000, Cara: -40000 });
@@ -70,9 +70,9 @@ test("Insights add up: your share and group spend match what was entered, and Ho
   await A.goto(`/search?g=${gid}`);
   await settled(A);
   await expect(A.locator("[data-insights-total]"), "Insights: Alice's share this month").toHaveText("₹500");
-  // Alice paid the ₹1,200 dinner: my cut ₹500, I paid ₹1,200, so the others owe her ₹700.
-  await expect(A.getByLabel("My cut, what I paid, and where that leaves me")).toContainText("₹1,200");
-  await expect(A.getByLabel("My cut, what I paid, and where that leaves me")).toContainText("₹700");
+  // Alice paid the ₹1,200 dinner: your share ₹500, you paid ₹1,200, so the others owe her ₹700.
+  await expect(A.getByLabel("Your share, what you paid, and where that leaves you")).toContainText("₹1,200");
+  await expect(A.getByLabel("Your share, what you paid, and where that leaves you")).toContainText("₹700");
   await A.goto(`/search?g=${gid}&v=spent`);
   await settled(A);
   await expect(A.locator("[data-insights-total]"), "Insights: the group's spending this month").toHaveText("₹1,500");

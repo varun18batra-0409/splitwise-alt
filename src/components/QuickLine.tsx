@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { parseQuickLine, type QuickResult } from "@/lib/quickline";
 import { readLineAction } from "@/app/ai-actions";
+import { useAiConsent } from "./AiConsent";
 
 type Recognition = { lang: string; interimResults: boolean; maxAlternatives: number; start(): void; stop(): void; onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null; onerror: ((e: { error: string }) => void) | null; onend: (() => void) | null };
 type SpeechWindow = { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition };
@@ -38,6 +39,7 @@ export function QuickLine({
   const [note, setNote] = useState("");
   const [canSpeak, setCanSpeak] = useState(false);
   const rec = useRef<Recognition | null>(null);
+  const consent = useAiConsent();
   useEffect(() => setCanSpeak(Boolean(speechApi())), []);
   // Opened from the form's Faster entry row: "Type a line" shows the box, "Speak" also starts listening. The form calls this
   // straight from the tap (phones only allow the microphone to start from a tap, like the camera for Scan a bill).
@@ -64,14 +66,22 @@ export function QuickLine({
     if (missed && ai) {
       setBusy(true);
       try {
-        const r = await readLineAction(groupId, line);
+        let r = await readLineAction(groupId, line);
+        // First time: ask before anything is sent. "Not now" (or an answer of no) keeps the line as the phone read it.
+        if (!r.ok && r.needsConsent) {
+          setBusy(false);
+          if (await consent.ask("line")) {
+            setBusy(true);
+            r = await readLineAction(groupId, line);
+          } else r = { ok: false, error: "", consent: "no" };
+        }
         if (r.ok) {
           const merged: QuickResult = { name: r.name || q.name, amount: r.amount || q.amount, paidById: r.paidById || q.paidById, forIds: r.forIds ?? q.forIds, understood: q.understood };
           onFill(merged, { currency: r.currency || undefined });
           setDone(merged);
           return;
         }
-        setNote(r.error);
+        if (r.consent !== "no") setNote(r.error);
       } catch {
         // offline or a hiccup: what the phone read is still used
       } finally {
@@ -112,6 +122,7 @@ export function QuickLine({
   if (!open) return null;
   return (
     <div className="rounded-2xl border border-line p-3" role="group" aria-label="Quick line">
+      {consent.sheet}
       <div className="flex gap-2">
         <input
           value={text}

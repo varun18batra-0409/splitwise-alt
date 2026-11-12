@@ -93,6 +93,9 @@ model Member {
   removedAt DateTime?
   removedById String @default("")
   timeZone  String   @default("") // this person's time zone from their phone (e.g. "Europe/London"); "" = not known yet. An account's own zone wins.
+  // Goes up when this name is linked to an email and when that account is deleted: an older guest copy of the cookie
+  // ("memberId~epoch") on another phone then stops working. Add-only.
+  grantEpoch Int     @default(0)
   @@unique([groupId, name])
   @@index([accountId])
 }
@@ -261,6 +264,9 @@ model Account {
   postcardsSent Postcard[] @relation("PostcardFrom")
   postcardsRecv Postcard[] @relation("PostcardTo")
   timeZone String @default("") // time zone from the phone (e.g. "America/Los_Angeles"): nudges arrive in the daytime there. "" = not known yet.
+  // "Let Loopin's AI read this?": "yes" | "no" | "" (never asked: nothing is sent to the AI). Added later: existing accounts start as "".
+  aiConsent   String    @default("")
+  aiConsentAt DateTime?
 }
 
 // Notifications for a person rather than a group (Collect: "Asha added you",
@@ -743,4 +749,31 @@ model ExpenseItem {
   amount    Int // minor units of the expense's currency
   people    String  @default("[]") // JSON member ids
   @@index([expenseId])
+}
+
+// Someone you blocked: they can't send you postcards, passports or nudges, can't open your passport (nor you theirs),
+// and their postcards vanish from your view. Shared group expenses and balances are never touched.
+model Block {
+  id        String   @id @default(cuid())
+  blockerId String // account
+  blockedId String // account
+  createdAt DateTime @default(now())
+  @@unique([blockerId, blockedId])
+  @@index([blockedId])
+}
+
+// A report about something another person sent (postcard, passport, a person in a group). Read by the owner at /stats/reports.
+model Report {
+  id              String    @id @default(cuid())
+  reporterId      String // account
+  kind            String // "postcard" | "passport" | "person" | "support" (a message to support: no target, reporterId is "" when not signed in)
+  targetId        String // the postcard id, or the account id for a passport / person
+  targetAccountId String // the account being reported
+  reason          String // "spam" | "abusive" | "other" | "support"
+  note            String    @default("")
+  contact         String    @default("") // support messages: the email the person left to be written back to (optional)
+  status          String    @default("open") // "open" | "resolved"
+  createdAt       DateTime  @default(now())
+  resolvedAt      DateTime?
+  @@index([status, createdAt])
 }

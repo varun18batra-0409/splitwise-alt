@@ -47,10 +47,19 @@ const PROFILE = requested as Profile;
 const P = PROFILES[PROFILE];
 
 // pass / fail / na ("not applicable": the step is for other devices, and says which).
-type Status = "pass" | "fail" | "na";
+// "skip" = NOT RUN: a conditional step found nothing to do. It is never counted as a pass (TEST-02).
+type Status = "pass" | "fail" | "na" | "skip";
 type Result = { n: number; area: string; name: string; status: Status; detail: string; only?: Profile[] };
 const results: Result[] = [];
 let shotNo = 0;
+// A step returns notRun("why") when its situation did not come up (nothing to pay, no key set...).
+// It is recorded as "skip" with the reason, listed in the reports, and never counted as passed.
+class NotRun {
+  constructor(public reason: string) {}
+}
+const notRun = (reason: string) => new NotRun(reason);
+// Older style: a note ending in "(skipped)" is treated as not run too, so it can never slip in as a pass.
+const SKIPPED_NOTE = /\(skipped\)\s*$/;
 
 // ---------- an independent model of what everyone should owe ----------
 type Person = "Varun" | "Asha" | "Ravi" | "Zoe";
@@ -82,7 +91,7 @@ const rupees = (paise: number) => `₹${(paise / 100).toFixed(2)}`;
 // A step that hangs (a screen that never finishes on the hosted copy) fails on
 // its own after two minutes instead of stopping the whole run.
 const STEP_LIMIT_MS = 120_000;
-async function step(page: Page | null, area: string, name: string, fn: () => Promise<void | string>, only?: Profile[], limitMs = STEP_LIMIT_MS) {
+async function step(page: Page | null, area: string, name: string, fn: () => Promise<void | string | NotRun>, only?: Profile[], limitMs = STEP_LIMIT_MS) {
   const n = results.length + 1;
   try {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -92,8 +101,14 @@ async function step(page: Page | null, area: string, name: string, fn: () => Pro
         timer = setTimeout(() => reject(new Error(`still not done after ${limitMs / 1000} s`)), limitMs);
       }),
     ]).finally(() => clearTimeout(timer));
-    results.push({ n, area, name, status: "pass", detail: typeof note === "string" ? note : "", only });
-    console.log("✓", area, "—", name);
+    const why = note instanceof NotRun ? note.reason : typeof note === "string" && SKIPPED_NOTE.test(note) ? note.replace(SKIPPED_NOTE, "").trim() : null;
+    if (why !== null) {
+      results.push({ n, area, name, status: "skip", detail: `not run: ${why || "no reason given"}`, only });
+      console.log("○", area, "—", name, `(not run: ${why})`);
+    } else {
+      results.push({ n, area, name, status: "pass", detail: typeof note === "string" ? note : "", only });
+      console.log("✓", area, "—", name);
+    }
   } catch (e) {
     const lines = String((e as Error)?.message ?? e).split("\n").map((l) => l.trim()).filter(Boolean);
     // Database errors put the real reason on their last line ("Invalid `db.x()` invocation … <reason>"), so keep it.
@@ -112,10 +127,17 @@ async function step(page: Page | null, area: string, name: string, fn: () => Pro
 }
 // A step for some devices only. On the others it is listed as "not applicable"
 // with the reason, so nothing is ever skipped quietly.
-async function stepOn(only: Profile[], why: string, page: Page | null, area: string, name: string, fn: () => Promise<void | string>) {
+async function stepOn(only: Profile[], why: string, page: Page | null, area: string, name: string, fn: () => Promise<void | string | NotRun>) {
   if (only.includes(PROFILE)) return step(page, area, name, fn, only);
   results.push({ n: results.length + 1, area, name, status: "na", detail: `not applicable on ${PROFILE}: ${why} (runs on ${only.join(", ")})`, only });
   console.log("–", area, "—", name, `(not applicable on ${PROFILE})`);
+}
+// No Remind link on Settle. If the independent ledger says Varun IS owed money, that is a failure; only when
+// nobody owes him is the step genuinely not applicable (and then it is recorded as not run, never as a pass).
+function noRemind(before: string): NotRun {
+  const owed = expected().Varun;
+  assert(!(owed > 0), `${before}Varun is owed ${rupees(owed)} by the ledger, but Settle shows no Remind link`);
+  return notRun(`${before}nobody owes Varun right now, so there was nothing to remind`);
 }
 // Old and new names for the same time zone (Chrome says Asia/Calcutta, the standard list says Asia/Kolkata).
 const ZONE_ALIAS: Record<string, string> = { "Asia/Calcutta": "Asia/Kolkata", "Asia/Saigon": "Asia/Ho_Chi_Minh", "Asia/Katmandu": "Asia/Kathmandu", "Asia/Rangoon": "Asia/Yangon" };
@@ -503,6 +525,12 @@ async function main() {
     g = new URL(V.url()).pathname.replace(/\/invite$/, "");
     await V.getByText("is ready. Now bring your people in").waitFor();
     for (const t of ["People on Loopin", "From your contacts", "By email"]) await V.getByText(t, { exact: true }).waitFor();
+    // F3: the "(you)" row never says "Not on Loopin yet". F14: WhatsApp and Copy link up front, the rest under More ways, WhatsApp in Loopin's own green.
+    assert(!/Not on Loopin yet/.test(await V.locator("li").filter({ hasText: "(you)" }).first().innerText()), "the (you) row says “Not on Loopin yet”");
+    await V.locator("[data-more-ways] > summary").waitFor();
+    await V.getByRole("button", { name: "Copy link" }).waitFor();
+    const wa = await V.locator("[data-invite-whatsapp]").evaluate((el) => getComputedStyle(el).backgroundColor);
+    assert(wa === "rgb(111, 227, 168)", `the WhatsApp invite button is ${wa}, not Loopin's green (#6fe3a8)`);
     assert((await V.getByText("Add members yourself").count()) === 0, "old “Add members yourself” still there");
     const m = /\/join\/([A-Za-z0-9_-]+)/.exec(await V.content());
     assert(m, "no join link on the page");
@@ -512,13 +540,13 @@ async function main() {
   await step(null, "Joining", "Someone opening the link without signing up can't join (no name box)", async () => {
     const x = await person(browser);
     await go(x.page, invite);
-    await x.page.getByRole("link", { name: "Sign up to join" }).waitFor();
+    await x.page.getByRole("link", { name: "Continue with email" }).waitFor();
     assert((await x.page.locator('input[name="name"]').count()) === 0, "a name box is offered before sign-up");
     await x.ctx.close();
   });
   await step(A, "Joining", "Asha opens the link, signs up with her email, and joins", async () => {
     await go(A, invite);
-    await A.getByRole("link", { name: "Sign up to join" }).click();
+    await A.getByRole("link", { name: "Continue with email" }).click();
     await signup(A, "Asha", email("asha"));
     await A.waitForURL(new RegExp(invite));
     await A.getByRole("button", { name: /^Join / }).click();
@@ -526,7 +554,7 @@ async function main() {
   });
   await step(R, "Joining", "Ravi does the same from a WhatsApp message", async () => {
     await go(R, invite);
-    await R.getByRole("link", { name: "Sign up to join" }).click();
+    await R.getByRole("link", { name: "Continue with email" }).click();
     await signup(R, "Ravi", email("ravi"));
     await R.waitForURL(new RegExp(invite));
     await R.getByRole("button", { name: /^Join / }).click();
@@ -557,7 +585,7 @@ async function main() {
     const link = /https?:\/\/\S+\/join\/\S+/.exec(mailRow.text)?.[0];
     assert(link, "no link in the email");
     await Z.goto(base + new URL(link).pathname + new URL(link).search, { waitUntil: "networkidle" });
-    await Z.getByRole("link", { name: "Sign up to join" }).click();
+    await Z.getByRole("link", { name: "Continue with email" }).click();
     assert((await Z.locator('input[name="email"]').inputValue()) === email("zoe"), "email not filled in from the invite");
     await signup(Z, "Zoe", email("zoe"), true);
     await Z.waitForURL(/\/join\//);
@@ -690,7 +718,7 @@ async function main() {
   // ===== 3. Editing, clashes, delete, undo =====
   const editPath = async (page: Page, name: string) => {
     await go(page, `${g}?tab=activity&q=${encodeURIComponent(name)}`);
-    await page.locator("details summary").filter({ hasText: name }).first().click();
+    await page.locator('li[id^="item-"] details > summary').filter({ hasText: name }).first().click(); // not the filter chip, which shows the search word too
     const href = await page.getByRole("link", { name: "Edit or delete" }).first().getAttribute("href");
     assert(href, `no edit link for ${name}`);
     return href;
@@ -732,7 +760,7 @@ async function main() {
     ledger.find((x) => x.key === "Tickets")!.active = false;
     const after = await checkBalances(V, g);
     await go(V, `${g}?tab=activity&q=Tickets`);
-    await V.locator("details summary").filter({ hasText: "Tickets" }).first().click();
+    await V.locator('li[id^="item-"] details > summary').filter({ hasText: "Tickets" }).first().click();
     await V.getByRole("button", { name: "Restore" }).first().click();
     await V.waitForURL(/did=/);
     ledger.find((x) => x.key === "Tickets")!.active = true;
@@ -858,10 +886,16 @@ async function main() {
   // Every payment row on Settle up has the same layout: one filled main button (Open payment app or Remind), one outlined action
   // ("I've paid" = a claim that counts after Confirm received, or direct "I've paid" / "They've paid me" / "Mark paid" where
   // the other person can't confirm) and a "Paid a different amount?" link. There is no amount box on the row any more.
+  // F1: the quiet closing actions and "Paid a different amount?" sit under a "More options" link: open the one inside `scope` first.
+  const openSettleMore = async (scope: ReturnType<Page["locator"]>) => {
+    const d = scope.locator("details[data-more-options]").first();
+    if ((await d.count()) && !(await d.evaluate((el) => (el as HTMLDetailsElement).open))) await d.locator("summary").click();
+  };
   const settleCards = (page: Page) => page.locator("main ul > li[data-transfer-row]");
   // Record row i's payment so it counts straight away, in full or for another amount: through "Paid a different amount?" (Record a payment).
   const rowRecord = async (page: Page, i: number, o: { amount?: string; dbl?: boolean } = {}) => {
     const card = settleCards(page).nth(i);
+    await openSettleMore(card); // the link sits under “More options”, closed until opened
     const other = card.getByRole("link", { name: "Paid a different amount?" });
     assert(await other.count(), "a Settle up row has no “Paid a different amount?” link");
     assert((await card.locator('input[name="amount"]:not([type="hidden"])').count()) === 0, "a Settle up row still has an amount box");
@@ -892,11 +926,13 @@ async function main() {
       const filled = await row.locator(".pop").count();
       const apps = await row.locator("[data-pay]").count();
       // One filled button when there is any pay option (a second saved way, e.g. PayPal, is a quiet "or pay with" link, never filled).
-      assert((apps <= 1 && filled === 1) || (filled === 0 && (await row.locator("[data-claim-waiting], [data-claim-above]").count()) > 0), `row ${i} has ${filled} filled buttons`);
+      // A payment between two other people has a quiet outline "Mark paid" (yours is the filled one); a waiting claim has none.
+      const quiet = filled === 0 && ((await row.locator("[data-claim-waiting], [data-claim-above]").count()) > 0 || (await row.locator("[data-mark-paid]").count()) >= 1);
+      assert((apps <= 1 && filled === 1) || quiet, `row ${i} has ${filled} filled buttons`);
       assert((await row.locator('input[name="amount"]:not([type="hidden"])').count()) === 0, `row ${i} still has an amount box`);
       assert((await row.getByText("Mark paid", { exact: true }).count()) <= 1, `row ${i} has look-alike buttons`);
     }
-    // Under the rows: ONE main closing button; "Record a different payment" and the other close action are quiet links.
+    // Under the rows: at most ONE main closing button; Mark all, Settle everything and "Record a different payment" are quiet links under More options.
     assert((await V.locator("[data-settle-actions] .pop").count()) <= 1, "more than one filled closing button under the payments");
     // One filled button per screen area: on the whole page, the rows' own main buttons plus at most one closing button,
     // and none at all when a single payment is shown (that payment's own button is the main one).
@@ -904,7 +940,17 @@ async function main() {
     const allFilled = await V.locator("main .pop").count();
     assert(allFilled <= rowFilled + 1, `${allFilled} filled buttons on Settle up, but the rows have ${rowFilled}`);
     if (n === 1) assert((await V.locator("[data-settle-actions] .pop").count()) === 0, "a second big button under a single payment");
-    assert((await V.getByRole("button", { name: /^Mark all \d+ paid$/ }).count()) === 0, "the old “Mark all N paid” wording is back");
+    // F1/F18: one wording, "Mark all N paid", quiet and under More options; it counts only other people's payments (never mine).
+    const markAll = V.locator("[data-settle-actions]").getByRole("button", { name: /Mark all/ });
+    assert((await V.getByRole("button", { name: /^Mark all paid \(\d+\)$/ }).count()) === 0, "the old “Mark all paid (N)” wording is back");
+    assert((await V.locator("[data-settle-actions] details[data-more-options]").count()) === 1, "Settle up has no “More options” under the payments");
+    await openSettleMore(V.locator("[data-settle-actions]"));
+    const mineCount = await settleCards(V).filter({ hasText: /^(?:[A-Z] )?You pay / }).count();
+    const m = await markAll.count();
+    if (m) assert(new RegExp(`^Mark all ${n - mineCount} paid$`).test(((await markAll.first().innerText()) ?? "").trim()), `Mark all says ${await markAll.first().innerText()} but ${n - mineCount} payments are other people's`);
+    // F8: a row paid by UPI (rupees, the person has a UPI ID) shows no "or pay with PayPal" link.
+    const rowsWithAlt = await V.locator("main li[data-transfer-row]").evaluateAll((els) => els.filter((e) => e.querySelector("[data-pay='upi']") && e.querySelector("[data-pay-alt]")).length);
+    assert(rowsWithAlt === 0, "a UPI row still offers “or pay with PayPal”");
     return `${n} payments suggested`;
   });
   await step(V, "Settle", "Bottom bar “Settle” inside a group goes to the same screen", async () => {
@@ -944,7 +990,7 @@ async function main() {
   });
   await step(V, "Settle", "Undo a payment from the bar", async () => {
     await go(V, `${g}/settle`);
-    if ((await settleCards(V).count()) === 0) return "nothing left to pay (skipped)";
+    if ((await settleCards(V).count()) === 0) return notRun("nothing left to pay");
     const [from, to, amt] = await cardPeople(V, 0, "Varun");
     await rowRecord(V, 0);
     await V.waitForURL(/paid=1/);
@@ -956,11 +1002,11 @@ async function main() {
   await step(V, "Settle", "“I’ve paid” is only a claim: balances don't move until Asha taps Confirm received", async () => {
     await go(V, `${g}/settle`);
     const mine = settleCards(V).filter({ has: V.locator("[data-i-paid]") });
-    if (!(await mine.count())) return "Varun pays nobody who has joined right now (skipped)";
+    if (!(await mine.count())) return notRun("Varun pays nobody who has joined right now");
     const t = (await mine.first().innerText()).replace(/\s+/g, " ");
     const m = /You pay (\w+) (₹[\d,.]+)/.exec(t);
     assert(m, `can't read the row: ${t}`);
-    if (m[1] !== "Asha") return `Varun pays ${m[1]}, who isn't one of the signed-in phones here (skipped)`;
+    if (m[1] !== "Asha") return notRun(`Varun pays ${m[1]}, who isn't one of the signed-in phones here`);
     const amt = minor(m[2]);
     const before = await checkBalances(V, g);
     await mine.first().locator("[data-i-paid]").click();
@@ -998,7 +1044,8 @@ async function main() {
     await V.getByRole("button", { name: "Record payment" }).click();
     await V.locator("[data-over-warning]").waitFor();
     const t = (await V.locator("[data-over-warning]").innerText()).replace(/\s+/g, " ");
-    assert(/This is ₹[\d,.]+ more than what's owed\. Record it anyway\?/.test(t), `warning says: ${t}`);
+    // Two wordings, depending on whether the person paid is owed anything right now (pay-record.ts overpayQuestion).
+    assert(/\w+ is owed ₹[\d,.]+\. Recording ₹[\d,.]+ means \w+ will owe \w+ ₹[\d,.]+ back\. Record it anyway\?/.test(t) || /This is ₹[\d,.]+ more than what's owed\. Record it anyway\?/.test(t), `warning says: ${t}`);
     assert((await db.payment.count({ where: { groupId: g.split("/").pop()!, deletedAt: null } })) === before, "a payment was saved before confirming");
     // Cancel (first, and the safe default) saves nothing and takes the warning away.
     await V.locator("[data-over-cancel]").click();
@@ -1023,6 +1070,7 @@ async function main() {
   });
   await step(V, "Settle", "Settle everything & close, then reopen", async () => {
     await go(V, `${g}/settle`);
+    await openSettleMore(V.locator("[data-settle-actions]"));
     await V.getByRole("button", { name: /Settle everything & close|Close group/ }).click();
     await V.waitForURL(/closed=1/);
     await V.getByText("Closed groups").first().waitFor();
@@ -1206,7 +1254,7 @@ async function main() {
     // The same neutral row for any email (nobody can check who has an account); on Loopin → added straight away.
     await V.locator("[data-add-by-email]").waitFor();
     const results = (await V.locator("ul").filter({ has: V.locator("[data-add-by-email]") }).innerText()).replace(/\s+/g, " ");
-    assert(!/On Loopin/.test(results) && /In the group now, and emailed an invitation/.test(results), `a stranger's account was revealed by their email: ${results}`);
+    assert(!/On Loopin/.test(results) && /In the group now\. We’ll email an invitation/.test(results), `the reply for a full email should be the neutral row "In the group now. We’ll email an invitation" with no "On Loopin" label, but it says: ${results}`);
     await V.locator("[data-add-by-email]").click();
     await V.waitForURL(/invited=/);
     await V.locator("[data-invited-title]").waitFor();
@@ -1247,8 +1295,15 @@ async function main() {
       const line = (await who.innerText()).replace(/\s+/g, " ").trim();
       assert(/^\S.*[₹$€£]\s?\d/.test(line), `the who-line has no amounts: ${line}`);
       assert((await who.locator("b").count()) >= 1, "the who-line names aren't bold");
-      const lineBox = (await who.locator("[data-who-line]").boundingBox())!;
-      assert(lineBox.height < 24, `the who-line wraps (${Math.round(lineBox.height)}px tall)`);
+      // UX-01: each row of the who-line (main side; "You owe …" / "… owes you" when money also goes the other way) is whole:
+      // nothing cut off, and the direction words are on screen whenever the opposite row is.
+      const rows = (await who.locator("[data-who-line]").evaluateAll(
+        (els) => els.map((e) => ({ row: e.getAttribute("data-who-row"), cut: e.scrollWidth > e.clientWidth + 1, text: (e as HTMLElement).innerText })),
+      )) as { row: string; cut: boolean; text: string }[];
+      assert(rows.length >= 1 && rows[0].row === "main", "the who-line has no main row");
+      assert(rows.every((r) => !r.cut), `a who-line row is cut off: ${rows.filter((r) => r.cut).map((r) => r.text).join(" | ")}`);
+      const opp = rows.find((r) => r.row === "opposite");
+      if (opp) assert(/(^You owe )|( owes? you )/.test(opp.text.replace(/\s+/g, " ") + " ") && /\d/.test(opp.text), `the other-way row lost its direction words or amount: ${opp.text}`);
       const main = money.locator("[data-money-action][data-emphasis='bright']");
       const label = (await main.innerText()).trim();
       const href = (await main.getAttribute("href")) ?? "";
@@ -1293,7 +1348,7 @@ async function main() {
     const box = (await card.boundingBox())!;
     assert(box.y >= 0 && box.y + box.height <= 667, `the money card ends at ${Math.round(box.y + box.height)}px of 667`);
     // Compact: about 165px tall, about 210px with the "needs you" line folded in (a few px of slack for fonts).
-    const limit = (await card.locator("[data-need-line]").count()) ? 216 : 172;
+    const limit = ((await card.locator("[data-need-line]").count()) ? 216 : 172) + ((await card.locator("[data-who-row='opposite']").count()) ? 24 : 0);
     assert(box.height <= limit, `the money card is ${Math.round(box.height)}px tall (should be about ${limit - 6} or less)`);
     for (const b of await card.locator("[data-money-action]").all()) {
       const bb = (await b.boundingBox())!;
@@ -1344,6 +1399,45 @@ async function main() {
     // One stories row at most, and not again lower down; no row at all when there are no stories.
     assert((await V.locator("[data-stories]").count()) <= 1, "stories show twice on Home");
     if ((await V.locator("[data-story]").count()) === 0) assert((await V.getByRole("region", { name: "Stories" }).count()) === 0, "an empty stories row is showing");
+  });
+  await step(V, "Home", "F6/F10/F19: FAQ, Privacy and Terms on Home each have a 44px tap area with space between them; Latest says “Payment”, never “Settle-up”; the You page footer has a Privacy link with a 44px target", async () => {
+    await go(V, "/");
+    const boxes: { x: number; w: number; h: number }[] = [];
+    for (const name of ["FAQ", "Privacy", "Terms"]) {
+      const l = V.locator("[data-footer-links]").getByRole("link", { name, exact: true });
+      await l.waitFor();
+      const b = (await l.boundingBox())!;
+      assert(b.height >= 43.5 && b.width >= 43.5, `the ${name} link is ${Math.round(b.width)}×${Math.round(b.height)}px (needs 44×44)`);
+      boxes.push({ x: b.x, w: b.width, h: b.height });
+    }
+    for (let i = 1; i < boxes.length; i++) assert(boxes[i].x >= boxes[i - 1].x + boxes[i - 1].w - 0.5, "the footer links overlap each other");
+    assert(!/Settle-up\b/.test(await V.locator("main").innerText()), "Home still says “Settle-up” somewhere (Latest should say “Payment”)");
+    await go(V, "/account");
+    const priv = V.locator("[data-footer-links]").getByRole("link", { name: "Privacy", exact: true });
+    await priv.waitFor();
+    const pb = (await priv.boundingBox())!;
+    assert(pb.height >= 43.5, `the You page Privacy link is ${Math.round(pb.height)}px tall`);
+    assert((await priv.getAttribute("href")) === "/privacy", "the You page Privacy link goes elsewhere");
+    // F9: "Your share / You paid / You're owed" everywhere, including the Recap on Search (no "My cut", "I paid", "I'm owed").
+    await go(V, "/search");
+    const recap = await V.locator("main").innerText();
+    assert(!/My cut|\bI paid\b|I’m owed|I owe\b/.test(recap), "Search/Recap still says “My cut” / “I paid” / “I’m owed”");
+  });
+  await step(V, "Home", "F5: an open story's full-screen photo is requested big and sharp (its image address asks for 1920px or wider, quality 90)", async () => {
+    await go(V, "/");
+    const first = V.locator("[data-stories] button").first();
+    if (!(await first.count())) return notRun("no story on Home to open (it depends on trips with dates)");
+    await first.click();
+    await V.waitForTimeout(700);
+    const imgs = (await V.evaluate(
+      "Array.from(document.querySelectorAll('img')).filter(function(i){return i.getBoundingClientRect().height > 400}).map(function(i){return i.srcset || i.src})",
+    )) as string[];
+    if (imgs.length) {
+      const widths = [...imgs.join(",").matchAll(/[?&]w=(\d+)/g)].map((m) => Number(m[1]));
+      assert(widths.length > 0 && Math.max(...widths) >= 1920, `the story photo is only offered up to ${Math.max(0, ...widths)}px wide`);
+      assert(/q=90/.test(imgs.join(",")), "the story photo isn't requested at quality 90");
+    }
+    await V.keyboard.press("Escape");
   });
   await step(V, "Home", "“+ New group” is the first card in Your groups (dashed, as tall as the polaroids, at least 44px), whatever the number of groups, and one tap opens the new-group page; “See all” stays in the header", async () => {
     await go(V, "/");
@@ -1400,7 +1494,7 @@ async function main() {
     }
     assert((await V.getByText(/^(Recently deleted|Hide recently deleted)/).count()) === 0, "Recently deleted is still on Home");
   });
-  await step(V, "Home", "On the narrowest phone (320×640) the money card has no sideways scroll: the who-line stays on one line, the buttons keep their words inside, the card is tinted", async () => {
+  await step(V, "Home", "On the narrowest phone (320×640) the money card has no sideways scroll: no part of the who-line is cut off (also at 360 and 390), both directions show, the buttons keep their words inside, the card is tinted", async () => {
     const was = V.viewportSize();
     await V.setViewportSize({ width: 320, height: 640 });
     await go(V, "/");
@@ -1422,8 +1516,17 @@ async function main() {
     if (tone !== "square") {
       const bg = await card.evaluate((el) => getComputedStyle(el).backgroundImage);
       assert(/gradient/.test(bg), "a card that owes or is owed has no tint");
-      const who = card.locator("[data-who-line]");
-      if (await who.count()) assert((await who.boundingBox())!.height < 24, "the who-line wraps at 320px");
+    }
+    // UX-01: at 320, 360 and 390 px every who-line row is whole (scrollWidth <= clientWidth) and, with money going both ways, both rows show.
+    for (const w of [320, 360, 390]) {
+      await V.setViewportSize({ width: w, height: 700 });
+      await go(V, "/");
+      await card.waitFor();
+      const rows = (await card.evaluate(
+        "Array.from(document.querySelectorAll('[aria-label=\"Your money\"] [data-who-line]')).map(function(e){return {row:e.getAttribute('data-who-row'),cut:e.scrollWidth>e.clientWidth+1,text:e.innerText}})",
+      )) as { row: string; cut: boolean; text: string }[];
+      assert(rows.every((r) => !r.cut), `at ${w}px a who-line row is cut off: ${rows.filter((r) => r.cut).map((r) => r.text).join(" | ")}`);
+      if (rows.some((r) => r.row === "opposite")) assert(rows.length === 2 && rows[0].row === "main", `at ${w}px both directions should show as two rows`);
     }
     if (was) await V.setViewportSize(was);
   });
@@ -1622,7 +1725,7 @@ async function main() {
     await go(V, `${g}/people`);
     const before = await shownBalances(V, g);
     const debtor = PEOPLE.find((p) => p !== "Varun" && (before[p] ?? 0) !== 0);
-    if (!debtor) return "everyone settled (skipped)";
+    if (!debtor) return notRun("everyone settled");
     await go(V, `${g}/people`);
     await V.locator("details summary").filter({ hasText: debtor }).first().click();
     assert(await V.locator("details[open]").getByRole("button", { name: "Settle up first" }).isDisabled(), "leave button isn't disabled");
@@ -1631,7 +1734,7 @@ async function main() {
   await step(V, "Edit", "Change who paid on an expense: balances move by exactly that amount", async () => {
     const before = await shownBalances(V, g);
     await go(V, `${g}?tab=activity&q=Water`);
-    await V.locator("details summary").filter({ hasText: "Water" }).first().click();
+    await V.locator('li[id^="item-"] details > summary').filter({ hasText: "Water" }).first().click();
     const href = await V.getByRole("link", { name: "Edit or delete" }).first().getAttribute("href");
     await go(V, href!);
     await V.getByRole("button", { name: /^(✓ )?Asha$/ }).first().click();
@@ -1729,7 +1832,7 @@ async function main() {
     await V.getByRole("button", { name: "Invite", exact: true }).click();
     await V.waitForURL(/invited=/);
     await V.locator("[data-invited-title]").waitFor();
-    await V.getByText(/We’ve sent an invitation to/).waitFor();
+    await V.getByText(/We’re emailing an invitation to/).waitFor();
     await go(R, "/");
     await R.locator("[data-invitation]").filter({ hasText: "UAT Flat" }).getByRole("button", { name: "Not now", exact: true }).waitFor();
     await go(R, "/notifications");
@@ -1825,6 +1928,26 @@ async function main() {
     await page.getByText(/Install app/).first().waitFor();
     await ctx.close();
   });
+  await step(null, "Sign in", "UX-04: the sign-in header is short (about 96px) on a short phone (390×667) and tall on a normal one (390×844), so the small-phone variant works for both width and height", async () => {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 667 }, locale: "en-IN" });
+    const page = await ctx.newPage();
+    page.setDefaultTimeout(15_000);
+    try {
+      await go(page, "/signin");
+      const header = page.locator("[data-signin-header]");
+      await header.waitFor();
+      const short = (await header.boundingBox())!.height;
+      assert(short >= 80 && short <= 130, `the sign-in header is ${Math.round(short)}px tall at 390×667 (should be about 96)`);
+      await page.setViewportSize({ width: 390, height: 844 });
+      const tall = (await header.boundingBox())!.height;
+      assert(tall >= 300, `the sign-in header is ${Math.round(tall)}px tall at 390×844 (should be tall, about 420)`);
+      await page.setViewportSize({ width: 320, height: 900 });
+      const narrow = (await header.boundingBox())!.height;
+      assert(narrow <= 130, `the sign-in header is ${Math.round(narrow)}px tall at 320×900 (a narrow phone should get the short one)`);
+    } finally {
+      await ctx.close();
+    }
+  });
   await step(V, "Get the app", "Home has an “App” button and the service worker is registered (needed to install)", async () => {
     await go(V, "/");
     await V.getByRole("button", { name: "Get the app" }).waitFor();
@@ -1849,7 +1972,7 @@ async function main() {
     await go(page, "/");
     await page.getByRole("link", { name: "Home", exact: true }).first().click();
     await page.getByRole("heading", { name: "Start with one group." }).waitFor();
-    await page.getByRole("link", { name: /Sign up to keep your groups/ }).first().waitFor();
+    await page.getByRole("link", { name: /Sign in to start/ }).first().waitFor();
     // Join with a pasted link
     // (Tapped again if the first tap landed before the page came alive, as a person would.)
     for (let i = 0; i < 4 && !(await page.getByLabel("Invite link").count()); i++) {
@@ -1887,21 +2010,21 @@ async function main() {
     await V.waitForURL(/\/welcome/);
     return `${imgs} photos on the guide (${sizes})`;
   });
-  await step(null, "Help", "The 1-minute tour has 4 slides (make a group, add what you paid, see who owes then settle, every trip becomes a story), in words that work outside India, and none says “no sign-up”", async () => {
+  await step(null, "Help", "The 1-minute tour has 6 slides (make a group, add what you paid, see who owes then settle, every trip becomes a story, send a postcard, collect your passport), in words that work outside India, and none says “no sign-up”", async () => {
     const { ctx, page } = await person(browser);
     await go(page, "/welcome");
     const seen: string[] = [];
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 6; i++) {
       seen.push((await page.locator("main").innerText()).replace(/\s+/g, " "));
       const next = page.getByRole("button", { name: /Next/ });
-      if (i < 3) {
+      if (i < 5) {
         await next.click();
         await page.waitForTimeout(500);
       }
     }
-    assert((await page.locator("[data-tour-slide]").count()) === 4, `${await page.locator("[data-tour-slide]").count()} slides, not 4`);
+    assert((await page.locator("[data-tour-slide]").count()) === 6, `${await page.locator("[data-tour-slide]").count()} slides, not 6 (the tour stays at 6 or fewer)`);
     const all = seen.join(" ");
-    for (const t of ["Make a group.", "Add what you paid.", "See who owes. Then settle.", "Every trip becomes a story."]) assert(all.includes(t), `no “${t}” slide`);
+    for (const t of ["Make a group.", "Add what you paid.", "See who owes. Then settle.", "Every trip becomes a story.", "Send a postcard.", "Collect your passport."]) assert(all.includes(t), `no “${t}” slide`);
     assert(/to the last paisa or cent/.test(all), "the add slide doesn’t say “to the last paisa or cent”");
     assert(/Pay each other however you like/.test(all), "the settle slide doesn’t say “Pay each other however you like”");
     assert(!/no sign-up/i.test(all), "a slide still says “no sign-up”");
@@ -2027,10 +2150,10 @@ async function main() {
     assert(elec === 0, "Electricity was added without an amount");
     await go(A, `${gh}?tab=bills`);
     assert(await A.getByRole("link", { name: "Enter amount" }).count(), "Asha sees no “Enter amount”");
-    // Each bill says where it stands: Electricity "Needs amount" (orange), Rent "Recorded" (green).
+    // Each bill says where it stands: Electricity "Needs amount" (orange), Rent "Added this month" (green).
     assert((await A.locator('[data-bill-state="needs-amount"]').count()) === 1, "Electricity has no “Needs amount” chip");
     await go(V, `${gh}?tab=bills`);
-    assert((await V.locator('[data-bill-state="recorded"]').filter({ hasText: "Recorded" }).count()) === 1, "Rent has no “Recorded” chip");
+    assert((await V.locator('[data-bill-state="recorded"]').filter({ hasText: "Added this month" }).count()) === 1, "Rent has no “Added this month” chip");
     assert((await V.locator('[data-bill-state="needs-amount"]').count()) === 1, "Electricity has no “Needs amount” chip");
   });
   await step(A, "Flat", "Asha taps “Enter amount”, types ₹2,840 and saves: Asha owes ₹13,580 in all", async () => {
@@ -2044,7 +2167,7 @@ async function main() {
     await go(V, `${gh}?tab=bills`);
     assert((await V.getByRole("link", { name: "Enter amount" }).count()) === 0, "Electricity still waiting");
     assert((await V.locator('[data-bill-state="needs-amount"]').count()) === 0, "Electricity still says “Needs amount”");
-    assert((await V.locator('[data-bill-state="recorded"]').count()) === 2, "Rent and Electricity should both say “Recorded”");
+    assert((await V.locator('[data-bill-state="recorded"]').count()) === 2, "Rent and Electricity should both say “Added this month”");
   });
   await step(V, "Flat", "Shopping list: add Bread and Milk, tick both, enter ₹1,240 → one Groceries expense", async () => {
     await go(V, `${gh}?tab=list`);
@@ -2097,6 +2220,19 @@ async function main() {
     await V.getByText(/₹95,000(\.00)? to go/).waitFor();
     assert(await V.getByText("You’ve set aside").count(), "no “You’ve set aside” card");
   });
+  // Done while Asha is still in the flat: once she has moved out, deleting a charge she shares is refused on purpose (a leaver keeps the balance she left with).
+  await step(V, "Flat", "Delete the automatic Rent from its edit screen: the daily job doesn't add it back", async () => {
+    const rent = await db.expense.findFirst({ where: { groupId: homeId(), description: "Rent", deletedAt: null } });
+    assert(rent, "no Rent expense");
+    await go(V, `${gh}/expenses/${rent.id}/edit`);
+    await V.getByRole("button", { name: "Delete expense" }).click();
+    await V.waitForURL(/tab=activity/);
+    assert(!/[?&]error=/.test(V.url()), `the delete was refused: ${decodeURIComponent(V.url().split("error=")[1] ?? "")}`);
+    if (noCronKey) await (await import("../src/lib/home/bills-db")).runBillsForGroup(homeId());
+    else await fetch(`${base}/api/cron/daily`, { headers: cronAuth() });
+    const live = await db.expense.count({ where: { groupId: homeId(), description: "Rent", deletedAt: null } });
+    assert(live === 0, `Rent came back (${live})`);
+  });
   await step(V, "Flat", "Asha moves out: final payment shown, she's marked moved out, balances still add up to zero", async () => {
     await go(V, `${gh}/people`);
     await V.locator("details summary").filter({ hasText: "Asha" }).first().click();
@@ -2104,6 +2240,13 @@ async function main() {
     await V.waitForURL(/\/move/);
     const t = (await V.locator("main").innerText()).replace(/\s+/g, " ");
     assert(/Final payments/.test(t) && /Asha pays you|You pay Asha|all square/i.test(t), `move-out screen says: ${t.slice(0, 300)}`);
+    // F12: a short title on one line, deductions in plain colour (no green, no minus sign).
+    assert((await V.locator("header h1").first().innerText()).trim() === "Asha moves out", "the move-out title isn't “Asha moves out”");
+    const h1 = (await V.locator("header h1").first().boundingBox())!;
+    assert(h1.height < 44, `the move-out title wraps (${Math.round(h1.height)}px tall)`);
+    for (const d of await V.locator("[data-deduction]").all()) {
+      assert(!/[−-]/.test(await d.innerText()) && !/text-owed/.test((await d.getAttribute("class")) ?? ""), "a move-out deduction is green or has a minus sign");
+    }
     await V.getByRole("button", { name: /mark as moved out/ }).click();
     await V.waitForURL(/tab=activity/);
     const { loadGroup } = await import("../src/lib/group-data");
@@ -2129,7 +2272,7 @@ async function main() {
 
   // ===== 10. More checks: the daily job's key, joining when signed in, bills, deposit, speed =====
   await step(null, "Daily job", "Without the key the daily job is refused; with it, it runs", async () => {
-    if (!process.env.CRON_SECRET) return "no key set on this test server (skipped)";
+    if (!process.env.CRON_SECRET) return notRun("no key set on this test server");
     const no = await fetch(`${base}/api/cron/daily`);
     assert(no.status === 401, `without the key it answered ${no.status}`);
     const wrong = await fetch(`${base}/api/cron/daily`, { headers: { authorization: "Bearer wrong" } });
@@ -2148,17 +2291,6 @@ async function main() {
     assert(await V.locator("details summary").filter({ hasText: "Zoe" }).count(), "Zoe isn't listed on People");
     const zoe = await db.member.findFirst({ where: { groupId: homeId(), name: { startsWith: "Zoe" }, leftAt: null } });
     assert(zoe?.accountId, "Zoe's member row isn't linked to her account");
-  });
-  await step(V, "Flat", "Delete the automatic Rent from its edit screen: the daily job doesn't add it back", async () => {
-    const rent = await db.expense.findFirst({ where: { groupId: homeId(), description: "Rent", deletedAt: null } });
-    assert(rent, "no Rent expense");
-    await go(V, `${gh}/expenses/${rent.id}/edit`);
-    await V.getByRole("button", { name: "Delete expense" }).click();
-    await V.waitForURL(/tab=activity/);
-    if (noCronKey) await (await import("../src/lib/home/bills-db")).runBillsForGroup(homeId());
-    else await fetch(`${base}/api/cron/daily`, { headers: cronAuth() });
-    const live = await db.expense.count({ where: { groupId: homeId(), description: "Rent", deletedAt: null } });
-    assert(live === 0, `Rent came back (${live})`);
   });
   await step(V, "Flat", "Pause a bill and start it again from its page", async () => {
     const bill = await db.bill.findFirst({ where: { groupId: homeId(), name: "Electricity" } });
@@ -2351,7 +2483,7 @@ async function main() {
     const ev = await db.groupEvent.findFirst({ where: { groupId: g.split("/").pop()!, kind: "expense_edited" }, orderBy: { createdAt: "desc" } });
     assert(ev && /Name: Taxi → Airport taxi/.test(ev.details ?? ""), `history says: ${ev?.text} ${ev?.details}`);
     await go(V, `${g}?tab=activity&q=${encodeURIComponent("Airport taxi")}`);
-    await V.locator("details summary").filter({ hasText: "Airport taxi" }).first().waitFor();
+    await V.locator('li[id^="item-"] details > summary').filter({ hasText: "Airport taxi" }).first().waitFor();
   });
   await step(V, "Flat", "Skip a bill this time: next month's Rent is marked skipped and won't be added", async () => {
     const rent = await db.bill.findFirst({ where: { groupId: homeId(), name: "Rent", deletedAt: null } });
@@ -2439,7 +2571,7 @@ async function main() {
     });
   await step(null, "New address", "The old address forwards to loopinapps.com, and a signed-in person arrives still signed in after one tap (once)", async () => {
     // Pretending to be the old address only works on a server of our own; on Vercel it would reach the live app.
-    if (hosted) return "checked on the GitHub test server only (on Vercel this would reach the live app)";
+    if (hosted) return notRun("checked on the GitHub test server only (on Vercel this would reach the live app)");
     const plain = await raw("/how-it-works", "getloopin.vercel.app");
     assert(plain.status === 307 && plain.location === "https://loopinapps.com/how-it-works", `not signed in: ${plain.status} ${plain.location}`);
     const me = (await varun.ctx.cookies()).find((c) => c.name === "sw_me");
@@ -2487,7 +2619,7 @@ async function main() {
     const googleShown = (await page.getByRole("link", { name: "Continue with Google" }).count()) > 0;
     if (hosted && !googleShown) {
       await ctx.close();
-      return "Google isn't switched on for the test copy (it is on the live app)";
+      return notRun("Google isn't switched on for the test copy (it is on the live app)");
     }
     const href = (await page.getByRole("link", { name: "Continue with Google" }).getAttribute("href")) ?? "";
     assert(href.startsWith("/api/auth/google/start"), `Google button links to ${href}`);
@@ -2524,7 +2656,7 @@ async function main() {
     const { ctx, page } = await person(browser);
     await page.goto(link.replace(/^https?:\/\/[^/]+/, base), { waitUntil: "networkidle" });
     await page.getByText(/You were added as/).waitFor();
-    await page.getByRole("link", { name: /sign up to join/i }).click();
+    await page.getByRole("link", { name: /^Continue with email$/i }).click();
     await signup(page, "Rohit", email("rohit"), true);
     await page.getByRole("button", { name: "Continue as Rohit" }).click();
     await page.waitForURL(new RegExp(`/groups/${gid}`));
@@ -2782,7 +2914,7 @@ async function main() {
   await step(V, "Settle", "Remind opens WhatsApp with the amount and who owes it", async () => {
     await go(V, `${g}/settle`);
     const link = V.getByRole("link", { name: /Remind/ }).first();
-    if (!(await link.count())) return "nobody owes Varun right now (nothing to remind)";
+    if (!(await link.count())) return noRemind("");
     // Remind goes through Loopin (to make the "I've paid" link), then on to WhatsApp.
     const res = await V.request.get(base + ((await link.getAttribute("href")) ?? ""), { maxRedirects: 0 });
     const href = res.headers()["location"] ?? "";
@@ -2802,6 +2934,7 @@ async function main() {
 
   await step(V, "Add people", "The invite screen shows the group's link and a QR code", async () => {
     await go(V, `${g}/invite`);
+    await V.locator("[data-more-ways] > summary").click(); // F14: WhatsApp and Copy link are the main ways; the rest is under More ways
     await V.getByText("Share the group link or QR code").click();
     await V.waitForTimeout(500);
     assert((await V.locator("svg").filter({ has: V.locator("path") }).count()) > 0, "no QR code");
@@ -2865,6 +2998,7 @@ async function main() {
     const vacc = await db.account.findUniqueOrThrow({ where: { email: email("varun") } });
     const trip = await db.group.findFirstOrThrow({ where: { name: "Manali trip", members: { some: { accountId: vacc.id } } }, orderBy: { createdAt: "desc" } });
     await go(V, `/groups/${trip.id}/settle`);
+    await openSettleMore(V.locator("[data-settle-actions]"));
     await V.getByRole("button", { name: /Settle everything & close|Close group/ }).click();
     await V.waitForURL(/closed=1/);
     await V.getByRole("link", { name: "See the trip report" }).click();
@@ -2908,7 +3042,7 @@ async function main() {
     for (const n of ["Zoya", "Kabir", "Asha"]) await due.getByRole("listitem").filter({ hasText: n }).first().waitFor();
     await due.getByText("on Loopin").waitFor();
     const p = await V.locator("[data-collection-progress]").innerText();
-    assert(/0 of 3 paid/.test(p) && /₹0/.test(p) && /₹1,500/.test(p), `progress reads “${p.replace(/\s+/g, " ")}”`);
+    assert(/No one has said they've paid yet/.test(p) && /₹0/.test(p) && /₹1,500/.test(p), `progress reads “${p.replace(/\s+/g, " ")}”`);
   });
 
   // Notifications are written just after the page answers: give them a moment.
@@ -2937,7 +3071,9 @@ async function main() {
     await page.waitForURL(/ticked=1/);
     await page.getByText("You’re on the list.", { exact: false }).waitFor();
     const p = await page.locator("[data-collection-progress]").innerText();
-    assert(/1 of 3 paid/.test(p) && /₹500/.test(p), `progress reads “${p.replace(/\s+/g, " ")}”`);
+    // UX-03: said-paid money is reported, not confirmed: "Confirmed ₹0" and "Reported, awaiting check ₹500" are separate lines.
+    const rep = await page.locator("[data-collection-reported]").innerText();
+    assert(/1 of 3 say they've paid/.test(p) && /Confirmed ₹0/.test(p) && /Reported, awaiting check ₹500/.test(rep), `progress reads “${p.replace(/\s+/g, " ")}” / “${rep}”`);
     await ctx.close();
   });
 
@@ -2952,7 +3088,7 @@ async function main() {
     await V.getByRole("region", { name: "Still to pay" }).getByRole("listitem").filter({ hasText: "Kabir" }).getByRole("button", { name: "Paid cash" }).click();
     await V.getByRole("region", { name: "Paid" }).getByText(/cash · checked by you/).waitFor();
     const p = await V.locator("[data-collection-progress]").innerText();
-    assert(/2 of 3 paid/.test(p) && /₹1,000/.test(p) && /₹1,500/.test(p), `progress reads “${p.replace(/\s+/g, " ")}”`);
+    assert(/2 of 3 say they've paid/.test(p) && /Confirmed ₹1,000/.test(p) && /₹1,500/.test(p) && (await V.locator("[data-collection-reported]").count()) === 0, `progress reads “${p.replace(/\s+/g, " ")}”`);
   });
 
   await step(V, "Collect", "Varun reminds Asha inside Loopin (bell); a second reminder straight away is refused; Asha sees it in Alerts", async () => {
@@ -2983,7 +3119,8 @@ async function main() {
   });
 
   // ===== Trip countdown =====
-  const istDay = (plus: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(Date.now() + plus * 86_400_000));
+  // Days counted where this person is (a London desktop late in the evening is already a day behind India).
+  const istDay = (plus: number) => new Intl.DateTimeFormat("en-CA", { timeZone: P.timezoneId }).format(new Date(Date.now() + plus * 86_400_000));
   async function newTrip(page: Page, name: string, start: string) {
     await go(page, "/groups/new");
     await page.getByRole("button", { name: /^Trip/ }).click();
@@ -3061,10 +3198,11 @@ async function main() {
     await V.locator("[data-expense-summary]").waitFor();
     const pill = await V.locator("[data-expense-summary]").evaluate((el) => {
       const c = getComputedStyle(el);
-      return { bg: c.backgroundColor, ws: c.whiteSpace, overflow: c.textOverflow };
+      return { bg: c.backgroundColor, ws: c.whiteSpace, overflow: c.textOverflow, cut: el.scrollWidth > el.clientWidth + 1 };
     });
     assert(!/rgba\(.*,\s*0?\.\d+\)$/.test(pill.bg) && pill.bg !== "rgba(0, 0, 0, 0)", `the summary pill is see-through: ${pill.bg}`);
-    assert(pill.ws === "nowrap" && pill.overflow === "ellipsis", "the summary pill isn't one row with an ellipsis");
+    // F4: money is never cut off with an ellipsis: the pill wraps onto a second line instead.
+    assert(pill.ws !== "nowrap" && pill.overflow !== "ellipsis" && !pill.cut, "the summary pill is still clipped with an ellipsis instead of wrapping");
     assert((await V.locator("[data-payer-row]").count()) === 1 && (await V.locator("[data-split-row]").count()) === 1, "Who paid / How to split chips aren't each one scrolling row");
   });
   await step(V, "Add", "Editing an expense that has notes opens More by itself, so nothing is hidden", async () => {
@@ -3162,7 +3300,7 @@ async function main() {
     await settleNav(V);
     await go(V, `${g}/settle`);
     const link = V.locator("[data-remind]").first();
-    if (!(await link.count())) return "saved; nobody owes Varun right now (nothing to remind)";
+    if (!(await link.count())) return noRemind("the pay details were saved, but ");
     const res = await V.request.get(base + ((await link.getAttribute("href")) ?? ""), { maxRedirects: 0 });
     assert(res.status() === 303, `Remind answered ${res.status()}`);
     const wa = decodeURIComponent(res.headers()["location"] ?? "");
@@ -3191,7 +3329,7 @@ async function main() {
     await settleNav(V);
     await go(V, `${g}/settle`);
     const link = V.locator("[data-remind]").first();
-    if (!(await link.count())) return "saved; nobody owes Varun right now (nothing to remind)";
+    if (!(await link.count())) return noRemind("the pay details were saved, but ");
     const res = await V.request.get(base + ((await link.getAttribute("href")) ?? ""), { maxRedirects: 0 });
     assert(res.status() === 303, `Remind answered ${res.status()}`);
     const payPath = new URL(res.headers()["x-pay-link"] ?? "").pathname;
@@ -3207,7 +3345,7 @@ async function main() {
 
   await step(V, "Fun", "React 🔥 to an expense: it shows under the expense; tapping 🔥 again takes it back", async () => {
     const ex = await db.expense.findFirst({ where: { groupId: g.split("/").pop()!, deletedAt: null }, orderBy: { createdAt: "desc" } });
-    if (!ex) return "no expense to react to";
+    assert(ex, "the group has no expense to react to, but the steps above add several");
     await go(V, `${g}?tab=activity&open=${ex.id}`);
     const react = V.getByRole("group", { name: "React" }).first();
     await react.getByRole("button", { name: "React 🔥" }).click();
@@ -3237,12 +3375,11 @@ async function main() {
     await V.getByRole("button", { name: "Share it" }).waitFor();
   });
 
-  await step(V, "Fun", "Titles: everyone in the group gets a fun title, shown as cards at the top of Balances", async () => {
+  await step(V, "Fun", "Titles: everyone in the group gets a fun title, shown as a small chip under their name on Balances", async () => {
     await go(V, `${g}?tab=balances`);
-    const cards = await V.locator("[data-title-card]").count();
-    const people = await V.locator("[data-title]").count();
-    assert(cards >= 2, `only ${cards} title cards`);
-    assert(cards === people, `${cards} cards but ${people} people with a title`);
+    const chips = await V.locator("[data-title]").count();
+    assert(chips >= 2, `only ${chips} title chips`);
+    assert((await V.locator("[data-title-card]").count()) === 0, "the big title cards are back on Balances");
   });
 
   await step(V, "Fun", "Where to? when making a trip (optional): the trip earns its passport stamp", async () => {
@@ -3538,6 +3675,45 @@ async function main() {
     await x.ctx.close();
   });
 
+  // ----- Safety: report and block (store rules for things people send each other), and the AI question -----
+  await step(R, "Safety", "Report and block: Ravi reports Asha's postcard (“We'll look at this within 24 hours”), blocks her from there, her card is gone from his view, and he unblocks from You", async () => {
+    assert(cardPath, "no postcard was sent");
+    await go(R, cardPath);
+    await R.locator("[data-report-link]").click();
+    await R.waitForURL(/\/report\?/);
+    await R.getByLabel("Spam").check();
+    await R.getByRole("button", { name: "Send report" }).click();
+    await R.locator("[data-report-done]").waitFor();
+    assert((await R.locator("[data-report-done]").innerText()).includes("We’ll look at this within 24 hours."), "the thank-you words are wrong");
+    const rep = await db.report.findFirstOrThrow({ where: { reporterId: raviAcc.id, targetAccountId: ashaAcc.id } });
+    assert(rep.reason === "spam" && rep.status === "open", "the report wasn't saved as an open spam report");
+    // Every page already accepts dialogs (newPage); a second accept would throw, so this one is skipped if already handled.
+    R.once("dialog", (d) => void d.accept().catch(() => undefined));
+    await R.getByRole("button", { name: /^Block / }).click();
+    await R.waitForURL(/\/account\?blocked=1/);
+    await R.getByText("You’ll still see shared group expenses and balances.").waitFor();
+    const gone = await R.goto(base + cardPath);
+    assert(gone?.status() === 404, `a blocked person's postcard still opens (status ${gone?.status()})`);
+    await go(R, "/account#blocked");
+    // Every page already accepts dialogs (newPage); a second accept would throw, so this one is skipped if already handled.
+    R.once("dialog", (d) => void d.accept().catch(() => undefined));
+    await R.getByRole("button", { name: "Unblock" }).click();
+    await R.getByText("Unblocked.").waitFor();
+    const back = await R.goto(base + cardPath);
+    assert(back?.status() === 200, `after unblocking the postcard doesn't open (status ${back?.status()})`);
+  });
+  await step(A, "Safety", "AI question: You → Privacy and safety starts “Not asked yet”; Don't allow records no, Allow records yes; Contact support is there", async () => {
+    await go(A, "/account");
+    await A.locator("[data-ai-setting='unasked']").waitFor();
+    await A.getByRole("button", { name: /^Don.t allow$/ }).click();
+    await A.locator("[data-ai-setting='no']").waitFor();
+    assert((await db.account.findUniqueOrThrow({ where: { id: ashaAcc.id } })).aiConsent === "no", "Don't allow wasn't saved");
+    await A.getByRole("button", { name: "Allow", exact: true }).click();
+    await A.locator("[data-ai-setting='yes']").waitFor();
+    assert((await db.account.findUniqueOrThrow({ where: { id: ashaAcc.id } })).aiConsent === "yes", "Allow wasn't saved");
+    await A.locator("[data-contact-support]").waitFor();
+  });
+
   // ----- Sharing: a passport is hidden until its owner says yes -----
   await step(A, "Privacy", "Passport: hidden until the owner chooses. Ravi can't open Asha's before she answers; the question shows once, and Show opens it", async () => {
     await go(R, `/passport/friends/${ashaAcc.id}`);
@@ -3617,7 +3793,7 @@ async function main() {
     assert((await R.getByRole("button", { name: /Delete (this )?group/i }).count()) === 0, "an ordinary member is offered Delete group");
     assert((await R.locator('select[name="currency"]').count()) === 0, "an ordinary member can change the currency");
   });
-  await step(V, "Money", `“Yesterday” is yesterday where the person is (${P.timezoneId}): the saved day, and the time zone the app was told, both match`, async () => {
+  await step(V, "Money", "“Yesterday” is yesterday where the person is: the saved day, and the time zone the app was told, both match", async () => {
     const o = { me: "Varun", name: "Snack", amount: "100", date: "Yesterday" as const, split: { kind: "one" as const, who: "Varun" } };
     await go(V, `${rules}/add`);
     await fillExpense(V, o);
@@ -3670,7 +3846,7 @@ async function main() {
   });
 
   // ----- Layout: no sideways scroll at this device's own size; the desktop column -----
-  await step(V, "Regression", `No screen scrolls sideways at this device's own size (${P.context.viewport?.width ?? "?"} px wide), including the 12-person and yen groups`, async () => {
+  await step(V, "Regression", "No screen scrolls sideways at this device's own size, including the 12-person and yen groups", async () => {
     const pages = ["/", g, `${g}?tab=balances`, `${g}/settle`, `${g}/add`, `${g}/settings`, `${tw.path}?tab=balances`, `${tw.path}/settle`, `${tw.path}/add`, `${osaka.path}?tab=balances`, `${osaka.path}/settle`, "/import", "/passport", "/account", "/notifications"];
     const wide: string[] = [];
     for (const p of pages) {
@@ -3679,7 +3855,7 @@ async function main() {
       if (over > 1) wide.push(`${p.replace(/[a-z0-9]{20,}/g, ":id")} (+${over}px)`);
     }
     assert(wide.length === 0, `scrolls sideways: ${wide.join(", ")}`);
-    return `${pages.length} screens`;
+    return `${pages.length} screens at ${P.context.viewport?.width ?? "?"} px wide`;
   });
   await stepOn(["desktop"], "a wide window only exists on a computer", V, "Regression", "On a 1440 px wide screen the app stays one tidy, centred column (no stretched screens)", async () => {
     await go(V, "/");
@@ -3818,22 +3994,24 @@ function writeReports() {
   const passed = count("pass");
   const failed = count("fail");
   const na = count("na");
-  const head = `${passed} passed, ${failed} failed, ${na} not applicable · profile: ${PROFILE} (${P.label})`;
+  const notRunCount = count("skip");
+  const mark = (st: Status) => (st === "pass" ? "✅" : st === "fail" ? "❌" : st === "skip" ? "⏭️" : "➖");
+  const head = `${passed} passed, ${failed} failed, ${na} not applicable${notRunCount ? `, ${notRunCount} NOT RUN` : ""} · profile: ${PROFILE} (${P.label})`;
   const lines = [
     `# UAT report`,
     ``,
     `Profile: **${PROFILE}**: ${P.label}`,
     ``,
-    `${passed} passed · ${failed} failed · ${na} not applicable · ${results.length} steps`,
+    `${passed} passed · ${failed} failed · ${na} not applicable · ${notRunCount} not run · ${results.length} steps`,
     ``,
     `| | Area | What a person did | Notes |`,
     `|---|---|---|---|`,
-    ...results.map((r) => `| ${r.status === "pass" ? "✅" : r.status === "fail" ? "❌" : "➖"} | ${r.area} | ${r.name} | ${r.detail.replace(/\|/g, "/")} |`),
+    ...results.map((r) => `| ${mark(r.status)} | ${r.area} | ${r.name} | ${r.detail.replace(/\|/g, "/")} |`),
   ];
   writeFileSync(`${out}/report.md`, lines.join("\n"));
   // The first line is read by the CI workflows; failures follow, one per line, starting with ✗.
-  writeFileSync(`${out}/summary.txt`, `${head}\n${results.filter((r) => r.status === "fail").map((r) => `✗ ${r.area} — ${r.name}: ${r.detail}`).join("\n")}`);
-  console.log(`\nUAT (${PROFILE}): ${passed} passed, ${failed} failed, ${na} not applicable`);
+  writeFileSync(`${out}/summary.txt`, `${head}\n${results.filter((r) => r.status === "fail").map((r) => `✗ ${r.area} — ${r.name}: ${r.detail}`).concat(results.filter((r) => r.status === "skip").map((r) => `○ ${r.area} — ${r.name}: ${r.detail}`)).join("\n")}`);
+  console.log(`\nUAT (${PROFILE}): ${passed} passed, ${failed} failed, ${na} not applicable, ${notRunCount} not run`);
 
   // Coverage: every step mapped to an area.
   const steps = results.map((r) => ({
@@ -3843,24 +4021,24 @@ function writeReports() {
   const areas = Object.fromEntries(
     COVER.map((a) => {
       const mine = steps.filter((x) => x.coverage === a);
-      return [a, { steps: mine.length, passed: mine.filter((x) => x.status === "pass").length, failed: mine.filter((x) => x.status === "fail").length, notApplicable: mine.filter((x) => x.status === "na").length }];
+      return [a, { steps: mine.length, passed: mine.filter((x) => x.status === "pass").length, failed: mine.filter((x) => x.status === "fail").length, notApplicable: mine.filter((x) => x.status === "na").length, notRun: mine.filter((x) => x.status === "skip").length }];
     }),
   );
   const thin = COVER.filter((a) => areas[a].steps < 5);
   writeFileSync(
     `${out}/coverage.json`,
-    JSON.stringify({ profile: PROFILE, label: P.label, totals: { steps: results.length, passed, failed, notApplicable: na }, areas, thinAreas: thin, steps }, null, 2),
+    JSON.stringify({ profile: PROFILE, label: P.label, totals: { steps: results.length, passed, failed, notApplicable: na, notRun: notRunCount }, areas, thinAreas: thin, steps }, null, 2),
   );
   const md = [
     `# UAT coverage: ${PROFILE}`,
     ``,
     `${P.label}`,
     ``,
-    `${results.length} steps: ${passed} passed, ${failed} failed, ${na} not applicable.`,
+    `${results.length} steps: ${passed} passed, ${failed} failed, ${na} not applicable, ${notRunCount} not run.`,
     ``,
-    `| Area | Steps | Passed | Failed | Not applicable |`,
-    `|---|---|---|---|---|`,
-    ...COVER.map((a) => `| ${a} | ${areas[a].steps} | ${areas[a].passed} | ${areas[a].failed} | ${areas[a].notApplicable} |`),
+    `| Area | Steps | Passed | Failed | Not applicable | Not run |`,
+    `|---|---|---|---|---|---|`,
+    ...COVER.map((a) => `| ${a} | ${areas[a].steps} | ${areas[a].passed} | ${areas[a].failed} | ${areas[a].notApplicable} | ${areas[a].notRun} |`),
     ``,
     thin.length ? `Areas with fewer than 5 steps: ${thin.map((a) => `${a} (${areas[a].steps})`).join(", ")}.` : `Every area has at least 5 steps.`,
     ``,
@@ -3868,7 +4046,7 @@ function writeReports() {
       `## ${a}`,
       ``,
       ...(steps.filter((x) => x.coverage === a).length
-        ? steps.filter((x) => x.coverage === a).map((x) => `- ${x.status === "pass" ? "✅" : x.status === "fail" ? "❌" : "➖"} ${x.n}. ${x.name}${x.runsOn.length < ALL_PROFILES.length ? ` _(only on ${x.runsOn.join(", ")})_` : ""}`)
+        ? steps.filter((x) => x.coverage === a).map((x) => `- ${mark(x.status)} ${x.n}. ${x.name}${x.runsOn.length < ALL_PROFILES.length ? ` _(only on ${x.runsOn.join(", ")})_` : ""}`)
         : ["- (no steps)"]),
       ``,
     ]),

@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { JOINED } from "@/lib/membership";
+import { blockedEitherWay } from "@/lib/blocks";
 
 // The same rule as passports: someone the admin removed stops counting (both ways); someone who left on their own still counts.
 const COUNTS = { ...JOINED, removedAt: null };
@@ -16,7 +17,9 @@ export async function postcardPeople(accountId: string): Promise<PostcardGroup[]
     select: { group: { select: { id: true, name: true, type: true, createdAt: true, members: { where: { accountId: { not: null }, ...COUNTS }, select: { accountId: true, name: true } } } } },
   });
   const groups = mine.map((m) => m.group).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-  const accountIds = [...new Set(groups.flatMap((g) => g.members.map((m) => m.accountId!)).filter((id) => id !== accountId))];
+  // Someone blocked (either way round) is never offered, and can't be sent to.
+  const blocked = await blockedEitherWay(accountId);
+  const accountIds = [...new Set(groups.flatMap((g) => g.members.map((m) => m.accountId!)).filter((id) => id !== accountId && !blocked.has(id)))];
   const accounts = accountIds.length ? await db.account.findMany({ where: { id: { in: accountIds } }, select: { id: true, name: true } }) : [];
   const nameOf = new Map(accounts.map((a) => [a.id, a.name]));
   const seen = new Set<string>();

@@ -1,7 +1,9 @@
 import { cache } from "react";
 import { cookies } from "next/headers";
+import type { Prisma } from "@prisma/client";
 import { db } from "./db";
 import { JOINED, confirmUsedPending } from "./membership";
+import { PUSH_RESYNC_COOKIE, PUSH_RESYNC_MAX_AGE } from "./push-resync";
 import { SESSION_COOKIE, SESSION_MAX_AGE, decodeSession, encodeSession, today, type Session } from "./session";
 
 // Who you are on this phone: which person you are in each group, and (if you
@@ -34,31 +36,91 @@ const readAccount = cache(async () => {
   return acc;
 });
 
+// A guest grant in the cookie is "memberId~epoch". The epoch is the member's grantEpoch when the grant was written; it
+// goes up when the person is linked to an account and when that account is deleted, so an old copy of the cookie (on
+// another phone) stops working. A plain id with no "~" is an older cookie and counts as epoch 0.
+export function grantValue(memberId: string, epoch: number): string {
+  return `${memberId}~${epoch}`;
+}
+export function parseGrant(v: string): { id: string; epoch: number } {
+  const i = v.lastIndexOf("~");
+  if (i < 1) return { id: v, epoch: 0 };
+  const n = Number(v.slice(i + 1));
+  return Number.isInteger(n) && n >= 0 ? { id: v.slice(0, i), epoch: n } : { id: v, epoch: 0 };
+}
+
+// A phone that loses a name must also stop hearing about it: when a name's epoch goes up, its notification rows go too,
+// except `keepEndpoint` (the phone doing this, when the caller knows its address; that phone re-subscribes on its own anyway).
+// This phone's own rows go too (the server can't tell which address is this phone's), so a short-lived note in a cookie
+// makes the app put this phone's notifications back at once (see PushSync). The phone that lost access has no such note
+// and isn't in the session's names any more, so it stays cut off.
+async function dropPush(memberIds: string[], keepEndpoint?: string) {
+  const r = await db.pushSubscription.deleteMany({ where: { memberId: { in: memberIds }, ...(keepEndpoint ? { endpoint: { not: keepEndpoint } } : {}) } });
+  if (r.count > 0) await setPushResyncCookie();
+}
+
+// The note for this phone's app (see PushSync). Only works inside a server action or route handler; anywhere else it does nothing.
+export async function setPushResyncCookie() {
+  try {
+    (await cookies()).set(PUSH_RESYNC_COOKIE, "1", {
+      httpOnly: false, // the app's own script reads and clears it
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production" && process.env.E2E_PLAIN_HTTP !== "1",
+      path: "/",
+      maxAge: PUSH_RESYNC_MAX_AGE,
+    });
+  } catch {
+    // outside a request (a script or a test): nothing to set
+  }
+}
+
+// Used inside a transaction (e.g. when an account is deleted and its members are unlinked): every old guest copy of
+// these members' cookies stops working, and so do their phone notifications.
+export async function bumpGrantEpochs(tx: Pick<Prisma.TransactionClient, "member" | "pushSubscription">, memberIds: string[], opts: { keepEndpoint?: string } = {}) {
+  if (!memberIds.length) return;
+  await tx.member.updateMany({ where: { id: { in: memberIds } }, data: { grantEpoch: { increment: 1 } } });
+  await tx.pushSubscription.deleteMany({ where: { memberId: { in: memberIds }, ...(opts.keepEndpoint ? { endpoint: { not: opts.keepEndpoint } } : {}) } });
+}
+
 // { groupId: memberId } for this phone, including every group of a signed-in account.
 // A signed-in account's groups come from the database, not the cookie, so the
 // cookie stays small however many groups someone is in.
-export const getMemberships = cache(async (): Promise<Record<string, string>> => {
+// A name in the cookie only counts while it is still a guest name for that group: not linked to an email (unless this
+// cookie is signed in as that very account), and with the same epoch the cookie was written with.
+const resolveMemberships = cache(async (): Promise<{ out: Record<string, string>; linkedAway: string[] }> => {
   const s = await readSession();
-  const out = { ...s.m };
-  if (s.a) {
-    const acc = await readAccount();
-    if (acc) {
-      // Only groups they have really joined: someone added straight in who hasn't answered yet (Join / Not now) isn't in it.
-      // (An older person who has added an expense or payment there themselves has plainly joined: they stay in, and it is remembered.)
-      await confirmUsedPending(acc.id);
-      const mine = await db.member.findMany({ where: { accountId: acc.id, ...JOINED }, select: { id: true, groupId: true } });
-      for (const m of mine) if (!out[m.groupId]) out[m.groupId] = m.id;
-    } else {
-      // Signed out elsewhere: anything on this phone that belongs to that account goes too.
-      const ids = Object.values(s.m);
-      if (ids.length) {
-        const theirs = await db.member.findMany({ where: { id: { in: ids }, accountId: s.a }, select: { groupId: true } });
-        for (const m of theirs) delete out[m.groupId];
-      }
+  const acc = s.a ? await readAccount() : null;
+  const out: Record<string, string> = {};
+  const linkedAway: string[] = [];
+  const entries = Object.entries(s.m).map(([groupId, v]) => ({ groupId, ...parseGrant(v) }));
+  if (entries.length) {
+    const rows = await db.member.findMany({ where: { id: { in: entries.map((e) => e.id) } }, select: { id: true, groupId: true, accountId: true, grantEpoch: true } });
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    for (const e of entries) {
+      const m = byId.get(e.id);
+      if (!m || m.groupId !== e.groupId) continue;
+      if (m.accountId) {
+        if (acc && m.accountId === acc.id) out[e.groupId] = m.id;
+        else linkedAway.push(e.groupId);
+      } else if (m.grantEpoch === e.epoch) out[e.groupId] = m.id;
     }
   }
-  return out;
+  if (acc) {
+    // Only groups they have really joined: someone added straight in who hasn't answered yet (Join / Not now) isn't in it.
+    // (An older person who has added an expense or payment there themselves has plainly joined: they stay in, and it is remembered.)
+    await confirmUsedPending(acc.id);
+    const mine = await db.member.findMany({ where: { accountId: acc.id, ...JOINED }, select: { id: true, groupId: true } });
+    for (const m of mine) if (!out[m.groupId]) out[m.groupId] = m.id;
+  }
+  return { out, linkedAway: linkedAway.filter((g) => !out[g]) };
 });
+
+export const getMemberships = cache(async (): Promise<Record<string, string>> => ({ ...(await resolveMemberships()).out }));
+
+// Groups this phone's old guest name was for, but that name is now linked to an email (so: "sign in with that email").
+export async function getLinkedAwayGroups(): Promise<string[]> {
+  return (await resolveMemberships()).linkedAway;
+}
 
 export async function getMyMemberId(groupId: string): Promise<string | undefined> {
   return (await getMemberships())[groupId];
@@ -67,32 +129,46 @@ export async function getMyMemberId(groupId: string): Promise<string | undefined
 export const getAccount = readAccount;
 
 // Only works inside a server action (form submit) or route handler.
-export async function setMyMemberId(groupId: string, memberId: string) {
+export async function setMyMemberId(groupId: string, memberId: string, opts: { keepEndpoint?: string } = {}) {
   const s = await readSession();
   const acc = await readAccount();
   if (acc) {
     // Signed in: the group is linked to the account (kept in the database), so the cookie doesn't grow.
-    const linked = await db.member.updateMany({ where: { id: memberId, OR: [{ accountId: null }, { accountId: acc.id }] }, data: { accountId: acc.id } });
-    if (linked.count === 1) {
+    // Linking ends every older guest copy of this name (their epoch no longer matches).
+    // Only a name that really changes hands raises the epoch and drops notifications. A name already linked to this very
+    // account (for example just joined from an invitation, which copied this account's phones onto it) is left exactly as it is.
+    const linked = await db.member.updateMany({ where: { id: memberId, accountId: null }, data: { accountId: acc.id, grantEpoch: { increment: 1 } } });
+    if (linked.count === 1) await dropPush([memberId], opts.keepEndpoint);
+    if (linked.count === 1 || (await db.member.count({ where: { id: memberId, accountId: acc.id } })) === 1) {
       const m = { ...s.m };
       delete m[groupId];
       await writeSession({ ...s, m });
       return;
     }
   }
-  await writeSession({ ...s, m: { ...s.m, [groupId]: memberId } });
+  const row = await db.member.findUnique({ where: { id: memberId }, select: { grantEpoch: true } });
+  await writeSession({ ...s, m: { ...s.m, [groupId]: grantValue(memberId, row?.grantEpoch ?? 0) } });
 }
 
 // After a successful email sign-in: everyone this phone already is joins the
 // account, and the account's groups come to this phone.
-export async function signInAs(accountId: string) {
+export async function signInAs(accountId: string, opts: { keepEndpoint?: string } = {}) {
   const s = await readSession();
-  const ids = Object.values(s.m);
-  if (ids.length) await db.member.updateMany({ where: { id: { in: ids }, accountId: null }, data: { accountId } });
+  const entries = Object.values(s.m).map(parseGrant);
+  // Only names this phone still holds validly (same epoch, not linked to anyone) join the account; an old copy can't.
+  // Linking raises the epoch, so any other phone still holding the guest name loses it.
+  const nowLinked: string[] = [];
+  for (const e of entries) {
+    const r = await db.member.updateMany({ where: { id: e.id, accountId: null, grantEpoch: e.epoch }, data: { accountId, grantEpoch: { increment: 1 } } });
+    if (r.count === 1) nowLinked.push(e.id);
+  }
+  // Another phone that held one of these names as a guest no longer gets its notifications.
+  if (nowLinked.length) await dropPush(nowLinked, opts.keepEndpoint);
+  const ids = entries.map((e) => e.id);
   const acc = await db.account.findUnique({ where: { id: accountId }, select: { sessionVersion: true } });
   // Groups now linked to the account live in the database; the cookie keeps only the rest.
   const linked = ids.length ? new Set((await db.member.findMany({ where: { id: { in: ids }, accountId }, select: { id: true } })).map((m) => m.id)) : new Set<string>();
-  const m = Object.fromEntries(Object.entries(s.m).filter(([, id]) => !linked.has(id)));
+  const m = Object.fromEntries(Object.entries(s.m).filter(([, v]) => !linked.has(parseGrant(v).id)));
   await writeSession({ m, a: accountId, v: acc?.sessionVersion ?? 0 });
 }
 
@@ -107,11 +183,22 @@ export async function signOutOtherPhones() {
   return true;
 }
 
-// After deleting the account: this phone keeps every group it can see now,
-// just without the email link.
-export async function keepGroupsDropAccount() {
-  const all = await getMemberships();
-  await writeSession({ m: all });
+// After deleting the account: this phone keeps every group it could see before (pass them in: work them out BEFORE
+// deleting the account, which unlinks the names), just without the email link. Call this AFTER the account is deleted
+// so the fresh grant epochs are written into the cookie.
+export async function keepGroupsDropAccount(groups: Record<string, string>) {
+  const ids = Object.values(groups);
+  const rows = ids.length ? await db.member.findMany({ where: { id: { in: ids }, accountId: null }, select: { id: true, grantEpoch: true } }) : [];
+  const epoch = new Map(rows.map((r) => [r.id, r.grantEpoch]));
+  const m: Record<string, string> = {};
+  for (const [groupId, id] of Object.entries(groups)) if (epoch.has(id)) m[groupId] = grantValue(id, epoch.get(id) ?? 0);
+  await writeSession({ m });
+}
+
+// Where a group page sends someone who isn't in the group on this phone: "/private", or "/private?linked=1" when this
+// phone's old guest name for the group is now linked to an email (so the page can say "sign in with that email").
+export async function privatePath(groupId: string): Promise<string> {
+  return (await getLinkedAwayGroups()).includes(groupId) ? "/private?linked=1" : "/private";
 }
 
 // "Sign out of this phone": forgets everything on this phone (your groups

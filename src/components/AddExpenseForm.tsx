@@ -16,9 +16,11 @@ import { SpinWheel } from "./SpinWheel";
 import { CurrencyPicker } from "./CurrencyPicker";
 import { expensePairs, payersJson } from "@/lib/payers";
 import { participantsFor, type ForMode, type SplitType } from "@/lib/split";
-import { splitByItems } from "@/lib/item-split";
+import { MAX_ITEM_LINES, splitByItems } from "@/lib/item-split";
+import { chooseSplit, splitFields, type SplitAction } from "@/lib/split-draft";
 import { niceDate, rateText } from "@/lib/format";
 import { dayKey, todayKey } from "@/lib/dates";
+import { addDays } from "@/lib/local-time";
 import { inputClass, primaryButtonClass } from "./ui";
 import { errorNeedsMore, fasterEntryColumns, shouldOpenMore } from "@/lib/add-expense-more";
 
@@ -77,7 +79,7 @@ export function AddExpenseForm({
   const [name, setName] = useState(initial?.name ?? "");
   const [amount, setAmount] = useState(initial?.amount ?? "");
   const today = todayKey(new Date(), tz);
-  const yesterday = dayKey(new Date(Date.now() - 86_400_000), tz);
+  const yesterday = addDays(today, -1);
   const [date, setDate] = useState(initial?.date ?? today);
   const [pickingDate, setPickingDate] = useState(Boolean(initial && initial.date !== today && initial.date !== yesterday));
   const [showDate, setShowDate] = useState(false);
@@ -189,9 +191,16 @@ export function AddExpenseForm({
     }
   }
 
+  // Every split choice goes through chooseSplit, so picking anything but "Items" leaves item mode.
+  function pickSplit(a: SplitAction) {
+    const n = chooseSplit({ byItem, forMode, splitType }, a);
+    setByItem(n.byItem);
+    setForMode(n.forMode);
+    setSplitType(n.splitType);
+  }
+
   function resetSplit() {
-    setForMode("everyone");
-    setSplitType("equal");
+    pickSplit({ kind: "everyone-equally" });
     setSelected(memberIds);
     setShowPeople(false);
     setShowOnly(false);
@@ -279,7 +288,7 @@ export function AddExpenseForm({
     : null;
   const itemExact = itemSplit?.ok ? Object.fromEntries(Object.entries(itemSplit.amounts).map(([id, m]) => [id, (m / 10 ** digits).toFixed(digits)])) : {};
   const draft: ExpenseDraft = {
-    amount, currency, paidById, forMode: byItem ? "everyone" : forMode, selected, onePersonId, splitType: byItem ? "exact" : splitType, exact: byItem ? itemExact : exact, percent, shares,
+    amount, currency, paidById, ...splitFields({ byItem, forMode, splitType, exact, itemExact }), selected, onePersonId, percent, shares,
     kind, multiPay, payers, paymentMethod, markupChoice, markupCustom,
   };
   const ctx = { memberIds, baseCurrency, groupMarkupBp, rate: effectiveRate };
@@ -370,7 +379,7 @@ export function AddExpenseForm({
       if (b.date !== today) setShowDate(true);
     }
     if (b.items.length) {
-      setItems(b.items.map((x, i) => ({ k: i + 1, name: x.name, amount: String(x.price), people: [] })));
+      setItems(b.items.slice(0, MAX_ITEM_LINES).map((x, i) => ({ k: i + 1, name: x.name, amount: String(x.price), people: [] })));
       setScannedItems(b.items.length);
     }
     return switched;
@@ -765,6 +774,7 @@ export function AddExpenseForm({
                   }
                   if (q.forIds) {
                     setShowOnly(false);
+                    setByItem(false);
                     setSplitType("equal");
                     if (q.forIds.length === memberIds.length) setForMode("everyone");
                     else if (q.forIds.length === 1) {
@@ -899,12 +909,11 @@ export function AddExpenseForm({
         <div className="flex gap-2 overflow-x-auto px-5 pb-1 pr-12 [scrollbar-width:none]">
           {groupShares && (
             <Chip
-              on={!showPeople && !showOnly && groupSplitOn}
+              on={!byItem && !showPeople && !showOnly && groupSplitOn}
               onClick={() => {
+                pickSplit({ kind: "group-split" });
                 setShowPeople(false);
                 setShowOnly(false);
-                setForMode("everyone");
-                setSplitType("shares");
                 setShares(groupShares);
               }}
             >
@@ -912,22 +921,20 @@ export function AddExpenseForm({
             </Chip>
           )}
           <Chip
-            on={!showPeople && !showOnly && forMode === "everyone" && splitType === "equal"}
+            on={!byItem && !showPeople && !showOnly && forMode === "everyone" && splitType === "equal"}
             onClick={resetSplit}
           >
             Everyone equally
           </Chip>
           {members.length > 2 && (
             <Chip
-              on={showOnly || (!showPeople && forMode === "selected" && splitType === "equal")}
+              on={!byItem && (showOnly || (!showPeople && forMode === "selected" && splitType === "equal"))}
               onClick={() => {
+                const wasSelected = forMode === "selected" && !byItem;
+                pickSplit({ kind: "only-some" });
                 setShowPeople(false);
                 setShowOnly(true);
-                setSplitType("equal");
-                if (forMode !== "selected") {
-                  setForMode("selected");
-                  setSelected([]);
-                }
+                if (!wasSelected) setSelected([]);
               }}
             >
               Only some
@@ -956,6 +963,7 @@ export function AddExpenseForm({
                     key={m.id}
                     on={on}
                     onClick={() => {
+                      setByItem(false);
                       setForMode("selected");
                       setSelected((s) => (s.includes(m.id) ? s.filter((x) => x !== m.id) : [...s, m.id]));
                     }}
@@ -984,6 +992,9 @@ export function AddExpenseForm({
         )}
         {showPeople && (
           <div className="mt-3 space-y-6 rounded-2xl border border-line px-4 pb-4 pt-4">
+            {byItem ? (
+              <p className="text-sm text-gray-500" data-item-note>Split by item: each line says who it’s for.</p>
+            ) : (
             <div>
               <span className={labelClass}>Who was it for?</span>
               <Segmented
@@ -1024,6 +1035,7 @@ export function AddExpenseForm({
                 </div>
               )}
             </div>
+            )}
 
             {participants.length > 1 ? (
               <div>
@@ -1038,8 +1050,7 @@ export function AddExpenseForm({
                   ]}
                   value={byItem ? "items" : splitType}
                   onChange={(v) => {
-                    setByItem(v === "items");
-                    if (v !== "items") setSplitType(v as SplitType);
+                    pickSplit({ kind: "how", id: v as SplitType | "items" });
                   }}
                 />
                 {byItem && (
@@ -1109,13 +1120,17 @@ export function AddExpenseForm({
                         </div>
                       );
                     })}
-                    <button
-                      type="button"
-                      onClick={() => setItems((list) => [...list, { k: Math.max(0, ...list.map((x) => x.k)) + 1, name: "", amount: "", people: [] }])}
-                      className="flex min-h-11 items-center gap-2 text-sm font-medium text-fg"
-                    >
-                      <span className="text-lg leading-none">＋</span> Add item
-                    </button>
+                    {items.length < MAX_ITEM_LINES ? (
+                      <button
+                        type="button"
+                        onClick={() => setItems((list) => (list.length >= MAX_ITEM_LINES ? list : [...list, { k: Math.max(0, ...list.map((x) => x.k)) + 1, name: "", amount: "", people: [] }]))}
+                        className="flex min-h-11 items-center gap-2 text-sm font-medium text-fg"
+                      >
+                        <span className="text-lg leading-none">＋</span> Add item
+                      </button>
+                    ) : (
+                      <p className="text-xs text-gray-500" data-item-limit>That&apos;s the most a bill can have ({MAX_ITEM_LINES} items). Put small things together as one line.</p>
+                    )}
                     {itemSplit && (itemSplit.ok ? (
                       <div className="rounded-2xl bg-mist px-4 py-3 text-sm" data-item-result>
                         <p className="text-gray-500">
@@ -1365,9 +1380,9 @@ export function AddExpenseForm({
       )}
 
       {/* Always in reach: the summary and the save buttons ride along at the bottom while you scroll the form. */}
-      <div className="sticky bottom-[max(1rem,env(safe-area-inset-bottom))] z-10 -mx-2">
+      <div className="sticky bottom-[max(1rem,env(safe-area-inset-bottom))] z-10 -mx-2 mt-6">
       {summary && (
-        <p role="status" aria-live="polite" className="mx-auto mb-1.5 w-fit max-w-full truncate whitespace-nowrap rounded-full border border-line bg-canvas px-4 py-1.5 text-center text-[13px] font-medium leading-snug text-fg/80 tabular-nums" data-expense-summary>
+        <p role="status" aria-live="polite" className="mx-auto mb-1.5 w-fit max-w-full text-balance break-words rounded-[18px] border border-line bg-canvas px-4 py-1.5 text-center text-[13px] font-medium leading-snug text-fg/80 tabular-nums" data-expense-summary>
           {summary}
         </p>
       )}
@@ -1444,7 +1459,7 @@ function Chip({ on, onClick, children, face }: { on: boolean; onClick: () => voi
           {face.trim().charAt(0).toUpperCase()}
         </span>
       )}
-      {children}
+      <span className="min-w-0 max-w-[11rem] truncate">{children}</span>
     </button>
   );
 }

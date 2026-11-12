@@ -5,6 +5,7 @@ import { useFormStatus } from "react-dom";
 import { createPortal } from "react-dom";
 import { searchCountries } from "@/lib/geo";
 import { addPlacesAction } from "@/app/passport-actions";
+import { useFocusTrap } from "@/lib/use-focus-trap";
 import { useDragToClose } from "@/lib/use-drag-close";
 
 // "Places I've been": tick as many countries as you like, then add them in one go.
@@ -29,16 +30,11 @@ export function CountryPicker({ added, home = "" }: { added: string[]; home?: st
     if (!open) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    const key = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    window.addEventListener("keydown", key);
-    search.current?.focus({ preventScroll: true });
-    const back = opener.current;
     return () => {
       document.body.style.overflow = prev;
-      window.removeEventListener("keydown", key);
-      back?.focus({ preventScroll: true });
     };
   }, [open]);
+  const layer = useFocusTrap(open, { onEscape: () => setOpen(false), start: () => search.current });
 
   const toggle = (c: string) => setTicked((t) => (t.includes(c) ? t.filter((x) => x !== c) : [...t, c]));
   const n = ticked.length;
@@ -50,7 +46,7 @@ export function CountryPicker({ added, home = "" }: { added: string[]; home?: st
       </button>
       {open &&
         createPortal(
-          <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/70" onClick={() => setOpen(false)}>
+          <div ref={layer} className="fixed inset-0 z-[70] flex items-end justify-center bg-black/70" onClick={() => setOpen(false)}>
             <form
               action={addPlacesAction}
               role="dialog"

@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { TrophyIcon } from "@/components/DrawnIcons";
 import Link from "@/components/Link";
 import { db } from "@/lib/db";
-import { getMyMemberId } from "@/lib/identity";
+import { getMyMemberId, privatePath } from "@/lib/identity";
 import { ErrorNote, PageHeader, inputClass, secondaryButtonClass } from "@/components/ui";
 import { Notice } from "@/components/Notice";
 import { ConfirmButton } from "@/components/ConfirmButton";
@@ -16,7 +16,7 @@ import { canRunGame, gameSettlement, inPlay, loadGame } from "@/lib/pot-db";
 import { parsePlayers, potGameLabel, potResultLine, potSummary } from "@/lib/pot";
 import { UndoBar } from "@/components/UndoBar";
 import { canUndo } from "@/lib/undo";
-import { decimalsOf, formatMoney, PAYMENT_LINE, toInputAmount } from "@/lib/money";
+import { decimalsOf, formatMoney, toInputAmount } from "@/lib/money";
 import { recordCustomPayment } from "@/app/actions";
 import { actionFormClass, DifferentAmountLink, differentAmountFor, filledActionClass, SettleRow } from "@/components/SettleRow";
 import { FreshKey } from "@/components/FreshKey";
@@ -36,7 +36,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
   const group = await db.group.findUnique({ where: { id }, include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } });
   if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
-  if (!myId || !group.members.some((m) => m.id === myId && !m.leftAt)) redirect("/private");
+  if (!myId || !group.members.some((m) => m.id === myId && !m.leftAt)) redirect(await privatePath(id));
   const game = await loadGame(group.id, gameId);
   if (!game) notFound();
   const tz = await getTimeZone();
@@ -140,7 +140,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
               </ConfirmButton>
             </form>
           )}
-          <p className="mt-3 text-xs text-gray-400">{PAYMENT_LINE}</p>
+          {/* (One disclaimer on this page: the Game night note under the tally says the same.) */}
           <p className="mt-3 text-sm text-gray-500" data-still-owed={stillOwed}>
             {stillOwed > 0 ? `Still to settle in this group: ${money(stillOwed)}.` : "Everyone in this group is square ✓"}
           </p>
@@ -201,7 +201,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
       {/* The table */}
       <section aria-label="The table" className="relative overflow-hidden rounded-[24px] px-5 pb-5 pt-5 text-fg [background:radial-gradient(90%_100%_at_100%_0%,#1f6b4a_0%,transparent_60%),linear-gradient(160deg,#123a2a_0%,#0b1612_80%)]">
         <p className="pr-14 text-[11px] font-semibold text-fg/55">
-          {potGameLabel(game.game)} · host {youLow(game.hostId)} · {open ? "playing" : "finished"}
+          {potGameLabel(game.game)} · {youLow(game.hostId)} hosted · {open ? "playing" : "finished"}
         </p>
         {open ? (
           <>

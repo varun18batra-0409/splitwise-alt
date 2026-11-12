@@ -1,7 +1,7 @@
 import { ExpenseGlyph } from "@/components/ExpenseGlyph";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { getMyMemberId } from "@/lib/identity";
+import { getMyMemberId, privatePath } from "@/lib/identity";
 import { ErrorNote, PageHeader, primaryButtonClass } from "@/components/ui";
 import { saveBudgets } from "@/app/bill-actions";
 import { BUDGET_CATEGORIES } from "@/lib/home/budgets";
@@ -16,7 +16,7 @@ export default async function BudgetsPage({ params, searchParams }: { params: Pr
   const group = await db.group.findUnique({ where: { id }, include: { budgets: true, members: { select: { id: true } } } });
   if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
-  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
   // Someone who left (or was removed) reads the group only on its main screen, up to the day they left.
   if (await leaverOf(myId)) redirect(`/groups/${group.id}`);
   const amountOf = (c: string) => {

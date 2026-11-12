@@ -65,11 +65,14 @@ jobs:
             *) echo "::error title=Stopped::The database is not a throwaway file."; exit 1;;
           esac
           [ -z "${TURSO_AUTH_TOKEN:-}" ] || { echo "::error title=Stopped::A database token is set."; exit 1; }
+      - name: Playwright version (from the lockfile)
+        id: pw
+        run: echo "version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")" >> "$GITHUB_OUTPUT"
       - name: Browser cache
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: pw-exa-${{ matrix.profile }}-${{ runner.os }}-${{ hashFiles('package.json') }}
+          key: pw-exa-${{ matrix.profile }}-${{ runner.os }}-${{ steps.pw.outputs.version }}
       - name: Test browser (system packages, then the browser with retries)
         timeout-minutes: 15
         run: bash scripts/ci-browsers.sh ${{ matrix.profile == 'iphone' && 'webkit' || 'chromium' }}
@@ -104,6 +107,11 @@ jobs:
           if grep -q "✗\|crashed" screenshots/uat/summary.txt; then
             echo "::warning title=UAT failures (${{ matrix.profile }})::$(tail -n +1 screenshots/uat/summary.txt | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g' | cut -c1-3000)"
           fi
+      - name: Stamp the results with this commit and device
+        if: always()
+        run: |
+          mkdir -p screenshots/uat
+          printf '{"commit":"%s","profile":"%s"}\n' "$GITHUB_SHA" "${{ matrix.profile }}" > screenshots/uat/meta.json
       - name: Keep the results
         if: always()
         uses: actions/upload-artifact@v4
@@ -136,12 +144,17 @@ jobs:
           set +e
           npx vitest run --reporter=default --reporter=junit --outputFile.junit=vitest-junit.xml
           echo "code=$?" >> "$GITHUB_OUTPUT"
+      - name: Stamp the results with this commit
+        if: always()
+        run: printf '{"commit":"%s"}\n' "$GITHUB_SHA" > meta.json
       - name: Keep the JUnit report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: unit-junit
-          path: vitest-junit.xml
+          path: |
+            vitest-junit.xml
+            meta.json
           retention-days: 30
           if-no-files-found: warn
       - name: Turn the job red if a test failed
@@ -175,11 +188,14 @@ jobs:
             *) echo "::error title=Stopped::The database is not a throwaway file."; exit 1;;
           esac
           [ -z "${TURSO_AUTH_TOKEN:-}" ] || { echo "::error title=Stopped::A database token is set."; exit 1; }
+      - name: Playwright version (from the lockfile)
+        id: pw
+        run: echo "version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")" >> "$GITHUB_OUTPUT"
       - name: Browser cache
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: pw-exa-e2e-${{ runner.os }}-${{ hashFiles('package.json') }}
+          key: pw-exa-e2e-${{ runner.os }}-${{ steps.pw.outputs.version }}
       - name: Test browsers (system packages, then the browsers with retries)
         timeout-minutes: 15
         run: bash scripts/ci-browsers.sh chromium webkit
@@ -208,6 +224,17 @@ jobs:
           node e2e/summary.mjs e2e-results/results.json "Android" || true
           node e2e/summary.mjs e2e-results-ios/results.json "iPhone" || true
           node e2e/summary.mjs e2e-results-desktop/results.json "Desktop" || true
+      - name: Each device really ran (not only skipped or missing)
+        if: always()
+        run: |
+          set +e
+          node scripts/e2e-projects-check.mjs e2e-results/results.json phone; a=$?
+          node scripts/e2e-projects-check.mjs e2e-results-ios/results.json iphone; b=$?
+          node scripts/e2e-projects-check.mjs e2e-results-desktop/results.json desktop; c=$?
+          [ $a -eq 0 ] && [ $b -eq 0 ] && [ $c -eq 0 ]
+      - name: Stamp the results with this commit
+        if: always()
+        run: printf '{"commit":"%s"}\n' "$GITHUB_SHA" > e2e-meta.json
       - name: Keep the HTML reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -228,6 +255,7 @@ jobs:
             e2e-results/results.json
             e2e-results-ios/results.json
             e2e-results-desktop/results.json
+            e2e-meta.json
           retention-days: 30
           if-no-files-found: warn
       - name: Keep failure details (screenshots, traces, browser logs, server log)
@@ -257,24 +285,37 @@ jobs:
         with:
           node-version: 22
       - name: Download every result
+        if: always()
         uses: actions/download-artifact@v4
         with:
           path: results # one folder per artifact: uat-android, uat-iphone, uat-desktop, unit-junit, e2e-report, e2e-json, ...
+      # Fails closed (scripts/exercise-a-summary.mjs): every expected job must be "success" and every expected
+      # result present, for this commit. The summary and results are still saved below either way; the last step
+      # turns the run red unless the verdict was CLEAN.
       - name: Write exercise-a-summary.md
+        id: verdict
+        if: always()
         env:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           COMMIT: ${{ github.sha }}
+          EXPECTED_JOBS: "uat unit e2e"
           JOBS: "uat=${{ needs.uat.result }} unit=${{ needs.unit.result }} e2e=${{ needs.e2e.result }}"
         run: |
-          node scripts/exercise-a-summary.mjs results results/exercise-a-summary.md
-          cat results/exercise-a-summary.md >> "$GITHUB_STEP_SUMMARY"
+          mkdir -p results
+          code=0
+          node scripts/exercise-a-summary.mjs results results/exercise-a-summary.md || code=$?
+          [ ! -f results/exercise-a-summary.md ] || cat results/exercise-a-summary.md >> "$GITHUB_STEP_SUMMARY"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
       - name: Keep the summary
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: exercise-a-summary
           path: results/exercise-a-summary.md
           retention-days: 30
+          if-no-files-found: warn
       - name: Save everything to the exercise-a-results branch
+        if: always()
         run: |
           cd results
           echo '{ "git": { "deploymentEnabled": false } }' > vercel.json
@@ -283,3 +324,12 @@ jobs:
           git config user.email "github-actions@users.noreply.github.com"
           git add . && git commit -qm "Exercise A results for ${GITHUB_SHA::7} (run ${GITHUB_RUN_NUMBER})"
           git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" exercise-a-results:exercise-a-results
+      - name: Verdict (red unless every expected result is present and clean)
+        if: always()
+        run: |
+          code="${{ steps.verdict.outputs.code }}"
+          if [ "$code" != "0" ]; then
+            echo "::error title=Exercise A not clean::the summary step ended with '${code:-no result}' (jobs: uat=${{ needs.uat.result }} unit=${{ needs.unit.result }} e2e=${{ needs.e2e.result }}). Do not hand this run to a reviewer."
+            exit 1
+          fi
+          echo "::notice title=Exercise A::clean"

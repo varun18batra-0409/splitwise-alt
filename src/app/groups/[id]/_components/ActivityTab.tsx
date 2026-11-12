@@ -1,5 +1,5 @@
 import Link from "@/components/Link";
-import { buildActivity, byDay, filterActivity, hasFilter, type ActivityFilter } from "@/lib/activity";
+import { activityMoreHref, filterChips, buildActivity, byDay, filterActivity, hasFilter, type ActivityFilter } from "@/lib/activity";
 import { CATEGORIES, getCategory } from "@/lib/categories";
 import { originalShares } from "@/lib/currency-ledgers";
 import { fxLine, rateSourceLine } from "@/lib/conversion";
@@ -44,6 +44,8 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
   };
   const items = filterActivity(all, filter, searchName);
   const filtering = hasFilter(filter);
+  const personName = (id: string) => (id === myId ? "You" : group.members.find((m) => m.id === id)?.name ?? "Someone");
+  const chips = filtering ? filterChips(group.id, filter, { cat: (id) => getCategory(id).short, person: personName }) : [];
   // Each item's history, worked out once for the whole list.
   const byItem = new Map<string, GroupEvent[]>();
   for (const ev of group.events) {
@@ -91,7 +93,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
       {(all.length >= 6 || filtering) && (
         <div>
           <details className="group/filter">
-            <summary className="flex cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
+            <summary className="flex cursor-pointer list-none flex-wrap items-center gap-2 [&::-webkit-details-marker]:hidden">
               <span className="rounded-full border border-line px-4 py-1.5 text-sm font-medium text-fg group-open/filter:bg-mist">
                 {filtering ? `Filtered · ${items.length} ${items.length === 1 ? "match" : "matches"}` : "Filter"}
               </span>
@@ -100,6 +102,12 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                   Clear
                 </Link>
               )}
+              {/* One small chip for each filter in use; tap it to drop just that one. */}
+              {chips.map((c) => (
+                <Link key={c.key} href={c.href} aria-label={`Remove filter: ${c.label}`} className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-line px-3 py-1 text-sm text-fg active:bg-mist" data-filter-chip={c.key}>
+                  {c.label} <span aria-hidden className="text-fg/60">✕</span>
+                </Link>
+              ))}
             </summary>
             <form method="get" action={`/groups/${group.id}`} role="search" className="mt-3 space-y-2">
               <input type="hidden" name="tab" value="activity" />
@@ -141,9 +149,9 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                 </select>
                 <select name="who" defaultValue={filter.who ?? ""} aria-label="Person" className={`${field} flex-1`}>
                   <option value="">Everyone</option>
-                  {group.members.map((m) => (
+                  {v.people.map((m) => (
                     <option key={m.id} value={m.id}>
-                      {m.id === myId ? "You" : m.name}
+                      {m.id === myId ? "You" : m.name}{m.leftAt || m.removedAt ? " (left)" : ""}
                     </option>
                   ))}
                 </select>
@@ -151,9 +159,9 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
               <div className="flex gap-2">
                 <select name="by" defaultValue={filter.by ?? ""} aria-label="Paid by" className={`${field} flex-1`}>
                   <option value="">Paid by anyone</option>
-                  {group.members.map((m) => (
+                  {v.people.map((m) => (
                     <option key={m.id} value={m.id}>
-                      Paid by {m.id === myId ? "you" : m.name}
+                      Paid by {m.id === myId ? "you" : m.name}{m.leftAt || m.removedAt ? " (left)" : ""}
                     </option>
                   ))}
                 </select>
@@ -177,7 +185,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                 <span>–</span>
                 <input name="max" inputMode="decimal" defaultValue={filter.max ?? ""} placeholder="to" aria-label="Amount to" className={`${field} flex-1`} />
               </div>
-              <button type="submit" className="w-full border border-line py-2 text-sm font-medium text-fg active:bg-mist">
+              <button type="submit" className="min-h-11 w-full rounded-full border border-line px-4 py-2 text-sm font-semibold text-fg active:bg-mist">
                 Show results
               </button>
             </form>
@@ -353,6 +361,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                       <Line label="Date" value={niceDate(dayKey(expenseDate(e), tz))} />
                       <Line label="Category" value={cat.label} />
                       {e.notes && <p className="whitespace-pre-line rounded-lg bg-white/[0.03] px-3 py-2 text-gray-600">📝 {e.notes}</p>}
+                      {!e.notes && (e as { notesHidden?: boolean }).notesHidden && <p className="px-1 text-xs text-gray-500">Notes hidden: changed after you left.</p>}
                       {receiptOf.has(e.id) && (
                         <a href={`/api/receipt/${receiptOf.get(e.id)}`} target="_blank" rel="noopener" className="flex items-center gap-3 rounded-lg bg-white/[0.03] p-2 pr-3 text-sm text-gray-600 active:bg-mist" data-receipt-link>
                           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -443,7 +452,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
       ))}
       {items.length > page.length && (
         <Link
-          href={`/groups/${group.id}?${new URLSearchParams({ tab: "activity", n: String(limit + PAGE * 2), ...(filter.q ? { q: filter.q } : {}), ...(filter.cat ? { cat: filter.cat } : {}), ...(filter.who ? { who: filter.who } : {}) })}`}
+          href={activityMoreHref(group.id, filter, limit + PAGE * 2)}
           className="block border border-line py-3 text-center text-sm font-medium text-fg active:bg-mist"
         >
           Show more ({items.length - page.length} older)

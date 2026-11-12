@@ -36,15 +36,20 @@ export async function removeListItem(groupId: string, actorId: string, itemId: s
   return { ok: true, id: itemId };
 }
 
+export const LIST_CHANGED = "These items were just added as an expense by someone else. Check the list.";
+class ListChanged extends Error {}
+
 // What I ticked becomes one Groceries expense, paid by me, shared the group's way.
-export async function buyListItems(groupId: string, actorId: string, amountText: string, requestKey: string): Promise<Result> {
+// The expense, its request key and the link from each item to it are written in ONE transaction: if any item was
+// already taken by another purchase, nothing is saved. `afterRead` is for tests only (runs before the write begins).
+export async function buyListItems(groupId: string, actorId: string, amountText: string, requestKey: string, opts: { afterRead?: () => Promise<void> } = {}): Promise<Result> {
   const group = await db.group.findUnique({
     where: { id: groupId },
     include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, leftAt: true, splitWeight: true } } },
   });
   if (!group || group.deletedAt) return { ok: false, error: "This group no longer exists." };
   if (!group.members.some((m) => m.id === actorId && !m.leftAt)) return { ok: false, error: "Only people in this group can use its list." };
-  // A repeat of the same tap: it already happened.
+  // A repeat of the same tap: it already happened (the key and the links are written together, so a used key means linked items).
   const done = await db.requestKey.findUnique({ where: { key: requestKey } });
   if (done) return { ok: true, id: done.result };
   const items = await db.listItem.findMany({ where: { groupId, boughtById: actorId, expenseId: "", boughtAt: { not: null } }, orderBy: { boughtAt: "asc" } });
@@ -70,10 +75,19 @@ export async function buyListItems(groupId: string, actorId: string, amountText:
     },
     actorId,
     getRate,
-    { requestKey },
-  );
+    {
+      requestKey,
+      afterRead: opts.afterRead,
+      alsoInTx: async (tx, expenseId) => {
+        const linked = await tx.listItem.updateMany({ where: { id: { in: items.map((i) => i.id) }, expenseId: "", boughtById: actorId, boughtAt: { not: null } }, data: { expenseId } });
+        if (linked.count !== items.length) throw new ListChanged();
+      },
+    },
+  ).catch((err) => {
+    if (err instanceof ListChanged) return { ok: false as const, error: LIST_CHANGED };
+    throw err;
+  });
   if (!r.ok) return { ok: false, error: r.error };
-  await db.listItem.updateMany({ where: { id: { in: items.map((i) => i.id) }, expenseId: "" }, data: { expenseId: r.id } });
   return { ok: true, id: r.id };
 }
 
@@ -85,6 +99,6 @@ export async function goingShopping(groupId: string, actorId: string): Promise<R
   if (!(await claimOnce(`shopping:${actorId}:${hour}`))) return { ok: true, id: "" };
   const group = await db.group.findUnique({ where: { id: groupId }, select: { name: true, members: { where: { leftAt: null }, select: { id: true } } } });
   const others = (group?.members ?? []).map((m) => m.id).filter((id) => id !== actorId);
-  await sendPushTo(others, { title: `🛒 ${group?.name ?? "Loopin"}`, body: `${me.name} is going shopping. Add anything you need to the list.`, url: `/groups/${groupId}?tab=list`, tag: `shopping-${groupId}` }, "groups.shopping");
+  await sendPushTo(others, { title: `🛒 ${group?.name ?? "Loopin"}`, body: `${me.name} is going shopping. Add anything you need to the list.`, url: `/groups/${groupId}?tab=list`, tag: `shopping-${groupId}` }, "groups.shopping", actorId);
   return { ok: true, id: "" };
 }

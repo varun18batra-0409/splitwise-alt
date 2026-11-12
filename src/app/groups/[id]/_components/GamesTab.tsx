@@ -74,6 +74,9 @@ export function GamesTab({ v, games, toSettle = {} }: { v: GroupView; games: Gam
                           {mine.net > 0 ? `+${money(mine.net)}` : mine.net < 0 ? `−${money(-mine.net)}` : "even"}
                           <span className="block text-[11px] font-normal text-gray-500">{mine.net > 0 ? "you were up" : mine.net < 0 ? "you were down" : "for you"}</span>
                         </span>
+                      ) : g.status === "done" ? (
+                        // A finished game this person didn't play in: not "Live".
+                        <span className="shrink-0 rounded-full bg-fg/[0.08] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-fg/70">Finished</span>
                       ) : (
                         <span className="shrink-0 rounded-full bg-owed/[0.14] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-owed">Live</span>
                       )}

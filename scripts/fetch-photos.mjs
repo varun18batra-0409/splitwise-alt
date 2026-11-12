@@ -147,13 +147,14 @@ const got = {};
 for (const [slot, ids] of Object.entries(SLOTS)) {
   for (const id of ids) {
     try {
-      // Story photos fill a phone screen, so they come sharper (1400 wide); group pictures are small.
+      // Story photos fill a phone screen (a landscape picture cropped to portrait is scaled up to the screen's HEIGHT, so it needs
+      // about twice the screen's width in pixels): they come at 2400 wide, q85. Group pictures and covers (also the story fallback) are 1600 / 1280.
       const big = slot.startsWith("place-") || slot.startsWith("cards");
       const url = id.startsWith("https://")
         ? id
         : id.startsWith("photo-")
-        ? `https://images.unsplash.com/${id}?w=${big ? 1400 : slot.startsWith("cover-") ? 900 : 1280}&q=${big ? 80 : slot.startsWith("cover-") ? 70 : 75}&fm=jpg&fit=crop`
-        : `https://unsplash.com/photos/${id}/download?force=true&w=${slot.startsWith("place-") ? 800 : 1280}`;
+        ? `https://images.unsplash.com/${id}?w=${big ? 2400 : slot.startsWith("cover-") ? 1600 : 1280}&q=${big ? 85 : slot.startsWith("cover-") ? 80 : 75}&fm=jpg&fit=crop`
+        : `https://unsplash.com/photos/${id}/download?force=true&w=${slot.startsWith("place-") ? 2400 : 1280}`;
       const r = await fetch(url, {
         redirect: "follow",
         headers: { "User-Agent": "LoopinBuild/1.0 (https://www.loopinapps.com; photos for trip stories)" },

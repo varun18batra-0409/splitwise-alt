@@ -851,20 +851,20 @@ describe("the balance reads: side by side by default, one snapshot (one transact
       expect(w.calls).toHaveLength(1);
       const queries = w.calls[0] as unknown as unknown[];
       expect(Array.isArray(queries)).toBe(true);
-      expect(queries).toHaveLength(3); // sums, several-payer expenses, members: one chunk for both groups
+      expect(queries).toHaveLength(2); // sums (the several-payer expenses ride in the same statement), members: one chunk for both groups
       for (const g of [t, u]) expect(named(g.nameOf, out.get(g.gid)!.net)).toEqual({ A: 38966, B: 4017, C: -25833, D: -17150 });
     } finally {
       w.restore();
     }
   });
 
-  it("netBalancesDb with the members given and { snapshot: true } needs 2 reads in the one transaction; with no groups it opens none", async () => {
+  it("netBalancesDb with the members given and { snapshot: true } needs 1 read in the one transaction; with no groups it opens none", async () => {
     const t = await handTrip();
     const w = watchTx();
     try {
       await netBalancesDb([t.gid], { members: { [t.gid]: t.ids }, snapshot: true });
       expect(w.calls).toHaveLength(1);
-      expect(w.calls[0] as unknown as unknown[]).toHaveLength(2);
+      expect(w.calls[0] as unknown as unknown[]).toHaveLength(1);
       w.calls.length = 0;
       expect((await netBalancesDb([], { snapshot: true })).size).toBe(0);
       expect(w.calls).toHaveLength(0);
@@ -886,13 +886,13 @@ describe("the balance reads: side by side by default, one snapshot (one transact
     }
   });
 
-  it("loadGroupSettle: the balances and the facts (2 + 4 reads) are in the same single transaction", async () => {
+  it("loadGroupSettle: the balances and the facts (1 + 4 reads) are in the same single transaction", async () => {
     const t = await handTrip();
     const w = watchTx();
     try {
       const page = (await loadGroupSettle(t.gid, t.A))!;
       expect(w.calls).toHaveLength(1);
-      expect(w.calls[0] as unknown as unknown[]).toHaveLength(6);
+      expect(w.calls[0] as unknown as unknown[]).toHaveLength(5);
       expect(planNamed(t.nameOf, page.transfers)).toEqual([
         { from: "C", to: "A", amount: 25833 },
         { from: "D", to: "A", amount: 13133 },

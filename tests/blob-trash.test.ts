@@ -216,6 +216,7 @@ describe("moving an old photo to file storage", () => {
 });
 
 describe("replacing the group photo while the old one is moved to file storage", () => {
+  const annOf = async (groupId: string) => (await db.member.findFirstOrThrow({ where: { groupId, name: "Ann" } })).id;
   const newPhoto = (createdById: string, key: string) => ({ data: new Uint8Array(new ArrayBuffer(0)), blobKey: key, type: "image/webp", createdById, updatedAt: new Date("2026-11-02T10:00:00Z") });
 
   it("the old photo was moved after we looked (its key was empty then): the moved file is the one queued, so nothing is left behind", async () => {
@@ -224,7 +225,7 @@ describe("replacing the group photo while the old one is moved to file storage",
     await db.groupPhoto.create({ data: { groupId: g.id, data: new Uint8Array([1, 2, 3]), blobKey: "", updatedAt: t0 } });
     // We looked (key empty, version t0); then the daily move copied it to file storage without changing its version.
     await db.groupPhoto.update({ where: { groupId: g.id }, data: { data: new Uint8Array(), blobKey: `group/moved-${stamp}` } });
-    const ok = await replaceGroupPhoto(g.id, { updatedAt: t0 }, newPhoto("m1", `group/new-${stamp}`), new Date("2026-11-02T10:00:00Z"));
+    const ok = await replaceGroupPhoto(g.id, { updatedAt: t0 }, newPhoto(await annOf(g.id), `group/new-${stamp}`), new Date("2026-11-02T10:00:00Z"));
     expect(ok).toBe(true);
     const row = (await db.groupPhoto.findUnique({ where: { groupId: g.id } }))!;
     expect(row.blobKey).toBe(`group/new-${stamp}`);
@@ -235,7 +236,7 @@ describe("replacing the group photo while the old one is moved to file storage",
     const g = await makeGroup("replace-lost");
     const t0 = new Date("2026-11-01T10:00:00Z");
     await db.groupPhoto.create({ data: { groupId: g.id, data: new Uint8Array(), blobKey: `group/theirs-${stamp}`, updatedAt: new Date("2026-11-01T10:05:00Z") } });
-    const ok = await replaceGroupPhoto(g.id, { updatedAt: t0 }, newPhoto("m1", `group/ours-${stamp}`), new Date());
+    const ok = await replaceGroupPhoto(g.id, { updatedAt: t0 }, newPhoto(await annOf(g.id), `group/ours-${stamp}`), new Date());
     expect(ok).toBe(false);
     expect((await db.groupPhoto.findUnique({ where: { groupId: g.id } }))!.blobKey).toBe(`group/theirs-${stamp}`);
     expect(await db.blobTrash.count()).toBe(0);
@@ -243,8 +244,32 @@ describe("replacing the group photo while the old one is moved to file storage",
 
   it("a group with no photo yet gets ours and nothing is queued", async () => {
     const g = await makeGroup("replace-first");
-    expect(await replaceGroupPhoto(g.id, null, newPhoto("m1", `group/first-${stamp}`), new Date())).toBe(true);
+    expect(await replaceGroupPhoto(g.id, null, newPhoto(await annOf(g.id), `group/first-${stamp}`), new Date())).toBe(true);
     expect((await db.groupPhoto.findUnique({ where: { groupId: g.id } }))!.blobKey).toBe(`group/first-${stamp}`);
     expect(await db.blobTrash.count()).toBe(0);
+  });
+
+  it("INV-08: refused inside the save if the group was deleted, or the person left, was removed or isn't a member", async () => {
+    const g = await makeGroup("replace-gone");
+    const ann = await annOf(g.id);
+    const now = new Date("2026-11-02T10:00:00Z");
+    const stillNone = async () => expect(await db.groupPhoto.findUnique({ where: { groupId: g.id } })).toBeNull();
+
+    expect(await replaceGroupPhoto(g.id, null, newPhoto("not-a-member", `group/x1-${stamp}`), now)).toBe(false);
+    await stillNone();
+
+    await db.member.update({ where: { id: ann }, data: { leftAt: new Date() } });
+    expect(await replaceGroupPhoto(g.id, null, newPhoto(ann, `group/x2-${stamp}`), now)).toBe(false);
+    await db.member.update({ where: { id: ann }, data: { leftAt: null, removedAt: new Date() } });
+    expect(await replaceGroupPhoto(g.id, null, newPhoto(ann, `group/x3-${stamp}`), now)).toBe(false);
+    await db.member.update({ where: { id: ann }, data: { removedAt: null } });
+
+    await db.group.update({ where: { id: g.id }, data: { deletedAt: new Date() } });
+    expect(await replaceGroupPhoto(g.id, null, newPhoto(ann, `group/x4-${stamp}`), now)).toBe(false);
+    await stillNone();
+    expect((await db.group.findUniqueOrThrow({ where: { id: g.id } })).cover).not.toBe("own");
+
+    await db.group.update({ where: { id: g.id }, data: { deletedAt: null } });
+    expect(await replaceGroupPhoto(g.id, null, newPhoto(ann, `group/ok-${stamp}`), now)).toBe(true);
   });
 });

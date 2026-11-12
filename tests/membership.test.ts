@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { GOOD_AUTH, GOOD_P256DH, goodEndpoint } from "./helpers/push-keys";
 
 // "Joined" vs "pending", and what pending people don't get: the group's look-after role
 // and phone notifications. (Passports, postcards, collections and search have their own tests.)
@@ -80,7 +81,7 @@ describe("the settings page names the right person who looks after the group", (
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 let groupId = "";
 const ids: Record<string, string> = {};
-const endpoint = (name: string) => `https://push.example/${stamp}/${name}`;
+const endpoint = (name: string) => goodEndpoint(`${stamp}-${name}`);
 
 beforeAll(async () => {
   const g = await db.group.create({
@@ -100,7 +101,7 @@ beforeAll(async () => {
   groupId = g.id;
   for (const m of g.members) {
     ids[m.name] = m.id;
-    await db.pushSubscription.create({ data: { memberId: m.id, endpoint: endpoint(m.name), p256dh: "p", auth: "a" } });
+    await db.pushSubscription.create({ data: { memberId: m.id, endpoint: endpoint(m.name), p256dh: GOOD_P256DH, auth: GOOD_AUTH } });
   }
 });
 afterAll(async () => {

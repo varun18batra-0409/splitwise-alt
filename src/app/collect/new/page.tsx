@@ -6,6 +6,7 @@ import { PageHeader, primaryButtonClass } from "@/components/ui";
 import { defaultCurrency } from "@/lib/region";
 import { getAccount } from "@/lib/identity";
 import { loopinFriends } from "@/lib/collect";
+import { decimalsOf, formatMoney } from "@/lib/money";
 
 export const metadata: Metadata = { title: "Collect money", robots: { index: false } };
 
@@ -15,16 +16,17 @@ export const metadata: Metadata = { title: "Collect money", robots: { index: fal
 export default async function NewCollection() {
   const account = await getAccount();
   const currency = defaultCurrency(await headers());
+  const example = formatMoney(300 * 10 ** decimalsOf(currency), currency); // a round example in the visitor's own currency
 
   if (!account) {
     return (
       <>
         <PageHeader title="Collect money" back="/" />
         <section className="vault rounded-[24px] px-6 py-8 text-fg">
-          <p className="font-hand text-[26px] font-bold leading-none text-fg/80">Chasing 30 people for ₹300?</p>
+          <p className="font-hand text-[26px] font-bold leading-none text-fg/80">Chasing 30 people for {example}?</p>
           <h1 className="mt-3 font-display text-2xl font-semibold leading-tight">One link. People pay you directly and mark it; you confirm when it arrives.</h1>
           <p className="mt-2 text-sm text-fg/60">
-            Sign in first so the collection is saved to you. It takes 30 seconds and there’s no password. The people paying don’t need to sign up.
+            Sign in first so the collection is saved to you. It takes about 30 seconds and there’s no password. The people paying don’t need to sign up.
           </p>
           <Link href={`/signin?${new URLSearchParams({ back: "/collect/new" })}`} className={`mt-6 ${primaryButtonClass}`}>
             Sign in or sign up

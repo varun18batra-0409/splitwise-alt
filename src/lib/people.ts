@@ -1,10 +1,11 @@
 import { db } from "./db";
 import { LEFT_ERROR } from "./active";
 import { netBalances } from "./balances";
-import { logEvent } from "./events";
+import { logEvent, markUndone, type UndoMark } from "./events";
 import { cleanNames, sameName } from "./names";
 import { formatMoney } from "./money";
 import { isGroupAdmin, pickAdmin } from "./group-admin";
+import { GroupChanged, groupChangedText, guardGroup, ledgerInTx } from "./money-guard";
 
 // Renaming people and leaving / rejoining a group. Every change is logged,
 // notifies the others, and can be undone.
@@ -36,6 +37,7 @@ export async function setMember(
   memberId: string,
   data: { name?: string; leftAt?: string | null; removedAt?: string | null; removedById?: string },
   undoing = false,
+  opts: { afterRead?: () => Promise<void>; mark?: UndoMark } = {}, // afterRead: tests only, runs after the reads, before the write. mark: the undo being carried out, marked in the same transaction
 ): Promise<Result> {
   const group = await db.group.findUnique({
     where: { id: groupId },
@@ -57,6 +59,7 @@ export async function setMember(
     const clash = group.members.find((x) => x.id !== memberId && sameName(x.name, name));
     if (clash) return { ok: false, error: `Someone called ${clash.name} is already in the group.` };
     const eventId = await db.$transaction(async (tx) => {
+      await markUndone(tx, opts.mark);
       await tx.member.update({ where: { id: memberId }, data: { name } });
       return logEvent(tx, {
         groupId,
@@ -89,10 +92,7 @@ export async function setMember(
     if (leaving && !alreadyLeft) {
       const net = netBalances(group.members.map((x) => x.id), group.expenses, group.payments)[memberId] ?? 0;
       if (net !== 0) {
-        const amount = formatMoney(Math.abs(net), group.currency);
-        const subject = memberId === actorId ? "You" : m.name;
-        const verb = memberId === actorId ? (net > 0 ? "are owed" : "owe") : net > 0 ? "is owed" : "owes";
-        return { ok: false, error: `${subject} still ${verb} ${amount}. Settle up first, then leave.` };
+        return { ok: false, error: owesText(net, group.currency, memberId === actorId, m.name) };
       }
     }
     // Someone else taking a person out is a removal (an undo spells it out in its data instead).
@@ -106,7 +106,17 @@ export async function setMember(
           : {};
     // Taking out someone who had already left keeps the day they left.
     const leftAtNext = leaving ? (promoting ? m.leftAt! : new Date(data.leftAt!)) : null;
+    await opts.afterRead?.();
+    try {
     const eventId = await db.$transaction(async (tx) => {
+      await markUndone(tx, opts.mark);
+      if (leaving && !alreadyLeft) {
+        // Leaving only with a zero balance - checked again here, inside the write, with the write lock held: an expense
+        // saved after the first check would otherwise leave this person owing money they can no longer be asked for.
+        await guardGroup(tx, groupId, { currency: group.currency, allowClosed: true });
+        const owing = (await ledgerInTx(tx, groupId)).net[memberId] ?? 0;
+        if (owing !== 0) throw new StillOwes(owing);
+      }
       await tx.member.update({ where: { id: memberId }, data: { leftAt: leftAtNext, ...removal } });
       return logEvent(tx, {
         groupId,
@@ -130,10 +140,28 @@ export async function setMember(
               : { leftAt: m.leftAt!.toISOString() },
         },
       });
-    });
+    }, { timeout: 15000 });
     return { ok: true, eventId };
+    } catch (err) {
+      if (err instanceof StillOwes) return { ok: false, error: owesText(err.net, group.currency, memberId === actorId, m.name) };
+      if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
+      throw err;
+    }
   }
   return { ok: true };
+}
+
+class StillOwes extends Error {
+  constructor(public net: number) {
+    super("still owes");
+  }
+}
+
+function owesText(net: number, currency: string, self: boolean, name: string): string {
+  const amount = formatMoney(Math.abs(net), currency);
+  const subject = self ? "You" : name;
+  const verb = self ? (net > 0 ? "are owed" : "owe") : net > 0 ? "is owed" : "owes";
+  return `${subject} still ${verb} ${amount}. Settle up first, then leave.`;
 }
 
 // The People screen's three lists. Everyone is in exactly one: in the group, left on their own, or removed by the

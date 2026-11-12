@@ -17,7 +17,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const data = myId ? await loadGroup(id, { events: false, viewer: myId }) : null;
   if (!data || !myId || !data.group.members.some((m) => m.id === myId)) return new Response("Not found", { status: 404, headers: { "Cache-Control": "private, no-store" } });
   const { group, expenses, transfers } = data;
-  const people = group.members.filter((m) => !m.leftAt).map((m) => ({ id: m.id, name: m.name }));
+  const people = data.people.filter((m) => !m.leftAt).map((m) => ({ id: m.id, name: m.name }));
   const { slides, awards, spentCount } = wrapSlides({ name: group.name, currency: group.currency, tz: await getTimeZone(), people, expenses, tripStart: group.tripStart, tripEnd: group.tripEnd, stillToSettle: transfers.reduce((s, t) => s + t.amount, 0), myId: "" });
   const photo = await photoData(group, new URL(req.url).origin);
   const slideData = <K extends SlideData["kind"]>(k: K) => slides.find((x) => x.data?.kind === k)?.data as Extract<SlideData, { kind: K }> | undefined;

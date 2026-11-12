@@ -188,21 +188,20 @@ export function WorldMap({ index, className = "mt-2" }: { index: { code: string;
   );
 }
 
-function Sheet({ n, of, children, label }: { n: number; of: number; children: React.ReactNode; label: string }) {
+function Sheet({ n, children, label }: { n: number; of?: number; children: React.ReactNode; label: string }) {
   return (
     <section aria-label={label} aria-roledescription="page" className="relative h-full w-full shrink-0 snap-center overflow-hidden rounded-r-[14px] rounded-l-[4px] text-[#26231d]" style={paper} data-page={n}>
       {/* The fold, where the pages are sewn in. */}
       <span aria-hidden className="pointer-events-none absolute inset-y-0 left-0 w-5 bg-[linear-gradient(90deg,rgba(0,0,0,0.16),transparent)]" />
       {children}
-      <span className="absolute bottom-2.5 right-4 text-[11px] tabular-nums text-[#8a8270]">
-        {n} / {of}
-      </span>
+      {/* No "1 / 5" here: the dots under the book are the one page indicator. */}
     </section>
   );
 }
 
 export function PassportBook({ name, stats, milestones, pages, index, badges = [], own = true }: Props) {
   const stampCount = pages.reduce((t, p) => t + p.stamps.length, 0);
+  const shownMilestones = milestones.filter((m) => !/\b\d+\s+(countries|trips)\b/i.test(m));
   const [open, setOpen] = useState(false);
   const [gone, setGone] = useState(false); // the cover, once it has swung away
   const [at, setAt] = useState(0);
@@ -306,16 +305,17 @@ export function PassportBook({ name, stats, milestones, pages, index, badges = [
                   </div>
                 ))}
               </dl>
-              {milestones.length > 0 && (
-                <ul className="mt-4 flex flex-wrap gap-1.5">
-                  {milestones.map((m) => (
+              {/* Chips that only repeat the big counts above ("5 countries", "3 trips this year") are left out. */}
+              {shownMilestones.length > 0 && (
+                <ul className="mt-4 flex flex-wrap gap-1.5" data-passport-chips>
+                  {shownMilestones.map((m) => (
                     <li key={m} className="rounded-full border border-[#2b4c7e]/35 px-2.5 py-1 text-xs font-semibold text-[#2b4c7e]">
                       {m}
                     </li>
                   ))}
                 </ul>
               )}
-              <p className="mt-auto text-sm text-[#7a7262]">{pages.length ? "Swipe for your stamps ›" : "No stamps yet. Your next trip earns the first one ✈️"}</p>
+              {pages.length === 0 ? <p className="mt-auto text-sm text-[#7a7262]">No stamps yet. Your next trip earns the first one ✈️</p> : <span className="mt-auto" />}
               <p aria-hidden className="mt-4 overflow-hidden whitespace-nowrap font-mono text-[11px] leading-[1.35] tracking-[0.04em] text-[#5c564a]/80">
                 {mrz}
                 <br />

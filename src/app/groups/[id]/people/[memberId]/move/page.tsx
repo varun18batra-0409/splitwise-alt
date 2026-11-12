@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { getMyMemberId } from "@/lib/identity";
+import { getMyMemberId, privatePath } from "@/lib/identity";
 import { ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/components/ui";
 import { moveOutAction } from "@/app/bill-actions";
 import { moveOutPreview } from "@/lib/home/moving-db";
@@ -11,6 +11,8 @@ import { getTimeZone } from "@/lib/tz";
 import { FreshKey } from "@/components/FreshKey";
 import { addMonths } from "@/lib/home/month";
 import { leaverOf } from "@/lib/left-view-db";
+import { MoveOutButton } from "@/components/MoveOutButton";
+import { moveOutConfirm } from "@/lib/move-confirm";
 
 const monthLabel = (period: string) => new Date(`${period}-15T12:00:00Z`).toLocaleDateString("en-IN", { month: "short", timeZone: "UTC" });
 
@@ -28,7 +30,7 @@ export default async function MoveOutPage({
   const group = await db.group.findUnique({ where: { id }, include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } });
   if (!group || group.deletedAt) notFound();
   const myId = await getMyMemberId(group.id);
-  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
   // Someone who left (or was removed) reads the group only on its main screen, up to the day they left.
   if (await leaverOf(myId)) redirect(`/groups/${group.id}`);
   const leaver = group.members.find((m) => m.id === memberId && !m.leftAt);
@@ -60,7 +62,8 @@ export default async function MoveOutPage({
         ))}
       </ul>
     );
-  const title = leaver.id === myId ? "You’re moving out" : `${leaver.name} is moving out`;
+  // Short, so it stays on one line (no lone "out" on line 2); a long name wraps evenly.
+  const title = leaver.id === myId ? "You’re moving out" : `${leaver.name} moves out`;
 
   return (
     <>
@@ -92,7 +95,7 @@ export default async function MoveOutPage({
             <dl className="space-y-2.5 text-sm">
               <div className="flex justify-between">
                 <dt>Balance today</dt>
-                <dd className="money tabular-nums">{p.balanceToday > 0 ? `gets ${money(p.balanceToday)}` : p.balanceToday < 0 ? `owes ${money(-p.balanceToday)}` : "square"}</dd>
+                <dd className="money shrink-0 tabular-nums">{p.balanceToday > 0 ? `gets ${money(p.balanceToday)}` : p.balanceToday < 0 ? `owes ${money(-p.balanceToday)}` : "square"}</dd>
               </div>
               {p.bills.map((b) => (
                 <div key={`${b.name}-${b.period}`} className="flex justify-between">
@@ -102,9 +105,21 @@ export default async function MoveOutPage({
                       · {monthLabel(b.period)}, {b.days} of {b.monthDays} days
                     </span>
                   </dt>
-                  <dd className="money tabular-nums text-owed">− {money(b.before - b.after)}</dd>
+                  {/* A deduction is neither good nor bad news: plain text, no green, no minus sign. */}
+                  <dd className="money shrink-0 tabular-nums text-fg/80" data-deduction>less {money(b.before - b.after)}</dd>
                 </div>
               ))}
+              {/* Daily bills (milk ...) added with "Add it now" are in the final payments, so they are in this list too (it follows the tick). */}
+              {p.daily
+                .filter((d) => !d.unsupported && d.amount > 0)
+                .map((d) => (
+                  <div key={`daily-${d.billId}`} className="hidden justify-between group-has-[input[name=addDaily]:checked]/mv:flex" data-daily-line>
+                    <dt>
+                      {d.name} <span className="text-gray-500">({d.days} {d.days === 1 ? "day" : "days"})</span>
+                    </dt>
+                    <dd className="money shrink-0 tabular-nums text-fg/80">+ {money(d.amount)}</dd>
+                  </div>
+                ))}
             </dl>
             {p.bills.length > 0 && (
               <p className="mt-2 text-xs text-gray-500">Bills are re-split: {name(leaver.id)} keep{leaver.id === myId ? "" : "s"} a share only for the days there; the rest goes to the others.</p>
@@ -190,9 +205,13 @@ export default async function MoveOutPage({
           </section>
 
           <div>
-            <button type="submit" className={primaryButtonClass}>
+            <MoveOutButton
+              className={primaryButtonClass}
+              plain={moveOutConfirm({ leaverName: name(leaver.id), payments: p.payments, nameOf: Name, money })}
+              withDaily={p.daily.length > 0 ? moveOutConfirm({ leaverName: name(leaver.id), payments: p.paymentsWithDaily, nameOf: Name, money }) : undefined}
+            >
               Settle {leaver.id === myId ? "up" : leaver.name} &amp; mark as moved out
-            </button>
+            </MoveOutButton>
             <p className="mt-3 text-center text-xs leading-relaxed text-gray-500">
               {Name(leaver.id)} stay{leaver.id === myId ? "" : "s"} in the history and leave{leaver.id === myId ? "" : "s"} the bills after {niceDate(lastDay)}.
               <br />

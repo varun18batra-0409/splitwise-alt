@@ -12,6 +12,12 @@ export type Session = { m: Record<string, string>; a?: string; v?: number; t?: n
 
 export const today = (now = Date.now()) => Math.floor(now / 86_400_000);
 
+// A sign-in is good for a year after it was last stamped, checked on the server (not just by the cookie's own max-age).
+// Tokens from older releases have no stamp: they count as stamped on this release's day (2026-11-12), so they get one more
+// year and are re-stamped the first time they are used.
+export const LEGACY_T = 20769;
+export const SESSION_MAX_DAYS = 365;
+
 const enc = new TextEncoder();
 
 function secret(): string {
@@ -67,7 +73,8 @@ export async function encodeSession(s: Session): Promise<string> {
 }
 
 // Null when missing, tampered with, or signed with another secret.
-export async function decodeSession(raw: string | undefined | null): Promise<Session | null> {
+// Also null when the stamp is more than a day in the future, or more than a year old. `now` is for tests.
+export async function decodeSession(raw: string | undefined | null, now = Date.now()): Promise<Session | null> {
   if (!raw) return null;
   const dot = raw.indexOf(".");
   if (dot < 1) return null;
@@ -76,7 +83,12 @@ export async function decodeSession(raw: string | undefined | null): Promise<Ses
     const sig = fromB64url(raw.slice(dot + 1));
     const ok = await crypto.subtle.verify("HMAC", await key(), sig, enc.encode(payload));
     if (!ok) return null;
-    return clean(JSON.parse(new TextDecoder().decode(fromB64url(payload))));
+    const s = clean(JSON.parse(new TextDecoder().decode(fromB64url(payload))));
+    if (!s) return null;
+    const t = s.t ?? LEGACY_T;
+    const d = today(now);
+    if (t > d + 1 || d - t > SESSION_MAX_DAYS) return null;
+    return s;
   } catch {
     return null;
   }

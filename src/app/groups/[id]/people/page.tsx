@@ -3,7 +3,7 @@ import { setMoveIn } from "@/app/bill-actions";
 import { PassportIcon, PeoplePassportsIcon } from "@/components/DrawnIcons";
 import { payerIds } from "@/lib/payers";
 import { notFound, redirect } from "next/navigation";
-import { getMyMemberId } from "@/lib/identity";
+import { getAccount, getMyMemberId, privatePath } from "@/lib/identity";
 import { loadGroup } from "@/lib/group-data";
 import { canUndo } from "@/lib/undo";
 import { formatMoney } from "@/lib/money";
@@ -21,6 +21,8 @@ import { groupPeople } from "@/lib/people";
 import { membersAsOf } from "@/lib/left-view";
 import { db } from "@/lib/db";
 import { inviteMemberId } from "@/lib/invites";
+import { invitedNotice } from "@/lib/invite-label";
+import { SafetyLinks } from "@/components/SafetyLinks";
 
 // Everyone in the group: fix a name, remove someone (the admin) or
 // leave / bring back. Every change notifies the others and can be undone.
@@ -37,7 +39,7 @@ export default async function PeoplePage({
   if (!data) notFound();
   const { group, net } = data;
   const myId = await getMyMemberId(group.id);
-  if (!myId || !group.members.some((m) => m.id === myId)) redirect("/private");
+  if (!myId || !group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
 
   const used = new Set<string>();
   for (const e of group.expenses) {
@@ -68,6 +70,8 @@ export default async function PeoplePage({
     const by = group.members.find((m) => m.id === list[0].invitedById)?.name ?? "someone";
     waiting.set(row, { email: list[0].email, by, mayCancel: isAdmin || list.some((i) => i.invitedById === myId), mayInvite: isAdmin || list.every((i) => i.invitedById === myId) });
   }
+  // Report / Block on someone who is on Loopin (needs your own account).
+  const viewer = await getAccount();
   const justDid = sp.did ? group.events.find((x) => x.id === sp.did) : undefined;
   const nameOf = (mid: string) => (mid === myId ? "You" : group.members.find((m) => m.id === mid)?.name ?? "Someone");
   const small = "rounded-full border border-line px-4 py-2 text-sm font-medium text-fg active:bg-mist disabled:opacity-40";
@@ -107,6 +111,9 @@ export default async function PeoplePage({
               <Link href={`/groups/${group.id}/passport/${m.id}`} className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-xs font-semibold active:bg-mist">
                 <PassportIcon size={14} /> {m.name.trim().split(/\s+/)[0]}’s passport
               </Link>
+            )}
+            {viewer && m.accountId && !me && m.accountId !== viewer.id && (
+              <SafetyLinks kind="person" targetId={m.accountId} accountId={m.accountId} name={m.name} back={`/groups/${group.id}/people`} className="!justify-start -ml-2" />
             )}
             {!m.accountId && !m.claimedAt && !m.leftAt && waiting.has(m.id) && (
               <div className="space-y-2" data-invited-row>
@@ -247,7 +254,7 @@ export default async function PeoplePage({
       )}
       {sp.invited && (
         <Notice tone="success" params={["invited"]} className="mb-4">
-          Invite sent to {sp.invited.slice(0, 80)}. When they join, they take over their name with its expenses.
+          {invitedNotice(sp.invited.slice(0, 80))} When they join, they take over their name with its expenses.
         </Notice>
       )}
 
