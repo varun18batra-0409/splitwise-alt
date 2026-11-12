@@ -84,9 +84,10 @@ export async function sendMail(to: string, subject: string, text: string, html: 
   // Checked BEFORE the app-wide daily ceiling: an email refused here is never sent,
   // so it must not use up a place meant for emails that are (otherwise repeated
   // invites to one address could use the whole day's budget and block sign-in codes).
-  // Mail to the operator (reports, support) is a small budget of its own: 20 a day in all (each address is one send).
-  // It is NOT counted against the invite budget (mail:other) nor the app-wide count (mail:all), so a flood of reports
-  // can never use up invitations or the 30 places kept for sign-in codes. (Everything is saved in the app anyway.)
+  // Mail to the operator (reports, support) has a small budget of its own: 20 a day in all (each address is one send). It is
+  // counted in the app-wide total (mail:all), so the provider's daily limit is never passed, but not in the invite budget
+  // (mail:other). Like invites it stops 30 places before the ceiling: those 30 are kept for sign-in codes.
+  // (Reports and support messages are saved in the app anyway, so a refused operator email loses nothing.)
   const [capKey, capMax]: [string, number] = opts.ops ? ["mail:ops", OPS_MAIL_PER_DAY] : [`${opts.signInCode ? "mail:code" : "mail:to"}:${to.toLowerCase()}`, opts.signInCode ? 12 : 10];
   if (!(await allow(capKey, capMax, 86_400))) return false;
   // A daily ceiling for the whole app, so nobody can use up the quota and stop
@@ -98,7 +99,9 @@ export async function sendMail(to: string, subject: string, text: string, html: 
     await noteFailure("cap");
     return false;
   }
-  if (!opts.ops && !(await allow("mail:all", cap, 86_400))) {
+  // Everything except sign-in codes (invites and operator mail) stops 30 places before the ceiling, so together they can never
+  // use the places kept for codes. Sign-in codes may use all the way up to the ceiling.
+  if (!(await allow("mail:all", opts.signInCode ? cap : Math.max(1, cap - 30), 86_400))) {
     console.error("sendMail: daily email cap reached");
     await noteFailure("cap");
     return false;

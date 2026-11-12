@@ -5,7 +5,7 @@ import { logEvent } from "./events";
 import { formatMoney } from "./money";
 import { createPayment } from "./payments";
 import { needsOkFor } from "./payment-ok";
-import { GroupChanged, groupChangedText, guardGroup, ledgerInTx } from "./money-guard";
+import { GroupChanged, groupChangedText, guardGroup, leaverBalanceBreaks, ledgerInTx } from "./money-guard";
 
 // Recording one payment (Smart Settle's "Mark paid" and "Record a payment"), with the checks done INSIDE the write.
 // The server action only reads the form and redirects to what this answers.
@@ -63,6 +63,7 @@ export type PayInput = {
   warnOver: boolean; // ask first when it is more than the limit
 };
 
+class LeftOut extends Error {}
 export async function recordPaymentCore(i: PayInput, opts: { afterRead?: () => Promise<void> } = {}): Promise<PayOutcome> {
   const group = await db.group.findUnique({ where: { id: i.groupId }, select: { name: true, currency: true, members: { select: { id: true, name: true, accountId: true, claimedAt: true } } } });
   if (!group) return { kind: "refused", error: groupChangedText(new GroupChanged("gone")) };
@@ -73,6 +74,9 @@ export async function recordPaymentCore(i: PayInput, opts: { afterRead?: () => P
       await guardGroup(tx, i.groupId, { currency: i.currency, actorId: i.myId });
       // The same request again (a double tap, a retry): it already happened, whatever the balances say now.
       if (i.key && (await tx.requestKey.findUnique({ where: { key: i.key }, select: { key: true } }))) throw new Used();
+      // Someone who has left may only end with the balance they had, or 0: a new payment with them can't be recorded.
+      const gone = await leaverBalanceBreaks(tx, i.groupId, [i.fromId, i.toId], (l) => ({ ...l, payments: [...l.payments, { id: "new-payment", fromId: i.fromId, toId: i.toId, amount: i.amount }] }));
+      if (gone.length) throw new LeftOut(gone[0]);
       if (i.warnOver) {
         const { net } = await ledgerInTx(tx, i.groupId);
         const { limit, side } = overpayLimit(net, i.fromId, i.toId);
@@ -92,6 +96,7 @@ export async function recordPaymentCore(i: PayInput, opts: { afterRead?: () => P
     return { kind: "done", did };
   } catch (err) {
     if (err instanceof Used) return { kind: "duplicate" };
+    if (err instanceof LeftOut) return { kind: "refused", error: `${err.message} has left the group, so a payment with them can't be recorded.` };
     if (err instanceof Over) return { kind: "over", limit: err.limit, side: err.side };
     if (err instanceof GroupChanged) return { kind: "refused", error: groupChangedText(err) };
     if (isDuplicateKey(err)) return { kind: "duplicate" };

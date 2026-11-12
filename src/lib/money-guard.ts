@@ -109,8 +109,32 @@ export async function leaverBalanceBreaks(
   const all = members.map((m) => m.id);
   const before = netBalances(all, expenses, payments);
   const next = change({ expenses, payments });
-  const after = netBalances(all, next.expenses, next.payments);
+  // Two restores racing could list the same row twice: count each id once.
+  const once = <T extends { id: string }>(rows: T[]) => [...new Map(rows.map((r) => [r.id, r])).values()];
+  const after = netBalances(all, once(next.expenses), once(next.payments));
   return leavers.filter((m) => (after[m.id] ?? 0) !== (before[m.id] ?? 0) && (after[m.id] ?? 0) !== 0).map((m) => m.name);
+}
+
+// A refusal because a leaver's balance would move. `how`: "deleted" (plus "Ask them to rejoin first."), "undone", "redone".
+export class LeaverBreak extends Error {
+  constructor(name: string, how: "deleted" | "undone" | "redone" | "brought back") {
+    super(`${name} has left the group, so this can't be ${how}.${how === "deleted" ? " Ask them to rejoin first." : ""}`);
+  }
+}
+
+// Putting these deleted payments back (redo of "Mark all paid" or "Settle everything"): names of leavers who would end
+// neither where they were nor at 0. Hand-worked: C paid 30000 to get to 0 and left; the old 30000 coming back = +30000.
+export async function restoredPaymentsBreak(tx: Tx, groupId: string, paymentIds: string[]): Promise<string[]> {
+  if (!paymentIds.length) return [];
+  const rows = await tx.payment.findMany({ where: { id: { in: paymentIds }, groupId, deletedAt: { not: null } } });
+  return leaverBalanceBreaks(tx, groupId, rows.flatMap((p) => [p.fromId, p.toId]), (l) => ({ ...l, payments: [...l.payments, ...rows] }));
+}
+
+// Taking these live payments out (a delete, an undo): the same rule.
+export async function removedPaymentsBreak(tx: Tx, groupId: string, paymentIds: string[]): Promise<string[]> {
+  if (!paymentIds.length) return [];
+  const rows = await tx.payment.findMany({ where: { id: { in: paymentIds }, groupId, deletedAt: null } });
+  return leaverBalanceBreaks(tx, groupId, rows.flatMap((p) => [p.fromId, p.toId]), (l) => ({ ...l, payments: l.payments.filter((x) => !paymentIds.includes(x.id)) }));
 }
 
 // The group's balances and settle-up plan, read INSIDE the transaction (after guardGroup). The same working as

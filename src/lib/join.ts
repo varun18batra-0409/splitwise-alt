@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { setPushResyncCookie } from "./identity";
 import { logEvent } from "./events";
 import { cleanNames } from "./names";
 import { freeName } from "./invites";
@@ -71,8 +72,15 @@ export async function joinExisting(code: string, account: JoinAccount, memberId:
   // A name someone was invited as (by email) belongs to that invitation: only the invited email can take it.
   const open = await openInviteEmails(group.id, member.id);
   if (open.length && !open.includes(account.email.toLowerCase())) return { ok: false, reason: "claimed" };
-  const won = await db.member.updateMany({ where: { id: member.id, accountId: null, claimedAt: null, removedAt: null }, data: { accountId: account.id, claimedAt: new Date(), seenAt: new Date() } });
-  if (won.count !== 1) return { ok: false, reason: "claimed" };
+  // The name changes owner: in the same write its epoch goes up (an old guest copy of it on another phone stops working) and
+  // its notification rows go (that phone stops hearing about it). The callers copy the joiner's own phones onto it afterwards.
+  const won = await db.$transaction(async (tx) => {
+    const w = await tx.member.updateMany({ where: { id: member.id, accountId: null, claimedAt: null, removedAt: null }, data: { accountId: account.id, claimedAt: new Date(), seenAt: new Date(), grantEpoch: { increment: 1 } } });
+    if (w.count === 1) await tx.pushSubscription.deleteMany({ where: { memberId: member.id } });
+    return w.count;
+  });
+  if (won !== 1) return { ok: false, reason: "claimed" };
+  await setPushResyncCookie();
   if (!account.name) await db.account.update({ where: { id: account.id }, data: { name: member.name } });
   await logEvent(db, { groupId: group.id, actorId: member.id, kind: "members_added", text: "joined the group" });
   return { ok: true, memberId: member.id };

@@ -3,7 +3,7 @@ import { getAccount } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
 import { PageHeader } from "@/components/ui";
 import { resolveReportAction } from "@/app/safety-actions";
-import { REASON_LABELS, loadReportsForOwner } from "@/lib/reports";
+import { REASON_LABELS, REPORTS_PAGE_SIZE, loadReportsForOwner } from "@/lib/reports";
 
 export const metadata = { title: "Reports", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -44,18 +44,20 @@ export default async function Reports() {
       ))}
     </ul>
   );
+  // Open ones come first and only a page of them is loaded, so a full page of open ones means "at least this many".
   const openCount = (items: typeof rows) => items.filter((r) => r.status === "open").length;
+  const openLabel = (items: typeof rows) => (openCount(items) >= REPORTS_PAGE_SIZE ? `${REPORTS_PAGE_SIZE}+` : String(openCount(items)));
   return (
     <>
       <PageHeader title="Reports" back="/stats" />
       <h2 className="mb-1 font-display text-xl font-semibold">Reports</h2>
       <p className="mb-4 text-sm text-gray-500" data-open-reports={openCount(reports)}>
-        {openCount(reports) ? `${openCount(reports)} to look at` : "Nothing waiting."}
+        {openCount(reports) ? `${openLabel(reports)} to look at` : "Nothing waiting."}
       </p>
       {reports.length > 0 && list(reports)}
       <h2 className="mb-1 mt-10 font-display text-xl font-semibold">Support messages</h2>
       <p className="mb-4 text-sm text-gray-500" data-open-support={openCount(support)}>
-        {openCount(support) ? `${openCount(support)} to look at` : "Nothing waiting."}
+        {openCount(support) ? `${openLabel(support)} to look at` : "Nothing waiting."}
       </p>
       {support.length > 0 && list(support)}
     </>

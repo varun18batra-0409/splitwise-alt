@@ -56,7 +56,12 @@ export function parseGrant(v: string): { id: string; epoch: number } {
 // and isn't in the session's names any more, so it stays cut off.
 async function dropPush(memberIds: string[], keepEndpoint?: string) {
   const r = await db.pushSubscription.deleteMany({ where: { memberId: { in: memberIds }, ...(keepEndpoint ? { endpoint: { not: keepEndpoint } } : {}) } });
-  if (r.count > 0) {
+  if (r.count > 0) await setPushResyncCookie();
+}
+
+// The note for this phone's app (see PushSync). Only works inside a server action or route handler; anywhere else it does nothing.
+export async function setPushResyncCookie() {
+  try {
     (await cookies()).set(PUSH_RESYNC_COOKIE, "1", {
       httpOnly: false, // the app's own script reads and clears it
       sameSite: "lax",
@@ -64,6 +69,8 @@ async function dropPush(memberIds: string[], keepEndpoint?: string) {
       path: "/",
       maxAge: PUSH_RESYNC_MAX_AGE,
     });
+  } catch {
+    // outside a request (a script or a test): nothing to set
   }
 }
 

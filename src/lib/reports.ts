@@ -25,14 +25,16 @@ export async function saveSupportMessage(o: { reporterId?: string; message: stri
   return db.report.create({ data: { reporterId: o.reporterId ?? "", kind: "support", targetId: "", targetAccountId: "", reason: "support", note: o.message.slice(0, 1500), contact: (o.contact ?? "").slice(0, 120) } });
 }
 
+export const REPORTS_PAGE_SIZE = 100;
+
 // What /stats/reports shows. Owner only: anyone else gets "not found" before anything is read.
 export async function loadReportsForOwner(account: { email: string } | null | undefined) {
   requireOwner(account);
   // Two lists, so a flood of one kind can never push the other off the page. Open ones first, then newest.
   const order = [{ status: "asc" as const }, { createdAt: "desc" as const }]; // "open" sorts before "resolved"
   const [reports, support] = await Promise.all([
-    db.report.findMany({ where: { kind: { not: "support" } }, orderBy: order, take: 100 }),
-    db.report.findMany({ where: { kind: "support" }, orderBy: order, take: 100 }),
+    db.report.findMany({ where: { kind: { not: "support" } }, orderBy: order, take: REPORTS_PAGE_SIZE }),
+    db.report.findMany({ where: { kind: "support" }, orderBy: order, take: REPORTS_PAGE_SIZE }),
   ]);
   return { reports, support };
 }

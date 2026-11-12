@@ -182,7 +182,11 @@ export function PushSync() {
     const t = window.setTimeout(() => {
       currentSubscription()
         .then(async ({ sub }) => {
-          if (!sub) return;
+          if (!sub) {
+            // Allowed but not subscribed: nothing to put back, so the note is cleared rather than re-run on every page.
+            if (plan.resync) document.cookie = clearResyncCookieString();
+            return;
+          }
           const r = await fetch("/api/push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sub.toJSON()) });
           if (r.ok) {
             if (plan.resync) document.cookie = clearResyncCookieString();

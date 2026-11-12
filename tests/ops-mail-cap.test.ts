@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 // M3: mail to the operator has its own daily allowance (not the 10-a-day limit for one address), and a support
 // message is saved even when the email can't be sent. nodemailer is replaced by a stand-in: nothing leaves this machine.
@@ -25,13 +25,21 @@ const { encodeSession, today } = await import("@/lib/session");
 
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 const OP = `operator-${stamp}@example.com`;
-// Only the counters these tests own are touched (set up, then removed at the end); the shared mail:other and mail:all
-// counters are never reset: the tests read them before and after and compare.
-const KEYS = ["mail:ops", "support:anon-day"];
+// The counters these tests use are set to a known number before each test and put back as they were found at the end
+// (or removed, if they did not exist). Nothing else in the counter table is touched.
+const KEYS = ["mail:ops", "mail:other", "mail:all", "support:anon-day"];
+const found = new Map<string, { count: number; resetAt: Date } | null>();
 const tomorrow = () => new Date(Date.now() + 86_400_000);
 const setCount = (key: string, count: number) => db.rateLimit.upsert({ where: { key }, create: { key, count, resetAt: tomorrow() }, update: { count, resetAt: tomorrow() } });
 const countOf = async (key: string) => (await db.rateLimit.findUnique({ where: { key } }))?.count ?? 0;
 let accountId = "";
+
+beforeAll(async () => {
+  for (const key of KEYS) {
+    const row = await db.rateLimit.findUnique({ where: { key } });
+    found.set(key, row ? { count: row.count, resetAt: row.resetAt } : null);
+  }
+});
 
 beforeEach(async () => {
   delete process.env.MAIL_OUTBOX;
@@ -43,11 +51,15 @@ beforeEach(async () => {
   process.env.ADMIN_EMAIL = OP;
   mail.send.mockReset();
   mail.send.mockResolvedValue({});
-  await setCount("mail:ops", 0);
-  await setCount("support:anon-day", 0);
+  for (const key of KEYS) await setCount(key, 0);
 });
 afterAll(async () => {
-  await db.rateLimit.deleteMany({ where: { key: { in: KEYS } } });
+  for (const key of KEYS) {
+    const was = found.get(key);
+    if (was) await db.rateLimit.update({ where: { key }, data: was });
+    else await db.rateLimit.deleteMany({ where: { key } });
+  }
+  await db.rateLimit.deleteMany({ where: { key: { contains: stamp } } }); // this file's own per-address counters
   await db.report.deleteMany({ where: { note: { contains: stamp } } });
   if (accountId) await db.account.deleteMany({ where: { id: accountId } });
   delete process.env.ADMIN_EMAIL;
@@ -65,33 +77,50 @@ const support = async (message: string) => {
 };
 
 describe("operator mail is a small budget of its own", () => {
-  it("25 operator emails: 20 go out and 5 are refused; the invite budget (mail:other) and the app-wide count (mail:all) do not move", async () => {
-    const other = await countOf("mail:other");
-    const all = await countOf("mail:all");
+  // MAIL_DAILY_CAP is 1000 here, so everything except sign-in codes stops at 1000 - 30 = 970 in mail:all.
+  it("25 operator emails: 20 go out and 5 are refused; they count in the app-wide total (mail:all) but not in the invite budget (mail:other)", async () => {
     const results: boolean[] = [];
     for (let i = 0; i < 25; i++) results.push(await mailOperator("Loopin: a new report", ["x"]));
-    expect(results.filter(Boolean)).toHaveLength(20);
     expect(results.slice(0, 20).every(Boolean)).toBe(true);
+    expect(results.slice(20).some(Boolean)).toBe(false);
     expect(mail.send).toHaveBeenCalledTimes(20);
     expect(await countOf("mail:ops")).toBe(20);
-    expect(await countOf("mail:other")).toBe(other);
-    expect(await countOf("mail:all")).toBe(all);
+    expect(await countOf("mail:all")).toBe(20);
+    expect(await countOf("mail:other")).toBe(0);
   });
 
   it("each operator address is one send: two addresses use two places", async () => {
     process.env.ADMIN_EMAIL = `${OP}, second-${OP}`;
     expect(await mailOperator("Loopin: a new report", ["x"])).toBe(true);
     expect(await countOf("mail:ops")).toBe(2);
+    expect(await countOf("mail:all")).toBe(2);
     expect(mail.send).toHaveBeenCalledTimes(2);
   });
 
-  it("ordinary mail keeps its own rules: an address stops at 10 a day, and that still counts in mail:other", async () => {
-    const other = await countOf("mail:other");
+  it("the 30 places kept for sign-in codes are never used: at 969 of 970 one more operator email goes, then it is refused, and a code still goes", async () => {
+    await setCount("mail:all", 969);
+    expect(await mailOperator("Loopin: a new report", ["x"])).toBe(true);
+    expect(await countOf("mail:all")).toBe(970);
+    expect(await mailOperator("Loopin: a new report", ["x"])).toBe(false);
+    expect(mail.send).toHaveBeenCalledTimes(1);
+    expect(await countOf("mail:all")).toBe(970); // the refused one used no place
+    expect(await sendMail(`friend-${stamp}@example.com`, "123456 is your Loopin code", "123456", "<p>123456</p>", { signInCode: true })).toBe(true);
+    expect(await countOf("mail:all")).toBe(971);
+  });
+
+  it("invites also stop 30 places before the ceiling now that operator mail shares the count", async () => {
+    await setCount("mail:all", 970);
+    expect(await sendMail(`friend2-${stamp}@example.com`, "hi", "hi", "<p>hi</p>", { optOut: true })).toBe(false);
+    expect(mail.send).not.toHaveBeenCalled();
+  });
+
+  it("ordinary mail keeps its own rules: an address stops at 10 a day, and each one counts in mail:other and mail:all", async () => {
     const to = `friend-${stamp}@example.com`;
     const sent: boolean[] = [];
     for (let i = 0; i < 11; i++) sent.push(await sendMail(to, "hi", "hi", "<p>hi</p>"));
     expect(sent.filter(Boolean)).toHaveLength(10);
-    expect(await countOf("mail:other")).toBe(other + 10);
+    expect(await countOf("mail:other")).toBe(10);
+    expect(await countOf("mail:all")).toBe(10);
     await db.rateLimit.deleteMany({ where: { key: `mail:to:${to}` } });
   });
 });

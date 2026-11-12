@@ -17,6 +17,7 @@ import { CurrencyPicker } from "./CurrencyPicker";
 import { expensePairs, payersJson } from "@/lib/payers";
 import { participantsFor, type ForMode, type SplitType } from "@/lib/split";
 import { splitByItems } from "@/lib/item-split";
+import { splitFields } from "@/lib/split-draft";
 import { niceDate, rateText } from "@/lib/format";
 import { dayKey, todayKey } from "@/lib/dates";
 import { inputClass, primaryButtonClass } from "./ui";
@@ -190,6 +191,7 @@ export function AddExpenseForm({
   }
 
   function resetSplit() {
+    setByItem(false); // choosing "Everyone equally" leaves item mode, or the item amounts would still be sent
     setForMode("everyone");
     setSplitType("equal");
     setSelected(memberIds);
@@ -279,7 +281,7 @@ export function AddExpenseForm({
     : null;
   const itemExact = itemSplit?.ok ? Object.fromEntries(Object.entries(itemSplit.amounts).map(([id, m]) => [id, (m / 10 ** digits).toFixed(digits)])) : {};
   const draft: ExpenseDraft = {
-    amount, currency, paidById, forMode: byItem ? "everyone" : forMode, selected, onePersonId, splitType: byItem ? "exact" : splitType, exact: byItem ? itemExact : exact, percent, shares,
+    amount, currency, paidById, ...splitFields({ byItem, forMode, splitType, exact, itemExact }), selected, onePersonId, percent, shares,
     kind, multiPay, payers, paymentMethod, markupChoice, markupCustom,
   };
   const ctx = { memberIds, baseCurrency, groupMarkupBp, rate: effectiveRate };
@@ -765,6 +767,7 @@ export function AddExpenseForm({
                   }
                   if (q.forIds) {
                     setShowOnly(false);
+                    setByItem(false);
                     setSplitType("equal");
                     if (q.forIds.length === memberIds.length) setForMode("everyone");
                     else if (q.forIds.length === 1) {
@@ -899,8 +902,9 @@ export function AddExpenseForm({
         <div className="flex gap-2 overflow-x-auto px-5 pb-1 pr-12 [scrollbar-width:none]">
           {groupShares && (
             <Chip
-              on={!showPeople && !showOnly && groupSplitOn}
+              on={!byItem && !showPeople && !showOnly && groupSplitOn}
               onClick={() => {
+                setByItem(false);
                 setShowPeople(false);
                 setShowOnly(false);
                 setForMode("everyone");
@@ -912,15 +916,16 @@ export function AddExpenseForm({
             </Chip>
           )}
           <Chip
-            on={!showPeople && !showOnly && forMode === "everyone" && splitType === "equal"}
+            on={!byItem && !showPeople && !showOnly && forMode === "everyone" && splitType === "equal"}
             onClick={resetSplit}
           >
             Everyone equally
           </Chip>
           {members.length > 2 && (
             <Chip
-              on={showOnly || (!showPeople && forMode === "selected" && splitType === "equal")}
+              on={!byItem && (showOnly || (!showPeople && forMode === "selected" && splitType === "equal"))}
               onClick={() => {
+                setByItem(false);
                 setShowPeople(false);
                 setShowOnly(true);
                 setSplitType("equal");
@@ -956,6 +961,7 @@ export function AddExpenseForm({
                     key={m.id}
                     on={on}
                     onClick={() => {
+                      setByItem(false);
                       setForMode("selected");
                       setSelected((s) => (s.includes(m.id) ? s.filter((x) => x !== m.id) : [...s, m.id]));
                     }}

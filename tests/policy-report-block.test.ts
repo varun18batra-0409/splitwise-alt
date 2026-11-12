@@ -546,6 +546,10 @@ describe("blocking: invitations from someone you blocked", () => {
     const r1 = await inviteToClaim(t.g.id, t.ma.id, n1.id, dev.email, "https://loopin.test");
     expect(r1).toEqual({ ok: true, email: dev.email });
     expect(await db.outbox.count({ where: { to: dev.email } })).toBe(0);
+    // The per-address daily limit is counted on the blocked path too (10 a day), so the 11th gets the same answer a real send would.
+    rateKeys.push(`mail:to:${dev.email.toLowerCase()}`);
+    for (let i = 0; i < 9; i++) expect(await inviteToClaim(t.g.id, t.ma.id, n1.id, dev.email, "https://loopin.test")).toEqual({ ok: true, email: dev.email });
+    expect(await inviteToClaim(t.g.id, t.ma.id, n1.id, dev.email, "https://loopin.test")).toMatchObject({ ok: false });
     const other = `rb-other-${stamp}-ie@example.test`;
     const r2 = await inviteToClaim(t.g.id, t.ma.id, n2.id, other, "https://loopin.test");
     expect(r2.ok).toBe(true);
@@ -567,13 +571,36 @@ describe("blocking: collection ticks and wax seals", () => {
     const entryOf = (accountId: string) => db.collectionEntry.findFirstOrThrow({ where: { collection: { code: made.code }, accountId } });
     for (const who of [t.ben, t.cleo]) {
       await signedInAs(who);
-      await redirected(() => markPaidAction(form({ code: made.code, entryId: (await entryOf(who.id)).id })));
+      const entryId = (await entryOf(who.id)).id;
+      await redirected(() => markPaidAction(form({ code: made.code, entryId })));
       await runAfter();
     }
     expect(await db.accountNote.count({ where: { accountId: t.asha.id, kind: "collect_ticked" } })).toBe(1);
     expect((await db.accountNote.findFirstOrThrow({ where: { accountId: t.asha.id, kind: "collect_ticked" } })).body).toContain("Cleo");
     // The tick itself still counts.
     expect((await entryOf(t.ben.id)).status).toBe("paid");
+  });
+
+  it("the note is about whoever ticked, not whoever owns the entry: Ben (blocked) ticks Cleo's name from the shared link, Asha is not told", async () => {
+    const t = await crew("c2");
+    const made = await createCollection({ id: t.asha.id, name: "Asha" }, { ...input, friends: [t.cleo.id] });
+    if (!made.ok) throw new Error(made.error);
+    await blockAccount(t.asha.id, t.ben.id);
+    const entry = await db.collectionEntry.findFirstOrThrow({ where: { collection: { code: made.code }, accountId: t.cleo.id } });
+    await signedInAs(t.ben);
+    await redirected(() => markPaidAction(form({ code: made.code, entryId: entry.id })));
+    for (const fn of state.pending.splice(0)) await fn();
+    expect(await db.accountNote.count({ where: { accountId: t.asha.id, kind: "collect_ticked" } })).toBe(0);
+  });
+
+  it("a signed-out tick still tells the organiser", async () => {
+    const t = await crew("c3");
+    const made = await createCollection({ id: t.asha.id, name: "Asha" }, { ...input, friends: [t.cleo.id] });
+    if (!made.ok) throw new Error(made.error);
+    const entry = await db.collectionEntry.findFirstOrThrow({ where: { collection: { code: made.code }, accountId: t.cleo.id } });
+    await redirected(() => markPaidAction(form({ code: made.code, entryId: entry.id })));
+    for (const fn of state.pending.splice(0)) await fn();
+    expect(await db.accountNote.count({ where: { accountId: t.asha.id, kind: "collect_ticked" } })).toBe(1);
   });
 
   it("a card can't be sealed once either person has blocked the other; before that it can", async () => {

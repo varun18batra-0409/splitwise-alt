@@ -6,7 +6,7 @@ import { formatMoney, isSupportedCurrency } from "./money";
 import { RestoreRefused, restorePayments } from "./payments";
 import { cleanRateText, parseRate, PAYMENT_METHODS } from "./conversion";
 import { diffExpense, expenseState, logEvent, touchedByExpense, type ExpenseSnapshot } from "./events";
-import { GroupChanged, groupChangedText, guardGroup, leaverBalanceBreaks, peopleInExpense } from "./money-guard";
+import { GroupChanged, groupChangedText, guardGroup, LeaverBreak, leaverBalanceBreaks, peopleInExpense, removedPaymentsBreak } from "./money-guard";
 import type { RateAnswer } from "./rate-cache";
 import { dayKey, parseDay } from "./dates";
 import { claimKey, isDuplicateKey, previousResult, withRetry } from "./once";
@@ -14,7 +14,7 @@ import { parsePayers, payersJson, payersLabel } from "./payers";
 import { isGameResult } from "./pot-result";
 import { findLikelyDuplicate } from "./duplicates";
 import { queuePhotoDeletes } from "./photo-store";
-import { chargeLock, chargeLockedText } from "./home/charge-lock";
+import { chargeLock, chargeLockedText, isMoveOutCharge } from "./home/charge-lock";
 import type { Prisma } from "@prisma/client";
 
 export type SaveExpenseInput = ExpenseDraft & {
@@ -408,6 +408,12 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
     // A move-out daily charge can't be deleted, or come back, once that month's bill is being added or was added: the bill took it off its total.
     const locked = await chargeLock(tx, expense.groupId, expense.id);
     if (locked) throw deleted ? new ChargeLocked(locked.bill) : new MonthAdded(locked.bill);
+    if (deleted && !(await isMoveOutCharge(tx, expense.groupId, expense.id))) {
+      // Deleting takes its amounts out of everyone's balance: a leaver can't end anywhere but where they were, or 0.
+      // (A move-out daily charge is exempt: deleting it is the tested way to take it back.)
+      const gone = await leaverBalanceBreaks(tx, expense.groupId, peopleInExpense({ paidById: expense.paidById, payers: parsePayers(expense.payers), shares: expense.shares }), (l) => ({ ...l, expenses: l.expenses.filter((x) => x.id !== expense.id) }));
+      if (gone.length) throw new LeaverBreak(gone[0], "deleted");
+    }
     if (!deleted) {
       // After the "month already added" check, so that answer comes first. Bringing it back puts its amounts back into everyone's balance.
       const now = await tx.expense.findUnique({ where: { id: expense.id }, include: { shares: true } });
@@ -432,7 +438,7 @@ async function setExpenseDeletedOnce(expenseId: string, actingMemberId: string |
    });
   } catch (err) {
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
-    if (err instanceof LeaverBack) return { ok: false, error: err.message };
+    if (err instanceof LeaverBack || err instanceof LeaverBreak) return { ok: false, error: err.message };
     if (err instanceof MonthAdded) return { ok: false, error: `This month’s ${err.message} was already added, so this charge can’t come back. Add it again by hand if needed.` };
     if (err instanceof ChargeLocked) return { ok: false, error: chargeLockedText(err.message) };
     throw err;
@@ -468,7 +474,10 @@ async function setPaymentDeletedOnce(paymentId: string, actingMemberId: string |
    eventId = await db.$transaction(async (tx) => {
     // First: the group is still open, in the same currency, and this person still in it.
     await guardGroup(tx, payment.groupId, { currency: payment.group.currency, actorId: actingMemberId });
-    if (!deleted) {
+    if (deleted) {
+      const gone = await removedPaymentsBreak(tx, payment.groupId, [payment.id]);
+      if (gone.length) throw new LeaverBreak(gone[0], "deleted");
+    } else {
       const gone = await leaverBalanceBreaks(tx, payment.groupId, [payment.fromId, payment.toId], (l) => ({ ...l, payments: [...l.payments, payment] }));
       if (gone.length) throw new LeaverBack(`${gone[0]} has left the group, so this can't be ${opts.undoing ? "undone" : "brought back"}.`);
     }
@@ -492,7 +501,7 @@ async function setPaymentDeletedOnce(paymentId: string, actingMemberId: string |
   } catch (err) {
     if (err instanceof RestoreRefused) return { ok: false, error: err.message };
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
-    if (err instanceof LeaverBack) return { ok: false, error: err.message };
+    if (err instanceof LeaverBack || err instanceof LeaverBreak) return { ok: false, error: err.message };
     throw err;
   }
   return { ok: true, id: payment.id, eventId: eventId || undefined };

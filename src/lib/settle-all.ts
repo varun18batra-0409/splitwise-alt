@@ -7,7 +7,7 @@ import { formatMoney } from "./money";
 import { createPayment, RestoreRefused, restorePayments } from "./payments";
 import type { Transfer } from "./settle";
 import type { Prisma } from "@prisma/client";
-import { GroupChanged, groupChangedText, guardGroup, ledgerInTx } from "./money-guard";
+import { GroupChanged, groupChangedText, guardGroup, LeaverBreak, ledgerInTx, removedPaymentsBreak, restoredPaymentsBreak } from "./money-guard";
 
 // "We settled outside the app": record every Smart Settle payment at once and
 // close the group. One logged change, one Undo (which takes the payments back
@@ -96,6 +96,9 @@ export async function applySettleAll(groupId: string, actorId: string, paymentId
       const open = await tx.group.updateMany({ where: { id: groupId, closed: true }, data: { closed: true } });
       if (open.count !== 1) throw new Error("reopened-since");
     }
+    // Someone who has left may only end with the balance they had, or 0.
+    const goneHere = apply ? await restoredPaymentsBreak(tx, groupId, paymentIds) : await removedPaymentsBreak(tx, groupId, paymentIds);
+    if (goneHere.length) throw new LeaverBreak(goneHere[0], apply ? "redone" : "undone");
     if (apply) {
       await restorePayments(tx, paymentIds, actorId, groupId);
       // "Settle everything" left every balance at 0. If an expense or payment was added since it was undone, putting
@@ -113,7 +116,7 @@ export async function applySettleAll(groupId: string, actorId: string, paymentId
     });
    }, { timeout: 15000 });
   } catch (err) {
-    if (err instanceof RestoreRefused) return { ok: false, error: err.message };
+    if (err instanceof RestoreRefused || err instanceof LeaverBreak) return { ok: false, error: err.message };
     if (err instanceof GroupChanged) return { ok: false, error: err.reason === "closed" ? "The group is already closed." : groupChangedText(err) };
     const msg = String((err as Error)?.message);
     if (msg === "not-square") return { ok: false, error: "Balances changed since, so this can't be redone." };
@@ -210,6 +213,9 @@ export async function setPaymentsDeleted(groupId: string, actorId: string, payme
    eventId = await db.$transaction(async (tx) => {
     // First: the group is still open, in the same currency, and this person still in it.
     await guardGroup(tx, groupId, { currency: group.currency, actorId });
+    // Someone who has left may only end with the balance they had, or 0.
+    const goneHere = deleted ? await removedPaymentsBreak(tx, groupId, paymentIds) : await restoredPaymentsBreak(tx, groupId, paymentIds);
+    if (goneHere.length) throw new LeaverBreak(goneHere[0], deleted ? "deleted" : "redone");
     if (deleted) await tx.payment.updateMany({ where: { id: { in: paymentIds }, groupId }, data: { deletedAt: new Date(), deletedById: actorId } });
     else await restorePayments(tx, paymentIds, actorId, groupId);
     return logEvent(tx, {
@@ -221,7 +227,7 @@ export async function setPaymentsDeleted(groupId: string, actorId: string, payme
     });
    });
   } catch (err) {
-    if (err instanceof RestoreRefused) return { ok: false, error: err.message };
+    if (err instanceof RestoreRefused || err instanceof LeaverBreak) return { ok: false, error: err.message };
     if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
     throw err;
   }

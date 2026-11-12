@@ -378,6 +378,9 @@ export async function inviteToClaim(groupId: string, actorId: string, memberId: 
   // If that email belongs to someone who blocked the inviter, nothing is sent (the reply is the same, and the name stays in the group).
   const theirAccount = await db.account.findUnique({ where: { email }, select: { id: true } });
   if (theirAccount && actor.accountId && (await hasBlocked(theirAccount.id, actor.accountId).catch(() => true))) {
+    // Counted against the same per-address daily limit as a real send, so the 11th invite to one address gets the same
+    // answer whether or not it was blocked (the reply can't be used to find out).
+    if (!(await allow(`mail:to:${email.toLowerCase()}`, 10, 86_400))) return { ok: false, error: "The email couldn’t be sent. Share the group’s invite link instead." };
     await logEvent(db, { groupId, actorId, kind: "member_invited", text: `invited ${member.name} to join` });
     return { ok: true, email };
   }

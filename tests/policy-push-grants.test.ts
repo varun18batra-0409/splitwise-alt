@@ -26,6 +26,8 @@ const { grantValue, signInAs, setMyMemberId, bumpGrantEpochs, privatePath } = aw
 const { sendEventPush } = await import("@/lib/push");
 const { createMovePass, peekMovePass } = await import("@/lib/move");
 const { acceptInvitation } = await import("@/lib/invitations");
+const { joinExisting } = await import("@/lib/join");
+const { copyPushTo } = await import("@/lib/invites");
 const { savePushFor } = await import("@/lib/push-subs");
 const { getMemberships } = await import("@/lib/identity");
 const { PUSH_RESYNC_COOKIE, pushSyncPlan, hasResyncCookie, clearResyncCookieString } = await import("@/lib/push-resync");
@@ -107,13 +109,22 @@ describe("M4: a phone that loses a name stops getting its notifications", () => 
     expect(await rowsFor(t.x.id)).toEqual([ep1]);
   });
 
-  it("names that were not linked keep their rows, and nothing is dropped (and no note set) when nothing was linked", async () => {
+  it("only the linked name loses its rows: another, unlinked name's row stays, and a phone that linked nothing sets no note", async () => {
     const t = await group("sn");
+    const epX = goodEndpoint(`x-${stamp}-sn`);
     const epZ = goodEndpoint(`z-${stamp}-sn`);
+    await sub(t.x.id, epX);
     await sub(t.z.id, epZ);
     const me = await account("Xena");
-    state.cookie = await phone1({});
+    state.cookie = await phone1({ [t.g.id]: grantValue(t.x.id, 0) }); // this phone holds X only
     await signInAs(me.id);
+    expect(await rowsFor(t.x.id)).toEqual([]);
+    expect(await rowsFor(t.z.id)).toEqual([epZ]);
+    expect(state.set[PUSH_RESYNC_COOKIE]).toBe("1");
+    state.set = {};
+    const other = await account("Xenia");
+    state.cookie = await phone1({});
+    await signInAs(other.id); // holds no names: nothing linked, nothing dropped
     expect(await rowsFor(t.z.id)).toEqual([epZ]);
     expect(state.set[PUSH_RESYNC_COOKIE]).toBeUndefined();
   });
@@ -173,6 +184,47 @@ describe("M4: a phone that loses a name stops getting its notifications", () => 
     expect(state.set[PUSH_RESYNC_COOKIE]).toBeUndefined();
     await sendEventPush((await change(t.g.id, t.y.id)).id);
     expect(sentTo()).toEqual(new Set([ep1, ep2]));
+  });
+
+  it("another account wins a free name that a guest phone still holds: the guest phone's rows go, the joiner's phones get rows, only they are sent to", async () => {
+    const old = await group("jx0");
+    const t = await group("jx1");
+    const joiner = await account("Rival");
+    await db.member.update({ where: { id: old.x.id }, data: { accountId: joiner.id } });
+    const j1 = goodEndpoint(`j1-${stamp}-jx`);
+    const j2 = goodEndpoint(`j2-${stamp}-jx`);
+    const guestPhone = goodEndpoint(`g-${stamp}-jx`);
+    await sub(old.x.id, j1);
+    await sub(old.x.id, j2);
+    await sub(t.x.id, guestPhone); // phone G holds "X" as a guest (the name is free: nobody has claimed it)
+    await sendEventPush((await change(t.g.id, t.y.id)).id);
+    expect(sentTo()).toEqual(new Set([guestPhone])); // control
+    push.send.mockClear();
+    state.cookie = await phone1({}, joiner.id);
+    const r = await joinExisting(t.g.inviteCode, joiner, t.x.id);
+    if (!r.ok) throw new Error(r.reason);
+    await copyPushTo(joiner.id, r.memberId); // what both callers do next
+    expect((await db.member.findUniqueOrThrow({ where: { id: t.x.id } })).grantEpoch).toBe(1);
+    expect(state.set[PUSH_RESYNC_COOKIE]).toBe("1");
+    expect(await rowsFor(t.x.id)).toEqual([j1, j2].sort());
+    await sendEventPush((await change(t.g.id, t.y.id)).id);
+    expect(sentTo()).toEqual(new Set([j1, j2]));
+    expect(sentTo().has(guestPhone)).toBe(false);
+    // G's old copy no longer counts either.
+    state.cookie = await phone1({ [t.g.id]: grantValue(t.x.id, 0) });
+    expect(Object.values(await getMemberships())).not.toContain(t.x.id);
+  });
+
+  it("a name that was already the joiner's own is not touched by joining again", async () => {
+    const t = await group("jy");
+    const me = await account("Again2");
+    await db.member.update({ where: { id: t.x.id }, data: { accountId: me.id, claimedAt: new Date(), grantEpoch: 3 } });
+    const ep = goodEndpoint(`k-${stamp}-jy`);
+    await sub(t.x.id, ep);
+    const r = await joinExisting(t.g.inviteCode, me, t.x.id);
+    expect(r.ok).toBe(true);
+    expect(await rowsFor(t.x.id)).toEqual([ep]);
+    expect((await db.member.findUniqueOrThrow({ where: { id: t.x.id } })).grantEpoch).toBe(3);
   });
 
   it("bumpGrantEpochs raises the epoch and removes the rows (all, or all but a kept address)", async () => {
