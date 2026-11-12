@@ -82,20 +82,24 @@ const rupees = (paise: number) => `₹${(paise / 100).toFixed(2)}`;
 // A step that hangs (a screen that never finishes on the hosted copy) fails on
 // its own after two minutes instead of stopping the whole run.
 const STEP_LIMIT_MS = 120_000;
-async function step(page: Page | null, area: string, name: string, fn: () => Promise<void | string>, only?: Profile[]) {
+async function step(page: Page | null, area: string, name: string, fn: () => Promise<void | string>, only?: Profile[], limitMs = STEP_LIMIT_MS) {
   const n = results.length + 1;
   try {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const note = await Promise.race([
       fn(),
       new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error(`still not done after ${STEP_LIMIT_MS / 1000} s`)), STEP_LIMIT_MS);
+        timer = setTimeout(() => reject(new Error(`still not done after ${limitMs / 1000} s`)), limitMs);
       }),
     ]).finally(() => clearTimeout(timer));
     results.push({ n, area, name, status: "pass", detail: typeof note === "string" ? note : "", only });
     console.log("✓", area, "—", name);
   } catch (e) {
-    const msg = String((e as Error)?.message ?? e).split("\n").slice(0, 3).join(" ").slice(0, 400) + diagnose(page);
+    const lines = String((e as Error)?.message ?? e).split("\n").map((l) => l.trim()).filter(Boolean);
+    // Database errors put the real reason on their last line ("Invalid `db.x()` invocation … <reason>"), so keep it.
+    const head = lines.slice(0, 3).join(" ").slice(0, 400);
+    const tail = lines.length > 3 && /invocation/i.test(head) ? ` … ${lines[lines.length - 1].slice(0, 300)}` : "";
+    const msg = head + tail + diagnose(page);
     let shot = "";
     if (page) {
       shotNo++;
@@ -2145,7 +2149,10 @@ async function main() {
       "/settle", "/notifications", "/search", "/account", "/how-it-works", "/welcome",
     ];
     const wide: string[] = [];
+    const started = Date.now();
     for (const p of pages) {
+      // Never keep going in the background after the step's own time is up (it would slow the steps after it).
+      if (Date.now() - started > 280_000) throw new Error(`only ${pages.indexOf(p)} of ${pages.length} screens checked in time`);
       await go(page, p, { quick: true });
       const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       if (over > 1) {
@@ -2155,8 +2162,8 @@ async function main() {
     }
     await ctx.close();
     assert(wide.length === 0, `scrolls sideways: ${wide.join(", ")}`);
-    return `${pages.length} screens checked`;
-  });
+    return `${pages.length} screens checked in ${Math.round((Date.now() - started) / 1000)} s`;
+  }, undefined, 300_000);
 
   await step(null, "Layout", "Sign-in on small phones (320×568 and 375×667): Google and the email box are both on the first screen, no scrolling", async () => {
     const seen: string[] = [];

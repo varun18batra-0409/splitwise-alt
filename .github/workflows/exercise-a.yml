@@ -90,6 +90,9 @@ jobs:
           mkdir -p screenshots/uat
           npx tsx scripts/uat.ts 2>&1 | tee uat.log || true
           cp uat.log server.log screenshots/uat/ || true
+          # The app's own log, in the job log too (artifacts can't always be opened): errors and the last lines.
+          echo "---- app server: errors and warnings ----"; grep -n -i -E "error|warn|killed|heap|SQLITE|busy|locked" server.log | tail -60 || true
+          echo "---- app server: last 40 lines ----"; tail -40 server.log || true
           echo "::notice title=UAT ${{ matrix.profile }}::$(head -1 screenshots/uat/summary.txt)"
           {
             echo "## UAT: ${{ matrix.profile }}"
