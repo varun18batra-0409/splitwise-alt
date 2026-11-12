@@ -62,7 +62,7 @@ vi.mock("@/lib/push", async (orig) => ({ ...(await orig<typeof import("@/lib/pus
 
 const { db } = await import("@/lib/db");
 const { encodeSession, today } = await import("@/lib/session");
-const { flushPhotoDeletes, storePhoto } = await import("@/lib/photo-store");
+const { cleanUnsentReceipts, flushPhotoDeletes, storePhoto } =await import("@/lib/photo-store");
 const { saveExpense } = await import("@/lib/save-expense");
 const { deleteAccount } = await import("@/lib/auth");
 const { eraseExpiredGroups } = await import("@/lib/purge");
@@ -537,22 +537,106 @@ describe("postcard photo", () => {
     expect(await leftovers()).toEqual(CLEAN);
   });
 
-  // NOT AS INTENDED (reported, nothing changed): the photo is stored BEFORE the last checks of sending. If the card is
-  // then refused (here: an "opens on" day in the past; also "too many postcards today"), the photo row and its file stay,
-  // with no card pointing to them and nothing that would ever delete them. Marked `fails`: when this is fixed it will start
-  // passing and vitest will say so; then change `it.fails` to `it`.
-  it.fails("a refused postcard leaves no photo behind", async () => {
+  // Every check runs before the photo is stored, so a refused card leaves no photo row and no file.
+  it("a refused postcard (opens-on day in the past) leaves no photo behind", async () => {
     const [from, to] = [await person("From5"), await person("To5")];
     await together(from, to);
     const { went, cards } = await sendCard(from, [to], jpeg(34), { opensOn: "2020-01-01" });
     try {
       expect(went).toContain("/postcards/new");
       expect(cards).toHaveLength(0);
-      expect(blob.files.size).toBe(0); // actually 1 file on the shelf
-      expect(await db.postcardPhoto.count({ where: { blobKey: { in: [...blob.putKeys] } } })).toBe(0); // actually 1 row
+      expect(blob.files.size).toBe(0);
+      expect(blob.putKeys).toHaveLength(0); // storage was never even asked
+      expect(await leftovers()).toEqual(CLEAN);
     } finally {
-      await db.postcardPhoto.deleteMany({ where: { blobKey: { in: [...blob.putKeys] } } }); // tidy the throwaway data
+      await db.postcardPhoto.deleteMany({ where: { blobKey: { in: [...blob.putKeys] } } }); // tidy in case it fails
     }
+  });
+
+  it("a refused postcard (too many cards today) leaves no photo behind", async () => {
+    const [from, to] = [await person("From6"), await person("To6")];
+    await together(from, to);
+    // Hand-worked: the limit is 80 a day, so a counter already at 80 refuses the next one.
+    const key = `postcard:${from.id}`;
+    await db.rateLimit.create({ data: { key, count: 80, resetAt: new Date(Date.now() + DAY) } });
+    try {
+      const { went, cards } = await sendCard(from, [to], jpeg(35));
+      expect(went).toContain("/postcards/new");
+      expect(decodeURIComponent(went)).toContain("a lot of postcards");
+      expect(cards).toHaveLength(0);
+      expect(blob.files.size).toBe(0);
+      expect(blob.putKeys).toHaveLength(0);
+      expect(await leftovers()).toEqual(CLEAN);
+    } finally {
+      await db.rateLimit.deleteMany({ where: { key } });
+      await db.postcardPhoto.deleteMany({ where: { blobKey: { in: [...blob.putKeys] } } });
+    }
+  });
+
+  it("if making the cards fails after the photo was stored, the photo is removed (row and file)", async () => {
+    const [from, to] = [await person("From7"), await person("To7")];
+    await together(from, to);
+    // Only the one that makes the cards (the list form) fails; every other use of the database is untouched.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const real = (db.$transaction as any).bind(db);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const spy = vi.spyOn(db, "$transaction").mockImplementation(((arg: unknown, ...rest: unknown[]) => (Array.isArray(arg) ? Promise.reject(new Error("database hiccup")) : real(arg, ...rest))) as any);
+    let threw = false;
+    try {
+      await sendCard(from, [to], jpeg(36));
+    } catch (err) {
+      threw = String((err as Error).message).includes("database hiccup");
+    } finally {
+      spy.mockRestore();
+    }
+    expect(threw).toBe(true);
+    expect(blob.putKeys).toHaveLength(1); // it was stored...
+    expect(blob.files.size).toBe(0); // ...and removed again
+    expect(await db.postcardPhoto.count({ where: { blobKey: { in: [...blob.putKeys] } } })).toBe(0);
+    expect(await leftovers()).toEqual(CLEAN);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+describe("daily clean-up of unsent bill photos", () => {
+  it("removes bill photos with no expense that are over a day old (row and file), keeps newer and attached ones", async () => {
+    const w = await world("cleanup-unsent");
+    const add = async (createdAt: Date, expenseId: string, tag: number) => {
+      const s = await storePhoto("receipt", jpeg(tag), "image/jpeg");
+      const r = await db.receipt.create({ data: { groupId: w.id, expenseId, data: s.data, blobKey: s.blobKey, type: "image/jpeg", createdAt }, select: { id: true, blobKey: true } });
+      return r;
+    };
+    const old = await add(new Date(Date.now() - 25 * HOUR), "", 50); // 25 hours, never saved: goes
+    const fresh = await add(new Date(Date.now() - 23 * HOUR), "", 51); // 23 hours: stays
+    const attached = await add(new Date(Date.now() - 5 * DAY), "some-expense", 52); // old but on an expense: stays
+
+    expect(await cleanUnsentReceipts(new Date())).toBe(1);
+    await flushPhotoDeletes();
+
+    expect(await db.receipt.count({ where: { id: old.id } })).toBe(0);
+    expect(blob.files.has(old.blobKey)).toBe(false);
+    expect(await db.receipt.count({ where: { id: { in: [fresh.id, attached.id] } } })).toBe(2);
+    expect(blob.files.has(fresh.blobKey)).toBe(true);
+    expect(blob.files.has(attached.blobKey)).toBe(true);
+    expect(await leftovers()).toEqual(CLEAN);
+    // Run again: nothing more to do.
+    expect(await cleanUnsentReceipts(new Date())).toBe(0);
+  });
+
+  it("with storage down the row goes and the file's key waits on the list until a later try works", async () => {
+    const w = await world("cleanup-unsent-down");
+    const s = await storePhoto("receipt", jpeg(53), "image/jpeg");
+    await db.receipt.create({ data: { groupId: w.id, expenseId: "", data: s.data, blobKey: s.blobKey, type: "image/jpeg", createdAt: ago(2) } });
+    blob.delDown = true;
+    expect(await cleanUnsentReceipts(new Date())).toBe(1);
+    await flushPhotoDeletes();
+    expect(blob.files.has(s.blobKey)).toBe(true);
+    expect(await db.blobTrash.count({ where: { key: s.blobKey } })).toBe(1);
+
+    blob.delDown = false;
+    await flushPhotoDeletes(50, new Date(Date.now() + 3 * HOUR));
+    expect(blob.files.has(s.blobKey)).toBe(false);
+    expect(await leftovers()).toEqual(CLEAN);
   });
 });
 

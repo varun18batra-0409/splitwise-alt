@@ -178,18 +178,32 @@ describe("one address", () => {
     expect(await code(to)).toBe(true);
   });
 
-  // NOT ENFORCED AS INTENDED (reported, rule left as it is): an email refused because this address already had its 10
-  // still uses up one of the app-wide places, because the address check is the last of the three. So repeated invites
-  // to one address (an IP may make 40 invites an hour) can use up the day's 95 without sending anything, and lock
-  // sign-in codes out for everyone. Marked `fails`: when the order is fixed this will start passing and vitest will
-  // say so; then change `it.fails` to `it`.
-  it.fails("an email refused for the address limit should not use up the app-wide places", async () => {
+  // The address check comes before the app-wide places, so an email refused for the address limit uses none of them.
+  it("an email refused for the address limit does not use up the app-wide places", async () => {
     const to = addr("burn");
     for (let i = 0; i < 10; i++) await invite(to);
     for (let i = 0; i < 5; i++) expect(await invite(to)).toBe(false);
     expect(sent()).toHaveLength(10);
-    expect(await used("mail:all")).toBe(10); // actually 15
-    expect(await used("mail:other")).toBe(10); // actually 15
+    expect(await used("mail:all")).toBe(10);
+    expect(await used("mail:other")).toBe(10);
+  });
+
+  it("20 invites to one address use only 10 of the day's places, and sign-in codes still go through", async () => {
+    const to = addr("flood");
+    let accepted = 0;
+    for (let i = 0; i < 20; i++) if (await invite(to)) accepted++;
+    expect(accepted).toBe(10);
+    expect(sent()).toHaveLength(10);
+    expect(await used("mail:all")).toBe(10); // hand-worked: 10 sent, 10 refused for free
+    expect(await used("mail:other")).toBe(10);
+    // All 30 reserved places for sign-in codes are still whole.
+    for (let i = 0; i < 30; i++) expect(await code(addr("code")), `code ${i + 1}`).toBe(true);
+    expect(await used("mail:all")).toBe(40);
+    // A refused unsubscribed invite uses nothing either.
+    const quiet = addr("quiet-flood");
+    await db.emailOptOut.create({ data: { email: quiet.toLowerCase() } });
+    for (let i = 0; i < 20; i++) expect(await invite(quiet)).toBe(true);
+    expect(await used("mail:all")).toBe(40);
   });
 });
 
