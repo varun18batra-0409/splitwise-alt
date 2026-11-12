@@ -135,13 +135,14 @@ test("delete a group: it's under Recently deleted on Your groups (open after the
   await settled(page);
   await page.getByRole("button", { name: "Delete group" }).click();
   await page.waitForURL(/\/groups\?deleted=group/);
-  expect(new URL(page.url()).hash).toBe("#deleted");
+  // Right after a delete the block comes first on the page (above the open groups), so it's seen without scrolling.
+  await expect(page.locator("[data-recently-deleted]")).toBeInViewport();
   // Right after deleting it opens on its own; on a later visit it's a closed button.
   await expect(page.getByText("Hide recently deleted")).toBeVisible();
   // Back (or swipe back) never lands on a "not available" page: a deleted group's screens go to Your groups, with the block open.
   await page.goto(g.path);
   await page.waitForURL(/\/groups\?deleted=gone/);
-  expect(new URL(page.url()).hash).toBe("#deleted");
+  await expect(page.locator("[data-recently-deleted]")).toBeInViewport();
   await expect(page.getByText("That group was deleted.", { exact: false })).toBeVisible();
   await expect(page.getByText("Hide recently deleted")).toBeVisible();
   await page.goBack();

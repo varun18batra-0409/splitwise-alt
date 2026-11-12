@@ -854,7 +854,7 @@ export async function deleteGroup(formData: FormData) {
     await logEvent(tx, { groupId: group.id, actorId: myId, kind: "group_deleted", text: "deleted the group (it can be restored for 30 days)" });
   });
   // Replaces the screen in the phone's history, so Back doesn't land on the deleted group.
-  redirect("/groups?deleted=group#deleted", RedirectType.replace);
+  redirect("/groups?deleted=group", RedirectType.replace);
 }
 
 export async function restoreGroup(formData: FormData) {

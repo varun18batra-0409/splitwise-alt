@@ -10,7 +10,7 @@ import { groupTint, tintStyle } from "@/lib/tint";
 export default async function GroupLayout({ children, params }: { children: React.ReactNode; params: Promise<{ id: string }> }) {
   const { id } = await params;
   const g = await db.group.findUnique({ where: { id }, select: { id: true, deletedAt: true, name: true, type: true, cover: true, coverAt: true, tripPlace: true } });
-  if (g?.deletedAt) redirect("/groups?deleted=gone#deleted");
+  if (g?.deletedAt) redirect("/groups?deleted=gone");
   const tint = g ? groupTint(g) : null;
   if (!tint) return children;
   return (

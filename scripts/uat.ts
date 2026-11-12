@@ -1505,8 +1505,9 @@ async function main() {
     await go(V, `${g3}/settings`);
     await V.getByRole("button", { name: "Delete group" }).click();
     await V.waitForURL(/\/groups\?deleted=group/);
-    assert(new URL(V.url()).hash === "#deleted", "the delete redirect has no #deleted anchor");
-    await V.getByText("Group deleted. You can restore it below for 30 days.").waitFor();
+    await V.getByText("Group deleted. You can restore it here for 30 days.").waitFor();
+    const box = await V.locator("[data-recently-deleted]").boundingBox();
+    assert(box && box.y < (V.viewportSize()?.height ?? 800), "Recently deleted isn't on the first screen after a delete");
     await V.getByText("Hide recently deleted").waitFor(); // opens on its own right after a delete
     assert((await V.locator("#deleted").count()) === 1, "no #deleted block on Your groups");
     // Home no longer carries it.
