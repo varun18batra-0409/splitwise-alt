@@ -6,7 +6,7 @@ import { payerIds, spentAmount } from "./payers";
 import { canRestoreGroup } from "./group-admin";
 import { leaverCut, membersAsOf, ownShareDetails, scopeBalances, scopeForLeaver, type LeaverCut } from "./left-view";
 import { leaverEvents, readableWhere, touchedAfter } from "./left-view-db";
-import { netBalancesDb, settleFactsDb } from "./balances-db";
+import { netBalancesDb, settleDataDb } from "./balances-db";
 import type { Prisma } from "@prisma/client";
 
 // Deleted expenses and payments stay in the database (and in history) but never count.
@@ -222,8 +222,9 @@ export async function loadGroupSettle(id: string, viewer?: string | null) {
       leaver: full.leaver,
     };
   }
-  const [balances, facts] = await Promise.all([netBalancesDb([id], { members: { [id]: group.members.map((m) => m.id) } }), settleFactsDb(id)]);
-  return { group, transfers: balances.get(id)!.transfers, ...facts, leaver: null as LeaverCut | null };
+  // The balances and the facts are read together, in one transaction, so they come from the same moment.
+  const { balances, facts } = await settleDataDb(id, group.members.map((m) => m.id));
+  return { group, transfers: balances.transfers, ...facts, leaver: null as LeaverCut | null };
 }
 
 // Home, Your groups and Settle across groups: the same entries as loadMyGroupsLean (balances, Smart Settle, leaver

@@ -14,6 +14,7 @@ import type { loadMyGroupsLight } from "../group-data";
 type Entry = Awaited<ReturnType<typeof loadMyGroupsLight>>[number];
 
 const HOUR = 3_600_000;
+const LATEST_POOL = 10; // rows read per Latest query; the page keeps five
 const WIDEN = 14 * HOUR; // the furthest any time zone is from UTC (Kiritimati is UTC+14, Baker Island UTC−12)
 
 // A month ("2026-11") as moments, widened by 14 hours each way. Anything that falls on that month in ANY time
@@ -71,16 +72,17 @@ export async function loadHomeRows(all: Entry[], opts: { tz: string; now: Date; 
   const wrappedIds = open.filter((g) => wrappedEnded(g, opts.today) !== null).map((g) => g.group.id);
 
   const [newest, spentOn, paid, monthRows, todayRows, cats] = await Promise.all([
-    // Latest, expenses: the five newest of those with no chosen day (by when they were added) and the five newest
-    // of those with one (by that day). The five newest overall are among these ten.
+    // Latest, expenses: the newest of those with no chosen day (by when they were added) and the newest of those
+    // with one (by that day). Ties are broken by when they were added, then by id, so the same rows come back every
+    // time. We take LATEST_POOL of each (more than the five shown) and the page picks the five, as it always has.
     openExpenses
-      ? db.expense.findMany({ where: { AND: [openExpenses, { deletedAt: null, spentAt: null }] }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 5, include: { shares: true } })
+      ? db.expense.findMany({ where: { AND: [openExpenses, { deletedAt: null, spentAt: null }] }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: LATEST_POOL, include: { shares: true } })
       : Promise.resolve([]),
     openExpenses
-      ? db.expense.findMany({ where: { AND: [openExpenses, { deletedAt: null, spentAt: { not: null } }] }, orderBy: [{ spentAt: "desc" }, { id: "desc" }], take: 5, include: { shares: true } })
+      ? db.expense.findMany({ where: { AND: [openExpenses, { deletedAt: null, spentAt: { not: null } }] }, orderBy: [{ spentAt: "desc" }, { createdAt: "desc" }, { id: "desc" }], take: LATEST_POOL, include: { shares: true } })
       : Promise.resolve([]),
-    // Latest, payments: the five newest.
-    openPayments ? db.payment.findMany({ where: { AND: [openPayments, { deletedAt: null }] }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 5 }) : Promise.resolve([]),
+    // Latest, payments: the newest few.
+    openPayments ? db.payment.findMany({ where: { AND: [openPayments, { deletedAt: null }] }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: LATEST_POOL }) : Promise.resolve([]),
     // Your month: every group you're in, closed ones too. Only your own share of each is read.
     allExpenses
       ? db.expense.findMany({
@@ -99,27 +101,27 @@ export async function loadHomeRows(all: Entry[], opts: { tz: string; now: Date; 
       : Promise.resolve([]),
   ]);
 
-  // Latest: the five newest changes overall, handed back per group (buildActivity turns them into rows).
-  const dateOf = (e: { spentAt: Date | null; createdAt: Date }) => (e.spentAt ?? e.createdAt).getTime();
-  const picks = [
-    ...[...newest, ...spentOn].map((e) => ({ at: dateOf(e), kind: "expense" as const, e })),
-    ...paid.map((p) => ({ at: p.createdAt.getTime(), kind: "payment" as const, p })),
-  ]
-    .sort((a, b) => b.at - a.at)
-    .slice(0, 5);
-  const recent = new Map<string, { expenses: typeof newest; payments: typeof paid }>();
+  // The rows, typed by their element (a branch that skips the read gives an empty list, which would otherwise read as never[]).
+  type ExpenseRow = (typeof newest)[number];
+  type PaymentRow = (typeof paid)[number];
+  type MonthRow = (typeof monthRows)[number];
+  type TodayRow = (typeof todayRows)[number];
+
+  // Latest: the candidates, handed back per group. The page runs buildActivity on them, sorts by date and keeps five,
+  // exactly as it did on each group's whole history. Within a group they are in the order loadMyGroupsLean had them
+  // (added newest first, then id), so a tie on the date is settled the same way.
+  const newestFirst = (a: { createdAt: Date; id: string }, b: { createdAt: Date; id: string }) => b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0);
+  const recent = new Map<string, { expenses: ExpenseRow[]; payments: PaymentRow[] }>();
   const slot = (gid: string) => recent.get(gid) ?? recent.set(gid, { expenses: [], payments: [] }).get(gid)!;
-  for (const k of picks) {
-    if (k.kind === "expense") slot(k.e.groupId).expenses.push(k.e);
-    else slot(k.p.groupId).payments.push(k.p);
-  }
+  for (const e of ([...newest, ...spentOn] as ExpenseRow[]).sort(newestFirst)) slot(e.groupId).expenses.push(e);
+  for (const p of ([...paid] as PaymentRow[]).sort(newestFirst)) slot(p.groupId).payments.push(p);
 
   // Your month, shaped for monthNumbers (which keeps only what dayKey puts in the month in the viewer's zone).
-  const byGroup = new Map<string, typeof monthRows>();
+  const byGroup = new Map<string, MonthRow[]>();
   for (const r of monthRows) (byGroup.get(r.groupId) ?? byGroup.set(r.groupId, []).get(r.groupId)!).push(r);
   const monthGroups = all.map((g) => ({ currency: g.group.currency, myId: g.myId, expenses: byGroup.get(g.group.id) ?? [] }));
 
-  const today = new Map<string, typeof todayRows>();
+  const today = new Map<string, TodayRow[]>();
   for (const r of todayRows) (today.get(r.groupId) ?? today.set(r.groupId, []).get(r.groupId)!).push(r);
 
   const categories = new Map<string, Map<string, number>>();

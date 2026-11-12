@@ -35,23 +35,23 @@ type SumRow = { g: string; m: string; v: bigint | number | null };
 
 const CHUNK = 100; // groups per round trip (SQLite limits how many ? marks one query may have)
 
-// `members` (optional): each group's member ids already in createdAt, id order; saves one query.
-export async function netBalancesDb(groupIds: string[], opts: { members?: Record<string, string[]> } = {}): Promise<Map<string, GroupBalances>> {
-  const ids = [...new Set(groupIds)];
-  const out = new Map<string, GroupBalances>();
-  for (let i = 0; i < ids.length; i += CHUNK) {
-    const part = await netChunk(ids.slice(i, i + CHUNK), opts.members);
-    for (const [k, v] of part) out.set(k, v);
-  }
-  return out;
-}
+// All the reads for a set of groups, built but not yet run. Prisma queries only start when awaited, so they can be
+// handed to one db.$transaction([...]) and answer from ONE snapshot: the sums and the several-payers rows can't
+// come from two different moments (a payment landing between them would otherwise be counted in one and not the other).
+type Query<T> = Prisma.PrismaPromise<T>;
+type MemberRow = { id: string; groupId: string };
+type ManyRow = Awaited<ReturnType<typeof manyQuery>>[number];
+const manyQuery = (ids: string[]) =>
+  db.expense.findMany({
+    where: { groupId: { in: ids }, deletedAt: null, payers: { not: "" } },
+    select: { groupId: true, paidById: true, amount: true, payers: true, kind: true, shares: { select: { memberId: true, amount: true } } },
+  });
 
-async function netChunk(ids: string[], given?: Record<string, string[]>): Promise<Map<string, GroupBalances>> {
+function readChunk(ids: string[], given?: Record<string, string[]>) {
   const list = Prisma.join(ids);
   const haveMembers = Boolean(given) && ids.every((id) => Array.isArray(given![id]));
-  const [memberRows, sums, many] = await Promise.all([
-    haveMembers ? Promise.resolve(null) : db.member.findMany({ where: { groupId: { in: ids } }, select: { id: true, groupId: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] }),
-    db.$queryRaw<SumRow[]>(Prisma.sql`
+  const members: Query<MemberRow[]> | null = haveMembers ? null : db.member.findMany({ where: { groupId: { in: ids } }, select: { id: true, groupId: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
+  const sums = db.$queryRaw<SumRow[]>(Prisma.sql`
       SELECT e."groupId" AS g, e."paidById" AS m, SUM(CASE WHEN e."kind" = 'refund' THEN -e."amount" ELSE e."amount" END) AS v
         FROM "Expense" e
        WHERE e."groupId" IN (${list}) AND e."deletedAt" IS NULL AND e."payers" = ''
@@ -71,13 +71,40 @@ async function netChunk(ids: string[], given?: Record<string, string[]>): Promis
         FROM "Payment" p
        WHERE p."groupId" IN (${list}) AND p."deletedAt" IS NULL
        GROUP BY p."groupId", p."toId"
-    `),
-    db.expense.findMany({
-      where: { groupId: { in: ids }, deletedAt: null, payers: { not: "" } },
-      select: { groupId: true, paidById: true, amount: true, payers: true, kind: true, shares: { select: { memberId: true, amount: true } } },
-    }),
-  ]);
+    `);
+  return { ids, given, members, sums, many: manyQuery(ids) };
+}
 
+// The balance reads for these groups (every chunk of 100), and how to turn what they return into the answer.
+// `given` (optional): each group's member ids already in createdAt, id order; saves one query.
+function balancePlan(groupIds: string[], given?: Record<string, string[]>) {
+  const ids = [...new Set(groupIds)];
+  const chunks: ReturnType<typeof readChunk>[] = [];
+  for (let i = 0; i < ids.length; i += CHUNK) chunks.push(readChunk(ids.slice(i, i + CHUNK), given));
+  const queries: Query<unknown>[] = chunks.flatMap((c) => (c.members ? [c.sums, c.many, c.members] : [c.sums, c.many]));
+  const finish = async (results: unknown[]): Promise<Map<string, GroupBalances>> => {
+    const out = new Map<string, GroupBalances>();
+    let k = 0;
+    for (const c of chunks) {
+      const sums = results[k++] as SumRow[];
+      const many = results[k++] as ManyRow[];
+      const memberRows = c.members ? (results[k++] as MemberRow[]) : null;
+      for (const [id, v] of await balancesFrom(c.ids, c.given, sums, many, memberRows)) out.set(id, v);
+    }
+    return out;
+  };
+  return { queries, finish };
+}
+
+// `members` (optional): each group's member ids already in createdAt, id order; saves one query.
+// All the reads run in one transaction, so every group's numbers come from the same moment.
+export async function netBalancesDb(groupIds: string[], opts: { members?: Record<string, string[]> } = {}): Promise<Map<string, GroupBalances>> {
+  const plan = balancePlan(groupIds, opts.members);
+  if (plan.queries.length === 0) return new Map();
+  return plan.finish(await db.$transaction(plan.queries));
+}
+
+async function balancesFrom(ids: string[], given: Record<string, string[]> | undefined, sums: SumRow[], many: ManyRow[], memberRows: MemberRow[] | null): Promise<Map<string, GroupBalances>> {
   const order = new Map<string, string[]>(ids.map((id) => [id, []]));
   if (memberRows) for (const m of memberRows) order.get(m.groupId)?.push(m.id);
   else for (const id of ids) order.set(id, given![id]);
@@ -130,24 +157,48 @@ async function netChunk(ids: string[], given?: Record<string, string[]>): Promis
 // What the group Settle page shows besides the plan: how many expenses and payments there are, how much has
 // been paid back, and how many separate "X owes Y" debts there would be without Smart Settle (the same number
 // pairwiseDebtCount gives on the full history). Debts are added per pair, so adding them in groups changes nothing.
-export async function settleFactsDb(groupId: string): Promise<{ expenseCount: number; paymentCount: number; paidSoFar: number; before: number }> {
-  const [simple, many, pays, expenseCount] = await Promise.all([
+export async function settleFactsDb(groupId: string): Promise<SettleFacts> {
+  const plan = factsPlan(groupId);
+  return plan.finish(await db.$transaction(plan.queries));
+}
+
+type SettleFacts = { expenseCount: number; paymentCount: number; paidSoFar: number; before: number };
+type SimpleRow = { c: string; d: string; v: bigint | number | null };
+type PaidRow = { fromId: string; toId: string; _sum: { amount: number | null }; _count: { _all: number } };
+// Several payers, or money back: split between the people on the other side, as pairwiseDebtCount does.
+const factsManyQuery = (groupId: string) =>
+  db.expense.findMany({
+    where: { groupId, deletedAt: null, OR: [{ payers: { not: "" } }, { kind: "refund" }] },
+    select: { paidById: true, amount: true, payers: true, kind: true, shares: { select: { memberId: true, amount: true } } },
+  });
+type FactsMany = Awaited<ReturnType<typeof factsManyQuery>>;
+
+// The four reads, in this order: simple rows, several-payer/refund rows, payments by pair, expense count.
+function factsPlan(groupId: string) {
+  const queries: Query<unknown>[] = [
     // One payer, not money back: each sharer owes the payer their share.
-    db.$queryRaw<{ c: string; d: string; v: bigint | number | null }[]>(Prisma.sql`
+    db.$queryRaw<SimpleRow[]>(Prisma.sql`
       SELECT e."paidById" AS c, s."memberId" AS d, SUM(s."amount") AS v
         FROM "ExpenseShare" s JOIN "Expense" e ON e."id" = s."expenseId"
        WHERE e."groupId" = ${groupId} AND e."deletedAt" IS NULL AND e."payers" = '' AND e."kind" <> 'refund'
        GROUP BY e."paidById", s."memberId"
     `),
-    // Several payers, or money back: split between the people on the other side, as pairwiseDebtCount does.
-    db.expense.findMany({
-      where: { groupId, deletedAt: null, OR: [{ payers: { not: "" } }, { kind: "refund" }] },
-      select: { paidById: true, amount: true, payers: true, kind: true, shares: { select: { memberId: true, amount: true } } },
-    }),
+    factsManyQuery(groupId),
     db.payment.groupBy({ by: ["fromId", "toId"], where: { groupId, deletedAt: null }, _sum: { amount: true }, _count: { _all: true } }),
     db.expense.count({ where: { groupId, deletedAt: null } }),
-  ]);
+  ];
+  return { queries, finish: (r: unknown[]) => factsFrom(r[0] as SimpleRow[], r[1] as FactsMany, r[2] as PaidRow[], r[3] as number) };
+}
 
+// What the group Settle page needs, read together: the balances and the facts from one snapshot.
+export async function settleDataDb(groupId: string, memberIds: string[]): Promise<{ balances: GroupBalances; facts: SettleFacts }> {
+  const bal = balancePlan([groupId], { [groupId]: memberIds });
+  const facts = factsPlan(groupId);
+  const results = await db.$transaction([...bal.queries, ...facts.queries]);
+  return { balances: (await bal.finish(results.slice(0, bal.queries.length))).get(groupId)!, facts: facts.finish(results.slice(bal.queries.length)) };
+}
+
+function factsFrom(simple: SimpleRow[], many: FactsMany, pays: PaidRow[], expenseCount: number): SettleFacts {
   const pair = new Map<string, number>(); // key "a|b" with a < b; positive = a owes b
   const add = (debtor: string, creditor: string, amount: number) => {
     if (debtor === creditor) return;

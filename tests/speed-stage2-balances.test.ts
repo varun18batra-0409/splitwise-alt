@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { eraseGroups } from "@/lib/purge";
@@ -235,14 +235,8 @@ describe("netBalancesDb: a random 400-expense trip", () => {
       const page = (await loadGroupSettle(g.gid, g.ids[0]))!;
       expect(page.transfers).toEqual(full.transfers);
       expect(page.before).toBe(facts.before);
-      // The leaver (P6) sees their own line and their own payments only, as before.
-      const leaver = (await loadGroupSettle(g.gid, g.ids[6]))!;
-      const fullLeaver = (await loadGroup(g.gid, { viewer: g.ids[6], events: false }))!;
-      expect(leaver.transfers).toEqual(fullLeaver.transfers);
-      expect(leaver.expenseCount).toBe(fullLeaver.expenses.length);
-      expect(leaver.paymentCount).toBe(fullLeaver.payments.length);
-      expect(leaver.before).toBe(pairwiseDebtCount(fullLeaver.expenses, fullLeaver.payments));
-      expect(leaver.leaver).toEqual(fullLeaver.leaver);
+      // (What a leaver sees on Settle is checked against hand-worked numbers, in "someone who left" below: that path
+      // is loadGroup itself, so comparing it with loadGroup would prove nothing.)
     });
   }
 });
@@ -273,25 +267,37 @@ describe("the page and the settle actions agree on the plan", () => {
 describe("someone who left", () => {
   it("D sees only their own line and only the payments they are in; later spending without them stays hidden", async () => {
     const t = await handTrip({ extra: true });
-    const full = (await loadGroup(t.gid, { viewer: t.D, events: false }))!;
     const page = (await loadGroupSettle(t.gid, t.D))!;
-    expect(page.leaver).not.toBeNull();
-    expect(page.leaver).toEqual(full.leaver);
+    // By hand, from the trip's notes above: D left on 7 Nov 10:00, so E7 (8 Nov, without D) is hidden and the group's
+    // balances are A +41966, B +1017, C -25833, D -17150; D's view keeps only D's own line.
+    expect(page.leaver).toEqual({ leftAt: d(7), removed: false });
     expect(planNamed(t.nameOf, page.transfers)).toEqual([
       { from: "D", to: "A", amount: 16133 },
       { from: "D", to: "B", amount: 1017 },
     ]);
-    expect(page.transfers).toEqual(full.transfers);
-    // Five expenses before they left (the deleted one doesn't count); the one after, without them, is not theirs to see.
+    // Five expenses before they left (E1, E2, E3, E5, E6; the deleted E4 doesn't count); E7, after, without them, is not theirs to see.
     expect(page.expenseCount).toBe(5);
-    expect(page.expenseCount).toBe(full.expenses.length);
+    // P1 (20000) and P2 (5000) were recorded before D left; P3 is deleted: 2 payments, 25000.
     expect(page.paymentCount).toBe(2);
     expect(page.paidSoFar).toBe(25000);
-    expect(page.before).toBe(pairwiseDebtCount(full.expenses, full.payments));
-    // Someone still in sees all six, and the same plan as D's lines come from.
+    // Debts without Smart Settle, over E1, E2, E3, E5, E6, P1, P2 (positive = first owes second):
+    //   A-B: B owes A 33333 + 5150 = 38483, A owes B 7500 + 5000 = 12500, P1 takes off 20000 -> B owes A 5983.
+    //   A-C: C owes A 33333, A owes C 5000 + 5000 -> C owes A 23333.   A-D: D owes A 4500 + 5150 = 9650.
+    //   B-C: B owes C 5000, C owes B 7500 -> C owes B 2500.   B-D: D owes B 7500.
+    //   C-D: D owes C 5000, P2 pays it back -> 0, no debt.   So 5 separate debts.
+    expect(page.before).toBe(5);
+    // Someone still in sees all six expenses and the plan with E7: C>A 25833, D>A 16133, D>B 1017.
     const a = (await loadGroupSettle(t.gid, t.A))!;
     expect(a.leaver).toBeNull();
     expect(a.expenseCount).toBe(6);
+    expect(a.paymentCount).toBe(2);
+    expect(a.paidSoFar).toBe(25000);
+    expect(planNamed(t.nameOf, a.transfers)).toEqual([
+      { from: "C", to: "A", amount: 25833 },
+      { from: "D", to: "A", amount: 16133 },
+      { from: "D", to: "B", amount: 1017 },
+    ]);
+    // The independent full loader agrees for the person who is still in.
     expect(a.transfers).toEqual((await loadGroup(t.gid, { viewer: t.A, events: false }))!.transfers);
   });
 
@@ -583,5 +589,304 @@ describe("Home reads only the rows it shows, and shows what it always showed", (
     expect(rows.today.size).toBe(0);
     expect(rows.categories.size).toBe(0);
     expect(await loadMyGroupsLight({})).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// Latest when many things share a moment; "Your month" at the turn of a month or year; a closed group; a mix of groups.
+
+// Latest as the Home page builds it from the rows loadHomeRows hands back: buildActivity per open group, newest first, five.
+function latestIds(light: Awaited<ReturnType<typeof loadMyGroupsLight>>, rows: Awaited<ReturnType<typeof loadHomeRows>>) {
+  return light
+    .filter((g) => !g.group.closed)
+    .flatMap((g) => {
+      const r = rows.recent.get(g.group.id);
+      return r ? buildActivity(r.expenses, r.payments, g.myId) : [];
+    })
+    .sort((a, b) => b.date.getTime() - a.date.getTime())
+    .slice(0, 5);
+}
+const halves = (me: string, you: string, amount: number): [string, number][] => [[me, amount / 2], [you, amount / 2]];
+
+describe("Latest when several expenses share the same day", () => {
+  it("seven expenses spent at the same moment across two groups give the same five as the whole-history method", async () => {
+    const T = iso("2026-11-10T12:00:00Z");
+    const min = (n: number) => new Date(T.getTime() + n * 60_000);
+    // Group 1 was made first, group 2 later, so group 2 comes first on Home.
+    const g1 = await newGroup(["Me", "You"], { createdAt: iso("2026-10-01T10:00:00Z") });
+    const g2 = await newGroup(["Me", "You"], { createdAt: iso("2026-10-02T10:00:00Z") });
+    const add = (g: typeof g1, description: string, createdAt: Date, spent: boolean) =>
+      mkExpense(g.gid, description, 1000, g.ids[0], halves(g.ids[0], g.ids[1], 1000), createdAt, spent ? { spentAt: T } : {});
+    // Group 1: three with the chosen day T (added 1, 2, 3 minutes after T), one with no chosen day added exactly at T.
+    await add(g1, "g1 s1", min(1), true);
+    await add(g1, "g1 s2", min(2), true);
+    await add(g1, "g1 s3", min(3), true);
+    await add(g1, "g1 plain", T, false);
+    // Group 2: three with the chosen day T.
+    await add(g2, "g2 s1", min(1), true);
+    await add(g2, "g2 s2", min(2), true);
+    await add(g2, "g2 s3", min(3), true);
+    const memberships = { [g1.gid]: g1.ids[0], [g2.gid]: g2.ids[0] };
+    const tz = "Asia/Kolkata";
+    const today = todayKey(NOW, tz);
+
+    const old = await oldHome(memberships, tz, today);
+    const light = await loadMyGroupsLight(memberships);
+    const rows = await loadHomeRows(light, { tz, now: NOW, today });
+    const items = latestIds(light, rows);
+    expect(items.map((i) => i.id)).toEqual(old.recent);
+
+    // By hand: all seven are dated T. A tie keeps the order the groups are in (group 2 first) and, inside a group,
+    // the one added last first. So: g2 s3, g2 s2, g2 s1, then g1 s3, g1 s2. "g1 s1" and "g1 plain" are the two left out.
+    expect(items.map((i) => (i.kind === "expense" ? i.title : "payment"))).toEqual(["g2 s3", "g2 s2", "g2 s1", "g1 s3", "g1 s2"]);
+  });
+});
+
+// One open group, Me and You half and half; returns Home's "Your month" for a moment and zone.
+async function monthFor(rowsToAdd: { description: string; amount: number; at: string; more?: Partial<Prisma.ExpenseUncheckedCreateInput> }[], now: Date, tz: string, extra: Partial<Prisma.GroupUncheckedCreateInput> = {}) {
+  const g = await newGroup(["Me", "You"], extra);
+  for (const r of rowsToAdd) await mkExpense(g.gid, r.description, r.amount, g.ids[0], halves(g.ids[0], g.ids[1], r.amount), iso(r.at), r.more ?? {});
+  const memberships = { [g.gid]: g.ids[0] };
+  const today = todayKey(now, tz);
+  const light = await loadMyGroupsLight(memberships);
+  const rows = await loadHomeRows(light, { tz, now, today });
+  const month = monthNumbers(rows.monthGroups, (a) => a, "INR", now, tz);
+  const lean = await loadMyGroupsLean(memberships);
+  const wholeHistory = monthNumbers(lean.map((e) => ({ currency: e.group.currency, myId: e.myId, expenses: e.expenses })), (a) => a, "INR", now, tz);
+  expect(month).toEqual(wholeHistory); // never different from reading every row
+  return month;
+}
+
+describe("Your month at the turn of a month", () => {
+  const OCT = [
+    { description: "Oct 5", amount: 1000, at: "2026-10-05T12:00:00Z" }, // my half 500
+    { description: "Oct 31 noon", amount: 2000, at: "2026-10-31T12:00:00Z" }, // 1000
+    { description: "Oct money back", amount: 400, at: "2026-10-15T12:00:00Z", more: { kind: "refund" } }, // takes 200 off, not counted
+    { description: "Oct card game", amount: 600, at: "2026-10-20T12:00:00Z", more: { kind: "pot" } }, // never spending
+    { description: "Oct deleted", amount: 800, at: "2026-10-25T12:00:00Z", more: { deletedAt: iso("2026-10-26T12:00:00Z") } },
+    { description: "Nov 1 noon", amount: 4000, at: "2026-11-01T12:00:00Z" }, // this month's, my half 2000
+  ];
+  it("on the 3rd Home still looks back at the month that just ended: October, 2 expenses, my share 500 + 1000 - 200 = 1300", async () => {
+    const m = (await monthFor(OCT, iso("2026-11-03T08:00:00Z"), "Asia/Kolkata"))!; // 13:30 on 3 Nov in Kolkata
+    expect(m.month).toBe("2026-10");
+    expect(m.name).toBe("October");
+    expect(m.wrapped).toBe(true);
+    expect(m.count).toBe(2);
+    expect(m.share).toBe(1300);
+  });
+  it("on the 4th it is this month: November, 1 expense, my share 2000", async () => {
+    const m = (await monthFor(OCT, iso("2026-11-04T08:00:00Z"), "Asia/Kolkata"))!;
+    expect(m.month).toBe("2026-11");
+    expect(m.wrapped).toBe(false);
+    expect(m.count).toBe(1);
+    expect(m.share).toBe(2000);
+  });
+  it("on the 1st (3rd in Kiritimati, where it is already tomorrow) it still looks back", async () => {
+    // 2026-11-02T10:00Z is 3 Nov 00:00 in Kiritimati (+14), 2 Nov in Kolkata: both still within the first three days.
+    for (const tz of ["Pacific/Kiritimati", "Asia/Kolkata"]) {
+      const m = (await monthFor(OCT, iso("2026-11-02T10:00:00Z"), tz))!;
+      expect(m.month).toBe("2026-10");
+      expect(m.share).toBe(1300);
+    }
+    // One moment later in Kiritimati it is the 4th, and the card switches to November.
+    const later = (await monthFor(OCT, iso("2026-11-03T10:00:00Z"), "Pacific/Kiritimati"))!;
+    expect(later.month).toBe("2026-11");
+  });
+});
+
+describe("Your month when December rolls into January", () => {
+  // NOW = 2027-01-02T10:00Z: the 2nd of January in Kolkata and Los Angeles, so Home looks back at December 2026.
+  const JAN = iso("2027-01-02T10:00:00Z");
+  const DEC = [
+    { description: "Nov 30", amount: 9000, at: "2026-11-30T09:00:00Z" }, // November everywhere (Kiritimati is already 30 Nov 23:00)
+    { description: "Dec 10", amount: 2000, at: "2026-12-10T12:00:00Z" }, // 1000 in December everywhere
+    { description: "Dec 31 18:00Z", amount: 3000, at: "2026-12-31T18:00:00Z" }, // 1500: still 31 Dec in Kolkata (23:30) and Los Angeles (10:00)
+    { description: "Jan 1 02:00Z", amount: 5000, at: "2027-01-01T02:00:00Z" }, // 2500: 1 Jan in Kolkata (07:30), but 31 Dec in Los Angeles (18:00)
+  ];
+  it("Kolkata: month 2026-12 named December, 2 expenses, my share 1000 + 1500 = 2500", async () => {
+    const m = (await monthFor(DEC, JAN, "Asia/Kolkata"))!;
+    expect(m.month).toBe("2026-12");
+    expect(m.name).toBe("December");
+    expect(m.wrapped).toBe(true);
+    expect(m.count).toBe(2);
+    expect(m.share).toBe(2500);
+  });
+  it("Los Angeles: 3 expenses, my share 1000 + 1500 + 2500 = 5000 (the 1 Jan 02:00Z one is still 31 Dec there)", async () => {
+    const m = (await monthFor(DEC, JAN, "America/Los_Angeles"))!;
+    expect(m.month).toBe("2026-12");
+    expect(m.count).toBe(3);
+    expect(m.share).toBe(5000);
+  });
+  it("the window for December reaches into the new year by 14 hours", () => {
+    expect(monthWindow("2026-12")).toEqual({ from: iso("2026-11-30T10:00:00Z"), to: iso("2027-01-01T14:00:00Z") });
+  });
+});
+
+describe("Your month counts a closed group too", () => {
+  it("an open group's 1000 and a closed group's 2000 in November: 2 expenses, my share 500 + 1000 = 1500, and the closed one is not in Latest", async () => {
+    const open = await newGroup(["Me", "You"]);
+    const closed = await newGroup(["Me", "You"], { closed: true, closedAt: iso("2026-11-11T10:00:00Z") });
+    await mkExpense(open.gid, "Open lunch", 1000, open.ids[0], halves(open.ids[0], open.ids[1], 1000), iso("2026-11-05T12:00:00Z"));
+    await mkExpense(closed.gid, "Closed dinner", 2000, closed.ids[0], halves(closed.ids[0], closed.ids[1], 2000), iso("2026-11-06T12:00:00Z"));
+    const memberships = { [open.gid]: open.ids[0], [closed.gid]: closed.ids[0] };
+    const tz = "Asia/Kolkata";
+    const today = todayKey(NOW, tz); // 13 Nov: the normal month, not a look back
+    const light = await loadMyGroupsLight(memberships);
+    expect(light.find((g) => g.group.id === closed.gid)!.group.closed).toBe(true);
+    const rows = await loadHomeRows(light, { tz, now: NOW, today });
+    const m = monthNumbers(rows.monthGroups, (a) => a, "INR", NOW, tz)!;
+    expect(m.month).toBe("2026-11");
+    expect(m.count).toBe(2);
+    expect(m.share).toBe(1500);
+    // Same as the whole-history method, which has always counted closed groups here.
+    const lean = await loadMyGroupsLean(memberships);
+    expect(m).toEqual(monthNumbers(lean.map((e) => ({ currency: e.group.currency, myId: e.myId, expenses: e.expenses })), (a) => a, "INR", NOW, tz));
+    // Latest is for open groups only.
+    expect(rows.recent.has(closed.gid)).toBe(false);
+    expect(latestIds(light, rows).map((i) => (i.kind === "expense" ? i.title : "payment"))).toEqual(["Open lunch"]);
+  });
+});
+
+describe("loadMyGroupsLight with groups the viewer is in and groups the viewer left, in one call", () => {
+  it("each entry matches the whole-history loader, and the hand-worked numbers hold", async () => {
+    // X and Z: still in. Y and W: left on 1 Nov, so what the group does afterwards (without them) stays hidden.
+    const X = await newGroup(["Me", "You"]);
+    await mkExpense(X.gid, "X1", 1000, X.ids[0], halves(X.ids[0], X.ids[1], 1000), iso("2026-11-02T10:00:00Z"));
+    await mkExpense(X.gid, "X2", 400, X.ids[1], halves(X.ids[0], X.ids[1], 400), iso("2026-11-03T10:00:00Z"));
+
+    const Y = await newGroup(["Me", "You", "Third"]);
+    const [ym, yy, yt] = Y.ids;
+    await mkExpense(Y.gid, "Early", 400, yy, [[yy, 200], [ym, 200]], iso("2026-10-20T10:00:00Z"));
+    await mkExpense(Y.gid, "Includes me", 600, yy, [[yy, 300], [ym, 300]], iso("2026-11-10T10:00:00Z"));
+    await mkExpense(Y.gid, "Later without me", 800, yy, [[yy, 400], [yt, 400]], iso("2026-12-02T10:00:00Z"));
+    await db.member.update({ where: { id: ym }, data: { leftAt: iso("2026-11-01T00:00:00Z") } });
+
+    const Z = await newGroup(["Me", "You"]);
+    await mkExpense(Z.gid, "Z1", 600, Z.ids[0], halves(Z.ids[0], Z.ids[1], 600), iso("2026-11-04T10:00:00Z"));
+    await mkPayment(Z.gid, Z.ids[1], Z.ids[0], 200, iso("2026-11-05T10:00:00Z"));
+
+    const W = await newGroup(["Me", "You"]);
+    const [wm, wy] = W.ids;
+    await mkExpense(W.gid, "W early", 1000, wy, halves(wy, wm, 1000), iso("2026-10-28T10:00:00Z"));
+    await mkExpense(W.gid, "W after", 2000, wy, [[wy, 2000]], iso("2026-11-05T10:00:00Z"));
+    await db.member.update({ where: { id: wm }, data: { leftAt: iso("2026-11-01T00:00:00Z") } });
+
+    const memberships = { [X.gid]: X.ids[0], [Y.gid]: ym, [Z.gid]: Z.ids[0], [W.gid]: wm };
+    const light = await loadMyGroupsLight(memberships);
+    const lean = await loadMyGroupsLean(memberships);
+    expect(light).toHaveLength(4);
+    for (const l of light) {
+      const o = lean.find((e) => e.group.id === l.group.id)!;
+      expect(Object.entries(l.net)).toEqual(Object.entries(o.net));
+      expect(l.transfers).toEqual(o.transfers);
+      expect(l.myBalance).toBe(o.myBalance);
+      expect(l.spent).toBe(o.spent);
+      expect(l.people).toBe(o.people);
+      expect(l.leaver).toEqual(o.leaver);
+      expect(l.lastActivity).toEqual(o.lastActivity);
+      expect(l.expenseCount).toBe(o.expenses.length);
+      expect(l.paymentCount).toBe(o.payments.length);
+    }
+
+    // By hand (paise), for the viewer "Me" in each:
+    //   X: Me paid 1000 (own half 500) and You paid 400 (Me owes 200): +1000 - 500 - 200 = +300.   Spent 1400, 2 expenses.
+    //   Y: Me owes You 200 + 300 = 500 (the later 800 is You and Third): -500.   Left, so sees 2 expenses, spent 400 + 600 = 1000.
+    //   Z: Me paid 600 (own half 300) = +300, then You paid back 200: +100.   Spent 600, 1 expense, 1 payment.
+    //   W: Me owes You 500: -500 (the later 2000 is You alone).   Left, sees 1 expense, spent 1000.
+    const by = Object.fromEntries(light.map((l) => [l.group.id, l]));
+    expect([by[X.gid], by[Y.gid], by[Z.gid], by[W.gid]].map((l) => l.myBalance)).toEqual([300, -500, 100, -500]);
+    expect([by[X.gid], by[Y.gid], by[Z.gid], by[W.gid]].map((l) => l.spent)).toEqual([1400, 1000, 600, 1000]);
+    expect([by[X.gid], by[Y.gid], by[Z.gid], by[W.gid]].map((l) => l.expenseCount)).toEqual([2, 2, 1, 1]);
+    expect([by[X.gid], by[Y.gid], by[Z.gid], by[W.gid]].map((l) => l.paymentCount)).toEqual([0, 0, 1, 0]);
+    expect([by[X.gid], by[Y.gid], by[Z.gid], by[W.gid]].map((l) => l.leaver !== null)).toEqual([false, true, false, true]);
+    expect([by[X.gid], by[Y.gid], by[Z.gid], by[W.gid]].map((l) => l.readable !== null)).toEqual([false, true, false, true]);
+  });
+});
+
+// Watches db.$transaction without vi.spyOn (restoring a spy on the Prisma client has left $transaction missing
+// for later tests before): records each call's first argument and puts the exact original function back.
+function watchTx() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = db as any;
+  const original = client.$transaction;
+  const calls: unknown[] = [];
+  Object.defineProperty(client, "$transaction", {
+    configurable: true,
+    writable: true,
+    value: (arg: unknown, ...rest: unknown[]) => {
+      calls.push(arg);
+      return original.call(db, arg, ...rest);
+    },
+  });
+  return { calls, restore: () => Object.defineProperty(client, "$transaction", { configurable: true, writable: true, value: original }) };
+}
+
+describe("the balance reads run as one snapshot (one transaction)", () => {
+  it("netBalancesDb: all the reads for two groups go in a single db.$transaction array, and the numbers are the hand-worked ones", async () => {
+    const t = await handTrip();
+    const u = await handTrip();
+    const w = watchTx();
+    try {
+      const out = await netBalancesDb([t.gid, u.gid]);
+      expect(w.calls).toHaveLength(1);
+      const queries = w.calls[0] as unknown as unknown[];
+      expect(Array.isArray(queries)).toBe(true);
+      expect(queries).toHaveLength(3); // sums, several-payer expenses, members: one chunk for both groups
+      for (const g of [t, u]) expect(named(g.nameOf, out.get(g.gid)!.net)).toEqual({ A: 38966, B: 4017, C: -25833, D: -17150 });
+    } finally {
+      w.restore();
+    }
+  });
+
+  it("netBalancesDb with the members given needs 2 reads in the one transaction; with no groups it opens none", async () => {
+    const t = await handTrip();
+    const w = watchTx();
+    try {
+      await netBalancesDb([t.gid], { members: { [t.gid]: t.ids } });
+      expect(w.calls).toHaveLength(1);
+      expect(w.calls[0] as unknown as unknown[]).toHaveLength(2);
+      w.calls.length = 0;
+      expect((await netBalancesDb([])).size).toBe(0);
+      expect(w.calls).toHaveLength(0);
+    } finally {
+      w.restore();
+    }
+  });
+
+  it("settleFactsDb: its 4 reads are one transaction", async () => {
+    const t = await handTrip();
+    const w = watchTx();
+    try {
+      const facts = await settleFactsDb(t.gid);
+      expect(w.calls).toHaveLength(1);
+      expect(w.calls[0] as unknown as unknown[]).toHaveLength(4);
+      expect(facts).toEqual({ expenseCount: 5, paymentCount: 2, paidSoFar: 25000, before: 5 });
+    } finally {
+      w.restore();
+    }
+  });
+
+  it("loadGroupSettle: the balances and the facts (2 + 4 reads) are in the same single transaction", async () => {
+    const t = await handTrip();
+    const w = watchTx();
+    try {
+      const page = (await loadGroupSettle(t.gid, t.A))!;
+      expect(w.calls).toHaveLength(1);
+      expect(w.calls[0] as unknown as unknown[]).toHaveLength(6);
+      expect(planNamed(t.nameOf, page.transfers)).toEqual([
+        { from: "C", to: "A", amount: 25833 },
+        { from: "D", to: "A", amount: 13133 },
+        { from: "D", to: "B", amount: 4017 },
+      ]);
+      expect({ e: page.expenseCount, p: page.paymentCount, paid: page.paidSoFar, before: page.before }).toEqual({ e: 5, p: 2, paid: 25000, before: 5 });
+    } finally {
+      w.restore();
+    }
+  });
+
+  it("db.$transaction is still the real thing afterwards", async () => {
+    const t = await handTrip();
+    expect(typeof db.$transaction).toBe("function");
+    expect((await netBalancesDb([t.gid])).get(t.gid)!.fallback).toBe(false);
   });
 });
