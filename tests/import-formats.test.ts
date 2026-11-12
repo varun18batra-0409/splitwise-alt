@@ -227,6 +227,21 @@ describe("currency written as a symbol (LC-05)", () => {
     expect(q.ok && q.currency).toBe("AUD");
     expect(q.ok && q.rows.map((r) => r.cost)).toEqual([1000, 2000]);
   });
+  it("one stray SGD row doesn't turn many '$' rows into Singapore dollars: the file is USD and the SGD row is left out", () => {
+    const p = parseImport("Title,Amount,Currency,Paid by,For\nA,10,$,Kim,Lee\nB,20,$,Kim,Lee\nC,30,$,Kim,Lee\nD,40,SGD,Kim,Lee\n");
+    expect(p.ok).toBe(true);
+    if (!p.ok) return;
+    expect(p.currency).toBe("USD");
+    expect(p.rows.map((r) => r.cost)).toEqual([1000, 2000, 3000]); // $10, $20, $30 in cents
+    expect(p.skipped).toEqual([{ line: 5, reason: "in SGD" }]);
+  });
+  it("'¥' follows a yuan file when CNY is picked (and is yen otherwise)", () => {
+    const q = parseImport("Title,Amount,Currency,Paid by,For\nA,12.50,¥,Kim,Lee\n", { currency: "CNY" });
+    expect(q.ok && q.currency).toBe("CNY");
+    expect(q.ok && q.rows.map((r) => r.cost)).toEqual([1250]); // 12.50 yuan in fen
+    expect(currencyCell("¥").code).toBe("JPY");
+    expect(currencyCell("¥", "CNY").code).toBe("CNY");
+  });
   it("'$' in an INR file is US dollars, so those rows are left out as USD", () => {
     const p = parseImport("Title,Amount,Currency,Paid by,For\nA,10,INR,Kim,Lee\nB,20,INR,Kim,Lee\nC,30,$,Kim,Lee\n");
     expect(p.ok && p.skipped).toEqual([{ line: 4, reason: "in USD" }]);

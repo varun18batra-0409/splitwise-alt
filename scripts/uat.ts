@@ -3037,7 +3037,7 @@ async function main() {
     for (const n of ["Zoya", "Kabir", "Asha"]) await due.getByRole("listitem").filter({ hasText: n }).first().waitFor();
     await due.getByText("on Loopin").waitFor();
     const p = await V.locator("[data-collection-progress]").innerText();
-    assert(/0 of 3 paid/.test(p) && /₹0/.test(p) && /₹1,500/.test(p), `progress reads “${p.replace(/\s+/g, " ")}”`);
+    assert(/No one has said they've paid yet/.test(p) && /₹0/.test(p) && /₹1,500/.test(p), `progress reads “${p.replace(/\s+/g, " ")}”`);
   });
 
   // Notifications are written just after the page answers: give them a moment.
@@ -3068,7 +3068,7 @@ async function main() {
     const p = await page.locator("[data-collection-progress]").innerText();
     // UX-03: said-paid money is reported, not confirmed: "Confirmed ₹0" and "Reported, awaiting check ₹500" are separate lines.
     const rep = await page.locator("[data-collection-reported]").innerText();
-    assert(/1 of 3 paid/.test(p) && /Confirmed ₹0/.test(p) && /Reported, awaiting check ₹500/.test(rep), `progress reads “${p.replace(/\s+/g, " ")}” / “${rep}”`);
+    assert(/1 of 3 say they've paid/.test(p) && /Confirmed ₹0/.test(p) && /Reported, awaiting check ₹500/.test(rep), `progress reads “${p.replace(/\s+/g, " ")}” / “${rep}”`);
     await ctx.close();
   });
 
@@ -3083,7 +3083,7 @@ async function main() {
     await V.getByRole("region", { name: "Still to pay" }).getByRole("listitem").filter({ hasText: "Kabir" }).getByRole("button", { name: "Paid cash" }).click();
     await V.getByRole("region", { name: "Paid" }).getByText(/cash · checked by you/).waitFor();
     const p = await V.locator("[data-collection-progress]").innerText();
-    assert(/2 of 3 paid/.test(p) && /Confirmed ₹1,000/.test(p) && /₹1,500/.test(p) && (await V.locator("[data-collection-reported]").count()) === 0, `progress reads “${p.replace(/\s+/g, " ")}”`);
+    assert(/2 of 3 say they've paid/.test(p) && /Confirmed ₹1,000/.test(p) && /₹1,500/.test(p) && (await V.locator("[data-collection-reported]").count()) === 0, `progress reads “${p.replace(/\s+/g, " ")}”`);
   });
 
   await step(V, "Collect", "Varun reminds Asha inside Loopin (bell); a second reminder straight away is refused; Asha sees it in Alerts", async () => {

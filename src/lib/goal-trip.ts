@@ -38,7 +38,8 @@ export async function tripFromGoalOnce<T extends { id: string }>(goalId: string,
     if (s === "deleted") return { deleted: knownId };
     // Erased: release every record of the old trip so a new one can be made (and the person isn't bounced back forever).
     await db.notifyLog.deleteMany({ where: { OR: [{ key }, { key: { startsWith: madeKey } }] } });
-    await db.requestKey.deleteMany({ where: { key } });
+    // Only the old trip's own record: a tap arriving at the same moment that already claimed the key keeps its claim.
+    await db.requestKey.deleteMany({ where: { key, result: knownId } });
   }
   const claimed = await db.requestKey.create({ data: { key, result: "" } }).then(() => true, (e) => (isDuplicateKey(e) ? false : Promise.reject(e)));
   if (!claimed) return { busy: true };

@@ -46,7 +46,7 @@ const lower = (s: string | undefined) => (s ?? "").trim().toLowerCase();
 // "$" is read as the file's own currency when that is a dollar currency, otherwise as US dollars.
 const DOLLARS = ["USD", "AUD", "CAD", "SGD", "NZD", "HKD"];
 const CURRENCY_WORDS: Record<string, string> = {
-  "₹": "INR", RS: "INR", "RS.": "INR", "US$": "USD", "£": "GBP", "€": "EUR", "฿": "THB", "¥": "JPY",
+  "₹": "INR", RS: "INR", "RS.": "INR", "US$": "USD", "£": "GBP", "€": "EUR", "฿": "THB",
   "A$": "AUD", "S$": "SGD", "C$": "CAD", "HK$": "HKD", RM: "MYR", RP: "IDR",
 };
 export function currencyCell(raw: string | undefined, main = ""): { code: string; text: string } {
@@ -54,6 +54,8 @@ export function currencyCell(raw: string | undefined, main = ""): { code: string
   const t = text.toUpperCase().replace(/\s+/g, "");
   if (!t) return { code: "", text: "" };
   if (t === "$") return { code: DOLLARS.includes(main) ? main : "USD", text };
+  // "¥" is both yen and yuan: it follows the file's own currency when that is one of them, otherwise yen.
+  if (t === "¥" || t === "￥") return { code: main === "CNY" ? "CNY" : "JPY", text };
   if (CURRENCY_WORDS[t]) return { code: CURRENCY_WORDS[t], text };
   return /^[A-Z]{3}$/.test(t) ? { code: t, text } : { code: "", text };
 }
@@ -85,8 +87,10 @@ export function detectFormat(text: string): Detected {
       }
     }
     if (bare) {
-      const top = [...counts.entries()].sort((x, y) => y[1] - x[1])[0]?.[0] ?? "";
-      const d = DOLLARS.includes(top) ? top : "USD";
+      // "$" rows join a dollar currency written out in the file only when that currency has at least as many rows as the
+      // bare "$" rows (an AUD file with a few "$"); one stray "SGD" row never turns fifty "$" rows into Singapore dollars.
+      const top = [...counts.entries()].sort((x, y) => y[1] - x[1])[0];
+      const d = top && DOLLARS.includes(top[0]) && top[1] >= bare ? top[0] : "USD";
       counts.set(d, (counts.get(d) ?? 0) + bare);
     }
     currency = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "INR";

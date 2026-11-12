@@ -33,3 +33,11 @@ describe("walk-throughs don't look for retired wording", () => {
     expect(uat).toContain(`${lead} to`);
   });
 });
+
+describe("collection counts in the walk-through", () => {
+  it("scripts/uat.ts never expects the old \"N of M paid\" wording", async () => {
+    const { readFileSync } = await import("node:fs");
+    const uat = readFileSync(new URL("../scripts/uat.ts", import.meta.url), "utf8");
+    expect(uat).not.toMatch(/\d of \d paid\b/);
+  });
+});
