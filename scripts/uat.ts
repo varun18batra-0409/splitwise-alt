@@ -718,7 +718,7 @@ async function main() {
   // ===== 3. Editing, clashes, delete, undo =====
   const editPath = async (page: Page, name: string) => {
     await go(page, `${g}?tab=activity&q=${encodeURIComponent(name)}`);
-    await page.locator("details summary").filter({ hasText: name }).first().click();
+    await page.locator('li[id^="item-"] > details > summary').filter({ hasText: name }).first().click(); // not the filter chip, which shows the search word too
     const href = await page.getByRole("link", { name: "Edit or delete" }).first().getAttribute("href");
     assert(href, `no edit link for ${name}`);
     return href;
@@ -887,7 +887,7 @@ async function main() {
   // ("I've paid" = a claim that counts after Confirm received, or direct "I've paid" / "They've paid me" / "Mark paid" where
   // the other person can't confirm) and a "Paid a different amount?" link. There is no amount box on the row any more.
   // F1: the quiet closing actions and "Paid a different amount?" sit under a "More options" link: open the one inside `scope` first.
-  const openMore = async (scope: ReturnType<Page["locator"]>) => {
+  const openSettleMore = async (scope: ReturnType<Page["locator"]>) => {
     const d = scope.locator("details[data-more-options]").first();
     if ((await d.count()) && !(await d.evaluate((el) => (el as HTMLDetailsElement).open))) await d.locator("summary").click();
   };
@@ -895,9 +895,9 @@ async function main() {
   // Record row i's payment so it counts straight away, in full or for another amount: through "Paid a different amount?" (Record a payment).
   const rowRecord = async (page: Page, i: number, o: { amount?: string; dbl?: boolean } = {}) => {
     const card = settleCards(page).nth(i);
+    await openSettleMore(card); // the link sits under “More options”, closed until opened
     const other = card.getByRole("link", { name: "Paid a different amount?" });
     assert(await other.count(), "a Settle up row has no “Paid a different amount?” link");
-    await openMore(card);
     assert((await card.locator('input[name="amount"]:not([type="hidden"])').count()) === 0, "a Settle up row still has an amount box");
     await other.click();
     await page.waitForURL(/\/pay\?/);
@@ -942,7 +942,7 @@ async function main() {
     const markAll = V.locator("[data-settle-actions]").getByRole("button", { name: /Mark all/ });
     assert((await V.getByRole("button", { name: /^Mark all paid \(\d+\)$/ }).count()) === 0, "the old “Mark all paid (N)” wording is back");
     assert((await V.locator("[data-settle-actions] details[data-more-options]").count()) === 1, "Settle up has no “More options” under the payments");
-    await openMore(V.locator("[data-settle-actions]"));
+    await openSettleMore(V.locator("[data-settle-actions]"));
     const mineCount = await settleCards(V).filter({ hasText: /^(?:[A-Z] )?You pay / }).count();
     const m = await markAll.count();
     if (m) assert(new RegExp(`^Mark all ${n - mineCount} paid$`).test(((await markAll.first().innerText()) ?? "").trim()), `Mark all says ${await markAll.first().innerText()} but ${n - mineCount} payments are other people's`);
@@ -1042,7 +1042,7 @@ async function main() {
     await V.getByRole("button", { name: "Record payment" }).click();
     await V.locator("[data-over-warning]").waitFor();
     const t = (await V.locator("[data-over-warning]").innerText()).replace(/\s+/g, " ");
-    assert(/This is ₹[\d,.]+ more than what's owed\. Record it anyway\?/.test(t), `warning says: ${t}`);
+    assert(/\w+ is owed ₹[\d,.]+\. Recording ₹[\d,.]+ means \w+ will owe \w+ ₹[\d,.]+ back\. Record it anyway\?/.test(t), `warning says: ${t}`);
     assert((await db.payment.count({ where: { groupId: g.split("/").pop()!, deletedAt: null } })) === before, "a payment was saved before confirming");
     // Cancel (first, and the safe default) saves nothing and takes the warning away.
     await V.locator("[data-over-cancel]").click();
@@ -1067,7 +1067,7 @@ async function main() {
   });
   await step(V, "Settle", "Settle everything & close, then reopen", async () => {
     await go(V, `${g}/settle`);
-    await openMore(V.locator("[data-settle-actions]"));
+    await openSettleMore(V.locator("[data-settle-actions]"));
     await V.getByRole("button", { name: /Settle everything & close|Close group/ }).click();
     await V.waitForURL(/closed=1/);
     await V.getByText("Closed groups").first().waitFor();
@@ -1731,7 +1731,7 @@ async function main() {
   await step(V, "Edit", "Change who paid on an expense: balances move by exactly that amount", async () => {
     const before = await shownBalances(V, g);
     await go(V, `${g}?tab=activity&q=Water`);
-    await V.locator("details summary").filter({ hasText: "Water" }).first().click();
+    await V.locator('li[id^="item-"] > details > summary').filter({ hasText: "Water" }).first().click();
     const href = await V.getByRole("link", { name: "Edit or delete" }).first().getAttribute("href");
     await go(V, href!);
     await V.getByRole("button", { name: /^(✓ )?Asha$/ }).first().click();
@@ -2217,6 +2217,19 @@ async function main() {
     await V.getByText(/₹95,000(\.00)? to go/).waitFor();
     assert(await V.getByText("You’ve set aside").count(), "no “You’ve set aside” card");
   });
+  // Done while Asha is still in the flat: once she has moved out, deleting a charge she shares is refused on purpose (a leaver keeps the balance she left with).
+  await step(V, "Flat", "Delete the automatic Rent from its edit screen: the daily job doesn't add it back", async () => {
+    const rent = await db.expense.findFirst({ where: { groupId: homeId(), description: "Rent", deletedAt: null } });
+    assert(rent, "no Rent expense");
+    await go(V, `${gh}/expenses/${rent.id}/edit`);
+    await V.getByRole("button", { name: "Delete expense" }).click();
+    await V.waitForURL(/tab=activity/);
+    assert(!/[?&]error=/.test(V.url()), `the delete was refused: ${decodeURIComponent(V.url().split("error=")[1] ?? "")}`);
+    if (noCronKey) await (await import("../src/lib/home/bills-db")).runBillsForGroup(homeId());
+    else await fetch(`${base}/api/cron/daily`, { headers: cronAuth() });
+    const live = await db.expense.count({ where: { groupId: homeId(), description: "Rent", deletedAt: null } });
+    assert(live === 0, `Rent came back (${live})`);
+  });
   await step(V, "Flat", "Asha moves out: final payment shown, she's marked moved out, balances still add up to zero", async () => {
     await go(V, `${gh}/people`);
     await V.locator("details summary").filter({ hasText: "Asha" }).first().click();
@@ -2275,17 +2288,6 @@ async function main() {
     assert(await V.locator("details summary").filter({ hasText: "Zoe" }).count(), "Zoe isn't listed on People");
     const zoe = await db.member.findFirst({ where: { groupId: homeId(), name: { startsWith: "Zoe" }, leftAt: null } });
     assert(zoe?.accountId, "Zoe's member row isn't linked to her account");
-  });
-  await step(V, "Flat", "Delete the automatic Rent from its edit screen: the daily job doesn't add it back", async () => {
-    const rent = await db.expense.findFirst({ where: { groupId: homeId(), description: "Rent", deletedAt: null } });
-    assert(rent, "no Rent expense");
-    await go(V, `${gh}/expenses/${rent.id}/edit`);
-    await V.getByRole("button", { name: "Delete expense" }).click();
-    await V.waitForURL(/tab=activity/);
-    if (noCronKey) await (await import("../src/lib/home/bills-db")).runBillsForGroup(homeId());
-    else await fetch(`${base}/api/cron/daily`, { headers: cronAuth() });
-    const live = await db.expense.count({ where: { groupId: homeId(), description: "Rent", deletedAt: null } });
-    assert(live === 0, `Rent came back (${live})`);
   });
   await step(V, "Flat", "Pause a bill and start it again from its page", async () => {
     const bill = await db.bill.findFirst({ where: { groupId: homeId(), name: "Electricity" } });
@@ -2478,7 +2480,7 @@ async function main() {
     const ev = await db.groupEvent.findFirst({ where: { groupId: g.split("/").pop()!, kind: "expense_edited" }, orderBy: { createdAt: "desc" } });
     assert(ev && /Name: Taxi → Airport taxi/.test(ev.details ?? ""), `history says: ${ev?.text} ${ev?.details}`);
     await go(V, `${g}?tab=activity&q=${encodeURIComponent("Airport taxi")}`);
-    await V.locator("details summary").filter({ hasText: "Airport taxi" }).first().waitFor();
+    await V.locator('li[id^="item-"] > details > summary').filter({ hasText: "Airport taxi" }).first().waitFor();
   });
   await step(V, "Flat", "Skip a bill this time: next month's Rent is marked skipped and won't be added", async () => {
     const rent = await db.bill.findFirst({ where: { groupId: homeId(), name: "Rent", deletedAt: null } });
@@ -2651,7 +2653,7 @@ async function main() {
     const { ctx, page } = await person(browser);
     await page.goto(link.replace(/^https?:\/\/[^/]+/, base), { waitUntil: "networkidle" });
     await page.getByText(/You were added as/).waitFor();
-    await page.getByRole("link", { name: /sign up to join/i }).click();
+    await page.getByRole("link", { name: /^Continue with email$/i }).click();
     await signup(page, "Rohit", email("rohit"), true);
     await page.getByRole("button", { name: "Continue as Rohit" }).click();
     await page.waitForURL(new RegExp(`/groups/${gid}`));
@@ -2993,7 +2995,7 @@ async function main() {
     const vacc = await db.account.findUniqueOrThrow({ where: { email: email("varun") } });
     const trip = await db.group.findFirstOrThrow({ where: { name: "Manali trip", members: { some: { accountId: vacc.id } } }, orderBy: { createdAt: "desc" } });
     await go(V, `/groups/${trip.id}/settle`);
-    await openMore(V.locator("[data-settle-actions]"));
+    await openSettleMore(V.locator("[data-settle-actions]"));
     await V.getByRole("button", { name: /Settle everything & close|Close group/ }).click();
     await V.waitForURL(/closed=1/);
     await V.getByRole("link", { name: "See the trip report" }).click();
@@ -3369,12 +3371,11 @@ async function main() {
     await V.getByRole("button", { name: "Share it" }).waitFor();
   });
 
-  await step(V, "Fun", "Titles: everyone in the group gets a fun title, shown as cards at the top of Balances", async () => {
+  await step(V, "Fun", "Titles: everyone in the group gets a fun title, shown as a small chip under their name on Balances", async () => {
     await go(V, `${g}?tab=balances`);
-    const cards = await V.locator("[data-title-card]").count();
-    const people = await V.locator("[data-title]").count();
-    assert(cards >= 2, `only ${cards} title cards`);
-    assert(cards === people, `${cards} cards but ${people} people with a title`);
+    const chips = await V.locator("[data-title]").count();
+    assert(chips >= 2, `only ${chips} title chips`);
+    assert((await V.locator("[data-title-card]").count()) === 0, "the big title cards are back on Balances");
   });
 
   await step(V, "Fun", "Where to? when making a trip (optional): the trip earns its passport stamp", async () => {

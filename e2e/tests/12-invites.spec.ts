@@ -30,7 +30,7 @@ test("an invite link: without signing in you can't join (no name box); after sig
   await allowTestCopy(context);
   await page.goto(g.invite);
   await settled(page);
-  await expect(page.getByRole("link", { name: /sign up to join/i })).toBeVisible();
+  await expect(page.getByRole("link", { name: /^Continue with email$/i })).toBeVisible();
   await expect(page.locator('input[name="name"]')).toHaveCount(0);
 
   const ivan = await signUp("Ivan", testEmail("ivan"));

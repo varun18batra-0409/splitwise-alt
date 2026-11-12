@@ -10,7 +10,7 @@ const uat = readFileSync(join(root, "scripts", "uat.ts"), "utf8");
 const specs = readdirSync(join(root, "e2e", "tests")).filter((f) => f.endsWith(".spec.ts")).map((f) => [f, readFileSync(join(root, "e2e", "tests", f), "utf8")] as const);
 
 // Wording the app no longer shows. Only text people see; code comments about history are not in this list.
-const RETIRED = ["emailed an invitation", "We’ve sent an invitation", "Sign up to join", "No take-backs", "As few payments as it takes", "Sign up to keep your groups"];
+const RETIRED = ["emailed an invitation", "We’ve sent an invitation", "Sign up to join", "No take-backs", "As few payments as it takes", "Sign up to keep your groups", "sign up to join"];
 
 describe("walk-throughs don't look for retired wording", () => {
   for (const s of RETIRED) {
