@@ -81,6 +81,15 @@ for (const [label, sql] of [
   }
 }
 log("(Photo files already removed from the database can't be counted from here: that needs a file-storage listing.)");
+// Every row whose declared link points at a row that no longer exists (read-only, counts per table only).
+try {
+  const bad = await q("PRAGMA foreign_key_check");
+  const per = {};
+  for (const r of bad) per[r.table] = (per[r.table] ?? 0) + 1;
+  log(`- Broken links (foreign_key_check): ${bad.length ? Object.entries(per).map(([t, n]) => `${t} ${n}`).join(", ") : "none"}`);
+} catch (e) {
+  log(`- Broken links: could not check (${String(e.message ?? e).split("\n")[0].slice(0, 80)})`);
+}
 log();
 // Also as notes on the run (readable without opening the log), one per section.
 const esc = (t) => t.replace(/%/g, "%25").replace(/\r/g, "").replace(/\n/g, "%0A");
