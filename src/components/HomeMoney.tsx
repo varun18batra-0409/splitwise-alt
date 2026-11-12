@@ -57,7 +57,7 @@ export function MoneyCard({
       data-emphasis={b.bright ? "bright" : "quiet"}
     >
       {b.label === "Add expense" && (
-        <svg aria-hidden width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" className="shrink-0 max-[359px]:hidden">
+        <svg aria-hidden width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" className="shrink-0 max-[389px]:hidden">
           <path d="M12 5v14M5 12h14" />
         </svg>
       )}
