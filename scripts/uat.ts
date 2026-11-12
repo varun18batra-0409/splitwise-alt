@@ -718,7 +718,7 @@ async function main() {
   // ===== 3. Editing, clashes, delete, undo =====
   const editPath = async (page: Page, name: string) => {
     await go(page, `${g}?tab=activity&q=${encodeURIComponent(name)}`);
-    await page.locator('li[id^="item-"] > details > summary').filter({ hasText: name }).first().click(); // not the filter chip, which shows the search word too
+    await page.locator('li[id^="item-"] details > summary').filter({ hasText: name }).first().click(); // not the filter chip, which shows the search word too
     const href = await page.getByRole("link", { name: "Edit or delete" }).first().getAttribute("href");
     assert(href, `no edit link for ${name}`);
     return href;
@@ -1731,7 +1731,7 @@ async function main() {
   await step(V, "Edit", "Change who paid on an expense: balances move by exactly that amount", async () => {
     const before = await shownBalances(V, g);
     await go(V, `${g}?tab=activity&q=Water`);
-    await V.locator('li[id^="item-"] > details > summary').filter({ hasText: "Water" }).first().click();
+    await V.locator('li[id^="item-"] details > summary').filter({ hasText: "Water" }).first().click();
     const href = await V.getByRole("link", { name: "Edit or delete" }).first().getAttribute("href");
     await go(V, href!);
     await V.getByRole("button", { name: /^(✓ )?Asha$/ }).first().click();
@@ -2480,7 +2480,7 @@ async function main() {
     const ev = await db.groupEvent.findFirst({ where: { groupId: g.split("/").pop()!, kind: "expense_edited" }, orderBy: { createdAt: "desc" } });
     assert(ev && /Name: Taxi → Airport taxi/.test(ev.details ?? ""), `history says: ${ev?.text} ${ev?.details}`);
     await go(V, `${g}?tab=activity&q=${encodeURIComponent("Airport taxi")}`);
-    await V.locator('li[id^="item-"] > details > summary').filter({ hasText: "Airport taxi" }).first().waitFor();
+    await V.locator('li[id^="item-"] details > summary').filter({ hasText: "Airport taxi" }).first().waitFor();
   });
   await step(V, "Flat", "Skip a bill this time: next month's Rent is marked skipped and won't be added", async () => {
     const rent = await db.bill.findFirst({ where: { groupId: homeId(), name: "Rent", deletedAt: null } });

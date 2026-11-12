@@ -83,7 +83,7 @@ async function afterSave(page: Page) {
 export async function openEdit(page: Page, groupPath: string, name: string) {
   await page.goto(`${groupPath}?tab=activity&q=${encodeURIComponent(name)}`);
   await settled(page);
-  await page.locator("details summary").filter({ hasText: name }).first().click();
+  await page.locator('li[id^="item-"] details > summary').filter({ hasText: name }).first().click();
   const href = await page.getByRole("link", { name: "Edit or delete" }).first().getAttribute("href");
   expect(href, `an Edit link for “${name}”`).toBeTruthy();
   await page.goto(href!);

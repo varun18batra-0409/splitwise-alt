@@ -164,7 +164,7 @@ test("delete an expense, then Restore brings it back", async () => {
   await check();
   await A.goto(`${g.path}?tab=activity&q=Boat`);
   await settled(A);
-  await A.locator("details summary").filter({ hasText: "Boat" }).first().click();
+  await A.locator('li[id^="item-"] details > summary').filter({ hasText: "Boat" }).first().click();
   await A.getByRole("button", { name: "Restore" }).first().click();
   await A.waitForURL(/did=/);
   record({ Bob: 120000 }, { Alice: 60000, Bob: 30000, Cara: 30000 });
