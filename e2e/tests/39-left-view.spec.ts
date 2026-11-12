@@ -11,7 +11,7 @@ import { addEqualExpense, contextFor, createGroup, joinGroup, settled } from "..
 // Ravi is square, and leaves. Then Meera adds Taxi ₹600 shared by Asha and Meera, and Asha changes
 // Dinner to take Ravi out (₹450 each for Asha and Meera). Ravi's own balance is +₹300 (the whole
 // ledger's), he sees Dinner, his payment and the "changed Dinner" line, and never Taxi.
-test("someone who left sees the group up to that day plus later changes to their own share", async ({ browser }) => {
+test("someone who left sees the group up to that day; their share can't be changed after they left", async ({ browser }) => {
   test.setTimeout(180_000);
   const asha = await signUp("Asha", testEmail("lv-asha"));
   const ravi = await signUp("Ravi", testEmail("lv-ravi"));
@@ -38,7 +38,8 @@ test("someone who left sees the group up to that day plus later changes to their
   expect(left.ok).toBe(true);
   await new Promise((done) => setTimeout(done, 50));
 
-  // After he left: Meera's Taxi, and Asha takes Ravi out of Dinner.
+  // After he left: Meera's Taxi, and Asha tries to take Ravi out of Dinner. That would move the balance of someone who has
+  // left (0 → owed ₹300), so it is refused: he has to rejoin first.
   const rate = async (): Promise<RateAnswer> => ({ ok: true, rate: "1", date: "2026-11-11" });
   const input = (over: Partial<SaveExpenseInput>): SaveExpenseInput => ({
     groupId: gid, name: "Taxi", category: "", amount: "600", currency: "INR", paidById: m, forMode: "selected", selected: [a, m], onePersonId: "",
@@ -47,21 +48,18 @@ test("someone who left sees the group up to that day plus later changes to their
   const taxi = await saveExpense(input({}), m, rate);
   expect(taxi.ok).toBe(true);
   const edit = await saveExpense(input({ expenseId: dinner.id, name: "Dinner", amount: "900", paidById: a, rateMode: "keep" }), a, rate);
-  expect(edit.ok).toBe(true);
+  expect(edit).toEqual({ ok: false, error: "Ravi has left the group, so their share can't change. Ask them to rejoin first." });
 
   // Ravi's view of the group.
   await R.goto(g.path);
   await settled(R);
   await expect(R.locator("[data-left-banner]")).toContainText("You left on");
   await expect(R.locator("[data-left-banner]")).toContainText("You see the group up to that day, plus any later change to your own share.");
-  await expect(R.locator("[data-left-after]")).toContainText("After you left");
-  await expect(R.locator("[data-left-after]")).toContainText("changed Dinner");
-  await expect(R.locator("[data-left-after]")).toContainText(/Your share ₹300(\.00)? → ₹0(\.00)?/);
+  // Nothing about his share changed after he left.
+  await expect(R.locator("[data-left-after]")).toHaveCount(0);
   await expect(R.getByText("Dinner").first()).toBeVisible();
   await expect(R.getByText("Taxi")).toHaveCount(0);
   await expect(R.locator("[data-left-footnote]")).toContainText("New expenses the group adds without you aren’t shown.");
-  // His own number, from the whole ledger: owed ₹300.
-  await expect(R.locator("[data-group-balance]")).toContainText(/₹300/);
   // Only Activity, Balances and Charts.
   for (const t of ["This month", "Bills", "List", "Games"]) await expect(R.getByRole("link", { name: t, exact: true })).toHaveCount(0);
 

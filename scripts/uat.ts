@@ -505,7 +505,7 @@ async function main() {
     for (const t of ["People on Loopin", "From your contacts", "By email"]) await V.getByText(t, { exact: true }).waitFor();
     // F3: the "(you)" row never says "Not on Loopin yet". F14: WhatsApp and Copy link up front, the rest under More ways, WhatsApp in Loopin's own green.
     assert(!/Not on Loopin yet/.test(await V.locator("li").filter({ hasText: "(you)" }).first().innerText()), "the (you) row says “Not on Loopin yet”");
-    await V.getByText("More ways", { exact: true }).waitFor();
+    await V.locator("[data-more-ways] > summary").waitFor(); // the summary reads "More ways ›"
     await V.getByRole("button", { name: "Copy link" }).waitFor();
     const wa = await V.locator("[data-invite-whatsapp]").evaluate("el => getComputedStyle(el).backgroundColor");
     assert(wa === "rgb(111, 227, 168)", `the WhatsApp invite button is ${wa}, not Loopin's green (#6fe3a8)`);
@@ -2907,7 +2907,7 @@ async function main() {
 
   await step(V, "Add people", "The invite screen shows the group's link and a QR code", async () => {
     await go(V, `${g}/invite`);
-    await V.getByText("More ways", { exact: true }).click(); // F14: WhatsApp and Copy link are the main ways; the rest is under More ways
+    await V.locator("[data-more-ways] > summary").click(); // F14: WhatsApp and Copy link are the main ways; the rest is under More ways
     await V.getByText("Share the group link or QR code").click();
     await V.waitForTimeout(500);
     assert((await V.locator("svg").filter({ has: V.locator("path") }).count()) > 0, "no QR code");
