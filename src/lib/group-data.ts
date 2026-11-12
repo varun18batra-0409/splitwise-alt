@@ -65,7 +65,7 @@ export async function loadGroupView(id: string, opts: { events?: boolean; viewer
     omit: { inviteCode: true, joinWeight: true },
     include: {
       members: { omit: { notify: true, addedBy: true, seenAt: true, removedById: true, seenEventsAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
-      expenses: { omit: { rateSource: true }, orderBy: { createdAt: "desc" }, include: { shares: true } },
+      expenses: { orderBy: { createdAt: "desc" }, include: { shares: true } }, // Activity shows each saved rate's source and day
       payments: { orderBy: { createdAt: "desc" } },
       events: { orderBy: { createdAt: "desc" }, take: opts.events === false ? 0 : 500 },
     },

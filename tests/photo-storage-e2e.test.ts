@@ -584,8 +584,8 @@ describe("postcard photo", () => {
     // every later test. Here the original is put back exactly as it was, or the temporary one is removed.)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const client = db as any;
-    const real = client.$transaction.bind(db);
-    const own = Object.getOwnPropertyDescriptor(client, "$transaction");
+    const original = client.$transaction; // put back exactly this function afterwards
+    const real = original.bind(db);
     Object.defineProperty(client, "$transaction", {
       configurable: true,
       writable: true,
@@ -597,8 +597,7 @@ describe("postcard photo", () => {
     } catch (err) {
       threw = String((err as Error).message).includes("database hiccup");
     } finally {
-      if (own) Object.defineProperty(client, "$transaction", own);
-      else delete client.$transaction;
+      Object.defineProperty(client, "$transaction", { configurable: true, writable: true, value: original });
     }
     expect(typeof client.$transaction).toBe("function");
     expect(threw).toBe(true);
