@@ -247,7 +247,7 @@ export async function reopenGame(gameId: string, actorId: string): Promise<Resul
   const reopened = await db.$transaction(async (tx) => {
     // Claim the game as it was read (the same way finishing claims it): two reopens, or a reopen racing a
     // finish, can't both act, so a newer result is never left in the balances with no game pointing at it.
-    const claim = await tx.potGame.updateMany({ where: { id: gameId, status: "done", resultId: game.resultId }, data: { status: "open", finishedAt: null, resultId: "" } });
+    const claim = await tx.potGame.updateMany({ where: { id: gameId, status: "done", resultId: game.resultId, finishedAt: game.finishedAt }, data: { status: "open", finishedAt: null, resultId: "" } });
     if (claim.count !== 1) return false;
     if (game.resultId) {
       // The event that pointed at it stays in the history, without the link.

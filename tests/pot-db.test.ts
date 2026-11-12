@@ -371,7 +371,7 @@ describe("The Pot (real database)", () => {
   });
 
   it("two reopens at the same moment: only one acts; the game is open with no result and balances are back to 0", async () => {
-    const { g, a, gameId } = await playedGame();
+    const { g, a, b, gameId } = await playedGame();
     expect((await finishGame(gameId, a)).ok).toBe(true);
     const [r1, r2] = await Promise.all([reopenGame(gameId, a), reopenGame(gameId, a)]);
     expect([r1.ok, r2.ok].filter(Boolean).length).toBe(1);
@@ -379,9 +379,15 @@ describe("The Pot (real database)", () => {
     expect({ status: game.status, resultId: game.resultId }).toEqual({ status: "open", resultId: "" });
     expect(await db.expense.count({ where: { groupId: g.id } })).toBe(0);
     expect((await db.groupEvent.count({ where: { groupId: g.id, kind: "pot_reopened" } }))).toBe(1);
+    const loser = [r1, r2].find((r) => !r.ok);
+    expect(loser && !loser.ok ? loser.error : "").toMatch(/^(This game changed just now|This game is still going)/);
+    expect(Object.values(await balances(g.id)).every((v) => v === 0)).toBe(true);
     // Finishing again gives exactly one result: Asha +50000, Bina -50000 (worked by hand above).
     expect((await finishGame(gameId, a)).ok).toBe(true);
     expect(await db.expense.count({ where: { groupId: g.id, deletedAt: null } })).toBe(1);
+    const net = await balances(g.id);
+    expect({ a: net[a], b: net[b] }).toEqual({ a: 50000, b: -50000 });
+    expect(Object.values(net).reduce((x, y) => x + y, 0)).toBe(0);
   });
 
   it("an old result that was turned into ordinary spending is still removed on reopen; finishing leaves exactly one result and balances sum to 0", async () => {
