@@ -45,9 +45,27 @@ export function PhoneStatus({ compact = false }: { compact?: boolean }) {
     }
     if (isIOS() && !isInstalled()) return setState("ios-install");
     if (Notification.permission === "denied") return setState("denied");
-    currentSubscription()
-      .then(({ sub }) => setState(sub && Notification.permission === "granted" ? "on" : "off"))
-      .catch(() => setState("off"));
+    // Without permission there can't be a working subscription, so there's nothing to look up.
+    if (Notification.permission !== "granted") return setState("off");
+    // Only look (never register here: the app registers its worker once elsewhere), and never wait more than
+    // 3 s: a browser whose push service doesn't answer must not leave this page stuck on "checking".
+    let done = false;
+    const giveUp = setTimeout(() => {
+      if (!done) setState("off");
+    }, 3000);
+    navigator.serviceWorker
+      .getRegistration()
+      .then((reg) => (reg ? reg.pushManager.getSubscription() : null))
+      .then((sub) => {
+        done = true;
+        setState(sub ? "on" : "off");
+      })
+      .catch(() => {
+        done = true;
+        setState("off");
+      })
+      .finally(() => clearTimeout(giveUp));
+    return () => clearTimeout(giveUp);
   }, []);
 
   async function turnOn() {

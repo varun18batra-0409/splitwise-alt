@@ -50,6 +50,11 @@ export function personKey(m: { id?: string; name: string; phone: string; account
   return `solo:${groupId}:${m.id ?? m.name.trim().replace(/\s+/g, " ").toLowerCase()}`;
 }
 
+// The id of a person's row on the all-groups Settle up, so Home can link straight to it ("/settle#pay-acc_x1").
+export function settleRowId(way: "pay" | "remind", key: string): string {
+  return `${way}-${key.replace(/[^A-Za-z0-9_-]/g, "_")}`;
+}
+
 export function crossSettle(
   groups: GroupForSettle[],
   commonCurrency: string,

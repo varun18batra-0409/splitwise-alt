@@ -78,6 +78,7 @@ export function SettleRow({
   status,
   link,
   tint = "plain",
+  id,
   dataRow,
   data,
 }: {
@@ -92,13 +93,14 @@ export function SettleRow({
   status?: React.ReactNode; // "Waiting for Asha to confirm", "Asha hasn't received it yet"...
   link?: React.ReactNode; // DifferentAmountLink
   tint?: "owe" | "plain" | "mine";
+  id?: string; // so a link can land on this row (Home's "Pay Nupur")
   dataRow?: string;
   data?: Record<string, string>; // e.g. { "data-transfer": "paid" }
 }) {
   const border = tint === "owe" ? "border-owe/25 bg-[linear-gradient(180deg,rgba(255,171,107,0.07),rgba(255,171,107,0.02))]" : tint === "mine" ? "border-line bg-white" : "border-line";
   const amountColor = tone === "owed" ? "text-owed" : tone === "owe" ? "text-owe" : "text-fg/80";
   return (
-    <li className={`rounded-[22px] border px-4 py-3.5 ${border}`} data-transfer-row={dataRow} {...data}>
+    <li id={id} className={`scroll-mt-6 rounded-[22px] border px-4 py-3.5 ${border}`} data-transfer-row={dataRow} {...data}>
       <div className="flex items-center gap-3">
         <Avatar name={avatarName} />
         <div className="min-w-0 flex-1">

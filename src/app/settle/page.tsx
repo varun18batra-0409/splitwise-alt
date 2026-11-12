@@ -4,7 +4,7 @@ import { Notice } from "@/components/Notice";
 import { loadOverview } from "@/lib/overview";
 import { formatMoney, PAYMENT_LINE, toInputAmount } from "@/lib/money";
 import { DifferentAmountLink, differentAmountFor, mainButtonClass, outlineButtonClass, PayAppButtons, RemindIcon, SettleRow } from "@/components/SettleRow";
-import { crossActionLabel, crossPreview } from "@/lib/cross-settle";
+import { crossActionLabel, crossPreview, settleRowId } from "@/lib/cross-settle";
 import { settleAcrossGroups } from "@/app/actions";
 import { STALE_KEY_ERROR } from "@/lib/once";
 import { FreshKey } from "@/components/FreshKey";
@@ -66,6 +66,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
                     return (
                       <SettleRow
                         key={it.key}
+                        id={settleRowId(way === "in" ? "remind" : "pay", it.key)}
                         avatarName={it.name}
                         title={it.net < 0 ? `You pay ${it.name}` : it.net > 0 ? `${it.name} pays you` : `You and ${it.name} are even`}
                         amount={it.net === 0 ? "Even" : amt(it.net)}

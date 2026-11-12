@@ -31,7 +31,6 @@ import { coverFor, coverOf } from "@/lib/covers";
 import { monthNumbers, seasonNow } from "@/lib/home/banner";
 import { ActivityRow } from "@/components/ActivityRow";
 import { itemHref } from "@/lib/paths";
-import { restoreGroup } from "@/app/actions";
 import { db } from "@/lib/db";
 import { leaverOf } from "@/lib/left-view-db";
 import { gameVisible, stillIn } from "@/lib/left-view";
@@ -44,8 +43,8 @@ import { todayKey } from "@/lib/dates";
 import { TripCountdown } from "@/components/TripCountdown";
 import { countdownStage } from "@/lib/countdown";
 import { countryOf, tripStops } from "@/lib/geo";
-import { MoneyCard, TripStrip } from "@/components/HomeMoney";
-import { mixedDirections, moneyLabel, moneyMode, moneyPeople, peopleLine } from "@/lib/home/money-card";
+import { MoneyCard, TripStrip, type NeedLine } from "@/components/HomeMoney";
+import { mixedDirections, moneyActions, moneyLabel, moneyMode, moneyPeople, whoLine } from "@/lib/home/money-card";
 import { TripRow } from "@/components/TripRow";
 import { Stories } from "@/components/Stories";
 import { buildStories } from "@/lib/home/stories";
@@ -63,7 +62,7 @@ export const metadata = { alternates: { canonical: "/" } };
 
 const countPasskeys = (accountId: string) => db.passkey.count({ where: { accountId } });
 
-// Home: stories, your net balance with Add expense and Settle up, your groups as polaroids, what needs you, and the
+// Home: stories, your money card (coloured by where you stand, with who, the one next step, and what needs you), your groups as polaroids, and the
 // latest changes. Search, Settle and Alerts live in the bottom bar.
 export default async function Home({
   searchParams,
@@ -112,8 +111,8 @@ export default async function Home({
     }
   }
 
-  // Needs you: things only you can answer first, then a group that is square and quiet (ready to close). Home shows the top two.
-  // Money you owe or are owed is the money card's job, and new updates are the Alerts badge's, so neither repeats here.
+  // Needs you: things only you can answer first, then a group that is square and quiet (ready to close). The top one is a line at the
+  // bottom of the money card. Money you owe or are owed is the card's job, and new updates are the Alerts badge's, so neither repeats here.
   const quietSince = Date.now() - 7 * 86_400_000;
   const NEED_ACTION: Record<"claim" | "payment" | "bill" | "collect", string> = { claim: "Confirm", payment: "Confirm", bill: "Add", collect: "Confirm" };
   type Need = { key: string; lead: string; text: React.ReactNode; sub?: string; action: string; href: string; orange?: boolean };
@@ -144,11 +143,7 @@ export default async function Home({
   const notice =
     deleted === "account"
       ? "Your email and sign-in were deleted. Your groups on this phone are still here."
-      : deleted === "group"
-        ? "Group deleted. You can restore it below for 30 days."
-        : deleted === "gone"
-          ? "That group was deleted. If you started it or look after it, you can restore it below for 30 days."
-        : collection === "deleted"
+      : collection === "deleted"
           ? "Collection deleted."
           : moved === "1"
           ? "Loopin has a new address: loopinapps.com. Everything came with you. Using the app icon on your home screen? It keeps working; to update it, add Loopin to your home screen again from this page."
@@ -175,17 +170,32 @@ export default async function Home({
   const acrossCurrencies = !netCommon && mixedDirections(netLines);
   const mode = acrossCurrencies ? "even" : moneyMode({ owedLines: owedLines.length, oweLines: oweLines.length, netValue });
   // Who the money is with: the same transfers Settle up uses, largest first (names only; amounts are on Settle up).
-  const who =
+  const people =
     mode === "owe" || mode === "owed"
-      ? peopleLine(
-          moneyPeople(
-            open.map((g) => ({ groupId: g.group.id, groupName: g.group.name, currency: g.group.currency, myId: g.myId, members: g.group.members, transfers: g.transfers })),
-            mode,
-            common,
-            toCommon,
-          ),
+      ? moneyPeople(
+          open.map((g) => ({ groupId: g.group.id, groupName: g.group.name, currency: g.group.currency, myId: g.myId, members: g.group.members, transfers: g.transfers })),
+          mode,
+          common,
+          toCommon,
         )
-      : null;
+      : [];
+  const who = people.length > 0 ? whoLine(people) : null;
+  // Pay the person you owe most (their row on Settle up), or remind the person who owes you most (WhatsApp). Else today's buttons.
+  const actions = moneyActions(mode, people, common);
+  // What waits on you, folded into the card: the top one as a line; two or more real ones as a count that opens Alerts (where all of them are listed
+  // under "Needs you"). The "ready to close" nudges are Home-only, so they are never counted in a number Alerts can't back up.
+  const realNeeds = needs.items;
+  const need: NeedLine | null =
+    realNeeds.length >= 2
+      ? {
+          text: realNeeds.every((n) => n.kind === "claim" || n.kind === "payment") ? `${realNeeds.length} payments to confirm` : `${realNeeds.length} things need you`,
+          action: "See them",
+          href: "/notifications",
+          count: realNeeds.length,
+        }
+      : needRows[0]
+        ? { text: needRows[0].text, action: needRows[0].action, href: needRows[0].href, count: 1 }
+        : null;
   // Someone added you to a group: it isn't in your groups until you tap Join.
   const invitationsBlock =
     invitations.length > 0 ? (
@@ -556,15 +566,17 @@ export default async function Home({
           <h1 className={stories.length > 0 ? "sr-only" : "mb-4 mt-1 font-display text-[32px] font-semibold leading-[1.05] tracking-tight"}>{greeting(new Date(), tz, account?.name)}</h1>
           {stories.length > 0 && <Stories stories={stories} className="mb-4" />}
 
-          {/* Money, slim: what it means, the amount, and two equal buttons, inside the first screen of a small phone. */}
+          {/* Money: coloured by where you stand; the amount, who it is with, the one next step, and what needs you. */}
           <MoneyCard
             label={moneyLabel({ mode, acrossCurrencies })}
             who={who}
             whoHref={mode === "owe" ? "/settle#pay" : "/settle#remind"}
             amount={mode === "square" ? "All square" : netCommon ? heroText.replace(/^([≈ ]*)[+−]/, "$1") : heroText /* several currencies: each keeps its own sign */}
-            amountClass={mode === "square" ? "text-[26px]" : heroText.length <= 9 ? "text-[28px]" : heroText.length <= 12 ? "text-[24px]" : "text-[18px]"}
+            amountClass={mode === "square" ? "text-[26px]" : heroText.length <= 9 ? "text-[40px]" : heroText.length <= 12 ? "text-[32px]" : "text-[22px]"}
             tone={mode === "owed" ? "owed" : mode === "owe" ? "owe" : "plain"}
             mode={mode}
+            actions={actions}
+            need={need}
             exact={mode !== "square" && heroExact !== heroText ? heroExact.replace(/^([≈ ]*)[+−]/, "$1") : undefined}
           />
 
@@ -586,42 +598,6 @@ export default async function Home({
               </div>
             )}
           </section>
-
-          {/* Needs you: the top two; the rest are in Alerts. */}
-          {needRows.length > 0 && (
-            <section aria-label="Needs you" className="-mt-1" data-needs-you>
-              <div className="flex items-baseline justify-between">
-                <h2 className="font-display text-[20px] font-semibold tracking-tight">Needs you</h2>
-                <Link href="/notifications" className="flex min-h-11 items-center text-sm font-medium text-fg/85">
-                  See all
-                </Link>
-              </div>
-              <ul className="divide-y divide-line/70">
-                {needRows.slice(0, 2).map((n) => (
-                  <li key={n.key}>
-                    <Link href={n.href} className="flex min-h-[52px] items-center gap-3 py-2 active:bg-mist">
-                      <span aria-hidden className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[15px] font-semibold ${n.orange ? "bg-owe/[0.14] text-owe" : "bg-owed/[0.14] text-owed"}`}>
-                        {n.lead === "check" ? (
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
-                        ) : n.lead === "bill" ? (
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2ZM9 8h6M9 12h6" /></svg>
-                        ) : (
-                          n.lead
-                        )}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-[14px] leading-snug [text-wrap:balance]">{n.text}</span>
-                        {n.sub && <span className="block truncate text-[12px] text-fg/60">{n.sub}</span>}
-                      </span>
-                      <span className="inline-flex h-11 min-w-[76px] shrink-0 items-center justify-center rounded-full border border-fg/20 bg-fg/[0.06] px-4 text-[13px] font-semibold" data-need-action>
-                        {n.action}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
 
           {/* The next trip, as one compact countdown line. A trip that is on is tagged on its photo in Your groups instead. */}
           {hero && hero.phase.kind === "before" && (
@@ -732,36 +708,6 @@ export default async function Home({
             </HomeBanner>
           </div>
         </>
-      )}
-
-      {/* Recently deleted groups: tucked away (like Closed groups) and opened with a tap;
-          open on its own right after a delete. Whoever deleted them, or looks after them, can bring them back for 30 days. */}
-      {deletedGroups.length > 0 && (
-        <details className="group/deleted mt-4" open={deleted === "group" || deleted === "gone"}>
-          <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-full border border-line px-4 py-2 text-sm text-gray-600 active:bg-mist [&::-webkit-details-marker]:hidden">
-            <span className="group-open/deleted:hidden">Recently deleted ({deletedGroups.length})</span>
-            <span className="hidden group-open/deleted:inline">Hide recently deleted</span>
-          </summary>
-          <p className="mt-2 text-xs text-gray-400">You can bring these back for 30 days.</p>
-          <ul className="divide-y divide-line">
-            {deletedGroups.map((d) => (
-              <li key={d.id} className="flex items-center gap-3 py-3">
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-medium text-gray-500">{d.name}</span>
-                  <span className="block truncate text-xs text-gray-400">
-                    Deleted by {d.deletedBy} · gone in {d.daysLeft} {d.daysLeft === 1 ? "day" : "days"}
-                  </span>
-                </span>
-                <form action={restoreGroup}>
-                  <input type="hidden" name="groupId" value={d.id} />
-                  <button type="submit" className="rounded-full border border-line px-3.5 py-1.5 text-sm font-medium text-fg active:bg-mist">
-                    Restore
-                  </button>
-                </form>
-              </li>
-            ))}
-          </ul>
-        </details>
       )}
 
       {all.length > 0 && <InviteFriends name={account?.name} className="mt-8" />}

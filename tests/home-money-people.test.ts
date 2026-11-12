@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { moneyLabel, moneyPeople, peopleLine, type PeopleGroup } from "@/lib/home/money-card";
+import { firstName, moneyActions, moneyLabel, moneyPeople, payHref, peopleLine, personButtonLabel, remindHref, whoLine, type PeopleGroup } from "@/lib/home/money-card";
+import { settleRowId } from "@/lib/cross-settle";
 
 // The people line on Home's money card: initial circles and "Nupur, Ravi and 2 others". No amounts on Home.
 // Amounts (minor units, paise) are only used here to put the biggest first.
@@ -106,5 +107,147 @@ describe("Home money card: who the money is with", () => {
   it("all square: no line", () => {
     const g: PeopleGroup = { groupId: "g1", groupName: "Goa", currency: "INR", myId: "me", members: [person("me", "Me")], transfers: [] };
     expect(line([g])).toEqual({ names: [], text: "" });
+  });
+});
+
+// ---- The who-line under the amount: "Nupur ₹1,800 · Ravi ₹650" ----
+// Amounts are paise: ₹1,800 = 180000. Same entries as the people line, so the same rules about who counts.
+
+// A group where each person pays ME the amount given.
+const theyPay = (groupId: string, groupName: string, pays: [string, string, number, (string | null)?][]): PeopleGroup => ({
+  groupId,
+  groupName,
+  currency: "INR",
+  myId: "me",
+  members: [{ id: "me", name: "Me", phone: "", accountId: "acc-me" }, ...pays.map(([id, name, , acc]) => person(id, name, acc === undefined ? `acc-${id}` : acc))],
+  transfers: pays.map(([id, , amount]) => ({ from: id, to: "me", amount })),
+});
+const who = (groups: PeopleGroup[], side: "owe" | "owed" = "owe", toCommon: (n: number, c: string) => number | null = same) => whoLine(moneyPeople(groups, side, "INR", toCommon));
+
+describe("the who-line: names with amounts", () => {
+  it("two people: Nupur ₹1,800 and Ravi ₹650 -> “Nupur ₹1,800 · Ravi ₹650”, nothing after", () => {
+    const l = who([iPay("g1", "Goa", "INR", [["r", "Ravi", 65000], ["n", "Nupur", 180000]])]);
+    expect(l.text).toBe("Nupur ₹1,800 · Ravi ₹650");
+    expect(l.parts.map((p) => p.name)).toEqual(["Nupur", "Ravi"]);
+    expect(l.tail).toBe("");
+  });
+
+  it("one person: just “Nupur ₹1,800”", () => {
+    expect(who([iPay("g1", "Goa", "INR", [["n", "Nupur", 180000]])]).text).toBe("Nupur ₹1,800");
+  });
+
+  it("four people (₹4,000, ₹3,000, ₹200, ₹100): top two with amounts, then “· 2 others”", () => {
+    const l = who([iPay("g1", "Goa", "INR", [["a", "Asha", 10000], ["b", "Bela", 20000], ["c", "Chirag", 300000], ["d", "Dev", 400000]])]);
+    expect(l.text).toBe("Dev ₹4,000 · Chirag ₹3,000 · 2 others");
+    expect(l.others).toBe(2);
+  });
+
+  it("three people: “· 1 other” (singular)", () => {
+    const l = who([iPay("g1", "Goa", "INR", [["a", "Asha", 10000], ["b", "Bela", 20000], ["c", "Chirag", 300000]])]);
+    expect(l.text).toBe("Chirag ₹3,000 · Bela ₹200 · 1 other");
+  });
+
+  it("rounding is Home's rule: exact under ₹1,000, whole rupees from ₹1,000, exact amount kept for the tooltip", () => {
+    const one = (paise: number) => who([iPay("g1", "Goa", "INR", [["n", "Nupur", paise]])]).parts[0];
+    expect(one(99999)).toMatchObject({ amount: "₹999.99", exact: "₹999.99" }); // ₹999.99 stays exact
+    expect(one(100000)).toMatchObject({ amount: "₹1,000", exact: "₹1,000" });
+    expect(one(100049)).toMatchObject({ amount: "₹1,000", exact: "₹1,000.49" }); // 1000.49 rounds down
+    expect(one(100050)).toMatchObject({ amount: "₹1,001", exact: "₹1,000.50" }); // 1000.50 rounds up
+    expect(who([iPay("g1", "Goa", "INR", [["n", "Nupur", 100050]])]).label).toBe("Nupur ₹1,000.50"); // spoken label is exact
+  });
+
+  it("mixed groups sum per person: Nupur ₹900 in Goa + ₹100 in the Flat = ₹1,000 (shown ₹1,000, not ₹900); Ravi ₹120 in the Flat only", () => {
+    const groups = [iPay("g1", "Goa", "INR", [["n1", "Nupur", 90000, "acc-nupur"]]), iPay("g2", "Flat", "INR", [["n2", "Nupur", 10000, "acc-nupur"], ["r", "Ravi", 12000]])];
+    expect(who(groups).text).toBe("Nupur ₹1,000 · Ravi ₹120");
+  });
+
+  it("nets like Settle up: I pay Asha ₹400 in Goa and she pays me ₹100 in the Flat -> I owe ₹300; she is not on the owed line", () => {
+    const groups = [iPay("g1", "Goa", "INR", [["a1", "Asha", 40000, "acc-asha"]]), theyPay("g2", "Flat", [["a2", "Asha", 10000, "acc-asha"]])];
+    expect(who(groups).text).toBe("Asha ₹300");
+    expect(who(groups, "owed").text).toBe("");
+  });
+
+  it("people who owe me, largest first: Meera ₹17,618 before Asha ₹17,251", () => {
+    expect(who([theyPay("g1", "Goa", [["a", "Asha", 1725100], ["m", "Meera", 1761800]])], "owed").text).toBe("Meera ₹17,618 · Asha ₹17,251");
+  });
+
+  it("a converted amount carries ≈ (THB 300.00 at 1 THB = ₹2.50 -> ≈ ₹750)", () => {
+    const toInr = (n: number, c: string) => (c === "THB" ? Math.round(n * 2.5) : n);
+    const l = who([iPay("g1", "Phuket", "THB", [["m", "Mali", 30000]])], "owe", toInr);
+    expect(l.parts[0].amount).toBe("≈ ₹750");
+  });
+
+  it("two name-only Ravis stay two people, told apart by group", () => {
+    const l = who([iPay("g1", "Goa", "INR", [["r1", "Ravi", 30000, null]]), iPay("g2", "Flat 402", "INR", [["r2", "Ravi", 20000, null]])]);
+    expect(l.text).toBe("Ravi (Goa) ₹300 · Ravi (Flat 402) ₹200");
+  });
+
+  it("nobody: empty line", () => {
+    expect(who([{ groupId: "g1", groupName: "Goa", currency: "INR", myId: "me", members: [person("me", "Me")], transfers: [] }])).toMatchObject({ text: "", parts: [], others: 0 });
+  });
+});
+
+describe("the main button: who to pay, who to remind, and where it goes", () => {
+  const owe = (groups: PeopleGroup[]) => moneyActions("owe", moneyPeople(groups, "owe", "INR", same), "INR");
+  const owed = (groups: PeopleGroup[]) => moneyActions("owed", moneyPeople(groups, "owed", "INR", same), "INR");
+
+  it("owing Nupur ₹1,800 and Ravi ₹650: the bright button is “Pay Nupur ₹1,800” to her row on /settle; the second is Add expense", () => {
+    const [main, second] = owe([iPay("g1", "Goa", "INR", [["r", "Ravi", 65000], ["n", "Nupur", 180000, "acc-nupur"]])]);
+    expect(main).toMatchObject({ key: "pay", label: "Pay Nupur ₹1,800", href: "/settle#pay-acc_acc-nupur", bright: true });
+    expect(second).toMatchObject({ key: "add", label: "Add expense", href: "/add", bright: false });
+  });
+
+  it("the row id on /settle is the same one Home links to", () => {
+    expect(settleRowId("pay", "acc:acc-nupur")).toBe("pay-acc_acc-nupur");
+    expect(settleRowId("remind", "tel:9876543210")).toBe("remind-tel_9876543210");
+  });
+
+  it("long names and long amounts shorten instead of overflowing", () => {
+    expect(firstName("Priyadarshini Rao")).toBe("Priyadarshi…"); // 11 letters + …
+    expect(personButtonLabel("Pay", "Priyadarshi…", "₹1,800")).toBe("Pay Priyadarshi…"); // 23 characters with the amount, so no amount
+    expect(personButtonLabel("Pay", "Ravi", "₹12,34,567")).toBe("Pay Ravi"); // 19 characters
+    expect(personButtonLabel("Pay", "Nupur", "₹1,800")).toBe("Pay Nupur ₹1,800"); // exactly 16 fits
+    expect(personButtonLabel("Pay", "Ravi", undefined)).toBe("Pay Ravi");
+  });
+
+  it("a converted amount is not in the button (only “Pay Mali”)", () => {
+    const toInr = (n: number, c: string) => (c === "THB" ? Math.round(n * 2.5) : n);
+    const [main] = moneyActions("owe", moneyPeople([iPay("g1", "Phuket", "THB", [["m", "Mali", 30000]])], "owe", "INR", toInr), "INR");
+    expect(main.label).toBe("Pay Mali");
+  });
+
+  it("an amount with no saved rate has no row on /settle, so Pay goes to that group's own Settle up", () => {
+    const noRate = (n: number, c: string) => (c === "INR" ? n : null);
+    const people = moneyPeople([iPay("g2", "Phuket", "THB", [["m", "Mali", 30000]])], "owe", "INR", noRate);
+    expect(payHref(people[0], "INR")).toBe("/groups/g2/settle");
+  });
+
+  it("owed by Kabir ₹300 in Goa and ₹500 in the Flat: “Remind Kabir” opens the remind route for the Flat (where he owes most)", () => {
+    const groups = [theyPay("g1", "Goa", [["k1", "Kabir", 30000, "acc-kabir"], ["x", "Xena", 10000]]), theyPay("g2", "Flat", [["k2", "Kabir", 50000, "acc-kabir"]])];
+    const [main, second] = owed(groups);
+    expect(main).toMatchObject({ key: "remind", label: "Remind Kabir", href: "/groups/g2/remind?from=k2", bright: true });
+    expect(second.label).toBe("Add expense");
+    // Kabir is the biggest: ₹800 against Xena's ₹100.
+    expect(who(groups, "owed").text).toBe("Kabir ₹800 · Xena ₹100");
+  });
+
+  it("remind never picks a group where I am the one paying", () => {
+    const flat = iPay("g2", "Flat", "INR", [["k2", "Kabir", 90000, "acc-kabir"]]); // I pay Kabir ₹900 here
+    const goa = theyPay("g1", "Goa", [["k1", "Kabir", 100000, "acc-kabir"]]); // he pays me ₹1,000 there -> he owes me ₹100 net
+    const p = moneyPeople([goa, flat], "owed", "INR", same)[0];
+    expect(p.amount).toBe(10000);
+    expect(remindHref(p)).toBe("/groups/g1/remind?from=k1");
+  });
+
+  it("all square and even keep today's buttons", () => {
+    expect(moneyActions("square", [], "INR").map((b) => b.label)).toEqual(["Add expense", "New group"]);
+    expect(moneyActions("even", [], "INR").map((b) => b.label)).toEqual(["Add expense", "Settle up"]);
+    expect(moneyActions("square", [], "INR")[0].bright).toBe(true);
+  });
+
+  it("owing but nobody named: today's buttons, Settle up bright", () => {
+    const [add, settle] = moneyActions("owe", [], "INR");
+    expect(add).toMatchObject({ key: "add", bright: false });
+    expect(settle).toMatchObject({ key: "settle", label: "Settle up", bright: true });
   });
 });
