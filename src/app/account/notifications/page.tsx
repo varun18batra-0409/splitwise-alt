@@ -5,6 +5,12 @@ import { NotifySwitches } from "@/components/NotifySwitches";
 import { getAccount } from "@/lib/identity";
 import { parseAccountPrefs } from "@/lib/account-notify";
 
+// Stored choices list what's switched off as `false`; the switches take a map of what's off (true = off).
+function offMap(p: { push: Record<string, boolean>; email: Record<string, boolean> }) {
+  const flip = (r: Record<string, boolean>) => Object.fromEntries(Object.entries(r).filter(([, v]) => v === false).map(([k]) => [k, true]));
+  return { push: flip(p.push), email: flip(p.email) };
+}
+
 // Notifications & email: what this phone allows, then what Loopin sends, switch by switch.
 export default async function NotificationsAndEmail() {
   const account = await getAccount();
@@ -15,7 +21,7 @@ export default async function NotificationsAndEmail() {
       <PhoneStatus />
       {account && p ? (
         <div className="mt-6">
-          <NotifySwitches initial={{ push: p.push, email: p.email }} />
+          <NotifySwitches initial={offMap(p)} />
         </div>
       ) : (
         <section className="mt-6 rounded-2xl border border-line px-5 py-5">

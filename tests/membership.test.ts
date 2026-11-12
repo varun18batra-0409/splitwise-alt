@@ -120,7 +120,7 @@ describe("the group's admin comes from the database too", () => {
 describe("phone notifications skip pending people", () => {
   it("sendPushTo: Asha and Ben get it, Pia doesn't", async () => {
     sendNotification.mockClear();
-    const sent = await sendPushTo([ids.Asha, ids.Ben, ids.Pia], { title: "t", body: "b", url: "/u", tag: `tag-${stamp}` });
+    const sent = await sendPushTo([ids.Asha, ids.Ben, ids.Pia], { title: "t", body: "b", url: "/u", tag: `tag-${stamp}` }, "expenses.added");
     expect(sent).toBe(2);
     const to = sendNotification.mock.calls.map((c) => (c as unknown as [{ endpoint: string }])[0].endpoint).sort();
     expect(to).toEqual([endpoint("Asha"), endpoint("Ben")]);

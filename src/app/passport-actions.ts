@@ -57,7 +57,7 @@ export async function answerPassportQuestionAction(f: FormData) {
   const show = field(f, "answer") === "show";
   const { recordPassportChoice } = await import("@/lib/passport-db");
   await recordPassportChoice(a.id, show);
-  redirect(show ? "/passport?shared=groups#who" : "/passport");
+  redirect(show ? "/passport?shared=groups#who" : "/passport?shared=private#who");
 }
 
 // "Nudge Ravi": a friend's passport is empty, so ask them (in their Alerts only:

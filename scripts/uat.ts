@@ -3090,15 +3090,16 @@ async function main() {
     // Everything a person can read on the page (closed folds too), minus the one allowed sentence.
     const BANNED = /poker|teen\s?patti|buy[\s-]?ins?\b|cash(ed)?[\s-]?outs?|winnings?|\bbets?\b|\bbetting\b|gambl/i;
     // Text nodes a person can read (closed folds too), skipping script, style and template (Next.js data lives in script tags).
+    // A plain string, so the test runner's helper names (__name) never reach the page.
     const visibleText = () =>
-      V.evaluate(() => {
-        const out: string[] = [];
+      V.evaluate(`(() => {
+        const out = [];
         const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
-          acceptNode: (n) => (n.parentElement?.closest("script, style, template, noscript") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+          acceptNode: (n) => (n.parentElement && n.parentElement.closest("script, style, template, noscript") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
         });
-        for (let n = walker.nextNode(); n; n = walker.nextNode()) out.push(n.nodeValue ?? "");
+        for (let n = walker.nextNode(); n; n = walker.nextNode()) out.push(n.nodeValue || "");
         return out.join(" ");
-      });
+      })()`) as Promise<string>;
     const clean = async (label: string) => {
       const text = (await visibleText()).replace(/No betting happens in the app\.?/gi, "");
       const bad = BANNED.exec(text);
@@ -3555,6 +3556,7 @@ async function main() {
     await go(Z, "/passport");
     await Z.getByText("Show your places to people in your groups?").waitFor();
     await Z.getByRole("button", { name: "Not now" }).click();
+    await Z.waitForURL(/shared=private/);
     await go(Z, "/passport");
     assert((await Z.getByText("Show your places to people in your groups?").count()) === 0, "the passport question came back after Not now");
     assert((await Z.getByRole("button", { name: "Only me" }).getAttribute("aria-pressed")) === "true", "Not now should leave it on Only me");
