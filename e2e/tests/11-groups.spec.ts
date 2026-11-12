@@ -128,23 +128,32 @@ test("close a group: it moves to Closed groups and adding is paused; reopen it",
   await expect(page.locator("#expense-name")).toBeVisible();
 });
 
-test("delete a group: it's under Recently deleted (opened with a tap) and Restore brings it back", async () => {
+test("delete a group: it's under Recently deleted on Your groups (open after the delete, off Home) and Restore brings it back", async () => {
   const name = groupName("Delete me");
   const g = await createGroup(page, name);
   await page.goto(`${g.path}/settings`);
   await settled(page);
   await page.getByRole("button", { name: "Delete group" }).click();
-  await page.waitForURL(/deleted=group/);
+  await page.waitForURL(/\/groups\?deleted=group/);
+  // Right after a delete the block comes first on the page (above the open groups), so it's seen without scrolling.
+  await expect(page.locator("[data-recently-deleted]")).toBeInViewport();
   // Right after deleting it opens on its own; on a later visit it's a closed button.
   await expect(page.getByText("Hide recently deleted")).toBeVisible();
-  // Back (or swipe back) never lands on a "not available" page: a deleted group's screens go to Home.
+  // Back (or swipe back) never lands on a "not available" page: a deleted group's screens go to Your groups, with the block open.
   await page.goto(g.path);
-  await page.waitForURL(/\/\?deleted=gone/);
+  await page.waitForURL(/\/groups\?deleted=gone/);
+  await expect(page.locator("[data-recently-deleted]")).toBeInViewport();
   await expect(page.getByText("That group was deleted.", { exact: false })).toBeVisible();
+  await expect(page.getByText("Hide recently deleted")).toBeVisible();
   await page.goBack();
   await settled(page);
-  expect(new URL(page.url()).pathname).toBe("/");
+  expect(new URL(page.url()).pathname).toBe("/groups");
+  // Home no longer carries the block.
   await page.goto("/");
+  await settled(page);
+  await expect(page.getByText(/Recently deleted/)).toHaveCount(0);
+  // On Your groups it is a closed button on a later visit; one tap opens it.
+  await page.goto("/groups");
   await settled(page);
   const pill = page.getByText(/^Recently deleted \(\d+\)$/);
   await expect(pill).toBeVisible();

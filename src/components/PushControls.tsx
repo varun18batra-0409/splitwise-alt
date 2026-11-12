@@ -45,9 +45,34 @@ export function PhoneStatus({ compact = false }: { compact?: boolean }) {
     }
     if (isIOS() && !isInstalled()) return setState("ios-install");
     if (Notification.permission === "denied") return setState("denied");
-    currentSubscription()
-      .then(({ sub }) => setState(sub && Notification.permission === "granted" ? "on" : "off"))
-      .catch(() => setState("off"));
+    // Without permission there can't be a working subscription, so there's nothing to look up.
+    if (Notification.permission !== "granted") return setState("off");
+    // Only look (never register here: the app registers its worker once elsewhere), and never wait more than
+    // 3 s: a browser whose push service doesn't answer must not leave this page stuck on "checking".
+    let done = false;
+    // Only ever replaces "checking": a late answer must not undo what a tap has started since.
+    // (A slow answer after the 3 s fallback may still correct "off", but never a state a tap has started.)
+    let timedOut = false;
+    const settle = (next: State) => setState((now) => (now === "checking" || (timedOut && now === "off") ? next : now));
+    const giveUp = setTimeout(() => {
+      if (!done) {
+        settle("off");
+        timedOut = true;
+      }
+    }, 3000);
+    navigator.serviceWorker
+      .getRegistration()
+      .then((reg) => (reg ? reg.pushManager.getSubscription() : null))
+      .then((sub) => {
+        done = true;
+        settle(sub ? "on" : "off");
+      })
+      .catch(() => {
+        done = true;
+        settle("off");
+      })
+      .finally(() => clearTimeout(giveUp));
+    return () => clearTimeout(giveUp);
   }, []);
 
   async function turnOn() {

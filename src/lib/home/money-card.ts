@@ -2,7 +2,9 @@
 // you owe -> Settle up is bright; you're owed or it evens out -> Add expense is bright;
 // all square -> Add expense is bright and the second button becomes New group (there is nothing to settle).
 import type { TripPhase } from "../countdown";
-import { personKey } from "../cross-settle";
+import { personKey, settleRowId } from "../cross-settle";
+import { homeMoney } from "./display";
+import { formatMoney } from "../money";
 
 export type MoneyMode = "owe" | "owed" | "even" | "square";
 export type MoneyButton = { label: "Add expense" | "Settle up" | "New group"; href: string; bright: boolean };
@@ -46,7 +48,10 @@ export function moneyLabel(x: { mode: MoneyMode; acrossCurrencies?: boolean; peo
 // Built from the same transfers Settle up uses (crossSettle), so the order is Settle up's per-person totals.
 // People are merged across groups only where Settle up merges them (signed-in account, else phone: personKey).
 // Someone added by name alone stays per group. A group with no saved rate keeps its own currency, never added into another.
-export type MoneyPerson = { key: string; name: string; groupName: string; solo: boolean; amount: number; currency: string; approx: boolean };
+// `parts`: each group's payment between you and them (memberId = their member id there; amount in `currency`, the same
+// currency as the total, so parts of one entry are comparable). Used to pick the group to remind them in.
+export type MoneyPart = { groupId: string; memberId: string; amount: number; iPay: boolean };
+export type MoneyPerson = { key: string; name: string; groupName: string; solo: boolean; amount: number; currency: string; approx: boolean; parts: MoneyPart[] };
 export type PeopleGroup = {
   groupId: string;
   groupName: string;
@@ -71,8 +76,9 @@ export function moneyPeople(groups: PeopleGroup[], side: "owe" | "owed", common:
       const amount = conv === null ? t.amount : conv;
       const key = personKey(other, g.groupId);
       const slot = `${key}|${currency}`;
-      const e = acc.get(slot) ?? { key, name: other.name, groupName: g.groupName, solo: key.startsWith("solo:"), amount: 0, currency, approx: false, signed: 0 };
+      const e = acc.get(slot) ?? { key, name: other.name, groupName: g.groupName, solo: key.startsWith("solo:"), amount: 0, currency, approx: false, parts: [], signed: 0 };
       e.signed += iPay ? -amount : amount;
+      e.parts.push({ groupId: g.groupId, memberId: other.id, amount, iPay });
       e.approx ||= conv !== null && g.currency !== common;
       acc.set(slot, e);
     }
@@ -85,6 +91,116 @@ export function moneyPeople(groups: PeopleGroup[], side: "owe" | "owed", common:
 
 // `names`: who gets a little initial circle (up to 3, largest first). `text`: the one quiet line beside them.
 export type PeopleLine = { names: string[]; text: string };
+
+// ---- The who-line under the amount: "Nupur ₹1,800 · Ravi ₹650" (two people), "… · 2 others" (more) ----
+// Same entries as the people line (so the same rules about who counts, and the same per-person totals /settle shows).
+export type WhoPart = { name: string; amount: string; exact: string };
+// `opposite`: when money also goes the other way, the biggest person on that side ("Ravi owes you ₹1,000" on an owe card,
+// "you owe Ravi ₹1,000" on an owed card), so the line explains the net amount in the card (₹1,800 owed - ₹1,000 back = ₹800).
+export type WhoOpposite = WhoPart & { kind: "owes-you" | "you-owe"; phrase: string };
+export type WhoLine = { parts: WhoPart[]; others: number; tail: string; opposite: WhoOpposite | null; text: string; label: string };
+
+// Names are made unique the way peopleLine does it ("Ravi (Flat 402)"); a person is named once (their biggest entry).
+function uniquePeople(entries: MoneyPerson[]): { name: string; e: MoneyPerson }[] {
+  const seen = new Set<string>();
+  const list = entries.filter((e) => (seen.has(e.key) ? false : (seen.add(e.key), true)));
+  const count = new Map<string, number>();
+  for (const e of list) count.set(e.name.trim().toLowerCase(), (count.get(e.name.trim().toLowerCase()) ?? 0) + 1);
+  return list.map((e) => ({ name: e.solo && (count.get(e.name.trim().toLowerCase()) ?? 0) > 1 ? `${e.name} (${e.groupName})` : e.name, e }));
+}
+
+// Amounts follow Home's rule (homeMoney): whole units from 1,000, exact below; the exact amount rides along for title/aria.
+// Never more than 3 names: the top two of the main side, then one from the other side.
+export function whoLine(entries: MoneyPerson[], otherSide: MoneyPerson[] = [], side: "owe" | "owed" = "owe"): WhoLine {
+  const list = uniquePeople(entries);
+  const parts = list.slice(0, 2).map(({ name, e }) => ({
+    name,
+    amount: `${e.approx ? "≈ " : ""}${homeMoney(e.amount, e.currency)}`,
+    exact: `${e.approx ? "≈ " : ""}${formatMoney(e.amount, e.currency)}`,
+  }));
+  const others = Math.max(0, list.length - 2);
+  const tail = others === 0 ? "" : others === 1 ? "1 other" : `${others} others`;
+  const mainKeys = new Set(list.map(({ e }) => e.key));
+  const rest = uniquePeople(otherSide.filter((e) => !mainKeys.has(e.key)));
+  const top = rest[0];
+  const kind = side === "owe" ? "owes-you" : "you-owe";
+  // Several people the other way, all in one currency: name them as a count with their total, so the line adds up
+  // to the card ("Nupur ₹1,800 · 2 people owe you ₹1,300" under ₹500). Mixed currencies: the biggest one, as before.
+  const oneCurrency = rest.length > 1 && rest.every(({ e }) => e.currency === top.e.currency);
+  const sum = oneCurrency ? rest.reduce((t, { e }) => t + e.amount, 0) : 0;
+  const approx = oneCurrency ? rest.some(({ e }) => e.approx) : top?.e.approx;
+  const opposite: WhoOpposite | null = top
+    ? oneCurrency
+      ? {
+          name: `${rest.length} people`,
+          amount: `${approx ? "≈ " : ""}${homeMoney(sum, top.e.currency)}`,
+          exact: `${approx ? "≈ " : ""}${formatMoney(sum, top.e.currency)}`,
+          kind,
+          phrase: "",
+        }
+      : {
+          name: top.name,
+          amount: `${top.e.approx ? "≈ " : ""}${homeMoney(top.e.amount, top.e.currency)}`,
+          exact: `${top.e.approx ? "≈ " : ""}${formatMoney(top.e.amount, top.e.currency)}`,
+          kind,
+          phrase: "",
+        }
+    : null;
+  if (opposite) opposite.phrase = kind === "owes-you" ? `${opposite.name} ${oneCurrency ? "owe" : "owes"} you` : `you owe ${opposite.name}`;
+  const text = [...parts.map((p) => `${p.name} ${p.amount}`), ...(tail ? [tail] : []), ...(opposite ? [`${opposite.phrase} ${opposite.amount}`] : [])].join(" · ");
+  const label =
+    parts.map((p) => `${p.name} ${p.exact}`).join(", ") + (tail ? ` and ${tail}` : "") + (opposite ? `. Also ${opposite.phrase} ${opposite.exact}` : "");
+  return { parts, others, tail, opposite, text, label };
+}
+
+// ---- The two buttons on a card with someone to pay or remind ----
+export type MoneyAction = { key: "pay" | "remind" | "add" | "settle" | "new-group"; label: string; fullLabel: string; href: string; bright: boolean };
+
+export function firstName(name: string): string {
+  const f = name.trim().split(/\s+/)[0] || name.trim();
+  const chars = [...f];
+  return chars.length <= 12 ? f : `${chars.slice(0, 11).join("")}…`;
+}
+
+// "Pay Nupur ₹1,800"; with no amount, or when the whole label would be longer than 16 characters (a small phone), just "Pay Nupur".
+export function personButtonLabel(verb: "Pay" | "Remind", first: string, amount?: string): string {
+  const full = amount ? `${verb} ${first} ${amount}` : "";
+  return full && [...full].length <= 16 ? full : `${verb} ${first}`;
+}
+
+// Where "Pay" goes: the person's row on the all-groups Settle up (/settle#pay-key, scrolled to). A part with no saved
+// exchange rate has no row there, so it goes to that group's own Settle up.
+export function payHref(p: MoneyPerson, common: string): string {
+  if (p.currency === common) return `/settle#${settleRowId("pay", p.key)}`;
+  const part = [...p.parts].filter((x) => x.iPay).sort((a, b) => b.amount - a.amount)[0];
+  return part ? `/groups/${part.groupId}/settle` : "/settle#pay";
+}
+
+// Where "Remind" goes: the existing remind route, for the group where they owe you most (WhatsApp with the pay link).
+export function remindHref(p: MoneyPerson): string | null {
+  const part = [...p.parts].filter((x) => !x.iPay).sort((a, b) => b.amount - a.amount || a.groupId.localeCompare(b.groupId))[0];
+  return part ? `/groups/${part.groupId}/remind?from=${encodeURIComponent(part.memberId)}` : null;
+}
+
+// Owing: "Pay {first name} ₹amount" (the person you owe most) + Add expense. Owed: "Remind {first name}" + Add expense.
+// Anything else (square, even, nobody to name): today's two buttons.
+export function moneyActions(mode: MoneyMode, people: MoneyPerson[], common: string): [MoneyAction, MoneyAction] {
+  const add: MoneyAction = { key: "add", label: "Add expense", fullLabel: "Add expense", href: "/add", bright: false };
+  const top = people[0];
+  if (mode === "owe" && top) {
+    const first = firstName(top.name);
+    const label = personButtonLabel("Pay", first, top.approx ? undefined : homeMoney(top.amount, top.currency));
+    return [{ key: "pay", label, fullLabel: `Pay ${top.name} ${top.approx ? "≈ " : ""}${formatMoney(top.amount, top.currency)}`, href: payHref(top, common), bright: true }, add];
+  }
+  const remind = mode === "owed" && top ? remindHref(top) : null;
+  if (mode === "owed" && top && remind) {
+    const first = firstName(top.name);
+    return [{ key: "remind", label: `Remind ${first}`, fullLabel: `Remind ${top.name} on WhatsApp`, href: remind, bright: true }, add];
+  }
+  const [a, b] = moneyButtons(mode);
+  const conv = (x: MoneyButton): MoneyAction => ({ key: x.label === "Add expense" ? "add" : x.label === "Settle up" ? "settle" : "new-group", label: x.label, fullLabel: x.label, href: x.href, bright: x.bright });
+  return [conv(a), conv(b)];
+}
 
 // "Nupur" / "Nupur and Ravi" / "Nupur, Ravi and Asha" / "Nupur, Ravi and 3 others". No amounts: those live on Settle up.
 // Largest first (entries already are). A person is named once, even if part of what they're owed is in another currency.

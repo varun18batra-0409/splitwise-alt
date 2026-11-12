@@ -218,6 +218,7 @@ async function settleNav(page: Page) {
   await page.waitForLoadState("load", { timeout: 10_000 }).catch(() => undefined);
   if (PROFILE === "iphone") await page.waitForLoadState("networkidle", { timeout: 2_000 }).catch(() => undefined);
 }
+const slowLoads: string[] = []; // pages whose "load" took over 10 s during a layout sweep (reported, not failed)
 async function go(page: Page, path: string, opts: { quick?: boolean } = {}) {
   for (let attempt = 0; ; attempt++) {
     await settleNav(page);
@@ -225,8 +226,12 @@ async function go(page: Page, path: string, opts: { quick?: boolean } = {}) {
       // The hosted test copy keeps a connection open (Vercel's preview tools), so the network never goes quiet there.
       // "quick": layout sweeps only measure the page, so wait for load and fonts, not for every poll to finish.
       if (opts.quick) {
-        await page.goto(base + path, { waitUntil: "load", timeout: 30_000 });
-        await page.evaluate("document.fonts ? document.fonts.ready.then(() => true) : true").catch(() => undefined);
+        await page.goto(base + path, { waitUntil: "domcontentloaded", timeout: 30_000 });
+        // Layout only needs the page drawn: wait for load if it comes within 10 s, and say so if it doesn't.
+        const loaded = await page.waitForLoadState("load", { timeout: 10_000 }).then(() => true, () => false);
+        if (!loaded) slowLoads.push(path);
+        // Fonts: at most 5 s (on Safari's engine "fonts ready" can wait on a font that never finishes on this machine).
+        await page.evaluate("Promise.race([document.fonts ? document.fonts.ready.then(() => true) : true, new Promise((r) => setTimeout(() => r(false), 5000))])").catch(() => undefined);
         await page.waitForTimeout(300);
       } else if (hosted) await page.goto(base + path, { waitUntil: "load", timeout: 30_000 });
       else await page.goto(base + path, { waitUntil: "networkidle" });
@@ -1224,18 +1229,54 @@ async function main() {
     await money.getByText(/Coming back to you|You owe|It all evens out|Nobody owes anybody|Across currencies/).first().waitFor();
     assert((await money.getByText(/You owe, to /).count()) === 0, "the money card still says “You owe, to N people”");
     await money.locator("[data-net-balance]").waitFor();
-    // When money is owed either way, one quiet line names who it is with (small circles, then “Nupur, Ravi and 2 others”), no amounts;
-    // the whole line is one 44px link to Settle up. Nothing when it is square.
+    // The card takes the colour of your position (data-tone). When money is owed either way, one line names who it is with and how much
+    // ("Nupur ₹1,800 · Ravi ₹650", names in bold, one 44px link to Settle up); the bright button does the obvious next thing.
+    const text = await money.innerText();
+    const tone = await money.getAttribute("data-tone");
+    const wantTone = /You owe/.test(text) ? "owe" : /Coming back to you/.test(text) ? "owed" : "square";
+    assert(tone === wantTone, `the money card tone is ${tone}, expected ${wantTone}`);
     const who = money.locator("[data-money-people]");
-    if (/You owe|Coming back to you/.test(await money.innerText())) {
+    const keys = (await money.locator("[data-money-action]").evaluateAll((els) => els.map((e) => e.getAttribute("data-money-action")))).join(",");
+    if (wantTone === "square") {
+      assert((await who.count()) === 0, "the money card names people when nothing is owed");
+      assert(/^add,(settle|new-group)$/.test(keys), `the money card buttons are ${keys}`);
+    } else {
       assert((await who.count()) === 1, "the money card has no line saying who it is with");
-      assert((await who.boundingBox())!.height >= 44, "the people line is under 44px tall");
-      assert(/^\/settle(#|$)/.test((await who.getAttribute("href")) ?? ""), "the people line doesn't go to Settle up");
-      assert(!/[₹$€£]/.test(await who.innerText()), "the people line shows an amount");
-      assert((await who.locator("span.truncate").evaluate((el) => getComputedStyle(el).whiteSpace)) === "nowrap", "the people line wraps");
-    } else assert((await who.count()) === 0, "the money card names people when nothing is owed");
-    const second = (await money.locator("[data-money-action]").evaluateAll((els) => els.map((e) => e.getAttribute("data-money-action")))).join(",");
-    assert(/^add,(settle|new-group)$/.test(second), `the money card buttons are ${second}`);
+      assert((await who.boundingBox())!.height >= 44, "the who-line is under 44px tall");
+      assert(/^\/settle(#|$)/.test((await who.getAttribute("href")) ?? ""), "the who-line doesn't go to Settle up");
+      const line = (await who.innerText()).replace(/\s+/g, " ").trim();
+      assert(/^\S.*[₹$€£]\s?\d/.test(line), `the who-line has no amounts: ${line}`);
+      assert((await who.locator("b").count()) >= 1, "the who-line names aren't bold");
+      const lineBox = (await who.locator("[data-who-line]").boundingBox())!;
+      assert(lineBox.height < 24, `the who-line wraps (${Math.round(lineBox.height)}px tall)`);
+      const main = money.locator("[data-money-action][data-emphasis='bright']");
+      const label = (await main.innerText()).trim();
+      const href = (await main.getAttribute("href")) ?? "";
+      if (wantTone === "owe") {
+        assert(keys === "pay,add" && /^Pay \S+/.test(label), `main button is "${label}" (${keys})`);
+        assert(/^\/settle#pay-/.test(href) || /^\/groups\/[^/]+\/settle$/.test(href), `Pay goes to ${href}`);
+      } else {
+        assert(keys === "remind,add" && /^Remind \S+/.test(label), `main button is "${label}" (${keys})`);
+        assert(/^\/groups\/[^/]+\/remind\?from=/.test(href), `Remind goes to ${href}`);
+      }
+      assert((await money.locator("[data-money-action='add']").innerText()).includes("Add expense"), "the second button isn't Add expense");
+    }
+    // What waits on you is one line at the bottom of the card (a 44px link), never a section of its own.
+    assert((await V.locator("[data-needs-you]").count()) === 0, "Home still has a separate Needs you section");
+    assert((await V.getByRole("heading", { name: "Needs you" }).count()) === 0, "Home still has a Needs you heading");
+    const needLine = money.locator("[data-need-line]");
+    if (await needLine.count()) {
+      const link = needLine.locator("[data-need-link]");
+      assert((await link.boundingBox())!.height >= 44, "the folded need line is under 44px tall");
+      const n = Number(await needLine.getAttribute("data-need-count"));
+      const t = (await link.innerText()).replace(/\s+/g, " ");
+      if (n >= 2) {
+        assert(/^\d+ (things need you|payments to confirm) See them/.test(t) && (await link.getAttribute("href")) === "/notifications", `the many-needs line is "${t}"`);
+      } else {
+        assert(/(Confirm|Add|Add it|Needs a fix|Close it|View) ›$/.test(t), `the need line has no action word: ${t}`);
+        if (/says they paid/.test(t)) assert(/says they paid (you|[A-Z])/.test(t) && !/says they paid [₹$€£]/.test(t), `the need line doesn't say who was paid: ${t}`);
+      }
+    }
     await V.getByRole("heading", { name: "Your groups" }).waitFor();
     await V.getByRole("link", { name: "See all" }).first().waitFor();
     await V.locator("[data-group-card]").first().waitFor();
@@ -1243,7 +1284,7 @@ async function main() {
     await nav.waitFor();
     assert(await nav.getByRole("link", { name: "Add expense" }).count(), "the bottom bar lost its “+”");
   });
-  await step(V, "Home", "On a small phone (375×667) the header, the money card (with its people line) and both buttons (44px tall), the “+ New group” card and at least one group card sit inside the first screen, above the bottom bar, with the next card peeking in; Add expense goes to the group picker or the only group", async () => {
+  await step(V, "Home", "On a small phone (375×667) the header, the money card (with its who-line) and both buttons (44px tall) sit inside the first screen above the bottom bar, the Your groups row starts above the bottom bar, and the next card peeks in; Add expense goes to the group picker or the only group", async () => {
     const was = V.viewportSize();
     await V.setViewportSize({ width: 375, height: 667 });
     await go(V, "/");
@@ -1260,7 +1301,12 @@ async function main() {
     // At least the first group card is whole above the fold, and above the bottom bar.
     const nav = (await V.getByRole("navigation", { name: "Main" }).boundingBox())!;
     const first = (await V.locator("[data-group-card]").first().boundingBox())!;
-    assert(first.y + first.height <= 667 && first.y + first.height <= nav.y + 1, `the first group card ends at ${Math.round(first.y + first.height)}px (bottom bar starts at ${Math.round(nav.y)}px, screen is 667px)`);
+    assert(first.y < nav.y, `the first group card starts at ${Math.round(first.y)}px, under the bottom bar (${Math.round(nav.y)}px)`);
+    // The tinted card is taller than the old slim one, so the group cards only need to start on the first screen; the buttons must be whole above the bar.
+    for (const b of await card.locator("[data-money-action]").all()) {
+      const bb = (await b.boundingBox())!;
+      assert(bb.y + bb.height <= nav.y + 1, `a money button ends at ${Math.round(bb.y + bb.height)}px, under the bottom bar (${Math.round(nav.y)}px)`);
+    }
     // Polaroids are about 124px wide, so two whole cards (“+ New group” and the first group) fit and the next one peeks in from the right.
     assert(Math.round(first.width) <= 130, `a group card is ${Math.round(first.width)}px wide (should be about 124)`);
     const newCard = (await V.locator("[data-group-card-new]").boundingBox())!;
@@ -1315,7 +1361,7 @@ async function main() {
     await V.waitForURL(/\/groups\/new/);
     await go(V, "/");
   });
-  await step(V, "Home", "Home order: Latest comes straight after Your groups and Needs you (only the trip countdown may sit between); closed groups are not on Home; the “saved on this phone” note is below everything but the footer; Needs you buttons are 44px", async () => {
+  await step(V, "Home", "Home order: Latest comes straight after Your groups (only the trip countdown may sit between); closed groups and Recently deleted are not on Home; the “saved on this phone” note is below everything but the footer", async () => {
     await go(V, "/");
     const y = async (loc: ReturnType<Page["locator"]>) => ((await loc.count()) ? (await loc.first().boundingBox())!.y : -1);
     const groups = await y(V.getByRole("heading", { name: "Your groups" }));
@@ -1340,7 +1386,7 @@ async function main() {
         }
         return out;
       })()`)) as string[];
-      const allowed = /^(Needs you|Trip countdown|More trips)$/;
+      const allowed = /^(Trip countdown|More trips)$/;
       assert(between.every((b) => allowed.test(b)), `between Your groups and Latest: ${between.join(", ")}`);
     }
     const phone = V.getByText(/saved on this phone/);
@@ -1349,12 +1395,34 @@ async function main() {
       assert((await phone.first().boundingBox())!.y < footer, "the phone-only note is below the footer");
       if (latest >= 0) assert((await phone.first().boundingBox())!.y > latest, "the phone-only note is above Latest");
     }
-    for (const b of await V.locator("[data-need-action]").all()) {
-      const bb = (await b.boundingBox())!;
-      assert(bb.height >= 44, `a Needs you button is ${Math.round(bb.height)}px tall`);
+    assert((await V.getByText(/^(Recently deleted|Hide recently deleted)/).count()) === 0, "Recently deleted is still on Home");
+  });
+  await step(V, "Home", "On the narrowest phone (320×640) the money card has no sideways scroll: the who-line stays on one line, the buttons keep their words inside, the card is tinted", async () => {
+    const was = V.viewportSize();
+    await V.setViewportSize({ width: 320, height: 640 });
+    await go(V, "/");
+    const card = V.getByRole("region", { name: "Your money" });
+    await card.waitFor();
+    const over = (await card.evaluate((el) => {
+      const bad: string[] = [];
+      const cr = el.getBoundingClientRect();
+      if (cr.right > 320.5 || el.scrollWidth > el.clientWidth + 1) bad.push("card");
+      el.querySelectorAll("[data-money-action], [data-who-line], [data-need-link]").forEach((e) => {
+        const r = e.getBoundingClientRect();
+        if (r.right > cr.right + 0.5 || r.left < cr.left - 0.5) bad.push(e.getAttribute("data-money-action") || (e.hasAttribute("data-who-line") ? "who-line" : "need-line"));
+      });
+      return bad;
+    })) as string[];
+    assert(over.length === 0, `at 320px these spill out of the money card: ${over.join(", ")}`);
+    assert((await V.evaluate("document.documentElement.scrollWidth <= window.innerWidth")) as boolean, "Home scrolls sideways at 320px");
+    const tone = await card.getAttribute("data-tone");
+    if (tone !== "square") {
+      const bg = await card.evaluate((el) => getComputedStyle(el).backgroundImage);
+      assert(/gradient/.test(bg), "a card that owes or is owed has no tint");
+      const who = card.locator("[data-who-line]");
+      if (await who.count()) assert((await who.boundingBox())!.height < 24, "the who-line wraps at 320px");
     }
-    const lines = await V.locator("[data-needs-you] li").allInnerTexts();
-    for (const l of lines) if (/says they paid/.test(l)) assert(/says they paid (you|[A-Z])/.test(l) && !/says they paid [₹$€£]/.test(l), `a Needs you line doesn't say who was paid: ${l}`);
+    if (was) await V.setViewportSize(was);
   });
   await step(V, "Home", "The bottom bar is nearly solid (background alpha 0.9 or more) so words never show through, and big amounts on Home are whole rupees", async () => {
     await go(V, "/");
@@ -1433,11 +1501,27 @@ async function main() {
     await go(V, `${g3}?tab=balances`);
     await V.getByText(/(USD\s|\$)7\.20 spent across/).first().waitFor();
   });
-  await step(V, "Group settings", "Delete a group, see it under Recently deleted, restore it", async () => {
+  await step(V, "Group settings", "Delete a group: it lands on Your groups with Recently deleted open (not on Home), You links to it, restore brings it back", async () => {
     await go(V, `${g3}/settings`);
     await V.getByRole("button", { name: "Delete group" }).click();
-    await V.waitForURL(/deleted=group/);
+    await V.waitForURL(/\/groups\?deleted=group/);
+    await V.getByText("Group deleted. You can restore it here for 30 days.").waitFor();
+    const box = await V.locator("[data-recently-deleted]").boundingBox();
+    assert(box && box.y < (V.viewportSize()?.height ?? 800), "Recently deleted isn't on the first screen after a delete");
     await V.getByText("Hide recently deleted").waitFor(); // opens on its own right after a delete
+    assert((await V.locator("#deleted").count()) === 1, "no #deleted block on Your groups");
+    // Home no longer carries it.
+    await go(V, "/");
+    assert((await V.getByText(/Recently deleted/).count()) === 0, "Recently deleted is still on Home");
+    // The You page has a quiet line to it, with the count.
+    await go(V, "/account");
+    const link = V.locator("[data-deleted-link]");
+    await link.waitFor();
+    assert(/^Recently deleted groups \(\d+\)/.test((await link.innerText()).trim()), "the You page line has no count");
+    assert((await link.boundingBox())!.height >= 44, "the You page line is under 44px tall");
+    await link.click();
+    await V.waitForURL(/\/groups#deleted/);
+    await V.getByText(/^Recently deleted \(\d+\)$/).click(); // closed until tapped
     await V.getByRole("button", { name: "Restore" }).first().click();
     await V.waitForURL(new RegExp(g3));
   });
@@ -2138,7 +2222,8 @@ async function main() {
     assert(after === before - 1, `days came: ${before} → ${after}`);
   });
   await step(null, "Layout", "Small Android phone (320 px), light mode: no screen scrolls sideways", async () => {
-    const ctx = await browser.newContext({ viewport: { width: 320, height: 640 }, locale: "en-IN", timezoneId: "Asia/Kolkata", colorScheme: "light" });
+    // On the iPhone run this is still an iPhone (Safari's engine with an iPhone's identity), just 320 px wide.
+    const ctx = await browser.newContext({ ...(PROFILE === "iphone" ? P.context : {}), viewport: { width: 320, height: 640 }, locale: "en-IN", timezoneId: "Asia/Kolkata", colorScheme: "light" });
     await ctx.addCookies(await varun.ctx.cookies());
     const page = await ctx.newPage();
     page.setDefaultTimeout(15_000);
@@ -2149,20 +2234,33 @@ async function main() {
       "/settle", "/notifications", "/search", "/account", "/how-it-works", "/welcome",
     ];
     const wide: string[] = [];
+    const timings: [string, number][] = [];
     const started = Date.now();
-    for (const p of pages) {
-      // Never keep going in the background after the step's own time is up (it would slow the steps after it).
-      if (Date.now() - started > 280_000) throw new Error(`only ${pages.indexOf(p)} of ${pages.length} screens checked in time`);
-      await go(page, p, { quick: true });
-      const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-      if (over > 1) {
-        wide.push(`${p.replace(/[a-z0-9]{20,}/g, ":id")} (+${over}px)`);
-        await page.screenshot({ path: `${out}/wide-${wide.length}.png` });
+    try {
+      for (const p of pages) {
+        // Never keep going in the background after the step's own time is up (it would slow the steps after it).
+        if (Date.now() - started > 280_000) throw new Error(`only ${pages.indexOf(p)} of ${pages.length} screens checked in time; slowest: ${timings.sort((a, b) => b[1] - a[1]).slice(0, 3).map(([q, ms]) => `${q.replace(/[a-z0-9]{20,}/g, ":id")} ${Math.round(ms / 1000)} s`).join(", ")}`);
+        const t0 = Date.now();
+        console.log(`  (layout 320: opening ${p.replace(/[a-z0-9]{20,}/g, ":id")})`);
+        await go(page, p, { quick: true });
+        // A page whose script never lets go would hang this forever: give it 10 s and name it.
+        const over = await Promise.race([
+          page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`${p.replace(/[a-z0-9]{20,}/g, ":id")} didn't answer for 10 s (the page may be stuck)`)), 10_000)),
+        ]);
+        timings.push([p, Date.now() - t0]);
+        console.log(`  (layout 320: ${p.replace(/[a-z0-9]{20,}/g, ":id")} ${Math.round((Date.now() - t0) / 1000)} s)`);
+        if (over > 1) {
+          wide.push(`${p.replace(/[a-z0-9]{20,}/g, ":id")} (+${over}px)`);
+          await page.screenshot({ path: `${out}/wide-${wide.length}.png` });
+        }
       }
+    } finally {
+      await ctx.close().catch(() => undefined);
     }
-    await ctx.close();
     assert(wide.length === 0, `scrolls sideways: ${wide.join(", ")}`);
-    return `${pages.length} screens checked in ${Math.round((Date.now() - started) / 1000)} s`;
+    const slow = slowLoads.splice(0).map((p) => p.replace(/[a-z0-9]{20,}/g, ":id"));
+    return `${pages.length} screens checked in ${Math.round((Date.now() - started) / 1000)} s${slow.length ? `; still loading after 10 s (measured anyway): ${slow.join(", ")}` : ""}`;
   }, undefined, 300_000);
 
   await step(null, "Layout", "Sign-in on small phones (320×568 and 375×667): Google and the email box are both on the first screen, no scrolling", async () => {

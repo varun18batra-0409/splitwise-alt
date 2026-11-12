@@ -10,7 +10,7 @@ import { PasskeyAdd } from "@/components/Passkeys";
 import { niceDate } from "@/lib/format";
 import { PhoneStatus } from "@/components/PushControls";
 import { getAccount, getMemberships } from "@/lib/identity";
-import { loadMyGroups } from "@/lib/group-data";
+import { loadDeletedGroups, loadMyGroups } from "@/lib/group-data";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { PageHeader, inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
 import { savePayWays } from "@/app/pay-actions";
@@ -23,7 +23,9 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const signedOutOthers = others === "out";
   const account = await getAccount();
   const postcardsNew = account ? await db.postcard.count({ where: { toId: account.id, readAt: null, OR: [{ opensAt: null }, { opensAt: { lte: new Date() } }] } }) : 0;
-  const groups = await loadMyGroups(await getMemberships());
+  const memberships = await getMemberships();
+  const groups = await loadMyGroups(memberships);
+  const deletedCount = (await loadDeletedGroups(memberships)).length;
   const admins = (process.env.ADMIN_EMAIL ?? "").split(",").map((s) => s.trim().toLowerCase());
   const isAdmin = Boolean(account && admins.includes(account.email));
   const passkeys = account ? await listPasskeys(account.id) : [];
@@ -104,6 +106,14 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             Sign in or sign up
           </Link>
         </section>
+      )}
+
+      {/* Groups deleted in the last 30 days live at the bottom of Your groups; a quiet line here, only when there are some. */}
+      {deletedCount > 0 && (
+        <Link href="/groups#deleted" className="mt-4 flex min-h-11 items-center justify-between gap-3 px-1 text-sm text-fg/65 active:text-fg" data-deleted-link>
+          <span>Recently deleted groups ({deletedCount})</span>
+          <span aria-hidden>›</span>
+        </Link>
       )}
 
       {/* The trip passport: a stamp for every trip. */}
