@@ -2160,9 +2160,15 @@ async function main() {
       // Never keep going in the background after the step's own time is up (it would slow the steps after it).
       if (Date.now() - started > 280_000) throw new Error(`only ${pages.indexOf(p)} of ${pages.length} screens checked in time; slowest: ${timings.sort((a, b) => b[1] - a[1]).slice(0, 3).map(([q, ms]) => `${q.replace(/[a-z0-9]{20,}/g, ":id")} ${Math.round(ms / 1000)} s`).join(", ")}`);
       const t0 = Date.now();
+      console.log(`  (layout 320: opening ${p.replace(/[a-z0-9]{20,}/g, ":id")})`);
       await go(page, p, { quick: true });
+      // A page whose script never lets go would hang this forever: give it 10 s and name it.
+      const over = await Promise.race([
+        page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`${p.replace(/[a-z0-9]{20,}/g, ":id")} didn't answer for 10 s (the page may be stuck)`)), 10_000)),
+      ]);
       timings.push([p, Date.now() - t0]);
-      const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      console.log(`  (layout 320: ${p.replace(/[a-z0-9]{20,}/g, ":id")} ${Math.round((Date.now() - t0) / 1000)} s)`);
       if (over > 1) {
         wide.push(`${p.replace(/[a-z0-9]{20,}/g, ":id")} (+${over}px)`);
         await page.screenshot({ path: `${out}/wide-${wide.length}.png` });
