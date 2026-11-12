@@ -3,7 +3,8 @@ import { niceDate } from "@/lib/format";
 import { TakeOff } from "@/components/TripCountdown";
 import { ShareCountdown } from "@/components/ShareCountdown";
 import { ExactAmount } from "@/components/ExactAmount";
-import { moneyButtons, stripWords, type MoneyMode } from "@/lib/home/money-card";
+import { avatarTone } from "@/components/ui";
+import { moneyButtons, stripWords, type MoneyMode, type PeopleLine } from "@/lib/home/money-card";
 import type { TripPhase } from "@/lib/countdown";
 
 // Home's money card (slim, so the money and both buttons fit the first screen of a small phone) and, lower down, the countdown
@@ -20,9 +21,13 @@ export function MoneyCard({
   tone,
   mode,
   exact,
+  who,
+  whoHref = "/settle",
 }: {
   exact?: string; // the exact amount, when `amount` is rounded for display (tooltip)
-  label: string; // "Coming back to you", "You owe, to 2 people", "Nobody owes anybody"
+  who?: PeopleLine | null; // initial circles and "Nupur, Ravi and 2 others": who the money is with, largest first (no amounts)
+  whoHref?: string; // where the line goes: Settle up, scrolled to the matching side
+  label: string; // "Coming back to you", "You owe", "Nobody owes anybody"
   amount: string; // "₹3,450" or "All square"
   amountClass: string;
   tone: "owed" | "owe" | "plain";
@@ -56,7 +61,20 @@ export function MoneyCard({
           {exact ? <ExactAmount amount={amount} exact={exact} /> : amount}
         </p>
       </div>
-      <div className="mt-3 grid grid-cols-2 gap-2">
+      {who && who.names.length > 0 && (
+        // One quiet line, one tap target (44px tall) to Settle up, where each person's amount is.
+        <Link href={whoHref} aria-label={`${who.text}. Open Settle up`} className="flex min-h-11 items-center gap-2 text-fg/65 active:text-fg" data-money-people>
+          <span aria-hidden className="flex shrink-0">
+            {who.names.map((n, i) => (
+              <span key={`${n}-${i}`} className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ring-2 ring-[#16161a] ${i > 0 ? "-ml-2" : ""} ${avatarTone(n)}`}>
+                {n.trim().charAt(0).toUpperCase()}
+              </span>
+            ))}
+          </span>
+          <span className="min-w-0 flex-1 truncate whitespace-nowrap text-[13px]">{who.text}</span>
+        </Link>
+      )}
+      <div className={`${who && who.names.length > 0 ? "mt-0.5" : "mt-3"} grid grid-cols-2 gap-2`}>
         {btn(add, "add")}
         {btn(second, second.label === "Settle up" ? "settle" : "new-group")}
       </div>

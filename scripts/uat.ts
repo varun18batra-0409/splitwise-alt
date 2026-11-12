@@ -1184,7 +1184,18 @@ async function main() {
     await go(V, "/");
     const money = V.getByRole("region", { name: "Your money" });
     await money.getByText(/Coming back to you|You owe|It all evens out|Nobody owes anybody|Across currencies/).first().waitFor();
+    assert((await money.getByText(/You owe, to /).count()) === 0, "the money card still says “You owe, to N people”");
     await money.locator("[data-net-balance]").waitFor();
+    // When money is owed either way, one quiet line names who it is with (small circles, then “Nupur, Ravi and 2 others”), no amounts;
+    // the whole line is one 44px link to Settle up. Nothing when it is square.
+    const who = money.locator("[data-money-people]");
+    if (/You owe|Coming back to you/.test(await money.innerText())) {
+      assert((await who.count()) === 1, "the money card has no line saying who it is with");
+      assert((await who.boundingBox())!.height >= 44, "the people line is under 44px tall");
+      assert(/^\/settle(#|$)/.test((await who.getAttribute("href")) ?? ""), "the people line doesn't go to Settle up");
+      assert(!/[₹$€£]/.test(await who.innerText()), "the people line shows an amount");
+      assert((await who.locator("span.truncate").evaluate((el) => getComputedStyle(el).whiteSpace)) === "nowrap", "the people line wraps");
+    } else assert((await who.count()) === 0, "the money card names people when nothing is owed");
     const second = (await money.locator("[data-money-action]").evaluateAll((els) => els.map((e) => e.getAttribute("data-money-action")))).join(",");
     assert(/^add,(settle|new-group)$/.test(second), `the money card buttons are ${second}`);
     await V.getByRole("heading", { name: "Your groups" }).waitFor();
@@ -1194,7 +1205,7 @@ async function main() {
     await nav.waitFor();
     assert(await nav.getByRole("link", { name: "Add expense" }).count(), "the bottom bar lost its “+”");
   });
-  await step(V, "Home", "On a small phone (375×667) the header, the money card with both buttons (44px tall) and at least one group card sit inside the first screen, above the bottom bar; Add expense goes to the group picker or the only group", async () => {
+  await step(V, "Home", "On a small phone (375×667) the header, the money card (with its people line) and both buttons (44px tall), the “+ New group” card and at least one group card sit inside the first screen, above the bottom bar, with the next card peeking in; Add expense goes to the group picker or the only group", async () => {
     const was = V.viewportSize();
     await V.setViewportSize({ width: 375, height: 667 });
     await go(V, "/");
@@ -1212,6 +1223,15 @@ async function main() {
     const nav = (await V.getByRole("navigation", { name: "Main" }).boundingBox())!;
     const first = (await V.locator("[data-group-card]").first().boundingBox())!;
     assert(first.y + first.height <= 667 && first.y + first.height <= nav.y + 1, `the first group card ends at ${Math.round(first.y + first.height)}px (bottom bar starts at ${Math.round(nav.y)}px, screen is 667px)`);
+    // Polaroids are about 124px wide, so two whole cards (“+ New group” and the first group) fit and the next one peeks in from the right.
+    assert(Math.round(first.width) <= 130, `a group card is ${Math.round(first.width)}px wide (should be about 124)`);
+    const newCard = (await V.locator("[data-group-card-new]").boundingBox())!;
+    assert(newCard.x + newCard.width <= 375 && first.x + first.width <= 375, "“+ New group” and the first group card aren't both whole on the first screen");
+    const cards = await V.locator("[data-group-card]").all();
+    if (cards.length > 1) {
+      const second = (await cards[1].boundingBox())!;
+      assert(second.x < 375 && second.x + second.width > 375, `the next card doesn't peek in (it spans ${Math.round(second.x)}–${Math.round(second.x + second.width)}px of 375)`);
+    }
     // The stories row, when there is one, is above the money card with 64px circles.
     if (await V.locator("[data-stories]").count()) {
       const st = (await V.locator("[data-stories] button").first().boundingBox())!;
@@ -1237,6 +1257,23 @@ async function main() {
     // One stories row at most, and not again lower down; no row at all when there are no stories.
     assert((await V.locator("[data-stories]").count()) <= 1, "stories show twice on Home");
     if ((await V.locator("[data-story]").count()) === 0) assert((await V.getByRole("region", { name: "Stories" }).count()) === 0, "an empty stories row is showing");
+  });
+  await step(V, "Home", "“+ New group” is the first card in Your groups (dashed, as tall as the polaroids, at least 44px), whatever the number of groups, and one tap opens the new-group page; “See all” stays in the header", async () => {
+    await go(V, "/");
+    const newCard = V.locator("[data-group-card-new]");
+    assert((await newCard.count()) === 1, "there isn't exactly one “+ New group” card on Home");
+    const row = V.locator("[data-group-cards]");
+    const order = await row.locator("li").evaluateAll((els) => els.map((e) => (e.querySelector("[data-group-card-new]") ? "new" : e.querySelector("[data-group-card]") ? "group" : "end")));
+    assert(order[0] === "new", `the first card in the row is ${order[0]}, not “+ New group”`);
+    assert(/New group/.test(await newCard.innerText()), "the first card doesn't say New group");
+    const nb = (await newCard.boundingBox())!;
+    const gb = (await V.locator("[data-group-card]").first().boundingBox())!;
+    assert(nb.width >= 44 && nb.height >= 44, `the “+ New group” card is ${Math.round(nb.width)}×${Math.round(nb.height)}px`);
+    assert(Math.abs(nb.height - gb.height) <= 14, `the “+ New group” card is ${Math.round(nb.height)}px tall, the group cards ${Math.round(gb.height)}px`);
+    assert((await V.getByRole("link", { name: "See all" }).count()) >= 1, "“See all” is gone from the header");
+    await newCard.click();
+    await V.waitForURL(/\/groups\/new/);
+    await go(V, "/");
   });
   await step(V, "Home", "Home order: Latest comes straight after Your groups and Needs you (only the trip countdown may sit between); closed groups are not on Home; the “saved on this phone” note is below everything but the footer; Needs you buttons are 44px", async () => {
     await go(V, "/");

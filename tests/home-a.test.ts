@@ -60,11 +60,8 @@ describe("group cards: the trip tag", () => {
 });
 
 describe("group cards: the end of the row", () => {
-  it("3 groups or fewer -> a dashed “+ New group” card", () => {
-    for (const n of [1, 2, 3]) expect(rowEnd(n)).toBe("new");
-  });
-  it("4 to 10 groups -> nothing extra", () => {
-    for (const n of [4, 7, CARD_ROW_MAX]) expect(rowEnd(n)).toBeNull();
+  it("“+ New group” is the first card now, so the end of the row never offers it (1 to 10 groups -> nothing extra)", () => {
+    for (const n of [1, 2, 3, 4, 7, CARD_ROW_MAX]) expect(rowEnd(n)).toBeNull();
   });
   it("more than 10 -> “See all N” instead of a very long row", () => {
     expect(rowEnd(CARD_ROW_MAX + 1)).toBe("all");
@@ -74,11 +71,10 @@ describe("group cards: the end of the row", () => {
 describe("slim money card label", () => {
   const two = [{ name: "Asha", net: -200000 }, { name: "Ravi", net: -145000 }];
   it("owed -> Coming back to you", () => expect(moneyLabel({ mode: "owed", people: [] })).toBe("Coming back to you"));
-  it("you owe, to N people (only people on the owing side are counted)", () => {
-    expect(moneyLabel({ mode: "owe", people: two })).toBe("You owe, to 2 people");
-    expect(moneyLabel({ mode: "owe", people: [...two, { name: "Meera", net: 30000 }] })).toBe("You owe, to 2 people");
-    expect(moneyLabel({ mode: "owe", people: [two[0]] })).toBe("You owe, to Asha");
-    expect(moneyLabel({ mode: "owe", people: [] })).toBe("You owe");
+  it("you owe -> just “You owe” (the people line says who)", () => {
+    expect(moneyLabel({ mode: "owe", people: two })).toBe("You owe");
+    expect(moneyLabel({ mode: "owe", people: [two[0]] })).toBe("You owe");
+    expect(moneyLabel({ mode: "owe" })).toBe("You owe");
   });
   it("square and even and mixed currencies", () => {
     expect(moneyLabel({ mode: "square", people: [] })).toBe("Nobody owes anybody");
