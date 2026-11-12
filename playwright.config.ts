@@ -6,7 +6,7 @@ import { defineConfig, devices } from "@playwright/test";
 //   are kept and linked from the HTML report.
 // - Where it runs is set by E2E_BASE_URL (default: a server on this machine).
 //   It refuses the live app; see e2e/env.ts.
-// E2E_RUN_TAG ("ios") keeps a second run's results apart from the first.
+// E2E_RUN_TAG ("ios", "desktop") keeps a later run's results apart from the first.
 const tag = process.env.E2E_RUN_TAG ? `-${process.env.E2E_RUN_TAG}` : "";
 
 export default defineConfig({
@@ -35,5 +35,8 @@ export default defineConfig({
   projects: [
     { name: "phone", use: { browserName: "chromium" } }, // Android, Chrome
     { name: "iphone", use: { ...devices["iPhone 14"], browserName: "webkit" } }, // iPhone, Safari's engine
+    // A computer: a wide window, a mouse, no touch, another country and time zone. Run on purpose
+    // (--project=desktop, as Exercise A does); the older workflows name their projects, so they're unchanged.
+    { name: "desktop", use: { ...devices["Desktop Chrome"], browserName: "chromium", viewport: { width: 1440, height: 900 }, isMobile: false, hasTouch: false, locale: "en-GB", timezoneId: "Europe/London" } },
   ],
 });

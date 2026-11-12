@@ -8,19 +8,47 @@
 // Needs the app running on :3000. Writes uat/report.md (+ a screenshot of each
 // failure) into the screenshots folder. Never fails the build by itself: the
 // report says what passed and what didn't.
+//
+// UAT_PROFILE picks the device it is run as (Exercise A runs all three):
+//   android  (default) Chromium, 390×844, touch, en-IN, Asia/Kolkata
+//   iphone   WebKit (Safari's engine) with Playwright's "iPhone 14", en-IN, Asia/Kolkata
+//   desktop  Chromium, 1440×900, no touch, en-GB, Europe/London
+// A step that only makes sense on some devices says so (stepOn) and is reported
+// as "not applicable" on the others, never skipped quietly. Besides report.md and
+// summary.txt, coverage.md / coverage.json map every step to an area.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { base, bypass, hosted, withBypass } from "./hosted";
-import { chromium, type Browser, type BrowserContext, type Page, type Route } from "playwright";
+import { chromium, webkit, devices, type Browser, type BrowserContext, type BrowserContextOptions, type Page, type Route } from "playwright";
 import { db } from "../src/lib/db";
 import { netBalances } from "../src/lib/balances";
+import { decimalsOf } from "../src/lib/money";
+import { dayKey } from "../src/lib/dates";
 import { nameFromEmail } from "../src/lib/invites";
 
 const out = "screenshots/uat";
 mkdirSync(out, { recursive: true });
 
-type Result = { area: string; name: string; ok: boolean; detail: string };
+// ---------- which device this run is ----------
+type Profile = "android" | "iphone" | "desktop";
+const ALL_PROFILES: Profile[] = ["android", "iphone", "desktop"];
+const PROFILES: Record<Profile, { label: string; engine: "chromium" | "webkit"; locale: string; timezoneId: string; context: BrowserContextOptions }> = {
+  android: { label: "Android phone: Chromium, 390×844, touch, en-IN, Asia/Kolkata", engine: "chromium", locale: "en-IN", timezoneId: "Asia/Kolkata", context: { viewport: { width: 390, height: 844 }, hasTouch: true } },
+  iphone: { label: "iPhone 14: WebKit (Safari's engine), en-IN, Asia/Kolkata", engine: "webkit", locale: "en-IN", timezoneId: "Asia/Kolkata", context: { ...devices["iPhone 14"] } },
+  desktop: { label: "Desktop: Chromium, 1440×900, no touch, en-GB, Europe/London", engine: "chromium", locale: "en-GB", timezoneId: "Europe/London", context: { viewport: { width: 1440, height: 900 }, hasTouch: false, isMobile: false } },
+};
+const requested = (process.env.UAT_PROFILE ?? "android").trim().toLowerCase();
+if (!ALL_PROFILES.includes(requested as Profile)) {
+  console.error(`UAT_PROFILE must be android, iphone or desktop (got “${requested}”).`);
+  process.exit(1);
+}
+const PROFILE = requested as Profile;
+const P = PROFILES[PROFILE];
+
+// pass / fail / na ("not applicable": the step is for other devices, and says which).
+type Status = "pass" | "fail" | "na";
+type Result = { n: number; area: string; name: string; status: Status; detail: string; only?: Profile[] };
 const results: Result[] = [];
 let shotNo = 0;
 
@@ -54,7 +82,8 @@ const rupees = (paise: number) => `₹${(paise / 100).toFixed(2)}`;
 // A step that hangs (a screen that never finishes on the hosted copy) fails on
 // its own after two minutes instead of stopping the whole run.
 const STEP_LIMIT_MS = 120_000;
-async function step(page: Page | null, area: string, name: string, fn: () => Promise<void | string>) {
+async function step(page: Page | null, area: string, name: string, fn: () => Promise<void | string>, only?: Profile[]) {
+  const n = results.length + 1;
   try {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const note = await Promise.race([
@@ -63,7 +92,7 @@ async function step(page: Page | null, area: string, name: string, fn: () => Pro
         timer = setTimeout(() => reject(new Error(`still not done after ${STEP_LIMIT_MS / 1000} s`)), STEP_LIMIT_MS);
       }),
     ]).finally(() => clearTimeout(timer));
-    results.push({ area, name, ok: true, detail: typeof note === "string" ? note : "" });
+    results.push({ n, area, name, status: "pass", detail: typeof note === "string" ? note : "", only });
     console.log("✓", area, "—", name);
   } catch (e) {
     const msg = String((e as Error)?.message ?? e).split("\n").slice(0, 3).join(" ").slice(0, 400) + diagnose(page);
@@ -73,9 +102,16 @@ async function step(page: Page | null, area: string, name: string, fn: () => Pro
       shot = `fail-${String(shotNo).padStart(2, "0")}.png`;
       await page.screenshot({ path: `${out}/${shot}`, fullPage: true }).catch(() => (shot = ""));
     }
-    results.push({ area, name, ok: false, detail: msg + (shot ? ` (screenshot: ${shot})` : "") });
+    results.push({ n, area, name, status: "fail", detail: msg + (shot ? ` (screenshot: ${shot})` : ""), only });
     console.log("✗", area, "—", name, "→", msg);
   }
+}
+// A step for some devices only. On the others it is listed as "not applicable"
+// with the reason, so nothing is ever skipped quietly.
+async function stepOn(only: Profile[], why: string, page: Page | null, area: string, name: string, fn: () => Promise<void | string>) {
+  if (only.includes(PROFILE)) return step(page, area, name, fn, only);
+  results.push({ n: results.length + 1, area, name, status: "na", detail: `not applicable on ${PROFILE}: ${why} (runs on ${only.join(", ")})`, only });
+  console.log("–", area, "—", name, `(not applicable on ${PROFILE})`);
 }
 function assert(cond: unknown, msg: string): asserts cond {
   if (!cond) throw new Error(msg);
@@ -125,7 +161,7 @@ async function signup(page: Page, name: string, address: string, emailFilled = f
 }
 
 async function person(browser: Browser): Promise<{ ctx: BrowserContext; page: Page }> {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "en-IN", timezoneId: "Asia/Kolkata", colorScheme: "dark" });
+  const ctx = await browser.newContext({ ...P.context, locale: P.locale, timezoneId: P.timezoneId, colorScheme: "dark" });
   // The one-time group-type sheet stays out of the way of the steps (its own step turns it back on).
   await ctx.addInitScript(() => {
     try {
@@ -203,13 +239,90 @@ async function checkBalances(page: Page, groupPath: string) {
   return PEOPLE.map((p) => `${p} ${want[p] >= 0 ? "+" : "−"}${rupees(Math.abs(Math.round(want[p])))}`).join(", ");
 }
 
+// ---------- the same independent check, for any group, any people, any currency ----------
+// Written separately from the app: each line says who paid what and what each person's share is
+// (in the smallest unit: paise, cents, whole yen). Money back is a negative expense paid by
+// whoever got it. Shown balances may differ from the exact fraction by one smallest unit (an odd paisa
+// goes to someone), and must always add up to exactly nothing.
+type GEntry = { payer: string; amount: number; shares: Record<string, number> };
+const evenly = (amount: number, who: string[]): Record<string, number> => Object.fromEntries(who.map((p) => [p, amount / who.length]));
+function modelNet(people: string[], entries: GEntry[]): Record<string, number> {
+  const n: Record<string, number> = Object.fromEntries(people.map((p) => [p, 0]));
+  for (const e of entries) {
+    n[e.payer] += e.amount;
+    for (const [p, s] of Object.entries(e.shares)) n[p] -= s;
+  }
+  return n;
+}
+// Balances > By person, in the group's own currency ("gets ₹566.66", "owes JPY 1,267").
+async function shownBalancesIn(page: Page, groupPath: string, currency: string): Promise<Record<string, number>> {
+  await go(page, `${groupPath}?tab=balances`);
+  const rows = page.locator("details.group\\/person > summary");
+  const count = await rows.count();
+  const d = decimalsOf(currency);
+  const result: Record<string, number> = {};
+  for (let i = 0; i < count; i++) {
+    const t = (await rows.nth(i).innerText()).replace(/\s+/g, " ");
+    const name = t.replace(/^[A-Z] /, "").split(" ")[0];
+    const m = /\b(gets|owes) (?:[A-Z]{3} )?\D?([\d,]+(?:\.\d+)?)/.exec(t);
+    const v = m ? Math.round(parseFloat(m[2].replace(/,/g, "")) * 10 ** d) : 0;
+    result[name] = m ? (m[1] === "gets" ? v : -v) : 0;
+  }
+  return result;
+}
+async function checkLedger(page: Page, groupPath: string, people: string[], entries: GEntry[], currency = "INR") {
+  const want = modelNet(people, entries);
+  const got = await shownBalancesIn(page, groupPath, currency);
+  const missing = people.filter((p) => !(p in got));
+  assert(missing.length === 0, `the Balances tab doesn't list ${missing.join(", ")} (it lists ${Object.keys(got).join(", ")})`);
+  const bad = people.filter((p) => Math.abs(got[p] - Math.round(want[p])) > 1);
+  const unit = (v: number) => (v / 10 ** decimalsOf(currency)).toFixed(decimalsOf(currency));
+  assert(bad.length === 0, `balances differ: ${bad.map((p) => `${p} shows ${unit(got[p])} expected ${unit(Math.round(want[p]))}`).join("; ")}`);
+  const sum = people.reduce((a, p) => a + got[p], 0);
+  assert(sum === 0, `the balances shown add up to ${unit(sum)}, not nothing`);
+  return people.map((p) => `${p} ${want[p] >= 0 ? "+" : "−"}${unit(Math.abs(Math.round(want[p])))}`).join(", ");
+}
+// Settle up: the suggested payments (read from the cards) must move exactly what the people who are owed are owed.
+async function settleTotal(page: Page, groupPath: string): Promise<{ cards: number; total: number }> {
+  await go(page, `${groupPath}/settle`);
+  const cards = page.locator("main ul > li[data-transfer-row]");
+  const n = await cards.count();
+  let total = 0;
+  for (let i = 0; i < n; i++) {
+    const t = (await cards.nth(i).innerText()).replace(/\s+/g, " ");
+    const m = /\b(?:pay|pays) \w+ (?:[A-Z]{3} )?\D?([\d,]+(?:\.\d+)?)/.exec(t);
+    assert(m, `can't read the settle card: ${t.slice(0, 120)}`);
+    total += parseFloat(m[1].replace(/,/g, ""));
+  }
+  return { cards: n, total };
+}
+// A group the test sets up directly (like the Tokyo step): Varun plus named people who haven't joined.
+async function seedGroup(name: string, others: string[], currency = "INR") {
+  const acc = await db.account.findUniqueOrThrow({ where: { email: email("varun") } });
+  const code = `exa-${Math.random().toString(36).slice(2, 8)}-${stamp}`;
+  const grp = await db.group.create({
+    data: { name, currency, type: "other", inviteCode: code, members: { create: [{ name: "Varun", accountId: acc.id, claimedAt: new Date() }, ...others.map((n) => ({ name: n }))] } },
+  });
+  return { id: grp.id, path: `/groups/${grp.id}`, code };
+}
+async function until<T>(what: string, look: () => Promise<T | null | undefined | false>, ms = 15_000): Promise<T> {
+  const end = Date.now() + ms;
+  for (;;) {
+    const v = await look();
+    if (v) return v;
+    if (Date.now() > end) throw new Error(`${what} never happened`);
+    await new Promise((r) => setTimeout(r, 300));
+  }
+}
+
 type AddOpts = {
   name: string;
   amount: string;
-  payer?: Person; // as seen by the person adding (their own name shows as "You")
-  me: Person;
+  payer?: string; // as seen by the person adding (their own name shows as "You")
+  me: string;
   currency?: string;
-  split?: { kind: "everyone" } | { kind: "only"; who: Person[] } | { kind: "one"; who: Person } | { kind: "amounts"; values: Partial<Record<Person, string>> } | { kind: "percent"; values: Partial<Record<Person, string>> } | { kind: "shares"; values: Partial<Record<Person, string>> };
+  inGroupCurrency?: boolean; // leave the currency alone: the group's own currency (JPY etc.) is already chosen
+  split?: { kind: "everyone" } | { kind: "only"; who: string[] } | { kind: "one"; who: string } | { kind: "amounts"; values: Record<string, string> } | { kind: "percent"; values: Record<string, string> } | { kind: "shares"; values: Record<string, string> };
   method?: "Card" | "Cash" | "Bank / UPI";
   rate?: string;
   markup?: "None" | "2" | "group";
@@ -225,10 +338,10 @@ async function pickCurrency(page: Page, code: string) {
   await page.getByRole("button", { name: new RegExp(`\\b${code}\\b`) }).first().click();
 }
 async function fillExpense(page: Page, o: AddOpts) {
-  const label = (p: Person) => (p === o.me ? "You" : p);
+  const label = (p: string) => (p === o.me ? "You" : p);
   if (o.payer) await page.getByRole("button", { name: new RegExp(`^(✓ )?${label(o.payer)}$`) }).first().click();
   await page.locator("#expense-name").fill(o.name);
-  await pickCurrency(page, o.currency ?? "INR");
+  if (!o.inGroupCurrency) await pickCurrency(page, o.currency ?? "INR");
   await page.getByLabel("Amount", { exact: true }).fill(o.amount);
   if (o.date) {
     await page.getByRole("button", { name: /Today.*Change/ }).click();
@@ -264,13 +377,13 @@ async function fillExpense(page: Page, o: AddOpts) {
     await page.getByRole("button", { name: /Custom/ }).click();
     await page.getByRole("button", { name: s.kind === "amounts" ? "Amounts" : "%", exact: true }).click();
     for (const [p, v] of Object.entries(s.values)) {
-      await page.getByLabel(`${label(p as Person)} ${s.kind === "amounts" ? "amount" : "percentage"}`).fill(v!);
+      await page.getByLabel(`${label(p)} ${s.kind === "amounts" ? "amount" : "percentage"}`).fill(v!);
     }
   }
   if (s.kind === "shares") {
     await page.getByRole("button", { name: /Custom/ }).click();
     await page.getByRole("button", { name: "Shares", exact: true }).click();
-    for (const [p, v] of Object.entries(s.values)) await page.getByLabel(`${label(p as Person)} shares`).fill(v!);
+    for (const [p, v] of Object.entries(s.values)) await page.getByLabel(`${label(p)} shares`).fill(v!);
   }
   if (o.notes) {
     await openMore(page);
@@ -315,7 +428,8 @@ async function main() {
   }
   // On the private test copy: start with fresh limits (many sign-ups come from this one machine).
   if (hosted) await db.rateLimit.deleteMany({});
-  const browser = withBypass(await chromium.launch());
+  console.log(`UAT profile: ${PROFILE} — ${P.label}`);
+  const browser = withBypass(await (P.engine === "webkit" ? webkit : chromium).launch());
   const varun = await person(browser);
   const asha = await person(browser);
   const ravi = await person(browser);
@@ -2232,7 +2346,7 @@ async function main() {
     assert(body.includes("Your balance change"), "no balance column");
   });
 
-  await step(null, "Sign in", "Fingerprint / face: turn it on, sign out, sign back in with one touch, then remove it", async () => {
+  await stepOn(["android", "desktop"], "needs Chrome's built-in test fingerprint reader, which Safari's engine does not have; check by hand on a real iPhone", null, "Sign in", "Fingerprint / face: turn it on, sign out, sign back in with one touch, then remove it", async () => {
     const { ctx, page } = await person(browser);
     // A virtual fingerprint reader (Chrome's test authenticator).
     const cdp = await ctx.newCDPSession(page);
@@ -2395,7 +2509,7 @@ async function main() {
     await ctx.close();
   });
 
-  await step(null, "Sign in", "Right after signing in, “Sign in faster next time?” can be closed with ✕ and stays closed", async () => {
+  await stepOn(["android", "desktop"], "needs Chrome's built-in test fingerprint reader, which Safari's engine does not have; check by hand on a real iPhone", null, "Sign in", "Right after signing in, “Sign in faster next time?” can be closed with ✕ and stays closed", async () => {
     const { ctx, page } = await person(browser);
     const cdp = await ctx.newCDPSession(page);
     await cdp.send("WebAuthn.enable");
@@ -2852,27 +2966,574 @@ async function main() {
     await sheet.getByRole("button", { name: "Close" }).click();
   });
 
-  await browser.close();
+  // =====================================================================
+  // Exercise A: what a store reviewer would try. Everything below uses the real
+  // screens, and every amount is checked against the independent tally (modelNet,
+  // worked out by hand in the comments), never against the app's own sums.
+  // =====================================================================
+  const raviAcc = await db.account.findUniqueOrThrow({ where: { email: email("ravi") } });
+  const ashaAcc = await db.account.findUniqueOrThrow({ where: { email: email("asha") } });
+  const mainGid = g.split("/").pop()!;
 
-  // ---------- report ----------
-  const passed = results.filter((r) => r.ok).length;
-  const failed = results.length - passed;
+  // ----- Money: a big group, a refund bigger than a share, yen -----
+  const TWELVE = ["Varun", "Meera", "Dev", "Isha", "Neel", "Tara", "Kabir", "Lata", "Omar", "Pia", "Sana", "Yash"];
+  let tw = { id: "", path: "", code: "" };
+  const twLedger: GEntry[] = [];
+  await step(V, "Money", "A big group of 12: a ₹1,200 dinner for everyone is ₹100 each, and all 12 balances are right", async () => {
+    tw = await seedGroup("UAT Twelve", TWELVE.slice(1));
+    const o = { me: "Varun", name: "Group dinner", amount: "1200" };
+    await go(V, `${tw.path}/add`);
+    await fillExpense(V, o);
+    await save(V, o);
+    // By hand: 120000 paise ÷ 12 = 10000 each. Varun paid 120000 and owes 10000: +110000. The other 11 owe 10000: −10000 each (11 × 10000 = 110000).
+    twLedger.push({ payer: "Varun", amount: 120000, shares: evenly(120000, TWELVE) });
+    const got = await shownBalancesIn(V, tw.path, "INR");
+    assert(got.Varun === 110000 && TWELVE.slice(1).every((p) => got[p] === -10000), `balances: ${JSON.stringify(got)}`);
+    return checkLedger(V, tw.path, TWELVE, twLedger);
+  });
+  await step(V, "Money", "In that group, ₹1,000 shared by 12 can't divide evenly: four people carry ₹83.34, eight ₹83.33, and nothing is lost", async () => {
+    const o = { me: "Varun", payer: "Meera", name: "Minibus", amount: "1000" };
+    await go(V, `${tw.path}/add`);
+    await fillExpense(V, o);
+    await save(V, o);
+    // By hand: 100000 ÷ 12 = 8333 remainder 4 (12 × 8333 = 99996), so four shares are 8334 and eight are 8333: 4×8334 + 8×8333 = 100000.
+    const e = await db.expense.findFirstOrThrow({ where: { groupId: tw.id, description: "Minibus" }, include: { shares: true } });
+    const amounts = e.shares.map((x) => x.amount).sort((a, b) => a - b);
+    assert(amounts.length === 12, `${amounts.length} shares for 12 people`);
+    assert(amounts.reduce((a, b) => a + b, 0) === 100000, `shares add up to ${amounts.reduce((a, b) => a + b, 0)}, not 100000`);
+    assert(amounts.filter((a) => a === 8334).length === 4 && amounts.filter((a) => a === 8333).length === 8, `shares are ${amounts.join(",")}`);
+    twLedger.push({ payer: "Meera", amount: 100000, shares: evenly(100000, TWELVE) });
+    return checkLedger(V, tw.path, TWELVE, twLedger);
+  });
+  await step(V, "Money", "Money back bigger than a share: Meera gets ₹600 back for the minibus, shared by all 12 (₹50 each)", async () => {
+    await go(V, `${tw.path}/add`);
+    await V.getByRole("radio", { name: "Money back" }).click();
+    await V.getByRole("button", { name: /^(✓ )?Meera$/ }).first().click();
+    await V.locator("#expense-name").fill("Minibus refund");
+    await V.getByLabel("Amount", { exact: true }).fill("600");
+    const everyone = V.getByRole("button", { name: "Everyone equally" });
+    if (await everyone.count()) await everyone.click();
+    await save(V, { me: "Varun", name: "Minibus refund", amount: "600" }, "Save money back");
+    const rf = await db.expense.findFirstOrThrow({ where: { groupId: tw.id, description: "Minibus refund" }, include: { shares: true } });
+    assert(rf.kind === "refund" && rf.amount === 60000 && rf.shares.length === 12 && rf.shares.every((x) => x.amount === 5000), `refund saved as ${rf.kind} ${rf.amount} in ${rf.shares.length} shares`);
+    // By hand (dinner, minibus, refund), in paise, exact fractions:
+    //   Varun   +110000 − 8333.33 + 5000 = +106666.67      Meera  −10000 + 100000 − 8333.33 − 60000 + 5000 = +26666.67
+    //   others  −10000 − 8333.33 + 5000  = −13333.33 (each of 10)       sum: 106666.67 + 26666.67 − 133333.33 = 0
+    twLedger.push({ payer: "Meera", amount: -60000, shares: evenly(-60000, TWELVE) });
+    const want = modelNet(TWELVE, twLedger);
+    assert(Math.round(want.Varun) === 106667 && Math.round(want.Meera) === 26667 && Math.round(want.Dev) === -13333, `the tally itself is off: ${JSON.stringify(want)}`);
+    return checkLedger(V, tw.path, TWELVE, twLedger);
+  });
+  await step(V, "Money", "Settle up for 12 people: at most 11 payments, and together they move what the two people who are owed are owed", async () => {
+    const { cards, total } = await settleTotal(V, tw.path);
+    assert(cards >= 1 && cards <= 11, `${cards} payments suggested for 12 people`);
+    // Owed in all: Varun ₹1,066.67 + Meera ₹266.67 = ₹1,333.34 (±1 paisa each for the odd paise).
+    const owedPaise = 106667 + 26667;
+    assert(Math.abs(Math.round(total * 100) - owedPaise) <= 12, `the payments add up to ₹${total}, expected about ₹${owedPaise / 100}`);
+    return `${cards} payments, ₹${total}`;
+  });
+
+  const OSAKA = ["Varun", "Kenji", "Mika"];
+  const osakaLedger: GEntry[] = [];
+  let osaka = { id: "", path: "", code: "" };
+  await step(V, "Money", "Yen has no decimals: ¥1,000 shared by 3 is ¥334 + ¥333 + ¥333, then Kenji pays ¥2,400 (¥800 each)", async () => {
+    osaka = await seedGroup("UAT Osaka", ["Kenji", "Mika"], "JPY");
+    const first = { me: "Varun", name: "Ramen night", amount: "1000", inGroupCurrency: true };
+    await go(V, `${osaka.path}/add`);
+    await fillExpense(V, first);
+    await save(V, first);
+    const second = { me: "Varun", payer: "Kenji", name: "Day passes", amount: "2400", inGroupCurrency: true };
+    await go(V, `${osaka.path}/add`);
+    await fillExpense(V, second);
+    await save(V, second);
+    // By hand (whole yen): 1000 ÷ 3 = 333 remainder 1, so shares are 334, 333, 333. 2400 ÷ 3 = 800 each.
+    //   Varun +1000 − 333.33 − 800 = −133.33     Kenji −333.33 + 2400 − 800 = +1266.67     Mika −333.33 − 800 = −1133.33
+    const ramen = await db.expense.findFirstOrThrow({ where: { groupId: osaka.id, description: "Ramen night" }, include: { shares: true } });
+    assert(ramen.shares.map((x) => x.amount).sort((a, b) => a - b).join(",") === "333,333,334", `ramen shares: ${ramen.shares.map((x) => x.amount).join(",")}`);
+    assert(ramen.amount === 1000, `¥1,000 was stored as ${ramen.amount} (yen have no cents to multiply)`);
+    osakaLedger.push({ payer: "Varun", amount: 1000, shares: evenly(1000, OSAKA) }, { payer: "Kenji", amount: 2400, shares: evenly(2400, OSAKA) });
+    const note = await checkLedger(V, osaka.path, OSAKA, osakaLedger, "JPY");
+    for (const path of [`${osaka.path}?tab=balances`, `${osaka.path}?tab=activity`, `${osaka.path}/settle`]) {
+      await go(V, path);
+      const text = await V.locator("main").innerText();
+      assert(/JPY/.test(text), `${path}: no yen amounts on the screen`);
+      assert(!/JPY\s?[\d,]+\.\d/.test(text) && !/¥\s?[\d,]+\.\d/.test(text), `${path}: yen shown with decimals`);
+    }
+    const { cards, total } = await settleTotal(V, osaka.path);
+    // Kenji is owed ¥1,266.67 in all, so the payments carry ¥1,267 (±1 yen each way).
+    assert(cards >= 1 && cards <= 2 && Math.abs(total - 1267) <= 2, `${cards} payments, total ¥${total}, expected about ¥1,267`);
+    return note;
+  });
+
+  // ----- Imports: another app's file with columns to map; Loopin's own spreadsheet back in -----
+  await step(V, "Imports", "A plain spreadsheet from some other app: Loopin can't guess who paid, asks which column is which, and the balances come out exactly", async () => {
+    await go(V, "/import");
+    // Columns Loopin can half-guess: it finds Day, Spent and For, but not “Who” (who paid) or “Thing” (what it was).
+    const csv = ["Day,Thing,Spent,Who,For", '2026-10-01,Cab,900,Meera,"Meera, Dev, Isha"', '2026-10-02,Lunch,100.00,Dev,"Meera, Dev, Isha"'].join("\n");
+    await V.getByLabel("Spreadsheet to import").setInputFiles({ name: "weekend-sheet.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+    await V.getByRole("region", { name: "Which column is which?" }).waitFor();
+    await V.getByText("Pick the column that says who paid.").waitFor();
+    await V.getByLabel("Paid by column").selectOption({ label: "Who" });
+    await V.getByLabel("What it was column").selectOption({ label: "Thing" });
+    // By hand, in paise. Cab: Meera pays 90000, three share 30000 each → Meera +60000, Dev −30000, Isha −30000.
+    // Lunch: Dev pays 10000, three share it: 3334 (the odd paisa goes to the first name listed), 3333, 3333 → Dev +6667, Meera −3334, Isha −3333.
+    // Together: Meera +56666, Dev −23333, Isha −33333 (adds up to 0).
+    await V.getByText("Found 2 expenses and 0 payments in INR").waitFor();
+    await V.getByText("gets back ₹566.66").waitFor();
+    await V.getByText("owes ₹233.33").waitFor();
+    await V.getByText("owes ₹333.33").waitFor();
+    await V.getByRole("radio", { name: "Meera", exact: true }).click();
+    await V.getByRole("button", { name: "Bring it over" }).click();
+    await V.waitForURL(/imported=2\.0\./);
+    const path = new URL(V.url()).pathname;
+    const got = await shownBalancesIn(V, path, "INR");
+    assert(got.Meera === 56666 && got.Dev === -23333 && got.Isha === -33333, `balances after the import: ${JSON.stringify(got)}`);
+    const people = ["Meera", "Dev", "Isha"];
+    return checkLedger(V, path, people, [
+      { payer: "Meera", amount: 90000, shares: { Meera: 30000, Dev: 30000, Isha: 30000 } },
+      { payer: "Dev", amount: 10000, shares: { Meera: 3334, Dev: 3333, Isha: 3333 } },
+    ]);
+  });
+  await step(V, "Imports", "Loopin's own spreadsheet for the 12-person group (with its refund) is brought back in: the copy has the same 12 balances to the paisa", async () => {
+    await go(V, `${tw.path}/settings`);
+    const [file] = await Promise.all([V.waitForEvent("download"), V.getByRole("link", { name: /Download spreadsheet/ }).click()]);
+    const body = readFileSync((await file.path())!);
+    assert(/Money back/.test(body.toString("utf8")), "the spreadsheet has no Money back line");
+    const before = await shownBalancesIn(V, tw.path, "INR");
+    await go(V, "/import");
+    await V.getByLabel("Spreadsheet to import").setInputFiles({ name: file.suggestedFilename(), mimeType: "text/csv", buffer: body });
+    await V.getByText("Found 3 expenses and 0 payments in INR").waitFor();
+    assert((await V.locator("[data-import-balance]").count()) === 12, "the preview doesn't list all 12 people");
+    await V.getByLabel("Group name", { exact: true }).fill("UAT Twelve copy");
+    await V.getByRole("button", { name: "Bring it over" }).click();
+    await V.waitForURL(/imported=3\.0\./);
+    const path = new URL(V.url()).pathname;
+    const copyId = path.split("/")[2];
+    assert((await db.expense.count({ where: { groupId: copyId, kind: "refund" } })) === 1, "the money-back line didn't come back as money back");
+    const after = await shownBalancesIn(V, path, "INR");
+    const differ = TWELVE.filter((p) => after[p] !== before[p]);
+    assert(differ.length === 0, `the copy differs for ${differ.map((p) => `${p}: ${after[p]} vs ${before[p]}`).join("; ")}`);
+    return checkLedger(V, path, TWELVE, twLedger);
+  });
+
+  // ----- Sharing: the pay link, signed out, from Remind to Confirm received -----
+  await step(V, "Sharing", "The pay link opened by someone who isn't signed in shows exactly what they owe (₹450); “I've paid” is only a claim until Varun confirms", async () => {
+    const pl = await seedGroup("UAT Pay link", ["Rohan"]);
+    const o = { me: "Varun", name: "Team dinner", amount: "900" };
+    await go(V, `${pl.path}/add`);
+    await fillExpense(V, o);
+    await save(V, o);
+    const ledger: GEntry[] = [{ payer: "Varun", amount: 90000, shares: evenly(90000, ["Varun", "Rohan"]) }]; // Rohan owes 45000
+    await checkLedger(V, pl.path, ["Varun", "Rohan"], ledger);
+    await go(V, `${pl.path}/settle`);
+    const remind = V.locator("[data-remind]").first();
+    assert(await remind.count(), "Rohan owes Varun ₹450 but Settle up has no Remind button");
+    const res = await V.request.get(base + ((await remind.getAttribute("href")) ?? ""), { maxRedirects: 0 });
+    assert(res.status() === 303, `Remind answered ${res.status()}`);
+    const payPath = new URL(res.headers()["x-pay-link"] ?? "").pathname;
+    const { ctx, page } = await person(browser); // nobody is signed in here
+    try {
+      await go(page, payPath);
+      await page.locator("[data-paylink='owes']").waitFor();
+      const shown = (await page.locator("[data-paylink-amount]").innerText()).replace(/\s+/g, "");
+      assert(shown === "₹450", `the link shows ${shown}, not ₹450`);
+      await page.locator("[data-i-paid]").click();
+      await page.waitForURL(/paid=1/);
+      // A claim moves nothing.
+      await checkLedger(V, pl.path, ["Varun", "Rohan"], ledger);
+      await go(V, `${pl.path}/settle`);
+      await V.locator("[data-waiting='Rohan']").getByRole("button", { name: "Confirm received" }).click();
+      await V.waitForURL(/ok=1/);
+      // Confirmed: Rohan paid Varun 45000, so both are square.
+      ledger.push({ payer: "Rohan", amount: 45000, shares: { Varun: 45000 } });
+      await checkLedger(V, pl.path, ["Varun", "Rohan"], ledger);
+      const got = await shownBalancesIn(V, pl.path, "INR");
+      assert(got.Varun === 0 && got.Rohan === 0, `after confirming: ${JSON.stringify(got)}`);
+      // The same link now says nothing is owed.
+      await go(page, payPath);
+      assert((await page.locator("[data-paylink]").first().getAttribute("data-paylink")) !== "owes", "the link still asks for money after it was paid");
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  // ----- Sharing: a postcard sealed with wax, a postcard sealed until next year, opened by the other person -----
+  async function sendPostcard(page: Page, to: string, message: string, until?: "a year"): Promise<string> {
+    await go(page, `/postcards/new?group=${mainGid}`);
+    await page.getByRole("button", { name: "Print: Mountains" }).click();
+    await page.getByRole("tab", { name: "Back" }).click();
+    await page.getByRole("button", { name: "Wax seal" }).click();
+    await page.getByRole("button", { name: "Gold wax", exact: true }).click();
+    await page.getByRole("textbox", { name: "Your message" }).fill(message);
+    await page.getByRole("tab", { name: "Send" }).click();
+    if (until) {
+      await page.getByRole("button", { name: "A year from today" }).click();
+      await page.locator("[data-sealed-note]").waitFor();
+    }
+    await page.locator(`[data-recipient='${to}']`).click();
+    await page.getByRole("button", { name: "Send to 1 person" }).click();
+    await page.waitForURL(/\/postcards\/[a-z0-9]+\?sent=1/);
+    return new URL(page.url()).pathname;
+  }
+  let cardPath = "";
+  let sealedPath = "";
+  await step(A, "Sharing", "A postcard with a wax seal: Asha sends it to Ravi, who opens it, turns it over and reads the message", async () => {
+    const message = `UAT postcard ${stamp}: the beach shack was the fancy dinner.`;
+    cardPath = await sendPostcard(A, "Ravi", message);
+    await go(R, cardPath);
+    const flip = R.locator("[data-postcard-flip]");
+    await flip.click();
+    await R.locator("[data-back-message]").waitFor();
+    assert((await R.locator("[data-back-message]").innerText()).includes("fancy dinner"), "the message isn't on the back of the card");
+    assert(await R.locator("[data-postcard-back] [data-touch='seal']").count(), "the wax seal isn't on the card");
+    const card = await db.postcard.findFirstOrThrow({ where: { fromId: ashaAcc.id, toId: raviAcc.id, message: { contains: String(stamp) } } });
+    await until("the card being marked as read", async () => (await db.postcard.findUnique({ where: { id: card.id } }))?.readAt);
+  });
+  await step(R, "Sharing", "A postcard sealed until next year can't be read early; once its day comes (the clock moved on in the test database) it opens", async () => {
+    sealedPath = await sendPostcard(A, "Ravi", `UAT sealed ${stamp}: open me later.`, "a year");
+    await go(R, sealedPath);
+    await R.locator("[data-sealed]").first().waitFor();
+    assert((await R.locator("[data-back-message]").count()) === 0, "a sealed postcard shows its message early");
+    assert(!(await R.content()).includes("open me later"), "a sealed postcard's words are in the page");
+    await db.postcard.update({ where: { id: sealedPath.split("/").pop()! }, data: { opensAt: new Date(Date.now() - 60_000) } });
+    await go(R, sealedPath);
+    await R.locator("[data-postcard-flip]").click();
+    await R.locator("[data-back-message]").waitFor();
+    assert((await R.locator("[data-back-message]").innerText()).includes("open me later"), "the opened postcard has the wrong message");
+  });
+  await step(Z, "Permissions", "A postcard is for its sender and its receiver only: a third person gets “not found”, and signed out is sent to sign in", async () => {
+    assert(cardPath, "no postcard was sent");
+    const res = await Z.goto(base + cardPath);
+    assert(res?.status() === 404, `a third person got status ${res?.status()}`);
+    const x = await person(browser);
+    await x.page.goto(base + cardPath);
+    await x.page.waitForURL(/\/signin/);
+    await x.ctx.close();
+  });
+
+  // ----- Sharing: a passport shared with someone who has hidden their own -----
+  await step(A, "Sharing", "Asha sends her passport to Ravi, who set his own to “Only me”: he gets it, and Asha still can't open his", async () => {
+    await go(R, "/passport");
+    await R.getByRole("button", { name: "Only me" }).click();
+    await R.getByText("Only you can see your passport now.").waitFor();
+    await go(A, "/passport/send");
+    await A.locator("[data-passport-recipient='Ravi']").click();
+    await A.getByRole("button", { name: "Send in Loopin" }).click();
+    await A.waitForURL(/sent=1/);
+    await alertSays(R, /Asha sent you their passport/);
+    await go(R, `/passport/friends/${ashaAcc.id}`);
+    await R.getByRole("heading", { name: /Asha.s passport/ }).waitFor();
+    assert(!/keeps their passport private/.test(await R.locator("main").innerText()), "Ravi can't open the passport Asha sent him");
+    await go(A, `/passport/friends/${raviAcc.id}`);
+    await A.getByText("Ravi keeps their passport private.").waitFor();
+    assert((await A.locator("[data-country-stamp]").count()) === 0, "a hidden passport shows stamps");
+  });
+  await step(R, "Privacy", "Someone who hid their passport can't send it either (“change who can see it first”), and turning it back on restores both", async () => {
+    try {
+      await go(R, "/passport/send");
+      await R.locator("[data-passport-recipient='Asha']").click();
+      await R.getByRole("button", { name: "Send in Loopin" }).click();
+      await R.waitForURL(/error=private/);
+      await R.getByText("Your passport is set to private. Change who can see it first.").waitFor();
+    } finally {
+      await go(R, "/passport");
+      await R.getByRole("button", { name: "People in my groups" }).click();
+      await R.getByText("People in your groups can see your passport.").waitFor();
+    }
+    await go(A, `/passport/friends/${raviAcc.id}`);
+    assert(!(await A.locator("main").innerText()).includes("keeps their passport private"), "Ravi's passport is still hidden after he turned sharing back on");
+  });
+
+  // ----- Permissions: someone who leaves, someone who is removed, and an old link -----
+  let rules = "";
+  let rulesCode = "";
+  let snackId = "";
+  await step(V, "Permissions", "Varun starts a new group; Ravi and Zoe join from its link. Ravi, an ordinary member, sees no delete / currency / remove controls", async () => {
+    await go(V, "/groups/new");
+    await V.locator('input[name="groupName"]').fill(`UAT Rules ${stamp % 1000}`);
+    await V.locator('select[name="currency"]').selectOption("INR");
+    await V.getByRole("button", { name: /Create group/ }).click();
+    await V.waitForURL(/\/invite\?new=1/);
+    rules = new URL(V.url()).pathname.replace(/\/invite$/, "");
+    const m = /\/join\/([A-Za-z0-9_-]+)/.exec(await V.content());
+    assert(m, "no join link on the new group's Add people screen");
+    rulesCode = m[1];
+    for (const page of [R, Z]) {
+      await go(page, `/join/${rulesCode}`);
+      await page.getByRole("button", { name: /^Join / }).click();
+      await page.waitForURL(new RegExp(`${rules}(\\?|$)`));
+    }
+    await go(R, `${rules}/settings`);
+    await R.locator('[data-admin-only="delete"]').waitFor();
+    assert((await R.getByRole("button", { name: /Delete (this )?group/i }).count()) === 0, "an ordinary member is offered Delete group");
+    assert((await R.locator('select[name="currency"]').count()) === 0, "an ordinary member can change the currency");
+  });
+  await step(V, "Money", `“Yesterday” is yesterday where the person is (${P.timezoneId}): the saved day, and the time zone the app was told, both match`, async () => {
+    const o = { me: "Varun", name: "Snack", amount: "100", date: "Yesterday" as const, split: { kind: "one" as const, who: "Varun" } };
+    await go(V, `${rules}/add`);
+    await fillExpense(V, o);
+    await save(V, o);
+    const e = await db.expense.findFirstOrThrow({ where: { groupId: rules.split("/").pop()!, description: "Snack" } });
+    snackId = e.id;
+    const [y, mo, d] = new Intl.DateTimeFormat("en-CA", { timeZone: P.timezoneId }).format(new Date()).split("-").map(Number);
+    const yesterday = new Date(Date.UTC(y, mo - 1, d - 1)).toISOString().slice(0, 10);
+    assert(e.spentAt && dayKey(e.spentAt, P.timezoneId) === yesterday, `saved as ${e.spentAt?.toISOString()}, expected the day ${yesterday} in ${P.timezoneId}`);
+    const tzCookie = (await V.context().cookies()).find((c) => c.name === "tz");
+    if (tzCookie) assert(decodeURIComponent(tzCookie.value) === P.timezoneId, `the app was told the time zone ${tzCookie.value}`);
+    return `${yesterday} in ${P.timezoneId}`;
+  });
+  await step(R, "Permissions", "Ravi leaves the group himself; after that he sees it only up to the day he left", async () => {
+    await go(R, `${rules}/people`);
+    await R.locator("details summary").filter({ hasText: "Ravi" }).first().click();
+    await R.getByRole("button", { name: "Leave group" }).click();
+    await until("Ravi leaving", () => db.member.findFirst({ where: { groupId: rules.split("/").pop()!, accountId: raviAcc.id, leftAt: { not: null } } }));
+    await go(R, rules);
+    await R.locator("[data-left-banner]").waitFor();
+  });
+  await step(R, "Permissions", "A leaver trying to edit: the Add screen says he left and offers no Save, and Varun's old expense opens read-only", async () => {
+    const gid = rules.split("/").pop()!;
+    const before = await db.expense.findUniqueOrThrow({ where: { id: snackId } });
+    const count = await db.expense.count({ where: { groupId: gid } });
+    await go(R, `${rules}/add`);
+    await R.getByText(/You left this group/).waitFor();
+    assert((await R.getByRole("button", { name: /Save expense/ }).count()) === 0 && (await R.locator("#expense-name").count()) === 0, "a leaver is offered the Add form");
+    await go(R, `${rules}/expenses/${snackId}/edit`);
+    assert((await R.locator("#expense-name").count()) === 0 && (await R.getByRole("button", { name: /^Save/ }).count()) === 0, "a leaver is offered the Edit form");
+    const after = await db.expense.findUniqueOrThrow({ where: { id: snackId } });
+    assert(after.description === before.description && after.amount === before.amount && (await db.expense.count({ where: { groupId: gid } })) === count, "something changed in the group after the leaver tried");
+  });
+  await step(V, "Permissions", "Varun removes Zoe; she can't get back in with the old invite link or the old group address", async () => {
+    await go(V, `${rules}/people`);
+    await V.locator("details summary").filter({ hasText: "Zoe" }).first().click();
+    await clickAndWait(V, V.getByRole("button", { name: "Remove Zoe" }));
+    const zoeAcc = await db.account.findUniqueOrThrow({ where: { email: email("zoe") } });
+    await until("Zoe being removed", () => db.member.findFirst({ where: { groupId: rules.split("/").pop()!, accountId: zoeAcc.id, removedAt: { not: null } } }));
+    await go(Z, `/join/${rulesCode}`);
+    await Z.locator("[data-join-removed]").waitFor();
+    assert(/removed you from this group/.test(await Z.locator("[data-join-removed]").innerText()), "the old link doesn't say she was removed");
+    assert((await Z.getByRole("button", { name: /^Join / }).count()) === 0, "the old link still offers Join to a removed person");
+    await go(Z, rules);
+    await Z.locator("[data-left-banner]").waitFor();
+    assert(/You were removed/.test(await Z.locator("[data-left-banner]").innerText()), "the banner doesn't say she was removed");
+    await go(Z, `${rules}/add`);
+    assert((await Z.locator("#expense-name").count()) === 0 && (await Z.getByRole("button", { name: /Save expense/ }).count()) === 0, "a removed person is offered the Add form");
+  });
+
+  // ----- Layout: no sideways scroll at this device's own size; the desktop column -----
+  await step(V, "Regression", `No screen scrolls sideways at this device's own size (${P.context.viewport?.width ?? "?"} px wide), including the 12-person and yen groups`, async () => {
+    const pages = ["/", g, `${g}?tab=balances`, `${g}/settle`, `${g}/add`, `${g}/settings`, `${tw.path}?tab=balances`, `${tw.path}/settle`, `${tw.path}/add`, `${osaka.path}?tab=balances`, `${osaka.path}/settle`, "/import", "/passport", "/account", "/notifications"];
+    const wide: string[] = [];
+    for (const p of pages) {
+      await go(V, p);
+      const over = await V.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      if (over > 1) wide.push(`${p.replace(/[a-z0-9]{20,}/g, ":id")} (+${over}px)`);
+    }
+    assert(wide.length === 0, `scrolls sideways: ${wide.join(", ")}`);
+    return `${pages.length} screens`;
+  });
+  await stepOn(["desktop"], "a wide window only exists on a computer", V, "Regression", "On a 1440 px wide screen the app stays one tidy, centred column (no stretched screens)", async () => {
+    await go(V, "/");
+    const width = V.viewportSize()!.width;
+    const box = (await V.locator("main").first().boundingBox())!;
+    assert(box.width <= 460, `the page column is ${Math.round(box.width)} px wide on a ${width} px screen`);
+    assert(Math.abs(box.x + box.width / 2 - width / 2) <= 3, `the column is off-centre (starts at ${Math.round(box.x)} px)`);
+  });
+
+  // ----- Steps that only make sense on one kind of device -----
+  await stepOn(["android"], "the Contact Picker only exists in Chrome on Android; iPhones and computers type the names instead", null, "Sharing", "Android contact picker: “Pick from contacts” adds the chosen names to a collection (the phone's picker is stood in for)", async () => {
+    const ctx = await browser.newContext({ ...P.context, locale: P.locale, timezoneId: P.timezoneId });
+    try {
+      await ctx.addCookies(await varun.ctx.cookies());
+      await ctx.addInitScript(() => {
+        const w = window as unknown as Record<string, unknown>;
+        w.ContactsManager = class ContactsManager {};
+        Object.defineProperty(navigator, "contacts", { value: { select: async () => [{ name: ["Priya Contact"], tel: ["+91 98765 43210"] }] }, configurable: true });
+      });
+      const page = await ctx.newPage();
+      page.setDefaultTimeout(15_000);
+      await go(page, "/collect/new");
+      const names = page.locator('textarea[name="names"]');
+      if (!(await names.isVisible())) await page.getByText("More options").click();
+      await page.getByRole("button", { name: /Pick from contacts/ }).click();
+      await page.getByText(/1 added/).waitFor();
+      assert((await names.inputValue()).includes("Priya Contact"), `the names box says “${await names.inputValue()}”`);
+    } finally {
+      await ctx.close();
+    }
+  });
+  await stepOn(["android"], "phones that buzz are Android phones; iPhones ignore vibration and computers have no motor", null, "Notifications", "Android buzz: tapping Add expense gives the light tap pattern (navigator.vibrate is stood in for and listened to)", async () => {
+    const ctx = await browser.newContext({ ...P.context, locale: P.locale, timezoneId: P.timezoneId });
+    try {
+      await ctx.addCookies(await varun.ctx.cookies());
+      await ctx.addInitScript(() => {
+        Object.defineProperty(navigator, "vibrate", {
+          value: (pattern: number | number[]) => {
+            const seen = JSON.parse(localStorage.getItem("__buzz") || "[]");
+            seen.push(pattern);
+            localStorage.setItem("__buzz", JSON.stringify(seen));
+            return true;
+          },
+          configurable: true,
+        });
+      });
+      const page = await ctx.newPage();
+      page.setDefaultTimeout(15_000);
+      await go(page, "/");
+      await page.locator('a[aria-label="Add expense"][data-haptic]').click();
+      await page.waitForURL((u) => u.pathname === "/add" || /\/groups\/[^/]+\/add$/.test(u.pathname));
+      const seen = JSON.parse(await page.evaluate(() => localStorage.getItem("__buzz") || "[]")) as unknown[];
+      assert(seen.length >= 1 && seen[0] === 8, `buzzes heard: ${JSON.stringify(seen)}`);
+    } finally {
+      await ctx.close();
+    }
+  });
+  await stepOn(["iphone"], "the Add to Home Screen steps are for Safari on an iPhone; Android and computers are shown other steps", null, "Onboarding", "iPhone install hint: real Safari-engine on an iPhone 14 (not a pretend one) shows the “Add to Home Screen” steps from the invite link", async () => {
+    const x = await person(browser);
+    try {
+      assert(/iPhone/.test(await x.page.evaluate(() => navigator.userAgent)), "this browser doesn't say it is an iPhone");
+      await go(x.page, invite);
+      await x.page.getByText("Get the Loopin app").waitFor();
+      await x.page.getByRole("button", { name: "Get it" }).click();
+      await x.page.getByText("Add to Home Screen").first().waitFor();
+    } finally {
+      await x.ctx.close();
+    }
+  });
+  await stepOn(["iphone"], "only iPhones lack vibration while still being phones; the other profiles are checked by the Android buzz step", V, "Regression", "iPhone has no buzz: tapping Add expense still works and the page throws no errors", async () => {
+    await go(V, "/");
+    const has = await V.evaluate(() => typeof navigator.vibrate);
+    const errors: string[] = [];
+    const onError = (e: Error) => errors.push(String(e).slice(0, 160));
+    V.on("pageerror", onError);
+    try {
+      await V.locator('a[aria-label="Add expense"][data-haptic]').click();
+      await V.waitForURL((u) => u.pathname === "/add" || /\/groups\/[^/]+\/add$/.test(u.pathname));
+      await V.waitForTimeout(500);
+    } finally {
+      V.off("pageerror", onError);
+    }
+    assert(errors.length === 0, `errors after the tap: ${errors.join(" | ")}`);
+    return `navigator.vibrate is ${has}`;
+  });
+
+  await browser.close();
+  writeReports();
+}
+
+// ---------- reports: report.md, summary.txt, coverage.md, coverage.json ----------
+// Every step belongs to one area, so a reviewer can see what is covered and what is thin.
+const COVER = ["Money", "Onboarding", "Permissions", "Imports", "Sharing", "Notifications", "Privacy", "Regression"] as const;
+type Cover = (typeof COVER)[number];
+function coverOf(area: string, name: string): Cover {
+  if ((COVER as readonly string[]).includes(area)) return area as Cover; // the steps added for Exercise A name their area directly
+  switch (area) {
+    case "Start": case "Start screen": case "Help": case "Get the app": case "Sign in":
+      return "Onboarding";
+    case "Joining":
+      return /^Only Varun/.test(name) ? "Permissions" : /invit|link|QR|unsubscribe/i.test(name) ? "Sharing" : "Onboarding";
+    case "Add people":
+      return /neutral|same reply|no account revealed/i.test(name) ? "Privacy" : "Sharing";
+    case "Add": case "Edit": case "Currency": case "Why?": case "Across groups": case "Couples": case "Payments":
+      return /tidy|opens More by itself/i.test(name) ? "Regression" : "Money";
+    case "Settle":
+      return /Remind|WhatsApp/i.test(name) ? "Sharing" : "Money";
+    case "Collect":
+      return /Alerts|bell|reminds/i.test(name) ? "Notifications" : /can't change|forged/i.test(name) ? "Permissions" : /opens the link/i.test(name) ? "Sharing" : "Money";
+    case "Flat":
+      return /Reminders switch/i.test(name) ? "Notifications" : "Money";
+    case "Group settings":
+      return /currency|markup/i.test(name) ? "Money" : /notification/i.test(name) ? "Notifications" : "Regression";
+    case "People":
+      return /remove|leave|owing|left/i.test(name) ? "Permissions" : "Regression";
+    case "Alerts":
+      return "Notifications";
+    case "Export": case "Switching":
+      return "Imports";
+    case "Trips": case "Postcards":
+      return "Sharing";
+    case "Fun":
+      return /passport|Wrapped|Share/i.test(name) ? "Sharing" : "Regression";
+    case "Account":
+      return /Delete|Download all my data|privacy/i.test(name) ? "Privacy" : "Onboarding";
+    case "Privacy":
+      return "Privacy";
+    default:
+      return "Regression";
+  }
+}
+
+function writeReports() {
+  const count = (st: Status) => results.filter((r) => r.status === st).length;
+  const passed = count("pass");
+  const failed = count("fail");
+  const na = count("na");
+  const head = `${passed} passed, ${failed} failed, ${na} not applicable · profile: ${PROFILE} (${P.label})`;
   const lines = [
     `# UAT report`,
     ``,
-    `${passed} passed · ${failed} failed · ${results.length} steps`,
+    `Profile: **${PROFILE}**: ${P.label}`,
+    ``,
+    `${passed} passed · ${failed} failed · ${na} not applicable · ${results.length} steps`,
     ``,
     `| | Area | What a person did | Notes |`,
     `|---|---|---|---|`,
-    ...results.map((r) => `| ${r.ok ? "✅" : "❌"} | ${r.area} | ${r.name} | ${r.detail.replace(/\|/g, "/")} |`),
+    ...results.map((r) => `| ${r.status === "pass" ? "✅" : r.status === "fail" ? "❌" : "➖"} | ${r.area} | ${r.name} | ${r.detail.replace(/\|/g, "/")} |`),
   ];
   writeFileSync(`${out}/report.md`, lines.join("\n"));
-  console.log(`\nUAT: ${passed} passed, ${failed} failed`);
-  writeFileSync(`${out}/summary.txt`, `${passed} passed, ${failed} failed\n${results.filter((r) => !r.ok).map((r) => `✗ ${r.area} — ${r.name}: ${r.detail}`).join("\n")}`);
+  // The first line is read by the CI workflows; failures follow, one per line, starting with ✗.
+  writeFileSync(`${out}/summary.txt`, `${head}\n${results.filter((r) => r.status === "fail").map((r) => `✗ ${r.area} — ${r.name}: ${r.detail}`).join("\n")}`);
+  console.log(`\nUAT (${PROFILE}): ${passed} passed, ${failed} failed, ${na} not applicable`);
+
+  // Coverage: every step mapped to an area.
+  const steps = results.map((r) => ({
+    n: r.n, area: r.area, coverage: coverOf(r.area, r.name), name: r.name, status: r.status,
+    runsOn: r.only ?? ALL_PROFILES, detail: r.detail,
+  }));
+  const areas = Object.fromEntries(
+    COVER.map((a) => {
+      const mine = steps.filter((x) => x.coverage === a);
+      return [a, { steps: mine.length, passed: mine.filter((x) => x.status === "pass").length, failed: mine.filter((x) => x.status === "fail").length, notApplicable: mine.filter((x) => x.status === "na").length }];
+    }),
+  );
+  const thin = COVER.filter((a) => areas[a].steps < 5);
+  writeFileSync(
+    `${out}/coverage.json`,
+    JSON.stringify({ profile: PROFILE, label: P.label, totals: { steps: results.length, passed, failed, notApplicable: na }, areas, thinAreas: thin, steps }, null, 2),
+  );
+  const md = [
+    `# UAT coverage: ${PROFILE}`,
+    ``,
+    `${P.label}`,
+    ``,
+    `${results.length} steps: ${passed} passed, ${failed} failed, ${na} not applicable.`,
+    ``,
+    `| Area | Steps | Passed | Failed | Not applicable |`,
+    `|---|---|---|---|---|`,
+    ...COVER.map((a) => `| ${a} | ${areas[a].steps} | ${areas[a].passed} | ${areas[a].failed} | ${areas[a].notApplicable} |`),
+    ``,
+    thin.length ? `Areas with fewer than 5 steps: ${thin.map((a) => `${a} (${areas[a].steps})`).join(", ")}.` : `Every area has at least 5 steps.`,
+    ``,
+    ...COVER.flatMap((a) => [
+      `## ${a}`,
+      ``,
+      ...(steps.filter((x) => x.coverage === a).length
+        ? steps.filter((x) => x.coverage === a).map((x) => `- ${x.status === "pass" ? "✅" : x.status === "fail" ? "❌" : "➖"} ${x.n}. ${x.name}${x.runsOn.length < ALL_PROFILES.length ? ` _(only on ${x.runsOn.join(", ")})_` : ""}`)
+        : ["- (no steps)"]),
+      ``,
+    ]),
+  ];
+  writeFileSync(`${out}/coverage.md`, md.join("\n"));
 }
 
 main().then(() => process.exit(0)).catch((e) => {
   console.error(e);
-  writeFileSync(`${out}/summary.txt`, `crashed: ${String(e)}`);
+  try {
+    writeReports(); // what was done before the crash is still reported
+  } catch {
+    /* nothing to report yet */
+  }
+  const done = results.filter((r) => r.status === "pass").length;
+  const bad = results.filter((r) => r.status === "fail");
+  writeFileSync(`${out}/summary.txt`, `crashed: ${String(e)} · profile: ${PROFILE} · ${done} passed, ${bad.length} failed before it stopped\n${bad.map((r) => `✗ ${r.area} — ${r.name}: ${r.detail}`).join("\n")}`);
   process.exit(0);
 });
