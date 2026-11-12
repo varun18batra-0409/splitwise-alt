@@ -1,10 +1,12 @@
-// The one-time sheet that explains what is special about a Home group, a Couple or The Pot.
+import { GAME_NOTE } from "./game-words";
+
+// The one-time sheet that explains what is special about a Home group, a Couple or Game night.
 // Pure rules (what it says, and "shown once" remembered per phone), so they can be tested.
 // Every sentence below describes something the app really does: see the notes beside each card.
 
 export type SheetKind = "home" | "couple" | "pot";
 export type SheetCard = { icon: "repeat" | "door" | "split" | "ahead" | "tally" | "confirm"; title: string; body: string };
-export type TypeSheet = { kind: SheetKind; title: string; cards: SheetCard[]; primary: { label: string; href: string } };
+export type TypeSheet = { kind: SheetKind; title: string; cards: SheetCard[]; primary: { label: string; href: string }; note?: string };
 
 export function sheetFor(type: string, groupId: string): TypeSheet | null {
   if (type === "home") {
@@ -36,7 +38,7 @@ export function sheetFor(type: string, groupId: string): TypeSheet | null {
   if (type === "pot") {
     return {
       kind: "pot",
-      title: "Your Pot is ready",
+      title: "Your Game night is ready",
       cards: [
         // Game page: "At the table. This is only a count: nothing is owed until the game is finished."
         { icon: "tally", title: "Game tally vs Money owed", body: "The Game tally is only a count while you play. Nothing is owed until the game is finished, then it shows up under Money owed." },
@@ -44,6 +46,7 @@ export function sheetFor(type: string, groupId: string): TypeSheet | null {
         { icon: "confirm", title: "Balances only after you confirm", body: "When a game ends, Loopin asks before its result goes into the group’s balances. You can reopen the game if something was off." },
       ],
       primary: { label: "Start a game", href: `/groups/${groupId}/pot/new` },
+      note: GAME_NOTE,
     };
   }
   return null;

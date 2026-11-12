@@ -6,6 +6,7 @@ import { getMyMemberId } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
 import { todayKey } from "@/lib/dates";
 import { loadPassport, passportRoster } from "@/lib/passport-db";
+import { passportShared } from "@/lib/passport";
 import { countryOf } from "@/lib/geo";
 import { Avatar, PageHeader } from "@/components/ui";
 import { WorldMap } from "@/components/PassportBook";
@@ -34,9 +35,9 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
     roster.map(async (m): Promise<Person> => {
       const mine = m.id === myId;
       if (!m.accountId) return { m, mine, state: "notOnLoopin", codes: [], cities: 0 };
-      const a = await db.account.findUnique({ where: { id: m.accountId }, select: { id: true, homeCountry: true, places: true, passportShare: true } });
+      const a = await db.account.findUnique({ where: { id: m.accountId }, select: { id: true, homeCountry: true, places: true, passportShare: true, passportChoiceAt: true } });
       if (!a) return { m, mine, state: "notOnLoopin", codes: [], cities: 0 };
-      if (!mine && a.passportShare === "private") return { m, mine, state: "private", codes: [], cities: 0 };
+      if (!mine && !passportShared(a)) return { m, mine, state: "private", codes: [], cities: 0 };
       const p = await loadPassport(a, "", today, { forFriend: !mine });
       const codes = p.index.map((r) => r.code);
       return { m, mine, state: codes.length ? "open" : "empty", codes, cities: p.stats.cities };

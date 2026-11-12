@@ -87,7 +87,7 @@ export default async function JoinPage({
   const backQ = new URLSearchParams({ ...(invitedEmail ? { e: invitedEmail } : {}), ...(asMember ? { as: asMember.id } : {}) }).toString();
   const back = `/join/${code}${backQ ? `?${backQ}` : ""}`;
 
-  const kind = group.type === "trip" ? "A trip" : group.type === "home" ? "A home" : group.type === "couple" ? "A couple" : group.type === "pot" ? "A card night" : "A group";
+  const kind = group.type === "trip" ? "A trip" : group.type === "home" ? "A home" : group.type === "couple" ? "A couple" : group.type === "pot" ? "A game night" : "A group";
 
   return (
     <>

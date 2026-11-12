@@ -23,7 +23,7 @@ const ICONS: Record<SheetCard["icon"], React.ReactNode> = {
   confirm: <path d="M5 12l5 5 9-10" />,
 };
 
-// A bottom sheet that shows once per group on this phone: what is special about a flat, a couple or a card night.
+// A bottom sheet that shows once per group on this phone: what is special about a flat, a couple or a game night.
 // It sits above the page without blocking it (tap outside, Escape or "Got it" closes it), and if the phone can't
 // remember (blocked storage) it simply doesn't appear.
 export function GroupTypeSheet({ groupId, type }: { groupId: string; type: string }) {
@@ -112,6 +112,7 @@ export function GroupTypeSheet({ groupId, type }: { groupId: string; type: strin
             </li>
           ))}
         </ul>
+        {sheet.note && <p className="mt-4 text-center text-xs text-fg/55" data-sheet-note>{sheet.note}</p>}
         <div className="mt-5 space-y-2">
           <Link href={sheet.primary.href} onClick={close} className="pop block w-full bg-fg px-5 py-3.5 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63]" data-type-sheet-primary>
             {sheet.primary.label}

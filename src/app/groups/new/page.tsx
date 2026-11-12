@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import Link from "@/components/Link";
 import { NewGroupForm } from "@/components/NewGroupForm";
-import { defaultCurrency, regionFor } from "@/lib/region";
+import { defaultCurrency } from "@/lib/region";
 import { getAccount } from "@/lib/identity";
 import { isGroupType } from "@/lib/group-types";
 import { ErrorNote, PageHeader, primaryButtonClass } from "@/components/ui";
@@ -57,7 +57,6 @@ export default async function NewGroup({
         initialName={(name ?? "").slice(0, 60)}
         initialType={type && isGroupType(type) ? type : undefined}
         initialCover={cover}
-        india={regionFor(await headers(), account.homeCountry).india}
       />
       <p className="mt-6 text-center text-sm text-gray-500">
         Moving from another app?{" "}

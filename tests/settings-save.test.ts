@@ -471,7 +471,7 @@ describe("The currency step after the rest is saved", () => {
     const g = await mk("other", ["Asha", "Ravi"]);
     await db.potGame.create({ data: { groupId: g.id, name: "Friday", hostId: g.ids.Asha, players: JSON.stringify([g.ids.Asha]) } }); // a card game still open blocks a currency change
     const r = await saveAllSettings(g.id, g.ids.Asha, { name: "Saved anyway", currency: "JPY" }, today);
-    expect(r).toEqual({ ok: false, error: "Finish (or delete) the card game that’s still open first, then change the currency. Your other changes were saved." });
+    expect(r).toEqual({ ok: false, error: "Finish (or delete) the game that’s still open first, then change the currency. Your other changes were saved." });
     const after = await load(g.id);
     expect(after.name).toBe("Saved anyway");
     expect(after.currency).toBe("INR");

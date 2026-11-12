@@ -6,8 +6,8 @@ import { openMore } from "../helpers/expense";
 
 // The fun screens, the way a person moves through them: in, around, and back
 // out with the phone's Back button, plus taking things away again (a country
-// from the passport, a card game).
-test("titles, Wrapped, the passport and a card game: in, around, back out, and deleting", async ({ browser }) => {
+// from the passport, a game night).
+test("titles, Wrapped, the passport and a game night: in, around, back out, and deleting", async ({ browser }) => {
   test.setTimeout(180_000);
   const asha = await signUp("Asha", testEmail("fun-asha"));
   const ravi = await signUp("Ravi", testEmail("fun-ravi"));
@@ -22,6 +22,16 @@ test("titles, Wrapped, the passport and a card game: in, around, back out, and d
   await page.goto(`${trip.path}?tab=balances`);
   await settled(page);
   await expect(page.locator("[data-title-card]")).toHaveCount(2);
+
+  // Passports are hidden until their owner says yes: Ravi taps Show on the one-time question first.
+  await R.goto("/passport");
+  await settled(R);
+  await expect(R.getByText("Show your places to people in your groups?")).toBeVisible();
+  await R.getByRole("button", { name: "Show", exact: true }).click();
+  await R.waitForURL(/shared=groups/);
+  await R.goto("/passport");
+  await settled(R);
+  await expect(R.getByText("Show your places to people in your groups?")).toHaveCount(0);
 
   // A friend's passport, from Balances: only for people in the group, and only if they share it.
   await page.locator("summary", { hasText: "Ravi" }).first().click();
@@ -135,8 +145,8 @@ test("titles, Wrapped, the passport and a card game: in, around, back out, and d
   await sheet.getByRole("button", { name: "Close" }).click();
   await expect(sheet).toHaveCount(0);
 
-  // A card game, started and deleted: it leaves the games list.
-  const pot = await createGroup(page, groupName("Card night"), "The Pot");
+  // A game night, started and deleted: it leaves the games list.
+  const pot = await createGroup(page, groupName("Game night"), "Game night");
   await page.goto(`${pot.path}/pot/new`);
   await settled(page);
   await page.locator('input[name="name"]').fill("Quick round");

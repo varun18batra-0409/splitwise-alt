@@ -4,6 +4,7 @@ import { getAccount } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
 import { todayKey } from "@/lib/dates";
 import { loadPassport, passportFriends } from "@/lib/passport-db";
+import { passportShared } from "@/lib/passport";
 import { countryOf } from "@/lib/geo";
 import { Avatar, PageHeader, primaryButtonClass } from "@/components/ui";
 import { FriendSearch } from "@/components/FriendSearch";
@@ -29,8 +30,8 @@ export default async function FriendsPassports() {
   const owners = await Promise.all(
     friends.map(async (f) => {
       const { db } = await import("@/lib/db");
-      const a = await db.account.findUnique({ where: { id: f.accountId }, select: { id: true, homeCountry: true, places: true, passportShare: true } });
-      if (!a || a.passportShare === "private") return { ...f, private: true, countries: [] as string[], stats: null };
+      const a = await db.account.findUnique({ where: { id: f.accountId }, select: { id: true, homeCountry: true, places: true, passportShare: true, passportChoiceAt: true } });
+      if (!a || !passportShared(a)) return { ...f, private: true, countries: [] as string[], stats: null };
       const p = await loadPassport(a, "", today, { forFriend: true });
       return { ...f, private: false, countries: p.index.map((r) => r.code), stats: p.stats };
     }),

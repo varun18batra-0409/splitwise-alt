@@ -145,21 +145,13 @@ describe("your own photo while making a group", () => {
   });
 });
 
-describe("Teen Patti is named only in India", () => {
-  it("India: Teen Patti or Poker; elsewhere: Poker or rummy, with no Teen Patti anywhere", async () => {
-    const { cardGames, potHint, potNote, GROUP_TYPES } = await import("@/lib/group-types");
-    expect(cardGames(true)).toBe("Teen Patti or Poker");
-    expect(potHint(true)).toBe("Poker & Teen Patti: who won, who pays");
-    expect(cardGames(false)).toBe("Poker or rummy");
-    expect(`${cardGames(false)} ${potHint(false)} ${potNote(false)} ${GROUP_TYPES.map((t) => t.hint).join(" ")}`).not.toMatch(/Teen Patti/);
-  });
-  it("the Settings type picker is worded per region: India sees Teen Patti, elsewhere never", async () => {
-    const { groupTypesFor } = await import("@/lib/group-types");
-    const pot = (india: boolean) => groupTypesFor(india).find((t) => t.id === "pot")!.hint;
-    expect(pot(true)).toBe("Poker & Teen Patti: who won, who pays");
-    expect(pot(false)).toBe("Poker or rummy: who won, who pays");
-    expect(groupTypesFor(false).map((t) => t.hint).join(" ")).not.toMatch(/Teen Patti/);
-    expect(groupTypesFor(true)).toHaveLength(5);
+describe("Game night wording is the same in every country", () => {
+  it("one hint for everyone: no Teen Patti or Poker anywhere, in India or elsewhere", async () => {
+    const { GAME_NIGHT_GAMES, GROUP_TYPES } = await import("@/lib/group-types");
+    expect(GAME_NIGHT_GAMES).toBe("Cards, board games or any game");
+    expect(GROUP_TYPES.find((t) => t.id === "pot")).toMatchObject({ label: "Game night", hint: "Cards or board games: the score, who pays", namePlaceholder: "Friday game night" });
+    expect(`${GAME_NIGHT_GAMES} ${GROUP_TYPES.map((t) => `${t.label} ${t.hint}`).join(" ")}`).not.toMatch(/Teen Patti|Poker|rummy/i);
+    expect(GROUP_TYPES).toHaveLength(5);
   });
   it("a signed-in person's home country wins over where the phone seems to be", async () => {
     const { regionFor } = await import("@/lib/region");
@@ -170,12 +162,11 @@ describe("Teen Patti is named only in India", () => {
     expect(regionFor(h("US", "en-US"), null).india).toBe(false);
     expect(regionFor(h("IN", "en-IN"), "nonsense").india).toBe(true); // not a country code: ignored
   });
-  it("the new-group form fails safe: india defaults to false, and every caller passes the real value", async () => {
+  it("the new-group form and the Settings type picker no longer have any India-only game wording", async () => {
     const { readFileSync } = await import("node:fs");
-    const form = readFileSync("src/components/NewGroupForm.tsx", "utf8");
-    expect(form).toMatch(/india = false/);
-    expect(readFileSync("src/app/groups/new/page.tsx", "utf8")).toMatch(/india=\{regionFor\(/);
-    expect(readFileSync("src/app/groups/[id]/settings/page.tsx", "utf8")).toMatch(/groupTypesFor\(india\)/);
+    expect(readFileSync("src/components/NewGroupForm.tsx", "utf8")).not.toMatch(/india/i);
+    expect(readFileSync("src/app/groups/new/page.tsx", "utf8")).not.toMatch(/india=/);
+    expect(readFileSync("src/app/groups/[id]/settings/page.tsx", "utf8")).not.toMatch(/groupTypesFor|india/i);
   });
   it("a US visitor is not India; an Indian one is", async () => {
     const { visitorRegion } = await import("@/lib/region");

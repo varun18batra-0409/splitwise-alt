@@ -7,8 +7,8 @@ import { todayKey } from "@/lib/dates";
 import { visitorRegion } from "@/lib/region";
 import { celebrateMarks, loadPassport } from "@/lib/passport-db";
 import { COUNTRIES, countryOf } from "@/lib/geo";
-import { parseHandPlaces, stampPages } from "@/lib/passport";
-import { removePlaceAction, setHomeCountryAction, setPassportShareAction } from "@/app/passport-actions";
+import { parseHandPlaces, passportNeedsAnswer, passportShared, stampPages } from "@/lib/passport";
+import { answerPassportQuestionAction, removePlaceAction, setHomeCountryAction, setPassportShareAction } from "@/app/passport-actions";
 import { ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/components/ui";
 import { ShareSheet } from "@/components/ShareSheet";
 import { Notice } from "@/components/Notice";
@@ -54,6 +54,21 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
         </Notice>
       )}
 
+      {passportNeedsAnswer(account) && (
+        <section className="mb-4 rounded-[20px] border border-line bg-white px-5 py-4" aria-label="Show your places" data-passport-ask>
+          <p className="font-display text-lg font-semibold leading-snug tracking-tight">Show your places to people in your groups?</p>
+          <p className="mt-1 text-sm text-gray-500">Only people you share a group with can see it. You can change this any time.</p>
+          <form action={answerPassportQuestionAction} className="mt-3 grid grid-cols-2 gap-2">
+            <button type="submit" name="answer" value="show" className="pop flex h-11 items-center justify-center bg-fg text-[15px] font-semibold text-canvas">
+              Show
+            </button>
+            <button type="submit" name="answer" value="not-now" className="flex h-11 items-center justify-center rounded-full border border-line text-[15px] font-semibold active:bg-mist">
+              Not now
+            </button>
+          </form>
+        </section>
+      )}
+
       {moment && (
         <section className="mb-4 rounded-[20px] border border-owed/30 bg-owed/[0.06] px-5 py-4" role="status" data-passport-moment={moment.id}>
           <p className="font-display text-xl font-semibold tracking-tight">{moment.title}</p>
@@ -65,7 +80,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
         <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-owed/40 text-owed"><PeoplePassportsIcon size={18} /></span>
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold">Friends’ passports</span>
-          <span className="block text-xs text-gray-500">Where everyone in your groups has been</span>
+          <span className="block text-xs text-gray-500">Where friends in your groups have been</span>
         </span>
         <span aria-hidden className="text-gray-400">›</span>
       </Link>
@@ -129,7 +144,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
       {/* Who can open it from a group */}
       <section id="who" className="mt-8 scroll-mt-4 border-t border-line pt-6">
         <h2 className="font-display text-lg font-semibold tracking-tight">Who can see it</h2>
-        <p className="mt-0.5 text-sm text-gray-500">People you share a group with can open your passport from the group. Never your money, groups or email.</p>
+        <p className="mt-0.5 text-sm text-gray-500">Hidden until you choose. If you say yes, people you share a group with can open your passport from the group. Never your money, groups or email.</p>
         <form action={setPassportShareAction} className="mt-3 grid grid-cols-2 gap-1 rounded-full bg-mist p-1" aria-label="Who can see my passport">
           {(
             [
@@ -137,7 +152,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
               ["private", "Only me"],
             ] as const
           ).map(([v, label]) => {
-            const on = (account.passportShare || "groups") === v;
+            const on = (passportShared(account) ? "groups" : "private") === v;
             return (
               <button key={v} type="submit" name="share" value={v} aria-pressed={on} className={`rounded-full px-2 py-2.5 text-sm ${on ? "bg-fg font-semibold text-canvas" : "text-gray-500"}`}>
                 {label}

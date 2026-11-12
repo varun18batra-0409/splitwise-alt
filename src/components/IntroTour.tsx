@@ -59,7 +59,7 @@ function Cheers() {
         ))}
       </div>
       <div className="mt-7 flex flex-wrap justify-center gap-2">
-        {["Trip", "Home", "Couple", "The Pot"].map((t, i) => (
+        {["Trip", "Home", "Couple", "Game night"].map((t, i) => (
           <span key={t} className={`nobreak rise rise-${Math.min(i + 2, 5)} rounded-full border border-line bg-canvas px-3 py-1 text-xs text-gray-600`}>
             {t}
           </span>

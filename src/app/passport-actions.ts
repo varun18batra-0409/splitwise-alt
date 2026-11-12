@@ -44,8 +44,20 @@ export async function setPassportShareAction(f: FormData) {
   const a = await getAccount();
   if (!a) redirect("/signin?back=/passport");
   const v = field(f, "share") === "private" ? "private" : "groups";
-  await db.account.update({ where: { id: a.id }, data: { passportShare: v } });
+  const { recordPassportChoice } = await import("@/lib/passport-db");
+  await recordPassportChoice(a.id, v === "groups"); // an answer too: the question never comes back
   redirect(`/passport?shared=${v}#who`);
+}
+
+// The one-time question at the top of /passport: "Show" or "Not now". Both record the answer;
+// "Not now" keeps it hidden and the question is not asked again (the setting stays on the page).
+export async function answerPassportQuestionAction(f: FormData) {
+  const a = await getAccount();
+  if (!a) redirect("/signin?back=/passport");
+  const show = field(f, "answer") === "show";
+  const { recordPassportChoice } = await import("@/lib/passport-db");
+  await recordPassportChoice(a.id, show);
+  redirect(show ? "/passport?shared=groups#who" : "/passport");
 }
 
 // "Nudge Ravi": a friend's passport is empty, so ask them (in their Alerts only:

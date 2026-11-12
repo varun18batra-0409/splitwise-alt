@@ -2,23 +2,24 @@ import { smartSettle, type Transfer } from "./settle";
 import { allocateByWeights } from "./split";
 import { formatMoney } from "./money";
 
-// "The Pot": the maths, kept apart so it can be checked on its own.
+// Game night: the maths, kept apart so it can be checked on its own.
+// (Internally still "pot": the kind, the routes and the stored values keep their names.)
 //
-// Everyone takes money from a shared pot to play (as often as they like) and
-// puts back what they have left at the end. For each player:
-//   net = returned − taken (+ any adjustment the host recorded)
-// A plus is a win, a minus a loss. All the nets add up to zero when every
-// rupee taken has come back; if not, the game can't be finished until the
+// Every player puts chips in to play (as often as they like) and takes home
+// what they have left at the end. For each player:
+//   net = took home − chips in (+ any adjustment the host recorded)
+// A plus is "came out ahead", a minus "came out behind". All the nets add up to zero when every
+// rupee that went in has come back; if not, the game can't be finished until the
 // gap is found or the host records an adjustment. Then Smart Settle turns the
-// nets into the fewest payments (losers pay winners).
+// nets into the fewest payments (those behind pay those ahead).
 
-export type PotGameKind = "poker" | "teenpatti";
-export const POT_GAMES: { id: PotGameKind; label: string; emoji: string }[] = [
-  { id: "teenpatti", label: "Teen Patti", emoji: "🃏" },
-  { id: "poker", label: "Poker", emoji: "♠️" },
-];
-export const isPotGame = (x: string): x is PotGameKind => POT_GAMES.some((g) => g.id === x);
-export const potGameLabel = (x: string) => POT_GAMES.find((g) => g.id === x)?.label ?? "Cards";
+import { GAME_CHOICES, gameLabel, isGameKind, type GameKind } from "./game-words";
+
+export type PotGameKind = GameKind;
+// What a person can pick for a new game (old stored values are still read: see game-words.ts).
+export const POT_GAMES = GAME_CHOICES;
+export const isPotGame = isGameKind;
+export const potGameLabel = gameLabel;
 
 export type PotMoveLike = { memberId: string; kind: string; amount: number; deletedAt?: Date | null };
 export type PotLine = { memberId: string; taken: number; takes: number; returned: number; returnedYet: boolean; adjust: number; net: number };
@@ -65,8 +66,8 @@ export function spreadGap(gap: number, players: string[]): { memberId: string; a
   return parts.filter((p) => p.amount > 0).map((p) => ({ memberId: p.memberId, amount: gap > 0 ? -p.amount : p.amount }));
 }
 
-// The result as one line in the group's balances: the winners "paid" (they're
-// owed their winnings), the losers' "shares" are their losses.
+// The result as one line in the group's balances: those ahead "paid" (they're
+// owed their result), the "shares" are what those behind owe.
 export function potResult(lines: PotLine[]): { winners: { memberId: string; amount: number }[]; losers: { memberId: string; amount: number }[]; total: number } {
   const winners = lines.filter((l) => l.net > 0).map((l) => ({ memberId: l.memberId, amount: l.net })).sort((a, b) => b.amount - a.amount);
   const losers = lines.filter((l) => l.net < 0).map((l) => ({ memberId: l.memberId, amount: -l.net }));
@@ -86,6 +87,6 @@ export function parsePlayers(json: string): string[] {
 // players who came out even are left out. Amounts are minor units.
 export function potResultLine(results: { name: string; net: number }[], currency: string): string {
   const shown = results.filter((r) => r.net !== 0).sort((a, b) => Math.abs(b.net) - Math.abs(a.net) || b.net - a.net || a.name.localeCompare(b.name));
-  const who = shown.length ? shown.map((r) => `${r.name} ${r.net > 0 ? "+" : "−"}${formatMoney(Math.abs(r.net), currency)}`).join(", ") : "Nobody won or lost";
+  const who = shown.length ? shown.map((r) => `${r.name} ${r.net > 0 ? "+" : "−"}${formatMoney(Math.abs(r.net), currency)}`).join(", ") : "Nobody came out ahead or behind";
   return `Put this game into Money owed? ${who}. You can reopen it.`;
 }

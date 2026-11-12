@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { renamePlayerAction } from "@/app/pot-actions";
 
-// A player's name in The Pot: tap it (or press and hold) to fix a spelling slip.
+// A player's name in Game night: tap it (or press and hold) to fix a spelling slip.
 export function PotName({ gameId, memberId, name, shown, editable }: { gameId: string; memberId: string; name: string; shown: string; editable: boolean }) {
   const [editing, setEditing] = useState(false);
   if (!editable) return <span className="block truncate font-medium">{shown}</span>;

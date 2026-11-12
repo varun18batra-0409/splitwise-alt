@@ -75,15 +75,15 @@ const accountIds: string[] = [];
 let counter = 0;
 const yesterday = () => new Date(Date.now() - 86_400_000);
 
-async function account(label: string): Promise<Account> {
+async function account(label: string, extra: { passportChoiceAt?: Date } = {}): Promise<Account> {
   const n = ++counter;
-  const a = await db.account.create({ data: { email: `wcdw-${label}-${n}-${stamp}@example.test`, name: label } });
+  const a = await db.account.create({ data: { email: `wcdw-${label}-${n}-${stamp}@example.test`, name: label, ...extra } });
   accountIds.push(a.id);
   return { id: a.id, name: label, email: a.email };
 }
 const cast = async () => ({
   admin: await account("Asha"),
-  member: await account("Meera"),
+  member: await account("Meera", { passportChoiceAt: new Date() }), // Meera tapped Show
   left: await account("Lou"),
   removed: await account("Rex"),
   invited: await account("Ivy"),
@@ -423,6 +423,24 @@ describe("passports", () => {
     for (const p of PERSONAS) got[p] = (await canSeePassport(c[p].id, c.member.id)).ok;
     // Meera herself (the "member" row) always can; the rest follow the group.
     expect(got).toEqual({ admin: true, member: true, left: true, removed: false, invited: false, pending: false, outsider: false });
+  });
+
+  it("if Meera has not answered (an older account), nobody but Meera can open it: not even the admin or someone who left", async () => {
+    const c = await cast();
+    await db.account.update({ where: { id: c.member.id }, data: { passportChoiceAt: null } });
+    await world(c, "passport-unanswered");
+    const got: Record<string, boolean> = {};
+    for (const p of PERSONAS) got[p] = (await canSeePassport(c[p].id, c.member.id)).ok;
+    // Only Meera herself (the "member" row) can; everyone else is hidden whatever their place in the group.
+    expect(got).toEqual({ admin: false, member: true, left: false, removed: false, invited: false, pending: false, outsider: false });
+  });
+
+  it("sending your passport: only someone who chose Show may send it", async () => {
+    const { passportShared } = await import("@/lib/passport");
+    expect(passportShared({ passportShare: "groups", passportChoiceAt: new Date() })).toBe(true); // tapped Show
+    expect(passportShared({ passportShare: "groups", passportChoiceAt: null })).toBe(false); // never answered
+    expect(passportShared({ passportShare: "private", passportChoiceAt: new Date() })).toBe(false); // Not now / Only me
+    expect(passportShared({ passportShare: "private", passportChoiceAt: null })).toBe(false); // switched off before the change
   });
 });
 

@@ -12,7 +12,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
   const group = await db.group.findUnique({ where: { inviteCode: code }, select: { name: true, type: true, deletedAt: true, tripPlace: true, members: { where: { leftAt: null }, select: { id: true } } } });
   const fonts = await loadOgFonts(new URL(req.url).origin);
   const name = group && !group.deletedAt ? group.name.slice(0, 34) : "a group on Loopin";
-  const kind = group?.type === "trip" ? "TRIP" : group?.type === "home" ? "HOME" : group?.type === "couple" ? "COUPLE" : group?.type === "pot" ? "CARD NIGHT" : "GROUP";
+  const kind = group?.type === "trip" ? "TRIP" : group?.type === "home" ? "HOME" : group?.type === "couple" ? "COUPLE" : group?.type === "pot" ? "GAME NIGHT" : "GROUP";
   const n = group?.members.length ?? 0;
   const FG = "#f7f4ec";
   // Trips get a real photo of the place behind the invitation.

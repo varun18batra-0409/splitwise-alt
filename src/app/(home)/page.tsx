@@ -7,7 +7,7 @@ import { IntroTour } from "@/components/IntroTour";
 import { JoinByLink } from "@/components/JoinByLink";
 import { cookies, headers } from "next/headers";
 import { visitorRegion } from "@/lib/region";
-import { cardGames } from "@/lib/group-types";
+import { GAME_NIGHT_GAMES } from "@/lib/group-types";
 import { getTimeZone } from "@/lib/tz";
 import { getAccount, getMemberships } from "@/lib/identity";
 import { PasskeyOffer } from "@/components/Passkeys";
@@ -564,7 +564,7 @@ export default async function Home({
                 ›
               </span>
             </Link>
-            <PotTeaser className="mt-2" india={region.india} />
+            <PotTeaser className="mt-2" />
           </section>
 
           {stories.length > 0 && <Stories stories={stories} className="mt-8" />}
@@ -784,14 +784,14 @@ function CollectionsSection({ list }: { list: Awaited<ReturnType<typeof myCollec
 }
 
 // "Collect money": one small row inviting a first collection.
-// For someone just starting: card nights (Collect and everything else start from New group).
-function PotTeaser({ className = "", india }: { className?: string; india: boolean }) {
+// For someone just starting: game nights (Collect and everything else start from New group).
+function PotTeaser({ className = "" }: { className?: string }) {
   return (
     <Link href="/groups/new?type=pot" className={`flex items-center gap-3 rounded-2xl border border-line px-4 py-3.5 active:bg-mist ${className}`}>
       <RowIcon d="M7 4h8a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2ZM17 7l2.2.6a2 2 0 0 1 1.4 2.4l-2.6 9.6" />
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-medium">Card night? Start a Pot</span>
-        <span className="block text-xs text-gray-400">{cardGames(india)}: who took what from the pot, who won, who pays</span>
+        <span className="block text-sm font-medium">Game night? Start one</span>
+        <span className="block text-xs text-gray-400">{GAME_NIGHT_GAMES}: keep the score, see who pays</span>
       </span>
       <span className="text-gray-400" aria-hidden>
         ›

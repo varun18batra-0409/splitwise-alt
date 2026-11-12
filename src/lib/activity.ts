@@ -58,7 +58,7 @@ export type ActivityItem =
       paidById: string;
       payerIds: string[]; // everyone who paid (usually just paidById); for money back, who got it
       refund: boolean; // money back
-      pot?: boolean; // a card game's result (The Pot): winners up, losers down
+      pot?: boolean; // a game's result (Game night): those ahead up, those behind down
       people: string[]; // who it was for
       effect: number; // + you're owed this much more, − you owe this much more, 0 not involved
       createdById: string;

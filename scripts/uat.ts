@@ -1855,11 +1855,11 @@ async function main() {
     assert(/to the last paisa or cent/.test(all), "the add slide doesn’t say “to the last paisa or cent”");
     assert(/Pay each other however you like/.test(all), "the settle slide doesn’t say “Pay each other however you like”");
     assert(!/no sign-up/i.test(all), "a slide still says “no sign-up”");
-    assert(!/UPI|Teen Patti|Diwali/i.test(all), "a slide has India-only words");
+    assert(!/UPI|Teen Patti|Poker|Diwali/i.test(all), "a slide has India-only or card-room words");
     assert(!/splitwise/i.test(all), "a slide names another app");
     // The group kinds use the app's own names (as New group), and the last slide has no "Get the Loopin app" card pushing the sign-up line off.
-    for (const t of ["Trip", "Home", "Couple", "The Pot"]) assert(all.includes(t), `the tour's group kinds miss “${t}”`);
-    assert(!/Flat\b|Card night/.test(all.replace(/Flat expenses/g, "")), "the tour still says Flat / Card night");
+    for (const t of ["Trip", "Home", "Couple", "Game night"]) assert(all.includes(t), `the tour's group kinds miss “${t}”`);
+    assert(!/Flat\b|Card night|The Pot/.test(all.replace(/Flat expenses/g, "")), "the tour still says Flat / Card night / The Pot");
     assert(!/Get the Loopin app/.test(all), "the tour has a “Get the Loopin app” card");
     assert((await page.locator("[data-story-lines] li").allTextContents()).length === 3, "the story poster doesn't show its three Wrapped lines");
     assert(await page.getByText("Create your first group").first().isVisible(), "no “Create your first group”");
@@ -2922,11 +2922,12 @@ async function main() {
     await ctx.close();
   });
 
-  await step(V, "New group", "“What’s it for?” offers Trip, Home, Couple, The Pot, Collect and Anything Goes; The Pot explains itself; Collect opens Collect", async () => {
+  await step(V, "New group", "“What’s it for?” offers Trip, Home, Couple, Game night, Collect and Anything Goes; Game night explains itself; Collect opens Collect", async () => {
     await go(V, "/groups/new");
-    for (const t of [/^Trip/, /^Home/, /^Couple/, /^The Pot/, /^Anything Goes/]) assert(await V.getByRole("button", { name: t }).count(), `no ${t} choice`);
-    await V.getByRole("button", { name: /^The Pot/ }).click();
-    await V.getByText(/Loopin works out who won, who lost and who pays whom/).waitFor();
+    for (const t of [/^Trip/, /^Home/, /^Couple/, /^Game night/, /^Anything Goes/]) assert(await V.getByRole("button", { name: t }).count(), `no ${t} choice`);
+    await V.getByRole("button", { name: /^Game night/ }).click();
+    await V.getByText(/Loopin works out who came out ahead, who came out behind and who pays whom/).waitFor();
+    await V.getByText(/No betting happens in the app/).waitFor();
     await V.getByRole("link", { name: /^Collect/ }).click();
     await V.waitForURL(/\/collect\/new/);
   });
@@ -3035,16 +3036,53 @@ async function main() {
     assert(!/splitwise/i.test((await page.locator('head meta[name="keywords"]').getAttribute("content").catch(() => "")) ?? ""), "the keywords name another app");
     await ctx.close();
   });
-  await step(V, "Words", "Teen Patti is named the same way on the new-group form, the FAQ and How Loopin works (only for people in India; otherwise Poker or rummy)", async () => {
+  await step(V, "Words", "Game night: none of poker, teen patti, buy-in, cash out, winnings or bet appears on the group-type chips, the game screens, the FAQ or How Loopin works; the calm line is on the game screen", async () => {
+    // Everything a person can read on the page (closed folds too), minus the one allowed sentence.
+    const BANNED = /poker|teen\s?patti|buy[\s-]?ins?\b|cash(ed)?[\s-]?outs?|winnings?|\bbets?\b|\bbetting\b|gambl/i;
+    const clean = async (label: string) => {
+      const text = (await V.evaluate(() => document.body.textContent ?? "")).replace(/No betting happens in the app\.?/gi, "");
+      const bad = BANNED.exec(text);
+      assert(!bad, `${label} shows “${bad?.[0]}”`);
+    };
+    // The group-type chips (New group).
     await go(V, "/groups/new");
-    const onForm = /Teen Patti/.test(await V.locator("body").innerText());
-    for (const path of ["/faq", "/how-it-works"]) {
+    await clean("New group");
+    // A Game night group with a game being played.
+    await V.getByRole("button", { name: /^Game night/ }).click();
+    await V.locator('input[name="groupName"]').fill(`UAT game night ${stamp % 1000}`);
+    await V.getByRole("button", { name: /Create group/ }).click();
+    await V.waitForURL(/\/pot\/new\?first=1/);
+    const groupPath = new URL(V.url()).pathname.replace(/\/pot\/new$/, "");
+    await clean("Start a game");
+    assert((await V.locator("[data-game-note]").innerText()).includes("Loopin keeps the score of games you play together. No betting happens in the app."), "the calm line is missing on Start a game");
+    const kinds = await V.locator('input[name="game"]').evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value));
+    assert(kinds.join(",") === "cards,board,any", `game choices are ${kinds.join(",")}`);
+    await V.locator('input[name="name"]').fill("Friday night");
+    await V.locator('input[name="newNames"]').fill("Chirag, Dev");
+    await V.getByRole("button", { name: "Start the game" }).click();
+    await V.waitForURL(/\/pot\/[^/?]+\?started=1/);
+    await V.getByRole("form", { name: "Chips in" }).waitFor();
+    await clean("the game screen");
+    assert((await V.locator("[data-game-note]").first().innerText()).includes("No betting happens in the app."), "the calm line is missing on the game screen");
+    const game = new URL(V.url()).pathname;
+    // Chips in for everyone, then the games list and the Took home fold.
+    await V.getByRole("form", { name: "Chips in" }).getByLabel("Amount each").fill("500");
+    await V.getByRole("form", { name: "Chips in" }).locator('button[type="submit"]').click();
+    await V.waitForURL(/bought=/);
+    await clean("the game screen after chips in");
+    await go(V, `${groupPath}?tab=games`);
+    await clean("the Games tab");
+    assert((await V.locator("[data-game-note]").first().innerText()).includes("No betting happens in the app."), "the calm line is missing on the Games tab");
+    // The group-type chips in Settings, the header, the FAQ and the guide.
+    await go(V, `${groupPath}/settings`);
+    await clean("Settings");
+    assert((await V.locator("body").innerText()).includes("Game night"), "Settings doesn’t call the group type Game night");
+    for (const path of ["/faq", "/how-it-works", game]) {
       await go(V, path);
-      if (path === "/faq") await V.locator("summary", { hasText: "What is The Pot?" }).click();
-      const text = await V.locator("body").innerText();
-      assert(/Teen Patti/.test(text) === onForm, `${path}: Teen Patti ${onForm ? "missing" : "shown"}, unlike the new-group form`);
-      if (!onForm) assert(/rummy/i.test(text), `${path}: no “rummy” wording for people outside India`);
+      await clean(path);
     }
+    await go(V, "/faq");
+    assert((await V.evaluate(() => document.body.textContent ?? "")).includes("What is Game night?"), "the FAQ doesn’t explain Game night");
   });
   await step(V, "Words", "The import screen gives generic export steps and no other app’s name", async () => {
     await go(V, "/import");
@@ -3439,7 +3477,28 @@ async function main() {
     await x.ctx.close();
   });
 
-  // ----- Sharing: a passport shared with someone who has hidden their own -----
+  // ----- Sharing: a passport is hidden until its owner says yes -----
+  await step(A, "Privacy", "Passport: hidden until the owner chooses. Ravi can't open Asha's before she answers; the question shows once, and Show opens it", async () => {
+    await go(R, `/passport/friends/${ashaAcc.id}`);
+    await R.getByText("Asha keeps their passport private.").waitFor();
+    await go(A, "/passport");
+    await A.getByText("Show your places to people in your groups?").waitFor();
+    await A.getByText("Only people you share a group with can see it. You can change this any time.").waitFor();
+    await A.getByRole("button", { name: "Show", exact: true }).click();
+    await A.waitForURL(/shared=groups/);
+    await go(A, "/passport");
+    assert((await A.getByText("Show your places to people in your groups?").count()) === 0, "the passport question came back after Show");
+    await go(R, `/passport/friends/${ashaAcc.id}`);
+    assert(!/keeps their passport private/.test(await R.locator("main").innerText()), "Ravi can't open Asha's passport after she tapped Show");
+  });
+  await step(A, "Sharing", "Not now keeps a passport hidden and the question never comes back", async () => {
+    await go(Z, "/passport");
+    await Z.getByText("Show your places to people in your groups?").waitFor();
+    await Z.getByRole("button", { name: "Not now" }).click();
+    await go(Z, "/passport");
+    assert((await Z.getByText("Show your places to people in your groups?").count()) === 0, "the passport question came back after Not now");
+    assert((await Z.getByRole("button", { name: "Only me" }).getAttribute("aria-pressed")) === "true", "Not now should leave it on Only me");
+  });
   await step(A, "Sharing", "Asha sends her passport to Ravi, who set his own to “Only me”: he gets it, and Asha still can't open his", async () => {
     await go(R, "/passport");
     await R.getByRole("button", { name: "Only me" }).click();
@@ -3462,7 +3521,7 @@ async function main() {
       await R.locator("[data-passport-recipient='Asha']").click();
       await R.getByRole("button", { name: "Send in Loopin" }).click();
       await R.waitForURL(/error=private/);
-      await R.getByText("Your passport is set to private. Change who can see it first.").waitFor();
+      await R.getByText("Your passport isn’t shown to people in your groups yet. Choose who can see it first.").waitFor();
     } finally {
       await go(R, "/passport");
       await R.getByRole("button", { name: "People in my groups" }).click();

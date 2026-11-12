@@ -322,7 +322,7 @@ async function restoreCurrency(groupId: string, actorId: string, p: Extract<Undo
   // Anything added, removed or changed since → putting the old amounts back
   // would mix currencies or lose money, so refuse.
   if (p.after && current.other && !sameOtherMoney(current.other, p.after)) {
-    return { ok: false, error: "Bills, budgets, goals, the deposit or a card game changed after the currency change, so it can’t be undone safely. Change the currency again instead." };
+    return { ok: false, error: "Bills, budgets, goals, the deposit or a game changed after the currency change, so it can’t be undone safely. Change the currency again instead." };
   }
   const eventId = await db.$transaction(async (tx) => {
     // Rows removed since (a card game's result after it was reopened) are skipped.

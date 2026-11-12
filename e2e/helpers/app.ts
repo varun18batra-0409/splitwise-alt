@@ -27,14 +27,14 @@ export async function settled(page: Page) {
 
 // New group (src/components/NewGroupForm.tsx) → lands on "Add people".
 // Returns the group's address and its invite link.
-export async function createGroup(page: Page, name: string, type: "Trip" | "Home" | "Anything Goes" | "The Pot" = "Trip"): Promise<{ path: string; invite: string }> {
+export async function createGroup(page: Page, name: string, type: "Trip" | "Home" | "Anything Goes" | "Game night" = "Trip"): Promise<{ path: string; invite: string }> {
   await page.goto("/groups/new");
   await settled(page);
   await page.getByRole("button", { name: new RegExp(`^${type}`) }).click();
   await page.locator('input[name="groupName"]').fill(name);
   await page.locator('select[name="currency"]').selectOption("INR");
   await page.getByRole("button", { name: /Create group/ }).click();
-  // A Pot goes straight to its first game; everything else to "Add people".
+  // A Game night goes straight to its first game; everything else to "Add people".
   await page.waitForURL(/\/invite\?new=1|\/pot\/new\?first=1/);
   const path = new URL(page.url()).pathname.replace(/\/invite$|\/pot\/new$/, "");
   if (!/\/invite$/.test(new URL(page.url()).pathname)) {

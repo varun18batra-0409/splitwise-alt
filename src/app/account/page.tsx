@@ -145,7 +145,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           <span aria-hidden className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-owed/40 bg-[radial-gradient(circle_at_30%_25%,rgba(111,227,168,0.16),transparent_70%)] text-owed"><PeoplePassportsIcon size={24} /></span>
           <span className="min-w-0 flex-1">
             <span className="block font-display text-lg font-semibold">Friends’ passports</span>
-            <span className="block text-sm text-gray-500">Where everyone in your groups has been</span>
+            <span className="block text-sm text-gray-500">Where friends in your groups have been</span>
           </span>
           <span aria-hidden className="text-xl">›</span>
         </Link>

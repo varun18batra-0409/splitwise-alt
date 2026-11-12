@@ -21,7 +21,7 @@ export const PRINTS: Print[] = [
   { id: "monsoon", name: "Monsoon", place: "Lonavala" },
   { id: "lighthouse", name: "Lighthouse coast", place: "Kovalam" },
   { id: "snow", name: "Snow village", place: "Gulmarg" },
-  { id: "cards", name: "Card night", place: "Card night" },
+  { id: "cards", name: "Game night", place: "Game night" },
   { id: "home", name: "Home", place: "Home" },
 ];
 export const isPrint = (id: string): id is Print["id"] => PRINTS.some((p) => p.id === id);
@@ -210,7 +210,7 @@ const THEMES: Record<string, StampDef> = {
   rail: { icon: "train", ink: "#3a3a4a", tint: "#e8e8ee", value: "₹6", name: "By rail" },
   airmail: { icon: "plane", ink: "#2f5fa7", tint: "#e3eaf6", value: "₹30", name: "Airmail" },
   chai: { icon: "cup", ink: "#7a4a2a", tint: "#f2e6da", value: "₹2", name: "Chai" },
-  cards: { icon: "cards", ink: "#1f5a3e", tint: "#dfece3", value: "₹50", name: "Card night" },
+  cards: { icon: "cards", ink: "#1f5a3e", tint: "#dfece3", value: "₹50", name: "Game night" },
   night: { icon: "moon", ink: "#2a2f5a", tint: "#e4e5f2", value: "₹4", name: "Night sky" },
   love: { icon: "heart", ink: "#a3323a", tint: "#f7e0e0", value: "₹1", name: "With love" },
   temple: { icon: "temple", ink: "#8a5a1a", tint: "#f4e9d6", value: "₹20", name: "Temple" },
