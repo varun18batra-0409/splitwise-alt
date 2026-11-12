@@ -11,9 +11,10 @@ afterAll(async () => {
   await db.group.deleteMany({ where: { id: { in: groups } } });
 });
 
+let made = 0;
 async function flat(currency: string) {
   const g = await db.group.create({
-    data: { name: `Forecast ${currency} ${stamp}`, type: "home", currency, inviteCode: `fc-${currency}-${stamp}`, members: { create: [{ name: "A" }, { name: "B" }, { name: "C" }] } },
+    data: { name: `Forecast ${currency} ${stamp}`, type: "home", currency, inviteCode: `fc-${currency}-${stamp}-${++made}`, members: { create: [{ name: "A" }, { name: "B" }, { name: "C" }] } },
     include: { members: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
   });
   groups.push(g.id);

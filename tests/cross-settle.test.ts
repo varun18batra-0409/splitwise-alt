@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { crossActionLabel, crossPreview, crossSettle, personKey, type GroupForSettle } from "@/lib/cross-settle";
+import { crossActionLabel, crossPreview, crossSettle, personKey, phoneKeyResolver, type GroupForSettle } from "@/lib/cross-settle";
 import { netBalances } from "@/lib/balances";
 import { smartSettle } from "@/lib/settle";
 
@@ -48,7 +48,11 @@ describe("Smart Settle across groups", () => {
   });
 
   it("recognises people by Loopin account first, then by phone; a name alone never matches across groups", () => {
-    expect(personKey({ name: "Asha", phone: "+91 98765 43210" })).toBe(personKey({ name: "A. Sharma", phone: "098765-43210" }, "g1", "IN"));
+    // The same number with and without its country code: the uncoded one joins the coded one (the only code those digits have).
+    const coded = personKey({ name: "Asha", phone: "+91 98765 43210" });
+    const local = personKey({ name: "A. Sharma", phone: "098765-43210" }, "g1", "IN");
+    const resolve = phoneKeyResolver([coded, local]);
+    expect(resolve(local)).toBe(resolve(coded));
     expect(personKey({ name: "Ravi", phone: "" })).not.toBe(personKey({ name: "Ravi", phone: "9999999999" }));
     // On Loopin: the account decides. Two different Rahuls are never merged; one Rahul is, whatever he's called.
     expect(personKey({ name: "Rahul", phone: "", accountId: "a1" })).not.toBe(personKey({ name: "Rahul", phone: "", accountId: "a2" }));
@@ -182,7 +186,6 @@ describe("LC-03: numbers with and without a country code, in any currency's grou
     members: [{ id: `me-${id}`, name: "Me", phone: "" }, { id: `p-${id}`, name: "Asha", phone }],
     transfers: [{ from: `me-${id}`, to: `p-${id}`, amount: 1000 }],
   });
-  const rows = (a: GroupForSettle, b: GroupForSettle) => crossSettle([a, b], "INR", () => null).items;
 
   it("+91 98765 43210 in an INR flat and 98765 43210 in a THB trip group are one person: 1 row, 2000", () => {
     const items = crossSettle([grp("flat", "INR", "+91 98765 43210"), grp("trip", "THB", "98765 43210")], "INR", (amt) => amt);
@@ -194,7 +197,8 @@ describe("LC-03: numbers with and without a country code, in any currency's grou
     expect(items.items).toHaveLength(1);
   });
   it("+16505550123 and +916505550123 stay two people (both carry a code, and the codes differ): 2 rows", () => {
-    expect(rows(grp("us", "USD", "+16505550123"), grp("in", "INR", "+916505550123"))).toHaveLength(2);
+    const items = crossSettle([grp("us", "USD", "+16505550123"), grp("in", "INR", "+916505550123")], "INR", (amt) => amt).items;
+    expect(items).toHaveLength(2);
   });
   it("a number with no code is left alone when the same digits exist under two different codes", () => {
     const items = crossSettle([grp("us", "USD", "+16505550123"), grp("in", "INR", "+916505550123"), grp("eu", "EUR", "6505550123")], "INR", (amt) => amt);
