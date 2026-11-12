@@ -190,6 +190,33 @@ for (const [n, w, h] of [["26b-signin-320x568", 320, 568], ["26c-signin-375x667"
 }
 await page.setViewportSize(screen);
 await shot("27-privacy", "/privacy");
+// Narrow phones (320 and 360 wide): the screens people use most and the ones changed lately, with a long name in the
+// group, so a reviewer can check nothing is cut off, overlapping or pushed sideways. (Phones only, not desktop.)
+if (!desktop && !hosted) {
+  const { db } = await import("../src/lib/db");
+  const other = await db.member.findFirst({ where: { groupId: demo.trip.id, accountId: null, leftAt: null }, orderBy: { createdAt: "asc" } });
+  const was = other?.name;
+  if (other) await db.member.update({ where: { id: other.id }, data: { name: "Bhagyalakshmi Venkataraman" } }).catch(() => undefined);
+  for (const w of [320, 360] as const) {
+    await page.setViewportSize({ width: w, height: w === 320 ? 640 : 780 });
+    for (const [n, path] of [
+      ["home", "/"],
+      ["activity", `${g}?tab=activity`],
+      ["balances", `${g}?tab=balances`],
+      ["settle", `${g}/settle`],
+      ["add", `${g}/add`],
+      ["pay", `${g}/pay`],
+      ["account", "/account"],
+      ["notifications", "/account/notifications"],
+      ["support", "/support"],
+      ["tour", "/welcome"],
+    ] as const) {
+      await shot(`n${w}-${n}`, path);
+    }
+  }
+  if (other && was) await db.member.update({ where: { id: other.id }, data: { name: was } }).catch(() => undefined);
+  await page.setViewportSize(screen);
+}
 // Phase 5
 await shot("62-trip-report", `${g}/report`);
 await shot("63-charts-insights", `${g}?tab=charts`, undefined, false);
