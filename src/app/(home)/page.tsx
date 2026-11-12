@@ -1,3 +1,4 @@
+import { neutralGameText } from "@/lib/game-words";
 import Link from "@/components/Link";
 import { InviteFriends } from "@/components/InviteFriends";
 import { GetAppButton } from "@/components/GetApp";
@@ -107,7 +108,7 @@ export default async function Home({
     if (ev && canUndo(ev, events).ok) {
       const grp = all.find((x) => x.group.id === didGroup);
       const actor = ev.actorId === memberships[didGroup] ? "You" : grp?.group.members.find((m) => m.id === ev.actorId)?.name ?? "Someone";
-      undoBar = { text: undone ? "Undone." : `${actor} ${ev.text}${grp ? ` · ${grp.group.name}` : ""}`, groupId: didGroup, eventId: ev.id };
+      undoBar = { text: undone ? "Undone." : `${actor} ${neutralGameText(ev.text)}${grp ? ` · ${grp.group.name}` : ""}`, groupId: didGroup, eventId: ev.id };
     }
   }
 
@@ -296,7 +297,7 @@ export default async function Home({
       return {
         id: gm.id,
         groupId: gm.groupId,
-        name: gm.name,
+        name: neutralGameText(gm.name),
         winner: top && top.net > 0 ? name(top.memberId) : "",
         won: top && top.net > 0 ? formatMoney(top.net, grp.group.currency) : "",
         youWon: top && top.net > 0 && top.memberId === grp.myId ? formatMoney(top.net, grp.group.currency) : undefined,

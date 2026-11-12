@@ -110,7 +110,7 @@ export async function canSeePassport(viewerAccountId: string, ownerAccountId: st
   if (!shared) return { ok: false as const, reason: "stranger" as const, name: undefined as string | undefined };
   const owner = await db.account.findUnique({ where: { id: ownerAccountId } });
   if (!owner) return { ok: false as const, reason: "stranger" as const, name: undefined as string | undefined };
-  if (!passportShared(owner)) return { ok: false as const, reason: "private" as const, name: shared.name as string | undefined };
+  if (!passportShared(owner)) return { ok: false as const, reason: (owner.passportShare === "private" ? "private" : "unanswered") as "private" | "unanswered", name: shared.name as string | undefined };
   return { ok: true as const, owner, name: shared.name as string | undefined };
 }
 

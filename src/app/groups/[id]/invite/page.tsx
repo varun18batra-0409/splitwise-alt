@@ -1,3 +1,4 @@
+import { neutralGameText } from "@/lib/game-words";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { Notice } from "@/components/Notice";
@@ -252,7 +253,7 @@ export default async function AddPeoplePage({
       )}
 
       {justDid && canUndo(justDid, group.events).ok && (
-        <UndoBar key={justDid.id} text={sp.undone ? "Undone." : `${nameOf(justDid.actorId)} ${justDid.text}`} groupId={group.id} eventId={justDid.id} back="people" redo={sp.undone === "1"} />
+        <UndoBar key={justDid.id} text={sp.undone ? "Undone." : `${nameOf(justDid.actorId)} ${neutralGameText(justDid.text)}`} groupId={group.id} eventId={justDid.id} back="people" redo={sp.undone === "1"} />
       )}
     </>
   );

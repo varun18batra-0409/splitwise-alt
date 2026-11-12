@@ -1,3 +1,4 @@
+import { neutralGameText } from "@/lib/game-words";
 import Link from "@/components/Link";
 import type { GroupView } from "./view";
 import { parsePlayers, potGameLabel, potSummary, POT_GAMES } from "@/lib/pot";
@@ -50,7 +51,7 @@ export function GamesTab({ v, games, toSettle = {} }: { v: GroupView; games: Gam
                         {gameEmoji(g.game)}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate font-semibold">{g.name}</span>
+                        <span className="block truncate font-semibold">{neutralGameText(g.name)}</span>
                         <span className="block truncate text-xs text-gray-500">
                           {potGameLabel(g.game)} · {g.createdAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: v.tz })} · {players.length} players
                           {g.status === "open" ? ` · ${money(totals.taken)} chips in` : top && top.net > 0 ? ` · ${nameOf(top.memberId)} came out ahead by ${money(top.net)}` : ""}

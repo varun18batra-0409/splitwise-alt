@@ -195,7 +195,7 @@ describe("passport: hidden until the owner says yes", () => {
     const viewer = await account("Viewer20");
     await group("nochoice", [{ account: owner }, { account: viewer }]);
     expect(owner.passportShare).toBe("groups");
-    expect(await canSeePassport(viewer.id, owner.id)).toMatchObject({ ok: false, reason: "private" });
+    expect(await canSeePassport(viewer.id, owner.id)).toMatchObject({ ok: false, reason: "unanswered" }); // not "private": they have not chosen
     expect(passportShared(owner)).toBe(false);
     expect(passportNeedsAnswer(owner)).toBe(true);
   });

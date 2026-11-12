@@ -26,7 +26,7 @@ export function PendingGroup({ inv }: { inv: Invitation }) {
         <ul className="mt-2.5 space-y-2.5 text-[14.5px] leading-snug">
           {[
             "You’ll see its expenses and who owes what",
-            "You’ll get its alerts, and people in it can see your trip passport",
+            "You’ll get its alerts, and your trip passport, if you choose to show it",
             "You can add expenses and settle up",
           ].map((t) => (
             <li key={t} className="flex items-start gap-2.5">

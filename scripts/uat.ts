@@ -3039,8 +3039,18 @@ async function main() {
   await step(V, "Words", "Game night: none of poker, teen patti, buy-in, cash out, winnings or bet appears on the group-type chips, the game screens, the FAQ or How Loopin works; the calm line is on the game screen", async () => {
     // Everything a person can read on the page (closed folds too), minus the one allowed sentence.
     const BANNED = /poker|teen\s?patti|buy[\s-]?ins?\b|cash(ed)?[\s-]?outs?|winnings?|\bbets?\b|\bbetting\b|gambl/i;
+    // Text nodes a person can read (closed folds too), skipping script, style and template (Next.js data lives in script tags).
+    const visibleText = () =>
+      V.evaluate(() => {
+        const out: string[] = [];
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+          acceptNode: (n) => (n.parentElement?.closest("script, style, template, noscript") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+        });
+        for (let n = walker.nextNode(); n; n = walker.nextNode()) out.push(n.nodeValue ?? "");
+        return out.join(" ");
+      });
     const clean = async (label: string) => {
-      const text = (await V.evaluate(() => document.body.textContent ?? "")).replace(/No betting happens in the app\.?/gi, "");
+      const text = (await visibleText()).replace(/No betting happens in the app\.?/gi, "");
       const bad = BANNED.exec(text);
       assert(!bad, `${label} shows “${bad?.[0]}”`);
     };
@@ -3082,7 +3092,7 @@ async function main() {
       await clean(path);
     }
     await go(V, "/faq");
-    assert((await V.evaluate(() => document.body.textContent ?? "")).includes("What is Game night?"), "the FAQ doesn’t explain Game night");
+    assert((await visibleText()).includes("What is Game night?"), "the FAQ doesn’t explain Game night");
   });
   await step(V, "Words", "The import screen gives generic export steps and no other app’s name", async () => {
     await go(V, "/import");
@@ -3480,7 +3490,7 @@ async function main() {
   // ----- Sharing: a passport is hidden until its owner says yes -----
   await step(A, "Privacy", "Passport: hidden until the owner chooses. Ravi can't open Asha's before she answers; the question shows once, and Show opens it", async () => {
     await go(R, `/passport/friends/${ashaAcc.id}`);
-    await R.getByText("Asha keeps their passport private.").waitFor();
+    await R.getByText("Asha hasn’t shared their passport yet.").waitFor();
     await go(A, "/passport");
     await A.getByText("Show your places to people in your groups?").waitFor();
     await A.getByText("Only people you share a group with can see it. You can change this any time.").waitFor();
@@ -3489,7 +3499,7 @@ async function main() {
     await go(A, "/passport");
     assert((await A.getByText("Show your places to people in your groups?").count()) === 0, "the passport question came back after Show");
     await go(R, `/passport/friends/${ashaAcc.id}`);
-    assert(!/keeps their passport private/.test(await R.locator("main").innerText()), "Ravi can't open Asha's passport after she tapped Show");
+    assert(!/keeps their passport private|hasn.t shared their passport/.test(await R.locator("main").innerText()), "Ravi can't open Asha's passport after she tapped Show");
   });
   await step(A, "Sharing", "Not now keeps a passport hidden and the question never comes back", async () => {
     await go(Z, "/passport");
@@ -3510,7 +3520,7 @@ async function main() {
     await alertSays(R, /Asha sent you their passport/);
     await go(R, `/passport/friends/${ashaAcc.id}`);
     await R.getByRole("heading", { name: /Asha.s passport/ }).waitFor();
-    assert(!/keeps their passport private/.test(await R.locator("main").innerText()), "Ravi can't open the passport Asha sent him");
+    assert(!/keeps their passport private|hasn.t shared their passport/.test(await R.locator("main").innerText()), "Ravi can't open the passport Asha sent him");
     await go(A, `/passport/friends/${raviAcc.id}`);
     await A.getByText("Ravi keeps their passport private.").waitFor();
     assert((await A.locator("[data-country-stamp]").count()) === 0, "a hidden passport shows stamps");

@@ -1,3 +1,4 @@
+import { neutralGameText } from "@/lib/game-words";
 import Link from "@/components/Link";
 import { GroupCover } from "@/components/GroupCover";
 import { getAccount, getMemberships } from "@/lib/identity";
@@ -197,7 +198,7 @@ export default async function Notifications() {
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block text-sm">
-                            <strong className="font-medium">{n.actorName}</strong> {n.event.text}
+                            <strong className="font-medium">{n.actorName}</strong> {neutralGameText(n.event.text)}
                             {n.event.undoneAt && <span className="text-gray-400"> (since undone)</span>}
                           </span>
                           {n.event.kind === "expense_edited" && details.length > 0 && (

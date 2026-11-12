@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { GAME_CHOICES, GAME_NOTE, GAME_NIGHT, gameEmoji, gameLabel, hasBannedGameWord, isGameKind } from "@/lib/game-words";
+import { neutralGameText, TOOK_HOME_NOTES, GAME_CHOICES, GAME_NOTE, GAME_NIGHT, gameEmoji, gameLabel, hasBannedGameWord, isGameKind } from "@/lib/game-words";
 import { GROUP_TYPES } from "@/lib/group-types";
 import { POT_GAMES, isPotGame, potGameLabel, potResultLine } from "@/lib/pot";
 import { sheetFor } from "@/lib/group-type-sheet";
@@ -89,5 +89,35 @@ describe("the group-type chips and the game screens carry none of the old words"
         .replace(/\b\w*(cashOut|CashOut|buyIn|BuyIn|buyin)\w*\b/g, " "); // code names, never shown
       expect(hasBannedGameWord(text), f).toBe(false);
     }
+  });
+});
+
+describe("old stored games are shown with the neutral words (stored data is not changed)", () => {
+  it("rewrites only the old stored patterns, by hand-written examples", () => {
+    expect(neutralGameText("Teen Patti · 26 Oct")).toBe("Game night · 26 Oct");
+    expect(neutralGameText("poker · 3 Nov")).toBe("Game night · 3 Nov");
+    expect(neutralGameText("started a game: Friday (Teen Patti, 4 players)")).toBe("started a game: Friday (Cards, 4 players)");
+    expect(neutralGameText("started a game: Round 2 (Poker, 3 players)")).toBe("started a game: Round 2 (Cards, 3 players)");
+    expect(neutralGameText("finished Teen Patti · 26 Oct: Asha won ₹600")).toBe("finished Game night · 26 Oct: Asha came out ahead ₹600");
+    expect(neutralGameText("Asha won 3 rounds")).toBe("Asha won 3 rounds"); // not money: left alone
+    expect(neutralGameText("Asha won $30, Ravi won 1,200 THB")).toBe("Asha came out ahead $30, Ravi came out ahead 1,200 THB");
+    expect(neutralGameText("Missing from the pot")).toBe("Missing from the count");
+    expect(neutralGameText("Extra in the pot")).toBe("Extra in the count");
+  });
+  it("leaves everything else alone, including new neutral text", () => {
+    for (const same of ["Cards · 26 Oct", "Friday night", "finished Cards · 26 Oct: Asha came out ahead by ₹600", "He won the argument", "Poker night"]) expect(neutralGameText(same)).toBe(same);
+  });
+  it("an old move noted \"cashed out\" is a \"took home\" line, and new ones are saved as \"took home\"", () => {
+    expect(TOOK_HOME_NOTES).toContain("cashed out");
+    expect(TOOK_HOME_NOTES).toContain("took home");
+    expect(neutralGameText("cashed out")).toBe("took home");
+    expect(TOOK_HOME_NOTES[0]).toBe("took home"); // what pot-db saves now
+  });
+  it("new games and events are saved neutral: the default name and the started/finished lines never use the old words", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync("src/lib/pot-db.ts", "utf8").replace(/\/\/.*$/gm, "");
+    expect(src).toMatch(/note: "took home"/);
+    expect(hasBannedGameWord(src.replace(/\b\w*(cashOut|buyIn|buyin)\w*\b/g, ""))).toBe(false);
+    expect(src).not.toMatch(/ won \$\{/);
   });
 });

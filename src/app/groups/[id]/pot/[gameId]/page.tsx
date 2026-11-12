@@ -6,7 +6,7 @@ import { getMyMemberId } from "@/lib/identity";
 import { ErrorNote, PageHeader, inputClass, secondaryButtonClass } from "@/components/ui";
 import { Notice } from "@/components/Notice";
 import { ConfirmButton } from "@/components/ConfirmButton";
-import { GAME_NOTE, TOOK_HOME_NOTES, gameEmoji } from "@/lib/game-words";
+import { GAME_NOTE, TOOK_HOME_NOTES, gameEmoji, neutralGameText } from "@/lib/game-words";
 import { PotBuyIn } from "@/components/PotBuyIn";
 import { PotCount } from "@/components/PotCount";
 import { PotName } from "@/components/PotName";
@@ -154,7 +154,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
 
   return (
     <>
-      <PageHeader title={game.name} back={`/groups/${group.id}?tab=games`} />
+      <PageHeader title={neutralGameText(game.name)} back={`/groups/${group.id}?tab=games`} />
       {sp.error && <ErrorNote>{sp.error.slice(0, 200)}</ErrorNote>}
       {sp.started && (
         <Notice tone="success" params={["started"]} className="mb-4">
@@ -425,7 +425,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
                 <span className={`min-w-0 flex-1 ${m.deletedAt ? "line-through" : ""}`}>
                   {you(m.memberId)} {m.kind === "take" ? "chips in" : m.kind === "return" ? (CASHED.includes(m.note) ? "took home" : m.note === COUNTED ? "ended with" : "took home") : "fix"} {m.kind === "adjust" ? `${m.amount > 0 ? "+" : "−"}${money(Math.abs(m.amount))}` : money(m.amount)}
                   <span className="block text-xs text-gray-400">
-                    {m.note && !CASHED.includes(m.note) && m.note !== COUNTED ? `${m.note} · ` : ""}
+                    {m.note && !CASHED.includes(m.note) && m.note !== COUNTED ? `${neutralGameText(m.note)} · ` : ""}
                     {m.createdById === m.memberId ? "" : `added by ${youLow(m.createdById)}`}
                   </span>
                 </span>
@@ -457,7 +457,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
         </section>
       )}
       {showUndo && justDid && (
-        <UndoBar key={justDid.id} text={sp.undone ? "Undone." : `${you(justDid.actorId)} ${justDid.text}`} groupId={group.id} eventId={justDid.id} back={`pot:${game.id}`} redo={sp.undone === "1"} />
+        <UndoBar key={justDid.id} text={sp.undone ? "Undone." : `${you(justDid.actorId)} ${neutralGameText(justDid.text)}`} groupId={group.id} eventId={justDid.id} back={`pot:${game.id}`} redo={sp.undone === "1"} />
       )}
     </>
   );

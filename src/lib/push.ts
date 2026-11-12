@@ -1,3 +1,4 @@
+import { neutralGameText } from "./game-words";
 import { parseNotify, wantsPush } from "./notify-prefs";
 import webpush from "web-push";
 import { db } from "./db";
@@ -42,7 +43,7 @@ const SIGN: Record<string, string> = {
   bill_changed: "🧾",
 };
 export function pushPayload(e: { groupId: string; groupName: string; actorName: string; text: string; eventId: string; kind?: string }) {
-  const body = `${e.actorName} ${e.text}`;
+  const body = `${e.actorName} ${neutralGameText(e.text)}`;
   const sign = e.kind ? SIGN[e.kind] ?? "⚙️" : "";
   return {
     title: sign ? `${sign} ${e.groupName}` : e.groupName,
@@ -82,7 +83,7 @@ export async function sendEventPush(eventId: string): Promise<number> {
     const subs = all.filter((s) => !actorPhones.has(s.endpoint) && wantsPush(parseNotify(s.member.notify), ev.kind));
     if (subs.length === 0) return 0;
     const actor = await db.member.findUnique({ where: { id: ev.actorId }, select: { name: true } });
-    const base = pushPayload({ groupId: ev.group.id, groupName: ev.group.name, actorName: actor?.name ?? "Someone", text: ev.text, eventId, kind: ev.kind });
+    const base = pushPayload({ groupId: ev.group.id, groupName: ev.group.name, actorName: actor?.name ?? "Someone", text: neutralGameText(ev.text), eventId, kind: ev.kind });
     // A much bigger expense than this group usually has: say so, so people check it.
     if (ev.kind === "expense_added" && ev.expenseId && (await bigOne(ev.groupId, ev.expenseId))) {
       base.title = `💰 Big one in ${ev.group.name}`;

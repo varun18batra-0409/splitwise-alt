@@ -1,3 +1,4 @@
+import { neutralGameText } from "./game-words";
 import { PLAIN_WORDS, getCategory } from "./categories";
 import { DEFAULT_TIME_ZONE, dayKey, formatter, isDayMarker, isTimeZone } from "./dates";
 import { moneyLines, payerIds, scalePayers } from "./payers";
@@ -106,7 +107,7 @@ export function buildActivity(expenses: ExpenseRow[], payments: PaymentRow[], my
         kind: "expense",
         id: e.id,
         date: e.spentAt ?? e.createdAt,
-        title: e.description,
+        title: e.kind === "pot" ? neutralGameText(e.description) : e.description,
         notes: e.notes ?? "",
         category: e.category,
         amount: e.amount,
@@ -138,7 +139,7 @@ export function buildActivity(expenses: ExpenseRow[], payments: PaymentRow[], my
     ),
     ...events
       .filter((e) => GROUP_EVENT_KINDS.has(e.kind))
-      .map((e): ActivityItem => ({ kind: "event", id: e.id, date: e.createdAt, actorId: e.actorId, text: e.text, details: e.details, effect: 0 })),
+      .map((e): ActivityItem => ({ kind: "event", id: e.id, date: e.createdAt, actorId: e.actorId, text: neutralGameText(e.text), details: e.details, effect: 0 })),
   ];
   return items.sort((a, b) => b.date.getTime() - a.date.getTime());
 }

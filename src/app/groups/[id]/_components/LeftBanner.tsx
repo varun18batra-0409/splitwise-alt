@@ -1,3 +1,4 @@
+import { neutralGameText } from "@/lib/game-words";
 import { niceDate } from "@/lib/format";
 import { dayKey } from "@/lib/dates";
 import { parseDetails } from "@/lib/events";
@@ -37,7 +38,7 @@ export function LeftSections({ v }: { v: GroupView }) {
               return (
                 <li key={ev.id} className="py-3">
                   <p className="text-sm">
-                    <strong className="font-medium">{v.nameOf(ev.actorId)}</strong> {ev.text}
+                    <strong className="font-medium">{v.nameOf(ev.actorId)}</strong> {neutralGameText(ev.text)}
                   </p>
                   <p className="mt-0.5 text-xs text-gray-500">
                     {mine ? `${mine.replace(/^.*?’s share:\s*/, "Your share ")} · ` : ""}

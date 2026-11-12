@@ -34,3 +34,16 @@ export const stripAllowedLine = (text: string) => text.replace(/no betting happe
 // How a "took home" line was saved: older games saved it as "cashed out". Both are read; new ones are "took home".
 export const TOOK_HOME_NOTES = ["took home", "cashed out"];
 export const hasBannedGameWord = (text: string) => BANNED_GAME_WORDS.test(stripAllowedLine(text));
+
+// Older games were saved with the old words ("Teen Patti · 26 Oct", "Asha won ₹600", "(Poker, 4 players)",
+// "Missing from the pot"). Stored data is never changed: this rewrites those patterns only when shown.
+// New games and events are saved with the neutral words already.
+export function neutralGameText(s: string): string {
+  return String(s ?? "")
+    .replace(/\b(teen\s?patti|poker)\s*·/gi, "Game night ·")
+    .replace(/\((teen\s?patti|poker),/gi, "(Cards,")
+    .replace(/\bwon (?=[^\s\d]{0,4}\s?[\d.,]+\b(?! rounds?| games?| hands?))/g, "came out ahead ")
+    .replace(/\bMissing from the pot\b/g, "Missing from the count")
+    .replace(/\bExtra in the pot\b/g, "Extra in the count")
+    .replace(/\bcashed out\b/g, "took home");
+}
