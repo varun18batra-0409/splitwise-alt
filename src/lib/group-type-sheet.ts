@@ -1,4 +1,4 @@
-// The one-time sheet that explains what is special about a flat, a couple or a card night.
+// The one-time sheet that explains what is special about a Home group, a Couple or The Pot.
 // Pure rules (what it says, and "shown once" remembered per phone), so they can be tested.
 // Every sentence below describes something the app really does: see the notes beside each card.
 
@@ -10,7 +10,7 @@ export function sheetFor(type: string, groupId: string): TypeSheet | null {
   if (type === "home") {
     return {
       kind: "home",
-      title: "Your flat is ready",
+      title: "Your home group is ready",
       cards: [
         // Bills: fixed ones are added on their day, ones that change ask whoever pays to enter the amount, daily ones (milk) are added up at month end.
         { icon: "repeat", title: "Bills that repeat", body: "Add rent, Wi-Fi or milk once. Fixed bills are added on their day each month, and for ones that change, like electricity, whoever pays gets a nudge to enter the amount." },
@@ -36,7 +36,7 @@ export function sheetFor(type: string, groupId: string): TypeSheet | null {
   if (type === "pot") {
     return {
       kind: "pot",
-      title: "Your card night is ready",
+      title: "Your Pot is ready",
       cards: [
         // Game page: "At the table. This is only a count: nothing is owed until the game is finished."
         { icon: "tally", title: "Game tally vs Money owed", body: "The Game tally is only a count while you play. Nothing is owed until the game is finished, then it shows up under Money owed." },

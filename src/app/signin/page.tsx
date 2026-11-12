@@ -44,7 +44,8 @@ export default async function SignIn({
                     <img src={placePhoto(p.place)!.src} alt="" className="absolute inset-0 h-full w-full object-cover" />
                   )}
                 </span>
-                <span className="absolute inset-x-0 bottom-1.5 text-center font-hand text-[21px] font-bold text-[#1d1b17]">{p.caption}</span>
+                {/* Only the front photo has a caption: the two behind it are partly hidden, so theirs would read "M…" and "…pur". */}
+                {p.front && <span className="absolute inset-x-0 bottom-1.5 text-center font-hand text-[21px] font-bold text-[#1d1b17]">{p.caption}</span>}
               </span>
             ))}
           </div>
@@ -165,7 +166,7 @@ export default async function SignIn({
 
 // The three polaroids on the sign-in screen (photos from the app's own place pictures).
 const SNAPS = [
-  { place: "Manali", caption: "Manali", spot: "left-[6%] top-[86px] h-[200px] w-[160px] -rotate-[9deg]", delay: "0ms" },
-  { place: "Jaipur", caption: "Jaipur", spot: "right-[5%] top-[72px] h-[200px] w-[160px] rotate-[7deg]", delay: "120ms" },
-  { place: "Goa", caption: "Goa, all square", spot: "left-[27%] top-[176px] z-[2] h-[220px] w-[176px] -rotate-[1.5deg]", delay: "240ms" },
+  { place: "Manali", caption: "Manali", front: false, spot: "left-[6%] top-[86px] h-[200px] w-[160px] -rotate-[9deg]", delay: "0ms" },
+  { place: "Jaipur", caption: "Jaipur", front: false, spot: "right-[5%] top-[72px] h-[200px] w-[160px] rotate-[7deg]", delay: "120ms" },
+  { place: "Goa", caption: "Goa, all square", front: true, spot: "left-[27%] top-[176px] z-[2] h-[220px] w-[176px] -rotate-[1.5deg]", delay: "240ms" },
 ];

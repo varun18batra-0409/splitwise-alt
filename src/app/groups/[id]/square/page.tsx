@@ -29,11 +29,11 @@ export default async function SquarePage({ params, searchParams }: { params: Pro
 
   return (
     <>
-      <PageHeader title={square ? "All square" : "Not square yet"} back={`/groups/${group.id}`} />
-      <section aria-label="All square" className="flex flex-col items-center">
+      <PageHeader title={square ? "All square" : "Not square yet"} hideTitle={square} back={`/groups/${group.id}`} />
+      <section aria-label="All square" className="flex flex-col items-center pb-8">
         {/* The group's polaroid, pinned. */}
         <div className="relative mt-2 w-[78%] max-w-[300px] -rotate-2 bg-[#f4f1e8] p-2.5 pb-0 shadow-[0_30px_50px_-20px_rgba(0,0,0,0.95)]">
-          <span aria-hidden className="absolute -top-3 left-1/2 z-10 h-6 w-16 -translate-x-1/2 rotate-2 bg-[#f4f1e8]/70 shadow-sm" />
+          <span aria-hidden className="absolute -top-3 left-1/2 z-10 h-6 w-16 -translate-x-1/2 rotate-2 bg-[linear-gradient(180deg,rgba(236,226,196,0.85),rgba(214,201,164,0.8))] shadow-sm [mask-image:linear-gradient(90deg,transparent_0,#000_4%,#000_96%,transparent_100%)] after:absolute after:inset-0 after:bg-[repeating-linear-gradient(115deg,rgba(0,0,0,0.045)_0_2px,transparent_2px_5px)] after:content-['']" />
           <div className="relative aspect-[4/3.4] overflow-hidden bg-[#222]">
             {photo ? (
               // eslint-disable-next-line @next/next/no-img-element

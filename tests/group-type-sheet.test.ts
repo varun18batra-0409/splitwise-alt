@@ -18,7 +18,7 @@ const blocked = {
 describe("the one-time group-type sheet: what it says", () => {
   it("a flat: two cards and the two buttons from the design", () => {
     const s = sheetFor("home", "g1")!;
-    expect(s.title).toBe("Your flat is ready");
+    expect(s.title).toBe("Your home group is ready");
     expect(s.cards.map((c) => c.title)).toEqual(["Bills that repeat", "Moving in or out"]);
     expect(s.primary).toEqual({ label: "Add the first bill", href: "/groups/g1/bills/new" });
   });

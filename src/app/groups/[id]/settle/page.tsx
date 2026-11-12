@@ -14,12 +14,12 @@ import { ConfirmButton } from "@/components/ConfirmButton";
 import { actionFormClass, DifferentAmountLink, differentAmountFor, filledActionClass, mainButtonClass, outlineButtonClass, PayAppButtons, RemindIcon, SettleRow } from "@/components/SettleRow";
 import { FreshKey } from "@/components/FreshKey";
 import { UndoBar } from "@/components/UndoBar";
-import { ErrorNote, PageHeader, secondaryButtonClass } from "@/components/ui";
+import { ErrorNote, PageHeader } from "@/components/ui";
 import { db } from "@/lib/db";
 import { getAccount } from "@/lib/identity";
 import { payButtons, type PayWays } from "@/lib/pay-links";
 import { waitingForMe } from "@/lib/payment-ok";
-import { planSettleRow, settleRowFacts } from "@/lib/settle-row";
+import { planSettleRow, settleMainAction, settleRowFacts } from "@/lib/settle-row";
 import { claimsWaitingFor, declinedNote, myDeclinedClaims, myWaitingClaims } from "@/lib/payment-claims";
 import { claimPaidAction, confirmClaimAction, confirmPaymentAction, declineClaimAction, markAllPaidAction, rejectPaymentAction, withdrawClaimAction } from "@/app/pay-actions";
 
@@ -28,6 +28,8 @@ const RING = 2 * Math.PI * 46;
 // Settle up inside one group: the fewest payments that clear every debt.
 // Each can be recorded in full with one tap, or for a smaller amount
 // (change the number first). The app only records payments; it never moves money.
+const quietLinkClass = "inline-flex min-h-11 items-center text-sm font-medium text-fg/70 underline underline-offset-4";
+
 export default async function GroupSettle({
   params,
   searchParams,
@@ -75,6 +77,7 @@ export default async function GroupSettle({
     return a && (a.upiId || a.payLink) ? { upiId: a.upiId, payLink: a.payLink } : null;
   };
   const myWays = waysOf(myId);
+  const mainAction = settleMainAction({ type: group.type, transfers: transfers.length, shown: ordered.length });
   const owedToMe = ordered.some((t) => t.to === myId);
   const iLeft = Boolean(group.members.find((m) => m.id === myId)?.leftAt); // someone who left can answer "Confirm received", but not say they paid
   // Paid back so far, out of everything that needed paying back (payments made + what's still left).
@@ -144,20 +147,20 @@ export default async function GroupSettle({
             {claimsToMe.map((c) => (
               <li key={c.id} className="py-2.5" data-waiting={c.fromName} data-claim={c.id}>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                  <span className="min-w-0 flex-1 text-sm">
+                  <span className="min-w-0 basis-full text-sm leading-snug">
                     <strong className="font-semibold">{c.fromName}</strong> says they paid you <strong className="font-semibold tabular-nums">{formatMoney(c.amount, c.currency)}</strong>
                   </span>
                   {sp.overclaim !== c.id && (
                     <span className="flex shrink-0 gap-2">
                       <form action={confirmClaimAction}>
                         <input type="hidden" name="claimId" value={c.id} />
-                        <button type="submit" data-haptic="success" className="rounded-full bg-fg px-3.5 py-1.5 text-xs font-semibold text-canvas">
+                        <button type="submit" data-haptic="success" className="inline-flex min-h-10 items-center rounded-full bg-fg px-4 text-[13px] font-semibold text-canvas">
                           Confirm received
                         </button>
                       </form>
                       <form action={declineClaimAction}>
                         <input type="hidden" name="claimId" value={c.id} />
-                        <ConfirmButton message={`Haven’t received ${formatMoney(c.amount, c.currency)} from ${c.fromName} yet? Nothing changes in the balances, and ${c.fromName} is asked to check.`} className="rounded-full border border-line px-3.5 py-1.5 text-xs font-semibold">
+                        <ConfirmButton message={`Haven’t received ${formatMoney(c.amount, c.currency)} from ${c.fromName} yet? Nothing changes in the balances, and ${c.fromName} is asked to check.`} className="inline-flex min-h-10 items-center rounded-full border border-line px-4 text-[13px] font-semibold">
                           Not received
                         </ConfirmButton>
                       </form>
@@ -186,19 +189,19 @@ export default async function GroupSettle({
             ))}
             {waiting.map((p) => (
               <li key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2.5" data-waiting={p.from.name}>
-                <span className="min-w-0 flex-1 text-sm">
+                <span className="min-w-0 basis-full text-sm leading-snug">
                   <strong className="font-semibold">{p.from.name}</strong> says they paid you <strong className="font-semibold tabular-nums">{money(p.amount)}</strong>
                 </span>
                 <span className="flex shrink-0 gap-2">
                   <form action={confirmPaymentAction}>
                     <input type="hidden" name="paymentId" value={p.id} />
-                    <button type="submit" data-haptic="success" className="rounded-full bg-fg px-3.5 py-1.5 text-xs font-semibold text-canvas">
+                    <button type="submit" data-haptic="success" className="inline-flex min-h-10 items-center rounded-full bg-fg px-4 text-[13px] font-semibold text-canvas">
                       Confirm received
                     </button>
                   </form>
                   <form action={rejectPaymentAction}>
                     <input type="hidden" name="paymentId" value={p.id} />
-                    <ConfirmButton message={`Haven’t received ${money(p.amount)} from ${p.from.name}? It comes off the balances (you can undo).`} className="rounded-full border border-line px-3.5 py-1.5 text-xs font-semibold">
+                    <ConfirmButton message={`Haven’t received ${money(p.amount)} from ${p.from.name}? It comes off the balances (you can undo).`} className="inline-flex min-h-10 items-center rounded-full border border-line px-4 text-[13px] font-semibold">
                       Not received
                     </ConfirmButton>
                   </form>
@@ -334,21 +337,6 @@ export default async function GroupSettle({
         </ul>
       )}
 
-      {/* Everything at once, but keep the group open (a card group plays again next week). */}
-      {!group.closed && ordered.length > 1 && (
-        <form action={markAllPaidAction} className="mt-4">
-          <input type="hidden" name="groupId" value={group.id} />
-          <input type="hidden" name="plan" value={planKey(transfers)} />
-          <FreshKey name="rid" />
-          <ConfirmButton
-            message={`Mark all ${ordered.length} payments paid? The group stays open, everyone is told, and you can undo it.`}
-            className="pop block w-full bg-fg px-4 py-3.5 text-center text-[15px] font-semibold text-canvas"
-          >
-            Mark all {ordered.length} paid
-          </ConfirmButton>
-        </form>
-      )}
-
       {owedToMe && !myWays && me && (
         <p className="mt-4 rounded-xl bg-mist px-4 py-3 text-sm text-gray-600">
           Get paid in one tap: add your UPI ID or PayPal / Venmo link on{" "}
@@ -359,32 +347,44 @@ export default async function GroupSettle({
         </p>
       )}
 
+      {/* The closing actions: ONE main button, the rest quiet links under it. */}
       {!group.closed && (
-        <Link href={`/groups/${group.id}/pay`} className={`mt-3 ${secondaryButtonClass} text-[15px]`}>
-          Record a different payment
-        </Link>
-      )}
-
-      {!group.closed && (
-        <section id="close" className="mt-10 scroll-mt-4 border-t border-line pt-6">
-          <h2 className="text-base font-semibold">{transfers.length > 0 ? "Settled outside the app?" : "Done with this group?"}</h2>
-          <p className="mb-4 mt-1 text-sm text-gray-500">
-            {transfers.length > 0 ? "Mark every payment above as paid and close the group in one go." : "Everyone’s square, so you can close it."}
-          </p>
-          <form action={settleEverything}>
-            <input type="hidden" name="groupId" value={group.id} />
-            <input type="hidden" name="plan" value={planKey(transfers)} />
-            <ConfirmButton
-              message={
-                transfers.length > 0
-                  ? `Mark all ${transfers.length} payments as paid and close ${group.name}? Everyone will be notified. You can undo this.`
-                  : `Close ${group.name}? You can reopen it any time.`
-              }
-              className={`${secondaryButtonClass} text-[15px]`}
-            >
-              {transfers.length > 0 ? "Settle everything & close" : "Close group"}
-            </ConfirmButton>
-          </form>
+        <section id="close" className="mt-6 scroll-mt-4 space-y-1" data-settle-actions>
+          {ordered.length > 1 && (
+            <form action={markAllPaidAction} className={mainAction === "mark-all" ? "" : "flex justify-center"}>
+              <input type="hidden" name="groupId" value={group.id} />
+              <input type="hidden" name="plan" value={planKey(transfers)} />
+              <FreshKey name="rid" />
+              <ConfirmButton
+                message={`Mark all ${ordered.length} payments paid? The group stays open, everyone is told, and you can undo it.`}
+                className={mainAction === "mark-all" ? "pop block w-full bg-fg px-4 py-3.5 text-center text-[15px] font-semibold text-canvas" : quietLinkClass}
+              >
+                Mark all paid ({ordered.length})
+              </ConfirmButton>
+            </form>
+          )}
+          {transfers.length > 0 || mainAction === "close" ? (
+            <form action={settleEverything} className="flex justify-center">
+              <input type="hidden" name="groupId" value={group.id} />
+              <input type="hidden" name="plan" value={planKey(transfers)} />
+              <ConfirmButton
+                message={
+                  transfers.length > 0
+                    ? `Mark all ${transfers.length} payments as paid and close ${group.name}? Everyone will be notified. You can undo this.`
+                    : `Close ${group.name}? You can reopen it any time.`
+                }
+                className={mainAction === "close" ? "pop block w-full bg-fg px-4 py-3.5 text-center text-[15px] font-semibold text-canvas" : quietLinkClass}
+              >
+                {transfers.length > 0 ? "Settle everything & close" : "Close group"}
+              </ConfirmButton>
+            </form>
+          ) : null}
+          <div className="flex justify-center">
+            <Link href={`/groups/${group.id}/pay`} className={quietLinkClass}>
+              Record a different payment
+            </Link>
+          </div>
+          {transfers.length > 0 && <p className="px-2 pt-1 text-center text-xs text-gray-400">Settled outside the app? “Settle everything & close” marks every payment above paid and closes the group.</p>}
         </section>
       )}
       {group.type === "trip" && (

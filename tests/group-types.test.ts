@@ -144,3 +144,19 @@ describe("your own photo while making a group", () => {
     await db.groupPhoto.deleteMany({ where: { groupId: { in: [withPhoto.id, junk.id, notPicked.id] } } });
   });
 });
+
+describe("Teen Patti is named only in India", () => {
+  it("India: Teen Patti or Poker; elsewhere: Poker or rummy, with no Teen Patti anywhere", async () => {
+    const { cardGames, potHint, potNote, GROUP_TYPES } = await import("@/lib/group-types");
+    expect(cardGames(true)).toBe("Teen Patti or Poker");
+    expect(potHint(true)).toBe("Poker & Teen Patti: who won, who pays");
+    expect(cardGames(false)).toBe("Poker or rummy");
+    expect(`${cardGames(false)} ${potHint(false)} ${potNote(false)} ${GROUP_TYPES.map((t) => t.hint).join(" ")}`).not.toMatch(/Teen Patti/);
+  });
+  it("a US visitor is not India; an Indian one is", async () => {
+    const { visitorRegion } = await import("@/lib/region");
+    const h = (c: string, lang = "") => ({ get: (n: string) => (n === "x-vercel-ip-country" ? c : n === "accept-language" ? lang : null) });
+    expect(visitorRegion(h("US", "en-US")).india).toBe(false);
+    expect(visitorRegion(h("IN", "en-IN")).india).toBe(true);
+  });
+});

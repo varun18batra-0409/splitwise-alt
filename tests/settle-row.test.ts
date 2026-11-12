@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planSettleRow, type RowFacts } from "@/lib/settle-row";
+import { planSettleRow, settleMainAction, type RowFacts } from "@/lib/settle-row";
 import { differentAmountHref } from "@/lib/money";
 
 // One layout for every payment on Settle up: one filled main button, one outlined action, one text link.
@@ -10,6 +10,9 @@ describe("a Settle up row", () => {
   it("I pay someone on Loopin who has a payment app: Open payment app is the filled button, I've paid the outlined one, plus the link", () => {
     const p = planSettleRow({ ...base, iPay: true, payApps: 1 });
     expect(p).toMatchObject({ main: "pay-app", action: "claim", actionFilled: false, actionLabel: "I’ve paid", differentAmount: true, filledButtons: 1 });
+  });
+  it("UPI and PayPal both saved: still ONE filled button (the other is a small link)", () => {
+    expect(planSettleRow({ ...base, iPay: true, payApps: 2 }).filledButtons).toBe(1);
   });
   it("I pay someone with no payment app: I've paid becomes the one filled button", () => {
     const p = planSettleRow({ ...base, iPay: true });
@@ -40,7 +43,7 @@ describe("a Settle up row", () => {
     const left = planSettleRow({ ...base, iPay: true, iLeft: true });
     expect(left).toMatchObject({ action: null, differentAmount: false });
   });
-  it("never more than one filled button per row (one per payment app when there are several)", () => {
+  it("never more than one filled button per row, even with UPI and PayPal both saved", () => {
     for (const iPay of [true, false])
       for (const iAmPaid of [true, false])
         for (const closed of [true, false])
@@ -51,11 +54,27 @@ describe("a Settle up row", () => {
                   for (const theirClaimWaiting of [true, false]) {
                     if (iPay && iAmPaid) continue;
                     const p = planSettleRow({ iPay, iAmPaid, closed, iLeft, receiverCanConfirm, payApps: iPay ? payApps : 0, myClaimWaiting: iPay && myClaimWaiting, theirClaimWaiting: iAmPaid && theirClaimWaiting });
-                    expect(p.filledButtons).toBeLessThanOrEqual(Math.max(1, iPay ? payApps : 0));
+                    expect(p.filledButtons).toBeLessThanOrEqual(1);
                     expect(p.actionFilled && p.main !== null).toBe(false);
                   }
   });
   it("Paid a different amount? goes to Record a payment, amount filled, and comes back to Settle up", () => {
     expect(differentAmountHref("g1", "r1", "a1", "500")).toBe("/groups/g1/pay?from=r1&to=a1&amount=500&back=settle");
+  });
+});
+
+describe("the closing actions under the rows: one main button", () => {
+  it("a trip's main action is Settle everything & close; Mark all paid is then a quiet link", () => {
+    expect(settleMainAction({ type: "trip", transfers: 2, shown: 2 })).toBe("close");
+  });
+  it("a home or card group with 2 payments: Mark all paid (2) is the main one", () => {
+    expect(settleMainAction({ type: "home", transfers: 2, shown: 2 })).toBe("mark-all");
+    expect(settleMainAction({ type: "pot", transfers: 3, shown: 3 })).toBe("mark-all");
+  });
+  it("one payment in a home group: the payment's own button is the main one", () => {
+    expect(settleMainAction({ type: "home", transfers: 1, shown: 1 })).toBeNull();
+  });
+  it("nothing left to pay: Close group is the one button", () => {
+    expect(settleMainAction({ type: "home", transfers: 0, shown: 0 })).toBe("close");
   });
 });

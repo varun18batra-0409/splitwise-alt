@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { fxLine, rateSourceLine } from "@/lib/conversion";
+import { dayKey } from "@/lib/dates";
+import { fxLine, rateDateLabel, rateSourceLine } from "@/lib/conversion";
 import { niceDate } from "@/lib/format";
 
 // The foreign-currency maths in one line. Worked out by hand; the line is shown only when it adds up to the saved total.
@@ -62,5 +63,26 @@ describe("rateSourceLine", () => {
     expect(rateSourceLine({ rateSource: "manual", rateDate: "2026-10-14" }, niceDate)).toBe("Rate entered by hand");
     expect(rateSourceLine({ rateSource: "converted", rateDate: "" }, niceDate)).toBe("Adjusted when the group currency changed");
     expect(rateSourceLine({ rateSource: "same", rateDate: "" }, niceDate)).toBeNull();
+  });
+});
+
+describe("rateDateLabel (the day the rate is for, next to the day of the expense)", () => {
+  it("says 'for' only when the rate day is the expense day", () => {
+    expect(rateDateLabel({ rateDate: "2026-10-13", expenseDay: "2026-10-13", saved: true }, niceDate)).toBe("Rate saved with this expense for 13 Oct 2026");
+    expect(rateDateLabel({ rateDate: "2026-10-13", expenseDay: "2026-10-13" }, niceDate)).toBe("Live rate for 13 Oct 2026");
+  });
+  it("says plainly when the rate is from another day (expense 13 Oct, rate saved 14 Oct)", () => {
+    expect(rateDateLabel({ rateDate: "2026-10-14", expenseDay: "2026-10-13", saved: true }, niceDate)).toBe(
+      "Rate saved with this expense, from 14 Oct 2026 (the latest when it was saved)",
+    );
+    expect(rateDateLabel({ rateDate: "2026-10-11", expenseDay: "2026-10-13" }, niceDate)).toBe("Live rate from 11 Oct 2026, the latest available");
+  });
+  it("late evening in India: 23:30 IST on 13 Oct is 18:00 UTC on 13 Oct, the same day; 01:00 IST on 14 Oct is still 13 Oct in UTC", () => {
+    const lateEvening = new Date("2026-10-13T18:00:00Z"); // 23:30 IST, 13 Oct
+    const justAfterMidnight = new Date("2026-10-13T19:30:00Z"); // 01:00 IST, 14 Oct
+    expect(dayKey(lateEvening, "Asia/Kolkata")).toBe("2026-10-13");
+    expect(dayKey(justAfterMidnight, "Asia/Kolkata")).toBe("2026-10-14");
+    // The expense day is read in the person's zone (14 Oct); a rate dated by the UTC clock (13 Oct) is not claimed to be "for" 14 Oct.
+    expect(rateDateLabel({ rateDate: justAfterMidnight.toISOString().slice(0, 10), expenseDay: dayKey(justAfterMidnight, "Asia/Kolkata"), saved: true }, niceDate)).toContain("from 13 Oct 2026");
   });
 });

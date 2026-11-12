@@ -13,7 +13,7 @@ export type RowFacts = {
   closed: boolean;
   iLeft: boolean; // someone who left can't say they paid
   receiverCanConfirm: boolean; // the person paid is on Loopin and can tap Confirm received
-  payApps: number; // how many "Open payment app" buttons I'd have
+  payApps: number; // how many ways to pay I have saved (only the first is a button; the rest are small links)
   myClaimWaiting: boolean; // my "I've paid" is waiting for them
   theirClaimWaiting: boolean; // they say they paid me (answered in the box at the top)
 };
@@ -25,7 +25,7 @@ export type RowPlan = {
   actionLabel: "I’ve paid" | "They’ve paid me" | "Mark paid" | null;
   status: "waiting" | "their-claim" | null;
   differentAmount: boolean; // show "Paid a different amount?"
-  filledButtons: number; // how many filled buttons the row shows (a row with several payment apps shows one per app)
+  filledButtons: number; // how many filled buttons the row shows: never more than one
 };
 
 // The facts for one row, worked out from the pair and the viewer: the Settle up page and its tests both use this,
@@ -71,6 +71,17 @@ export function planSettleRow(f: RowFacts): RowPlan {
     actionLabel,
     status,
     differentAmount: canRecord && status !== "waiting",
-    filledButtons: main === "pay-app" ? f.payApps : main === "remind" ? 1 : actionFilled ? 1 : 0,
+    filledButtons: main === "pay-app" ? 1 : main === "remind" ? 1 : actionFilled ? 1 : 0,
   };
+}
+
+// The closing actions under the payment rows: ONE main button, the others quiet links under it.
+//   nothing left to pay        -> "Close group" is the one button
+//   a trip (it ends)           -> "Settle everything & close"
+//   other groups, 2+ payments  -> "Mark all paid (N)" (the group stays open)
+//   other groups, 1 payment    -> none: that payment's own button is the main one
+export function settleMainAction(i: { type: string; transfers: number; shown: number }): "close" | "mark-all" | null {
+  if (i.transfers === 0) return "close";
+  if (i.type === "trip") return "close";
+  return i.shown > 1 ? "mark-all" : null;
 }

@@ -143,9 +143,24 @@ export function fxLine(e: {
   return e.markupBp > 0 && fee > 0 ? `${head} + ${formatMoney(fee, e.baseCurrency)} card fee (${formatPercent(e.markupBp)}) = ${formatMoney(e.amount, e.baseCurrency)}` : head;
 }
 
+// Which day a rate is for, in words, next to the day of the expense. Both are plain days ("2026-10-14"),
+// the expense's day in the person's own time zone, so the two can be compared directly.
+// A rate is always the latest published when the expense was saved (rates for a weekend are Friday's),
+// so it may be from a different day than the expense: then we say so instead of implying it is "for" that day.
+export function rateDateLabel(
+  o: { rateDate: string; expenseDay: string; saved?: boolean; stale?: boolean },
+  niceDate: (day: string) => string,
+): string {
+  const prefix = o.saved ? "Rate saved with this expense" : o.stale ? "Last saved rate" : "Live rate";
+  if (!o.rateDate) return prefix;
+  const when = niceDate(o.rateDate);
+  if (!o.expenseDay || o.expenseDay === o.rateDate) return `${prefix} for ${when}`;
+  return o.saved ? `${prefix}, from ${when} (the latest when it was saved)` : `${prefix} from ${when}, the latest available`;
+}
+
 // Where the rate came from, for the line under the maths. `rateDate` is the day the rate applies to ("2026-10-14").
-export function rateSourceLine(e: { rateSource: string; rateDate: string }, niceDate: (day: string) => string): string | null {
-  if (e.rateSource === "api") return e.rateDate ? `Live rate for ${niceDate(e.rateDate)}` : "Live rate";
+export function rateSourceLine(e: { rateSource: string; rateDate: string }, niceDate: (day: string) => string, expenseDay = ""): string | null {
+  if (e.rateSource === "api") return rateDateLabel({ rateDate: e.rateDate, expenseDay }, niceDate);
   if (e.rateSource === "manual") return "Rate entered by hand";
   if (e.rateSource === "converted") return "Adjusted when the group currency changed";
   return null;

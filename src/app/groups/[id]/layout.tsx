@@ -14,7 +14,7 @@ export default async function GroupLayout({ children, params }: { children: Reac
   const tint = g ? groupTint(g) : null;
   if (!tint) return children;
   return (
-    <div style={tintStyle(tint)} data-tint={tint.hue}>
+    <div style={tintStyle(tint)} data-tint={tint.hue} className="min-h-dvh bg-canvas">
       {/* The tinted page behind the whole screen (fixed, so it fills past the content too). */}
       <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 bg-canvas" />
       {children}

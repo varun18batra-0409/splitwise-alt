@@ -38,11 +38,11 @@ function Dot({ name, tone = "bg-mist" }: { name: string; tone?: string }) {
 }
 
 // Three of Loopin's own group pictures as polaroids, fanning in: a trip, a
-// flat, the two of you. Under them, the kinds of group.
+// home, the two of you. Under them, the kinds of group (the same names as New group).
 function Cheers() {
   const shots: [CoverChoice, string, number, string][] = [
     ["beach", "Trip", -9, "rise-2"],
-    ["city", "Flat", 2, "rise-3"],
+    ["city", "Home", 2, "rise-3"],
     ["couple", "Us", 10, "rise-4"],
   ];
   return (
@@ -59,7 +59,7 @@ function Cheers() {
         ))}
       </div>
       <div className="mt-7 flex flex-wrap justify-center gap-2">
-        {["Trip", "Flat", "Couple", "Card night"].map((t, i) => (
+        {["Trip", "Home", "Couple", "The Pot"].map((t, i) => (
           <span key={t} className={`nobreak rise rise-${Math.min(i + 2, 5)} rounded-full border border-line bg-canvas px-3 py-1 text-xs text-gray-600`}>
             {t}
           </span>
@@ -70,7 +70,7 @@ function Cheers() {
 }
 
 // A trip's Wrapped, as a story poster: progress segments on top, then what the story is made of.
-// Only things Wrapped really shows: the total, who paid up front, the biggest day, the splurge, the awards.
+// Only things Wrapped really shows: the total, the biggest splurge, who paid most, the busiest day.
 function StoryPoster({ L }: { L: Local }) {
   return (
     <div className="rise relative w-full max-w-[260px] overflow-hidden rounded-[24px] border border-line bg-[radial-gradient(120%_70%_at_50%_0%,#2a2620_0%,#16161a_65%,#0d0d0f_100%)] p-4 shadow-[0_24px_40px_-18px_rgba(0,0,0,0.95)]">
@@ -82,10 +82,12 @@ function StoryPoster({ L }: { L: Local }) {
       <p className="mt-6 font-hand text-[22px] font-bold leading-none text-[#d8bd7a]">{L.india ? "Goa, wrapped" : "Lake weekend, wrapped"}</p>
       <p className="mt-2 font-display text-[34px] font-semibold leading-[1.02] tracking-tight text-fg">{L.m(L.india ? 48600 : 1240)}</p>
       <p className="mt-1 text-xs text-fg/60">4 of you · about {L.m(L.india ? 12150 : 310)} each</p>
-      <ul className="mt-5 space-y-1.5 text-[13px] text-fg/80">
-        {["The splurge", "Who paid up front", "The biggest day"].map((t, i) => (
-          <li key={t} className={`rise rise-${i + 2} flex items-center gap-2`}>
-            <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-[#d8bd7a]" />
+      <ul className="mt-5 space-y-2 border-t border-fg/10 pt-4" data-story-lines>
+        {["The splurge", "Where the money went", "The biggest day"].map((t, i) => (
+          <li key={t} className={`rise rise-${i + 2} flex items-baseline gap-2.5 font-display text-[19px] font-semibold leading-tight tracking-tight text-fg`}>
+            <span aria-hidden className="font-hand text-[15px] font-bold text-[#d8bd7a]">
+              {i + 1}
+            </span>
             {t}
           </li>
         ))}
@@ -113,7 +115,7 @@ function makeSlides(L: Local): Slide[] {
     {
       id: "group",
       title: "Make a group.",
-      caption: "One for the trip, the flat, or the two of you. Friends join from a link or a QR code.",
+      caption: "One for the trip, home, or the two of you. Friends join from a link or a QR code.",
       art: <Cheers />,
     },
     {
@@ -265,7 +267,6 @@ export function IntroTour({
       </div>
 
       <div className="mt-6 space-y-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
-        {last && <GetAppButton variant="card" />}
         <Link href={startHref} onClick={seen} className="pop block w-full bg-fg px-4 py-4 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63]">
           {cta}
         </Link>

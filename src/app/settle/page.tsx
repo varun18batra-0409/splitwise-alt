@@ -114,7 +114,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
                           const pv = crossPreview(it, common);
                           return (
                             <details className="group flex-1 basis-40 open:basis-full" data-cross-preview>
-                              <summary className={`${outlineButtonClass} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>Mark as paid</summary>
+                              <summary className={`${outlineButtonClass} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>{it.net > 0 ? "They’ve paid me" : it.net < 0 ? "I’ve paid" : "Mark paid"}</summary>
                               <div className="mt-3 rounded-2xl border border-line bg-mist px-4 py-3.5">
                                 <p className="text-sm font-semibold">This will record:</p>
                                 <ul className="mt-2 space-y-1 text-sm text-fg/80" data-cross-lines>

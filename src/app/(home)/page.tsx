@@ -7,6 +7,7 @@ import { IntroTour } from "@/components/IntroTour";
 import { JoinByLink } from "@/components/JoinByLink";
 import { cookies, headers } from "next/headers";
 import { visitorRegion } from "@/lib/region";
+import { cardGames } from "@/lib/group-types";
 import { getTimeZone } from "@/lib/tz";
 import { getAccount, getMemberships } from "@/lib/identity";
 import { PasskeyOffer } from "@/components/Passkeys";
@@ -113,7 +114,7 @@ export default async function Home({
       .map((it) => ({ key: `owe-${it.key}`, lead: it.name, text: <>You owe <span className="font-semibold">{it.name}</span></>, sub: "Tap to settle up", amount: amt(it.net, it.converted), href: "/settle", tone: "owe" as const })),
     ...settleItems
       .filter((it) => it.net > 0)
-      .map((it) => ({ key: `owed-${it.key}`, lead: it.name, text: <><span className="font-semibold">{it.name}</span> owes you</>, sub: "Nudge or record it", amount: amt(it.net, it.converted), href: "/settle", tone: "owed" as const })),
+      .map((it) => ({ key: `owed-${it.key}`, lead: it.name, text: <><span className="font-semibold">{it.name}</span> owes you</>, sub: "Nudge, or “They’ve paid me”", amount: amt(it.net, it.converted), href: "/settle", tone: "owed" as const })),
     ...(unread > 0 ? [{ key: "unread", lead: "bell", text: <>{unread > 9 ? "9+" : unread} new {unread === 1 ? "update" : "updates"}</>, sub: "In your groups and collections", href: "/notifications" }] : []),
     ...open
       .filter((g) => !g.leaver && g.expenses.length > 0 && g.transfers.length === 0 && g.lastActivity.getTime() < quietSince)
@@ -496,7 +497,7 @@ export default async function Home({
             <div className="lp-rise grid grid-cols-2 gap-4 px-1 pt-1">
               {[
                 ["trip", "Trip", "Goa trip"],
-                ["home", "Flatmates", "Flat expenses"],
+                ["home", "Home", "Flat expenses"],
               ].map(([type, label, name], i) => (
                 <Link
                   key={label}
@@ -517,7 +518,7 @@ export default async function Home({
                 ›
               </span>
             </Link>
-            <PotTeaser className="mt-2" />
+            <PotTeaser className="mt-2" india={region.india} />
           </section>
 
           {stories.length > 0 && <Stories stories={stories} className="mt-8" />}
@@ -879,13 +880,13 @@ function CollectionsSection({ list }: { list: Awaited<ReturnType<typeof myCollec
 
 // "Collect money": one small row inviting a first collection.
 // For someone just starting: card nights (Collect and everything else start from New group).
-function PotTeaser({ className = "" }: { className?: string }) {
+function PotTeaser({ className = "", india }: { className?: string; india: boolean }) {
   return (
     <Link href="/groups/new?type=pot" className={`flex items-center gap-3 rounded-2xl border border-line px-4 py-3.5 active:bg-mist ${className}`}>
       <RowIcon d="M7 4h8a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2ZM17 7l2.2.6a2 2 0 0 1 1.4 2.4l-2.6 9.6" />
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-medium">Card night? Start a Pot</span>
-        <span className="block text-xs text-gray-400">Teen Patti or Poker: who took what from the pot, who won, who pays</span>
+        <span className="block text-xs text-gray-400">{cardGames(india)}: who took what from the pot, who won, who pays</span>
       </span>
       <span className="text-gray-400" aria-hidden>
         ›

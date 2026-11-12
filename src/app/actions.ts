@@ -459,7 +459,7 @@ export async function convertGroupCurrency(formData: FormData) {
   redirect(`/groups/${group.id}?saved=settings${r.eventId ? `&did=${r.eventId}` : ""}`);
 }
 
-// Records that one person paid another back (from Smart Settle's "Mark as paid").
+// Records that one person paid another back (from Smart Settle's "They’ve paid me" / "I’ve paid").
 // This is only a record — the app never moves real money.
 export async function recordPayment(formData: FormData) {
   const groupId = String(formData.get("groupId") ?? "");

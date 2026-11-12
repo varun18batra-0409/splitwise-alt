@@ -80,6 +80,13 @@ export function leaverWhere(me: string, cut: Date, touched: { expenseIds: string
   };
 }
 
+// A change line as the viewer should read it: their own share says "Your share ₹205.88 → ₹244.48", not their name.
+// Other people's lines keep their names.
+export function viewerDetails(lines: string[], myName: string): string[] {
+  const prefix = `${myName}’s share:`;
+  return lines.map((l) => (myName && l.startsWith(prefix) ? `Your share ${l.slice(prefix.length).trim()}` : l));
+}
+
 // The lines of a change that are about the leaver's own share ("Ravi’s share: ₹300 → ₹0"), as saved JSON.
 // Other people's amounts in changes made after they left are not shown to them.
 export function ownShareDetails(detailsJson: string, name: string): string {

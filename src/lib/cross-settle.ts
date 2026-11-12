@@ -84,7 +84,7 @@ export function crossSettle(
   return { items, skippedGroups };
 }
 
-// What "Mark as paid" is about to record, in words, before anything is saved.
+// What "They’ve paid me" / "I’ve paid" is about to record, in words, before anything is saved.
 // Each group's part is exact (in that group's own currency). Only the combined
 // total can be converted, so only the total carries ≈.
 export function crossPreview(item: CrossItem, common: string): { lines: string[]; total: string; text: string; button: string } {

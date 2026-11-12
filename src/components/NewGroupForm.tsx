@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { createGroup } from "@/app/actions";
-import { GROUP_TYPES, ratioFromIncomes, type GroupType } from "@/lib/group-types";
+import { GROUP_TYPES, potHint, potNote, ratioFromIncomes, type GroupType } from "@/lib/group-types";
 import { CurrencySelect } from "./CurrencySelect";
 import { CoverPicker } from "./CoverPicker";
 import { TripDates } from "./TripDates";
@@ -31,12 +31,14 @@ export function NewGroupForm({
   initialName,
   initialType = "trip",
   initialCover = "",
+  india = true,
 }: {
   defaultCurrency: string;
   yourName: string;
   initialName: string;
   initialType?: GroupType;
   initialCover?: string;
+  india?: boolean; // Teen Patti is named only where it is played
 }) {
   const [type, setType] = useState<GroupType>(initialType);
   // The picture follows the type until you pick one yourself.
@@ -85,7 +87,7 @@ export function NewGroupForm({
                   </svg>
                   <span>
                     <span className="block text-[17px] font-semibold">Collect</span>
-                    <span className="mt-0.5 block text-xs text-gray-500">One link: gifts, fees, bookings</span>
+                    <span className="mt-0.5 block min-h-8 text-xs text-gray-500">One link: gifts, fees, bookings</span>
                   </span>
                 </Link>
               ) : (
@@ -104,7 +106,7 @@ export function NewGroupForm({
                 </svg>
                 <span>
                   <span className="block text-[17px] font-semibold">{t.label}</span>
-                  <span className="mt-0.5 block text-xs text-gray-500">{t.hint}</span>
+                  <span className="mt-0.5 block min-h-8 text-xs text-gray-500">{t.id === "pot" ? potHint(india) : t.hint}</span>
                 </span>
               </button>
               ),
@@ -112,7 +114,7 @@ export function NewGroupForm({
           </div>
           {type === "pot" && (
             <p className="mt-3 rounded-xl border border-owed/25 bg-owed/[0.08] px-3.5 py-2.5 text-[13px] leading-snug text-fg/80">
-              <strong className="font-semibold text-owed">The Pot</strong> is for Poker and Teen Patti nights. Everyone takes money from the pot to play and puts back
+              <strong className="font-semibold text-owed">The Pot</strong> is for {potNote(india)}. Everyone takes money from the pot to play and puts back
               what’s left. Loopin works out who won, who lost and who pays whom. It never holds or moves money.
             </p>
           )}

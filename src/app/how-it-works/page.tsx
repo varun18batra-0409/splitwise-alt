@@ -170,7 +170,7 @@ export default async function HowItWorks() {
           ["#abroad", "Abroad & card fees"],
           ["#balances", "Who owes what"],
           ["#trips", "Trip report"],
-          ["#home", "Flatmates"],
+          ["#home", "Home"],
           ["#couples", "Couples"],
           ["#pot", "Card nights"],
           ["#collect", "Collect money"],
@@ -282,7 +282,7 @@ export default async function HowItWorks() {
       </Section>
 
       <div id="home" className="scroll-mt-4" />
-      <Section slot="home" kicker="Living together" title="Flatmates: the flat runs itself">
+      <Section slot="home" kicker="Living together" title="Home: the flat runs itself">
         <p>
           Make a <strong>Home</strong> group. It opens on <strong>This month</strong>: your share, the flat’s total, who owes whom and what’s coming up.
         </p>

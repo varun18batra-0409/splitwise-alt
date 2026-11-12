@@ -5,7 +5,7 @@ import { ExpenseGlyph } from "./ExpenseGlyph";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { addExpense, lookupRate } from "@/app/actions";
 import { CATEGORIES, analyzeName, applySuggestion, getCategory } from "@/lib/categories";
-import { computeTotals, fxLine, PAYMENT_METHODS, type PaymentMethod } from "@/lib/conversion";
+import { computeTotals, fxLine, PAYMENT_METHODS, rateDateLabel, type PaymentMethod } from "@/lib/conversion";
 import { buildExpense, chosenMarkupBp, type ExpenseDraft } from "@/lib/expense";
 import { amountEcho, currencyInfo, formatMoney, formatPercent, isSupportedCurrency, parseAmount, parsePercent } from "@/lib/money";
 import { expenseSummary } from "@/lib/expense-summary";
@@ -62,7 +62,7 @@ export function AddExpenseForm({
   initial?: ExpenseInitial;
   tz?: string; // the person's time zone, for "today"
   weights?: Record<string, number>; // the group's own split (hundredths of a share); all equal = none
-  splitName?: string; // "Our split" (couple), "Flat split" (home)…
+  splitName?: string; // "Our split" (couple), "Home split" (home)…
   spin?: boolean; // Spin for it (every group but card nights)
   billRun?: { billId: string; period: string }; // "Enter amount" for a waiting bill
   ai?: boolean; // bill reading and spoken lines are switched on (an Anthropic key is set)
@@ -300,7 +300,7 @@ export function AddExpenseForm({
   const fxSource = usingManualRate
     ? "Rate entered by hand"
     : rateState.status === "ok" && rateState.date
-      ? `${keepSavedRate ? "Rate saved with this expense" : "Live rate"} for ${niceDate(rateState.date)}`
+      ? rateDateLabel({ rateDate: rateState.date, expenseDay: date, saved: keepSavedRate, stale: rateState.stale }, niceDate)
       : null;
 
   // Running total for the payers' amounts.
@@ -514,37 +514,40 @@ export function AddExpenseForm({
         )}
       </div>
 
-      {/* Foreign currency: one summary line; details (rate, card fee, how it adds up) on tap */}
+      {/* Foreign currency: ONE sum line (the maths), where the rate is from, and two quiet controls. */}
       {foreign && !fxOpen && (
-        <button
-          type="button"
-          onClick={() => setShowFx(true)}
-          className="-mt-4 flex w-full items-center justify-between gap-3 rounded-xl border border-line px-4 py-3 text-left text-sm active:bg-mist"
-        >
-          <span className="min-w-0 text-gray-600">
-            {rateState.status === "loading" ? (
-              "Getting today’s rate…"
-            ) : totals.ok ? (
-              <>
-                {PAYMENT_METHODS.find((p) => p.id === paymentMethod)?.label} · {orig(totals.originalAmount)} ≈{" "}
-                <strong className="font-medium text-fg">{base(totals.total)}</strong>
-                {totals.markupAmount > 0 && ` incl. ${base(totals.markupAmount)} card fee`}
-                {/* The maths, and where the rate came from. Only shown when it adds up exactly. */}
-                {fxMaths && (
-                  <span className="mt-1 block text-xs tabular-nums text-gray-500" data-fx-line>
-                    {fxMaths}
-                    {fxSource && <span className="block text-gray-400">{fxSource}</span>}
-                  </span>
-                )}
-              </>
-            ) : rateState.status === "ok" ? (
-              <>1 {currency} = {rateText(rateState.rate, baseCurrency)} · {PAYMENT_METHODS.find((p) => p.id === paymentMethod)?.label}</>
-            ) : (
-              "Set the exchange rate"
-            )}
-          </span>
-          <span className="shrink-0 font-medium text-fg">Details</span>
-        </button>
+        <section aria-label="Conversion" data-fx-card className="-mt-4 space-y-2.5 rounded-2xl border border-line bg-mist px-4 py-3.5 text-left">
+          {rateState.status === "loading" ? (
+            <p className="text-sm text-gray-600">Getting today’s rate…</p>
+          ) : totals.ok && fxMaths ? (
+            <p className="text-[15px] font-semibold leading-snug tabular-nums text-fg" data-fx-line>
+              {fxMaths}
+            </p>
+          ) : totals.ok ? (
+            <p className="text-[15px] font-semibold leading-snug tabular-nums text-fg" data-fx-line>
+              {orig(totals.originalAmount)} ≈ {base(totals.total)}
+            </p>
+          ) : rateState.status === "ok" ? (
+            <p className="text-[15px] font-semibold leading-snug text-fg">
+              1 {currency} = {rateText(rateState.rate, baseCurrency)}
+            </p>
+          ) : (
+            <p className="text-[15px] font-semibold text-fg">Set the exchange rate</p>
+          )}
+          {rateState.status !== "loading" && (
+            <p className="text-xs text-fg/60" data-fx-source>
+              {fxSource ? `${fxSource}. ` : ""}Balances stay in {baseCurrency}.
+            </p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => setShowFx(true)} className="min-h-10 rounded-full border border-line px-3.5 text-[13px] font-medium text-fg/90 active:bg-mist">
+              Change rate
+            </button>
+            <button type="button" onClick={() => setShowFx(true)} className="min-h-10 rounded-full border border-line px-3.5 text-[13px] font-medium text-fg/90 active:bg-mist">
+              {paymentMethod === "card" ? `Card fee: ${markupBp === null ? "—" : formatPercent(markupBp)} ▾` : `${PAYMENT_METHODS.find((p) => p.id === paymentMethod)?.label ?? "Cash"}, no card fee ▾`}
+            </button>
+          </div>
+        </section>
       )}
       {foreign && fxOpen && (
         <section className="space-y-4 rounded-2xl border border-gray-100 bg-gray-50/60 p-4">
@@ -573,8 +576,7 @@ export function AddExpenseForm({
                     1 {currency} = {rateText(rateState.rate, baseCurrency)}
                   </span>
                   <br />
-                  {keepSavedRate ? "Rate saved with this expense" : rateState.stale ? "Last saved rate, from " : "Rate for "}
-                  {keepSavedRate ? (rateState.date ? `, ${niceDate(rateState.date)}` : "") : niceDate(rateState.date)}
+                  {fxSource}
                   {rateState.stale && " — live rates unavailable right now"}
                   {keepSavedRate && (
                     <>
@@ -707,7 +709,7 @@ export function AddExpenseForm({
           {entryColumns > 0 && (
           <div role="group" aria-label="Faster entry" className="grid gap-2" style={{ gridTemplateColumns: `repeat(${entryColumns}, minmax(0, 1fr))` }}>
             {!billRun && (
-              <EntryButton disabled={scanBusy} onClick={() => openBill.current?.()} label={ai && !expenseId ? "Scan a bill" : "Bill photo"}>
+              <EntryButton disabled={scanBusy} onClick={() => openBill.current?.()} label={existingReceiptId ? "Bill photo" : "Scan a bill"}>
                 <path d="M4 3h16v18l-3-2-2 2-3-2-3 2-2-2-3 2zM8 8h8M8 12h8M8 16h5" />
               </EntryButton>
             )}
@@ -863,20 +865,24 @@ export function AddExpenseForm({
       {members.length > 1 && (
         <div>
           <span className={labelClass}>{kind === "refund" ? "Who got the money?" : "Who paid?"}</span>
-          <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none]">
-            {[...members].sort((a, b) => (a.id === myId ? -1 : b.id === myId ? 1 : 0)).map((m) => (
-              <Chip
-                key={m.id}
-                on={!multiPay && m.id === paidById}
-                face={m.name}
-                onClick={() => {
-                  setMultiPay(false);
-                  setPaidById(m.id);
-                }}
-              >
-                {who(m.id)}
-              </Chip>
-            ))}
+          {/* One scrolling row, with a fade at the right edge so a cut-off name reads as "more this way". With several payers the single choice is off. */}
+          <div className={`relative -mx-5 ${multiPay ? "opacity-40" : ""}`} data-payer-row aria-disabled={multiPay || undefined}>
+            <div className={`flex gap-2 overflow-x-auto px-5 pb-1 pr-12 [scrollbar-width:none] ${multiPay ? "pointer-events-none" : ""}`}>
+              {[...members].sort((a, b) => (a.id === myId ? -1 : b.id === myId ? 1 : 0)).map((m) => (
+                <Chip
+                  key={m.id}
+                  on={!multiPay && m.id === paidById}
+                  face={m.name}
+                  onClick={() => {
+                    setMultiPay(false);
+                    setPaidById(m.id);
+                  }}
+                >
+                  {who(m.id)}
+                </Chip>
+              ))}
+            </div>
+            <span aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-canvas to-transparent" />
           </div>
           {multiPay && (
             <button type="button" onClick={() => setShowMore(true)} className="mt-1 min-h-11 text-left text-sm text-gray-500" data-multi-pay-note>
@@ -889,7 +895,8 @@ export function AddExpenseForm({
       {/* How to split: equal for everyone (default), or differently */}
       <section>
         <span className={labelClass}>How to split?</span>
-        <div className="flex flex-wrap gap-2">
+        <div className="relative -mx-5" data-split-row>
+        <div className="flex gap-2 overflow-x-auto px-5 pb-1 pr-12 [scrollbar-width:none]">
           {groupShares && (
             <Chip
               on={!showPeople && !showOnly && groupSplitOn}
@@ -935,6 +942,8 @@ export function AddExpenseForm({
           >
             Custom ⚙
           </Chip>
+        </div>
+        <span aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-canvas to-transparent" />
         </div>
         {showOnly && !showPeople && (
           <div className="mt-3">
@@ -1315,7 +1324,7 @@ export function AddExpenseForm({
                   {paid.length > 1 && ` ${base(p.amount)}`}
                 </span>
               ))}{" "}
-              {refund ? "got back" : "paid"} {paid.length > 1 ? `(${base(x.amount)})` : base(x.amount)}
+              {refund ? "got back" : "paid"} {foreign && "≈ "}{paid.length > 1 ? `(${base(x.amount)})` : base(x.amount)}
               {foreign && <span className="font-normal text-gray-500"> ({orig(x.originalAmount)})</span>}
             </p>
             <ul className="space-y-1 text-gray-700">
@@ -1358,7 +1367,7 @@ export function AddExpenseForm({
       {/* Always in reach: the summary and the save buttons ride along at the bottom while you scroll the form. */}
       <div className="sticky bottom-[max(1rem,env(safe-area-inset-bottom))] z-10 -mx-2">
       {summary && (
-        <p role="status" aria-live="polite" className="mx-auto mb-1.5 w-fit max-w-full rounded-full bg-canvas/90 px-4 py-1.5 text-center text-[13px] font-medium leading-snug text-fg/80 tabular-nums" data-expense-summary>
+        <p role="status" aria-live="polite" className="mx-auto mb-1.5 w-fit max-w-full truncate whitespace-nowrap rounded-full border border-line bg-canvas px-4 py-1.5 text-center text-[13px] font-medium leading-snug text-fg/80 tabular-nums" data-expense-summary>
           {summary}
         </p>
       )}

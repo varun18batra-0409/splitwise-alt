@@ -6,7 +6,7 @@ import type { PayButton } from "@/lib/pay-links";
 // ONE layout for a payment to make, used by a group's Settle up, the all-groups Settle up
 // and a card night's "Money owed":
 //   who pays whom + the amount
-//   one FILLED main button  ("Open payment app" or "Remind"),
+//   one FILLED main button  ("Open payment app" or "Remind"; other saved ways are quiet "or pay with PayPal" links),
 //   one OUTLINED button      ("I've paid" / "Mark paid"),
 //   a quiet text link        ("Paid a different amount?").
 // If a row has no main button, its one action button becomes the filled one.
@@ -26,19 +26,27 @@ export function RemindIcon() {
   );
 }
 
-// "Open payment app" for each way the person likes to be paid (UPI only in INR; links open in a new tab).
+// ONE main "Open payment app" button: the first way the person likes to be paid (UPI first, and it only exists for
+// rupees; outside India the saved link is the main one). Any other saved way is a small quiet link under the buttons,
+// "or pay with PayPal", so a row never has two filled buttons.
 export function PayAppButtons({ buttons }: { buttons: PayButton[] }) {
+  const [first, ...rest] = buttons;
+  if (!first) return null;
+  const external = (b: PayButton) => (b.kind === "upi" ? {} : { target: "_blank", rel: "noopener noreferrer" });
   return (
     <>
-      {buttons.map((b) => (
+      <a key={first.kind} href={first.href} {...external(first)} className={mainButtonClass} data-pay={first.kind}>
+        Open payment app{first.kind === "upi" ? "" : ` (${first.label})`}
+      </a>
+      {rest.map((b) => (
         <a
           key={b.kind}
           href={b.href}
-          {...(b.kind === "upi" ? {} : { target: "_blank", rel: "noopener noreferrer" })}
-          className={mainButtonClass}
-          data-pay={b.kind}
+          {...external(b)}
+          className="order-last inline-flex min-h-11 basis-full items-center text-sm font-medium text-fg/70 underline underline-offset-4"
+          data-pay-alt={b.kind}
         >
-          Open payment app{b.kind === "upi" ? "" : ` (${b.label})`}
+          or pay with {b.label}
         </a>
       ))}
     </>

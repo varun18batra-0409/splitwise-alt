@@ -7,9 +7,20 @@ export const GROUP_TYPES: { id: GroupType; label: string; hint: string; namePlac
   { id: "trip", label: "Trip", hint: "Travel together, any currency", namePlaceholder: "Goa trip" },
   { id: "home", label: "Home", hint: "Flatmates or family. Rent, bills, groceries", namePlaceholder: "Flat 402" },
   { id: "couple", label: "Couple", hint: "The two of you, your own split", namePlaceholder: "Us" },
-  { id: "pot", label: "The Pot", hint: "Poker & Teen Patti: who won, who pays", namePlaceholder: "Friday card night" },
+  { id: "pot", label: "The Pot", hint: "Poker or rummy: who won, who pays", namePlaceholder: "Friday card night" },
   { id: "other", label: "Anything Goes", hint: "Dinners, gifts, a party", namePlaceholder: "Friday dinners" },
 ];
+
+// Card-night wording. Teen Patti is named only where it is played (India); elsewhere it's Poker or rummy.
+export function cardGames(india: boolean): string {
+  return india ? "Teen Patti or Poker" : "Poker or rummy";
+}
+export function potHint(india: boolean): string {
+  return india ? "Poker & Teen Patti: who won, who pays" : "Poker or rummy: who won, who pays";
+}
+export function potNote(india: boolean): string {
+  return india ? "Poker and Teen Patti nights" : "Poker and rummy nights";
+}
 
 export function isGroupType(x: string): x is GroupType {
   return GROUP_TYPES.some((t) => t.id === x);
@@ -40,7 +51,7 @@ export function parseWeight(text: string): number | null {
 
 // What the group's own split is called on the Add expense screen.
 export function splitNameFor(type: string): string {
-  return type === "couple" ? "Our split" : type === "home" ? "Flat split" : "Group split";
+  return type === "couple" ? "Our split" : type === "home" ? "Home split" : "Group split";
 }
 
 // What the "How you share costs" boxes show: a couple's split as percents

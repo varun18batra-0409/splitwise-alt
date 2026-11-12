@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { loadGroup, loadNotifications } from "@/lib/group-data";
-import { leaverCut, scopeBalances, scopeForLeaver, ownShareDetails } from "@/lib/left-view";
+import { leaverCut, scopeBalances, scopeForLeaver, ownShareDetails, viewerDetails } from "@/lib/left-view";
 import { expenseAccess, leaverOf, readableWhere } from "@/lib/left-view-db";
 import { netBalances } from "@/lib/balances";
 import { logEvent, touchedByExpense } from "@/lib/events";
@@ -312,5 +312,14 @@ describe("opening things by address after leaving", () => {
     await leaverOf(s.R);
     expect((await loadGroup(s.g.id))!.net).toEqual(before);
     expect(Object.values(before).reduce((n, x) => n + x, 0)).toBe(0);
+  });
+});
+
+describe("viewerDetails: the viewer reads 'Your share', other people keep their names", () => {
+  it("Varun sees Your share; Asha's line is unchanged", () => {
+    const lines = ["Amount: THB 320 → THB 380", "Varun’s share: ₹205.88 → ₹244.48", "Asha’s share: ₹205.87 → ₹244.47"];
+    expect(viewerDetails(lines, "Varun")).toEqual(["Amount: THB 320 → THB 380", "Your share ₹205.88 → ₹244.48", "Asha’s share: ₹205.87 → ₹244.47"]);
+    expect(viewerDetails(lines, "Asha")[2]).toBe("Your share ₹205.87 → ₹244.47");
+    expect(viewerDetails(lines, "")).toEqual(lines);
   });
 });

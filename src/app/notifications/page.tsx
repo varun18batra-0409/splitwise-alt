@@ -7,6 +7,7 @@ import { loadNotifications, markNotificationsSeen } from "@/lib/group-data";
 import { byDay } from "@/lib/activity";
 import { getTimeZone } from "@/lib/tz";
 import { parseDetails } from "@/lib/events";
+import { viewerDetails } from "@/lib/left-view";
 import { PageHeader } from "@/components/ui";
 import { PhoneStatus } from "@/components/PushControls";
 import { loadNeedsYou, withoutRepeats } from "@/lib/needs-you";
@@ -181,7 +182,7 @@ export default async function Notifications() {
                     );
                   }
                   const n = row.n;
-                  const details = parseDetails(n.event.details).slice(0, 4);
+                  const details = viewerDetails(parseDetails(n.event.details), n.myName).slice(0, 4);
                   return (
                     <li key={n.event.id}>
                       <Link href={`/groups/${n.event.groupId}?tab=activity`} className="flex gap-3 py-3 active:bg-gray-50">
@@ -200,7 +201,13 @@ export default async function Notifications() {
                             {n.event.undoneAt && <span className="text-gray-400"> (since undone)</span>}
                           </span>
                           {n.event.kind === "expense_edited" && details.length > 0 && (
-                            <span className="mt-0.5 block text-xs text-gray-500">{details.join(" · ")}</span>
+                            <span className="mt-0.5 block text-xs text-gray-500" data-change-lines>
+                              {details.map((d) => (
+                                <span key={d} className="block">
+                                  {d}
+                                </span>
+                              ))}
+                            </span>
                           )}
                           <span className="mt-0.5 block text-xs text-gray-400">
                             {n.groupName} · {time(n.event.createdAt)}

@@ -132,7 +132,7 @@ await shot("31-currency-details", `${g}/add`, async (p) => {
   await p.getByLabel("Search currencies").fill("baht");
   await p.getByRole("button", { name: /THB/ }).first().click();
   await p.waitForTimeout(2500);
-  await p.getByRole("button", { name: /Details/ }).click();
+  await p.getByRole("button", { name: "Change rate" }).click();
   await p.waitForTimeout(300);
 });
 await shot("39-new-group-types", "/groups/new", async (p) => {
