@@ -79,6 +79,7 @@ export async function checkBudgets(groupId: string, now = new Date()): Promise<s
           url: `/groups/${groupId}`,
           tag: `budget-${groupId}-${b.category}`,
         },
+        "reminders.budgets",
       );
       await finishJob(key);
       sent.push(`${b.category}:${level}`);

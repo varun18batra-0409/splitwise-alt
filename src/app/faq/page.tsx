@@ -24,6 +24,10 @@ const sections = (): { title: string; items: QA[] }[] => [
         a: "Yes, with an email (or Google), once. It takes about 30 seconds and there’s no password. It means everyone in a group has a checked email, notifications reach the right phone, and friends can find each other.",
       },
       {
+        q: "Can I choose which notifications and emails I get?",
+        a: "Yes. Open You, then Notifications & email. Each kind (expenses, payments, groups, reminders, memories, summaries) has an Allow switch and a switch for each item, and every change is saved at once. A group can also be muted in its own settings. Sign-in codes and security emails are always sent.",
+      },
+      {
         q: "How do I sign in without a password?",
         a: (
           <>

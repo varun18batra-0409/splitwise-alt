@@ -131,6 +131,7 @@ describe("another app's spreadsheet", () => {
   });
 
   it("reads Type \"Game result\" (what Loopin exports now) as a game result, same as the old \"Card game\"", () => {
+    const head = "Date,Type,Description,Notes,Category,Paid by,Amount (INR),Original amount,Original currency,Exchange rate,Card markup (INR),Paid with,Status,Varun's share (INR),Nupur's share (INR),Mansi's share (INR)";
     const row = (type: string) => [head, `2026-10-21,${type},Diwali night,,Other,Nupur,500.00,,,,,,,300.00,,200.00`].join("\r\n");
     expect(nets(row("Game result")).p.rows.map((r) => r.kind)).toEqual(["pot"]);
     expect(nets(row("Card game")).p.rows.map((r) => r.kind)).toEqual(["pot"]);

@@ -6,11 +6,11 @@ import { ExactAmount } from "@/components/ExactAmount";
 import { stripWords, type MoneyAction, type MoneyMode, type WhoLine } from "@/lib/home/money-card";
 import type { TripPhase } from "@/lib/countdown";
 
-// Home's money card (slim, so the money and both buttons fit the first screen of a small phone) and, lower down, the countdown
+// Home's money card (compact, so the money and both buttons fit the first screen of a small phone) and, lower down, the countdown
 // line for a trip that is coming up.
 
-const bright = "pop flex h-[46px] min-w-0 items-center justify-center gap-1.5 whitespace-nowrap bg-fg px-2.5 text-[14px] font-semibold text-canvas [--pop-edge:#6e6b63]";
-const quiet = "flex h-[46px] min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-fg/25 bg-fg/[0.04] px-2.5 text-[14px] font-semibold text-fg transition-transform active:scale-[0.97] motion-reduce:transition-none motion-reduce:active:scale-100";
+const bright = "pop flex h-11 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap bg-fg px-2.5 text-[14px] font-semibold text-canvas [--pop-edge:#6e6b63]";
+const quiet = "flex h-11 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-fg/25 bg-fg/[0.04] px-2.5 text-[14px] font-semibold text-fg transition-transform active:scale-[0.97] motion-reduce:transition-none motion-reduce:active:scale-100";
 
 // The card takes the colour of your position: warm orange when you owe, green when you're owed (the app's own owe / owed
 // colours: about 20% at the top corner fading into the card surface, and a border at about 38%). Square keeps the plain card.
@@ -66,7 +66,7 @@ export function MoneyCard({
   );
   const coloured = tone !== "plain";
   const buttons = (
-    <div className={`${coloured ? "mt-3" : who ? "mt-0.5" : "mt-3"} grid ${first.key === "pay" || first.key === "remind" ? "grid-cols-[1.3fr_1fr]" : "grid-cols-2"} gap-2`}>
+    <div className={`${coloured ? "mt-2" : who ? "mt-0.5" : "mt-2.5"} grid ${first.key === "pay" || first.key === "remind" ? "grid-cols-[1.3fr_1fr]" : "grid-cols-2"} gap-2`}>
       {btn(first)}
       {btn(second)}
     </div>
@@ -74,16 +74,16 @@ export function MoneyCard({
   return (
     <section
       aria-label="Your money"
-      className={`rounded-[22px] border bg-[#16161a] px-4 pb-3.5 pt-4 text-fg ${TINT[tone]}`}
+      className={`rounded-[20px] border bg-[#16161a] px-3.5 pb-3 pt-3.5 text-fg ${TINT[tone]}`}
       data-balance-card
       data-money-mode={mode}
       data-tone={tone === "plain" ? "square" : tone}
     >
       {coloured ? (
         <div>
-          <p className="truncate text-[13px] text-fg/70">{label}</p>
+          <p className="truncate text-[13px] leading-4 text-fg/70">{label}</p>
           <p
-            className={`mt-0.5 font-display font-semibold leading-[1.05] tracking-[-0.02em] tabular-nums [overflow-wrap:normal] ${amountClass} ${tone === "owed" ? "text-owed" : "text-owe"}`}
+            className={`font-display font-semibold leading-[1.05] tracking-[-0.02em] tabular-nums [overflow-wrap:normal] ${amountClass} ${tone === "owed" ? "text-owed" : "text-owe"}`}
             data-net-balance
             title={exact}
           >
@@ -91,8 +91,8 @@ export function MoneyCard({
           </p>
           {who && who.parts.length > 0 && (
             // One line, one 44px tap target to Settle up (where each person's row is). Names shorten first; amounts stay whole.
-            <Link href={whoHref} aria-label={`${who.label}. Open Settle up`} className="-mb-1 flex min-h-11 items-center text-fg/85 active:text-fg" data-money-people>
-              <span className="flex min-w-0 max-w-full items-baseline gap-1.5 whitespace-nowrap text-[13.5px]" data-who-line>
+            <Link href={whoHref} aria-label={`${who.label}. Open Settle up`} className="-mb-2 -mt-1.5 flex min-h-11 items-center text-fg/85 active:text-fg" data-money-people>
+              <span className="flex min-w-0 max-w-full items-baseline gap-1.5 whitespace-nowrap text-[13px]" data-who-line>
                 {who.parts.map((p, i) => (
                   <span key={`${p.name}-${i}`} className="flex min-w-0 shrink items-baseline gap-1.5">
                     {i > 0 && <span aria-hidden className="shrink-0 text-fg/40">·</span>}
@@ -142,8 +142,8 @@ export function MoneyCard({
       {buttons}
       {need && (
         // What waits on you, as one line at the bottom of the card (a 44px link), above a hairline.
-        <div className="mt-3 border-t border-fg/10" data-need-line data-need-count={need.count}>
-          <Link href={need.href} className="-mb-1.5 flex min-h-11 items-center gap-2.5 text-[13.5px] active:text-fg" data-need-link>
+        <div className="mt-2.5 border-t border-fg/10" data-need-line data-need-count={need.count}>
+          <Link href={need.href} className="-mb-2 flex min-h-11 items-center gap-2.5 text-[13px] active:text-fg" data-need-link>
             <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-[#e8c46a]" />
             <span className="min-w-0 flex-1 truncate text-fg/90">{need.text}</span>
             <span className="shrink-0 font-semibold" data-need-action>

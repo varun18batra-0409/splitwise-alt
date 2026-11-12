@@ -43,7 +43,7 @@ export async function sendTripCountdowns(now = new Date(), stop: () => boolean =
       if (stop()) { deferred = true; break; }
       const key = `countdown:${g.id}:${g.tripStart}:${left}`;
       if (legacyOk && (await claimJob(key, now))) {
-        sent += await sendPushTo(legacy, { title: left === 0 ? `${placeOf(g.name)} day!` : g.name, body, url: `/groups/${g.id}`, tag: `countdown:${g.id}` });
+        sent += await sendPushTo(legacy, { title: left === 0 ? `${placeOf(g.name)} day!` : g.name, body, url: `/groups/${g.id}`, tag: `countdown:${g.id}` }, "reminders.trips");
         await markSentByOldPath(key, legacy, now);
         await finishJob(key);
       }
@@ -59,7 +59,7 @@ export async function sendTripCountdowns(now = new Date(), stop: () => boolean =
       const key = `${oldKey}:m:${p.id}`;
       if (await coveredByOldRecord(oldKey, now, p.id)) continue;
       if (!(await claimJob(key, now))) continue;
-      sent += await sendPushTo([p.id], { title: days === 0 ? `${placeOf(g.name)} day!` : g.name, body: text, url: `/groups/${g.id}`, tag: `countdown:${g.id}` });
+      sent += await sendPushTo([p.id], { title: days === 0 ? `${placeOf(g.name)} day!` : g.name, body: text, url: `/groups/${g.id}`, tag: `countdown:${g.id}` }, "reminders.trips");
       await finishJob(key);
     }
   }
@@ -71,7 +71,7 @@ export async function sendTripCountdowns(now = new Date(), stop: () => boolean =
       if (stop()) { deferred = true; break; }
       const key = `countdown-after:${g.id}:${yesterday}`;
       if (legacyOk && (await claimJob(key, now))) {
-        sent += await sendPushTo(legacy, { title: g.name, body: afterTripNudge(g), url: `/groups/${g.id}/settle`, tag: `countdown:${g.id}` });
+        sent += await sendPushTo(legacy, { title: g.name, body: afterTripNudge(g), url: `/groups/${g.id}/settle`, tag: `countdown:${g.id}` }, "reminders.trips");
         await markSentByOldPath(key, legacy, now);
         await finishJob(key);
       }
@@ -84,7 +84,7 @@ export async function sendTripCountdowns(now = new Date(), stop: () => boolean =
       const key = `${oldKey}:m:${p.id}`;
       if (await coveredByOldRecord(oldKey, now, p.id)) continue;
       if (!(await claimJob(key, now))) continue;
-      sent += await sendPushTo([p.id], { title: g.name, body: afterTripNudge(g), url: `/groups/${g.id}/settle`, tag: `countdown:${g.id}` });
+      sent += await sendPushTo([p.id], { title: g.name, body: afterTripNudge(g), url: `/groups/${g.id}/settle`, tag: `countdown:${g.id}` }, "reminders.trips");
       await finishJob(key);
     }
   }
@@ -126,7 +126,7 @@ export async function sendDayPulse(now = new Date(), stop: () => boolean = () =>
       topPayer: g.members.find((m) => m.id === topId)?.name.split(" ")[0],
       topShare: spent ? topAmt / spent : 0,
     });
-    sent += await sendPushTo(g.members.map((m) => m.id), { title: `🌙 ${g.name}`, body, url: `/groups/${g.id}?tab=activity`, tag: `pulse:${g.id}` });
+    sent += await sendPushTo(g.members.map((m) => m.id), { title: `🌙 ${g.name}`, body, url: `/groups/${g.id}?tab=activity`, tag: `pulse:${g.id}` }, "memories.recaps");
     await finishJob(key);
   }
   return { sent, deferred };
@@ -157,7 +157,7 @@ export async function sendMemoryLane(now = new Date(), stop: () => boolean = () 
     const line = legacy.length ? lineFor(g, today, g.members.length) : null;
     const key = `memory:${g.id}:${today}`;
     if (line && legacyOk && (await claimJob(key, now))) {
-      sent += await sendPushTo(legacy, line);
+      sent += await sendPushTo(legacy, line, "memories.lane");
       await markSentByOldPath(key, legacy, now);
       await finishJob(key);
     }
@@ -169,7 +169,7 @@ export async function sendMemoryLane(now = new Date(), stop: () => boolean = () 
       const personKey = `${oldKey}:m:${p.id}`;
       if (await coveredByOldRecord(oldKey, now, p.id)) continue;
       if (!(await claimJob(personKey, now))) continue;
-      sent += await sendPushTo([p.id], own);
+      sent += await sendPushTo([p.id], own, "memories.lane");
       await finishJob(personKey);
     }
   }

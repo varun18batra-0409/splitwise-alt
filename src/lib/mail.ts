@@ -38,8 +38,19 @@ function transport() {
 // `signInCode`: sign-in codes always get through first. Everything else
 // (invites, "you were added") stops a little before the daily ceiling, so a
 // burst of invites can never lock people out of signing in.
-export async function sendMail(to: string, subject: string, text: string, html: string, opts: { signInCode?: boolean; optOut?: boolean } = {}): Promise<boolean> {
+export async function sendMail(to: string, subject: string, text: string, html: string, opts: { signInCode?: boolean; optOut?: boolean; item?: string } = {}): Promise<boolean> {
   if (!mailConfigured()) return false;
+  // An optional email that belongs to a "Notifications & email" switch: skipped (reported as sent, like an unsubscribe,
+  // so the sender learns nothing about the other person) when that person's account has it off.
+  // Sign-in codes and security emails never pass `item`, so they are never held back. No account yet = today's behaviour.
+  if (opts.item && !opts.signInCode) {
+    const { db } = await import("./db");
+    const { allows } = await import("./account-notify");
+    // If the choices can't be read, an optional email isn't sent (never fail open).
+    const acc = await db.account.findUnique({ where: { email: to.trim().toLowerCase() }, select: { notifyPrefs: true } }).then((a) => a ?? false, () => null);
+    if (acc === null) return false;
+    if (acc && !allows(acc.notifyPrefs, "email", opts.item)) return true;
+  }
   // Invites and "you were added": skipped for people who unsubscribed, and carry an unsubscribe link.
   let list: { unsubscribe: { url: string; comment: string } } | undefined;
   if (opts.optOut) {

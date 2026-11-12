@@ -1284,7 +1284,7 @@ async function main() {
     await nav.waitFor();
     assert(await nav.getByRole("link", { name: "Add expense" }).count(), "the bottom bar lost its “+”");
   });
-  await step(V, "Home", "On a small phone (375×667) the header, the money card (with its who-line) and both buttons (44px tall) sit inside the first screen above the bottom bar, the Your groups row starts above the bottom bar, and the next card peeks in; Add expense goes to the group picker or the only group", async () => {
+  await step(V, "Home", "On a small phone (375×667) the header, the money card (with its who-line, at most about 165px tall, or 210px with a need line) and both buttons (44px tall) sit inside the first screen above the bottom bar, the Your groups row starts above the bottom bar, and the next card peeks in; Add expense goes to the group picker or the only group", async () => {
     const was = V.viewportSize();
     await V.setViewportSize({ width: 375, height: 667 });
     await go(V, "/");
@@ -1292,6 +1292,9 @@ async function main() {
     await card.waitFor();
     const box = (await card.boundingBox())!;
     assert(box.y >= 0 && box.y + box.height <= 667, `the money card ends at ${Math.round(box.y + box.height)}px of 667`);
+    // Compact: about 165px tall, about 210px with the "needs you" line folded in (a few px of slack for fonts).
+    const limit = (await card.locator("[data-need-line]").count()) ? 216 : 172;
+    assert(box.height <= limit, `the money card is ${Math.round(box.height)}px tall (should be about ${limit - 6} or less)`);
     for (const b of await card.locator("[data-money-action]").all()) {
       const bb = (await b.boundingBox())!;
       assert(bb.height >= 44 && bb.y + bb.height <= 667, `a money button is ${Math.round(bb.height)}px tall, ending at ${Math.round(bb.y + bb.height)}`);
@@ -1316,12 +1319,12 @@ async function main() {
       const second = (await cards[1].boundingBox())!;
       assert(second.x < 375 && second.x + second.width > 375, `the next card doesn't peek in (it spans ${Math.round(second.x)}–${Math.round(second.x + second.width)}px of 375)`);
     }
-    // The stories row, when there is one, is above the money card with 64px circles.
+    // The stories row, when there is one, is above the money card with 72px circles.
     if (await V.locator("[data-stories]").count()) {
       const st = (await V.locator("[data-stories] button").first().boundingBox())!;
       assert(st.y + st.height <= box.y, "the stories row isn't above the money card");
       const ring = (await V.locator("[data-stories] li").first().locator("span").first().boundingBox())!;
-      assert(Math.round(ring.width) === 64 && Math.round(ring.height) === 64, `a story circle is ${Math.round(ring.width)}×${Math.round(ring.height)}px`);
+      assert(Math.round(ring.width) === 72 && Math.round(ring.height) === 72, `a story circle is ${Math.round(ring.width)}×${Math.round(ring.height)}px`);
     }
     await card.locator("[data-money-action='add']").click();
     await V.waitForURL((u) => u.pathname === "/add" || /\/groups\/[^/]+\/add$/.test(u.pathname));
@@ -1672,6 +1675,53 @@ async function main() {
     await go(V, "/notifications");
     await V.getByText("This phone", { exact: true }).first().waitFor();
     await V.getByText("What Loopin sends").first().waitFor();
+    await V.getByRole("link", { name: /Notifications & email/ }).waitFor();
+  });
+  await step(R, "Alerts", "Notifications & email: opens from You, an email switch persists after a reload, and with it off an add-to-group email isn't sent; switched back on it is", async () => {
+    await go(R, "/account");
+    await R.getByRole("link", { name: /Notifications & email/ }).click();
+    await R.waitForURL(/\/account\/notifications$/);
+    await R.getByRole("heading", { name: "Notifications & email" }).waitFor();
+    await R.getByText("This phone", { exact: true }).first().waitFor();
+    await R.getByText("Sign-in codes and security emails are always sent.").waitFor();
+    // Every switch is a tap target of at least 44px.
+    for (const sw of await R.locator("[data-switch]").all()) assert(((await sw.boundingBox())?.height ?? 0) >= 43.5, "a notification switch is shorter than 44px");
+    const mailSwitch = R.locator('[data-switch="email:groups.added"]');
+    assert((await mailSwitch.getAttribute("aria-checked")) === "true", "the add-to-group email starts switched off");
+    await mailSwitch.click();
+    await R.getByText("Saved", { exact: true }).first().waitFor();
+    await R.reload();
+    assert((await R.locator('[data-switch="email:groups.added"]').getAttribute("aria-checked")) === "false", "the email switch didn't persist after a reload");
+    // A category off greys its items (phone side), and back on again.
+    await R.locator('[data-switch="push:payments"]').click();
+    await R.getByText("Saved", { exact: true }).first().waitFor();
+    assert(await R.locator('[data-switch="push:payments.claimed"]').isDisabled(), "a payments item stayed switchable with Payments off");
+    await R.locator('[data-switch="push:payments"]').click();
+    await R.getByText("Saved", { exact: true }).first().waitFor();
+    // Invite Ravi by email into the dinner club: nothing arrives while it is off.
+    const gid3 = g3.split("/").pop()!;
+    const invite3 = async () => {
+      await go(V, `${g3}/invite`);
+      await V.getByLabel("Email addresses to invite").fill(email("ravi"));
+      await V.getByRole("button", { name: "Invite", exact: true }).click();
+      await V.waitForURL(/invited=|error=/);
+    };
+    const tidy = async () => {
+      await db.invite.deleteMany({ where: { groupId: gid3, email: email("ravi") } });
+      await db.member.deleteMany({ where: { groupId: gid3, accountId: null, name: { startsWith: nameFromEmail(email("ravi")) } } });
+    };
+    await invite3();
+    await new Promise((r) => setTimeout(r, 2500));
+    assert((await db.outbox.count({ where: { to: email("ravi"), subject: { contains: "UAT Dinner club" } } })) === 0, "an add-to-group email was sent with the switch off");
+    await tidy();
+    await go(R, "/account/notifications");
+    await R.locator('[data-switch="email:groups.added"]').click();
+    await R.getByText("Saved", { exact: true }).first().waitFor();
+    await R.reload();
+    assert((await R.locator('[data-switch="email:groups.added"]').getAttribute("aria-checked")) === "true", "the email switch didn't come back on");
+    await invite3();
+    assert(await mailTo(email("ravi"), { subject: { contains: "UAT Dinner club" } }), "no add-to-group email with the switch back on");
+    await tidy();
   });
   await step(V, "Add people", "Adding the email of someone already on Loopin gets the same reply as any email; they see an invitation on Home and in Alerts", async () => {
     await go(V, `${g2}/invite`);

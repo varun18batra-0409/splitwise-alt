@@ -583,7 +583,7 @@ export default async function Home({
             who={who}
             whoHref={mode === "owe" ? "/settle#pay" : "/settle#remind"}
             amount={mode === "square" ? "All square" : netCommon ? heroText.replace(/^([≈ ]*)[+−]/, "$1") : heroText /* several currencies: each keeps its own sign */}
-            amountClass={mode === "square" ? "text-[26px]" : heroText.length <= 9 ? "text-[40px]" : heroText.length <= 12 ? "text-[32px]" : "text-[22px]"}
+            amountClass={mode === "square" ? "text-[24px]" : heroText.length <= 9 ? "text-[32px]" : heroText.length <= 12 ? "text-[26px]" : "text-[20px]"}
             tone={mode === "owed" ? "owed" : mode === "owe" ? "owe" : "plain"}
             mode={mode}
             actions={actions}
@@ -594,7 +594,7 @@ export default async function Home({
           {invitationsBlock}
 
           {/* Groups: polaroids you swipe sideways. "See all" opens the full list. */}
-          <section className="mt-6" aria-labelledby="home-groups-h">
+          <section className="mt-5" aria-labelledby="home-groups-h">
             <div className="flex items-baseline justify-between">
               <h2 id="home-groups-h" className="font-display text-[20px] font-semibold tracking-tight">Your groups</h2>
               <Link href="/groups" className="flex min-h-11 items-center text-sm font-medium text-fg/85">

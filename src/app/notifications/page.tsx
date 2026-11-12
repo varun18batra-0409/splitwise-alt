@@ -123,6 +123,15 @@ export default async function Notifications() {
       {/* Notifications: what this phone allows, then what Loopin sends. */}
       <PhoneStatus />
       {account && (
+        <Link href="/account/notifications" className="mb-4 flex min-h-11 items-center gap-3 rounded-2xl border border-line px-4 py-3 active:bg-mist" data-notify-link>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-medium">Notifications &amp; email</span>
+            <span className="block text-xs text-gray-400">Choose what Loopin sends you, on this phone and by email.</span>
+          </span>
+          <span aria-hidden className="text-gray-400">›</span>
+        </Link>
+      )}
+      {account && (
         // Collection and passport alerts: on the phone or not (always listed here too).
         <form action={setCollectPush} className="mb-8 flex items-center gap-3 rounded-2xl border border-line px-4 py-3">
           <input type="hidden" name="on" value={account.collectPush ? "0" : "1"} />

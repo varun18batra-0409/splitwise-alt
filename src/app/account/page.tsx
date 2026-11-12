@@ -193,8 +193,12 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
 
       <section className="mt-10 border-t border-line pt-8" id="notifications">
         <h2 className="mb-1 text-base font-semibold">Notifications</h2>
-        <p className="mb-4 text-sm text-gray-500">Whether this phone lets Loopin notify you. What Loopin sends is chosen in Alerts and each group’s settings.</p>
+        <p className="mb-4 text-sm text-gray-500">Whether this phone lets Loopin notify you.</p>
         <PhoneStatus compact />
+        <Link href="/account/notifications" className="mt-3 flex min-h-11 items-center justify-between gap-3 rounded-2xl border border-line px-4 py-3 text-sm font-medium active:bg-mist" data-notify-link>
+          <span>Notifications &amp; email</span>
+          <span aria-hidden className="text-gray-400">›</span>
+        </Link>
       </section>
 
       {account && (

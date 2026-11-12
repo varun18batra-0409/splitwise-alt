@@ -236,6 +236,8 @@ model Account {
   name      String   @default("") // shown to friends when they search for you
   createdAt DateTime @default(now())
   collectPush Boolean @default(true) // phone notifications about collections (added, reminders, payments checked)
+  // "Notifications & email" choices, as JSON of what is switched off (see src/lib/account-notify.ts). "" = everything on.
+  notifyPrefs String @default("")
   // How friends pay you back: shown on Settle up to people in your groups who owe you.
   upiId     String   @default("") // e.g. asha@okicici (opens GPay / PhonePe with the amount filled in)
   payLink   String   @default("") // PayPal.me, Venmo, Cash App, Revolut or Monzo link

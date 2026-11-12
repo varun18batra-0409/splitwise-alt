@@ -210,7 +210,7 @@ async function runOne(bill: BillRow, group: { id: string; currency: string; clos
       body: `${bill.name} is due, but whoever paid it has left. Tap to pick who pays.`,
       url: `/groups/${group.id}/bills/${bill.id}`,
       tag: `bill-${bill.id}-${period}`,
-    }).catch(() => 0);
+    }, "reminders.bills").catch(() => 0);
     return wait("payer left");
   }
   const problem = splitProblem(bill.split, active);
@@ -222,7 +222,7 @@ async function runOne(bill: BillRow, group: { id: string; currency: string; clos
       body: `${bill.name} is due. Enter the amount when you have the bill.`,
       url: `/groups/${group.id}/add?bill=${bill.id}&period=${period}`,
       tag: `bill-${bill.id}-${period}`,
-    });
+    }, "reminders.bills");
     return wait("");
   }
 
