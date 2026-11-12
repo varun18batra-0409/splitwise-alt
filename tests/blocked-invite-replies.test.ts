@@ -95,7 +95,10 @@ describe("a blocked invitation gives the same reply as a real one", () => {
   });
 
   it("the daily cap is reached: both are refused with the same words", async () => {
-    await db.rateLimit.upsert({ where: { key: `${PREFIX}mail:other` }, create: { key: `${PREFIX}mail:other`, count: 65, resetAt: new Date(Date.now() + 86_400_000) }, update: { count: 65, resetAt: new Date(Date.now() + 86_400_000) } });
+    // The shared budget is full within the provider's current day (both counters cover the same 24 hours).
+    for (const [k, c] of [["mail:all", 65], ["mail:other", 65]] as const) {
+      await db.rateLimit.upsert({ where: { key: `${PREFIX}${k}` }, create: { key: `${PREFIX}${k}`, count: c, resetAt: new Date(Date.now() + 86_400_000) }, update: { count: c, resetAt: new Date(Date.now() + 86_400_000) } });
+    }
     const r = await bothReplies();
     expect(r.open.ok).toBe(false);
     expect(r.blocked).toEqual(r.open);

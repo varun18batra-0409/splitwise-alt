@@ -125,10 +125,28 @@ describe("mail budgets: codes, invites and operator mail", () => {
   });
 
   it("an operator email refused because the shared budget is full does not use one of its own 20", async () => {
+    await setMail("mail:all", 65);
     await setMail("mail:other", 65);
     expect(await mailOperator("Loopin: a new report", ["x"])).toBe(false);
     expect(await mailCount("mail:ops")).toBe(0);
     expect(mail.send).not.toHaveBeenCalled();
+  });
+
+  it("the shared count restarts with the provider's day, so invites can never take the 30 places kept for codes", async () => {
+    // Yesterday's provider day is over (mail:all expired), but the shared count's own window would run for another hour.
+    const past = new Date(Date.now() - 60_000);
+    const soon = new Date(Date.now() + 3_600_000);
+    await db.rateLimit.upsert({ where: { key: `${PREFIX}mail:all` }, create: { key: `${PREFIX}mail:all`, count: 95, resetAt: past }, update: { count: 95, resetAt: past } });
+    await db.rateLimit.upsert({ where: { key: `${PREFIX}mail:other` }, create: { key: `${PREFIX}mail:other`, count: 10, resetAt: soon }, update: { count: 10, resetAt: soon } });
+    // Today starts with a code: both counters now cover the same new day.
+    expect(await code(addr("c"))).toBe(true);
+    let invites = 0;
+    for (let i = 0; i < 70; i++) if (await invite(addr("i"))) invites++;
+    expect(invites).toBe(65); // hand-worked: 95 - 30 = 65 for invites today (yesterday's 10 don't count, and it never restarts mid-day)
+    let codes = 1;
+    for (let i = 0; i < 40; i++) if (await code(addr("c"))) codes++;
+    expect(codes).toBe(30); // 1 + 29: the provider day ends at exactly 95
+    expect(await mailCount("mail:all")).toBe(95);
   });
 
   it("ordinary mail keeps its own rules: an address stops at 10 a day, and each one counts in both counters", async () => {

@@ -42,7 +42,8 @@ function transport() {
 // the mail service (or the test outbox). Used so a blocked invite looks identical to a real one from the outside.
 export const OPS_MAIL_PER_DAY = 20;
 // Tests only: MAIL_COUNTER_PREFIX gives a test its own app-wide counters, so it never touches the real ones.
-const counter = (name: string) => `${process.env.MAIL_COUNTER_PREFIX ?? ""}${name}`;
+// (Ignored outside tests, so a stray setting on the live app can never quietly restart the real counters.)
+const counter = (name: string) => `${process.env.VITEST || process.env.NODE_ENV === "test" ? (process.env.MAIL_COUNTER_PREFIX ?? "") : ""}${name}`;
 export async function sendMail(to: string, subject: string, text: string, html: string, opts: { signInCode?: boolean; optOut?: boolean; item?: string; ops?: boolean; suppress?: boolean } = {}): Promise<boolean> {
   if (!mailConfigured()) return false;
   // An optional email that belongs to a "Notifications & email" switch: skipped (reported as sent, like an unsubscribe,
@@ -97,6 +98,15 @@ export async function sendMail(to: string, subject: string, text: string, html: 
   // Operator mail also has 20 a day of its own (mail:ops): looked at first without using a place, and counted last, so an
   // operator email refused for any reason uses no place anywhere. (Reports and support are saved in the app anyway.)
   const cap = Number(process.env.MAIL_DAILY_CAP ?? (/resend/i.test(process.env.SMTP_HOST ?? "") ? 95 : 400));
+  // The two day-counters must cover the same 24 hours. When the provider's day (mail:all) is over, the shared count restarts
+  // with it, so it never carries yesterday's invites into today or restarts halfway through today (which would let invites
+  // take the places kept for sign-in codes).
+  {
+    const { db } = await import("./db");
+    const now = new Date();
+    const all = await db.rateLimit.findUnique({ where: { key: counter("mail:all") } }).catch(() => null);
+    if (!all || all.resetAt <= now) await db.rateLimit.updateMany({ where: { key: counter("mail:other"), resetAt: { gt: now } }, data: { count: 0, resetAt: now } }).catch(() => undefined);
+  }
   if (opts.ops) {
     const { db } = await import("./db");
     const row = await db.rateLimit.findUnique({ where: { key: counter("mail:ops") } }).catch(() => null);

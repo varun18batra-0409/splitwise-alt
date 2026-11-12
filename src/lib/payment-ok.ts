@@ -19,7 +19,8 @@ async function mine(paymentId: string, myMemberId: string | undefined) {
   const p = await db.payment.findUnique({ where: { id: paymentId }, include: { group: { select: { id: true, currency: true, closed: true, deletedAt: true } }, from: { select: { name: true } }, to: { select: { name: true } } } });
   if (!p || p.deletedAt || p.group.deletedAt) return { error: "That payment isn’t there any more." } as const;
   if (!myMemberId || p.toId !== myMemberId) return { error: "Only the person who was paid can confirm it." } as const;
-  // Someone who left may still answer for money paid TO them (and only that): otherwise it would be stuck.
+  // Someone who left may still answer a claim for money paid TO them. Removing a payment that already counts ("Not received"
+  // below) follows the leaver rule like every other change: it may not move a leaver's balance anywhere but back to 0.
   return { p } as const;
 }
 

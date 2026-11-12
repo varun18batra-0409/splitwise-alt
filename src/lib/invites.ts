@@ -175,18 +175,20 @@ async function inviteOne(
 
   const link = `${o.origin}/join/${group.inviteCode}?${new URLSearchParams({ e: email, as: memberId })}`;
   const job = async () => {
-    // They are in the group (the money has to work), but if this person has blocked the inviter, nothing is sent:
-    // no email, no alert, no push. (If the lookup fails, nothing is sent either.)
-    if (o.account && actor.accountId && (await hasBlocked(o.account.id, actor.accountId).catch(() => true))) return;
+    // They are in the group (the money has to work), but if this person has blocked the inviter, nothing reaches them:
+    // no email, no alert, no push. (If the lookup fails, nothing does either.) The email still goes through every check and
+    // counter, without being sent, so from the outside it looks exactly like a real invite.
+    const blocked = Boolean(o.account && actor.accountId && (await hasBlocked(o.account.id, actor.accountId).catch(() => true)));
     if (o.mail) {
       await sendMail(
         email,
         `${actor.name} added you to ${group.name} on Loopin`,
         `${actor.name} added you to “${group.name}” on Loopin.\n\nJoin here: ${link}`,
         `<div style="font-family:system-ui,sans-serif;max-width:440px"><p style="font-size:16px"><strong>${esc(actor.name)}</strong> added you to <strong>${esc(group.name)}</strong> on Loopin.</p><p><a href="${link}" style="display:inline-block;background:#0d0d0f;color:#f4f2ec;padding:12px 18px;text-decoration:none;font-weight:600">Join ${esc(group.name)}</a></p></div>`,
-        { optOut: true, item: "groups.added" },
+        { optOut: true, item: "groups.added", suppress: blocked },
       );
     }
+    if (blocked) return;
     if (o.account) {
       await deliverNotes([{ accountIds: [o.account.id], kind: "group_invite", title: `${actor.name} added you to ${group.name}`, body: "Tap to join, or choose Not now.", url: `/groups/${group.id}`, tag: `invite-${group.id}` }]);
     }
