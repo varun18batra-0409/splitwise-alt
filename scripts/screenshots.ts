@@ -62,7 +62,9 @@ await shot("07-group-switcher", g, async (p) => {
   await p.waitForTimeout(300);
 }, false);
 await shot("08-invite", `${g}/invite`, async (p) => {
-  await p.locator("details.group\\/qr summary").click();
+  // The QR code now sits under "More ways".
+  await p.locator("[data-more-ways] > summary").click();
+  await p.locator("[data-more-ways] details.group\\/link > summary").click();
   await p.waitForTimeout(300);
 });
 await shot("09-add-expense", `${g}/add`, undefined, false);
