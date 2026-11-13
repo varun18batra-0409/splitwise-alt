@@ -22,6 +22,19 @@ Loopin is a Next.js 15 / TypeScript app on Prisma 6 with Turso (libsql). Money i
 - Concurrency and duplicates (`once.ts`, `single-flight.ts`, request keys, transactions): double taps, retries, two people saving at once.
 - Display vs. stored values: rounded overview amounts (`money-display.ts`, `home/display.ts`) must never feed a calculation, a stored value, an export or a payment.
 
+## Loopin's money rules (judge every finding against these)
+People forgive an ugly screen; they never forgive a wrong number. Every amount must add up when someone checks it by hand.
+- Money is whole minor units, never floats. Rounding happens once, at the split; leftover minor units go to named people deterministically (`allocateByWeights`), so shares always sum to the exact total.
+- In every group all balances net to zero. For every expense: sum of payers = sum of shares = amount. Refunds reverse and are never counted twice.
+- Settle up gives the fewest payments, and after recording them everyone is exactly zero (not 0.01).
+- Foreign currency: the rate saved on the expense is used forever, not today's rate. The card fee is added to the real cost once and shown. Converted totals carry ≈. Two currencies are never silently added into one total.
+- Pot (card night) results are not spending: kept out of month totals, categories and insights.
+- People who left keep their history; moving in or out pro-rata keeps the bill total unchanged.
+- Formatting uses the group's currency (INR lakh style ₹1,23,456; no decimals for JPY). Overview screens may round to whole units from 1,000 up; payment screens show exact amounts.
+- Insights: "your share", "you paid" and "you're owed" match the balances screen exactly; totals subtract refunds; per-person and per-category views are complete or say "and N more".
+- Awkward cases to try by hand: ₹100 split 3 ways; 7 people with weights; a refund bigger than a share; a THB expense in an INR group with a 3% card fee; someone who left; an expense deleted then restored.
+- A money fix needs a hand-worked unit test (expected numbers written out, not computed with the same code) plus invariant checks: shares sum to amount, balances sum to zero, settle-up leaves zero.
+
 ## How to report
 Start with a verdict: **no defects found / defects found**. Then each finding, most severe first:
 - **Where:** file:line (and the function).

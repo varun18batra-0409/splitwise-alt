@@ -25,6 +25,17 @@ Loopin is a Next.js 15 / TypeScript app (server actions and route handlers) on P
 - Privacy and data exposure: what other members, people who left, blocked people and signed-out visitors can see; my-data export and account deletion completeness (`my-data*.ts`, `purge.ts`); logs that could carry personal data.
 - Failure handling and audit trail: errors that leak internals, partial writes, what is logged for money and permission changes.
 
+## Loopin's privacy and safety rules (judge every finding against these)
+- Never ask for, print, log or commit passwords, tokens, OTPs or secrets.
+- Passports never show money, groups or email. Private passports are left out everywhere (friends, Our passports, sending).
+- Postcard photos are visible only to the sender and recipients. In-app sending only to people you share a group with.
+- Moments: people who left keep seeing moments from before they left, and nothing after. The operator may view a reported photo only while the report is open. Photos are private, never publicly cached.
+- People who left or were removed keep their history but can't change money or settings behind others' backs; pending members see only what they are allowed to.
+- Tests use staging or throwaway copies only; never real groups; no irreversible tests against production; testing never deploys.
+- Database changes are add-only and planned (schema plan first), with a backup before release; backups stay encrypted.
+- `research/` stays out of the public repo. No third-party logos, no photos from anywhere but Unsplash (not Unsplash+).
+- Region-dependent behaviour: UPI only for India; country, currency and time zone come from the visitor's region or account, never guessed from one user to another.
+
 ## How to report
 Start with a verdict: **safe / fix first**. Then each finding, most severe first:
 - **Where:** file:line.
