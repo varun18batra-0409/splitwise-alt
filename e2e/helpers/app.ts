@@ -56,7 +56,7 @@ export async function joinGroup(page: Page, invite: string, groupPath: string) {
 
 // Add expense says "<Payer> paid, split equally between all 4": tapping a part of that sentence opens the payer and split controls.
 export async function openSplit(page: Page) {
-  if (!(await page.locator("[data-split-panel]").count())) await page.locator("[data-sentence-part]").first().click();
+  if (!(await page.locator("[data-split-panel]").count())) await page.locator("[data-row-paid]").first().click();
   await page.locator("[data-split-panel]").waitFor();
 }
 

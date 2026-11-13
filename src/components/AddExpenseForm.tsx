@@ -8,13 +8,12 @@ import { CATEGORIES, analyzeName, applySuggestion, getCategory } from "@/lib/cat
 import { computeTotals, fxLine, PAYMENT_METHODS, rateDateLabel, type PaymentMethod } from "@/lib/conversion";
 import { buildExpense, chosenMarkupBp, type ExpenseDraft } from "@/lib/expense";
 import { amountEcho, currencyInfo, formatMoney, formatPercent, isSupportedCurrency, parseAmount, parsePercent } from "@/lib/money";
-import { expenseSummary } from "@/lib/expense-summary";
 import { QuickLine } from "./QuickLine";
 import { BillScan, type ScannedBill } from "./BillScan";
 import { useRequestKey } from "./FreshKeyInput";
 import { SpinWheel } from "./SpinWheel";
 import { CurrencyPicker } from "./CurrencyPicker";
-import { expensePairs, payersJson } from "@/lib/payers";
+import { expensePairs, payersJson, payersLabel } from "@/lib/payers";
 import { participantsFor, type ForMode, type SplitType } from "@/lib/split";
 import { MAX_ITEM_LINES, splitByItems } from "@/lib/item-split";
 import { chooseSplit, splitFields, type SplitAction } from "@/lib/split-draft";
@@ -23,7 +22,7 @@ import { dayKey, todayKey } from "@/lib/dates";
 import { addDays } from "@/lib/local-time";
 import { inputClass, primaryButtonClass } from "./ui";
 import { errorNeedsMore, fasterEntryColumns, shouldOpenMore } from "@/lib/add-expense-more";
-import { currencySign, howPhrase, whoPhrase, youResult } from "@/lib/add-expense-sentence";
+import { currencySign, resultSentence, splitSubline, whoRowPhrase } from "@/lib/add-expense-sentence";
 
 type Member = { id: string; name: string };
 type RateState =
@@ -149,6 +148,19 @@ export function AddExpenseForm({
   const [showOnly, setShowOnly] = useState(false);
   const [showFx, setShowFx] = useState(false); // currency details (rate, card fee, calculation)
   const [usingLast, setUsingLast] = useState(false); // the last split in this group was filled in
+  // The row ("Paid by" / "Split between") that opened the panel: "Done" gives focus back to it.
+  const openerRef = useRef<HTMLElement | null>(null);
+  // "Same as last time" goes away as soon as anything changes the split from what was filled in.
+  const splitSig = JSON.stringify([byItem, forMode, selected, onePersonId, splitType, percent]);
+  const lastSig = useRef<string | null>(null);
+  useEffect(() => {
+    if (!usingLast) {
+      lastSig.current = null;
+      return;
+    }
+    if (lastSig.current === null) lastSig.current = splitSig;
+    else if (lastSig.current !== splitSig) setUsingLast(false);
+  }, [usingLast, splitSig]);
 
   const [error, setError] = useState("");
   const [saving, startSaving] = useTransition();
@@ -306,8 +318,6 @@ export function AddExpenseForm({
   const base = (minor: number) => formatMoney(minor, baseCurrency);
   const orig = (minor: number) => formatMoney(minor, currency);
   const cur = currencyInfo(currency);
-  // One line above Save: what this adds, who paid, your share. Only when the expense is valid, so it is exactly what will be saved.
-  const summary = preview.ok ? expenseSummary(preview.expense, myId, baseCurrency, Object.fromEntries(members.map((m) => [m.id, m.name])), foreign) : "";
   const echo = amountEcho(amount, currency);
   const fxMaths = foreign && totals.ok
     ? fxLine({ originalAmount: totals.originalAmount, originalCurrency: currency, baseCurrency, exchangeRate: totals.exchangeRate, convertedAmount: totals.convertedAmount, markupBp: totals.markupBp, markupAmount: totals.markupAmount, amount: totals.total })
@@ -400,10 +410,14 @@ export function AddExpenseForm({
     }
     if (!preview.ok) {
       setError(preview.error);
-      if (/person|amounts|percent/i.test(preview.error)) {
+      if (/person|amounts|percent|shares/i.test(preview.error)) {
         setShowPeople(true);
         setPanel(true);
       }
+      // A payer error (also with several payers off) opens the payer controls.
+      if (/who paid|payers/i.test(preview.error)) setPanel(true);
+      // A bad card fee opens the currency details, where the fee is.
+      if (/card markup/i.test(preview.error)) setShowFx(true);
       if (errorNeedsMore(preview.error, multiPay)) setShowMore(true);
       return;
     }
@@ -422,12 +436,39 @@ export function AddExpenseForm({
     });
   }
 
-  const sentencePart = "underline decoration-fg/40 decoration-dotted underline-offset-[6px] active:decoration-fg";
-  const howText = howPhrase({ byItem, splitType, groupSplitOn, splitName });
-  const whoText = whoPhrase(participants, members.length, who);
-  const resultLines = preview.ok
-    ? youResult(pairs, myId, participants.length === 1 && participants[0] === myId, nameOf, (m) => `${foreign ? "≈ " : ""}${base(m)}`)
+  // The two rows (display only): who paid, and who it is split between. What is saved is unchanged.
+  const money = (m: number) => `${foreign ? "≈ " : ""}${base(m)}`;
+  const payersNow = preview.ok ? (preview.expense.payers.length > 1 ? preview.expense.payers : [{ memberId: preview.expense.paidById, amount: preview.expense.amount }]) : [];
+  const payerText = preview.ok ? (payersNow.length > 1 ? payersLabel(payersNow, who) : who(payersNow[0].memberId)) : multiPay ? "Several people" : who(paidById);
+  const payerFirst = preview.ok ? payersNow[0].memberId : paidById;
+  const shareAmounts = preview.ok ? preview.expense.shares.map((s) => s.amount) : [];
+  const eachEqual = preview.ok && !byItem && splitType === "equal" && shareAmounts.length > 1 && shareAmounts.every((a) => a === shareAmounts[0]) ? money(shareAmounts[0]) : null;
+  const whoText = whoRowPhrase(participants, myId, who);
+  const howText = splitSubline({ byItem, splitType, groupSplitOn, splitName, each: eachEqual });
+  const resultParts = preview.ok
+    ? resultSentence({
+        payers: payersNow,
+        total: preview.expense.amount,
+        pairs,
+        myId,
+        myShare: preview.expense.shares.find((s) => s.memberId === myId)?.amount ?? 0,
+        inShares: participants.includes(myId),
+        justMe: participants.length === 1 && participants[0] === myId,
+        refund: kind === "refund",
+        name: who,
+        money,
+      })
     : [];
+  const paidLabel = kind === "refund" ? "Got the money" : "Paid by";
+  function openPanel(e: React.MouseEvent<HTMLElement>) {
+    openerRef.current = e.currentTarget;
+    setPanel(true);
+  }
+  function closePanel() {
+    setPanel(false);
+    const el = openerRef.current;
+    if (el) setTimeout(() => el.focus(), 0);
+  }
 
   return (
     // Saving is already safe to repeat (one request key per form, and the
@@ -459,7 +500,7 @@ export function AddExpenseForm({
 
       {/* 2 + 4. Amount (the hero), with the currency and the day as two small chips under it */}
       <div className="flex flex-col items-center pt-1 text-center" data-amount-hero>
-        <div className="flex w-full items-baseline justify-center gap-1.5 text-[clamp(52px,16vw,64px)] leading-[1.05]">
+        <div className="flex w-full items-baseline justify-center gap-1.5 text-[clamp(44px,13vw,52px)] leading-[1.05]">
           <span aria-hidden className="font-display text-[0.55em] font-semibold text-fg/55">
             {currencySign(currency)}
           </span>
@@ -546,7 +587,7 @@ export function AddExpenseForm({
             <p className="text-[13px] tabular-nums text-fg/55" data-fx-line>
               ≈ {base(totals.total)}
               {paymentMethod === "card"
-                ? markupBp ? ` with your card’s ${formatPercent(markupBp)} fee` : ", no card fee"
+                ? markupBp === null ? ", card fee needs fixing" : markupBp ? ` with your card’s ${formatPercent(markupBp)} fee` : ", no card fee"
                 : `, ${PAYMENT_METHODS.find((p) => p.id === paymentMethod)?.label ?? "Cash"}, no card fee`}
             </p>
           ) : rateState.status === "ok" ? (
@@ -555,6 +596,13 @@ export function AddExpenseForm({
             </p>
           ) : (
             <p className="text-[13px] text-fg/55">Set the exchange rate</p>
+          )}
+          {/* The rate note shows here too when it is not simply today's live rate. */}
+          {rateState.status === "ok" && !usingManualRate && (keepSavedRate || rateState.stale) && fxSource && (
+            <p className="basis-full text-xs text-fg/55" data-fx-note>
+              {fxSource}
+              {rateState.stale && !keepSavedRate ? " — live rates unavailable right now" : ""}
+            </p>
           )}
           {rateState.status !== "loading" && (
             <button type="button" onClick={() => setShowFx(true)} className="min-h-11 px-1 text-[13px] font-medium text-fg underline underline-offset-4">
@@ -879,52 +927,54 @@ export function AddExpenseForm({
       </div>
 
 
-      {/* Who paid and how it splits: one sentence you tap to change, and what it means for you. */}
-      <section aria-label="Who paid and how it splits" data-sentence-card className="rounded-[20px] border border-line bg-white p-4">
-        <p className="text-[17px] leading-[1.9] text-fg" data-sentence>
-          <button
-            type="button"
-            data-sentence-part="payer"
-            aria-label={`${kind === "refund" ? "Who got the money" : "Who paid"}: ${multiPay ? "several people" : who(paidById)}. Change`}
-            aria-expanded={panel}
-            onClick={() => setPanel(true)}
-            className={sentencePart}
-          >
-            {multiPay ? "Several people" : who(paidById)}
-          </button>
-          {kind === "refund" ? " got it back, " : " paid, "}
-          {participants.length === 1 ? (
-            <>
-              for{" "}
-              <button type="button" data-sentence-part="who" aria-label={`Split between: ${who(participants[0])} only. Change`} aria-expanded={panel} onClick={() => setPanel(true)} className={sentencePart}>
-                {who(participants[0])}
-              </button>{" "}
-              only
-            </>
-          ) : (
-            <>
-              split{" "}
-              <button type="button" data-sentence-part="split" aria-label={`How to split: ${howText}. Change`} aria-expanded={panel} onClick={() => setPanel(true)} className={sentencePart}>
-                {howText}
-              </button>{" "}
-              between{" "}
-              <button type="button" data-sentence-part="who" aria-label={`Split between: ${whoText}. Change`} aria-expanded={panel} onClick={() => setPanel(true)} className={sentencePart}>
-                {whoText}
-              </button>
-            </>
-          )}
-        </p>
-        {usingLast && !panel && (
-          <p className="mt-1 text-[13px] text-fg/55">
-            Same as last time ·{" "}
-            <button type="button" onClick={resetSplit} className="font-medium text-fg underline underline-offset-4">
-              Reset
-            </button>
-          </p>
-        )}
+      {/* Who paid and who it is split between: two rows in one card, then ONE quiet line with your result. */}
+      <div>
+      <section aria-label="Who paid and how it splits" data-sentence-card className="overflow-hidden rounded-[20px] border border-line bg-white">
+        <button
+          type="button"
+          data-row-paid
+          aria-label={`${paidLabel}: ${payerText}. Change`}
+          aria-expanded={panel}
+          aria-controls="split-panel"
+          onClick={openPanel}
+          className="flex min-h-[56px] w-full items-center gap-3 px-4 py-2 text-left active:bg-fg/5"
+        >
+          <span className="w-[92px] shrink-0 text-[13px] text-fg/55">{paidLabel}</span>
+          <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#1f1f24] text-sm font-bold text-fg">
+            {nameOf(payerFirst).trim().charAt(0).toUpperCase()}
+          </span>
+          <span className="min-w-0 flex-1 truncate text-base font-medium text-fg">{payerText}</span>
+          <span aria-hidden className="shrink-0 text-sm font-medium text-fg">Change</span>
+        </button>
+        <div aria-hidden className="mx-4 border-t border-line" />
+        <button
+          type="button"
+          data-row-split
+          aria-label={`Split between: ${whoText}, ${howText}. Change`}
+          aria-expanded={panel}
+          aria-controls="split-panel"
+          onClick={openPanel}
+          className="flex min-h-[56px] w-full items-center gap-3 px-4 py-2 text-left active:bg-fg/5"
+        >
+          <span className="w-[92px] shrink-0 text-[13px] text-fg/55">Split between</span>
+          <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#1f1f24] text-fg/85">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="9" cy="8" r="3.2" />
+              <path d="M3 19c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" />
+              <path d="M16 5.2a3 3 0 0 1 0 5.6M18 13.8c1.8.7 3 2.4 3 5.2" />
+            </svg>
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-base font-medium text-fg">{whoText}</span>
+            <span className="block truncate text-[13px] tabular-nums text-fg/55">{howText}</span>
+          </span>
+          <svg aria-hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-fg/55">
+            <path d="m9 6 6 6-6 6" />
+          </svg>
+        </button>
 
         {panel && (
-          <div id="split-panel" data-split-panel className="mt-4 space-y-5 border-t border-line pt-4">
+          <div id="split-panel" data-split-panel className="space-y-5 border-t border-line px-4 pb-3 pt-4">
           {members.length > 1 && (
             <div>
               <span className={labelClass}>{kind === "refund" ? "Who got the money?" : "Who paid?"}</span>
@@ -1252,41 +1302,38 @@ export function AddExpenseForm({
               </div>
             )}
           </section>
-            <button type="button" onClick={() => setPanel(false)} className="min-h-11 text-sm font-medium text-fg underline underline-offset-4">
+            <button type="button" onClick={closePanel} className="min-h-11 text-sm font-medium text-fg underline underline-offset-4">
               Done
             </button>
           </div>
         )}
 
-        {/* Under a hairline: who it is shared with, and the result for you in money colour. */}
-        <div className="mt-3 flex items-center justify-between gap-3 border-t border-line pt-3">
-          <span aria-hidden className="flex shrink-0 items-center">
-            {participants.slice(0, 4).map((id, i) => (
-              <span key={id} className={`flex h-7 w-7 items-center justify-center rounded-full border-2 border-white text-[11px] font-bold ${avatarTone(nameOf(id))} ${i > 0 ? "-ml-2" : ""}`}>
-                {nameOf(id).trim().charAt(0).toUpperCase()}
+      </section>
+      {/* ONE quiet line: what happened and what it means for you, in money colour. */}
+      <div role="status" aria-live="polite" className="mt-3 text-center text-sm leading-snug" data-expense-result>
+        {preview.ok ? (
+          <p className="text-fg/75">
+            {resultParts.map((p, i) => (
+              <span key={i}>
+                {i > 0 && " "}
+                <span className={p.tone === "owe" ? "text-owe" : p.tone === "owed" ? "text-owed" : ""}>{p.text}</span>
+                {p.amount && <span className={`font-display text-[17px] font-semibold tabular-nums ${p.tone === "owe" ? "text-owe" : "text-owed"}`}> {p.amount}</span>}
               </span>
             ))}
-            {participants.length > 4 && <span className="ml-1.5 text-xs text-fg/55">+{participants.length - 4}</span>}
-          </span>
-          <div role="status" aria-live="polite" className="min-w-0 text-right text-sm" data-expense-result>
-            {preview.ok ? (
-              resultLines.map((l) => (
-                <p key={l.lead} className={l.tone === "plain" ? "text-fg/75" : l.tone === "owe" ? "text-owe" : "text-owed"}>
-                  {l.lead}
-                  {l.amount && <span className="font-display text-[19px] font-semibold tabular-nums"> {l.amount}</span>}
-                </p>
-              ))
-            ) : (
-              <p className="text-fg/55">The result shows once it adds up</p>
-            )}
-          </div>
-        </div>
-        {summary && (
-          <p className="mt-2 text-right text-xs tabular-nums text-fg/55" data-expense-summary>
-            {summary}
           </p>
+        ) : (
+          <p className="text-fg/55">The result shows once it adds up</p>
         )}
-      </section>
+      </div>
+      {usingLast && !panel && (
+        <p className="mt-1 text-center text-[13px] text-fg/55">
+          Same as last time ·{" "}
+          <button type="button" onClick={resetSplit} className="font-medium text-fg underline underline-offset-4">
+            Reset
+          </button>
+        </p>
+      )}
+      </div>
       {/* More: the less common options, closed to keep the form short. */}
       <section aria-label="More" data-more>
         <button

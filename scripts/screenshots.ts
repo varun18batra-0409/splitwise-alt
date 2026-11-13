@@ -97,7 +97,7 @@ await shot("22-settle-everything", `${g}/settle`, async (p) => {
   await p.getByRole("button", { name: /Settle everything/ }).scrollIntoViewIfNeeded();
 }, false);
 await shot("23-add-expense-differently", `${g}/add`, async (p) => {
-  await p.locator("[data-sentence-part]").first().click(); // tap the sentence ("You paid, split equally…") to open the payer and split controls
+  await p.locator("[data-row-paid]").first().click(); // tap the Paid by row to open the payer and split controls
   await p.getByRole("button", { name: /Custom/ }).click();
   await p.locator("[data-more] > button").click(); // More: notes, several payers, spin
   await p.getByRole("button", { name: /Today.*Change/ }).first().click();
@@ -129,7 +129,7 @@ await shot("38-guide-abroad", "/how-it-works#abroad", async (p) => {
 await shot("32-group-settle", `${g}/settle`);
 await shot("29-why", `${g}?tab=balances&why=${demo.trip.me}#why-${demo.trip.me}`);
 await shot("30-add-only-some", `${g}/add`, async (p) => {
-  await p.locator("[data-sentence-part]").first().click(); // tap the sentence ("You paid, split equally…") to open the payer and split controls
+  await p.locator("[data-row-paid]").first().click(); // tap the Paid by row to open the payer and split controls
   await p.getByRole("button", { name: /Only some/ }).click();
   await p.getByRole("button", { name: /Ravi/ }).last().click();
   await p.waitForTimeout(300);
@@ -160,7 +160,7 @@ await shot("41-add-payers-shares", `${g}/add`, async (p) => {
   await p.getByLabel("Amount", { exact: true }).fill("3000");
   await p.locator("[data-more] > button").click();
   await p.getByRole("switch", { name: /More than one person paid/ }).click();
-  await p.locator("[data-sentence-part]").first().click(); // tap the sentence ("You paid, split equally…") to open the payer and split controls
+  await p.locator("[data-row-paid]").first().click(); // tap the Paid by row to open the payer and split controls
   await p.getByRole("button", { name: /Custom/ }).click();
   await p.getByRole("button", { name: "Shares", exact: true }).click();
 });
