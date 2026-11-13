@@ -3102,7 +3102,8 @@ async function main() {
     for (const n of ["Zoya", "Kabir", "Asha"]) await due.getByRole("listitem").filter({ hasText: n }).first().waitFor();
     await due.getByText("on Loopin").waitFor();
     const p = await V.locator("[data-collection-progress]").innerText();
-    assert(/No one has said they've paid yet/.test(p) && /₹0/.test(p) && /₹1,500/.test(p), `progress reads “${p.replace(/\s+/g, " ")}”`);
+    // The organiser's summary: nothing confirmed or reported yet, 3 x ₹500 = ₹1,500 remaining and the goal, and "3 still to pay".
+    assert(/₹0 confirmed|₹0\s+confirmed/.test(p) && /₹1,500\s+remaining/.test(p) && /Goal: ₹1,500/.test(p) && /3 still to pay/.test(p), `progress reads “${p.replace(/\s+/g, " ")}”`);
   });
 
   // Notifications are written just after the page answers: give them a moment.
@@ -3137,18 +3138,19 @@ async function main() {
     await ctx.close();
   });
 
-  await step(V, "Collect", "Varun sees “Zoya says paid” in Alerts, taps Got it, marks Kabir as paid in cash: 2 of 3, ₹1,000 of ₹1,500", async () => {
+  await step(V, "Collect", "Varun sees “Zoya says paid” in Alerts, taps Confirm received, marks Kabir as paid in cash: 2 of 3, ₹1,000 of ₹1,500", async () => {
     await alertSays(V, /Zoya says they paid ₹500/);
     await go(V, collectPath);
     const paid = V.getByRole("region", { name: "Paid" });
-    await paid.getByText("₹500 · says paid").waitFor();
-    await paid.getByRole("button", { name: "Got it" }).click();
+    await paid.getByText("Says paid").waitFor();
+    await paid.getByRole("button", { name: "Confirm received" }).click();
     await V.waitForLoadState("networkidle").catch(() => undefined);
-    await paid.getByText(/checked by you/).waitFor();
+    await paid.getByText("Confirmed", { exact: true }).waitFor();
     await V.getByRole("region", { name: "Still to pay" }).getByRole("listitem").filter({ hasText: "Kabir" }).getByRole("button", { name: "Paid cash" }).click();
-    await V.getByRole("region", { name: "Paid" }).getByText(/cash · checked by you/).waitFor();
+    await V.getByRole("region", { name: "Paid" }).getByText(/Confirmed · cash/).waitFor();
     const p = await V.locator("[data-collection-progress]").innerText();
-    assert(/2 of 3 say they've paid/.test(p) && /Confirmed ₹1,000/.test(p) && /₹1,500/.test(p) && (await V.locator("[data-collection-reported]").count()) === 0, `progress reads “${p.replace(/\s+/g, " ")}”`);
+    // Zoya ₹500 + Kabir ₹500 (cash) = ₹1,000 confirmed of a ₹1,500 goal: ₹500 remaining, 2 confirmed, 1 still to pay, nothing reported.
+    assert(/₹1,000\s+confirmed/.test(p) && /₹500\s+remaining/.test(p) && /Goal: ₹1,500/.test(p) && /2 confirmed · 1 still to pay/.test(p) && (await V.locator("[data-collection-reported]").count()) === 0, `progress reads “${p.replace(/\s+/g, " ")}”`);
   });
 
   await step(V, "Collect", "Varun reminds Asha inside Loopin (bell); a second reminder straight away is refused; Asha sees it in Alerts", async () => {
@@ -3160,10 +3162,10 @@ async function main() {
     await alertSays(A, /Reminder from Varun/);
   });
 
-  await step(null, "Collect", "Someone else can't change Varun's collection (no organiser buttons; a forged Got it is refused)", async () => {
+  await step(null, "Collect", "Someone else can't change Varun's collection (no organiser buttons; a forged Confirm received is refused)", async () => {
     const { ctx, page } = await person(browser);
     await go(page, collectPath);
-    assert((await page.getByRole("button", { name: "Got it" }).count()) === 0, "a stranger sees Got it");
+    assert((await page.getByRole("button", { name: "Confirm received" }).count()) === 0, "a stranger sees Confirm received");
     assert((await page.getByRole("button", { name: "Close collection" }).count()) === 0, "a stranger sees Close");
     await ctx.close();
   });

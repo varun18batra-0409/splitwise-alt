@@ -419,7 +419,7 @@ export default async function HowItWorks() {
       <Section title="Collect: one link, see who’s paid">
         <p>
           Gathering money for a gift, a farewell or a booking? Tap <strong>New group → Collect</strong>. Set the amount each, your UPI ID (or a pay
-          link), and share the link in your WhatsApp group. People pay you directly, tick their name (no sign-up), and you tap <strong>Got it</strong> once you
+          link), and share the link in your WhatsApp group. People pay you directly, tick their name (no sign-up), and you tap <strong>Confirm received</strong> once you
           see the money. Until you do, a payment shows as <strong>says paid</strong> (reported); after, as <strong>checked</strong>. Loopin keeps the two apart, and only checked money counts as collected.
           Friends on Loopin hear about it in the app.
         </p>

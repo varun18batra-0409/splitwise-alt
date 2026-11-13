@@ -110,5 +110,59 @@ export const ChartIcon = (p: P) => (
   </Svg>
 );
 
+export const ChevronRight = (p: P) => (
+  <Svg {...p}>
+    <path d="m9 5 7 7-7 7" />
+  </Svg>
+);
+
+// A small line tick (a person's payment is in), drawn, never a ✓ glyph.
+export const CheckIcon = (p: P) => (
+  <Svg {...p}>
+    <path d="m5 12.5 4.5 4.5L19 7.5" />
+  </Svg>
+);
+
+export const LinkIcon = (p: P) => (
+  <Svg {...p}>
+    <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" />
+    <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
+  </Svg>
+);
+
+export const CalendarIcon = (p: P) => (
+  <Svg {...p}>
+    <rect x="4" y="5.5" width="16" height="14.5" rx="3" />
+    <path d="M8 3.5v4M16 3.5v4M4 10.5h16" />
+  </Svg>
+);
+
+// The four tiles on a flat's overview.
+export const BillsIcon = (p: P) => (
+  <Svg {...p}>
+    <path d="M6 3.5h12v17l-2.5-1.6-1.8 1.6-1.7-1.6-1.7 1.6-1.8-1.6L6 20.5z" />
+    <path d="M9.5 8.5h5M9.5 12h5" />
+  </Svg>
+);
+export const CartIcon = (p: P) => (
+  <Svg {...p}>
+    <path d="M3 4h2.2l2 11h10.2l1.8-8H6.2" />
+    <circle cx="9" cy="19.5" r="1.1" />
+    <circle cx="16.5" cy="19.5" r="1.1" />
+  </Svg>
+);
+export const PieIcon = (p: P) => (
+  <Svg {...p}>
+    <path d="M12 3.5a8.5 8.5 0 1 0 8.5 8.5H12z" />
+    <path d="M15 3.8a8.5 8.5 0 0 1 5.2 5.2H15z" />
+  </Svg>
+);
+export const DepositIcon = (p: P) => (
+  <Svg {...p}>
+    <path d="M12 4v10M8 10.5l4 4 4-4" />
+    <path d="M4.5 15.5v2a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-2" />
+  </Svg>
+);
+
 export const iconButtonClass =
   "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-fg/10 bg-fg/[0.06] text-fg/85 backdrop-blur transition-transform active:scale-95 active:bg-fg/10";
