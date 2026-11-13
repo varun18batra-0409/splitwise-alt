@@ -7,6 +7,9 @@ model: opus
 skills:
   - anthropic-skills:loopin-real-world
   - anthropic-skills:loopin-smart-and-safe
+  - privacy-security-compliance
+  - group-membership-permissions
+  - independent-code-audit
 color: red
 ---
 

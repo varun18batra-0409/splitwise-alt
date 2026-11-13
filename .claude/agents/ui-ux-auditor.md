@@ -8,6 +8,7 @@ skills:
   - anthropic-skills:loopin-premium-bar
   - anthropic-skills:loopin-calm-ux
   - frontend-design
+  - ui-ux-audit
 color: purple
 ---
 

@@ -7,6 +7,9 @@ model: sonnet
 skills:
   - anthropic-skills:loopin-money-maths
   - anthropic-skills:loopin-real-world
+  - testing-release-safety
+  - production-readiness
+  - financial-test-generator
 color: blue
 ---
 

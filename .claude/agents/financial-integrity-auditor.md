@@ -6,6 +6,8 @@ disallowedTools: Edit, Write, NotebookEdit, Bash, WebFetch, WebSearch, Agent
 model: opus
 skills:
   - anthropic-skills:loopin-money-maths
+  - financial-test-generator
+  - independent-code-audit
 color: green
 ---
 
