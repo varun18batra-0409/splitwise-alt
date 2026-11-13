@@ -105,10 +105,18 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
     </details>
   );
 
+  // Recap is no longer in the bottom bar: a quiet link on each group opens it for this group.
+  const recapLink = (
+    <Link href={`/search?g=${group.id}`} className="-my-3 inline-flex min-h-11 items-center text-fg/75 underline-offset-4 active:text-fg" data-group-recap>
+      Trip recap<span aria-hidden> ›</span>
+    </Link>
+  );
+
   // A plain group (no picture): the compact header.
   if (cover === "plain") {
     return (
-      <header className="mb-8 flex items-center gap-2">
+      <>
+      <header className="mb-2 flex items-center gap-2">
         <Link href="/" aria-label="Back to all groups" className={iconButtonClass}>
           <BackIcon size={20} />
         </Link>
@@ -120,6 +128,8 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
           <GearIcon size={20} />
         </Link>
       </header>
+      <div className="mb-6 px-1 text-[13px]">{recapLink}</div>
+      </>
     );
   }
 
@@ -188,6 +198,8 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
               {weatherPill}
             </>
           )}
+          <span aria-hidden>·</span>
+          {recapLink}
         </div>
       </div>
     </header>

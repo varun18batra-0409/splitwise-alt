@@ -1,6 +1,7 @@
 import Link from "@/components/Link";
 import { BackIcon, HomeIcon, iconButtonClass } from "./icons";
 import { Notice } from "@/components/Notice";
+import { BellButton } from "@/components/BellButton";
 
 // Small shared building blocks so every screen looks the same.
 
@@ -11,9 +12,11 @@ export function PageHeader({
   back,
   action,
   hideTitle = false,
+  bell = false,
 }: {
   title: string;
   back?: string;
+  bell?: boolean; // the Updates bell at the right (Your groups, You)
   hideTitle?: boolean; // the screen shows its own big title: keep this one for screen readers only
   action?: { href: string; label: string; icon: React.ReactNode };
 }) {
@@ -31,6 +34,7 @@ export function PageHeader({
           {action.icon}
         </Link>
       )}
+      {bell && <BellButton />}
       {back !== "/" && (
         <Link href="/" aria-label="Home" className={iconButtonClass}>
           <HomeIcon size={20} />

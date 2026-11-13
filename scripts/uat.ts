@@ -1313,14 +1313,14 @@ async function main() {
   });
   await step(A, "Alerts", "Asha sees an unread alert badge and Varun's changes in Alerts", async () => {
     await go(A, "/");
-    const nav = A.getByRole("navigation", { name: "Main" });
-    const label = await nav.getByRole("link", { name: /Alerts/ }).getAttribute("aria-label");
-    assert(/new/.test(label ?? ""), `Alerts label: ${label}`);
-    await go(A, "/notifications");
+    // The unread count moved from the bottom bar to the bell at the top right of Home (aria-label "Updates (N new)").
+    const label = await A.locator("[data-bell]").first().getAttribute("aria-label");
+    assert(/new/.test(label ?? ""), `Updates bell label: ${label}`);
+    await go(A, "/notifications?tab=all");
     await A.getByText(/Varun/).first().waitFor();
   });
   await step(A, "Alerts", "Asha was told she was added to the new groups", async () => {
-    await go(A, "/notifications");
+    await go(A, "/notifications?tab=all");
     await A.getByText(/added Asha to the group/).first().waitFor();
   });
   await step(V, "Home", "Home opens on the boarding-pass money card (route, one amount, ONE cream button; no tint, no “Add expense”, no repeated amount), a quiet line under it for what needs you, then Your groups and the bottom bar, which keeps its “+”", async () => {
@@ -1833,7 +1833,7 @@ async function main() {
     assert((await V.locator("main svg, main [role=img]").count()) > 0 || /Food|food/.test(await V.locator("main").innerText()), "no chart content");
   });
   await step(V, "Alerts", "Alerts screen offers phone notifications on/off", async () => {
-    await go(V, "/notifications");
+    await go(V, "/notifications?tab=all");
     await V.getByText("This phone", { exact: true }).first().waitFor();
     await V.getByText("What Loopin sends").first().waitFor();
     await V.getByRole("link", { name: /Notifications & email/ }).waitFor();
@@ -3108,7 +3108,7 @@ async function main() {
   // Notifications are written just after the page answers: give them a moment.
   async function alertSays(page: Page, re: RegExp) {
     for (let i = 0; i < 6; i++) {
-      await go(page, "/notifications");
+      await go(page, "/notifications?tab=all");
       if (await page.getByText(re).count()) return;
       await page.waitForTimeout(1500);
     }

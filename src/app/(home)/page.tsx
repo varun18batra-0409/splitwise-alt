@@ -39,7 +39,8 @@ import { leaverOf } from "@/lib/left-view-db";
 import { gameVisible, stillIn } from "@/lib/left-view";
 import { canUndo } from "@/lib/undo";
 import { UndoBar } from "@/components/UndoBar";
-import { PersonIcon, iconButtonClass } from "@/components/icons";
+import { iconButtonClass } from "@/components/icons";
+import { BellButton } from "@/components/BellButton";
 import { countMyCollections, myCollections, progress } from "@/lib/collect";
 import { CollectionsSection } from "@/components/CollectionsList";
 import { FooterLinks, HOME_FOOTER_LINKS } from "@/components/FooterLinks";
@@ -510,10 +511,9 @@ export default async function Home({
           <Link href="/how-it-works" aria-label="How Loopin works" className={`glass ${iconButtonClass} h-11! w-11! text-[17px] font-semibold`}>
             ?
           </Link>
-          <Link href="/account" aria-label={account ? `Account: ${account.email}` : "Sign in or account"} className={`relative glass ${iconButtonClass} h-11! w-11!`}>
-            {account?.name ? <span className="text-[15px] font-bold">{account.name.trim().charAt(0).toUpperCase()}</span> : <PersonIcon size={20} />}
-            {account && <span className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-fg" aria-hidden />}
-          </Link>
+          {/* The bell opens Your updates; You is in the bottom bar. */}
+          <BellButton className="glass border border-fg/10" />
+
         </div>
       </header>
 

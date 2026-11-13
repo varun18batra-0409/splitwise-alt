@@ -68,7 +68,7 @@ test("titles, Wrapped, the passport and a game night: in, around, back out, and 
   // His trip with Asha is still going, so friends don't see it yet: the passport is empty → nudge him (Alerts only).
   await page.getByRole("button", { name: "👋 Nudge Ravi" }).click();
   await page.waitForURL(/nudged=1/);
-  await R.goto("/notifications");
+  await R.goto("/notifications?tab=all");
   await settled(R);
   await expect(R.getByText(/Asha wants to see where you’ve been/)).toBeVisible();
   // A second nudge straight away is refused politely.

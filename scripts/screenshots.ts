@@ -367,7 +367,7 @@ if (!hosted) {
       { accountId: acc.id, kind: "collect_added", title: "Diwali fund", body: "Nupur added you: ₹500 each. Tap to pay and tick your name.", url: `/c/${collectCode}`, seenAt: new Date() },
     ],
   });
-  await shot("83-alerts-collect", "/notifications", undefined, false);
+  await shot("83-alerts-collect", "/notifications?tab=all", undefined, false);
   // A trip in 12 days, for the countdown.
   const ist = (plus: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(now + plus * 86_400_000));
   const goa = await db.group.create({

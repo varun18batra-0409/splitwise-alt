@@ -52,7 +52,7 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
     ) : null;
   return (
     <>
-      <PageHeader title="Your groups" back="/" />
+      <PageHeader title="Your groups" back="/" bell />
       {justDeleted && (
         <Notice params={["deleted"]} className="mb-4">
           {deleted === "group"
