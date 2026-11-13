@@ -1098,7 +1098,7 @@ export function AddExpenseForm({
                                 type="button"
                                 aria-pressed={all}
                                 onClick={() => set({ people: all ? [] : [...memberIds] })}
-                                className={`min-h-9 rounded-full border px-3.5 text-[13px] font-medium ${all ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] text-fg" : "border-line text-fg/75"}`}
+                                className={`min-h-9 rounded-full border px-3.5 text-[13px] font-medium ${all ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] text-fg" : "border-fg/15 text-fg/85"}`}
                               >
                                 Everyone
                               </button>
@@ -1111,7 +1111,7 @@ export function AddExpenseForm({
                                   type="button"
                                   aria-pressed={on}
                                   onClick={() => set({ people: on ? it.people.filter((x) => x !== m.id) : [...it.people, m.id] })}
-                                  className={`min-h-9 rounded-full border px-3.5 text-[13px] font-medium ${on ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] text-fg" : "border-line text-fg/75"}`}
+                                  className={`min-h-9 rounded-full border px-3.5 text-[13px] font-medium ${on ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] text-fg" : "border-fg/15 text-fg/85"}`}
                                 >
                                   {who(m.id)}
                                 </button>
@@ -1387,7 +1387,8 @@ export function AddExpenseForm({
           {summary}
         </p>
       )}
-      <div className="glass-strong rounded-full p-1.5 shadow-[0_18px_40px_-14px_rgba(0,0,0,0.85)]">
+      <div className="rounded-[28px] border border-line bg-[#0d0d0f] px-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] pt-1.5 shadow-[0_18px_40px_-14px_rgba(0,0,0,0.85)]">
+      <div>
         <button
           type="submit"
           data-haptic="tap"
@@ -1409,11 +1410,12 @@ export function AddExpenseForm({
             setAgain(true);
           }}
           disabled={saving || rateState.status === "loading"}
-          className="mx-auto mt-1.5 block whitespace-nowrap px-3 py-2 text-center text-sm font-medium text-fg/75 underline underline-offset-4 active:text-fg disabled:opacity-50"
+          className="mx-auto mt-0.5 block whitespace-nowrap px-3 py-2 text-center text-sm font-medium text-fg/75 underline underline-offset-4 active:text-fg disabled:opacity-50"
         >
           {saving && again ? "Saving…" : "Save & add another"}
         </button>
       )}
+      </div>
       </div>
     </form>
   );
@@ -1452,7 +1454,7 @@ function Chip({ on, onClick, children, face }: { on: boolean; onClick: () => voi
       onClick={onClick}
       aria-pressed={on}
       className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border text-sm transition-transform active:scale-95 ${face ? "py-1.5 pl-1.5 pr-4" : "px-4 py-2"} ${
-        on ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] font-semibold text-fg" : "border-line bg-mist font-medium text-fg/85"
+        on ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] font-semibold text-fg" : "border-fg/15 bg-mist font-medium text-fg/85"
       }`}
     >
       {face && (

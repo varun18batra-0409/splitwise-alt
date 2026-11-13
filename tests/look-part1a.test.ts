@@ -50,6 +50,8 @@ describe("the tab bar stays off form screens", () => {
     "/groups/g1/bills/new",
     "/groups/g1/people/m1/move",
     "/groups/new",
+    "/groups/g1/budgets",
+    "/groups/g1/goals/new",
   ])("%s hides it", (path) => {
     expect(res.some((re) => re.test(path))).toBe(true);
   });

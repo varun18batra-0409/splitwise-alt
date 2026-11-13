@@ -30,7 +30,7 @@ export function FriendPicker({ friends, className = "" }: { friends: { id: strin
               type="button"
               aria-pressed={picked}
               onClick={() => toggle(f.id)}
-              className={`flex h-9 items-center gap-2 rounded-full border pl-1 pr-3 text-[13px] ${picked ? "border-[1.5px] border-fg text-fg" : "border-line text-fg/55 active:bg-mist"}`}
+              className={`flex h-9 items-center gap-2 rounded-full border pl-1 pr-3 text-[13px] ${picked ? "border-[1.5px] border-fg text-fg" : "border-fg/15 text-fg/85 active:bg-mist"}`}
             >
               <span aria-hidden className={`flex h-7 w-7 items-center justify-center rounded-full font-display text-[12px] font-semibold ${picked ? "bg-mist text-fg" : "bg-fg/[0.08]"}`}>
                 {picked ? "✓" : f.name.charAt(0).toUpperCase()}

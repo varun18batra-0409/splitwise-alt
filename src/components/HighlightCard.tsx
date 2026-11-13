@@ -25,7 +25,7 @@ export function HighlightCard({ h }: { h: Extract<Highlight, { kind: "card" }> }
   const t = TONE[h.tone];
   const picture = h.photo || h.cover;
   return (
-    <div className="relative flex min-h-[268px] flex-col overflow-hidden px-5 pb-12 pt-5" style={{ background: t.bg }} data-highlight={h.id}>
+    <div className="relative flex min-h-[268px] flex-1 flex-col overflow-hidden px-5 pb-12 pt-5" style={{ background: t.bg }} data-highlight={h.id}>
       {h.photo ? (
         <div className="absolute inset-y-0 left-[38%] right-0">
           <Image src={h.photo} alt="" fill sizes="(max-width: 480px) 65vw, 320px" className="object-cover" />
@@ -73,12 +73,15 @@ function WeatherIcon({ kind }: { kind: string }) {
   );
 }
 
-// Small drawn objects for cards without a place photo. On a small phone the picture shrinks (and goes below 360px wide),
-// so it never runs into the headline or the seal into the words.
+// Small drawn objects for cards without a place photo. Under 360px wide the picture sits small (64px) in its own box in the
+// top right corner, clipped to that box, so it never runs into the headline or the seal into the words. From 360px it is the
+// bigger picture behind the right half, a little smaller up to 400px.
 function Art({ kind }: { kind: string }) {
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 origin-top-right max-[399px]:scale-[0.8] max-[359px]:hidden">
-      <ArtPicture kind={kind} />
+    <div aria-hidden className="pointer-events-none absolute right-4 top-4 h-16 w-16 overflow-hidden min-[360px]:inset-0 min-[360px]:h-auto min-[360px]:w-auto min-[360px]:origin-top-right min-[360px]:overflow-visible min-[360px]:max-[399px]:scale-[0.8]">
+      <div className="absolute left-0 top-0 h-[170px] w-[170px] origin-top-left scale-[0.36] min-[360px]:inset-0 min-[360px]:h-auto min-[360px]:w-auto min-[360px]:scale-100">
+        <ArtPicture kind={kind} />
+      </div>
     </div>
   );
 }

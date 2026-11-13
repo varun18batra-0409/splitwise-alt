@@ -8,7 +8,7 @@ import { CurrencyPicker } from "./CurrencyPicker";
 // Each keeps a real form field with the same name, so the one Save sends it.
 
 const chip =
-  "flex min-h-11 items-center justify-center rounded-xl border border-line px-3 py-2 text-center text-sm font-medium text-fg/55 has-[:checked]:border-fg has-[:checked]:bg-accent-soft has-[:checked]:shadow-[inset_0_0_0_0.5px_var(--color-fg)] has-[:checked]:text-fg";
+  "flex min-h-11 items-center justify-center rounded-xl border border-fg/15 px-3 py-2 text-center text-sm font-medium text-fg/85 has-[:checked]:border-fg has-[:checked]:bg-accent-soft has-[:checked]:shadow-[inset_0_0_0_0.5px_var(--color-fg)] has-[:checked]:text-fg";
 
 export function ChipRadios({
   name,
@@ -76,7 +76,7 @@ export function SecondCurrencyChips({ groupCurrency, defaultValue }: { groupCurr
             role="radio"
             aria-checked={v === o.value}
             onClick={() => pick(o.value)}
-            className={`${chip} ${v === o.value ? "border-fg bg-accent-soft shadow-[inset_0_0_0_0.5px_var(--color-fg)] text-fg" : ""}`}
+            className={`${chip} ${v === o.value ? "!border-fg bg-accent-soft shadow-[inset_0_0_0_0.5px_var(--color-fg)] !text-fg" : ""}`}
           >
             {o.label}
           </button>

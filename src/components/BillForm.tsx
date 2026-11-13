@@ -102,7 +102,7 @@ export function BillForm({
   }
 
   const chip = (on: boolean) =>
-    `rounded-full border px-3.5 py-2 text-sm ${on ? "border-fg bg-accent-soft shadow-[inset_0_0_0_0.5px_var(--color-fg)] font-semibold text-fg" : "border-line text-fg/55"}`;
+    `rounded-full border px-3.5 py-2 text-sm ${on ? "border-fg bg-accent-soft shadow-[inset_0_0_0_0.5px_var(--color-fg)] font-semibold text-fg" : "border-fg/15 text-fg/85"}`;
   const amountNum = parseAmount(amount, currency) ?? 0; // smallest units
   const people = split === "some" ? ids.length : members.length;
   const dayText = day >= 31 ? "on the last day" : `on the ${DAYS.find((d) => d[0] === day)?.[1] ?? `${day}th`}`;
@@ -139,7 +139,7 @@ export function BillForm({
                 aria-pressed={template === t.id}
                 onClick={() => pick(t.id)}
                 className={`flex h-[76px] flex-col items-center justify-center gap-1.5 rounded-[14px] border text-xs ${
-                  template === t.id ? "border-fg bg-accent-soft shadow-[inset_0_0_0_0.5px_var(--color-fg)] font-semibold" : t.id === "other" ? "border-dashed border-gray-300" : "border-line bg-white"
+                  template === t.id ? "border-fg bg-accent-soft shadow-[inset_0_0_0_0.5px_var(--color-fg)] font-semibold" : t.id === "other" ? "border-dashed border-gray-300" : "border-fg/15 bg-white"
                 }`}
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>

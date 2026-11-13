@@ -164,7 +164,7 @@ export default async function SearchPage({
     catHref: (id) => href({ c: id }),
   };
   const chip = (on: boolean) =>
-    `shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-sm ${on ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] font-medium text-fg" : "border-line text-gray-600 active:bg-mist"}`;
+    `shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-sm ${on ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] font-medium text-fg" : "border-fg/15 text-fg/85 active:bg-mist"}`;
   const periodName = period.month ? monthLabel(period.month) : period.year ?? "All time";
   const monthLabelShort = (week: string) => new Date(`${week}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
   const back = groupId ? `/groups/${groupId}` : "/";

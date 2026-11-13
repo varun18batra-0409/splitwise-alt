@@ -116,7 +116,7 @@ export function SplitwiseImport({ yourName }: { yourName: string }) {
                       role="checkbox"
                       aria-checked={on}
                       onClick={() => setMap({ ...map, shareCols: on ? (map.shareCols ?? []).filter((x) => x !== i) : [...(map.shareCols ?? []), i] })}
-                      className={`rounded-full border px-3 py-1.5 ${on ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] text-fg" : "border-line"}`}
+                      className={`rounded-full border px-3 py-1.5 ${on ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] text-fg" : "border-fg/15"}`}
                     >
                       {h || `Column ${i + 1}`}
                     </button>
@@ -204,7 +204,7 @@ export function SplitwiseImport({ yourName }: { yourName: string }) {
                   role="radio"
                   aria-checked={meNow === i}
                   onClick={() => setMe(i)}
-                  className={`rounded-full border px-4 py-2 text-sm ${meNow === i ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] font-semibold text-fg" : "border-line bg-white"}`}
+                  className={`rounded-full border px-4 py-2 text-sm ${meNow === i ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] font-semibold text-fg" : "border-fg/15 bg-white"}`}
                 >
                   {p}
                 </button>

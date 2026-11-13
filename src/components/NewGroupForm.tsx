@@ -95,7 +95,7 @@ export function NewGroupForm({
                 type="button"
                 aria-pressed={type === t.id}
                 onClick={() => setType(t.id)}
-                className={`relative flex h-[156px] flex-col justify-between overflow-hidden rounded-[18px] border p-4 text-left ${type === t.id ? "border-fg bg-accent-soft shadow-[inset_0_0_0_0.5px_var(--color-fg)]" : "border-line bg-white"}`}
+                className={`relative flex h-[156px] flex-col justify-between overflow-hidden rounded-[18px] border p-4 text-left ${type === t.id ? "border-fg bg-accent-soft shadow-[inset_0_0_0_0.5px_var(--color-fg)]" : "border-fg/15 bg-white"}`}
               >
                 <span aria-hidden className="absolute -right-1.5 top-2.5 h-[60px] w-[46px] rotate-[9deg] overflow-hidden rounded-[4px] border-[3px] border-fg shadow-lg shadow-black/50">
                   <GroupCover kind={coverOf({ type: t.id })} uid={`type-${t.id}`} />

@@ -44,9 +44,9 @@ export function DateField({ placeholder = "Pick a date", size = "md", inline, cl
 
   return (
     <span
-      className={`relative ${inline ? "inline-flex" : "flex"} ${size === "sm" ? "h-10" : "h-12"} items-center gap-2 rounded-[14px] border border-[#26262c] bg-[#16161a] px-4 text-base text-fg focus-within:border-fg/40 focus-within:ring-2 focus-within:ring-fg/10 ${disabled ? "opacity-50" : ""} ${className}`}
+      className={`relative ${inline ? "inline-flex" : "flex"} ${size === "sm" ? "h-10" : "h-12"} items-center gap-2 rounded-[14px] border border-[#26262c] bg-[#16161a] ${size === "sm" ? "px-3" : "px-4"} ${inline ? "min-w-[9.5rem]" : ""} text-base text-fg focus-within:border-fg/40 focus-within:ring-2 focus-within:ring-fg/10 ${disabled ? "opacity-50" : ""} ${className}`}
     >
-      <CalendarIcon />
+      <CalendarIcon small={size === "sm"} />
       <span className={`min-w-0 flex-1 truncate whitespace-nowrap ${shown ? "text-fg" : "text-gray-400"}`}>{shown ? niceDate(shown) : placeholder}</span>
       <input
         {...rest}
@@ -70,9 +70,9 @@ export function DateField({ placeholder = "Pick a date", size = "md", inline, cl
   );
 }
 
-function CalendarIcon() {
+function CalendarIcon({ small }: { small?: boolean }) {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="shrink-0 text-fg/75">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden className={`shrink-0 text-fg/75 ${small ? "max-[359px]:hidden" : ""}`}>
       <rect x="3.5" y="5" width="17" height="15.5" rx="3" />
       <path d="M3.5 10h17M8 3v4M16 3v4" />
     </svg>

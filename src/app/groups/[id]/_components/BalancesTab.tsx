@@ -72,7 +72,9 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
             const b = net[m.id] ?? 0;
             const theirs = transfers.filter((t) => t.from === m.id || t.to === m.id);
             // Their part of the spending in each foreign currency, said plainly: "Thai baht part: you owe THB 5,099.17".
-            const foreign = b === 0 ? "" : foreignPartLine(ledgers.map((l) => ({ currency: l.currency, amount: l.net[m.id] ?? 0 })), m.id === myId);
+            const foreignParts = ledgers.map((l) => ({ currency: l.currency, amount: l.net[m.id] ?? 0 }));
+            const foreign = b === 0 ? "" : foreignPartLine(foreignParts, m.id === myId, overviewMoney);
+            const foreignExact = b === 0 ? "" : foreignPartLine(foreignParts, m.id === myId);
             return (
               <li key={m.id}>
                 <details className="group/person" open={why === m.id}>
@@ -88,7 +90,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
                           </span>
                         ) : null;
                       })()}
-                      <span className={`block text-xs text-gray-400 ${foreign ? "break-words" : "truncate"}`} data-foreign-part={foreign ? "1" : undefined}>
+                      <span className={`block text-xs text-gray-400 ${foreign ? "break-words" : "truncate"}`} data-foreign-part={foreign ? "1" : undefined} title={foreign ? foreignExact : undefined} data-exact={foreign ? foreignExact : undefined}>
                         {foreign || eq(b) || (theirs.length ? `${theirs.length} payment${theirs.length === 1 ? "" : "s"} to settle` : "settled up")}
                       </span>
                     </span>
@@ -134,8 +136,13 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
       {ledgers.length > 0 && mine !== 0 && (
         <section>
           <h2 className="font-display text-lg font-semibold tracking-tight">Spent in other currencies</h2>
-          <p className="mb-3 text-sm text-gray-500" data-ledger-summary>
-            {ledgerSummary(ledgers.map((l) => ({ currency: l.currency, amount: l.net[myId] ?? 0 })), mine, group.currency)} Before card fees.
+          <p
+            className="mb-3 text-sm text-gray-500"
+            data-ledger-summary
+            title={ledgerSummary(ledgers.map((l) => ({ currency: l.currency, amount: l.net[myId] ?? 0 })), mine, group.currency)}
+            data-exact={ledgerSummary(ledgers.map((l) => ({ currency: l.currency, amount: l.net[myId] ?? 0 })), mine, group.currency)}
+          >
+            {ledgerSummary(ledgers.map((l) => ({ currency: l.currency, amount: l.net[myId] ?? 0 })), mine, group.currency, overviewMoney)} Before card fees.
           </p>
           <ul className="divide-y divide-line rounded-2xl border border-line">
             {ledgers.map((l) => {

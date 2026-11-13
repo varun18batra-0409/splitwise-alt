@@ -51,7 +51,7 @@ export default async function RecordPayment({
   const plain = (mid: string) => group.members.find((m) => m.id === mid)?.name ?? "Someone";
   const overLine = owes !== null && typed !== null ? overpayQuestion({ typed, limit: owes, side, currency: group.currency, fromName: plain(from), toName: plain(sp.to ?? "") }) : null;
   const cancelHref = `/groups/${group.id}/pay?${new URLSearchParams({ from, ...(to ? { to } : {}), amount: sp.amount ?? "", ...(fromSettle ? { back: "settle" } : {}) })}`;
-  const chip = "flex items-center gap-2 rounded-full border border-line bg-mist px-4 py-2 text-sm font-medium has-[:checked]:border-fg has-[:checked]:shadow-[inset_0_0_0_0.5px_var(--color-fg)] has-[:checked]:font-medium has-[:checked]:text-fg";
+  const chip = "flex items-center gap-2 rounded-full border border-fg/15 bg-mist px-4 py-2 text-sm font-medium has-[:checked]:border-fg has-[:checked]:shadow-[inset_0_0_0_0.5px_var(--color-fg)] has-[:checked]:font-medium has-[:checked]:text-fg";
 
   return (
     <>

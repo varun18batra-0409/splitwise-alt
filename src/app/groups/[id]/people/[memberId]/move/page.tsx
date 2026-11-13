@@ -152,7 +152,7 @@ export default async function MoveOutPage({
                 ))}
               </ul>
               {p.daily.some((d) => !d.unsupported && d.amount > 0) && (
-                <label className="mt-3 flex items-start gap-3 rounded-2xl border border-line px-4 py-3 has-[:checked]:border-fg has-[:checked]:bg-accent-soft has-[:checked]:shadow-[inset_0_0_0_0.5px_var(--color-fg)]">
+                <label className="mt-3 flex items-start gap-3 rounded-2xl border border-fg/15 px-4 py-3 has-[:checked]:border-fg has-[:checked]:bg-accent-soft has-[:checked]:shadow-[inset_0_0_0_0.5px_var(--color-fg)]">
                   <input type="checkbox" name="addDaily" value="1" defaultChecked className="mt-0.5 h-5 w-5 shrink-0" />
                   <span>
                     <span className="block font-medium">Add it now</span>
@@ -171,7 +171,7 @@ export default async function MoveOutPage({
               <p className="mb-3 text-sm text-gray-500">Held by {p.deposit.heldBy}. Who gives it back?</p>
               <div className="space-y-2">
                 {others.map((m) => (
-                  <label key={m.id} className="flex items-start gap-3 rounded-2xl border border-line px-4 py-3 has-[:checked]:border-fg has-[:checked]:bg-accent-soft has-[:checked]:shadow-[inset_0_0_0_0.5px_var(--color-fg)]">
+                  <label key={m.id} className="flex items-start gap-3 rounded-2xl border border-fg/15 px-4 py-3 has-[:checked]:border-fg has-[:checked]:bg-accent-soft has-[:checked]:shadow-[inset_0_0_0_0.5px_var(--color-fg)]">
                     <input type="radio" name="depositTo" value={m.id} className="mt-0.5 h-5 w-5 shrink-0" />
                     <span>
                       <span className="block font-medium">{Name(m.id)}, taking over the room</span>
@@ -181,7 +181,7 @@ export default async function MoveOutPage({
                     </span>
                   </label>
                 ))}
-                <label className="flex items-start gap-3 rounded-2xl border border-line px-4 py-3 has-[:checked]:border-fg has-[:checked]:bg-accent-soft has-[:checked]:shadow-[inset_0_0_0_0.5px_var(--color-fg)]">
+                <label className="flex items-start gap-3 rounded-2xl border border-fg/15 px-4 py-3 has-[:checked]:border-fg has-[:checked]:bg-accent-soft has-[:checked]:shadow-[inset_0_0_0_0.5px_var(--color-fg)]">
                   <input type="radio" name="depositTo" value="" defaultChecked className="mt-0.5 h-5 w-5 shrink-0" />
                   <span>
                     <span className="block font-medium">{p.deposit.heldBy}, when the lease ends</span>

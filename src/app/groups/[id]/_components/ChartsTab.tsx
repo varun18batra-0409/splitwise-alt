@@ -81,7 +81,8 @@ export function ChartsTab({ v }: { v: GroupView }) {
   // A few plain-English lines on top (trips and other groups; flats have their own on This month).
   const home = group.type === "home" || group.type === "couple";
   const report = tripReport({ name: group.name, type: group.type, currency: group.currency, members: group.members, expenses, transfers: v.transfers, tz });
-  const lines = home ? [] : insightLines(report, myId);
+  const lines = home ? [] : insightLines(report, myId, overviewMoney);
+  const exactLines = home ? [] : insightLines(report, myId);
 
   return (
     <div className="space-y-10">
@@ -89,8 +90,8 @@ export function ChartsTab({ v }: { v: GroupView }) {
         <section aria-label="At a glance" className="rounded-2xl bg-mist px-4 py-4">
           {lines.length > 0 && (
             <ul className="mb-3 space-y-1.5 text-sm text-fg/85">
-              {lines.map((l) => (
-                <li key={l}>{l}</li>
+              {lines.map((l, i) => (
+                <li key={l} title={exactLines[i]} data-exact={exactLines[i]}>{l}</li>
               ))}
             </ul>
           )}

@@ -54,8 +54,8 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
               </p>
             )}
             <div className="my-4 h-px bg-line" />
-            <p className={`money text-[22px] font-semibold tabular-nums ${mine > 0 ? "text-owed" : mine < 0 ? "text-owe" : ""}`}>
-              {aheadBehind(mine) === "ahead" ? <>Overall you’re <Amt minor={mine} currency={group.currency} /> ahead</> : aheadBehind(mine) === "behind" ? <>Overall you’re <Amt minor={-mine} currency={group.currency} /> behind</> : "You’re even"}
+            <p className="money text-[22px] font-semibold tabular-nums">
+              {aheadBehind(mine) === "ahead" ? <>Overall you’re <Amt minor={mine} currency={group.currency} className="text-owed" /> ahead</> : aheadBehind(mine) === "behind" ? <>Overall you’re <Amt minor={-mine} currency={group.currency} className="text-owe" /> behind</> : "You’re even"}
             </p>
             {s.total > 0 && (
               <>
@@ -96,8 +96,8 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
             <div className="my-4 h-px bg-line" />
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className={`money text-[22px] font-semibold tabular-nums ${mine > 0 ? "text-owed" : mine < 0 ? "text-owe" : ""}`}>
-                  {mine > 0 ? <>Overall you’re owed <Amt minor={mine} currency={group.currency} /></> : mine < 0 ? <>Overall you owe <Amt minor={-mine} currency={group.currency} /></> : "Overall you’re all square"}
+                <p className="money text-[22px] font-semibold tabular-nums">
+                  {mine > 0 ? <>Overall you’re owed <Amt minor={mine} currency={group.currency} className="text-owed" /></> : mine < 0 ? <>Overall you owe <Amt minor={-mine} currency={group.currency} className="text-owe" /></> : "Overall you’re all square"}
                 </p>
                 {settleDayText && <p className="mt-0.5 text-xs text-gray-500">{settleDayText}</p>}
               </div>
@@ -198,7 +198,7 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
                 </div>
                 <div className="mt-2 h-2 overflow-hidden rounded-full bg-mist">
                   <div
-                    className={`h-full rounded-full ${b.level === "over" ? "bg-meter-down" : b.level === "near" ? "bg-[#d9a441]" : "bg-meter-up"}`}
+                    className="h-full rounded-full bg-fg"
                     style={{ width: `${Math.min(100, Math.round((Math.max(0, b.spent) * 100) / Math.max(1, b.amount)))}%` }}
                   />
                 </div>

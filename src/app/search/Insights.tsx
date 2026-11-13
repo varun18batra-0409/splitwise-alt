@@ -49,7 +49,7 @@ export function Insights({ d }: { d: InsightsData }) {
   // Same look as the rest of Loopin: the group tabs' switch, off-white for what's chosen, green for money bars.
   const pill = (on: boolean) => `flex-1 rounded-full py-2 text-center text-sm ${on ? "shadow-[inset_0_0_0_1.5px_var(--color-fg)] font-semibold text-fg" : "text-gray-500"}`;
   const grainChip = (on: boolean) =>
-    `flex h-8 w-11 items-center justify-center rounded-full border text-xs font-semibold ${on ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] text-fg" : "border-line text-gray-500 active:bg-mist"}`;
+    `flex h-8 w-11 items-center justify-center rounded-full border text-xs font-semibold ${on ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] text-fg" : "border-fg/15 text-fg/85 active:bg-mist"}`;
 
   return (
     <section aria-label="Insights" className="mb-8">

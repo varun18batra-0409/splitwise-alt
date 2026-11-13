@@ -684,16 +684,16 @@ export default async function Home({
               {highlights.map((h) =>
                 h.kind === "month" ? (
                   month && (
-                    <div key="month">
+                    <div key="month" className="flex flex-1 flex-col">
 
-                <div className="relative flex h-[268px] flex-col overflow-hidden bg-white px-5 pb-12 pt-5">
+                <div className="relative flex min-h-[268px] flex-1 flex-col overflow-hidden bg-white px-5 pb-12 pt-5">
                   <p className="relative text-[13px] text-fg/55">{month.wrapped ? "Your month, wrapped" : "Your month so far"}</p>
                   <p className="relative mt-1 font-display text-[27px] font-semibold leading-[1.1]">{month.name} in numbers</p>
-                  <div className="relative mt-auto flex flex-wrap items-end gap-x-4 gap-y-2 min-[360px]:gap-x-5" data-month-stats>
+                  <div className="relative mb-4 mt-5 flex flex-wrap items-end gap-x-4 gap-y-2 min-[360px]:gap-x-5" data-month-stats>
                     <p className="shrink-0">
-                      <span className="block money text-[19px] font-semibold tabular-nums" data-month-share>
+                      <span className="block money text-[19px] font-semibold tabular-nums" data-month-share title={formatMoney(month.share, month.currency)} data-exact={formatMoney(month.share, month.currency)}>
                         {month.converted ? "≈ " : ""}
-                        {formatMoney(month.share, month.currency)}
+                        {homeMoney(month.share, month.currency)}
                       </span>
                       <span className="block whitespace-nowrap text-xs text-gray-600">your share</span>
                     </p>
@@ -709,7 +709,7 @@ export default async function Home({
                       </p>
                     )}
                   </div>
-                  <Link href={`/search?m=${month.month}`} className={`relative mt-3 ${bannerButton}`}>
+                  <Link href={`/search?m=${month.month}`} className={`relative mt-auto ${bannerButton}`}>
                     See {month.name}
                   </Link>
                 </div>

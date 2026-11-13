@@ -136,7 +136,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                 ).map(([id, label]) => (
                   <label key={id || "all"} className="cursor-pointer">
                     <input type="radio" name="type" value={id} defaultChecked={(filter.type ?? "") === id} className="peer sr-only" />
-                    <span className="block rounded-full border border-line px-3 py-1.5 text-sm text-fg/55 peer-checked:border-fg peer-checked:bg-accent-soft peer-checked:shadow-[inset_0_0_0_0.5px_var(--color-fg)] peer-checked:text-fg">
+                    <span className="block rounded-full border border-fg/15 px-3 py-1.5 text-sm text-fg/85 peer-checked:border-fg peer-checked:bg-accent-soft peer-checked:shadow-[inset_0_0_0_0.5px_var(--color-fg)] peer-checked:text-fg">
                       {label}
                     </span>
                   </label>
@@ -172,9 +172,9 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
               </div>
               <div className="flex items-center gap-2 text-sm text-gray-500">
                 <span className="w-14 shrink-0">Dates</span>
-                <DateField name="from" defaultValue={filter.from ?? ""} aria-label="From date" size="sm" className="min-w-0 flex-1" />
+                <DateField name="from" defaultValue={filter.from ?? ""} aria-label="From date" placeholder="Any" size="sm" className="min-w-0 flex-1" />
                 <span>–</span>
-                <DateField name="to" defaultValue={filter.to ?? ""} aria-label="To date" size="sm" className="min-w-0 flex-1" />
+                <DateField name="to" defaultValue={filter.to ?? ""} aria-label="To date" placeholder="Any" size="sm" className="min-w-0 flex-1" />
               </div>
               <div className="flex flex-wrap gap-3 pl-16 text-sm">
                 {[thisMonth, lastMonth].map((m) => (

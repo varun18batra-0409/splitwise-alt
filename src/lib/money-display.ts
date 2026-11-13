@@ -18,3 +18,13 @@ export function exactAttrs(minor: number, currency = "INR"): { title: string; "d
 export function signedOverview(minor: number, currency = "INR"): string {
   return minor < 0 ? `−${overviewMoney(-minor, currency)}` : overviewMoney(minor, currency);
 }
+
+// Screen-only: in a sentence that already has rupee amounts written into it (an alert such as "Asha added Dinner ₹1,286.70"),
+// show each amount of 1,000 or more without the paise. Text that is not a ₹ amount is left exactly as it is, and the caller keeps
+// the original sentence in `title` / `data-exact`. Never use it on anything stored, sent or exported.
+export function overviewAmountsInText(text: string): string {
+  return text.replace(/₹(\d{1,3}(?:,\d{2,3})*|\d+)(?:\.(\d{1,2}))?/g, (whole, units: string, paise?: string) => {
+    const minor = Number(units.replace(/,/g, "")) * 100 + (paise ? Number(paise.padEnd(2, "0")) : 0);
+    return Number.isFinite(minor) ? overviewMoney(minor, "INR") : whole;
+  });
+}

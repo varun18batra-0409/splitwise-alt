@@ -23,7 +23,7 @@ export function PassportCompare({ sets, showMap = false }: { sets: CompareSet[];
             aria-selected={s.key === set.key}
             onClick={() => setOn(s.key)}
             data-compare-tab={s.key}
-            className={`max-w-full shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-[13px] ${s.key === set.key ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] font-semibold text-fg" : "border-line text-fg/70 active:bg-mist"}`}
+            className={`max-w-full shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-[13px] ${s.key === set.key ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] font-semibold text-fg" : "border-fg/15 text-fg/85 active:bg-mist"}`}
           >
             {s.label} <span className={s.key === set.key ? "text-canvas/60" : "text-fg/60"}>{s.countries.length}</span>
           </button>

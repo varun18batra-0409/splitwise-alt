@@ -184,14 +184,14 @@ export default async function GroupSettings({
             {PRESETS.map((bp) => (
               <label
                 key={bp}
-                className="flex items-center justify-center rounded-xl border border-gray-200 py-3 text-sm font-medium has-[:checked]:border-fg has-[:checked]:bg-accent-soft has-[:checked]:shadow-[inset_0_0_0_0.5px_var(--color-fg)] has-[:checked]:text-fg"
+                className="flex items-center justify-center rounded-xl border border-fg/15 py-3 text-sm font-medium has-[:checked]:border-fg has-[:checked]:bg-accent-soft has-[:checked]:shadow-[inset_0_0_0_0.5px_var(--color-fg)] has-[:checked]:text-fg"
               >
                 <input type="radio" name="markup" value={String(bp)} defaultChecked={bp === group.cardMarkupBp} className="sr-only" />
                 {formatPercent(bp)}
               </label>
             ))}
           </div>
-          <label className="mt-2 flex items-center gap-3 rounded-xl border border-gray-200 px-4 py-3 has-[:checked]:border-fg has-[:checked]:bg-accent-soft has-[:checked]:shadow-[inset_0_0_0_0.5px_var(--color-fg)]">
+          <label className="mt-2 flex items-center gap-3 rounded-xl border border-fg/15 px-4 py-3 has-[:checked]:border-fg has-[:checked]:bg-accent-soft has-[:checked]:shadow-[inset_0_0_0_0.5px_var(--color-fg)]">
             <input type="radio" name="markup" value="custom" defaultChecked={!isPreset} className="h-5 w-5" />
             <span className="text-sm font-medium">Custom</span>
             <span className="ml-auto flex items-center gap-1">

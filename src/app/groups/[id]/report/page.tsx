@@ -65,7 +65,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
                     </span>
                   </div>
                   <div className="mt-1 h-1.5 rounded-full bg-line">
-                    <div className="meter-bar h-1.5 origin-left rounded-full bg-owed" style={{ width: `${Math.max(2, c.pct)}%` }} />
+                    <div className="meter-bar h-1.5 origin-left rounded-full bg-fg" style={{ width: `${Math.max(2, c.pct)}%` }} />
                   </div>
                   </Link>
                 </li>
