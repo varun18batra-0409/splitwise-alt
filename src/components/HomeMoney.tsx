@@ -13,7 +13,7 @@ import type { TripPhase } from "@/lib/countdown";
 // No tinted wash and no coloured border: only the amount carries the colour (orange you owe, green you're owed).
 // Below it, a quiet line for what waits on you. Lower down, the countdown line for a trip that is coming up.
 
-const CREAM = "pop flex h-11 min-w-0 items-center justify-center whitespace-nowrap bg-fg px-3 text-[15px] font-semibold text-canvas [--pop-edge:#6e6b63]";
+export const CREAM = "pop flex h-11 min-w-0 items-center justify-center whitespace-nowrap bg-fg px-3 text-[15px] font-semibold text-canvas [--pop-edge:#6e6b63]";
 const OUTLINE = "flex h-11 min-w-0 items-center justify-center whitespace-nowrap rounded-full border border-fg/25 px-3.5 text-[15px] font-semibold text-fg transition-transform active:scale-[0.97] motion-reduce:transition-none motion-reduce:active:scale-100";
 
 const AMOUNT_SIZE = { xl: "text-[32px] min-[360px]:text-[38px]", l: "text-[26px] min-[360px]:text-[28px]", m: "text-[20px] min-[360px]:text-[22px]" } as const;
@@ -34,7 +34,7 @@ function CoverBox({ c, sizes }: { c: StubCover; sizes: string }) {
 }
 
 // The little mark on the route line: drawn, never an emoji.
-function Mark({ mark }: { mark: GroupMark }) {
+export function Mark({ mark }: { mark: GroupMark }) {
   const common = { "aria-hidden": true, width: 14, height: 14, viewBox: "0 0 24 24", className: "shrink-0 text-fg/75" } as const;
   if (mark === "plane")
     return (
@@ -67,7 +67,7 @@ function Mark({ mark }: { mark: GroupMark }) {
   );
 }
 
-function Route({ from, to, mark }: { from: string; to: string; mark: GroupMark }) {
+export function Route({ from, to, mark }: { from: string; to: string; mark: GroupMark }) {
   const end = (t: string) => <span className={`text-[13px] font-semibold text-fg/65 ${t === "You" ? "shrink-0" : "min-w-0 truncate"}`}>{t}</span>;
   return (
     <p className="flex items-center gap-2" data-route>
@@ -79,11 +79,12 @@ function Route({ from, to, mark }: { from: string; to: string; mark: GroupMark }
   );
 }
 
-function Amount({ text, exact, tone, tier }: { text: string; exact?: string; tone: "owe" | "owed" | "plain"; tier: "xl" | "l" | "m" }) {
+export function Amount({ text, exact, tone, tier }: { text: string; exact?: string; tone: "owe" | "owed" | "plain"; tier: "xl" | "l" | "m" }) {
   return (
     <p
       className={`mt-2.5 font-display font-medium leading-none tracking-[-0.03em] lining-nums tabular-nums [overflow-wrap:normal] ${AMOUNT_SIZE[tier]} ${tone === "owe" ? "text-owe" : tone === "owed" ? "text-owed" : "text-fg"}`}
       data-net-balance
+      data-exact={exact && exact !== text ? exact : undefined}
       title={exact}
     >
       {exact && exact !== text ? <ExactAmount amount={text} exact={exact} /> : text}
@@ -91,7 +92,7 @@ function Amount({ text, exact, tone, tier }: { text: string; exact?: string; ton
   );
 }
 
-function ActionButton({ a, className }: { a: TicketAction; className: string }) {
+export function ActionButton({ a, className }: { a: TicketAction; className: string }) {
   return (
     <Link href={a.href} aria-label={a.fullLabel !== a.label ? a.fullLabel : undefined} className={className} data-money-action={a.key} data-emphasis={a.bright ? "bright" : "quiet"}>
       <span className="min-w-0 truncate">{a.label}</span>
@@ -114,7 +115,9 @@ function Faces({ line }: { line: TicketLine }) {
   );
 }
 
-function BothLine({ line }: { line: TicketLine }) {
+// `action` is optional: on a group's own ticket the two lines carry no buttons (the one cream Settle up is below them).
+export type BothLineData = Omit<TicketLine, "action"> & { action?: TicketAction };
+export function BothLine({ line }: { line: BothLineData }) {
   const owe = line.side === "owe";
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-[#26262c] py-2 first:border-t-0 first:pt-0" data-ticket-line={line.side}>
@@ -136,39 +139,44 @@ function BothLine({ line }: { line: TicketLine }) {
           {line.amount}
         </span>
       </Link>
-      <ActionButton a={line.action} className={`${line.action.bright ? CREAM : OUTLINE} h-11 min-w-[4.5rem]`} />
+      {line.action && <ActionButton a={line.action} className={`${line.action.bright ? CREAM : OUTLINE} h-11 min-w-[4.5rem]`} />}
     </div>
+  );
+}
+
+// The ticket itself, shared by Home and a group's page: a stub with the group's picture(s), a dashed perforation with two bites,
+// then `children` (the route, the amount and the one action). `attrs` are the data-* hooks the page's tests read.
+export function TicketShell({ stub, label, attrs, children }: { stub: StubCover[]; label: string; attrs: Record<string, string | undefined>; children: React.ReactNode }) {
+  const covers = stub.slice(0, 2);
+  return (
+    <section aria-label={label} className="relative flex min-h-[176px] overflow-hidden rounded-[20px] bg-[#16161a] text-fg shadow-[inset_0_0_0_1px_#26262c]" {...attrs}>
+      {/* The stub: the group's picture (a small stack of two when the money is across groups). */}
+      <div className="relative flex w-[84px] shrink-0 flex-col min-[360px]:w-[100px]" data-ticket-stub={covers.length}>
+        {covers.length === 0 && <span aria-hidden className="absolute inset-0 bg-mist" />}
+        {covers.map((c, i) => (
+          <div key={c.id} className={`relative flex-1 overflow-hidden bg-mist ${i > 0 ? "border-t border-[#16161a]" : ""}`}>
+            <CoverBox c={c} sizes="100px" />
+          </div>
+        ))}
+      </div>
+      {/* The perforation, with the two half-circle bites of a ticket. */}
+      <span aria-hidden className="my-3.5 w-0 shrink-0 border-l-2 border-dashed border-[#34343b]" />
+      <span aria-hidden className="absolute -top-[11px] left-[75px] h-5 w-5 rounded-full bg-canvas shadow-[inset_0_0_0_1px_#26262c] min-[360px]:left-[91px]" />
+      <span aria-hidden className="absolute -bottom-[11px] left-[75px] h-5 w-5 rounded-full bg-canvas shadow-[inset_0_0_0_1px_#26262c] min-[360px]:left-[91px]" />
+      <div className="flex min-w-0 flex-1 flex-col px-3.5 pb-3.5 pt-4 min-[360px]:pl-[18px] min-[360px]:pr-4">{children}</div>
+    </section>
   );
 }
 
 export function MoneyCard({ ticket, mode, tone, stub, need }: { ticket: Ticket; mode: string; tone: "owed" | "owe" | "plain"; stub: StubCover[]; need?: NeedLine | null }) {
   // The route/amount block depends on the situation; the stub, perforation and notches are the same for all of them.
-  const covers = stub.slice(0, 2);
   return (
     <>
-      <section
-        aria-label="Your money"
-        className="relative flex min-h-[176px] overflow-hidden rounded-[20px] bg-[#16161a] text-fg shadow-[inset_0_0_0_1px_#26262c]"
-        data-balance-card
-        data-money-mode={mode}
-        data-tone={tone === "plain" ? "square" : tone}
-        data-ticket={ticket.kind}
+      <TicketShell
+        stub={stub}
+        label="Your money"
+        attrs={{ "data-balance-card": "", "data-money-mode": mode, "data-tone": tone === "plain" ? "square" : tone, "data-ticket": ticket.kind }}
       >
-        {/* The stub: the group's picture (a small stack of two when the money is across groups). */}
-        <div className="relative flex w-[84px] shrink-0 flex-col min-[360px]:w-[100px]" data-ticket-stub={covers.length}>
-          {covers.length === 0 && <span aria-hidden className="absolute inset-0 bg-mist" />}
-          {covers.map((c, i) => (
-            <div key={c.id} className={`relative flex-1 overflow-hidden bg-mist ${i > 0 ? "border-t border-[#16161a]" : ""}`}>
-              <CoverBox c={c} sizes="100px" />
-            </div>
-          ))}
-        </div>
-        {/* The perforation, with the two half-circle bites of a ticket. */}
-        <span aria-hidden className="my-3.5 w-0 shrink-0 border-l-2 border-dashed border-[#34343b]" />
-        <span aria-hidden className="absolute -top-[11px] left-[75px] h-5 w-5 rounded-full bg-canvas shadow-[inset_0_0_0_1px_#26262c] min-[360px]:left-[91px]" />
-        <span aria-hidden className="absolute -bottom-[11px] left-[75px] h-5 w-5 rounded-full bg-canvas shadow-[inset_0_0_0_1px_#26262c] min-[360px]:left-[91px]" />
-
-        <div className="flex min-w-0 flex-1 flex-col px-3.5 pb-3.5 pt-4 min-[360px]:pl-[18px] min-[360px]:pr-4">
           {ticket.kind === "both" ? (
             <div className="flex flex-1 flex-col justify-center" data-ticket-both>
               {ticket.lines.map((l) => (
@@ -185,18 +193,23 @@ export function MoneyCard({ ticket, mode, tone, stub, need }: { ticket: Ticket; 
                 <ActionButton a={ticket.line.action} className={`${CREAM} w-full`} />
               </div>
             </>
+          ) : ticket.kind === "square" ? (
+            // Nothing to do: "All square" and a quiet line, no button (the "+ New group" tile below is the only way to start one).
+            <div className="my-auto">
+              <Amount text={ticket.amount} tone="plain" tier="l" />
+              <p className="mt-1.5 truncate text-[13.5px] text-fg/55" data-ticket-context>{ticket.label}</p>
+            </div>
           ) : (
             <>
               <p className="truncate text-[13px] font-semibold text-fg/65">{ticket.label}</p>
-              <Amount text={ticket.amount} exact={ticket.kind === "neutral" ? ticket.exact : undefined} tone="plain" tier={ticket.kind === "square" ? "l" : amountTier(ticket.amount)} />
-              {ticket.kind === "neutral" && ticket.context && <p className="mt-1 truncate text-[13.5px] text-fg/55" data-ticket-context>{ticket.context}</p>}
+              <Amount text={ticket.amount} exact={ticket.exact} tone="plain" tier={amountTier(ticket.amount)} />
+              {ticket.context && <p className="mt-1 truncate text-[13.5px] text-fg/55" data-ticket-context>{ticket.context}</p>}
               <div className="mt-auto pt-3">
                 <ActionButton a={ticket.action} className={`${CREAM} w-full`} />
               </div>
             </>
           )}
-        </div>
-      </section>
+      </TicketShell>
       {need && (
         // What waits on you, as one quiet line under the card (a 44px link): grey words, the action in off-white. No dot, no box.
         <div className="mt-1 px-1" data-need-line data-need-count={need.count}>

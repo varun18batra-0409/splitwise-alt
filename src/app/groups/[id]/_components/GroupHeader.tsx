@@ -1,9 +1,8 @@
 import Link from "@/components/Link";
-import { CalendarClockIcon } from "@/components/DrawnIcons";
 import { BackIcon, ChevronDown, GearIcon, InviteIcon, iconButtonClass } from "@/components/icons";
 import { GroupCover } from "@/components/GroupCover";
 import { avatarTone } from "@/components/ui";
-import { placePhoto } from "@/lib/places";
+import { tripPhotoSrc } from "@/lib/places";
 import { coverFor, coverOf, type CoverChoice } from "@/lib/covers";
 import type { GroupView } from "./view";
 import { countdownWords, placeOf, tripPhase } from "@/lib/countdown";
@@ -24,16 +23,15 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
   const phase = group.type === "trip" ? tripPhase(group.tripStart, group.tripEnd, todayKey(new Date(), v.tz)) : null;
   const words = phase ? countdownWords(group.name, phase) : null;
   const hot = phase && (phase.kind !== "before" || phase.days <= 7);
+  // Part of the one quiet line under the name: the countdown (full strength when it is close), or "Add dates" as an underlined link.
   const tripPill =
     group.type !== "trip" || group.closed ? null : words ? (
-      <span data-countdown-line className={`inline-block rounded-full px-3 py-1 text-[13px] font-semibold backdrop-blur ${hot ? "bg-owe/25 text-[#ffd2b0]" : "glass"}`}>
+      <span data-countdown-line className={hot ? "font-semibold text-fg" : undefined}>
         {words.line}
       </span>
     ) : !group.tripStart ? (
-      <Link href={`/groups/${group.id}/settings#trip`} className="glass inline-block rounded-full px-3 py-1 text-[13px] font-semibold text-fg/85">
-        <span className="inline-flex items-center gap-1.5">
-          <CalendarClockIcon size={13} /> Add trip dates
-        </span>
+      <Link href={`/groups/${group.id}/settings#trip`} className="-my-3 inline-flex min-h-11 items-center font-semibold text-fg underline underline-offset-4" data-add-dates>
+        Add dates
       </Link>
     ) : null;
 
@@ -52,7 +50,7 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
   })();
   const weatherPill = weather && (
     <details className="group/wx relative" data-trip-weather>
-      <summary className="glass inline-block cursor-pointer list-none rounded-full px-3 py-1 text-[13px] font-semibold [&::-webkit-details-marker]:hidden">{weather.pill}</summary>
+      <summary className="-my-3 flex min-h-11 cursor-pointer list-none items-center font-semibold [&::-webkit-details-marker]:hidden">{weather.pill}</summary>
       <div className="absolute left-0 top-full z-30 mt-2 w-72 max-w-[calc(100vw-2.5rem)] rounded-2xl border border-line bg-white p-4 text-sm shadow-2xl shadow-black/60">
         <p className="text-xs text-gray-400">
           {weather.where} in {weather.month}, usually
@@ -130,8 +128,8 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
   const type = ({ trip: "Trip", home: "Home", couple: "Couple", pot: "Game night" } as Record<string, string | undefined>)[group.type];
   // Someone who left sees who was in the group on the day they left, not whoever joined since.
   const people = (v.leaver ? membersAsOf(group.members, myId, v.leaver.leftAt) : group.members).filter((m) => !m.leftAt);
-  // A trip still on its default drawing shows a real photo of the place instead (Thailand → Maya Bay).
-  const placeShot = group.type === "trip" && !group.cover ? placePhoto(group.name)?.src : undefined;
+  // A trip with no photo of its own shows a real photo of the place instead (Thailand → Maya Bay), the same as its polaroid.
+  const placeShot = tripPhotoSrc(group);
   const names = people.map((m) => (m.id === myId ? "You" : m.name.trim().split(/\s+/)[0]));
   const ordered = [...names.filter((n) => n === "You"), ...names.filter((n) => n !== "You")];
   const crew = ordered.length <= 1 ? ordered.join("") : ordered.length <= 4 ? `${ordered.slice(0, -1).join(", ")} and ${ordered[ordered.length - 1]}` : `${ordered.slice(0, 3).join(", ")} and ${ordered.length - 3} more`;
@@ -159,14 +157,6 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
         </Link>
       </div>
       <div className="absolute inset-x-5 bottom-1">
-        <div className="mb-2 flex flex-wrap gap-1.5">
-          <span className="glass inline-block rounded-full px-3 py-1 text-[13px] font-semibold">
-            {type ? `${type} with ` : ""}
-            {people.length} {people.length === 1 ? "person" : "people"}
-          </span>
-          {tripPill}
-          {weatherPill}
-        </div>
         <div className="flex [text-shadow:0_2px_18px_rgba(0,0,0,0.35)]">{switcher(true)}</div>
         <Link href={`/groups/${group.id}/people`} className="mt-2.5 flex items-center gap-2.5 active:opacity-80" aria-label={`Everyone in ${group.name}: ${ordered.join(", ")}`}>
           <span className="flex" aria-hidden>
@@ -180,6 +170,25 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
             {crew}
           </span>
         </Link>
+        {/* One quiet line: what kind of group, how many, and the trip's dates or countdown (no pills). */}
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[13px] text-fg/75 [text-shadow:0_1px_12px_rgba(0,0,0,0.5)]" data-group-line>
+          <span>
+            {type ? `${type}, ` : ""}
+            {people.length} {people.length === 1 ? "person" : "people"}
+          </span>
+          {tripPill && (
+            <>
+              <span aria-hidden>·</span>
+              {tripPill}
+            </>
+          )}
+          {weatherPill && (
+            <>
+              <span aria-hidden>·</span>
+              {weatherPill}
+            </>
+          )}
+        </div>
       </div>
     </header>
   );

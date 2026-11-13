@@ -97,9 +97,10 @@ await shot("22-settle-everything", `${g}/settle`, async (p) => {
   await p.getByRole("button", { name: /Settle everything/ }).scrollIntoViewIfNeeded();
 }, false);
 await shot("23-add-expense-differently", `${g}/add`, async (p) => {
+  await p.locator("[data-sentence-part]").first().click(); // tap the sentence ("You paid, split equally…") to open the payer and split controls
   await p.getByRole("button", { name: /Custom/ }).click();
   await p.locator("[data-more] > button").click(); // More: notes, several payers, spin
-  await p.getByRole("button", { name: /Change/ }).first().click();
+  await p.getByRole("button", { name: /Today.*Change/ }).first().click();
   await p.waitForTimeout(300);
 });
 await shot("28-settle", "/settle");
@@ -128,6 +129,7 @@ await shot("38-guide-abroad", "/how-it-works#abroad", async (p) => {
 await shot("32-group-settle", `${g}/settle`);
 await shot("29-why", `${g}?tab=balances&why=${demo.trip.me}#why-${demo.trip.me}`);
 await shot("30-add-only-some", `${g}/add`, async (p) => {
+  await p.locator("[data-sentence-part]").first().click(); // tap the sentence ("You paid, split equally…") to open the payer and split controls
   await p.getByRole("button", { name: /Only some/ }).click();
   await p.getByRole("button", { name: /Ravi/ }).last().click();
   await p.waitForTimeout(300);
@@ -139,7 +141,7 @@ await shot("31-currency-details", `${g}/add`, async (p) => {
   await p.getByLabel("Search currencies").fill("baht");
   await p.getByRole("button", { name: /THB/ }).first().click();
   await p.waitForTimeout(2500);
-  await p.getByRole("button", { name: "Change rate" }).click();
+  await p.getByRole("button", { name: "Details", exact: true }).click();
   await p.waitForTimeout(300);
 });
 await shot("39-new-group-types", "/groups/new", async (p) => {
@@ -158,6 +160,7 @@ await shot("41-add-payers-shares", `${g}/add`, async (p) => {
   await p.getByLabel("Amount", { exact: true }).fill("3000");
   await p.locator("[data-more] > button").click();
   await p.getByRole("switch", { name: /More than one person paid/ }).click();
+  await p.locator("[data-sentence-part]").first().click(); // tap the sentence ("You paid, split equally…") to open the payer and split controls
   await p.getByRole("button", { name: /Custom/ }).click();
   await p.getByRole("button", { name: "Shares", exact: true }).click();
 });
@@ -274,7 +277,7 @@ if (!desktop && !hosted) {
     // Both ways, in two groups so nobody is netted: Varun owes Asha ₹4,200 (trip) and Kabir owes Varun ₹22,916 (flat).
     ["both", async () => { await addExpense(tripId, A, [[V, 420000]]); await addExpense(flatId, FV, [[FK, 2291600]]); }, { kind: "both", has: /^both \| You owe Asha .*₹4,200 Pay Kabir owes you .*₹22,916 Remind$/ }],
     // Nothing added: every balance is 0.
-    ["square", async () => undefined, { kind: "square", has: /^square \| .*Nobody owes anybody.*All square.*New group$/ }],
+    ["square", async () => undefined, { kind: "square", has: /^square \| .*All square.*Nobody owes anybody$/ }],
   ];
   try {
     await db.expense.updateMany({ where: { id: { in: hadExpenses.map((x) => x.id) } }, data: { deletedAt: new Date() } });
@@ -290,7 +293,8 @@ if (!desktop && !hosted) {
         await page.setViewportSize({ width: w, height: w === 320 ? 640 : 780 });
         await shot(`n${w}-home-state-${name}`, "/");
       }
-      // A long first name on the narrowest phone: it must shorten with "…" while the amount stays whole.
+      // A long first name on the narrowest phone: the button says "Pay Bhagyalakshmi" (cut with "…" only if it cannot fit), the route
+      // line shortens with "…", and the amount stays whole.
       if (name === "owe") {
         const asha = await db.member.findUnique({ where: { id: A } });
         await db.member.update({ where: { id: A }, data: { name: "Bhagyalakshmi Venkataraman" } });

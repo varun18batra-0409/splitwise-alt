@@ -287,6 +287,12 @@ export function routeEnds(side: "owe" | "owed", firstNames: string[], crowd: "fl
   return side === "owe" ? { from: "You", to: them } : { from: them, to: "You" };
 }
 
+// The first name as written, whole ("Bhagyalakshmi"), for button words. A button that is too narrow cuts it with "…" in the
+// browser (CSS), so nothing is ever dropped here; firstName above (12 letters at most) is for the narrow route line.
+export function firstWord(name: string): string {
+  return name.trim().split(/\s+/)[0] || name.trim();
+}
+
 export function initialOf(name: string): string {
   return ([...name.trim()][0] ?? "?").toUpperCase();
 }
@@ -327,7 +333,7 @@ export type TicketLine = {
   action: TicketAction;
 };
 export type Ticket =
-  | { kind: "square"; label: string; amount: string; action: TicketAction }
+  | { kind: "square"; label: string; amount: string } // no button: the "+ New group" tile below is the only way to start one
   | { kind: "neutral"; label: string; amount: string; exact?: string; context: string; action: TicketAction }
   | { kind: "one"; line: TicketLine; from: string; to: string; mark: GroupMark; context: string }
   | { kind: "both"; lines: [TicketLine, TicketLine]; mark: GroupMark; context: string };
@@ -351,17 +357,46 @@ function ticketLine(side: "owe" | "owed", entries: MoneyPerson[], common: string
     side === "owe"
       ? {
           key: "pay",
-          label: short ? "Pay" : `Pay ${firstName(top.name)}`,
+          label: short ? "Pay" : `Pay ${firstWord(top.name)}`,
           fullLabel: `Pay ${top.name} ${top.approx ? "≈ " : ""}${formatMoney(top.amount, top.currency)}`,
           // Several people in a both-ways ticket: the list where each has a row; otherwise the biggest person's row.
           href: short && count > 1 ? peopleHref : payHref(top, common),
           bright: true,
         }
       : count === 1
-        ? { key: "remind", label: short ? "Remind" : `Remind ${firstName(top.name)}`, fullLabel: `Remind ${top.name} on WhatsApp`, href: remind ?? peopleHref, bright: !short }
+        ? { key: "remind", label: short ? "Remind" : `Remind ${firstWord(top.name)}`, fullLabel: `Remind ${top.name} on WhatsApp`, href: remind ?? peopleHref, bright: !short }
         : { key: "remind", label: short ? "Remind" : "See who to remind", fullLabel: `See the ${count} people who owe you, to remind them`, href: peopleHref, bright: !short };
   const phrase = side === "owe" ? `You owe ${count === 1 ? top.name : name}` : count === 1 ? `${top.name} owes you` : `${name} owe you`;
   return { side, count, phrase, name, amount: total.text, exact: total.exact, faces: count > 1 ? people.slice(0, 3).map((p) => initialOf(p.name)) : [], peopleHref, action };
+}
+
+// ---- The ticket at the top of ONE group ----
+// Same ticket as Home, for this group only. The numbers are the group's own: `mine` is your balance there (what the page already
+// shows) and `transfers` are its Smart Settle payments. Nothing is worked out again here: it only decides which sides to show.
+export type GroupSide = { side: "owe" | "owed"; amount: number; names: string[] };
+
+// Who you pay / who pays you, largest payment first. Money both ways is two sides and is never netted; otherwise one side, with
+// your own balance as the amount (|mine|), exactly as the page showed it before. Nothing owed: no sides (all square).
+export function groupTicketSides(x: { mine: number; myId: string; transfers: { from: string; to: string; amount: number }[]; nameOf: (id: string) => string }): GroupSide[] {
+  const toMe = x.transfers.filter((t) => t.to === x.myId && t.amount > 0).sort((a, b) => b.amount - a.amount);
+  const fromMe = x.transfers.filter((t) => t.from === x.myId && t.amount > 0).sort((a, b) => b.amount - a.amount);
+  const sum = (l: { amount: number }[]) => l.reduce((t, e) => t + e.amount, 0);
+  if (toMe.length > 0 && fromMe.length > 0) {
+    return [
+      { side: "owe", amount: sum(fromMe), names: fromMe.map((t) => x.nameOf(t.to)) },
+      { side: "owed", amount: sum(toMe), names: toMe.map((t) => x.nameOf(t.from)) },
+    ];
+  }
+  if (x.mine === 0) return [];
+  return x.mine > 0
+    ? [{ side: "owed", amount: x.mine, names: toMe.map((t) => x.nameOf(t.from)) }]
+    : [{ side: "owe", amount: -x.mine, names: fromMe.map((t) => x.nameOf(t.to)) }];
+}
+
+// The one quiet line under the amount: "3 payments clear the whole trip", "1 payment clears everything".
+export function clearsLine(payments: number, groupType: string): string {
+  if (payments <= 0) return "Nobody owes anybody";
+  return `${payments === 1 ? "1 payment clears" : `${payments} payments clear`} ${groupType === "trip" ? "the whole trip" : "everything"}`;
 }
 
 // Builds the ticket from what Home already knows. `owe` / `owed`: moneyPeople for each side (largest first). `groups`: every group
@@ -375,7 +410,7 @@ export function homeTicket(x: {
   hero: { text: string; exact?: string };
   groups: InvolvedGroup[];
 }): Ticket {
-  if (x.mode === "square") return { kind: "square", label: "Nobody owes anybody", amount: "All square", action: { key: "new-group", label: "New group", fullLabel: "New group", href: "/groups/new", bright: true } };
+  if (x.mode === "square") return { kind: "square", label: "Nobody owes anybody", amount: "All square" };
   const ranked = rankGroups(x.groups);
   const mark = groupMark(ranked[0]?.type ?? "");
   const context = ticketContext(ranked);

@@ -1,6 +1,5 @@
 import Link from "@/components/Link";
 import { PassportIcon, PeoplePassportsIcon, SquareSeal } from "@/components/DrawnIcons";
-import { pairwiseDebtCount } from "@/lib/settle";
 import { Notice } from "@/components/Notice";
 import { formatMoney, formatPercent } from "@/lib/money";
 import { foreignPartLine, ledgerSummary } from "@/lib/foreign-part";
@@ -18,7 +17,6 @@ import { explainAll } from "@/lib/explain";
 // card fee) sit here rather than crowding the top of the group.
 export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; why?: string }) {
   const { group, myId, net, transfers, nameOf, money, expenses, payments, ledgers, hasMarkup, signed, eq, spent } = v;
-  const before = pairwiseDebtCount(expenses, payments);
   const mine = net[myId] ?? 0;
   const people = group.members.filter((m) => !m.leftAt);
   // Fun titles (habits, never money rankings): one per person at most.
@@ -43,17 +41,8 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
             </Link>
           )}
         </div>
-      ) : (
-        <section className="rounded-2xl border border-line px-4 py-4">
-          <p className="min-w-0 text-sm text-gray-500">
-            <span className="block font-display text-lg font-semibold text-fg">
-              {transfers.length} {transfers.length === 1 ? "payment clears" : "payments clear"} everything
-            </span>
-            {/* One count only: the headline says it; this line adds the "instead of" when Smart Settle saved some. */}
-            {before > transfers.length ? `Instead of ${before}, thanks to Smart Settle.` : null}
-          </p>
-        </section>
-      )}
+      ) : null}
+      {/* "3 payments clear everything" is the ticket line at the top of the group; it is not repeated here. */}
 
       {/* Each person: their balance; tap for exactly why, and who they pay. */}
       <section>

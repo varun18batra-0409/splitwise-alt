@@ -1,6 +1,6 @@
 // Filling in "Add expense" the way a person does (src/components/AddExpenseForm.tsx).
 import { expect, type Page } from "@playwright/test";
-import { settled } from "./app";
+import { openSplit, settled } from "./app";
 
 export type Split =
   | { kind: "everyone" }
@@ -29,6 +29,7 @@ const chip = (page: Page, label: string) => page.getByRole("button", { name: new
 
 export async function fillExpense(page: Page, x: ExpenseInput) {
   if (x.moneyBack) await page.getByRole("radio", { name: "Money back" }).click();
+  await openSplit(page); // the sentence "You paid, split equally between all 4" opens the payer and split controls
   if (x.payers) {
     await page.locator("#expense-name").fill(x.name);
     await page.getByLabel("Amount", { exact: true }).fill(x.amount);

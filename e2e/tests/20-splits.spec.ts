@@ -2,7 +2,7 @@ import { test, expect } from "../fixtures";
 import type { BrowserContext, Page } from "@playwright/test";
 import { testEmail, groupName } from "../env";
 import { signUp } from "../helpers/auth";
-import { contextFor, createGroup, joinGroup, openEdit, readBalances, settled } from "../helpers/app";
+import { contextFor, createGroup, joinGroup, openEdit, openSplit, readBalances, settled } from "../helpers/app";
 import { addExpense, expectRefused, fillExpense } from "../helpers/expense";
 
 // Stage 2 · Every way to split, and changing your mind: edit, delete, undo.
@@ -113,6 +113,7 @@ test("a double tap on Save adds it only once", async () => {
 test("edit the amount: Dinner ₹900 → ₹1,200", async () => {
   await openEdit(A, g.path, "Dinner");
   await A.getByLabel("Amount", { exact: true }).fill("1200");
+  await openSplit(A);
   await A.getByRole("button", { name: "Everyone equally" }).click();
   await A.getByRole("button", { name: "Save changes" }).click();
   await A.waitForURL(/tab=activity/);
@@ -123,6 +124,7 @@ test("edit the amount: Dinner ₹900 → ₹1,200", async () => {
 
 test("edit who paid: Ticket was Alice's, now Bob paid it", async () => {
   await openEdit(A, g.path, "Ticket");
+  await openSplit(A);
   await A.getByRole("button", { name: /^(✓ )?Bob$/ }).first().click();
   await A.getByRole("button", { name: "Save changes" }).click();
   await A.waitForURL(/tab=activity/);
@@ -133,6 +135,7 @@ test("edit who paid: Ticket was Alice's, now Bob paid it", async () => {
 
 test("edit the split: Taxi from Alice + Bob to everyone", async () => {
   await openEdit(A, g.path, "Taxi");
+  await openSplit(A);
   await A.getByRole("button", { name: "Everyone equally" }).click();
   await A.getByRole("button", { name: "Save changes" }).click();
   await A.waitForURL(/tab=activity/);

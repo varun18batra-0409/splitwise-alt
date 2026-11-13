@@ -54,6 +54,12 @@ export async function joinGroup(page: Page, invite: string, groupPath: string) {
   await page.waitForURL(new RegExp(`${groupPath}$`));
 }
 
+// Add expense says "<Payer> paid, split equally between all 4": tapping a part of that sentence opens the payer and split controls.
+export async function openSplit(page: Page) {
+  if (!(await page.locator("[data-split-panel]").count())) await page.locator("[data-sentence-part]").first().click();
+  await page.locator("[data-split-panel]").waitFor();
+}
+
 // Add an expense, paid by the person adding it, split "Everyone equally"
 // (src/components/AddExpenseForm.tsx).
 export async function addEqualExpense(page: Page, groupPath: string, name: string, amount: string) {
@@ -61,6 +67,7 @@ export async function addEqualExpense(page: Page, groupPath: string, name: strin
   await settled(page);
   await page.locator("#expense-name").fill(name);
   await page.getByLabel("Amount", { exact: true }).fill(amount);
+  await openSplit(page);
   await page.getByRole("button", { name: "Everyone equally" }).click();
   await page.getByRole("button", { name: "Save expense" }).click();
   await afterSave(page);

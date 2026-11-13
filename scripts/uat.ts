@@ -420,6 +420,7 @@ async function pickCurrency(page: Page, code: string) {
 }
 async function fillExpense(page: Page, o: AddOpts) {
   const label = (p: string) => (p === o.me ? "You" : p);
+  await openSplit(page);
   if (o.payer) await page.getByRole("button", { name: new RegExp(`^(✓ )?${label(o.payer)}$`) }).first().click();
   await page.locator("#expense-name").fill(o.name);
   if (!o.inGroupCurrency) await pickCurrency(page, o.currency ?? "INR");
@@ -429,7 +430,7 @@ async function fillExpense(page: Page, o: AddOpts) {
     await page.getByRole("button", { name: o.date, exact: true }).click();
   }
   if (o.currency && o.currency !== "INR") {
-    await page.getByRole("button", { name: "Change rate" }).click();
+    await page.getByRole("button", { name: "Details", exact: true }).click(); // the quiet "≈ ₹… with your card's fee" line opens the rate, fee and maths
     await page.getByRole("button", { name: o.method ?? "Card", exact: true }).click();
     if (o.rate) {
       const edit = page.getByRole("button", { name: "Edit rate" });
@@ -445,6 +446,7 @@ async function fillExpense(page: Page, o: AddOpts) {
     }
   }
   // Split: always start from "Everyone equally" (the app remembers the last split).
+  await openSplit(page);
   await page.getByRole("button", { name: "Everyone equally" }).click();
   const s = o.split ?? { kind: "everyone" };
   if (s.kind === "only") {
@@ -470,6 +472,11 @@ async function fillExpense(page: Page, o: AddOpts) {
     await openMore(page);
     await page.getByPlaceholder(/Rahul paid the tip/).fill(o.notes);
   }
+}
+// Add expense says "<Payer> paid, split equally between all 4": tapping a part of that sentence opens the payer and split controls under it.
+async function openSplit(page: Page) {
+  if (!(await page.locator("[data-split-panel]").count())) await page.locator("[data-sentence-part]").first().click();
+  await page.locator("[data-split-panel]").waitFor();
 }
 // Add expense keeps notes, several payers and Spin for it under "More" (closed unless the expense already uses them).
 async function openMore(page: Page) {
@@ -745,6 +752,7 @@ async function main() {
     const href = await editPath(V, "Coffee");
     await go(V, href);
     await V.getByLabel("Amount", { exact: true }).fill("800");
+    await openSplit(V);
     await V.getByRole("button", { name: "Everyone equally" }).click();
     await V.getByRole("button", { name: "Save changes" }).click();
     await V.waitForURL(/tab=activity/);
@@ -758,6 +766,7 @@ async function main() {
     await go(V, href);
     await go(A, href);
     await A.getByLabel("Amount", { exact: true }).fill("240");
+    await openSplit(A);
     await A.getByRole("button", { name: "Everyone equally" }).click();
     await A.getByRole("button", { name: "Save changes" }).click();
     await A.waitForURL(/tab=activity/);
@@ -765,6 +774,7 @@ async function main() {
     e.amount = 24000;
     e.shares = equal(24000, PEOPLE);
     await V.getByLabel("Amount", { exact: true }).fill("999");
+    await openSplit(V);
     await V.getByRole("button", { name: "Everyone equally" }).click();
     await V.getByRole("button", { name: "Save changes" }).click();
     await V.getByText(/changed this expense a moment ago/).waitFor();
@@ -806,10 +816,14 @@ async function main() {
     assert(/75/.test(box), "no ₹75 card fee shown");
     await V.getByRole("button", { name: "Hide details" }).click();
     const line = await V.locator("[data-fx-card] [data-fx-line]").innerText();
-    assert(/2,575/.test(line) && /card fee/.test(line), `one sum line: ${line}`);
+    assert(/2,575/.test(line) && /3% fee/.test(line), `one quiet line: ${line}`);
     const card = await V.locator("[data-fx-card]").innerText();
-    assert(/Balances stay in INR/.test(card) && /Change rate/.test(card) && /Card fee: 3%/.test(card), `foreign card controls: ${card.replace(/\s+/g, " ")}`);
-    assert((card.match(/2,575/g) ?? []).length === 1, `the sum is repeated on the foreign card: ${card.replace(/\s+/g, " ")}`);
+    assert(/Details/.test(card), `the foreign line has no Details link: ${card.replace(/\s+/g, " ")}`);
+    assert((card.match(/2,575/g) ?? []).length === 1, `the sum is repeated on the foreign line: ${card.replace(/\s+/g, " ")}`);
+    await V.getByRole("button", { name: "Details", exact: true }).click();
+    const maths = await V.locator("[data-fx-maths]").innerText();
+    assert(/Balances stay in INR/.test(maths) && /2,575/.test(maths), `the details lost the maths: ${maths.replace(/\s+/g, " ")}`);
+    await V.getByRole("button", { name: "Hide details" }).click();
     await save(V, { me: "Varun", name: "", amount: "" });
     ledger.push({ key: "Beach shack", payer: "Varun", amount: 257500, shares: equal(257500, PEOPLE), active: true });
     return checkBalances(V, g);
@@ -868,9 +882,12 @@ async function main() {
     await V.getByRole("link", { name: "Why?" }).first().waitFor();
   });
   await step(V, "Simple screens", "Balances only explains; paying happens on Settle up (no duplicate buttons)", async () => {
+    // “3 payments clear the whole trip” is the ticket's line at the top of the group, no longer a card of its own on Balances.
+    await go(V, g);
+    await V.getByText(/payments? clears? (the whole trip|everything)/).first().waitFor();
     await go(V, `${g}?tab=balances`);
     assert((await V.getByRole("button", { name: "Mark as paid" }).count()) === 0, "Balances still has Mark as paid");
-    await V.getByText(/payments? clears? everything/).first().waitFor();
+    assert((await V.getByText(/payments? clears? everything/).count()) === 0, "Balances still repeats the payments-clear card");
     await V.getByText("spent across").first().waitFor();
   });
   await step(V, "Simple screens", "Activity has one Filter button that opens search, category and person", async () => {
@@ -1212,6 +1229,7 @@ async function main() {
   await step(V, "Couples", "Money back: Asha got ₹200 back, shared 55 / 45 → Asha owes ₹960", async () => {
     await go(V, `${gc}/add`);
     await V.getByRole("radio", { name: "Money back" }).click();
+    await openSplit(V);
     await V.getByRole("button", { name: /^(✓ )?Asha$/ }).first().click();
     await V.locator("#expense-name").fill("Refund");
     await V.getByLabel("Amount", { exact: true }).fill("200");
@@ -1304,7 +1322,9 @@ async function main() {
     const keys = (await money.locator("[data-money-action]").evaluateAll((els) => els.map((e) => e.getAttribute("data-money-action")))).join(",");
     const labels = await money.locator("[data-money-action]").allInnerTexts();
     if (kind === "square") {
-      assert(tone === "square" && keys === "new-group" && /All square/.test(text), `all-square card: ${tone} ${keys} ${text}`);
+      // All square: the words only, no button (the “+ New group” tile below is the only way to start one).
+      assert(tone === "square" && keys === "" && /All square/.test(text) && /Nobody owes anybody/.test(text), `all-square card: ${tone} ${keys} ${text}`);
+      assert((await money.getByRole("link").count()) === 0, "the all-square card still has a button");
       assert((await money.locator("[data-money-people]").count()) === 0, "the money card names people when nothing is owed");
     } else if (kind === "neutral") {
       assert(keys === "settle" && /^Settle up$/.test(labels[0].trim()), `neutral card buttons: ${keys}`);
@@ -1758,6 +1778,7 @@ async function main() {
     await V.locator('li[id^="item-"] details > summary').filter({ hasText: "Water" }).first().click();
     const href = await V.getByRole("link", { name: "Edit or delete" }).first().getAttribute("href");
     await go(V, href!);
+    await openSplit(V);
     await V.getByRole("button", { name: /^(✓ )?Asha$/ }).first().click();
     await V.getByRole("button", { name: "Save changes" }).click();
     await V.waitForURL(/tab=activity/);
@@ -2366,6 +2387,7 @@ async function main() {
     const before = await shownBalances(V, g);
     const href = await editPath(V, "Coffee");
     await go(V, href);
+    await openSplit(V);
     await V.getByRole("button", { name: "Only some" }).click();
     for (const [who, want] of [["You", true], ["Asha", true], ["Ravi", false], ["Zoe", false]] as const) {
       const b = V.getByRole("button", { name: new RegExp(`^(✓ )?${who}$`) }).last();
@@ -2981,6 +3003,7 @@ async function main() {
     await go(V, `/groups/${grp.id}/add`);
     await V.locator("#expense-name").fill("Ramen");
     await V.getByLabel("Amount", { exact: true }).fill("1000");
+    await openSplit(V);
     await V.getByRole("button", { name: "Everyone equally" }).click();
     await save(V, { me: "Varun", name: "Ramen", amount: "1000" });
     const t = await V.locator("main").innerText();
@@ -3201,15 +3224,29 @@ async function main() {
     await V.getByRole("group", { name: "Quick line" }).getByRole("status").filter({ hasText: "Check below" }).waitFor();
   });
 
-  await step(V, "Add", "Add expense is tidy: the date under the amount, one Faster entry row (Scan a bill · Speak · Type a line), then What was it?, Who paid and the split; notes, several payers and Spin sit under a closed More; the summary line sits above Save", async () => {
+  await step(V, "Add", "Add expense is tidy: the amount, the day under it, one What was it? field with Scan a bill · Speak · Type a line inside it, then one sentence for who paid and the split; notes, several payers and Spin sit under a closed More link; the result for you sits in that card", async () => {
     await go(V, `${g}/add`);
     await V.getByLabel("Amount", { exact: true }).fill("1200");
     await V.locator("#expense-name").fill("Beach dinner");
     const row = V.getByRole("group", { name: "Faster entry" });
-    assert((await row.getByRole("button").allTextContents()).map((t) => t.trim()).join("|").match(/^(Scan a bill|Bill photo)\|Speak\|Type a line$/), "the Faster entry row isn't Scan a bill · Speak · Type a line");
+    const names = await row.getByRole("button").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
+    assert(names.join("|").match(/^(Scan a bill|Bill photo)\|Speak\|Type a line$/), `the Faster entry icons aren't Scan a bill · Speak · Type a line: ${names.join("|")}`);
     const y = async (loc: ReturnType<Page["locator"]>) => (await loc.first().boundingBox())!.y;
-    const order = [await y(V.getByRole("button", { name: /^(Today|Yesterday)/ })), await y(row), await y(V.locator("#expense-name")), await y(V.getByText("Who paid?")), await y(V.getByText("How to split?"))];
+    const order = [await y(V.getByRole("button", { name: /^(Today|Yesterday)/ })), await y(V.locator("#expense-name")), await y(V.locator("[data-sentence]"))];
     assert(order.every((v, i) => i === 0 || v > order[i - 1]), `the form order is off: ${order.map(Math.round).join(", ")}`);
+    // The icons sit inside the same field as the name.
+    const inField = await row.evaluate((el) => Boolean(el.parentElement?.querySelector("#expense-name")));
+    assert(inField, "the Faster entry icons aren't inside the What was it? field");
+    // The sentence says who paid and how it splits; tapping a part opens the real controls under it.
+    const sentence = (await V.locator("[data-sentence]").innerText()).replace(/\s+/g, " ");
+    assert(/^You paid, split .+ between .+/.test(sentence), `the sentence reads: ${sentence}`);
+    assert((await V.locator("[data-payer-row]").count()) === 0, "the payer chips show before the sentence is tapped");
+    await V.locator("[data-sentence-part]").first().click();
+    assert((await V.locator("[data-payer-row]").count()) === 1 && (await V.locator("[data-split-row]").count()) === 1, "tapping the sentence didn't open Who paid / How to split");
+    const result = (await V.locator("[data-expense-result]").innerText()).replace(/\s+/g, " ");
+    assert(/You (get back|owe)|Just you|Nobody owes/.test(result), `the result for you reads: ${result}`);
+    assert((await V.locator("[data-expense-summary]").count()) === 1, "the one-line summary under the result is missing");
+    assert((await V.locator("[data-fx-card]").count()) === 0, "the foreign-currency line shows on an expense in the group's own currency");
     const more = V.locator("[data-more] > button");
     assert((await more.getAttribute("aria-expanded")) === "false", "More isn't closed to start with");
     assert((await V.getByPlaceholder(/Rahul paid the tip/).count()) === 0, "notes are showing while More is closed");
@@ -3217,15 +3254,6 @@ async function main() {
     await V.getByPlaceholder(/Rahul paid the tip/).waitFor();
     await V.getByRole("switch", { name: /More than one person paid/ }).waitFor();
     await V.getByRole("button", { name: /Spin for it/ }).waitFor();
-    await V.locator("[data-expense-summary]").waitFor();
-    const pill = await V.locator("[data-expense-summary]").evaluate((el) => {
-      const c = getComputedStyle(el);
-      return { bg: c.backgroundColor, ws: c.whiteSpace, overflow: c.textOverflow, cut: el.scrollWidth > el.clientWidth + 1 };
-    });
-    assert(!/rgba\(.*,\s*0?\.\d+\)$/.test(pill.bg) && pill.bg !== "rgba(0, 0, 0, 0)", `the summary pill is see-through: ${pill.bg}`);
-    // F4: money is never cut off with an ellipsis: the pill wraps onto a second line instead.
-    assert(pill.ws !== "nowrap" && pill.overflow !== "ellipsis" && !pill.cut, "the summary pill is still clipped with an ellipsis instead of wrapping");
-    assert((await V.locator("[data-payer-row]").count()) === 1 && (await V.locator("[data-split-row]").count()) === 1, "Who paid / How to split chips aren't each one scrolling row");
   });
   await step(V, "Add", "Editing an expense that has notes opens More by itself, so nothing is hidden", async () => {
     const e = await db.expense.findFirstOrThrow({ where: { groupId: g.split("/").pop()!, deletedAt: null, NOT: { notes: "" } }, orderBy: { createdAt: "desc" } });
@@ -3494,9 +3522,11 @@ async function main() {
   await step(V, "Money", "Money back bigger than a share: Meera gets ₹600 back for the minibus, shared by all 12 (₹50 each)", async () => {
     await go(V, `${tw.path}/add`);
     await V.getByRole("radio", { name: "Money back" }).click();
+    await openSplit(V);
     await V.getByRole("button", { name: /^(✓ )?Meera$/ }).first().click();
     await V.locator("#expense-name").fill("Minibus refund");
     await V.getByLabel("Amount", { exact: true }).fill("600");
+    await openSplit(V);
     const everyone = V.getByRole("button", { name: "Everyone equally" });
     if (await everyone.count()) await everyone.click();
     await save(V, { me: "Varun", name: "Minibus refund", amount: "600" }, "Save money back");

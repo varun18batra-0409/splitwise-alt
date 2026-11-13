@@ -88,6 +88,21 @@ export function placePhoto(tripName: string): { slot: string; src: string } | nu
   return null;
 }
 
+// The real photo a trip's picture (polaroid, ticket stub, countdown thumb, hero) shows instead of drawn art, or undefined.
+// The place is read from the name AND "Where to?" (the same text the story ring uses), so "Boys trip" to Manali gets Manali.
+//  - the group's own photo, a photo picked on purpose, or "plain": left alone;
+//  - no picture chosen: the place photo (a mood or friends photo when the place isn't known, as before);
+//  - a drawn picture stored on the group (e.g. the sunset beach): replaced by the photo only when the place is known.
+// Flats, couples and game nights are never given one.
+export function tripPhotoSrc(g: { name: string; type?: string | null; cover?: string | null; coverAt?: Date | null; tripPlace?: string | null }): string | undefined {
+  if (g.type !== "trip") return undefined;
+  const text = `${g.name} ${g.tripPlace ?? ""}`;
+  const c = g.cover ?? "";
+  if (c === "plain" || c.startsWith("photo-") || (c === "own" && g.coverAt)) return undefined;
+  if (c === "" || c === "own") return placePhoto(text)?.src;
+  return placeSlot(text) ? placePhoto(text)?.src : undefined;
+}
+
 // Which slot a name points at, before checking the download (for tests).
 export function placeSlot(tripName: string): string | null {
   return PLACES.find(([re]) => re.test(tripName))?.[1] ?? null;

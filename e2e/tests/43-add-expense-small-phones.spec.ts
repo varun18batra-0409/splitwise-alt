@@ -3,7 +3,7 @@ import { testEmail, groupName } from "../env";
 import { signUp } from "../helpers/auth";
 import { allowTestCopy, contextFor, createGroup, joinGroup, settled } from "../helpers/app";
 
-// Add expense's Faster entry row on small phones: icon above the label, nothing cut off, buttons at least 48px tall.
+// Add expense's faster-entry icons on small phones: inside the name field, nothing cut off, buttons at least 44px tall.
 // Also: the several-payers row is one 44px tap target that includes its words.
 for (const [w, h] of [
   [320, 568],
@@ -23,19 +23,20 @@ for (const [w, h] of [
     const page = await ctx.newPage();
     await page.goto(`${g.path}/add`);
     await settled(page);
+    // The three faster ways in are small icon buttons inside the "What was it?" field: each at least 44px tall,
+    // all inside the field, and the name box still has room to type in.
     const buttons = page.getByRole("group", { name: "Faster entry" }).getByRole("button");
     expect(await buttons.count()).toBeGreaterThanOrEqual(3);
+    const field = (await page.locator("#expense-name").evaluate((el) => el.parentElement!.getBoundingClientRect().toJSON())) as { left: number; right: number };
     for (let i = 0; i < (await buttons.count()); i++) {
-      const b = buttons.nth(i);
-      const m = await b.evaluate((el) => {
-        const label = el.querySelector("span") as HTMLElement;
-        return { sw: el.scrollWidth, cw: el.clientWidth, lw: label.scrollWidth, lcw: label.clientWidth, lsh: label.scrollHeight, lch: label.clientHeight, h: el.getBoundingClientRect().height };
-      });
-      expect(m.sw, `button ${i} width`).toBeLessThanOrEqual(m.cw);
-      expect(m.lw, `label ${i} width`).toBeLessThanOrEqual(m.lcw);
-      expect(m.lsh, `label ${i} height (2 lines at most)`).toBeLessThanOrEqual(m.lch + 1);
-      expect(m.h, `button ${i} height`).toBeGreaterThanOrEqual(48);
+      const box = (await buttons.nth(i).boundingBox())!;
+      expect(box.height, `button ${i} height`).toBeGreaterThanOrEqual(44);
+      expect(box.width, `button ${i} width`).toBeGreaterThanOrEqual(36);
+      expect(box.x, `button ${i} inside the field (left)`).toBeGreaterThanOrEqual(field.left);
+      expect(box.x + box.width, `button ${i} inside the field (right)`).toBeLessThanOrEqual(field.right + 1);
+      expect(await buttons.nth(i).getAttribute("aria-label"), `button ${i} has a name`).toBeTruthy();
     }
+    expect((await page.locator("#expense-name").boundingBox())!.width, "room left to type the name").toBeGreaterThanOrEqual(80);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
 
     // Several payers: tapping the words flips the switch; the row is 44px tall.

@@ -2,7 +2,7 @@ import { test, expect } from "../fixtures";
 import type { BrowserContext, Page } from "@playwright/test";
 import { testEmail, groupName } from "../env";
 import { signUp, type TestUser } from "../helpers/auth";
-import { addEqualExpense, contextFor, createGroup, joinGroup, openEdit, readBalances, settled } from "../helpers/app";
+import { addEqualExpense, contextFor, createGroup, joinGroup, openEdit, openSplit, readBalances, settled } from "../helpers/app";
 
 // 3 and 4. Three people in one trip: an equal split, then an edit.
 // The tests in this file run in order and share the group.
@@ -53,6 +53,7 @@ test("must-fail check: a wrong expected balance is caught", async () => {
 test("edit the amount (₹900 → ₹1,200): balances recalculate to +₹800 / −₹400 / −₹400", async () => {
   await openEdit(A, group.path, "Dinner");
   await A.getByLabel("Amount", { exact: true }).fill("1200");
+  await openSplit(A);
   await A.getByRole("button", { name: "Everyone equally" }).click();
   await A.getByRole("button", { name: "Save changes" }).click();
   await A.waitForURL(/tab=activity/);

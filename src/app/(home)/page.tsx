@@ -52,7 +52,7 @@ import { homeTicket, mixedDirections, moneyMode, moneyPeople, rankGroups, type I
 import { TripRow } from "@/components/TripRow";
 import { Stories } from "@/components/Stories";
 import { buildStories } from "@/lib/home/stories";
-import { placePhoto, placePhotos } from "@/lib/places";
+import { placePhotos, tripPhotoSrc } from "@/lib/places";
 import { GroupCards, type GroupCardData } from "@/components/HomeGroups";
 import { tripTag } from "@/lib/home/group-card";
 import { loadNeedsYou } from "@/lib/needs-you";
@@ -383,7 +383,9 @@ export default async function Home({
     id: g.group.id,
     name: g.group.name,
     cover: coverFor(g.group),
-    photo: g.group.type === "trip" && !g.group.cover ? placePhoto(g.group.name)?.src : undefined,
+    // A trip shows its place's real photo whenever it has none of its own (also when a drawn picture was stored): the same on its
+    // polaroid, the ticket's stub and the countdown thumb.
+    photo: tripPhotoSrc(g.group),
     balance: g.myBalance,
     money: (n: number) => formatMoney(n, g.group.currency),
     show: (n: number) => homeMoney(n, g.group.currency),
@@ -690,13 +692,16 @@ export default async function Home({
                   <p className="relative text-[13px] text-fg/55">{month.wrapped ? "Your month, wrapped" : "Your month so far"}</p>
                   <p className="relative mt-1 font-display text-[27px] font-semibold leading-[1.1]">{month.name} in numbers</p>
                   <div className="relative mb-4 mt-5 flex flex-wrap items-end gap-x-4 gap-y-2 min-[360px]:gap-x-5" data-month-stats>
-                    <p className="shrink-0">
-                      <span className="block money text-[19px] font-semibold tabular-nums" data-month-share title={formatMoney(month.share, month.currency)} data-exact={formatMoney(month.share, month.currency)}>
-                        {month.converted ? "≈ " : ""}
-                        {homeMoney(month.share, month.currency)}
-                      </span>
-                      <span className="block whitespace-nowrap text-xs text-gray-600">your share</span>
-                    </p>
+                    {/* No "₹0 your share": a zero is left out. */}
+                    {month.share !== 0 && (
+                      <p className="shrink-0">
+                        <span className="block money text-[19px] font-semibold tabular-nums" data-month-share title={formatMoney(month.share, month.currency)} data-exact={formatMoney(month.share, month.currency)}>
+                          {month.converted ? "≈ " : ""}
+                          {homeMoney(month.share, month.currency)}
+                        </span>
+                        <span className="block whitespace-nowrap text-xs text-gray-600">your share</span>
+                      </p>
+                    )}
                     <p className="shrink-0">
                       <span className="block money text-[19px] font-semibold tabular-nums">{month.count}</span>
                       <span className="block whitespace-nowrap text-xs text-gray-600">{month.count === 1 ? "expense" : "expenses"}</span>

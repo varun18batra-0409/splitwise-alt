@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   amountTier,
+  clearsLine,
   crowdWord,
+  firstWord,
   groupMark,
+  groupTicketSides,
   homeTicket,
   initialOf,
   moneyPeople,
@@ -126,10 +129,32 @@ describe("the amount never adds two currencies", () => {
 });
 
 describe("the ticket for each money situation", () => {
-  it("nothing owed: all square, one “New group” button, no amounts", () => {
+  it("nothing owed: “All square” and “Nobody owes anybody”, no button at all (the “+ New group” tile below is the only one)", () => {
     const t = ticketFor([], {}, "square");
     expect(t).toMatchObject({ kind: "square", amount: "All square", label: "Nobody owes anybody" });
-    if (t.kind === "square") expect(t.action).toMatchObject({ key: "new-group", label: "New group", href: "/groups/new" });
+    expect(t).not.toHaveProperty("action");
+    expect(JSON.stringify(t)).not.toContain("New group");
+  });
+
+  it("the Pay button uses the whole first name: “Pay Bhagyalakshmi” (13 letters), the full name stays in the screen-reader label", () => {
+    const groups = [grp("g1", "Goa", "INR", [["b", "Bhagyalakshmi Venkataraman", 1000000]])];
+    const t = ticketFor(groups, { g1: "trip" }, "owe");
+    expect(t.kind).toBe("one");
+    if (t.kind !== "one") return;
+    expect(t.line.action.label).toBe("Pay Bhagyalakshmi");
+    expect(t.line.action.fullLabel).toBe("Pay Bhagyalakshmi Venkataraman ₹10,000");
+    // The narrow route line still shortens: 11 letters and “…” (firstName caps at 12).
+    expect(t.to).toBe("Bhagyalaksh…");
+  });
+
+  it("the Remind button uses the first name: “Remind Kabir”, “Remind Priyadarshini”", () => {
+    expect(firstWord("Kabir Rao")).toBe("Kabir");
+    expect(firstWord("  Priyadarshini   Rao ")).toBe("Priyadarshini");
+    expect(firstWord("Madonna")).toBe("Madonna");
+    const groups = [grp("g1", "Flat", "INR", [], [["p", "Priyadarshini Rao", 500000]])];
+    const t = ticketFor(groups, { g1: "home" }, "owed");
+    expect(t.kind === "one" && t.line.action.label).toBe("Remind Priyadarshini");
+    expect(t.kind === "one" && t.line.action.fullLabel).toBe("Remind Priyadarshini Rao on WhatsApp");
   });
 
   it("you owe Nupur ₹54,122 in a trip: route You to Nupur with a plane, the orange side, “Pay Nupur”", () => {
@@ -236,6 +261,42 @@ describe("the ticket for each money situation", () => {
     const groups = [grp("g1", "Goa", "INR", [["n", "Nupur", 5000]], [["k", "Kabir", 9000]])];
     expect(JSON.stringify(ticketFor(groups, { g1: "trip" }, "owed"))).not.toContain("Add expense");
     expect(JSON.stringify(ticketFor([], {}, "square"))).not.toContain("Add expense");
+  });
+});
+
+describe("the ticket at the top of one group", () => {
+  const names: Record<string, string> = { me: "You", a: "Asha Rao", b: "Ravi", c: "Meera" };
+  const nameOf = (id: string) => names[id] ?? "Someone";
+  const sides = (mine: number, transfers: { from: string; to: string; amount: number }[]) => groupTicketSides({ mine, myId: "me", transfers, nameOf });
+
+  it("you owe: one side, your own balance as the amount (₹3,000 + ₹1,200 = 300000 + 120000 = 420000 paise = ₹4,200), the biggest payment first", () => {
+    expect(sides(-420000, [{ from: "me", to: "b", amount: 120000 }, { from: "me", to: "a", amount: 300000 }])).toEqual([{ side: "owe", amount: 420000, names: ["Asha Rao", "Ravi"] }]);
+  });
+
+  it("you're owed: one side, Meera pays you; the amount is your balance (₹2,500 = 250000 paise)", () => {
+    expect(sides(250000, [{ from: "c", to: "me", amount: 250000 }, { from: "a", to: "b", amount: 5000 }])).toEqual([{ side: "owed", amount: 250000, names: ["Meera"] }]);
+  });
+
+  it("money both ways stays two lines, never netted: you pay Asha ₹1,000 and Meera pays you ₹2,500 (not ₹1,500)", () => {
+    const s = sides(150000, [{ from: "me", to: "a", amount: 100000 }, { from: "c", to: "me", amount: 250000 }]);
+    expect(s).toEqual([
+      { side: "owe", amount: 100000, names: ["Asha Rao"] },
+      { side: "owed", amount: 250000, names: ["Meera"] },
+    ]);
+    expect(JSON.stringify(s)).not.toContain("150000");
+  });
+
+  it("square: no sides (the ticket says “All square” with no button)", () => {
+    expect(sides(0, [])).toEqual([]);
+    expect(sides(0, [{ from: "a", to: "b", amount: 700 }])).toEqual([]);
+  });
+
+  it("the quiet line: “3 payments clear the whole trip”, “1 payment clears everything” in a flat, “Nobody owes anybody” when there are none", () => {
+    expect(clearsLine(3, "trip")).toBe("3 payments clear the whole trip");
+    expect(clearsLine(1, "trip")).toBe("1 payment clears the whole trip");
+    expect(clearsLine(1, "home")).toBe("1 payment clears everything");
+    expect(clearsLine(2, "pot")).toBe("2 payments clear everything");
+    expect(clearsLine(0, "trip")).toBe("Nobody owes anybody");
   });
 });
 
