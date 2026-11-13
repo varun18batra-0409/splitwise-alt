@@ -1,9 +1,10 @@
 // What one payment row on Settle up offers. The same rules everywhere:
-//   one FILLED main button  – "Open payment app" (I'm paying and they have one) or "Remind" (I'm owed)
-//   one OUTLINED action     – "I've paid" (a claim: counts after Confirm received), or the same words recorded straight away
-//                             where the other person can't confirm; "Mark paid" for money owed to me and for others
-//   one quiet text link     – "Paid a different amount?"
-// A row with no main button makes its one action the filled one. Never two buttons that look alike.
+//   one big action on the ticket – "Pay Nupur" (I'm paying: it opens the steps, where "Open payment app" lives) or "Remind Meera" (I'm owed);
+//                             cream on the screen's first ticket, an outline pill on the others
+//   one quiet text action   – "I've paid" (a claim: counts after Confirm received, or the same words recorded straight away
+//                             where the other person can't confirm) or "Mark paid" for money owed to me and for others
+//   one quiet "More ›"      – "Paid a different amount?"
+// The plan below is unchanged: only how it is drawn changed. Never two cream buttons on one screen.
 
 import { needsOkFor } from "./payment-ok";
 

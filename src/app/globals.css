@@ -788,3 +788,20 @@ body:has([data-tint]) {
 .hit-lg::after {
   inset: -18px 0;
 }
+
+/* Payment recorded: the torn-off stub drops a few pixels and turns, once. With reduced motion it simply sits turned. */
+@keyframes lp-stub-drop {
+  from {
+    transform: translateY(-6px) rotate(0deg);
+  }
+}
+.lp-stub {
+  transform: rotate(-4deg);
+  transform-origin: 12% 0;
+  animation: lp-stub-drop 420ms cubic-bezier(0.2, 0.7, 0.2, 1) 1 both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-stub {
+    animation: none;
+  }
+}

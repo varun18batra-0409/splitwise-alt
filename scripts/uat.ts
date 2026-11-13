@@ -937,7 +937,7 @@ async function main() {
     await other.click();
     await page.waitForURL(/\/pay\?/);
     if (o.amount !== undefined) await page.locator('input[name="amount"]:not([type="hidden"])').fill(o.amount);
-    const b = page.getByRole("button", { name: "Record payment" });
+    const b = page.getByRole("button", { name: /^Record / });
     if (o.dbl) await b.dblclick();
     else await b.click();
   };
@@ -962,7 +962,7 @@ async function main() {
       const apps = await row.locator("[data-pay]").count();
       // One filled button when there is any pay option (a second saved way, e.g. PayPal, is a quiet "or pay with" link, never filled).
       // A payment between two other people has a quiet outline "Mark paid" (yours is the filled one); a waiting claim has none.
-      const quiet = filled === 0 && ((await row.locator("[data-claim-waiting], [data-claim-above]").count()) > 0 || (await row.locator("[data-mark-paid]").count()) >= 1);
+      const quiet = filled === 0 && ((await row.locator("[data-claim-waiting], [data-claim-above]").count()) > 0 || (await row.locator("[data-mark-paid], [data-i-paid]").count()) >= 1);
       assert((apps <= 1 && filled === 1) || quiet, `row ${i} has ${filled} filled buttons`);
       assert((await row.locator('input[name="amount"]:not([type="hidden"])').count()) === 0, `row ${i} still has an amount box`);
       assert((await row.getByText("Mark paid", { exact: true }).count()) <= 1, `row ${i} has look-alike buttons`);
@@ -1046,7 +1046,7 @@ async function main() {
     const before = await checkBalances(V, g);
     await mine.first().locator("[data-i-paid]").click();
     await V.waitForURL(/claimed=1/);
-    await V.getByText("Waiting for Asha to confirm").waitFor();
+    await V.getByRole("heading", { name: "Waiting for Asha" }).waitFor();
     await checkBalances(V, g); // the claim moved nothing
     // Asha's Alerts lists it once, under "Needs you" (not again in Activity).
     await go(A, "/notifications");
@@ -1060,23 +1060,34 @@ async function main() {
     assert((await A.locator('[data-need="claim"]').count()) === 0, "Needs you still lists the confirmed claim");
     return `${before} → after Confirm: ${await checkBalances(V, g)}`;
   });
+  // Record a payment: From and To are folded away until tapped (the To list starts open when nobody is picked yet).
+  const pickFrom = async (page: Page, name: string) => {
+    const l = page.locator("label", { hasText: name }).first();
+    if (!(await l.isVisible())) await page.locator('[data-pick="from"]').click();
+    await l.click();
+  };
+  const pickTo = async (page: Page, name: string) => {
+    const l = page.locator("label[data-to]", { hasText: name });
+    if (!(await l.isVisible())) await page.locator('[data-pick="to"]').click();
+    await l.click();
+  };
   await step(V, "Settle", "Record a different payment on the payment screen (Zoe paid Asha ₹50)", async () => {
     await go(V, `${g}/pay`);
-    await V.locator("label", { hasText: "Zoe" }).first().click();
-    await V.locator("label[data-to]", { hasText: "Asha" }).click();
+    await pickFrom(V, "Zoe");
+    await pickTo(V, "Asha");
     await V.locator('input[name="amount"]:not([type="hidden"])').fill("50");
-    await V.getByRole("button", { name: "Record payment" }).click();
+    await V.getByRole("button", { name: /^Record / }).click();
     await V.waitForURL(/paid=1/);
     payments.push({ from: "Zoe", to: "Asha", amount: 5000, active: true, key: "manual" });
     return checkBalances(V, g);
   });
   await step(V, "Settle", "Paying more than owed (an extra zero) asks first and saves nothing until confirmed", async () => {
     await go(V, `${g}/pay`);
-    await V.locator("label", { hasText: "Zoe" }).first().click();
-    await V.locator("label[data-to]", { hasText: "Asha" }).click();
+    await pickFrom(V, "Zoe");
+    await pickTo(V, "Asha");
     await V.locator('input[name="amount"]:not([type="hidden"])').fill("50000");
     const before = await db.payment.count({ where: { groupId: g.split("/").pop()!, deletedAt: null } });
-    await V.getByRole("button", { name: "Record payment" }).click();
+    await V.getByRole("button", { name: /^Record / }).click();
     await V.locator("[data-over-warning]").waitFor();
     const t = (await V.locator("[data-over-warning]").innerText()).replace(/\s+/g, " ");
     // Two wordings, depending on whether the person paid is owed anything right now (pay-record.ts overpayQuestion).
@@ -1089,7 +1100,7 @@ async function main() {
   });
   await step(V, "Settle", "You can't record paying yourself", async () => {
     await go(V, `${g}/pay`);
-    await V.locator("label", { hasText: "Asha" }).first().click();
+    await pickFrom(V, "Asha");
     const target = V.locator("label[data-to]", { hasText: "Asha" });
     assert(!(await target.isVisible()), "“Asha → Asha” is still offered under Paid to");
     // Even if forced, the server says no.
@@ -1100,7 +1111,7 @@ async function main() {
       if (r) r.checked = true;
     });
     await V.locator('input[name="amount"]:not([type="hidden"])').fill("10");
-    await V.getByRole("button", { name: "Record payment" }).click();
+    await V.getByRole("button", { name: /^Record / }).click();
     await V.getByText(/two different people/).waitFor();
   });
   await step(V, "Settle", "Settle everything & close, then reopen", async () => {

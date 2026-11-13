@@ -8,7 +8,7 @@ import type { PayButton } from "@/lib/pay-links";
 //   who pays whom + the amount
 //   one FILLED main button  ("Open payment app" or "Remind"; other saved ways are quiet "or pay with PayPal" links),
 //   one OUTLINED button      ("I've paid" / "Mark paid"),
-//   a quiet "More options" link that opens "Paid a different amount?".
+//   a quiet "More ›" link that opens "Paid a different amount?".
 // If a row has no main button, its one action button becomes the filled one.
 
 export const mainButtonClass = "pop inline-flex min-h-11 flex-1 basis-40 items-center justify-center gap-1.5 bg-fg px-4 text-sm font-semibold text-canvas";
@@ -59,8 +59,10 @@ export function PayAppButtons({ buttons }: { buttons: PayButton[] }) {
 // It sits under a quiet "More options" link so a row shows one main button and nothing else competing with it.
 export function DifferentAmountLink({ href, label = "Paid a different amount?" }: { href: string; label?: string }) {
   return (
-    <details className="group" data-more-options>
-      <summary className="mt-1 inline-flex min-h-11 cursor-pointer list-none items-center text-sm font-medium text-fg/70 underline underline-offset-4 [&::-webkit-details-marker]:hidden">More options</summary>
+    <details className="group text-right" data-more-options>
+      <summary className="inline-flex min-h-11 cursor-pointer list-none items-center justify-end text-[13.5px] font-medium text-fg/75 [&::-webkit-details-marker]:hidden">
+        More <span aria-hidden>›</span>
+      </summary>
       <Link href={href} className="inline-flex min-h-11 items-center text-sm font-medium text-fg/85 underline underline-offset-4" data-different-amount>
         {label}
       </Link>
