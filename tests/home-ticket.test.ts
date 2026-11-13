@@ -100,7 +100,7 @@ describe("the route line", () => {
 });
 
 describe("the amount never adds two currencies", () => {
-  it("one currency: ₹12,00,000 + ₹11,00,000 paise-wise = 1200000 + 1100000 + 848000 = 3148000 paise = ₹31,480", () => {
+  it("one currency: ₹12,000 + ₹11,000 + ₹8,480 = 1200000 + 1100000 + 848000 = 3148000 paise = ₹31,480", () => {
     const e = peopleOf([grp("g1", "Flat 402", "INR", [], [["k", "Kabir", 1200000], ["a", "Asha", 1100000], ["m", "Meera", 848000]])], "owed");
     expect(sideTotal(e).text).toBe("₹31,480");
   });
@@ -155,14 +155,14 @@ describe("the ticket for each money situation", () => {
     expect(t.line.action.href).toBe(remindHref(peopleOf(groups, "owed")[0]));
   });
 
-  it("three flatmates owe you 12,000 + 11,000 + 8,480 = ₹31,480: “3 flatmates” to You, faces K A M, “Remind all 3” to the list", () => {
+  it("three flatmates owe you 12,000 + 11,000 + 8,480 = ₹31,480: “3 flatmates” to You, faces K A M, “See who to remind” to the list (one at a time there; no bulk send)", () => {
     const groups = [grp("g1", "Flat 402", "INR", [], [["a", "Asha", 1100000], ["k", "Kabir", 1200000], ["m", "Meera", 848000]])];
     const t = ticketFor(groups, { g1: "home" }, "owed");
     expect(t.kind).toBe("one");
     if (t.kind !== "one") return;
     expect(t).toMatchObject({ from: "3 flatmates", to: "You" });
     expect(t.line).toMatchObject({ count: 3, amount: "₹31,480", faces: ["K", "A", "M"], peopleHref: "/settle#remind" });
-    expect(t.line.action).toMatchObject({ key: "remind", label: "Remind all 3", href: "/settle#remind" });
+    expect(t.line.action).toMatchObject({ key: "remind", label: "See who to remind", href: "/settle#remind" });
   });
 
   it("you owe three people: “You” to “3 people”, and Pay goes to the biggest one (Kabir ₹12,000)", () => {
@@ -241,10 +241,10 @@ describe("the ticket for each money situation", () => {
 
 describe("the status under each polaroid's name", () => {
   const f = (n: number) => `₹${n / 100}`;
-  it("owe: “You owe ₹541.22”-style words in the owe colour; owed: “Owed …”; even: “✓ All settled”", () => {
+  it("owe: “You owe ₹541.22”-style words in the owe colour; owed: “Owed …”; even: “✓ You’re square” (you, not the whole group)", () => {
     expect(cardStatus(-5412200, (n) => `₹${n / 100}`)).toEqual({ text: "You owe ₹54122", tone: "owe" });
     expect(cardStatus(300000, f)).toEqual({ text: "Owed ₹3000", tone: "owed" });
-    expect(cardStatus(0, f)).toEqual({ text: "✓ All settled", tone: "square" });
+    expect(cardStatus(0, f)).toEqual({ text: "✓ You’re square", tone: "square" });
   });
   it("it is the same balance and tone as the polaroid's tag hook, only the words differ", () => {
     for (const b of [-5412200, 0, 300000]) expect(cardStatus(b, f).tone).toBe(cardBalance(b, f).tone);

@@ -270,7 +270,7 @@ if (!desktop && !hosted) {
     // Varun paid ₹22,916 for Kabir's share of the flat: Kabir owes Varun 2291600 paise.
     ["owed-one", () => addExpense(flatId, FV, [[FK, 2291600]]), { kind: "one", has: /^one \| Kabir .*You .*₹22,916 .*Remind Kabir$/ }],
     // Varun paid ₹31,480 for the trip, shared by Asha 12,000 + Ravi 11,000 + Meera 8,480 (1200000 + 1100000 + 848000 = 3148000 paise).
-    ["owed-several", () => addExpense(tripId, V, [[A, 1200000], [R, 1100000], [M, 848000]]), { kind: "one", has: /^one \| 3 people .*You .*₹31,480 .*Remind all 3$/ }],
+    ["owed-several", () => addExpense(tripId, V, [[A, 1200000], [R, 1100000], [M, 848000]]), { kind: "one", has: /^one \| 3 people .*You .*₹31,480 .*See who to remind$/ }],
     // Both ways, in two groups so nobody is netted: Varun owes Asha ₹4,200 (trip) and Kabir owes Varun ₹22,916 (flat).
     ["both", async () => { await addExpense(tripId, A, [[V, 420000]]); await addExpense(flatId, FV, [[FK, 2291600]]); }, { kind: "both", has: /^both \| You owe Asha .*₹4,200 Pay Kabir owes you .*₹22,916 Remind$/ }],
     // Nothing added: every balance is 0.

@@ -1398,7 +1398,7 @@ async function main() {
     assert(hrefs.length > 0 && new Set(hrefs).size === hrefs.length, `group cards: ${hrefs.join(" ")}`);
     // Every card says where you stand in words that are not just a colour.
     for (const t of await V.locator("[data-group-card]").evaluateAll((els) => els.map((e) => ({ tone: e.getAttribute("data-tone"), text: (e as HTMLElement).innerText })))) {
-      if (t.tone === "square") assert(/All settled/.test(t.text), `a square card says: ${t.text}`);
+      if (t.tone === "square") assert(/You’re square/.test(t.text), `a square card says: ${t.text}`);
       else assert(t.tone === "owed" ? /^Owed /m.test(t.text) : /You owe /.test(t.text), `a ${t.tone} card says: ${t.text}`);
     }
     // One stories row at most, and not again lower down; no row at all when there are no stories.

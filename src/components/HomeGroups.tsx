@@ -5,7 +5,7 @@ import type { CoverChoice } from "@/lib/covers";
 import { CARD_ROW_MAX, cardBalance, cardStatus, rowEnd } from "@/lib/home/group-card";
 
 // "Your groups" on Home: a row of polaroids you swipe sideways. Each shows the group's own picture, its name in handwriting,
-// and its status under it ("You owe ₹54,122" in orange, "Owed ₹3,450" and "✓ All settled" in green). A trip that is on carries a small
+// and its status under it ("You owe ₹54,122" in orange, "Owed ₹3,450" and "✓ You’re square" in green). A trip that is on carries a small
 // tag on its photo ("Day 2 of 5"). Cards tilt a little, alternately; the tilt is off for people who ask for less motion.
 // The first card is a dashed "+ New group" (one tap to the new-group page); the polaroids are 140px wide so the next one peeks in.
 

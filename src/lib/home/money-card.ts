@@ -359,7 +359,7 @@ function ticketLine(side: "owe" | "owed", entries: MoneyPerson[], common: string
         }
       : count === 1
         ? { key: "remind", label: short ? "Remind" : `Remind ${firstName(top.name)}`, fullLabel: `Remind ${top.name} on WhatsApp`, href: remind ?? peopleHref, bright: !short }
-        : { key: "remind", label: short ? "Remind" : `Remind all ${count}`, fullLabel: `Remind all ${count} people who owe you`, href: peopleHref, bright: !short };
+        : { key: "remind", label: short ? "Remind" : "See who to remind", fullLabel: `See the ${count} people who owe you, to remind them`, href: peopleHref, bright: !short };
   const phrase = side === "owe" ? `You owe ${count === 1 ? top.name : name}` : count === 1 ? `${top.name} owes you` : `${name} owe you`;
   return { side, count, phrase, name, amount: total.text, exact: total.exact, faces: count > 1 ? people.slice(0, 3).map((p) => initialOf(p.name)) : [], peopleHref, action };
 }
