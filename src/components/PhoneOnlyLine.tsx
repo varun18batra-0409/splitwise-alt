@@ -5,7 +5,7 @@ import Link from "@/components/Link";
 export function PhoneOnlyLine({ back, className = "" }: { back?: string; className?: string }) {
   return (
     <div className={`flex min-h-11 items-center justify-between gap-3 px-1 text-[13.5px] ${className}`} data-phone-only role="note">
-      <span className="text-fg/55">Saved on this phone only</span>
+      <span className="text-fg/55">Saved on this phone</span>
       <Link
         href={back ? `/signin?${new URLSearchParams({ back })}` : "/signin"}
         className="flex min-h-11 shrink-0 items-center font-semibold text-fg active:opacity-70"

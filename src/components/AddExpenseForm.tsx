@@ -22,7 +22,7 @@ import { dayKey, todayKey } from "@/lib/dates";
 import { addDays } from "@/lib/local-time";
 import { inputClass, primaryButtonClass } from "./ui";
 import { errorNeedsMore, fasterEntryColumns, shouldOpenMore } from "@/lib/add-expense-more";
-import { currencySign, resultSentence, splitSubline, whoRowPhrase } from "@/lib/add-expense-sentence";
+import { currencySign, groupDigits, resultSentence, splitSubline, whoRowPhrase } from "@/lib/add-expense-sentence";
 
 type Member = { id: string; name: string };
 type RateState =
@@ -79,6 +79,8 @@ export function AddExpenseForm({
   // 1–4: what, how much, category, currency
   const [name, setName] = useState(initial?.name ?? "");
   const [amount, setAmount] = useState(initial?.amount ?? "");
+  // Commas are only drawn while the field is not focused; `amount` itself stays as typed, so what is read and saved is unchanged.
+  const [amountFocused, setAmountFocused] = useState(false);
   const today = todayKey(new Date(), tz);
   const yesterday = addDays(today, -1);
   const [date, setDate] = useState(initial?.date ?? today);
@@ -442,7 +444,15 @@ export function AddExpenseForm({
   const payerText = preview.ok ? (payersNow.length > 1 ? payersLabel(payersNow, who) : who(payersNow[0].memberId)) : multiPay ? "Several people" : who(paidById);
   const payerFirst = preview.ok ? payersNow[0].memberId : paidById;
   const shareAmounts = preview.ok ? preview.expense.shares.map((s) => s.amount) : [];
-  const eachEqual = preview.ok && !byItem && splitType === "equal" && shareAmounts.length > 1 && shareAmounts.every((a) => a === shareAmounts[0]) ? money(shareAmounts[0]) : null;
+  // "Equally · ฿450 each": in the expense's own currency (฿1,800 / 4), even when the saved group-currency shares differ by a paisa or
+  // carry a card fee. Shown only when the typed amount divides evenly; otherwise (same currency) the saved shares must all be equal.
+  const eachEqual = (() => {
+    if (!preview.ok || byItem || splitType !== "equal" || shareAmounts.length < 2) return null;
+    const n = participants.length;
+    const o = preview.expense.originalAmount;
+    if (foreign) return n > 1 && o % n === 0 ? orig(o / n) : null;
+    return shareAmounts.every((a) => a === shareAmounts[0]) ? base(shareAmounts[0]) : null;
+  })();
   const whoText = whoRowPhrase(participants, myId, who);
   const howText = splitSubline({ byItem, splitType, groupSplitOn, splitName, each: eachEqual });
   const resultParts = preview.ok
@@ -505,14 +515,16 @@ export function AddExpenseForm({
             {currencySign(currency)}
           </span>
           <input
-            value={amount}
+            value={amountFocused ? amount : groupDigits(amount, currency)}
             onChange={(e) => setAmount(e.target.value)}
+            onFocus={() => setAmountFocused(true)}
+            onBlur={() => setAmountFocused(false)}
             inputMode="decimal"
             placeholder="0"
             autoComplete="off"
             aria-label="Amount"
             autoFocus={!initial?.name}
-            size={Math.max(2, amount.length + 1)}
+            size={Math.max(2, (amountFocused ? amount : groupDigits(amount, currency)).length + 1)}
             className="min-w-0 max-w-full bg-transparent text-center font-display font-semibold tracking-[-0.02em] text-fg caret-fg outline-none placeholder:text-fg/25 focus-visible:shadow-[inset_0_-1px_0_0_rgb(244_242_236/0.22)]"
           />
         </div>
@@ -1459,7 +1471,7 @@ export function AddExpenseForm({
 
       {/* Always in reach: the save buttons ride along at the bottom while you scroll the form. */}
       <div className="sticky bottom-[max(1rem,env(safe-area-inset-bottom))] z-10 -mx-2 mt-6">
-      <div className="rounded-[28px] border border-line bg-[#0d0d0f] px-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] pt-1.5 shadow-[0_18px_40px_-14px_rgba(0,0,0,0.85)]">
+      <div className="rounded-[28px] bg-[#0d0d0f] px-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] pt-1.5 shadow-[0_18px_40px_-14px_rgba(0,0,0,0.85)]">
       <div>
         <button
           type="submit"

@@ -10,13 +10,13 @@ import { paymentEffectLabel, paymentSubline, paymentTitle } from "@/lib/payment-
 // Right-hand side: what it meant for you. The amount first (bold), what it is
 // underneath; rows that weren't yours stay quiet.
 function Effect({ label, amount, exact, sub, cls }: { label: string; amount?: string; exact?: string; sub?: string; cls: string }) {
-  if (!amount) return <span className="shrink-0 text-right text-[12px] leading-tight text-fg/60">{label}</span>;
+  if (!amount) return <span className="shrink-0 whitespace-nowrap text-right text-[12px] leading-tight text-fg/60">{label}</span>;
   return (
-    <span className="shrink-0 text-right leading-tight">
+    <span className="shrink-0 whitespace-nowrap text-right leading-tight">
       <span className={`block text-[15px] font-semibold tabular-nums tracking-tight ${cls}`} title={exact} data-exact={exact}>{amount}</span>
       <span className="mt-0.5 block text-[11px] text-fg/60">
         {label}
-        {sub && <span className="tabular-nums"> · {sub}</span>}
+        {sub && <span className="whitespace-nowrap tabular-nums"> · {sub}</span>}
       </span>
     </span>
   );
@@ -76,7 +76,7 @@ export function ActivityRow({
             {paymentTitle(nameOf(item.fromId), to, item.status, deleted)}
           </p>
           <p className={meta}>
-            {paymentSubline(item.status, to, deleted, deletedNote)} · <span title={money(item.amount)} data-exact={money(item.amount)}>{short(item.amount)}</span>
+            {paymentSubline(item.status, to, deleted, deletedNote)} · <span className="whitespace-nowrap" title={money(item.amount)} data-exact={money(item.amount)}>{short(item.amount)}</span>
             {groupName && ` · ${groupName}`}
           </p>
         </div>
@@ -97,7 +97,7 @@ export function ActivityRow({
         <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-semibold tracking-tight">{neutralGameText(item.title)}</p>
           <p className={meta}>
-            Game result · {(item.payerIds ?? [item.paidById]).map(nameOf).join(" + ")} came out ahead by <span title={money(item.amount)} data-exact={money(item.amount)}>{short(item.amount)}</span>
+            Game result · {(item.payerIds ?? [item.paidById]).map(nameOf).join(" + ")} came out ahead by <span className="whitespace-nowrap" title={money(item.amount)} data-exact={money(item.amount)}>{short(item.amount)}</span>
             {groupName && ` · ${groupName}`}
           </p>
         </div>
@@ -117,7 +117,7 @@ export function ActivityRow({
   const shown = (orig: number, base: number) => {
     const exact = o ? formatMoney(orig, o.currency) : money(base);
     return (
-      <span title={exact} data-exact={exact}>
+      <span className="whitespace-nowrap" title={exact} data-exact={exact}>
         {o ? overviewMoney(orig, o.currency) : short(base)}
       </span>
     );
@@ -135,24 +135,24 @@ export function ActivityRow({
             </svg>
           )}
         </p>
-        <p className={meta}>
-          {deleted
-            ? <>{deletedNote} · {shown(o?.amount ?? 0, item.amount)}</>
-            : (
-                <>
-                  {(item.payerIds ?? [item.paidById]).map((id, i) => (
-                    // A long name is cut with "…" so "paid THB 225" always stays on the row.
-                    <span key={id}>
-                      {i > 0 && " + "}
-                      <span className="inline-block max-w-[8.5rem] truncate align-bottom" title={nameOf(id)}>{nameOf(id)}</span>
-                    </span>
-                  ))}{" "}
-                  {item.refund ? "got back" : "paid"} {shown(o?.amount ?? 0, item.amount)}
-                </>
-              )}
-          {item.edited && !deleted && " · edited"}
-          {groupName && ` · ${groupName}`}
-        </p>
+        {deleted ? (
+          <p className={meta}>
+            {deletedNote} · {shown(o?.amount ?? 0, item.amount)}
+            {groupName && ` · ${groupName}`}
+          </p>
+        ) : (
+          // One line: the names take what is left and are cut with "…"; "paid THB 225" and the amount column never squeeze them to nothing.
+          <p className="mt-0.5 flex min-w-0 items-baseline gap-x-1 text-[13px] leading-snug text-fg/60">
+            <span className="min-w-0 truncate" title={(item.payerIds ?? [item.paidById]).map(nameOf).join(" + ")}>
+              {(item.payerIds ?? [item.paidById]).map(nameOf).join(" + ")}
+            </span>
+            <span className="shrink-0 whitespace-nowrap">
+              {item.refund ? "got back" : "paid"} {shown(o?.amount ?? 0, item.amount)}
+              {item.edited && " · edited"}
+            </span>
+            {groupName && <span className="min-w-0 shrink truncate">· {groupName}</span>}
+          </p>
+        )}
       </div>
       {deleted ? (
         <Effect label="deleted" cls="" />

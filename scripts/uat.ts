@@ -3222,7 +3222,7 @@ async function main() {
     await V.getByLabel("Type the expense in one line").fill("Snacks 600 split with everyone");
     await V.getByRole("button", { name: "Fill", exact: true }).click();
     assert((await V.locator("#expense-name").inputValue()) === "Snacks", `name is “${await V.locator("#expense-name").inputValue()}”`);
-    assert((await V.getByLabel("Amount", { exact: true }).inputValue()) === "600", "amount not filled");
+    assert((await V.getByLabel("Amount", { exact: true }).inputValue()).replace(/,/g, "") === "600", "amount not filled");
     await V.getByRole("group", { name: "Quick line" }).getByRole("status").filter({ hasText: "Check below" }).waitFor();
   });
 

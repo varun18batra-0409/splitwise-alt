@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { howPhrase, whoPhrase, youResult, currencySign, resultSentence, whoRowPhrase, splitSubline } from "@/lib/add-expense-sentence";
+import { howPhrase, whoPhrase, youResult, currencySign, resultSentence, whoRowPhrase, splitSubline, groupDigits } from "@/lib/add-expense-sentence";
 import { expensePairs } from "@/lib/payers";
 
 const names: Record<string, string> = { me: "You", asha: "Asha", ravi: "Ravi", meera: "Meera" };
@@ -169,5 +169,26 @@ describe("Add expense sentence: the small currency sign", () => {
     expect(currencySign("SGD")).toBe("S$");
     expect(currencySign("NZD")).toBe("NZ$");
     expect(currencySign("HKD")).toBe("HK$");
+  });
+});
+
+describe("groupDigits (display only: the typed amount is what is saved)", () => {
+  it("INR is lakh style, others are thousands", () => {
+    expect(groupDigits("123456", "INR")).toBe("1,23,456");
+    expect(groupDigits("1000", "INR")).toBe("1,000");
+    expect(groupDigits("100", "INR")).toBe("100");
+    expect(groupDigits("1234567.5", "INR")).toBe("12,34,567.5");
+    expect(groupDigits("1800", "THB")).toBe("1,800");
+    expect(groupDigits("1234567", "USD")).toBe("1,234,567");
+  });
+  it("anything that is not plain digits is left exactly as typed", () => {
+    expect(groupDigits("12,50", "INR")).toBe("12,50");
+    expect(groupDigits("", "INR")).toBe("");
+    expect(groupDigits("1,000", "INR")).toBe("1,000");
+  });
+  it("what the form reads is unchanged: the grouped text parses to the same amount", async () => {
+    const { parseAmount } = await import("@/lib/money");
+    expect(parseAmount(groupDigits("123456", "INR"), "INR")).toBe(parseAmount("123456", "INR"));
+    expect(parseAmount(groupDigits("1800", "THB"), "THB")).toBe(parseAmount("1800", "THB"));
   });
 });

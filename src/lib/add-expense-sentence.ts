@@ -115,3 +115,13 @@ export function currencySign(code: string): string {
     return code;
   }
 }
+
+// "1234567" -> "12,34,567" for INR (lakh style), "1,234,567" for the rest. Plain digits (and a decimal part) only: anything else
+// the person typed (their own commas, "12,50") is shown exactly as typed. Display only.
+export function groupDigits(raw: string, currency: string): string {
+  const m = /^(\d+)(\.\d*)?$/.exec(raw.trim());
+  if (!m) return raw;
+  const int = m[1].replace(/^0+(?=\d)/, "");
+  const grouped = currency === "INR" ? int.replace(/\B(?=(\d{2})*\d{3}$)/g, ",") : int.replace(/\B(?=(\d{3})+$)/g, ",");
+  return grouped + (m[2] ?? "");
+}

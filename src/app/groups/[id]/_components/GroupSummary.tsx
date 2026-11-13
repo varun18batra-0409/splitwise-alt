@@ -34,12 +34,12 @@ export function GroupSummary({ v, sp, compact }: { v: GroupView; sp: Notices; co
   };
   // One quiet line: how many payments clear it all, and the "Why?" link (it opens your balance's explanation in Balances).
   const context = (
-    <p className="mt-1.5 text-[13.5px] leading-snug text-fg/55" data-ticket-context>
-      {clearsLine(v.transfers.length, group.type)}
+    <p className="mt-1.5 flex min-w-0 items-baseline gap-1.5 whitespace-nowrap text-[13.5px] leading-snug text-fg/55" data-ticket-context>
+      <span className="min-w-0 truncate">{clearsLine(v.transfers.length, group.type)}</span>
       {hasHistory && (
         <>
-          {" · "}
-          <Link href={`/groups/${group.id}?tab=balances&why=${myId}#why-${myId}`} className="font-semibold text-fg underline underline-offset-4">
+          <span aria-hidden className="shrink-0">·</span>
+          <Link href={`/groups/${group.id}?tab=balances&why=${myId}#why-${myId}`} className="shrink-0 text-[12.5px] font-semibold text-fg underline underline-offset-4">
             Why?
           </Link>
         </>
