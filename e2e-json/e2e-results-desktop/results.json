@@ -1,0 +1,3831 @@
+{
+  "config": {
+    "argv": [
+      "/opt/hostedtoolcache/node/22.23.4/x64/bin/node",
+      "/home/runner/work/splitwise-alt/splitwise-alt/node_modules/.bin/playwright",
+      "test",
+      "--project=desktop"
+    ],
+    "configFile": "/home/runner/work/splitwise-alt/splitwise-alt/playwright.config.ts",
+    "rootDir": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests",
+    "failOnFlakyTests": false,
+    "forbidOnly": true,
+    "fullyParallel": false,
+    "globalSetup": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/global-setup.ts",
+    "globalTeardown": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/global-teardown.ts",
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "ci": {
+        "commitHref": "https://github.com/varun18batra-0409/splitwise-alt/commit/db7d581f29e5863f0afa74756d7469523a8ff1eb",
+        "commitHash": "db7d581f29e5863f0afa74756d7469523a8ff1eb",
+        "buildHref": "https://github.com/varun18batra-0409/splitwise-alt/actions/runs/43462140081"
+      },
+      "gitCommit": {
+        "shortHash": "db7d581",
+        "hash": "db7d581f29e5863f0afa74756d7469523a8ff1eb",
+        "subject": "Record a payment: the browser no longer blocks the submit (noValidate); a missing payer or payee opens its list with a spoken message, and the server's own checks speak for the rest; pay-screens test fixture corrected [full]",
+        "body": "Record a payment: the browser no longer blocks the submit (noValidate); a missing payer or payee opens its list with a spoken message, and the server's own checks speak for the rest; pay-screens test fixture corrected [full]\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01DdYmojZ2oAK4s63cW98eWz\n",
+        "author": {
+          "name": "Claude",
+          "email": "noreply@anthropic.com",
+          "time": 1794586966000
+        },
+        "committer": {
+          "name": "Claude",
+          "email": "noreply@anthropic.com",
+          "time": 1794586966000
+        },
+        "branch": "exercise-a"
+      },
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/home/runner/work/splitwise-alt/splitwise-alt/e2e-results-desktop",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "ci": {
+            "commitHref": "https://github.com/varun18batra-0409/splitwise-alt/commit/db7d581f29e5863f0afa74756d7469523a8ff1eb",
+            "commitHash": "db7d581f29e5863f0afa74756d7469523a8ff1eb",
+            "buildHref": "https://github.com/varun18batra-0409/splitwise-alt/actions/runs/43462140081"
+          },
+          "gitCommit": {
+            "shortHash": "db7d581",
+            "hash": "db7d581f29e5863f0afa74756d7469523a8ff1eb",
+            "subject": "Record a payment: the browser no longer blocks the submit (noValidate); a missing payer or payee opens its list with a spoken message, and the server's own checks speak for the rest; pay-screens test fixture corrected [full]",
+            "body": "Record a payment: the browser no longer blocks the submit (noValidate); a missing payer or payee opens its list with a spoken message, and the server's own checks speak for the rest; pay-screens test fixture corrected [full]\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01DdYmojZ2oAK4s63cW98eWz\n",
+            "author": {
+              "name": "Claude",
+              "email": "noreply@anthropic.com",
+              "time": 1794586966000
+            },
+            "committer": {
+              "name": "Claude",
+              "email": "noreply@anthropic.com",
+              "time": 1794586966000
+            },
+            "branch": "exercise-a"
+          },
+          "actualWorkers": 1
+        },
+        "id": "phone",
+        "name": "phone",
+        "testDir": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 90000
+      },
+      {
+        "outputDir": "/home/runner/work/splitwise-alt/splitwise-alt/e2e-results-desktop",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "ci": {
+            "commitHref": "https://github.com/varun18batra-0409/splitwise-alt/commit/db7d581f29e5863f0afa74756d7469523a8ff1eb",
+            "commitHash": "db7d581f29e5863f0afa74756d7469523a8ff1eb",
+            "buildHref": "https://github.com/varun18batra-0409/splitwise-alt/actions/runs/43462140081"
+          },
+          "gitCommit": {
+            "shortHash": "db7d581",
+            "hash": "db7d581f29e5863f0afa74756d7469523a8ff1eb",
+            "subject": "Record a payment: the browser no longer blocks the submit (noValidate); a missing payer or payee opens its list with a spoken message, and the server's own checks speak for the rest; pay-screens test fixture corrected [full]",
+            "body": "Record a payment: the browser no longer blocks the submit (noValidate); a missing payer or payee opens its list with a spoken message, and the server's own checks speak for the rest; pay-screens test fixture corrected [full]\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01DdYmojZ2oAK4s63cW98eWz\n",
+            "author": {
+              "name": "Claude",
+              "email": "noreply@anthropic.com",
+              "time": 1794586966000
+            },
+            "committer": {
+              "name": "Claude",
+              "email": "noreply@anthropic.com",
+              "time": 1794586966000
+            },
+            "branch": "exercise-a"
+          },
+          "actualWorkers": 1
+        },
+        "id": "iphone",
+        "name": "iphone",
+        "testDir": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 90000
+      },
+      {
+        "outputDir": "/home/runner/work/splitwise-alt/splitwise-alt/e2e-results-desktop",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "ci": {
+            "commitHref": "https://github.com/varun18batra-0409/splitwise-alt/commit/db7d581f29e5863f0afa74756d7469523a8ff1eb",
+            "commitHash": "db7d581f29e5863f0afa74756d7469523a8ff1eb",
+            "buildHref": "https://github.com/varun18batra-0409/splitwise-alt/actions/runs/43462140081"
+          },
+          "gitCommit": {
+            "shortHash": "db7d581",
+            "hash": "db7d581f29e5863f0afa74756d7469523a8ff1eb",
+            "subject": "Record a payment: the browser no longer blocks the submit (noValidate); a missing payer or payee opens its list with a spoken message, and the server's own checks speak for the rest; pay-screens test fixture corrected [full]",
+            "body": "Record a payment: the browser no longer blocks the submit (noValidate); a missing payer or payee opens its list with a spoken message, and the server's own checks speak for the rest; pay-screens test fixture corrected [full]\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01DdYmojZ2oAK4s63cW98eWz\n",
+            "author": {
+              "name": "Claude",
+              "email": "noreply@anthropic.com",
+              "time": 1794586966000
+            },
+            "committer": {
+              "name": "Claude",
+              "email": "noreply@anthropic.com",
+              "time": 1794586966000
+            },
+            "branch": "exercise-a"
+          },
+          "actualWorkers": 1
+        },
+        "id": "desktop",
+        "name": "desktop",
+        "testDir": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 90000
+      }
+    ],
+    "filteredProjects": [
+      {
+        "grep": {},
+        "grepInvert": null,
+        "outputDir": "/home/runner/work/splitwise-alt/splitwise-alt/e2e-results-desktop",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "ci": {
+            "commitHref": "https://github.com/varun18batra-0409/splitwise-alt/commit/db7d581f29e5863f0afa74756d7469523a8ff1eb",
+            "commitHash": "db7d581f29e5863f0afa74756d7469523a8ff1eb",
+            "buildHref": "https://github.com/varun18batra-0409/splitwise-alt/actions/runs/43462140081"
+          },
+          "gitCommit": {
+            "shortHash": "db7d581",
+            "hash": "db7d581f29e5863f0afa74756d7469523a8ff1eb",
+            "subject": "Record a payment: the browser no longer blocks the submit (noValidate); a missing payer or payee opens its list with a spoken message, and the server's own checks speak for the rest; pay-screens test fixture corrected [full]",
+            "body": "Record a payment: the browser no longer blocks the submit (noValidate); a missing payer or payee opens its list with a spoken message, and the server's own checks speak for the rest; pay-screens test fixture corrected [full]\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01DdYmojZ2oAK4s63cW98eWz\n",
+            "author": {
+              "name": "Claude",
+              "email": "noreply@anthropic.com",
+              "time": 1794586966000
+            },
+            "committer": {
+              "name": "Claude",
+              "email": "noreply@anthropic.com",
+              "time": 1794586966000
+            },
+            "branch": "exercise-a"
+          },
+          "actualWorkers": 1
+        },
+        "name": "desktop",
+        "testDir": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests",
+        "snapshotDir": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests",
+        "testIgnore": [],
+        "testMatch": "**/*.@(spec|test).?(c|m)[jt]s?(x)",
+        "timeout": 90000,
+        "use": {
+          "baseURL": "http://localhost:3000",
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/158.0.8127.18 Safari/537.36",
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "screen": {
+            "width": 1920,
+            "height": 1080
+          },
+          "deviceScaleFactor": 1,
+          "isMobile": false,
+          "hasTouch": false,
+          "defaultBrowserType": "chromium",
+          "locale": "en-IN",
+          "timezoneId": "Asia/Kolkata",
+          "screenshot": "only-on-failure",
+          "trace": "retain-on-failure",
+          "video": "off",
+          "actionTimeout": 20000,
+          "navigationTimeout": 45000,
+          "browserName": "chromium"
+        },
+        "dependencies": [],
+        "ignoreSnapshots": false,
+        "__projectId": "desktop"
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "html",
+        {
+          "outputFolder": "e2e-report-desktop",
+          "open": "never"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "e2e-results-desktop/results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "default",
+    "updateSourceMethod": "patch",
+    "version": "1.65.0",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "01-home.spec.ts",
+      "file": "01-home.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "first visit shows the tour, then a start screen with the main ways in",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4737,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:42:50.532Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "c4396361884a96dbe527-0073738c94912c3781ba",
+          "file": "01-home.spec.ts",
+          "line": 7,
+          "column": 1
+        },
+        {
+          "title": "key pages open from Home: guide, sign in, moving over from another app, privacy, terms",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5688,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:42:55.382Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "c4396361884a96dbe527-6ca213c95ae4626ce512",
+          "file": "01-home.spec.ts",
+          "line": 19,
+          "column": 1
+        },
+        {
+          "title": "FAQ: opens from the You page; questions open on tap; the data answer links to the privacy details",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4592,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:43:01.084Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "c4396361884a96dbe527-d298aeebff1d4e15817d",
+          "file": "01-home.spec.ts",
+          "line": 54,
+          "column": 1
+        },
+        {
+          "title": "search engines: robots.txt, sitemap, title, description, share image; private screens kept out",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1203,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:43:05.689Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "c4396361884a96dbe527-2b98746c6a3fb13d2786",
+          "file": "01-home.spec.ts",
+          "line": 68,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "02-auth-group.spec.ts",
+      "file": "02-auth-group.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "sign up with an email code, then create a group",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5558,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:43:06.990Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "ee11c564567e4afa4e43-d35dc20f059c412fdec7",
+          "file": "02-auth-group.spec.ts",
+          "line": 8,
+          "column": 1
+        },
+        {
+          "title": "a wrong sign-in code is refused",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4555,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:43:12.560Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "ee11c564567e4afa4e43-9cef7a27fb2c8cf95e62",
+          "file": "02-auth-group.spec.ts",
+          "line": 46,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "03-expenses.spec.ts",
+      "file": "03-expenses.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "equal split across three people: ₹900 dinner → Alice gets ₹600, Bob and Cara owe ₹300 each",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/03-expenses.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2970,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:43:17.132Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/03-expenses.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "edd28e4a9f2bc13ada0b-e533b1970889e494ce7e",
+          "file": "03-expenses.spec.ts",
+          "line": 34,
+          "column": 1
+        },
+        {
+          "title": "must-fail check: a wrong expected balance is caught",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/03-expenses.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                },
+                {
+                  "type": "fail",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/03-expenses.spec.ts",
+                    "line": 48,
+                    "column": 8
+                  }
+                }
+              ],
+              "expectedStatus": "failed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 802,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m60100\u001b[39m\nReceived: \u001b[31m60000\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m60100\u001b[39m\nReceived: \u001b[31m60000\u001b[39m\n    at /home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/03-expenses.spec.ts:50:23",
+                    "location": {
+                      "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/03-expenses.spec.ts",
+                      "column": 23,
+                      "line": 50
+                    },
+                    "snippet": "  48 |   test.fail();\n  49 |   const shown = await readBalances(A, group.path);\n> 50 |   expect(shown.Alice).toBe(60100); // deliberately ₹1 off\n     |                       ^\n  51 | });\n  52 |\n  53 | test(\"edit the amount (₹900 → ₹1,200): balances recalculate to +₹800 / −₹400 / −₹400\", async () => {"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/03-expenses.spec.ts",
+                        "column": 23,
+                        "line": 50
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m60100\u001b[39m\nReceived: \u001b[31m60000\u001b[39m\n\n  48 |   test.fail();\n  49 |   const shown = await readBalances(A, group.path);\n> 50 |   expect(shown.Alice).toBe(60100); // deliberately ₹1 off\n     |                       ^\n  51 | });\n  52 |\n  53 | test(\"edit the amount (₹900 → ₹1,200): balances recalculate to +₹800 / −₹400 / −₹400\", async () => {\n    at /home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/03-expenses.spec.ts:50:23"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:43:26.296Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/03-expenses.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    },
+                    {
+                      "type": "fail",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/03-expenses.spec.ts",
+                        "line": 48,
+                        "column": 8
+                      }
+                    }
+                  ],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/home/runner/work/splitwise-alt/splitwise-alt/e2e-results-desktop/03-expenses-must-fail-chec-f1636--expected-balance-is-caught-desktop/error-context.md"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/03-expenses.spec.ts",
+                    "column": 23,
+                    "line": 50
+                  }
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "edd28e4a9f2bc13ada0b-fb0b5c44479c6a9fe46d",
+          "file": "03-expenses.spec.ts",
+          "line": 46,
+          "column": 1
+        },
+        {
+          "title": "edit the amount (₹900 → ₹1,200): balances recalculate to +₹800 / −₹400 / −₹400",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/03-expenses.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3502,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:43:27.162Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/03-expenses.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "edd28e4a9f2bc13ada0b-a8426216a7adbdd1cbb1",
+          "file": "03-expenses.spec.ts",
+          "line": 53,
+          "column": 1
+        },
+        {
+          "title": "Insights add up: your share and group spend match what was entered, and Home's month card agrees",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/03-expenses.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3925,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:43:30.686Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/03-expenses.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "edd28e4a9f2bc13ada0b-c8aeb660b2a8e571f1ca",
+          "file": "03-expenses.spec.ts",
+          "line": 67,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "05-splitwise-import.spec.ts",
+      "file": "05-splitwise-import.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "import the supplied Splitwise CSV: 4 expenses, ₹10,810, Nupur MDI gets ₹105 / Varun Batra owes ₹105",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "BLOCKED: the Splitwise CSV wasn't supplied (secret E2E_SPLITWISE_CSV_B64 / E2E_SPLITWISE_CSV).",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/05-splitwise-import.spec.ts",
+                    "line": 24,
+                    "column": 8
+                  }
+                }
+              ],
+              "expectedStatus": "skipped",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "skipped",
+                  "duration": 13,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:43:35.016Z",
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "BLOCKED: the Splitwise CSV wasn't supplied (secret E2E_SPLITWISE_CSV_B64 / E2E_SPLITWISE_CSV).",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/05-splitwise-import.spec.ts",
+                        "line": 24,
+                        "column": 8
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "skipped"
+            }
+          ],
+          "id": "ac9bbb850474aad08ef4-e7b8a89f26a0aaac54cb",
+          "file": "05-splitwise-import.spec.ts",
+          "line": 23,
+          "column": 1
+        },
+        {
+          "title": "import a sample Splitwise export (fictional people): 2 expenses + 1 payment, Asha +₹300 / Kabir −₹300",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3803,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:43:35.036Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "ac9bbb850474aad08ef4-8d8f3dba8fc51e98ba30",
+          "file": "05-splitwise-import.spec.ts",
+          "line": 88,
+          "column": 1
+        },
+        {
+          "title": "a Loopin group spreadsheet is brought over as it was: Ann +₹500 / Ben −₹500",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3008,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:43:38.848Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "ac9bbb850474aad08ef4-8f82f4cd4a21dedf3701",
+          "file": "05-splitwise-import.spec.ts",
+          "line": 113,
+          "column": 1
+        },
+        {
+          "title": "another app's spreadsheet: columns guessed, people found, balances right (Lea +€60 / Max −€15 / Tom −€45)",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3055,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:43:41.869Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "ac9bbb850474aad08ef4-0143b227fd92a8b2c3ca",
+          "file": "05-splitwise-import.spec.ts",
+          "line": 135,
+          "column": 1
+        },
+        {
+          "title": "a file without a “paid by” column asks which column is which instead of guessing",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1861,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:43:44.936Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "ac9bbb850474aad08ef4-cd990dc428a9ba3a03b6",
+          "file": "05-splitwise-import.spec.ts",
+          "line": 157,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "10-auth.spec.ts",
+      "file": "10-auth.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "sign out of this phone, sign back in: your groups come back",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/10-auth.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5306,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:43:46.813Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/10-auth.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "ac83b14a7b16420aa61e-64eb5292cf6082f81507",
+          "file": "10-auth.spec.ts",
+          "line": 9,
+          "column": 1
+        },
+        {
+          "title": "sign out other phones: the other phone loses your groups, this one keeps them",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/10-auth.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5502,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:43:52.128Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/10-auth.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "ac83b14a7b16420aa61e-b540e841822e061af548",
+          "file": "10-auth.spec.ts",
+          "line": 31,
+          "column": 1
+        },
+        {
+          "title": "someone outside a group sees “Private group” (no name, no join code), and can’t download it",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/10-auth.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2923,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:43:57.641Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/10-auth.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "ac83b14a7b16420aa61e-6dc9059f135e6bfa2311",
+          "file": "10-auth.spec.ts",
+          "line": 60,
+          "column": 1
+        },
+        {
+          "title": "fingerprint / face: turn it on, sign out, sign back in with one touch, remove it",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/10-auth.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3689,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:44:00.574Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/10-auth.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "ac83b14a7b16420aa61e-45922bd60e91e6a62109",
+          "file": "10-auth.spec.ts",
+          "line": 80,
+          "column": 1
+        },
+        {
+          "title": "Continue with Google starts Google's sign-in safely (when switched on)",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/10-auth.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4324,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:44:04.274Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/10-auth.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "ac83b14a7b16420aa61e-19e55b74c5df4cf9dbc1",
+          "file": "10-auth.spec.ts",
+          "line": 120,
+          "column": 1
+        },
+        {
+          "title": "delete my email & sign-in (a test account on the test copy only)",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/10-auth.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2050,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:44:08.608Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/10-auth.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "ac83b14a7b16420aa61e-d5996987910d84c7886d",
+          "file": "10-auth.spec.ts",
+          "line": 134,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "11-groups.spec.ts",
+      "file": "11-groups.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "a Home group opens on This month, with Bills · List · Activity",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1766,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:44:10.674Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "05918ca8492e5553ec68-4920095c24847ecf1610",
+          "file": "11-groups.spec.ts",
+          "line": 20,
+          "column": 1
+        },
+        {
+          "title": "a Couple group: split worked out from incomes (₹1,10,000 / ₹90,000 → 55 / 45)",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1055,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:44:13.501Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "05918ca8492e5553ec68-2a027a368458919f5d5f",
+          "file": "11-groups.spec.ts",
+          "line": 28,
+          "column": 1
+        },
+        {
+          "title": "rename a group, then Undo puts the old name back",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4306,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:44:14.570Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "05918ca8492e5553ec68-13e8836a9e2f1fee15e1",
+          "file": "11-groups.spec.ts",
+          "line": 43,
+          "column": 1
+        },
+        {
+          "title": "Settings has ONE Save: the name, card fee, second currency, group type chips and notifications save together",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3754,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:44:18.904Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "05918ca8492e5553ec68-bac04a103db8c0b6a270",
+          "file": "11-groups.spec.ts",
+          "line": 63,
+          "column": 1
+        },
+        {
+          "title": "Settings: Enter in the currency search picks the first match and never saves the page",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1770,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:44:22.674Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "05918ca8492e5553ec68-39d5b65f4a6e51ed06c7",
+          "file": "11-groups.spec.ts",
+          "line": 97,
+          "column": 1
+        },
+        {
+          "title": "close a group: it moves to Closed groups and adding is paused; reopen it",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4146,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:44:24.459Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "05918ca8492e5553ec68-84e5f1d40d3f9e047211",
+          "file": "11-groups.spec.ts",
+          "line": 109,
+          "column": 1
+        },
+        {
+          "title": "delete a group: it's under Recently deleted on Your groups (open after the delete, off Home) and Restore brings it back",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4770,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:44:28.621Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "05918ca8492e5553ec68-0f9ecf7e6be9d1f88a20",
+          "file": "11-groups.spec.ts",
+          "line": 131,
+          "column": 1
+        },
+        {
+          "title": "a group's own photo: upload it in settings; it shows on the group and Home, only for people in the group",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2618,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:44:33.409Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "05918ca8492e5553ec68-5dc7bcad7e611f9e950d",
+          "file": "11-groups.spec.ts",
+          "line": 168,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "12-invites.spec.ts",
+      "file": "12-invites.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "an invite link: without signing in you can't join (no name box); after signing in, Join adds you",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/12-invites.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 6401,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:44:36.131Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/12-invites.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "e21ae37f6c66de2f7dac-4a3ed28d98f71f7ed3c7",
+          "file": "12-invites.spec.ts",
+          "line": 29,
+          "column": 1
+        },
+        {
+          "title": "add by email: in the group at once as a name; the invitee gets a Join card on Home and Join brings the group in",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/12-invites.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4617,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:44:44.678Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/12-invites.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "e21ae37f6c66de2f7dac-c1f94aa7ac601d425094",
+          "file": "12-invites.spec.ts",
+          "line": 45,
+          "column": 1
+        },
+        {
+          "title": "add by email, then Not now: the card goes away and the group never appears for them; the name stays",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/12-invites.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4432,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:44:49.310Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/12-invites.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "e21ae37f6c66de2f7dac-2fb0f103ff1abd305192",
+          "file": "12-invites.spec.ts",
+          "line": 87,
+          "column": 1
+        },
+        {
+          "title": "someone you share a group with is found by name and added (in the group at once, invited); a stranger only by full email",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/12-invites.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 6233,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:44:53.760Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/12-invites.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "e21ae37f6c66de2f7dac-4938dfa454f6e2f0243e",
+          "file": "12-invites.spec.ts",
+          "line": 116,
+          "column": 1
+        },
+        {
+          "title": "someone added by name: “not on Loopin yet” → Invite by email → they sign up and take over that name",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/12-invites.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2965,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:45:00.009Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/12-invites.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "e21ae37f6c66de2f7dac-d50d15e3d3facb9a586e",
+          "file": "12-invites.spec.ts",
+          "line": 137,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "20-splits.spec.ts",
+      "file": "20-splits.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "everyone equally: Alice pays ₹900",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2078,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:45:03.071Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-8f288b852a8aeb517b94",
+          "file": "20-splits.spec.ts",
+          "line": 41,
+          "column": 1
+        },
+        {
+          "title": "only some: Bob pays ₹400 for Alice and Bob",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2284,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:45:11.277Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-d3a7ea80cb8acc8e4713",
+          "file": "20-splits.spec.ts",
+          "line": 47,
+          "column": 1
+        },
+        {
+          "title": "one person: Alice pays ₹300, just for Cara",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2263,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:45:13.589Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-b1281073bed159289a05",
+          "file": "20-splits.spec.ts",
+          "line": 53,
+          "column": 1
+        },
+        {
+          "title": "exact amounts: Cara pays ₹1,000 as ₹100 / ₹200 / ₹700",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2490,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:45:15.874Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-f4b76cb8d19394718337",
+          "file": "20-splits.spec.ts",
+          "line": 59,
+          "column": 1
+        },
+        {
+          "title": "amounts that don't add up are refused, and nothing is saved",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2229,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:45:18.393Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-b60c96f86694e21ca379",
+          "file": "20-splits.spec.ts",
+          "line": 65,
+          "column": 1
+        },
+        {
+          "title": "percentages: Alice pays ₹2,000 as 50% / 30% / 20%",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2375,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:45:20.646Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-8f74cc1b0032eb58efd8",
+          "file": "20-splits.spec.ts",
+          "line": 70,
+          "column": 1
+        },
+        {
+          "title": "percentages that don't make 100% are refused",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2156,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:45:23.043Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-e3eb73a2e64766cad4de",
+          "file": "20-splits.spec.ts",
+          "line": 76,
+          "column": 1
+        },
+        {
+          "title": "shares: Bob pays ₹1,200 as 2 : 1 : 1 (₹600 / ₹300 / ₹300)",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2361,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:45:25.220Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-0153ff0db5ebc3a7ef58",
+          "file": "20-splits.spec.ts",
+          "line": 81,
+          "column": 1
+        },
+        {
+          "title": "two payers: ₹1,500 paid as Alice ₹1,000 + Bob ₹500, shared equally",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2625,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:45:27.608Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-15a2df378c88f472a1d8",
+          "file": "20-splits.spec.ts",
+          "line": 87,
+          "column": 1
+        },
+        {
+          "title": "money back: Cara got ₹300 back, shared equally (the balances move the other way)",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2174,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:45:30.258Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-af1a4918538bf972c4c8",
+          "file": "20-splits.spec.ts",
+          "line": 95,
+          "column": 1
+        },
+        {
+          "title": "a double tap on Save adds it only once",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2184,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:45:32.459Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-e2d9824a0ad709b80639",
+          "file": "20-splits.spec.ts",
+          "line": 101,
+          "column": 1
+        },
+        {
+          "title": "edit the amount: Dinner ₹900 → ₹1,200",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2938,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:45:34.672Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-9af914d4266a349e489e",
+          "file": "20-splits.spec.ts",
+          "line": 113,
+          "column": 1
+        },
+        {
+          "title": "edit who paid: Ticket was Alice's, now Bob paid it",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2864,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:45:37.634Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-aa22aa7ab1c11ee9b0c4",
+          "file": "20-splits.spec.ts",
+          "line": 125,
+          "column": 1
+        },
+        {
+          "title": "edit the split: Taxi from Alice + Bob to everyone",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2870,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:45:40.518Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-8efa773d0f671330d538",
+          "file": "20-splits.spec.ts",
+          "line": 136,
+          "column": 1
+        },
+        {
+          "title": "rename: Groceries → Weekly groceries, and the history says exactly that",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2678,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:45:43.413Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-f13d3643d688718a0311",
+          "file": "20-splits.spec.ts",
+          "line": 151,
+          "column": 1
+        },
+        {
+          "title": "delete an expense, then Restore brings it back",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4714,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:45:46.114Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-5b7886a8cdebbbfa7a6f",
+          "file": "20-splits.spec.ts",
+          "line": 162,
+          "column": 1
+        },
+        {
+          "title": "Undo right after adding removes it again",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2572,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:45:50.848Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-1ec22cca089a84f8ab33",
+          "file": "20-splits.spec.ts",
+          "line": 177,
+          "column": 1
+        },
+        {
+          "title": "Undo a delete from its bar",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3213,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:45:53.440Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-17f3f14007cc3f623258",
+          "file": "20-splits.spec.ts",
+          "line": 184,
+          "column": 1
+        },
+        {
+          "title": "must-fail check: a split that's ₹1 off is caught",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                },
+                {
+                  "type": "fail",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 194,
+                    "column": 8
+                  }
+                }
+              ],
+              "expectedStatus": "failed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 812,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m-196233\u001b[39m\nReceived: \u001b[31m-196333\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m-196233\u001b[39m\nReceived: \u001b[31m-196333\u001b[39m\n    at /home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts:196:22",
+                    "location": {
+                      "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                      "column": 22,
+                      "line": 196
+                    },
+                    "snippet": "  194 |   test.fail();\n  195 |   const shown = await readBalances(A, g.path);\n> 196 |   expect(shown.Cara).toBe(tally.Cara + 100);\n      |                      ^\n  197 | });\n  198 |"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "column": 22,
+                        "line": 196
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m-196233\u001b[39m\nReceived: \u001b[31m-196333\u001b[39m\n\n  194 |   test.fail();\n  195 |   const shown = await readBalances(A, g.path);\n> 196 |   expect(shown.Cara).toBe(tally.Cara + 100);\n      |                      ^\n  197 | });\n  198 |\n    at /home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts:196:22"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:45:56.677Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    },
+                    {
+                      "type": "fail",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 194,
+                        "column": 8
+                      }
+                    }
+                  ],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/home/runner/work/splitwise-alt/splitwise-alt/e2e-results-desktop/20-splits-must-fail-check-a-split-that-s-₹1-off-is-caught-desktop/error-context.md"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/home/runner/work/splitwise-alt/splitwise-alt/e2e-results-desktop/20-splits-must-fail-check-a-split-that-s-₹1-off-is-caught-desktop/error-context.md"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "column": 22,
+                    "line": 196
+                  }
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-cd3fda1d38148d7e05bb",
+          "file": "20-splits.spec.ts",
+          "line": 193,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "30-collect.spec.ts",
+      "file": "30-collect.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "the form refuses a bad UPI ID (and keeps what was typed), then makes the link",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/30-collect.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1218,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:45:57.912Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/30-collect.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "367aa1f561445e9834c8-c26b384a71014271acc9",
+          "file": "30-collect.spec.ts",
+          "line": 23,
+          "column": 1
+        },
+        {
+          "title": "someone without an account pays by UPI, ticks their name, can undo it",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/30-collect.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4646,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:46:00.260Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/30-collect.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "367aa1f561445e9834c8-14bec536e0ae278c7f8c",
+          "file": "30-collect.spec.ts",
+          "line": 45,
+          "column": 1
+        },
+        {
+          "title": "the organiser checks Ravi off, marks Meera's cash, sees it on Home, and closes it",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/30-collect.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 6722,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:46:04.921Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/30-collect.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "367aa1f561445e9834c8-586d33a8100775b89717",
+          "file": "30-collect.spec.ts",
+          "line": 70,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "31-countdown.spec.ts",
+      "file": "31-countdown.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "a trip with dates counts down on the group and Home; settings change it; the picture is made",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 13295,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:46:11.727Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "eeeecbfc996ff243c44f-db74c00c2d59d809575f",
+          "file": "31-countdown.spec.ts",
+          "line": 10,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "32-new-group-photo.spec.ts",
+      "file": "32-new-group-photo.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "a photo picked on New group becomes the group's picture",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2306,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:46:25.034Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "55c559cb0b09767b7653-ee97bc81e1c39e8d9178",
+          "file": "32-new-group-photo.spec.ts",
+          "line": 10,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "33-pot.spec.ts",
+      "file": "33-pot.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "a game night from first chips in to settled",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 13433,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:46:27.353Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "fd719c8e11e667158352-bc8704d2fa6835224858",
+          "file": "33-pot.spec.ts",
+          "line": 11,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "34-pay-and-quick-line.spec.ts",
+      "file": "34-pay-and-quick-line.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "pay buttons, payment tracking and the quick line",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 13085,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:46:40.801Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "35d722b561f06b841457-288af5568b3720927cc8",
+          "file": "34-pay-and-quick-line.spec.ts",
+          "line": 11,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "35-no-404.spec.ts",
+      "file": "35-no-404.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "every link in the app opens a real screen (no 404s)",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 240000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 11265,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:46:53.900Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "3d8619df1f1a5ff8d25a-35dc50dd6922effbe5d6",
+          "file": "35-no-404.spec.ts",
+          "line": 9,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "36-fun-and-back.spec.ts",
+      "file": "36-fun-and-back.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "titles, Wrapped, the passport and a game night: in, around, back out, and deleting",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 180000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 30588,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:47:05.181Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "412a35c7e6bdb987a719-414da6a2817027376168",
+          "file": "36-fun-and-back.spec.ts",
+          "line": 10,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "37-ive-paid-link.spec.ts",
+      "file": "37-ive-paid-link.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "Remind → I've paid without signing in → Not received → again → Confirm received → all square",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 150000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 12588,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:47:35.785Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "af3a9141d3f78dfd9adc-495131d68955d51f4416",
+          "file": "37-ive-paid-link.spec.ts",
+          "line": 11,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "38-gestures.spec.ts",
+      "file": "38-gestures.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "Gestures: swipe to delete an expense, drag a sheet closed, confetti on all square",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 11755,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:47:48.410Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "9a1964a5457542011d44-8b990615d13d082f8e54",
+          "file": "38-gestures.spec.ts",
+          "line": 28,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "39-left-view.spec.ts",
+      "file": "39-left-view.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "someone who left sees the group up to that day; their share can't be changed after they left",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 180000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 12829,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:48:00.209Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "7faba09e98ad809a907e-e3cb233a68bca068d690",
+          "file": "39-left-view.spec.ts",
+          "line": 14,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "39-postcards.spec.ts",
+      "file": "39-postcards.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "Postcards: write from a group, the other person receives it, turns it over, a stranger can't see it",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 150000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 24228,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:48:13.087Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "f01dc9039ff630080d83-9c6b48fbf0e3c38ecd17",
+          "file": "39-postcards.spec.ts",
+          "line": 9,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "40-back-keys.spec.ts",
+      "file": "40-back-keys.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "Back button: the same amount twice is two payments; a used key is refused",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 150000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 11224,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:48:37.376Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "9be2466b0405585c8907-2aa3820784490cf00c99",
+          "file": "40-back-keys.spec.ts",
+          "line": 14,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "41-signin-small-phones.spec.ts",
+      "file": "41-signin-small-phones.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "sign-in fits the first screen at 320×568",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 621,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:48:48.685Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "8649e339f903f02f7dad-9ab9ed1469055319d5ec",
+          "file": "41-signin-small-phones.spec.ts",
+          "line": 10,
+          "column": 3
+        },
+        {
+          "title": "sign-in fits the first screen at 375×667",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 614,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:48:49.361Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "8649e339f903f02f7dad-d587ee7b1053c17df8ec",
+          "file": "41-signin-small-phones.spec.ts",
+          "line": 10,
+          "column": 3
+        }
+      ]
+    },
+    {
+      "title": "42-group-sheet.spec.ts",
+      "file": "42-group-sheet.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "a new flat shows its two-card sheet once, and “Got it” hides it for good",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5587,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:48:50.033Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "e081927f50dc67d5f667-5f55bbd5c2a3a83bbc95",
+          "file": "42-group-sheet.spec.ts",
+          "line": 7,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "43-add-expense-small-phones.spec.ts",
+      "file": "43-add-expense-small-phones.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "Faster entry buttons fit at 320×568",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 8039,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:48:55.679Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "4385456fe1be925eec93-8f7d50656d8fab19a4c1",
+          "file": "43-add-expense-small-phones.spec.ts",
+          "line": 12,
+          "column": 3
+        },
+        {
+          "title": "Faster entry buttons fit at 375×667",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 8504,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:49:03.783Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "4385456fe1be925eec93-0fe9e70e19645e218dc3",
+          "file": "43-add-expense-small-phones.spec.ts",
+          "line": 12,
+          "column": 3
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-11-13T16:42:49.749Z",
+    "duration": 383413.891,
+    "expected": 71,
+    "skipped": 1,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

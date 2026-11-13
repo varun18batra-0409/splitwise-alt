@@ -1,0 +1,3869 @@
+{
+  "config": {
+    "argv": [
+      "/opt/hostedtoolcache/node/22.23.4/x64/bin/node",
+      "/home/runner/work/splitwise-alt/splitwise-alt/node_modules/.bin/playwright",
+      "test",
+      "--project=iphone"
+    ],
+    "configFile": "/home/runner/work/splitwise-alt/splitwise-alt/playwright.config.ts",
+    "rootDir": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests",
+    "failOnFlakyTests": false,
+    "forbidOnly": true,
+    "fullyParallel": false,
+    "globalSetup": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/global-setup.ts",
+    "globalTeardown": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/global-teardown.ts",
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "ci": {
+        "commitHref": "https://github.com/varun18batra-0409/splitwise-alt/commit/db7d581f29e5863f0afa74756d7469523a8ff1eb",
+        "commitHash": "db7d581f29e5863f0afa74756d7469523a8ff1eb",
+        "buildHref": "https://github.com/varun18batra-0409/splitwise-alt/actions/runs/43462140081"
+      },
+      "gitCommit": {
+        "shortHash": "db7d581",
+        "hash": "db7d581f29e5863f0afa74756d7469523a8ff1eb",
+        "subject": "Record a payment: the browser no longer blocks the submit (noValidate); a missing payer or payee opens its list with a spoken message, and the server's own checks speak for the rest; pay-screens test fixture corrected [full]",
+        "body": "Record a payment: the browser no longer blocks the submit (noValidate); a missing payer or payee opens its list with a spoken message, and the server's own checks speak for the rest; pay-screens test fixture corrected [full]\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01DdYmojZ2oAK4s63cW98eWz\n",
+        "author": {
+          "name": "Claude",
+          "email": "noreply@anthropic.com",
+          "time": 1794586966000
+        },
+        "committer": {
+          "name": "Claude",
+          "email": "noreply@anthropic.com",
+          "time": 1794586966000
+        },
+        "branch": "exercise-a"
+      },
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/home/runner/work/splitwise-alt/splitwise-alt/e2e-results-ios",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "ci": {
+            "commitHref": "https://github.com/varun18batra-0409/splitwise-alt/commit/db7d581f29e5863f0afa74756d7469523a8ff1eb",
+            "commitHash": "db7d581f29e5863f0afa74756d7469523a8ff1eb",
+            "buildHref": "https://github.com/varun18batra-0409/splitwise-alt/actions/runs/43462140081"
+          },
+          "gitCommit": {
+            "shortHash": "db7d581",
+            "hash": "db7d581f29e5863f0afa74756d7469523a8ff1eb",
+            "subject": "Record a payment: the browser no longer blocks the submit (noValidate); a missing payer or payee opens its list with a spoken message, and the server's own checks speak for the rest; pay-screens test fixture corrected [full]",
+            "body": "Record a payment: the browser no longer blocks the submit (noValidate); a missing payer or payee opens its list with a spoken message, and the server's own checks speak for the rest; pay-screens test fixture corrected [full]\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01DdYmojZ2oAK4s63cW98eWz\n",
+            "author": {
+              "name": "Claude",
+              "email": "noreply@anthropic.com",
+              "time": 1794586966000
+            },
+            "committer": {
+              "name": "Claude",
+              "email": "noreply@anthropic.com",
+              "time": 1794586966000
+            },
+            "branch": "exercise-a"
+          },
+          "actualWorkers": 1
+        },
+        "id": "phone",
+        "name": "phone",
+        "testDir": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 90000
+      },
+      {
+        "outputDir": "/home/runner/work/splitwise-alt/splitwise-alt/e2e-results-ios",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "ci": {
+            "commitHref": "https://github.com/varun18batra-0409/splitwise-alt/commit/db7d581f29e5863f0afa74756d7469523a8ff1eb",
+            "commitHash": "db7d581f29e5863f0afa74756d7469523a8ff1eb",
+            "buildHref": "https://github.com/varun18batra-0409/splitwise-alt/actions/runs/43462140081"
+          },
+          "gitCommit": {
+            "shortHash": "db7d581",
+            "hash": "db7d581f29e5863f0afa74756d7469523a8ff1eb",
+            "subject": "Record a payment: the browser no longer blocks the submit (noValidate); a missing payer or payee opens its list with a spoken message, and the server's own checks speak for the rest; pay-screens test fixture corrected [full]",
+            "body": "Record a payment: the browser no longer blocks the submit (noValidate); a missing payer or payee opens its list with a spoken message, and the server's own checks speak for the rest; pay-screens test fixture corrected [full]\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01DdYmojZ2oAK4s63cW98eWz\n",
+            "author": {
+              "name": "Claude",
+              "email": "noreply@anthropic.com",
+              "time": 1794586966000
+            },
+            "committer": {
+              "name": "Claude",
+              "email": "noreply@anthropic.com",
+              "time": 1794586966000
+            },
+            "branch": "exercise-a"
+          },
+          "actualWorkers": 1
+        },
+        "id": "iphone",
+        "name": "iphone",
+        "testDir": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 90000
+      },
+      {
+        "outputDir": "/home/runner/work/splitwise-alt/splitwise-alt/e2e-results-ios",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "ci": {
+            "commitHref": "https://github.com/varun18batra-0409/splitwise-alt/commit/db7d581f29e5863f0afa74756d7469523a8ff1eb",
+            "commitHash": "db7d581f29e5863f0afa74756d7469523a8ff1eb",
+            "buildHref": "https://github.com/varun18batra-0409/splitwise-alt/actions/runs/43462140081"
+          },
+          "gitCommit": {
+            "shortHash": "db7d581",
+            "hash": "db7d581f29e5863f0afa74756d7469523a8ff1eb",
+            "subject": "Record a payment: the browser no longer blocks the submit (noValidate); a missing payer or payee opens its list with a spoken message, and the server's own checks speak for the rest; pay-screens test fixture corrected [full]",
+            "body": "Record a payment: the browser no longer blocks the submit (noValidate); a missing payer or payee opens its list with a spoken message, and the server's own checks speak for the rest; pay-screens test fixture corrected [full]\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01DdYmojZ2oAK4s63cW98eWz\n",
+            "author": {
+              "name": "Claude",
+              "email": "noreply@anthropic.com",
+              "time": 1794586966000
+            },
+            "committer": {
+              "name": "Claude",
+              "email": "noreply@anthropic.com",
+              "time": 1794586966000
+            },
+            "branch": "exercise-a"
+          },
+          "actualWorkers": 1
+        },
+        "id": "desktop",
+        "name": "desktop",
+        "testDir": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 90000
+      }
+    ],
+    "filteredProjects": [
+      {
+        "grep": {},
+        "grepInvert": null,
+        "outputDir": "/home/runner/work/splitwise-alt/splitwise-alt/e2e-results-ios",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "ci": {
+            "commitHref": "https://github.com/varun18batra-0409/splitwise-alt/commit/db7d581f29e5863f0afa74756d7469523a8ff1eb",
+            "commitHash": "db7d581f29e5863f0afa74756d7469523a8ff1eb",
+            "buildHref": "https://github.com/varun18batra-0409/splitwise-alt/actions/runs/43462140081"
+          },
+          "gitCommit": {
+            "shortHash": "db7d581",
+            "hash": "db7d581f29e5863f0afa74756d7469523a8ff1eb",
+            "subject": "Record a payment: the browser no longer blocks the submit (noValidate); a missing payer or payee opens its list with a spoken message, and the server's own checks speak for the rest; pay-screens test fixture corrected [full]",
+            "body": "Record a payment: the browser no longer blocks the submit (noValidate); a missing payer or payee opens its list with a spoken message, and the server's own checks speak for the rest; pay-screens test fixture corrected [full]\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01DdYmojZ2oAK4s63cW98eWz\n",
+            "author": {
+              "name": "Claude",
+              "email": "noreply@anthropic.com",
+              "time": 1794586966000
+            },
+            "committer": {
+              "name": "Claude",
+              "email": "noreply@anthropic.com",
+              "time": 1794586966000
+            },
+            "branch": "exercise-a"
+          },
+          "actualWorkers": 1
+        },
+        "name": "iphone",
+        "testDir": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests",
+        "snapshotDir": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests",
+        "testIgnore": [],
+        "testMatch": "**/*.@(spec|test).?(c|m)[jt]s?(x)",
+        "timeout": 90000,
+        "use": {
+          "baseURL": "http://localhost:3000",
+          "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.2 Mobile/15E148 Safari/604.1",
+          "viewport": {
+            "width": 390,
+            "height": 664
+          },
+          "screen": {
+            "width": 390,
+            "height": 844
+          },
+          "deviceScaleFactor": 3,
+          "isMobile": true,
+          "hasTouch": true,
+          "defaultBrowserType": "webkit",
+          "locale": "en-IN",
+          "timezoneId": "Asia/Kolkata",
+          "screenshot": "only-on-failure",
+          "trace": "retain-on-failure",
+          "video": "off",
+          "actionTimeout": 20000,
+          "navigationTimeout": 45000,
+          "browserName": "webkit"
+        },
+        "dependencies": [],
+        "ignoreSnapshots": false,
+        "__projectId": "iphone"
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "html",
+        {
+          "outputFolder": "e2e-report-ios",
+          "open": "never"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "e2e-results-ios/results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "default",
+    "updateSourceMethod": "patch",
+    "version": "1.65.0",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "01-home.spec.ts",
+      "file": "01-home.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "first visit shows the tour, then a start screen with the main ways in",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3694,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:32:13.064Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "c4396361884a96dbe527-b9e7035acf55bce99ef3",
+          "file": "01-home.spec.ts",
+          "line": 7,
+          "column": 1
+        },
+        {
+          "title": "key pages open from Home: guide, sign in, moving over from another app, privacy, terms",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5598,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:32:17.257Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "c4396361884a96dbe527-21e9b222177e4ce5333c",
+          "file": "01-home.spec.ts",
+          "line": 19,
+          "column": 1
+        },
+        {
+          "title": "FAQ: opens from the You page; questions open on tap; the data answer links to the privacy details",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1777,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:32:22.871Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "c4396361884a96dbe527-f7c084a7bcdf3bac4950",
+          "file": "01-home.spec.ts",
+          "line": 54,
+          "column": 1
+        },
+        {
+          "title": "search engines: robots.txt, sitemap, title, description, share image; private screens kept out",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2192,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:32:24.663Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "c4396361884a96dbe527-c10987f4384bfb7fed97",
+          "file": "01-home.spec.ts",
+          "line": 68,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "02-auth-group.spec.ts",
+      "file": "02-auth-group.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "sign up with an email code, then create a group",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 9820,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:32:26.969Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "ee11c564567e4afa4e43-ad1a9c3a5572b06c5f8c",
+          "file": "02-auth-group.spec.ts",
+          "line": 8,
+          "column": 1
+        },
+        {
+          "title": "a wrong sign-in code is refused",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1722,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:32:36.804Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "ee11c564567e4afa4e43-da601e62f972b47a009c",
+          "file": "02-auth-group.spec.ts",
+          "line": 46,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "03-expenses.spec.ts",
+      "file": "03-expenses.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "equal split across three people: ₹900 dinner → Alice gets ₹600, Bob and Cara owe ₹300 each",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/03-expenses.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5504,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:32:38.549Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/03-expenses.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "edd28e4a9f2bc13ada0b-cde22104b00b43e0ae70",
+          "file": "03-expenses.spec.ts",
+          "line": 34,
+          "column": 1
+        },
+        {
+          "title": "must-fail check: a wrong expected balance is caught",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/03-expenses.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                },
+                {
+                  "type": "fail",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/03-expenses.spec.ts",
+                    "line": 48,
+                    "column": 8
+                  }
+                }
+              ],
+              "expectedStatus": "failed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 1417,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m60100\u001b[39m\nReceived: \u001b[31m60000\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m60100\u001b[39m\nReceived: \u001b[31m60000\u001b[39m\n    at /home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/03-expenses.spec.ts:50:23",
+                    "location": {
+                      "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/03-expenses.spec.ts",
+                      "column": 23,
+                      "line": 50
+                    },
+                    "snippet": "  48 |   test.fail();\n  49 |   const shown = await readBalances(A, group.path);\n> 50 |   expect(shown.Alice).toBe(60100); // deliberately ₹1 off\n     |                       ^\n  51 | });\n  52 |\n  53 | test(\"edit the amount (₹900 → ₹1,200): balances recalculate to +₹800 / −₹400 / −₹400\", async () => {"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/03-expenses.spec.ts",
+                        "column": 23,
+                        "line": 50
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m60100\u001b[39m\nReceived: \u001b[31m60000\u001b[39m\n\n  48 |   test.fail();\n  49 |   const shown = await readBalances(A, group.path);\n> 50 |   expect(shown.Alice).toBe(60100); // deliberately ₹1 off\n     |                       ^\n  51 | });\n  52 |\n  53 | test(\"edit the amount (₹900 → ₹1,200): balances recalculate to +₹800 / −₹400 / −₹400\", async () => {\n    at /home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/03-expenses.spec.ts:50:23"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:32:52.377Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/03-expenses.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    },
+                    {
+                      "type": "fail",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/03-expenses.spec.ts",
+                        "line": 48,
+                        "column": 8
+                      }
+                    }
+                  ],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/home/runner/work/splitwise-alt/splitwise-alt/e2e-results-ios/03-expenses-must-fail-chec-f1636--expected-balance-is-caught-iphone/error-context.md"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/03-expenses.spec.ts",
+                    "column": 23,
+                    "line": 50
+                  }
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "edd28e4a9f2bc13ada0b-6e97f7f3fed92fb4cbfc",
+          "file": "03-expenses.spec.ts",
+          "line": 46,
+          "column": 1
+        },
+        {
+          "title": "edit the amount (₹900 → ₹1,200): balances recalculate to +₹800 / −₹400 / −₹400",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/03-expenses.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 6905,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:32:53.922Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/03-expenses.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "edd28e4a9f2bc13ada0b-87201ea542c4001ff5c1",
+          "file": "03-expenses.spec.ts",
+          "line": 53,
+          "column": 1
+        },
+        {
+          "title": "Insights add up: your share and group spend match what was entered, and Home's month card agrees",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/03-expenses.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 6179,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:33:00.904Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/03-expenses.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "edd28e4a9f2bc13ada0b-90bfe7056941b949524b",
+          "file": "03-expenses.spec.ts",
+          "line": 67,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "05-splitwise-import.spec.ts",
+      "file": "05-splitwise-import.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "import the supplied Splitwise CSV: 4 expenses, ₹10,810, Nupur MDI gets ₹105 / Varun Batra owes ₹105",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "BLOCKED: the Splitwise CSV wasn't supplied (secret E2E_SPLITWISE_CSV_B64 / E2E_SPLITWISE_CSV).",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/05-splitwise-import.spec.ts",
+                    "line": 24,
+                    "column": 8
+                  }
+                }
+              ],
+              "expectedStatus": "skipped",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "skipped",
+                  "duration": 15,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:33:08.197Z",
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "BLOCKED: the Splitwise CSV wasn't supplied (secret E2E_SPLITWISE_CSV_B64 / E2E_SPLITWISE_CSV).",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/05-splitwise-import.spec.ts",
+                        "line": 24,
+                        "column": 8
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "skipped"
+            }
+          ],
+          "id": "ac9bbb850474aad08ef4-2e9883cac6c3c15c178a",
+          "file": "05-splitwise-import.spec.ts",
+          "line": 23,
+          "column": 1
+        },
+        {
+          "title": "import a sample Splitwise export (fictional people): 2 expenses + 1 payment, Asha +₹300 / Kabir −₹300",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5070,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:33:08.222Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "ac9bbb850474aad08ef4-de5285d831d05b6f4b6c",
+          "file": "05-splitwise-import.spec.ts",
+          "line": 88,
+          "column": 1
+        },
+        {
+          "title": "a Loopin group spreadsheet is brought over as it was: Ann +₹500 / Ben −₹500",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3960,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:33:13.303Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "ac9bbb850474aad08ef4-1e5eb991a449f6eb7106",
+          "file": "05-splitwise-import.spec.ts",
+          "line": 113,
+          "column": 1
+        },
+        {
+          "title": "another app's spreadsheet: columns guessed, people found, balances right (Lea +€60 / Max −€15 / Tom −€45)",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4015,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:33:17.279Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "ac9bbb850474aad08ef4-0e48a0ffcff3e78d3239",
+          "file": "05-splitwise-import.spec.ts",
+          "line": 135,
+          "column": 1
+        },
+        {
+          "title": "a file without a “paid by” column asks which column is which instead of guessing",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2452,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:33:21.313Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "ac9bbb850474aad08ef4-6f472c5e3da4478c626e",
+          "file": "05-splitwise-import.spec.ts",
+          "line": 157,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "10-auth.spec.ts",
+      "file": "10-auth.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "sign out of this phone, sign back in: your groups come back",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/10-auth.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 6463,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:33:23.783Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/10-auth.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "ac83b14a7b16420aa61e-62b4e9ace0faaf7a8cef",
+          "file": "10-auth.spec.ts",
+          "line": 9,
+          "column": 1
+        },
+        {
+          "title": "sign out other phones: the other phone loses your groups, this one keeps them",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/10-auth.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 7405,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:33:30.258Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/10-auth.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "ac83b14a7b16420aa61e-466837028a685820556e",
+          "file": "10-auth.spec.ts",
+          "line": 31,
+          "column": 1
+        },
+        {
+          "title": "someone outside a group sees “Private group” (no name, no join code), and can’t download it",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/10-auth.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4030,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:33:37.677Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/10-auth.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "ac83b14a7b16420aa61e-0c4e3e164fba981e31ca",
+          "file": "10-auth.spec.ts",
+          "line": 60,
+          "column": 1
+        },
+        {
+          "title": "fingerprint / face: turn it on, sign out, sign back in with one touch, remove it",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/10-auth.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                },
+                {
+                  "type": "skip",
+                  "description": "Uses Chrome's built-in test fingerprint reader; Safari's engine has none in tests (checked on Android).",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/10-auth.spec.ts",
+                    "line": 81,
+                    "column": 8
+                  }
+                }
+              ],
+              "expectedStatus": "skipped",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "skipped",
+                  "duration": 23,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:33:41.723Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/10-auth.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    },
+                    {
+                      "type": "skip",
+                      "description": "Uses Chrome's built-in test fingerprint reader; Safari's engine has none in tests (checked on Android).",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/10-auth.spec.ts",
+                        "line": 81,
+                        "column": 8
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "skipped"
+            }
+          ],
+          "id": "ac83b14a7b16420aa61e-cefc96105d44a3a8904c",
+          "file": "10-auth.spec.ts",
+          "line": 80,
+          "column": 1
+        },
+        {
+          "title": "Continue with Google starts Google's sign-in safely (when switched on)",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/10-auth.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1184,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:33:41.757Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/10-auth.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "ac83b14a7b16420aa61e-fe2fc4838290a99b4473",
+          "file": "10-auth.spec.ts",
+          "line": 120,
+          "column": 1
+        },
+        {
+          "title": "delete my email & sign-in (a test account on the test copy only)",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/10-auth.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2767,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:33:42.955Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/10-auth.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "ac83b14a7b16420aa61e-bfb462074d0557e8a869",
+          "file": "10-auth.spec.ts",
+          "line": 134,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "11-groups.spec.ts",
+      "file": "11-groups.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "a Home group opens on This month, with Bills · List · Activity",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2340,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:33:45.751Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "05918ca8492e5553ec68-20567367dd1905711f11",
+          "file": "11-groups.spec.ts",
+          "line": 20,
+          "column": 1
+        },
+        {
+          "title": "a Couple group: split worked out from incomes (₹1,10,000 / ₹90,000 → 55 / 45)",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1580,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:33:49.472Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "05918ca8492e5553ec68-f27eebce4672b50f89cb",
+          "file": "11-groups.spec.ts",
+          "line": 28,
+          "column": 1
+        },
+        {
+          "title": "rename a group, then Undo puts the old name back",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5379,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:33:51.078Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "05918ca8492e5553ec68-595ed0dc595d8fc24df4",
+          "file": "11-groups.spec.ts",
+          "line": 43,
+          "column": 1
+        },
+        {
+          "title": "Settings has ONE Save: the name, card fee, second currency, group type chips and notifications save together",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4838,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:33:56.488Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "05918ca8492e5553ec68-b5343d8d490bd6eff49e",
+          "file": "11-groups.spec.ts",
+          "line": 63,
+          "column": 1
+        },
+        {
+          "title": "Settings: Enter in the currency search picks the first match and never saves the page",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2232,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:34:01.362Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "05918ca8492e5553ec68-221d33df677e43bea590",
+          "file": "11-groups.spec.ts",
+          "line": 97,
+          "column": 1
+        },
+        {
+          "title": "close a group: it moves to Closed groups and adding is paused; reopen it",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4796,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:34:03.630Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "05918ca8492e5553ec68-351266a989a641709100",
+          "file": "11-groups.spec.ts",
+          "line": 109,
+          "column": 1
+        },
+        {
+          "title": "delete a group: it's under Recently deleted on Your groups (open after the delete, off Home) and Restore brings it back",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5826,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:34:08.451Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "05918ca8492e5553ec68-6662dc92e41b622d4029",
+          "file": "11-groups.spec.ts",
+          "line": 131,
+          "column": 1
+        },
+        {
+          "title": "a group's own photo: upload it in settings; it shows on the group and Home, only for people in the group",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4065,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:34:14.303Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/11-groups.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "05918ca8492e5553ec68-e3073cadf25acf6916de",
+          "file": "11-groups.spec.ts",
+          "line": 168,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "12-invites.spec.ts",
+      "file": "12-invites.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "an invite link: without signing in you can't join (no name box); after signing in, Join adds you",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/12-invites.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4748,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:34:18.711Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/12-invites.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "e21ae37f6c66de2f7dac-6fc3b887903d5ec3c841",
+          "file": "12-invites.spec.ts",
+          "line": 29,
+          "column": 1
+        },
+        {
+          "title": "add by email: in the group at once as a name; the invitee gets a Join card on Home and Join brings the group in",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/12-invites.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 6361,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:34:26.271Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/12-invites.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "e21ae37f6c66de2f7dac-95816d6648dfa4d17c2c",
+          "file": "12-invites.spec.ts",
+          "line": 45,
+          "column": 1
+        },
+        {
+          "title": "add by email, then Not now: the card goes away and the group never appears for them; the name stays",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/12-invites.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5814,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:34:32.672Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/12-invites.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "e21ae37f6c66de2f7dac-cc4182000add4ab741f3",
+          "file": "12-invites.spec.ts",
+          "line": 87,
+          "column": 1
+        },
+        {
+          "title": "someone you share a group with is found by name and added (in the group at once, invited); a stranger only by full email",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/12-invites.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 8321,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:34:38.527Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/12-invites.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "e21ae37f6c66de2f7dac-c61dda54abc898d3d8ba",
+          "file": "12-invites.spec.ts",
+          "line": 116,
+          "column": 1
+        },
+        {
+          "title": "someone added by name: “not on Loopin yet” → Invite by email → they sign up and take over that name",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/12-invites.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4039,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:34:46.882Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/12-invites.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "e21ae37f6c66de2f7dac-b8ef25e1a96381ee901e",
+          "file": "12-invites.spec.ts",
+          "line": 137,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "20-splits.spec.ts",
+      "file": "20-splits.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "everyone equally: Alice pays ₹900",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3934,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:34:51.191Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-a817facf9db2a1b8c586",
+          "file": "20-splits.spec.ts",
+          "line": 41,
+          "column": 1
+        },
+        {
+          "title": "only some: Bob pays ₹400 for Alice and Bob",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4018,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:35:03.360Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-298fc4c403d4c4392840",
+          "file": "20-splits.spec.ts",
+          "line": 47,
+          "column": 1
+        },
+        {
+          "title": "one person: Alice pays ₹300, just for Cara",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3842,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:35:07.436Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-f779aa31c2eb991b6628",
+          "file": "20-splits.spec.ts",
+          "line": 53,
+          "column": 1
+        },
+        {
+          "title": "exact amounts: Cara pays ₹1,000 as ₹100 / ₹200 / ₹700",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4725,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:35:11.357Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-d6033fae30b319eaf3a9",
+          "file": "20-splits.spec.ts",
+          "line": 59,
+          "column": 1
+        },
+        {
+          "title": "amounts that don't add up are refused, and nothing is saved",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3913,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:35:16.149Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-1f90202f5dad4f4618ac",
+          "file": "20-splits.spec.ts",
+          "line": 65,
+          "column": 1
+        },
+        {
+          "title": "percentages: Alice pays ₹2,000 as 50% / 30% / 20%",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4500,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:35:20.119Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-afa6a22a28ca5926c1c9",
+          "file": "20-splits.spec.ts",
+          "line": 70,
+          "column": 1
+        },
+        {
+          "title": "percentages that don't make 100% are refused",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4218,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:35:24.674Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-a03464aa1473bad8b7e1",
+          "file": "20-splits.spec.ts",
+          "line": 76,
+          "column": 1
+        },
+        {
+          "title": "shares: Bob pays ₹1,200 as 2 : 1 : 1 (₹600 / ₹300 / ₹300)",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4236,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:35:28.950Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-b8ce86d765fffd83c729",
+          "file": "20-splits.spec.ts",
+          "line": 81,
+          "column": 1
+        },
+        {
+          "title": "two payers: ₹1,500 paid as Alice ₹1,000 + Bob ₹500, shared equally",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4899,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:35:33.244Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-f7f5ccc1d8761935ae1a",
+          "file": "20-splits.spec.ts",
+          "line": 87,
+          "column": 1
+        },
+        {
+          "title": "money back: Cara got ₹300 back, shared equally (the balances move the other way)",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4284,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:35:38.268Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-0b1949097a3d8ba2393c",
+          "file": "20-splits.spec.ts",
+          "line": 95,
+          "column": 1
+        },
+        {
+          "title": "a double tap on Save adds it only once",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3984,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:35:42.627Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-6dc9ac19a37e052825ec",
+          "file": "20-splits.spec.ts",
+          "line": 101,
+          "column": 1
+        },
+        {
+          "title": "edit the amount: Dinner ₹900 → ₹1,200",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5138,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:35:46.676Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-290af69c6bb5054801f7",
+          "file": "20-splits.spec.ts",
+          "line": 113,
+          "column": 1
+        },
+        {
+          "title": "edit who paid: Ticket was Alice's, now Bob paid it",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5506,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:35:51.874Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-1d6a681b5dc5987f40c7",
+          "file": "20-splits.spec.ts",
+          "line": 125,
+          "column": 1
+        },
+        {
+          "title": "edit the split: Taxi from Alice + Bob to everyone",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5207,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:35:57.458Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-4714f382d71c03a15b08",
+          "file": "20-splits.spec.ts",
+          "line": 136,
+          "column": 1
+        },
+        {
+          "title": "rename: Groceries → Weekly groceries, and the history says exactly that",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4779,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:36:02.741Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-56dcb3b4ffe596ff6ed4",
+          "file": "20-splits.spec.ts",
+          "line": 151,
+          "column": 1
+        },
+        {
+          "title": "delete an expense, then Restore brings it back",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 8019,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:36:07.581Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-be510b4f145cc8c6aca7",
+          "file": "20-splits.spec.ts",
+          "line": 162,
+          "column": 1
+        },
+        {
+          "title": "Undo right after adding removes it again",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5005,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:36:15.652Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-bdd745326ce09c9edafc",
+          "file": "20-splits.spec.ts",
+          "line": 177,
+          "column": 1
+        },
+        {
+          "title": "Undo a delete from its bar",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5423,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:36:20.729Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-ab178f7437efc36145c7",
+          "file": "20-splits.spec.ts",
+          "line": 184,
+          "column": 1
+        },
+        {
+          "title": "must-fail check: a split that's ₹1 off is caught",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                },
+                {
+                  "type": "fail",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "line": 194,
+                    "column": 8
+                  }
+                }
+              ],
+              "expectedStatus": "failed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 1474,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m-196233\u001b[39m\nReceived: \u001b[31m-196333\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m-196233\u001b[39m\nReceived: \u001b[31m-196333\u001b[39m\n    at /home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts:196:22",
+                    "location": {
+                      "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                      "column": 22,
+                      "line": 196
+                    },
+                    "snippet": "  194 |   test.fail();\n  195 |   const shown = await readBalances(A, g.path);\n> 196 |   expect(shown.Cara).toBe(tally.Cara + 100);\n      |                      ^\n  197 | });\n  198 |"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "column": 22,
+                        "line": 196
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m-196233\u001b[39m\nReceived: \u001b[31m-196333\u001b[39m\n\n  194 |   test.fail();\n  195 |   const shown = await readBalances(A, g.path);\n> 196 |   expect(shown.Cara).toBe(tally.Cara + 100);\n      |                      ^\n  197 | });\n  198 |\n    at /home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts:196:22"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:36:26.207Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    },
+                    {
+                      "type": "fail",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                        "line": 194,
+                        "column": 8
+                      }
+                    }
+                  ],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/home/runner/work/splitwise-alt/splitwise-alt/e2e-results-ios/20-splits-must-fail-check-a-split-that-s-₹1-off-is-caught-iphone/error-context.md"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/home/runner/work/splitwise-alt/splitwise-alt/e2e-results-ios/20-splits-must-fail-check-a-split-that-s-₹1-off-is-caught-iphone/error-context.md"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/20-splits.spec.ts",
+                    "column": 22,
+                    "line": 196
+                  }
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "cf68d6991c715c6ced36-d79250e9f9ac2c74e9e0",
+          "file": "20-splits.spec.ts",
+          "line": 193,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "30-collect.spec.ts",
+      "file": "30-collect.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "the form refuses a bad UPI ID (and keeps what was typed), then makes the link",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/30-collect.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1639,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:36:28.906Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/30-collect.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "367aa1f561445e9834c8-995ee06dddafc2dd2793",
+          "file": "30-collect.spec.ts",
+          "line": 23,
+          "column": 1
+        },
+        {
+          "title": "someone without an account pays by UPI, ticks their name, can undo it",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/30-collect.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1831,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:36:31.908Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/30-collect.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "367aa1f561445e9834c8-623f8c457a0e5ae58843",
+          "file": "30-collect.spec.ts",
+          "line": 45,
+          "column": 1
+        },
+        {
+          "title": "the organiser checks Ravi off, marks Meera's cash, sees it on Home, and closes it",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "serial",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/30-collect.spec.ts",
+                    "line": 0,
+                    "column": 0
+                  }
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4126,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:36:33.759Z",
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/30-collect.spec.ts",
+                        "line": 0,
+                        "column": 0
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "367aa1f561445e9834c8-604be4a7120187f44cee",
+          "file": "30-collect.spec.ts",
+          "line": 70,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "31-countdown.spec.ts",
+      "file": "31-countdown.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "a trip with dates counts down on the group and Home; settings change it; the picture is made",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 16755,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:36:38.124Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "eeeecbfc996ff243c44f-c56420c7da3b75364865",
+          "file": "31-countdown.spec.ts",
+          "line": 10,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "32-new-group-photo.spec.ts",
+      "file": "32-new-group-photo.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "a photo picked on New group becomes the group's picture",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3082,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:36:54.902Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "55c559cb0b09767b7653-a157ec205160b87cfea8",
+          "file": "32-new-group-photo.spec.ts",
+          "line": 10,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "33-pot.spec.ts",
+      "file": "33-pot.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "a game night from first chips in to settled",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 19142,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:36:58.003Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "fd719c8e11e667158352-2a0c40e97b01026c706c",
+          "file": "33-pot.spec.ts",
+          "line": 11,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "34-pay-and-quick-line.spec.ts",
+      "file": "34-pay-and-quick-line.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "pay buttons, payment tracking and the quick line",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 17295,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:37:17.173Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "35d722b561f06b841457-12363dd865a924000713",
+          "file": "34-pay-and-quick-line.spec.ts",
+          "line": 11,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "35-no-404.spec.ts",
+      "file": "35-no-404.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "every link in the app opens a real screen (no 404s)",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 240000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 16246,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:37:34.490Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "3d8619df1f1a5ff8d25a-31fa2e57ec98ba62915b",
+          "file": "35-no-404.spec.ts",
+          "line": 9,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "36-fun-and-back.spec.ts",
+      "file": "36-fun-and-back.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "titles, Wrapped, the passport and a game night: in, around, back out, and deleting",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 180000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 42611,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:37:50.778Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "412a35c7e6bdb987a719-17a7383e1cfd6d3458e1",
+          "file": "36-fun-and-back.spec.ts",
+          "line": 10,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "37-ive-paid-link.spec.ts",
+      "file": "37-ive-paid-link.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "Remind → I've paid without signing in → Not received → again → Confirm received → all square",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 150000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 21060,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:38:33.421Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "af3a9141d3f78dfd9adc-d1657cd7c655482ba04d",
+          "file": "37-ive-paid-link.spec.ts",
+          "line": 11,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "38-gestures.spec.ts",
+      "file": "38-gestures.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "Gestures: swipe to delete an expense, drag a sheet closed, confetti on all square",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "Touch drags are built with Chrome's Touch objects (checked on Android).",
+                  "location": {
+                    "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/38-gestures.spec.ts",
+                    "line": 29,
+                    "column": 8
+                  }
+                }
+              ],
+              "expectedStatus": "skipped",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "skipped",
+                  "duration": 80,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:38:54.557Z",
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "Touch drags are built with Chrome's Touch objects (checked on Android).",
+                      "location": {
+                        "file": "/home/runner/work/splitwise-alt/splitwise-alt/e2e/tests/38-gestures.spec.ts",
+                        "line": 29,
+                        "column": 8
+                      }
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "skipped"
+            }
+          ],
+          "id": "9a1964a5457542011d44-78e15d8619cec45f9832",
+          "file": "38-gestures.spec.ts",
+          "line": 28,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "39-left-view.spec.ts",
+      "file": "39-left-view.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "someone who left sees the group up to that day; their share can't be changed after they left",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 180000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 23593,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:38:54.777Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "7faba09e98ad809a907e-127d713eaee26e50aa4d",
+          "file": "39-left-view.spec.ts",
+          "line": 14,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "39-postcards.spec.ts",
+      "file": "39-postcards.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "Postcards: write from a group, the other person receives it, turns it over, a stranger can't see it",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 150000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 92784,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:39:18.491Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "f01dc9039ff630080d83-4033571500741b4d02e0",
+          "file": "39-postcards.spec.ts",
+          "line": 9,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "40-back-keys.spec.ts",
+      "file": "40-back-keys.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "Back button: the same amount twice is two payments; a used key is refused",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 150000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 30267,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:40:51.670Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "9be2466b0405585c8907-5460e52f6186476376ee",
+          "file": "40-back-keys.spec.ts",
+          "line": 14,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "41-signin-small-phones.spec.ts",
+      "file": "41-signin-small-phones.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "sign-in fits the first screen at 320×568",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3111,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:41:22.688Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "8649e339f903f02f7dad-c5c93c3509f22a1ce248",
+          "file": "41-signin-small-phones.spec.ts",
+          "line": 10,
+          "column": 3
+        },
+        {
+          "title": "sign-in fits the first screen at 375×667",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3376,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:41:26.456Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "8649e339f903f02f7dad-7102ac811cf4d3351500",
+          "file": "41-signin-small-phones.spec.ts",
+          "line": 10,
+          "column": 3
+        }
+      ]
+    },
+    {
+      "title": "42-group-sheet.spec.ts",
+      "file": "42-group-sheet.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "a new flat shows its two-card sheet once, and “Got it” hides it for good",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 17107,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:41:30.671Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "e081927f50dc67d5f667-a49591a1fe97946fa6fa",
+          "file": "42-group-sheet.spec.ts",
+          "line": 7,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "43-add-expense-small-phones.spec.ts",
+      "file": "43-add-expense-small-phones.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "Faster entry buttons fit at 320×568",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 25877,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:41:48.510Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "4385456fe1be925eec93-e3e514784c00d4a378b3",
+          "file": "43-add-expense-small-phones.spec.ts",
+          "line": 12,
+          "column": 3
+        },
+        {
+          "title": "Faster entry buttons fit at 375×667",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "iphone",
+              "projectName": "iphone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 31768,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-13T16:42:15.054Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "4385456fe1be925eec93-c49c51d65c57962605d6",
+          "file": "43-add-expense-small-phones.spec.ts",
+          "line": 12,
+          "column": 3
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-11-13T16:32:12.286Z",
+    "duration": 636594.377,
+    "expected": 69,
+    "skipped": 3,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

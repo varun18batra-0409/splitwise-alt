@@ -1,0 +1,8 @@
+215 passed, 4 failed, 5 not applicable, 3 NOT RUN · profile: desktop (Desktop: Chromium, 1440×900, no touch, en-GB, Europe/London)
+✗ Settle — Record a part payment (change the amount to less): page.waitForURL: Timeout 15000ms exceeded. =========================== logs =========================== waiting for navigation until "load" (screenshot: fail-01.png)
+✗ Settle — A zero or nonsense amount is refused: locator.waitFor: Timeout 15000ms exceeded. Call log: - waiting for getByText(/more than zero|valid amount/) to be visible (screenshot: fail-02.png)
+✗ Settle — Double-tapping Record payment records it once: balances differ: Varun shows ₹0.00 expected ₹1082.50; Zoe shows ₹0.00 expected ₹-1082.50 (screenshot: fail-03.png)
+✗ Settle — Record a different payment on the payment screen (Zoe paid Asha ₹50): page.waitForURL: Timeout 15000ms exceeded. =========================== logs =========================== waiting for navigation until "load" [browser errors: console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012] (screenshot: fail-04.png)
+○ Settle — Undo a payment from the bar: not run: nothing left to pay
+○ Settle — “I’ve paid” is only a claim: balances don't move until Asha taps Confirm received: not run: Varun pays nobody who has joined right now
+○ People — Someone owing money can't be marked as left until settled: not run: everyone settled
