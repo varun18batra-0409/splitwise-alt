@@ -295,9 +295,13 @@ async function shownBalances(page: Page, groupPath: string): Promise<Record<stri
   for (let i = 0; i < n; i++) {
     const t = (await rows.nth(i).innerText()).replace(/\s+/g, " ");
     const name = t.replace(/^[A-Z] /, "").split(" ")[0];
-    const gets = /gets (₹[\d,.]+)/.exec(t);
-    const owes = /owes (₹[\d,.]+)/.exec(t);
-    out[name] = gets ? minor(gets[1]) : owes ? -minor(owes[1]) : 0;
+    // The row shows whole rupees from ₹1,000 up; the exact amount is in data-exact, which is what is checked here.
+    const exactEl = rows.nth(i).locator("[data-exact]").first();
+    const exact = (await exactEl.count()) ? ((await exactEl.getAttribute("data-exact")) ?? "") : "";
+    const amt = /(₹[\d,.]+)/.exec(exact);
+    const gets = /\bgets\b/.test(t);
+    const owes = /\bowes\b/.test(t);
+    out[name] = amt && gets ? minor(amt[1]) : amt && owes ? -minor(amt[1]) : 0;
   }
   return out;
 }
@@ -2526,7 +2530,7 @@ async function main() {
     await V.locator("details summary").filter({ hasText: zoe.name }).first().click();
     const day = `${new Date().toISOString().slice(0, 8)}10`;
     await V.locator(`#in-${zoe.id}`).fill(day);
-    await V.locator(`#in-${zoe.id}`).locator("xpath=..").getByRole("button", { name: "Save" }).click();
+    await V.locator(`#in-${zoe.id}`).locator("xpath=ancestor::form[1]").getByRole("button", { name: "Save" }).click();
     // Already on /people, so wait for the save itself (not the address).
     let after = await db.member.findUnique({ where: { id: zoe.id } });
     for (let i = 0; i < 40 && after?.joinedFrom?.toISOString().slice(0, 10) !== day; i++) {
