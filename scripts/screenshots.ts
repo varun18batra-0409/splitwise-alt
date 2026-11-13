@@ -548,17 +548,17 @@ if (!hosted) {
     await shot("108-passport", "/passport", undefined, false);
     // 108 shows the one-time question; from here Varun has said Show.
     await db.account.update({ where: { id: acc.id }, data: { passportChoiceAt: new Date() } });
-    await shot("109-passport-open", "/passport", async (p) => {
+    await shot("109-passport-open", "/passport?book=1", async (p) => {
       await p.getByRole("button", { name: "Open your passport" }).click();
       await p.waitForTimeout(800);
     }, false);
-    await shot("110-passport-stamps", "/passport", async (p) => {
+    await shot("110-passport-stamps", "/passport?book=1", async (p) => {
       await p.getByRole("button", { name: "Open your passport" }).click();
       await p.waitForTimeout(800);
       await p.getByRole("button", { name: "Next page" }).click();
       await p.waitForTimeout(700);
     }, false);
-    await shot("111-passport-been", "/passport", async (p) => {
+    await shot("111-passport-been", "/passport?book=1", async (p) => {
       await p.getByRole("button", { name: "Open your passport" }).click();
       await p.waitForTimeout(800);
       const pages = await p.locator("[data-page]").count();
@@ -568,7 +568,7 @@ if (!hosted) {
       }
       await p.waitForTimeout(700);
     }, false);
-    await shot("112-passport-index", "/passport", async (p) => {
+    await shot("112-passport-index", "/passport?book=1", async (p) => {
       await p.getByRole("button", { name: "Open your passport" }).click();
       await p.waitForTimeout(800);
       const pages = await p.locator("[data-page]").count();
@@ -678,7 +678,7 @@ if (!hosted) {
     }, false);
     await shot("118-passport-picture", "/passport/image", undefined, false);
     await shot("118d-passport-share-sheet", "/passport", async (p) => {
-      await p.getByRole("button", { name: "Share", exact: true }).first().click();
+      await p.getByRole("button", { name: "Share passport", exact: true }).click();
       await p.waitForTimeout(800);
     }, false);
     await db.account.update({ where: { id: priya.id }, data: { passportChoiceAt: new Date(), places: JSON.stringify([{ c: "JP" }, { c: "FR" }, { c: "GR" }, { c: "TH" }, { c: "AE" }, { c: "ID" }]) } });
@@ -722,13 +722,147 @@ if (!hosted) {
       await p.waitForTimeout(900);
     }, false);
     await shot("113-passport-pick", "/passport", async (p) => {
-      await p.getByRole("button", { name: "+ Add countries" }).click();
+      await p.getByRole("button", { name: "Add a visited place" }).click();
       const sheet = p.getByRole("dialog", { name: "Add countries" });
       await sheet.getByRole("checkbox", { name: "Albania" }).check();
       await sheet.getByRole("checkbox", { name: "Andorra" }).check();
       await p.waitForTimeout(300);
     }, false);
+
+    // --- Passport Been tab (part P1): full, and long names, at 320 / 360 / 390 ---
+    {
+      const before = page.viewportSize();
+      for (const w of [320, 360, 390] as const) {
+        await page.setViewportSize({ width: w, height: 780 });
+        await shot(`P1-been-full-${w}`, "/passport?all=1");
+      }
+      // Long names: a country with a long name, and two long city stops at home.
+      await db.account.update({ where: { id: acc.id }, data: { homeCountry: "IN" } });
+      await db.group.create({
+        data: {
+          name: "Balkans", type: "trip", currency: "EUR", inviteCode: `shotsbalk${now.toString(36)}`, tripStart: "2026-06-02", tripEnd: "2026-06-09", tripPlace: "Sarajevo, Mostar", tripCountry: "BA",
+          members: { create: [{ name: "Varun", accountId: acc.id, claimedAt: new Date() }, { name: "Ravi" }] },
+        },
+      });
+      await db.group.create({
+        data: {
+          name: "South tip", type: "trip", currency: "INR", inviteCode: `shotssouth${now.toString(36)}`, tripStart: "2026-07-01", tripEnd: "2026-07-04", tripPlace: "Thiruvananthapuram, Kanyakumari", tripCountry: "IN",
+          members: { create: [{ name: "Varun", accountId: acc.id, claimedAt: new Date() }, { name: "Ravi" }] },
+        },
+      });
+      for (const w of [320, 360, 390] as const) {
+        await page.setViewportSize({ width: w, height: 780 });
+        await shot(`P1-been-long-names-${w}`, "/passport?all=1");
+      }
+      await shot("P1-passport-book", "/passport?book=1", undefined, false);
+      if (before) await page.setViewportSize(before);
+    }
   }
+}
+// ===== MOMENTS (part M1): the strip, Our moments, the add form, the viewer, the report page and a Home story frame, at 320 / 360 / 390 =====
+// A trip group made straight in the database with three people; each state is photographed as the person who sees it. (Local copy only.)
+if (!hosted) {
+  const { db } = await import("../src/lib/db");
+  const tag = Date.now().toString(36);
+  const acct = (n: string) => db.account.create({ data: { email: `shots-mo-${n.toLowerCase()}-${tag}@uat.loopin.test`, name: n } });
+  const [varu, nupur, riya] = [await acct("Varu"), await acct("Nupur"), await acct("Riya")];
+  const picture = readFileSync("public/icon-512.png");
+  const trip = async (name: string, riyaLeft?: Date) =>
+    db.group.create({
+      data: {
+        name, type: "trip", currency: "THB", inviteCode: `shotsmo${tag}${Math.random().toString(36).slice(2, 6)}`, tripStart: "2026-11-10", tripEnd: "2026-11-14", tripPlace: "Phuket", tripCountry: "TH",
+        members: {
+          create: [
+            { name: "Varu", accountId: varu.id, claimedAt: new Date(), createdAt: new Date(Date.now() - 5000) },
+            { name: "Nupur", accountId: nupur.id, claimedAt: new Date(), createdAt: new Date(Date.now() - 4000) },
+            { name: "Riya", accountId: riya.id, claimedAt: new Date(), createdAt: new Date(Date.now() - 3000), ...(riyaLeft ? { leftAt: riyaLeft } : {}) },
+          ],
+        },
+      },
+      include: { members: true },
+    });
+  const mins = (m: number) => new Date(Date.now() - m * 60_000);
+  const put = (g: Awaited<ReturnType<typeof trip>>, by: "Varu" | "Nupur" | "Riya", acc: { id: string }, caption: string, takenOn: string, at: Date, portrait = false) =>
+    db.moment.create({
+      data: { groupId: g.id, authorId: g.members.find((m) => m.name === by)!.id, authorAccountId: acc.id, caption, takenOn, type: "image/png", width: portrait ? 900 : 1200, height: portrait ? 1200 : 900, data: picture, thumbData: picture, createdAt: at },
+    });
+  const lone = await trip("Empty Thailand trip");
+  const thai = await trip("Thailand");
+  const first = await put(thai, "Nupur", nupur, "The boat we almost missed 😂", "2026-11-12", mins(12));
+  await put(thai, "Riya", riya, "Worth the early alarm.", "2026-11-11", mins(90), true);
+  await put(thai, "Varu", varu, "Noodles at midnight", "2026-11-10", mins(200));
+  await put(thai, "Nupur", nupur, "Rain, finally", "", mins(300));
+  await put(thai, "Riya", riya, "Last one from the pier", "2026-11-14", mins(400));
+  for (const [by, emoji] of [["Varu", "😂"], ["Riya", "😂"], ["Nupur", "❤️"]] as const) await db.momentReaction.create({ data: { momentId: first.id, memberId: thai.members.find((m) => m.name === by)!.id, emoji } });
+  const single = await trip("Thailand, one moment");
+  await put(single, "Nupur", nupur, "The boat we almost missed 😂", "2026-11-12", mins(12));
+  const crowd = await trip("Thailand, a lot of moments");
+  for (let i = 0; i < 24; i++) await put(crowd, i % 2 ? "Nupur" : "Riya", i % 2 ? nupur : riya, `Moment number ${i + 1}`, "", mins(30 + i * 90), i % 3 === 0);
+  const gone = await trip("Thailand, Riya left", mins(60)); // Riya left an hour ago
+  await put(gone, "Nupur", nupur, "Before she left", "2026-11-11", mins(300));
+  await put(gone, "Nupur", nupur, "After she left (hidden from Riya)", "2026-11-12", mins(10));
+  const longCaption = "A caption of exactly eighty characters, to see how it wraps on a small phone!!!!"; // 80
+
+  const shots = async (who: { id: string }, widths: readonly number[], list: [string, string, ((p: Page) => Promise<void>)?, boolean?][]) => {
+    const c = await browser.newContext({ viewport: screen, deviceScaleFactor: desktop ? 1 : 2, ...(ios ? { isMobile: true, hasTouch: true } : {}), colorScheme: "dark", reducedMotion: "reduce", locale: "en-IN", timezoneId: "Asia/Kolkata" });
+    await c.addCookies([{ name: SESSION_COOKIE, value: await encodeSession({ m: {}, a: who.id, v: 0 }), url: base }]);
+    const p = await c.newPage();
+    for (const w of widths) {
+      await p.setViewportSize({ width: w, height: 780 });
+      for (const [name, path, prepare, full] of list) {
+        try {
+          await p.goto(base + path, { waitUntil: "networkidle", timeout: 30_000 });
+          await p.waitForTimeout(700);
+          if (prepare) await prepare(p).catch((e) => console.log("  (could not prepare", name, String(e).split("\n")[0], ")"));
+          await p.screenshot({ path: `${out}/M1-${name}-${w}.png`, fullPage: full ?? true });
+          console.log("✓", `M1-${name}-${w}`);
+        } catch (e) {
+          console.log("✗", `M1-${name}-${w}`, String(e).split("\n")[0]);
+        }
+      }
+    }
+    await c.close();
+  };
+  const W = [320, 360, 390] as const;
+  const photo = async (p: Page) => {
+    await p.getByLabel("Choose a photo").setInputFiles({ name: "moment.png", mimeType: "image/png", buffer: picture });
+    await p.locator('img[alt="Your photo"]').waitFor();
+  };
+  await shots(varu, W, [
+    ["strip-empty", `/groups/${lone.id}`, undefined, false],
+    ["strip-with-moments", `/groups/${thai.id}`, undefined, false],
+    ["moments-one", `/groups/${single.id}/moments`, undefined, true],
+    ["moments-many", `/groups/${crowd.id}/moments`, undefined, true],
+    ["moments", `/groups/${thai.id}/moments`, undefined, true],
+    ["add-empty", `/groups/${thai.id}/moments/new`, undefined, false],
+    ["add-photo", `/groups/${thai.id}/moments/new`, async (p) => {
+      await photo(p);
+      await p.getByPlaceholder("The boat we almost missed").fill("The boat we almost missed 😂");
+      await p.getByRole("button", { name: "Day 3", exact: true }).click();
+    }, true],
+    ["add-80-characters", `/groups/${thai.id}/moments/new`, async (p) => {
+      await photo(p);
+      await p.getByPlaceholder("The boat we almost missed").fill(longCaption);
+      await p.getByRole("button", { name: "Day 5", exact: true }).click();
+    }, true],
+    ["viewer", `/groups/${thai.id}/moments/${first.id}`, undefined, true],
+    ["viewer-reactions", `/groups/${thai.id}/moments/${first.id}`, async (p) => {
+      await p.locator("[data-reactions] summary[aria-label='React']").click();
+    }, true],
+    ["home-story-circles", "/", undefined, false],
+    ["home-story-frame", "/", async (p) => {
+      await p.locator("[data-story='moment']").first().click();
+      await p.waitForTimeout(900);
+    }, false],
+  ]);
+  // As the author, the "⋯" menu has Delete; as someone else it has Report and Block.
+  await shots(nupur, W, [["menu-author", `/groups/${thai.id}/moments/${first.id}`, async (p) => { await p.locator("[data-moment-menu] summary").click(); }, true]]);
+  await shots(riya, W, [
+    ["menu-other", `/groups/${thai.id}/moments/${first.id}`, async (p) => { await p.locator("[data-moment-menu] summary").click(); }, true],
+    ["report", `/report?kind=moment&id=${first.id}&back=${encodeURIComponent(`/groups/${thai.id}/moments/${first.id}`)}`, undefined, true],
+  ]);
+  // Riya left an hour ago: she sees "Before she left", no Add button, and not the newer moment.
+  await shots(riya, W, [["leaver", `/groups/${gone.id}/moments`, undefined, true]]);
 }
 // The "I've paid" link from a Remind, as the person who owes sees it (no sign-in).
 let payPath = "";

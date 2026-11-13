@@ -384,6 +384,23 @@ export default async function HowItWorks() {
         />
       </Section>
 
+      <div id="moments" className="scroll-mt-4" />
+      <Section title="Moments, for the trip group">
+        <p>
+          In a trip group, anyone signed in can add a <strong>moment</strong>: one photo and a few words, and the day of the trip if you like. Open it
+          from the little <strong>Our moments</strong> row on the group page. Only people in that group see them, and new ones show up in the circles on Home.
+        </p>
+        <Steps
+          items={[
+            <><strong>Add one.</strong> Our moments → Add your moment. Pick a photo, write a few words, choose the day.</>,
+            <><strong>React.</strong> Tap an emoji under a moment; tap it again to take it back.</>,
+            <><strong>Remove one.</strong> The three dots on a moment: Delete if it’s yours; whoever looks after the group can remove any. The photo is erased for everyone.</>,
+            <><strong>Unwelcome?</strong> Report it or block the person from the same menu. Blocking hides their moments from you.</>,
+            <><strong>Left the group?</strong> You still see the moments from before you left, and can’t add or react.</>,
+          ]}
+        />
+      </Section>
+
       <div id="postcards" className="scroll-mt-4" />
       <Section slot="place-goa-4" title="Postcards, sealed and stamped">
         <p>
@@ -398,7 +415,7 @@ export default async function HowItWorks() {
             <><strong>Write back.</strong> Press a wax seal back on a card you got, or reply with your own.</>,
             <><strong>Reuse a design.</strong> Send the same card to someone else, or borrow the look of one you received.</>,
             <><strong>Stamp album.</strong> Every stamp you send or get is kept: You → Your postcards → Stamp album.</>,
-            <><strong>Report or block.</strong> Something unwelcome? Tap <strong>Report</strong> or <strong>Block</strong> on the card, a friend’s passport or a person in People. You’ll still see shared group expenses and balances. Unblock in You → Privacy and safety.</>,
+            <><strong>Report or block.</strong> Something unwelcome? Tap <strong>Report</strong> or <strong>Block</strong> on the card, a friend’s passport, a moment or a person in People. You’ll still see shared group expenses and balances. Unblock in You → Privacy and safety.</>,
           ]}
         />
       </Section>

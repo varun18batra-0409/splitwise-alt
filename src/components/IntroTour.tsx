@@ -16,9 +16,10 @@ const seen = () => {
 };
 import { useEffect, useMemo, useRef, useState } from "react";
 import { decimalsOf, formatMoney } from "@/lib/money";
+import { CameraIcon } from "./MomentIcons";
 
-// The intro tour, in the visitor's own currency: six swipeable slides (make a group, add what you paid,
-// see who owes then settle, every trip becomes a story, send a postcard, collect your passport), each with a small animated picture. Shown to
+// The intro tour, in the visitor's own currency: seven swipeable slides (make a group, add what you paid,
+// see who owes then settle, every trip becomes a story, send a postcard, keep moments, collect your passport), each with a small animated picture. Shown to
 // first-time visitors on the home screen, and any time at /welcome (the "1-minute tour" link in How Loopin works).
 
 type Slide = { id: string; title: string; caption: string; art: React.ReactNode };
@@ -148,6 +149,24 @@ function local(currency: string, india: boolean): Local {
   };
 }
 
+// A moment, drawn: a photo, a few words, the day and a reaction. (No real photo: it's only a picture of the idea.)
+function MomentArt() {
+  return (
+    <Card className="!p-0 overflow-hidden">
+      <div className="rise flex h-[120px] items-center justify-center bg-mist text-fg/55">
+        <CameraIcon size={34} />
+      </div>
+      <div className="px-4 pb-4 pt-3">
+        <p className="rise rise-2 font-display text-[20px] font-semibold leading-snug">The boat we almost missed</p>
+        <p className="rise rise-2 mt-0.5 text-[13px] text-fg/55">Day 3 · Only your group</p>
+        <span className="rise rise-3 mt-3 inline-flex h-9 items-center gap-1.5 rounded-full border-[1.5px] border-fg px-3 text-sm tabular-nums">
+          <span aria-hidden>😂</span> 4
+        </span>
+      </div>
+    </Card>
+  );
+}
+
 function makeSlides(L: Local): Slide[] {
   const v = L.india ? { dinner: 1200, each: 300, back: 900 } : { dinner: 120, each: 30, back: 90 };
   return [
@@ -215,6 +234,12 @@ function makeSlides(L: Local): Slide[] {
       title: "Send a postcard.",
       caption: "Pick a photo from the trip, write a line and send it to a friend, in Loopin or on WhatsApp.",
       art: <PostcardArt />,
+    },
+    {
+      id: "moment",
+      title: "Keep the little moments.",
+      caption: "Add one photo and a few words to your trip group. Only the people in it see them.",
+      art: <MomentArt />,
     },
     {
       id: "passport",

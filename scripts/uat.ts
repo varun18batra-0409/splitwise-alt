@@ -2052,21 +2052,21 @@ async function main() {
     await V.waitForURL(/\/welcome/);
     return `${imgs} photos on the guide (${sizes})`;
   });
-  await step(null, "Help", "The 1-minute tour has 6 slides (make a group, add what you paid, see who owes then settle, every trip becomes a story, send a postcard, collect your passport), in words that work outside India, and none says “no sign-up”", async () => {
+  await step(null, "Help", "The 1-minute tour has 7 slides (make a group, add what you paid, see who owes then settle, every trip becomes a story, send a postcard, keep the little moments, collect your passport), in words that work outside India, and none says “no sign-up”", async () => {
     const { ctx, page } = await person(browser);
     await go(page, "/welcome");
     const seen: string[] = [];
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 7; i++) {
       seen.push((await page.locator("main").innerText()).replace(/\s+/g, " "));
       const next = page.getByRole("button", { name: /Next/ });
-      if (i < 5) {
+      if (i < 6) {
         await next.click();
         await page.waitForTimeout(500);
       }
     }
-    assert((await page.locator("[data-tour-slide]").count()) === 6, `${await page.locator("[data-tour-slide]").count()} slides, not 6 (the tour stays at 6 or fewer)`);
+    assert((await page.locator("[data-tour-slide]").count()) === 7, `${await page.locator("[data-tour-slide]").count()} slides, not 7 (the tour is 7 slides)`);
     const all = seen.join(" ");
-    for (const t of ["Make a group.", "Add what you paid.", "See who owes. Then settle.", "Every trip becomes a story.", "Send a postcard.", "Collect your passport."]) assert(all.includes(t), `no “${t}” slide`);
+    for (const t of ["Make a group.", "Add what you paid.", "See who owes. Then settle.", "Every trip becomes a story.", "Send a postcard.", "Keep the little moments.", "Collect your passport."]) assert(all.includes(t), `no “${t}” slide`);
     assert(/to the last paisa or cent/.test(all), "the add slide doesn’t say “to the last paisa or cent”");
     assert(/Pay each other however you like/.test(all), "the settle slide doesn’t say “Pay each other however you like”");
     assert(!/no sign-up/i.test(all), "a slide still says “no sign-up”");
@@ -3454,9 +3454,13 @@ async function main() {
     await go(V, "/account");
     await V.getByRole("link", { name: /Your trip passport/ }).click();
     await V.waitForURL(/\/passport/);
+    // The Been cards come first; the booklet is behind a quiet link.
+    await V.getByRole("link", { name: "Open the passport book" }).click();
+    await V.waitForURL(/\/passport\?book=1/);
     await V.getByRole("button", { name: "Open your passport" }).click();
     await V.getByRole("button", { name: "Next page" }).waitFor();
-    await V.getByRole("button", { name: "+ Add countries" }).click();
+    await go(V, "/passport");
+    await V.getByRole("button", { name: "Add a visited place" }).click();
     const sheet = V.getByRole("dialog", { name: "Add countries" });
     await sheet.getByLabel("Search countries").fill("thai");
     await sheet.getByRole("checkbox", { name: "Thailand" }).check();
@@ -3464,20 +3468,59 @@ async function main() {
     await sheet.getByRole("checkbox", { name: "Japan" }).check();
     await sheet.getByRole("button", { name: "Add 2 countries" }).click();
     await V.waitForURL(/added=2/);
+    await go(V, "/passport?all=1"); // every card, however many trips there are
     await V.locator("[data-country-stamp='TH'][data-by-hand='1']").waitFor({ state: "attached" });
     await V.locator("[data-country-stamp='JP'][data-by-hand='1']").waitFor({ state: "attached" });
+    await go(V, "/passport?book=1");
     await V.locator("[data-index-country='JP']").waitFor({ state: "attached" });
   });
 
   await step(V, "Fun", "Share my passport sends one picture of the open booklet (details, map, every stamp), and nothing else", async () => {
     await go(V, "/passport");
-    await V.getByRole("button", { name: "Share", exact: true }).first().click();
+    await V.getByRole("button", { name: "Share passport", exact: true }).click();
     const sheet = V.getByRole("dialog", { name: "Share your passport" });
     await sheet.getByText("WhatsApp", { exact: true }).waitFor();
     assert((await sheet.locator("[data-album-preview]").count()) === 0, "still offers an album of several pictures");
     const res = await V.request.get(`${base}/passport/image`);
     assert(res.ok() && (res.headers()["content-type"] ?? "").startsWith("image/png") && (await res.body()).length > 40_000, `picture: ${res.status()} ${res.headers()["content-type"]}`);
     await sheet.getByRole("button", { name: "Close" }).click();
+  });
+
+  // ----- Passport, Been tab (UAT step 8 of the passport/moments plan) -----
+  await step(null, "Fun", "Passport Been tab: Thailand 5–10 May 2026 (6 days) and Goa 13–15 Mar 2026 (3 days) show as cards, and the numbers read 2 countries, 2 trips, 9 days away", async () => {
+    const dana = await person(browser);
+    try {
+      await go(dana.page, "/signin?back=/passport");
+      await signup(dana.page, "Dana", email("dana-been"));
+      const acc = await db.account.findUniqueOrThrow({ where: { email: email("dana-been") } });
+      await db.account.update({ where: { id: acc.id }, data: { homeCountry: "IN", passportChoiceAt: new Date() } });
+      const mk = (name: string, start: string, end: string, place: string, country: string, others: string[]) =>
+        db.group.create({
+          data: {
+            name, currency: "INR", type: "trip", inviteCode: `been-${Math.random().toString(36).slice(2, 8)}-${stamp}`, tripStart: start, tripEnd: end, tripPlace: place, tripCountry: country,
+            members: { create: [{ name: "Dana", accountId: acc.id, claimedAt: new Date() }, ...others.map((n) => ({ name: n }))] },
+          },
+        });
+      const thai = await mk("Thailand", "2026-05-05", "2026-05-10", "Bangkok, Phuket", "TH", ["Nupur", "Riya", "Dev", "Meera", "Ravi"]); // 6 people
+      const goa = await mk("Goa trip", "2026-03-13", "2026-03-15", "Goa", "", ["Nupur", "Riya", "Dev"]); // 4 people
+      await go(dana.page, "/passport");
+      const row = await dana.page.locator("[data-passport-stats-row]").getAttribute("data-passport-stats-row");
+      assert(row === "2|2|9", `the numbers row says ${row}, not 2|2|9`);
+      const rowText = (await dana.page.locator("[data-passport-stats-row]").innerText()).replace(/\s+/g, " ");
+      for (const w of ["countries", "trips", "days away"]) assert(rowText.includes(w), `the numbers row is missing “${w}”: ${rowText}`);
+      const big = dana.page.locator("[data-been-card='big']");
+      assert((await big.getAttribute("data-group")) === thai.id, "the newest trip (Thailand) isn't the big card");
+      const bigText = (await big.innerText()).replace(/\s+/g, " ");
+      for (const w of ["Thailand", "Bangkok · Phuket", "5–10 May 2026 · 6 days", "6 people"]) assert(bigText.includes(w), `the big card is missing “${w}”: ${bigText}`);
+      assert((await big.locator("[data-been-relive]").getAttribute("href")) === `/groups/${thai.id}/report`, "Relive this trip doesn't go to the trip");
+      const small = dana.page.locator("[data-been-card='small']");
+      assert((await small.getAttribute("data-group")) === goa.id, "Goa isn't the small card");
+      const smallText = (await small.innerText()).replace(/\s+/g, " ");
+      for (const w of ["Goa", "13–15 Mar 2026 · 3 days", "With 3 friends"]) assert(smallText.includes(w), `the Goa card is missing “${w}”: ${smallText}`);
+      assert((await dana.page.getByRole("link", { name: "Open the passport book" }).count()) === 1, "no quiet link to the passport book");
+    } finally {
+      await dana.ctx.close();
+    }
   });
 
   // =====================================================================
@@ -3995,6 +4038,129 @@ Object.defineProperty(navigator, "contacts", { value: { select: async () => [{ n
     return `navigator.vibrate is ${has}`;
   });
 
+  // ===== MOMENTS (Part M1): a photo and a few words in a trip group; only that group sees them =====
+  // Varun looks after "UAT Moments trip"; Asha and Ravi are in it; Zoe is a signed-in stranger to it; a fresh browser is signed out.
+  // The group is set up straight in the database (the people are already signed in); every moment is added through the real screens.
+  let momentsGroup = "";
+  let momentOne = ""; // Varun's, Day 3
+  let momentTwo = ""; // Asha's
+  let momentThree = ""; // Asha's, added after Ravi left
+  const momentPhotoUrl = (id: string, s: "t" | "f" = "f") => `${base}/api/moment-photo/${id}?s=${s}`;
+  const addMomentThroughTheForm = async (who: Page, caption: string, dayLabel: string) => {
+    await go(who, `${momentsGroup}/moments/new`);
+    await who.getByLabel("Choose a photo").setInputFiles({ name: "moment.png", mimeType: "image/png", buffer: readFileSync("public/icon-512.png") });
+    await who.locator('img[alt="Your photo"]').waitFor();
+    await who.getByPlaceholder("The boat we almost missed").fill(caption);
+    if (dayLabel) await who.getByRole("button", { name: dayLabel, exact: true }).click();
+    await who.getByRole("button", { name: "Add moment" }).click();
+    await who.waitForURL(/\/moments$/);
+  };
+  await step(V, "Moments", "Varun adds a moment (a photo, “The boat we almost missed 😂”, Day 3): it shows in the group's strip and on Our moments", async () => {
+    const acc = async (n: string) => (await db.account.findUniqueOrThrow({ where: { email: email(n) } })).id;
+    const grp = await db.group.create({
+      data: {
+        name: "UAT Moments trip", currency: "INR", type: "trip", inviteCode: `mom-${Math.random().toString(36).slice(2, 8)}-${stamp}`, tripStart: "2026-11-10", tripEnd: "2026-11-14",
+        members: {
+          create: [
+            { name: "Varun", accountId: await acc("varun"), claimedAt: new Date(), createdAt: new Date(Date.now() - 4000) },
+            { name: "Asha", accountId: await acc("asha"), claimedAt: new Date(), createdAt: new Date(Date.now() - 3000) },
+            { name: "Ravi", accountId: await acc("ravi"), claimedAt: new Date(), createdAt: new Date(Date.now() - 2000) },
+          ],
+        },
+      },
+    });
+    momentsGroup = `/groups/${grp.id}`;
+    await go(V, momentsGroup);
+    assert((await V.locator("[data-moments-strip='empty']").count()) === 1, "no “Add the first moment” line on the empty group");
+    await addMomentThroughTheForm(V, "The boat we almost missed 😂", "Day 3");
+    momentOne = (await db.moment.findFirstOrThrow({ where: { groupId: grp.id, caption: "The boat we almost missed 😂" } })).id;
+    const row = await db.moment.findUniqueOrThrow({ where: { id: momentOne } });
+    assert(row.takenOn === "2026-11-12", `the day saved is ${row.takenOn}, not Day 3 (2026-11-12)`);
+    const page = await V.locator("main").innerText();
+    assert(page.includes("The boat we almost missed 😂") && page.includes("Day 3"), "Our moments doesn't show the caption and Day 3");
+    assert((await V.getByText("Saved with this trip").count()) === 1, "no “Saved with this trip”");
+    assert((await V.locator("[data-bottom-nav]").count()) === 0, "the tab bar shows on Our moments (the Add button is the one floating bar)");
+    await go(V, momentsGroup);
+    assert(/Our moments/.test(await V.locator("[data-moments-strip]").innerText()), "no strip on the group page");
+    const photo = await V.request.get(momentPhotoUrl(momentOne), { headers: bypass });
+    assert(photo.status() === 200 && /private, max-age=2592000, immutable/.test(photo.headers()["cache-control"] ?? ""), `the photo answered ${photo.status()}`);
+  });
+  await step(A, "Moments", "Asha sees “Varun added a moment” in Home's story circles, adds her own moment, and reacts 😂 to Varun's: the count shows 1", async () => {
+    await go(A, "/");
+    await A.locator("[data-story='moment']").first().waitFor();
+    assert(/Moments/.test(await A.locator("[data-story='moment']").first().innerText()), "the moment circle has no label");
+    await addMomentThroughTheForm(A, "Worth the early alarm.", "");
+    momentTwo = (await db.moment.findFirstOrThrow({ where: { groupId: momentsGroup.split("/").pop()!, caption: "Worth the early alarm." } })).id;
+    await go(A, `${momentsGroup}/moments/${momentOne}`);
+    await A.locator("[data-reactions] summary[aria-label='React']").click();
+    await A.getByRole("button", { name: "React 😂", exact: true }).click();
+    await A.waitForURL(new RegExp(`/moments/${momentOne}$`));
+    const chip = A.locator(`[data-reactions='${momentOne}'] button[aria-pressed='true']`);
+    await chip.waitFor();
+    assert(/😂\s*1/.test(await chip.innerText()), `the reaction chip reads “${await chip.innerText()}”, not “😂 1”`);
+  });
+  await step(R, "Moments", "Ravi reports Varun's moment (and sees the thank-you), then blocks Varun: it disappears from his list, his story circles, and its photo address answers 404", async () => {
+    await go(R, `${momentsGroup}/moments/${momentOne}`);
+    await R.locator("[data-moment-menu] summary").click();
+    await R.getByRole("link", { name: "Report", exact: true }).click();
+    await R.getByRole("button", { name: "Send report" }).click();
+    await R.locator("[data-report-done]").waitFor();
+    assert((await db.report.count({ where: { kind: "moment", targetId: momentOne } })) === 1, "the moment report wasn't saved");
+    await R.getByRole("button", { name: /Block Varun/ }).click();
+    await R.waitForURL(/blocked=1/);
+    await go(R, `${momentsGroup}/moments`);
+    assert((await R.getByText("The boat we almost missed").count()) === 0, "a blocked person's moment is still in the list");
+    await go(R, "/");
+    const circles = await R.locator("[data-story='moment']").evaluateAll((els) => els.map((e) => (e as HTMLElement).innerText));
+    assert(!circles.some((t) => /Varun/.test(t)), "a blocked person's moment is still in the story circles");
+    const photo = await R.request.get(momentPhotoUrl(momentOne), { headers: bypass });
+    assert(photo.status() === 404, `a blocked person's photo answered ${photo.status()}, not 404`);
+    const mine = await R.request.get(momentPhotoUrl(momentTwo), { headers: bypass });
+    assert(mine.status() === 200, `Asha's photo answered ${mine.status()} for Ravi (not blocked), not 200`);
+  });
+  await step(Z, "Moments", "A signed-in outsider and a signed-out browser both get 404 on the photo address and on the page", async () => {
+    assert((await Z.request.get(momentPhotoUrl(momentTwo), { headers: bypass })).status() === 404, "an outsider could open the photo");
+    const stranger = await Z.goto(base + `${momentsGroup}/moments`);
+    assert(stranger?.status() === 404, `an outsider's Our moments answered ${stranger?.status()}`);
+    const anon = await person(browser);
+    try {
+      for (const s of ["f", "t"] as const) assert((await anon.page.request.get(momentPhotoUrl(momentTwo, s), { headers: bypass })).status() === 404, `a signed-out browser could open the ${s} photo`);
+      const r = await anon.page.goto(base + `${momentsGroup}/moments`);
+      assert(r?.status() === 404, `a signed-out Our moments answered ${r?.status()}`);
+    } finally {
+      await anon.ctx.close();
+    }
+  });
+  await step(R, "Moments", "Ravi leaves: he still sees older moments with no Add button; Asha's new moment is hidden from him and its address answers 404", async () => {
+    // (Leaving itself is covered by the left-view steps; here it is set directly so the step is about moments.)
+    await db.member.updateMany({ where: { groupId: momentsGroup.split("/").pop()!, name: "Ravi" }, data: { leftAt: new Date() } });
+    await new Promise((r) => setTimeout(r, 1200)); // a moment added now is after he left
+    await addMomentThroughTheForm(A, "After Ravi left", "");
+    momentThree = (await db.moment.findFirstOrThrow({ where: { groupId: momentsGroup.split("/").pop()!, caption: "After Ravi left" } })).id;
+    await go(R, `${momentsGroup}/moments`);
+    const text = await R.locator("main").innerText();
+    assert(text.includes("Worth the early alarm."), "someone who left no longer sees a moment from before they left");
+    assert(!text.includes("After Ravi left"), "someone who left sees a moment added after they left");
+    assert((await R.getByRole("link", { name: "Add your moment" }).count()) === 0, "someone who left is offered “Add your moment”");
+    const late = await R.request.get(momentPhotoUrl(momentThree), { headers: bypass });
+    assert(late.status() === 404, `a moment added after they left answered ${late.status()}, not 404`);
+    const early = await R.request.get(momentPhotoUrl(momentTwo), { headers: bypass });
+    assert(early.status() === 200, `a moment from before they left answered ${early.status()}, not 200`);
+  });
+  await step(V, "Moments", "Varun, who looks after the group, removes Asha's moment; Asha deletes her own: each photo is gone for everyone", async () => {
+    await go(V, `${momentsGroup}/moments/${momentTwo}`);
+    await V.locator("[data-moment-menu] summary").click();
+    await V.getByRole("button", { name: "Remove this moment" }).click();
+    await V.waitForURL(/removed=1/);
+    assert((await db.moment.count({ where: { id: momentTwo } })) === 0, "the admin's remove didn't delete the moment");
+    await go(A, `${momentsGroup}/moments/${momentThree}`);
+    await A.locator("[data-moment-menu] summary").click();
+    await A.getByRole("button", { name: "Delete this moment" }).click();
+    await A.waitForURL(/removed=1/);
+    assert((await db.moment.count({ where: { id: momentThree } })) === 0, "the author's delete didn't delete the moment");
+    for (const id of [momentTwo, momentThree]) assert((await A.request.get(momentPhotoUrl(id), { headers: bypass })).status() === 404, "a deleted moment's photo still opens");
+  });
+
   await browser.close();
   writeReports();
 }
@@ -4035,6 +4201,7 @@ function coverOf(area: string, name: string): Cover {
     case "Account":
       return /Delete|Download all my data|privacy/i.test(name) ? "Privacy" : "Onboarding";
     case "Privacy":
+    case "Moments":
       return "Privacy";
     default:
       return "Regression";

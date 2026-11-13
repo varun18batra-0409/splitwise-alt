@@ -40,10 +40,12 @@ function writeSeen(s: Set<string>) {
 // about twice as wide as the screen: ask the image service for twice the width (the old "100vw" gave a soft, blocky picture), at high quality.
 export const STORY_SIZES = "(max-width: 448px) 220vw, 960px";
 export const STORY_QUALITY = 90;
+export const isOwnApi = (src: string) => src.startsWith("/api/");
 
 function Picture({ s, uid, big }: { s: Story; uid: string; big?: boolean }) {
   // Sized for where it shows: a small copy for the polaroid, a sharp one full screen.
-  if (s.photo) return <Image src={s.photo} alt="" aria-hidden fill sizes={big ? STORY_SIZES : "80px"} quality={big ? STORY_QUALITY : 75} priority={big} className={`object-cover ${big ? "lp-drift" : ""}`} />;
+  // A photo from our own /api/ (a moment) is private: Next's image service has no cookies, so it must be shown as it is.
+  if (s.photo) return <Image src={s.photo} alt="" aria-hidden fill unoptimized={isOwnApi(s.photo)} sizes={big ? STORY_SIZES : "80px"} quality={big ? STORY_QUALITY : 75} priority={big} className={`object-cover ${big ? "lp-drift" : ""}`} />;
   if (s.cover && !s.art) return <GroupCover kind={s.cover.kind as CoverChoice} src={s.cover.src} uid={uid} sizes={big ? "448px" : "80px"} drift={big} />;
   // No photo: designed artwork (green felt for a card night, a jar for a collection…).
   return <StoryArt kind={s.art ?? s.kind} uid={uid} />;
@@ -123,7 +125,7 @@ function Slide({ f, uid }: { f: Frame; uid: string }) {
   if (f.kind === "photo" || f.kind === "art")
     return (
       <>
-        {f.kind === "photo" ? <Image src={f.photo} alt="" aria-hidden fill sizes={STORY_SIZES} quality={STORY_QUALITY} priority className="lp-drift object-cover" /> : <StoryArt kind={f.art} uid={uid} />}
+        {f.kind === "photo" ? <Image src={f.photo} alt="" aria-hidden fill unoptimized={isOwnApi(f.photo)} sizes={STORY_SIZES} quality={STORY_QUALITY} priority className="lp-drift object-cover" /> : <StoryArt kind={f.art} uid={uid} />}
         <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.5)_0%,transparent_22%,transparent_42%,rgba(0,0,0,0.9)_100%)]" />
         <Words kicker={f.kicker} head={f.head} line={f.line} />
       </>

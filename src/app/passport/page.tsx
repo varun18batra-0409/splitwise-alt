@@ -8,20 +8,25 @@ import { visitorRegion } from "@/lib/region";
 import { celebrateMarks, loadPassport } from "@/lib/passport-db";
 import { COUNTRIES, countryOf } from "@/lib/geo";
 import { parseHandPlaces, passportNeedsAnswer, passportShared, stampPages } from "@/lib/passport";
-import { answerPassportQuestionAction, removePlaceAction, setHomeCountryAction, setPassportShareAction } from "@/app/passport-actions";
+import { beenCards, shownCards } from "@/lib/passport-cards";
+import { answerPassportQuestionAction, setHomeCountryAction, setPassportShareAction } from "@/app/passport-actions";
 import { ErrorNote, PageHeader, primaryButtonClass } from "@/components/ui";
 import { ShareSheet } from "@/components/ShareSheet";
 import { Notice } from "@/components/Notice";
 import { PassportBook } from "@/components/PassportBook";
 import { CountryPicker } from "@/components/CountryPicker";
 import { SelectField } from "@/components/SelectField";
+import { PASSPORT_TABS, PassportArt, PassportTabs, passportTab } from "@/components/PassportTabs";
+import { PassportStats } from "@/components/PassportStats";
+import { BeenCardBig, BeenCardHand, BeenCardSmall, InkFilter } from "@/components/BeenCard";
+import { InfoIcon, LockIcon, ShareIcon } from "@/components/PassportIcons";
 
 export const metadata = { title: "Your trip passport", robots: { index: false } };
 
-// Your trip passport: a booklet with a stamp for every trip (cities at home,
-// countries abroad), plus countries from before Loopin, stamped lighter.
+// Your passport. The Been tab is a card for every trip (a stamp on the place's photo), with the numbers on top
+// and countries from before Loopin as small cards. The old booklet is one quiet link away (?book=1).
 
-export default async function PassportPage({ searchParams }: { searchParams: Promise<{ error?: string; added?: string; shared?: string; sent?: string }> }) {
+export default async function PassportPage({ searchParams }: { searchParams: Promise<{ error?: string; added?: string; shared?: string; sent?: string; tab?: string; book?: string; all?: string }> }) {
   const sp = await searchParams;
   const account = await getAccount();
   if (!account)
@@ -42,12 +47,48 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
   const home = countryOf(p.home);
   const hand = parseHandPlaces(account.places);
   const empty = p.stamps.length + p.been.length === 0;
+  const tab = passportTab(sp.tab);
+  const shareWords = `My Loopin passport: ${[p.stats.countries ? `${p.stats.countries} ${p.stats.countries === 1 ? "country" : "countries"}` : "", p.stats.cities ? `${p.stats.cities} ${p.stats.cities === 1 ? "city" : "cities"}` : ""].filter(Boolean).join(", ") || "my first stamps"} and counting ✈️`;
+
+  // The old booklet: cover, pages to swipe, map and badges.
+  if (sp.book === "1")
+    return (
+      <>
+        <PageHeader title="Passport book" back="/passport" />
+        <PassportBook name={account.name} stats={p.stats} milestones={p.milestones} pages={stampPages(p.stamps, p.been)} index={p.index} badges={p.badges} />
+        {!empty && (
+          <div className="mb-10 mt-5 scroll-mb-28" data-passport-actions>
+            <div className="grid grid-cols-2 gap-3">
+              <Link href="/passport/send" className="flex h-12 items-center justify-center rounded-full border border-fg/25 text-[15px] font-semibold active:bg-fg/10" data-passport-send>
+                Send in Loopin
+              </Link>
+              <ShareSheet image={`/passport/image?v=${version}`} fileName="loopin-passport.png" title="Share your passport" words={shareWords} label="Share" />
+            </div>
+          </div>
+        )}
+      </>
+    );
+
   // A moment just reached (10 countries, a new continent): shown once here, and in Alerts.
   const moment = await celebrateMarks(account, p.marks);
+  const { stats, cards } = beenCards({ trips: p.trips, stamps: p.stamps, been: p.been, stats: p.stats }, p.extras, today);
+  const { shown, hidden } = shownCards(cards, sp.all === "1");
+  const big = shown[0]?.kind === "trip" ? shown[0] : undefined;
+  const rest = big ? shown.slice(1) : shown;
 
   return (
     <>
-      <PageHeader title="Trip passport" back="/account" />
+      <InkFilter />
+      <PageHeader title="Your passport" back="/account" hideTitle />
+      <div className="relative mb-5 min-h-[104px] pr-24">
+        <PassportArt />
+        <p aria-hidden className="font-display text-[30px] font-semibold leading-[1.1] tracking-[-0.02em] min-[360px]:text-[34px]">
+          Your passport
+        </p>
+        <p className="mt-1.5 text-[16px] leading-snug text-fg/75">{PASSPORT_TABS.length > 1 ? "Places behind you. Plans ahead." : "Places behind you."}</p>
+      </div>
+      <PassportTabs tab={tab} />
+
       {sp.error && <ErrorNote>{sp.error.slice(0, 120)}</ErrorNote>}
       {sp.sent && (
         <Notice params={["sent"]} className="mb-4">
@@ -77,27 +118,69 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
         </section>
       )}
 
-      <Link href="/passport/friends" className="mb-4 flex items-center gap-3 rounded-2xl border border-line px-4 py-3 active:bg-mist" data-friends-link>
-        <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-fg/25 text-fg/75"><PeoplePassportsIcon size={18} /></span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-sm font-semibold">Friends’ passports</span>
-          <span className="block text-xs text-gray-500">Where friends in your groups have been</span>
-        </span>
-        <span aria-hidden className="text-gray-400">›</span>
-      </Link>
-      <PassportBook name={account.name} stats={p.stats} milestones={p.milestones} pages={stampPages(p.stamps, p.been)} index={p.index} badges={p.badges} />
+      {/* Been */}
+      <PassportStats stats={stats} />
 
-      {!empty && (
-        <div className="mb-10 mt-5 scroll-mb-28" data-passport-actions>
-          <div className="grid grid-cols-2 gap-3">
-            <Link href="/passport/send" className="pop flex h-12 items-center justify-center bg-fg text-[15px] font-semibold text-canvas" data-passport-send>
-              Send in Loopin
-            </Link>
-          <ShareSheet image={`/passport/image?v=${version}`} fileName="loopin-passport.png" title="Share your passport" words={`My Loopin passport: ${[p.stats.countries ? `${p.stats.countries} ${p.stats.countries === 1 ? "country" : "countries"}` : "", p.stats.cities ? `${p.stats.cities} ${p.stats.cities === 1 ? "city" : "cities"}` : ""].filter(Boolean).join(", ") || "my first stamps"} and counting ✈️`} label="Share" />
-          </div>
+      <section id="been" className="scroll-mt-4" aria-labelledby="stamps-h">
+        <div className="mb-3 flex items-baseline justify-between gap-3">
+          <h2 id="stamps-h" className="font-display text-[26px] font-semibold leading-tight tracking-tight">
+            Your stamps
+          </h2>
+          <Link href="#who" className="inline-flex min-h-11 shrink-0 items-center gap-1.5 text-[14px] text-fg/75" data-who-link>
+            <LockIcon size={16} />
+            {passportShared(account) ? "Your groups" : "Only you"}
+          </Link>
         </div>
-      )}
+        {sp.added && (
+          <p role="status" className="mb-3 text-sm text-owed">
+            {Number(sp.added) > 1 ? `${Number(sp.added)} countries added to your passport.` : Number(sp.added) === 1 ? "Added to your passport." : "Those were already in your passport."}
+          </p>
+        )}
 
+        {empty ? (
+          <div className="rounded-[20px] border border-line bg-white px-5 py-5">
+            <p className="font-display text-xl font-semibold tracking-tight">Your first stamp is waiting</p>
+            <p className="mt-1 text-sm text-fg/75">A trip with a place gets its stamp here. Or add somewhere you’ve already been.</p>
+          </div>
+        ) : (
+          <div className="space-y-3" data-been-cards>
+            {big && <BeenCardBig c={big} />}
+            {rest.map((c) => (c.kind === "hand" ? <BeenCardHand key={c.id} c={c} /> : <BeenCardSmall key={c.id} c={c} />))}
+            {hidden > 0 && (
+              <Link href="/passport?all=1#been" className="flex min-h-11 items-center justify-center text-[15px] font-semibold text-fg underline underline-offset-4" data-been-all>
+                See all
+              </Link>
+            )}
+          </div>
+        )}
+
+        <div className="mt-4">
+          <CountryPicker added={hand.map((h) => h.c)} home={p.home} tile />
+        </div>
+        {!empty && (
+          <div className="mt-3">
+            <ShareSheet
+              image={`/passport/image?v=${version}`}
+              fileName="loopin-passport.png"
+              title="Share your passport"
+              words={shareWords}
+              label={
+                <>
+                  <ShareIcon size={20} />
+                  Share passport
+                </>
+              }
+              className="pop flex w-full items-center justify-center gap-2.5 bg-fg px-5 py-3.5 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63]"
+            />
+          </div>
+        )}
+        <p className="mt-3 flex items-center justify-center gap-2 text-[14px] text-fg/75">
+          <InfoIcon size={16} />
+          <Link href="#who" className="inline-flex min-h-11 items-center underline underline-offset-4">
+            Choose what you share.
+          </Link>
+        </p>
+      </section>
 
       {p.unplaced.length > 0 && (
         <section className="mt-6 rounded-2xl border border-line px-4 py-3.5">
@@ -114,33 +197,6 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
           </ul>
         </section>
       )}
-
-      {/* Places from before Loopin */}
-      <section id="been" className="mt-8 scroll-mt-4">
-        <h2 className="font-display text-lg font-semibold tracking-tight">Places I’ve been</h2>
-        <p className="mt-0.5 text-sm text-gray-500">Countries you’ve been to. Each gets a “Been there” stamp in your passport, and every trip you take with Loopin adds its own stamp too. City stamps come from your trips.</p>
-        {sp.added && (
-          <p role="status" className="mt-2 text-sm text-owed">
-            {Number(sp.added) > 1 ? `${Number(sp.added)} countries added to your passport.` : Number(sp.added) === 1 ? "Added to your passport." : "Those were already in your passport."}
-          </p>
-        )}
-        <CountryPicker added={hand.map((h) => h.c)} home={p.home} />
-        {hand.length > 0 && (
-          <ul className="mt-3 flex flex-wrap gap-2" aria-label="Countries you’ve been to">
-            {hand.map((h) => (
-              <li key={h.c}>
-                <form action={removePlaceAction} className="flex items-center gap-1.5 rounded-full border border-line py-1 pl-3 pr-1 text-sm">
-                  <input type="hidden" name="country" value={h.c} />
-                  {countryOf(h.c)?.flag} {countryOf(h.c)?.name}
-                  <button type="submit" aria-label={`Remove ${countryOf(h.c)?.name}`} className="-my-2.5 -ml-2 -mr-1.5 flex h-11 w-11 items-center justify-center rounded-full text-gray-400 active:bg-mist">
-                    ✕
-                  </button>
-                </form>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
 
       {/* Who can open it from a group */}
       <section id="who" className="mt-8 scroll-mt-4 border-t border-line pt-6">
@@ -188,6 +244,21 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
         </form>
         {home && <p className="mt-2 text-xs text-gray-400">Now: {home.flag} {home.name}{account.homeCountry ? "" : " (from where you use Loopin)"}</p>}
       </section>
+
+      <Link href="/passport/friends" className="mt-8 flex items-center gap-3 rounded-2xl border border-line px-4 py-3 active:bg-mist" data-friends-link>
+        <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-fg/25 text-fg/75"><PeoplePassportsIcon size={18} /></span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold">Friends’ passports</span>
+          <span className="block text-xs text-gray-500">Where friends in your groups have been</span>
+        </span>
+        <span aria-hidden className="text-gray-400">›</span>
+      </Link>
+
+      <p className="mb-10 mt-5 text-center">
+        <Link href="/passport?book=1" className="inline-flex min-h-11 items-center text-[14px] text-fg/55 underline underline-offset-4" data-passport-book-link>
+          Open the passport book
+        </Link>
+      </p>
     </>
   );
 }

@@ -9,7 +9,7 @@ import { useFocusTrap } from "@/lib/use-focus-trap";
 import { useDragToClose } from "@/lib/use-drag-close";
 
 // "Places I've been": tick as many countries as you like, then add them in one go.
-export function CountryPicker({ added, home = "" }: { added: string[]; home?: string }) {
+export function CountryPicker({ added, home = "", tile = false }: { added: string[]; home?: string; tile?: boolean }) {
   const [open, setOpen] = useState(false);
   const dragRef = useDragToClose(useCallback(() => setOpen(false), []), { from: "top" });
   const [q, setQ] = useState("");
@@ -41,9 +41,19 @@ export function CountryPicker({ added, home = "" }: { added: string[]; home?: st
 
   return (
     <>
-      <button ref={opener} type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" className="mt-3 w-full rounded-xl border border-line px-4 py-3 text-sm font-semibold active:bg-mist">
-        + Add countries
-      </button>
+      {tile ? (
+        // The dashed "Add a visited place" tile on the passport's Been tab.
+        <button ref={opener} type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" className="flex h-14 w-full items-center justify-center gap-2.5 rounded-[20px] border border-dashed border-fg/25 text-[16px] text-fg active:bg-fg/10" data-add-visited>
+          <svg aria-hidden width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          Add a visited place
+        </button>
+      ) : (
+        <button ref={opener} type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" className="mt-3 w-full rounded-xl border border-line px-4 py-3 text-sm font-semibold active:bg-mist">
+          + Add countries
+        </button>
+      )}
       {open &&
         createPortal(
           <div ref={layer} className="fixed inset-0 z-[70] flex items-end justify-center bg-black/70" onClick={() => setOpen(false)}>

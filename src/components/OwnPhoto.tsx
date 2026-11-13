@@ -103,10 +103,15 @@ export function NewPhotoButton({ onPicked }: { onPicked: (previewSrc: string) =>
 // Made small on the phone: at most 1080 px on the long side, WebP (or JPEG
 // where the phone can't make WebP). Steps down in size and quality until it's
 // under ~150 KB; the smallest that fits the server's limit is the fallback.
-export async function shrink(file: File): Promise<Blob> {
+// Moments pass their own steps and sizes (a 1600 px photo and a 480 px small copy: see MOMENT_*_STEPS in covers.ts).
+export type ShrinkOptions = { steps?: readonly (readonly [maxSide: number, quality: number])[]; target?: number; max?: number };
+export async function shrink(file: File, opts: ShrinkOptions = {}): Promise<Blob> {
+  const steps = opts.steps ?? PHOTO_STEPS;
+  const target = opts.target ?? TARGET_PHOTO_BYTES;
+  const limit = opts.max ?? MAX_PHOTO_BYTES;
   const img = await load(file);
   let fallback: Blob | null = null;
-  for (const [max, q] of PHOTO_STEPS) {
+  for (const [max, q] of steps) {
     const scale = Math.min(1, max / Math.max(img.width, img.height));
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(img.width * scale);
@@ -115,8 +120,8 @@ export async function shrink(file: File): Promise<Blob> {
     let blob = await toBlob(canvas, "image/webp", q);
     if (!blob || blob.type !== "image/webp") blob = await toBlob(canvas, "image/jpeg", q);
     if (!blob) continue;
-    if (blob.size <= TARGET_PHOTO_BYTES) return blob;
-    if (blob.size <= MAX_PHOTO_BYTES && (!fallback || blob.size < fallback.size)) fallback = blob;
+    if (blob.size <= target) return blob;
+    if (blob.size <= limit && (!fallback || blob.size < fallback.size)) fallback = blob;
   }
   if (fallback) return fallback;
   throw new Error("That photo is too big. Try another one.");

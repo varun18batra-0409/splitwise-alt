@@ -52,6 +52,7 @@ import { homeTicket, mixedDirections, moneyMode, moneyPeople, rankGroups, type I
 import { TripRow } from "@/components/TripRow";
 import { Stories } from "@/components/Stories";
 import { buildStories } from "@/lib/home/stories";
+import { loadMomentStoryGroups } from "@/lib/moments-db";
 import { placePhotos, tripPhotoSrc } from "@/lib/places";
 import { GroupCards, type GroupCardData } from "@/components/HomeGroups";
 import { tripTag } from "@/lib/home/group-card";
@@ -86,7 +87,7 @@ export default async function Home({
   const { closed: justClosed, did, g: didGroup, undone, error, deleted, signedin, moved, collection } = await searchParams;
   const [tz, memberships] = await Promise.all([getTimeZone(), getMemberships()]);
   // Independent reads, all at once.
-  const [overview, deletedGroups, account, collections, collectionsTotal, invitations, needs] = await Promise.all([
+  const [overview, deletedGroups, account, collections, collectionsTotal, invitations, needs, momentGroups] = await Promise.all([
     loadOverview(memberships),
     loadDeletedGroups(memberships),
     getAccount(),
@@ -96,6 +97,8 @@ export default async function Home({
     getAccount().then((a) => loadInvitations(a)),
     // Things only you can answer (someone says they paid you, a bill waiting for its amount): the top two show on Home.
     getAccount().then((a) => loadNeedsYou(memberships, a, 0)),
+    // New moments in your trip groups (the last 3 days; only ones you may see).
+    loadMomentStoryGroups(memberships),
   ]);
   const { all, open, closed, owedLines, oweLines, common, netCommon, netLines, netValue, toCommon } = overview;
   // Only the rows Home shows: the newest changes, this month, today's spending on trips, a finished trip's categories.
@@ -279,6 +282,7 @@ export default async function Home({
   );
   const stories = buildStories({
     now: new Date(),
+    moments: momentGroups,
     trips: trips.map((t) => ({
       id: t.g.group.id,
       name: t.g.group.name,

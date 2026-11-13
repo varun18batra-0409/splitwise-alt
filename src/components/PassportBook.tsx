@@ -53,7 +53,8 @@ function Emblem({ size = 92 }: { size?: number }) {
 // One stamp, drawn like a real customs stamp: a double ring with the place
 // running round the edge, or a boxed "arrived" stamp for a city at home; a few
 // shapes so a page doesn't look printed; a touch of uneven ink.
-function StampMark({ s, i }: { s: Stamp; i: number }) {
+// (Exported for the Been cards, which sit one on a photo: `at` then places it instead of the page grid.)
+export function StampMark({ s, i, at }: { s: Stamp; i: number; at?: { left: string; top: string } }) {
   const h = hash(s.id);
   const ink = INKS[hash(s.code + s.name) % INKS.length];
   const tilt = (h % 19) - 9;
@@ -62,7 +63,7 @@ function StampMark({ s, i }: { s: Stamp; i: number }) {
   const rowN = Math.floor(i / 2);
   const dx = ((h >>> 3) % 25) - 12;
   const dy = ((h >>> 7) % 17) - 8;
-  const pos = { left: `calc(${col * 50 + 25}% + ${dx}px)`, top: `calc(${rowN * 33.3 + 16.6}% + ${dy}px)` };
+  const pos = at ?? { left: `calc(${col * 50 + 25}% + ${dx}px)`, top: `calc(${rowN * 33.3 + 16.6}% + ${dy}px)` };
   const shape = s.kind === "country" ? (["circle", "circle", "oval", "octagon"] as const)[(h >>> 5) % 4] : (["box", "ticket"] as const)[(h >>> 5) % 2];
   const dash = s.byHand ? "5 3.5" : undefined;
   const when = s.byHand ? "BEEN THERE" : month(s.when);

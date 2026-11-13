@@ -123,13 +123,15 @@ const sections = (): { title: string; items: QA[] }[] => [
       { q: "What is Wrapped?", a: "A trip told as a few posters: the total you spent together, where the money went, the biggest day and everyone’s title. Open it from a group’s Charts, and share it as a picture." },
       {
         q: "What is the trip passport?",
-        a: "A little booklet with a stamp for every trip: a city stamp at home, a country stamp abroad. You can add countries you visited before Loopin under Places I’ve been, and share the page to WhatsApp as a picture.",
+        a: "A card for every trip with its stamp on the place’s photo, and your countries, trips and days away on top. You can add countries you visited before Loopin with Add a visited place, share your passport to WhatsApp as a picture, and open the old passport book from a link at the bottom.",
       },
       {
         q: "Who can see my passport?",
         a: "Nobody, until you say yes. Loopin asks once whether to show your places to people in your groups, and you can keep it private (Only me) any time. Friends see stamps and countries only, never your money, groups or email, and trips still happening stay hidden until they’re over.",
       },
       { q: "How do postcards work?", a: "Pick a trip photo, write a few words and send it in Loopin to anyone you share a group with, or on WhatsApp to anyone. You can seal it until a day you choose, and every stamp you send or get is kept in your stamp album." },
+      { q: "Who can see our moments?", a: "Only the people in that trip group. Someone who left sees the moments added before they left, and someone the group’s admin removed sees none. Block a person and you stop seeing their moments. Loopin looks at a moment only if someone reports it." },
+      { q: "How do I remove a moment?", a: "Open it, tap the three dots, and choose Delete if you added it. Whoever looks after the group can remove any moment. The photo is erased for everyone and can’t be brought back. To report one, use the same menu." },
       { q: "Reactions, titles and the spinning wheel?", a: "Open any expense to react with an emoji. Once a group has a few expenses, everyone gets a title on Balances, for habits and never for who paid less. On Add expense, Spin for it lets the wheel decide who pays tonight." },
     ],
   },
@@ -150,7 +152,7 @@ const sections = (): { title: string; items: QA[] }[] => [
       { q: "Who can see my group?", a: "Only the people in it. Anyone else opening its address sees “Private group”, with no names or amounts." },
       {
         q: "Can I download my data?",
-        a: "Yes. You → Download all my data gives you one spreadsheet with your account details, your groups, expenses and payments, postcards, passport, collections, notification settings and messages to support. Each group’s settings also has Download spreadsheet for just that group.",
+        a: "Yes. You → Download all my data gives you one spreadsheet with your account details, your groups, expenses and payments, postcards, passport, the moments you added, collections, notification settings and messages to support. Each group’s settings also has Download spreadsheet for just that group.",
       },
       {
         q: "How do I delete a group, or my account?",
@@ -159,7 +161,7 @@ const sections = (): { title: string; items: QA[] }[] => [
       { q: "Does Loopin upload my contacts?", a: "No. When you pick someone from your contacts, only that person’s name and number are saved to the group. Loopin never uploads your address book." },
       {
         q: "How do I report or block someone?",
-        a: "On a postcard you got, a friend’s passport, or a person in People, tap Report or Block. Blocking stops their postcards, passport and nudges reaching you, and hides yours from them. You’ll both still see shared group expenses and balances, because the money has to add up. Unblock from You → Privacy and safety.",
+        a: "On a postcard you got, a friend’s passport, a moment, or a person in People, tap Report or Block. Blocking stops their postcards, passport and nudges reaching you, and hides yours from them. You’ll both still see shared group expenses and balances, because the money has to add up. Unblock from You → Privacy and safety.",
       },
       {
         q: "How do I contact support?",

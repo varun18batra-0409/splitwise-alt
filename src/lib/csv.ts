@@ -144,6 +144,8 @@ export type MyDataExtra = {
   passport?: { home: string; sharing: string; countries: { name: string; trips: number; places: string[]; byHand: boolean }[] };
   collections?: { organiser: boolean; title: string; currency: string; amount: number; dueDate: string; status: string; people: number; paid: number; checked: number; yours: string }[];
   settings?: { setting: string; where: string; status: string }[];
+  // Moments you added (text only, no photos; nothing written by other people). `link` is the in-app address of the viewer.
+  moments?: { createdAt: Date; group: string; caption: string; day: string; link: string }[];
 };
 
 function extraLines(extra: MyDataExtra, tz?: string): (string | number)[][] {
@@ -161,6 +163,10 @@ function extraLines(extra: MyDataExtra, tz?: string): (string | number)[][] {
     for (const c of extra.collections) {
       out.push([c.organiser ? "Organiser" : "On the list", c.title, c.currency, c.amount ? plain(c.amount, c.currency) : "", c.dueDate, c.status, c.organiser ? c.people : "", c.organiser ? c.paid : "", c.organiser ? c.checked : "", c.yours]);
     }
+  }
+  if (extra.moments) {
+    out.push([], ["Moments you added (text only, no photos)"], ["Date", "Group", "Words", "Day", "Open in Loopin"]);
+    for (const m of extra.moments) out.push([dayKey(m.createdAt, tz), m.group, m.caption, m.day, m.link]);
   }
   if (extra.settings) {
     out.push([], ["Your notification settings"], ["Setting", "Where", "Status"]);

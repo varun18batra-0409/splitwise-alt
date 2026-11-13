@@ -7,8 +7,9 @@ import { passportShared } from "./passport";
 import { CATEGORIES, allows } from "./account-notify";
 import { parseNotify, NOTIFY_KINDS } from "./notify-prefs";
 import type { MyDataExtra } from "./csv";
+import { loadMyMoments } from "./moments-db";
 
-// What "Download my data" adds to the groups' expenses and payments: postcards, passport, collections and notification settings.
+// What "Download my data" adds to the groups' expenses and payments: postcards, passport, collections, the moments you added and notification settings.
 // Text only. Nothing from other people beyond the names that are on your own cards. The privacy page lists exactly this.
 type A = { id: string; homeCountry: string; places: string; passportShare: string; passportChoiceAt: Date | null; notifyPrefs: string; collectPush: boolean; timeZone: string };
 
@@ -74,5 +75,7 @@ export async function loadMyDataExtra(account: A, memberships: Record<string, st
     const off = NOTIFY_KINDS.filter((k) => !n[k.id]).map((k) => k.label.toLowerCase());
     settings.push({ setting: `Phone notifications in ${groupNames[m.groupId] ?? "a group"}`, where: "Phone", status: n.off ? "Off" : off.length ? `On, except ${off.join(", ")}` : "On" });
   }
-  return { postcards, passport, collections, settings };
+  // Moments you added: your own words only, with a link to where you can open each in the app (photos are not in the file, like postcards).
+  const moments = (await loadMyMoments(account.id)).map((m) => ({ createdAt: m.createdAt, group: m.group, caption: m.caption, day: m.day, link: `/groups/${m.groupId}/moments/${m.id}` }));
+  return { postcards, passport, collections, settings, moments };
 }

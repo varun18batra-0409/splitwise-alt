@@ -2,6 +2,7 @@ import { db } from "./db";
 import { JOINED, isPending } from "./membership";
 import { blockedEitherWay, isBlockedEitherWay } from "./blocks";
 import { buildPassport, parseHandPlaces, passportShared, type PassportTrip } from "./passport";
+import type { TripExtras } from "./passport-cards";
 
 // Someone the admin removed stops counting for passport sharing (both ways); someone who left on their own still counts.
 const COUNTS = { ...JOINED, removedAt: null };
@@ -62,6 +63,7 @@ export async function loadPassport(account: { id: string; homeCountry: string; p
     place: g.tripPlace,
     country: g.tripCountry,
     people: g._count.members,
+    undated: !g.tripStart,
   }));
   const home = account.homeCountry || fallbackHome;
   const passport = buildPassport(trips, parseHandPlaces(account.places), home, today);
@@ -75,7 +77,25 @@ export async function loadPassport(account: { id: string; homeCountry: string; p
       return !stops.length || stops.every((s) => !s.country && !home);
     })
     .map((t) => ({ groupId: t.groupId, name: t.name }));
-  return { ...passport, home, unplaced };
+  // Your own view only: who else went, for the faces on each trip card (never shown to a friend).
+  const extras: Record<string, TripExtras> = {};
+  if (!opts.forFriend && trips.length) {
+    const blocked = await blockedEitherWay(account.id);
+    const others = await db.member.findMany({
+      where: { groupId: { in: trips.map((t) => t.groupId) }, ...COUNTS },
+      select: { groupId: true, name: true, accountId: true },
+      orderBy: { createdAt: "asc" },
+      take: 3000,
+    });
+    for (const o of others) {
+      if (o.accountId === account.id || (o.accountId && blocked.has(o.accountId))) continue;
+      const first = o.name.trim().split(/\s+/)[0];
+      if (!first) continue;
+      const x = (extras[o.groupId] ??= { names: [] });
+      if (x.names.length < 3) x.names.push(first);
+    }
+  }
+  return { ...passport, home, unplaced, trips, extras };
 }
 
 // Everyone you've shared a group with at some point (they may have left since),

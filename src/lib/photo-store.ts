@@ -10,7 +10,9 @@ export const blobOn = () => Boolean(process.env.VERCEL && (process.env.BLOB_READ
 
 const EMPTY = () => new Uint8Array(new ArrayBuffer(0));
 
-export async function storePhoto(folder: "group" | "postcard" | "receipt", bytes: Uint8Array, type: string): Promise<{ blobKey: string; data: Uint8Array<ArrayBuffer> }> {
+// `dbFallback: false` (moments): when file storage is connected and a file can't be saved this throws, instead of putting a
+// 1 MB photo in the database. With file storage off (local and tests) the bytes go in the row as before.
+export async function storePhoto(folder: "group" | "postcard" | "receipt" | "moment", bytes: Uint8Array, type: string, opts: { dbFallback?: boolean } = {}): Promise<{ blobKey: string; data: Uint8Array<ArrayBuffer> }> {
   const asDb = () => {
     const data = new Uint8Array(new ArrayBuffer(bytes.length));
     data.set(bytes);
@@ -23,6 +25,7 @@ export async function storePhoto(folder: "group" | "postcard" | "receipt", bytes
     await put(key, Buffer.from(bytes), { access: "private", contentType: type, addRandomSuffix: false });
     return { blobKey: key, data: EMPTY() };
   } catch (err) {
+    if (opts.dbFallback === false) throw err;
     console.error("photo store: kept in the database", String(err).slice(0, 160));
     return asDb();
   }
@@ -81,12 +84,14 @@ export async function flushPhotoDeletes(limit = 50, now = new Date()): Promise<{
     if (!due.length) return result;
     const keys = due.map((d) => d.key);
     // A file a photo row still points at must never be deleted.
-    const [g, r, p] = await Promise.all([
+    const [g, r, p, mo] = await Promise.all([
       db.groupPhoto.findMany({ where: { blobKey: { in: keys } }, select: { blobKey: true } }),
       db.receipt.findMany({ where: { blobKey: { in: keys } }, select: { blobKey: true } }),
       db.postcardPhoto.findMany({ where: { blobKey: { in: keys } }, select: { blobKey: true } }),
+      db.moment.findMany({ where: { OR: [{ blobKey: { in: keys } }, { thumbKey: { in: keys } }] }, select: { blobKey: true, thumbKey: true } }),
     ]);
     const used = new Set([...g, ...r, ...p].map((x) => x.blobKey));
+    for (const m of mo) for (const k of [m.blobKey, m.thumbKey]) if (keys.includes(k)) used.add(k); // a moment has two files
     if (used.size) {
       await db.blobTrash.deleteMany({ where: { key: { in: [...used] } } });
       result.kept = used.size;

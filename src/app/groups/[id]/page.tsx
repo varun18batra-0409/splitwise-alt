@@ -33,6 +33,9 @@ import { Notice } from "@/components/Notice";
 import { GroupTypeSheet } from "@/components/GroupTypeSheet";
 import { GamesTab } from "./_components/GamesTab";
 import { gamesToSettle, loadGames } from "@/lib/pot-db";
+import { MomentsStrip } from "./_components/MomentsStrip";
+import { canAddMoment, loadMomentViewer } from "@/lib/moments-access";
+import { momentStrip } from "@/lib/moments-db";
 
 const TABS = [
   { id: "activity", label: "Activity" },
@@ -187,6 +190,10 @@ export default async function GroupPage({
   const justDid = sp.did ? undoEvents.find((x) => x.id === sp.did) : undefined;
   const showUndo = justDid && canUndo(justDid, undoEvents).ok;
 
+  // "Our moments" (trip groups only): the latest photos and how many, as far as this person may see them.
+  const momentViewer = group.type === "trip" ? await loadMomentViewer(group.id, myId) : null;
+  const strip = await momentStrip(momentViewer);
+
   return (
     <>
       <GroupHeader v={v} switchTo={switchTo} />
@@ -194,6 +201,7 @@ export default async function GroupPage({
       <GroupSummary v={v} sp={sp} compact={home} />
       {!account && <PhoneOnlyLine back={`/groups/${group.id}`} className="-mt-3 mb-2" />}
       {sp.imported && <ImportedNote code={sp.imported} groupId={group.id} />}
+      {momentViewer && <MomentsStrip groupId={group.id} count={strip.count} latest={strip.latest} canAdd={canAddMoment(momentViewer)} />}
 
       <nav className="-mx-5 mb-5 flex gap-6 overflow-x-auto border-b border-line px-5 [scrollbar-width:none]" aria-label="Group sections">
         {tabs.map((t) => (

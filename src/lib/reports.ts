@@ -1,16 +1,26 @@
 import { db } from "./db";
 import { sharesGroup } from "./blocks";
 import { requireOwner } from "./owner";
+import { canReportMoment, loadMomentViewer } from "./moments-access";
+import { loadMomentRow } from "./moments-db";
 
-export const REPORT_KINDS = ["postcard", "passport", "person"] as const;
+export const REPORT_KINDS = ["postcard", "passport", "person", "moment"] as const;
 export const REPORT_REASONS = ["spam", "abusive", "other"] as const;
 export const REASON_LABELS: Record<string, string> = { spam: "Spam", abusive: "Abusive or unkind", other: "Something else", support: "Message for support" };
 
-// Who a report is about, if the reporter really can see it: a postcard they were sent (its sender), or a person they share a group with.
+// Who a report is about, if the reporter really can see it: a postcard they were sent (its sender), a person they share a group with,
+// or a moment in a group they can see (its author).
 export async function resolveReportTarget(reporterId: string, kind: string, id: string): Promise<{ accountId: string } | null> {
   if (kind === "postcard") {
     const card = await db.postcard.findFirst({ where: { id, toId: reporterId }, select: { fromId: true } });
     return card ? { accountId: card.fromId } : null;
+  }
+  if (kind === "moment") {
+    const m = await loadMomentRow(id);
+    if (!m) return null;
+    const me = await db.member.findFirst({ where: { accountId: reporterId, groupId: m.groupId }, orderBy: { createdAt: "desc" }, select: { id: true } });
+    const viewer = me ? await loadMomentViewer(m.groupId, me.id) : null;
+    return canReportMoment(viewer, m) ? { accountId: m.authorAccountId } : null;
   }
   if (kind === "passport" || kind === "person") {
     if (id === reporterId || !(await sharesGroup(reporterId, id))) return null;

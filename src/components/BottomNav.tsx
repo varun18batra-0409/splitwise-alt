@@ -8,7 +8,7 @@ import { BellIcon, ChartIcon, HomeIcon, PlusIcon, SettleIcon } from "./icons";
 // The bar at the bottom of every main screen, floating as a frosted pill: Home, Recap, ＋, Settle, Alerts.
 // Inside a group, Search / ＋ / Settle work on that group.
 // Hidden on forms (adding, editing, paying, joining, group settings, a new bill, moving out), where a Save bar sits at the bottom instead, so it never gets in the way.
-const HIDE = [/^\/join/, /^\/groups\/new$/, /\/add$/, /^\/add$/, /\/edit$/, /\/pay$/, /^\/groups\/[^/]+\/settings$/, /^\/groups\/[^/]+\/bills\/new$/, /^\/groups\/[^/]+\/people\/[^/]+\/move$/, /^\/groups\/[^/]+\/pot\/new$/, /^\/groups\/[^/]+\/budgets$/, /^\/groups\/[^/]+\/goals\/new$/, /^\/signin/, /^\/welcome$/, /^\/collect\//, /^\/c\//, /^\/p\//, /^\/postcards\/new/, /^\/groups\/[^/]+\/wrapped$/];
+const HIDE = [/^\/join/, /^\/groups\/new$/, /\/add$/, /^\/add$/, /\/edit$/, /\/pay$/, /^\/groups\/[^/]+\/settings$/, /^\/groups\/[^/]+\/bills\/new$/, /^\/groups\/[^/]+\/people\/[^/]+\/move$/, /^\/groups\/[^/]+\/pot\/new$/, /^\/groups\/[^/]+\/budgets$/, /^\/groups\/[^/]+\/goals\/new$/, /^\/signin/, /^\/welcome$/, /^\/collect\//, /^\/c\//, /^\/p\//, /^\/postcards\/new/, /^\/groups\/[^/]+\/wrapped$/, /^\/groups\/[^/]+\/moments(\/|$)/];
 
 export function BottomNav() {
   const path = usePathname();

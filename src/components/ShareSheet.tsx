@@ -26,7 +26,7 @@ export function ShareSheet({
   fileName: string;
   title: string;
   words: string;
-  label?: string;
+  label?: React.ReactNode;
   className?: string;
   album?: string[];
 }) {

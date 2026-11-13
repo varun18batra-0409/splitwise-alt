@@ -9,7 +9,7 @@ import { lineForPhoto } from "./photo-tags";
 // Each story is 4–6 slides you tap through (photos of the place, a few
 // playful numbers, the crew), with one thing to do next. Pure, so it can be tested.
 
-export type StoryKind = "trip" | "pot" | "square" | "collect" | "memory" | "wrapped";
+export type StoryKind = "trip" | "pot" | "square" | "collect" | "memory" | "wrapped" | "moment";
 export type Tone = "sun" | "coral" | "sky" | "pink" | "lilac" | "mint";
 // One slide: a full photo with words, a bold poster, or a short list.
 export type Frame =
@@ -45,6 +45,9 @@ export type StoryInput = {
   collections: { id: string; code: string; title: string; paid: number; people: number; in?: string; reported?: string; target?: string; paidNames?: string[]; reportedNames?: string[]; dueNames?: string[] }[];
   memories: ({ id: string; name: string; years: number; people: number; days: number; spent?: string; crew?: string[] } & Pic)[];
   wrapped: ({ id: string; name: string; endedDaysAgo: number; spent?: string; topCategory?: string } & Pic)[];
+  // New moments in a trip group (the last 3 days, only ones this person may see: src/lib/moments-db.ts loadMomentStoryGroups).
+  // `frames` newest first; `thumb` is the small copy, `full` the photo.
+  moments?: { groupId: string; groupName: string; newestId: string; at: Date; frames: { id: string; thumb: string; full: string; kicker: string; head: string; line: string }[] }[];
 };
 
 const place = (name: string) => name.replace(/\s+trip$/i, "").trim() || name;
@@ -241,6 +244,26 @@ export function buildStories(i: StoryInput): Story[] {
       big: m.years === 1 ? "1 year" : `${m.years} years`,
       frames,
       at: now - 86_400_000,
+    });
+  }
+  // Moments: one story per group. Its id has the newest moment in it, so the circle lights up again when another one arrives.
+  // The words are the person's own caption and day only: nothing is ever written about someone's photo.
+  for (const mo of i.moments ?? []) {
+    if (!mo.frames.length) continue;
+    const n = mo.frames.length;
+    out.push({
+      id: `moment-${mo.groupId}-${mo.newestId}`,
+      kind: "moment",
+      label: place(mo.groupName),
+      short: "Moments",
+      headline: mo.frames[0].kicker,
+      line: n === 1 ? "A new moment" : `${n} new moments`,
+      cta: "See our moments",
+      href: `/groups/${mo.groupId}/moments`,
+      photo: mo.frames[0].thumb,
+      emoji: "📸",
+      frames: mo.frames.map((f): Frame => ({ kind: "photo", photo: f.full, kicker: f.kicker, head: f.head, line: f.line || undefined })),
+      at: mo.at.getTime(),
     });
   }
   return out.sort((a, b) => b.at - a.at).slice(0, 12);

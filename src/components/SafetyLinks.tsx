@@ -7,7 +7,7 @@ export const blockText = (name: string) =>
 
 // "Report" and "Block {name}", side by side and quiet. `kind`/`targetId` say what is being reported
 // (a postcard id, or the person's account id); `accountId` is the person to block; `back` is where Report returns to.
-export function SafetyLinks({ kind, targetId, accountId, name, back, className = "" }: { kind: "postcard" | "passport" | "person"; targetId: string; accountId: string; name: string; back: string; className?: string }) {
+export function SafetyLinks({ kind, targetId, accountId, name, back, className = "" }: { kind: "postcard" | "passport" | "person" | "moment"; targetId: string; accountId: string; name: string; back: string; className?: string }) {
   const first = name.trim().split(/\s+/)[0] || "them";
   const quiet = "inline-flex min-h-11 items-center px-2 text-sm font-medium text-fg/60 underline underline-offset-4 active:text-fg";
   return (

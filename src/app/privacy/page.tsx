@@ -45,6 +45,7 @@ export default function Privacy() {
           Contacts: when you pick a person from your phone’s contacts, their name and phone number (just the one you picked) are saved to the group. Loopin never uploads your address book.
         </li>
         <li>A group’s own photo, if someone in the group adds one. It’s made small on the phone first, and only people in that group can see it.</li>
+        <li>Moments: a photo and a few words you add to a trip group. Camera details and location are removed, and only people in that group can see them.</li>
         <li>A photo of a bill, if someone adds one to an expense. Camera details and location are removed, and only people in that group can see it.</li>
         <li>Your email and name, from signing up (or from Google, if you use Continue with Google). We use the email to sign you in and to tell you about your groups. Nothing else.</li>
         <li>If you turn on fingerprint / face sign-in, a key your phone made for Loopin. Your fingerprint or face never leaves your phone.</li>
@@ -77,6 +78,9 @@ export default function Privacy() {
           Passport → Who can see it.
         </li>
         <li>
+          <strong>Moments:</strong> only people in that group. Someone who left on their own still sees the moments added before they left, and none added after; someone the group’s admin removed sees none. If you block someone, you stop seeing their moments, and they stop seeing yours. Loopin looks at a moment only if someone reports it.
+        </li>
+        <li>
           <strong>Postcards:</strong> only the person who sent a card and the people it was sent to. That includes the photo on it. Cards go only to
           people you share a group with.
         </li>
@@ -92,7 +96,7 @@ export default function Privacy() {
 
       <h2 className={h}>Reporting and blocking</h2>
       <ul className={ul}>
-        <li>On a postcard you got, on a friend’s passport, or on a person in a group’s People screen, you can <strong>Report</strong> it (spam, abusive or something else, with an optional note). Only Loopin sees a report, and we look at it within 24 hours.</li>
+        <li>On a postcard you got, on a friend’s passport, on a moment in a group you’re in, or on a person in a group’s People screen, you can <strong>Report</strong> it (spam, abusive or something else, with an optional note). Only Loopin sees a report, and we look at it within 24 hours.</li>
         <li><strong>Block</strong> stops their postcards, passport and nudges reaching you, hides yours from them, and stops notifications about their activity. You’ll still both see shared group expenses, because the money has to add up. You can unblock from You → Privacy and safety.</li>
       </ul>
 
@@ -124,9 +128,10 @@ export default function Privacy() {
       <h2 className={h}>Deleting things</h2>
       <ul className={ul}>
         <li>Expenses and payments can be deleted and restored; the history notes it.</li>
+        <li>The person who added a moment can delete it, and so can whoever looks after the group. The photo is erased too, and it can’t be brought back. A moment’s photo that was already open on someone’s phone can stay on that phone for up to 30 days.</li>
         <li>A whole group can be deleted from its settings. Whoever deleted it, or looks after it, can restore it for 30 days; after that it’s erased for good, with everything in it.</li>
         <li>
-          “You → Delete my email &amp; sign-in” erases your email and sign-in, your passkeys, the postcards you sent or got (including their photos), your alerts, the collections you organised, the saved copy of support messages you sent while signed in, and the blocks you made or that were made against you.
+          “You → Delete my email &amp; sign-in” erases your email and sign-in, your passkeys, the postcards you sent or got (including their photos), the moments you added (with their photos), your alerts, the collections you organised, the saved copy of support messages you sent while signed in, and the blocks you made or that were made against you.
         </li>
         <li>Deleting your email also stops notifications on your other phones.</li>
         <li>
@@ -134,7 +139,7 @@ export default function Privacy() {
         </li>
         <li>Support messages that were already emailed to Loopin’s support inbox aren’t erased by the app, and messages sent while signed out aren’t linked to an account, so deleting your account doesn’t reach them. To have one removed, use <a href="/support" className="underline underline-offset-4">Contact support</a>.</li>
         <li>Reports stay with us so we can act on them: the ones you made, and reports made about you, including the reporter’s note, are kept even after you delete your account.</li>
-        <li>“You → Download all my data” gives you, in one spreadsheet: your account details; your groups, expenses and payments; your messages to support; your postcards, sent and received (for each: the date, the other person’s current Loopin name, the words on the front, the message and the postmark place; text only, no photos; a postcard still sealed for you, and cards from people you blocked or who blocked you, are left out); your passport (home country, places and countries); the collections you organise (the title, amount, date, and how many people are listed, have said they paid and are checked, but not their names or phone numbers) and the collections you are on the list of (your own line); and your notification settings. Reports you sent and reports about you are not in it. Anyone signed in can download it.</li>
+        <li>“You → Download all my data” gives you, in one spreadsheet: your account details; your groups, expenses and payments; your messages to support; your postcards, sent and received (for each: the date, the other person’s current Loopin name, the words on the front, the message and the postmark place; text only, no photos; a postcard still sealed for you, and cards from people you blocked or who blocked you, are left out); your passport (home country, places and countries); the moments you added (the date, the group, your words and the day; text only, no photos); the collections you organise (the title, amount, date, and how many people are listed, have said they paid and are checked, but not their names or phone numbers) and the collections you are on the list of (your own line); and your notification settings. Reports you sent and reports about you are not in it. Anyone signed in can download it.</li>
         <li>Encrypted backups are kept for 14 days and then removed. Something you delete can stay in a backup until then.</li>
       </ul>
 

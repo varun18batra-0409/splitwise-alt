@@ -8,7 +8,8 @@ import { continentOf } from "./continents";
 // "Been there" stamp, kept apart from the trip ones. The counts are of places,
 // not stamps: Italy three times is still one country. Pure.
 
-export type PassportTrip = { groupId: string; name: string; start: string; end: string; place: string; country: string; people: number };
+// undated: the trip has no dates of its own (its day was guessed from the spending), so it adds no "days away".
+export type PassportTrip = { groupId: string; name: string; start: string; end: string; place: string; country: string; people: number; undated?: boolean };
 export type HandPlace = { c: string };
 export type Stamp = {
   id: string;
@@ -145,6 +146,32 @@ export function buildPassport(trips: PassportTrip[], hand: HandPlace[], home: st
   ];
 
   return { stamps, been, index: rows, stats, milestones, badges, marks };
+}
+
+const DAY_MS = 86_400_000;
+const isDay = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`));
+const dayNo = (s: string) => Math.round(Date.parse(`${s}T00:00:00Z`) / DAY_MS);
+
+// How many days a trip lasts, both ends counted: 5–10 May is 6. No end date: 1. Not dated: 0.
+export function tripDays(start: string, end: string): number {
+  if (!isDay(start)) return 0;
+  if (!isDay(end) || end <= start) return 1;
+  return Math.min(366, dayNo(end) - dayNo(start) + 1);
+}
+
+// "Days away": the distinct days spent on trips that have started. A trip still going counts only up to
+// today; trips that overlap count each day once; a trip without dates counts 0, a trip with no end date 1;
+// a trip that hasn't started counts 0. Pure.
+export function daysAway(trips: { start: string; end: string; undated?: boolean }[], today: string): number {
+  const days = new Set<number>();
+  for (const t of trips) {
+    if (t.undated || !isDay(t.start) || t.start > today) continue;
+    const last = isDay(t.end) && t.end > t.start ? (t.end < today ? t.end : today) : t.start;
+    const from = dayNo(t.start);
+    const to = Math.min(dayNo(last), from + 365);
+    for (let d = from; d <= to; d++) days.add(d);
+  }
+  return days.size;
 }
 
 // Passport moments: crossing 5, 10, 25… countries, a new continent, 10 cities.
