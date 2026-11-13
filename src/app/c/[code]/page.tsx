@@ -132,9 +132,9 @@ export default async function CollectionPage({ params, searchParams }: Props) {
       ) : (
         <header className="mb-6 flex items-center justify-between">
           <Link href="/" className="font-display text-xl font-semibold tracking-tight">
-            Loopin
+            loopin
           </Link>
-          <span className="text-xs text-gray-400">No sign-up needed</span>
+          <span className="text-xs text-fg/55">No sign-up needed</span>
         </header>
       )}
 
@@ -235,7 +235,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
         <section aria-label="You're on the list" className="mt-5 space-y-2">
           {mine.map((e) => (
             <div key={e.id} className="flex items-center gap-3 rounded-2xl border border-[#26262c] bg-[#16161a] px-4 py-3 text-fg">
-              <span aria-hidden className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${e.status === "confirmed" ? "bg-meter-up text-canvas" : "border-2 border-meter-up text-fg"}`}>
+              <span aria-hidden className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${e.status === "confirmed" ? "bg-fg text-canvas" : "border-2 border-fg/60 text-fg"}`}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3.2} strokeLinecap="round" strokeLinejoin="round">
                   <path d="m5 12.5 4.5 4.5L19 7.5" />
                 </svg>
@@ -335,7 +335,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
                 {/* Ticked by them: an outlined tick. Checked by the organiser: a filled one. */}
                 <span
                   aria-hidden
-                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${e.status === "confirmed" ? "bg-meter-up text-canvas" : "border-2 border-meter-up text-fg"}`}
+                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${e.status === "confirmed" ? "bg-fg text-canvas" : "border-2 border-fg/60 text-fg"}`}
                 >
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3.4} strokeLinecap="round" strokeLinejoin="round">
                     <path d="m5 12.5 4.5 4.5L19 7.5" />

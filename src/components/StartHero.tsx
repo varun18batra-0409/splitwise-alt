@@ -20,7 +20,8 @@ function Photo({ src, className }: { src?: string; className: string }) {
 
 export function StartHero() {
   const trip = first("place-thailand") ?? first("cover-beach");
-  const city = first("cover-city") ?? first("place-singapore") ?? first("cover-lake");
+  // A calm photo with no shop signs or brand names in it (the city photo shows store logos).
+  const city = first("cover-lake") ?? first("cover-mountains") ?? first("cover-forest");
   return (
     <div aria-hidden className="lp-settle relative mx-auto mb-7 mt-2 h-[262px] w-full max-w-[340px] select-none">
       <Photo src={trip} className="left-0 top-4 h-[178px] w-[58%] -rotate-[6deg]" />
