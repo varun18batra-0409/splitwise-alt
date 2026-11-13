@@ -39,7 +39,7 @@ export const PHOTO_TAGS: Record<string, string[]> = {
   "place-mysore": ["palace"], "place-mysore-2": ["palace", "night"],
   "place-nepal": ["snow", "mountains"], "place-nepal-2": ["stupa"], "place-nepal-3": ["snow", "village"], "place-nepal-4": ["temple"], "place-nepal-5": ["temple", "city"],
   "place-newyork": ["skyline"], "place-newyork-2": ["night", "skyline"], "place-newyork-3": ["sunset", "skyline"], "place-newyork-4": ["street"], "place-newyork-5": ["skyline", "park"], "place-newyork-6": ["neon", "street"],
-  "place-ooty": ["tea", "hills", "lake"], "place-ooty-2": ["train", "hills"], "place-pondicherry": ["street"], "place-pondicherry-2": ["town", "sea"], "place-pune": ["fort"],
+  "place-ooty": ["tea", "hills", "lake"], "place-ooty-2": ["train", "hills"], "place-pondicherry": ["street"], "place-pondicherry-2": ["town", "sea"], "place-pune": ["palace"],
   "place-rishikesh": ["river", "temple"], "place-rishikesh-2": ["river"], "place-rishikesh-3": ["rafting"], "place-rishikesh-4": ["bridge", "river"], "place-rishikesh-5": ["river"],
   "place-santorini": ["night", "sea"], "place-santorini-2": ["sunset", "sea"], "place-santorini-3": ["sunset"], "place-santorini-4": ["sunset", "sea"],
   "place-sikkim": ["lake", "snow", "stupa"], "place-sikkim-2": ["shrine", "hills"],

@@ -109,7 +109,7 @@ const INDIA = {
   "place-mysore": ["photo-1600112356915-089abb8fc71a", "photo-1659126574791-13313aa424bd"],
   "place-ooty": ["photo-1638886540342-240980f60d25", "photo-1707655315272-33a54a771068"],
   "place-pondicherry": ["photo-1772633634752-7b7611e839fc", "photo-1621831714462-bec8edc4d0ec"],
-  "place-pune": [["e7XGs_ldZHo", "f8mInTykx4Y", "photo-1760034588108-987757454c18"]], // Shaniwar Wada gate in colour first; the old one is black and white
+  "place-pune": [["photo-1707617645764-08862c06fd7f", "photo-1760034588108-987757454c18"]], // a palace with a fountain (colour) first; the Shaniwar Wada gate is black and white
   "place-sikkim": ["photo-1600402808924-9c591a6dace8", "photo-1634400001131-d04275db2076"],
   "place-udaipur": ["photo-1589901164570-f9de6556e1c1", "photo-1615836245337-f5b9b2303f10"],
   "place-varanasi": ["photo-1561359313-0639aad49ca6", "photo-1561361058-c24cecae35ca"],
