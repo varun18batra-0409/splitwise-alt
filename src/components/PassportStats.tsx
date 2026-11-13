@@ -6,7 +6,7 @@ export function PassportStats({ stats }: { stats: { n: number; label: string }[]
       {stats.map((s, i) => (
         <div key={s.label} className={`flex min-w-0 flex-1 flex-col-reverse items-center px-1 text-center ${i ? "border-l border-line" : ""}`}>
           <dt className="mt-1 text-[14px] text-fg/75">{s.label}</dt>
-          <dd className="font-display text-[32px] font-semibold leading-none tabular-nums">{s.n}</dd>
+          <dd className="font-display text-[24px] font-semibold leading-none tabular-nums">{s.n}</dd>
         </div>
       ))}
     </dl>

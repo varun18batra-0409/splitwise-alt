@@ -109,14 +109,15 @@ const INDIA = {
   "place-mysore": ["photo-1600112356915-089abb8fc71a", "photo-1659126574791-13313aa424bd"],
   "place-ooty": ["photo-1638886540342-240980f60d25", "photo-1707655315272-33a54a771068"],
   "place-pondicherry": ["photo-1772633634752-7b7611e839fc", "photo-1621831714462-bec8edc4d0ec"],
-  "place-pune": ["photo-1760034588108-987757454c18"],
+  "place-pune": [["e7XGs_ldZHo", "f8mInTykx4Y", "photo-1760034588108-987757454c18"]], // Shaniwar Wada gate in colour first; the old one is black and white
   "place-sikkim": ["photo-1600402808924-9c591a6dace8", "photo-1634400001131-d04275db2076"],
   "place-udaipur": ["photo-1589901164570-f9de6556e1c1", "photo-1615836245337-f5b9b2303f10"],
   "place-varanasi": ["photo-1561359313-0639aad49ca6", "photo-1561361058-c24cecae35ca"],
   "place-corbett": ["photo-1653545607843-3411d02bc569"],
   "cover-road-in": ["photo-1651338794013-cdfa3745abe5"],
 };
-for (const [slot, ids] of Object.entries(INDIA)) ids.forEach((id, i) => (SLOTS[i ? `${slot}-${i + 1}` : slot] = [id]));
+// An entry can also be a list of candidates for one slot (tried in order).
+for (const [slot, ids] of Object.entries(INDIA)) ids.forEach((id, i) => (SLOTS[i ? `${slot}-${i + 1}` : slot] = Array.isArray(id) ? id : [id]));
 
 // The photo's own colour, so a group's screens can be tinted to match it: the average of its most
 // colourful, mid-bright spots (sky, sea, sand, stone), measured on a tiny 12×12 copy.
@@ -138,6 +139,22 @@ async function toneOf(buf) {
     return "#" + [avg("r"), avg("g"), avg("b")].map((v) => v.toString(16).padStart(2, "0")).join("");
   } catch {
     return undefined; // no image tool here: the tint falls back to what the picture shows
+  }
+}
+
+// True when almost nothing in the picture has colour (fewer than 4 of 144 spots on a 12×12 copy are visibly coloured).
+async function isGreyscale(buf) {
+  try {
+    const sharp = (await import("sharp")).default;
+    const { data } = await sharp(buf).resize(12, 12, { fit: "cover" }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    let coloured = 0;
+    for (let i = 0; i + 2 < data.length; i += 3) {
+      const max = Math.max(data[i], data[i + 1], data[i + 2]), min = Math.min(data[i], data[i + 1], data[i + 2]);
+      if (max - min > 24) coloured++;
+    }
+    return coloured < 4;
+  } catch {
+    return false; // no image tool here: keep the picture
   }
 }
 
@@ -164,6 +181,11 @@ for (const [slot, ids] of Object.entries(SLOTS)) {
       const buf = Buffer.from(await r.arrayBuffer());
       if (!r.ok || !type.startsWith("image/") || buf.length < 20_000) {
         console.log(`photos: ${slot} ✗ ${id} (${r.status} ${type} ${buf.length} bytes)`);
+        continue;
+      }
+      // A black-and-white picture looks dull next to the rest: skip it while another candidate is left to try.
+      if (id !== ids[ids.length - 1] && (await isGreyscale(buf))) {
+        console.log(`photos: ${slot} ✗ ${id} (black and white)`);
         continue;
       }
       writeFileSync(`${out}/${slot}.jpg`, buf);
