@@ -4083,7 +4083,7 @@ Object.defineProperty(navigator, "contacts", { value: { select: async () => [{ n
     await go(V, momentsGroup);
     assert(/Our moments/.test(await V.locator("[data-moments-strip]").innerText()), "no strip on the group page");
     const photo = await V.request.get(momentPhotoUrl(momentOne), { headers: bypass });
-    assert(photo.status() === 200 && /private, max-age=2592000, immutable/.test(photo.headers()["cache-control"] ?? ""), `the photo answered ${photo.status()}`);
+    assert(photo.status() === 200 && /private, no-cache/.test(photo.headers()["cache-control"] ?? "") && Boolean(photo.headers()["etag"]), `the photo answered ${photo.status()}`);
   });
   await step(A, "Moments", "Asha sees “Varun added a moment” in Home's story circles, adds her own moment, and reacts 😂 to Varun's: the count shows 1", async () => {
     await go(A, "/");
