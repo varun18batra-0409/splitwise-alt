@@ -57,73 +57,7 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
 
   return (
     <div className="space-y-8">
-      <nav aria-label="Your flat" data-flat-tiles className={`grid grid-cols-2 gap-2.5 ${tiles.length === 4 ? "min-[340px]:grid-cols-4" : "min-[340px]:grid-cols-3"}`}>
-        {tiles.map((t) => (
-          <Link key={t.label} href={t.href} className="flex flex-col items-center gap-2 rounded-[20px] border border-line bg-white px-2 py-4 text-fg/75 active:bg-fg/10">
-            {t.icon}
-            <span className="text-[13px] text-fg">{t.label}</span>
-          </Link>
-        ))}
-      </nav>
-
-      {next && (
-        <section aria-label="Next bill" data-next-bill className="rounded-[20px] border border-line bg-white p-4">
-          <div className="flex items-center gap-3.5">
-            <ExpenseGlyph title={next.name} category="bills" size={44} />
-            <div className="min-w-0 flex-1">
-              <p className="text-[13px] text-fg/60">Next bill</p>
-              <p className="break-words font-display text-[18px] font-semibold leading-tight tracking-tight">
-                {next.name}
-                {next.amount ? <> · <span className="money tabular-nums">{next.amount}</span></> : null}
-              </p>
-              <p className="text-[13px] text-fg/60">{next.when} · {next.who}</p>
-            </div>
-          </div>
-          <div className="mt-3.5 flex flex-wrap gap-2.5">
-            <Link href={`/groups/${group.id}/bills/${next.id}`} className="inline-flex min-h-11 items-center rounded-full border border-fg/25 px-4 text-sm font-semibold text-fg active:bg-fg/10">
-              View bill
-            </Link>
-            {next.status === "enter" && next.href && (
-              <Link href={next.href} className="inline-flex min-h-11 items-center rounded-full border border-fg/25 px-4 text-sm font-semibold text-fg active:bg-fg/10">
-                Enter amount
-              </Link>
-            )}
-          </div>
-        </section>
-      )}
-
-      {shop && (
-        <section aria-label="Shopping list" data-shopping-card className="rounded-[20px] border border-line bg-white p-4">
-          <div className="flex items-baseline justify-between gap-3">
-            <h2 className={h2}>Shopping list</h2>
-            <Link href={`/groups/${group.id}?tab=list`} className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-fg">
-              <PlusIcon size={16} />
-              Add item
-            </Link>
-          </div>
-          {shop.items.length === 0 ? (
-            <p className="text-sm text-fg/60">Nothing on the list. Add what’s running low.</p>
-          ) : (
-            <ul>
-              {shop.items.map((i) => (
-                <li key={i.id} className="border-b border-line last:border-0">
-                  <Link href={`/groups/${group.id}?tab=list`} className="flex items-center gap-3 py-3">
-                    <span aria-hidden className="h-5 w-5 shrink-0 rounded-[6px] border-[1.5px] border-fg/40" />
-                    <span className="min-w-0 flex-1 truncate text-[15px]">{i.text}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-          {shop.total > shop.items.length && (
-            <Link href={`/groups/${group.id}?tab=list`} className="mt-1 inline-flex min-h-11 items-center gap-1 text-sm text-fg/75">
-              See all {shop.total}
-              <ChevronRight size={14} />
-            </Link>
-          )}
-        </section>
-      )}
-
+      {/* The month's money comes first; the shortcuts, next bill and shopping list follow. */}
       <section className="vault rounded-[24px] px-5 py-5">
         {couple ? (
           <>
@@ -191,6 +125,73 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
           </>
         )}
       </section>
+
+      <nav aria-label="Your flat" data-flat-tiles className={`grid grid-cols-2 gap-2.5 ${tiles.length === 4 ? "min-[340px]:grid-cols-4" : "min-[340px]:grid-cols-3"}`}>
+        {tiles.map((t) => (
+          <Link key={t.label} href={t.href} className="flex flex-col items-center gap-2 rounded-[20px] border border-line bg-white px-2 py-4 text-fg/75 active:bg-fg/10">
+            {t.icon}
+            <span className="text-[13px] text-fg">{t.label}</span>
+          </Link>
+        ))}
+      </nav>
+
+      {next && (
+        <section aria-label="Next bill" data-next-bill className="rounded-[20px] border border-line bg-white p-4">
+          <div className="flex items-center gap-3.5">
+            <ExpenseGlyph title={next.name} category="bills" size={44} />
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] text-fg/60">Next bill</p>
+              <p className="break-words font-display text-[18px] font-semibold leading-tight tracking-tight">
+                {next.name}
+                {next.amount ? <> · <span className="money tabular-nums">{next.amount}</span></> : null}
+              </p>
+              <p className="text-[13px] text-fg/60">{next.when} · {next.who}</p>
+            </div>
+          </div>
+          <div className="mt-3.5 flex flex-wrap gap-2.5">
+            <Link href={`/groups/${group.id}/bills/${next.id}`} className="inline-flex min-h-11 items-center rounded-full border border-fg/25 px-4 text-sm font-semibold text-fg active:bg-fg/10">
+              View bill
+            </Link>
+            {next.status === "enter" && next.href && (
+              <Link href={next.href} className="inline-flex min-h-11 items-center rounded-full border border-fg/25 px-4 text-sm font-semibold text-fg active:bg-fg/10">
+                Enter amount
+              </Link>
+            )}
+          </div>
+        </section>
+      )}
+
+      {shop && (
+        <section aria-label="Shopping list" data-shopping-card className="rounded-[20px] border border-line bg-white p-4">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className={h2}>Shopping list</h2>
+            <Link href={`/groups/${group.id}?tab=list`} className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-fg">
+              <PlusIcon size={16} />
+              Add item
+            </Link>
+          </div>
+          {shop.items.length === 0 ? (
+            <p className="text-sm text-fg/60">Nothing on the list. Add what’s running low.</p>
+          ) : (
+            <ul>
+              {shop.items.map((i) => (
+                <li key={i.id} className="border-b border-line last:border-0">
+                  <Link href={`/groups/${group.id}?tab=list`} className="flex items-center gap-3 py-3">
+                    <span aria-hidden className="h-5 w-5 shrink-0 rounded-[6px] border-[1.5px] border-fg/40" />
+                    <span className="min-w-0 flex-1 truncate text-[15px]">{i.text}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          {shop.total > shop.items.length && (
+            <Link href={`/groups/${group.id}?tab=list`} className="mt-1 inline-flex min-h-11 items-center gap-1 text-sm text-fg/75">
+              See all {shop.total}
+              <ChevronRight size={14} />
+            </Link>
+          )}
+        </section>
+      )}
 
       {rest.length > 0 && (
         <section>
