@@ -91,8 +91,12 @@ const rupees = (paise: number) => `₹${(paise / 100).toFixed(2)}`;
 // A step that hangs (a screen that never finishes on the hosted copy) fails on
 // its own after two minutes instead of stopping the whole run.
 const STEP_LIMIT_MS = 120_000;
+// Every page crash (a React error, an uncaught throw), with the step it happened in and the page's address, listed at the end of the run.
+let stepNow = "(before the first step)";
+const pageCrashes: string[] = [];
 async function step(page: Page | null, area: string, name: string, fn: () => Promise<void | string | NotRun>, only?: Profile[], limitMs = STEP_LIMIT_MS) {
   const n = results.length + 1;
+  stepNow = `${area} — ${name}`;
   try {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const note = await Promise.race([
@@ -221,7 +225,13 @@ function watch(page: Page) {
     errs.push(t.slice(0, 160));
     if (errs.length > 3) errs.shift();
   };
-  page.on("pageerror", (e) => keep(`pageerror ${String(e)}`));
+  page.on("pageerror", (e) => {
+    keep(`pageerror ${String(e)}`);
+    const where = page.url().replace(/^https?:\/\/[^/]+/, "").replace(/[?#].*$/, "");
+    const line = `${String(e).slice(0, 90)} | on ${where} | in ${stepNow.slice(0, 120)}`;
+    pageCrashes.push(line);
+    console.log("! page crash:", line);
+  });
   page.on("console", (m) => {
     if (m.type() === "error") keep(`console ${m.text()}`);
   });
@@ -3136,14 +3146,15 @@ async function main() {
     return new URL(page.url()).pathname.replace(/\/invite$/, "");
   }
 
-  await step(V, "Countdown", "A trip made with a start date in 10 days: the group says “in 10 days”, Home shows the countdown with the plane taking off", async () => {
+  await step(V, "Countdown", "A trip made with a start date in 10 days: the group says “in 10 days”, Home shows the countdown strip with the trip's picture", async () => {
     const goa = await newTrip(V, `UAT Goa trip ${stamp % 1000}`, istDay(10));
     await go(V, goa);
     await V.locator("[data-countdown-line]").first().filter({ hasText: "in 10 days" }).waitFor();
     await go(V, "/");
     const card = V.getByRole("region", { name: "Trip countdown", exact: true }).first();
     assert((await card.getAttribute("data-countdown")) === "10", `Home countdown says ${await card.getAttribute("data-countdown")}`);
-    assert(await card.locator("[data-takeoff]").count(), "no plane on the countdown");
+    assert(await card.locator("[data-trip-thumb]").count(), "no picture on the countdown strip");
+    assert(/10/.test((await card.locator("[data-countdown-big]").first().textContent()) ?? ""), "the strip doesn't show 10");
   });
 
   await step(V, "Countdown", "A second trip in 30 days: the soonest stays in the countdown strip under the money card, the later one shows under “Also coming up”, one card at a time", async () => {
@@ -4011,6 +4022,7 @@ function writeReports() {
     `|---|---|---|---|`,
     ...results.map((r) => `| ${mark(r.status)} | ${r.area} | ${r.name} | ${r.detail.replace(/\|/g, "/")} |`),
   ];
+  if (pageCrashes.length) lines.push(``, `## Page crashes (${pageCrashes.length})`, ``, ...[...new Set(pageCrashes)].map((c) => `- ${c}`));
   writeFileSync(`${out}/report.md`, lines.join("\n"));
   // The first line is read by the CI workflows; failures follow, one per line, starting with ✗.
   writeFileSync(`${out}/summary.txt`, `${head}\n${results.filter((r) => r.status === "fail").map((r) => `✗ ${r.area} — ${r.name}: ${r.detail}`).concat(results.filter((r) => r.status === "skip").map((r) => `○ ${r.area} — ${r.name}: ${r.detail}`)).join("\n")}`);
