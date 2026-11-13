@@ -9,11 +9,13 @@ import { Avatar, ErrorNote, inputClass, primaryButtonClass } from "@/components/
 import { GoogleG } from "@/components/GoogleG";
 import { googleConfigured } from "@/lib/google";
 import { coverFor } from "@/lib/covers";
-import { Polaroid } from "@/components/Polaroid";
+import Image from "next/image";
+import { GroupCover } from "@/components/GroupCover";
+import { tripPhotoSrc } from "@/lib/places";
 import { inviteMemberId } from "@/lib/invites";
 import { invitedNameRows, NAME_NEEDED } from "@/lib/join";
 import type { Metadata } from "next";
-import { ChevronDown } from "@/components/icons";
+import { ChevronDown, GroupIcon } from "@/components/icons";
 
 // The preview WhatsApp shows for an invite link: the group's name, never anyone's money.
 export async function generateMetadata({ params }: { params: Promise<{ code: string }> }): Promise<Metadata> {
@@ -88,22 +90,28 @@ export default async function JoinPage({
   const backQ = new URLSearchParams({ ...(invitedEmail ? { e: invitedEmail } : {}), ...(asMember ? { as: asMember.id } : {}) }).toString();
   const back = `/join/${code}${backQ ? `?${backQ}` : ""}`;
 
-  const kind = group.type === "trip" ? "A trip" : group.type === "home" ? "A home" : group.type === "couple" ? "A couple" : group.type === "pot" ? "A game night" : "A group";
+  const kind = group.type === "trip" ? "Trip" : group.type === "home" ? "Home" : group.type === "couple" ? "Couple" : group.type === "pot" ? "Game night" : "Group";
+  // The place photo for a trip (never the group's own photo: outsiders don't see it).
+  const placeSrc = tripPhotoSrc(group);
+  const invitedFirst = invitedBy ? invitedBy.trim().split(/\s+/)[0] || invitedBy : "";
 
   return (
     <>
-      {/* The invitation: a neutral card. No names and no amounts until you join. */}
-      <header className="mb-6">
+      {/* The invitation: no names and no amounts until you join. */}
+      <header className="mb-5">
         <span className="font-display text-[26px] font-semibold leading-none tracking-tight">loopin</span>
       </header>
-      <section className="text-center" data-join-card>
-        <Polaroid cover={coverFor(group, true)} uid={`join-${group.id}`} letter={group.name} caption={group.name} photoClass="h-[200px]" className="mx-auto w-[250px] -rotate-2" captionClass="text-[22px]" sizes="250px" />
-        <p className="mt-7 text-sm text-fg/60">{invitedBy ? `${invitedBy} invited you to` : "You’re invited to"}</p>
-        <h1 className="mt-1 font-display text-[clamp(32px,10vw,40px)] font-semibold leading-[1.05] tracking-[-0.02em]">{group.name}</h1>
-        <p className="mt-1 text-sm text-fg/60">
+      <section data-join-card>
+        <div aria-hidden className="relative aspect-[16/9] w-full overflow-hidden rounded-[20px] bg-[#1f1f24]">
+          <GroupCover {...coverFor(group, true)} uid={`join-${group.id}`} letter={group.name} sizes="(max-width: 448px) 100vw, 448px" priority />
+          {placeSrc && <Image src={placeSrc} alt="" aria-hidden fill sizes="(max-width: 448px) 100vw, 448px" priority className="object-cover" />}
+        </div>
+        <h1 className="mt-5 break-words font-display text-[clamp(26px,8vw,32px)] font-semibold leading-[1.1] tracking-[-0.02em] [text-wrap:balance]">Join {group.name}</h1>
+        {invitedFirst && <p className="mt-1 text-[15px] text-fg">Invited by {invitedFirst}</p>}
+        <p className="mt-3 inline-flex items-center gap-2 rounded-full border border-fg/20 px-3.5 py-1.5 text-[13px] text-fg/75">
+          <GroupIcon size={18} className="text-fg/75" />
           {kind} · {active.length} {active.length === 1 ? "person" : "people"}
         </p>
-        <p className="mx-auto mt-5 max-w-[19rem] text-sm leading-relaxed text-fg/70">Join to see who’s in, what’s been spent and who owes what.</p>
       </section>
 
       {error === "busy" && <ErrorNote>Too many joins from here in the last hour. Wait a bit and try again.</ErrorNote>}
@@ -113,11 +121,13 @@ export default async function JoinPage({
       {!account ? (
         <>
           {asMember && <p className="mb-4 rounded-[18px] bg-mist px-4 py-3 text-sm">You were added as <strong>{asMember.name}</strong>. Join to see your share.</p>}
-          <div className="mt-7 space-y-2.5">
+          <hr className="mt-6 border-0 border-t border-fg/15" />
+          <p className="mt-5 text-[15px] leading-snug text-fg/80">Sign in to join and keep your groups across devices.</p>
+          <div className="mt-4 space-y-2.5">
             {googleConfigured() && (
               <a href={`/api/auth/google/start?${new URLSearchParams({ back })}`} className="pop flex h-14 w-full items-center justify-center gap-3 bg-fg text-base font-semibold text-canvas">
                 <GoogleG />
-                Join with Google
+                Continue with Google
               </a>
             )}
             <Link
@@ -131,6 +141,8 @@ export default async function JoinPage({
         </>
       ) : (
         <>
+          <hr className="mt-6 border-0 border-t border-fg/15" />
+          <p className="mb-5 mt-5 text-[15px] leading-snug text-fg/70">Join to see who’s in, what’s been spent and who owes what.</p>
           {asMember && (
             <form action={joinAsExisting} className="mb-8 space-y-3">
               <input type="hidden" name="code" value={code} />
@@ -180,7 +192,7 @@ export default async function JoinPage({
         </>
       )}
 
-      <p className="mt-6 text-center text-[13px] text-fg/50" data-join-footnote>No names or amounts are shown before you join.</p>
+      <p className="mt-6 text-center text-[13px] text-fg/50" data-join-footnote>{invitedFirst ? "No amounts are shown before you join." : "No names or amounts are shown before you join."}</p>
       <p className="mt-8 text-center text-xs text-gray-400">Loopin keeps count. It never touches your money.</p>
       <GetAppButton variant="card" className="mt-6" />
     </>

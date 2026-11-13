@@ -21,7 +21,7 @@ export function JoinByLink() {
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} className="block w-full rounded-full border border-fg/25 bg-transparent px-4 py-3.5 text-center font-semibold text-fg transition-transform active:scale-[0.97]">
-        I have an invite link
+        Join with a link
       </button>
     );
   }

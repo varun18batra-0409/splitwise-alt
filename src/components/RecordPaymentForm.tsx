@@ -178,21 +178,26 @@ export function RecordPaymentForm({
             <span aria-hidden className="font-display text-[0.55em] font-semibold text-fg/55">
               {currencySign(currency)}
             </span>
-            <input
-              ref={amountRef}
-              name="amount"
-              required
-              inputMode="decimal"
-              placeholder="0"
-              autoComplete="off"
-              aria-label={`Amount (${currency})`}
-              value={shown}
-              onChange={(e) => setAmount(e.target.value)}
-              onFocus={() => setFocused(true)}
-              onBlur={() => setFocused(false)}
-              size={Math.max(2, shown.length + 1)}
-              className="min-w-0 max-w-full bg-transparent text-center font-display font-semibold tracking-[-0.02em] text-fg caret-fg outline-none placeholder:text-fg/25 focus-visible:shadow-[inset_0_-1px_0_0_rgb(244_242_236/0.22)]"
-            />
+            {/* The input is exactly as wide as its text: a hidden copy of the text sets the width of the grid cell. */}
+            <span className="inline-grid min-w-0 max-w-full">
+              <span aria-hidden className="invisible col-start-1 row-start-1 whitespace-pre px-0.5 text-center font-display font-semibold tracking-[-0.02em]">
+                {shown || "0"}
+              </span>
+              <input
+                ref={amountRef}
+                name="amount"
+                required
+                inputMode="decimal"
+                placeholder="0"
+                autoComplete="off"
+                aria-label={`Amount (${currency})`}
+                value={shown}
+                onChange={(e) => setAmount(e.target.value)}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
+                className="col-start-1 row-start-1 w-full min-w-0 bg-transparent px-0.5 text-center font-display font-semibold tracking-[-0.02em] text-fg caret-fg outline-none placeholder:text-fg/25 focus-visible:shadow-[inset_0_-1px_0_0_rgb(244_242_236/0.22)]"
+              />
+            </span>
           </div>
           <p className="mt-2 text-xs text-fg/55">Full or part. You can record the rest later.</p>
         </div>

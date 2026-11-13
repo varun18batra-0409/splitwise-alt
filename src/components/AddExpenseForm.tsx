@@ -510,23 +510,28 @@ export function AddExpenseForm({
 
       {/* 2 + 4. Amount (the hero), with the currency and the day as two small chips under it */}
       <div className="flex flex-col items-center pt-1 text-center" data-amount-hero>
-        <div className="flex w-full items-baseline justify-center gap-1.5 text-[clamp(44px,13vw,52px)] leading-[1.05]">
+        <div className="flex w-full items-baseline justify-center gap-1.5 text-[clamp(34px,10vw,40px)] leading-[1.05]">
           <span aria-hidden className="font-display text-[0.55em] font-semibold text-fg/55">
             {currencySign(currency)}
           </span>
-          <input
-            value={amountFocused ? amount : groupDigits(amount, currency)}
-            onChange={(e) => setAmount(e.target.value)}
-            onFocus={() => setAmountFocused(true)}
-            onBlur={() => setAmountFocused(false)}
-            inputMode="decimal"
-            placeholder="0"
-            autoComplete="off"
-            aria-label="Amount"
-            autoFocus={!initial?.name}
-            size={Math.max(2, (amountFocused ? amount : groupDigits(amount, currency)).length + 1)}
-            className="min-w-0 max-w-full bg-transparent text-center font-display font-semibold tracking-[-0.02em] text-fg caret-fg outline-none placeholder:text-fg/25 focus-visible:shadow-[inset_0_-1px_0_0_rgb(244_242_236/0.22)]"
-          />
+          {/* The input is exactly as wide as its text: a hidden copy of the text sets the width of the grid cell. */}
+          <span className="inline-grid min-w-0 max-w-full">
+            <span aria-hidden className="invisible col-start-1 row-start-1 whitespace-pre px-0.5 text-center font-display font-semibold tracking-[-0.02em]">
+              {(amountFocused ? amount : groupDigits(amount, currency)) || "0"}
+            </span>
+            <input
+              value={amountFocused ? amount : groupDigits(amount, currency)}
+              onChange={(e) => setAmount(e.target.value)}
+              onFocus={() => setAmountFocused(true)}
+              onBlur={() => setAmountFocused(false)}
+              inputMode="decimal"
+              placeholder="0"
+              autoComplete="off"
+              aria-label="Amount"
+              autoFocus={!initial?.name}
+              className="col-start-1 row-start-1 w-full min-w-0 bg-transparent px-0.5 text-center font-display font-semibold tracking-[-0.02em] text-fg caret-fg outline-none placeholder:text-fg/25 focus-visible:shadow-[inset_0_-1px_0_0_rgb(244_242_236/0.22)]"
+            />
+          </span>
         </div>
         {/* How the typed amount was read ("12,50" → ₹12.50); nothing for plain digits. */}
         {echo && (

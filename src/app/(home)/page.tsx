@@ -6,6 +6,7 @@ import { PhoneOnlyNote } from "@/components/PhoneOnlyNote";
 import { Notice } from "@/components/Notice";
 import { IntroTour } from "@/components/IntroTour";
 import { JoinByLink } from "@/components/JoinByLink";
+import { StartHero } from "@/components/StartHero";
 import { cookies, headers } from "next/headers";
 import { visitorRegion } from "@/lib/region";
 import { GAME_NIGHT_GAMES } from "@/lib/group-types";
@@ -521,41 +522,47 @@ export default async function Home({
 
       {all.length === 0 ? (
         <>
-          {/* Start card: nothing here yet. */}
-          <section aria-label="Start" className="vault rounded-[26px] px-5 pb-5 pt-6 text-fg" data-start-card>
-            <p className="text-sm text-fg/60">Welcome to Loopin</p>
-            <h1 className="mt-1 font-display text-[32px] font-semibold leading-[1.08] tracking-tight [text-wrap:balance]">Start with one group.</h1>
-            <p className="mt-2 text-fg/65">Add what you paid, and Loopin keeps track of who owes whom.</p>
+          {/* Start screen: nothing here yet. Two photos and a receipt, the promise, then the ways in. */}
+          <section aria-label="Start" className="text-fg" data-start-card>
+            <StartHero />
+            <h1 className="font-display text-[clamp(30px,9vw,34px)] font-semibold leading-[1.08] tracking-tight">
+              Good times. <span className="block">Shared fairly.</span>
+            </h1>
+            <p className="mt-2.5 max-w-[19rem] text-[15px] leading-snug text-fg/65">Split expenses, settle up and keep the memories.</p>
             <div className="mt-6 space-y-3">
               <Link href="/groups/new" className="pop block bg-fg px-4 py-3.5 text-center font-semibold text-canvas">
                 Create a group
               </Link>
               <JoinByLink />
             </div>
+            {!account && (
+              <p className="mt-4 text-center text-[15px] text-fg/65">
+                <Link href="/signin" className="inline-block py-3">
+                  Already here? <span className="font-semibold text-fg underline underline-offset-4">Sign in</span>
+                </Link>
+              </p>
+            )}
+            <p className="mt-1 text-center text-xs text-fg/55">
+              <Link href="/terms" className="inline-flex min-h-11 items-center px-2">
+                Terms
+              </Link>
+              <span aria-hidden>·</span>
+              <Link href="/privacy" className="inline-flex min-h-11 items-center px-2">
+                Privacy
+              </Link>
+            </p>
           </section>
 
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <Link href="/switching" className="flex min-h-[92px] flex-col justify-center rounded-2xl border border-line px-4 py-3 active:bg-mist [&>span]:[text-wrap:balance]">
-              <span className="text-[13px] text-fg/60">Coming from another app?</span>
-              <span className="mt-0.5 text-sm font-semibold leading-snug [text-wrap:balance]">Bring your groups over</span>
+          <div className="mt-6 grid grid-cols-2 gap-3">
+            <Link href="/switching" className="flex min-h-[84px] flex-col justify-center rounded-2xl border border-line px-4 py-3 active:bg-mist [&>span]:[text-wrap:balance]">
+              <span className="text-[13px] text-fg/55">Coming from another app?</span>
+              <span className="mt-0.5 text-sm font-medium leading-snug text-fg/85 [text-wrap:balance]">Bring your groups over</span>
             </Link>
-            <Link href="/how-it-works" className="flex min-h-[92px] flex-col justify-center rounded-2xl border border-line px-4 py-3 active:bg-mist [&>span]:[text-wrap:balance]">
-              <span className="text-[13px] text-fg/60">How Loopin works</span>
-              <span className="mt-0.5 text-sm font-semibold leading-snug [text-wrap:balance]">Three steps, one minute</span>
+            <Link href="/how-it-works" className="flex min-h-[84px] flex-col justify-center rounded-2xl border border-line px-4 py-3 active:bg-mist [&>span]:[text-wrap:balance]">
+              <span className="text-[13px] text-fg/55">How Loopin works</span>
+              <span className="mt-0.5 text-sm font-medium leading-snug text-fg/85 [text-wrap:balance]">Three steps, one minute</span>
             </Link>
           </div>
-
-          {!account && (
-            <Link href="/signin" className="mt-4 flex items-center gap-3 rounded-2xl border border-line px-4 py-3.5 active:bg-mist">
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold">Sign in to start</span>
-                <span className="block text-xs text-fg/60">Google or email, no password. Your groups follow you to a new phone.</span>
-              </span>
-              <span className="text-gray-400" aria-hidden>
-                ›
-              </span>
-            </Link>
-          )}
 
           <section className="mt-8">
             <h2 className="mb-2 font-display text-lg font-semibold tracking-tight">Quick start</h2>

@@ -40,7 +40,7 @@ export function CollectionsSection({ list, limit, total, className = "mt-8" }: {
                 </span>
                 <span className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-fg/[0.08]">
                   <span className="lp-bar-x block h-full bg-fg" style={{ width: `${Math.max(bar.confirmedPct, p.checked ? 4 : 0)}%` }} />
-                  <span className="block h-full bg-fg/25" style={{ width: `${bar.reportedPct}%` }} />
+                  <span className="block h-full bg-fg/55" style={{ width: `${bar.reportedPct}%` }} />
                 </span>
                 <span className="mt-1.5 flex min-w-0 flex-wrap justify-between gap-x-3 gap-y-0.5 text-xs text-gray-400">
                   <span className="min-w-0">

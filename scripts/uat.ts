@@ -2029,12 +2029,12 @@ async function main() {
     const { ctx, page } = await phone("Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36");
     await go(page, "/");
     await page.getByRole("link", { name: "Home", exact: true }).first().click();
-    await page.getByRole("heading", { name: "Start with one group." }).waitFor();
-    await page.getByRole("link", { name: /Sign in to start/ }).first().waitFor();
+    await page.getByRole("heading", { name: "Good times. Shared fairly." }).waitFor();
+    await page.getByRole("link", { name: /Already here\? Sign in/ }).first().waitFor();
     // Join with a pasted link
     // (Tapped again if the first tap landed before the page came alive, as a person would.)
     for (let i = 0; i < 4 && !(await page.getByLabel("Invite link").count()); i++) {
-      await page.getByRole("button", { name: "I have an invite link" }).click();
+      await page.getByRole("button", { name: "Join with a link" }).click();
       await page.getByLabel("Invite link").waitFor({ timeout: 2_000 }).catch(() => undefined);
     }
     await page.getByLabel("Invite link").fill(`https://getloopin.vercel.app${invite}`);
