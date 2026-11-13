@@ -1,0 +1,3 @@
+221 passed, 0 failed, 4 not applicable, 2 NOT RUN · profile: android (Android phone: Chromium, 390×844, touch, en-IN, Asia/Kolkata)
+○ Settle — “I’ve paid” is only a claim: balances don't move until Asha taps Confirm received: not run: Varun pays nobody who has joined right now
+○ People — Someone owing money can't be marked as left until settled: not run: everyone settled
