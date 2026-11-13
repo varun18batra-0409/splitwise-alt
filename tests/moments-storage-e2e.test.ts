@@ -445,7 +445,7 @@ describe("who can add, and what the upload checks", () => {
     expect((await upload({ group: w.id, takenOn: "2026-03-15" })).status).toBe(400);
     expect((await upload({ group: w.id, takenOn: "2026-03-09" })).status).toBe(400);
     expect(blob.puts).toBe(0);
-    const ok = await upload({ group: w.id, caption: "  one\ntwo‮ three ", takenOn: "" });
+    const ok = await upload({ group: w.id, caption: "  one\ntwo\u202e three ", takenOn: "" });
     expect(ok.status).toBe(200);
     expect(await db.moment.findUniqueOrThrow({ where: { id: ok.json.id! } })).toMatchObject({ caption: "one two three", takenOn: "" });
   });

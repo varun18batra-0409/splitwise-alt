@@ -19,8 +19,8 @@ describe("a moment's words", () => {
     expect(cleanCaption("one\ntwo\r\n\tthree")).toBe("one two three");
   });
   it("removes the characters that flip text direction (U+202E and friends)", () => {
-    expect(cleanCaption("abc‮def")).toBe("abcdef");
-    expect(cleanCaption("‪‫‬‭⁦⁧⁨⁩x")).toBe("x");
+    expect(cleanCaption("abc\u202edef")).toBe("abcdef");
+    expect(cleanCaption("\u202a\u202b\u202c\u202d\u2066\u2067\u2068\u2069x")).toBe("x");
   });
   it("allows an empty caption", () => {
     expect(cleanCaption("")).toBe("");

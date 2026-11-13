@@ -3,6 +3,8 @@ import { imageSize } from "@/lib/image-size";
 
 import { jpeg, webpExtended, webpLossless, webpLossy } from "./helpers/moment-photos";
 
+const ascii = (s: string) => [...s].map((c) => c.charCodeAt(0));
+
 describe("reading a photo's size from its header", () => {
   it("JPEG: width and height are the right way round", () => {
     expect(imageSize(jpeg(1600, 1200))).toEqual({ width: 1600, height: 1200 });

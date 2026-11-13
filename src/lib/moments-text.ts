@@ -14,8 +14,8 @@ export function graphemeCount(s: string): number {
 // text (U+202A to U+202E and U+2066 to U+2069). Null when it is over 80 characters. An empty caption is fine.
 export function cleanCaption(raw: unknown): string | null {
   const s = String(raw ?? "")
-    .replace(/[‪-‮⁦-⁩]/g, "")
-    .replace(/[\p{Cc}  ]/gu, " ")
+    .replace(/[\u202a-\u202e\u2066-\u2069]/g, "")
+    .replace(/[\p{Cc}\u2028\u2029]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
   return graphemeCount(s) <= MOMENT_CAPTION_MAX ? s : null;
