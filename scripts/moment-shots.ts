@@ -21,20 +21,11 @@ export async function assertMomentPhotosDecoded(p: Page, label: string): Promise
     for (const im of imgs) im.scrollIntoView({ block: "center" });
     window.scrollTo(0, 0);
   });
-  const total = await p.evaluate(
-    (limit) =>
-      new Promise<number>((resolve) => {
-        const imgs = () => Array.from(document.querySelectorAll<HTMLImageElement>('img[src*="/api/moment-photo/"]'));
-        const started = Date.now();
-        const tick = () => {
-          const list = imgs();
-          if (list.every((im) => im.complete) || Date.now() - started > limit) resolve(list.length);
-          else setTimeout(tick, 100);
-        };
-        tick();
-      }),
-    10_000,
-  );
+  // No named functions inside the browser code: the script runner adds a helper (__name) that the page doesn't have.
+  await p
+    .waitForFunction(() => Array.from(document.querySelectorAll<HTMLImageElement>('img[src*="/api/moment-photo/"]')).every((im) => im.complete), undefined, { timeout: 10_000 })
+    .catch(() => undefined);
+  const total = await p.locator('img[src*="/api/moment-photo/"]').count();
   const states = await p.evaluate(() =>
     Array.from(document.querySelectorAll<HTMLImageElement>('img[src*="/api/moment-photo/"]'))
       .filter((im) => im.getClientRects().length > 0)

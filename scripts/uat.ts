@@ -3839,6 +3839,7 @@ async function main() {
     await Z.waitForURL(/shared=private/);
     await go(Z, "/passport");
     assert((await Z.getByText("Show your places to people in your groups?").count()) === 0, "the passport question came back after Not now");
+    await go(Z, "/passport?open=who"); // "Who can see it" is a folded row now
     assert((await Z.getByRole("button", { name: "Only me" }).getAttribute("aria-pressed")) === "true", "Not now should leave it on Only me");
   });
   await step(A, "Sharing", "Asha sends her passport to Ravi, who set his own to “Only me”: he gets it, and Asha still can't open his", async () => {
