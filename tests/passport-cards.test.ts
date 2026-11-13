@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildPassport, type PassportTrip, type Stamp } from "@/lib/passport";
-import { beenCards, beenStats, shownCards, tripDates } from "@/lib/passport-cards";
+import { beenCards, beenStats, shownCards, titleFit, tripDates } from "@/lib/passport-cards";
 
 const TODAY = "2026-11-13";
 const trip = (groupId: string, name: string, start: string, end: string, people: number, place = "", country = ""): PassportTrip => ({ groupId, name, start, end, place, country, people });
@@ -37,7 +37,8 @@ describe("Been cards: the founder's picture", () => {
   });
   it("the stamp on the photo is the country and the month of the trip", () => {
     expect(cards[0].stamp).toMatchObject({ kind: "country", name: "Thailand", when: "2026-05-05", byHand: false });
-    expect(cards[1].stamp).toMatchObject({ kind: "country", name: "India", when: "2026-03-13", byHand: false });
+    // A trip in the home country gets its city's stamp (GOA), as "Trips here get city stamps" says.
+    expect(cards[1].stamp).toMatchObject({ kind: "city", name: "Goa", when: "2026-03-13", byHand: false });
   });
   it("see our moments appears only when there are moments you can see", () => {
     expect(cards[0].momentsHref).toBeUndefined();
@@ -123,5 +124,28 @@ describe("See all", () => {
     const eight = [...six, 6, 7];
     expect(shownCards(eight, false)).toEqual({ shown: six, hidden: 2 });
     expect(shownCards(eight, true)).toEqual({ shown: eight, hidden: 0 });
+  });
+});
+
+describe("Been: days away so far, and long names", () => {
+  it("a trip still going says 'days away so far'; finished trips do not", () => {
+    // Today is 13 Nov. A trip 10–16 Nov is in progress: it counts 10, 11, 12, 13 = 4 days so far (not its 7).
+    const going = build([trip("now", "Phuket", "2026-11-10", "2026-11-16", 3, "Phuket", "TH")]);
+    expect(beenCards(going, {}, TODAY).stats).toEqual([
+      { n: 1, label: "country" },
+      { n: 1, label: "trip" },
+      { n: 4, label: "days away so far" },
+    ]);
+    const done = build([trip("old", "Goa trip", "2026-03-13", "2026-03-15", 4)]);
+    expect(beenCards(done, {}, TODAY).stats.at(-1)).toEqual({ n: 3, label: "days away" });
+    expect(beenStats(2, 1, 1, true).at(-1)).toEqual({ n: 1, label: "day away so far" });
+  });
+  it("a long single word steps the type down by its own width; short names keep full size", () => {
+    // 18 letters at 0.6 em: 100 / (18 × 0.6) = 9.2 of the box's width, never below 14 px.
+    expect(titleFit("Thiruvananthapuram", 22)).toBe("max(14px, min(22px, 9.2cqw))");
+    // Only the longest word counts, and "·" is a break: "Thiruvananthapuram · Kanyakumari" is still 18.
+    expect(titleFit("Thiruvananthapuram · Kanyakumari", 22)).toBe("max(14px, min(22px, 9.2cqw))");
+    // 3 letters: 100 / 1.8 = 55.5, far above 22 px, so the 22 px cap rules.
+    expect(titleFit("Goa", 22)).toBe("max(14px, min(22px, 55.5cqw))");
   });
 });

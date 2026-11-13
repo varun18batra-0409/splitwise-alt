@@ -4,18 +4,31 @@ import { StampMark } from "@/components/PassportBook";
 import { CalendarIcon, DotsIcon, PeopleIcon, PhotoIcon } from "@/components/PassportIcons";
 import { removePlaceAction } from "@/app/passport-actions";
 import { photoSet, placePhotos, placeSlot } from "@/lib/places";
-import type { BeenCardData } from "@/lib/passport-cards";
+import { titleFit, type BeenCardData } from "@/lib/passport-cards";
 
 // The cards of the passport's Been tab: a big one for the newest trip, small ones for the rest, and a
 // quiet one for a country added by hand. Layout: photo with the place's stamp, then words. Server-drawn.
 
 // A trip: the place's photo (or a mood photo when the place isn't known). A country added by hand: only
 // a photo that is really that country; otherwise none (a plain card with the stamp), never a wrong one.
+// Cards are about places: the photo of the place (from the trip's name, "Where to?", the stamp's country or its cities) comes before any
+// mood picture, and a group's own people/cover photo is never used here. A hand-added place with no photo gets a designed panel.
 function photoOf(c: BeenCardData): string | undefined {
+  const slot = placeSlot(`${c.groupName} ${c.place}`) ?? placeSlot(c.title) ?? placeSlot(c.cities.join(" ")) ?? placeSlot(c.stamp.name);
+  if (slot) {
+    const own = photoSet(slot)[0];
+    if (own) return own;
+  }
   if (c.kind === "trip") return placePhotos(c.groupName, c.place, 1)[0];
-  const slot = placeSlot(c.title);
-  return slot ? photoSet(slot)[0] : undefined;
+  return undefined;
 }
+
+// The cream paper of the passport pages (the booklet's own look), for a card with no photo.
+const PAPER_STYLE = {
+  backgroundColor: "#efe8d6",
+  backgroundImage:
+    "radial-gradient(circle at 50% 120%, transparent 0 38%, rgba(43,76,126,0.06) 38.5% 39%, transparent 39.5% 45%, rgba(43,76,126,0.05) 45.5% 46%, transparent 46.5%), repeating-linear-gradient(115deg, rgba(38,35,29,0.035) 0 1px, transparent 1px 7px)",
+} as const;
 
 // The stamp on a piece of paper, tilted on the photo's corner. The stamp artwork is the booklet's own.
 function PhotoStamp({ c, scale }: { c: BeenCardData; scale: number }) {
@@ -30,6 +43,17 @@ function PhotoStamp({ c, scale }: { c: BeenCardData; scale: number }) {
 
 function Photo({ c, className, sizes, scale }: { c: BeenCardData; className: string; sizes: string; scale: number }) {
   const src = photoOf(c);
+  if (!src)
+    // No photo of this place: the large stamp, centred on the passport's cream paper (never an empty grey box).
+    return (
+      <div className={`relative overflow-hidden ${className}`} style={PAPER_STYLE} data-been-panel>
+        <div aria-hidden className="pointer-events-none absolute left-1/2 top-1/2 isolate" style={{ transform: `translate(-50%,-50%) scale(${scale * 1.05})` }}>
+          <div className="relative h-[140px] w-[150px]">
+            <StampMark s={c.stamp} i={0} at={{ left: "50%", top: "50%" }} />
+          </div>
+        </div>
+      </div>
+    );
   return (
     <div className={`relative overflow-hidden bg-mist ${className}`}>
       {src && <Image src={src} alt="" fill sizes={sizes} className="object-cover" />}
@@ -52,14 +76,37 @@ function Faces({ initials }: { initials: string[] }) {
   );
 }
 
-const tripWords = (c: BeenCardData) => [c.dates, c.days ? `${c.days} ${c.days === 1 ? "day" : "days"}` : ""].filter(Boolean).join(" · ");
+// "5–10 May 2026 · 6 days": the "· 6 days" stays together on one line (never "6" then "days").
+function TripWords({ c }: { c: BeenCardData }) {
+  const days = c.days ? `${c.days} ${c.days === 1 ? "day" : "days"}` : "";
+  if (!c.dates && !days) return null;
+  return (
+    <>
+      {c.dates}
+      {c.dates && days ? " " : ""}
+      {days && <span className="whitespace-nowrap">{c.dates ? "· " : ""}{days}</span>}
+    </>
+  );
+}
+const hasWords = (c: BeenCardData) => Boolean(c.dates || c.days);
+
+// A card's title: wraps only at spaces and "·", never inside a word; one very long word steps the type down for this card.
+function Title({ text, max, className }: { text: string; max: number; className?: string }) {
+  return (
+    <div className="@container min-w-0">
+      <h3 className={`font-display font-semibold leading-tight tracking-tight [overflow-wrap:normal] [word-break:normal] ${className ?? ""}`} style={{ fontSize: titleFit(text, max) }}>
+        {text}
+      </h3>
+    </div>
+  );
+}
 
 // The newest trip, big.
 export function BeenCardBig({ c }: { c: BeenCardData }) {
   return (
     <article className="overflow-hidden rounded-[20px] border border-line bg-white" data-been-card="big" data-group={c.groupId}>
       <div className="relative">
-        <Photo c={c} className="aspect-[5/2] w-full" sizes="(max-width: 480px) 100vw, 480px" scale={0.85} />
+        <Photo c={c} className="aspect-[5/2] w-full" sizes="(max-width: 480px) 100vw, 480px" scale={0.95} />
         {c.momentsHref && (
           <Link href={c.momentsHref} className="absolute bottom-2.5 left-2.5 inline-flex min-h-9 items-center rounded-full bg-black/60 px-3.5 text-[13px] font-medium text-fg" data-been-moments>
             See our moments
@@ -67,12 +114,14 @@ export function BeenCardBig({ c }: { c: BeenCardData }) {
         )}
       </div>
       <div className="px-4 pb-4 pt-3">
-        <h3 className="break-words font-display text-[28px] font-semibold leading-tight tracking-tight">{c.title}</h3>
-        {c.cities.length > 0 && <p className="mt-0.5 break-words text-[15px] text-fg/75">{c.cities.join(" · ")}</p>}
-        {tripWords(c) && (
-          <p className="mt-2 flex items-start gap-2 text-[15px] text-fg/75">
+        <Title text={c.title} max={28} />
+        {c.cities.length > 0 && <p className="mt-0.5 text-[15px] text-fg/75">{c.cities.join(" · ")}</p>}
+        {hasWords(c) && (
+          <p className="mt-2 flex items-start gap-2 text-[15px] text-fg/75" data-been-dates>
             <CalendarIcon size={18} className="mt-0.5 shrink-0" />
-            <span className="min-w-0">{tripWords(c)}</span>
+            <span className="min-w-0">
+              <TripWords c={c} />
+            </span>
           </p>
         )}
         <div className="mt-3 flex items-center gap-2.5">
@@ -94,13 +143,15 @@ export function BeenCardBig({ c }: { c: BeenCardData }) {
 export function BeenCardSmall({ c }: { c: BeenCardData }) {
   return (
     <article className="grid grid-cols-[42%_1fr] overflow-hidden rounded-[20px] border border-line bg-white" data-been-card="small" data-group={c.groupId}>
-      <Photo c={c} className="min-h-[148px]" sizes="200px" scale={0.52} />
+      <Photo c={c} className="min-h-[148px]" sizes="200px" scale={0.72} />
       <div className="min-w-0 px-3.5 py-3">
-        <h3 className="break-words font-display text-[22px] font-semibold leading-tight tracking-tight">{c.title}</h3>
-        {tripWords(c) && (
-          <p className="mt-1.5 flex items-start gap-2 text-[13px] text-fg/75">
+        <Title text={c.title} max={22} />
+        {hasWords(c) && (
+          <p className="mt-1.5 flex items-start gap-2 text-[13px] text-fg/75" data-been-dates>
             <CalendarIcon size={16} className="mt-px shrink-0" />
-            <span className="min-w-0">{tripWords(c)}</span>
+            <span className="min-w-0">
+              <TripWords c={c} />
+            </span>
           </p>
         )}
         <p className="mt-1 flex items-start gap-2 text-[13px] text-fg/75">
@@ -126,9 +177,9 @@ export function BeenCardSmall({ c }: { c: BeenCardData }) {
 export function BeenCardHand({ c }: { c: BeenCardData }) {
   return (
     <article className="grid grid-cols-[42%_1fr] overflow-hidden rounded-[20px] border border-line bg-white" data-been-card="hand" data-country={c.code}>
-      <Photo c={c} className="min-h-[112px]" sizes="200px" scale={0.52} />
+      <Photo c={c} className="min-h-[112px]" sizes="200px" scale={0.72} />
       <div className="relative min-w-0 px-3.5 py-3 pr-12">
-        <h3 className="break-words font-display text-[22px] font-semibold leading-tight tracking-tight">{c.title}</h3>
+        <Title text={c.title} max={22} />
         <p className="mt-1 text-[13px] text-fg/55">Been there</p>
         <details className="absolute right-1 top-1">
           <summary aria-label={`More for ${c.title}`} className="flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-full text-fg/75 active:bg-mist [&::-webkit-details-marker]:hidden">

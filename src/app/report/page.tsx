@@ -41,10 +41,10 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
   }
   return (
     <>
-      <PageHeader title={`Report ${first}`} back={back} />
+      <PageHeader title={kind === "moment" ? "Report this moment" : `Report ${first}`} back={back} />
       {sp.error && <ErrorNote>{sp.error.slice(0, 160)}</ErrorNote>}
-      <p className="mb-5 text-sm text-gray-500">Tell us what’s wrong. Only Loopin sees this, not {first}.</p>
-      <form action={reportAction} className="space-y-5">
+      <p className="mb-5 text-pretty text-sm text-gray-500">Tell us what’s wrong. Only Loopin sees this, not {first}.</p>
+      <form action={reportAction} className="group space-y-5">
         <input type="hidden" name="kind" value={kind} />
         <input type="hidden" name="id" value={id} />
         <input type="hidden" name="back" value={back} />
@@ -52,7 +52,7 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
           <legend className="mb-2 text-sm font-medium text-gray-600">What’s wrong?</legend>
           {REPORT_REASONS.map((r, i) => (
             <label key={r} className="flex min-h-12 items-center gap-3 rounded-2xl border border-line px-4 py-3">
-              <input type="radio" name="reason" value={r} required defaultChecked={i === 0} className="h-5 w-5" />
+              <input type="radio" name="reason" value={r} required defaultChecked={kind !== "moment" && i === 0} className="h-5 w-5" />
               <span className="text-base">{REASON_LABELS[r]}</span>
             </label>
           ))}
@@ -61,7 +61,11 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
           <span className="mb-1 block text-sm font-medium text-gray-600">Anything we should know? (optional)</span>
           <textarea name="note" rows={3} maxLength={500} className={inputClass} />
         </label>
-        <button type="submit" className={primaryButtonClass}>
+        {/* For a moment nothing is picked to start with: the button stays off until a reason is chosen (the reason is also required on the server). */}
+        <button
+          type="submit"
+          className={`${primaryButtonClass} ${kind === "moment" ? "pointer-events-none opacity-40 group-has-[input[name=reason]:checked]:pointer-events-auto group-has-[input[name=reason]:checked]:opacity-100" : ""}`}
+        >
           Send report
         </button>
       </form>

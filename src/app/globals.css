@@ -788,3 +788,11 @@ body:has([data-tint]) {
 .hit-lg::after {
   inset: -18px 0;
 }
+
+/* Emoji that draw in colour on every phone and computer (not a grey outline): used on reactions, the emoji picker and moment captions. */
+.emoji-font {
+  font-family: var(--font-sans, system-ui), system-ui, -apple-system, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+}
+.emoji-font-display {
+  font-family: var(--font-display, serif), "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", serif;
+}

@@ -20,6 +20,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { base, bypass, hosted, withBypass } from "./hosted";
+import { assertMomentPhotosDecoded, realPhotos } from "./moment-shots";
 import { chromium, webkit, devices, type Browser, type BrowserContext, type BrowserContextOptions, type Page, type Route } from "playwright";
 import { db } from "../src/lib/db";
 import { netBalances } from "../src/lib/balances";
@@ -3841,7 +3842,7 @@ async function main() {
     assert((await Z.getByRole("button", { name: "Only me" }).getAttribute("aria-pressed")) === "true", "Not now should leave it on Only me");
   });
   await step(A, "Sharing", "Asha sends her passport to Ravi, who set his own to “Only me”: he gets it, and Asha still can't open his", async () => {
-    await go(R, "/passport");
+    await go(R, "/passport?open=who");
     await R.getByRole("button", { name: "Only me" }).click();
     await R.getByText("Only you can see your passport now.").waitFor();
     await go(A, "/passport/send");
@@ -3864,7 +3865,7 @@ async function main() {
       await R.waitForURL(/error=private/);
       await R.getByText("Your passport isn’t shown to people in your groups yet. Choose who can see it first.").waitFor();
     } finally {
-      await go(R, "/passport");
+      await go(R, "/passport?open=who");
       await R.getByRole("button", { name: "People in my groups" }).click();
       await R.getByText("People in your groups can see your passport.").waitFor();
     }
@@ -4052,11 +4053,14 @@ Object.defineProperty(navigator, "contacts", { value: { select: async () => [{ n
   let momentsGroup = "";
   let momentOne = ""; // Varun's, Day 3
   let momentTwo = ""; // Asha's
+  let momentPhotoTurn = 0;
   let momentThree = ""; // Asha's, added after Ravi left
   const momentPhotoUrl = (id: string, s: "t" | "f" = "f") => `${base}/api/moment-photo/${id}?s=${s}`;
   const addMomentThroughTheForm = async (who: Page, caption: string, dayLabel: string) => {
     await go(who, `${momentsGroup}/moments/new`);
-    await who.getByLabel("Choose a photo").setInputFiles({ name: "moment.png", mimeType: "image/png", buffer: readFileSync("public/icon-512.png") });
+    // A real place photo (the build's downloaded Thailand pictures), shrunk by the form like a phone would; never a hand-made file.
+    const photos = realPhotos("thailand");
+    await who.getByLabel("Choose a photo").setInputFiles(photos[momentPhotoTurn++ % photos.length]);
     await who.locator('img[alt="Your photo"]').waitFor();
     await who.getByPlaceholder("The boat we almost missed").fill(caption);
     if (dayLabel) await who.getByRole("button", { name: dayLabel, exact: true }).click();
@@ -4087,9 +4091,11 @@ Object.defineProperty(navigator, "contacts", { value: { select: async () => [{ n
     const page = await V.locator("main").innerText();
     assert(page.includes("The boat we almost missed 😂") && page.includes("Day 3"), "Our moments doesn't show the caption and Day 3");
     assert((await V.getByText("Saved with this trip").count()) === 1, "no “Saved with this trip”");
+    assert((await assertMomentPhotosDecoded(V, "Our moments")) >= 1, "Our moments shows no moment photo");
     assert((await V.locator("[data-bottom-nav]").count()) === 0, "the tab bar shows on Our moments (the Add button is the one floating bar)");
     await go(V, momentsGroup);
     assert(/Our moments/.test(await V.locator("[data-moments-strip]").innerText()), "no strip on the group page");
+    assert((await assertMomentPhotosDecoded(V, "the group's strip")) >= 1, "the strip shows no moment photo");
     const photo = await V.request.get(momentPhotoUrl(momentOne), { headers: bypass });
     assert(photo.status() === 200 && /private, no-cache/.test(photo.headers()["cache-control"] ?? "") && Boolean(photo.headers()["etag"]), `the photo answered ${photo.status()}`);
   });
@@ -4106,11 +4112,14 @@ Object.defineProperty(navigator, "contacts", { value: { select: async () => [{ n
     const chip = A.locator(`[data-reactions='${momentOne}'] button[aria-pressed='true']`);
     await chip.waitFor();
     assert(/😂\s*1/.test(await chip.innerText()), `the reaction chip reads “${await chip.innerText()}”, not “😂 1”`);
+    assert((await assertMomentPhotosDecoded(A, "the big moment")) >= 1, "the big moment shows no photo");
   });
   await step(R, "Moments", "Ravi reports Varun's moment (and sees the thank-you), then blocks Varun: it disappears from his list, his story circles, and its photo address answers 404", async () => {
     await go(R, `${momentsGroup}/moments/${momentOne}`);
     await R.locator("[data-moment-menu] summary").click();
-    await R.getByRole("link", { name: "Report", exact: true }).click();
+    await R.getByRole("link", { name: "Report this moment", exact: true }).click();
+    assert((await R.locator("input[name=reason]:checked").count()) === 0, "a reason is already picked on the moment report");
+    await R.getByLabel("Spam").check();
     await R.getByRole("button", { name: "Send report" }).click();
     await R.locator("[data-report-done]").waitFor();
     assert((await db.report.count({ where: { kind: "moment", targetId: momentOne } })) === 1, "the moment report wasn't saved");

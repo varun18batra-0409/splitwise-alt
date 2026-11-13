@@ -9,6 +9,8 @@ import map from "@/generated/map.json";
 // stamp pages (one stamp per trip, inked at a slant), and an index at the back.
 
 const INKS = ["#2b4c7e", "#a53a3a", "#2f7d4f", "#6a3d8f", "#8a5a2b", "#1f6f78"];
+// The letters drawn in the middle of a stamp: a city's initials ("PUNE" → "P", "New Delhi" → "ND").
+const initialsOf = (name: string) => name.trim().split(/\s+/).map((w) => [...w][0] ?? "").join("").slice(0, 2).toUpperCase();
 const hash = (s: string) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 // Written out by hand, so the phone and the server always agree ("SEP 2026").
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
@@ -70,6 +72,7 @@ export function StampMark({ s, i, at }: { s: Stamp; i: number; at?: { left: stri
   const id = `st-${h.toString(36)}-${i}`;
   const common = { position: "absolute" as const, ...pos, transform: `translate(-50%,-50%) rotate(${tilt}deg)`, color: ink, opacity: s.byHand ? 0.6 : 0.9 };
   const name = s.name.toUpperCase();
+  const mark = s.kind === "country" ? s.code.toUpperCase() : initialsOf(s.name);
   if (shape === "circle" || shape === "oval") {
     const w = shape === "oval" ? 150 : 124;
     const ht = shape === "oval" ? 108 : 124;
@@ -80,7 +83,7 @@ export function StampMark({ s, i, at }: { s: Stamp; i: number; at?: { left: stri
     // The words follow the ring: the place along the top, the date along the bottom.
     const top = `M ${w / 2 - irx - 7} ${ht / 2} A ${irx + 7} ${iry + 7} 0 0 1 ${w / 2 + irx + 7} ${ht / 2}`;
     const bottom = `M ${w / 2 - irx - 7} ${ht / 2} A ${irx + 7} ${iry + 7} 0 0 0 ${w / 2 + irx + 7} ${ht / 2}`;
-    const fit = Math.min(10.5, (Math.PI * (irx + 7) * 0.9) / Math.max(6, name.length) / 0.68);
+    const fit = Math.min(12.5, (Math.PI * (irx + 7) * 0.9) / Math.max(6, name.length) / 0.68);
     return (
       <svg width={w} height={ht} viewBox={`0 0 ${w} ${ht}`} style={common} className="mix-blend-multiply" data-stamp={s.name} data-country-stamp={s.code} data-by-hand={s.byHand ? "1" : "0"} aria-label={`${s.name}, ${s.byHand ? "been there" : when}`} role="img">
         <defs>
@@ -97,14 +100,15 @@ export function StampMark({ s, i, at }: { s: Stamp; i: number; at?: { left: stri
               {name}
             </textPath>
           </text>
-          <text fontSize="8" dy="7">
+          <text fontSize="10" fontWeight="800" dy="8">
             <textPath href={`#${id}-b`} xlinkHref={`#${id}-b`} startOffset="50%" textAnchor="middle">
               {when}
             </textPath>
           </text>
         </g>
-        <text x={w / 2} y={ht / 2 + 1} textAnchor="middle" dominantBaseline="central" fontSize={shape === "oval" ? 26 : 30}>
-          {s.flag}
+        {/* A drawn mark in the middle (the country code in the display type), not a flag emoji. */}
+        <text x={w / 2} y={ht / 2 + 1} textAnchor="middle" dominantBaseline="central" fill="currentColor" fontWeight="800" fontSize={shape === "oval" ? 26 : 30} style={{ fontFamily: "var(--font-display), serif", letterSpacing: "0.04em" }}>
+          {mark}
         </text>
         {s.cities.length > 0 && (
           <text x={w / 2} y={ht / 2 + (shape === "oval" ? 21 : 24)} textAnchor="middle" fill="currentColor" fontSize="7.5" fontWeight="700">
@@ -124,8 +128,8 @@ export function StampMark({ s, i, at }: { s: Stamp; i: number; at?: { left: stri
           <polygon points={oct(3)} strokeWidth="2.6" strokeDasharray={dash} />
           <polygon points={oct(9)} strokeWidth="1.1" strokeDasharray={dash} />
         </g>
-        <text x={w / 2} y={36} textAnchor="middle" fontSize="24">
-          {s.flag}
+        <text x={w / 2} y={36} textAnchor="middle" fill="currentColor" fontWeight="800" fontSize="24" style={{ fontFamily: "var(--font-display), serif", letterSpacing: "0.04em" }}>
+          {mark}
         </text>
         <text x={w / 2} y={66} textAnchor="middle" fill="currentColor" fontWeight="800" fontSize={name.length > 11 ? 9 : 12} style={{ letterSpacing: "0.06em" }}>
           {name.length > 16 ? `${name.slice(0, 15)}…` : name}

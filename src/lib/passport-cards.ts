@@ -48,11 +48,12 @@ export function tripDates(start: string, end: string): string {
 const initialOf = (name: string) => ([...name.trim()][0] ?? "").toUpperCase();
 
 // The number row. Anything that is 0 is left out.
-export function beenStats(countries: number, trips: number, days: number): { n: number; label: string }[] {
+// With a trip still going, the days are counted up to today only, so the label says "so far".
+export function beenStats(countries: number, trips: number, days: number, inProgress = false): { n: number; label: string }[] {
   return [
     { n: countries, label: countries === 1 ? "country" : "countries" },
     { n: trips, label: trips === 1 ? "trip" : "trips" },
-    { n: days, label: days === 1 ? "day away" : "days away" },
+    { n: days, label: `${days === 1 ? "day away" : "days away"}${inProgress ? " so far" : ""}` },
   ].filter((s) => s.n > 0);
 }
 
@@ -97,7 +98,8 @@ export function beenCards(
       friendsLabel: others > 0 ? `With ${others} ${others === 1 ? "friend" : "friends"}` : "Just you",
       reliveHref: `/groups/${t.groupId}/report`,
       momentsHref: x?.moments ? `/groups/${t.groupId}/moments` : undefined,
-      stamp: { id: `card-${t.groupId}`, kind: "country", code, name: country, flag: first.flag, when: t.start, cities: [], groupId: t.groupId, byHand: false },
+      // Abroad: the country's stamp. At home: the city's own stamp (PUNE, GOA), as "Trips here get city stamps" says.
+      stamp: abroad.length ? { id: `card-${t.groupId}`, kind: "country", code, name: country, flag: first.flag, when: t.start, cities: [], groupId: t.groupId, byHand: false } : { ...first, id: `card-${t.groupId}`, when: t.start },
     });
   }
   // Countries added by hand: no dates, no Relive.
@@ -120,11 +122,21 @@ export function beenCards(
       stamp: s,
     });
   }
-  return { stats: beenStats(p.stats.countries, p.stats.trips, daysAway(p.trips, today)), cards };
+  const inProgress = p.trips.some((t) => !t.undated && ok(t.start) && t.start <= today && ok(t.end) && t.end > today);
+  return { stats: beenStats(p.stats.countries, p.stats.trips, daysAway(p.trips, today), inProgress), cards };
 }
 
 // The first few cards, with the rest behind "See all".
 export function shownCards<T>(cards: T[], all: boolean, max = 6): { shown: T[]; hidden: number } {
   if (all || cards.length <= max) return { shown: cards, hidden: 0 };
   return { shown: cards.slice(0, max), hidden: cards.length - max };
+}
+
+// A title never breaks inside a word: it wraps only at spaces and "·". When its longest word would be wider than the line, the type
+// steps down (never below `min` px) for that card. `cqw` is a share of the width of the title's own box (a container), so the same
+// number works at 320 and at 390. 0.6 em is a generous width for one letter of the display type.
+export function titleFit(title: string, max: number, min = 14): string {
+  const longest = Math.max(1, ...title.split(/[\s·]+/).map((w) => [...w].length));
+  const cqw = Math.floor((100 / (longest * 0.6)) * 10) / 10;
+  return `max(${min}px, min(${max}px, ${cqw}cqw))`;
 }

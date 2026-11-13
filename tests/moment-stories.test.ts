@@ -17,8 +17,8 @@ describe("the story built from moments", () => {
     const [s] = buildStories({ ...base, moments: [{ groupId: "g1", groupName: "Thailand trip", newestId: "m2", at: new Date("2026-11-13T11:00:00Z"), frames: [frame("m2", "Nupur added a moment", "The boat we almost missed 😂", "Day 3"), frame("m1", "You added a moment")] }] });
     expect(s).toMatchObject({ kind: "moment", label: "Thailand", short: "Moments", cta: "See our moments", href: "/groups/g1/moments", photo: "/api/moment-photo/m2?s=t", headline: "Nupur added a moment", line: "2 new moments" });
     expect(s.frames).toEqual([
-      { kind: "photo", photo: "/api/moment-photo/m2?s=f", kicker: "Nupur added a moment", head: "The boat we almost missed 😂", line: "Day 3" },
-      { kind: "photo", photo: "/api/moment-photo/m1?s=f", kicker: "You added a moment", head: "", line: undefined },
+      { kind: "photo", photo: "/api/moment-photo/m2?s=f", kicker: "Nupur added a moment", head: "The boat we almost missed 😂", line: "Day 3", calm: true },
+      { kind: "photo", photo: "/api/moment-photo/m1?s=f", kicker: "You added a moment", head: "", line: undefined, calm: true },
     ]);
   });
 

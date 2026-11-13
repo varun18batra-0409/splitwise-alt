@@ -9,7 +9,7 @@ const place = (name: string) => name.replace(/\s+trip$/i, "").trim() || name;
 export function momentPageStories(cards: MomentCard[], groupId: string, groupName: string, now = new Date()): Story[] {
   const recent = cards.filter((c) => now.getTime() - c.createdAt.getTime() <= WEEK); // newest first
   if (!recent.length) return [];
-  const frame = (c: MomentCard): Frame => ({ kind: "photo", photo: c.full, kicker: c.authorIsMe ? "You added a moment" : `${c.authorName} added a moment`, head: c.caption, line: c.day || undefined });
+  const frame = (c: MomentCard): Frame => ({ kind: "photo", photo: c.full, kicker: c.authorIsMe ? "You added a moment" : `${c.authorName} added a moment`, head: c.caption, line: c.day || undefined, calm: true });
   const make = (idKey: string, label: string, list: MomentCard[]): Story => ({
     id: `mp-${groupId}-${idKey}-${list[0].id}`,
     kind: "moment",

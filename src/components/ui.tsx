@@ -11,11 +11,13 @@ export function PageHeader({
   back,
   action,
   hideTitle = false,
+  titleClass = "text-[28px]",
 }: {
   title: string;
   back?: string;
   hideTitle?: boolean; // the screen shows its own big title: keep this one for screen readers only
   action?: { href: string; label: string; icon: React.ReactNode };
+  titleClass?: string; // a smaller size for a long title on a small phone
 }) {
   return (
     <header className="mb-7 flex items-center gap-3">
@@ -25,7 +27,7 @@ export function PageHeader({
         </Link>
       )}
       {hideTitle && <span aria-hidden className="flex-1" />}
-      <h1 className={`${hideTitle ? "sr-only" : "min-w-0 flex-1"} line-clamp-2 text-balance break-words font-display text-[28px] font-semibold leading-tight tracking-[-0.02em]`}>{title}</h1>
+      <h1 className={`${hideTitle ? "sr-only" : "min-w-0 flex-1"} line-clamp-2 text-balance break-words font-display ${titleClass} font-semibold leading-tight tracking-[-0.02em]`}>{title}</h1>
       {action && (
         <Link href={action.href} aria-label={action.label} className={iconButtonClass}>
           {action.icon}

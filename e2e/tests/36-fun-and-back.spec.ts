@@ -41,7 +41,7 @@ test("titles, Wrapped, the passport and a game night: in, around, back out, and 
   await link.click();
   await page.waitForURL(/\/passport\/friends\/[^/?]+\?from=/);
   await expect(page.getByRole("button", { name: "Open your passport" })).toBeVisible();
-  await R.goto("/passport");
+  await R.goto("/passport?open=who");
   await settled(R);
   await R.getByRole("button", { name: "Only me" }).click();
   await R.waitForURL(/shared=private/);
@@ -52,7 +52,7 @@ test("titles, Wrapped, the passport and a game night: in, around, back out, and 
   const C = await (await contextFor(browser, cara)).newPage();
   await C.goto(ravisPassport);
   await C.waitForURL(/\/private/);
-  await R.goto("/passport");
+  await R.goto("/passport?open=who");
   await settled(R);
   await R.getByRole("button", { name: "People in my groups" }).click();
   await R.waitForURL(/shared=groups/);

@@ -6,7 +6,7 @@ import { canAddMoment, canOpenMoments, loadMomentViewer } from "@/lib/moments-ac
 import { tripDays } from "@/lib/moments-text";
 import { MomentForm } from "./MomentForm";
 
-export const metadata = { title: "Add a moment", robots: { index: false } };
+export const metadata = { title: "Add your moment", robots: { index: false } };
 export const dynamic = "force-dynamic";
 
 // Add a moment. Only a current member of a trip group with an account gets the form: a guest is asked to sign in, someone who left
@@ -21,7 +21,7 @@ export default async function NewMomentPage({ params }: { params: Promise<{ id: 
   const days = tripDays(group?.tripStart ?? "", group?.tripEnd ?? "").map((value, i) => ({ value, label: `Day ${i + 1}` }));
   return (
     <>
-      <PageHeader title="Add a moment" back={`/groups/${id}/moments`} />
+      <PageHeader title="Add your moment" titleClass="text-[clamp(22px,7vw,28px)]" back={`/groups/${id}/moments`} />
       <p className="-mt-3 mb-5 text-sm text-fg/55">One photo and a few words. Only people in this group see it.</p>
       <MomentForm groupId={id} days={days} initialKey={newRequestKey()} />
     </>

@@ -91,3 +91,20 @@ describe("how long ago", () => {
     expect(timeAgo(new Date("2026-11-02T12:00:00Z"), now)).toBe("2 Nov");
   });
 });
+
+import { momentAuthor } from "@/lib/moments-text";
+describe("who a moment is by (M7)", () => {
+  const me = { accountId: "acc-varu", memberId: "mem-varu" };
+  it("says You only for the viewer's own moment, with Y as the letter", () => {
+    expect(momentAuthor(me, { authorId: "mem-varu", authorAccountId: "acc-varu" }, "Varu")).toEqual({ isMe: true, name: "You", initial: "Y" });
+  });
+  it("says the first name for someone else, with their own letter", () => {
+    expect(momentAuthor(me, { authorId: "mem-nupur", authorAccountId: "acc-nupur" }, "Nupur Shah")).toEqual({ isMe: false, name: "Nupur", initial: "N" });
+  });
+  it("a signed-out viewer (no account) is never You, and an unknown author reads Someone", () => {
+    expect(momentAuthor({ accountId: null, memberId: null }, { authorId: "m", authorAccountId: "a" }, undefined)).toEqual({ isMe: false, name: "Someone", initial: "S" });
+  });
+  it("two people who share a first name are told apart by account", () => {
+    expect(momentAuthor(me, { authorId: "mem-other", authorAccountId: "acc-other" }, "Varu").isMe).toBe(false);
+  });
+});

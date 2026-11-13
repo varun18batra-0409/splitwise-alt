@@ -16,16 +16,16 @@ export function MomentsStrip({ groupId, count, latest, canAdd }: { groupId: stri
   }
   return (
     <div className="mb-5 flex h-16 items-center gap-3 rounded-[20px] border border-line bg-white pl-4 pr-2" data-moments-strip={count}>
-      <Link href={`/groups/${groupId}/moments`} className="flex min-w-0 flex-1 items-center gap-3 self-stretch" aria-label={`Our moments, ${count}`}>
+      <Link href={`/groups/${groupId}/moments`} className="flex min-w-0 flex-1 items-center gap-3 self-stretch" aria-label={`Our moments, ${count === 1 ? "1 moment" : `${count} moments`}`}>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[15px] font-semibold leading-tight">Our moments</span>
-          <span className="block text-[13px] text-fg/55">{count}</span>
+          <span className="block whitespace-nowrap text-[15px] font-semibold leading-tight">Our moments</span>
+          <span className="block whitespace-nowrap text-[13px] text-fg/55">{count === 1 ? "1 moment" : `${count} moments`}</span>
         </span>
-        <span className="flex shrink-0 items-center gap-1">
+        <span className="flex shrink-0 items-center gap-1 overflow-hidden">
           {latest.slice(0, 4).map((id, i) => (
             // A plain image on purpose: moment photos are private and never go through Next's image service.
             // eslint-disable-next-line @next/next/no-img-element
-            <img key={id} src={momentPhotoSrc(id, "t")} alt="" width={44} height={44} loading="lazy" className={`h-11 w-11 rounded-[10px] bg-mist object-cover ${i === 2 ? "hidden min-[360px]:block" : i >= 3 ? "hidden min-[420px]:block" : ""}`} />
+            <img key={id} src={momentPhotoSrc(id, "t")} alt="" width={44} height={44} loading="lazy" className={`h-11 w-11 rounded-[10px] bg-mist object-cover ${i === 0 ? "" : i === 1 ? "hidden min-[360px]:block" : i === 2 ? "hidden min-[390px]:block" : "hidden min-[420px]:block"}`} />
           ))}
         </span>
       </Link>

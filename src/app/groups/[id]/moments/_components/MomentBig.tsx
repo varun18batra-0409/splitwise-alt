@@ -54,7 +54,7 @@ export function MomentBig({
         photo
       )}
       <div className="px-4 pb-4 pt-3">
-        {card.caption && <p className="break-words font-display text-[22px] font-semibold leading-snug">{card.caption}</p>}
+        {card.caption && <p className="emoji-font-display break-words font-display text-[22px] font-semibold leading-snug">{card.caption}</p>}
         <p className="mb-3 mt-0.5 text-[13px] text-fg/55">{[place, card.day].filter(Boolean).join(" · ")}</p>
         <MomentReactions card={card} canReact={canReact} from={from} />
       </div>

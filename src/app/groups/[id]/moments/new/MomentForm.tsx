@@ -78,7 +78,7 @@ export function MomentForm({ groupId, days, initialKey }: { groupId: string; day
         e.preventDefault();
         void send();
       }}
-      className="space-y-6 pb-32"
+      className="space-y-6 pb-8"
     >
       <div>
         <input ref={input} type="file" accept="image/*" aria-label="Choose a photo" className="sr-only" onChange={(e) => void pick(e.target.files?.[0])} />
@@ -111,7 +111,19 @@ export function MomentForm({ groupId, days, initialKey }: { groupId: string; day
             {count}/{MOMENT_CAPTION_MAX}
           </span>
         </span>
-        <input value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="The boat we almost missed" autoComplete="off" className={inputClass} aria-invalid={over} />
+        {/* Two lines, so all 80 characters are in view. Enter does not add a line break (a caption is one line of words). */}
+        <textarea
+          value={caption}
+          rows={2}
+          onChange={(e) => setCaption(e.target.value.replace(/[\r\n]+/g, " "))}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.preventDefault();
+          }}
+          placeholder="The boat we almost missed"
+          autoComplete="off"
+          className={`${inputClass} emoji-font resize-none leading-snug`}
+          aria-invalid={over}
+        />
       </label>
 
       {days.length > 0 && (
@@ -136,7 +148,7 @@ export function MomentForm({ groupId, days, initialKey }: { groupId: string; day
         </p>
       )}
 
-      <div className="sticky bottom-[max(1rem,env(safe-area-inset-bottom))] z-10">
+      <div className="sticky bottom-0 z-10 -mx-5 bg-[#0d0d0f] px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
         <button type="submit" disabled={!photo || busy || over} className={primaryButtonClass}>
           {busy ? "Adding…" : "Add moment"}
         </button>

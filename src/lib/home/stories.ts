@@ -13,7 +13,7 @@ export type StoryKind = "trip" | "pot" | "square" | "collect" | "memory" | "wrap
 export type Tone = "sun" | "coral" | "sky" | "pink" | "lilac" | "mint";
 // One slide: a full photo with words, a bold poster, or a short list.
 export type Frame =
-  | { kind: "photo"; photo: string; kicker?: string; head: string; line?: string }
+  | { kind: "photo"; photo: string; kicker?: string; head: string; line?: string; calm?: boolean } // calm: a person's own words (a moment), set smaller and plain
   | { kind: "art"; art: StoryKind; kicker?: string; head: string; line?: string } // designed artwork (card night, collection…) instead of a photo
   | { kind: "poster"; tone: Tone; kicker: string; big: string; line?: string }
   | { kind: "list"; tone: Tone; kicker: string; rows: { label: string; value?: string; good?: boolean; bad?: boolean; share?: number }[]; line?: string };
@@ -262,7 +262,7 @@ export function buildStories(i: StoryInput): Story[] {
       href: `/groups/${mo.groupId}/moments`,
       photo: mo.frames[0].thumb,
       emoji: "📸",
-      frames: mo.frames.map((f): Frame => ({ kind: "photo", photo: f.full, kicker: f.kicker, head: f.head, line: f.line || undefined })),
+      frames: mo.frames.map((f): Frame => ({ kind: "photo", photo: f.full, kicker: f.kicker, head: f.head, line: f.line || undefined, calm: true })),
       at: mo.at.getTime(),
     });
   }

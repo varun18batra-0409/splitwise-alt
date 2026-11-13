@@ -3,7 +3,7 @@ import { db } from "./db";
 import { JOINED } from "./membership";
 import { blockedEitherWay } from "./blocks";
 import { ALL_REACTIONS } from "./reactions";
-import { dayLabel } from "./moments-text";
+import { dayLabel, momentAuthor } from "./moments-text";
 import { MOMENTS_PER_GROUP, MOMENTS_PER_PERSON_PER_DAY } from "./covers";
 import { claimKey, isDuplicateKey } from "./once";
 import { canSeeMoment, canOpenMoments, type MomentViewer } from "./moments-access";
@@ -76,15 +76,15 @@ async function cards(v: MomentViewer, rows: MomentRow[], g: GroupDays): Promise<
       .sort((a, b) => b[1] - a[1] || ALL_REACTIONS.indexOf(a[0]) - ALL_REACTIONS.indexOf(b[0]))
       .map(([emoji, count]) => ({ emoji, count, mine: emoji === mine }));
     const author = byId.get(r.authorId);
-    const authorIsMe = v.accountId !== null ? r.authorAccountId === v.accountId : r.authorId === v.memberId;
+    const who = momentAuthor(v, r, author?.name);
     return {
       id: r.id,
       groupId: r.groupId,
       authorId: r.authorId,
       authorAccountId: r.authorAccountId,
-      authorName: authorIsMe ? "You" : first(author?.name ?? "Someone"),
-      authorInitial: (Array.from(first(author?.name ?? "Someone"))[0] ?? "?").toUpperCase(),
-      authorIsMe,
+      authorName: who.name,
+      authorInitial: who.initial,
+      authorIsMe: who.isMe,
       caption: r.caption,
       takenOn: r.takenOn,
       day: dayLabel(r.takenOn, g.tripStart, g.tripEnd),

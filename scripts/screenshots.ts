@@ -6,6 +6,7 @@ import { SESSION_COOKIE, encodeSession } from "../src/lib/session";
 import { guessCategory } from "../src/lib/categories";
 
 import { base, hosted, signInOnTestCopy, withBypass } from "./hosted";
+import { assertMomentPhotosDecoded, realPhotos } from "./moment-shots";
 const demo = JSON.parse(readFileSync(".demo.json", "utf8"));
 // SHOT_ENGINE=webkit: the same screens in Safari's engine (iPhone), saved to screenshots/ios.
 // SHOT_ENGINE=desktop: the same screens on a 1440×900 desktop (Chromium, no touch), saved to screenshots/desktop.
@@ -766,11 +767,15 @@ if (!hosted) {
   const tag = Date.now().toString(36);
   const acct = (n: string) => db.account.create({ data: { email: `shots-mo-${n.toLowerCase()}-${tag}@uat.loopin.test`, name: n } });
   const [varu, nupur, riya] = [await acct("Varu"), await acct("Nupur"), await acct("Riya")];
-  const picture = readFileSync("public/icon-512.png");
-  const trip = async (name: string, riyaLeft?: Date) =>
+  // Real photos of the trip's place (the build's downloaded Thailand pictures), sent through the same form and /api/moment route a phone
+  // uses (the form shrinks them to 1600 / 480 px). Never the app icon or a hand-made file: those hide real picture problems.
+  const photos = realPhotos("thailand");
+  let turn = 0;
+  const nextPhoto = () => photos[turn++ % photos.length];
+  const trip = async (name: string, riyaLeft?: Date, place = "Phuket") =>
     db.group.create({
       data: {
-        name, type: "trip", currency: "THB", inviteCode: `shotsmo${tag}${Math.random().toString(36).slice(2, 6)}`, tripStart: "2026-11-10", tripEnd: "2026-11-14", tripPlace: "Phuket", tripCountry: "TH",
+        name, type: "trip", currency: "THB", inviteCode: `shotsmo${tag}${Math.random().toString(36).slice(2, 6)}`, tripStart: "2026-11-10", tripEnd: "2026-11-14", tripPlace: place, tripCountry: "TH",
         members: {
           create: [
             { name: "Varu", accountId: varu.id, claimedAt: new Date(), createdAt: new Date(Date.now() - 5000) },
@@ -782,25 +787,47 @@ if (!hosted) {
       include: { members: true },
     });
   const mins = (m: number) => new Date(Date.now() - m * 60_000);
-  const put = (g: Awaited<ReturnType<typeof trip>>, by: "Varu" | "Nupur" | "Riya", acc: { id: string }, caption: string, takenOn: string, at: Date, portrait = false) =>
-    db.moment.create({
-      data: { groupId: g.id, authorId: g.members.find((m) => m.name === by)!.id, authorAccountId: acc.id, caption, takenOn, type: "image/png", width: portrait ? 900 : 1200, height: portrait ? 1200 : 900, data: picture, thumbData: picture, createdAt: at },
-    });
-  const lone = await trip("Empty Thailand trip");
-  const thai = await trip("Thailand");
+  const uploaders = new Map<string, Page>();
+  const uploader = async (acc: { id: string }) => {
+    let up = uploaders.get(acc.id);
+    if (!up) {
+      const c = await browser.newContext({ viewport: screen, deviceScaleFactor: 1, ...(ios ? { isMobile: true, hasTouch: true } : {}), colorScheme: "dark", locale: "en-IN", timezoneId: "Asia/Kolkata" });
+      await c.addCookies([{ name: SESSION_COOKIE, value: await encodeSession({ m: {}, a: acc.id, v: 0 }), url: base }]);
+      up = await c.newPage();
+      uploaders.set(acc.id, up);
+    }
+    return up;
+  };
+  // Adds one moment the way a person does (the real form), then sets its "when" so the list reads like a real trip.
+  const put = async (g: Awaited<ReturnType<typeof trip>>, by: "Varu" | "Nupur" | "Riya", acc: { id: string }, caption: string, takenOn: string, at: Date) => {
+    const up = await uploader(acc);
+    await up.goto(`${base}/groups/${g.id}/moments/new`, { waitUntil: "networkidle", timeout: 30_000 });
+    await up.getByLabel("Choose a photo").setInputFiles(nextPhoto());
+    await up.locator('img[alt="Your photo"]').waitFor({ timeout: 20_000 });
+    if (caption) await up.getByPlaceholder("The boat we almost missed").fill(caption);
+    if (takenOn) await up.getByRole("button", { name: `Day ${Number(takenOn.slice(8)) - 9}`, exact: true }).click();
+    await up.getByRole("button", { name: "Add moment" }).click();
+    await up.waitForURL(/\/moments$/, { timeout: 30_000 });
+    const row = await db.moment.findFirstOrThrow({ where: { groupId: g.id, authorId: g.members.find((m) => m.name === by)!.id, caption }, orderBy: { createdAt: "desc" }, select: { id: true } });
+    return db.moment.update({ where: { id: row.id }, data: { createdAt: at } });
+  };
+  const lone = await trip("Goa long weekend", undefined, "Goa");
+  const thai = await trip("Thailand trip");
   const first = await put(thai, "Nupur", nupur, "The boat we almost missed 😂", "2026-11-12", mins(12));
-  await put(thai, "Riya", riya, "Worth the early alarm.", "2026-11-11", mins(90), true);
-  await put(thai, "Varu", varu, "Noodles at midnight", "2026-11-10", mins(200));
-  await put(thai, "Nupur", nupur, "Rain, finally", "", mins(300));
+  await put(thai, "Riya", riya, "Worth the early alarm.", "2026-11-11", mins(90));
+  await put(thai, "Varu", varu, "Sunset at Railay", "2026-11-10", mins(200));
+  await put(thai, "Nupur", nupur, "Noodles at midnight", "2026-11-13", mins(300));
   await put(thai, "Riya", riya, "Last one from the pier", "2026-11-14", mins(400));
   for (const [by, emoji] of [["Varu", "😂"], ["Riya", "😂"], ["Nupur", "❤️"]] as const) await db.momentReaction.create({ data: { momentId: first.id, memberId: thai.members.find((m) => m.name === by)!.id, emoji } });
-  const single = await trip("Thailand, one moment");
+  const single = await trip("Krabi weekend", undefined, "Krabi");
   await put(single, "Nupur", nupur, "The boat we almost missed 😂", "2026-11-12", mins(12));
-  const crowd = await trip("Thailand, a lot of moments");
-  for (let i = 0; i < 24; i++) await put(crowd, i % 2 ? "Nupur" : "Riya", i % 2 ? nupur : riya, `Moment number ${i + 1}`, "", mins(30 + i * 90), i % 3 === 0);
-  const gone = await trip("Thailand, Riya left", mins(60)); // Riya left an hour ago
+  const crowd = await trip("Phi Phi islands", undefined, "Phi Phi");
+  const lines = ["Longtail boats at dawn", "Cold coconut, finally", "Monkey beach", "Riya vs the waves", "Snorkel day", "Dinner on the sand", "Last ferry back", "The view from the hostel"];
+  for (let i = 0; i < lines.length; i++) await put(crowd, i % 2 ? "Nupur" : "Riya", i % 2 ? nupur : riya, lines[i], `2026-11-${10 + (i % 5)}`, mins(30 + i * 90));
+  const gone = await trip("Koh Samui, Riya left", mins(60)); // Riya left an hour ago
   await put(gone, "Nupur", nupur, "Before she left", "2026-11-11", mins(300));
   await put(gone, "Nupur", nupur, "After she left (hidden from Riya)", "2026-11-12", mins(10));
+  for (const up of uploaders.values()) await up.context().close();
   const longCaption = "A caption of exactly eighty characters, to see how it wraps on a small phone!!!!"; // 80
 
   const shots = async (who: { id: string }, widths: readonly number[], list: [string, string, ((p: Page) => Promise<void>)?, boolean?][]) => {
@@ -814,6 +841,7 @@ if (!hosted) {
           await p.goto(base + path, { waitUntil: "networkidle", timeout: 30_000 });
           await p.waitForTimeout(700);
           if (prepare) await prepare(p).catch((e) => console.log("  (could not prepare", name, String(e).split("\n")[0], ")"));
+          await assertMomentPhotosDecoded(p, `M1-${name}-${w}`); // fails the screenshot (✗) if any moment picture did not draw
           await p.screenshot({ path: `${out}/M1-${name}-${w}.png`, fullPage: full ?? true });
           console.log("✓", `M1-${name}-${w}`);
         } catch (e) {
@@ -825,7 +853,7 @@ if (!hosted) {
   };
   const W = [320, 360, 390] as const;
   const photo = async (p: Page) => {
-    await p.getByLabel("Choose a photo").setInputFiles({ name: "moment.png", mimeType: "image/png", buffer: picture });
+    await p.getByLabel("Choose a photo").setInputFiles(photos[0]);
     await p.locator('img[alt="Your photo"]').waitFor();
   };
   await shots(varu, W, [

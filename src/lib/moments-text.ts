@@ -101,3 +101,17 @@ export function timeAgo(then: Date, now = new Date()): string {
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   return `${then.getUTCDate()} ${months[then.getUTCMonth()]}`;
 }
+
+// Who a moment is "by", for the viewer. "You" only when the author is the viewer (same account, or the same member of the group);
+// otherwise the author's first name. The avatar letter always belongs to the person shown ("Y" for You).
+export function momentAuthor(
+  viewer: { accountId: string | null; memberId: string | null },
+  row: { authorId: string; authorAccountId: string },
+  memberName: string | undefined,
+): { isMe: boolean; name: string; initial: string } {
+  const isMe = (viewer.accountId !== null && row.authorAccountId === viewer.accountId) || (viewer.memberId !== null && row.authorId === viewer.memberId);
+  const trimmed = (memberName ?? "").trim();
+  const firstName = trimmed.split(/\s+/)[0] || "Someone";
+  const name = isMe ? "You" : firstName;
+  return { isMe, name, initial: (Array.from(name)[0] ?? "?").toUpperCase() };
+}

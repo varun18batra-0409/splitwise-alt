@@ -1,5 +1,4 @@
 import { headers } from "next/headers";
-import { PeoplePassportsIcon } from "@/components/DrawnIcons";
 import Link from "@/components/Link";
 import { getAccount } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
@@ -26,7 +25,7 @@ export const metadata = { title: "Your trip passport", robots: { index: false } 
 // Your passport. The Been tab is a card for every trip (a stamp on the place's photo), with the numbers on top
 // and countries from before Loopin as small cards. The old booklet is one quiet link away (?book=1).
 
-export default async function PassportPage({ searchParams }: { searchParams: Promise<{ error?: string; added?: string; shared?: string; sent?: string; tab?: string; book?: string; all?: string }> }) {
+export default async function PassportPage({ searchParams }: { searchParams: Promise<{ error?: string; added?: string; shared?: string; sent?: string; tab?: string; book?: string; all?: string; open?: string }> }) {
   const sp = await searchParams;
   const account = await getAccount();
   if (!account)
@@ -111,7 +110,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
         </section>
       )}
 
-      {moment && (
+      {moment && !moment.id.startsWith("trips-") && ( /* the "5 trips with Loopin" badge repeats the numbers above: kept in Alerts only */
         <section className="mb-4 rounded-[20px] border border-line bg-white px-5 py-4" role="status" data-passport-moment={moment.id}>
           <p className="font-display text-xl font-semibold tracking-tight">{moment.title}</p>
           <p className="mt-1 text-sm text-gray-500">{moment.body.replace(/ Open (it|your passport) to see.*$/, "")}</p>
@@ -126,7 +125,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
           <h2 id="stamps-h" className="font-display text-[26px] font-semibold leading-tight tracking-tight">
             Your stamps
           </h2>
-          <Link href="#who" className="inline-flex min-h-11 shrink-0 items-center gap-1.5 text-[14px] text-fg/75" data-who-link>
+          <Link href="/passport?open=who#who" className="inline-flex min-h-11 shrink-0 items-center gap-1.5 text-[14px] text-fg/75" data-who-link>
             <LockIcon size={16} />
             {passportShared(account) ? "Your groups" : "Only you"}
           </Link>
@@ -176,7 +175,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
         )}
         <p className="mt-3 flex items-center justify-center gap-2 text-[14px] text-fg/75">
           <InfoIcon size={16} />
-          <Link href="#who" className="inline-flex min-h-11 items-center underline underline-offset-4">
+          <Link href="/passport?open=who#who" className="inline-flex min-h-11 items-center underline underline-offset-4">
             Choose what you share.
           </Link>
         </p>
@@ -198,67 +197,93 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
         </section>
       )}
 
-      {/* Who can open it from a group */}
-      <section id="who" className="mt-8 scroll-mt-4 border-t border-line pt-6">
-        <h2 className="font-display text-lg font-semibold tracking-tight">Who can see it</h2>
-        <p className="mt-0.5 text-sm text-gray-500">Hidden until you choose. If you say yes, people you share a group with can open your passport from the group. Never your money, groups or email.</p>
-        <form action={setPassportShareAction} className="mt-3 grid grid-cols-2 gap-1 rounded-full bg-mist p-1" aria-label="Who can see my passport">
-          {(
-            [
-              ["groups", "People in my groups"],
-              ["private", "Only me"],
-            ] as const
-          ).map(([v, label]) => {
-            const on = (passportShared(account) ? "groups" : "private") === v;
-            return (
-              <button key={v} type="submit" name="share" value={v} aria-pressed={on} className={`rounded-full px-2 py-2.5 text-sm ${on ? "shadow-[inset_0_0_0_1.5px_var(--color-fg)] font-semibold text-fg" : "text-gray-500"}`}>
-                {label}
-              </button>
-            );
-          })}
-        </form>
-        {sp.shared && (
-          <p role="status" className="mt-2 text-sm text-owed">
-            {sp.shared === "private" ? "Only you can see your passport now." : "People in your groups can see your passport."}
-          </p>
-        )}
-      </section>
+      {/* Settings, as compact rows: a title, one line of what it is now, and a chevron. Each opens its own control. */}
+      <div className="mt-8 divide-y divide-line overflow-hidden rounded-[20px] border border-line" data-passport-rows>
+        <details id="who" className="group scroll-mt-4" open={sp.open === "who" || Boolean(sp.shared)} data-row="who">
+          <summary className={rowSummary}>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[16px] font-semibold">Who can see it</span>
+              <span className="block truncate text-[14px] text-fg/65">{passportShared(account) ? "People in my groups" : "Only me"}</span>
+            </span>
+            <Chevron />
+          </summary>
+          <div className="px-4 pb-4">
+            <p className="text-sm text-fg/65">Hidden until you choose. If you say yes, people you share a group with can open your passport from the group. Never your money, groups or email.</p>
+            <form action={setPassportShareAction} className="mt-3 grid grid-cols-[1.35fr_1fr] gap-1 rounded-full bg-mist p-1" aria-label="Who can see my passport">
+              {(
+                [
+                  ["groups", "People in my groups"],
+                  ["private", "Only me"],
+                ] as const
+              ).map(([v, label]) => {
+                const on = (passportShared(account) ? "groups" : "private") === v;
+                return (
+                  <button key={v} type="submit" name="share" value={v} aria-pressed={on} className={`min-h-11 whitespace-nowrap rounded-full px-2 text-[13px] min-[360px]:text-sm ${on ? "shadow-[inset_0_0_0_1.5px_var(--color-fg)] font-semibold text-fg" : "text-fg/65"}`}>
+                    {label}
+                  </button>
+                );
+              })}
+            </form>
+            {sp.shared && (
+              <p role="status" className="mt-2 text-sm text-owed">
+                {sp.shared === "private" ? "Only you can see your passport now." : "People in your groups can see your passport."}
+              </p>
+            )}
+          </div>
+        </details>
 
-      <section className="mt-8 border-t border-line pt-6">
-        <form action={setHomeCountryAction} className="flex items-end gap-2">
-          <label className="block min-w-0 flex-1">
-            <span className="mb-1 block text-sm font-semibold">Home country</span>
-            <span className="mb-2 block text-xs text-gray-500">Trips here get city stamps; trips abroad get a country stamp.</span>
-            <SelectField name="country" defaultValue={p.home} aria-label="Home country" className="min-w-0">
-              <option value="">Not set</option>
-              {COUNTRIES.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.flag} {c.name}
-                </option>
-              ))}
-            </SelectField>
-          </label>
-          <button type="submit" className="shrink-0 rounded-xl border border-line px-4 py-3 text-sm font-semibold">
-            Save
-          </button>
-        </form>
-        {home && <p className="mt-2 text-xs text-gray-400">Now: {home.flag} {home.name}{account.homeCountry ? "" : " (from where you use Loopin)"}</p>}
-      </section>
+        <details className="group" data-row="home">
+          <summary className={rowSummary}>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[16px] font-semibold">Home country</span>
+              <span className="block truncate text-[14px] text-fg/65">{home ? home.name : "Not set"}</span>
+            </span>
+            <Chevron />
+          </summary>
+          <form action={setHomeCountryAction} className="flex items-end gap-2 px-4 pb-4">
+            <label className="block min-w-0 flex-1">
+              <span className="mb-2 block text-xs text-fg/65">Trips here get city stamps; trips abroad get a country stamp.</span>
+              <SelectField name="country" defaultValue={p.home} aria-label="Home country" className="min-w-0">
+                <option value="">Not set</option>
+                {COUNTRIES.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.name}
+                  </option>
+                ))}
+              </SelectField>
+            </label>
+            <button type="submit" className="min-h-11 shrink-0 rounded-xl border border-line px-4 py-3 text-sm font-semibold">
+              Save
+            </button>
+          </form>
+        </details>
 
-      <Link href="/passport/friends" className="mt-8 flex items-center gap-3 rounded-2xl border border-line px-4 py-3 active:bg-mist" data-friends-link>
-        <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-fg/25 text-fg/75"><PeoplePassportsIcon size={18} /></span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-sm font-semibold">Friends’ passports</span>
-          <span className="block text-xs text-gray-500">Where friends in your groups have been</span>
-        </span>
-        <span aria-hidden className="text-gray-400">›</span>
-      </Link>
-
-      <p className="mb-10 mt-5 text-center">
-        <Link href="/passport?book=1" className="inline-flex min-h-11 items-center text-[14px] text-fg/55 underline underline-offset-4" data-passport-book-link>
-          Open the passport book
+        <Link href="/passport/friends" className={rowSummary} data-friends-link>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[16px] font-semibold">Friends’ passports</span>
+            <span className="block truncate text-[14px] text-fg/65">Where friends in your groups have been</span>
+          </span>
+          <Chevron />
         </Link>
-      </p>
+
+        <Link href="/passport?book=1" className={rowSummary} data-passport-book-link>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[16px] font-semibold">Open the passport book</span>
+            <span className="block truncate text-[14px] text-fg/65">Cover, stamp pages and map</span>
+          </span>
+          <Chevron />
+        </Link>
+      </div>
+      <div className="mb-10" />
     </>
+  );
+}
+
+const rowSummary = "flex min-h-14 cursor-pointer list-none items-center gap-3 px-4 py-2.5 active:bg-mist [&::-webkit-details-marker]:hidden";
+function Chevron() {
+  return (
+    <svg aria-hidden width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-fg/55 transition-transform group-open:rotate-90">
+      <path d="M9 6l6 6-6 6" />
+    </svg>
   );
 }

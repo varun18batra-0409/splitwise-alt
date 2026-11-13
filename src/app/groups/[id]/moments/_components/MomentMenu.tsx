@@ -32,10 +32,10 @@ export function MomentMenu({ card, back, canDelete, canReport, guest, openHref }
             </ConfirmButton>
           </form>
         )}
-        {canReport && <SafetyLinks kind="moment" targetId={card.id} accountId={card.authorAccountId} name={first || "them"} back={back} className="justify-start" />}
+        {canReport && <SafetyLinks kind="moment" targetId={card.id} accountId={card.authorAccountId} name={first || "them"} back={back} rows />}
         {!canReport && guest && !card.authorIsMe && (
           <Link href={`/report?${new URLSearchParams({ kind: "moment", id: card.id, back })}`} className={quiet}>
-            Report
+            Report this moment
           </Link>
         )}
       </div>

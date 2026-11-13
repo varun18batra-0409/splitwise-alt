@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/ui";
 import { Stories } from "@/components/Stories";
 import { CameraPlusIcon, ChevronRightIcon, SavedIcon } from "@/components/MomentIcons";
 import { canAddMoment, canDeleteMoment, canOpenMoments, canReactToMoment, canReportMoment, loadMomentViewer } from "@/lib/moments-access";
+import { timeAgo } from "@/lib/moments-text";
 import { listMoments, type MomentCard } from "@/lib/moments-db";
 import { momentPageStories } from "@/lib/moments-stories";
 import { MomentBig } from "./_components/MomentBig";
@@ -49,8 +50,12 @@ export default async function MomentsPage({ params, searchParams }: { params: Pr
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={c.thumb} alt="" width={72} height={56} loading="lazy" className="h-14 w-[4.5rem] shrink-0 rounded-[10px] bg-mist object-cover" />
           <span className="min-w-0 flex-1 border-l border-line pl-3">
-            <span className="block truncate text-[15px] font-semibold">{c.authorIsMe ? "You added a moment" : `${c.authorName} added a moment`}</span>
-            {c.caption && <span className="block truncate font-display text-[15px] italic text-fg/75">“{c.caption}”</span>}
+            {/* Two lines: the name (never cut) and when, then the words. Each truncates on its own. */}
+            <span className="flex min-w-0 items-baseline gap-1.5 text-[15px]">
+              <span className="shrink-0 font-semibold">{c.authorName}</span>
+              <span className="min-w-0 truncate text-fg/55">added a moment · {timeAgo(c.createdAt, now)}</span>
+            </span>
+            {c.caption && <span className="emoji-font-display block truncate font-display text-[15px] italic text-fg/75">“{c.caption}”</span>}
           </span>
           <ChevronRightIcon size={20} className="shrink-0 text-fg/55" />
         </Link>
@@ -60,13 +65,13 @@ export default async function MomentsPage({ params, searchParams }: { params: Pr
   const days = grouped ? [...new Set(older.map((c) => dayKey(c.createdAt, tz)))] : [];
 
   return (
-    <div className="pb-48">
+    <div className="pb-60">
       <PageHeader title="Our moments" back={`/groups/${id}`} hideTitle />
       {stories.length > 0 && <Stories stories={stories} className="-mt-3 mb-5" />}
       <p aria-hidden className="font-display text-[34px] font-semibold leading-tight tracking-[-0.02em]">
         Our moments
       </p>
-      <p className="mb-5 mt-1 text-base text-fg/55">{where} · Only your group</p>
+      <p className="mb-5 mt-1 text-base text-fg/55">{where} · {leftAlready ? "From your time in the group" : "Only your group"}</p>
       {sp.removed && (
         <p role="status" className="mb-4 text-sm text-fg/75">
           That moment is gone.
@@ -97,9 +102,9 @@ export default async function MomentsPage({ params, searchParams }: { params: Pr
       )}
 
       {canAdd ? (
-        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-20 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div className="fixed inset-x-0 bottom-0 z-20 bg-[#0d0d0f] px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3" data-moments-add-panel>
           <div className="mx-auto max-w-[416px]">
-            <Link href={`${here}/new`} className="pointer-events-auto pop flex min-h-14 w-full items-center justify-center gap-3 bg-fg px-5 text-base font-semibold text-canvas">
+            <Link href={`${here}/new`} className="pop flex min-h-14 w-full items-center justify-center gap-3 bg-fg px-5 text-base font-semibold text-canvas">
               <CameraPlusIcon size={24} />
               Add your moment
             </Link>

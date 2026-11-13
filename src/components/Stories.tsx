@@ -109,14 +109,14 @@ function Sticker({ children }: { children: ReactNode }) {
   );
 }
 
-function Words({ kicker, head, line }: { kicker?: string; head: string; line?: string }) {
+function Words({ kicker, head, line, calm }: { kicker?: string; head: string; line?: string; calm?: boolean }) {
   return (
     <div className="lp-slide-in pointer-events-none absolute inset-x-0 bottom-[132px] z-20 px-6 text-[#f7f4ec]">
       {kicker && <Sticker>{kicker}</Sticker>}
-      <p className="font-display text-[clamp(34px,10.5vw,44px)] font-semibold leading-[1.0] tracking-[-0.02em]" data-story-headline>
+      <p className={`break-words font-display font-semibold tracking-[-0.02em] ${calm ? "text-[clamp(24px,7vw,28px)] leading-[1.15]" : "text-[clamp(34px,10.5vw,44px)] leading-[1.0]"}`} data-story-headline>
         {head}
       </p>
-      {line && <p className="mt-2 font-hand text-[24px] font-bold leading-tight text-[#ffd9a8]">{line}</p>}
+      {line && <p className={`mt-2 font-hand text-[24px] font-bold leading-tight ${calm ? "text-[#f7f4ec]/85" : "text-[#ffd9a8]"}`}>{line}</p>}
     </div>
   );
 }
@@ -127,7 +127,7 @@ function Slide({ f, uid }: { f: Frame; uid: string }) {
       <>
         {f.kind === "photo" ? <Image src={f.photo} alt="" aria-hidden fill unoptimized={isOwnApi(f.photo)} sizes={STORY_SIZES} quality={STORY_QUALITY} priority className="lp-drift object-cover" /> : <StoryArt kind={f.art} uid={uid} />}
         <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.5)_0%,transparent_22%,transparent_42%,rgba(0,0,0,0.9)_100%)]" />
-        <Words kicker={f.kicker} head={f.head} line={f.line} />
+        <Words kicker={f.kicker} head={f.head} line={f.line} calm={f.kind === "photo" ? f.calm : undefined} />
       </>
     );
   const accent = TONE[f.tone];
