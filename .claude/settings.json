@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "deny": [
+      "Bash(git push)",
+      "Bash(git push origin HEAD*)",
+      "Bash(git push * main)",
+      "Bash(git push * main *)",
+      "Bash(git push *:main*)",
+      "Bash(git push *HEAD:main*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git push * --force*)",
+      "Bash(git push * -f *)",
+      "Bash(git push --delete*)",
+      "Bash(git push * --delete*)",
+      "Bash(git push * :main*)",
+      "Bash(gh pr merge*)",
+      "Bash(gh api *merge*)",
+      "Bash(gh api *protection*)",
+      "Bash(gh api *rulesets*)",
+      "Bash(gh api *environments*)",
+      "Bash(gh api *pending_deployments*)",
+      "Bash(gh api *dispatches*)",
+      "Bash(gh workflow run schema-apply*)",
+      "Bash(gh workflow run *--ref main*)",
+      "Bash(gh secret *)",
+      "Bash(gh variable *)",
+      "Bash(vercel*)",
+      "Bash(npx vercel*)",
+      "Bash(turso*)",
+      "Bash(npx turso*)",
+      "Bash(npx prisma migrate*)",
+      "Bash(node scripts/turso-sync.mjs*)",
+      "Bash(node scripts/restore.mjs*)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(**/.env)",
+      "Read(**/.env.*)"
+    ]
+  }
+}
