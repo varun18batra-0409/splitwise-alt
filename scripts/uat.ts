@@ -295,9 +295,9 @@ async function shownBalances(page: Page, groupPath: string): Promise<Record<stri
   for (let i = 0; i < n; i++) {
     const t = (await rows.nth(i).innerText()).replace(/\s+/g, " ");
     const name = t.replace(/^[A-Z] /, "").split(" ")[0];
-    // The row shows whole rupees from ₹1,000 up; the exact amount is in data-exact, which is what is checked here.
-    const exactEl = rows.nth(i).locator("[data-exact]").first();
-    const exact = (await exactEl.count()) ? ((await exactEl.getAttribute("data-exact")) ?? "") : "";
+    // The row shows whole rupees from ₹1,000 up; the exact amount is in data-balance, which is what is checked here.
+    const exactEl = rows.nth(i).locator("[data-balance]").first();
+    const exact = (await exactEl.count()) ? ((await exactEl.getAttribute("data-balance")) ?? "") : "";
     const amt = /(₹[\d,.]+)/.exec(exact);
     const gets = /\bgets\b/.test(t);
     const owes = /\bowes\b/.test(t);
@@ -341,9 +341,9 @@ async function shownBalancesIn(page: Page, groupPath: string, currency: string):
   for (let i = 0; i < count; i++) {
     const t = (await rows.nth(i).innerText()).replace(/\s+/g, " ");
     const name = t.replace(/^[A-Z] /, "").split(" ")[0];
-    // The row shows whole units from 1,000 up; the exact amount is in data-exact, which is what is checked here.
-    const exactEl = rows.nth(i).locator("[data-exact]").first();
-    const exact = (await exactEl.count()) ? ((await exactEl.getAttribute("data-exact")) ?? "") : "";
+    // The row shows whole units from 1,000 up; the exact amount is in data-balance, which is what is checked here.
+    const exactEl = rows.nth(i).locator("[data-balance]").first();
+    const exact = (await exactEl.count()) ? ((await exactEl.getAttribute("data-balance")) ?? "") : "";
     const m = /\b(gets|owes)\b/.exec(t);
     const num = /([\d,]+(?:\.\d+)?)/.exec(exact);
     const v = m && num ? Math.round(parseFloat(num[1].replace(/,/g, "")) * 10 ** d) : 0;

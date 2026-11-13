@@ -98,6 +98,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
                       className={`shrink-0 text-right money tabular-nums ${b > 0 ? "text-owed" : b < 0 ? "text-owe" : "text-gray-400"}`}
                       title={b !== 0 ? money(Math.abs(b)) : undefined}
                       data-exact={b !== 0 ? money(Math.abs(b)) : undefined}
+                      data-balance={b !== 0 ? money(Math.abs(b)) : "0"}
                     >
                       {b > 0 ? `gets ${overviewMoney(b, group.currency)}` : b < 0 ? `owes ${overviewMoney(-b, group.currency)}` : "settled"}
                     </span>
