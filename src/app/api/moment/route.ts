@@ -4,7 +4,7 @@ import { getAccount } from "@/lib/identity";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { MOMENTS_PER_GROUP, MOMENTS_PER_PERSON_PER_DAY, MOMENT_FULL_MAX, MOMENT_FULL_SIDE, MOMENT_THUMB_MAX, MOMENT_THUMB_SIDE, photoType } from "@/lib/covers";
 import { cleanPhoto } from "@/lib/strip-meta";
-import { imageSize } from "@/lib/image-size";
+import { imageSize, isAnimatedWebp } from "@/lib/image-size";
 import { flushPhotoDeletes, removePhotos, storePhoto } from "@/lib/photo-store";
 import { cleanKey, previousResult } from "@/lib/once";
 import { canAddMoment, loadMomentViewer, notFoundResponse } from "@/lib/moments-access";
@@ -68,6 +68,7 @@ export async function POST(req: Request) {
     const raw = new Uint8Array(await f.arrayBuffer());
     const type = photoType(raw);
     if (type !== "image/jpeg" && type !== "image/webp") return { error: BAD_PHOTO, status: 415 } as const;
+    if (type === "image/webp" && isAnimatedWebp(raw)) return { error: BAD_PHOTO, status: 415 } as const; // a moment is a still photo
     const clean = cleanPhoto(raw);
     if (!clean) return { error: "We couldn’t check that photo for hidden details (like where it was taken). Try another one.", status: 415 } as const;
     if (clean.length > max) return { error: "That photo is too big.", status: 413 } as const;

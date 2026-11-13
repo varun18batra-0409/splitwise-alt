@@ -10,14 +10,45 @@ export function graphemeCount(s: string): number {
   return [...s].length;
 }
 
+// The most a caption may be before anything is done to it (UTF-16 code units), and the most combining marks kept on one letter.
+// (Without these a short-looking caption could be thousands of invisible marks.)
+export const CAPTION_RAW_MAX = 400;
+export const CAPTION_MARKS_MAX = 3;
+
+// Zero-width spaces and joiners, byte-order mark, left/right marks, Arabic letter mark: invisible, and only useful for hiding things.
+// (Written as escapes on purpose.) A joiner (U+200D) is kept only where it glues two emoji together (a family, a couple).
+const INVISIBLE = /[\u200b\u200c\u200e\u200f\u061c\ufeff]/g;
+const keepJoiner = (str: string, at: number) =>
+  /\p{Extended_Pictographic}\ufe0f?$/u.test(str.slice(0, at)) && /^\p{Extended_Pictographic}/u.test(str.slice(at + 1));
+
+// At most CAPTION_MARKS_MAX combining marks in a row after a letter; the rest are dropped.
+function capMarks(s: string): string {
+  let run = 0;
+  let out = "";
+  for (const ch of s) {
+    if (/^\p{M}$/u.test(ch)) {
+      if (++run > CAPTION_MARKS_MAX) continue;
+    } else run = 0;
+    out += ch;
+  }
+  return out;
+}
+
 // Trim, turn line breaks and tabs into spaces, collapse repeated spaces, and drop the characters that flip the direction of
-// text (U+202A to U+202E and U+2066 to U+2069). Null when it is over 80 characters. An empty caption is fine.
+// text (U+202A to U+202E and U+2066 to U+2069), zero-width characters and direction marks. Null when the raw input is over
+// 400 UTF-16 code units, or the result is over 80 characters. An empty caption is fine.
 export function cleanCaption(raw: unknown): string | null {
-  const s = String(raw ?? "")
-    .replace(/[\u202a-\u202e\u2066-\u2069]/g, "")
-    .replace(/[\p{Cc}\u2028\u2029]/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  const text = String(raw ?? "");
+  if (text.length > CAPTION_RAW_MAX) return null;
+  const s = capMarks(
+    text
+      .replace(/[\u202a-\u202e\u2066-\u2069]/g, "")
+      .replace(INVISIBLE, "")
+      .replace(/\u200d/g, (m, at: number, str: string) => (keepJoiner(str, at) ? m : ""))
+      .replace(/[\p{Cc}\u2028\u2029]/gu, " ")
+      .replace(/\s+/g, " ")
+      .trim(),
+  );
   return graphemeCount(s) <= MOMENT_CAPTION_MAX ? s : null;
 }
 

@@ -22,6 +22,26 @@ describe("a moment's words", () => {
     expect(cleanCaption("abc\u202edef")).toBe("abcdef");
     expect(cleanCaption("\u202a\u202b\u202c\u202d\u2066\u2067\u2068\u2069x")).toBe("x");
   });
+  it("removes zero-width characters and direction marks, but keeps the joiner inside a family emoji", () => {
+    expect(cleanCaption("a\u200bb\u200cc\u200dd\ufeffe\u200ef\u200fg\u061ch")).toBe("abcdefgh");
+    expect(cleanCaption("\u200b\u200c\u200d\ufeff\u200e\u200f\u061c")).toBe("");
+    const family = "\u{1F468}\u200d\u{1F469}\u200d\u{1F467}";
+    expect(cleanCaption(`x${family}\u200b`)).toBe(`x${family}`);
+  });
+  it("refuses more than 400 UTF-16 code units before doing anything else, and accepts 400 of spaces-and-letters that fit", () => {
+    expect(cleanCaption("a".repeat(401))).toBeNull();
+    expect(cleanCaption(" ".repeat(401))).toBeNull(); // even if it would trim to nothing
+    expect(cleanCaption("a b ".repeat(100))).toBeNull(); // 400 units, but 200 characters once spaces collapse is still over 80
+    expect(cleanCaption(`ok${" ".repeat(398)}`)).toBe("ok"); // exactly 400 units: allowed
+  });
+  it("keeps at most 3 combining marks on a letter; 5,000 of them are refused outright", () => {
+    const mark = "\u0301";
+    expect(cleanCaption(`a${mark.repeat(5000)}`)).toBeNull();
+    const trimmed = cleanCaption(`a${mark.repeat(300)}`);
+    expect(trimmed).toBe(`a${mark.repeat(3)}`);
+    expect([...trimmed!].length).toBe(4);
+    expect(cleanCaption(`a${mark.repeat(2)}b${mark.repeat(3)}`)).toBe(`a${mark.repeat(2)}b${mark.repeat(3)}`); // under the cap: untouched
+  });
   it("allows an empty caption", () => {
     expect(cleanCaption("")).toBe("");
     expect(cleanCaption("   \n ")).toBe("");

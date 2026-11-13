@@ -36,7 +36,8 @@ export default async function Reports() {
             <div className="mt-2 flex items-center gap-3" data-moment-report={r.targetId}>
               {/* A plain image on purpose: moment photos never go through Next's image service (it has no cookies). */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={`/api/moment-photo/${r.targetId}?s=t`} alt="The reported moment" width={96} height={96} className="h-24 w-24 rounded-xl border border-line object-cover" />
+              {/* The full photo (so it can be judged properly), shown small with CSS. */}
+              <img src={`/api/moment-photo/${r.targetId}?s=f`} alt="The reported moment" width={160} height={160} className="h-40 w-40 rounded-xl border border-line bg-mist object-contain" />
               <form action={removeReportedMomentAction}>
                 <input type="hidden" name="momentId" value={r.targetId} />
                 <button type="submit" className="min-h-11 rounded-full border border-line px-4 text-sm font-medium active:bg-mist">

@@ -32,7 +32,7 @@ export async function loadPassport(account: { id: string; homeCountry: string; p
       id: true, name: true, tripStart: true, tripEnd: true, tripPlace: true, tripCountry: true, createdAt: true,
       _count: { select: { members: true, expenses: { where: { deletedAt: null } } } },
       // Your own row (did you leave before the trip?) and the last thing spent (when an undated trip happened).
-      members: { where: { accountId: account.id }, select: { leftAt: true } },
+      members: { where: { accountId: account.id }, select: { leftAt: true, removedAt: true } },
       expenses: { where: { deletedAt: null, kind: { not: "pot" } }, select: { spentAt: true, createdAt: true }, orderBy: { createdAt: "desc" }, take: 1 },
     },
     orderBy: [{ tripStart: "desc" }, { createdAt: "desc" }],
@@ -79,10 +79,14 @@ export async function loadPassport(account: { id: string; homeCountry: string; p
     .map((t) => ({ groupId: t.groupId, name: t.name }));
   // Your own view only: who else went, for the faces on each trip card (never shown to a friend).
   const extras: Record<string, TripExtras> = {};
-  if (!opts.forFriend && trips.length) {
+  // Only for groups you are still part of the story of: not one you were removed from (their people are none of your business now),
+  // and only people who really joined and weren't removed themselves.
+  const stillIn = new Set(groups.filter((g) => g.members.some((m) => !m.removedAt)).map((g) => g.id));
+  const faceGroups = trips.map((t) => t.groupId).filter((id) => stillIn.has(id));
+  if (!opts.forFriend && faceGroups.length) {
     const blocked = await blockedEitherWay(account.id);
     const others = await db.member.findMany({
-      where: { groupId: { in: trips.map((t) => t.groupId) }, ...COUNTS },
+      where: { groupId: { in: faceGroups }, ...COUNTS },
       select: { groupId: true, name: true, accountId: true },
       orderBy: { createdAt: "asc" },
       take: 3000,

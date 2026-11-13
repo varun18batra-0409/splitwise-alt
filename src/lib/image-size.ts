@@ -66,3 +66,18 @@ export function imageSize(b: Uint8Array): ImageSize | null {
   }
   return null;
 }
+
+// A WebP that moves (animated): the "animation" flag in its VP8X header, or an animation chunk (ANIM / ANMF) anywhere in it. A moment is a
+// still photo, and a moving one carries many frames that the hidden-details check never looked at.
+export function isAnimatedWebp(b: Uint8Array): boolean {
+  if (b.length < 12 || ascii(b, 0, 4) !== "RIFF" || ascii(b, 8, 4) !== "WEBP") return false;
+  let i = 12;
+  while (i + 8 <= b.length) {
+    const id = ascii(b, i, 4);
+    if (id === "ANIM" || id === "ANMF") return true;
+    if (id === "VP8X" && i + 8 < b.length && (b[i + 8] & 0x02) !== 0) return true;
+    const len = b[i + 4] | (b[i + 5] << 8) | (b[i + 6] << 16) | (b[i + 7] * 2 ** 24);
+    i += 8 + len + (len & 1);
+  }
+  return false;
+}

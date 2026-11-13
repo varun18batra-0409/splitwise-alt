@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { jpeg, webpLossy } from "./helpers/moment-photos";
+import { GPS_MARKER, jpeg, jpegWithGps, webpAnimated, webpAnimatedFlagOnly, webpExtended, webpLossy } from "./helpers/moment-photos";
 
 // Moments from start to finish, through the real routes, with a stand-in for Vercel Blob (an in-memory shelf of files), the way
 // tests/photo-storage-e2e.test.ts does for the other photos. Every access rule is checked on the SERVER: the photo address, the upload,
@@ -126,7 +126,8 @@ async function world(label: string, type = "trip") {
 type World = Awaited<ReturnType<typeof world>>;
 
 const ctx = (id: string) => ({ params: Promise.resolve({ id }) });
-const getPhoto = (id: string, s: "t" | "f" = "f") => photoRoute.GET(new Request(`http://loopin.test/api/moment-photo/${id}?s=${s}`), ctx(id));
+const getPhoto = (id: string, s: "t" | "f" = "f", headers: Record<string, string> = {}) =>
+  photoRoute.GET(new Request(`http://loopin.test/api/moment-photo/${id}?s=${s}`, { headers }), ctx(id));
 const body = async (res: Response) => new Uint8Array(await res.arrayBuffer());
 const same = (a: Uint8Array, b: Uint8Array) => Buffer.from(a).equals(Buffer.from(b));
 
@@ -235,7 +236,7 @@ afterAll(async () => {
 
 // ---------------------------------------------------------------------------------------------------------------
 describe("adding a moment and opening its photo", () => {
-  it("makes two private files, keeps no photo bytes in the database, and a member opens both for 30 days", async () => {
+  it("makes two private files, keeps no photo bytes in the database, and a member opens both (kept only as ask-first, with a tag)", async () => {
     const w = await world("flow");
     const m = await added(w);
     const row = await db.moment.findUniqueOrThrow({ where: { id: m.id } });
@@ -253,7 +254,9 @@ describe("adding a moment and opening its photo", () => {
     await as(P.bea);
     const full = await getPhoto(m.id);
     expect(full.status).toBe(200);
-    expect(full.headers.get("Cache-Control")).toBe("private, max-age=2592000, immutable");
+    expect(full.headers.get("Cache-Control")).toBe("private, no-cache");
+    expect(full.headers.get("ETag")).toBe(`"m-${m.id}-f"`);
+    expect(full.headers.get("Vary")).toBe("Cookie");
     expect(full.headers.get("X-Content-Type-Options")).toBe("nosniff");
     expect(full.headers.get("Content-Type")).toBe("image/jpeg");
     expect(same(await body(full), m.full!)).toBe(true);
@@ -261,6 +264,40 @@ describe("adding a moment and opening its photo", () => {
     expect(small.status).toBe(200);
     expect(same(await body(small), m.thumb!)).toBe(true);
     expect(await leftovers()).toEqual(CLEAN);
+  });
+
+  it("a matching If-None-Match gives 304 to an allowed viewer without reading storage; a different tag gives the photo", async () => {
+    const w = await world("etag");
+    const m = await added(w);
+    await as(P.bea);
+    for (const s of ["f", "t"] as const) {
+      const before = blob.gets;
+      const tag = `"m-${m.id}-${s}"`;
+      const same304 = await getPhoto(m.id, s, { "If-None-Match": tag });
+      expect(same304.status, s).toBe(304);
+      expect(same304.headers.get("ETag")).toBe(tag);
+      expect(same304.headers.get("Cache-Control")).toBe("private, no-cache");
+      expect(same304.headers.get("Vary")).toBe("Cookie");
+      expect(blob.gets, "a 304 reads nothing").toBe(before);
+      expect((await getPhoto(m.id, s, { "If-None-Match": `W/${tag}, "other"` })).status).toBe(304);
+      // The tag of the other size is not this one's.
+      const other = `"m-${m.id}-${s === "f" ? "t" : "f"}"`;
+      expect((await getPhoto(m.id, s, { "If-None-Match": other })).status).toBe(200);
+    }
+    expect(await leftovers()).toEqual(CLEAN);
+  });
+
+  it("a viewer who is removed after caching gets 404, not 304, on the next check", async () => {
+    const w = await world("etag-removed");
+    const m = await added(w);
+    await as(P.dee);
+    const ok = await getPhoto(m.id);
+    const tag = ok.headers.get("ETag")!;
+    expect((await getPhoto(m.id, "f", { "If-None-Match": tag })).status).toBe(304);
+    await db.member.update({ where: { id: w.dee }, data: { leftAt: new Date(), removedAt: new Date(), removedById: w.ann } });
+    const gone = await getPhoto(m.id, "f", { "If-None-Match": tag });
+    expect(gone.status).toBe(404);
+    expect(gone.headers.get("Cache-Control")).toBe("private, no-store");
   });
 
   it("a guest member (a name with no email) can open the photo, and cannot add one", async () => {
@@ -312,6 +349,11 @@ describe("who can open a moment's photo: every refusal is the same 404, and stor
       expect(res.status, `${label} ${s}`).toBe(404);
       expect(res.headers.get("Cache-Control"), label).toBe("private, no-store");
       expect(await res.text()).toBe("Not found");
+      // A matching tag is no way in: still the same 404 (never a 304), and storage is still not asked.
+      const tagged = await getPhoto(id, s, { "If-None-Match": `"m-${id}-${s}"` });
+      expect(tagged.status, `${label} ${s} with a tag`).toBe(404);
+      expect(tagged.headers.get("Cache-Control"), `${label} with a tag`).toBe("private, no-store");
+      expect(tagged.headers.get("ETag"), `${label} with a tag`).toBeNull();
     }
     expect(blob.gets, `${label}: storage was asked`).toBe(before);
   }
@@ -359,6 +401,19 @@ describe("who can open a moment's photo: every refusal is the same 404, and stor
     expect(ok.status).toBe(200);
     expect(same(await body(ok), before.full)).toBe(true);
     await refused(after.id, P.lou, "added after they left");
+  });
+
+  it("the operator is shut out of a deleted group's photo even with a report open", async () => {
+    const w = await world("operator-deleted");
+    const m = await added(w, P.ann);
+    await db.report.create({ data: { reporterId: P.bea.id, kind: "moment", targetId: m.id, targetAccountId: P.ann.id, reason: "other" } });
+    await as(P.op);
+    expect((await getPhoto(m.id)).status, "group alive").toBe(200);
+    await db.group.update({ where: { id: w.id }, data: { deletedAt: new Date() } });
+    await refused(m.id, P.op, "operator, group deleted");
+    await db.group.update({ where: { id: w.id }, data: { deletedAt: null } });
+    await as(P.op);
+    expect((await getPhoto(m.id)).status, "group restored").toBe(200);
   });
 
   it("the loopin operator sees a photo only while a report about it is open", async () => {
@@ -438,14 +493,54 @@ describe("who can add, and what the upload checks", () => {
     expect(await db.moment.count({ where: { groupId: w.id } })).toBe(0);
   });
 
+  it("refuses an animated WebP (flag or frames) with the usual message and nothing stored; a still extended WebP is fine", async () => {
+    const w = await world("add-animated");
+    await as(P.ann);
+    for (const [label, anim] of [["flag and frames", webpAnimated(1200, 900)], ["flag only", webpAnimatedFlagOnly(1200, 900)]] as const) {
+      const r = await upload({ group: w.id, full: anim });
+      expect(r.status, label).toBe(415);
+      expect(r.json.error, label).toBe("Pick a photo (JPEG or WebP) that Loopin can read.");
+      const t = await upload({ group: w.id, thumb: anim });
+      expect(t.status, `${label} (small copy)`).toBe(415);
+    }
+    expect(blob.puts).toBe(0);
+    expect(await db.moment.count({ where: { groupId: w.id } })).toBe(0);
+    // Not animated (alpha flag only): passes this check (it may still be refused later if it can't be checked, but never for this reason).
+    const still = await upload({ group: w.id, full: webpExtended(1200, 900), thumb: webpExtended(400, 300) });
+    expect(still.json.error ?? "").not.toBe("Pick a photo (JPEG or WebP) that Loopin can read.");
+  });
+
+  it("the stored photo has no location: an Exif GPS block in the upload is gone from both copies", async () => {
+    const w = await world("add-gps");
+    await as(P.ann);
+    const full = jpegWithGps(1600, 1200, 21);
+    const thumb = jpegWithGps(480, 360, 23);
+    const has = (b: Uint8Array, text: string) => Buffer.from(b).includes(Buffer.from(text, "latin1"));
+    expect(has(full, GPS_MARKER) && has(full, "Exif"), "the fixture really carries a location").toBe(true);
+    const r = await upload({ group: w.id, full, thumb });
+    expect(r.status, JSON.stringify(r.json)).toBe(200);
+    const row = await db.moment.findUniqueOrThrow({ where: { id: r.json.id! } });
+    for (const key of [row.blobKey, row.thumbKey]) {
+      const stored = blob.files.get(key)!.bytes;
+      expect(has(stored, GPS_MARKER), "location text still there").toBe(false);
+      expect(has(stored, "Exif"), "Exif block still there").toBe(false);
+      expect([stored[0], stored[1]]).toEqual([0xff, 0xd8]); // still a JPEG
+    }
+    await as(P.bea);
+    const served = await body(await getPhoto(r.json.id!));
+    expect(has(served, GPS_MARKER)).toBe(false);
+  });
+
   it("checks the words and the day: 81 characters, or a day outside the trip, is refused; line breaks become spaces", async () => {
     const w = await world("add-words");
     await as(P.ann);
     expect((await upload({ group: w.id, caption: "a".repeat(81) })).status).toBe(400);
+    expect((await upload({ group: w.id, caption: " ".repeat(401) })).status, "401 code units").toBe(400);
+    expect((await upload({ group: w.id, caption: `a${"\u0301".repeat(5000)}` })).status, "5,000 combining marks").toBe(400);
     expect((await upload({ group: w.id, takenOn: "2026-03-15" })).status).toBe(400);
     expect((await upload({ group: w.id, takenOn: "2026-03-09" })).status).toBe(400);
     expect(blob.puts).toBe(0);
-    const ok = await upload({ group: w.id, caption: "  one\ntwo\u202e three ", takenOn: "" });
+    const ok = await upload({ group: w.id, caption: "  one\ntwo\u202e\u200b three ", takenOn: "" });
     expect(ok.status).toBe(200);
     expect(await db.moment.findUniqueOrThrow({ where: { id: ok.json.id! } })).toMatchObject({ caption: "one two three", takenOn: "" });
   });
@@ -705,6 +800,23 @@ describe("the lists, the strip and reactions use the same rules", () => {
     const cards = await listMoments(viewer);
     expect(cards).toHaveLength(1);
     for (const c of cards) expect(canSeeMoment(viewer, c)).toBe(true);
+  });
+
+  it("the reaction action refuses a viewer with a block either way, and changes nothing", async () => {
+    const w = await world("react-blocked");
+    const m = await added(w, P.ann);
+    await db.block.create({ data: { blockerId: P.bea.id, blockedId: P.ann.id } }); // Bea blocked the author
+    await db.block.create({ data: { blockerId: P.ann.id, blockedId: P.dee.id } }); // the author blocked Dee
+    for (const who of [P.bea, P.dee]) {
+      await as(who);
+      const went = await run(actions.reactMomentAction, { momentId: m.id, emoji: "😂" });
+      expect(went, who.name).toContain(`/groups/${w.id}/moments`);
+      expect(await db.momentReaction.count({ where: { momentId: m.id } }), `${who.name} left a reaction`).toBe(0);
+    }
+    await db.block.deleteMany({ where: { OR: [{ blockerId: P.bea.id }, { blockerId: P.ann.id }] } });
+    await as(P.bea);
+    await run(actions.reactMomentAction, { momentId: m.id, emoji: "😂" });
+    expect(await db.momentReaction.count({ where: { momentId: m.id } }), "after the block is lifted").toBe(1);
   });
 
   it("reacting: one per person, tap again to take it back, blocked people's reactions are not counted, leavers can't react", async () => {

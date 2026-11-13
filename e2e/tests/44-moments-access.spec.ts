@@ -46,7 +46,10 @@ test("a member sees a moment; someone who left sees only the older ones; strange
     const A200 = await A.request.get(photo(newer.id), { headers: bypassHeaders });
     expect(A200.status()).toBe(200);
     expect(A200.headers()["content-type"]).toBe("image/jpeg");
-    expect(A200.headers()["cache-control"]).toBe("private, max-age=2592000, immutable");
+    expect(A200.headers()["cache-control"]).toBe("private, no-cache");
+    expect(A200.headers()["etag"]).toBe(`"m-${newer.id}-f"`);
+    // A matching tag: "not changed" for someone who may see it, and the same plain 404 for someone who may not (checked first).
+    expect((await A.request.get(photo(newer.id), { headers: { ...bypassHeaders, "if-none-match": `"m-${newer.id}-f"` } })).status()).toBe(304);
     expect((await R.request.get(photo(newer.id, "t"), { headers: bypassHeaders })).status()).toBe(200);
 
     // Someone who left: the older one yes, the newer one no.
@@ -54,6 +57,7 @@ test("a member sees a moment; someone who left sees only the older ones; strange
     const left = await M.request.get(photo(newer.id), { headers: bypassHeaders });
     expect(left.status()).toBe(404);
     expect(left.headers()["cache-control"]).toBe("private, no-store");
+    expect((await M.request.get(photo(newer.id), { headers: { ...bypassHeaders, "if-none-match": `"m-${newer.id}-f"` } })).status()).toBe(404);
 
     // An outsider (signed in, not in the group) and a signed-out visitor.
     expect((await N.request.get(photo(older.id), { headers: bypassHeaders })).status()).toBe(404);
