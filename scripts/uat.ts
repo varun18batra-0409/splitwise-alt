@@ -473,9 +473,9 @@ async function fillExpense(page: Page, o: AddOpts) {
     await page.getByPlaceholder(/Rahul paid the tip/).fill(o.notes);
   }
 }
-// Add expense says "<Payer> paid, split equally between all 4": tapping a part of that sentence opens the payer and split controls under it.
+// Add expense has two rows (Paid by, Split between): tapping either opens the payer and split controls under it.
 async function openSplit(page: Page) {
-  if (!(await page.locator("[data-split-panel]").count())) await page.locator("[data-sentence-part]").first().click();
+  if (!(await page.locator("[data-split-panel]").count())) await page.locator("[data-row-paid]").first().click();
   await page.locator("[data-split-panel]").waitFor();
 }
 // Add expense keeps notes, several payers and Spin for it under "More" (closed unless the expense already uses them).
@@ -1202,6 +1202,7 @@ async function main() {
   });
   await step(V, "Couples", "“Our split 55 / 45” is chosen by default: ₹1,000 lunch → Asha owes ₹450", async () => {
     await go(V, `${gc}/add`);
+    await openSplit(V); // the split choices sit behind the "Paid by / Split between" rows
     const chip = V.getByRole("button", { name: /Our split/ });
     assert((await chip.getAttribute("aria-pressed")) === "true", "Our split isn't selected by default");
     await V.locator("#expense-name").fill("Lunch");
@@ -1253,6 +1254,7 @@ async function main() {
     await V.waitForURL(/\/add\?again=/);
     await V.getByText(/Saved Groceries/).waitFor();
     assert((await V.locator("#expense-name").inputValue()) === "", "name not cleared");
+    await openSplit(V);
     assert((await V.getByRole("button", { name: /Our split/ }).getAttribute("aria-pressed")) === "true", "split not kept");
   });
   await step(V, "Add", "Repeat an expense, see the duplicate warning, then add it anyway", async () => {
@@ -3220,11 +3222,11 @@ async function main() {
     await V.getByLabel("Type the expense in one line").fill("Snacks 600 split with everyone");
     await V.getByRole("button", { name: "Fill", exact: true }).click();
     assert((await V.locator("#expense-name").inputValue()) === "Snacks", `name is “${await V.locator("#expense-name").inputValue()}”`);
-    assert((await V.getByLabel("Amount", { exact: true }).inputValue()) === "600", "amount not filled");
+    assert((await V.getByLabel("Amount", { exact: true }).inputValue()).replace(/,/g, "") === "600", "amount not filled");
     await V.getByRole("group", { name: "Quick line" }).getByRole("status").filter({ hasText: "Check below" }).waitFor();
   });
 
-  await step(V, "Add", "Add expense is tidy: the amount, the day under it, one What was it? field with Scan a bill · Speak · Type a line inside it, then one sentence for who paid and the split; notes, several payers and Spin sit under a closed More link; the result for you sits in that card", async () => {
+  await step(V, "Add", "Add expense is tidy: the amount, the day under it, one What was it? field with Scan a bill · Speak · Type a line inside it, then two rows for who paid and the split; notes, several payers and Spin sit under a closed More link; the result for you is one quiet line under the card", async () => {
     await go(V, `${g}/add`);
     await V.getByLabel("Amount", { exact: true }).fill("1200");
     await V.locator("#expense-name").fill("Beach dinner");
@@ -3232,20 +3234,25 @@ async function main() {
     const names = await row.getByRole("button").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
     assert(names.join("|").match(/^(Scan a bill|Bill photo)\|Speak\|Type a line$/), `the Faster entry icons aren't Scan a bill · Speak · Type a line: ${names.join("|")}`);
     const y = async (loc: ReturnType<Page["locator"]>) => (await loc.first().boundingBox())!.y;
-    const order = [await y(V.getByRole("button", { name: /^(Today|Yesterday)/ })), await y(V.locator("#expense-name")), await y(V.locator("[data-sentence]"))];
+    const order = [await y(V.getByRole("button", { name: /^(Today|Yesterday)/ })), await y(V.locator("#expense-name")), await y(V.locator("[data-sentence-card]"))];
     assert(order.every((v, i) => i === 0 || v > order[i - 1]), `the form order is off: ${order.map(Math.round).join(", ")}`);
     // The icons sit inside the same field as the name.
     const inField = await row.evaluate((el) => Boolean(el.parentElement?.querySelector("#expense-name")));
     assert(inField, "the Faster entry icons aren't inside the What was it? field");
-    // The sentence says who paid and how it splits; tapping a part opens the real controls under it.
-    const sentence = (await V.locator("[data-sentence]").innerText()).replace(/\s+/g, " ");
-    assert(/^You paid, split .+ between .+/.test(sentence), `the sentence reads: ${sentence}`);
-    assert((await V.locator("[data-payer-row]").count()) === 0, "the payer chips show before the sentence is tapped");
-    await V.locator("[data-sentence-part]").first().click();
-    assert((await V.locator("[data-payer-row]").count()) === 1 && (await V.locator("[data-split-row]").count()) === 1, "tapping the sentence didn't open Who paid / How to split");
+    // Two rows say who paid and who it is split between; tapping one opens the real controls under it.
+    const rows = (await V.locator("[data-sentence-card]").innerText()).replace(/\s+/g, " ");
+    assert(/^Paid by .*You.* Change Split between .+/.test(rows), `the two rows read: ${rows}`);
+    assert((await V.locator("[data-payer-row]").count()) === 0, "the payer chips show before a row is tapped");
+    const paidRow = V.locator("[data-row-paid]");
+    await paidRow.click();
+    assert((await V.locator("[data-payer-row]").count()) === 1 && (await V.locator("[data-split-row]").count()) === 1, "tapping the row didn't open Who paid / How to split");
+    assert((await paidRow.getAttribute("aria-expanded")) === "true", "the row doesn't say it is expanded");
+    await V.getByRole("button", { name: "Done", exact: true }).click();
+    // Focus moves back once the panel has closed (the next tick), so wait briefly for it.
+    const back = await V.waitForFunction(() => Boolean(document.activeElement?.hasAttribute("data-row-paid")), undefined, { timeout: 2000 }).then(() => true, () => false);
+    assert(back, "Done didn't give focus back to the row");
     const result = (await V.locator("[data-expense-result]").innerText()).replace(/\s+/g, " ");
-    assert(/You (get back|owe)|Just you|Nobody owes/.test(result), `the result for you reads: ${result}`);
-    assert((await V.locator("[data-expense-summary]").count()) === 1, "the one-line summary under the result is missing");
+    assert(/You (paid|get back|owe)|Just you|Nobody owes|square/.test(result), `the result for you reads: ${result}`);
     assert((await V.locator("[data-fx-card]").count()) === 0, "the foreign-currency line shows on an expense in the group's own currency");
     const more = V.locator("[data-more] > button");
     assert((await more.getAttribute("aria-expanded")) === "false", "More isn't closed to start with");
@@ -3416,6 +3423,7 @@ async function main() {
     await set.waitFor({ timeout: 8000 });
     const who = ((await set.textContent()) ?? "").replace(/^Set | as payer$/g, "").replace(/^yourself$/, "You");
     await set.click();
+    await openSplit(V); // the payer chips sit behind the "Paid by" row
     await V.getByRole("button", { name: who, exact: true, pressed: true }).waitFor();
   });
 

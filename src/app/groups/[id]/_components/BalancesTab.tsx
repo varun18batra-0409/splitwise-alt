@@ -132,7 +132,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
             title={ledgerSummary(ledgers.map((l) => ({ currency: l.currency, amount: l.net[myId] ?? 0 })), mine, group.currency)}
             data-exact={ledgerSummary(ledgers.map((l) => ({ currency: l.currency, amount: l.net[myId] ?? 0 })), mine, group.currency)}
           >
-            {ledgerSummary(ledgers.map((l) => ({ currency: l.currency, amount: l.net[myId] ?? 0 })), mine, group.currency, overviewMoney)} Before card fees.
+            {ledgerSummary(ledgers.map((l) => ({ currency: l.currency, amount: l.net[myId] ?? 0 })), mine, group.currency, overviewMoney)}{hasMarkup ? " Overall includes card fees." : ""}
           </p>
           <ul className="divide-y divide-line rounded-2xl border border-line">
             {ledgers.map((l) => {

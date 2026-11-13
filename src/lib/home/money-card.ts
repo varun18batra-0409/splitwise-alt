@@ -357,14 +357,14 @@ function ticketLine(side: "owe" | "owed", entries: MoneyPerson[], common: string
     side === "owe"
       ? {
           key: "pay",
-          label: short ? "Pay" : `Pay ${firstWord(top.name)}`,
+          label: short && count > 1 ? "Pay" : `Pay ${firstWord(top.name)}`,
           fullLabel: `Pay ${top.name} ${top.approx ? "≈ " : ""}${formatMoney(top.amount, top.currency)}`,
           // Several people in a both-ways ticket: the list where each has a row; otherwise the biggest person's row.
           href: short && count > 1 ? peopleHref : payHref(top, common),
           bright: true,
         }
       : count === 1
-        ? { key: "remind", label: short ? "Remind" : `Remind ${firstWord(top.name)}`, fullLabel: `Remind ${top.name} on WhatsApp`, href: remind ?? peopleHref, bright: !short }
+        ? { key: "remind", label: `Remind ${firstWord(top.name)}`, fullLabel: `Remind ${top.name} on WhatsApp`, href: remind ?? peopleHref, bright: !short }
         : { key: "remind", label: short ? "Remind" : "See who to remind", fullLabel: `See the ${count} people who owe you, to remind them`, href: peopleHref, bright: !short };
   const phrase = side === "owe" ? `You owe ${count === 1 ? top.name : name}` : count === 1 ? `${top.name} owes you` : `${name} owe you`;
   return { side, count, phrase, name, amount: total.text, exact: total.exact, faces: count > 1 ? people.slice(0, 3).map((p) => initialOf(p.name)) : [], peopleHref, action };
@@ -393,10 +393,10 @@ export function groupTicketSides(x: { mine: number; myId: string; transfers: { f
     : [{ side: "owe", amount: -x.mine, names: fromMe.map((t) => x.nameOf(t.to)) }];
 }
 
-// The one quiet line under the amount: "3 payments clear the whole trip", "1 payment clears everything".
-export function clearsLine(payments: number, groupType: string): string {
+// The one quiet line under the amount: "3 payments clear it", "1 payment clears it". Short so it stays on one line at 320px.
+export function clearsLine(payments: number, _groupType?: string): string {
   if (payments <= 0) return "Nobody owes anybody";
-  return `${payments === 1 ? "1 payment clears" : `${payments} payments clear`} ${groupType === "trip" ? "the whole trip" : "everything"}`;
+  return `${payments === 1 ? "1 payment clears" : `${payments} payments clear`} it`;
 }
 
 // Builds the ticket from what Home already knows. `owe` / `owed`: moneyPeople for each side (largest first). `groups`: every group

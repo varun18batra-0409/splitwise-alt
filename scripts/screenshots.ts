@@ -97,7 +97,7 @@ await shot("22-settle-everything", `${g}/settle`, async (p) => {
   await p.getByRole("button", { name: /Settle everything/ }).scrollIntoViewIfNeeded();
 }, false);
 await shot("23-add-expense-differently", `${g}/add`, async (p) => {
-  await p.locator("[data-sentence-part]").first().click(); // tap the sentence ("You paid, split equally…") to open the payer and split controls
+  await p.locator("[data-row-paid]").first().click(); // tap the Paid by row to open the payer and split controls
   await p.getByRole("button", { name: /Custom/ }).click();
   await p.locator("[data-more] > button").click(); // More: notes, several payers, spin
   await p.getByRole("button", { name: /Today.*Change/ }).first().click();
@@ -129,7 +129,7 @@ await shot("38-guide-abroad", "/how-it-works#abroad", async (p) => {
 await shot("32-group-settle", `${g}/settle`);
 await shot("29-why", `${g}?tab=balances&why=${demo.trip.me}#why-${demo.trip.me}`);
 await shot("30-add-only-some", `${g}/add`, async (p) => {
-  await p.locator("[data-sentence-part]").first().click(); // tap the sentence ("You paid, split equally…") to open the payer and split controls
+  await p.locator("[data-row-paid]").first().click(); // tap the Paid by row to open the payer and split controls
   await p.getByRole("button", { name: /Only some/ }).click();
   await p.getByRole("button", { name: /Ravi/ }).last().click();
   await p.waitForTimeout(300);
@@ -160,7 +160,7 @@ await shot("41-add-payers-shares", `${g}/add`, async (p) => {
   await p.getByLabel("Amount", { exact: true }).fill("3000");
   await p.locator("[data-more] > button").click();
   await p.getByRole("switch", { name: /More than one person paid/ }).click();
-  await p.locator("[data-sentence-part]").first().click(); // tap the sentence ("You paid, split equally…") to open the payer and split controls
+  await p.locator("[data-row-paid]").first().click(); // tap the Paid by row to open the payer and split controls
   await p.getByRole("button", { name: /Custom/ }).click();
   await p.getByRole("button", { name: "Shares", exact: true }).click();
 });
@@ -254,10 +254,10 @@ if (!desktop && !hosted) {
   const hadPayments = await db.payment.findMany({ where: { groupId: { in: open3 }, deletedAt: null }, select: { id: true } });
   const made: string[] = [];
   // One expense: `by` paid `amount` paise, split exactly as `shares` (member id, paise) says; the shares add up to the amount.
-  const addExpense = async (groupId: string, by: string, shares: [string, number][]) => {
+  const addExpense = async (groupId: string, by: string, shares: [string, number][], description = "Dinner at Jay Fai") => {
     const amount = shares.reduce((t, [, a]) => t + a, 0);
     const e = await db.expense.create({
-      data: { groupId, description: "Screenshot state", amount, splitType: "exact", forMode: "selected", paidById: by, createdById: by, shares: { create: shares.map(([memberId, a]) => ({ memberId, amount: a })) } },
+      data: { groupId, description, amount, splitType: "exact", forMode: "selected", paidById: by, createdById: by, shares: { create: shares.map(([memberId, a]) => ({ memberId, amount: a })) } },
     });
     made.push(e.id);
   };
@@ -269,13 +269,13 @@ if (!desktop && !hosted) {
   // [name, how the viewer's money is set up, what the card must say (so a broken setup is noticed, not photographed)]
   const states: [string, () => Promise<void>, { kind: string; has: RegExp }][] = [
     // Asha paid ₹54,122 for a trip bill that is only Varun's share: Varun owes Asha 5412200 paise, nobody else owes anyone.
-    ["owe", () => addExpense(tripId, A, [[V, 5412200]]), { kind: "one", has: /^one \| You .*Asha.* ₹54,122 .*Pay Asha$/ }],
+    ["owe", () => addExpense(tripId, A, [[V, 5412200]], "Boat tickets"), { kind: "one", has: /^one \| You .*Asha.* ₹54,122 .*Pay Asha$/ }],
     // Varun paid ₹22,916 for Kabir's share of the flat: Kabir owes Varun 2291600 paise.
-    ["owed-one", () => addExpense(flatId, FV, [[FK, 2291600]]), { kind: "one", has: /^one \| Kabir .*You .*₹22,916 .*Remind Kabir$/ }],
+    ["owed-one", () => addExpense(flatId, FV, [[FK, 2291600]], "Rent share"), { kind: "one", has: /^one \| Kabir .*You .*₹22,916 .*Remind Kabir$/ }],
     // Varun paid ₹31,480 for the trip, shared by Asha 12,000 + Ravi 11,000 + Meera 8,480 (1200000 + 1100000 + 848000 = 3148000 paise).
-    ["owed-several", () => addExpense(tripId, V, [[A, 1200000], [R, 1100000], [M, 848000]]), { kind: "one", has: /^one \| 3 people .*You .*₹31,480 .*See who to remind$/ }],
+    ["owed-several", () => addExpense(tripId, V, [[A, 1200000], [R, 1100000], [M, 848000]], "Dinner at Jay Fai"), { kind: "one", has: /^one \| 3 people .*You .*₹31,480 .*See who to remind$/ }],
     // Both ways, in two groups so nobody is netted: Varun owes Asha ₹4,200 (trip) and Kabir owes Varun ₹22,916 (flat).
-    ["both", async () => { await addExpense(tripId, A, [[V, 420000]]); await addExpense(flatId, FV, [[FK, 2291600]]); }, { kind: "both", has: /^both \| You owe Asha .*₹4,200 Pay Kabir owes you .*₹22,916 Remind$/ }],
+    ["both", async () => { await addExpense(tripId, A, [[V, 420000]], "Boat tickets"); await addExpense(flatId, FV, [[FK, 2291600]], "Groceries"); }, { kind: "both", has: /^both \| You owe Asha .*₹4,200 Pay Asha Kabir owes you .*₹22,916 Remind Kabir$/ }],
     // Nothing added: every balance is 0.
     ["square", async () => undefined, { kind: "square", has: /^square \| .*All square.*Nobody owes anybody$/ }],
   ];

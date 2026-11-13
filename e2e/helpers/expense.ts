@@ -29,7 +29,7 @@ const chip = (page: Page, label: string) => page.getByRole("button", { name: new
 
 export async function fillExpense(page: Page, x: ExpenseInput) {
   if (x.moneyBack) await page.getByRole("radio", { name: "Money back" }).click();
-  await openSplit(page); // the sentence "You paid, split equally between all 4" opens the payer and split controls
+  await openSplit(page); // the Paid by and Split between rows open the payer and split controls
   if (x.payers) {
     await page.locator("#expense-name").fill(x.name);
     await page.getByLabel("Amount", { exact: true }).fill(x.amount);

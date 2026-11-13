@@ -208,9 +208,9 @@ describe("the ticket for each money situation", () => {
     if (t.kind !== "both") return;
     const [a, b] = t.lines;
     expect(a).toMatchObject({ side: "owe", name: "Nupur", amount: "₹4,200", phrase: "You owe Nupur" });
-    expect(a.action).toMatchObject({ key: "pay", label: "Pay", bright: true });
+    expect(a.action).toMatchObject({ key: "pay", label: "Pay Nupur", bright: true });
     expect(b).toMatchObject({ side: "owed", name: "Kabir", amount: "₹22,916", phrase: "Kabir owes you" });
-    expect(b.action).toMatchObject({ key: "remind", label: "Remind", bright: false, href: "/groups/g1/remind?from=k" });
+    expect(b.action).toMatchObject({ key: "remind", label: "Remind Kabir", bright: false, href: "/groups/g1/remind?from=k" });
     expect(JSON.stringify(t)).not.toContain("18,716");
   });
 
@@ -292,10 +292,10 @@ describe("the ticket at the top of one group", () => {
   });
 
   it("the quiet line: “3 payments clear the whole trip”, “1 payment clears everything” in a flat, “Nobody owes anybody” when there are none", () => {
-    expect(clearsLine(3, "trip")).toBe("3 payments clear the whole trip");
-    expect(clearsLine(1, "trip")).toBe("1 payment clears the whole trip");
-    expect(clearsLine(1, "home")).toBe("1 payment clears everything");
-    expect(clearsLine(2, "pot")).toBe("2 payments clear everything");
+    expect(clearsLine(3, "trip")).toBe("3 payments clear it");
+    expect(clearsLine(1, "trip")).toBe("1 payment clears it");
+    expect(clearsLine(1, "home")).toBe("1 payment clears it");
+    expect(clearsLine(2, "pot")).toBe("2 payments clear it");
     expect(clearsLine(0, "trip")).toBe("Nobody owes anybody");
   });
 });
