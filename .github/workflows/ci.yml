@@ -36,7 +36,9 @@ jobs:
       - name: Tests
         run: |
           set -o pipefail
-          npm test 2>&1 | tee test.log || { echo "::error title=Tests failed::$(tail -60 test.log | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"; exit 1; }
+          # GITHUB_ACTIONS is blanked for the test run so vitest doesn't write its own annotations: a failing test whose
+          # message holds a cut-in-half emoji crashed the runner's log writer and hid which test failed.
+          GITHUB_ACTIONS= npm test 2>&1 | tee test.log || { echo "::error title=Tests failed::$(tail -60 test.log | iconv -c -f UTF-8 -t ASCII//TRANSLIT | sed -e 's/%/%25/g' | tr '\n' '\r' | sed -e 's/\r/%0A/g')"; exit 1; }
           echo "::notice title=Tests::$(grep -E 'Test Files|Tests ' test.log | tr '\n' ' ')"
       - name: Build
         run: |
