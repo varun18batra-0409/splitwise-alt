@@ -42,7 +42,7 @@ export default async function GroupSettle({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ paid?: string; error?: string; did?: string; undone?: string; ok?: string; notgot?: string; claimed?: string; withdrawn?: string; declined?: string; overclaim?: string; over?: string }>;
+  searchParams: Promise<{ paid?: string; error?: string; did?: string; undone?: string; ok?: string; notgot?: string; claimed?: string; withdrawn?: string; declined?: string; overclaim?: string; over?: string; pay?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
