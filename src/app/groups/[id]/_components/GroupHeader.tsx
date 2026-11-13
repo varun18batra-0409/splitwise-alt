@@ -107,7 +107,7 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
   // Recap is no longer in the bottom bar: a quiet link on each group opens it for this group.
   const recapLink = (
     <Link href={`/search?g=${group.id}`} className="-my-3 inline-flex min-h-11 items-center text-fg/75 underline-offset-4 active:text-fg" data-group-recap>
-      Trip recap<span aria-hidden> ›</span>
+      {group.type === "trip" ? "Trip recap" : "Recap"}<span aria-hidden> ›</span>
     </Link>
   );
 

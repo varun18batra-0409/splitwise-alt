@@ -188,6 +188,7 @@ if (demo.couple.goal) await shot("60-couple-goal", `${c}/goals/${demo.couple.goa
 await shot("61-new-goal", `${c}/goals/new`);
 await shot("15-new-group", "/groups/new");
 await shot("25-account", "/account");
+await shot("25b-groups", "/groups");
 await shot("26-signin", "/signin", undefined, false);
 // Sign-in on small phones: Google and the email box must both be on the first screen.
 for (const [n, w, h] of [["26b-signin-320x568", 320, 568], ["26c-signin-375x667", 375, 667]] as const) {
