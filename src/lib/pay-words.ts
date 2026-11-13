@@ -10,13 +10,6 @@ export function recordButtonLabel(amountText: string, currency: string, payer: {
   return `Record ${formatMoney(minor, currency)} from ${payer.me ? "you" : payer.name}`;
 }
 
-// The bar on Settle up: one segment per payment, filled once paid. More than eight payments are shown as eight, in proportion.
-export function progressSegments(done: number, total: number): { segments: number; filled: number } {
-  const segments = Math.min(Math.max(total, 1), 8);
-  const filled = total > 0 ? Math.round((Math.min(Math.max(done, 0), total) / total) * segments) : segments;
-  return { segments, filled };
-}
-
 type Move = { from: string; to: string; amount: number };
 
 // What the "Payment recorded" view says. `payment` is the one just recorded; `left` is the group's payments still suggested afterwards.
@@ -24,12 +17,19 @@ type Move = { from: string; to: string; amount: number };
 export function recordedWords(i: { payment: Move; left: Move[]; me: string; name: (id: string) => string; money: (n: number) => string; groupName: string }) {
   const { payment: p, left, me, name, money } = i;
   const pair = left.find((x) => x.from === p.from && x.to === p.to);
+  // Paid more than was owed: the payee now owes the payer, and the screen says so instead of "square".
+  const back = pair ? undefined : left.find((x) => x.from === p.to && x.to === p.from);
   const payerBusy = left.some((x) => x.from === p.from || x.to === p.from);
   const fromMe = p.from === me;
   const toL = p.to === me ? "you" : name(p.to);
+  const owesLine = back
+    ? `${p.to === me ? "You" : name(p.to)} now ${p.to === me ? "owe" : "owes"} ${fromMe ? "you" : name(p.from)} ${money(back.amount)}`
+    : "";
   const headline = pair
     ? `${money(p.amount)} recorded, ${money(pair.amount)} left`
-    : !payerBusy
+    : back
+      ? `${money(p.amount)} recorded`
+      : !payerBusy
       ? fromMe
         ? "You’re all square"
         : `${name(p.from)}’s all square`
@@ -38,8 +38,8 @@ export function recordedWords(i: { payment: Move; left: Move[]; me: string; name
         : `${name(p.from)} and ${toL} are square`;
   const n = left.length;
   const sub = n === 0 ? `Nothing left to pay in ${i.groupName}` : `${n} ${n === 1 ? "payment" : "payments"} left in ${i.groupName}`;
-  const stubLine = pair ? `${money(pair.amount)} still to pay` : `is square with ${toL}`;
-  return { headline, sub, stubLine };
+  const stubLine = pair ? `${money(pair.amount)} still to pay` : back ? `${money(back.amount)} owed back` : `is square with ${toL}`;
+  return { headline, sub, stubLine, note: owesLine };
 }
 
 // The masked way to pay shown on Pay Nupur: "nupur@okicici" becomes "nu•••@okicici"; a pay link shows only its site.

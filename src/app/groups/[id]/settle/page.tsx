@@ -152,7 +152,9 @@ export default async function GroupSettle({
   const payTarget = sp.pay ? mineList.find((t) => t.from === myId && t.to === sp.pay) : undefined;
   if (payTarget) {
     const f = factsOf(payTarget);
-    if (f.plan.action && f.receiver) {
+    // Someone who left, or a closed group, can't claim (no action) but can still open their payment app.
+    const payOnly = f.plan.main === "pay-app" && (iLeft || group.closed);
+    if ((f.plan.action || payOnly) && f.receiver) {
       return (
         <>
           <PageHeader title={`Pay ${firstName(f.receiver.name)}`} back={settleHref} />
@@ -164,6 +166,7 @@ export default async function GroupSettle({
             ways={waysOf(payTarget.to)}
             payApp={f.buttons.length > 0 ? <PayAppButtons buttons={f.buttons} /> : undefined}
             tellButton={f.actionButton(f.buttons.length > 0 ? outlineButtonClass : filledActionClass)}
+            noClaimNote={iLeft ? "You left this group, so Loopin can’t record it here." : group.closed ? "This group is closed, so Loopin can’t record it here." : undefined}
           />
         </>
       );
@@ -186,12 +189,14 @@ export default async function GroupSettle({
           backHref={`/groups/${group.id}`}
           toId={claimedNow.toId}
           undo={
-            <form action={withdrawClaimAction} className="inline-flex">
-              <input type="hidden" name="claimId" value={claimedNow.id} />
-              <button type="submit" className="inline-flex min-h-11 items-center font-medium text-fg underline underline-offset-4">
-                Undo report
-              </button>
-            </form>
+            iLeft ? null : (
+              <form action={withdrawClaimAction} className="inline-flex">
+                <input type="hidden" name="claimId" value={claimedNow.id} />
+                <button type="submit" className="inline-flex min-h-11 items-center font-medium text-fg underline underline-offset-4">
+                  Undo report
+                </button>
+              </form>
+            )
           }
         />
       </>
@@ -216,6 +221,7 @@ export default async function GroupSettle({
           sub={words.sub}
           stubName={nm(recordedPay.fromId)}
           stubLine={words.stubLine}
+          note={words.note}
           backHref={`/groups/${group.id}`}
           undo={
             showUndo ? (
@@ -236,9 +242,6 @@ export default async function GroupSettle({
     );
   }
 
-  const paidCount = paymentCount;
-  const total = paidCount + transfers.length;
-
   return (
     <>
       <PageHeader title="Settle up" back={`/groups/${group.id}?tab=balances`} />
@@ -251,7 +254,7 @@ export default async function GroupSettle({
           {group.name}
           {transfers.length > 0 && before > transfers.length ? `: ${transfers.length} instead of ${before}` : ""}
         </p>
-        {total > 0 && <SettleProgress done={paidCount} total={total} pct={settledPct} />}
+        {paymentCount + transfers.length > 0 && <SettleProgress pct={settledPct} />}
       </div>
 
       {sp.error && <ErrorNote>{sp.error}</ErrorNote>}
@@ -434,7 +437,7 @@ export default async function GroupSettle({
                               {"fromName" in f.theirClaim ? f.theirClaim.fromName : f.theirClaim.from.name} says they paid. Confirm it in the box above.
                             </p>
                           )}
-                          {f.plan.action && iPay && (
+                          {(f.plan.action || f.plan.main === "pay-app") && iPay && (
                             <Link href={`${settleHref}?pay=${encodeURIComponent(t.to)}`} className={big}>
                               Pay {firstName(rName)}
                             </Link>

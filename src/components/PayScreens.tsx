@@ -4,7 +4,7 @@ import { GroupCover } from "@/components/GroupCover";
 import { CREAM, Mark, Route, TicketShell, type StubCover } from "@/components/HomeMoney";
 import type { GroupMark } from "@/lib/home/money-card";
 import type { PayWays } from "@/lib/pay-links";
-import { maskPayWay, progressSegments } from "@/lib/pay-words";
+import { maskPayWay } from "@/lib/pay-words";
 
 // The payment screens, drawn as the same boarding-pass ticket Home uses: a stub, a perforation, then the route ("Meera ┄ ✈ You"),
 // the amount and ONE cream action. This file only draws; every action, form field and amount is passed in by the page that owns it.
@@ -105,18 +105,16 @@ export function PayTicket({
   );
 }
 
-// "3 payments and you're all square": the bar has one segment per payment (filled = paid); a long list shows at most eight, proportionally.
-export function SettleProgress({ done, total, pct }: { done: number; total: number; pct: number }) {
-  const { segments: segs, filled } = progressSegments(done, total);
+// One slim bar filled to the share of the money already paid back ("25% settled"): the same number as its aria-label.
+export function SettleProgress({ pct }: { pct: number }) {
+  const p = Math.min(Math.max(pct, 0), 100);
   return (
     <div className="mt-4 flex items-center gap-3" role="img" aria-label={`${pct}% settled`} data-settled-pct={pct}>
-      <span aria-hidden className="flex min-w-0 flex-1 gap-1.5">
-        {Array.from({ length: segs }, (_, i) => (
-          <i key={i} className={`h-1 flex-1 rounded-full ${i < filled ? "bg-fg/80" : "bg-fg/15"}`} />
-        ))}
+      <span aria-hidden className="relative h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-fg/15">
+        <i className="absolute inset-y-0 left-0 rounded-full bg-fg/80" style={{ width: `${p}%` }} />
       </span>
-      <span className="shrink-0 text-[12.5px] text-fg/55">
-        {Math.min(done, total)} of {total} done
+      <span aria-hidden className="shrink-0 text-[12.5px] text-fg/55">
+        {pct}% settled
       </span>
     </div>
   );
@@ -138,7 +136,8 @@ export function InfoNote({ children }: { children: React.ReactNode }) {
 
 // `payApp`: the existing "Open payment app" link(s) (PayAppButtons), or nothing when the person has no saved way to be paid.
 // `tellButton`: the existing "I've paid" button, already styled by the caller (outline, or cream when there is no payment app).
-export function PayView({ name, amount, cover, groupName, ways, payApp, tellButton }: { name: string; amount: string; cover?: StubCover; groupName: string; ways: PayWays | null; payApp?: React.ReactNode; tellButton: React.ReactNode }) {
+// `tellButton` is null when no claim is possible here (I left, or the group is closed): step 2 is hidden and `noClaimNote` says why.
+export function PayView({ name, amount, cover, groupName, ways, payApp, tellButton, noClaimNote }: { name: string; amount: string; cover?: StubCover; groupName: string; ways: PayWays | null; payApp?: React.ReactNode; tellButton: React.ReactNode; noClaimNote?: string }) {
   const masked = maskPayWay(ways);
   const first = firstName(name);
   return (
@@ -167,13 +166,16 @@ export function PayView({ name, amount, cover, groupName, ways, payApp, tellButt
           </p>
           {payApp ? <div className="mt-3 flex flex-wrap gap-2">{payApp}</div> : <p className="mt-2 pl-9 text-[13.5px] text-fg/55">Pay {first} any way you both use.</p>}
         </li>
-        <li>
-          <p className="flex items-center gap-3 text-[15px] font-semibold">
-            <span className={STEP}>2</span>Return and tell {first}
-          </p>
-          <div className="mt-3">{tellButton}</div>
-        </li>
+        {tellButton && (
+          <li>
+            <p className="flex items-center gap-3 text-[15px] font-semibold">
+              <span className={STEP}>2</span>Return and tell {first}
+            </p>
+            <div className="mt-3">{tellButton}</div>
+          </li>
+        )}
       </ol>
+      {!tellButton && noClaimNote && <InfoNote>{noClaimNote}</InfoNote>}
       <InfoNote>Opening a payment app does not confirm payment.</InfoNote>
     </div>
   );
@@ -253,11 +255,13 @@ export function WaitingView({
       <Link href={backHref} className={`${CREAM} w-full`}>
         Back to {groupName}
       </Link>
-      <div className="flex justify-center text-[13.5px] text-fg/60">
-        <span className="inline-flex min-h-11 items-center gap-1.5">
-          Made a mistake? {undo}
-        </span>
-      </div>
+      {undo && (
+        <div className="flex justify-center text-[13.5px] text-fg/60">
+          <span className="inline-flex min-h-11 items-center gap-1.5">
+            Made a mistake? {undo}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -276,6 +280,7 @@ export function RecordedView({
   sub,
   stubName,
   stubLine,
+  note,
   backHref,
   undo,
 }: {
@@ -288,12 +293,16 @@ export function RecordedView({
   sub: string;
   stubName: string;
   stubLine: string;
+  note?: string; // e.g. "Nupur now owes you ₹100" when more than what was owed was recorded
   backHref: string;
   undo: React.ReactNode; // the existing Undo form, or null when it can't be undone
 }) {
   return (
     <div className="mx-auto max-w-sm pt-2" data-payment-recorded>
       <section aria-label="Payment recorded" className={`${CARD} px-4 pb-4 pt-4`}>
+        <p className="sr-only">
+          {from} paid {to === "You" ? "you" : to} {amount} in {groupName}
+        </p>
         <div aria-hidden>
           <Route from={from} to={to} mark={mark} />
         </div>
@@ -314,6 +323,7 @@ export function RecordedView({
         </span>
       </div>
       <h2 className="mt-8 text-center font-display text-[28px] font-semibold leading-tight tracking-[-0.02em]">{headline}</h2>
+      {note && <p className="mt-2 text-center text-[14px] font-medium text-fg/80">{note}</p>}
       <p className="mt-2 text-center text-[14px] text-fg/60">{sub}</p>
       <Link href={backHref} className={`${CREAM} mt-6 w-full`}>
         Back to {groupName}

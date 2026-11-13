@@ -954,27 +954,18 @@ async function main() {
     await V.waitForURL(/\/settle/);
     const n = await settleCards(V).count();
     assert(n >= 1 && n <= 3, `${n} payments suggested for 4 people`);
-    // One layout: a row has one filled main button (Open payment app / Remind, or its one action when it has neither), no amount box,
-    // and a "Paid a different amount?" link unless a claim is waiting.
-    for (let i = 0; i < n; i++) {
-      const row = settleCards(V).nth(i);
-      const filled = await row.locator(".pop").count();
-      const apps = await row.locator("[data-pay]").count();
-      // One filled button when there is any pay option (a second saved way, e.g. PayPal, is a quiet "or pay with" link, never filled).
-      // A payment between two other people has a quiet outline "Mark paid" (yours is the filled one); a waiting claim has none.
-      const quiet = filled === 0 && ((await row.locator("[data-claim-waiting], [data-claim-above]").count()) > 0 || (await row.locator("[data-mark-paid], [data-i-paid]").count()) >= 1);
-      assert((apps <= 1 && filled === 1) || quiet, `row ${i} has ${filled} filled buttons`);
-      assert((await row.locator('input[name="amount"]:not([type="hidden"])').count()) === 0, `row ${i} still has an amount box`);
-      assert((await row.getByText("Mark paid", { exact: true }).count()) <= 1, `row ${i} has look-alike buttons`);
+    // One cream button on the whole Settle page: the first of your tickets ("Pay …" / "Remind …"), or "Confirm received" when someone is waiting on you.
+    // The other tickets, "Between others" rows and the closing buttons are outlined or quiet. No amount box on any row.
+    for (let i = 0; i < n; i++) assert((await settleCards(V).nth(i).locator('input[name="amount"]:not([type="hidden"])').count()) === 0, `row ${i} still has an amount box`);
+    const cream = await V.locator("main .pop").count();
+    const waitingCream = await V.getByRole("region", { name: "Did you get these?" }).locator(".pop").count();
+    if (waitingCream > 0) {
+      assert(cream === 1 && waitingCream === 1, `${cream} cream buttons while someone waits on you (want only the first “Confirm received”)`);
+    } else {
+      assert(cream <= 1, `${cream} cream buttons on Settle up`);
+      if (cream === 1) assert((await V.getByRole("region", { name: "Yours" }).locator("li[data-transfer-row]").first().locator(".pop").count()) === 1, "the cream button is not on the first of your tickets");
     }
-    // Under the rows: at most ONE main closing button; Mark all, Settle everything and "Record a different payment" are quiet links under More options.
-    assert((await V.locator("[data-settle-actions] .pop").count()) <= 1, "more than one filled closing button under the payments");
-    // One filled button per screen area: on the whole page, the rows' own main buttons plus at most one closing button,
-    // and none at all when a single payment is shown (that payment's own button is the main one).
-    const rowFilled = await settleCards(V).locator(".pop").count();
-    const allFilled = await V.locator("main .pop").count();
-    assert(allFilled <= rowFilled + 1, `${allFilled} filled buttons on Settle up, but the rows have ${rowFilled}`);
-    if (n === 1) assert((await V.locator("[data-settle-actions] .pop").count()) === 0, "a second big button under a single payment");
+    assert((await V.locator("[data-settle-actions] .pop").count()) === 0, "a cream closing button under the payments");
     // F1/F18: one wording, "Mark all N paid", quiet and under More options; it counts only other people's payments (never mine).
     const markAll = V.locator("[data-settle-actions]").getByRole("button", { name: /Mark all/ });
     assert((await V.getByRole("button", { name: /^Mark all paid \(\d+\)$/ }).count()) === 0, "the old “Mark all paid (N)” wording is back");
@@ -983,9 +974,20 @@ async function main() {
     const mineCount = await settleCards(V).filter({ hasText: /^(?:[A-Z] )?You pay / }).count();
     const m = await markAll.count();
     if (m) assert(new RegExp(`^Mark all ${n - mineCount} paid$`).test(((await markAll.first().innerText()) ?? "").trim()), `Mark all says ${await markAll.first().innerText()} but ${n - mineCount} payments are other people's`);
-    // F8: a row paid by UPI (rupees, the person has a UPI ID) shows no "or pay with PayPal" link.
-    const rowsWithAlt = await V.locator("main li[data-transfer-row]").evaluateAll((els) => els.filter((e) => e.querySelector("[data-pay='upi']") && e.querySelector("[data-pay-alt]")).length);
-    assert(rowsWithAlt === 0, "a UPI row still offers “or pay with PayPal”");
+    // F8: the Pay view (opened from "Pay <name>") is where the payment app lives: an INR UPI payee shows the UPI button and no PayPal link;
+    // a payee with a pay link (non-INR) shows that link.
+    const payLinks = V.getByRole("region", { name: "Yours" }).getByRole("link", { name: /^Pay / });
+    const payCount = await payLinks.count();
+    for (let i = 0; i < payCount; i++) {
+      await go(V, `${g}/settle`);
+      await V.getByRole("region", { name: "Yours" }).getByRole("link", { name: /^Pay / }).nth(i).click();
+      await V.locator("[data-pay-view]").waitFor();
+      const upi = await V.locator("[data-pay-view] [data-pay='upi']").count();
+      const alt = await V.locator("[data-pay-view] [data-pay-alt='paypal'], [data-pay-view] [data-pay='paypal']").count();
+      const inr = /₹/.test(await V.locator("[data-pay-amount]").innerText());
+      if (inr && upi) assert(alt === 0, "a UPI payee's Pay view still offers PayPal");
+      if (!inr && !upi) assert((await V.locator("[data-pay-view] [data-pay]").count()) <= 1, "a pay-link payee's Pay view has more than one main link");
+    }
     return `${n} payments suggested`;
   });
   await step(V, "Settle", "Bottom bar “Settle” inside a group goes to the same screen", async () => {
@@ -1104,13 +1106,14 @@ async function main() {
     const target = V.locator("label[data-to]", { hasText: "Asha" });
     assert(!(await target.isVisible()), "“Asha → Asha” is still offered under Paid to");
     // Even if forced, the server says no.
+    // The amount is typed first: the form's radios are controlled by the page, so a choice forced in the DOM must come last or typing resets it.
+    await V.locator('input[name="amount"]:not([type="hidden"])').fill("10");
     await V.evaluate(() => {
       const r = document.querySelector<HTMLInputElement>('label[data-to] input[name="toId"]');
       const from = document.querySelector<HTMLInputElement>('input[name="fromId"]:checked');
       if (r && from) r.value = from.value;
       if (r) r.checked = true;
     });
-    await V.locator('input[name="amount"]:not([type="hidden"])').fill("10");
     await V.getByRole("button", { name: /^Record / }).click();
     await V.getByText(/two different people/).waitFor();
   });

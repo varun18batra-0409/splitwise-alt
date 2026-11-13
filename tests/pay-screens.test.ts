@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { formatMoney } from "@/lib/money";
-import { maskPayWay, progressSegments, recordButtonLabel, recordedWords } from "@/lib/pay-words";
+import { maskPayWay, recordButtonLabel, recordedWords } from "@/lib/pay-words";
 
 // The payment screens (Settle up, Pay, Waiting, Did you get this, Record a payment, Payment recorded) were only restyled:
 // the words and counts they show are checked with hand-worked numbers, and the pages are read as text to prove every
@@ -28,17 +28,6 @@ describe("Record a payment: the button follows the amount and who paid", () => {
   });
 });
 
-describe("Settle up: the progress bar", () => {
-  it("1 payment made, 2 to go: 3 segments, 1 filled", () => expect(progressSegments(1, 3)).toEqual({ segments: 3, filled: 1 }));
-  it("nothing paid yet: 3 segments, none filled", () => expect(progressSegments(0, 3)).toEqual({ segments: 3, filled: 0 }));
-  it("all paid: every segment filled", () => expect(progressSegments(3, 3)).toEqual({ segments: 3, filled: 3 }));
-  it("12 payments are drawn as 8 segments in proportion: 5 of 12 is 3.33 of 8, so 3", () => expect(progressSegments(5, 12)).toEqual({ segments: 8, filled: 3 }));
-  it("never fills past the end or below nothing", () => {
-    expect(progressSegments(20, 10)).toEqual({ segments: 8, filled: 8 });
-    expect(progressSegments(-2, 4)).toEqual({ segments: 4, filled: 0 });
-  });
-});
-
 describe("Payment recorded: what the view says", () => {
   const name = (id: string) => ({ me: "Asha", m: "Meera", r: "Ravi", n: "Nupur" })[id] ?? "Someone";
   const base = { me: "me", name, money: inr, groupName: "Thailand trip" };
@@ -47,7 +36,35 @@ describe("Payment recorded: what the view says", () => {
       headline: "Meera’s all square",
       sub: "Nothing left to pay in Thailand trip",
       stubLine: "is square with you",
+      note: "",
     });
+  });
+  // Hand-worked (paise): Nupur owes Asha ₹500 = 50000.
+  it("₹500 owed, ₹600 recorded: not square, Nupur now owes you ₹100 (60000 - 50000 = 10000)", () => {
+    const w = recordedWords({ ...base, payment: { from: "n", to: "me", amount: 60000 }, left: [{ from: "me", to: "n", amount: 10000 }] });
+    expect(w.headline).toBe("₹600 recorded");
+    expect(w.note).toBe("You now owe Nupur ₹100");
+    expect(w.headline + w.note + w.stubLine).not.toMatch(/square/);
+  });
+  it("the overpayer sees it the other way: I paid Nupur ₹600 of ₹500, Nupur now owes me ₹100", () => {
+    const w = recordedWords({ ...base, payment: { from: "me", to: "n", amount: 60000 }, left: [{ from: "n", to: "me", amount: 10000 }] });
+    expect(w.headline).toBe("₹600 recorded");
+    expect(w.note).toBe("Nupur now owes you ₹100");
+    expect(w.headline + w.note + w.stubLine).not.toMatch(/square/);
+  });
+  it("someone else's overpayment names both people", () => {
+    const w = recordedWords({ ...base, payment: { from: "m", to: "n", amount: 60000 }, left: [{ from: "n", to: "m", amount: 10000 }] });
+    expect(w.note).toBe("Nupur now owes Meera ₹100");
+  });
+  it("₹500 owed, ₹200 recorded: ₹200 recorded, ₹300 left (50000 - 20000 = 30000)", () => {
+    const w = recordedWords({ ...base, payment: { from: "me", to: "n", amount: 20000 }, left: [{ from: "me", to: "n", amount: 30000 }] });
+    expect(w.headline).toBe("₹200 recorded, ₹300 left");
+    expect(w.note).toBe("");
+  });
+  it("₹500 owed, ₹500 recorded: exactly square", () => {
+    const w = recordedWords({ ...base, payment: { from: "me", to: "n", amount: 50000 }, left: [{ from: "r", to: "m", amount: 70 }] });
+    expect(w.headline).toBe("You and Nupur are square");
+    expect(w.note).toBe("");
   });
   it("a part payment: ₹5,000 recorded of ₹17,618.19 leaves ₹12,618.19 (500000 + 1261819 = 1761819)", () => {
     const w = recordedWords({ ...base, payment: { from: "m", to: "me", amount: 500000 }, left: [{ from: "m", to: "me", amount: 1261819 }, { from: "r", to: "n", amount: 1089579 }] });
@@ -91,6 +108,23 @@ describe("restyle only: every action, field and hook is still on the pages", () 
   it("only one cream button on the screen: the first ticket's, and none when someone is waiting on you to confirm", () => {
     expect(settle).toContain("i === 0 && confirmCount === 0 ? CREAM : OUTLINE_PILL");
     expect(settle).toContain("claimsToMe.length === 0 && i === 0 ? CREAM : OUTLINE_PILL");
+  });
+  it("someone who left, or a closed group, still gets Open payment app but no claim; a leaver has no Undo report", () => {
+    expect(settle).toContain('const payOnly = f.plan.main === "pay-app" && (iLeft || group.closed)');
+    expect(settle).toContain('(f.plan.action || f.plan.main === "pay-app") && iPay');
+    expect(settle).toContain("iLeft ? null : (");
+    expect(src("src/components/PayScreens.tsx")).toContain("{tellButton && (");
+  });
+  it("the progress bar is the money measure (the % settled), not a count of payments", () => {
+    const ps = src("src/components/PayScreens.tsx");
+    expect(ps).toContain("{pct}% settled");
+    expect(ps).not.toMatch(/of \{total\} done/);
+  });
+  it("Record a payment announces the amount politely, and From and To open independently", () => {
+    expect(form).toContain('aria-live="polite"');
+    expect(form).toContain("Will record");
+    expect(form).not.toContain('const open = to ? picked : "to"');
+    expect(src("src/components/PayScreens.tsx")).toContain("sr-only");
   });
   it("all-groups Settle up keeps its actions, ids and hooks", () => {
     for (const s of ["settleAcrossGroups", "data-cross-preview", "data-cross-record", "data-cross-lines", "data-cross-total", "data-remind", "settleRowId(", 'id={way === "in" ? "remind" : "pay"}', 'name="parts"', "crossActionLabel(it.net)", "crossPreview(it, common)"]) expect(all).toContain(s);

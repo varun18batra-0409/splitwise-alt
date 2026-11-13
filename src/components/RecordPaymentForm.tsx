@@ -46,9 +46,9 @@ export function RecordPaymentForm({
   const [to, setTo] = useState(defaultTo);
   const [amount, setAmount] = useState(defaultAmount);
   const [focused, setFocused] = useState(false);
-  // Folded away until tapped. With nobody picked to be paid yet, that list starts open.
-  const [picked, setOpen] = useState<"from" | "to" | null>(defaultTo ? null : "to");
-  const open = to ? picked : "to"; // a required choice is never folded away while it is empty
+  // Folded away until tapped; From and To open independently. With nobody picked to be paid yet, the To list starts open.
+  // (A refused submit with To empty opens it, below, since a folded-away required choice can't be focused.)
+  const [open, setOpen] = useState<"from" | "to" | null>(defaultTo ? null : "to");
 
   const who = (id: string) => people.find((p) => p.id === id);
   const label = (id: string) => (who(id)?.me ? "You" : who(id)?.name ?? "");
@@ -109,6 +109,7 @@ export function RecordPaymentForm({
                     if (to === m.id) setTo("");
                     setOpen(to && to !== m.id ? null : "to");
                   }}
+                  onInvalid={() => setOpen("from")}
                   className="sr-only"
                   required
                 />
@@ -132,6 +133,7 @@ export function RecordPaymentForm({
                     setTo(m.id);
                     setOpen(null);
                   }}
+                  onInvalid={() => setOpen("to")}
                   className="sr-only"
                   required
                 />
@@ -194,9 +196,15 @@ export function RecordPaymentForm({
             </div>
           </>
         ) : (
-          <button type="submit" className="pop block w-full bg-fg px-5 py-3.5 text-center text-base font-semibold text-canvas disabled:opacity-50">
-            {button}
-          </button>
+          <>
+            <button type="submit" className="pop block w-full bg-fg px-5 py-3.5 text-center text-base font-semibold text-canvas disabled:opacity-50">
+              {button}
+            </button>
+            {/* Said aloud as the amount or the payer changes (the button's own label is read only when it is reached). */}
+            <p className="sr-only" aria-live="polite" data-record-live>
+              {button === "Record payment" ? "" : button.replace(/^Record /, "Will record ")}
+            </p>
+          </>
         )}
       </div>
       <p className="mt-4 text-center text-xs text-fg/55">{note}</p>

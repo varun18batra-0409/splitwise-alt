@@ -334,6 +334,20 @@ describe("T11: who can act", () => {
     expect((await makeClaim({ groupId: w2.gid, fromId: w2.r, toId: w2.a, actorId: w2.r, source: "app" })).ok).toBe(false);
   });
 
+  it("someone who left can't take back a claim (it stays waiting); a current member's take-back works", async () => {
+    const w = await world();
+    const c = await claim(w); // Ravi → Asha
+    await db.member.update({ where: { id: w.r }, data: { leftAt: new Date() } });
+    const refused = await withdrawClaim(c.claimId, w.r);
+    expect(refused.ok).toBe(false);
+    expect((await db.paymentClaim.findUnique({ where: { id: c.claimId } }))?.status).toBe("waiting");
+
+    const w2 = await world();
+    const c2 = await claim(w2);
+    expect((await withdrawClaim(c2.claimId, w2.r)).ok).toBe(true);
+    expect((await db.paymentClaim.findUnique({ where: { id: c2.claimId } }))?.status).toBe("withdrawn");
+  });
+
   it("a name-only person can't confirm, so no claim is made to them (the caller records a payment instead)", async () => {
     const w = await world();
     const g = await db.member.create({ data: { groupId: w.gid, name: "Dev" } });

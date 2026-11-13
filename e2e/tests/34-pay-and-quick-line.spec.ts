@@ -93,6 +93,9 @@ test("pay buttons, payment tracking and the quick line", async ({ browser }) => 
   await expect(ask.locator("[data-waiting='Ravi']")).toContainText("Ravi says they paid you ₹500");
   await ask.getByRole("button", { name: "Confirm received" }).click();
   await A.waitForURL(/ok=1/);
+  // The question is gone once answered: checked on the plain Settle page (the ok=1 page is the "Payment recorded" screen, which never had it).
+  await A.goto(`${g.path}/settle`);
+  await settled(A);
   await expect(A.getByRole("region", { name: "Did you get these?" })).toHaveCount(0);
   expect(await payments()).toBe(1);
   await A.goto(`${g.path}?tab=activity`);
