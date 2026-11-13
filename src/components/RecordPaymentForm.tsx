@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { recordCustomPayment } from "@/app/actions";
 import { currencySign, groupDigits } from "@/lib/add-expense-sentence";
 import { recordButtonLabel } from "@/lib/pay-words";
@@ -46,6 +46,12 @@ export function RecordPaymentForm({
   const [to, setTo] = useState(defaultTo);
   const [amount, setAmount] = useState(defaultAmount);
   const [focused, setFocused] = useState(false);
+  // Commas are dropped while the amount is being edited, which rewrites the box. Selecting the whole amount straight after
+  // keeps "tap, then type the new amount" working: without it the rewrite drops the selection and new digits land after the old ones (1082.50 → 1082.50541).
+  const amountRef = useRef<HTMLInputElement>(null);
+  useLayoutEffect(() => {
+    if (focused) amountRef.current?.select();
+  }, [focused]);
   // Folded away until tapped; From and To open independently. With nobody picked to be paid yet, the To list starts open.
   // (A submit with To empty opens it and says so, since a folded-away choice can't be focused.)
   const [open, setOpen] = useState<"from" | "to" | null>(defaultTo ? null : "to");
@@ -173,6 +179,7 @@ export function RecordPaymentForm({
               {currencySign(currency)}
             </span>
             <input
+              ref={amountRef}
               name="amount"
               required
               inputMode="decimal"
