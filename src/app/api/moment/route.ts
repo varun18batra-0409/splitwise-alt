@@ -63,23 +63,23 @@ export async function POST(req: Request) {
 
   // The two copies: type, size, dimensions, and hidden details removed (a photo that can't be checked for sure is refused).
   const read = async (f: FormDataEntryValue | null, max: number, side: number) => {
-    if (!(f instanceof Blob)) return { error: BAD_PHOTO, status: 400 } as const;
-    if (f.size > max) return { error: "That photo is too big.", status: 413 } as const;
+    if (!(f instanceof Blob)) return { ok: false, error: BAD_PHOTO, status: 400 } as const;
+    if (f.size > max) return { ok: false, error: "That photo is too big.", status: 413 } as const;
     const raw = new Uint8Array(await f.arrayBuffer());
     const type = photoType(raw);
-    if (type !== "image/jpeg" && type !== "image/webp") return { error: BAD_PHOTO, status: 415 } as const;
-    if (type === "image/webp" && isAnimatedWebp(raw)) return { error: BAD_PHOTO, status: 415 } as const; // a moment is a still photo
+    if (type !== "image/jpeg" && type !== "image/webp") return { ok: false, error: BAD_PHOTO, status: 415 } as const;
+    if (type === "image/webp" && isAnimatedWebp(raw)) return { ok: false, error: BAD_PHOTO, status: 415 } as const; // a moment is a still photo
     const clean = cleanPhoto(raw);
-    if (!clean) return { error: "We couldn’t check that photo for hidden details (like where it was taken). Try another one.", status: 415 } as const;
-    if (clean.length > max) return { error: "That photo is too big.", status: 413 } as const;
+    if (!clean) return { ok: false, error: "We couldn’t check that photo for hidden details (like where it was taken). Try another one.", status: 415 } as const;
+    if (clean.length > max) return { ok: false, error: "That photo is too big.", status: 413 } as const;
     const size = imageSize(clean);
-    if (!size || Math.max(size.width, size.height) > side) return { error: BAD_PHOTO, status: 415 } as const;
-    return { bytes: clean, type, size } as const;
+    if (!size || Math.max(size.width, size.height) > side) return { ok: false, error: BAD_PHOTO, status: 415 } as const;
+    return { ok: true, bytes: clean, type, size } as const;
   };
   const full = await read(form.get("full"), MOMENT_FULL_MAX, MOMENT_FULL_SIDE);
-  if ("error" in full) return fail(full.error, full.status);
+  if (!full.ok) return fail(full.error, full.status);
   const thumb = await read(form.get("thumb"), MOMENT_THUMB_MAX, MOMENT_THUMB_SIDE);
-  if ("error" in thumb) return fail(thumb.error, thumb.status);
+  if (!thumb.ok) return fail(thumb.error, thumb.status);
 
   // Both files, or neither: with file storage connected, a failed upload is never kept in the database instead.
   const stored: { blobKey: string; data: Uint8Array<ArrayBuffer> }[] = [];
