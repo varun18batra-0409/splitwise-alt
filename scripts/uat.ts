@@ -2187,7 +2187,7 @@ async function main() {
     await V.getByRole("button", { name: "Add bill" }).click();
     await V.waitForURL(/tab=bills&saved=bill/);
     const t = (await V.locator("main").innerText()).replace(/\s+/g, " ");
-    assert(/repeats on the day/.test(t) && /Rent/.test(t) && /Electricity/.test(t), `Bills tab says: ${t.slice(0, 200)}`);
+    assert(/repeats? on the day/.test(t) && /Rent/.test(t) && /Electricity/.test(t), `Bills tab says: ${t.slice(0, 200)}`);
     // Both start next month when their day has passed; for the test, make them due already.
     const thisMonth = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit" }).format(new Date()).slice(0, 7);
     await db.bill.updateMany({ where: { groupId: homeId() }, data: { startMonth: thisMonth, day: 1 } });
@@ -3142,7 +3142,7 @@ async function main() {
     await alertSays(V, /Zoya says they paid ₹500/);
     await go(V, collectPath);
     const paid = V.getByRole("region", { name: "Paid" });
-    await paid.getByText("Says paid").waitFor();
+    await paid.getByText("Says paid", { exact: true }).waitFor();
     await paid.getByRole("button", { name: "Confirm received" }).click();
     await V.waitForLoadState("networkidle").catch(() => undefined);
     await paid.getByText("Confirmed", { exact: true }).waitFor();

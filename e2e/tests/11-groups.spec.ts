@@ -22,7 +22,9 @@ test("a Home group opens on This month, with Bills · List · Activity", async (
   await page.goto(g.path);
   await settled(page);
   await expect(page.locator('a[aria-current="page"]')).toHaveText("This month");
-  for (const t of ["Bills", "List", "Activity"]) await expect(page.getByRole("link", { name: t, exact: true })).toBeVisible();
+  // The section tabs (the flat overview also has a "Bills" tile, so look in the tab bar).
+  const tabs = page.getByRole("navigation", { name: "Group sections" });
+  for (const t of ["Bills", "List", "Activity"]) await expect(tabs.getByRole("link", { name: t, exact: true })).toBeVisible();
 });
 
 test("a Couple group: split worked out from incomes (₹1,10,000 / ₹90,000 → 55 / 45)", async () => {
