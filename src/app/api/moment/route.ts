@@ -87,7 +87,7 @@ export async function POST(req: Request) {
     stored.push(await storePhoto("moment", full.bytes, full.type, { dbFallback: false }));
     stored.push(await storePhoto("moment", thumb.bytes, thumb.type, { dbFallback: false }));
   } catch (err) {
-    console.error("moment: upload failed", String(err).slice(0, 160));
+    console.error("moment: upload failed", Array.from(String(err)).slice(0, 160).join(""));
     await removePhotos(stored.map((s) => s.blobKey));
     return fail(SAVE_FAILED, 502);
   }
@@ -99,7 +99,7 @@ export async function POST(req: Request) {
       blobKey: stored[0].blobKey, thumbKey: stored[1].blobKey, data: stored[0].data, thumbData: stored[1].data, rid,
     });
   } catch (err) {
-    console.error("moment: save failed", String(err).slice(0, 160));
+    console.error("moment: save failed", Array.from(String(err)).slice(0, 160).join(""));
     await removePhotos(keys);
     return fail(SAVE_FAILED, 500);
   }

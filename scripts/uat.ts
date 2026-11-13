@@ -222,13 +222,13 @@ function watch(page: Page) {
   page.on("requestfinished", (r) => open.delete(r));
   page.on("requestfailed", (r) => open.delete(r));
   const keep = (t: string) => {
-    errs.push(t.slice(0, 160));
+    errs.push(Array.from(t).slice(0, 160).join(""));
     if (errs.length > 3) errs.shift();
   };
   page.on("pageerror", (e) => {
     keep(`pageerror ${String(e)}`);
     const where = page.url().replace(/^https?:\/\/[^/]+/, "").replace(/[?#].*$/, "");
-    const line = `${String(e).slice(0, 90)} | on ${where} | in ${stepNow.slice(0, 120)}`;
+    const line = `${Array.from(String(e)).slice(0, 90).join("")} | on ${where} | in ${Array.from(stepNow).slice(0, 120).join("")}`;
     pageCrashes.push(line);
     console.log("! page crash:", line);
   });

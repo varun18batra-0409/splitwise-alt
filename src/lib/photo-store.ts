@@ -26,7 +26,7 @@ export async function storePhoto(folder: "group" | "postcard" | "receipt" | "mom
     return { blobKey: key, data: EMPTY() };
   } catch (err) {
     if (opts.dbFallback === false) throw err;
-    console.error("photo store: kept in the database", String(err).slice(0, 160));
+    console.error("photo store: kept in the database", Array.from(String(err)).slice(0, 160).join(""));
     return asDb();
   }
 }
@@ -39,7 +39,7 @@ export async function readPhoto(row: { data: Uint8Array; blobKey?: string | null
     if (!r || r.statusCode !== 200 || !r.stream) return null;
     return new Uint8Array(await new Response(r.stream).arrayBuffer());
   } catch (err) {
-    console.error("photo store: read failed", String(err).slice(0, 160));
+    console.error("photo store: read failed", Array.from(String(err)).slice(0, 160).join(""));
     return null;
   }
 }
@@ -104,7 +104,7 @@ export async function flushPhotoDeletes(limit = 50, now = new Date()): Promise<{
       await del(todo.map((d) => d.key));
     } catch (err) {
       // "Not found" means it's already gone, which is what we wanted.
-      if (!notFound(err)) error = String(err).slice(0, 160);
+      if (!notFound(err)) error = Array.from(String(err)).slice(0, 160).join("");
     }
     if (!error) {
       await db.blobTrash.deleteMany({ where: { key: { in: todo.map((d) => d.key) } } });
@@ -118,8 +118,8 @@ export async function flushPhotoDeletes(limit = 50, now = new Date()): Promise<{
     }
     result.failed = todo.length;
   } catch (err) {
-    console.error("photo store: clean-up failed", String(err).slice(0, 160));
-    result.error = String(err).slice(0, 160);
+    console.error("photo store: clean-up failed", Array.from(String(err)).slice(0, 160).join(""));
+    result.error = Array.from(String(err)).slice(0, 160).join("");
     result.failed = Math.max(result.failed, 1);
   }
   return result;
@@ -139,7 +139,7 @@ export async function removePhotos(keys: (string | null | undefined)[]) {
     const { db } = await import("./db");
     await queuePhotoDeletes(db, list);
   } catch (err) {
-    console.error("photo store: couldn't queue delete", String(err).slice(0, 160));
+    console.error("photo store: couldn't queue delete", Array.from(String(err)).slice(0, 160).join(""));
     return;
   }
   await flushPhotoDeletes();
