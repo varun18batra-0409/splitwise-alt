@@ -10,6 +10,7 @@ import { loadDeletedGroups } from "@/lib/group-data";
 import { restoreGroup } from "@/app/actions";
 import { Notice } from "@/components/Notice";
 import { GroupSearch } from "@/components/GroupSearch";
+import { ScrollToOnMount } from "@/components/ScrollToOnMount";
 import { ExpenseGlyph } from "@/components/ExpenseGlyph";
 import { ChevronRight, PlusIcon } from "@/components/icons";
 import { myCollections } from "@/lib/collect";
@@ -69,6 +70,7 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
         </Notice>
       )}
       {justDeleted && deletedBlock}
+      {justDeleted && deletedBlock && <ScrollToOnMount id="deleted" />}
       {!account && live.length + closed.length > 0 && <PhoneOnlyNote plural className="mb-4" />}
       {live.length > 6 && <GroupSearch />}
       {live.length === 0 ? (
