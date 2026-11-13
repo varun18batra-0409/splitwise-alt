@@ -8,7 +8,7 @@ import { GROUP_TYPES, sharingInputs } from "@/lib/group-types";
 import { StaysGoes } from "@/components/StaysGoes";
 import { deleteText } from "@/lib/leave-text";
 import { ConfirmButton } from "@/components/ConfirmButton";
-import { currencyInfo, formatMoney, formatPercent, isSupportedCurrency, toInputAmount } from "@/lib/money";
+import { formatMoney, formatPercent, isSupportedCurrency, toInputAmount } from "@/lib/money";
 import { getRate } from "@/lib/rate-cache";
 import { niceDate } from "@/lib/format";
 import Link from "@/components/Link";
@@ -72,7 +72,6 @@ export default async function GroupSettings({
   if (convert && isSupportedCurrency(convert) && convert !== group.currency) {
     const live = await getRate(group.currency, convert);
     const total = group.expenses.reduce((s, e) => s + e.amount, 0);
-    const to = currencyInfo(convert);
     return (
       <>
         <PageHeader title="Change group currency" back={`/groups/${group.id}/settings`} />
@@ -80,7 +79,7 @@ export default async function GroupSettings({
         <p className="mb-6 text-gray-600">
           Switching from <strong>{group.currency}</strong> to{" "}
           <strong>
-            {to.flag} {convert}
+            {convert}
           </strong>
           . Every amount in the group ({group._count.expenses ? `${group._count.expenses} expense${group._count.expenses === 1 ? "" : "s"}, ` : ""}
           {group._count.payments ? `${group._count.payments} payment${group._count.payments === 1 ? "" : "s"}, ` : ""}bills, budgets, goals, the deposit and card
@@ -185,14 +184,14 @@ export default async function GroupSettings({
             {PRESETS.map((bp) => (
               <label
                 key={bp}
-                className="flex items-center justify-center rounded-xl border border-gray-200 py-3 text-sm font-medium has-[:checked]:border-accent has-[:checked]:bg-accent-soft has-[:checked]:text-accent-dark"
+                className="flex items-center justify-center rounded-xl border border-gray-200 py-3 text-sm font-medium has-[:checked]:border-fg has-[:checked]:bg-accent-soft has-[:checked]:shadow-[inset_0_0_0_0.5px_var(--color-fg)] has-[:checked]:text-fg"
               >
                 <input type="radio" name="markup" value={String(bp)} defaultChecked={bp === group.cardMarkupBp} className="sr-only" />
                 {formatPercent(bp)}
               </label>
             ))}
           </div>
-          <label className="mt-2 flex items-center gap-3 rounded-xl border border-gray-200 px-4 py-3 has-[:checked]:border-accent has-[:checked]:bg-accent-soft">
+          <label className="mt-2 flex items-center gap-3 rounded-xl border border-gray-200 px-4 py-3 has-[:checked]:border-fg has-[:checked]:bg-accent-soft has-[:checked]:shadow-[inset_0_0_0_0.5px_var(--color-fg)]">
             <input type="radio" name="markup" value="custom" defaultChecked={!isPreset} className="h-5 w-5 accent-[var(--color-accent)]" />
             <span className="text-sm font-medium">Custom</span>
             <span className="ml-auto flex items-center gap-1">
@@ -301,7 +300,7 @@ export default async function GroupSettings({
         </section>
 
         {/* The one Save for everything above */}
-        <div className="sticky bottom-[calc(6rem+env(safe-area-inset-bottom))] z-10">
+        <div className="sticky bottom-[max(1rem,env(safe-area-inset-bottom))] z-10">
           <button type="submit" className={primaryButtonClass}>
             Save settings
           </button>
@@ -347,7 +346,7 @@ export default async function GroupSettings({
           <StaysGoes text={deleteText()} label="What stays, what goes" />
           <ConfirmButton
             message={`Delete “${group.name}” for everyone? It can be restored for 30 days.`}
-            className="w-full rounded-full border border-red-500/40 px-5 py-3.5 text-center text-base font-medium text-red-400 active:bg-red-500/10"
+            className="mx-auto block min-h-11 px-4 py-2 text-center text-sm text-fg/75 underline underline-offset-4 active:text-fg"
           >
             Delete group
           </ConfirmButton>

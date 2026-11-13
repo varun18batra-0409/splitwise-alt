@@ -54,7 +54,7 @@ export default async function FriendsPassports({ searchParams }: { searchParams:
         <p className="py-6 text-center text-sm text-gray-500">Nobody matches “{q}”.</p>
       ) : owners.length === 0 ? (
         <div className="rounded-2xl bg-mist px-5 py-8 text-center">
-          <span aria-hidden className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-owed/40 text-owed">
+          <span aria-hidden className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-fg/25 text-fg/75">
             <PeoplePassportsIcon size={26} />
           </span>
           <p className="mt-2 font-semibold">No friends here yet</p>

@@ -103,7 +103,7 @@ export function SettleRow({
   dataRow?: string;
   data?: Record<string, string>; // e.g. { "data-transfer": "paid" }
 }) {
-  const border = tint === "owe" ? "border-owe/25 bg-[linear-gradient(180deg,rgba(255,171,107,0.07),rgba(255,171,107,0.02))]" : tint === "mine" ? "border-line bg-white" : "border-line";
+  const border = tint === "owe" ? "border-line bg-white" : tint === "mine" ? "border-line bg-white" : "border-line";
   const amountColor = tone === "owed" ? "text-owed" : tone === "owe" ? "text-owe" : "text-fg/80";
   return (
     <li id={id} className={`scroll-mt-6 rounded-[22px] border px-4 py-3.5 ${border}`} data-transfer-row={dataRow} {...data}>

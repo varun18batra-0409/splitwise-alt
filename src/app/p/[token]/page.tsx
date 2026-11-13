@@ -29,7 +29,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 function Mark({ tone }: { tone: "ok" | "wait" | "rest" }) {
-  const ring = tone === "ok" ? "text-owed" : tone === "wait" ? "text-[#d8bd7a]" : "text-fg/60";
+  const ring = tone === "ok" ? "text-owed" : tone === "wait" ? "text-fg/75" : "text-fg/60";
   return (
     <span aria-hidden className={`lp-pop-in relative mx-auto flex h-16 w-16 items-center justify-center rounded-full ${ring}`}>
       <svg viewBox="0 0 64 64" className="absolute inset-0 h-full w-full" fill="none" stroke="currentColor" strokeWidth="2">
@@ -116,7 +116,6 @@ async function Owes({ s, money, to, from, token, undone }: { s: Shown; money: st
   return (
     <>
       <section aria-label="What you owe" className="vault lp-rise relative overflow-hidden rounded-[24px] px-6 pb-6 pt-6" data-paylink="owes">
-        <span aria-hidden className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-[radial-gradient(closest-side,rgba(111,227,168,0.18),transparent)]" />
         <p className="font-hand text-[24px] font-bold leading-none text-fg/75">{to} is asking</p>
         <p className="mt-3 money text-[52px] font-semibold leading-none tracking-tight tabular-nums" data-paylink-amount>
           {money}
@@ -128,7 +127,7 @@ async function Owes({ s, money, to, from, token, undone }: { s: Shown; money: st
 
       {undone && <p className="mt-4 rounded-xl bg-mist px-4 py-3 text-sm text-gray-500">Done, it’s taken back. Tap I’ve paid again once you’ve paid.</p>}
       {s.declined && !undone && (
-        <p role="status" className="mt-4 rounded-xl border border-owe/30 bg-owe-soft px-4 py-3 text-sm" data-paylink-declined>
+        <p role="status" className="mt-4 rounded-xl border border-line bg-white px-4 py-3 text-sm" data-paylink-declined>
           {to} hasn’t received it yet. Check your payment app, then tap I’ve paid again.
         </p>
       )}

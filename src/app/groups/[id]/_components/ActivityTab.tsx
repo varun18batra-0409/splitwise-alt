@@ -64,7 +64,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
   if (all.length === 0) {
     return (
       <div className="vault relative overflow-hidden rounded-[22px] px-6 py-9 text-center">
-        <span aria-hidden className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-[#d8bd7a]/45 text-[#e8d29a]">
+        <span aria-hidden className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-fg/25 text-fg/75">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
             <path d="M6 3h12v18l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4L6 21ZM9 8h6M9 11.5h6M9 15h4" />
           </svg>
@@ -132,7 +132,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                 ).map(([id, label]) => (
                   <label key={id || "all"} className="cursor-pointer">
                     <input type="radio" name="type" value={id} defaultChecked={(filter.type ?? "") === id} className="peer sr-only" />
-                    <span className="block rounded-full border border-line px-3 py-1.5 text-sm text-gray-500 peer-checked:border-fg peer-checked:bg-accent-soft peer-checked:text-fg">
+                    <span className="block rounded-full border border-line px-3 py-1.5 text-sm text-fg/55 peer-checked:border-fg peer-checked:bg-accent-soft peer-checked:shadow-[inset_0_0_0_0.5px_var(--color-fg)] peer-checked:text-fg">
                       {label}
                     </span>
                   </label>

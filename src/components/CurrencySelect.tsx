@@ -13,7 +13,7 @@ export function CurrencySelect({ name, defaultValue, disabled, label = "Currency
           const c = currencyInfo(code);
           return (
             <option key={code} value={code}>
-              {c.flag} {code} — {c.name}
+              {code} — {c.name}
             </option>
           );
         })}
@@ -21,7 +21,7 @@ export function CurrencySelect({ name, defaultValue, disabled, label = "Currency
       <optgroup label="All currencies">
         {CURRENCIES.filter((c) => !BASE_CURRENCIES.includes(c.code)).map((c) => (
           <option key={c.code} value={c.code}>
-            {c.flag} {c.code} — {c.name}
+            {c.code} — {c.name}
           </option>
         ))}
       </optgroup>

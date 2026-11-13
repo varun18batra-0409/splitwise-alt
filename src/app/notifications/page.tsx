@@ -99,7 +99,7 @@ export default async function Notifications() {
             </div>
           )}
           {needs.items.length > 0 && (
-            <ul className="divide-y divide-line rounded-2xl border border-owe/30 bg-owe/[0.05]">
+            <ul className="divide-y divide-line rounded-[20px] border border-line bg-white">
               {needs.items.map((it) => (
                 <li key={it.id} data-need={it.kind}>
                   <Link href={it.href} className="flex items-center gap-3 px-4 py-3 active:bg-mist">
@@ -144,7 +144,7 @@ export default async function Notifications() {
             role="switch"
             aria-checked={account.collectPush}
             aria-label="Collection notifications on this phone"
-            className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${account.collectPush ? "bg-meter-up" : "bg-fg/15"}`}
+            className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${account.collectPush ? "bg-fg" : "bg-fg/15"}`}
           >
             <span className={`absolute top-1 h-5 w-5 rounded-full bg-canvas transition-all ${account.collectPush ? "left-6" : "left-1"}`} />
           </button>
@@ -167,7 +167,7 @@ export default async function Notifications() {
                     return (
                       <li key={note.id}>
                         <Link href={note.url} className="flex gap-3 py-3 active:bg-gray-50">
-                          <span aria-hidden className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-owed/[0.12] text-owed ring-1 ring-inset ring-owed/15 ${note.seenAt ? "opacity-70" : ""}`}>
+                          <span aria-hidden className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-mist text-fg/75 ${note.seenAt ? "opacity-70" : ""}`}>
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
                               {note.kind === "collect_reminder" ? (
                                 <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0" />
@@ -186,7 +186,7 @@ export default async function Notifications() {
                             </span>
                             <span className="mt-0.5 block text-xs text-gray-400">{note.kind.startsWith("passport_") ? "Passport" : "Collection"} · {time(note.createdAt)}</span>
                           </span>
-                          {!note.seenAt && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-owe" aria-label="New" />}
+                          {!note.seenAt && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-fg" aria-label="New" />}
                         </Link>
                       </li>
                     );
@@ -223,7 +223,7 @@ export default async function Notifications() {
                             {n.groupName} · {time(n.event.createdAt)}
                           </span>
                         </span>
-                        {n.unread && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-owe" aria-label="New" />}
+                        {n.unread && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-fg" aria-label="New" />}
                       </Link>
                     </li>
                   );

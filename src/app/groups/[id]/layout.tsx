@@ -1,23 +1,13 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { groupTint, tintStyle } from "@/lib/tint";
 
 // Every screen of a group. A deleted group's screens (reached with the phone's
 // back button or swipe after deleting it) go to Your groups (Recently deleted), where it can be restored,
 // instead of a "not available" page.
-// Each group's screens take the colour of its picture (lib/tint.ts): the page behind
-// everything, the cards and the lines, all a deep shade of it.
+// Every group page is Loopin's one calm page (#0d0d0f): no per-group colour.
 export default async function GroupLayout({ children, params }: { children: React.ReactNode; params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const g = await db.group.findUnique({ where: { id }, select: { id: true, deletedAt: true, name: true, type: true, cover: true, coverAt: true, tripPlace: true } });
+  const g = await db.group.findUnique({ where: { id }, select: { id: true, deletedAt: true } });
   if (g?.deletedAt) redirect("/groups?deleted=gone");
-  const tint = g ? groupTint(g) : null;
-  if (!tint) return children;
-  return (
-    <div style={tintStyle(tint)} data-tint={tint.hue} className="min-h-dvh bg-canvas">
-      {/* The tinted page behind the whole screen (fixed, so it fills past the content too). */}
-      <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 bg-canvas" />
-      {children}
-    </div>
-  );
+  return children;
 }

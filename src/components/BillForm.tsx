@@ -101,7 +101,7 @@ export function BillForm({
   }
 
   const chip = (on: boolean) =>
-    `rounded-full border px-3.5 py-2 text-sm ${on ? "border-fg bg-accent-soft font-semibold text-fg" : "border-line text-fg"}`;
+    `rounded-full border px-3.5 py-2 text-sm ${on ? "border-fg bg-accent-soft shadow-[inset_0_0_0_0.5px_var(--color-fg)] font-semibold text-fg" : "border-line text-fg/55"}`;
   const amountNum = parseAmount(amount, currency) ?? 0; // smallest units
   const people = split === "some" ? ids.length : members.length;
   const dayText = day >= 31 ? "on the last day" : `on the ${DAYS.find((d) => d[0] === day)?.[1] ?? `${day}th`}`;
@@ -138,7 +138,7 @@ export function BillForm({
                 aria-pressed={template === t.id}
                 onClick={() => pick(t.id)}
                 className={`flex h-[76px] flex-col items-center justify-center gap-1.5 rounded-[14px] border text-xs ${
-                  template === t.id ? "border-fg bg-accent-soft font-semibold" : t.id === "other" ? "border-dashed border-gray-300" : "border-line bg-white"
+                  template === t.id ? "border-fg bg-accent-soft shadow-[inset_0_0_0_0.5px_var(--color-fg)] font-semibold" : t.id === "other" ? "border-dashed border-gray-300" : "border-line bg-white"
                 }`}
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -175,7 +175,7 @@ export function BillForm({
                 setNature(id);
                 if (id !== "fixed" && split === "amounts") setSplit("percent");
               }}
-              className={`rounded-full py-2.5 text-[13px] ${nature === id ? "bg-fg font-semibold text-canvas" : "text-gray-500"}`}
+              className={`rounded-full py-2.5 text-[13px] ${nature === id ? "shadow-[inset_0_0_0_1.5px_var(--color-fg)] font-semibold text-fg" : "text-gray-500"}`}
             >
               {label}
             </button>

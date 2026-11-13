@@ -39,8 +39,8 @@ export function CollectionsSection({ list, limit, total, className = "mt-8" }: {
                   <span className="shrink-0 text-sm font-semibold tabular-nums">Confirmed {formatMoney(p.confirmedAmount, c.currency)}</span>
                 </span>
                 <span className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-fg/[0.08]">
-                  <span className="lp-bar-x block h-full bg-meter-up" style={{ width: `${Math.max(bar.confirmedPct, p.checked ? 4 : 0)}%` }} />
-                  <span className="block h-full bg-meter-up/35" style={{ width: `${bar.reportedPct}%` }} />
+                  <span className="lp-bar-x block h-full bg-fg" style={{ width: `${Math.max(bar.confirmedPct, p.checked ? 4 : 0)}%` }} />
+                  <span className="block h-full bg-fg/25" style={{ width: `${bar.reportedPct}%` }} />
                 </span>
                 <span className="mt-1.5 flex justify-between gap-3 text-xs text-gray-400">
                   <span>

@@ -95,7 +95,7 @@ export function NewGroupForm({
                 type="button"
                 aria-pressed={type === t.id}
                 onClick={() => setType(t.id)}
-                className={`relative flex h-[156px] flex-col justify-between overflow-hidden rounded-[18px] border p-4 text-left ${type === t.id ? "border-fg bg-accent-soft" : "border-line bg-white"}`}
+                className={`relative flex h-[156px] flex-col justify-between overflow-hidden rounded-[18px] border p-4 text-left ${type === t.id ? "border-fg bg-accent-soft shadow-[inset_0_0_0_0.5px_var(--color-fg)]" : "border-line bg-white"}`}
               >
                 <span aria-hidden className="absolute -right-1.5 top-2.5 h-[60px] w-[46px] rotate-[9deg] overflow-hidden rounded-[4px] border-[3px] border-fg shadow-lg shadow-black/50">
                   <GroupCover kind={coverOf({ type: t.id })} uid={`type-${t.id}`} />
@@ -112,7 +112,7 @@ export function NewGroupForm({
             )}
           </div>
           {type === "pot" && (
-            <p className="mt-3 rounded-xl border border-owed/25 bg-owed/[0.08] px-3.5 py-2.5 text-[13px] leading-snug text-fg/80">
+            <p className="mt-3 rounded-[20px] border border-line bg-white px-3.5 py-2.5 text-[13px] leading-snug text-fg/80">
               <strong className="font-semibold text-owed">{GAME_NIGHT}</strong> is for cards, board games or any game. Everyone puts chips in to play and takes home
               what’s left. Loopin works out who came out ahead, who came out behind and who pays whom. It never holds or moves money. {GAME_NOTE}
             </p>
@@ -191,7 +191,7 @@ export function NewGroupForm({
                 role="radio"
                 aria-checked={mode === id}
                 onClick={() => setMode(id)}
-                className={`rounded-full py-2.5 text-sm ${mode === id ? "bg-fg font-semibold text-canvas" : "text-gray-500"}`}
+                className={`rounded-full py-2.5 text-sm ${mode === id ? "shadow-[inset_0_0_0_1.5px_var(--color-fg)] font-semibold text-fg" : "text-gray-500"}`}
               >
                 {label}
               </button>

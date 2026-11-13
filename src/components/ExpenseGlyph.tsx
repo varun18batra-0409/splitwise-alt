@@ -1,7 +1,7 @@
 import { expenseIcon } from "@/lib/expense-icons";
 
-// The picture next to an expense: a clean line icon on a softly tinted tile,
-// coloured by category (instead of a cartoon emoji). Which icon comes from the
+// The picture next to an expense: a clean line icon on a neutral tile
+// (#1f1f24, off-white at 75%, the same for every category). Which icon comes from the
 // same words as before ("Flight" → plane, "Chai" → cup), so nothing to relearn.
 
 type Glyph = keyof typeof PATHS;
@@ -61,18 +61,6 @@ const FROM_EMOJI: Record<string, Glyph> = {
   "📦": "receipt", "🏢": "landmark", "🍳": "food", "🃏": "cards",
 };
 
-// Soft tints per category (tile background at low strength, icon at full).
-export const CATEGORY_TINT: Record<string, string> = {
-  food: "#f5b562",
-  transport: "#7cc4ff",
-  accommodation: "#b79cff",
-  shopping: "#ff8fc7",
-  groceries: "#9fdc6a",
-  activities: "#5fdccb",
-  bills: "#ffd66b",
-  other: "#b9b4a8",
-};
-
 // Moving icons: each one moves its own way (a cup's steam rises, a bus bounces,
 // a gift's lid pops). Some icons are drawn in parts so just that part moves.
 // Only used while moving; the still icon is the plain drawing above.
@@ -127,7 +115,6 @@ export function ExpenseGlyph({
 }) {
   // `emoji`: a picture already chosen (a bill's type), else worked out from the name.
   const glyph = FROM_EMOJI[emoji ?? expenseIcon(title, category)] ?? FROM_EMOJI[expenseIcon(title, category)] ?? "receipt";
-  const tint = CATEGORY_TINT[category] ?? CATEGORY_TINT.other;
   // The flight on Home keeps its own long cruise, with wind streaks.
   const cruising = motion === "loop" && glyph === "plane";
   const parts = motion ? (PARTS[glyph] ?? [{ d: PATHS[glyph] }]) : [{ d: PATHS[glyph] }];
@@ -138,7 +125,7 @@ export function ExpenseGlyph({
       data-category={category}
       data-motion={motion}
       className={`relative flex shrink-0 items-center justify-center rounded-[14px] ${motion ? `overflow-hidden ${motion === "loop" ? "lp-mo-loop" : "lp-mo-once"}` : ""} ${className}`}
-      style={{ width: size, height: size, background: `${tint}1f`, color: tint, boxShadow: `inset 0 0 0 1px ${tint}26`, ...(motion ? ({ "--lp-d": `${delay}s` } as React.CSSProperties) : {}) }}
+      style={{ width: size, height: size, background: "#1f1f24", color: "rgb(244 242 236 / 0.75)", ...(motion ? ({ "--lp-d": `${delay}s` } as React.CSSProperties) : {}) }}
     >
       {cruising && (
         // Wind streaks blowing past, behind the plane (it flies up and to the right).

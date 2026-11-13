@@ -12,7 +12,7 @@ import { funTitles } from "@/lib/wrapped";
 import { explainAll } from "@/lib/explain";
 
 // Balances answers one question: who owes what, and why.
-// Paying (They’ve paid me, Part, Remind, Settle everything) lives on Settle up,
+// Paying (Mark paid, Part, Remind, Settle everything) lives on Settle up,
 // so it's in one place only. The group's details (other currencies, totals,
 // card fee) sit here rather than crowding the top of the group.
 export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; why?: string }) {

@@ -444,7 +444,7 @@ export function AddExpenseForm({
             role="radio"
             aria-checked={kind === id}
             onClick={() => setKind(id)}
-            className={`rounded-full py-2 text-sm font-semibold transition-colors ${kind === id ? "bg-fg text-canvas" : "text-fg/55"}`}
+            className={`rounded-full py-2 text-sm font-semibold transition-colors ${kind === id ? "shadow-[inset_0_0_0_1.5px_var(--color-fg)] text-fg" : "text-fg/55"}`}
           >
             {label}
           </button>
@@ -462,7 +462,6 @@ export function AddExpenseForm({
           aria-label={`Currency: ${cur.name}. Tap to change`}
           className="flex items-center gap-1.5 rounded-full bg-mist px-3 py-1.5 text-sm font-semibold active:scale-95"
         >
-          <span className="text-base leading-none">{cur.flag}</span>
           {currency}
           <svg aria-hidden width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" className="text-fg/50">
             <path d="m6 9 6 6 6-6" />
@@ -477,7 +476,7 @@ export function AddExpenseForm({
           aria-label="Amount"
           autoFocus={!initial?.name}
           size={Math.max(2, amount.length + 1)}
-          className="money mt-2 w-full bg-transparent text-center focus-visible:outline-none focus-visible:shadow-[inset_0_-1px_0_0_rgb(244_242_236/0.22)] text-[clamp(52px,17vw,72px)] leading-[1.05] text-fg caret-[var(--color-tint,var(--color-fg))] outline-none placeholder:text-fg/25"
+          className="money mt-2 w-full bg-transparent text-center focus-visible:outline-none focus-visible:shadow-[inset_0_-1px_0_0_rgb(244_242_236/0.22)] text-[clamp(52px,17vw,72px)] leading-[1.05] text-fg caret-fg outline-none placeholder:text-fg/25"
         />
         {/* How the typed amount was read ("12,50" → ₹12.50); nothing for plain digits. */}
         {echo && (
@@ -1097,7 +1096,7 @@ export function AddExpenseForm({
                                 type="button"
                                 aria-pressed={all}
                                 onClick={() => set({ people: all ? [] : [...memberIds] })}
-                                className={`min-h-9 rounded-full border px-3.5 text-[13px] font-medium ${all ? "border-fg bg-fg text-canvas" : "border-line text-fg/75"}`}
+                                className={`min-h-9 rounded-full border px-3.5 text-[13px] font-medium ${all ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] text-fg" : "border-line text-fg/75"}`}
                               >
                                 Everyone
                               </button>
@@ -1110,7 +1109,7 @@ export function AddExpenseForm({
                                   type="button"
                                   aria-pressed={on}
                                   onClick={() => set({ people: on ? it.people.filter((x) => x !== m.id) : [...it.people, m.id] })}
-                                  className={`min-h-9 rounded-full border px-3.5 text-[13px] font-medium ${on ? "border-fg bg-fg text-canvas" : "border-line text-fg/75"}`}
+                                  className={`min-h-9 rounded-full border px-3.5 text-[13px] font-medium ${on ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] text-fg" : "border-line text-fg/75"}`}
                                 >
                                   {who(m.id)}
                                 </button>
@@ -1356,7 +1355,7 @@ export function AddExpenseForm({
 
       {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
       {dup && (
-        <div role="status" className="rounded-2xl border border-[#5a3a20] bg-owe-soft px-4 py-3 text-sm">
+        <div role="status" className="rounded-[20px] border border-line bg-white px-4 py-3 text-sm">
           <p>
             Looks like “{dup.description} {base(dup.amount)}”, added {niceDate(dayKey(new Date(dup.when), tz))} by {dup.by}.
           </p>
@@ -1435,7 +1434,7 @@ function Segmented({
           type="button"
           onClick={() => onChange(o.id)}
           aria-pressed={o.id === value}
-          className={`nobreak rounded-full py-2 font-semibold ${options.length > 4 ? "px-0.5 text-[13px]" : "text-sm"} ${o.id === value ? "bg-fg text-canvas" : "text-fg/55"}`}
+          className={`nobreak rounded-full py-2 font-semibold ${options.length > 4 ? "px-0.5 text-[13px]" : "text-sm"} ${o.id === value ? "shadow-[inset_0_0_0_1.5px_var(--color-fg)] text-fg" : "text-fg/55"}`}
         >
           {o.label}
         </button>
@@ -1451,7 +1450,7 @@ function Chip({ on, onClick, children, face }: { on: boolean; onClick: () => voi
       onClick={onClick}
       aria-pressed={on}
       className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border text-sm transition-transform active:scale-95 ${face ? "py-1.5 pl-1.5 pr-4" : "px-4 py-2"} ${
-        on ? "border-fg bg-fg font-semibold text-canvas" : "border-line bg-mist font-medium text-fg/85"
+        on ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] font-semibold text-fg" : "border-line bg-mist font-medium text-fg/85"
       }`}
     >
       {face && (

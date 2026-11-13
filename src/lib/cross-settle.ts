@@ -171,11 +171,11 @@ export function crossSettle(
 
 // The opener on the all-groups Settle screen. Unlike a group's own "I’ve paid" (a claim the other person confirms),
 // this records straight away in every group, so it gets different words: "Record payment".
-export function crossActionLabel(net: number): "They’ve paid me" | "Record payment" | "Mark paid" {
-  return net > 0 ? "They’ve paid me" : net < 0 ? "Record payment" : "Mark paid";
+export function crossActionLabel(net: number): "Mark paid" | "Record payment" {
+  return net < 0 ? "Record payment" : "Mark paid";
 }
 
-// What "They’ve paid me" / "Record payment" is about to record, in words, before anything is saved.
+// What "Mark paid" / "Record payment" is about to record, in words, before anything is saved.
 // Each group's part is exact (in that group's own currency). Only the combined
 // total can be converted, so only the total carries ≈.
 export function crossPreview(item: CrossItem, common: string): { lines: string[]; total: string; text: string; button: string } {

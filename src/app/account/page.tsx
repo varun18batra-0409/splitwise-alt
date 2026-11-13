@@ -122,7 +122,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
       {/* The trip passport: a stamp for every trip. */}
       {account && (
         <Link href="/passport" className="mt-6 flex items-center gap-4 rounded-[20px] border border-line bg-white px-5 py-4 text-fg active:opacity-90">
-          <span aria-hidden className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-[#d8bd7a]/50 bg-[radial-gradient(circle_at_30%_25%,rgba(216,189,122,0.18),transparent_70%)] text-[#e8d29a]"><CompassIcon size={24} /></span>
+          <span aria-hidden className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-fg/25 text-fg/75"><CompassIcon size={24} /></span>
           <span className="min-w-0 flex-1">
             <span className="block font-display text-lg font-semibold">Your trip passport</span>
             <span className="block text-sm text-gray-500">A stamp for every place you’ve been</span>
@@ -133,7 +133,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
       {/* Postcards: their own row, right below the passport. */}
       {account && (
         <Link href="/postcards" className="mt-3 flex items-center gap-4 rounded-[20px] border border-line bg-white px-5 py-4 text-fg active:opacity-90" data-postcards-link>
-          <span aria-hidden className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-[#e9b9a0]/45 bg-[radial-gradient(circle_at_30%_25%,rgba(233,185,160,0.16),transparent_70%)] text-[#f0c9b2]">
+          <span aria-hidden className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-fg/25 text-fg/75">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="1.5" /><path d="M12 8v8M15 9h3.5v3.5H15zM5.5 10h4M5.5 13h4" /></svg>
           </span>
           <span className="min-w-0 flex-1">
@@ -145,7 +145,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
       )}
       {account && (
         <Link href="/passport/friends" className="mt-3 flex items-center gap-4 rounded-[20px] border border-line bg-white px-5 py-4 text-fg active:opacity-90">
-          <span aria-hidden className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-owed/40 bg-[radial-gradient(circle_at_30%_25%,rgba(111,227,168,0.16),transparent_70%)] text-owed"><PeoplePassportsIcon size={24} /></span>
+          <span aria-hidden className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-fg/25 text-fg/75"><PeoplePassportsIcon size={24} /></span>
           <span className="min-w-0 flex-1">
             <span className="block font-display text-lg font-semibold">Friends’ passports</span>
             <span className="block text-sm text-gray-500">Where friends in your groups have been</span>
@@ -279,7 +279,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             <PushEndpointField />
             <ConfirmButton
               message="Delete your sign-in, email, postcards and passkeys? Your groups stay on this phone and in each group’s history."
-              className="w-full rounded-full border border-red-500/40 px-5 py-3.5 text-center text-base font-medium text-red-400 active:bg-red-500/10"
+              className="mx-auto block min-h-11 px-4 py-2 text-center text-sm text-fg/75 underline underline-offset-4 active:text-fg"
             >
               Delete my email &amp; sign-in
             </ConfirmButton>

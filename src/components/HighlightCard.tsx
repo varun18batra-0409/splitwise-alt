@@ -6,18 +6,20 @@ import type { Highlight, HighlightTone } from "@/lib/home/highlights";
 // One of the sliding cards at the top of Home: words on the left, a place
 // photo (or a small drawn object) on the right, one button.
 
+// One calm card for every tone: #16161a with a quiet off-white label (no per-card colour wash).
+const PLAIN = { bg: "#16161a", fade: "22,22,26", eyebrow: "#f4f2ec8c" };
 const TONE: Record<HighlightTone, { bg: string; fade: string; eyebrow: string }> = {
-  trip: { bg: "#0f1416", fade: "15,20,22", eyebrow: "#a8d8f0" },
-  sky: { bg: "#0d1b26", fade: "13,27,38", eyebrow: "#9fd3ff" },
-  warm: { bg: "#1d140e", fade: "29,20,14", eyebrow: "#e2bf95" },
-  teal: { bg: "#0f1d1c", fade: "15,29,28", eyebrow: "#8fd9c4" },
-  rose: { bg: "#1f1015", fade: "31,16,21", eyebrow: "#f0b2bf" },
-  night: { bg: "#120a10", fade: "18,10,16", eyebrow: "#ffc93c" },
-  paper: { bg: "#18150f", fade: "24,21,15", eyebrow: "#e6d3a3" },
+  trip: PLAIN,
+  sky: PLAIN,
+  warm: PLAIN,
+  teal: PLAIN,
+  rose: PLAIN,
+  night: PLAIN,
+  paper: PLAIN,
 };
 
 const button =
-  "inline-flex h-10 items-center self-start rounded-full border border-fg/25 bg-fg/[0.12] px-[18px] text-sm font-semibold text-fg backdrop-blur active:bg-fg/20";
+  "inline-flex h-10 items-center self-start rounded-full border border-fg/25 bg-transparent px-[18px] text-sm font-semibold text-fg active:bg-fg/10";
 
 export function HighlightCard({ h }: { h: Extract<Highlight, { kind: "card" }> }) {
   const t = TONE[h.tone];

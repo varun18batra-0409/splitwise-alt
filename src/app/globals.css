@@ -21,7 +21,7 @@
   --color-canvas: #0d0d0f; /* page background */
   --color-white: #16161a; /* cards, sheets, inputs */
   --color-mist: #1f1f24; /* raised: chips, hover, tracks */
-  --color-line: #2b2b31; /* hairlines */
+  --color-line: #26262c; /* hairlines */
   --color-fg: #f4f2ec; /* primary text (warm off-white) */
   --color-ink: #f4f2ec;
 
@@ -39,11 +39,11 @@
   /* Actions are monochrome (off-white on black), like CRED. Colour is kept for money. */
   --color-accent: #f4f2ec; /* buttons, links, focus, selection */
   --color-accent-dark: #f4f2ec; /* selected / emphasised text */
-  --color-accent-soft: #232328; /* selected background */
+  --color-accent-soft: #1f1f24; /* selected background */
   --color-owed: #6fe3a8; /* "owed to you" amounts */
-  --color-owed-soft: #11281d;
+  --color-owed-soft: #16161a; /* a plain card: no tinted boxes */
   --color-owe: #ffab6b; /* "you owe" text */
-  --color-owe-soft: #2e1e12;
+  --color-owe-soft: #16161a;
   --color-meter-up: #25a96f; /* bars: checked for colour-blind contrast on the dark surface */
   --color-meter-down: #d4782a;
   --color-lagoon: #0d0d0f;
@@ -143,28 +143,11 @@ fieldset {
   }
 }
 
-/* The balance card: smoked glass with a soft light from the top corner and a fine bright edge. */
+/* The plain card: #16161a with a 1px #26262c edge. No gradient, glow or bright rim. */
 .vault {
   position: relative;
-  background:
-    radial-gradient(120% 80% at 100% 0%, rgb(244 242 236 / 0.08), transparent 55%),
-    linear-gradient(165deg, #1c1c21 0%, #131316 75%);
-  border: 1px solid transparent;
-  background-clip: padding-box;
-}
-.vault::before {
-  content: "";
-  position: absolute;
-  inset: -1px;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(135deg, rgb(244 242 236 / 0.4), rgb(244 242 236 / 0.04) 45%, rgb(244 242 236 / 0.18));
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
+  background: #16161a;
+  border: 1px solid #26262c;
 }
 
 /* The one orchestrated moment: meter bars sweep out from zero when the page opens. */

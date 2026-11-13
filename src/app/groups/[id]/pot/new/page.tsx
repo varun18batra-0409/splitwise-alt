@@ -17,7 +17,7 @@ export default async function NewGamePage({ params, searchParams }: { params: Pr
   if (!myId || !group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
   if (group.type !== "pot") redirect(`/groups/${group.id}`);
   const chip =
-    "relative flex h-14 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-xl border border-line text-[13px] font-semibold has-[:checked]:border-fg has-[:checked]:bg-fg has-[:checked]:text-canvas has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent";
+    "relative flex h-14 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-xl border border-line text-[13px] font-semibold has-[:checked]:border-fg has-[:checked]:shadow-[inset_0_0_0_0.5px_var(--color-fg)] has-[:checked]:text-fg has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent";
   return (
     <>
       <PageHeader title="Start a game" back={`/groups/${group.id}`} />

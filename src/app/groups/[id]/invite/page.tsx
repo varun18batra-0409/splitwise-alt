@@ -101,7 +101,7 @@ export default async function AddPeoplePage({
   const box = "rounded-[20px] border border-line bg-mist/40 px-4 py-4";
   const step = (icon: React.ReactNode, title: string, hint: string) => (
     <div className="mb-3 flex items-start gap-3">
-      <span aria-hidden className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#d8bd7a]/40 text-[#e8d29a]">
+      <span aria-hidden className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-fg/25 text-fg/75">
         {icon}
       </span>
       <span>

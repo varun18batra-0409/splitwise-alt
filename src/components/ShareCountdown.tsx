@@ -88,7 +88,7 @@ export function ShareCountdown({ groupId, line, className }: { groupId: string; 
           setOpen(true);
         }}
         aria-haspopup="dialog"
-        className={className ?? "inline-flex h-8 items-center gap-1.5 rounded-full border border-fg/20 bg-fg/[0.08] px-3 text-xs font-semibold active:bg-fg/20"}
+        className={className ?? "inline-flex h-8 items-center gap-1.5 rounded-full border border-fg/25 bg-transparent px-3 text-xs font-semibold active:bg-fg/20"}
       >
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M16 6l-4-4-4 4M12 2v14" />
@@ -111,9 +111,10 @@ export function ShareCountdown({ groupId, line, className }: { groupId: string; 
             <p className="mt-1 text-sm text-fg/60">{words}</p>
             <div className="mt-5 space-y-2.5">
               <button type="button" onClick={whatsapp} disabled={busy !== ""} className={row}>
-                <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#25d366]/15 text-[#25d366]">
+                <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-mist text-fg/75">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                     <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5z" />
+                    <path d="M9.2 8.6c-.3.5-.2 1.4.6 2.7.9 1.4 1.9 2.3 3 2.8.8.3 1.4.1 1.6-.3l.2-.6-1.7-.8-.6.5c-.7-.3-1.4-1-1.8-1.7l.5-.6-.7-1.7z" />
                   </svg>
                 </span>
                 <span className="min-w-0 flex-1">
@@ -122,7 +123,7 @@ export function ShareCountdown({ groupId, line, className }: { groupId: string; 
                 </span>
               </button>
               <button type="button" onClick={inLoopin} disabled={busy !== ""} className={row}>
-                <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-owed/[0.14] text-owed">
+                <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-mist text-fg/75">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                     <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0" />
                   </svg>
@@ -138,7 +139,7 @@ export function ShareCountdown({ groupId, line, className }: { groupId: string; 
               {busy === "more" ? "Getting the picture…" : "Other apps (Instagram…) or save the picture"}
             </button>
             {note && (
-              <p role="status" className={`mt-4 rounded-xl px-4 py-3 text-sm ${note.ok ? "bg-owed/10 text-owed" : "bg-owe/10 text-owe"}`}>
+              <p role="status" className={`mt-4 rounded-xl px-4 py-3 text-sm ${note.ok ? "bg-mist text-fg" : "bg-mist text-owe"}`}>
                 {note.text}
               </p>
             )}

@@ -132,9 +132,10 @@ export function ShareSheet({
                 </div>
               )}
               <button type="button" onClick={whatsapp} disabled={busy !== ""} className="mt-5 flex w-full items-center gap-3.5 rounded-2xl border border-line px-4 py-3.5 text-left active:bg-mist disabled:opacity-60">
-                <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#25d366]/15 text-[#25d366]">
+                <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-mist text-fg/75">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                     <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5z" />
+                    <path d="M9.2 8.6c-.3.5-.2 1.4.6 2.7.9 1.4 1.9 2.3 3 2.8.8.3 1.4.1 1.6-.3l.2-.6-1.7-.8-.6.5c-.7-.3-1.4-1-1.8-1.7l.5-.6-.7-1.7z" />
                   </svg>
                 </span>
                 <span className="min-w-0 flex-1">

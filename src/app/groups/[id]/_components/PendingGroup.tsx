@@ -50,7 +50,7 @@ export function PendingGroup({ inv }: { inv: Invitation }) {
         <button type="submit" name="answer" value="join" className="pop block w-full bg-fg px-5 py-3.5 text-center text-base font-semibold text-canvas">
           Join {inv.groupName}
         </button>
-        <button type="submit" name="answer" value="later" className="block w-full rounded-full border border-fg/15 bg-fg/[0.06] px-5 py-3.5 text-center text-base font-semibold text-fg transition-transform active:scale-[0.97]">
+        <button type="submit" name="answer" value="later" className="block w-full rounded-full border border-fg/25 bg-transparent px-5 py-3.5 text-center text-base font-semibold text-fg transition-transform active:scale-[0.97]">
           Not now
         </button>
       </form>

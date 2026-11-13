@@ -126,7 +126,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
   const fit = messageFit(`${message}`, handDef?.size ?? 1, measure);
   const tile = (on: boolean) => `relative shrink-0 overflow-hidden rounded-[6px] transition-transform active:scale-95 ${on ? "outline outline-2 outline-offset-2 outline-fg" : "opacity-85"}`;
   const label = "mb-2.5 mt-6 block text-[13px] font-semibold text-fg/55";
-  const chip = (on: boolean) => `inline-flex h-9 shrink-0 items-center rounded-full border px-4 text-[13.5px] font-semibold transition-transform active:scale-95 ${on ? "border-fg bg-fg text-canvas" : "border-line bg-mist text-fg/85"}`;
+  const chip = (on: boolean) => `inline-flex h-9 shrink-0 items-center rounded-full border px-4 text-[13.5px] font-semibold transition-transform active:scale-95 ${on ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] text-fg" : "border-line bg-mist text-fg/85"}`;
 
   return (
     <form action={sendPostcardAction} data-allow-repeat="1">
@@ -180,7 +180,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
             ["send", "Send"],
           ] as const
         ).map(([id, l]) => (
-          <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`rounded-full py-2 text-sm font-semibold ${tab === id ? "bg-fg text-canvas" : "text-fg/55"}`}>
+          <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`rounded-full py-2 text-sm font-semibold ${tab === id ? "shadow-[inset_0_0_0_1.5px_var(--color-fg)] text-fg" : "text-fg/55"}`}>
             {l}
           </button>
         ))}

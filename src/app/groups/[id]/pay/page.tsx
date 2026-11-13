@@ -51,7 +51,7 @@ export default async function RecordPayment({
   const plain = (mid: string) => group.members.find((m) => m.id === mid)?.name ?? "Someone";
   const overLine = owes !== null && typed !== null ? overpayQuestion({ typed, limit: owes, side, currency: group.currency, fromName: plain(from), toName: plain(sp.to ?? "") }) : null;
   const cancelHref = `/groups/${group.id}/pay?${new URLSearchParams({ from, ...(to ? { to } : {}), amount: sp.amount ?? "", ...(fromSettle ? { back: "settle" } : {}) })}`;
-  const chip = "flex items-center gap-2 rounded-full border border-line bg-mist px-4 py-2 text-sm font-medium has-[:checked]:border-fg has-[:checked]:bg-fg has-[:checked]:font-medium has-[:checked]:text-canvas";
+  const chip = "flex items-center gap-2 rounded-full border border-line bg-mist px-4 py-2 text-sm font-medium has-[:checked]:border-fg has-[:checked]:shadow-[inset_0_0_0_0.5px_var(--color-fg)] has-[:checked]:font-medium has-[:checked]:text-fg";
 
   return (
     <>
@@ -124,7 +124,7 @@ export default async function RecordPayment({
           <button type="submit" tabIndex={-1} aria-hidden className="sr-only">
             Check and record
           </button>
-          <div role="alert" className="rounded-2xl border border-[#5a3a20] bg-owe-soft px-4 py-3 text-sm" data-over-warning>
+          <div role="alert" className="rounded-[20px] border border-line bg-white px-4 py-3 text-sm" data-over-warning>
             <p>{overLine}</p>
             <div className="mt-3 flex gap-2">
               <FocusOnShow><Link href={cancelHref} className="rounded-full bg-fg px-4 py-2 text-sm font-semibold text-canvas" data-over-cancel>

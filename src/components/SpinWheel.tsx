@@ -86,7 +86,7 @@ export function SpinWheel({ people, onPick, roomy = false }: { people: { id: str
         type="button"
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
-        className={`flex items-center gap-1.5 rounded-full border border-[#d8bd7a]/50 bg-[linear-gradient(180deg,rgba(216,189,122,0.16),rgba(216,189,122,0.06))] font-semibold ${roomy ? "min-h-11 px-4 text-sm" : "px-3 py-1.5 text-xs"} text-[#e8d29a] active:bg-[#d8bd7a]/20`}
+        className={`flex items-center gap-1.5 rounded-full border border-fg/25 bg-transparent font-semibold ${roomy ? "min-h-11 px-4 text-sm" : "px-3 py-1.5 text-xs"} text-fg active:bg-fg/10`}
       >
         <span className="motion-safe:animate-[spin_6s_linear_infinite]" aria-hidden>
           <WheelIcon size={15} />
@@ -101,7 +101,7 @@ export function SpinWheel({ people, onPick, roomy = false }: { people: { id: str
               aria-modal="true"
               aria-label="Spin the wheel"
               onClick={(e) => e.stopPropagation()}
-              className="sheet-enter relative w-full max-w-sm overflow-hidden rounded-[32px] border border-[#d8bd7a]/25 bg-[radial-gradient(120%_70%_at_50%_0%,#24242a_0%,#141417_60%,#0d0d0f_100%)] px-5 pb-6 pt-6 text-center"
+              className="sheet-enter relative w-full max-w-sm overflow-hidden rounded-[32px] border border-line bg-white px-5 pb-6 pt-6 text-center"
               style={{ color: INK }}
             >
               <button type="button" onClick={() => !spinning && setOpen(false)} aria-label="Close" className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full text-[#f7f4ec]/70 active:bg-white/10">
@@ -109,7 +109,7 @@ export function SpinWheel({ people, onPick, roomy = false }: { people: { id: str
                   <path d="M6 6l12 12M18 6 6 18" />
                 </svg>
               </button>
-              <p className="font-hand text-[24px] font-bold leading-none text-[#e8d29a]">Who pays?</p>
+              <p className="font-hand text-[24px] font-bold leading-none text-fg/75">Who pays?</p>
               <p className="mt-1 font-display text-[26px] font-semibold leading-tight">Let the wheel decide</p>
 
               <div className="relative mx-auto mt-5 aspect-square w-full max-w-[300px]">
@@ -165,7 +165,7 @@ export function SpinWheel({ people, onPick, roomy = false }: { people: { id: str
               <div className="mt-5 min-h-[64px]" role="status" aria-live="polite" data-spin-winner={win?.id ?? ""}>
                 {win ? (
                   <>
-                    <p className="font-hand text-[24px] font-bold leading-none text-[#e8d29a]">{you ? "Tonight it’s on you" : "Tonight’s payer"}</p>
+                    <p className="font-hand text-[24px] font-bold leading-none text-fg/75">{you ? "Tonight it’s on you" : "Tonight’s payer"}</p>
                     <p className="lp-slide-in mt-1 font-display text-[32px] font-semibold leading-tight">{win.label}</p>
                   </>
                 ) : (
@@ -184,7 +184,7 @@ export function SpinWheel({ people, onPick, roomy = false }: { people: { id: str
                   >
                     {you ? "Set yourself as payer" : `Set ${win.label} as payer`}
                   </button>
-                  <button type="button" onClick={spin} className="rounded-full border border-fg/18 bg-fg/[0.07] px-5 py-3.5 text-sm font-semibold text-fg active:scale-[0.97]">
+                  <button type="button" onClick={spin} className="rounded-full border border-fg/25 bg-transparent px-5 py-3.5 text-sm font-semibold text-fg active:scale-[0.97]">
                     Again
                   </button>
                 </div>

@@ -46,9 +46,9 @@ export function Insights({ d }: { d: InsightsData }) {
   const approx = d.converted ? "≈ " : "";
   const totalCat = d.categories.reduce((s, c) => s + Math.max(0, c.amount), 0);
   // Same look as the rest of Loopin: the group tabs' switch, off-white for what's chosen, green for money bars.
-  const pill = (on: boolean) => `flex-1 rounded-full py-2 text-center text-sm ${on ? "bg-fg font-semibold text-canvas" : "text-gray-500"}`;
+  const pill = (on: boolean) => `flex-1 rounded-full py-2 text-center text-sm ${on ? "shadow-[inset_0_0_0_1.5px_var(--color-fg)] font-semibold text-fg" : "text-gray-500"}`;
   const grainChip = (on: boolean) =>
-    `flex h-8 w-11 items-center justify-center rounded-full border text-xs font-semibold ${on ? "border-fg bg-fg text-canvas" : "border-line text-gray-500 active:bg-mist"}`;
+    `flex h-8 w-11 items-center justify-center rounded-full border text-xs font-semibold ${on ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] text-fg" : "border-line text-gray-500 active:bg-mist"}`;
 
   return (
     <section aria-label="Insights" className="mb-8">
@@ -164,7 +164,7 @@ export function Insights({ d }: { d: InsightsData }) {
               return (
                 <Link key={b.key} href={b.href} aria-label={`${bucketTitle(b.key, d.grain)}: ${signedMoney(b.value, d.currency)}`} className="group flex h-full flex-1 flex-col items-center justify-end">
                   <span
-                    className={`lp-bar-up w-full max-w-[30px] rounded-full ${on ? "bg-meter-up shadow-[0_0_22px_-4px_rgba(37,169,111,0.8)]" : "bg-fg/[0.13] group-active:bg-fg/25"}`}
+                    className={`lp-bar-up w-full max-w-[30px] rounded-full ${on ? "bg-fg" : "bg-fg/[0.13] group-active:bg-fg/25"}`}
                     style={{ height: `${h}px` }}
                   />
                   <span className={`mt-2 h-3 whitespace-nowrap text-[10px] leading-3 tracking-tight ${on ? "font-semibold text-fg" : "text-fg/60"}`}>{bucketLabel(b.key, d.grain)}</span>
@@ -197,7 +197,7 @@ export function Insights({ d }: { d: InsightsData }) {
                     </span>
                     <span className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-fg/[0.07]">
                       <span
-                        className={`lp-bar-x block h-full rounded-full ${n === 0 ? "bg-meter-up" : "bg-fg/30"}`}
+                        className={`lp-bar-x block h-full rounded-full ${n === 0 ? "bg-fg" : "bg-fg/30"}`}
                         style={{ width: `${Math.max(3, pct)}%` }}
                       />
                     </span>

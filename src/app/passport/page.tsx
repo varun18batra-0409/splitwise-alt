@@ -70,14 +70,14 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
       )}
 
       {moment && (
-        <section className="mb-4 rounded-[20px] border border-owed/30 bg-owed/[0.06] px-5 py-4" role="status" data-passport-moment={moment.id}>
+        <section className="mb-4 rounded-[20px] border border-line bg-white px-5 py-4" role="status" data-passport-moment={moment.id}>
           <p className="font-display text-xl font-semibold tracking-tight">{moment.title}</p>
           <p className="mt-1 text-sm text-gray-500">{moment.body.replace(/ Open (it|your passport) to see.*$/, "")}</p>
         </section>
       )}
 
       <Link href="/passport/friends" className="mb-4 flex items-center gap-3 rounded-2xl border border-line px-4 py-3 active:bg-mist" data-friends-link>
-        <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-owed/40 text-owed"><PeoplePassportsIcon size={18} /></span>
+        <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-fg/25 text-fg/75"><PeoplePassportsIcon size={18} /></span>
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold">Friends’ passports</span>
           <span className="block text-xs text-gray-500">Where friends in your groups have been</span>
@@ -154,7 +154,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
           ).map(([v, label]) => {
             const on = (passportShared(account) ? "groups" : "private") === v;
             return (
-              <button key={v} type="submit" name="share" value={v} aria-pressed={on} className={`rounded-full px-2 py-2.5 text-sm ${on ? "bg-fg font-semibold text-canvas" : "text-gray-500"}`}>
+              <button key={v} type="submit" name="share" value={v} aria-pressed={on} className={`rounded-full px-2 py-2.5 text-sm ${on ? "shadow-[inset_0_0_0_1.5px_var(--color-fg)] font-semibold text-fg" : "text-gray-500"}`}>
                 {label}
               </button>
             );

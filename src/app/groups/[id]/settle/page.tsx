@@ -99,7 +99,6 @@ export default async function GroupSettle({
       <PageHeader title="Settle up" back={`/groups/${group.id}?tab=balances`} />
       {/* How far the group is: a ring of what's been paid back so far, and how many payments are left. */}
       <div className="relative -mt-2 mb-7 flex items-center gap-5">
-        <span aria-hidden className="pointer-events-none absolute -left-24 -top-24 h-80 w-80 rounded-full bg-[radial-gradient(circle,rgba(111,227,168,0.14),transparent_65%)]" />
         <span className="relative h-[108px] w-[108px] shrink-0" role="img" aria-label={`${settledPct}% settled`} data-settled-pct={settledPct}>
           <svg width="108" height="108" viewBox="0 0 108 108" aria-hidden>
             <circle cx="54" cy="54" r="46" fill="none" stroke="var(--color-mist)" strokeWidth="9" />
@@ -150,7 +149,7 @@ export default async function GroupSettle({
 
       {/* Someone said they paid you. A new "I've paid" is a claim: nothing is in the balances until you confirm. */}
       {(claimsToMe.length > 0 || waiting.length > 0) && (
-        <section aria-label="Did you get these?" className="mb-6 rounded-[22px] border border-owed/40 bg-owed/[0.06] px-4 py-3.5">
+        <section aria-label="Did you get these?" className="mb-6 rounded-[20px] border border-line bg-white px-4 py-3.5">
           <h2 className="text-sm font-semibold">Did you get {claimsToMe.length + waiting.length === 1 ? "this" : "these"}?</h2>
           <ul className="mt-2 divide-y divide-line">
             {claimsToMe.map((c) => (
@@ -178,7 +177,7 @@ export default async function GroupSettle({
                 </div>
                 {/* More than what's owed now: ask once. Cancel comes first and has the focus. */}
                 {sp.overclaim === c.id && overClaim > 0 && (
-                  <div role="alert" className="mt-3 rounded-2xl border border-[#5a3a20] bg-owe-soft px-4 py-3 text-sm" data-over-warning>
+                  <div role="alert" className="mt-3 rounded-[20px] border border-line bg-white px-4 py-3 text-sm" data-over-warning>
                     <p>{overpayLine(overClaim, 0, c.currency, "Confirm anyway?")}</p>
                     <div className="mt-3 flex gap-2">
                       <a href={`/groups/${group.id}/settle`} autoFocus className="rounded-full bg-fg px-4 py-2 text-sm font-semibold text-canvas">
@@ -290,7 +289,7 @@ export default async function GroupSettle({
             } else if (plan.action === "claim") {
               if (notReceived) {
                 status = (
-                  <p className="rounded-xl border border-owe/30 bg-owe-soft px-3 py-2 text-sm" role="status" data-claim-declined={t.to}>
+                  <p className="rounded-xl border border-line bg-white px-3 py-2 text-sm" role="status" data-claim-declined={t.to}>
                     {declinedNote(receiver?.name ?? "They", notReceived.amount, notReceived.currency)}
                   </p>
                 );
@@ -301,8 +300,8 @@ export default async function GroupSettle({
                   <input type="hidden" name="fromId" value={t.from} />
                   <input type="hidden" name="toId" value={t.to} />
                   <input type="hidden" name="amount" value={t.amount} />
-                  <button type="submit" data-haptic="success" data-i-paid className={btn}>
-                    {label} {money(t.amount)}
+                  <button type="submit" data-haptic="success" data-i-paid className={btn} aria-label={`${label}: ${nameOf(t.from)} ${t.from === myId ? "pay" : "pays"} ${t.to === myId ? "you" : nameOf(t.to)} ${money(t.amount)}`}>
+                    {label}
                   </button>
                 </form>
               );
@@ -317,8 +316,8 @@ export default async function GroupSettle({
                   <input type="hidden" name="amount" value={toInputAmount(t.amount, group.currency)} />
                   <input type="hidden" name="back" value="settle" />
                   <FreshKey name="rid" />
-                  <button type="submit" data-haptic="success" data-mark-paid className={btn}>
-                    {label} {money(t.amount)}
+                  <button type="submit" data-haptic="success" data-mark-paid className={btn} aria-label={`${label}: ${nameOf(t.from)} ${t.from === myId ? "pay" : "pays"} ${t.to === myId ? "you" : nameOf(t.to)} ${money(t.amount)}`}>
+                    {label}
                   </button>
                 </form>
               );

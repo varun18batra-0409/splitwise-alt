@@ -111,7 +111,7 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
         </p>
         <ConfirmButton
           message={`Delete “${e.description}”? Everyone in the group will be notified.`}
-          className="w-full rounded-full border border-red-200 px-4 py-3.5 text-base font-semibold text-red-700 active:scale-[0.98] active:bg-red-50"
+          className="mx-auto block min-h-11 px-4 py-2 text-center text-sm text-fg/75 underline underline-offset-4 active:text-fg"
         >
           Delete expense
         </ConfirmButton>

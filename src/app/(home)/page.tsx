@@ -509,7 +509,7 @@ export default async function Home({
           </Link>
           <Link href="/account" aria-label={account ? `Account: ${account.email}` : "Sign in or account"} className={`relative glass ${iconButtonClass} h-11! w-11!`}>
             {account?.name ? <span className="text-[15px] font-bold">{account.name.trim().charAt(0).toUpperCase()}</span> : <PersonIcon size={20} />}
-            {account && <span className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-owed" aria-hidden />}
+            {account && <span className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-fg" aria-hidden />}
           </Link>
         </div>
       </header>
@@ -664,7 +664,7 @@ export default async function Home({
           {/* New here (one group, no expenses yet): a gentle pointer to the 1-minute tour. */}
           {open.length <= 1 && open.every((g) => g.expenseCount === 0) && (
             <Link href="/how-it-works" className="mt-6 flex items-center gap-3 rounded-2xl border border-line bg-mist px-4 py-3 text-sm active:bg-line">
-              <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#d8bd7a]/45 text-[#e8d29a]">
+              <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-fg/25 text-fg/75">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M8 5.5v13l10.5-6.5Z" />
                 </svg>
@@ -686,11 +686,8 @@ export default async function Home({
                   month && (
                     <div key="month">
 
-                <div className="relative flex h-[268px] flex-col overflow-hidden bg-[radial-gradient(90%_90%_at_90%_10%,#4a2c16_0%,transparent_60%),linear-gradient(160deg,#24170f_0%,#121014_75%)] px-5 pb-12 pt-5">
-                  <p aria-hidden className="absolute -right-3 -top-6 font-display text-[150px] font-semibold leading-none text-fg/[0.06]">
-                    {month.name.slice(0, 3)}
-                  </p>
-                  <p className="relative text-sm text-[#d9b38c]">{month.wrapped ? "Your month, wrapped" : "Your month so far"}</p>
+                <div className="relative flex h-[268px] flex-col overflow-hidden bg-white px-5 pb-12 pt-5">
+                  <p className="relative text-[13px] text-fg/55">{month.wrapped ? "Your month, wrapped" : "Your month so far"}</p>
                   <p className="relative mt-1 font-display text-[27px] font-semibold leading-[1.1]">{month.name} in numbers</p>
                   <div className="relative mt-auto flex flex-wrap items-end gap-x-4 gap-y-2 min-[360px]:gap-x-5" data-month-stats>
                     <p className="shrink-0">
@@ -756,7 +753,7 @@ function PotTeaser({ className = "" }: { className?: string }) {
 
 // The pill-shaped buttons on the sliding cards.
 const bannerButton =
-  "inline-flex h-10 items-center self-start rounded-full border border-fg/25 bg-fg/[0.12] px-[18px] text-sm font-semibold text-fg backdrop-blur active:bg-fg/20";
+  "inline-flex h-10 items-center self-start rounded-full border border-fg/25 bg-transparent px-[18px] text-sm font-semibold text-fg active:bg-fg/10";
 
 function greeting(now: Date, tz: string, name?: string | null): string {
   const h = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: tz }).format(now));

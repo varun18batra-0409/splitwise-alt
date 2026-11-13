@@ -34,7 +34,6 @@ export default async function SignIn({
         <>
           {/* Three trips, as polaroids tossed on the table: what Loopin is for, before a word is read. */}
           <div className="relative -mx-5 -mt-[max(1.5rem,env(safe-area-inset-top))] h-[420px] overflow-hidden pt-[max(1.2rem,env(safe-area-inset-top))] tight:h-[96px]" aria-hidden data-signin-header>
-            <span className="absolute left-1/2 top-24 h-[480px] tight:hidden w-[480px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(255,171,107,0.13),transparent_62%)]" />
             <p className="relative text-center font-display text-[26px] font-semibold leading-none tracking-tight">loopin</p>
             {SNAPS.map((p) => (
               <span key={p.caption} className={`lp-drop absolute block tight:hidden bg-[#f4f2ec] p-2 pb-9 shadow-[0_24px_50px_-10px_rgba(0,0,0,0.7)] ${p.spot}`} style={{ animationDelay: p.delay }}>
@@ -112,7 +111,7 @@ export default async function SignIn({
           </form>
           {/* A text link (or a quiet button once you have used it): it must never push Google and the email box down. */}
           <div className="mt-3">
-            <PasskeySignIn back={back} className="flex h-12 w-full items-center justify-center rounded-full border border-fg/15 bg-fg/[0.06] text-base font-semibold text-fg transition-transform active:scale-[0.97]" />
+            <PasskeySignIn back={back} className="flex h-12 w-full items-center justify-center rounded-full border border-fg/25 bg-transparent text-base font-semibold text-fg transition-transform active:scale-[0.97]" />
           </div>
         </>
       ) : (

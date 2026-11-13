@@ -142,9 +142,9 @@ describe("second currency", () => {
 });
 
 describe("the all-groups Settle opener uses different words from a group's claim", () => {
-  it("I owe: Record payment (it counts at once), never I’ve paid; owed to me: They’ve paid me", () => {
+  it("I owe: Record payment (it counts at once), never I’ve paid; owed to me: Mark paid", () => {
     expect(crossActionLabel(-20000)).toBe("Record payment");
-    expect(crossActionLabel(20000)).toBe("They’ve paid me");
+    expect(crossActionLabel(20000)).toBe("Mark paid");
     expect(crossActionLabel(0)).toBe("Mark paid");
   });
 

@@ -35,7 +35,7 @@ export default function Terms() {
       <h2 className={h}>What Loopin is (and isn’t)</h2>
       <ul className={ul}>
         <li>Loopin helps groups keep track of shared costs: who paid, who owes whom, and how to settle up.</li>
-        <li>It never holds, sends or receives money. It isn’t a bank, a wallet or a payment service. “I’ve paid” and “They’ve paid me” only record that a payment happened.</li>
+        <li>It never holds, sends or receives money. It isn’t a bank, a wallet or a payment service. “I’ve paid” and “Mark paid” only record that a payment happened.</li>
         <li>Balances are a record of what people in the group entered. Settling up is between you and the people you owe or who owe you.</li>
         <li>Loopin never reads your bank, cards, emails or messages. Repeating bills are added only because someone in the group set them up.</li>
       </ul>

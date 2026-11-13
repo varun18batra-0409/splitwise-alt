@@ -121,7 +121,7 @@ export default async function JoinPage({
             )}
             <Link
               href={`/signin?${new URLSearchParams({ back, ...(invitedEmail ? { e: invitedEmail } : {}) })}`}
-              className={googleConfigured() ? "flex h-14 w-full items-center justify-center rounded-full border border-fg/15 bg-fg/[0.06] text-base font-semibold text-fg transition-transform active:scale-[0.97]" : "pop flex h-14 w-full items-center justify-center bg-fg text-base font-semibold text-canvas"}
+              className={googleConfigured() ? "flex h-14 w-full items-center justify-center rounded-full border border-fg/25 bg-transparent text-base font-semibold text-fg transition-transform active:scale-[0.97]" : "pop flex h-14 w-full items-center justify-center bg-fg text-base font-semibold text-canvas"}
             >
               Continue with email
             </Link>

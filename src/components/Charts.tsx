@@ -42,7 +42,7 @@ export function ColumnChart({ title, data, total }: { title: string; data: BarDa
         {data.map((d) => (
           <div key={d.key} className="flex h-full flex-1 items-end" title={`${d.label}: ${d.valueText}`}>
             <div
-              className={`w-full rounded-t-[4px] ${d === peak ? "bg-meter-up" : "bg-meter-up/50"}`}
+              className={`w-full rounded-t-[4px] ${d === peak ? "bg-fg" : "bg-fg/55"}`}
               style={{ height: `${barSize(d.value, max)}%` }}
             />
           </div>
@@ -89,7 +89,7 @@ function BarRow({ d, max }: { d: BarDatum; max: number }) {
         </span>
       </div>
       <div className="h-2 rounded-full bg-mist">
-        <div className="h-2 rounded-r-[4px] rounded-l-full bg-meter-up" style={{ width: `${barSize(d.value, max)}%` }} />
+        <div className="h-2 rounded-r-[4px] rounded-l-full bg-fg/75" style={{ width: `${barSize(d.value, max)}%` }} />
       </div>
     </>
   );

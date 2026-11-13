@@ -26,7 +26,6 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
       <PageHeader title="Settle up" back="/" />
       {settleItems.length > 0 && (
         <div className="relative -mt-2 mb-6">
-          <span aria-hidden className="pointer-events-none absolute -left-24 -top-28 h-80 w-80 rounded-full bg-[radial-gradient(circle,rgba(111,227,168,0.14),transparent_65%)]" />
           <p className="relative font-display text-[34px] font-semibold leading-[1.04] tracking-[-0.02em]">
             {settleItems.length === 1 ? "One payment" : `${settleItems.length} payments`}
             {skippedLinks.length ? " to settle here" : " and you’re all square"}

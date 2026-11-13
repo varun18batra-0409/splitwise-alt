@@ -65,7 +65,7 @@ export function ActivityRow({
     // Wording lives in payment-words.ts: a payment only said (not yet confirmed) never reads "paid you" or "you received".
     return (
       <div className={`flex items-center gap-3.5 py-3.5 ${deleted ? "opacity-[.85]" : ""}`}>
-        <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-owed/[0.12] text-owed ring-1 ring-inset ring-owed/15">
+        <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-mist text-fg/75">
           <SettleIcon size={18} />
         </span>
         <div className="min-w-0 flex-1">

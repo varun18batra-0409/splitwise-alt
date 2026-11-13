@@ -63,7 +63,7 @@ export function PostcardShare({ front, back, name }: { front: FrontProps; back: 
   }
   return (
     <div>
-      <button type="button" onClick={share} disabled={busy} data-postcard-share className="flex h-12 w-full items-center justify-center gap-2 rounded-full border border-fg/18 bg-fg/[0.07] text-[15px] font-semibold active:scale-[0.97] disabled:opacity-60">
+      <button type="button" onClick={share} disabled={busy} data-postcard-share className="flex h-12 w-full items-center justify-center gap-2 rounded-full border border-fg/25 bg-transparent text-[15px] font-semibold active:scale-[0.97] disabled:opacity-60">
         <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
           <path d="M12 3v12M7 8l5-5 5 5M5 14v6h14v-6" />
         </svg>

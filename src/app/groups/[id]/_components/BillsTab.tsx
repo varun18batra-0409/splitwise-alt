@@ -7,10 +7,10 @@ import { billBadge, billHold, ordinalDay, type BillBadge } from "@/lib/home/bill
 import { niceDate } from "@/lib/format";
 import type { GroupView } from "./view";
 
-// Bill state chips: orange = needs you, gold = today, green = done, grey = off.
+// Bill state chips: orange = needs you, off-white = today, green = done, grey = off.
 const CHIP: Record<BillBadge["tone"], string> = {
   orange: "bg-owe/[0.14] text-owe",
-  gold: "bg-[#d8bd7a]/[0.16] text-[#e8d29a]",
+  gold: "bg-fg/[0.08] text-fg",
   green: "bg-owed/[0.14] text-owed",
   grey: "bg-fg/[0.08] text-fg/60",
 };

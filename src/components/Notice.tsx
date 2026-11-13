@@ -9,9 +9,9 @@ import { noticeIdentity } from "@/lib/notice-identity";
 // - remember: closing hides it on this phone until the key changes (used for
 //   "Recently deleted", which comes back only when another group is deleted).
 const TONES = {
-  info: "rounded-xl bg-mist px-4 py-3 text-fg",
-  success: "rounded-xl bg-owed/10 px-4 py-3 text-owed",
-  error: "rounded-xl bg-red-50 px-4 py-3 text-red-700",
+  info: "rounded-[20px] border border-line bg-white px-4 py-3 text-fg",
+  success: "rounded-[20px] border border-line bg-white px-4 py-3 text-fg",
+  error: "rounded-[20px] border border-line bg-white px-4 py-3 text-owe",
   plain: "",
 } as const;
 

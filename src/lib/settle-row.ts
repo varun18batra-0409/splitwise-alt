@@ -1,7 +1,7 @@
 // What one payment row on Settle up offers. The same rules everywhere:
 //   one FILLED main button  – "Open payment app" (I'm paying and they have one) or "Remind" (I'm owed)
 //   one OUTLINED action     – "I've paid" (a claim: counts after Confirm received), or the same words recorded straight away
-//                             where the other person can't confirm; "They've paid me" for money owed to me; "Mark paid" for others
+//                             where the other person can't confirm; "Mark paid" for money owed to me and for others
 //   one quiet text link     – "Paid a different amount?"
 // A row with no main button makes its one action the filled one. Never two buttons that look alike.
 
@@ -22,7 +22,7 @@ export type RowPlan = {
   main: "pay-app" | "remind" | null;
   action: "claim" | "record" | null;
   actionFilled: boolean; // the action is the row's one filled button
-  actionLabel: "I’ve paid" | "They’ve paid me" | "Mark paid" | null;
+  actionLabel: "I’ve paid" | "Mark paid" | null;
   status: "waiting" | "their-claim" | null;
   differentAmount: boolean; // show "Paid a different amount?"
   filledButtons: number; // how many filled buttons the row shows: never more than one
@@ -64,7 +64,7 @@ export function planSettleRow(f: RowFacts): RowPlan {
   else if (f.theirClaimWaiting) status = "their-claim";
   // Only my own action can be the filled one; "Mark paid" on a payment between two other people stays an outline button, so it never competes with mine.
   const actionFilled = action !== null && main === null && (f.iPay || f.iAmPaid);
-  const actionLabel = action === null ? null : f.iPay ? "I’ve paid" : f.iAmPaid ? "They’ve paid me" : "Mark paid";
+  const actionLabel = action === null ? null : f.iPay ? "I’ve paid" : "Mark paid";
   return {
     main,
     action,

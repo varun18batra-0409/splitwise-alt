@@ -1125,8 +1125,8 @@ async function main() {
     assert(/1 payment instead of 2/.test(t), "doesn't say 1 payment instead of 2");
     // Here a payment is recorded at once (unlike a group's own “I’ve paid” claim), so it never says “I’ve paid”.
     assert((await V.locator("main summary", { hasText: "I’ve paid" }).count()) === 0, "the all-groups Settle screen says “I’ve paid”");
-    // "They’ve paid me" (Varun is owed) opens a preview of each group's part and the total; only "Record in 2 groups" saves.
-    await card.locator("summary", { hasText: "They’ve paid me" }).click();
+    // "Mark paid" (Varun is owed) opens a preview of each group's part and the total; only "Record in 2 groups" saves.
+    await card.locator("summary", { hasText: "Mark paid" }).click();
     const lines = (await card.locator("[data-cross-lines]").innerText()).replace(/\s+/g, " ");
     assert(/UAT Flat: Asha pays you ₹500/.test(lines) && /UAT Dinner club: you pay Asha ₹300/.test(lines), `preview lines: ${lines}`);
     assert(/Together: Asha pays you ₹200/.test(await card.locator("[data-cross-total]").innerText()), "preview total isn't Asha pays you ₹200");

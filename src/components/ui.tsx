@@ -47,9 +47,9 @@ export const inputClass =
 export const primaryButtonClass =
   "pop block w-full bg-fg px-5 py-3.5 text-center text-base font-semibold text-canvas disabled:opacity-50";
 
-// The second choice: a quiet see-through pill.
+// The second choice: an outline pill (see-through, 1px off-white edge).
 export const secondaryButtonClass =
-  "block w-full rounded-full border border-fg/15 bg-fg/[0.06] px-5 py-3.5 text-center text-base font-semibold text-fg transition-transform active:scale-[0.97] active:bg-fg/10";
+  "block w-full rounded-full border border-fg/25 bg-transparent px-5 py-3.5 text-center text-base font-semibold text-fg transition-transform active:scale-[0.97] active:bg-fg/10";
 
 export function ErrorNote({ children }: { children: React.ReactNode }) {
   return (
@@ -67,8 +67,8 @@ export function Avatar({ name }: { name: string }) {
   );
 }
 
-// Each person keeps one soft colour (from their name), the same on every screen.
-const TONES = ["bg-[#3a2a1e] text-[#ffc9a0]", "bg-[#17352a] text-[#8febc0]", "bg-[#2a2740] text-[#c9c2ff]", "bg-[#3a2230] text-[#ffb8d4]", "bg-[#1e3040] text-[#a8d8ff]", "bg-[#33301a] text-[#f0dc8a]"];
+// People are told apart by their initial, not by colour (colour is for money).
+const TONES = ["bg-mist text-fg/75"];
 export function avatarTone(name: string): string {
   let h = 0;
   for (const ch of name.trim().toLowerCase()) h = (h * 31 + ch.charCodeAt(0)) >>> 0;

@@ -213,7 +213,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
         ) : (
           <>
             <p className="mt-2 flex items-center gap-2.5 font-display text-[34px] font-semibold leading-none">
-              Game over <TrophyIcon size={30} className="text-[#e8d29a]" />
+              Game over <TrophyIcon size={30} className="text-fg/75" />
             </p>
             <p className="mt-1.5 font-hand text-[21px] font-bold leading-none text-[#ffd9a8]">
               {ranked[0] && ranked[0].net > 0 ? `${you(ranked[0].memberId)} came out ahead by ${money(ranked[0].net)}` : "everyone broke even"}
@@ -364,7 +364,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
       {open && totals.taken > 0 && playing.length === 0 && (
         <section aria-label="Finish" className="mt-6 space-y-3">
           {!totals.balanced && (
-            <div className="rounded-2xl border border-owe/40 bg-owe/[0.08] px-4 py-3.5" role="status" data-pot-gap={totals.gap}>
+            <div className="rounded-[20px] border border-line bg-white px-4 py-3.5" role="status" data-pot-gap={totals.gap}>
               <p className="text-sm font-semibold text-owe">
                 {totals.gap < 0 ? `${gapText} is missing from the count` : `${gapText} more came back than went in`}
               </p>
@@ -447,7 +447,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
       {host && (
         <section aria-label="Host" className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
           {open ? (
-            form(deleteGameAction, "Delete game", "text-xs text-red-500 underline", "Delete this game? Everything recorded in it goes too.")
+            form(deleteGameAction, "Delete game", "text-xs text-fg/75 underline", "Delete this game? Everything recorded in it goes too.")
           ) : group.closed ? (
             <p className="text-xs text-gray-500">Reopen the group to change this game.</p>
           ) : (

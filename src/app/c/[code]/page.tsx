@@ -179,8 +179,8 @@ export default async function CollectionPage({ params, searchParams }: Props) {
           {closed && <span className="rounded-full bg-fg/[0.08] px-2.5 py-1 text-fg/70">Closed</span>}
         </div>
         <div className="mt-5 flex h-2.5 overflow-hidden rounded-full bg-fg/10" role="progressbar" aria-valuenow={bar.confirmedPct} aria-valuemin={0} aria-valuemax={100} aria-label="How much is confirmed" data-collection-bar>
-          <span className="lp-bar-x block h-full bg-meter-up shadow-[0_0_16px_-2px_rgba(37,169,111,0.8)]" style={{ width: `${Math.max(bar.confirmedPct, p.checked ? 4 : 0)}%` }} data-bar-confirmed />
-          <span className="block h-full bg-meter-up/35" style={{ width: `${bar.reportedPct}%` }} data-bar-reported />
+          <span className="lp-bar-x block h-full bg-fg" style={{ width: `${Math.max(bar.confirmedPct, p.checked ? 4 : 0)}%` }} data-bar-confirmed />
+          <span className="block h-full bg-fg/25" style={{ width: `${bar.reportedPct}%` }} data-bar-reported />
         </div>
         <p className="mt-2 flex items-baseline justify-between gap-3 text-sm" data-collection-progress>
           <span className="text-fg/70">
@@ -380,7 +380,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
       {isOrganiser && (
         <section aria-label="Close or delete" className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
           {closed ? orgForm("reopen", undefined, "Reopen collection", chip) : orgForm("close", undefined, "Close collection", chip, "Close it? People won’t be able to tick their name any more. You can reopen it.")}
-          {orgForm("delete", undefined, "Delete", "text-xs text-red-500 underline", "Delete this collection for everyone? This can’t be undone.")}
+          {orgForm("delete", undefined, "Delete", "text-xs text-fg/75 underline", "Delete this collection for everyone? This can’t be undone.")}
         </section>
       )}
 

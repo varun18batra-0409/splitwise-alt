@@ -15,7 +15,7 @@ export function SendPostcardCard({ href, front, words, line = "Say thank you, or
       <span className="relative block w-[54%]">
         <span className="block font-display text-[20px] font-semibold leading-tight">Send a postcard</span>
         <span className="mt-1.5 block text-[13px] leading-snug text-[#c9b9a3]">{line}</span>
-        <span className="mt-3 inline-flex h-9 items-center rounded-full bg-fg px-4 text-[13px] font-semibold text-canvas">Write one</span>
+        <span className="mt-3 inline-flex h-9 items-center rounded-full border border-fg/25 px-4 text-[13px] font-semibold text-fg">Write one</span>
       </span>
     </Link>
   );

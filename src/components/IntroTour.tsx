@@ -47,7 +47,6 @@ function Cheers() {
   ];
   return (
     <div className="relative flex flex-col items-center">
-      <span aria-hidden className="absolute -top-6 left-1/2 h-40 w-64 -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(216,189,122,0.18),transparent)]" />
       <div className="relative flex items-end">
         {shots.map(([kind, label, tilt, d], i) => (
           <span key={label} className={`rise ${d} relative block w-[96px] bg-[#f4f1e8] p-[5px] pb-0 shadow-[0_16px_28px_-12px_rgba(0,0,0,0.95)] ${i ? "-ml-4" : ""}`} style={{ transform: `rotate(${tilt}deg) translateY(${i === 1 ? -10 : 0}px)`, zIndex: i === 1 ? 2 : 1 }}>
@@ -91,8 +90,8 @@ function PostcardArt() {
 // A passport page with three stamps (place names only).
 function PassportArt() {
   return (
-    <div className="rise relative w-full max-w-[260px] rounded-[22px] border border-[#d8bd7a]/35 bg-[radial-gradient(120%_80%_at_50%_0%,#2a2620_0%,#16161a_70%)] p-5 shadow-[0_24px_40px_-18px_rgba(0,0,0,0.95)]" data-tour-passport>
-      <p className="text-center text-[11px] font-semibold uppercase tracking-[0.28em] text-[#e8d29a]">Passport</p>
+    <div className="rise relative w-full max-w-[260px] rounded-[22px] border border-line bg-white p-5 shadow-[0_24px_40px_-18px_rgba(0,0,0,0.95)]" data-tour-passport>
+      <p className="text-center text-[13px] font-semibold text-fg/55">Passport</p>
       <div className="mt-4 grid grid-cols-3 gap-2">
         {["Goa", "Lisbon", "Bangkok"].map((place, i) => (
           <span
@@ -113,19 +112,19 @@ function PassportArt() {
 // Only things Wrapped really shows: the total, the biggest splurge, who paid most, the busiest day.
 function StoryPoster({ L }: { L: Local }) {
   return (
-    <div className="rise relative w-full max-w-[260px] overflow-hidden rounded-[24px] border border-line bg-[radial-gradient(120%_70%_at_50%_0%,#2a2620_0%,#16161a_65%,#0d0d0f_100%)] p-4 shadow-[0_24px_40px_-18px_rgba(0,0,0,0.95)]">
+    <div className="rise relative w-full max-w-[260px] overflow-hidden rounded-[24px] border border-line bg-white p-4 shadow-[0_24px_40px_-18px_rgba(0,0,0,0.95)]">
       <div className="flex gap-1" aria-hidden>
         {[0, 1, 2, 3, 4].map((i) => (
           <span key={i} className={`h-[3px] flex-1 rounded-full ${i < 2 ? "bg-fg" : "bg-fg/25"}`} />
         ))}
       </div>
-      <p className="mt-6 font-hand text-[22px] font-bold leading-none text-[#d8bd7a]">{L.india ? "Goa, wrapped" : "Lake weekend, wrapped"}</p>
+      <p className="mt-6 font-hand text-[22px] font-bold leading-none text-fg/75">{L.india ? "Goa, wrapped" : "Lake weekend, wrapped"}</p>
       <p className="mt-2 font-display text-[34px] font-semibold leading-[1.02] tracking-tight text-fg">{L.m(L.india ? 48600 : 1240)}</p>
       <p className="mt-1 text-xs text-fg/60">4 of you · about {L.m(L.india ? 12150 : 310)} each</p>
       <ul className="mt-5 space-y-2 border-t border-fg/10 pt-4" data-story-lines>
         {["The splurge", "Where the money went", "The biggest day"].map((t, i) => (
           <li key={t} className={`rise rise-${i + 2} flex items-baseline gap-2.5 font-display text-[19px] font-semibold leading-tight tracking-tight text-fg`}>
-            <span aria-hidden className="font-hand text-[15px] font-bold text-[#d8bd7a]">
+            <span aria-hidden className="font-hand text-[15px] font-bold text-fg/75">
               {i + 1}
             </span>
             {t}

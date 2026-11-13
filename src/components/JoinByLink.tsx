@@ -20,7 +20,7 @@ export function JoinByLink() {
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="block w-full rounded-full border border-fg/18 bg-fg/[0.06] px-4 py-3.5 text-center font-semibold text-fg transition-transform active:scale-[0.97]">
+      <button type="button" onClick={() => setOpen(true)} className="block w-full rounded-full border border-fg/25 bg-transparent px-4 py-3.5 text-center font-semibold text-fg transition-transform active:scale-[0.97]">
         I have an invite link
       </button>
     );
@@ -40,7 +40,7 @@ export function JoinByLink() {
         className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-base text-fg outline-none placeholder:text-gray-400 focus:border-accent"
       />
       {error && <p className="text-sm text-owe">{error}</p>}
-      <button type="submit" className="block w-full rounded-full border border-fg/18 bg-fg/[0.06] px-4 py-3 text-center font-semibold text-fg transition-transform active:scale-[0.97]">
+      <button type="submit" className="block w-full rounded-full border border-fg/25 bg-transparent px-4 py-3 text-center font-semibold text-fg transition-transform active:scale-[0.97]">
         Join
       </button>
     </form>
