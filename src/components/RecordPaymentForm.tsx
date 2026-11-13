@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { recordCustomPayment } from "@/app/actions";
 import { currencySign, groupDigits } from "@/lib/add-expense-sentence";
 import { recordButtonLabel } from "@/lib/pay-words";
@@ -47,8 +47,15 @@ export function RecordPaymentForm({
   const [amount, setAmount] = useState(defaultAmount);
   const [focused, setFocused] = useState(false);
   // Folded away until tapped; From and To open independently. With nobody picked to be paid yet, the To list starts open.
-  // (A refused submit with To empty opens it, below, since a folded-away required choice can't be focused.)
+  // (A submit with To empty opens it and says so, since a folded-away choice can't be focused.)
   const [open, setOpen] = useState<"from" | "to" | null>(defaultTo ? null : "to");
+
+  // A missing choice is caught here (not by the browser): the browser refuses a hidden, invalid radio silently, with no focus and no words.
+  const [missing, setMissing] = useState<"from" | "to" | null>(null);
+  const alertRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (missing) alertRef.current?.focus();
+  }, [missing]);
 
   const who = (id: string) => people.find((p) => p.id === id);
   const label = (id: string) => (who(id)?.me ? "You" : who(id)?.name ?? "");
@@ -78,7 +85,19 @@ export function RecordPaymentForm({
   };
 
   return (
-    <form action={recordCustomPayment}>
+    <form
+      action={recordCustomPayment}
+      noValidate
+      onSubmit={(e) => {
+        // Everything else (zero, nonsense, same person) is checked by the server, which says why.
+        const gap = !who(from) ? "from" : !who(to) ? "to" : null;
+        if (gap) {
+          e.preventDefault();
+          setOpen(gap);
+        }
+        setMissing(gap);
+      }}
+    >
       <input type="hidden" name="groupId" value={groupId} />
       {fromSettle && <input type="hidden" name="back" value="settle" />}
       {keyField}
@@ -109,7 +128,6 @@ export function RecordPaymentForm({
                     if (to === m.id) setTo("");
                     setOpen(to && to !== m.id ? null : "to");
                   }}
-                  onInvalid={() => setOpen("from")}
                   className="sr-only"
                   required
                 />
@@ -133,7 +151,6 @@ export function RecordPaymentForm({
                     setTo(m.id);
                     setOpen(null);
                   }}
-                  onInvalid={() => setOpen("to")}
                   className="sr-only"
                   required
                 />
@@ -143,6 +160,12 @@ export function RecordPaymentForm({
             ))}
           </div>
         </fieldset>
+
+        {missing && (
+          <p ref={alertRef} tabIndex={-1} role="alert" className="mt-3 text-sm font-medium text-fg outline-none" data-missing={missing}>
+            {missing === "from" ? "Choose who paid." : "Choose who was paid. It has to be two different people."}
+          </p>
+        )}
 
         <div className="flex flex-col items-center pb-5 pt-5 text-center">
           <div className="flex w-full items-baseline justify-center gap-1.5 text-[clamp(34px,10vw,40px)] leading-[1.05]">

@@ -61,8 +61,9 @@ describe("Payment recorded: what the view says", () => {
     expect(w.headline).toBe("₹200 recorded, ₹300 left");
     expect(w.note).toBe("");
   });
+  // Square with Nupur but I still owe Ravi ₹0.70 (70 paise): "You and Nupur are square". With nothing else left for me it is "You’re all square" (next test).
   it("₹500 owed, ₹500 recorded: exactly square", () => {
-    const w = recordedWords({ ...base, payment: { from: "me", to: "n", amount: 50000 }, left: [{ from: "r", to: "m", amount: 70 }] });
+    const w = recordedWords({ ...base, payment: { from: "me", to: "n", amount: 50000 }, left: [{ from: "me", to: "r", amount: 70 }] });
     expect(w.headline).toBe("You and Nupur are square");
     expect(w.note).toBe("");
   });
@@ -139,5 +140,14 @@ describe("restyle only: every action, field and hook is still on the pages", () 
   it("the Balances tab keeps the numbers and hooks its tests read", () => {
     const b = src("src/app/groups/[id]/_components/BalancesTab.tsx");
     for (const s of ["data-balance=", "data-exact=", "data-title=", "data-foreign-part", "data-ledger-summary", "data-our-passports", "data-passport-link"]) expect(b).toContain(s);
+  });
+});
+
+describe("Record a payment form: submits are never blocked silently", () => {
+  const form = src("src/components/RecordPaymentForm.tsx");
+  it("the browser's own check is off and a missing choice is said aloud", () => {
+    expect(form).toMatch(/noValidate/);
+    expect(form).not.toMatch(/onInvalid/);
+    expect(form).toMatch(/role="alert"/);
   });
 });
