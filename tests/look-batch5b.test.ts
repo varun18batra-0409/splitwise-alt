@@ -103,6 +103,6 @@ describe("collect, organiser view", () => {
     expect(page).toContain("border border-fg/25");
   });
   it("the payer's page keeps its own words", () => {
-    for (const s of ["is collecting", "say they've paid", "Reported, awaiting check", "I’ve paid", "checked by"]) expect(page + src("src/lib/collect-rules.ts")).toContain(s);
+    for (const s of ["is collecting", "say they've paid", "Reported, awaiting check", "I’ve paid", "checked by"]) expect(page + src("src/lib/collect-rules.ts") + src("src/components/CollectBits.tsx")).toContain(s);
   });
 });

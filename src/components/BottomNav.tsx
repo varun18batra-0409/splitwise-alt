@@ -23,11 +23,12 @@ export function BottomNav() {
     { href: g ? `/groups/${g}/settle` : "/settle", label: "Settle", icon: <SettleIcon size={22} />, on: onSettle },
     { href: "/account", label: "You", icon: <PersonIcon size={22} />, on: path === "/account" || path.startsWith("/account/") || path.startsWith("/passport") || path.startsWith("/postcards") },
   ];
+  // aria-current: "page" only on the link to this exact page; a section that is merely lit (Groups on a group page) says "true", so the page's own tabs stay the one current page.
   const cell = (it: (typeof items)[number]) => (
     <Link
       key={it.label}
       href={it.href}
-      aria-current={it.on ? "page" : undefined}
+      aria-current={it.on ? (it.href === path ? "page" : "true") : undefined}
       aria-label={it.label}
       className={`relative flex min-h-11 min-w-0 flex-1 flex-col items-center gap-[3px] py-1 text-[11px] font-semibold transition-colors ${it.on ? "text-fg" : "text-fg/75"}`}
     >
