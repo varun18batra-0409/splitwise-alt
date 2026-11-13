@@ -9,6 +9,12 @@ import { stillIn } from "@/lib/left-view";
 import { loadDeletedGroups } from "@/lib/group-data";
 import { restoreGroup } from "@/app/actions";
 import { Notice } from "@/components/Notice";
+import { GroupSearch } from "@/components/GroupSearch";
+import { ScrollToOnMount } from "@/components/ScrollToOnMount";
+import { ExpenseGlyph } from "@/components/ExpenseGlyph";
+import { ChevronRight, PlusIcon } from "@/components/icons";
+import { myCollections } from "@/lib/collect";
+import { countsLine, progress } from "@/lib/collect-rules";
 
 export const metadata = { title: "Your groups" };
 
@@ -17,6 +23,7 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
   const { deleted } = await searchParams;
   const [tz, memberships, account] = await Promise.all([getTimeZone(), getMemberships(), getAccount()]);
   const [{ open, closed }, deletedGroups] = await Promise.all([loadOverview(memberships), loadDeletedGroups(memberships)]);
+  const collections = account ? await myCollections(account.id, 20) : [];
   const live = stillIn(open).sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
   // Right after a delete (or opening a deleted group's old link), Recently deleted comes first, open, under the message;
   // otherwise it sits at the bottom, closed. (A redirect can't be relied on to keep a #anchor, so the page orders itself.)
@@ -52,7 +59,7 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
     ) : null;
   return (
     <>
-      <PageHeader title="Your groups" back="/" />
+      <PageHeader title="Your groups" back="/" bell />
       {justDeleted && (
         <Notice params={["deleted"]} className="mb-4">
           {deleted === "group"
@@ -63,19 +70,47 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
         </Notice>
       )}
       {justDeleted && deletedBlock}
+      {justDeleted && deletedBlock && <ScrollToOnMount id="deleted" />}
       {!account && live.length + closed.length > 0 && <PhoneOnlyNote plural className="mb-4" />}
+      {live.length > 6 && <GroupSearch />}
       {live.length === 0 ? (
         <p className="py-6 text-sm text-gray-500">No open groups. Create one, or reopen a closed one.</p>
       ) : (
-        <ul className="lp-rise" data-all-groups>
+        <ul className="lp-rise flex flex-col gap-2.5" data-all-groups>
           {live.map((g) => (
             <GroupLine key={g.group.id} g={g} tz={tz} />
           ))}
         </ul>
       )}
-      <Link href="/groups/new" className="mt-3 flex min-h-11 items-center justify-center rounded-full border border-line text-sm font-semibold active:bg-mist">
-        New group
+      <Link href="/groups/new" className="mt-3 flex min-h-11 items-center justify-center gap-2 rounded-full text-[15px] font-medium text-fg/85 active:bg-fg/10">
+        <PlusIcon size={18} />
+        Start a group
       </Link>
+      {collections.length > 0 && (
+        <section className="mt-8" aria-label="Collections" data-collections>
+          <h2 className="mb-3 font-display text-lg font-semibold tracking-tight">Collections</h2>
+          <ul className="flex flex-col gap-2.5">
+            {collections.map((c) => {
+              const p = progress(c.entries, c.amount);
+              const toCheck = p.paidCount - p.checked;
+              return (
+                <li key={c.id}>
+                  <Link href={`/c/${c.code}`} className={`flex items-center gap-3.5 rounded-[20px] border border-line bg-white p-2.5 pr-3.5 active:opacity-80 ${c.closedAt ? "opacity-60" : ""}`}>
+                    <ExpenseGlyph title={c.title} category="other" size={64} />
+                    <span className="min-w-0 flex-1">
+                      <span className="line-clamp-2 break-words font-display text-[17px] font-semibold leading-tight tracking-tight">{c.title}</span>
+                      <span className="mt-0.5 block text-[13px] text-fg/60">
+                        {c.closedAt ? "Closed" : toCheck > 0 ? `${toCheck} ${toCheck === 1 ? "payment" : "payments"} to check` : countsLine(p)}
+                      </span>
+                    </span>
+                    <ChevronRight size={18} className="shrink-0 text-fg/55" />
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
       {closed.length > 0 && (
         <section className="mt-8" aria-label="Closed groups">
           <h2 className="font-display text-lg font-semibold tracking-tight">Closed groups ({closed.length})</h2>

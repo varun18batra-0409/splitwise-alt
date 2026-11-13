@@ -189,6 +189,7 @@ if (demo.couple.goal) await shot("60-couple-goal", `${c}/goals/${demo.couple.goa
 await shot("61-new-goal", `${c}/goals/new`);
 await shot("15-new-group", "/groups/new");
 await shot("25-account", "/account");
+await shot("25b-groups", "/groups");
 await shot("26-signin", "/signin", undefined, false);
 // Sign-in on small phones: Google and the email box must both be on the first screen.
 for (const [n, w, h] of [["26b-signin-320x568", 320, 568], ["26c-signin-375x667", 375, 667]] as const) {
@@ -368,7 +369,7 @@ if (!hosted) {
       { accountId: acc.id, kind: "collect_added", title: "Diwali fund", body: "Nupur added you: ₹500 each. Tap to pay and tick your name.", url: `/c/${collectCode}`, seenAt: new Date() },
     ],
   });
-  await shot("83-alerts-collect", "/notifications", undefined, false);
+  await shot("83-alerts-collect", "/notifications?tab=all", undefined, false);
   // A trip in 12 days, for the countdown.
   const ist = (plus: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(now + plus * 86_400_000));
   const goa = await db.group.create({

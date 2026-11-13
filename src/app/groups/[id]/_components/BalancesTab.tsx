@@ -31,12 +31,12 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
       {paid && <Notice params={["paid"]}>Payment recorded. Balances updated.</Notice>}
 
       {transfers.length === 0 ? (
-        <div className="rounded-2xl bg-mist px-4 py-8 text-center">
+        <div className="rounded-[20px] border border-line bg-white px-4 py-8 text-center">
           <SquareSeal size={56} className="mx-auto" />
           <p className="mt-3 font-display text-xl font-semibold">All square</p>
           <p className="mt-1 text-sm text-gray-500">{leaver ? "You don’t owe anyone here, and no one owes you." : "Nobody owes anybody in this group."}</p>
           {expenses.length > 0 && (
-            <Link href={`/groups/${group.id}/square`} className="mt-4 inline-block rounded-full bg-fg px-4 py-2 text-sm font-semibold text-canvas">
+            <Link href={`/groups/${group.id}/square`} className="mt-4 inline-flex min-h-11 items-center rounded-full border border-fg/25 px-4 text-sm font-semibold text-fg">
               Share the moment
             </Link>
           )}
@@ -55,7 +55,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
           </Link>}
         </div>
         <p className="mb-3 text-sm text-gray-500">{leaver ? "Tap to see why." : "Tap anyone to see why."}</p>
-        <ul className="divide-y divide-line border-y border-line">
+        <ul className="divide-y divide-line">
           {/* Someone who left sees only their own line. */}
           {group.members.filter((m) => (leaver ? m.id === myId : !m.leftAt || (net[m.id] ?? 0) !== 0)).map((m) => {
             const b = net[m.id] ?? 0;
@@ -67,14 +67,14 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
             return (
               <li key={m.id}>
                 <details className="group/person" open={why === m.id}>
-                  <summary className="flex cursor-pointer list-none items-center gap-3 py-3 [&::-webkit-details-marker]:hidden">
+                  <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 py-3 [&::-webkit-details-marker]:hidden">
                     <Avatar name={m.name} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">{m.id === myId ? `${m.name} (you)` : m.name}</span>
                       {(() => {
                         const t = titles.find((x) => x.memberId === m.id);
                         return t ? (
-                          <span className="mb-0.5 mt-0.5 inline-block rounded-full bg-fg/[0.07] px-2 py-0.5 text-[11px] font-semibold text-fg/80" title={t.why} data-title={t.title}>
+                          <span className="mb-0.5 mt-0.5 inline-block rounded-full border border-fg/15 px-2 py-0.5 text-[11px] font-semibold text-fg/75" title={t.why} data-title={t.title}>
                             {t.title}
                           </span>
                         ) : null;
@@ -91,8 +91,11 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
                     >
                       {b > 0 ? `gets ${overviewMoney(b, group.currency)}` : b < 0 ? `owes ${overviewMoney(-b, group.currency)}` : "settled"}
                     </span>
+                    <svg aria-hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-fg/40 transition-transform group-open/person:rotate-90 motion-reduce:transition-none">
+                      <path d="m9 6 6 6-6 6" />
+                    </svg>
                   </summary>
-                  <div className="mb-3 ml-12 space-y-2">
+                  <div className="mb-3 space-y-2">
                     {m.accountId && m.id !== myId && (
                       <Link href={`/groups/${group.id}/passport/${m.id}`} className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-xs font-semibold active:bg-mist" data-passport-link>
                         <PassportIcon size={14} /> {m.name.trim().split(/\s+/)[0]}’s passport
@@ -134,7 +137,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
           >
             {ledgerSummary(ledgers.map((l) => ({ currency: l.currency, amount: l.net[myId] ?? 0 })), mine, group.currency, overviewMoney)}{hasMarkup ? " Overall includes card fees." : ""}
           </p>
-          <ul className="divide-y divide-line rounded-2xl border border-line">
+          <ul className="divide-y divide-line rounded-[20px] border border-line bg-white">
             {ledgers.map((l) => {
               const val = l.net[myId] ?? 0;
               return (

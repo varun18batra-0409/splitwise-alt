@@ -73,7 +73,7 @@ const sections = (): { title: string; items: QA[] }[] => [
       },
       {
         q: "Where is Collect, and what do “says paid” and “checked” mean?",
-        a: "Tap New group and pick Collect: one link to gather money for a gift or a booking. People tick their name, which shows as says paid; you tap Got it once you see the money, and it becomes checked. Only checked money counts as collected.",
+        a: "Tap New group and pick Collect: one link to gather money for a gift or a booking. People tick their name, which shows as says paid; you tap Confirm received once you see the money, and it becomes checked. Only checked money counts as collected.",
       },
     ],
   },

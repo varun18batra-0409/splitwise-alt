@@ -125,7 +125,7 @@ export default async function GroupPage({
   // Home & Couple: everything This month / Bills / List need, fetched together.
   const monthTab = home && tab === "month";
   const active = group.expenses.filter((e) => !e.deletedAt);
-  const [bills, budgets, depositShares, heads, goalRows, list, games] = await Promise.all([
+  const [bills, budgets, depositShares, heads, goalRows, list, games, shopRows] = await Promise.all([
     home && (tab === "month" || tab === "bills") ? billStatuses(group.id) : Promise.resolve<Awaited<ReturnType<typeof billStatuses>>>([]),
     monthTab ? budgetsNow(group.id, active, myId, v.tz) : Promise.resolve<Awaited<ReturnType<typeof budgetsNow>>>([]),
     // The deposit tile (held shares only).
@@ -146,6 +146,8 @@ export default async function GroupPage({
         ]).then(([items, history]) => ({ items, usual: usualItems(history.map((h) => h.text), items.map((i) => i.text)) }))
       : Promise.resolve(null),
     pot && tab === "games" ? loadGames(group.id) : Promise.resolve([] as Awaited<ReturnType<typeof loadGames>>),
+    // The overview's shopping card: the first few things still to buy (the same rows the List tab shows as "To buy").
+    monthTab ? db.listItem.findMany({ where: { groupId: group.id, expenseId: "", boughtAt: null }, orderBy: { createdAt: "asc" }, select: { id: true, text: true } }) : Promise.resolve([] as { id: string; text: string }[]),
   ]);
   const toSettle = games.length ? await gamesToSettle(group.id, games) : {};
   // Reactions on expenses, for the Activity list.
@@ -246,7 +248,7 @@ export default async function GroupPage({
           ‹ This month
         </Link>
       )}
-      {tab === "month" && <ThisMonthTab v={v} extras={{ upcoming: comingUp, budgets, deposit, goals, insights: heads?.insights, forecast: heads?.forecast }} />}
+      {tab === "month" && <ThisMonthTab v={v} extras={{ upcoming: comingUp, budgets, deposit, goals, insights: heads?.insights, forecast: heads?.forecast, shopping: { items: shopRows.slice(0, 3), total: shopRows.length } }} />}
       {tab === "bills" && <BillsTab v={v} bills={bills} saved={sp.saved === "bill"} />}
       {tab === "list" && list && (
         <ListTab v={v} items={list.items} usual={list.usual} notice={sp.bought ? "Added as an expense. Everyone has been told." : sp.told ? "Told everyone you’re going shopping." : undefined} />

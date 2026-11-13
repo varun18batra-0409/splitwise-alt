@@ -6,7 +6,7 @@ import { getAccount } from "@/lib/identity";
 import { mailConfigured } from "@/lib/mail";
 import { googleConfigured } from "@/lib/google";
 import { PasskeySignIn } from "@/components/Passkeys";
-import { ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/components/ui";
+import { ErrorNote, PageHeader, inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
 import { BackIcon, iconButtonClass } from "@/components/icons";
 import { GoogleG } from "@/components/GoogleG";
 import { placePhoto } from "@/lib/places";
@@ -53,7 +53,7 @@ export default async function SignIn({
               <BackIcon size={20} />
             </Link>
           )}
-          <p className="mt-3 font-display text-[clamp(38px,11.5vw,46px)] font-semibold leading-[1.02] tracking-[-0.02em] tight:mt-1 tight:text-[26px]">
+          <p className="mt-3 font-display text-[clamp(30px,9vw,34px)] font-semibold leading-[1.08] tracking-[-0.02em] tight:mt-1 tight:text-[26px]">
             Split the trip.
             <br />
             Keep the story.
@@ -105,7 +105,7 @@ export default async function SignIn({
               </span>
               <input name="name" autoComplete="name" defaultValue={name} placeholder="e.g. Maya" maxLength={40} className={inputClass} />
             </label>
-            <button type="submit" className={primaryButtonClass}>
+            <button type="submit" className={googleConfigured() ? secondaryButtonClass : primaryButtonClass}>
               Email me a code
             </button>
           </form>

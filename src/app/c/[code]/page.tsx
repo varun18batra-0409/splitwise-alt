@@ -6,18 +6,17 @@ import Link from "@/components/Link";
 import { Notice } from "@/components/Notice";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { CopyButton, PaidForm, ShareCollection } from "@/components/CollectBits";
-import { ErrorNote, PageHeader, inputClass, secondaryButtonClass } from "@/components/ui";
-import { INK, INK_OWED } from "@/components/Polaroid";
+import { ErrorNote, PageHeader, inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
 import { getAccount } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
 import { todayKey } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
-import { countsLine, loadCollection, loopinFriends, personalReminder, progress, stampCounts, progressBar, progressLines, reminderText, upiLink, whatsappTo } from "@/lib/collect";
+import { countsLine, loadCollection, loopinFriends, personalReminder, progress, progressBar, progressLines, reminderText, upiLink, whatsappTo } from "@/lib/collect";
 import { FriendPicker } from "@/components/FriendPicker";
 import { PickContacts } from "@/components/PickContacts";
 import { organiserActionForm, undoPaidAction } from "@/app/collect-actions";
 import { whatsappLink } from "@/lib/whatsapp";
-import { ChevronDown } from "@/components/icons";
+import { CheckIcon, ChevronDown, LinkIcon } from "@/components/icons";
 
 // One collection's page: the link people open from the WhatsApp group.
 // Anyone with it can pay the organiser directly and tick their name; the
@@ -34,6 +33,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const description = `${each}${c.dueDate ? ` · by ${when(c.dueDate)}` : ""}. Pay ${c.organiser} and tick your name.`;
   return { title: c.title, description, robots: { index: false, follow: false }, openGraph: { title: `${c.organiser} is collecting: ${c.title}`, description } };
 }
+
+const STEP = "grid h-6 w-6 shrink-0 place-items-center rounded-full bg-mist text-[13px] font-semibold text-fg";
 
 const PAY_NAMES: Record<string, string> = { "paypal.me": "PayPal", "www.paypal.me": "PayPal", "venmo.com": "Venmo", "account.venmo.com": "Venmo", "cash.app": "Cash App", "revolut.me": "Revolut", "monzo.me": "Monzo" };
 
@@ -52,7 +53,6 @@ export default async function CollectionPage({ params, searchParams }: Props) {
   const p = progress(c.entries, c.amount);
   const bar = progressBar(p);
   const lines = progressLines(p, c.currency);
-  const stamp = stampCounts(p);
   const money = (n: number) => formatMoney(n, c.currency);
   const late = c.dueDate && c.dueDate < todayKey(new Date(), tz);
   const closed = Boolean(c.closedAt);
@@ -86,12 +86,12 @@ export default async function CollectionPage({ params, searchParams }: Props) {
   const payBlock = (cls: string) => (
         <section aria-label="Pay and tick your name" className={cls}>
           <div>
-            <h2 className="mb-3 flex items-center gap-2 font-display text-lg font-semibold tracking-tight">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-fg text-xs text-canvas">1</span> Pay {c.organiser}
+            <h2 className="mb-3 flex items-center gap-3 font-display text-lg font-semibold tracking-tight">
+              <span className={STEP}>1</span> Pay {c.organiser}
             </h2>
             {upi ? (
               <div className="space-y-3">
-                <a href={upi} className="pop block w-full bg-fg px-4 py-3.5 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63]">
+                <a href={upi} className="pop block w-full bg-fg px-4 py-3.5 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63]" data-collect-pay>
                   {c.amount ? `Pay ${money(c.amount)} with UPI` : "Pay with UPI"}
                 </a>
                 <div className="flex items-center gap-3 rounded-2xl border border-line px-4 py-3">
@@ -115,14 +115,26 @@ export default async function CollectionPage({ params, searchParams }: Props) {
             )}
           </div>
           <div>
-            <h2 className="mb-3 flex items-center gap-2 font-display text-lg font-semibold tracking-tight">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-fg text-xs text-canvas">2</span> Tick your name
+            <h2 className="mb-3 flex items-center gap-3 font-display text-lg font-semibold tracking-tight">
+              <span className={STEP}>2</span> Tick your name
             </h2>
-            <PaidForm code={c.code} due={due.map((d) => ({ id: d.id, name: d.name }))} anyAmount={!c.amount} amountHint={c.currency === "INR" ? "E.g. 300" : "E.g. 20"} />
+            {/* The pay button above is the one cream button; "I've paid" is the cream one only when there is no pay button. */}
+            <PaidForm code={c.code} due={due.map((d) => ({ id: d.id, name: d.name }))} anyAmount={!c.amount} amountHint={c.currency === "INR" ? "E.g. 300" : "E.g. 20"} outline={Boolean(upi || c.payLink)} />
           </div>
         </section>
   );
-  const chip = "rounded-full border border-line px-3 py-1.5 text-xs font-semibold active:bg-mist";
+  const chip = "rounded-full border border-fg/25 px-3 py-1.5 text-xs font-semibold text-fg/85 active:bg-mist";
+  // The organiser's own buttons on a person's row: an outline pill (never cream: Share collection link is the one cream button).
+  const confirmButton = "inline-flex min-h-11 items-center rounded-full border border-fg/25 px-4 text-sm font-semibold text-fg active:bg-fg/10";
+  const initial = (name: string) => (
+    <span aria-hidden className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#1f1f24] text-[15px] font-semibold text-fg/75">
+      {name.trim().charAt(0).toUpperCase()}
+    </span>
+  );
+  // The organiser's summary: three numbers, the goal, the three-part bar and one counts line. Money received may be green; the rest is off-white.
+  const remaining = Math.max(0, p.target - p.confirmedAmount - p.reportedAmount);
+  const toCheck = p.paidCount - p.checked;
+  const counts = [p.checked > 0 ? `${p.checked} confirmed` : "", toCheck > 0 ? `${toCheck} to check` : "", p.dueCount > 0 ? `${p.dueCount} still to pay` : ""].filter(Boolean);
 
   return (
     <>
@@ -131,9 +143,9 @@ export default async function CollectionPage({ params, searchParams }: Props) {
       ) : (
         <header className="mb-6 flex items-center justify-between">
           <Link href="/" className="font-display text-xl font-semibold tracking-tight">
-            Loopin
+            loopin
           </Link>
-          <span className="text-xs text-gray-400">No sign-up needed</span>
+          <span className="text-xs text-fg/55">No sign-up needed</span>
         </header>
       )}
 
@@ -154,34 +166,76 @@ export default async function CollectionPage({ params, searchParams }: Props) {
         </Notice>
       )}
 
+      {/* The jar (organiser): who's collecting, for what, the three numbers and the bar */}
+      {isOrganiser && (
+        <section aria-label="This collection" className="vault rounded-[20px] px-5 pb-5 pt-5 text-fg">
+          <p className="text-[13px] text-fg/60">{c.organiser} is collecting</p>
+          <h1 className="mt-1 break-words font-display text-[clamp(24px,7.5vw,28px)] font-semibold leading-[1.1] tracking-tight" data-collection-title>
+            {c.title}
+          </h1>
+          {c.note && <p className="mt-2 text-sm text-fg/60">{c.note}</p>}
+          <p className="mt-1.5 text-sm text-fg/60">
+            {c.amount ? `${money(c.amount)} each` : "Any amount"}
+            {p.people > 0 ? ` · ${p.people} ${p.people === 1 ? "person" : "people"}` : ""}
+            {c.dueDate ? ` · ${late ? `was due ${when(c.dueDate)}` : `by ${when(c.dueDate)}`}` : ""}
+            {closed ? " · Closed" : ""}
+          </p>
+          <div className="mt-5" data-collection-progress>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="min-w-0">
+                <p data-collection-confirmed className={`money text-[clamp(16px,5vw,22px)] font-semibold tabular-nums ${p.confirmedAmount > 0 ? "text-owed" : ""}`}>
+                  {money(p.confirmedAmount)}
+                </p>
+                <p className="text-[13px] text-fg/60">confirmed</p>
+              </div>
+              {p.target > 0 ? (
+                <>
+                  <div className="min-w-0 border-l border-line">
+                    <p {...(p.reportedAmount > 0 ? { "data-collection-reported": "" } : {})} className="money text-[clamp(16px,5vw,22px)] font-semibold tabular-nums">
+                      {money(p.reportedAmount)}
+                    </p>
+                    <p className="text-[13px] text-fg/60">reported</p>
+                  </div>
+                  <div className="min-w-0 border-l border-line">
+                    <p className="money text-[clamp(16px,5vw,22px)] font-semibold tabular-nums">{money(remaining)}</p>
+                    <p className="text-[13px] text-fg/60">remaining</p>
+                  </div>
+                </>
+              ) : (
+                <div className="col-span-2 min-w-0 border-l border-line">
+                  <p {...(p.reportedAmount > 0 ? { "data-collection-reported": "" } : {})} className="money text-[clamp(16px,5vw,22px)] font-semibold tabular-nums">
+                    {money(p.reportedAmount)}
+                  </p>
+                  <p className="text-[13px] text-fg/60">reported</p>
+                </div>
+              )}
+            </div>
+            {p.target > 0 && <p className="mt-3 text-center text-sm text-fg/75">Goal: {money(p.target)}</p>}
+            <div className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-fg/10" role="progressbar" aria-valuenow={bar.confirmedPct} aria-valuemin={0} aria-valuemax={100} aria-label="How much is confirmed" data-collection-bar>
+              <span className="lp-bar-x block h-full bg-fg" style={{ width: `${Math.max(bar.confirmedPct, p.checked ? 4 : 0)}%` }} data-bar-confirmed />
+              <span className="block h-full bg-fg/55" style={{ width: `${bar.reportedPct}%` }} data-bar-reported />
+            </div>
+            <p className="mt-2.5 text-center text-sm text-fg/60">{counts.length ? counts.join(" · ") : "No names yet"}</p>
+          </div>
+        </section>
+      )}
+
       {/* The jar: who's collecting, for what, and how far along it is */}
-      <section aria-label="This collection" className="vault relative overflow-hidden rounded-[24px] px-5 pb-5 pt-5 text-fg">
-        <span
-          aria-hidden
-          className="absolute right-4 top-4 rotate-[7deg] bg-[#f4f1e8] px-2.5 pb-1 pt-1.5 text-center shadow-[0_10px_20px_-8px_rgba(0,0,0,0.9)]"
-          style={{ color: INK }}
-        >
-          <span className="block font-hand text-[26px] font-bold leading-none tabular-nums">
-            {stamp.n}
-            {stamp.of !== null && <span className="text-[18px]">/{stamp.of}</span>}
-          </span>
-          <span className="block text-[10px] font-semibold uppercase tracking-wide" style={{ color: INK_OWED }}>
-            {stamp.word}
-          </span>
-        </span>
-        <p className="pr-20 font-hand text-[24px] font-bold leading-none text-fg/75">{c.organiser} is collecting</p>
-        <h1 className="mt-2 pr-16 font-display text-[28px] font-semibold leading-[1.1] tracking-tight" data-collection-title>
+      {!isOrganiser && (
+      <section aria-label="This collection" className="vault rounded-[20px] px-5 pb-5 pt-5 text-fg">
+        <p className="font-hand text-[22px] font-bold leading-none text-fg/75">{c.organiser} is collecting</p>
+        <h1 className="mt-2 break-words font-display text-[clamp(24px,7.5vw,28px)] font-semibold leading-[1.1] tracking-tight" data-collection-title>
           {c.title}
         </h1>
         {c.note && <p className="mt-2 text-sm text-fg/60">{c.note}</p>}
         <div className="mt-3 flex flex-wrap gap-2 text-xs">
-          <span className="rounded-full bg-fg/[0.08] px-2.5 py-1 font-semibold">{c.amount ? `${money(c.amount)} each` : "Any amount"}</span>
-          {c.dueDate && <span className={`rounded-full px-2.5 py-1 ${late && !closed ? "bg-owe/15 text-owe" : "bg-fg/[0.08] text-fg/70"}`}>{late ? `Was due ${when(c.dueDate)}` : `By ${when(c.dueDate)}`}</span>}
-          {closed && <span className="rounded-full bg-fg/[0.08] px-2.5 py-1 text-fg/70">Closed</span>}
+          <span className="rounded-full border border-fg/15 px-2.5 py-1 font-semibold">{c.amount ? `${money(c.amount)} each` : "Any amount"}</span>
+          {c.dueDate && <span className="rounded-full border border-fg/15 px-2.5 py-1 text-fg/70">{late ? `Was due ${when(c.dueDate)}` : `By ${when(c.dueDate)}`}</span>}
+          {closed && <span className="rounded-full border border-fg/15 px-2.5 py-1 text-fg/70">Closed</span>}
         </div>
         <div className="mt-5 flex h-2.5 overflow-hidden rounded-full bg-fg/10" role="progressbar" aria-valuenow={bar.confirmedPct} aria-valuemin={0} aria-valuemax={100} aria-label="How much is confirmed" data-collection-bar>
           <span className="lp-bar-x block h-full bg-fg" style={{ width: `${Math.max(bar.confirmedPct, p.checked ? 4 : 0)}%` }} data-bar-confirmed />
-          <span className="block h-full bg-fg/25" style={{ width: `${bar.reportedPct}%` }} data-bar-reported />
+          <span className="block h-full bg-fg/55" style={{ width: `${bar.reportedPct}%` }} data-bar-reported />
         </div>
         <p className="mt-2 flex items-baseline justify-between gap-3 text-sm" data-collection-progress>
           <span className="text-fg/70">
@@ -208,19 +262,17 @@ export default async function CollectionPage({ params, searchParams }: Props) {
           </p>
         )}
       </section>
+      )}
 
       {/* The organiser: share, remind, add names */}
       {isOrganiser && (
         <section aria-label="Share and remind" className="mt-5 space-y-3">
           {sp.new && (
-            <p className="rounded-xl bg-owed/10 px-4 py-3 text-sm text-owed">
+            <p className="rounded-2xl border border-[#26262c] bg-[#16161a] px-4 py-3 text-sm text-fg/80">
               Your link is ready. Drop it in the group: people pay you, then tick their name here.
               {due.some((d) => d.phone) && " Or send it to each person with the WhatsApp button next to their name."}
             </p>
           )}
-          <ShareCollection path={path} title={c.title} text={shareText} className="pop block w-full bg-fg px-4 py-3.5 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63]">
-            Share the link
-          </ShareCollection>
           {due.length > 0 && !closed && (
             <a href={remind} target="_blank" rel="noopener noreferrer" className={secondaryButtonClass}>
               Remind the {due.length} still to pay on WhatsApp
@@ -246,15 +298,17 @@ export default async function CollectionPage({ params, searchParams }: Props) {
       {!isOrganiser && mine.length > 0 && (
         <section aria-label="You're on the list" className="mt-5 space-y-2">
           {mine.map((e) => (
-            <div key={e.id} className="flex items-center gap-3 rounded-2xl bg-owed/10 px-4 py-3 text-owed">
-              <span aria-hidden className="text-xl">
-                {e.status === "confirmed" ? "✓✓" : "✓"}
+            <div key={e.id} className="flex items-center gap-3 rounded-2xl border border-[#26262c] bg-[#16161a] px-4 py-3 text-fg">
+              <span aria-hidden className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${e.status === "confirmed" ? "bg-fg text-canvas" : "border-2 border-fg/60 text-fg"}`}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3.2} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m5 12.5 4.5 4.5L19 7.5" />
+                </svg>
               </span>
               <span className="min-w-0 flex-1 text-sm">
                 <span className="block font-semibold">
                   {e.name} · {money(e.amount)}
                 </span>
-                <span className="block text-owed/80">{e.status === "confirmed" ? `${c.organiser} has checked it. All done.` : `You’re on the list. ${c.organiser} will check it off.`}</span>
+                <span className="block text-fg/60">{e.status === "confirmed" ? `${c.organiser} has checked it. All done.` : `You’re on the list. ${c.organiser} will check it off.`}</span>
               </span>
               {e.status === "paid" && (
                 <form action={undoPaidAction}>
@@ -290,10 +344,10 @@ export default async function CollectionPage({ params, searchParams }: Props) {
           <ul className="divide-y divide-line">
             {due.map((e) => (
               <li key={e.id} className="flex items-center gap-3 py-2.5">
-                <span aria-hidden className="h-5 w-5 shrink-0 rounded-full border-2 border-fg/25" />
+                {isOrganiser ? initial(e.name) : <span aria-hidden className="h-5 w-5 shrink-0 rounded-full border-2 border-fg/25" />}
                 <span className="min-w-0 flex-1 truncate text-[15px]">
                   {e.name}
-                  {isOrganiser && e.accountId && <span className="ml-2 rounded-md bg-owed/[0.12] px-1.5 py-[3px] align-middle text-[10px] font-semibold uppercase tracking-wide text-owed">on Loopin</span>}
+                  {isOrganiser && e.accountId && <span className="ml-2 align-middle text-xs text-fg/55">on Loopin</span>}
                 </span>
                 {isOrganiser && (
                   <span className="flex shrink-0 items-center gap-2">
@@ -308,7 +362,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
                           </svg>
                           <span className="sr-only">Remind {e.name} in Loopin</span>
                         </>,
-                        "flex h-8 w-8 items-center justify-center rounded-full border border-owed/40 text-owed active:bg-mist",
+                        "flex h-8 w-8 items-center justify-center rounded-full border border-fg/25 text-fg/75 active:bg-mist",
                       )}
                     {!e.accountId && e.phone && !closed && (
                       <a
@@ -316,7 +370,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
                         target="_blank"
                         rel="noopener noreferrer"
                         aria-label={`Remind ${e.name} on WhatsApp`}
-                        className="flex h-8 w-8 items-center justify-center rounded-full border border-owed/40 text-owed active:bg-mist"
+                        className="flex h-8 w-8 items-center justify-center rounded-full border border-fg/25 text-fg/75 active:bg-mist"
                       >
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                           <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5z" />
@@ -340,33 +394,50 @@ export default async function CollectionPage({ params, searchParams }: Props) {
             Paid <span className="font-sans text-xs font-normal text-gray-400">{paid.length}</span>
           </h2>
           <ul className="divide-y divide-line">
-            {paid.map((e) => (
+            {paid.map((e) =>
+              isOrganiser ? (
+                <li key={e.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-3">
+                  {initial(e.name)}
+                  <span className="min-w-[8rem] flex-1">
+                    <span className="block break-words text-[15px] font-medium">
+                      {e.name} · <span className="money tabular-nums">{money(e.amount)}</span>
+                    </span>
+                    {/* A neutral status, never a coloured fill: a drawn tick once the organiser has confirmed it. */}
+                    <span className="flex items-center gap-1 text-[13px] text-fg/60">
+                      {e.status === "confirmed" && <CheckIcon size={13} />}
+                      {e.status === "confirmed" ? "Confirmed" : "Says paid"}
+                      {e.method === "cash" ? " · cash" : ""}
+                    </span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    {e.status === "paid" ? orgForm("confirm", e.id, "Confirm received", confirmButton) : orgForm("unconfirm", e.id, "Uncheck", "inline-flex min-h-11 items-center text-xs text-fg/60 underline")}
+                    {orgForm("remove", e.id, "✕", "flex h-8 w-8 items-center justify-center rounded-full text-gray-400 active:bg-mist", `Take ${e.name} off the list? Their tick goes too.`)}
+                  </span>
+                </li>
+              ) : (
               <li key={e.id} className="flex items-center gap-3 py-2.5">
                 {/* Ticked by them: an outlined tick. Checked by the organiser: a filled one. */}
                 <span
                   aria-hidden
-                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${e.status === "confirmed" ? "bg-meter-up text-canvas" : "border-2 border-meter-up text-owed"}`}
+                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${e.status === "confirmed" ? "bg-fg text-canvas" : "border-2 border-fg/60 text-fg"}`}
                 >
-                  ✓
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3.4} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m5 12.5 4.5 4.5L19 7.5" />
+                  </svg>
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[15px]">{e.name}</span>
                   <span className="block text-xs text-gray-400">
                     {money(e.amount)}
-                    {e.method === "cash" ? " · cash" : ""} · {e.status === "confirmed" ? `checked by ${isOrganiser ? "you" : c.organiser}` : "says paid"}
+                    {e.method === "cash" ? " · cash" : ""} · {e.status === "confirmed" ? `checked by ${c.organiser}` : "says paid"}
                   </span>
                 </span>
-                {isOrganiser && (
-                  <span className="flex shrink-0 items-center gap-2">
-                    {e.status === "paid" ? orgForm("confirm", e.id, "Got it", `${chip} border-owed/40 text-owed`) : orgForm("unconfirm", e.id, "Uncheck", "text-xs text-gray-400 underline")}
-                    {orgForm("remove", e.id, "✕", "flex h-8 w-8 items-center justify-center rounded-full text-gray-400 active:bg-mist", `Take ${e.name} off the list? Their tick goes too.`)}
-                  </span>
-                )}
               </li>
-            ))}
+              ),
+            )}
           </ul>
           {isOrganiser && p.paidCount > p.checked && (
-            <p className="mt-2 text-xs text-gray-400">“Says paid” means they ticked it. Tap Got it once you see the money.</p>
+            <p className="mt-2 text-xs text-gray-400">“Says paid” means they ticked it. Tap Confirm received once you see the money.</p>
           )}
         </section>
       )}
@@ -375,6 +446,14 @@ export default async function CollectionPage({ params, searchParams }: Props) {
         <p className="mt-8 rounded-xl bg-mist px-4 py-3 text-sm text-gray-500">
           {isOrganiser ? "No names yet. Share the link: people add themselves when they tick, or add names above." : "Nobody has ticked yet. Be the first!"}
         </p>
+      )}
+
+      {/* The one cream button on the organiser's page: share the link. */}
+      {isOrganiser && (
+        <ShareCollection path={path} title={c.title} text={shareText} className={`${primaryButtonClass} mt-8`}>
+          <LinkIcon size={18} className="mr-2 inline-block align-[-3px]" />
+          Share collection link
+        </ShareCollection>
       )}
 
       {/* The organiser's last controls */}

@@ -29,7 +29,7 @@ test("Back button: the same amount twice is two payments; a used key is refused"
     await R.locator("label[data-to]").filter({ hasText: "Asha" }).click();
     await R.getByLabel("Amount (INR)").fill(amount);
   };
-  const submit = () => R.getByRole("button", { name: "Record payment" }).click();
+  const submit = () => R.getByRole("button", { name: /^Record / }).click();
 
   // Ravi records ₹100.
   await R.goto(`${g.path}/pay`);

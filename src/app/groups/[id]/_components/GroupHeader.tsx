@@ -19,7 +19,7 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
   const { group, myId } = v;
   const me = group.members.find((m) => m.id === myId);
   const cover = coverOf(group);
-  // Trip groups: the countdown ("Goa in 12 days 🌴"), or a nudge to add the dates.
+  // Trip groups: the countdown ("Goa in 12 days"), or a nudge to add the dates.
   const phase = group.type === "trip" ? tripPhase(group.tripStart, group.tripEnd, todayKey(new Date(), v.tz)) : null;
   const words = phase ? countdownWords(group.name, phase) : null;
   const hot = phase && (phase.kind !== "before" || phase.days <= 7);
@@ -27,7 +27,7 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
   const tripPill =
     group.type !== "trip" || group.closed ? null : words ? (
       <span data-countdown-line className={hot ? "font-semibold text-fg" : undefined}>
-        {words.line}
+        {words.line.replace(/\s*[\p{Extended_Pictographic}\uFE0F]+\s*$/u, "")}
       </span>
     ) : !group.tripStart ? (
       <Link href={`/groups/${group.id}/settings#trip`} className="-my-3 inline-flex min-h-11 items-center font-semibold text-fg underline underline-offset-4" data-add-dates>
@@ -44,9 +44,8 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
     if (!c) return null;
     const w = weatherWords(c, group.currency === "USD");
     const f = (n: number) => `${group.currency === "USD" ? Math.round((n * 9) / 5 + 32) : n}°`;
-    const icon = w.icon === "rain" ? "🌧" : w.icon === "snow" ? "❄️" : w.icon === "cloud" ? "⛅" : "☀️";
     const month = new Date(Date.UTC(2026, tripMonth(group.tripStart, group.tripEnd), 15)).toLocaleString("en-GB", { month: "long", timeZone: "UTC" });
-    return { pill: `${icon} ${f(c.hi)} / ${f(c.lo)}`, where: stop.city || placeOf(group.name), month, w };
+    return { pill: `${f(c.hi)} / ${f(c.lo)}`, where: stop.city || placeOf(group.name), month, w };
   })();
   const weatherPill = weather && (
     <details className="group/wx relative" data-trip-weather>
@@ -105,10 +104,18 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
     </details>
   );
 
+  // Recap is no longer in the bottom bar: a quiet link on each group opens it for this group.
+  const recapLink = (
+    <Link href={`/search?g=${group.id}`} className="-my-3 inline-flex min-h-11 items-center text-fg/75 underline-offset-4 active:text-fg" data-group-recap>
+      {group.type === "trip" ? "Trip recap" : "Recap"}<span aria-hidden> ›</span>
+    </Link>
+  );
+
   // A plain group (no picture): the compact header.
   if (cover === "plain") {
     return (
-      <header className="mb-8 flex items-center gap-2">
+      <>
+      <header className="mb-2 flex items-center gap-2">
         <Link href="/" aria-label="Back to all groups" className={iconButtonClass}>
           <BackIcon size={20} />
         </Link>
@@ -120,6 +127,8 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
           <GearIcon size={20} />
         </Link>
       </header>
+      <div className="mb-6 px-1 text-[13px]">{recapLink}</div>
+      </>
     );
   }
 
@@ -188,6 +197,8 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
               {weatherPill}
             </>
           )}
+          <span aria-hidden>·</span>
+          {recapLink}
         </div>
       </div>
     </header>

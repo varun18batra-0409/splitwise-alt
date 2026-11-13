@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { markPaidAction } from "@/app/collect-actions";
-import { inputClass, primaryButtonClass } from "./ui";
+import { inputClass, primaryButtonClass, secondaryButtonClass } from "./ui";
 import { SelectField } from "@/components/SelectField";
 
 // The small moving parts of a collection's page.
@@ -63,17 +63,17 @@ export function ShareCollection({ path, title, text, className, children }: { pa
   );
 }
 
-function Submit({ label }: { label: string }) {
+function Submit({ label, outline }: { label: string; outline?: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" disabled={pending} className={primaryButtonClass}>
+    <button type="submit" disabled={pending} className={outline ? secondaryButtonClass : primaryButtonClass}>
       {pending ? "Ticking…" : label}
     </button>
   );
 }
 
 // "I've paid": pick your name (or add it), and the amount when it's "any amount".
-export function PaidForm({ code, due, anyAmount, amountHint }: { code: string; due: { id: string; name: string }[]; anyAmount: boolean; amountHint: string }) {
+export function PaidForm({ code, due, anyAmount, amountHint, outline }: { code: string; due: { id: string; name: string }[]; anyAmount: boolean; amountHint: string; outline?: boolean }) {
   const [who, setWho] = useState(due.length ? "" : "new");
   return (
     <form action={markPaidAction} className="space-y-3">
@@ -106,7 +106,7 @@ export function PaidForm({ code, due, anyAmount, amountHint }: { code: string; d
           <input name="amount" required inputMode="decimal" placeholder={amountHint} autoComplete="off" className={`${inputClass} tabular-nums`} />
         </label>
       )}
-      <Submit label="I’ve paid ✓" />
+      <Submit label="I’ve paid" outline={outline} />
     </form>
   );
 }
