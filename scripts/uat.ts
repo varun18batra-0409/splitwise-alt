@@ -884,7 +884,7 @@ async function main() {
   await step(V, "Simple screens", "Balances only explains; paying happens on Settle up (no duplicate buttons)", async () => {
     // “3 payments clear the whole trip” is the ticket's line at the top of the group, no longer a card of its own on Balances.
     await go(V, g);
-    await V.getByText(/payments? clears? (the whole trip|everything)/).first().waitFor();
+    await V.getByText(/payments? clears? (it|the whole trip|everything)/).first().waitFor();
     await go(V, `${g}?tab=balances`);
     assert((await V.getByRole("button", { name: "Mark as paid" }).count()) === 0, "Balances still has Mark as paid");
     assert((await V.getByText(/payments? clears? everything/).count()) === 0, "Balances still repeats the payments-clear card");

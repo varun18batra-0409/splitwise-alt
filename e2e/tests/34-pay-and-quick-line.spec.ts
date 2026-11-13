@@ -39,7 +39,7 @@ test("pay buttons, payment tracking and the quick line", async ({ browser }) => 
   await R.getByRole("button", { name: "Fill", exact: true }).click();
   await expect(R.getByRole("group", { name: "Quick line" }).getByRole("status")).toContainText("Asha paid");
   await expect(R.locator("#expense-name")).toHaveValue("Dinner");
-  await expect(R.getByLabel("Amount", { exact: true })).toHaveValue("1000");
+  await expect(R.getByLabel("Amount", { exact: true })).toHaveValue(/^1,?000$/); // grouped once the field isn't being typed in
   await R.getByRole("button", { name: "Save expense" }).click();
   await R.waitForURL(/tab=activity/);
   expect(await readBalances(R, g.path)).toMatchObject({ Asha: 50000, Ravi: -50000 });

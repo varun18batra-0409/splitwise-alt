@@ -145,11 +145,11 @@ export function ActivityRow({
           <p className="mt-0.5 flex min-w-0 items-baseline gap-x-1 text-[13px] leading-snug text-fg/60">
             <span className="min-w-0 truncate" title={(item.payerIds ?? [item.paidById]).map(nameOf).join(" + ")}>
               {(item.payerIds ?? [item.paidById]).map(nameOf).join(" + ")}
-            </span>
+            </span>{" "}
             <span className="shrink-0 whitespace-nowrap">
               {item.refund ? "got back" : "paid"} {shown(o?.amount ?? 0, item.amount)}
               {item.edited && " · edited"}
-            </span>
+            </span>{" "}
             {groupName && <span className="min-w-0 shrink truncate">· {groupName}</span>}
           </p>
         )}
