@@ -28,11 +28,11 @@ describe("a moment's words", () => {
     const family = "\u{1F468}\u200d\u{1F469}\u200d\u{1F467}";
     expect(cleanCaption(`x${family}\u200b`)).toBe(`x${family}`);
   });
-  it("refuses more than 400 UTF-16 code units before doing anything else, and accepts 400 of spaces-and-letters that fit", () => {
-    expect(cleanCaption("a".repeat(401))).toBeNull();
-    expect(cleanCaption(" ".repeat(401))).toBeNull(); // even if it would trim to nothing
-    expect(cleanCaption("a b ".repeat(100))).toBeNull(); // 400 units, but 200 characters once spaces collapse is still over 80
-    expect(cleanCaption(`ok${" ".repeat(398)}`)).toBe("ok"); // exactly 400 units: allowed
+  it("refuses more than 2,000 UTF-16 code units before doing anything else, and accepts 2,000 of spaces-and-letters that fit", () => {
+    expect(cleanCaption("a".repeat(2001))).toBeNull();
+    expect(cleanCaption(" ".repeat(2001))).toBeNull(); // even if it would trim to nothing
+    expect(cleanCaption("a b ".repeat(100))).toBeNull(); // 400 units, fine, but 200 characters once spaces collapse is over 80
+    expect(cleanCaption(`ok${" ".repeat(1998)}`)).toBe("ok"); // exactly 2,000 units: allowed
   });
   it("keeps at most 3 combining marks on a letter; 5,000 of them are refused outright", () => {
     const mark = "\u0301";

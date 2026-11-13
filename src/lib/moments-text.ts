@@ -12,7 +12,7 @@ export function graphemeCount(s: string): number {
 
 // The most a caption may be before anything is done to it (UTF-16 code units), and the most combining marks kept on one letter.
 // (Without these a short-looking caption could be thousands of invisible marks.)
-export const CAPTION_RAW_MAX = 400;
+export const CAPTION_RAW_MAX = 2000; // room for 80 real characters (a family emoji alone is 8 units), small enough to stop huge captions
 export const CAPTION_MARKS_MAX = 3;
 
 // Zero-width spaces and joiners, byte-order mark, left/right marks, Arabic letter mark: invisible, and only useful for hiding things.
@@ -36,7 +36,7 @@ function capMarks(s: string): string {
 
 // Trim, turn line breaks and tabs into spaces, collapse repeated spaces, and drop the characters that flip the direction of
 // text (U+202A to U+202E and U+2066 to U+2069), zero-width characters and direction marks. Null when the raw input is over
-// 400 UTF-16 code units, or the result is over 80 characters. An empty caption is fine.
+// 2,000 UTF-16 code units, or the result is over 80 characters. An empty caption is fine.
 export function cleanCaption(raw: unknown): string | null {
   const text = String(raw ?? "");
   if (text.length > CAPTION_RAW_MAX) return null;

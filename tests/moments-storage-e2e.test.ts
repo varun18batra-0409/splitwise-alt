@@ -535,7 +535,7 @@ describe("who can add, and what the upload checks", () => {
     const w = await world("add-words");
     await as(P.ann);
     expect((await upload({ group: w.id, caption: "a".repeat(81) })).status).toBe(400);
-    expect((await upload({ group: w.id, caption: " ".repeat(401) })).status, "401 code units").toBe(400);
+    expect((await upload({ group: w.id, caption: " ".repeat(2001) })).status, "2,001 code units").toBe(400);
     expect((await upload({ group: w.id, caption: `a${"\u0301".repeat(5000)}` })).status, "5,000 combining marks").toBe(400);
     expect((await upload({ group: w.id, takenOn: "2026-03-15" })).status).toBe(400);
     expect((await upload({ group: w.id, takenOn: "2026-03-09" })).status).toBe(400);
