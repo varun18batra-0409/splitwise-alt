@@ -4,6 +4,7 @@ import { getCategory } from "@/lib/categories";
 import { daysLeft, monthKey } from "@/lib/home/month";
 import { aheadBehind, monthSummary } from "@/lib/home/summary";
 import type { GroupView } from "./view";
+import { Amt } from "@/components/Amt";
 
 // Extra parts of This month that come from bills, budgets, goals, the deposit
 // and insights (each section is hidden when it has nothing to show).
@@ -45,21 +46,21 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
         {couple ? (
           <>
             <p className="text-sm text-gray-500">{monthName} together</p>
-            <p className="mt-1 money text-[40px] font-semibold leading-none tracking-tight tabular-nums">{money(s.total)}</p>
+            <p className="mt-1 money text-[40px] font-semibold leading-none tracking-tight tabular-nums"><Amt minor={s.total} currency={group.currency} /></p>
             {s.lastTotal > 0 && (
               <p className="mt-1.5 text-sm text-gray-500">
-                {change <= 0 ? `${money(-change)} less than last month` : `${money(change)} more than last month`}
+                {change <= 0 ? <><Amt minor={-change} currency={group.currency} /> less than last month</> : <><Amt minor={change} currency={group.currency} /> more than last month</>}
               </p>
             )}
             <div className="my-4 h-px bg-line" />
             <p className={`money text-[22px] font-semibold tabular-nums ${mine > 0 ? "text-owed" : mine < 0 ? "text-owe" : ""}`}>
-              {aheadBehind(mine) === "ahead" ? `Overall you’re ${money(mine)} ahead` : aheadBehind(mine) === "behind" ? `Overall you’re ${money(-mine)} behind` : "You’re even"}
+              {aheadBehind(mine) === "ahead" ? <>Overall you’re <Amt minor={mine} currency={group.currency} /> ahead</> : aheadBehind(mine) === "behind" ? <>Overall you’re <Amt minor={-mine} currency={group.currency} /> behind</> : "You’re even"}
             </p>
             {s.total > 0 && (
               <>
                 <p className="mt-1 text-xs text-gray-500">
-                  This month you put in {money(s.paidByMe)}; your {agreed}% share is {money(s.mine)}
-                  {s.paidByMe !== s.mine ? ` (${money(Math.abs(s.paidByMe - s.mine))} ${s.paidByMe > s.mine ? "ahead" : "behind"})` : ""}.
+                  This month you put in <Amt minor={s.paidByMe} currency={group.currency} />; your {agreed}% share is <Amt minor={s.mine} currency={group.currency} />
+                  {s.paidByMe !== s.mine ? <> (<Amt minor={Math.abs(s.paidByMe - s.mine)} currency={group.currency} /> {s.paidByMe > s.mine ? "ahead" : "behind"})</> : ""}.
                 </p>
                 <div className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-mist" aria-hidden>
                   <div className="bg-fg" style={{ width: `${myPart}%` }} />
@@ -89,13 +90,13 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
               <p className="text-sm text-gray-500">{monthName} · your share</p>
               <p className="text-xs text-gray-500">{left === 0 ? "Last day" : left === 1 ? "1 day left" : `${left} days left`}</p>
             </div>
-            <p className="mt-1 money text-[40px] font-semibold leading-none tracking-tight tabular-nums">{money(s.mine)}</p>
-            <p className="mt-1.5 text-sm text-gray-500">of {money(s.total)} for the {group.type === "home" ? "home" : "group"} so far</p>
+            <p className="mt-1 money text-[40px] font-semibold leading-none tracking-tight tabular-nums"><Amt minor={s.mine} currency={group.currency} /></p>
+            <p className="mt-1.5 text-sm text-gray-500">of <Amt minor={s.total} currency={group.currency} /> for the {group.type === "home" ? "home" : "group"} so far</p>
             <div className="my-4 h-px bg-line" />
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className={`money text-[22px] font-semibold tabular-nums ${mine > 0 ? "text-owed" : mine < 0 ? "text-owe" : ""}`}>
-                  {mine > 0 ? `Overall you’re owed ${money(mine)}` : mine < 0 ? `Overall you owe ${money(-mine)}` : "Overall you’re all square"}
+                  {mine > 0 ? <>Overall you’re owed <Amt minor={mine} currency={group.currency} /></> : mine < 0 ? <>Overall you owe <Amt minor={-mine} currency={group.currency} /></> : "Overall you’re all square"}
                 </p>
                 {settleDayText && <p className="mt-0.5 text-xs text-gray-500">{settleDayText}</p>}
               </div>
@@ -169,7 +170,7 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
                 <span className="h-2 overflow-hidden rounded-full bg-mist">
                   <span className="block h-full rounded-full bg-gray-600" style={{ width: `${Math.max(2, Math.round((Math.max(0, c.amount) * 100) / Math.max(1, s.byCategory[0].amount)))}%` }} />
                 </span>
-                <span className="text-right money tabular-nums">{money(c.amount)}</span>
+                <span className="text-right money tabular-nums"><Amt minor={c.amount} currency={group.currency} /></span>
               </li>
             ))}
           </ul>

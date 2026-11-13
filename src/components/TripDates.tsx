@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { placeOf, tripRange } from "@/lib/countdown";
-import { inputClass } from "./ui";
+import { DateField } from "@/components/DateField";
 
 // "When's the trip?": the start (and end) day, with a nudge to fill them in,
 // because the dates are what start the countdown for everyone.
@@ -22,11 +22,11 @@ export function TripDates({ name, start = "", end = "", titleClass = "text-sm fo
       <span className="grid grid-cols-2 gap-3">
         <label className="block">
           <span className="mb-1 block text-xs text-gray-400">Starts</span>
-          <input name="tripStart" type="date" defaultValue={start} onChange={(e) => setFrom(e.target.value)} className={inputClass} />
+          <DateField name="tripStart" defaultValue={start} onChange={(e) => setFrom(e.target.value)} />
         </label>
         <label className="block">
           <span className="mb-1 block text-xs text-gray-400">Ends (if you know)</span>
-          <input name="tripEnd" type="date" defaultValue={end} min={from || undefined} onChange={(e) => setTo(e.target.value)} className={inputClass} aria-invalid={bad || undefined} />
+          <DateField name="tripEnd" defaultValue={end} min={from || undefined} onChange={(e) => setTo(e.target.value)} aria-invalid={bad || undefined} />
         </label>
       </span>
       {/* The dates in words, so a phone's dd/mm/yyyy can't be misread. */}

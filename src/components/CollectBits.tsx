@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { markPaidAction } from "@/app/collect-actions";
 import { inputClass, primaryButtonClass } from "./ui";
+import { SelectField } from "@/components/SelectField";
 
 // The small moving parts of a collection's page.
 
@@ -80,7 +81,7 @@ export function PaidForm({ code, due, anyAmount, amountHint }: { code: string; d
       {due.length > 0 && (
         <label className="block">
           <span className="mb-2 block text-sm font-medium text-gray-600">I’m</span>
-          <select name="entryId" required value={who} onChange={(e) => setWho(e.target.value)} className={inputClass}>
+          <SelectField name="entryId" required value={who} onChange={(e) => setWho(e.target.value)}>
             <option value="" disabled>
               Pick your name
             </option>
@@ -90,7 +91,7 @@ export function PaidForm({ code, due, anyAmount, amountHint }: { code: string; d
               </option>
             ))}
             <option value="new">I’m not on the list</option>
-          </select>
+          </SelectField>
         </label>
       )}
       {who === "new" && (

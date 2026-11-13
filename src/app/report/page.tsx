@@ -52,7 +52,7 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
           <legend className="mb-2 text-sm font-medium text-gray-600">What’s wrong?</legend>
           {REPORT_REASONS.map((r, i) => (
             <label key={r} className="flex min-h-12 items-center gap-3 rounded-2xl border border-line px-4 py-3">
-              <input type="radio" name="reason" value={r} required defaultChecked={i === 0} className="h-4 w-4 accent-fg" />
+              <input type="radio" name="reason" value={r} required defaultChecked={i === 0} className="h-5 w-5" />
               <span className="text-base">{REASON_LABELS[r]}</span>
             </label>
           ))}

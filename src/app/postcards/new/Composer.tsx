@@ -12,6 +12,7 @@ import { COUNTRY_STAMP_IDS, HANDS, INKS, TONES, LETTERINGS, OPENERS, PAPERS, pap
 import { MESSAGE_MAX, messageFit, overText, withOpener, roughMeasure, type MeasureEm } from "@/lib/postcards/fit";
 import { sendPostcardAction } from "@/app/postcard-actions";
 import type { PostcardGroup } from "@/lib/postcards/people";
+import { DateField } from "@/components/DateField";
 
 type Props = {
   groupId: string;
@@ -570,7 +571,7 @@ function OpensOn({ value, onChange, label, chip }: { value: string; onChange: (v
         </button>
       </div>
       {picking && (
-        <input type="date" min={iso(tomorrow)} max={iso(new Date(now.getFullYear() + 2, now.getMonth(), now.getDate()))} value={value} onChange={(e) => onChange(e.target.value)} aria-label="Day it opens" className="mt-3 w-full rounded-2xl border border-line bg-mist px-4 py-3 text-base outline-none [color-scheme:dark] focus:border-fg/40" />
+        <DateField min={iso(tomorrow)} max={iso(new Date(now.getFullYear() + 2, now.getMonth(), now.getDate()))} value={value} onChange={(e) => onChange(e.target.value)} aria-label="Day it opens" className="mt-3" />
       )}
       {value && (
         <p className="mt-3 flex items-center gap-2 rounded-[16px] border border-[#8e1f26]/40 bg-[#8e1f26]/10 px-4 py-3 text-[13.5px] text-fg/85" data-sealed-note>

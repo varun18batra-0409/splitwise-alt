@@ -4,6 +4,8 @@ import { CATEGORIES, getCategory } from "@/lib/categories";
 import { dayKey, expenseDate } from "@/lib/dates";
 import { niceDate } from "@/lib/format";
 import { formatMoney } from "@/lib/money";
+import { overviewMoney } from "@/lib/money-display";
+import { Amt } from "@/components/Amt";
 import { spentByCurrency } from "@/lib/secondary";
 import { ColumnChart, HBarChart } from "@/components/Charts";
 import type { GroupExpense, GroupView } from "./view";
@@ -15,6 +17,7 @@ import { insightLines, tripReport } from "@/lib/trip-report";
 // Category, currency, day-by-day, who paid, and each person's share.
 export function ChartsTab({ v }: { v: GroupView }) {
   const { group, myId, expenses, money, spent, tz } = v;
+  const short = (n: number) => overviewMoney(n, group.currency); // whole units from 1,000 up; the exact amount is in the tooltip / table
   if (expenses.length === 0) {
     return <p className="rounded-2xl bg-mist px-4 py-8 text-center text-sm text-gray-600">Charts appear once the group has expenses.</p>;
   }
@@ -29,7 +32,7 @@ export function ChartsTab({ v }: { v: GroupView }) {
   const catData = CATEGORIES.filter((c) => byCat.has(c.id))
     .map((c) => {
       const value = byCat.get(c.id)!;
-      return { key: c.id, label: c.label, icon: <ExpenseGlyph title="" category={c.id} size={22} className="rounded-[7px]!" />, value, valueText: `${backMoney(value, money)} · ${percentText(value, spent)}`, href: `/search?g=${group.id}&c=${c.id}` };
+      return { key: c.id, label: c.label, icon: <ExpenseGlyph title="" category={c.id} size={22} className="rounded-[7px]!" />, value, valueText: `${backMoney(value, short)} · ${percentText(value, spent)}`, exactText: `${backMoney(value, money)} · ${percentText(value, spent)}`, href: `/search?g=${group.id}&c=${c.id}` };
     })
     .sort((a, b) => b.value - a.value);
 
@@ -38,7 +41,7 @@ export function ChartsTab({ v }: { v: GroupView }) {
   const people = (m: Map<string, number>) =>
     v.people
       .filter((mem) => !(mem.leftAt || mem.removedAt) || (m.get(mem.id) ?? 0) !== 0) // someone who left shows only if they paid
-      .map((mem) => ({ key: mem.id, label: mem.id === myId ? "You" : `${mem.name}${mem.leftAt || mem.removedAt ? " (left)" : ""}`, value: m.get(mem.id) ?? 0, valueText: backMoney(m.get(mem.id) ?? 0, money) }))
+      .map((mem) => ({ key: mem.id, label: mem.id === myId ? "You" : `${mem.name}${mem.leftAt || mem.removedAt ? " (left)" : ""}`, value: m.get(mem.id) ?? 0, valueText: backMoney(m.get(mem.id) ?? 0, short), exactText: backMoney(m.get(mem.id) ?? 0, money) }))
       .sort((a, b) => b.value - a.value);
 
   // Each person's share, split by category: what each of us spent on stays, food, travel…
@@ -71,7 +74,8 @@ export function ChartsTab({ v }: { v: GroupView }) {
     key: k,
     label: niceDate(k).replace(/ \d{4}$/, ""),
     value: perDay.get(k) ?? 0,
-    valueText: backMoney(perDay.get(k) ?? 0, money),
+    valueText: backMoney(perDay.get(k) ?? 0, short),
+    exactText: backMoney(perDay.get(k) ?? 0, money),
   }));
 
   // A few plain-English lines on top (trips and other groups; flats have their own on This month).
@@ -100,7 +104,7 @@ export function ChartsTab({ v }: { v: GroupView }) {
           </div>
         </section>
       )}
-      <HBarChart title="Spending by category" data={catData} total={money(spent)} />
+      <HBarChart title="Spending by category" data={catData} total={short(spent)} totalExact={money(spent)} />
       <HBarChart
         title="Spent by currency"
         data={spentByCurrency(expenses).map((r) => ({
@@ -112,7 +116,7 @@ export function ChartsTab({ v }: { v: GroupView }) {
       />
       <ColumnChart title={shownDays.length < days.length ? "Spending by day (last 21 days)" : "Spending by day"} data={dayData} />
       <HBarChart title="Who paid" data={people(paid)} />
-      <PersonByCategory rows={byPerson} money={money} />
+      <PersonByCategory rows={byPerson} currency={group.currency} />
     </div>
   );
 }
@@ -129,7 +133,7 @@ const CAT_COLOUR: Record<string, string> = {
   other: "#6f6f7a",
 };
 
-function PersonByCategory({ rows, money }: { rows: { id: string; name: string; total: number; parts: { id: string; label: string; amount: number; href: string }[] }[]; money: (n: number) => string }) {
+function PersonByCategory({ rows, currency }: { rows: { id: string; name: string; total: number; parts: { id: string; label: string; amount: number; href: string }[] }[]; currency: string }) {
   if (!rows.length) return null;
   return (
     <section aria-label="Each person’s share by category" data-person-categories>
@@ -140,7 +144,7 @@ function PersonByCategory({ rows, money }: { rows: { id: string; name: string; t
           <li key={r.id} className="rounded-[18px] border border-line bg-mist/40 px-4 py-3.5" data-person-row={r.name}>
             <div className="flex items-baseline justify-between gap-3">
               <span className="truncate text-[15px] font-semibold">{r.name}</span>
-              <span className="money shrink-0 text-[15px] font-semibold tabular-nums">{money(r.total)}</span>
+              <span className="money shrink-0 text-[15px] font-semibold tabular-nums"><Amt minor={r.total} currency={currency} /></span>
             </div>
             {/* One bar, split by category */}
             <div className="mt-2.5 flex h-2 overflow-hidden rounded-full bg-fg/[0.06]" aria-hidden>
@@ -156,7 +160,7 @@ function PersonByCategory({ rows, money }: { rows: { id: string; name: string; t
                       <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ background: CAT_COLOUR[p.id] ?? CAT_COLOUR.other }} />
                       <span className="min-w-0 break-words text-fg/60">{p.label}</span>
                     </span>
-                    <span className="mt-0.5 block pl-3.5 tabular-nums text-fg/90">{money(p.amount)}</span>
+                    <span className="mt-0.5 block pl-3.5 tabular-nums text-fg/90"><Amt minor={p.amount} currency={currency} /></span>
                   </Link>
                 </li>
               ))}

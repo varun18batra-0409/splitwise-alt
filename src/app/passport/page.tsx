@@ -9,11 +9,12 @@ import { celebrateMarks, loadPassport } from "@/lib/passport-db";
 import { COUNTRIES, countryOf } from "@/lib/geo";
 import { parseHandPlaces, passportNeedsAnswer, passportShared, stampPages } from "@/lib/passport";
 import { answerPassportQuestionAction, removePlaceAction, setHomeCountryAction, setPassportShareAction } from "@/app/passport-actions";
-import { ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/components/ui";
+import { ErrorNote, PageHeader, primaryButtonClass } from "@/components/ui";
 import { ShareSheet } from "@/components/ShareSheet";
 import { Notice } from "@/components/Notice";
 import { PassportBook } from "@/components/PassportBook";
 import { CountryPicker } from "@/components/CountryPicker";
+import { SelectField } from "@/components/SelectField";
 
 export const metadata = { title: "Your trip passport", robots: { index: false } };
 
@@ -172,14 +173,14 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
           <label className="block min-w-0 flex-1">
             <span className="mb-1 block text-sm font-semibold">Home country</span>
             <span className="mb-2 block text-xs text-gray-500">Trips here get city stamps; trips abroad get a country stamp.</span>
-            <select name="country" defaultValue={p.home} aria-label="Home country" className={`${inputClass} min-w-0`}>
+            <SelectField name="country" defaultValue={p.home} aria-label="Home country" className="min-w-0">
               <option value="">Not set</option>
               {COUNTRIES.map((c) => (
                 <option key={c.code} value={c.code}>
                   {c.flag} {c.name}
                 </option>
               ))}
-            </select>
+            </SelectField>
           </label>
           <button type="submit" className="shrink-0 rounded-xl border border-line px-4 py-3 text-sm font-semibold">
             Save

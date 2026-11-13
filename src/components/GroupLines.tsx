@@ -3,6 +3,7 @@ import { GroupCover } from "@/components/GroupCover";
 import { coverFor } from "@/lib/covers";
 import { placePhoto } from "@/lib/places";
 import { formatMoney } from "@/lib/money";
+import { overviewMoney } from "@/lib/money-display";
 import { dayLabel } from "@/lib/activity";
 import type { loadOverview } from "@/lib/overview";
 
@@ -32,8 +33,8 @@ export function GroupRow({ g, closed, tz }: { g: Entry; closed?: boolean; tz: st
             {peopleCount(g.people)}, {closed ? "closed" : activeText(g.lastActivity, tz)}
           </span>
         </span>
-        <span className={`shrink-0 text-right text-sm tabular-nums ${b > 0 ? "text-owed" : b < 0 ? "text-owe" : "text-gray-400"}`}>
-          {b > 0 ? `owed ${formatMoney(b, g.group.currency)}` : b < 0 ? `owe ${formatMoney(-b, g.group.currency)}` : "settled"}
+        <span title={b !== 0 ? formatMoney(Math.abs(b), g.group.currency) : undefined} data-exact={b !== 0 ? formatMoney(Math.abs(b), g.group.currency) : undefined} className={`shrink-0 text-right text-sm tabular-nums ${b > 0 ? "text-owed" : b < 0 ? "text-owe" : "text-gray-400"}`}>
+          {b > 0 ? `owed ${overviewMoney(b, g.group.currency)}` : b < 0 ? `owe ${overviewMoney(-b, g.group.currency)}` : "settled"}
         </span>
       </Link>
     </li>
@@ -62,8 +63,8 @@ export function GroupLine({ g, tz }: { g: Entry; tz: string }) {
           </span>
         </span>
         <span className="shrink-0 text-right leading-tight">
-          <span className={`money block text-[17px] ${b > 0 ? "text-owed" : b < 0 ? "text-owe" : "text-fg/60"}`}>
-            {b > 0 ? `+${formatMoney(b, g.group.currency)}` : b < 0 ? `−${formatMoney(-b, g.group.currency)}` : "Settled"}
+          <span title={b !== 0 ? formatMoney(Math.abs(b), g.group.currency) : undefined} data-exact={b !== 0 ? formatMoney(Math.abs(b), g.group.currency) : undefined} className={`money block text-[17px] ${b > 0 ? "text-owed" : b < 0 ? "text-owe" : "text-fg/60"}`}>
+            {b > 0 ? `+${overviewMoney(b, g.group.currency)}` : b < 0 ? `−${overviewMoney(-b, g.group.currency)}` : "Settled"}
           </span>
           {b !== 0 && <span className="block text-[11px] text-fg/60">{b > 0 ? "you’re owed" : "you owe"}</span>}
         </span>

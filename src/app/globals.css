@@ -188,6 +188,68 @@ fieldset {
     outline: 2px solid var(--color-accent);
     outline-offset: 2px;
   }
+
+  /* Loopin's own tick boxes and round buttons (the phone's blue ones are switched off). */
+  input[type="checkbox"]:not(.sr-only):not(.appearance-none),
+  input[type="radio"]:not(.sr-only):not(.appearance-none) {
+    -webkit-appearance: none;
+    appearance: none;
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    margin: 0;
+    border: 1.5px solid rgb(244 242 236 / 0.4);
+    background-color: transparent;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 100% 100%;
+    cursor: pointer;
+  }
+  input[type="checkbox"]:not(.sr-only):not(.appearance-none) {
+    border-radius: 6px;
+  }
+  input[type="radio"]:not(.sr-only):not(.appearance-none) {
+    border-radius: 9999px;
+  }
+  input[type="checkbox"]:not(.sr-only):not(.appearance-none):checked {
+    background-color: #f4f2ec;
+    border-color: #f4f2ec;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%230d0d0f' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5.2 10.4 3.2 3.2 6.4-6.8'/%3E%3C/svg%3E");
+  }
+  input[type="radio"]:not(.sr-only):not(.appearance-none):checked {
+    background-color: #f4f2ec;
+    border-color: #f4f2ec;
+    background-image: radial-gradient(circle, #0d0d0f 0 3.5px, transparent 4px);
+  }
+  input[type="checkbox"]:not(.sr-only):not(.appearance-none):disabled,
+  input[type="radio"]:not(.sr-only):not(.appearance-none):disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  input[type="checkbox"]:not(.sr-only):not(.appearance-none):focus-visible,
+  input[type="radio"]:not(.sr-only):not(.appearance-none):focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  /* No phone triangle on "open/close" lines; a drawn chevron (.chev) shows where there is one. */
+  summary {
+    list-style: none;
+  }
+  summary::-webkit-details-marker {
+    display: none;
+  }
+  .chev {
+    transition: rotate 150ms ease;
+  }
+  details[open] > summary .chev {
+    rotate: 180deg;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chev {
+    transition: none;
+  }
 }
 
 /* ---------- Intro tour ---------- */

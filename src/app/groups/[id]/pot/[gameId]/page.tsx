@@ -21,6 +21,7 @@ import { recordCustomPayment } from "@/app/actions";
 import { actionFormClass, DifferentAmountLink, differentAmountFor, filledActionClass, SettleRow } from "@/components/SettleRow";
 import { FreshKey } from "@/components/FreshKey";
 import { getTimeZone } from "@/lib/tz";
+import { SelectField } from "@/components/SelectField";
 
 // One game of Game night: chips in and took home, live; then who came out ahead,
 // who came out behind and who pays whom. Settling up happens in the group, as always.
@@ -384,13 +385,13 @@ export default async function GamePage({ params, searchParams }: { params: Promi
                   <form action={adjustAction} className="flex gap-2">
                     <input type="hidden" name="gameId" value={game.id} />
                     <input type="hidden" name="mode" value="one" />
-                    <select name="memberId" aria-label="Put it on" className={`${inputClass} flex-1`}>
+                    <SelectField name="memberId" aria-label="Put it on" className="min-w-0 flex-1">
                       {players.map((p) => (
                         <option key={p} value={p}>
                           Put it on {nameOf(p)}
                         </option>
                       ))}
-                    </select>
+                    </SelectField>
                     <button type="submit" className="shrink-0 rounded-xl border border-line px-3 text-sm font-semibold active:bg-mist">
                       Fix
                     </button>

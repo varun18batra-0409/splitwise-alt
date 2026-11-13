@@ -25,7 +25,7 @@ export function HighlightCard({ h }: { h: Extract<Highlight, { kind: "card" }> }
   const t = TONE[h.tone];
   const picture = h.photo || h.cover;
   return (
-    <div className="relative flex h-[268px] flex-col overflow-hidden px-5 pb-12 pt-5" style={{ background: t.bg }} data-highlight={h.id}>
+    <div className="relative flex min-h-[268px] flex-col overflow-hidden px-5 pb-12 pt-5" style={{ background: t.bg }} data-highlight={h.id}>
       {h.photo ? (
         <div className="absolute inset-y-0 left-[38%] right-0">
           <Image src={h.photo} alt="" fill sizes="(max-width: 480px) 65vw, 320px" className="object-cover" />
@@ -46,7 +46,7 @@ export function HighlightCard({ h }: { h: Extract<Highlight, { kind: "card" }> }
         {h.eyebrow}
       </p>
       <p className="relative z-[1] mt-1 max-w-[60%] font-display text-[25px] font-semibold leading-[1.1]">{h.title}</p>
-      <p className="relative z-[1] mt-auto line-clamp-3 max-w-[60%] text-[13px] leading-snug text-gray-700">{h.text}</p>
+      <p className="relative z-[1] mt-auto max-w-[60%] pt-2 text-[13px] leading-snug text-gray-700">{h.text}</p>
       <Link href={h.href} className={`relative z-[1] mt-3 ${button}`}>
         {h.button}
       </Link>
@@ -73,8 +73,17 @@ function WeatherIcon({ kind }: { kind: string }) {
   );
 }
 
-// Small drawn objects for cards without a place photo.
+// Small drawn objects for cards without a place photo. On a small phone the picture shrinks (and goes below 360px wide),
+// so it never runs into the headline or the seal into the words.
 function Art({ kind }: { kind: string }) {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 origin-top-right max-[399px]:scale-[0.8] max-[359px]:hidden">
+      <ArtPicture kind={kind} />
+    </div>
+  );
+}
+
+function ArtPicture({ kind }: { kind: string }) {
   if (kind === "postcard")
     return (
       <div aria-hidden className="absolute right-4 top-9">

@@ -17,6 +17,7 @@ import { FriendPicker } from "@/components/FriendPicker";
 import { PickContacts } from "@/components/PickContacts";
 import { organiserActionForm, undoPaidAction } from "@/app/collect-actions";
 import { whatsappLink } from "@/lib/whatsapp";
+import { ChevronDown } from "@/components/icons";
 
 // One collection's page: the link people open from the WhatsApp group.
 // Anyone with it can pay the organiser directly and tick their name; the
@@ -101,7 +102,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
                   <CopyButton text={c.upiId} label="Copy" />
                 </div>
                 <details className="rounded-2xl border border-line px-4 py-3">
-                  <summary className="cursor-pointer text-sm text-gray-500">On a laptop? Scan this with your phone</summary>
+                  <summary className="cursor-pointer text-sm text-gray-500">On a laptop? Scan this with your phone <ChevronDown size={14} className="chev ml-1.5 inline-block align-[-2px] text-fg/55" /></summary>
                   <div className="mx-auto mt-3 w-48 overflow-hidden rounded-xl" dangerouslySetInnerHTML={{ __html: qr }} />
                 </details>
               </div>
@@ -226,7 +227,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
             </a>
           )}
           <details className="rounded-2xl border border-line px-4 py-3">
-            <summary className="cursor-pointer text-sm font-medium">Add names to the list</summary>
+            <summary className="cursor-pointer text-sm font-medium">Add names to the list <ChevronDown size={14} className="chev ml-1.5 inline-block align-[-2px] text-fg/55" /></summary>
             <form action={organiserActionForm} className="mt-3 space-y-3">
               <input type="hidden" name="code" value={c.code} />
               <input type="hidden" name="kind" value="add" />
@@ -274,7 +275,7 @@ export default async function CollectionPage({ params, searchParams }: Props) {
         payBlock("mt-6 space-y-5")
       ) : (
         <details className="mt-5 rounded-2xl border border-line px-4 py-3">
-          <summary className="cursor-pointer text-sm font-medium">Paying for someone else too?</summary>
+          <summary className="cursor-pointer text-sm font-medium">Paying for someone else too? <ChevronDown size={14} className="chev ml-1.5 inline-block align-[-2px] text-fg/55" /></summary>
           {payBlock("mt-4 space-y-5")}
         </details>
       ))}

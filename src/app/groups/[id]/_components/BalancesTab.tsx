@@ -5,6 +5,7 @@ import { Notice } from "@/components/Notice";
 import { formatMoney, formatPercent } from "@/lib/money";
 import { foreignPartLine, ledgerSummary } from "@/lib/foreign-part";
 import { niceDate } from "@/lib/format";
+import { overviewMoney } from "@/lib/money-display";
 import { Avatar } from "@/components/ui";
 import type { GroupView } from "./view";
 import { WhyPanel } from "./WhyPanel";
@@ -91,8 +92,12 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
                         {foreign || eq(b) || (theirs.length ? `${theirs.length} payment${theirs.length === 1 ? "" : "s"} to settle` : "settled up")}
                       </span>
                     </span>
-                    <span className={`shrink-0 text-right money tabular-nums ${b > 0 ? "text-owed" : b < 0 ? "text-owe" : "text-gray-400"}`}>
-                      {b > 0 ? `gets ${money(b)}` : b < 0 ? `owes ${money(-b)}` : "settled"}
+                    <span
+                      className={`shrink-0 text-right money tabular-nums ${b > 0 ? "text-owed" : b < 0 ? "text-owe" : "text-gray-400"}`}
+                      title={b !== 0 ? money(Math.abs(b)) : undefined}
+                      data-exact={b !== 0 ? money(Math.abs(b)) : undefined}
+                    >
+                      {b > 0 ? `gets ${overviewMoney(b, group.currency)}` : b < 0 ? `owes ${overviewMoney(-b, group.currency)}` : "settled"}
                     </span>
                   </summary>
                   <div className="mb-3 ml-12 space-y-2">
@@ -136,16 +141,20 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
             {ledgers.map((l) => {
               const val = l.net[myId] ?? 0;
               return (
-                <li key={l.currency} className="flex items-center justify-between gap-3 px-4 py-3">
-                  <span className="min-w-0">
+                <li key={l.currency} className="flex flex-col gap-1 px-4 py-3">
+                  <span className="block min-w-0">
                     <span className="block text-sm font-medium">{l.currency} expenses</span>
-                    <span className="block text-xs text-gray-400">
-                      {formatMoney(l.spent, l.currency)} spent
+                    <span className="block text-xs text-gray-400" title={formatMoney(l.spent, l.currency)} data-exact={formatMoney(l.spent, l.currency)}>
+                      {overviewMoney(l.spent, l.currency)} spent
                       {payments.some((p) => p.fromId === myId || p.toId === myId) ? ", before payments" : ""}
                     </span>
                   </span>
-                  <span className={`shrink-0 text-right money tabular-nums ${val > 0 ? "text-owed" : val < 0 ? "text-owe" : "text-gray-400"}`}>
-                    {val > 0 ? `you’re owed ${formatMoney(val, l.currency)}` : val < 0 ? `you owe ${formatMoney(-val, l.currency)}` : "even"}
+                  <span
+                    className={`block text-sm money tabular-nums ${val > 0 ? "text-owed" : val < 0 ? "text-owe" : "text-gray-400"}`}
+                    title={val !== 0 ? formatMoney(Math.abs(val), l.currency) : undefined}
+                    data-exact={val !== 0 ? formatMoney(Math.abs(val), l.currency) : undefined}
+                  >
+                    {val > 0 ? `you’re owed ${overviewMoney(val, l.currency)}` : val < 0 ? `you owe ${overviewMoney(-val, l.currency)}` : "even"}
                   </span>
                 </li>
               );
@@ -156,7 +165,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
 
       <section className="space-y-1 text-sm text-gray-500">
         <p>
-          {money(spent)}
+          <span title={money(spent)} data-exact={money(spent)}>{overviewMoney(spent, group.currency)}</span>
           {eq(spent) && ` (${eq(spent)})`} spent across {expenses.length} {expenses.length === 1 ? "expense" : "expenses"} by {people.length}{" "}
           {people.length === 1 ? "person" : "people"}.
         </p>

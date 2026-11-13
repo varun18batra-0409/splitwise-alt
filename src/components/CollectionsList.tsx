@@ -33,7 +33,7 @@ export function CollectionsSection({ list, limit, total, className = "mt-8" }: {
           const toCheck = p.paidCount - p.checked;
           return (
             <li key={c.id}>
-              <Link href={`/c/${c.code}`} className={`block rounded-2xl border border-line px-4 py-3.5 active:bg-mist ${c.closedAt ? "opacity-60" : ""}`}>
+              <Link href={`/c/${c.code}`} className={`block overflow-hidden rounded-2xl border border-line px-4 py-3.5 active:bg-mist ${c.closedAt ? "opacity-60" : ""}`}>
                 <span className="flex items-baseline justify-between gap-3">
                   <span className="truncate text-[15px] font-semibold">{c.title}</span>
                   <span className="shrink-0 text-sm font-semibold tabular-nums">Confirmed {formatMoney(p.confirmedAmount, c.currency)}</span>
@@ -42,8 +42,8 @@ export function CollectionsSection({ list, limit, total, className = "mt-8" }: {
                   <span className="lp-bar-x block h-full bg-fg" style={{ width: `${Math.max(bar.confirmedPct, p.checked ? 4 : 0)}%` }} />
                   <span className="block h-full bg-fg/25" style={{ width: `${bar.reportedPct}%` }} />
                 </span>
-                <span className="mt-1.5 flex justify-between gap-3 text-xs text-gray-400">
-                  <span>
+                <span className="mt-1.5 flex min-w-0 flex-wrap justify-between gap-x-3 gap-y-0.5 text-xs text-gray-400">
+                  <span className="min-w-0">
                     {c.closedAt ? "Closed · " : ""}
                     {countsLine(p).split(" · ").map((part, i) => (
                       // Each part stays whole: "2 checked" never splits across two lines.
@@ -54,7 +54,7 @@ export function CollectionsSection({ list, limit, total, className = "mt-8" }: {
                     ))}
                   </span>
                   {toCheck > 0 && !c.closedAt && (
-                    <span className="shrink-0 font-medium text-owed">
+                    <span className="min-w-0 max-w-full break-words font-medium text-owed">
                       {p.reportedAmount > 0 ? `${formatMoney(p.reportedAmount, c.currency)} reported, awaiting check` : `${toCheck} to check`}
                     </span>
                   )}

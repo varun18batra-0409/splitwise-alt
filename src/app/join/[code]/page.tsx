@@ -13,6 +13,7 @@ import { Polaroid } from "@/components/Polaroid";
 import { inviteMemberId } from "@/lib/invites";
 import { invitedNameRows, NAME_NEEDED } from "@/lib/join";
 import type { Metadata } from "next";
+import { ChevronDown } from "@/components/icons";
 
 // The preview WhatsApp shows for an invite link: the group's name, never anyone's money.
 export async function generateMetadata({ params }: { params: Promise<{ code: string }> }): Promise<Metadata> {
@@ -158,7 +159,7 @@ export default async function JoinPage({
           {/* Names stay out of sight until you ask: the page above shows none. */}
           {claimable.length > 0 && (
             <details className="mt-10" data-claim-names>
-              <summary className="cursor-pointer text-sm font-medium text-gray-600">Already added to this group by name?</summary>
+              <summary className="cursor-pointer text-sm font-medium text-gray-600">Already added to this group by name? <ChevronDown size={14} className="chev ml-1.5 inline-block align-[-2px] text-fg/55" /></summary>
               <p className="mb-3 mt-1 text-xs text-gray-400">Tap your name to take it over, so its expenses are yours.</p>
               <ul className="space-y-2">
                 {claimable.map((m) => (

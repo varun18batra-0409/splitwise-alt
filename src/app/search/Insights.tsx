@@ -2,6 +2,7 @@ import { ExpenseGlyph } from "@/components/ExpenseGlyph";
 import Link from "@/components/Link";
 import { formatMoney } from "@/lib/money";
 import { compactMoney, signedMoney } from "@/lib/chart-labels";
+import { overviewMoney, signedOverview } from "@/lib/money-display";
 import { getCategory } from "@/lib/categories";
 import { bucketLabel, bucketTitle, type Grain } from "@/lib/search";
 
@@ -69,22 +70,22 @@ export function Insights({ d }: { d: InsightsData }) {
             <p className="text-xs text-fg/55">
               {d.view === "share" ? "Your share" : "Group total"} · {bucketTitle(d.selected, d.grain)}
             </p>
-            <p className="mt-1 money text-[34px] font-semibold leading-none tracking-tight tabular-nums" data-insights-total>
+            <p className="mt-1 money text-[34px] font-semibold leading-none tracking-tight tabular-nums" data-insights-total data-exact={signedMoney(now, d.currency)} title={signedMoney(now, d.currency)}>
               {approx}
-              {signedMoney(now, d.currency)}
+              {signedOverview(now, d.currency)}
             </p>
             <p className="mt-2 text-xs">
               {running ? (
-                <span className="text-fg/60">
-                  So far{before !== null && before > 0 ? ` · ${lastWord.toLowerCase()} ${approx}${formatMoney(before, d.currency)}` : ""}
+                <span className="text-fg/60" title={before !== null ? formatMoney(before, d.currency) : undefined} data-exact={before !== null ? formatMoney(before, d.currency) : undefined}>
+                  So far{before !== null && before > 0 ? ` · ${lastWord.toLowerCase()} ${approx}${overviewMoney(before, d.currency)}` : ""}
                 </span>
               ) : change === null ? (
                 <span className="text-fg/60">Nothing to compare with yet</span>
               ) : Math.abs(change) > 300 && before !== null ? (
                 // A tiny last month makes percentages silly (▲5534%): show the two amounts instead.
-                <span className="text-fg/55" data-insights-compare="amounts">
+                <span className="text-fg/55" data-insights-compare="amounts" title={formatMoney(before, d.currency)} data-exact={formatMoney(before, d.currency)}>
                   {approx}
-                  {formatMoney(before, d.currency)} in {bucketLabel(d.bars[i - 1].key, d.grain)}
+                  {overviewMoney(before, d.currency)} in {bucketLabel(d.bars[i - 1].key, d.grain)}
                 </span>
               ) : (
                 <span className={change > 0 ? "text-owe" : change < 0 ? "text-owed" : "text-fg/55"}>
@@ -107,23 +108,23 @@ export function Insights({ d }: { d: InsightsData }) {
           <div className="mt-4 grid grid-cols-3 divide-x divide-fg/10 rounded-2xl bg-fg/[0.05] py-2.5 text-center" aria-label="Your share, what you paid, and where that leaves you">
             <p className="px-1">
               <span className="block text-[11px] text-fg/50">Your share</span>
-              <span className="block text-sm font-semibold tabular-nums">
+              <span className="block text-sm font-semibold tabular-nums" title={signedMoney(d.me.share, d.currency)} data-exact={signedMoney(d.me.share, d.currency)}>
                 {approx}
-                {signedMoney(d.me.share, d.currency)}
+                {signedOverview(d.me.share, d.currency)}
               </span>
             </p>
             <p className="px-1">
               <span className="block text-[11px] text-fg/50">You paid</span>
-              <span className="block text-sm font-semibold tabular-nums">
+              <span className="block text-sm font-semibold tabular-nums" title={signedMoney(d.me.paid, d.currency)} data-exact={signedMoney(d.me.paid, d.currency)}>
                 {approx}
-                {signedMoney(d.me.paid, d.currency)}
+                {signedOverview(d.me.paid, d.currency)}
               </span>
             </p>
             <p className="px-1">
               <span className="block text-[11px] text-fg/50">{d.me.net < 0 ? "You owe" : d.me.net > 0 ? "You’re owed" : "Even"}</span>
-              <span className={`block text-sm font-semibold tabular-nums ${d.me.net < 0 ? "text-owe" : d.me.net > 0 ? "text-owed" : ""}`}>
+              <span className={`block text-sm font-semibold tabular-nums ${d.me.net < 0 ? "text-owe" : d.me.net > 0 ? "text-owed" : ""}`} title={formatMoney(Math.abs(d.me.net), d.currency)} data-exact={formatMoney(Math.abs(d.me.net), d.currency)}>
                 {approx}
-                {formatMoney(Math.abs(d.me.net), d.currency)}
+                {overviewMoney(Math.abs(d.me.net), d.currency)}
               </span>
             </p>
           </div>
@@ -190,9 +191,9 @@ export function Insights({ d }: { d: InsightsData }) {
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline justify-between gap-2 text-sm">
                       <span className="line-clamp-2 min-w-0 break-words font-medium leading-tight" data-category-name>{cat.label}</span>
-                      <span className="shrink-0 tabular-nums text-fg/80">
+                      <span className="shrink-0 tabular-nums text-fg/80" title={formatMoney(c.amount, d.currency)} data-exact={formatMoney(c.amount, d.currency)}>
                         {approx}
-                        {formatMoney(c.amount, d.currency)} <span className="text-xs text-fg/60">· {pct}%</span>
+                        {overviewMoney(c.amount, d.currency)} <span className="text-xs text-fg/60">· {pct}%</span>
                       </span>
                     </span>
                     <span className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-fg/[0.07]">

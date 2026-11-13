@@ -6,6 +6,7 @@ import { BILL_TEMPLATES } from "@/lib/home/bills";
 import { billAmountText, billEachText } from "@/lib/bill-preview";
 import { formatMoney, parseAmount } from "@/lib/money";
 import { inputClass, primaryButtonClass } from "./ui";
+import { SelectField } from "@/components/SelectField";
 
 type Member = { id: string; name: string };
 export type BillFormInitial = {
@@ -210,11 +211,12 @@ export function BillForm({
                 {label}
               </button>
             ))}
-            <select
+            <SelectField
+              inline
+              size="sm"
               aria-label="Another day"
               value={DAYS.some((d) => d[0] === day) ? "" : String(day)}
               onChange={(e) => e.target.value && setDay(Number(e.target.value))}
-              className={`${chip(!DAYS.some((d) => d[0] === day))} bg-transparent !text-base`}
             >
               <option value="">Other…</option>
               {Array.from({ length: 28 }, (_, i) => i + 1)
@@ -224,7 +226,7 @@ export function BillForm({
                     {d}
                   </option>
                 ))}
-            </select>
+            </SelectField>
           </div>
         </div>
       )}

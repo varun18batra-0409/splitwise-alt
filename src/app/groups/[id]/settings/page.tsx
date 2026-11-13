@@ -192,7 +192,7 @@ export default async function GroupSettings({
             ))}
           </div>
           <label className="mt-2 flex items-center gap-3 rounded-xl border border-gray-200 px-4 py-3 has-[:checked]:border-fg has-[:checked]:bg-accent-soft has-[:checked]:shadow-[inset_0_0_0_0.5px_var(--color-fg)]">
-            <input type="radio" name="markup" value="custom" defaultChecked={!isPreset} className="h-5 w-5 accent-[var(--color-accent)]" />
+            <input type="radio" name="markup" value="custom" defaultChecked={!isPreset} className="h-5 w-5" />
             <span className="text-sm font-medium">Custom</span>
             <span className="ml-auto flex items-center gap-1">
               <input
@@ -249,7 +249,7 @@ export default async function GroupSettings({
                   <span className="block font-medium">Reminders</span>
                   <span className="block text-sm text-gray-500">A nudge the day before a bill is due, a Monday note to whoever owes, and the payments on settle-up day.</span>
                 </span>
-                <input type="checkbox" name="reminders" defaultChecked={group.reminders} className="mt-1 h-5 w-5 accent-[var(--color-accent)]" />
+                <input type="checkbox" name="reminders" defaultChecked={group.reminders} className="mt-1 h-5 w-5" />
               </label>
             )}
             <div>
@@ -284,14 +284,14 @@ export default async function GroupSettings({
             <li>
               <label className="flex items-center gap-3 px-4 py-3">
                 <span className="flex-1 font-medium">All notifications</span>
-                <input type="checkbox" name="all" defaultChecked={!prefs.off} className="h-5 w-5 accent-[var(--color-accent)]" />
+                <input type="checkbox" name="all" defaultChecked={!prefs.off} className="h-5 w-5" />
               </label>
             </li>
             {NOTIFY_KINDS.map((k) => (
               <li key={k.id}>
                 <label className="flex items-center gap-3 px-4 py-3">
                   <span className="flex-1">{k.label}</span>
-                  <input type="checkbox" name={k.id} defaultChecked={prefs[k.id]} className="h-5 w-5 accent-[var(--color-accent)]" />
+                  <input type="checkbox" name={k.id} defaultChecked={prefs[k.id]} className="h-5 w-5" />
                 </label>
               </li>
             ))}

@@ -9,6 +9,7 @@ import { payButtons } from "@/lib/pay-links";
 import { readPayLink, type PayLinkState } from "@/lib/pay-link";
 import { iPaidAction, undoIPaidAction } from "@/app/pay-link-actions";
 import { PAYMENT_LINE } from "@/lib/money";
+import { ChevronDown } from "@/components/icons";
 
 // The "I've paid" page: the link inside a Remind message. Whoever owes opens
 // it (no sign-in), pays in their UPI app, and taps "I've paid". The person
@@ -147,7 +148,7 @@ async function Owes({ s, money, to, from, token, undone }: { s: Shown; money: st
               <CopyButton text={acc?.upiId ?? ""} label="Copy" />
             </div>
             <details className="rounded-2xl border border-line px-4 py-3">
-              <summary className="cursor-pointer text-sm text-gray-500">On a laptop? Scan this with your phone</summary>
+              <summary className="cursor-pointer text-sm text-gray-500">On a laptop? Scan this with your phone <ChevronDown size={14} className="chev ml-1.5 inline-block align-[-2px] text-fg/55" /></summary>
               <div className="mx-auto mt-3 w-48 overflow-hidden rounded-xl" dangerouslySetInnerHTML={{ __html: qr }} />
             </details>
           </div>

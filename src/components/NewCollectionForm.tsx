@@ -7,6 +7,8 @@ import { CurrencySelect } from "./CurrencySelect";
 import { PickContacts } from "./PickContacts";
 import { FriendPicker } from "./FriendPicker";
 import { inputClass, primaryButtonClass } from "./ui";
+import { DateField } from "@/components/DateField";
+import { ChevronDown } from "@/components/icons";
 
 // New collection: what it's for, how much each, where the money goes (UPI for
 // rupees, a PayPal/Venmo/Revolut link otherwise, or neither for cash), by
@@ -117,7 +119,7 @@ export function NewCollectionForm({ defaultCurrency, yourName, friends = [], you
           <span>
             More options <span className="font-normal text-gray-400">· who’s in, pay-by date, note, currency</span>
           </span>
-          <span aria-hidden className="text-gray-400 transition-transform group-open/more:rotate-180">⌄</span>
+          <ChevronDown size={18} className="chev shrink-0 text-fg/55" />
         </summary>
         <div className="mt-4 space-y-6">
           <label className="block">
@@ -131,7 +133,7 @@ export function NewCollectionForm({ defaultCurrency, yourName, friends = [], you
 
           <label className="block">
             <span className={label}>Pay by</span>
-            <input name="dueDate" defaultValue={v.dueDate} type="date" className={inputClass} />
+            <DateField name="dueDate" defaultValue={v.dueDate} />
           </label>
 
           <label className="block">

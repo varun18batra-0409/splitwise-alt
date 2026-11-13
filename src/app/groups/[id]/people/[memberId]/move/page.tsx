@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getMyMemberId, privatePath } from "@/lib/identity";
-import { ErrorNote, PageHeader, inputClass, primaryButtonClass } from "@/components/ui";
+import { ErrorNote, PageHeader, primaryButtonClass } from "@/components/ui";
 import { moveOutAction } from "@/app/bill-actions";
 import { moveOutPreview } from "@/lib/home/moving-db";
 import { formatMoney } from "@/lib/money";
@@ -13,6 +13,7 @@ import { addMonths } from "@/lib/home/month";
 import { leaverOf } from "@/lib/left-view-db";
 import { MoveOutButton } from "@/components/MoveOutButton";
 import { moveOutConfirm } from "@/lib/move-confirm";
+import { DateField } from "@/components/DateField";
 
 const monthLabel = (period: string) => new Date(`${period}-15T12:00:00Z`).toLocaleDateString("en-IN", { month: "short", timeZone: "UTC" });
 
@@ -74,7 +75,7 @@ export default async function MoveOutPage({
       <form method="get" className="mb-7 flex items-end gap-2 border-y border-line py-3.5" data-allow-repeat="1">
         <label className="flex-1">
           <span className="block text-sm text-gray-500">Last day in the flat</span>
-          <input type="date" name="day" defaultValue={lastDay} max={today} min={`${addMonths(today.slice(0, 7), -1)}-01`} className={`${inputClass} mt-1 py-2`} />
+          <DateField name="day" defaultValue={lastDay} max={today} min={`${addMonths(today.slice(0, 7), -1)}-01`} className="mt-1" clearable={false} />
         </label>
         <button type="submit" className="border border-line px-4 py-2.5 text-sm font-medium active:bg-mist rounded-full">
           Update
@@ -152,7 +153,7 @@ export default async function MoveOutPage({
               </ul>
               {p.daily.some((d) => !d.unsupported && d.amount > 0) && (
                 <label className="mt-3 flex items-start gap-3 rounded-2xl border border-line px-4 py-3 has-[:checked]:border-fg has-[:checked]:bg-accent-soft has-[:checked]:shadow-[inset_0_0_0_0.5px_var(--color-fg)]">
-                  <input type="checkbox" name="addDaily" value="1" defaultChecked className="mt-1 h-4 w-4 accent-[var(--color-accent)]" />
+                  <input type="checkbox" name="addDaily" value="1" defaultChecked className="mt-0.5 h-5 w-5 shrink-0" />
                   <span>
                     <span className="block font-medium">Add it now</span>
                     <span className="block text-xs text-gray-500">
@@ -171,7 +172,7 @@ export default async function MoveOutPage({
               <div className="space-y-2">
                 {others.map((m) => (
                   <label key={m.id} className="flex items-start gap-3 rounded-2xl border border-line px-4 py-3 has-[:checked]:border-fg has-[:checked]:bg-accent-soft has-[:checked]:shadow-[inset_0_0_0_0.5px_var(--color-fg)]">
-                    <input type="radio" name="depositTo" value={m.id} className="mt-1 h-4 w-4 accent-[var(--color-accent)]" />
+                    <input type="radio" name="depositTo" value={m.id} className="mt-0.5 h-5 w-5 shrink-0" />
                     <span>
                       <span className="block font-medium">{Name(m.id)}, taking over the room</span>
                       <span className="block text-xs text-gray-500">
@@ -181,7 +182,7 @@ export default async function MoveOutPage({
                   </label>
                 ))}
                 <label className="flex items-start gap-3 rounded-2xl border border-line px-4 py-3 has-[:checked]:border-fg has-[:checked]:bg-accent-soft has-[:checked]:shadow-[inset_0_0_0_0.5px_var(--color-fg)]">
-                  <input type="radio" name="depositTo" value="" defaultChecked className="mt-1 h-4 w-4 accent-[var(--color-accent)]" />
+                  <input type="radio" name="depositTo" value="" defaultChecked className="mt-0.5 h-5 w-5 shrink-0" />
                   <span>
                     <span className="block font-medium">{p.deposit.heldBy}, when the lease ends</span>
                     <span className="block text-xs text-gray-500">Kept on record until then, with any deductions</span>

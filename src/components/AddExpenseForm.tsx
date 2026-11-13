@@ -35,6 +35,7 @@ const labelClass = "mb-2 block text-[13px] font-semibold text-fg/55";
 
 export type { ExpenseInitial } from "@/lib/expense-initial";
 import type { ExpenseInitial } from "@/lib/expense-initial";
+import { DateField } from "@/components/DateField";
 
 // Fast path (3 taps): + Add expense → type name & amount → Save.
 // Defaults: paid by you, for everyone, split equally, in the last currency used.
@@ -505,13 +506,14 @@ export function AddExpenseForm({
               Yesterday
             </Chip>
             {pickingDate ? (
-              <input
-                type="date"
+              <DateField
                 value={date}
                 max={today}
                 onChange={(e) => setDate(e.target.value || today)}
                 aria-label="Date of the expense"
-                className="rounded-full border border-fg bg-transparent px-3 py-1.5 text-sm text-fg outline-none [color-scheme:dark]"
+                size="sm"
+                inline
+                required
               />
             ) : (
               <Chip on={false} onClick={() => setPickingDate(true)}>
@@ -1016,7 +1018,7 @@ export function AddExpenseForm({
                           onChange={() =>
                             setSelected((s) => (s.includes(m.id) ? s.filter((x) => x !== m.id) : [...s, m.id]))
                           }
-                          className="h-5 w-5 accent-[var(--color-accent)]"
+                          className="h-5 w-5"
                         />
                         {who(m.id)}
                       </label>
@@ -1385,7 +1387,7 @@ export function AddExpenseForm({
           {summary}
         </p>
       )}
-      <div className={`glass-strong rounded-full p-1.5 shadow-[0_18px_40px_-14px_rgba(0,0,0,0.85)] ${expenseId ? "" : "flex gap-1.5"}`}>
+      <div className="glass-strong rounded-full p-1.5 shadow-[0_18px_40px_-14px_rgba(0,0,0,0.85)]">
         <button
           type="submit"
           data-haptic="tap"
@@ -1394,24 +1396,24 @@ export function AddExpenseForm({
             setAgain(false);
           }}
           disabled={saving || rateState.status === "loading"}
-          className={`${primaryButtonClass} ${expenseId ? "" : "flex-1"}`}
+          className={primaryButtonClass}
         >
           {saving && !again ? "Saving…" : expenseId ? "Save changes" : kind === "refund" ? "Save money back" : "Save expense"}
         </button>
-        {!expenseId && (
-          <button
-            type="submit"
-            onClick={() => {
-              againRef.current = true;
-              setAgain(true);
-            }}
-            disabled={saving || rateState.status === "loading"}
-            className="glass flex-1 rounded-full px-3 py-3.5 text-center text-sm font-semibold text-fg transition-transform active:scale-[0.97] disabled:opacity-50"
-          >
-            {saving && again ? "Saving…" : "Save & add another"}
-          </button>
-        )}
       </div>
+      {!expenseId && (
+        <button
+          type="submit"
+          onClick={() => {
+            againRef.current = true;
+            setAgain(true);
+          }}
+          disabled={saving || rateState.status === "loading"}
+          className="mx-auto mt-1.5 block whitespace-nowrap px-3 py-2 text-center text-sm font-medium text-fg/75 underline underline-offset-4 active:text-fg disabled:opacity-50"
+        >
+          {saving && again ? "Saving…" : "Save & add another"}
+        </button>
+      )}
       </div>
     </form>
   );

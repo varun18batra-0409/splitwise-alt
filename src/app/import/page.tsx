@@ -2,6 +2,7 @@ import Link from "@/components/Link";
 import { getAccount } from "@/lib/identity";
 import { ErrorNote, PageHeader, primaryButtonClass } from "@/components/ui";
 import { SplitwiseImport } from "@/components/SplitwiseImport";
+import { ChevronDown } from "@/components/icons";
 
 export const metadata = { title: "Bring a group over from another app" };
 
@@ -32,7 +33,7 @@ export default async function ImportPage({ searchParams }: { searchParams: Promi
         </li>
       </ol>
       <details className="mt-3 text-sm text-gray-500">
-        <summary className="cursor-pointer">Where’s the export in my app?</summary>
+        <summary className="cursor-pointer">Where’s the export in my app? <ChevronDown size={14} className="chev ml-1.5 inline-block align-[-2px] text-fg/55" /></summary>
         <ul className="mt-2 space-y-1">
           <li>
             <b>Your old app:</b> the group’s settings or menu → Export / Download as a spreadsheet (CSV) or Excel. (If it gives an Excel

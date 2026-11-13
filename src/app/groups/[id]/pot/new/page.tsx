@@ -55,7 +55,7 @@ export default async function NewGamePage({ params, searchParams }: { params: Pr
             {group.members.map((m) => (
               <li key={m.id}>
                 <label className="flex cursor-pointer items-center gap-3 px-4 py-3">
-                  <input type="checkbox" name="players" value={m.id} defaultChecked className="h-5 w-5 accent-[#6fe3a8]" />
+                  <input type="checkbox" name="players" value={m.id} defaultChecked className="h-5 w-5" />
                   <span className="min-w-0 flex-1 truncate">{m.id === myId ? `${m.name} (you)` : m.name}</span>
                   {!m.accountId && <span className="text-[11px] text-gray-400">just a name</span>}
                 </label>

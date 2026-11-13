@@ -14,6 +14,7 @@ import { nextDueDay } from "@/lib/home/bills";
 import { niceDate } from "@/lib/format";
 import { getTimeZone } from "@/lib/tz";
 import { formatMoney } from "@/lib/money";
+import { overviewMoney } from "@/lib/money-display";
 import { ActivityRow } from "@/components/ActivityRow";
 import { itemHref } from "@/lib/paths";
 import { PageHeader } from "@/components/ui";
@@ -196,9 +197,13 @@ export default async function SearchPage({
         )}
       </h2>
       {sum.count > 0 && (
-        <p className="mb-4 text-sm text-gray-500">
-          {sum.count} {sum.count === 1 ? "expense" : "expenses"} · {sum.totals.map((t) => formatMoney(t.spent, t.currency)).join(" + ")} spent · my cut{" "}
-          {sum.totals.map((t) => formatMoney(t.mine, t.currency)).join(" + ")}
+        <p
+          className="mb-4 text-sm text-gray-500"
+          title={`${sum.totals.map((t) => formatMoney(t.spent, t.currency)).join(" + ")} spent · my cut ${sum.totals.map((t) => formatMoney(t.mine, t.currency)).join(" + ")}`}
+          data-exact={`${sum.totals.map((t) => formatMoney(t.spent, t.currency)).join(" + ")} | ${sum.totals.map((t) => formatMoney(t.mine, t.currency)).join(" + ")}`}
+        >
+          {sum.count} {sum.count === 1 ? "expense" : "expenses"} · {sum.totals.map((t) => overviewMoney(t.spent, t.currency)).join(" + ")} spent · my cut{" "}
+          {sum.totals.map((t) => overviewMoney(t.mine, t.currency)).join(" + ")}
         </p>
       )}
 

@@ -81,7 +81,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
               {nameState === "empty" && <p className="text-sm text-red-400">Type a name.</p>}
               {sameNameGroups > 0 && (
                 <label className="flex items-start gap-2.5 text-sm text-fg/80">
-                  <input type="checkbox" name="groups" defaultChecked className="mt-0.5 h-4 w-4 accent-fg" />
+                  <input type="checkbox" name="groups" defaultChecked className="mt-0.5 h-5 w-5" />
                   <span>
                     Also change it in {sameNameGroups === 1 ? "the 1 group" : `the ${sameNameGroups} groups`} where you’re {account.name}
                   </span>
