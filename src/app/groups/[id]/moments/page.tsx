@@ -31,6 +31,7 @@ export default async function MomentsPage({ params, searchParams }: { params: Pr
   const here = `/groups/${id}/moments`;
   const canAdd = canAddMoment(viewer);
   const guest = viewer.accountId === null;
+  const leftAlready = Boolean(viewer.leftAt);
   const [newest, ...older] = cards;
   const flags = (c: MomentCard) => ({
     canReact: canReactToMoment(viewer, c),
@@ -111,7 +112,7 @@ export default async function MomentsPage({ params, searchParams }: { params: Pr
             Sign in to add a moment
           </Link>
         </p>
-      ) : viewer.leftAt ? (
+      ) : leftAlready ? (
         <p className="mt-8 text-center text-sm text-fg/55">You left this group, so you can look back but not add.</p>
       ) : null}
     </div>
