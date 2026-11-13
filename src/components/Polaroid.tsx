@@ -25,6 +25,7 @@ export function Polaroid({
   captionClass = "text-[17px]",
   wrapCaption = false,
   noteClass = "text-[11px]",
+  wrapNote = false,
 }: {
   cover: { kind: CoverChoice; src?: string };
   uid: string;
@@ -40,6 +41,7 @@ export function Polaroid({
   captionClass?: string;
   wrapCaption?: boolean; // let a long name take two lines instead of cutting it with "…"
   noteClass?: string; // size of the note under the name
+  wrapNote?: boolean; // let a long note take two lines instead of cutting the amount
 }) {
   return (
     <span
@@ -57,7 +59,7 @@ export function Polaroid({
           {caption}
         </span>
         {note && (
-          <span className={`mt-0.5 block truncate font-semibold tabular-nums ${noteClass}`} style={{ color: noteTone === "owed" ? INK_OWED : noteTone === "owe" ? INK_OWE : "#6d685e" }}>
+          <span className={`mt-0.5 block font-semibold tabular-nums ${wrapNote ? "line-clamp-2 break-words" : "truncate"} ${noteClass}`} style={{ color: noteTone === "owed" ? INK_OWED : noteTone === "owe" ? INK_OWE : "#6d685e" }}>
             {note}
           </span>
         )}

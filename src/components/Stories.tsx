@@ -43,8 +43,8 @@ export const STORY_QUALITY = 90;
 
 function Picture({ s, uid, big }: { s: Story; uid: string; big?: boolean }) {
   // Sized for where it shows: a small copy for the polaroid, a sharp one full screen.
-  if (s.photo) return <Image src={s.photo} alt="" aria-hidden fill sizes={big ? STORY_SIZES : "72px"} quality={big ? STORY_QUALITY : 70} priority={big} className={`object-cover ${big ? "lp-drift" : ""}`} />;
-  if (s.cover && !s.art) return <GroupCover kind={s.cover.kind as CoverChoice} src={s.cover.src} uid={uid} sizes={big ? "448px" : "72px"} drift={big} />;
+  if (s.photo) return <Image src={s.photo} alt="" aria-hidden fill sizes={big ? STORY_SIZES : "80px"} quality={big ? STORY_QUALITY : 75} priority={big} className={`object-cover ${big ? "lp-drift" : ""}`} />;
+  if (s.cover && !s.art) return <GroupCover kind={s.cover.kind as CoverChoice} src={s.cover.src} uid={uid} sizes={big ? "448px" : "80px"} drift={big} />;
   // No photo: designed artwork (green felt for a card night, a jar for a collection…).
   return <StoryArt kind={s.art ?? s.kind} uid={uid} />;
 }
@@ -73,7 +73,7 @@ export function Stories({ stories, className = "mb-6" }: { stories: Story[]; cla
         {ordered.map((s) => {
           const isNew = !seen.has(s.id);
           return (
-            <li key={s.id} className="w-[76px] shrink-0" data-story={s.kind} data-new={isNew ? "1" : "0"}>
+            <li key={s.id} className="w-[84px] shrink-0" data-story={s.kind} data-new={isNew ? "1" : "0"}>
               <button
                 type="button"
                 onClick={() => setOpen(stories.indexOf(s))}
@@ -81,7 +81,7 @@ export function Stories({ stories, className = "mb-6" }: { stories: Story[]; cla
                 title={s.label}
                 className="flex w-full flex-col items-center gap-1.5 text-center transition-opacity active:opacity-70 motion-reduce:transition-none"
               >
-                <span aria-hidden className={`block h-[72px] w-[72px] rounded-full p-[3px] ${isNew ? "bg-[conic-gradient(#e8c46a,#f0a35e,#6fe3a8,#e8c46a)]" : "bg-fg/25"}`}>
+                <span aria-hidden className={`block h-[80px] w-[80px] rounded-full p-[2.5px] ${isNew ? "bg-[conic-gradient(#e8c46a,#f0a35e,#6fe3a8,#e8c46a)]" : "bg-fg/25"}`}>
                   <span className="relative block h-full w-full overflow-hidden rounded-full border-[3px] border-canvas bg-mist">
                     <Picture s={s} uid={`st-${s.id}`} />
                   </span>

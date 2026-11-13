@@ -47,8 +47,8 @@ import { todayKey } from "@/lib/dates";
 import { TripCountdown } from "@/components/TripCountdown";
 import { countdownStage } from "@/lib/countdown";
 import { countryOf, tripStops } from "@/lib/geo";
-import { MoneyCard, TripStrip, type NeedLine } from "@/components/HomeMoney";
-import { mixedDirections, moneyActions, moneyLabel, moneyMode, moneyPeople, whoLine } from "@/lib/home/money-card";
+import { MoneyCard, TripStrip, type NeedLine, type StubCover } from "@/components/HomeMoney";
+import { homeTicket, mixedDirections, moneyMode, moneyPeople, rankGroups, type InvolvedGroup } from "@/lib/home/money-card";
 import { TripRow } from "@/components/TripRow";
 import { Stories } from "@/components/Stories";
 import { buildStories } from "@/lib/home/stories";
@@ -66,7 +66,7 @@ export const metadata = { alternates: { canonical: "/" } };
 
 const countPasskeys = (accountId: string) => db.passkey.count({ where: { accountId } });
 
-// Home: stories, your money card (coloured by where you stand, with who, the one next step, and what needs you), your groups as polaroids, and the
+// Home: stories, your money card (a boarding pass: route, amount, one button; what needs you is a quiet line under it), your groups as polaroids, and the
 // latest changes. Search, Settle and Alerts live in the bottom bar.
 export default async function Home({
   searchParams,
@@ -125,7 +125,7 @@ export default async function Home({
     ...needs.items.map((it) => ({ key: it.id, lead: it.kind === "bill" ? "bill" : it.text.trim().charAt(0).toUpperCase(), text: it.text, sub: it.where, action: it.action ?? NEED_ACTION[it.kind], href: it.href, orange: it.tone === "orange" })),
     ...open
       .filter((g) => !g.leaver && g.expenseCount > 0 && g.transfers.length === 0 && g.lastActivity.getTime() < quietSince)
-      .map((g) => ({ key: `close-${g.group.id}`, lead: "check", text: <>Everyone’s square in <span className="font-semibold">{g.group.name}</span></>, action: "Close it", href: `/groups/${g.group.id}/settings#close` })),
+      .map((g) => ({ key: `close-${g.group.id}`, lead: "check", text: <>{g.group.name} is all square.</>, action: "Close it", href: `/groups/${g.group.id}/settings#close` })),
   ];
 
   // The latest changes across open groups.
@@ -174,29 +174,32 @@ export default async function Home({
   // Several currencies with no saved rate and money going both ways: no single "you owe", so the card stays neutral.
   const acrossCurrencies = !netCommon && mixedDirections(netLines);
   const mode = acrossCurrencies ? "even" : moneyMode({ owedLines: owedLines.length, oweLines: oweLines.length, netValue });
-  // Who the money is with: the same transfers Settle up uses, largest first (names only; amounts are on Settle up).
-  const people =
-    mode === "owe" || mode === "owed"
-      ? moneyPeople(
-          open.map((g) => ({ groupId: g.group.id, groupName: g.group.name, currency: g.group.currency, myId: g.myId, members: g.group.members, transfers: g.transfers })),
-          mode,
-          common,
-          toCommon,
-        )
-      : [];
-  // Money going the other way too (you owe Nupur ₹1,800, Ravi owes you ₹1,000 -> the card says ₹800): the biggest of them joins the line.
-  const otherSide =
-    people.length > 0
-      ? moneyPeople(
-          open.map((g) => ({ groupId: g.group.id, groupName: g.group.name, currency: g.group.currency, myId: g.myId, members: g.group.members, transfers: g.transfers })),
-          mode === "owe" ? "owed" : "owe",
-          common,
-          toCommon,
-        )
-      : [];
-  const who = people.length > 0 ? whoLine(people, otherSide, mode === "owe" ? "owe" : "owed") : null;
-  // Pay the person you owe most (their row on Settle up), or remind the person who owes you most (WhatsApp). Else today's buttons.
-  const actions = moneyActions(mode, people, common);
+  // Who the money is with, each side on its own: the same transfers Settle up uses, largest first. Money both ways stays as two lines
+  // on the ticket (never netted together), so both sides are worked out whenever anything is open.
+  const peopleGroups = open.map((g) => ({ groupId: g.group.id, groupName: g.group.name, currency: g.group.currency, myId: g.myId, members: g.group.members, transfers: g.transfers }));
+  const owePeople = mode === "square" ? [] : moneyPeople(peopleGroups, "owe", common, toCommon);
+  const owedPeople = mode === "square" ? [] : moneyPeople(peopleGroups, "owed", common, toCommon);
+  // The groups the money runs through, for the stub's picture: how much is with you in each (in the common currency; a group with no
+  // saved rate counts 0 and only wins when nothing else is there).
+  const involved: InvolvedGroup[] = open
+    .filter((g) => !g.leaver && g.transfers.some((t) => t.from === g.myId || t.to === g.myId))
+    .map((g) => ({
+      id: g.group.id,
+      name: g.group.name,
+      type: g.group.type,
+      weight: g.transfers
+        .filter((t) => t.from === g.myId || t.to === g.myId)
+        .reduce((sum, t) => sum + (g.group.currency === common ? t.amount : (toCommon(t.amount, g.group.currency) ?? 0)), 0),
+    }));
+  const ticket = homeTicket({
+    mode,
+    acrossCurrencies,
+    owe: owePeople,
+    owed: owedPeople,
+    common,
+    hero: { text: heroText.replace(/^([≈ ]*)[+−]/, "$1"), exact: heroExact !== heroText ? heroExact.replace(/^([≈ ]*)[+−]/, "$1") : undefined },
+    groups: involved,
+  });
   // What waits on you, folded into the card: the top one as a line; two or more real ones as a count that opens Alerts (where all of them are listed
   // under "Needs you"). The "ready to close" nudges are Home-only, so they are never counted in a number Alerts can't back up.
   const realNeeds = needs.items;
@@ -386,6 +389,13 @@ export default async function Home({
     show: (n: number) => homeMoney(n, g.group.currency),
     tag: tripTag(phaseOf.get(g.group.id)),
   }));
+  // The stub's picture(s): the group with the most money (two when it spans groups), else your newest group. Same cover as its polaroid.
+  const stubCover = (id: string): StubCover | null => {
+    const c = groupCards.find((x) => x.id === id);
+    return c ? { id: c.id, cover: c.cover, photo: c.photo, name: c.name } : null;
+  };
+  const stubIds = ticket.kind === "square" || (ticket.kind === "neutral" && involved.length === 0) ? byActivity.slice(0, 1).map((g) => g.group.id) : rankGroups(involved).slice(0, 2).map((g) => g.id);
+  const stub = stubIds.map(stubCover).filter((c): c is StubCover => Boolean(c));
   // Trips at the same stage of the countdown each get their own words (slot 0, 1, 2… in that stage).
   const stageSlot = new Map<string, number>();
   {
@@ -583,19 +593,8 @@ export default async function Home({
           <h1 className={stories.length > 0 ? "sr-only" : "mb-4 mt-1 font-display text-[32px] font-semibold leading-[1.05] tracking-tight"}>{greeting(new Date(), tz, account?.name)}</h1>
           {stories.length > 0 && <Stories stories={stories} className="mb-4" />}
 
-          {/* Money: coloured by where you stand; the amount, who it is with, the one next step, and what needs you. */}
-          <MoneyCard
-            label={moneyLabel({ mode, acrossCurrencies })}
-            who={who}
-            whoHref={mode === "owe" ? "/settle#pay" : "/settle#remind"}
-            amount={mode === "square" ? "All square" : netCommon ? heroText.replace(/^([≈ ]*)[+−]/, "$1") : heroText /* several currencies: each keeps its own sign */}
-            amountClass={mode === "square" ? "text-[24px]" : heroText.length <= 9 ? "text-[32px]" : heroText.length <= 12 ? "text-[26px]" : "text-[20px]"}
-            tone={mode === "owed" ? "owed" : mode === "owe" ? "owe" : "plain"}
-            mode={mode}
-            actions={actions}
-            need={need}
-            exact={mode !== "square" && heroExact !== heroText ? heroExact.replace(/^([≈ ]*)[+−]/, "$1") : undefined}
-          />
+          {/* Money: a boarding pass with the route, the amount and the one next step; what needs you is a quiet line under it. */}
+          <MoneyCard ticket={ticket} mode={mode} tone={mode === "owed" ? "owed" : mode === "owe" ? "owe" : "plain"} stub={stub} need={need} />
 
           {invitationsBlock}
 
@@ -619,7 +618,7 @@ export default async function Home({
           {/* The next trip, as one compact countdown line. A trip that is on is tagged on its photo in Your groups instead. */}
           {hero && hero.phase.kind === "before" && (
             <div className="mt-6">
-              <TripStrip groupId={hero.g.group.id} place={placeOf(hero.g.group.name)} phase={hero.phase} going={crewOf(hero.g).length} start={hero.g.group.tripStart} shareLine={countdownWords(hero.g.group.name, hero.phase)?.line ?? ""} />
+              <TripStrip groupId={hero.g.group.id} place={placeOf(hero.g.group.name)} phase={hero.phase} going={crewOf(hero.g).length} start={hero.g.group.tripStart} shareLine={countdownWords(hero.g.group.name, hero.phase)?.line ?? ""} thumb={stubCover(hero.g.group.id) ?? undefined} />
             </div>
           )}
 

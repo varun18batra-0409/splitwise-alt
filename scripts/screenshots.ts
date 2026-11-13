@@ -220,6 +220,97 @@ if (!desktop && !hosted) {
   if (other && was) await db.member.update({ where: { id: other.id }, data: { name: was } }).catch(() => undefined);
   await page.setViewportSize(screen);
 }
+// Home's money card in every state (phones only). The demo data only shows one of them, so this puts the viewer's money into each
+// state in turn, takes Home at 390, 360 and 320, then puts everything back. How:
+//   - the viewer's live expenses and payments in the three open groups (trip, flat, couple) are soft-deleted (deletedAt set), so every
+//     balance is 0 and Home says "All square". They are restored at the end by clearing deletedAt on exactly those ids;
+//   - each state adds one or two plain expenses (one payer, exact shares that add up to the amount, no events, so nothing shows in
+//     Alerts or Latest), and they are deleted for good when the next state starts.
+// The groups' own balances only come from live expenses and payments (src/lib/balances-db.ts), so this is all the card needs.
+// Finally Home is read again and must say exactly what it said before; if not, the run fails.
+if (!desktop && !hosted) {
+  const { db } = await import("../src/lib/db");
+  const tripId = demo.trip.id as string;
+  const flatId = demo.flat.id as string;
+  const open3 = [tripId, flatId, demo.couple.id as string];
+  const members = async (groupId: string) => new Map((await db.member.findMany({ where: { groupId } })).map((m) => [m.name, m.id]));
+  const trip = await members(tripId);
+  const flat = await members(flatId);
+  const [V, A, R, M] = ["Varun", "Asha", "Ravi", "Meera"].map((n) => trip.get(n)!);
+  const [FV, FK] = ["Varun", "Kabir"].map((n) => flat.get(n)!);
+  const card = () => page.getByRole("region", { name: "Your money" });
+  const read = async () => {
+    await page.setViewportSize(screen);
+    await page.goto(base + "/", { waitUntil: "networkidle", timeout: 30_000 });
+    await card().waitFor();
+    return `${await card().getAttribute("data-ticket")} | ${(await card().innerText()).replace(/\s+/g, " ").trim()}`;
+  };
+  const before = await read();
+
+  const hadExpenses = await db.expense.findMany({ where: { groupId: { in: open3 }, deletedAt: null }, select: { id: true } });
+  const hadPayments = await db.payment.findMany({ where: { groupId: { in: open3 }, deletedAt: null }, select: { id: true } });
+  const made: string[] = [];
+  // One expense: `by` paid `amount` paise, split exactly as `shares` (member id, paise) says; the shares add up to the amount.
+  const addExpense = async (groupId: string, by: string, shares: [string, number][]) => {
+    const amount = shares.reduce((t, [, a]) => t + a, 0);
+    const e = await db.expense.create({
+      data: { groupId, description: "Screenshot state", amount, splitType: "exact", forMode: "selected", paidById: by, createdById: by, shares: { create: shares.map(([memberId, a]) => ({ memberId, amount: a })) } },
+    });
+    made.push(e.id);
+  };
+  const clearMade = async () => {
+    if (made.length) await db.expense.deleteMany({ where: { id: { in: made } } }); // their shares go with them
+    made.length = 0;
+  };
+  const problems: string[] = [];
+  // [name, how the viewer's money is set up, what the card must say (so a broken setup is noticed, not photographed)]
+  const states: [string, () => Promise<void>, { kind: string; has: RegExp }][] = [
+    // Asha paid ₹54,122 for a trip bill that is only Varun's share: Varun owes Asha 5412200 paise, nobody else owes anyone.
+    ["owe", () => addExpense(tripId, A, [[V, 5412200]]), { kind: "one", has: /^one \| You .*Asha.* ₹54,122 .*Pay Asha$/ }],
+    // Varun paid ₹22,916 for Kabir's share of the flat: Kabir owes Varun 2291600 paise.
+    ["owed-one", () => addExpense(flatId, FV, [[FK, 2291600]]), { kind: "one", has: /^one \| Kabir .*You .*₹22,916 .*Remind Kabir$/ }],
+    // Varun paid ₹31,480 for the trip, shared by Asha 12,000 + Ravi 11,000 + Meera 8,480 (1200000 + 1100000 + 848000 = 3148000 paise).
+    ["owed-several", () => addExpense(tripId, V, [[A, 1200000], [R, 1100000], [M, 848000]]), { kind: "one", has: /^one \| 3 people .*You .*₹31,480 .*Remind all 3$/ }],
+    // Both ways, in two groups so nobody is netted: Varun owes Asha ₹4,200 (trip) and Kabir owes Varun ₹22,916 (flat).
+    ["both", async () => { await addExpense(tripId, A, [[V, 420000]]); await addExpense(flatId, FV, [[FK, 2291600]]); }, { kind: "both", has: /^both \| You owe Asha .*₹4,200 Pay Kabir owes you .*₹22,916 Remind$/ }],
+    // Nothing added: every balance is 0.
+    ["square", async () => undefined, { kind: "square", has: /^square \| .*Nobody owes anybody.*All square.*New group$/ }],
+  ];
+  try {
+    await db.expense.updateMany({ where: { id: { in: hadExpenses.map((x) => x.id) } }, data: { deletedAt: new Date() } });
+    await db.payment.updateMany({ where: { id: { in: hadPayments.map((x) => x.id) } }, data: { deletedAt: new Date() } });
+    for (const [name, setup, want] of states) {
+      await clearMade();
+      await setup();
+      const now = await read();
+      if (!want.has.test(now)) problems.push(`home-state-${name} says: ${now}`);
+      await page.setViewportSize(screen);
+      await shot(`home-state-${name}`, "/");
+      for (const w of [360, 320] as const) {
+        await page.setViewportSize({ width: w, height: w === 320 ? 640 : 780 });
+        await shot(`n${w}-home-state-${name}`, "/");
+      }
+      // A long first name on the narrowest phone: it must shorten with "…" while the amount stays whole.
+      if (name === "owe") {
+        const asha = await db.member.findUnique({ where: { id: A } });
+        await db.member.update({ where: { id: A }, data: { name: "Bhagyalakshmi Venkataraman" } });
+        await page.setViewportSize({ width: 320, height: 640 });
+        await shot("n320-home-state-owe-longname", "/");
+        if (asha) await db.member.update({ where: { id: A }, data: { name: asha.name } });
+      }
+    }
+  } finally {
+    await clearMade();
+    await db.expense.updateMany({ where: { id: { in: hadExpenses.map((x) => x.id) } }, data: { deletedAt: null } });
+    await db.payment.updateMany({ where: { id: { in: hadPayments.map((x) => x.id) } }, data: { deletedAt: null } });
+    await db.member.update({ where: { id: A }, data: { name: "Asha" } }).catch(() => undefined);
+  }
+  const after = await read();
+  if (after !== before) problems.push(`Home did not come back after the state shots.\n  before: ${before}\n  after:  ${after}`);
+  if (problems.length) throw new Error(`Home money-card states:\n  ${problems.join("\n  ")}`);
+  console.log("✓ Home money-card states restored: Home reads the same as before");
+  await page.setViewportSize(screen);
+}
 // Phase 5
 await shot("62-trip-report", `${g}/report`);
 await shot("63-charts-insights", `${g}?tab=charts`, undefined, false);
@@ -227,7 +318,7 @@ await shot("64-switching", "/switching");
 await shot("65-import", "/import");
 await shot("66-people-not-on-loopin", `${g}/people`);
 await shot("67-splash", "/splash", undefined, false);
-// The first screen of a small phone (375×667): header, stories, the money card with both buttons, the start of the group row.
+// The first screen of a small phone (375×667): header, stories, the boarding-pass money card with its one button, the start of the group row.
 const wide = page.viewportSize();
 await shot("68-home-first-screen", "/", async (p) => {
   await p.setViewportSize({ width: 375, height: 667 });

@@ -19,6 +19,7 @@ export function GroupCover({
   drift,
   letterClass,
   src,
+  quality,
 }: {
   kind: CoverChoice;
   uid: string;
@@ -30,6 +31,7 @@ export function GroupCover({
   drift?: boolean;
   letterClass?: string;
   src?: string;
+  quality?: number; // photo covers: how sharp (default 75), for a small picture that must stay crisp at 2x
 }) {
   // The group's own photo (already made small on the phone that sent it).
   if (kind === "own") {
@@ -48,6 +50,7 @@ export function GroupCover({
           fill
           sizes={sizes}
           priority={priority}
+          quality={quality}
           className={`object-cover ${drift ? "lp-drift" : ""} ${className}`}
         />
       );
