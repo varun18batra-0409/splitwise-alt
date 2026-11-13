@@ -3248,7 +3248,9 @@ async function main() {
     assert((await V.locator("[data-payer-row]").count()) === 1 && (await V.locator("[data-split-row]").count()) === 1, "tapping the row didn't open Who paid / How to split");
     assert((await paidRow.getAttribute("aria-expanded")) === "true", "the row doesn't say it is expanded");
     await V.getByRole("button", { name: "Done", exact: true }).click();
-    assert(await paidRow.evaluate((el) => el === document.activeElement), "Done didn't give focus back to the row");
+    // Focus moves back once the panel has closed (the next tick), so wait briefly for it.
+    const back = await V.waitForFunction(() => Boolean(document.activeElement?.hasAttribute("data-row-paid")), undefined, { timeout: 2000 }).then(() => true, () => false);
+    assert(back, "Done didn't give focus back to the row");
     const result = (await V.locator("[data-expense-result]").innerText()).replace(/\s+/g, " ");
     assert(/You (paid|get back|owe)|Just you|Nobody owes|square/.test(result), `the result for you reads: ${result}`);
     assert((await V.locator("[data-fx-card]").count()) === 0, "the foreign-currency line shows on an expense in the group's own currency");
