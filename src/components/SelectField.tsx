@@ -1,6 +1,6 @@
 "use client";
 
-import { Children, isValidElement, useRef, useState } from "react";
+import { Children, isValidElement, useEffect, useRef, useState } from "react";
 
 // Loopin's own dropdown box. It shows the chosen option's name with a drawn chevron; the phone's real <select> sits
 // invisibly on top, so a tap opens the phone's own picker and forms (and tests) work exactly as before.
@@ -33,6 +33,17 @@ export function SelectField({ size = "md", inline, className = "", children, val
   const ref = useRef<HTMLSelectElement>(null);
   const controlled = value !== undefined;
   const [own, setOwn] = useState<string | undefined>(defaultValue === undefined ? undefined : String(defaultValue));
+  // What the box shows always follows the real control: when the page passes a new default, or the form is reset.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || value !== undefined) return;
+    setOwn(el.value);
+    const form = el.form;
+    if (!form) return;
+    const onReset = () => setTimeout(() => ref.current && setOwn(ref.current.value), 0);
+    form.addEventListener("reset", onReset);
+    return () => form.removeEventListener("reset", onReset);
+  }, [defaultValue, value]);
   const current = controlled ? String(value) : own;
   const text = labelOf(children, current ?? "");
 

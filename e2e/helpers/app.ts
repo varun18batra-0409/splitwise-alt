@@ -101,7 +101,10 @@ export async function readBalances(page: Page, groupPath: string): Promise<Recor
   for (const row of await rows.all()) {
     const name = (await row.locator(".font-medium").first().innerText()).replace(/ \(you\)$/, "").trim();
     const text = (await row.locator("span.money").last().innerText()).replace(/\s+/g, " ");
-    const amount = toPaise(/[\d,]+(\.\d+)?/.exec(text)?.[0] ?? "0"); // "gets ₹600" or "owes EUR 15"
+    // The row shows whole units from 1,000 up; the exact amount rides in data-exact, and that is what is checked.
+    const exactEl = row.locator("[data-exact]").first();
+    const exact = (await exactEl.count()) ? ((await exactEl.getAttribute("data-exact")) ?? "") : text;
+    const amount = toPaise(/[\d,]+(\.\d+)?/.exec(exact)?.[0] ?? "0"); // "gets ₹600" or "owes EUR 15"
     out[name] = text.startsWith("gets") ? amount : text.startsWith("owes") ? -amount : 0;
   }
   return out;

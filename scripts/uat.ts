@@ -338,7 +338,8 @@ async function shownBalancesIn(page: Page, groupPath: string, currency: string):
     const t = (await rows.nth(i).innerText()).replace(/\s+/g, " ");
     const name = t.replace(/^[A-Z] /, "").split(" ")[0];
     // The row shows whole units from 1,000 up; the exact amount is in data-exact, which is what is checked here.
-    const exact = (await rows.nth(i).locator("[data-exact]").first().getAttribute("data-exact").catch(() => null)) ?? "";
+    const exactEl = rows.nth(i).locator("[data-exact]").first();
+    const exact = (await exactEl.count()) ? ((await exactEl.getAttribute("data-exact")) ?? "") : "";
     const m = /\b(gets|owes)\b/.exec(t);
     const num = /([\d,]+(?:\.\d+)?)/.exec(exact);
     const v = m && num ? Math.round(parseFloat(num[1].replace(/,/g, "")) * 10 ** d) : 0;

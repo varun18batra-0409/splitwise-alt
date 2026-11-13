@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { niceDate } from "@/lib/format";
 
 // Loopin's own date box. It looks like our other fields and reads "25 Nov 2026"; the phone's real date input sits
@@ -18,6 +18,17 @@ export function DateField({ placeholder = "Pick a date", size = "md", inline, cl
   const ref = useRef<HTMLInputElement>(null);
   const controlled = value !== undefined;
   const [own, setOwn] = useState(String(defaultValue ?? ""));
+  // What the box shows always follows the real control: when the page passes a new default, or the form is reset.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || value !== undefined) return;
+    setOwn(el.value);
+    const form = el.form;
+    if (!form) return;
+    const onReset = () => setTimeout(() => ref.current && setOwn(ref.current.value), 0);
+    form.addEventListener("reset", onReset);
+    return () => form.removeEventListener("reset", onReset);
+  }, [defaultValue, value]);
   const shown = controlled ? String(value) : own;
   const canClear = (clearable ?? !required) && !!shown && !disabled;
 

@@ -111,7 +111,8 @@ export function ChartsTab({ v }: { v: GroupView }) {
           key: r.currency,
           label: r.currency === group.currency ? `${r.currency} (group currency)` : r.currency,
           value: r.group,
-          valueText: r.currency === group.currency ? money(r.group) : `${formatMoney(r.original, r.currency)} = ${money(r.group)}`,
+          valueText: r.currency === group.currency ? overviewMoney(r.group, group.currency) : `${formatMoney(r.original, r.currency)} = ${overviewMoney(r.group, group.currency)}`,
+          exactText: r.currency === group.currency ? money(r.group) : `${formatMoney(r.original, r.currency)} = ${money(r.group)}`,
         }))}
       />
       <ColumnChart title={shownDays.length < days.length ? "Spending by day (last 21 days)" : "Spending by day"} data={dayData} />

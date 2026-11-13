@@ -5,6 +5,7 @@ import { daysLeft, monthKey } from "@/lib/home/month";
 import { aheadBehind, monthSummary } from "@/lib/home/summary";
 import type { GroupView } from "./view";
 import { Amt } from "@/components/Amt";
+import { overviewMoney } from "@/lib/money-display";
 
 // Extra parts of This month that come from bills, budgets, goals, the deposit
 // and insights (each section is hidden when it has nothing to show).
@@ -191,7 +192,7 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
                 <div className="flex justify-between text-sm">
                   <span>{getCategory(b.category).label}</span>
                   <span>
-                    <span className={`money tabular-nums ${b.level === "over" ? "text-owe" : ""}`}>{money(b.spent)}</span>{" "}
+                    <span className={`money tabular-nums ${b.level === "over" ? "text-owe" : ""}`}><span title={money(b.spent)} data-exact={money(b.spent)}>{overviewMoney(b.spent, group.currency)}</span></span>{" "}
                     <span className="text-gray-500">of {money(b.amount)}</span>
                   </span>
                 </div>
@@ -203,10 +204,10 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
                 </div>
                 {b.level === "over" && (
                   <p className="mt-1.5 text-xs text-owe">
-                    {money(b.spent - b.amount)} over{left > 0 ? `, with ${left} ${left === 1 ? "day" : "days"} to go` : ""}
+                    {overviewMoney(b.spent - b.amount, group.currency)} over{left > 0 ? `, with ${left} ${left === 1 ? "day" : "days"} to go` : ""}
                   </p>
                 )}
-                {b.level === "near" && <p className="mt-1.5 text-xs text-gray-500">{money(b.amount - b.spent)} left for the month</p>}
+                {b.level === "near" && <p className="mt-1.5 text-xs text-gray-500">{overviewMoney(b.amount - b.spent, group.currency)} left for the month</p>}
               </li>
             ))}
           </ul>
@@ -225,8 +226,8 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
           {extras.deposit && (
             <Link href={`/groups/${group.id}/deposit`} className={`${card} p-3.5 text-fg`}>
               <p className="text-xs text-gray-500">Deposit</p>
-              <p className="mt-1 money text-[22px] font-semibold tabular-nums">{money(extras.deposit.total)}</p>
-              <p className="mt-0.5 text-xs text-gray-500">Yours {money(extras.deposit.mine)}</p>
+              <p className="mt-1 money text-[22px] font-semibold tabular-nums" title={money(extras.deposit.total)} data-exact={money(extras.deposit.total)}>{overviewMoney(extras.deposit.total, group.currency)}</p>
+              <p className="mt-0.5 text-xs text-gray-500">Yours {overviewMoney(extras.deposit.mine, group.currency)}</p>
             </Link>
           )}
         </div>
@@ -241,7 +242,7 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
                 <span className="text-sm text-gray-500">{Math.min(100, Math.round((g.saved * 100) / Math.max(1, g.target)))}%</span>
               </div>
               <p className="mt-1 text-sm">
-                <span className="money tabular-nums">{money(g.saved)}</span> <span className="text-gray-500">of {money(g.target)} set aside</span>
+                <span className="money tabular-nums" title={money(g.saved)} data-exact={money(g.saved)}>{overviewMoney(g.saved, group.currency)}</span> <span className="text-gray-500">of {money(g.target)} set aside</span>
               </p>
               <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-mist">
                 <div className="h-full rounded-full bg-fg" style={{ width: `${Math.min(100, Math.round((g.saved * 100) / Math.max(1, g.target)))}%` }} />

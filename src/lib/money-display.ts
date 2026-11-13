@@ -1,6 +1,6 @@
 // Display-only. Amounts on overview screens drop the paise once they reach 1,000 whole units (₹17,618.19 → ₹17,618).
 // Never used for a stored number, a calculation, an export, an email or anything sent to the server. Where an
-// amount is shown this way, the exact figure goes in `title`, `data-exact` and the spoken label (see `exactAttrs`).
+// amount is shown this way, the exact figure goes in `title` and `data-exact` (screen readers hear the same rounded figure everyone sees; the group card and the expense itself carry the exact one).
 import { homeMoney } from "./home/display";
 import { formatMoney } from "./money";
 
