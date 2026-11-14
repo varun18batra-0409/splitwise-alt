@@ -24,6 +24,23 @@ async function fullyVisible(page: Page, selector: string, label: string) {
     expect(r.right, `${label} #${i} ends on screen`).toBeLessThanOrEqual(r.vw + 1);
   }
 }
+// The text a person can actually SEE: the element shows the full text, with nothing cut off sideways or hidden by a line limit
+// (toContainText alone also passes for text that is clipped away).
+async function textFullyShown(page: Page, selector: string, text: string, label: string) {
+  const el = page.locator(selector).filter({ hasText: text }).first();
+  await expect(el, `${label}: shows "${text}"`).toBeVisible();
+  const r = await el.evaluate((node) => ({
+    hiddenAcross: node.scrollWidth > node.clientWidth + 1,
+    hiddenDown: node.scrollHeight > node.clientHeight + 1, // a two-line limit hides what does not fit
+    left: node.getBoundingClientRect().left,
+    right: node.getBoundingClientRect().right,
+    vw: window.innerWidth,
+  }));
+  expect(r.hiddenAcross, `${label}: nothing cut off sideways`).toBe(false);
+  expect(r.hiddenDown, `${label}: nothing hidden by the line limit`).toBe(false);
+  expect(r.left, `${label}: starts on screen`).toBeGreaterThanOrEqual(0);
+  expect(r.right, `${label}: ends on screen`).toBeLessThanOrEqual(r.vw + 1);
+}
 const noSidewaysScroll = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
 
 test("a lakh amount fits at 320×640: the activity row and Home's two-sided ticket", async ({ browser }) => {
@@ -65,10 +82,33 @@ test("a lakh amount fits at 320×640: the activity row and Home's two-sided tick
   await settled(page);
   const row = page.locator('li[id^="item-"]').filter({ hasText: "Villa" }).first();
   await expect(row).toContainText("₹12,34,567.88");
+  // The paid line may use two lines, but the full amount must be visible, not clipped with "…".
+  await textFullyShown(page, 'li[id^="item-"] [data-paid-line]', "₹12,34,567.88", "Activity paid line");
   await fullyVisible(page, 'li[id^="item-"] span.font-semibold[data-exact]', "Activity amount");
   const paid = await row.locator("[data-paid-line]").first().evaluate((el) => el.getBoundingClientRect().right);
   const effect = await row.locator("span.font-semibold[data-exact]").first().evaluate((el) => el.getBoundingClientRect().left);
   expect(paid, "the paid line stops before the amount column").toBeLessThanOrEqual(effect + 1);
   expect(await noSidewaysScroll(page), "Activity does not scroll sideways").toBeLessThanOrEqual(1);
+
+  // A three-person group with paise: Asha pays ₹18,51,851.82, each of the three owes ₹6,17,283.94 (1851851.82 / 3, worked by hand),
+  // so the two others owe Asha ₹12,34,567.88. Smart Settle works from each person's net, so one person is never both a payer and a
+  // payee in the same group: this is the one-sided ticket (the two-sided one is Home's, above). Whatever the ticket is, its
+  // amounts are exact and fully visible at 320.
+  const g3 = await createGroup(A, groupName("Big three"));
+  await joinGroup(B, g3.invite, g3.path);
+  await joinGroup(C, g3.invite, g3.path);
+  await addEqualExpense(A, g3.path, "Resort", "1851851.82");
+  await page.goto(g3.path);
+  await settled(page);
+  await expect(page.locator("[data-group-balance] [data-net-balance]").first()).toContainText("₹12,34,567.88");
+  await fullyVisible(page, "[data-group-balance] [data-net-balance]", "Three-person ticket amount");
+  if (await page.locator("[data-group-balance] [data-ticket-both]").count()) {
+    await fullyVisible(page, "[data-group-balance] [data-ticket-both] [data-net-balance]", "Two-sided group ticket amount");
+  }
+  expect(await noSidewaysScroll(page), "the three-person group does not scroll sideways").toBeLessThanOrEqual(1);
+  await page.goto(`${g3.path}?tab=balances`);
+  await settled(page);
+  await expect(page.locator("details.group\\/person > summary").filter({ hasText: "Bina" })).toContainText("owes ₹6,17,283.94");
+  expect(await noSidewaysScroll(page), "Balances does not scroll sideways").toBeLessThanOrEqual(1);
   await ctx.close();
 });

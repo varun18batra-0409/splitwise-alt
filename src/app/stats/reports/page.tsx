@@ -51,7 +51,7 @@ export default async function Reports() {
           )}
           {r.kind === "moment" && r.status === "open" && !alive.has(r.targetId) && (
             <p className="mt-2 rounded-xl bg-mist px-3 py-2 text-sm text-gray-500" data-moment-gone={r.targetId}>
-              The moment was removed by its author.
+              The moment is no longer there (deleted by its author or the group).
             </p>
           )}
           {r.status === "open" ? (

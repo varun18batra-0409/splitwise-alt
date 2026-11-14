@@ -5,9 +5,10 @@ import { readFileSync } from "node:fs";
 const src = (f: string) => readFileSync(f, "utf8");
 
 describe("big amounts on small phones", () => {
-  it("the activity row's 'paid … · edited' can shrink and be cut, and the names give way first", () => {
+  it("the activity row's 'paid … · edited' may use two lines and can shrink, and the names give way first", () => {
     const row = src("src/components/ActivityRow.tsx");
-    expect(row).toMatch(/<span className="min-w-0 truncate whitespace-nowrap" data-paid-line>/);
+    expect(row).toMatch(/<span className="min-w-0 line-clamp-2 break-words" data-paid-line>/);
+    expect(row).not.toMatch(/truncate whitespace-nowrap" data-paid-line/); // no one-line cut
     expect(row).not.toMatch(/<span className="shrink-0 whitespace-nowrap">\s*\{item\.refund/);
     expect(row).toContain("min-w-0 shrink-[4] truncate");
   });
