@@ -7,9 +7,10 @@ import { getTimeZone } from "@/lib/tz";
 import { visitorRegion } from "@/lib/region";
 import { countryOf, tripStops } from "@/lib/geo";
 import { photoSet, placePhotos } from "@/lib/places";
-import { PageHeader, ErrorNote } from "@/components/ui";
 import { POSTCARD_FONTS_URL, RARE, baseStamp, isSitePhoto, openRareStamps, postDate, withHome } from "@/lib/postcards/catalog";
 import { postcardPeople } from "@/lib/postcards/people";
+import { myPostcardUploads } from "@/lib/postcards/uploads";
+import { myMomentsForPostcard } from "@/lib/moments-db";
 import { Composer } from "./Composer";
 
 export const metadata = { title: "Write a postcard", robots: { index: false } };
@@ -35,6 +36,7 @@ export default async function NewPostcardPage({ searchParams }: { searchParams: 
     : null;
   const tz = await getTimeZone();
   const home = (me.homeCountry || visitorRegion(await headers()).country || "IN").toUpperCase();
+  const [uploads, moments] = await Promise.all([myPostcardUploads(me.id), myMomentsForPostcard(me.id, { groupFirst: g?.id })]);
   const stop = g && g.type === "trip" ? tripStops(g.name, g.tripPlace, g.tripCountry)[0] : undefined;
   const city = stop?.city ?? "";
   const cc = stop?.country ?? "";
@@ -69,6 +71,9 @@ export default async function NewPostcardPage({ searchParams }: { searchParams: 
     ? {
         from: theirs ? "" : again.id,
         front: again.front,
+        format: again.format,
+        fit: again.fit,
+        photoSize: again.photoSize,
         words: again.words,
         stamp: again.stamp,
         lettering: again.lettering,
@@ -93,9 +98,14 @@ export default async function NewPostcardPage({ searchParams }: { searchParams: 
   return (
     <>
       <link rel="stylesheet" href={POSTCARD_FONTS_URL} precedence="default" />
-      <PageHeader title={again ? "Reuse this card" : "Write a postcard"} back={again ? `/postcards/${again.id}` : g ? `/groups/${g.id}` : "/postcards"} />
-      {sp.error && <ErrorNote>{sp.error}</ErrorNote>}
       <Composer
+        title={again ? "Reuse this card" : "Write a postcard"}
+        backHref={again ? `/postcards/${again.id}` : g ? `/groups/${g.id}` : "/postcards"}
+        error={sp.error}
+        uploads={uploads}
+        moments={moments}
+        tripCountry={cc}
+        photosLabel={g ? `${g.name} photos` : "Photos"}
         groupId={g?.id ?? ""}
         groups={ordered}
         photos={photos}

@@ -1,4 +1,5 @@
 import { lookCss, touchesOn, waxSeal, wordsAtOf, wordsSizeOf } from "@/lib/postcards/looks";
+import { fitOf, type Fit } from "@/lib/postcards/format";
 import { ADDRESS_MIN_SCALE, addressLineScale, handOf, inkColor, paperTones, letteringOf, toneOf, postmarkSvg, printSvg, stampSvg, WAVES_SVG } from "@/lib/postcards/catalog";
 
 // A postcard, front and back, drawn at any width (sizes are in "cqw": a share of the card's width),
@@ -7,9 +8,10 @@ import { ADDRESS_MIN_SCALE, addressLineScale, handOf, inkColor, paperTones, lett
 const GRAIN =
   "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .2 0 0 0 0 .16 0 0 0 0 .1 0 0 0 .55 0'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>\")";
 
-export type FrontProps = { front: string; photo?: string; words: string; lettering: string; tone?: string; look?: string; wordsAt?: string; wordsSize?: number; touches?: string; k: string; className?: string };
+export type FrontProps = { front: string; photo?: string; words: string; lettering: string; tone?: string; look?: string; wordsAt?: string; wordsSize?: number; touches?: string; fit?: Fit | string; k: string; className?: string };
 
-export function PostcardFront({ front, photo, words, lettering, tone = "white", look = "", wordsAt = "bottom", wordsSize = 100, touches = "", k, className = "" }: FrontProps) {
+export function PostcardFront({ front, photo, words, lettering, tone = "white", look = "", wordsAt = "bottom", wordsSize = 100, touches = "", fit: fitProp = "full", k, className = "" }: FrontProps) {
+  const fit = fitOf(fitProp);
   const l = letteringOf(lettering);
   const t = toneOf(tone);
   const at = wordsAtOf(wordsAt);
@@ -18,23 +20,45 @@ export function PostcardFront({ front, photo, words, lettering, tone = "white", 
   const print = front.startsWith("print:") ? front.slice(6) : "";
   const img = !print ? photo || (front.startsWith("photo:") ? front.slice(6) : "") : "";
   const long = words.length > 11;
+  const media = print ? (
+    <div aria-hidden className="absolute inset-0 [&>svg]:h-full [&>svg]:w-full" style={{ filter }} data-print-svg dangerouslySetInnerHTML={{ __html: printSvg(print, k) }} />
+  ) : img ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={img} alt="" className="absolute inset-0 h-full w-full object-cover" style={{ filter: filter === "none" ? "saturate(1.06) contrast(1.04)" : filter }} data-front-photo data-look={look || "none"} />
+  ) : null;
+  const shade =
+    img && words && !t.dark && fit !== "taped" ? (
+      <span
+        aria-hidden
+        className="absolute inset-0"
+        style={{ background: at === "top" ? "linear-gradient(0deg,rgba(0,0,0,0) 45%,rgba(0,0,0,0.42) 100%)" : at === "middle" ? "radial-gradient(80% 60% at 50% 50%,rgba(0,0,0,0.3),rgba(0,0,0,0) 75%)" : "linear-gradient(180deg,rgba(0,0,0,0) 45%,rgba(0,0,0,0.42) 100%)" }}
+      />
+    ) : null;
   return (
-    <div className={`relative aspect-[3/2] overflow-hidden rounded-[3px] bg-[#e9e2d4] text-white shadow-[0_1px_0_rgba(255,255,255,0.35)_inset,0_24px_48px_-18px_rgba(0,0,0,0.85),0_6px_14px_-6px_rgba(0,0,0,0.6)] [container-type:inline-size] ${className}`} data-postcard-front>
-      {print ? (
-        <div aria-hidden className="absolute inset-0 [&>svg]:h-full [&>svg]:w-full" style={{ filter }} data-print-svg dangerouslySetInnerHTML={{ __html: printSvg(print, k) }} />
-      ) : img ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={img} alt="" className="absolute inset-0 h-full w-full object-cover" style={{ filter: filter === "none" ? "saturate(1.06) contrast(1.04)" : filter }} data-front-photo data-look={look || "none"} />
-      ) : null}
-      {img && words && !t.dark && (
-        <span
-          aria-hidden
-          className="absolute inset-0"
-          style={{ background: at === "top" ? "linear-gradient(0deg,rgba(0,0,0,0) 45%,rgba(0,0,0,0.42) 100%)" : at === "middle" ? "radial-gradient(80% 60% at 50% 50%,rgba(0,0,0,0.3),rgba(0,0,0,0) 75%)" : "linear-gradient(180deg,rgba(0,0,0,0) 45%,rgba(0,0,0,0.42) 100%)" }}
-        />
+    <div className={`relative aspect-[3/2] overflow-hidden rounded-[3px] bg-[#e9e2d4] text-white shadow-[0_1px_0_rgba(255,255,255,0.35)_inset,0_24px_48px_-18px_rgba(0,0,0,0.85),0_6px_14px_-6px_rgba(0,0,0,0.6)] [container-type:inline-size] ${className}`} data-postcard-front data-fit={fit}>
+      {fit === "full" ? (
+        <>
+          {media}
+          {shade}
+        </>
+      ) : fit === "border" ? (
+        // A white border: the picture sits inside a margin of paper, and the shading for the words stays inside the picture.
+        <>
+          <span aria-hidden className="absolute inset-0 bg-[#f4f0e6]" />
+          <div className="absolute inset-[5%] overflow-hidden" data-print-frame>
+            {media}
+            {shade}
+          </div>
+        </>
+      ) : (
+        // A taped print: a white-edged print, slightly tilted, held by a strip of tape, on the card's cream.
+        <div className="absolute left-1/2 top-1/2 box-border w-[62cqw] bg-[#fbf8f1] shadow-[0_1.2cqw_3cqw_-1.2cqw_rgba(40,30,10,0.55)]" style={{ transform: "translate(-50%,-50%) rotate(-3deg)", padding: "1.6cqw 1.6cqw 6cqw" }} data-print-frame>
+          <div className={`relative overflow-hidden ${print ? "aspect-[3/2]" : "aspect-[4/3]"}`}>{media}</div>
+          <span aria-hidden className="absolute -top-[2.4cqw] left-1/2 block h-[4.6cqw] w-[16cqw] -translate-x-1/2 rotate-[-6deg] bg-[rgba(226,212,170,0.82)]" />
+        </div>
       )}
       <span aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.2] mix-blend-multiply" style={{ backgroundImage: GRAIN }} />
-      <span aria-hidden className="pointer-events-none absolute inset-[3.2%] border border-white/60" />
+      {fit === "full" && <span aria-hidden className="pointer-events-none absolute inset-[3.2%] border border-white/60" />}
       {words && (
         <div className={`pointer-events-none absolute inset-x-[6%] text-center ${at === "top" ? "top-[9%]" : at === "middle" ? "top-1/2 -translate-y-1/2" : "bottom-[9%]"}`} data-words-at={at} style={{ color: t.c, textShadow: t.dark ? "0 1px 14px rgba(255,255,255,0.45)" : "0 2px 18px rgba(0,0,0,0.35)" }} data-front-words data-tone={t.id}>
           <div className="font-sans text-[2.1cqw] font-semibold uppercase tracking-[0.34em] opacity-95">Greetings from</div>
@@ -114,7 +138,7 @@ export function PostcardBack({ message, hand, stamp, paper, ink = "navy", touche
   );
 }
 
-function Touches({ list, k, seal = "", initial = "" }: { list: ReturnType<typeof touchesOn>; k: string; seal?: string; initial?: string }) {
+export function Touches({ list, k, seal = "", initial = "" }: { list: ReturnType<typeof touchesOn>; k: string; seal?: string; initial?: string }) {
   return (
     <>
       {list.map((t) => (

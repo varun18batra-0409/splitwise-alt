@@ -1,24 +1,40 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { useFormStatus } from "react-dom";
 import { PostcardBack, PostcardFront } from "@/components/postcards/Card";
-import { PostcardShare, face } from "@/components/postcards/PostcardView";
+import { PostcardOneSide } from "@/components/postcards/OneSide";
+import { face } from "@/components/postcards/PostcardView";
 import { shrink } from "@/components/OwnPhoto";
-import { avatarTone } from "@/components/ui";
 import { buzz } from "@/lib/haptics";
-import { LOOKS, LOOK_PICKS, PLACES, SEAL_COLOURS, SEAL_DESIGNS, TOUCHES, TOUCH_PICKS, keptLook, keptTouches, lookCss, waxSeal } from "@/lib/postcards/looks";
-import { COUNTRY_STAMP_IDS, HANDS, HAND_PICKS, INKS, INK_PICKS, TONES, TONE_PICKS, OPENERS, PAPERS, PAPER_PICKS, keptHand, keptInk, keptLettering, keptPaper, keptTone, letteringPicks, paperTones, PRINTS, THEME_STAMP_IDS, printSvg, stampSvg, withHome } from "@/lib/postcards/catalog";
-import { MESSAGE_MAX, messageFit, overText, withOpener, roughMeasure, type MeasureEm } from "@/lib/postcards/fit";
+import { keptLook, keptTouches } from "@/lib/postcards/looks";
+import { HANDS, keptHand, keptInk, keptLettering, keptPaper, keptTone, stampOrder, toneOf } from "@/lib/postcards/catalog";
+import { messageFit, overText, roughMeasure, type MeasureEm } from "@/lib/postcards/fit";
+import { fitOf, formatOf, oneSideTooLong, photoSizeOf, ONESIDE_MAX, type Fit, type Format, type PhotoSize } from "@/lib/postcards/format";
 import { sendPostcardAction } from "@/app/postcard-actions";
 import type { PostcardGroup } from "@/lib/postcards/people";
-import { DateField } from "@/components/DateField";
+import type { MyUpload } from "@/lib/postcards/uploads";
+import type { PostcardMoment } from "@/lib/moments-db";
+import { TopBar, type Step } from "./editor/TopBar";
+import { FormatSwitch } from "./editor/FormatSwitch";
+import { ToolRow, type ToolDef } from "./editor/ToolRow";
+import { PhotoPanel, type Own } from "./editor/PhotoPanel";
+import { ColourPanel, LetteringPanel, LookPanel, TouchesPanel, WordsPanel } from "./editor/FrontPanels";
+import { MessagePanel, PaperPanel, PenPanel, SealPanel, StampPanel } from "./editor/NotePanels";
+import { SendStep } from "./editor/SendStep";
+import { Icons } from "./editor/shared";
 
 type Props = {
   groupId: string;
   groups: PostcardGroup[];
   photos: string[];
+  photosLabel: string;
   words: string[];
+  uploads: MyUpload[];
+  moments: PostcardMoment[];
+  tripCountry: string;
+  title: string;
+  backHref: string;
+  error?: string;
   defaults: {
     front: string;
     words: string;
@@ -27,6 +43,9 @@ type Props = {
     to: string[];
     // When sending a card again: everything it had.
     from?: string;
+    format?: string;
+    fit?: string;
+    photoSize?: string;
     lettering?: string;
     tone?: string;
     look?: string;
@@ -48,12 +67,39 @@ type Props = {
   date: string;
 };
 
-// Write a postcard: the card itself stays on top and turns as you go (front, then back), with the
-// choices underneath. Send goes to the people you tick.
-export function Composer({ groupId, groups, photos, words: wordOptions, defaults, rare, home, myName, date }: Props) {
-  const [tab, setTab] = useState<"front" | "back" | "send">("front");
+const FRONT_TOOLS: ToolDef[] = [
+  { id: "photo", name: "Photo", icon: Icons.photo },
+  { id: "look", name: "Look", icon: Icons.look },
+  { id: "words", name: "Words", icon: Icons.words },
+  { id: "lettering", name: "Lettering", icon: Icons.lettering },
+  { id: "colour", name: "Colour", icon: Icons.colour },
+  { id: "touches", name: "Touches", icon: Icons.touchesFront },
+];
+const NOTE_TOOLS: ToolDef[] = [
+  { id: "message", name: "Message", icon: Icons.message },
+  { id: "pen", name: "Pen", icon: Icons.pen },
+  { id: "paper", name: "Paper", icon: Icons.paper },
+  { id: "stamp", name: "Stamp", icon: Icons.stamp },
+  { id: "seal", name: "Wax seal", icon: Icons.seal },
+  { id: "touches", name: "Touches", icon: Icons.touches },
+];
+const ONE_TOOLS: ToolDef[] = [{ id: "photo", name: "Photo", icon: Icons.photo }, ...NOTE_TOOLS];
+// The touches a one-side card has room for (its wax seal is its own tool).
+const ONE_TOUCHES = ["coffee", "flower", "paravion"];
+
+// Write a postcard on one screen: the card in the middle, the options for the chosen tool above the tool row, and Next at the bottom.
+// Front, Note and Card are one fixed screen (nothing scrolls but a long list inside its own panel); Send is an ordinary page.
+// Every tap changes the card at once. Send goes to the people you tick.
+export function Composer({ groupId, groups, photos, photosLabel, words: wordOptions, uploads, moments, tripCountry, title, backHref, error, defaults, rare, home, myName, date }: Props) {
+  const [tab, setTab] = useState<Step>("front");
+  const [format, setFormat] = useState<Format>(formatOf(defaults.format));
+  const [fit, setFit] = useState<Fit>(fitOf(defaults.fit));
+  const [photoSize, setPhotoSize] = useState<PhotoSize>(photoSizeOf(defaults.photoSize));
+  const [tools, setTools] = useState({ front: "photo", back: "message", one: "photo" });
   const [front, setFront] = useState(defaults.front);
-  const [own, setOwn] = useState<{ url: string; data: string } | null>(defaults.ownPhoto ? { url: defaults.ownPhoto.url, data: "" } : null);
+  // Where an own photo comes from: a new upload (data), one of your earlier uploads (reuseId) or one of your own moments (momentId).
+  // Each source writes only its own field, so the form sends exactly one of photo / reusePhoto / momentPhoto.
+  const [own, setOwn] = useState<Own>(defaults.ownPhoto ? { url: defaults.ownPhoto.url, reuseId: defaults.ownPhoto.id } : null);
   const [words, setWords] = useState(defaults.words);
   const [custom, setCustom] = useState(Boolean(defaults.words) && !wordOptions.includes(defaults.words));
   const [lettering, setLettering] = useState(keptLettering(defaults.lettering ?? "classic"));
@@ -76,8 +122,12 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
   const [addr, setAddr] = useState<string[]>(defaults.address ?? ["", "", ""]);
   const [opensOn, setOpensOn] = useState("");
   const [photoState, setPhotoState] = useState("");
+  const [typing, setTyping] = useState(false);
+  const [nudge, setNudge] = useState("");
+  const autoNavy = useRef(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const oneSide = format === "oneside";
   const everyone = useMemo(() => {
     const m = new Map<string, string>();
     for (const g of groups) for (const p of g.people) if (!m.has(p.id)) m.set(p.id, p.name);
@@ -87,13 +137,16 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
   // With one person picked, the first address line is their name (until you type your own).
   const address = addr[0] || to.length !== 1 ? addr : [firstOf(everyone.get(to[0]) ?? ""), addr[1], addr[2]];
   const rareIds = rare.map((r) => r.id);
-  const stampList = useMemo(() => [...new Set([...rareIds, stamp, ...COUNTRY_STAMP_IDS, ...THEME_STAMP_IDS.map((t) => withHome(t, home))])], [stamp, home, rareIds.join()]); // eslint-disable-line react-hooks/exhaustive-deps
-  const [lookId, lookAmt] = [look.split(":")[0] || "none", Number(look.split(":")[1] ?? 100)];
+  const stampList = useMemo(() => stampOrder(stamp, tripCountry, home, rareIds), [home, tripCountry, rareIds.join()]); // eslint-disable-line react-hooks/exhaustive-deps
   const touchList = touches.join(",");
   const toggleTouch = (id: string) => setTouches((t) => (t.includes(id) ? t.filter((x) => x !== id) : [...t, id]));
+  const sealOn = touches.includes("seal");
+  const setSealOn = (on: boolean) => setTouches((t) => (on ? (t.includes("seal") ? t : [...t, "seal"]) : t.filter((x) => x !== "seal")));
 
-  const frontProps = { front, photo: front === "own" ? own?.url : undefined, words, lettering, tone, look, wordsAt, wordsSize, touches: touchList, k: "cf" };
-  const backProps = { message: message || "Your words here…", hand, stamp, paper, ink, touches: touchList, seal, address, place: defaults.place, date, from: signoff.trim() || firstOf(myName) || "Me", k: "cb" };
+  const from = signoff.trim() || firstOf(myName) || "Me";
+  const frontProps = { front, photo: front === "own" ? own?.url : undefined, words, lettering, tone, look, wordsAt, wordsSize, touches: touchList, fit, k: "cf" };
+  const backProps = { message: message || "Your words here…", hand, stamp, paper, ink, touches: touchList, seal, address, place: defaults.place, date, from, k: "cb" };
+  const oneProps = { size: photoSize, front, photo: front === "own" ? own?.url : undefined, look, message: message || "Your words here…", hand, stamp, paper, ink, touches: touchList, seal, place: defaults.place, date, from, k: "co" };
 
   async function pickPhoto(file?: File) {
     if (!file) return;
@@ -113,8 +166,16 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
       if (fileRef.current) fileRef.current.value = "";
     }
   }
-  const toggle = (id: string) => setTo((t) => (t.includes(id) ? t.filter((x) => x !== id) : [...t, id]));
-  const showBack = tab !== "front";
+  // A taped print is white-edged on cream: light words would vanish on it, so the first time it is chosen (with a light colour) the
+  // words go Navy. Change them back whenever you like.
+  const chooseFit = (f: Fit) => {
+    setFit(f);
+    if (f === "taped" && !autoNavy.current && !toneOf(tone).dark) {
+      autoNavy.current = true;
+      setTone("navy");
+    }
+  };
+
   // Does the message fit on the card? Measured with the chosen handwriting when the phone can, roughly otherwise.
   const handDef = HANDS.find((h) => h.id === hand);
   const measure = useMemo<MeasureEm>(() => {
@@ -127,17 +188,129 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
       return roughMeasure;
     }
   }, [handDef]);
-  const fit = messageFit(`${message}`, handDef?.size ?? 1, measure);
-  const tile = (on: boolean) => `relative shrink-0 overflow-hidden rounded-[6px] transition-transform active:scale-95 ${on ? "outline outline-2 outline-offset-2 outline-fg" : "opacity-85"}`;
-  const label = "mb-2.5 mt-6 block text-[13px] font-semibold text-fg/55";
-  const chip = (on: boolean) => `inline-flex h-9 shrink-0 items-center rounded-full border px-4 text-[13.5px] font-semibold transition-transform active:scale-95 ${on ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] text-fg" : "border-fg/15 bg-mist text-fg/85"}`;
+  const fitInfo = messageFit(`${message}`, handDef?.size ?? 1, measure);
+  const tooLong = oneSide ? oneSideTooLong(message) : fitInfo.over > 0;
+
+  const steps: { id: Step; name: string }[] = oneSide
+    ? [
+        { id: "front", name: "Card" },
+        { id: "send", name: "Send" },
+      ]
+    : [
+        { id: "front", name: "Front" },
+        { id: "back", name: "Note" },
+        { id: "send", name: "Send" },
+      ];
+  const order = steps.map((s) => s.id);
+  const goStep = (s: Step) => {
+    setTab(s);
+    setTyping(false);
+    if (typeof window !== "undefined") window.scrollTo(0, 0);
+  };
+  const toolKey = oneSide ? "one" : tab === "back" ? "back" : "front";
+  const toolDefs = oneSide ? ONE_TOOLS : tab === "back" ? NOTE_TOOLS : FRONT_TOOLS;
+  const tool = tools[toolKey];
+  const pickTool = (id: string) => setTools((t) => ({ ...t, [toolKey]: id }));
+  const messageTool = () => setTools((t) => ({ ...t, [oneSide ? "one" : "back"]: "message" }));
+
+  // Next: Front goes to Note. Note (or the one-side Card) needs a message that fits: if not, the Message tool opens and says so (never silent).
+  const next = () => {
+    if (tab === "front" && !oneSide) return goStep("back");
+    if (!message.trim()) {
+      messageTool();
+      setNudge("Write a few words first");
+      return;
+    }
+    if (tooLong) {
+      messageTool();
+      setNudge(oneSide ? `A one-side card holds up to ${ONESIDE_MAX} characters. Take a few out.` : overText(fitInfo.over));
+      return;
+    }
+    setNudge("");
+    goStep("send");
+  };
+  const flip = () => {
+    buzz("tap");
+    goStep(tab === "front" ? "back" : "front");
+  };
+  const onMessage = (m: string) => {
+    setMessage(m);
+    setNudge("");
+  };
+  const changeFormat = (f: Format) => {
+    setFormat(f);
+    setNudge("");
+  };
+
+  const showBack = tab === "back";
+  const trip = front.startsWith("photo:") ? front.slice(6) : "";
+  const lookSrc = front === "own" ? own?.url ?? "" : trip;
+  const preview = oneSide ? (
+    <div className="w-[min(96cqw,144cqh)]" data-composer-card="oneside">
+      <PostcardOneSide {...oneProps} />
+    </div>
+  ) : (
+    <button type="button" onClick={flip} aria-label={showBack ? "Show the front" : "Show the back"} className="block w-[min(96cqw,144cqh)] [perspective:1600px]" data-composer-card={showBack ? "back" : "front"}>
+      <div className="relative transition-transform duration-[800ms] ease-[cubic-bezier(.2,.8,.2,1)] [transform-style:preserve-3d] motion-reduce:transition-none" style={{ transform: showBack ? "rotateY(180deg)" : "none" }}>
+        <div className="[backface-visibility:hidden]" style={face(!showBack)}>
+          <PostcardFront {...frontProps} />
+        </div>
+        <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]" style={face(showBack)}>
+          <PostcardBack {...backProps} />
+        </div>
+      </div>
+    </button>
+  );
+
+  const panel = (() => {
+    const t = tool;
+    if (t === "photo")
+      return (
+        <PhotoPanel
+          format={format}
+          front={front}
+          own={own}
+          onFront={setFront}
+          onFile={pickPhoto}
+          fileRef={fileRef}
+          state={photoState}
+          uploads={uploads}
+          moments={moments}
+          onUpload={(u) => (setOwn({ url: u.url, reuseId: u.id }), setFront("own"), buzz("tap"))}
+          onMoment={(m) => (setOwn({ url: m.full, momentId: m.id }), setFront("own"), buzz("tap"))}
+          photos={photos}
+          photosLabel={photosLabel}
+          fit={fit}
+          onFit={chooseFit}
+          size={photoSize}
+          onSize={setPhotoSize}
+        />
+      );
+    if (t === "look") return <LookPanel look={look} setLook={setLook} src={lookSrc} front={front} />;
+    if (t === "words") return <WordsPanel words={words} setWords={setWords} custom={custom} setCustom={setCustom} options={wordOptions} wordsAt={wordsAt} setWordsAt={setWordsAt} wordsSize={wordsSize} setWordsSize={setWordsSize} />;
+    if (t === "lettering") return <LetteringPanel lettering={lettering} setLettering={setLettering} />;
+    if (t === "colour") return <ColourPanel tone={tone} setTone={setTone} />;
+    if (t === "message")
+      return <MessagePanel format={format} message={message} setMessage={onMessage} over={fitInfo.over} nudge={nudge} signoff={signoff} setSignoff={setSignoff} myFirst={firstOf(myName)} hand={hand} ink={ink} addr={address} setAddr={setAddr} onFocus={() => setTyping(true)} onBlur={() => setTyping(false)} />;
+    if (t === "pen") return <PenPanel hand={hand} setHand={setHand} ink={ink} setInk={setInk} />;
+    if (t === "paper") return <PaperPanel paper={paper} setPaper={setPaper} />;
+    if (t === "stamp") return <StampPanel stamp={stamp} setStamp={setStamp} list={stampList} rare={rare} />;
+    if (t === "seal") return <SealPanel on={sealOn} setOn={setSealOn} seal={seal} setSeal={setSeal} name={firstOf(myName)} />;
+    // touches
+    if (oneSide) return <TouchesPanel side="back" touches={touches} toggle={toggleTouch} ids={ONE_TOUCHES} />;
+    return <TouchesPanel side={tab === "back" ? "back" : "front"} touches={touches} toggle={toggleTouch} />;
+  })();
 
   return (
     <form action={sendPostcardAction} data-allow-repeat="1">
       <input type="hidden" name="groupId" value={groupId} />
       <input type="hidden" name="front" value={front} />
+      <input type="hidden" name="format" value={format} />
+      <input type="hidden" name="fit" value={fit} />
+      <input type="hidden" name="photoSize" value={photoSize} />
       {front === "own" && own?.data && <input type="hidden" name="photo" value={own.data} />}
-      {front === "own" && own && !own.data && defaults.ownPhoto && <input type="hidden" name="reusePhoto" value={defaults.ownPhoto.id} />}
+      {front === "own" && own?.reuseId && !own.data && <input type="hidden" name="reusePhoto" value={own.reuseId} />}
+      {front === "own" && own?.momentId && !own.data && <input type="hidden" name="momentPhoto" value={own.momentId} />}
       {defaults.from && <input type="hidden" name="from" value={defaults.from} />}
       <input type="hidden" name="look" value={look} />
       <input type="hidden" name="wordsAt" value={wordsAt} />
@@ -162,445 +335,34 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
         <input key={id} type="hidden" name="to" value={id} />
       ))}
 
-      {/* The three steps, then the card, turning as you move from front to note. The card sits on a solid backing and is
-          kept short, and every choice below scrolls to just under it, so it never covers a chip. */}
-      <div className="mx-auto grid max-w-[340px] grid-cols-3 gap-1" role="tablist" aria-label="Postcard steps">
-        {(
-          [
-            ["front", "Front"],
-            ["back", "Note"],
-            ["send", "Send"],
-          ] as const
-        ).map(([id, l], n) => (
-          <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`flex flex-col items-center gap-1.5 py-1 text-[13px] font-semibold ${tab === id ? "text-fg" : "text-fg/55"}`} data-step={id}>
-            <span aria-hidden className={`flex size-7 items-center justify-center rounded-full border text-[13px] tabular-nums ${tab === id ? "border-fg bg-fg text-canvas" : "border-fg/30"}`}>
-              {n + 1}
-            </span>
-            {l}
-          </button>
-        ))}
-      </div>
-
-      <div className="sticky top-[max(0.5rem,env(safe-area-inset-top))] z-20 -mx-5 mt-2 bg-canvas px-5 pb-3 pt-1" data-composer-preview>
-        <button type="button" onClick={() => setTab(showBack ? "front" : "back")} aria-label={showBack ? "Show the front" : "Show the back"} className="mx-auto block w-full max-w-[min(100%,calc(30svh*1.5))] [perspective:1600px]" data-composer-card={showBack ? "back" : "front"}>
-          <div className="relative transition-transform duration-[800ms] ease-[cubic-bezier(.2,.8,.2,1)] [transform-style:preserve-3d] motion-reduce:transition-none" style={{ transform: showBack ? "rotateY(180deg)" : "none" }}>
-            <div className="[backface-visibility:hidden]" style={face(!showBack)}>
-              <PostcardFront {...frontProps} />
-            </div>
-            <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]" style={face(showBack)}>
-              <PostcardBack {...backProps} />
-            </div>
+      {tab === "send" ? (
+        <div>
+          <TopBar title={title} steps={steps} step={tab} onStep={goStep} onBack={() => goStep(order[Math.max(0, order.indexOf(tab) - 1)])} backHref={backHref} visibleTitle error={error} />
+          <SendStep groups={groups} to={to} setTo={setTo} opensOn={opensOn} setOpensOn={setOpensOn} hasMessage={Boolean(message.trim())} onWrite={() => (messageTool(), goStep(oneSide ? "front" : "back"))} front={frontProps} back={backProps} one={oneSide ? oneProps : null} />
+        </div>
+      ) : (
+        // The edit steps are one fixed screen (this gets around the page's bottom padding). A long list scrolls inside its own panel.
+        <div className="fixed inset-0 z-30 mx-auto flex max-w-md flex-col gap-2.5 bg-canvas px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.5rem,env(safe-area-inset-top))] max-[359px]:px-4" data-composer data-step-now={tab}>
+          <TopBar title={title} steps={steps} step={tab} onStep={goStep} onBack={() => goStep(order[Math.max(0, order.indexOf(tab) - 1)])} backHref={backHref} error={error} />
+          {tab === "front" && <FormatSwitch format={format} onChange={changeFormat} />}
+          <div className={`flex min-h-0 items-center justify-center [container-type:size] ${typing ? "h-[16svh] flex-none" : "flex-1"}`} data-composer-preview data-typing={typing ? "" : undefined}>
+            {preview}
           </div>
-        </button>
-      </div>
-
-      {tab === "front" && (
-        <section aria-label="Front" className="[&_*]:scroll-mt-[calc(30svh+4.5rem)]">
-          <span className={label}>Picture</span>
-          <div className="-mx-5 flex gap-2.5 overflow-x-auto px-5 pb-2 [scrollbar-width:none]" data-front-choices>
-            <div className="relative shrink-0">
-            <button type="button" onClick={() => (own ? setFront("own") : fileRef.current?.click())} aria-label={own ? (front === "own" ? "Your photo, selected" : "Your photo") : undefined} aria-pressed={own ? front === "own" : undefined} className={`${tile(front === "own")} flex h-[72px] w-[108px] flex-col items-center justify-center gap-1 border border-dashed border-fg/30 bg-mist text-[11.5px] font-semibold`}>
-              {own ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={own.url} alt="" className="absolute inset-0 h-full w-full object-cover" />
-              ) : (
-                <>
-                  <svg aria-hidden width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4 8h3l2-3h6l2 3h3v11H4z" />
-                    <circle cx="12" cy="13" r="3.5" />
-                  </svg>
-                  Your photo
-                </>
-              )}
-            </button>
-            {own && (
-              <button type="button" onClick={() => fileRef.current?.click()} aria-label="Change your photo" className="absolute bottom-1 right-1 z-10 rounded-full bg-canvas/85 px-2 py-0.5 text-[10.5px] font-semibold text-fg">
-                Change
+          {panel}
+          <ToolRow label={oneSide ? "Card tools" : tab === "back" ? "Note tools" : "Front tools"} tools={toolDefs} active={tool} onPick={pickTool} />
+          <div className={`flex flex-none items-center ${oneSide ? "justify-end" : "justify-between"}`}>
+            {!oneSide && (
+              <button type="button" onClick={flip} className="flex h-12 items-center gap-2 rounded-full border border-fg/25 px-[18px] text-[15px] font-semibold active:scale-[0.97] motion-reduce:transition-none">
+                {Icons.flip}
+                Flip
               </button>
             )}
-            </div>
-            {photos.map((src) => (
-              <button key={src} type="button" onClick={() => setFront(`photo:${src}`)} className={`${tile(front === `photo:${src}`)} h-[72px] w-[108px]`} aria-label="Trip photo">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={src} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
-              </button>
-            ))}
-            {PRINTS.map((p) => (
-              <button key={p.id} type="button" onClick={() => setFront(`print:${p.id}`)} className={`${tile(front === `print:${p.id}`)} h-[72px] w-[108px]`} aria-label={`Print: ${p.name}`}>
-                <span aria-hidden className="absolute inset-0 [&>svg]:h-full [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: printSvg(p.id, `t${p.id}`) }} />
-              </button>
-            ))}
-          </div>
-          <input ref={fileRef} type="file" accept="image/*" className="sr-only" aria-label="Choose your own photo" onChange={(e) => pickPhoto(e.target.files?.[0])} />
-          {photoState && <p className="mt-1 text-[13px] text-fg/60" role="status">{photoState}</p>}
-
-          <span className={label}>Words on the front</span>
-          <div className="flex flex-wrap gap-2">
-            {wordOptions.map((w) => (
-              <button key={w} type="button" className={chip(!custom && words === w)} onClick={() => (setCustom(false), setWords(w))}>
-                {w}
-              </button>
-            ))}
-            <button type="button" className={chip(custom)} onClick={() => setCustom(true)}>
-              Your own
-            </button>
-            <button type="button" className={chip(!custom && words === "")} onClick={() => (setCustom(false), setWords(""))}>
-              None
+            <button type="button" onClick={next} data-next className="flex h-[52px] w-[150px] items-center justify-center rounded-full bg-fg text-[17px] font-semibold text-canvas active:scale-[0.97] motion-reduce:transition-none">
+              Next
             </button>
           </div>
-          {custom && (
-            <input value={words} onChange={(e) => setWords(e.target.value.slice(0, 24))} autoFocus placeholder="e.g. the villa that flooded" aria-label="Words on the front" className="mt-3 w-full rounded-2xl border border-line bg-mist px-4 py-3 text-base outline-none focus:border-fg/40" />
-          )}
-
-          <span className={label}>Lettering</span>
-          <div className="flex flex-wrap gap-1.5" data-letterings>
-            {letteringPicks().map((l) => (
-              <button key={l.id} type="button" className={`${chip(lettering === l.id)} !h-8 !px-3`} onClick={() => setLettering(l.id)} style={{ fontFamily: `'${l.family}', serif`, fontStyle: l.italic ? "italic" : undefined, fontSize: l.caps ? 13 : 14, fontWeight: 400 }}>
-                {l.name}
-              </button>
-            ))}
-          </div>
-          <span className={label}>Colour</span>
-          <div className="flex flex-wrap gap-x-3 gap-y-3 pb-1 pt-1" data-tones>
-            {TONE_PICKS.map((id) => TONES.find((t) => t.id === id)!).map((t) => (
-              <button key={t.id} type="button" onClick={() => setTone(t.id)} aria-label={`${t.name} words`} aria-pressed={tone === t.id} data-tone-choice={t.id} className="flex shrink-0 flex-col items-center gap-1.5">
-                <span aria-hidden className={`block size-9 rounded-full border border-white/15 shadow-[inset_0_-3px_6px_rgba(0,0,0,0.25)] transition-transform active:scale-95 ${tone === t.id ? "outline outline-2 outline-offset-[3px] outline-fg" : ""}`} style={{ background: t.c }} />
-                <span className={`text-[11px] ${tone === t.id ? "text-fg" : "text-fg/50"}`}>{t.name}</span>
-              </button>
-            ))}
-          </div>
-          {words && (
-            <>
-              <span className={label}>Where the words sit</span>
-              <div className="flex items-center gap-2" data-words-place>
-                {PLACES.map((p) => (
-                  <button key={p.id} type="button" className={chip(wordsAt === p.id)} onClick={() => setWordsAt(p.id)} aria-pressed={wordsAt === p.id}>
-                    {p.name}
-                  </button>
-                ))}
-              </div>
-              <label className="mt-4 flex items-center gap-3">
-                <span className="w-10 text-[13px] font-semibold text-fg/55">Size</span>
-                <input type="range" min={60} max={150} step={5} value={wordsSize} onChange={(e) => setWordsSize(Number(e.target.value))} aria-label="Size of the words" className="h-1 flex-1 accent-[#F4F2EC]" data-words-size />
-                <span className="w-10 text-right text-[13px] tabular-nums text-fg/55">{wordsSize}%</span>
-              </label>
-            </>
-          )}
-
-          <span className={label}>Look</span>
-          <div className="flex flex-wrap gap-x-2.5 gap-y-3 pb-1" data-looks>
-            {LOOK_PICKS.map((id) => LOOKS.find((l) => l.id === id)!).map((l) => {
-              const on = lookId === l.id;
-              const spec = l.id === "none" ? "" : `${l.id}:100`;
-              const src = front === "own" ? own?.url : front.startsWith("photo:") ? front.slice(6) : "";
-              return (
-                <button key={l.id} type="button" onClick={() => setLook(l.id === "none" ? "" : `${l.id}:${on ? lookAmt : 80}`)} aria-label={`Look: ${l.name}`} aria-pressed={on} data-look-choice={l.id} className="flex shrink-0 flex-col items-center gap-1.5">
-                  <span className={`${tile(on)} block h-[58px] w-[78px] bg-mist`}>
-                    {src ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={src} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" style={{ filter: lookCss(spec) }} />
-                    ) : front.startsWith("print:") ? (
-                      <span aria-hidden className="absolute inset-0 [&>svg]:h-full [&>svg]:w-full" style={{ filter: lookCss(spec) }} dangerouslySetInnerHTML={{ __html: printSvg(front.slice(6), `lk${l.id}`) }} />
-                    ) : null}
-                  </span>
-                  <span className={`text-[11px] ${on ? "text-fg" : "text-fg/50"}`}>{l.name}</span>
-                </button>
-              );
-            })}
-          </div>
-          {lookId !== "none" && (
-            <label className="mt-2 flex items-center gap-3">
-              <span className="w-16 text-[13px] font-semibold text-fg/55">Strength</span>
-              <input type="range" min={10} max={100} step={5} value={lookAmt} onChange={(e) => setLook(`${lookId}:${e.target.value}`)} aria-label="Strength of the look" className="h-1 flex-1 accent-[#F4F2EC]" />
-              <span className="w-10 text-right text-[13px] tabular-nums text-fg/55">{lookAmt}%</span>
-            </label>
-          )}
-
-          <span className={label}>Finishing touches</span>
-          <div className="flex flex-wrap gap-2" data-touches-front>
-            {TOUCHES.filter((t) => t.side === "front" && (TOUCH_PICKS as readonly string[]).includes(t.id)).map((t) => (
-              <button key={t.id} type="button" className={chip(touches.includes(t.id))} aria-pressed={touches.includes(t.id)} onClick={() => toggleTouch(t.id)}>
-                {t.name}
-              </button>
-            ))}
-          </div>
-
-          <button type="button" onClick={() => setTab("back")} className="pop mt-8 flex h-12 w-full items-center justify-center bg-fg text-[15px] font-semibold text-canvas">
-            Next: write your note
-          </button>
-        </section>
-      )}
-
-      {tab === "back" && (
-        <section aria-label="Note" className="[&_*]:scroll-mt-[calc(30svh+4.5rem)]">
-          <span className={label}>Start with</span>
-          <div className="-mx-5 flex gap-2 overflow-x-auto px-5 [scrollbar-width:none]">
-            {OPENERS.map((o) => (
-              <button key={o} type="button" className={chip(false)} onClick={() => setMessage((m) => withOpener(m, o))}>
-                {o.trim().replace(/ $/, "")}
-                {o.endsWith(" ") ? "…" : ""}
-              </button>
-            ))}
-          </div>
-          <label className="mt-6 block">
-            <span className="mb-2.5 block text-[13px] font-semibold text-fg/55">Your message</span>
-            <textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value.slice(0, MESSAGE_MAX))}
-              rows={5}
-              placeholder="Write something they’ll want to keep…"
-              className="w-full resize-none rounded-[14px] border border-line bg-[#f4eee2] px-4 py-3 text-[19px] leading-snug text-[#2b2a5a] outline-none placeholder:text-[#2b2a5a]/40"
-              style={{ fontFamily: `'${HANDS.find((h) => h.id === hand)?.family}', cursive`, color: INKS.find((i) => i.id === ink)?.c }}
-            />
-          </label>
-          <p className="mt-1 text-right text-xs text-fg/60">{message.length}/{MESSAGE_MAX}</p>
-          {fit.over > 0 && (
-            <p className="mt-1 text-right text-xs text-red-600" role="status" data-message-over>
-              {overText(fit.over)}
-            </p>
-          )}
-
-          <label className="mt-4 flex items-center justify-between gap-4 border-b border-line pb-3">
-            <span className="text-[15px] font-semibold">From</span>
-            <input
-              value={signoff}
-              onChange={(e) => setSignoff(e.target.value.slice(0, 25))}
-              maxLength={25}
-              placeholder={firstOf(myName) || "Your name"}
-              aria-label="Signed"
-              data-signoff
-              className="min-w-0 flex-1 bg-transparent text-right text-[15px] text-fg/75 outline-none placeholder:text-fg/55 focus:text-fg"
-            />
-          </label>
-
-          <span className={label}>Handwriting style</span>
-          <div className="grid grid-cols-3 gap-2" data-hands>
-            {HAND_PICKS.map((hp) => {
-              const h = HANDS.find((x) => x.id === hp.id)!;
-              return (
-                <button key={h.id} type="button" onClick={() => setHand(h.id)} aria-label={`${hp.name} handwriting`} aria-pressed={hand === h.id} className={`flex h-11 items-center justify-center gap-2 rounded-[14px] border text-[13px] transition-transform active:scale-95 ${hand === h.id ? "border-[1.5px] border-fg text-fg" : "border-fg/15 text-fg/55"}`}>
-                  <span aria-hidden className="text-[19px] leading-none" style={{ fontFamily: `'${h.family}', cursive` }}>Aa</span>
-                  {hp.name}
-                </button>
-              );
-            })}
-          </div>
-
-          <span className={label}>Ink</span>
-          <div className="flex flex-wrap gap-x-4 gap-y-3 pb-1 pt-1" data-inks>
-            {INK_PICKS.map((id) => INKS.find((i) => i.id === id)!).map((i) => (
-              <button key={i.id} type="button" onClick={() => setInk(i.id)} aria-label={`${i.name} ink`} aria-pressed={ink === i.id} data-ink-choice={i.id} className="flex shrink-0 flex-col items-center gap-1.5">
-                <span aria-hidden className={`block size-9 rounded-full shadow-[inset_0_-3px_6px_rgba(0,0,0,0.35),inset_0_2px_3px_rgba(255,255,255,0.18)] transition-transform active:scale-95 ${ink === i.id ? "outline outline-2 outline-offset-[3px] outline-fg" : ""}`} style={{ background: i.c }} />
-                <span className={`text-[11px] ${ink === i.id ? "text-fg" : "text-fg/55"}`}>{i.name}</span>
-              </button>
-            ))}
-          </div>
-
-          <span className={label}>Paper</span>
-          <div className="flex flex-wrap gap-x-4 gap-y-3 pb-1 pt-1" data-papers>
-            {PAPER_PICKS.map((id) => PAPERS.find((p) => p.id === id)!).map((p) => {
-              const [a, b, c] = paperTones(p.id);
-              return (
-                <button key={p.id} type="button" onClick={() => setPaper(p.id)} aria-label={`${p.name} paper`} aria-pressed={paper === p.id} data-paper-choice={p.id} className="flex shrink-0 flex-col items-center gap-1.5">
-                  <span
-                    aria-hidden
-                    className={`block h-9 w-[54px] rounded-[3px] shadow-[0_3px_8px_-3px_rgba(0,0,0,0.6)] transition-transform active:scale-95 ${paper === p.id ? "outline outline-2 outline-offset-[3px] outline-fg" : ""}`}
-                    style={{ background: p.id === "airmail" ? `repeating-linear-gradient(-45deg,#c8453a 0 5px,${a} 5px 10px,#2f5fa7 10px 15px,${a} 15px 20px)` : `radial-gradient(120% 90% at 0% 0%,${a},${b} 70%,${c})` }}
-                  />
-                  <span className={`nobreak text-[11px] ${paper === p.id ? "text-fg" : "text-fg/55"}`}>{p.name}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          <span className={label}>Stamp</span>
-          {rare.length > 0 && (
-            <p className="-mt-1 mb-2 text-[12.5px] text-fg/60" data-rare-note>
-              Limited stamps on issue now: {rare.map((r) => `${stampLabel(r.id)} until ${r.until}`).join(", ")}. They go in your stamp album.
-            </p>
-          )}
-          <div className="-mx-5 flex gap-3 overflow-x-auto px-5 pb-2 pt-1 [scrollbar-width:none]" data-stamps>
-            {stampList.map((s) => (
-              <button key={s} type="button" onClick={() => setStamp(s)} className={`shrink-0 rounded-[4px] p-0.5 transition-transform active:scale-95 ${stamp === s ? "outline outline-2 outline-offset-2 outline-fg" : ""}`} aria-label={`Stamp ${s}`} data-stamp-choice={s}>
-                <span aria-hidden className="block w-[50px] [&>svg]:h-auto [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: stampSvg(s, `c${s}`) }} />
-                {rareIds.includes(s) && <span className="mt-1 block text-center text-[10.5px] font-semibold text-fg/55">Limited</span>}
-              </button>
-            ))}
-          </div>
-
-          <span className={label}>Finishing touches</span>
-          <div className="flex flex-wrap gap-2" data-touches-back>
-            {TOUCHES.filter((t) => t.side === "back" && (TOUCH_PICKS as readonly string[]).includes(t.id)).map((t) => (
-              <button key={t.id} type="button" className={chip(touches.includes(t.id))} aria-pressed={touches.includes(t.id)} onClick={() => toggleTouch(t.id)}>
-                {t.name}
-              </button>
-            ))}
-          </div>
-
-          {touches.includes("seal") && (
-            <div className="mt-4 rounded-[20px] border border-line bg-mist px-4 py-4" data-seal-picker>
-              <span className="mb-3 block text-[13px] font-semibold text-fg/55">Wax colour</span>
-              <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 pt-1 [scrollbar-width:none]" data-wax-colours>
-                {SEAL_COLOURS.map((c) => {
-                  const on = seal.split(":")[0] === c.id;
-                  return (
-                    <button key={c.id} type="button" onClick={() => setSeal(`${c.id}:${seal.split(":")[1] || "initial"}`)} aria-label={`${c.name} wax`} aria-pressed={on} className="flex w-[58px] shrink-0 flex-col items-center gap-1">
-                      <span aria-hidden className={`block w-[44px] rounded-full transition-transform active:scale-90 [&>svg]:h-auto [&>svg]:w-full ${on ? "outline outline-2 outline-offset-2 outline-fg" : ""}`} dangerouslySetInnerHTML={{ __html: waxSeal(`${c.id}:${seal.split(":")[1] || "initial"}`, firstOf(myName), `pc${c.id}`) }} />
-                      <span className={`truncate text-[10.5px] ${on ? "text-fg" : "text-fg/50"}`}>{c.name}</span>
-                    </button>
-                  );
-                })}
-              </div>
-              <span className="mb-3 mt-5 block text-[13px] font-semibold text-fg/55">Design</span>
-              <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 pt-1 [scrollbar-width:none]" data-wax-designs>
-                {SEAL_DESIGNS.map((d) => {
-                  const on = (seal.split(":")[1] || "initial") === d.id;
-                  return (
-                    <button key={d.id} type="button" onClick={() => setSeal(`${seal.split(":")[0] || "crimson"}:${d.id}`)} aria-label={`Seal design: ${d.name}`} aria-pressed={on} className="flex w-[58px] shrink-0 flex-col items-center gap-1">
-                      <span aria-hidden className={`block w-[48px] rounded-full transition-transform active:scale-90 [&>svg]:h-auto [&>svg]:w-full ${on ? "outline outline-2 outline-offset-2 outline-fg" : ""}`} dangerouslySetInnerHTML={{ __html: waxSeal(`${seal.split(":")[0] || "crimson"}:${d.id}`, firstOf(myName), `pd${d.id}`) }} />
-                      <span className={`text-center text-[10.5px] leading-tight ${on ? "text-fg" : "text-fg/50"}`}>{d.name}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <span className={label}>Address on the card</span>
-          <div className="space-y-2">
-            {[0, 1, 2].map((i) => (
-              <input
-                key={i}
-                value={address[i]}
-                onChange={(e) => {
-                  const next = [...address];
-                  next[i] = e.target.value.slice(0, 25);
-                  setAddr(next);
-                }}
-                placeholder={["Their name", "Flat 4B, Rose Villa", "Bengaluru"][i]}
-                maxLength={25}
-                aria-label={`Address line ${i + 1}`}
-                className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-base outline-none focus:border-fg/40"
-              />
-            ))}
-          </div>
-          <button type="button" onClick={() => setTab("send")} disabled={!message.trim() || fit.over > 0} className="pop mt-8 flex h-12 w-full items-center justify-center bg-fg text-[15px] font-semibold text-canvas disabled:opacity-50">
-            {fit.over > 0 ? "Trim it to fit the card" : message.trim() ? "Choose recipient" : "Write a few words first"}
-          </button>
-        </section>
-      )}
-
-      {tab === "send" && (
-        <section aria-label="Send to">
-          {!message.trim() && (
-            <button type="button" onClick={() => setTab("back")} className="mt-6 flex w-full items-center justify-between rounded-[14px] border border-line bg-mist px-4 py-3 text-left text-sm text-fg/80 active:opacity-80" data-write-first>
-              <span>Write a few words on the back first</span>
-              <span aria-hidden>›</span>
-            </button>
-          )}
-          {message.trim() && (
-            <div className="mt-6 rounded-[20px] border border-line bg-mist px-4 py-4" data-whatsapp-anyone>
-              <p className="mb-3 text-[15px] font-semibold">Send to anyone on WhatsApp</p>
-              <PostcardShare front={frontProps} back={backProps} name="postcard" />
-            </div>
-          )}
-          <p className="mt-7 text-[15px] font-semibold">Or send it in Loopin</p>
-          {groups.length === 0 && <p className="mt-2 text-sm leading-relaxed text-fg/60">In Loopin, postcards go to friends you share a group with. Invite someone to a group and they’ll show here.</p>}
-          {groups.map((g) => {
-            const all = g.people.every((p) => to.includes(p.id));
-            return (
-              <div key={g.id} className="mt-6">
-                <div className="mb-1 flex items-center justify-between">
-                  <span className="text-[13px] font-semibold text-fg/55">{g.name}</span>
-                  {g.people.length > 1 && (
-                    <button type="button" onClick={() => setTo((t) => (all ? t.filter((x) => !g.people.some((p) => p.id === x)) : [...new Set([...t, ...g.people.map((p) => p.id)])]))} className="text-[13px] font-semibold text-fg/80 underline underline-offset-4">
-                      {all ? "Clear" : "Everyone"}
-                    </button>
-                  )}
-                </div>
-                <ul>
-                  {g.people.map((p) => {
-                    const on = to.includes(p.id);
-                    return (
-                      <li key={p.id}>
-                        <button type="button" onClick={() => toggle(p.id)} aria-pressed={on} className="flex w-full items-center gap-3 py-2.5 text-left" data-recipient={p.name}>
-                          <span aria-hidden className={`flex h-9 w-9 items-center justify-center rounded-full text-[13px] font-bold ${avatarTone(p.name)}`}>{p.name.charAt(0).toUpperCase()}</span>
-                          <span className="flex-1 text-[15px] font-semibold">{p.name}</span>
-                          <span aria-hidden className={`flex h-6 w-6 items-center justify-center rounded-full border-[1.5px] ${on ? "border-fg text-fg" : "border-fg/30"}`}>
-                            {on && (
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M5 12.5l4.5 4.5L19 7.5" />
-                              </svg>
-                            )}
-                          </span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            );
-          })}
-          {groups.length > 0 && <OpensOn value={opensOn} onChange={setOpensOn} label={label} chip={chip} />}
-          <p className="mt-5 text-xs leading-relaxed text-fg/60">Only people who joined Loopin show here. Names typed into a group for someone not on Loopin can’t get postcards.</p>
-          {groups.length > 0 && <Send count={to.length} ready={Boolean(message.trim())} />}
-        </section>
+        </div>
       )}
     </form>
-  );
-}
-
-function stampLabel(id: string) {
-  const n = id.replace(/^r:/, "").split("@")[0];
-  return n.charAt(0).toUpperCase() + n.slice(1);
-}
-
-// Open now, or sealed until a day you pick: they see an envelope and the date until then.
-function OpensOn({ value, onChange, label, chip }: { value: string; onChange: (v: string) => void; label: string; chip: (on: boolean) => string }) {
-  const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  const now = new Date();
-  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-  const quick = [
-    { name: "New Year’s Day", d: new Date(now.getFullYear() + 1, 0, 1) },
-    { name: "In a month", d: new Date(now.getFullYear(), now.getMonth() + 1, now.getDate()) },
-    { name: "A year from today", d: new Date(now.getFullYear() + 1, now.getMonth(), now.getDate()) },
-  ];
-  const [picking, setPicking] = useState(false);
-  const nice = value ? new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric" }).format(new Date(`${value}T12:00:00`)) : "";
-  return (
-    <div data-opens>
-      <span className={label}>When they can open it</span>
-      <div className="flex flex-wrap gap-2">
-        <button type="button" className={chip(!value && !picking)} aria-pressed={!value && !picking} onClick={() => (setPicking(false), onChange(""))}>
-          Right away
-        </button>
-        {quick.map((q) => (
-          <button key={q.name} type="button" className={chip(value === iso(q.d))} aria-pressed={value === iso(q.d)} onClick={() => (setPicking(false), onChange(iso(q.d)))}>
-            {q.name}
-          </button>
-        ))}
-        <button type="button" className={chip(picking)} aria-pressed={picking} onClick={() => setPicking(true)}>
-          Pick a day
-        </button>
-      </div>
-      {picking && (
-        <DateField min={iso(tomorrow)} max={iso(new Date(now.getFullYear() + 2, now.getMonth(), now.getDate()))} value={value} onChange={(e) => onChange(e.target.value)} aria-label="Day it opens" className="mt-3" />
-      )}
-      {value && (
-        <p className="mt-3 flex items-center gap-2 rounded-[16px] border border-line bg-mist px-4 py-3 text-[13.5px] text-fg/85" data-sealed-note>
-          <span aria-hidden className="h-3 w-3 shrink-0 rounded-full border-[1.5px] border-fg" />
-          Sealed until {nice}. They’ll know it’s coming, but can’t read it till then.
-        </p>
-      )}
-    </div>
-  );
-}
-
-function Send({ count, ready }: { count: number; ready: boolean }) {
-  const { pending } = useFormStatus();
-  return (
-    <button type="submit" disabled={!count || !ready || pending} data-haptic="success" className="pop mt-6 flex h-12 w-full items-center justify-center bg-fg text-[15px] font-semibold text-canvas disabled:opacity-50">
-      {pending ? "Sending…" : count ? `Send to ${count === 1 ? "1 person" : `${count} people`}` : "Pick who it’s for"}
-    </button>
   );
 }

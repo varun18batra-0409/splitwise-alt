@@ -8,6 +8,7 @@ import { getTimeZone } from "@/lib/tz";
 import { PageHeader } from "@/components/ui";
 import { Notice } from "@/components/Notice";
 import { PostcardFlip, PostcardShare } from "@/components/postcards/PostcardView";
+import { PostcardOneSide } from "@/components/postcards/OneSide";
 import { POSTCARD_FONTS_URL } from "@/lib/postcards/catalog";
 import { cardProps } from "@/lib/postcards/view";
 import { SealedEnvelope, SealMark } from "@/components/postcards/Sealed";
@@ -74,10 +75,10 @@ export default async function PostcardPage({ params, searchParams }: { params: P
             {p.words ? `Greetings from ${p.words}` : mine ? "Your postcard" : "A postcard for you"}
           </p>
           <div className="relative mx-auto max-w-[420px] -rotate-[2deg]">
-            <PostcardFlip front={c.front} back={c.back} />
+            {c.one ? <PostcardOneSide {...c.one} /> : <PostcardFlip front={c.front} back={c.back} />}
             {r && <SealMark id={r.id} k={p.id} className="absolute -bottom-5 -right-3 w-[17%] rotate-[10deg]" />}
           </div>
-          <p className="mt-6 text-center text-sm text-fg/50">Tap the card to turn it over</p>
+          {!c.one && <p className="mt-6 text-center text-sm text-fg/50">Tap the card to turn it over</p>}
           {mine && shut && (
             <p className="mt-3 text-center text-sm text-fg/75" data-sealed-until>
               Sealed for {first(to?.name)} until {opens}
@@ -123,7 +124,7 @@ export default async function PostcardPage({ params, searchParams }: { params: P
             Send this design to someone else
           </Link>
         )}
-        {!shut || mine ? <PostcardShare front={c.front} back={c.back} name={`postcard-${p.id.slice(-6)}`} /> : null}
+        {!shut || mine ? <PostcardShare front={c.front} back={c.back} one={c.one} name={`postcard-${p.id.slice(-6)}`} /> : null}
         {!mine && <SafetyLinks kind="postcard" targetId={p.id} accountId={p.fromId} name={first(from?.name)} back="/postcards" className="pt-2" />}
       </div>
     </>

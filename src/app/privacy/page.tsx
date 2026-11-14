@@ -53,7 +53,7 @@ export default function Privacy() {
         <li>If you switch on notifications, a browser address to send them to.</li>
         <li>Your time zone, sent by your phone, so reminders arrive in the daytime where you are.</li>
         <li>Your Trip passport details: the home country you pick and any places you add by hand. Its trips come from your trip groups.</li>
-        <li>Postcards you send or get: the card, your message and, if you add one, your own photo.</li>
+        <li>Postcards you send or get: the card, your message and, if you add one, your own photo. A photo from one of your own moments is copied onto the card; deleting the moment later doesn’t remove it from cards already sent.</li>
         <li>Your answer to “Let AI read bills and lines”, on your account (or on your phone, if you have no account).</li>
         <li>Messages you send to support: the message, the date and any reply email you leave. If you’re signed in it’s saved with your account. If you’re not, it isn’t linked to an account, and your network address is kept for about two days, only to limit abuse.</li>
         <li>Blocks you make, and reports you send about something another person sent you (what, why and your note).</li>
@@ -81,7 +81,7 @@ export default function Privacy() {
           <strong>Moments:</strong> only people in that group. Someone who left on their own still sees the moments added before they left, and none added after; someone the group’s admin removed sees none. If you block someone, you stop seeing their moments, and they stop seeing yours. Loopin looks at a moment only if someone reports it.
         </li>
         <li>
-          <strong>Postcards:</strong> only the person who sent a card and the people it was sent to. That includes the photo on it. Cards go only to
+          <strong>Postcards:</strong> only the person who sent a card and the people it was sent to. That includes the photo on it. Your earlier photos can be reused only by you. Cards go only to
           people you share a group with.
         </li>
         <li>

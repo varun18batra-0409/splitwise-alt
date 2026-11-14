@@ -4,9 +4,9 @@ import { JOINED } from "./membership";
 import { blockedEitherWay } from "./blocks";
 import { ALL_REACTIONS } from "./reactions";
 import { dayLabel, momentAuthor } from "./moments-text";
-import { MOMENTS_PER_GROUP, MOMENTS_PER_PERSON_PER_DAY } from "./covers";
+import { MOMENTS_PER_GROUP, MOMENTS_PER_PERSON_PER_DAY, MOMENT_FULL_MAX, photoType } from "./covers";
 import { claimKey, isDuplicateKey } from "./once";
-import { canSeeMoment, canOpenMoments, type MomentViewer } from "./moments-access";
+import { canSeeMoment, canOpenMoments, canUseMomentOnPostcard, loadMomentViewer, type MomentViewer } from "./moments-access";
 
 // Moments in the database. Nothing here decides who may see a moment: callers pass a MomentViewer (loadMomentViewer) and every
 // row that is returned has gone through canSeeMoment. The photo bytes are never loaded by these lists (only by the photo route).
@@ -257,4 +257,63 @@ export async function loadMyMoments(accountId: string): Promise<{ createdAt: Dat
   const groups = await db.group.findMany({ where: { id: { in: [...new Set(rows.map((r) => r.groupId))] } }, select: { id: true, name: true, tripStart: true, tripEnd: true } });
   const g = new Map(groups.map((x) => [x.id, x]));
   return rows.map((r) => ({ id: r.id, groupId: r.groupId, createdAt: r.createdAt, group: g.get(r.groupId)?.name ?? "A group", caption: r.caption, day: dayLabel(r.takenOn, g.get(r.groupId)?.tripStart ?? "", g.get(r.groupId)?.tripEnd ?? "") || r.takenOn }));
+}
+
+// ---------- Postcards ----------
+// Your own moments, as photos for a postcard. Only moments you added yourself (never anyone else's), from trip groups you are still in,
+// without an open report. The photo is copied onto the card when it is sent, so the card keeps working if the moment is deleted later.
+async function myCurrentMemberships(accountId: string) {
+  return db.member.findMany({
+    where: { accountId, leftAt: null, removedAt: null, ...JOINED, group: { deletedAt: null, type: "trip" } },
+    select: { id: true, groupId: true, group: { select: { name: true } } },
+    take: 200,
+  });
+}
+const reportedIds = async (ids: string[]) =>
+  new Set((ids.length ? await db.report.findMany({ where: { kind: "moment", targetId: { in: ids }, status: "open" }, select: { targetId: true } }) : []).map((r) => r.targetId));
+
+export type PostcardMoment = { id: string; thumb: string; full: string; label: string };
+export async function myMomentsForPostcard(accountId: string, o: { groupFirst?: string; take?: number } = {}): Promise<PostcardMoment[]> {
+  if (!accountId) return [];
+  const mine = await myCurrentMemberships(accountId);
+  if (!mine.length) return [];
+  const rows = await db.moment.findMany({
+    where: { authorAccountId: accountId, groupId: { in: mine.map((m) => m.groupId) } },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: 24,
+    select: MOMENT_FIELDS,
+  });
+  const open = await reportedIds(rows.map((r) => r.id));
+  const out: (PostcardMoment & { groupId: string })[] = [];
+  const viewers = new Map<string, MomentViewer | null>();
+  for (const r of rows) {
+    if (open.has(r.id)) continue;
+    const m = mine.find((x) => x.groupId === r.groupId)!;
+    if (!viewers.has(r.groupId)) viewers.set(r.groupId, await loadMomentViewer(r.groupId, m.id)); // found by account, not by the phone's cookie
+    if (!canUseMomentOnPostcard(viewers.get(r.groupId) ?? null, r)) continue;
+    out.push({ id: r.id, groupId: r.groupId, thumb: momentPhotoSrc(r.id, "t"), full: momentPhotoSrc(r.id, "f"), label: r.caption || `${m.group.name} moment` });
+  }
+  if (o.groupFirst) out.sort((a, b) => Number(b.groupId === o.groupFirst) - Number(a.groupId === o.groupFirst)); // stable: newest first inside each part
+  return out.slice(0, o.take ?? 12).map(({ groupId: _g, ...rest }) => rest); // eslint-disable-line @typescript-eslint/no-unused-vars
+}
+
+// The photo of one of your own moments, for copying onto a card: null for anything else (someone else's, left, removed, deleted group,
+// open report, missing or unreadable file, not a photo, too big).
+export async function myMomentForPostcard(accountId: string, id: string): Promise<{ bytes: Uint8Array; type: string } | null> {
+  const row = accountId ? await loadMomentRow(id) : null;
+  if (!row) return null;
+  const m = await db.member.findFirst({
+    where: { accountId, groupId: row.groupId, leftAt: null, removedAt: null, ...JOINED, group: { deletedAt: null, type: "trip" } },
+    select: { id: true },
+  });
+  if (!m) return null;
+  if ((await reportedIds([row.id])).has(row.id)) return null;
+  if (!canUseMomentOnPostcard(await loadMomentViewer(row.groupId, m.id), row)) return null;
+  const p = await db.moment.findUnique({ where: { id: row.id }, select: { type: true, data: true, blobKey: true } });
+  if (!p) return null;
+  const { readPhoto } = await import("./photo-store");
+  const bytes = await readPhoto({ data: p.data, blobKey: p.blobKey });
+  if (!bytes || !bytes.length || bytes.length > MOMENT_FULL_MAX) return null;
+  const type = photoType(bytes);
+  return type ? { bytes, type } : null;
 }

@@ -696,6 +696,9 @@ model Postcard {
   reactedAt   DateTime?
   address     String    @default("[]") // up to three free-text lines, JSON
   place       String    @default("") // on the postmark
+  format      String    @default("classic") // "classic" (front and back) | "oneside"
+  fit         String    @default("full") // the photo on the front of a classic card: "full" | "border" | "taped"
+  photoSize   String    @default("small") // the taped print on a one-side card: "small" | "medium" | "large"
   readAt      DateTime?
   createdAt   DateTime  @default(now())
   @@index([toId, createdAt])
@@ -711,6 +714,8 @@ model PostcardPhoto {
   type      String   @default("image/webp")
   createdAt DateTime @default(now())
   blobKey     String   @default("") // where the photo lives in file storage (Vercel Blob); empty = in `data`
+  accountId   String   @default("") // who uploaded it (plain id, no link); "" = an older photo, from before uploads could be reused
+  @@index([accountId, createdAt])
 }
 
 // A photo of a bill, kept with the expense it belongs to. Only people in the

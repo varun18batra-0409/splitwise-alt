@@ -3746,8 +3746,9 @@ async function main() {
     await go(page, `/postcards/new?group=${mainGid}`);
     await page.getByRole("button", { name: "Print: Mountains" }).click();
     await page.getByRole("tab", { name: "Note" }).click();
-    await page.getByRole("button", { name: "Wax seal" }).click();
+    await page.getByRole("button", { name: "Wax seal", exact: true }).click(); // the tool, then its colours
     await page.getByRole("button", { name: "Gold wax", exact: true }).click();
+    await page.getByRole("button", { name: "Message", exact: true }).click();
     await page.getByRole("textbox", { name: "Your message" }).fill(message);
     await page.getByRole("tab", { name: "Send" }).click();
     if (until) {
@@ -3784,6 +3785,23 @@ async function main() {
     await R.locator("[data-postcard-flip]").click();
     await R.locator("[data-back-message]").waitFor();
     assert((await R.locator("[data-back-message]").innerText()).includes("open me later"), "the opened postcard has the wrong message");
+  });
+  await step(R, "Sharing", "One-side postcard: Asha sends it, Ravi reads it as one card (no flip), with the message on it", async () => {
+    const message = `UAT one side ${stamp}: wrong turn, best day.`;
+    await go(A, `/postcards/new?group=${mainGid}`);
+    await A.locator('[data-format-choice="oneside"]').click();
+    await A.getByRole("button", { name: "Message", exact: true }).click();
+    await A.getByRole("textbox", { name: "Your message" }).fill(message);
+    await A.locator("[data-next]").click();
+    await A.locator("[data-recipient='Ravi']").click();
+    await A.getByRole("button", { name: "Send to 1 person" }).click();
+    await A.waitForURL(/\/postcards\/[a-z0-9]+\?sent=1/);
+    await go(R, new URL(A.url()).pathname);
+    await R.locator("[data-postcard-oneside]").first().waitFor();
+    assert((await R.locator("[data-postcard-flip]").count()) === 0, "a one-side card can be flipped");
+    assert((await R.locator("[data-back-message]").innerText()).includes("wrong turn"), "the message isn't on the one-side card");
+    const card = await db.postcard.findFirstOrThrow({ where: { fromId: ashaAcc.id, toId: raviAcc.id, message: { contains: `UAT one side ${stamp}` } } });
+    assert(card.format === "oneside", `the card was saved as ${card.format}`);
   });
   await step(Z, "Permissions", "A postcard is for its sender and its receiver only: a third person gets “not found”, and signed out is sent to sign in", async () => {
     assert(cardPath, "no postcard was sent");

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canAddMoment, canDeleteMoment, canOpenMoments, canReactToMoment, canReportMoment, canSeeMoment, type MomentFacts, type MomentViewer } from "@/lib/moments-access";
+import { canAddMoment, canUseMomentOnPostcard, canDeleteMoment, canOpenMoments, canReactToMoment, canReportMoment, canSeeMoment, type MomentFacts, type MomentViewer } from "@/lib/moments-access";
 
 // Every row of the access table in the plan, as a pure check: who may see a moment (and its photo), add, react, delete or remove, and report.
 // A viewer is "the asking person's facts for one group". Nothing here touches the database.
@@ -120,4 +120,21 @@ describe("moments: who can report", () => {
     expect(canReportMoment(viewer({ removedAt: T("09:00:00.000") }), theirs)).toBe(false);
     expect(canReportMoment(viewer({ pending: true }), theirs)).toBe(false);
   });
+});
+
+describe("moments: using your own moment's photo on a postcard", () => {
+  it("the author, a current signed-in member of the same group: yes", () => expect(canUseMomentOnPostcard(viewer(), mine)).toBe(true));
+  it("someone else's moment: no", () => expect(canUseMomentOnPostcard(viewer(), theirs)).toBe(false));
+  it("the author has left the group, was removed, or was never opened (pending): no", () => {
+    expect(canUseMomentOnPostcard(viewer({ leftAt: T("09:00:00.000") }), mine)).toBe(false);
+    expect(canUseMomentOnPostcard(viewer({ removedAt: T("09:00:00.000") }), mine)).toBe(false);
+    expect(canUseMomentOnPostcard(viewer({ pending: true }), mine)).toBe(false);
+  });
+  it("a deleted group: no", () => expect(canUseMomentOnPostcard(viewer({ groupDeleted: true }), mine)).toBe(false));
+  it("the moment belongs to a different group than the viewer's row: no", () => expect(canUseMomentOnPostcard(viewer({ groupId: "g2" }), mine)).toBe(false));
+  it("a guest name (no account): no, even for a moment under their member id", () => {
+    expect(canUseMomentOnPostcard(viewer({ accountId: null }), mine)).toBe(false);
+    expect(canUseMomentOnPostcard(viewer({ accountId: null }), { ...mine, authorAccountId: "" })).toBe(false);
+  });
+  it("no viewer at all: no", () => expect(canUseMomentOnPostcard(null, mine)).toBe(false));
 });

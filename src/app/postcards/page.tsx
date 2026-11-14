@@ -6,6 +6,7 @@ import { blockedEitherWay } from "@/lib/blocks";
 import { getTimeZone } from "@/lib/tz";
 import { PageHeader } from "@/components/ui";
 import { PostcardFront } from "@/components/postcards/Card";
+import { PostcardOneSide } from "@/components/postcards/OneSide";
 import { headers } from "next/headers";
 import { visitorRegion } from "@/lib/region";
 import { POSTCARD_FONTS_URL, openRareStamps, stampSvg, withHome } from "@/lib/postcards/catalog";
@@ -42,7 +43,7 @@ export default async function PostcardsPage({ searchParams }: { searchParams: Pr
       {list.map((p, i) => (
         <li key={p.id} data-postcard-item={p.id}>
           <Link href={`/postcards/${p.id}`} className={`relative block transition-transform active:scale-[0.97] ${tilt[i % tilt.length]}`}>
-            {label === "Received" && p.opensAt && p.opensAt > now ? <SealedEnvelope from="" opens={short.format(p.opensAt)} small /> : <PostcardFront {...cardProps(p, "", tz).front} />}
+            {label === "Received" && p.opensAt && p.opensAt > now ? <SealedEnvelope from="" opens={short.format(p.opensAt)} small /> : <ShelfCard p={cardProps(p, "", tz)} />}
             {p.reaction && <SealMark id={p.reaction} k={`s${p.id}`} className="absolute -bottom-3 -right-2 w-[24%] rotate-[10deg]" />}
           </Link>
           <p className="mt-2.5 flex items-center gap-1.5 truncate text-[13px] text-fg/70">
@@ -77,6 +78,10 @@ export default async function PostcardsPage({ searchParams }: { searchParams: Pr
       {moreSent !== null && <Older href={`/postcards?${new URLSearchParams({ sn: String(moreSent), ...(rw.shown > 60 ? { rn: String(rw.shown) } : {}) })}`} />}
     </>
   );
+}
+
+function ShelfCard({ p }: { p: ReturnType<typeof cardProps> }) {
+  return p.one ? <PostcardOneSide {...p.one} /> : <PostcardFront {...p.front} />;
 }
 
 function Older({ href }: { href: string }) {
