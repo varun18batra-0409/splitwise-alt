@@ -76,15 +76,23 @@ function Faces({ initials }: { initials: string[] }) {
   );
 }
 
-// "5–10 May 2026 · 6 days": the "· 6 days" stays together on one line (never "6" then "days").
+// "5–10 May 2026 · 6 days": the "·" stays with the dates (never at the start of the next line), and "6 days" stays together.
 function TripWords({ c }: { c: BeenCardData }) {
   const days = c.days ? `${c.days} ${c.days === 1 ? "day" : "days"}` : "";
   if (!c.dates && !days) return null;
+  if (!c.dates) return <span className="whitespace-nowrap">{days}</span>;
+  const cut = c.dates.lastIndexOf(" ");
+  const head = cut > 0 ? c.dates.slice(0, cut + 1) : "";
+  const tail = cut > 0 ? c.dates.slice(cut + 1) : c.dates;
   return (
     <>
-      {c.dates}
-      {c.dates && days ? " " : ""}
-      {days && <span className="whitespace-nowrap">{c.dates ? "· " : ""}{days}</span>}
+      {head}
+      <span className="whitespace-nowrap">
+        {tail}
+        {days ? " ·" : ""}
+      </span>
+      {days && " "}
+      {days && <span className="whitespace-nowrap">{days}</span>}
     </>
   );
 }
@@ -113,7 +121,7 @@ export function BeenCardBig({ c }: { c: BeenCardData }) {
           </Link>
         )}
       </div>
-      <div className="px-4 pb-4 pt-3">
+      <div className="pb-4 pl-4 pr-6 pt-3">
         <Title text={c.title} max={28} />
         {c.cities.length > 0 && <p className="mt-0.5 text-[15px] text-fg/75">{c.cities.join(" · ")}</p>}
         {hasWords(c) && (
@@ -144,7 +152,7 @@ export function BeenCardSmall({ c }: { c: BeenCardData }) {
   return (
     <article className="grid grid-cols-[42%_1fr] overflow-hidden rounded-[20px] border border-line bg-white" data-been-card="small" data-group={c.groupId}>
       <Photo c={c} className="min-h-[148px]" sizes="200px" scale={0.72} />
-      <div className="min-w-0 px-3.5 py-3">
+      <div className="min-w-0 py-3 pl-3.5 pr-5">
         <Title text={c.title} max={22} />
         {hasWords(c) && (
           <p className="mt-1.5 flex items-start gap-2 text-[13px] text-fg/75" data-been-dates>

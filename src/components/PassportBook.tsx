@@ -150,6 +150,9 @@ export function StampMark({ s, i, at }: { s: Stamp; i: number; at?: { left: stri
   const w = Math.min(150, Math.max(112, s.name.length * 9 + 40));
   const ht = 70;
   const ticket = shape === "ticket";
+  // The place must sit inside the inner frame (w - 26 wide): long names are cut with "…" and the type steps down to fit.
+  const placeText = s.name.length > 16 ? `${s.name.slice(0, 15)}…` : s.name;
+  const placeSize = Math.max(9, Math.min(s.name.length > 12 ? 13 : 16, (w - 26) / (placeText.length * 0.64)));
   return (
     <svg width={w} height={ht} viewBox={`0 0 ${w} ${ht}`} style={common} className="mix-blend-multiply" data-stamp={s.name} data-by-hand="0" aria-label={`${s.name}, ${when}`} role="img">
       <g filter="url(#lp-ink)" fill="none" stroke="currentColor">
@@ -164,8 +167,8 @@ export function StampMark({ s, i, at }: { s: Stamp; i: number; at?: { left: stri
         <text x={w / 2} y="20" fontSize="7.5" fontWeight="700" style={{ letterSpacing: "0.2em" }}>
           ✈ ARRIVED
         </text>
-        <text x={w / 2} y="41" fontSize={s.name.length > 12 ? 13 : 16} fontWeight="800" style={{ fontFamily: "var(--font-display), serif" }}>
-          {s.name.length > 18 ? `${s.name.slice(0, 17)}…` : s.name}
+        <text x={w / 2} y="41" fontSize={placeSize} fontWeight="800" style={{ fontFamily: "var(--font-display), serif" }}>
+          {placeText}
         </text>
         <text x={w / 2} y="56" fontSize="7.5" fontWeight="700" style={{ letterSpacing: "0.16em" }}>
           {when}

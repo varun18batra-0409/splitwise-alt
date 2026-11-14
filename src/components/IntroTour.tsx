@@ -44,7 +44,7 @@ function Cheers() {
   const shots: [CoverChoice, string, number, string][] = [
     ["beach", "Trip", -9, "rise-2"],
     ["city", "Home", 2, "rise-3"],
-    ["couple", "Us", 10, "rise-4"],
+    ["couple", "Couple", 10, "rise-4"],
   ];
   return (
     <div className="relative flex flex-col items-center">
@@ -97,14 +97,14 @@ function PassportArt() {
         {["Goa", "Lisbon", "Bangkok"].map((place, i) => (
           <span
             key={place}
-            className="flex aspect-square items-center justify-center rounded-full border-2 border-[#d8bd7a]/60 px-1 text-center font-hand text-[16px] font-bold leading-none text-[#e8d29a]"
+            className="flex aspect-square items-center justify-center rounded-full border-2 border-fg/40 px-1 text-center font-display text-[13px] font-semibold leading-none text-fg/75"
             style={{ transform: `rotate(${[-8, 5, -3][i]}deg)` }}
           >
             {place}
           </span>
         ))}
       </div>
-      <p className="mt-4 text-center font-hand text-[19px] font-bold text-[#ffd9a8]">3 stamps and counting</p>
+      <p className="mt-4 text-center text-sm text-fg/75">3 stamps and counting</p>
     </div>
   );
 }
@@ -119,13 +119,13 @@ function StoryPoster({ L }: { L: Local }) {
           <span key={i} className={`h-[3px] flex-1 rounded-full ${i < 2 ? "bg-fg" : "bg-fg/25"}`} />
         ))}
       </div>
-      <p className="mt-6 font-hand text-[22px] font-bold leading-none text-fg/75">{L.india ? "Goa, wrapped" : "Lake weekend, wrapped"}</p>
+      <p className="mt-6 text-[13px] font-medium leading-none text-fg/60">{L.india ? "Goa, wrapped" : "Lake weekend, wrapped"}</p>
       <p className="mt-2 font-display text-[34px] font-semibold leading-[1.02] tracking-tight text-fg">{L.m(L.india ? 48600 : 1240)}</p>
       <p className="mt-1 text-xs text-fg/60">4 of you · about {L.m(L.india ? 12150 : 310)} each</p>
       <ul className="mt-5 space-y-2 border-t border-fg/10 pt-4" data-story-lines>
         {["The splurge", "Where the money went", "The biggest day"].map((t, i) => (
           <li key={t} className={`rise rise-${i + 2} flex items-baseline gap-2.5 font-display text-[19px] font-semibold leading-tight tracking-tight text-fg`}>
-            <span aria-hidden className="font-hand text-[15px] font-bold text-fg/75">
+            <span aria-hidden className="text-[13px] font-medium text-fg/55">
               {i + 1}
             </span>
             {t}
@@ -182,16 +182,21 @@ function makeSlides(L: Local): Slide[] {
       caption: "Type it, scan the bill or just say it. Loopin splits it to the last paisa or cent, in any currency.",
       art: (
         <Card>
-          <p className="rise text-xs text-gray-400">Beach dinner · you paid</p>
-          <p className="rise rise-2 mt-1 font-display text-[40px] font-semibold leading-none tracking-tight">{L.m(v.dinner)}</p>
-          <div className="rise rise-3 mt-4 grid grid-cols-2 gap-2">
-            {["You", "Asha", "Ravi", "Meera"].map((n) => (
-              <span key={n} className="flex items-center gap-2 rounded-xl bg-mist px-2.5 py-2 text-sm">
-                <Dot name={n} tone="bg-canvas" />
-                <span className="min-w-0 flex-1 truncate">{n}</span>
-                <span className="tabular-nums text-fg/80">{L.m(v.each)}</span>
+          <p className="rise text-xs text-gray-400">Beach dinner</p>
+          <p className="rise rise-2 mt-1 font-display text-[34px] font-semibold leading-none tracking-tight">{L.m(v.dinner)}</p>
+          <div className="rise rise-3 mt-4 space-y-2">
+            <span className="flex items-center gap-2.5 rounded-[14px] bg-mist px-3 py-2.5 text-sm">
+              <Dot name="You" tone="bg-canvas" />
+              <span className="min-w-0 flex-1 truncate">Paid by You</span>
+              <span className="text-fg/75">Change</span>
+            </span>
+            <span className="flex items-center gap-2.5 rounded-[14px] bg-mist px-3 py-2.5 text-sm">
+              <span className="min-w-0 flex-1">
+                <span className="block truncate">Split between 4 people</span>
+                <span className="block truncate text-xs text-fg/55">Equally · {L.m(v.each)} each</span>
               </span>
-            ))}
+              <span className="text-fg/75">Change</span>
+            </span>
           </div>
           <p className={`rise rise-4 mt-4 text-right text-sm font-semibold ${owed}`}>You’re owed {L.m(v.back)}</p>
         </Card>
@@ -335,7 +340,7 @@ export function IntroTour({
               else if (!last) go(active + 1);
             }}
           >
-            <h1 className="font-display text-[40px] font-semibold leading-[1.05] tracking-tight">{s.title}</h1>
+            <h1 className="font-display text-[32px] font-semibold leading-[1.1] tracking-tight">{s.title}</h1>
             <div className="flex flex-1 items-center justify-center py-8">{s.art}</div>
             <p className="min-h-[3.5rem] text-center text-sm text-gray-500">{s.caption}</p>
           </section>
@@ -354,16 +359,17 @@ export function IntroTour({
             className="rounded-full px-4 py-2 text-sm font-medium text-gray-600 active:bg-mist disabled:opacity-0"
             data-tour-back
           >
-            ← Back
+            Back
           </button>
           <span className="text-xs tabular-nums text-gray-400" data-tour-at>
             {active + 1} / {slides.length}
           </span>
           <button type="button" onClick={() => go(last ? 0 : active + 1)} className="rounded-full px-4 py-2 text-sm font-medium text-fg active:bg-mist" data-tour-next>
-            {last ? "↺ See it again" : "Next →"}
+            {last ? "See it again" : "Next"}
           </button>
         </div>
-        {last && (
+        {/* One link under the button: sign-in when it applies, otherwise the guide. */}
+        {last && !signInHref && (
           <Link href="/how-it-works" onClick={seen} className="block text-center text-xs text-gray-500" data-tour-guide-link>
             <span className="font-medium text-fg underline underline-offset-4">Every feature, explained</span>
           </Link>

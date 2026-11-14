@@ -148,7 +148,7 @@ export default async function HowItWorks() {
           {[
             ["#start", "Create a group", "Pick what it’s for, name it, add your people."],
             ["#add", "Add an expense", "Who paid, what it was, how to split it."],
-            ["#settle", "Record a payment", "In Settle up, pay the person, then tap I’ve paid."],
+            ["#settle", "Record a payment", "In Settle up, pay the person, then tap Mark paid."],
           ].map(([href, title, line], i) => (
             <li key={href}>
               <a href={href} className="flex gap-3 active:opacity-70">
@@ -190,7 +190,7 @@ export default async function HowItWorks() {
           items={[
             <>Tap <strong>New group</strong> and pick what it’s for: <strong>Trip</strong>, <strong>Home</strong>, <strong>Couple</strong>, <strong>Game night</strong> or <strong>Anything Goes</strong>. Collecting for a gift or a booking? <strong>Collect</strong> is right there too. Give it a name (“Euro trip”) and a currency. First time? Sign in with Google or your email in about 30 seconds (no password). Next time, one touch with your fingerprint or face.</>,
             <>Add people: friends already on Loopin, people from your contacts, or anyone by email.</>,
-            <>Or share the group’s link or QR code. People confirm their email and they’re in, and show up on the People screen. From then on everyone is told about every change.</>,
+            <>Or share the group’s link or QR code. Got a link from a friend? Tap <strong>Join with a link</strong> and paste it. People confirm their email and they’re in, and show up on the People screen. From then on everyone is told about every change.</>,
           ]}
         />
         <p>
@@ -203,8 +203,8 @@ export default async function HowItWorks() {
       <Section slot="dinner" kicker="2 · Add an expense" title="Add an expense in seconds">
         <Steps
           items={[
-            <>Tap the <strong>＋</strong> at the bottom.</>,
-            <>Pick <strong>who paid</strong>, type what it was and how much. Loopin tags it for you (🍽️ Bites &amp; Sips, 🚕 Wheels &amp; Wings, 🏨 Beds &amp; Bunks…).</>,
+            <>Tap <strong>Add</strong>, the middle button in the bar at the bottom (Home · Groups · Add · Settle · You).</>,
+            <>Pick <strong>who paid</strong>, type what it was and how much. Loopin tags it for you: Bites &amp; Sips, Wheels &amp; Wings, Beds &amp; Bunks, Pantry Run, Bags &amp; Bling, Thrills &amp; Tickets, Bills &amp; Bits or Odds &amp; Ends.</>,
             <>Choose how to split: <strong>Everyone equally</strong>, <strong>Only some</strong> people, or <strong>Custom</strong> (exact amounts, % or shares, like 2 : 1 for a bigger room). <strong>Items</strong> splits a restaurant bill line by line: each dish to whoever had it, tax and tip shared by what each had.</>,
           ]}
         />
@@ -237,7 +237,7 @@ export default async function HowItWorks() {
           splits it. Nobody does maths at the table, and the person who paid isn’t secretly out of pocket.
         </p>
         <div className="rounded-2xl border border-line bg-mist px-4 py-3 text-sm text-fg">
-          <p className="mb-2 font-medium">🍜 Ramen in Shibuya · paid by card</p>
+          <p className="mb-2 font-medium">Ramen in Shibuya · paid by card</p>
           <dl className="space-y-1 tabular-nums">
             <div className="flex justify-between"><dt className="text-gray-500">¥6,000 at today’s rate</dt><dd>{m(x.yen)}</dd></div>
             <div className="flex justify-between"><dt className="text-gray-500">About a 3% card fee (an example)</dt><dd>+ ≈ {m(x.fee)}</dd></div>
@@ -252,14 +252,14 @@ export default async function HowItWorks() {
         <p>
           The money card at the top of Home shows where you stand across all your groups: <strong>Coming back to you</strong> in green, <strong>You owe</strong> in orange,
           or <strong>Nobody owes anybody</strong>. Under it, the people the money is with, largest first. When you owe, the main button is <strong>Pay</strong> (the person you owe most);
-          when you’re owed, it’s <strong>Remind</strong> (the person who owes you most, on WhatsApp). <strong>Add expense</strong> is always beside it.
+          when you’re owed, it’s <strong>Remind</strong> (the person who owes you most, on WhatsApp).
           If a payment is waiting for you to confirm, it shows as a line on the card.
         </p>
         <p>
           Not sure about a number? Tap <strong>Why?</strong> under any balance. You’ll see every expense and payment behind it, including card fees, and it always adds up exactly.
         </p>
         <p className="mt-4">
-          <strong>Recap</strong> (in the bottom bar) charts your spending and finds any expense across your groups. <strong>Download</strong> in a group’s settings
+          <strong>Your month</strong> on Home charts your spending, and <strong>Trip recap</strong> in a group does the same for that trip; the search finds any expense across your groups. <strong>Download</strong> in a group’s settings
           gives you its expenses as a spreadsheet, and <strong>You → Download all my data</strong> gives you everything of yours in one file.
         </p>
       </Section>
@@ -269,7 +269,7 @@ export default async function HowItWorks() {
         <Steps
           items={[
             <>In a group, tap <strong>Settle up</strong>. Loopin shows a short list that clears everything: “Just 3 payments”, say.</>,
-            <>Pay the person however you like. If they added a UPI ID or PayPal / Venmo link, <strong>Open payment app</strong> fills in the amount. Then tap <strong>I’ve paid</strong>. Until the other person taps <strong>Confirm received</strong>, it shows as “says they paid, to be confirmed” and the balances don’t move. (<strong>Not received</strong> leaves everything as it was.) Paid a different amount? Tap <strong>Paid a different amount?</strong>.</>,
+            <>Pay the person however you like. If they added a UPI ID or PayPal / Venmo link, <strong>Open payment app</strong> fills in the amount. Then tap <strong>Mark paid</strong>. Until the other person taps <strong>Confirm received</strong>, it shows as “says they paid, to be confirmed” and the balances don’t move. (<strong>Not received</strong> leaves everything as it was.) Paid a different amount? Tap <strong>Paid a different amount?</strong>.</>,
             <>Someone owes you? Tap <strong>Remind</strong>: WhatsApp opens with a friendly note, your UPI ID and an <strong>I’ve paid</strong> link they can tap without signing in.</>,
             <>Owe the same friend in two groups? <strong>Settle up</strong> on Home combines them into one payment, and shows each group’s part before it records anything.</>,
           ]}
@@ -341,7 +341,7 @@ export default async function HowItWorks() {
       <div id="stories" className="scroll-mt-4" />
       <Section slot="place-goa" title="Home, told as stories">
         <p>
-          At the top of Home is a row of little circles with a gold ring. Each one is a <strong>story</strong> from your groups, a few slides you tap through: the
+          At the top of Home is a row of little circles with a ring. Each one is a <strong>story</strong> from your groups, a few slides you tap through: the
           countdown to a trip with photos of where you’re going and the crew, <strong>today’s spend</strong> while you’re away, last night’s{" "}
           <strong>game night</strong> with everyone’s result and who pays whom, a group that just got <strong>all square</strong>, and a trip from a year ago.
         </p>
@@ -372,9 +372,9 @@ export default async function HowItWorks() {
         <Steps
           items={[
             <><strong>Friends’ passports.</strong> Anyone you’ve shared a group with, even an old flat or a finished trip, who has chosen to show theirs: You → Friends’ passports.</>,
-            <><strong>Moments.</strong> Your 5th country, a new continent, 10 cities: each one shows up in Alerts, once.</>,
+            <><strong>Moments.</strong> Your 5th country, a new continent, 10 cities: each one shows up in Your updates (the bell at the top right), once.</>,
             <><strong>Our passports.</strong> Inside any group: where you’ve all been together, with every flag.</>,
-            <><strong>Empty passport?</strong> Nudge them. They’ll see it in Alerts, never as a push or email.</>,
+            <><strong>Empty passport?</strong> Nudge them. They’ll see it in Your updates, never as a push or email.</>,
             <><strong>Yours to show.</strong> Loopin asks once whether to show your places to people in your groups. Until you tap Show, nobody sees them. Change it any time under Who can see it. Trips still happening stay hidden until they’re over.</>,
           ]}
         />

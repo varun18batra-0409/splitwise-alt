@@ -102,26 +102,37 @@ export function Stories({ stories, className = "mb-6" }: { stories: Story[]; cla
   );
 }
 
-// A handwritten label on a strip of paper tape, stuck on at a slight angle ("Day 2 of 5").
+// The small label above a slide's words ("Day 2 of 5"): plain sentence-case type, no tape or handwriting.
 function Sticker({ children }: { children: ReactNode }) {
-  return (
-    <p className="mb-3 inline-block -rotate-[4deg] bg-[#f4f2ec] px-3.5 pb-1 pt-0.5 font-hand text-[25px] font-bold leading-tight text-[#0d0d0f] shadow-[0_8px_18px_-6px_rgba(0,0,0,0.6)]">{children}</p>
-  );
+  return <p className="mb-3 text-[14px] font-medium leading-tight text-[#f4f2ec]/75">{children}</p>;
 }
 
 function Words({ kicker, head, line, calm }: { kicker?: string; head: string; line?: string; calm?: boolean }) {
   return (
     <div className="lp-slide-in pointer-events-none absolute inset-x-0 bottom-[132px] z-20 px-6 text-[#f7f4ec]">
       {kicker && <Sticker>{kicker}</Sticker>}
-      <p className={`break-words font-display font-semibold tracking-[-0.02em] ${calm ? "text-[clamp(24px,7vw,28px)] leading-[1.15]" : "text-[clamp(34px,10.5vw,44px)] leading-[1.0]"}`} data-story-headline>
+      <p className={`break-words font-display font-semibold tracking-[-0.02em] ${calm ? "text-[clamp(24px,7vw,28px)] leading-[1.15]" : "text-[clamp(28px,8.5vw,36px)] leading-[1.1]"}`} data-story-headline>
         {head}
       </p>
-      {line && <p className={`mt-2 font-hand text-[24px] font-bold leading-tight ${calm ? "text-[#f7f4ec]/85" : "text-[#ffd9a8]"}`}>{line}</p>}
+      {line && <p className="mt-2 text-[17px] leading-snug text-[#f4f2ec]/85">{line}</p>}
     </div>
   );
 }
 
-function Slide({ f, uid }: { f: Frame; uid: string }) {
+// Money colours only go on a row whose value is an amount (it has a digit): "Checked" and "Not yet" stay neutral.
+const money = (r: { value?: string }) => /\d/.test(r.value ?? "");
+
+function Slide({ f, uid, story }: { f: Frame; uid: string; story: Story }) {
+  // Never an empty slide: a poster with nothing to say, or a list with no rows, shows the group's own picture instead.
+  const empty = (f.kind === "poster" && !f.big.trim()) || (f.kind === "list" && f.rows.length === 0);
+  if (empty)
+    return (
+      <>
+        <Picture s={story} uid={`${uid}-fb`} big />
+        <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.5)_0%,transparent_22%,transparent_42%,rgba(0,0,0,0.9)_100%)]" />
+        <Words kicker={f.kicker} head={story.label} line={f.line ?? story.line} />
+      </>
+    );
   if (f.kind === "photo" || f.kind === "art")
     return (
       <>
@@ -140,8 +151,7 @@ function Slide({ f, uid }: { f: Frame; uid: string }) {
           <p className="mt-1 break-words font-display font-semibold leading-[0.95] tracking-[-0.02em]" style={{ fontSize: `min(84px, ${Math.floor(170 / Math.max(5, f.big.length))}vw)` }} data-story-headline>
             {f.big}
           </p>
-          <span aria-hidden className="mt-5 block h-[3px] w-14 rounded-full" style={{ background: accent }} />
-          {f.line && <p className="mt-4 font-hand text-[26px] font-bold leading-tight text-[#f7f4ec]/85">{f.line}</p>}
+                    {f.line && <p className="mt-4 text-[17px] leading-snug text-[#f4f2ec]/85">{f.line}</p>}
         </div>
       </div>
     );
@@ -149,7 +159,7 @@ function Slide({ f, uid }: { f: Frame; uid: string }) {
     <div className="absolute inset-0 text-[#f7f4ec]">
       <Backdrop accent={accent} />
       <div className="lp-slide-in pointer-events-none relative flex h-full flex-col justify-center px-7 pb-[140px] pt-24">
-        <p className="font-display text-[34px] font-semibold leading-none tracking-[-0.02em]" data-story-headline>
+        <p className="font-display text-[28px] font-semibold leading-none tracking-[-0.02em]" data-story-headline>
           {f.kicker}
         </p>
         <ul className="mt-5 space-y-2.5">
@@ -157,17 +167,17 @@ function Slide({ f, uid }: { f: Frame; uid: string }) {
             <li key={k} className="lp-card rounded-[16px] border border-[#f7f4ec]/10 bg-[#f7f4ec]/[0.06] px-4 py-3 backdrop-blur-sm" style={{ animationDelay: `${k * 60}ms` }}>
               <p className="flex items-baseline gap-3 text-[17px]">
                 <span className="min-w-0 flex-1 truncate font-semibold">{r.label}</span>
-                {r.value && <span className={`shrink-0 font-semibold tabular-nums ${r.good ? "text-[#6fe3a8]" : r.bad ? "text-[#f2a07b]" : "text-[#f7f4ec]/80"}`}>{r.value}</span>}
+                {r.value && <span className={`shrink-0 font-semibold tabular-nums ${money(r) && r.good ? "text-[#6fe3a8]" : money(r) && r.bad ? "text-[#f2a07b]" : "text-[#f7f4ec]/80"}`}>{r.value}</span>}
               </p>
               {r.share !== undefined && (
                 <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-[#f7f4ec]/10">
-                  <span className="block h-full rounded-full" style={{ width: `${Math.max(4, r.share * 100)}%`, background: r.good ? "#6fe3a8" : r.bad ? "#f2a07b" : accent }} />
+                  <span className="block h-full rounded-full" style={{ width: `${Math.max(4, r.share * 100)}%`, background: money(r) && r.good ? "#6fe3a8" : money(r) && r.bad ? "#f2a07b" : accent }} />
                 </span>
               )}
             </li>
           ))}
         </ul>
-        {f.line && <p className="mt-4 font-hand text-[24px] font-bold leading-tight text-[#f7f4ec]/85">{f.line}</p>}
+        {f.line && <p className="mt-4 text-[17px] leading-snug text-[#f4f2ec]/85">{f.line}</p>}
       </div>
     </div>
   );
@@ -311,7 +321,7 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
         onPointerUp={letGo}
         onPointerCancel={() => letGo(null)}
       >
-        {f ? <Slide key={`${at.s}-${at.f}`} f={f} uid={`sl-${story.id}-${at.f}`} /> : <Picture s={story} uid={`sv-${story.id}`} big />}
+        {f ? <Slide key={`${at.s}-${at.f}`} f={f} uid={`sl-${story.id}-${at.f}`} story={story} /> : <Picture s={story} uid={`sv-${story.id}`} big />}
 
         {/* Progress: one bar per slide of this story. */}
         <div className="absolute inset-x-3 top-[max(12px,env(safe-area-inset-top))] z-20 flex gap-1" aria-hidden>

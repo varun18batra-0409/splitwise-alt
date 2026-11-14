@@ -127,18 +127,18 @@ describe("See all", () => {
   });
 });
 
-describe("Been: days away so far, and long names", () => {
-  it("a trip still going says 'days away so far'; finished trips do not", () => {
+describe("Been: days away (counted so far for a trip still going), and long names", () => {
+  it("a trip still going counts its days up to today and says plain 'days away' (short enough for 320 px)", () => {
     // Today is 13 Nov. A trip 10–16 Nov is in progress: it counts 10, 11, 12, 13 = 4 days so far (not its 7).
     const going = build([trip("now", "Phuket", "2026-11-10", "2026-11-16", 3, "Phuket", "TH")]);
     expect(beenCards(going, {}, TODAY).stats).toEqual([
       { n: 1, label: "country" },
       { n: 1, label: "trip" },
-      { n: 4, label: "days away so far" },
+      { n: 4, label: "days away" },
     ]);
     const done = build([trip("old", "Goa trip", "2026-03-13", "2026-03-15", 4)]);
     expect(beenCards(done, {}, TODAY).stats.at(-1)).toEqual({ n: 3, label: "days away" });
-    expect(beenStats(2, 1, 1, true).at(-1)).toEqual({ n: 1, label: "day away so far" });
+    expect(beenStats(2, 1, 1, true).at(-1)).toEqual({ n: 1, label: "day away" });
   });
   it("a long single word steps the type down by its own width; short names keep full size", () => {
     // 18 letters at 0.6 em: 100 / (18 × 0.6) = 9.2 of the box's width, never below 14 px.

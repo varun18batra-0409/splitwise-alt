@@ -79,9 +79,9 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
     <>
       <InkFilter />
       <PageHeader title="Your passport" back="/account" hideTitle />
-      <div className="relative mb-5 min-h-[104px] pr-24">
+      <div className="relative mb-5 min-h-[64px] min-[360px]:min-h-[104px] min-[360px]:pr-24">
         <PassportArt />
-        <p aria-hidden className="font-display text-[30px] font-semibold leading-[1.1] tracking-[-0.02em]">
+        <p aria-hidden className="whitespace-nowrap font-display text-[30px] font-semibold leading-[1.1] tracking-[-0.02em]">
           Your passport
         </p>
         <p className="mt-1.5 text-[16px] leading-snug text-fg/75">{PASSPORT_TABS.length > 1 ? "Places behind you. Plans ahead." : "Places behind you."}</p>

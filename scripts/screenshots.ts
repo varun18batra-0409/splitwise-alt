@@ -729,6 +729,34 @@ if (!hosted) {
       await p.waitForTimeout(300);
     }, false);
 
+    // --- Narrow phones (320 and 360): the postcard editor (Front and Note), Our passports and Wrapped ---
+    {
+      const before = page.viewportSize();
+      for (const w of [320, 360] as const) {
+        await page.setViewportSize({ width: w, height: w === 320 ? 640 : 780 });
+        await shot(`n${w}-postcard-front`, `/postcards/new?group=${lona.id}`, async (p) => {
+          await p.waitForTimeout(1200);
+        }, false);
+        await shot(`n${w}-postcard-note`, `/postcards/new?group=${lona.id}`, async (p) => {
+          await p.getByRole("tab", { name: "Note" }).click();
+          await p.getByRole("textbox", { name: "Your message" }).fill("Remember the bus that never came? Best wrong turn ever. Same time next year?");
+          await p.waitForTimeout(1300);
+        }, false);
+        await shot(`n${w}-our-passports`, `/groups/${pune.id}/passports`, undefined, false);
+        await shot(`n${w}-wrapped-intro`, `/groups/${pune.id}/wrapped`, undefined, false);
+        await shot(`n${w}-wrapped-total`, `/groups/${pune.id}/wrapped`, async (p) => {
+          for (let k = 0; k < 7; k++) {
+            if ((await p.locator("[data-wrapped-slide='total']").count()) > 0) break;
+            await p.getByRole("button", { name: "Next" }).click();
+            await p.waitForTimeout(250);
+          }
+          await p.waitForTimeout(800);
+        }, false);
+        await shot(`n${w}-passport`, "/passport");
+      }
+      if (before) await page.setViewportSize(before);
+    }
+
     // --- Passport Been tab (part P1): full, and long names, at 320 / 360 / 390 ---
     {
       const before = page.viewportSize();

@@ -14,7 +14,7 @@ export function passportTab(raw: string | undefined): PassportTab {
 // A little leather passport, drawn (the booklet's cover in small: dark, off-white foil, a globe).
 export function PassportArt() {
   return (
-    <svg aria-hidden width="104" height="104" viewBox="0 0 104 104" fill="none" className="pointer-events-none absolute right-0 top-0 opacity-90" data-passport-art>
+    <svg aria-hidden width="104" height="104" viewBox="0 0 104 104" fill="none" className="pointer-events-none absolute right-0 top-0 hidden opacity-90 min-[360px]:block" data-passport-art>
       <g transform="rotate(14 60 52)">
         <rect x="34" y="8" width="54" height="76" rx="5" fill="#16161a" stroke="#f4f2ec" strokeOpacity="0.25" />
         <rect x="34" y="8" width="6" height="76" rx="3" fill="#0d0d0f" />

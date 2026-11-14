@@ -48,12 +48,13 @@ export function tripDates(start: string, end: string): string {
 const initialOf = (name: string) => ([...name.trim()][0] ?? "").toUpperCase();
 
 // The number row. Anything that is 0 is left out.
-// With a trip still going, the days are counted up to today only, so the label says "so far".
-export function beenStats(countries: number, trips: number, days: number, inProgress = false): { n: number; label: string }[] {
+// With a trip still going, the days are counted up to today only; the label stays short ("days away") so it fits one line at 320 px.
+export function beenStats(countries: number, trips: number, days: number, _inProgress = false): { n: number; label: string }[] {
+  void _inProgress;
   return [
     { n: countries, label: countries === 1 ? "country" : "countries" },
     { n: trips, label: trips === 1 ? "trip" : "trips" },
-    { n: days, label: `${days === 1 ? "day away" : "days away"}${inProgress ? " so far" : ""}` },
+    { n: days, label: days === 1 ? "day away" : "days away" },
   ].filter((s) => s.n > 0);
 }
 

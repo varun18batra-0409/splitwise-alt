@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "./Link";
 import { GroupCover } from "./GroupCover";
 import { ShareSheet } from "./ShareSheet";
-import { Backdrop } from "./Backdrop";
 import { TitleIcon } from "./TitleIcon";
 import type { CoverChoice } from "@/lib/covers";
 import type { Slide, SlideData } from "@/lib/wrapped";
@@ -15,17 +14,18 @@ import type { Slide, SlideData } from "@/lib/wrapped";
 // days as bars, the splurge as a receipt, the awards as cards. The first and
 // last slides use the trip's photo. The last slide has Share.
 
-// Every slide on Loopin's dark surface, lit by its own accent colour.
+// Every slide on Loopin's dark surface, all off-white.
+// Colour means money, and a Wrapped slide is not money owed: everything is off-white.
 const ACCENT: Record<Slide["kind"], string> = {
-  intro: "#f7f4ec",
-  total: "#d8bd7a",
-  category: "#f2a07b",
-  day: "#9cc8ec",
-  splurge: "#e6a7c8",
-  awards: "#b9a6ef",
-  outro: "#f7f4ec",
+  intro: "#f4f2ec",
+  total: "#f4f2ec",
+  category: "#f4f2ec",
+  day: "#f4f2ec",
+  splurge: "#f4f2ec",
+  awards: "#f4f2ec",
+  outro: "#f4f2ec",
 };
-const FG = "#f7f4ec";
+const FG = "#f4f2ec";
 const KICKER: Partial<Record<Slide["kind"], string>> = {
   total: "Together you spent",
   category: "Where the money went",
@@ -34,7 +34,7 @@ const KICKER: Partial<Record<Slide["kind"], string>> = {
   awards: "And the awards go to…",
 };
 // The payers' bar: Loopin's own colours, readable on dark.
-const BAR = ["#d8bd7a", "#6fe3a8", "#9cc8ec", "#f2a07b", "#b9a6ef", "#ece8dc"];
+const BAR = ["#f4f2ec", "rgba(244,242,236,0.75)", "rgba(244,242,236,0.55)", "rgba(244,242,236,0.4)", "rgba(244,242,236,0.28)", "rgba(244,242,236,0.18)"];
 
 function Total({ d }: { d: Extract<SlideData, { kind: "total" }> }) {
   const shown = d.payers.slice(0, 5);
@@ -43,7 +43,7 @@ function Total({ d }: { d: Extract<SlideData, { kind: "total" }> }) {
       <p className="whitespace-nowrap font-display font-semibold leading-[0.95] tracking-[-0.02em]" style={{ fontSize: `min(68px, ${Math.floor(150 / Math.max(6, d.amount.length))}vw)` }} data-wrapped-headline>
         {d.amount}
       </p>
-      <p className="mt-3 font-hand text-[26px] font-bold text-[#d8bd7a]">About {d.each} each</p>
+      <p className="mt-3 text-[17px] font-medium text-[#f4f2ec]">About {d.each} each</p>
       {shown.length > 1 && (
         <div className="mt-9">
           <p className="mb-2 text-[12px] font-semibold text-[#f7f4ec]/60">Who paid up front</p>
@@ -89,7 +89,7 @@ function Category({ d }: { d: Extract<SlideData, { kind: "category" }> }) {
         <ul className="mt-5 w-full max-w-[280px] space-y-1.5 text-left text-[15px]">
           {d.rest.map((x) => (
             <li key={x.label} className="flex items-center gap-2.5">
-              <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-[#f2a07b]/60" />
+              <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-[#f4f2ec]/55" />
               <span className="min-w-0 flex-1 truncate text-[#f7f4ec]/85">{x.label}</span>
               <span className="font-semibold tabular-nums">{x.pct}%</span>
             </li>
@@ -104,14 +104,14 @@ function Day({ d }: { d: Extract<SlideData, { kind: "day" }> }) {
   const thin = d.days.length > 10;
   return (
     <div className="flex h-full flex-col justify-center">
-      <p className="font-display text-[64px] font-semibold leading-[0.95] tracking-[-0.02em]" data-wrapped-headline>
+      <p className="font-display text-[44px] font-semibold leading-[1.02] tracking-[-0.02em]" data-wrapped-headline>
         {d.label}
       </p>
-      <p className="mt-3 font-hand text-[26px] font-bold text-[#9cc8ec]">{d.amount} that day</p>
+      <p className="mt-3 text-[17px] font-medium text-[#f4f2ec]">{d.amount} that day</p>
       <div className="mt-10 flex h-[150px] items-end gap-[5px]" aria-hidden>
         {d.days.map((x, k) => (
           <span key={k} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1.5">
-            <span className="lp-bar w-full rounded-t-[6px]" style={{ height: `${Math.max(4, x.share * 100)}%`, background: x.big ? ACCENT.day : FG, opacity: x.big ? 1 : 0.16, animationDelay: `${k * 35}ms`, boxShadow: x.big ? "0 0 24px -4px rgba(156,200,236,0.7)" : undefined }} />
+            <span className="lp-bar w-full rounded-t-[6px]" style={{ height: `${Math.max(4, x.share * 100)}%`, background: x.big ? ACCENT.day : FG, opacity: x.big ? 1 : 0.25, animationDelay: `${k * 35}ms` }} />
             {(!thin || x.big) && <span className={`whitespace-nowrap text-[10px] ${x.big ? "font-bold" : ""}`}>{d.days.length <= 5 ? x.label : x.label.split(" ")[1]}</span>}
           </span>
         ))}
@@ -156,7 +156,7 @@ function Awards({ d }: { d: Extract<SlideData, { kind: "awards" }> }) {
           <li key={k} className="lp-card rounded-[18px] border border-[#f7f4ec]/10 bg-[#f7f4ec]/[0.05] px-3.5 py-3 backdrop-blur-sm" style={{ animationDelay: `${k * 70}ms` }}>
             <TitleIcon title={a.title} size={shown.length > 4 ? 32 : 40} accent={ACCENT.awards} />
             <span className="mt-2 block font-display text-[15px] font-semibold leading-tight">{a.title}</span>
-            <span className="block truncate font-hand text-[21px] font-bold leading-tight text-[#b9a6ef]">{a.name}</span>
+            <span className="block truncate text-[16px] font-medium leading-tight text-[#f4f2ec]/75">{a.name}</span>
             {shown.length <= 4 && <span className="mt-0.5 block text-[11px] leading-snug text-[#f7f4ec]/55">{a.why}</span>}
           </li>
         ))}
@@ -197,7 +197,6 @@ export function WrappedDeck({
 
   const photoBg = s.kind === "intro" || s.kind === "outro" || !s.data;
   const fg = FG;
-  const accent = ACCENT[s.kind];
   return (
     <section
       aria-label={`${groupName}, wrapped`}
@@ -213,7 +212,7 @@ export function WrappedDeck({
           <GroupCover kind={cover.kind as CoverChoice} src={cover.src} uid={`wr-${groupId}`} sizes="448px" drift />
         ))}
       {photoBg && <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.45)_0%,transparent_25%,transparent_45%,rgba(0,0,0,0.85)_100%)]" />}
-      {!photoBg && <Backdrop accent={accent} />}
+      {!photoBg && <span aria-hidden className="absolute inset-0 bg-[#0d0d0f]" />}
 
       <p className="sr-only" aria-live="polite">{`Slide ${i + 1} of ${slides.length}: ${s.headline}`}</p>
       <div className="absolute inset-x-3 top-3 z-20 flex gap-1" aria-hidden>
@@ -227,13 +226,16 @@ export function WrappedDeck({
 
       {/* The words let taps through (for next); only the buttons on the last slide catch them. */}
       {photoBg ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 px-6 pb-7">
-          <p className="font-display text-[38px] font-semibold leading-[1.02]" data-wrapped-headline>
-            {s.headline}
-          </p>
-          <p className="mt-2 whitespace-pre-line font-hand text-[24px] font-bold leading-snug text-[#ffd9a8]">{s.line}</p>
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 px-4 pb-6">
+          {/* A solid backing keeps the words readable and off any signboard in the photo. */}
+          <div className="rounded-[20px] border border-[#26262c] bg-[#0d0d0f]/85 px-5 py-4 backdrop-blur-md">
+            <p className="font-display text-[28px] font-semibold leading-[1.1]" data-wrapped-headline>
+              {s.headline}
+            </p>
+            <p className="mt-2 whitespace-pre-line text-[15px] leading-snug text-[#f4f2ec]/75">{s.line}</p>
+          </div>
           {last ? (
-            <div className="pointer-events-auto relative z-30 mt-6 space-y-2.5">
+            <div className="pointer-events-auto relative z-30 mt-4 space-y-2.5">
               <button
                 type="button"
                 role="switch"
@@ -243,7 +245,7 @@ export function WrappedDeck({
                 className="flex min-h-11 w-full items-center gap-3 rounded-2xl border border-[#f7f4ec]/20 bg-black/30 px-4 py-2 text-left backdrop-blur-sm"
               >
                 <span className="min-w-0 flex-1 text-sm font-medium">Hide amounts in the picture</span>
-                <span className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${hide ? "bg-[#6fe3a8]" : "bg-[#f7f4ec]/25"}`}>
+                <span className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${hide ? "bg-[#f4f2ec]" : "bg-[#f4f2ec]/25"}`}>
                   <span className={`absolute top-1 h-5 w-5 rounded-full bg-[#0d0d0f] transition-all ${hide ? "left-6" : "left-1"}`} />
                 </span>
               </button>
@@ -266,7 +268,7 @@ export function WrappedDeck({
         </div>
       ) : (
         <div key={i} className="lp-slide-in pointer-events-none absolute inset-0 z-20 flex flex-col px-6 pb-6 pt-11">
-          <p className="text-[12px] font-semibold" style={{ color: accent }}>
+          <p className="text-[13px] font-medium text-[#f4f2ec]/60">
             {KICKER[s.kind]}
           </p>
           <div className="min-h-0 flex-1">

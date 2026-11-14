@@ -8,10 +8,10 @@ import { useFocusTrap } from "@/lib/use-focus-trap";
 // becomes the payer of this expense (you can still change it). The pick is
 // random and fair, worked out before the wheel starts turning.
 
-// Jewel tones with gold between the slices, like a proper casino wheel.
-const SLICES = ["#1d2a44", "#1f5c46", "#6e2a3a", "#1f5f68", "#4a2f6b", "#7a5226", "#2c3f63", "#2f6b52"];
-const GOLD = "#d8bd7a";
-const INK = "#f7f4ec";
+// Calm dark slices with a soft off-white edge (colour is kept for money).
+const SLICES = ["#1f1f24", "#2a2a31", "#35353d"];
+const GOLD = "#b9b7b1";
+const INK = "#f4f2ec";
 const SPIN_MS = 4200;
 
 // A small wheel with a pointer: the button's icon.
@@ -109,15 +109,13 @@ export function SpinWheel({ people, onPick, roomy = false }: { people: { id: str
                   <path d="M6 6l12 12M18 6 6 18" />
                 </svg>
               </button>
-              <p className="font-hand text-[24px] font-bold leading-none text-fg/75">Who pays?</p>
+              <p className="text-[13px] font-medium leading-none text-fg/60">Who pays?</p>
               <p className="mt-1 font-display text-[26px] font-semibold leading-tight">Let the wheel decide</p>
 
               <div className="relative mx-auto mt-5 aspect-square w-full max-w-[300px]">
-                {/* The glow behind the wheel. */}
-                <span aria-hidden className="absolute inset-[-12%] rounded-full bg-[radial-gradient(closest-side,rgba(216,189,122,0.22),transparent)]" />
                 {/* The pointer. */}
                 <svg aria-hidden viewBox="0 0 40 46" className="absolute left-1/2 top-[-10px] z-10 h-[38px] w-[33px] -translate-x-1/2 drop-shadow-[0_4px_6px_rgba(0,0,0,0.6)]">
-                  <path d="M20 44 L6 16 A15 15 0 1 1 34 16 Z" fill={GOLD} stroke="#8a6f35" strokeWidth="1.5" />
+                  <path d="M20 44 L6 16 A15 15 0 1 1 34 16 Z" fill={GOLD} stroke="#6e6b63" strokeWidth="1.5" />
                   <circle cx="20" cy="15" r="5" fill="#0d0d0f" />
                 </svg>
                 <svg
@@ -126,11 +124,11 @@ export function SpinWheel({ people, onPick, roomy = false }: { people: { id: str
                   style={{ transform: `rotate(${angle}deg)`, transition: spinning && !still.current ? `transform ${SPIN_MS}ms cubic-bezier(0.1, 0.75, 0.12, 1)` : "none" }}
                   aria-hidden
                 >
-                  {/* The gold rim with its little lights. */}
+                  {/* The off-white rim with its little lights. */}
                   <circle cx={r} cy={r} r={r + 9} fill="#0d0d0f" stroke={GOLD} strokeWidth="3" />
                   {Array.from({ length: 24 }, (_, k) => {
                     const [x, y] = at(k * 15, r + 4.5);
-                    return <circle key={k} cx={x} cy={y} r="2" fill={k % 2 ? GOLD : "#fff4d6"} opacity={k % 2 ? 0.7 : 1} />;
+                    return <circle key={k} cx={x} cy={y} r="2" fill={k % 2 ? GOLD : "#f4f2ec"} opacity={k % 2 ? 0.7 : 1} />;
                   })}
                   {people.map((p, i) => {
                     const [x1, y1] = at(i * slice);
@@ -138,12 +136,16 @@ export function SpinWheel({ people, onPick, roomy = false }: { people: { id: str
                     const mid = (i + 0.5) * slice;
                     const [tx, ty] = at(mid, r * 0.6);
                     const ls = lines(p.label, max);
+                    // Where this label sits on screen once the wheel has stopped: on the right half it reads
+                    // outwards from the middle, on the left half inwards, so it is never upside down.
+                    const onScreen = (((mid + angle) % 360) + 360) % 360;
+                    const rot = onScreen < 180 ? mid - 90 : mid + 90;
                     const lost = winner !== null && winner !== i;
                     return (
                       <g key={p.id} opacity={lost ? 0.45 : 1} style={{ transition: "opacity 300ms" }}>
                         <path d={`M${r},${r} L${x1},${y1} A${r},${r} 0 ${slice > 180 ? 1 : 0},1 ${x2},${y2} Z`} fill={SLICES[i % SLICES.length]} stroke={GOLD} strokeWidth="1.6" />
                         {/* Names read outwards from the middle, over two lines when long. */}
-                        <text x={tx} y={ty} transform={`rotate(${mid > 180 ? mid + 90 : mid - 90} ${tx} ${ty})`} textAnchor="middle" fill={INK} fontSize={size} fontWeight="700" style={{ letterSpacing: "0.02em" }}>
+                        <text x={tx} y={ty} transform={`rotate(${rot} ${tx} ${ty})`} textAnchor="middle" fill={INK} fontSize={size} fontWeight="700" style={{ letterSpacing: "0.02em" }}>
                           {ls.map((l, k) => (
                             <tspan key={k} x={tx} dy={k === 0 ? (ls.length === 1 ? "0.35em" : "-0.2em") : "1.15em"}>
                               {l}
@@ -165,7 +167,7 @@ export function SpinWheel({ people, onPick, roomy = false }: { people: { id: str
               <div className="mt-5 min-h-[64px]" role="status" aria-live="polite" data-spin-winner={win?.id ?? ""}>
                 {win ? (
                   <>
-                    <p className="font-hand text-[24px] font-bold leading-none text-fg/75">{you ? "Tonight it’s on you" : "Tonight’s payer"}</p>
+                    <p className="text-[13px] font-medium leading-none text-fg/60">{you ? "Tonight it’s on you" : "Tonight’s payer"}</p>
                     <p className="lp-slide-in mt-1 font-display text-[32px] font-semibold leading-tight">{win.label}</p>
                   </>
                 ) : (
