@@ -1,0 +1,2669 @@
+{
+  "profile": "android",
+  "label": "Android phone: Chromium, 390×844, touch, en-IN, Asia/Kolkata",
+  "totals": {
+    "steps": 200,
+    "passed": 102,
+    "failed": 94,
+    "notApplicable": 1,
+    "notRun": 3
+  },
+  "areas": {
+    "Money": {
+      "steps": 83,
+      "passed": 23,
+      "failed": 57,
+      "notApplicable": 1,
+      "notRun": 2
+    },
+    "Onboarding": {
+      "steps": 22,
+      "passed": 14,
+      "failed": 8,
+      "notApplicable": 0,
+      "notRun": 0
+    },
+    "Permissions": {
+      "steps": 5,
+      "passed": 1,
+      "failed": 3,
+      "notApplicable": 0,
+      "notRun": 1
+    },
+    "Imports": {
+      "steps": 4,
+      "passed": 3,
+      "failed": 1,
+      "notApplicable": 0,
+      "notRun": 0
+    },
+    "Sharing": {
+      "steps": 20,
+      "passed": 14,
+      "failed": 6,
+      "notApplicable": 0,
+      "notRun": 0
+    },
+    "Notifications": {
+      "steps": 9,
+      "passed": 3,
+      "failed": 6,
+      "notApplicable": 0,
+      "notRun": 0
+    },
+    "Privacy": {
+      "steps": 10,
+      "passed": 5,
+      "failed": 5,
+      "notApplicable": 0,
+      "notRun": 0
+    },
+    "Regression": {
+      "steps": 47,
+      "passed": 39,
+      "failed": 8,
+      "notApplicable": 0,
+      "notRun": 0
+    }
+  },
+  "thinAreas": [
+    "Imports"
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "area": "Start",
+      "coverage": "Onboarding",
+      "name": "First visit shows the intro tour with “Create your first group”",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 2,
+      "area": "Start",
+      "coverage": "Onboarding",
+      "name": "Creating a group asks you to sign up first (verified email)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 3,
+      "area": "Start",
+      "coverage": "Onboarding",
+      "name": "There is no way to add people by typing a name",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 4,
+      "area": "Start",
+      "coverage": "Onboarding",
+      "name": "Create a group (INR) → lands on Add people",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "the WhatsApp invite button is rgb(244, 242, 236), not Loopin's green (#6fe3a8) (screenshot: fail-01.png)"
+    },
+    {
+      "n": 5,
+      "area": "Joining",
+      "coverage": "Sharing",
+      "name": "Someone opening the link without signing up can't join (no name box)",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.waitFor: Timeout 15000ms exceeded. Call log: - waiting for getByRole('link', { name: 'Continue with email' }) to be visible"
+    },
+    {
+      "n": 6,
+      "area": "Joining",
+      "coverage": "Sharing",
+      "name": "Asha opens the link, signs up with her email, and joins",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for getByRole('link', { name: 'Continue with email' }) (screenshot: fail-02.png)"
+    },
+    {
+      "n": 7,
+      "area": "Joining",
+      "coverage": "Onboarding",
+      "name": "Ravi does the same from a WhatsApp message",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for getByRole('link', { name: 'Continue with email' }) (screenshot: fail-03.png)"
+    },
+    {
+      "n": 8,
+      "area": "Joining",
+      "coverage": "Permissions",
+      "name": "Only Varun, who started the group, can delete it, change its currency or remove people: Asha sees a calm note instead",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.waitFor: Timeout 15000ms exceeded. Call log: - waiting for locator('[data-admin-only=\"delete\"]') to be visible (screenshot: fail-04.png)"
+    },
+    {
+      "n": 9,
+      "area": "Joining",
+      "coverage": "Sharing",
+      "name": "Add by email: Zoe is in the group at once as a name (“Invited · hasn’t joined yet”) and gets an invitation email",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 10,
+      "area": "Joining",
+      "coverage": "Sharing",
+      "name": "Zoe taps the link in her email, verifies, and joins as the name she was added with",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 11,
+      "area": "Joining",
+      "coverage": "Sharing",
+      "name": "Invite emails carry an unsubscribe link: one tap stops them, and the next invite to that address isn't sent",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 12,
+      "area": "Joining",
+      "coverage": "Sharing",
+      "name": "Add people shows everyone as “On Loopin ✓” and no pending invites",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "statuses: V Varun (you) On Loopin ✓ Z Zoe On Loopin ✓ (screenshot: fail-05.png)"
+    },
+    {
+      "n": 13,
+      "area": "Joining",
+      "coverage": "Onboarding",
+      "name": "Contacts option is there (share sheet when the phone can't pick contacts)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 14,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Equal split between everyone (Varun pays ₹1,200 dinner)",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "balances differ: Varun shows ₹600.00 expected ₹900.00; Asha shows ₹0.00 expected ₹-300.00; Ravi shows ₹0.00 expected ₹-300.00; Zoe shows ₹-600.00 expected ₹-300.00 (screenshot: fail-06.png)"
+    },
+    {
+      "n": 15,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Someone else paid, only some people (Asha pays ₹400 taxi for Asha + Varun)",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for locator('[data-row-paid]').first() (screenshot: fail-07.png)"
+    },
+    {
+      "n": 16,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Next expense remembers the last split (“same as last time”)",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.waitFor: Timeout 15000ms exceeded. Call log: - waiting for getByText('same as last time') to be visible (screenshot: fail-08.png)"
+    },
+    {
+      "n": 17,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Paid by someone else on their behalf: Varun records Ravi paid ₹600 for everyone",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for getByRole('button', { name: /^(✓ )?Ravi$/ }).first() (screenshot: fail-09.png)"
+    },
+    {
+      "n": 18,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "For one person only (₹1,000 tickets, just for Ravi)",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for getByRole('button', { name: /^Ravi$/ }).last() (screenshot: fail-10.png)"
+    },
+    {
+      "n": 19,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Custom amounts that add up (₹1,000 = 100 + 200 + 300 + 400)",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.fill: Timeout 15000ms exceeded. Call log: - waiting for getByLabel('Asha amount') (screenshot: fail-11.png)"
+    },
+    {
+      "n": 20,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Custom amounts that DON'T add up are refused",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.fill: Timeout 15000ms exceeded. Call log: - waiting for getByLabel('Asha amount') (screenshot: fail-12.png)"
+    },
+    {
+      "n": 21,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Percentages (Zoe pays ₹2,000 hotel, 50% Varun / 50% Zoe)",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "balances differ: Varun shows ₹-400.00 expected ₹-100.00; Asha shows ₹0.00 expected ₹-300.00; Ravi shows ₹0.00 expected ₹-300.00; Zoe shows ₹400.00 expected ₹700.00 (screenshot: fail-13.png)"
+    },
+    {
+      "n": 22,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Percentages that don't make 100% are refused",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.fill: Timeout 15000ms exceeded. Call log: - waiting for getByLabel('Asha percentage') (screenshot: fail-14.png)"
+    },
+    {
+      "n": 23,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Yesterday's date and a note (₹400 coffee)",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "balances differ: Varun shows ₹-200.00 expected ₹200.00; Asha shows ₹0.00 expected ₹-400.00; Ravi shows ₹0.00 expected ₹-400.00; Zoe shows ₹200.00 expected ₹600.00 (screenshot: fail-15.png)"
+    },
+    {
+      "n": 24,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Wrong amounts are refused: letters, zero, empty name still saves as “Expense”?",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 25,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Double-tapping Save adds the expense only once",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "balances differ: Varun shows ₹-100.00 expected ₹350.00; Asha shows ₹0.00 expected ₹-450.00; Ravi shows ₹0.00 expected ₹-450.00; Zoe shows ₹100.00 expected ₹550.00 (screenshot: fail-16.png)"
+    },
+    {
+      "n": 26,
+      "area": "Edit",
+      "coverage": "Money",
+      "name": "Edit an amount (Coffee ₹400 → ₹800) and balances follow",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "balances differ: Varun shows ₹100.00 expected ₹650.00; Asha shows ₹0.00 expected ₹-550.00; Ravi shows ₹0.00 expected ₹-550.00; Zoe shows ₹-100.00 expected ₹450.00 (screenshot: fail-17.png)"
+    },
+    {
+      "n": 27,
+      "area": "Edit",
+      "coverage": "Money",
+      "name": "Edit clash: Asha saves first, Varun's older copy is warned, not overwritten",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.fill: Timeout 15000ms exceeded. Call log: - waiting for getByLabel('Amount', { exact: true }) (screenshot: fail-18.png)"
+    },
+    {
+      "n": 28,
+      "area": "Edit",
+      "coverage": "Money",
+      "name": "Delete an expense, then Undo brings it back",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for locator('li[id^=\"item-\"] details > summary').filter({ hasText: 'Tickets' }).first() (screenshot: fail-19.png)"
+    },
+    {
+      "n": 29,
+      "area": "Edit",
+      "coverage": "Money",
+      "name": "Undo bar right after adding an expense removes it again",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "balances differ: Varun shows ₹100.00 expected ₹650.00; Asha shows ₹0.00 expected ₹-550.00; Ravi shows ₹0.00 expected ₹-550.00; Zoe shows ₹-100.00 expected ₹450.00 (screenshot: fail-20.png)"
+    },
+    {
+      "n": 30,
+      "area": "Group settings",
+      "coverage": "Money",
+      "name": "Set the group's card markup to 3%",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 31,
+      "area": "Currency",
+      "coverage": "Money",
+      "name": "Card payment abroad: THB 1,000 at 2.5 with 3% card fee = ₹2,575",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "balances differ: Varun shows ₹1387.50 expected ₹2581.25; Asha shows ₹0.00 expected ₹-1193.75; Ravi shows ₹0.00 expected ₹-1193.75; Zoe shows ₹-1387.50 expected ₹-193.75 (screenshot: fail-21.png)"
+    },
+    {
+      "n": 32,
+      "area": "Currency",
+      "coverage": "Money",
+      "name": "Cash abroad has no card fee: THB 400 cash at 2.5 = ₹1,000",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "balances differ: Varun shows ₹1887.50 expected ₹3331.25; Asha shows ₹0.00 expected ₹-1443.75; Ravi shows ₹0.00 expected ₹-1443.75; Zoe shows ₹-1887.50 expected ₹-443.75 (screenshot: fail-22.png)"
+    },
+    {
+      "n": 33,
+      "area": "Currency",
+      "coverage": "Money",
+      "name": "Card with the fee switched off: THB 200 at 2.5, no markup = ₹500",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for locator('[data-row-paid]').first() (screenshot: fail-23.png)"
+    },
+    {
+      "n": 34,
+      "area": "Currency",
+      "coverage": "Money",
+      "name": "Custom 2% fee: THB 1,000 at 2.5 = ₹2,550",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for locator('[data-row-paid]').first() (screenshot: fail-24.png)"
+    },
+    {
+      "n": 35,
+      "area": "Currency",
+      "coverage": "Money",
+      "name": "Live exchange rate is fetched for USD (or, if the rate service is down, a rate is asked for)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "≈ ₹940.40, Cash, no card fee"
+    },
+    {
+      "n": 36,
+      "area": "Currency",
+      "coverage": "Money",
+      "name": "Balances shows the THB balance separately (without card fees)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 37,
+      "area": "Simple screens",
+      "coverage": "Regression",
+      "name": "Group top is short: balance, Settle up and See breakdown only (details moved to People)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 38,
+      "area": "Simple screens",
+      "coverage": "Regression",
+      "name": "Balances only explains; paying happens on Settle up (no duplicate buttons)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 39,
+      "area": "Simple screens",
+      "coverage": "Regression",
+      "name": "Activity has one Filter button that opens search, category and person",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 40,
+      "area": "Why?",
+      "coverage": "Money",
+      "name": "“Why?” lines add up to the balance shown",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Why? total ₹1887.50 vs expected ₹3331.25 (screenshot: fail-25.png)"
+    },
+    {
+      "n": 41,
+      "area": "Settle",
+      "coverage": "Money",
+      "name": "Group page has a “Settle up” button that opens the settle screen",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "1 payments suggested"
+    },
+    {
+      "n": 42,
+      "area": "Settle",
+      "coverage": "Money",
+      "name": "Bottom bar “Settle” inside a group goes to the same screen",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 43,
+      "area": "Settle",
+      "coverage": "Money",
+      "name": "Mark a payment as paid in full",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "balances differ: Varun shows ₹0.00 expected ₹1443.75; Asha shows ₹0.00 expected ₹-1443.75; Ravi shows ₹0.00 expected ₹-1443.75; Zoe shows ₹0.00 expected ₹1443.75 (screenshot: fail-26.png)"
+    },
+    {
+      "n": 44,
+      "area": "Settle",
+      "coverage": "Money",
+      "name": "Record a part payment (change the amount to less)",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.innerText: Timeout 15000ms exceeded. Call log: - waiting for locator('main ul > li[data-transfer-row]').first() [browser errors: console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012] (screenshot: fail-27.png)"
+    },
+    {
+      "n": 45,
+      "area": "Settle",
+      "coverage": "Money",
+      "name": "A zero or nonsense amount is refused",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "a Settle up row has no “Paid a different amount?” link [browser errors: console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012] (screenshot: fail-28.png)"
+    },
+    {
+      "n": 46,
+      "area": "Settle",
+      "coverage": "Money",
+      "name": "Double-tapping Record payment records it once",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.innerText: Timeout 15000ms exceeded. Call log: - waiting for locator('main ul > li[data-transfer-row]').first() [browser errors: console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012] (screenshot: fail-29.png)"
+    },
+    {
+      "n": 47,
+      "area": "Settle",
+      "coverage": "Money",
+      "name": "Undo a payment from the bar",
+      "status": "skip",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "not run: nothing left to pay"
+    },
+    {
+      "n": 48,
+      "area": "Settle",
+      "coverage": "Money",
+      "name": "“I’ve paid” is only a claim: balances don't move until Asha taps Confirm received",
+      "status": "skip",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "not run: Varun pays nobody who has joined right now"
+    },
+    {
+      "n": 49,
+      "area": "Settle",
+      "coverage": "Money",
+      "name": "Record a different payment on the payment screen (Zoe paid Asha ₹50)",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for locator('label[data-to]').filter({ hasText: 'Asha' }) [browser errors: console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012] (screenshot: fail-30.png)"
+    },
+    {
+      "n": 50,
+      "area": "Settle",
+      "coverage": "Money",
+      "name": "Paying more than owed (an extra zero) asks first and saves nothing until confirmed",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for locator('label[data-to]').filter({ hasText: 'Asha' }) [browser errors: console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012] (screenshot: fail-31.png)"
+    },
+    {
+      "n": 51,
+      "area": "Settle",
+      "coverage": "Money",
+      "name": "You can't record paying yourself",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for locator('label').filter({ hasText: 'Asha' }).first() [browser errors: console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012] (screenshot: fail-32.png)"
+    },
+    {
+      "n": 52,
+      "area": "Settle",
+      "coverage": "Money",
+      "name": "Settle everything & close, then reopen",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 53,
+      "area": "Across groups",
+      "coverage": "Money",
+      "name": "Two more groups with Asha: she owes ₹500 in one, Varun owes ₹300 in the other",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for getByRole('button', { name: 'Add', exact: true }).first() [browser errors: console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012] (screenshot: fail-33.png)"
+    },
+    {
+      "n": 54,
+      "area": "Across groups",
+      "coverage": "Money",
+      "name": "Settle screen nets them into ONE payment: Asha pays Varun ₹200",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.innerText: Timeout 15000ms exceeded. Call log: - waiting for locator('main li').filter({ hasText: 'Asha' }).filter({ hasText: 'UAT Flat' }).first() [browser errors: console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012] (screenshot: fail-34.png)"
+    },
+    {
+      "n": 55,
+      "area": "Across groups",
+      "coverage": "Money",
+      "name": "All square page: a “Hide amounts” switch swaps the money tile for counts, and the shared picture follows",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.waitFor: Timeout 15000ms exceeded. Call log: - waiting for locator('[data-square]') to be visible [browser errors: console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012 | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-35.png)"
+    },
+    {
+      "n": 56,
+      "area": "Couples",
+      "coverage": "Money",
+      "name": "Create a Couple group with the split worked out from incomes (55 / 45), add Asha",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for getByRole('button', { name: 'Add', exact: true }).first() [browser errors: console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012 | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-36.png)"
+    },
+    {
+      "n": 57,
+      "area": "Couples",
+      "coverage": "Money",
+      "name": "“Our split 55 / 45” is chosen by default: ₹1,000 lunch → Asha owes ₹450",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.getAttribute: Timeout 15000ms exceeded. Call log: - waiting for getByRole('button', { name: /Our split/ }) [browser errors: console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012 | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-37.png)"
+    },
+    {
+      "n": 58,
+      "area": "Couples",
+      "coverage": "Money",
+      "name": "Two payers: ₹2,000 dinner, you ₹1,500 + Asha ₹500 → Asha owes ₹850 in all",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for getByRole('switch', { name: /More than one person paid/ }) [browser errors: console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012 | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-38.png)"
+    },
+    {
+      "n": 59,
+      "area": "Couples",
+      "coverage": "Money",
+      "name": "Money back: Asha got ₹200 back, shared 55 / 45 → Asha owes ₹960",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for getByRole('button', { name: /^(✓ )?Asha$/ }).first() [browser errors: console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012 | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-39.png)"
+    },
+    {
+      "n": 60,
+      "area": "Browse",
+      "coverage": "Regression",
+      "name": "History filters by type and amount (money back only; ₹1,500 and more)",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "type filter wrong [browser errors: console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012 | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-40.png)"
+    },
+    {
+      "n": 61,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Save & add another keeps the split and opens a fresh form",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.getAttribute: Timeout 15000ms exceeded. Call log: - waiting for getByRole('button', { name: /Our split/ }) [browser errors: console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012 | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-41.png)"
+    },
+    {
+      "n": 62,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Repeat an expense, see the duplicate warning, then add it anyway",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "balances {\"Varun\":0} [browser errors: console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012 | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-42.png)"
+    },
+    {
+      "n": 63,
+      "area": "Group settings",
+      "coverage": "Notifications",
+      "name": "Turn off payment notifications for one group",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 64,
+      "area": "Add people",
+      "coverage": "Privacy",
+      "name": "Search by name only finds friends; a full email gets the same neutral Add (no account revealed) and puts a stranger who is on Loopin in the group as an invited name",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.fill: Timeout 15000ms exceeded. Call log: - waiting for getByLabel('Search people on Loopin') [browser errors: console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012 | console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-43.png)"
+    },
+    {
+      "n": 65,
+      "area": "Alerts",
+      "coverage": "Notifications",
+      "name": "Asha sees an unread alert badge and Varun's changes in Alerts",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.getAttribute: Timeout 15000ms exceeded. Call log: - waiting for locator('[data-bell]').first() (screenshot: fail-44.png)"
+    },
+    {
+      "n": 66,
+      "area": "Alerts",
+      "coverage": "Notifications",
+      "name": "Asha was told she was added to the new groups",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.waitFor: Timeout 15000ms exceeded. Call log: - waiting for getByText(/added Asha to the group/).first() to be visible (screenshot: fail-45.png)"
+    },
+    {
+      "n": 67,
+      "area": "Home",
+      "coverage": "Regression",
+      "name": "Home opens on the boarding-pass money card (route, one amount, ONE cream button; no tint, no “Add expense”, no repeated amount), a quiet line under it for what needs you, then Your groups and the bottom bar, which keeps its “+”",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 68,
+      "area": "Home",
+      "coverage": "Regression",
+      "name": "On a small phone (375×667) the header, the boarding-pass card (one-amount ticket at most about 200px tall, both-ways about 260px) and its buttons (44px tall) sit inside the first screen above the bottom bar, the Your groups row starts above the bottom bar, and the next polaroid peeks in; the bottom bar's + goes to the group picker or the only group",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "money buttons emphasis: [browser errors: console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012 | console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-46.png)"
+    },
+    {
+      "n": 69,
+      "area": "Home",
+      "coverage": "Regression",
+      "name": "Home lists each group once: polaroid cards only (no old vertical list, no “Show all N groups”), each open group on one card, and the stories row is absent when there are no stories",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 70,
+      "area": "Home",
+      "coverage": "Regression",
+      "name": "F6/F10/F19: FAQ, Privacy and Terms on Home each have a 44px tap area with space between them; Latest says “Payment”, never “Settle-up”; the You page footer has a Privacy link with a 44px target",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 71,
+      "area": "Home",
+      "coverage": "Regression",
+      "name": "F5: an open story's full-screen photo is requested big and sharp (its image address asks for 1920px or wider, quality 90)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 72,
+      "area": "Home",
+      "coverage": "Regression",
+      "name": "“+ New group” is the first card in Your groups (dashed, as tall as the polaroids, at least 44px), whatever the number of groups, and one tap opens the new-group page; “See all” stays in the header",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 73,
+      "area": "Home",
+      "coverage": "Regression",
+      "name": "Home order: Latest comes straight after Your groups (only the trip countdown may sit between); closed groups and Recently deleted are not on Home; the “saved on this phone” note is below everything but the footer",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 74,
+      "area": "Home",
+      "coverage": "Regression",
+      "name": "On the narrowest phone (320×640, also 360 and 390) the boarding-pass card has no sideways scroll: nothing is cut off, the amount always shows whole, the stub is 84px below 360px and 100px from 360px, the buttons keep their words inside, and the card has no tint",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 75,
+      "area": "Home",
+      "coverage": "Regression",
+      "name": "The bottom bar is nearly solid (background alpha 0.9 or more) so words never show through, and big amounts on Home are whole rupees",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 76,
+      "area": "Home",
+      "coverage": "Regression",
+      "name": "The sliding cards at the top: 4 to 7 of them, no two the same, each with words and a button that goes somewhere; no “Coming from another app?” card",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Nov Your month so far November in numbers ₹5,888 your share  · Wish you were here Postcards Send a postcard A trip photo, a · PASSPORT Your trip passport Where have you been? Tick the co · Nothing booked yet Where to next? Start a trip group now. Th"
+    },
+    {
+      "n": 77,
+      "area": "Home",
+      "coverage": "Regression",
+      "name": "Tapping an expense in Latest opens it in its group, expanded, with Edit or delete",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 78,
+      "area": "Home",
+      "coverage": "Regression",
+      "name": "Messages at the top have a ✕: closing one hides it, and a refresh doesn't bring it back",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 79,
+      "area": "Home",
+      "coverage": "Regression",
+      "name": "Bottom bar is hidden while adding an expense",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 80,
+      "area": "Search",
+      "coverage": "Regression",
+      "name": "Search finds “Dinner” across groups",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 81,
+      "area": "Export",
+      "coverage": "Imports",
+      "name": "Spreadsheet download contains the expenses",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 82,
+      "area": "Group settings",
+      "coverage": "Money",
+      "name": "Change a group's currency (UAT Dinner club INR → USD at 0.012)",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.selectOption: Timeout 15000ms exceeded. Call log: - waiting for locator('select[name=\"currency\"]') [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-47.png)"
+    },
+    {
+      "n": 83,
+      "area": "Group settings",
+      "coverage": "Regression",
+      "name": "Delete a group: it lands on Your groups with Recently deleted open (not on Home), You links to it, restore brings it back",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for getByRole('button', { name: 'Delete group' }) [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-48.png)"
+    },
+    {
+      "n": 84,
+      "area": "People",
+      "coverage": "Regression",
+      "name": "Rename someone on the People screen",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 85,
+      "area": "Account",
+      "coverage": "Privacy",
+      "name": "Signed in: You page shows the email; Sign in goes to it; privacy page opens",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 86,
+      "area": "Group settings",
+      "coverage": "Regression",
+      "name": "Rename a group, then Undo puts the old name back",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.fill: Timeout 15000ms exceeded. Call log: - waiting for locator('input[name=\"name\"]') [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-49.png)"
+    },
+    {
+      "n": 87,
+      "area": "Group settings",
+      "coverage": "Money",
+      "name": "Show amounts in a second currency (USD) next to balances",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for getByRole('radio', { name: /USD/ }) [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-50.png)"
+    },
+    {
+      "n": 88,
+      "area": "Close & reopen",
+      "coverage": "Regression",
+      "name": "Close a group from settings: it moves to Closed groups and new expenses are paused",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for locator('#close').getByRole('button', { name: 'Close group' }) [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-51.png)"
+    },
+    {
+      "n": 89,
+      "area": "Close & reopen",
+      "coverage": "Regression",
+      "name": "Reopen it from the add screen",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for getByRole('button', { name: 'Reopen group' }) [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-52.png)"
+    },
+    {
+      "n": 90,
+      "area": "People",
+      "coverage": "Regression",
+      "name": "Rename a person, then rename back",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for locator('details summary').filter({ hasText: 'Asha' }).first() [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-53.png)"
+    },
+    {
+      "n": 91,
+      "area": "People",
+      "coverage": "Permissions",
+      "name": "Remove someone settled up (the admin removes; they show under Removed), then bring them back",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for locator('details summary').filter({ hasText: 'Asha' }).first() [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-54.png)"
+    },
+    {
+      "n": 92,
+      "area": "People",
+      "coverage": "Permissions",
+      "name": "Remove someone who isn't in any expense (Sheldon)",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for locator('details summary').filter({ hasText: 'Sheldon' }).first() [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-55.png)"
+    },
+    {
+      "n": 93,
+      "area": "People",
+      "coverage": "Permissions",
+      "name": "Someone owing money can't be marked as left until settled",
+      "status": "skip",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "not run: everyone settled"
+    },
+    {
+      "n": 94,
+      "area": "Edit",
+      "coverage": "Money",
+      "name": "Change who paid on an expense: balances move by exactly that amount",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for getByRole('button', { name: /^(✓ )?Asha$/ }).first() [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-56.png)"
+    },
+    {
+      "n": 95,
+      "area": "Payments",
+      "coverage": "Money",
+      "name": "Delete a payment from the history, then restore it",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 96,
+      "area": "Browse",
+      "coverage": "Regression",
+      "name": "Filter a group's history by category and person",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 97,
+      "area": "Browse",
+      "coverage": "Regression",
+      "name": "Search by month: the recap shows totals",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 98,
+      "area": "Browse",
+      "coverage": "Regression",
+      "name": "Charts tab opens with the group's spending",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 99,
+      "area": "Alerts",
+      "coverage": "Notifications",
+      "name": "Alerts screen offers phone notifications on/off",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 100,
+      "area": "Alerts",
+      "coverage": "Notifications",
+      "name": "Notifications & email: opens from You, an email switch persists after a reload, and with it off an add-to-group email isn't sent; switched back on it is",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for getByRole('link', { name: /Notifications & email/ }) (screenshot: fail-57.png)"
+    },
+    {
+      "n": 101,
+      "area": "Add people",
+      "coverage": "Privacy",
+      "name": "Adding the email of someone already on Loopin gets the same reply as any email; they see an invitation on Home and in Alerts",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.fill: Timeout 15000ms exceeded. Call log: - waiting for getByLabel('Email addresses to invite') [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-58.png)"
+    },
+    {
+      "n": 102,
+      "area": "Privacy",
+      "coverage": "Privacy",
+      "name": "A stranger opening a group's address sees “Private group”: no name, no join link",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "private page leaks the group's name or invite code"
+    },
+    {
+      "n": 103,
+      "area": "Privacy",
+      "coverage": "Privacy",
+      "name": "A forged “who you are” cookie is ignored",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 104,
+      "area": "Privacy",
+      "coverage": "Privacy",
+      "name": "An unsigned, plain “who you are” cookie (the old format) is ignored too",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 105,
+      "area": "Privacy",
+      "coverage": "Privacy",
+      "name": "Sign-in can't send you to another website afterwards (back=/\\evil.com)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 106,
+      "area": "Account",
+      "coverage": "Onboarding",
+      "name": "Sign out of this phone, sign back in: all groups come back",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for getByRole('button', { name: 'Sign out', exact: true }) (screenshot: fail-59.png)"
+    },
+    {
+      "n": 107,
+      "area": "Account",
+      "coverage": "Privacy",
+      "name": "Delete my email & sign-in",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for getByRole('button', { name: /Delete my email/ })"
+    },
+    {
+      "n": 108,
+      "area": "Get the app",
+      "coverage": "Onboarding",
+      "name": "iPhone (Safari): invite link shows “Get the Loopin app” with Share → Add to Home Screen steps",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.waitFor: Timeout 15000ms exceeded. Call log: - waiting for getByText('Get the Loopin app') to be visible"
+    },
+    {
+      "n": 109,
+      "area": "Get the app",
+      "coverage": "Onboarding",
+      "name": "iPhone (Chrome): steps use the Share button by the address bar",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for getByRole('button', { name: 'Get it' })"
+    },
+    {
+      "n": 110,
+      "area": "Get the app",
+      "coverage": "Onboarding",
+      "name": "Android (Chrome): invite link offers the app; steps mention “Install app”",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.waitFor: Timeout 15000ms exceeded. Call log: - waiting for getByText('Get the Loopin app') to be visible"
+    },
+    {
+      "n": 111,
+      "area": "Sign in",
+      "coverage": "Onboarding",
+      "name": "UX-04: the sign-in header is short (about 96px) on a short phone (390×667) and tall on a normal one (390×844), so the small-phone variant works for both width and height",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 112,
+      "area": "Get the app",
+      "coverage": "Onboarding",
+      "name": "You has the “Get the Loopin app” row (it moved off Home's header) and the service worker is registered (needed to install)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 113,
+      "area": "Get the app",
+      "coverage": "Onboarding",
+      "name": "First-time tour (iPhone) has the “App” button on every slide",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 114,
+      "area": "Navigation",
+      "coverage": "Regression",
+      "name": "Inside a group there's a back button to all groups",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 115,
+      "area": "Start screen",
+      "coverage": "Onboarding",
+      "name": "Tour → Home shows a start screen: create, join with a link, quick start, sign up / sign in",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 116,
+      "area": "Help",
+      "coverage": "Onboarding",
+      "name": "The “How Loopin works” row on You opens the detailed guide (with photos), which links to the 1-minute tour; Home's header has no “?”",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Error: strict mode violation: getByRole('link', { name: 'How Loopin works' }) resolved to 2 elements: 1) <a href=\"/how-it-works\" class=\"flex min-h-14 items-center gap-3.5 px-4 py-3 active:bg-mist\">…</a> aka getByRole('link', { name: 'How Loopin works Three steps' }) 2) <a href=\"/how-it-works\" class=\"inline-flex min-h-11 min-w-11 items-center justify-center px-3 text-xs text-gray-400 [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-60.png)"
+    },
+    {
+      "n": 117,
+      "area": "Help",
+      "coverage": "Onboarding",
+      "name": "The 1-minute tour has 7 slides (make a group, add what you paid, see who owes then settle, every trip becomes a story, send a postcard, keep the little moments, collect your passport), in words that work outside India, and none says “no sign-up”",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 118,
+      "area": "Help",
+      "coverage": "Onboarding",
+      "name": "The tour moves like stories: tap the right side for next, the left side to go back, and Back / Next buttons at the bottom",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 119,
+      "area": "Help",
+      "coverage": "Onboarding",
+      "name": "The guide has Home, Couples, the trip report, stories, Wrapped, the passport and moving over from another app, with real app screens that load",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 120,
+      "area": "Tags",
+      "coverage": "Regression",
+      "name": "Each expense shows its category: the icon's colour and shape, and the name for screen readers (Dinner → Bites & Sips, Taxi → Wheels & Wings)",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.getAttribute: Timeout 15000ms exceeded. Call log: - waiting for locator('details summary').filter({ hasText: 'Taxi' }).first().locator('[data-category]').first() [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-61.png)"
+    },
+    {
+      "n": 121,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "Create a Home group: it opens on Overview, with Expenses · People tabs and Bills · List tiles",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for getByRole('button', { name: 'Add', exact: true }).first() [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-62.png)"
+    },
+    {
+      "n": 122,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "Add Rent (₹30,000 on the 1st, you pay) and Electricity (changes each month, Asha pays)",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for getByRole('button', { name: 'Asha', exact: true }) [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-63.png)"
+    },
+    {
+      "n": 123,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "The daily job runs twice: Rent is added once, Electricity waits for its amount",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Rent was added 0 times [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-64.png)"
+    },
+    {
+      "n": 124,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "Asha taps “Enter amount”, types ₹2,840 and saves: Asha owes ₹13,580 in all",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for getByRole('link', { name: 'Enter amount' }) (screenshot: fail-65.png)"
+    },
+    {
+      "n": 125,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "Shopping list: add Bread and Milk, tick both, enter ₹1,240 → one Groceries expense",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 126,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "A ₹1,500 Groceries budget with ₹1,240 spent shows “₹260 left” (nearly there)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 127,
+      "area": "Flat",
+      "coverage": "Notifications",
+      "name": "Reminders switch: on the flat's settings (off to start), not on the couple's",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 128,
+      "area": "Couples",
+      "coverage": "Money",
+      "name": "The couple's This month says if you're ahead, behind or even",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 129,
+      "area": "Couples",
+      "coverage": "Money",
+      "name": "Start a savings goal (₹1,00,000) and tap “I set money aside” (₹5,000)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 130,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "Delete the automatic Rent from its edit screen: the daily job doesn't add it back",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "no Rent expense [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-66.png)"
+    },
+    {
+      "n": 131,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "Asha moves out: final payment shown, she's marked moved out, balances still add up to zero",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for locator('details summary').filter({ hasText: 'Asha' }).first() [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-67.png)"
+    },
+    {
+      "n": 132,
+      "area": "Daily job",
+      "coverage": "Regression",
+      "name": "Without the key the daily job is refused; with it, it runs",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 133,
+      "area": "Joining",
+      "coverage": "Sharing",
+      "name": "Zoe, already signed in, opens the flat's invite link, taps Join, and shows on People",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 134,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "Pause a bill and start it again from its page",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "no Electricity bill [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-68.png)"
+    },
+    {
+      "n": 135,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "Deposit: you put in ₹40,000; lease over with ₹2,000 kept back → ₹38,000 back to you",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 136,
+      "area": "Export",
+      "coverage": "Imports",
+      "name": "The flat's spreadsheet has the bills and the shopping",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "CSV is missing the flat's expenses [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-69.png)"
+    },
+    {
+      "n": 137,
+      "area": "Speed",
+      "coverage": "Regression",
+      "name": "People search answers fast (5 searches, each timed)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "median 19 ms, slowest 34 ms"
+    },
+    {
+      "n": 138,
+      "area": "Edit",
+      "coverage": "Money",
+      "name": "Change the split on an existing expense (Coffee ₹800: everyone → only You + Asha): balances move exactly",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for getByRole('button', { name: 'Only some' }) [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-70.png)"
+    },
+    {
+      "n": 139,
+      "area": "Couples",
+      "coverage": "Money",
+      "name": "“Even out” on This month opens Settle; marking it paid makes you even",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for getByRole('link', { name: 'Even out' }) [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-71.png)"
+    },
+    {
+      "n": 140,
+      "area": "Couples",
+      "coverage": "Money",
+      "name": "Settle-up minimum ₹50: a ₹45 balance isn't suggested as a payment, but stays in the balances",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.waitFor: Timeout 15000ms exceeded. Call log: - waiting for getByText(/1 small amount under ₹50(\\.00)? left out/) to be visible [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found) | console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012] (screenshot: fail-72.png)"
+    },
+    {
+      "n": 141,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "Milk (₹60 a day): tap today as “didn’t come” on its calendar and the month's total drops by ₹60",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 142,
+      "area": "Layout",
+      "coverage": "Regression",
+      "name": "Small Android phone (320 px), light mode: no screen scrolls sideways",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "23 screens checked in 10 s"
+    },
+    {
+      "n": 143,
+      "area": "Layout",
+      "coverage": "Regression",
+      "name": "Sign-in on small phones (320×568 and 375×667): Google and the email box are both on the first screen, no scrolling",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "320×568: email box ends at 369px; 375×667: email box ends at 369px"
+    },
+    {
+      "n": 144,
+      "area": "Group settings",
+      "coverage": "Money",
+      "name": "Settings has ONE Save; the group's currency is for the person who looks after it (Asha sees it as text, not a dropdown)",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Asha doesn't see the currency as admin-only text [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found) | console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012] (screenshot: fail-73.png)"
+    },
+    {
+      "n": 145,
+      "area": "Edit",
+      "coverage": "Money",
+      "name": "Rename an expense (Taxi → Airport taxi): the history says exactly what changed",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for locator('li[id^=\"item-\"] details > summary').filter({ hasText: 'Taxi' }).first() [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found) | console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012] (screenshot: fail-74.png)"
+    },
+    {
+      "n": 146,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "Skip a bill this time: next month's Rent is marked skipped and won't be added",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 147,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "A ₹1,000 Groceries budget with ₹1,240 spent shows “₹240 over”",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 148,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "Note when someone moved in (Zoe, on the 10th): it's recorded on People and in the history",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 149,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "Set up Maintenance shared by % (you 70, the other 30); Groceries is one of the tiles",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 150,
+      "area": "Couples",
+      "coverage": "Money",
+      "name": "Change the goal (target ₹80,000), then remove it",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 151,
+      "area": "New address",
+      "coverage": "Regression",
+      "name": "The old address forwards to loopinapps.com, and a signed-in person arrives still signed in after one tap (once)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 152,
+      "area": "Sign in",
+      "coverage": "Onboarding",
+      "name": "One screen for new and returning people; Continue with Google goes to Google with our app and PKCE; a forged return is refused",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 153,
+      "area": "Joining",
+      "coverage": "Sharing",
+      "name": "Someone added by name only: “not on Loopin yet” → Invite by email → they open it, sign up, “Continue as Rohit”, and take over the name",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 154,
+      "area": "Switching",
+      "coverage": "Imports",
+      "name": "“Coming from another app?” → pick the exported file → balances checked → Bring it over: a new group with the same expenses, payments and balances",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 155,
+      "area": "Trips",
+      "coverage": "Sharing",
+      "name": "Charts shows a few plain-English lines and “Trip report”; the report shares as a picture plus text (no link to the group)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 156,
+      "area": "Account",
+      "coverage": "Privacy",
+      "name": "You → Download all my data: one spreadsheet with every group, my share and my balance change",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "page.waitForEvent: Timeout 15000ms exceeded while waiting for event \"download\" =========================== logs =========================== waiting for event \"download\" [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found) | console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012] (screenshot: fail-75.png)"
+    },
+    {
+      "n": 157,
+      "area": "Sign in",
+      "coverage": "Onboarding",
+      "name": "Fingerprint / face: turn it on, sign out, sign back in with one touch, then remove it",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for getByRole('button', { name: /Turn on fingerprint \\/ face sign-in/ })"
+    },
+    {
+      "n": 158,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Shares: ₹1,200 split 2 : 1 : 1 : 1 : 1 → Varun ₹400, the others ₹200 each",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.fill: Timeout 15000ms exceeded. Call log: - waiting for getByLabel('Asha shares') [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found) | console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012] (screenshot: fail-76.png)"
+    },
+    {
+      "n": 159,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Split by item: ₹1,180 bar bill, Pizza ₹600 for Varun and Asha, Beer ₹400 for Asha → tax and tip shared by what each had: Varun ₹354, Asha ₹826",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for locator('[data-item-split]').getByRole('group', { name: 'Who had item 1' }).getByRole('button', { name: 'Asha', exact: true }) [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found) | console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012] (screenshot: fail-77.png)"
+    },
+    {
+      "n": 160,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "A bill photo stays with the expense: Asha can open it, and someone outside the group can't",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Asha got 404 [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Failed to load resource: the server responded with a status of 404 (Not Found) | console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012] (screenshot: fail-78.png)"
+    },
+    {
+      "n": 161,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Slow connection: Save shows Saving… and stays off; a second tap adds nothing; saved once",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 162,
+      "area": "Postcards",
+      "coverage": "Sharing",
+      "name": "A postcard link that doesn't exist: signed in → 'This screen isn't here'; signed out → sign-in first",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 163,
+      "area": "Edit",
+      "coverage": "Money",
+      "name": "Editing shows the bill photo already kept, with Replace and Remove; Remove takes it off when saved",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 164,
+      "area": "Sign in",
+      "coverage": "Onboarding",
+      "name": "A wrong code is refused with a clear message, and the right one still works",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 165,
+      "area": "Sign in",
+      "coverage": "Onboarding",
+      "name": "Right after signing in, “Sign in faster next time?” can be closed with ✕ and stays closed",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 166,
+      "area": "Settle",
+      "coverage": "Sharing",
+      "name": "Remind opens WhatsApp with the amount and who owes it",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 167,
+      "area": "Settle",
+      "coverage": "Money",
+      "name": "When every payment is under the group's minimum, Settle says “Nearly square”",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.waitFor: Timeout 15000ms exceeded. Call log: - waiting for getByText('Nearly square').first() to be visible [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012 | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-79.png)"
+    },
+    {
+      "n": 168,
+      "area": "Add people",
+      "coverage": "Sharing",
+      "name": "The invite screen shows the group's link and a QR code",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for getByText('Share the group link or QR code') [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012 | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-80.png)"
+    },
+    {
+      "n": 169,
+      "area": "Navigation",
+      "coverage": "Regression",
+      "name": "The group name at the top switches to another group",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 170,
+      "area": "Currency",
+      "coverage": "Money",
+      "name": "A yen group shows no decimals anywhere, and its settle-up minimum reads in whole yen",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 171,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "A bill whose payer has moved out waits with “Add it”, and Add it comes pre-filled",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "nobody has moved out of the flat [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012 | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-81.png)"
+    },
+    {
+      "n": 172,
+      "area": "Switching",
+      "coverage": "Imports",
+      "name": "A file that isn't a known export gets a clear message; a second currency is flagged",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 173,
+      "area": "Trips",
+      "coverage": "Sharing",
+      "name": "Close the imported trip: Home links to the trip report, which says All settled; Copy as text works",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 174,
+      "area": "Privacy",
+      "coverage": "Privacy",
+      "name": "A stranger can't open a group's report, its spreadsheet or someone else's data download",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 175,
+      "area": "Collect",
+      "coverage": "Money",
+      "name": "Varun makes a Farewell collection (₹500 each, his UPI), lists Zoya and Kabir, and picks Asha from his Loopin friends",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for getByRole('group', { name: 'Your Loopin friends' }).getByRole('button', { name: /Asha/ }) [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012 | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-82.png)"
+    },
+    {
+      "n": 176,
+      "area": "Collect",
+      "coverage": "Notifications",
+      "name": "Asha (on Loopin) finds it in Alerts: “Varun added you: ₹500 each”",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "no collection made (screenshot: fail-83.png)"
+    },
+    {
+      "n": 177,
+      "area": "Collect",
+      "coverage": "Sharing",
+      "name": "Zoya opens the link with no sign-up: the UPI button has Varun's ID and ₹500 filled in; she ticks her name",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "no collection made"
+    },
+    {
+      "n": 178,
+      "area": "Collect",
+      "coverage": "Notifications",
+      "name": "Varun sees “Zoya says paid” in Alerts, taps Confirm received, marks Kabir as paid in cash: 2 of 3, ₹1,000 of ₹1,500",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Alerts never showed /Zoya says they paid ₹500/ [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012 | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-84.png)"
+    },
+    {
+      "n": 179,
+      "area": "Collect",
+      "coverage": "Notifications",
+      "name": "Varun reminds Asha inside Loopin (bell); a second reminder straight away is refused; Asha sees it in Alerts",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "locator.click: Timeout 15000ms exceeded. Call log: - waiting for getByRole('button', { name: 'Remind Asha in Loopin' }) [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012 | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-85.png)"
+    },
+    {
+      "n": 180,
+      "area": "Collect",
+      "coverage": "Permissions",
+      "name": "Someone else can't change Varun's collection (no organiser buttons; a forged Confirm received is refused)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 181,
+      "area": "New group",
+      "coverage": "Regression",
+      "name": "“What’s it for?” offers Trip, Home, Couple, Game night, Collect and Anything Goes; Game night explains itself; Collect opens Collect",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 182,
+      "area": "Countdown",
+      "coverage": "Regression",
+      "name": "A trip made with a start date in 10 days: the group says “in 10 days”, Home's Coming up shows its boarding pass with the trip's picture",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 183,
+      "area": "Countdown",
+      "coverage": "Regression",
+      "name": "A second trip in 30 days: Coming up is ONE section with two boarding passes, the soonest first; no “Also:” line, no separate cards",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 184,
+      "area": "Groups",
+      "coverage": "Regression",
+      "name": "A photo picked while making a group becomes its picture",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 185,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Type it in one line: “Snacks 600 split with everyone” fills the name, amount and split, and nothing saves until Save",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 186,
+      "area": "Add",
+      "coverage": "Regression",
+      "name": "Add expense is tidy: the amount, the day under it, one What was it? field with Scan a bill · Speak · Type a line inside it, then two rows for who paid and the split; notes, several payers and Spin sit under a closed More link; the result for you is one quiet line under the card",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 187,
+      "area": "Add",
+      "coverage": "Regression",
+      "name": "Editing an expense that has notes opens More by itself, so nothing is hidden",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 188,
+      "area": "Words",
+      "coverage": "Regression",
+      "name": "No page says another app’s name: the tour, guide, FAQ, switching and import screens",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 189,
+      "area": "Words",
+      "coverage": "Regression",
+      "name": "Game night: none of poker, teen patti, buy-in, cash out, winnings or bet appears on the group-type chips, the game screens, the FAQ or How Loopin works; the calm line is on the game screen",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 190,
+      "area": "Words",
+      "coverage": "Regression",
+      "name": "The import screen gives generic export steps and no other app’s name",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 191,
+      "area": "Settle",
+      "coverage": "Sharing",
+      "name": "Varun adds his UPI ID on the You page; his WhatsApp Remind carries it and an “I’ve paid” link that opens without signing in",
+      "status": "fail",
+      "runsOn": [
+        "android",
+        "iphone"
+      ],
+      "detail": "locator.fill: Timeout 15000ms exceeded. Call log: - waiting for getByRole('region', { name: 'How friends pay you back' }).getByLabel('UPI ID (India)') [browser errors: console Failed to load resource: the server responded with a status of 404 (Not Found) | console Blocked call to navigator.vibrate because user hasn't tapped on the frame or any embedded frame yet: https://www.chromestatus.com/feature/56442738610012 | console Failed to load resource: the server responded with a status of 404 (Not Found)] (screenshot: fail-86.png)"
+    },
+    {
+      "n": 192,
+      "area": "Settle",
+      "coverage": "Money",
+      "name": "Outside India: the You page has no UPI box; Varun saves a PayPal link and the “I’ve paid” page offers PayPal",
+      "status": "na",
+      "runsOn": [
+        "desktop"
+      ],
+      "detail": "not applicable on android: this is the outside-India path (PayPal, Venmo, Revolut, Monzo); in India the UPI step above runs instead (runs on desktop)"
+    },
+    {
+      "n": 193,
+      "area": "Fun",
+      "coverage": "Regression",
+      "name": "React 🔥 to an expense: it shows under the expense; tapping 🔥 again takes it back",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 194,
+      "area": "Fun",
+      "coverage": "Regression",
+      "name": "Spin for it: the wheel lands on someone, and they become the payer",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 195,
+      "area": "Fun",
+      "coverage": "Sharing",
+      "name": "Wrapped: tap through the slides; the last one offers Share",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 196,
+      "area": "Fun",
+      "coverage": "Regression",
+      "name": "Titles: everyone in the group gets a fun title, shown as a small chip under their name on Balances",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 197,
+      "area": "Fun",
+      "coverage": "Sharing",
+      "name": "Where to? when making a trip (optional): the trip earns its passport stamp",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 198,
+      "area": "Fun",
+      "coverage": "Sharing",
+      "name": "Trip passport opens like a booklet, and several countries from before Loopin can be added at once",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 199,
+      "area": "Fun",
+      "coverage": "Sharing",
+      "name": "Share my passport sends one picture of the open booklet (details, map, every stamp), and nothing else",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 200,
+      "area": "Fun",
+      "coverage": "Sharing",
+      "name": "Passport Been tab: Thailand 5–10 May 2026 (6 days) and Goa 13–15 Mar 2026 (3 days) show as cards, and the numbers read 2 countries, 2 trips, 9 days away",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    }
+  ]
+}
