@@ -1,0 +1,23 @@
+Database region: aws-ap-south-1
+server /how-it-works: 245, 324, 28, 27, 48 ms  (sfo1)
+server /search: 27, 28, 23, 27, 26 ms  (sfo1)
+server /settle: 26, 23, 26, 23, 28 ms  (sfo1)
+server /notifications: 41, 23, 23, 25, 23 ms  (sfo1)
+server /join/does-not-exist: 27, 23, 23, 25, 27 ms  (sfo1)
+static file (network only, no server work): 1305, 87, 109, 111, 71 ms
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+locator.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator('nav').getByRole('link', { name: 'Groups' }).last()
+
+    at /home/runner/work/splitwise-alt/splitwise-alt/scripts/prod-speed.mjs:43:71 {
+  log: [
+    "  - waiting for locator('nav').getByRole('link', { name: 'Groups' }).last()"
+  ],
+  name: 'TimeoutError'
+}
+
+Node.js v22.23.4
