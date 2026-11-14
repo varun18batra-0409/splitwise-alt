@@ -57,7 +57,7 @@ export const TAG_LINES: Record<string, [string, string][]> = {
   sunset: [["Golden hour", "Somebody's taking 400 photos of this sunset"], ["Golden hour", "Phones out. Everyone's a photographer now."], ["Sunset o'clock", "Best seat in the house, no ticket needed"]],
   night: [["After dark", "The night's just getting started"], ["After dark", "Looks even better with the lights on"], ["Night shift", "Sleep is overrated on holiday"]],
   neon: [["Lights on", "Neon, noise and street snacks"], ["After dark", "Every sign says 'come in'"]],
-  beach: [["Beach mode", "Toes in the sand, phone on silent"], ["Beach mode", "100% chance of flip-flops"], ["Plot twist", "The beach shack is the fancy dinner"]],
+  beach: [["Beach mode", "Toes in the sand, phone on silent"], ["Beach mode", "100% chance of flip‑flops"], ["Plot twist", "The beach shack is the fancy dinner"]],
   sea: [["Sea view", "Water this blue should be illegal"], ["Sea view", "Somebody's already planning a swim"]],
   palms: [["Palm trees", "Hammock not included. Find one."], ["Island energy", "Coconut water counts as hydration"]],
   island: [["Island time", "Clocks work differently here"], ["Island hopping", "Boat, beach, repeat"]],

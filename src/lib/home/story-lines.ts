@@ -29,7 +29,7 @@ const PLACE: Record<string, Line[]> = {
   meghalaya: [["Khublei", "Clouds, waterfalls and living root bridges"], ["Local tip", "Shillong cafés are the warm-up"], ["Rain check", "Pack a raincoat. Pack two."], ["Plot twist", "The 3,000 steps to the root bridge are worth it"]],
   switzerland: [["Grüezi", "Mountains, trains and very good chocolate"], ["Local tip", "The Swiss Travel Pass can pay for itself"], ["Food check", "Fondue is a whole evening"], ["Plot twist", "Everything is on time. Including the bill."]],
   ahmedabad: [["Kem cho", "Thepla, dhokla, Manek Chowk at midnight"], ["Local tip", "The old-city heritage walk starts early"], ["Food check", "Gujarati thali, unlimited refills"]],
-  alibaug: [["Weekend mode", "Ferry across, flip-flops on"], ["Local tip", "The ro-ro ferry beats the drive"], ["Plot twist", "The weekend somehow becomes three days"]],
+  alibaug: [["Weekend mode", "Ferry across, flip‑flops on"], ["Local tip", "The ro-ro ferry beats the drive"], ["Plot twist", "The weekend somehow becomes three days"]],
   amritsar: [["Sat Sri Akal", "Langar, lassi and Amritsari kulcha"], ["Local tip", "The Golden Temple at dawn is unreal"], ["Food check", "One kulcha is never enough"]],
   chikmagalur: [["Coffee country", "Estates, mist and filter coffee"], ["Local tip", "Mullayanagiri for the sunrise"], ["Plot twist", "Everyone buys coffee to take home"]],
   coorg: [["Scotland of India", "Coffee, mist and homestays"], ["Local tip", "Try the pandi curry"], ["Plot twist", "Nobody wants to drive back"]],
@@ -186,7 +186,7 @@ function worldLines(country?: string | null, city?: string | null, countryName?:
 
 // When the place isn't one Loopin knows: by the kind of trip.
 const MOOD: Record<"beach" | "hills" | "city" | "any", Line[]> = {
-  beach: [["Forecast", "100% chance of flip-flops"], ["Packing list", "Sunscreen. More sunscreen. A hat you'll lose."], ["Beach rules", "Coconut water counts as hydration"], ["Plot twist", "The beach shack is the fancy dinner"]],
+  beach: [["Forecast", "100% chance of flip‑flops"], ["Packing list", "Sunscreen. More sunscreen. A hat you'll lose."], ["Beach rules", "Coconut water counts as hydration"], ["Plot twist", "The beach shack is the fancy dinner"]],
   hills: [["Forecast", "Cold enough for two hoodies"], ["Packing list", "Warm socks. Maggi. A speaker for the drive."], ["Spotted", "Chai at altitude hits different"], ["Plot twist", "Nobody packed the charger"]],
   city: [["Forecast", "High chance of street food"], ["Packing list", "Comfy shoes. You'll walk 20,000 steps."], ["After dark", "The city looks better at night. So do the bills."], ["Plot twist", "Someone gets lost. It's always the same someone"]],
   any: [["Forecast", "Good times, with a chance of receipts"], ["Packing list", "Charger, ID, snacks. In that order."], ["Spotted", "The group chat, already planning outfits"], ["Plot twist", "Loopin keeps the maths. You keep the memories"]],

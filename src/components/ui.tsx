@@ -12,7 +12,7 @@ export function PageHeader({
   back,
   action,
   hideTitle = false,
-  titleClass = "text-[28px]",
+  titleClass = "text-[22px] min-[360px]:text-[28px]",
   bell = false,
 }: {
   title: string;
