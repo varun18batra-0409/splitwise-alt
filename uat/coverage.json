@@ -1,0 +1,3112 @@
+{
+  "profile": "android",
+  "label": "Android phone: Chromium, 390×844, touch, en-IN, Asia/Kolkata",
+  "totals": {
+    "steps": 235,
+    "passed": 229,
+    "failed": 0,
+    "notApplicable": 4,
+    "notRun": 2
+  },
+  "areas": {
+    "Money": {
+      "steps": 89,
+      "passed": 87,
+      "failed": 0,
+      "notApplicable": 1,
+      "notRun": 1
+    },
+    "Onboarding": {
+      "steps": 23,
+      "passed": 22,
+      "failed": 0,
+      "notApplicable": 1,
+      "notRun": 0
+    },
+    "Permissions": {
+      "steps": 10,
+      "passed": 9,
+      "failed": 0,
+      "notApplicable": 0,
+      "notRun": 1
+    },
+    "Imports": {
+      "steps": 6,
+      "passed": 6,
+      "failed": 0,
+      "notApplicable": 0,
+      "notRun": 0
+    },
+    "Sharing": {
+      "steps": 27,
+      "passed": 27,
+      "failed": 0,
+      "notApplicable": 0,
+      "notRun": 0
+    },
+    "Notifications": {
+      "steps": 10,
+      "passed": 10,
+      "failed": 0,
+      "notApplicable": 0,
+      "notRun": 0
+    },
+    "Privacy": {
+      "steps": 18,
+      "passed": 18,
+      "failed": 0,
+      "notApplicable": 0,
+      "notRun": 0
+    },
+    "Regression": {
+      "steps": 52,
+      "passed": 50,
+      "failed": 0,
+      "notApplicable": 2,
+      "notRun": 0
+    }
+  },
+  "thinAreas": [],
+  "steps": [
+    {
+      "n": 1,
+      "area": "Start",
+      "coverage": "Onboarding",
+      "name": "First visit shows the intro tour with “Create your first group”",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 2,
+      "area": "Start",
+      "coverage": "Onboarding",
+      "name": "Creating a group asks you to sign up first (verified email)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 3,
+      "area": "Start",
+      "coverage": "Onboarding",
+      "name": "There is no way to add people by typing a name",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 4,
+      "area": "Start",
+      "coverage": "Onboarding",
+      "name": "Create a group (INR) → lands on Add people",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "/join/9WgEaaLO"
+    },
+    {
+      "n": 5,
+      "area": "Joining",
+      "coverage": "Sharing",
+      "name": "Someone opening the link without signing up can't join (no name box)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 6,
+      "area": "Joining",
+      "coverage": "Sharing",
+      "name": "Asha opens the link, signs up with her email, and joins",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 7,
+      "area": "Joining",
+      "coverage": "Onboarding",
+      "name": "Ravi does the same from a WhatsApp message",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 8,
+      "area": "Joining",
+      "coverage": "Permissions",
+      "name": "Only Varun, who started the group, can delete it, change its currency or remove people: Asha sees a calm note instead",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 9,
+      "area": "Joining",
+      "coverage": "Sharing",
+      "name": "Add by email: Zoe is in the group at once as a name (“Invited · hasn’t joined yet”) and gets an invitation email",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 10,
+      "area": "Joining",
+      "coverage": "Sharing",
+      "name": "Zoe taps the link in her email, verifies, and joins as the name she was added with",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 11,
+      "area": "Joining",
+      "coverage": "Sharing",
+      "name": "Invite emails carry an unsubscribe link: one tap stops them, and the next invite to that address isn't sent",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 12,
+      "area": "Joining",
+      "coverage": "Sharing",
+      "name": "Add people shows everyone as “On Loopin ✓” and no pending invites",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "4 verified members"
+    },
+    {
+      "n": 13,
+      "area": "Joining",
+      "coverage": "Onboarding",
+      "name": "Contacts option is there (share sheet when the phone can't pick contacts)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 14,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Equal split between everyone (Varun pays ₹1,200 dinner)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Varun +₹900.00, Asha −₹300.00, Ravi −₹300.00, Zoe −₹300.00"
+    },
+    {
+      "n": 15,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Someone else paid, only some people (Asha pays ₹400 taxi for Asha + Varun)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Varun +₹700.00, Asha −₹100.00, Ravi −₹300.00, Zoe −₹300.00"
+    },
+    {
+      "n": 16,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Next expense remembers the last split (“same as last time”)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 17,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Paid by someone else on their behalf: Varun records Ravi paid ₹600 for everyone",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Varun +₹550.00, Asha −₹250.00, Ravi +₹150.00, Zoe −₹450.00"
+    },
+    {
+      "n": 18,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "For one person only (₹1,000 tickets, just for Ravi)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Varun +₹1550.00, Asha −₹250.00, Ravi −₹850.00, Zoe −₹450.00"
+    },
+    {
+      "n": 19,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Custom amounts that add up (₹1,000 = 100 + 200 + 300 + 400)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Varun +₹2450.00, Asha −₹450.00, Ravi −₹1150.00, Zoe −₹850.00"
+    },
+    {
+      "n": 20,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Custom amounts that DON'T add up are refused",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "The amounts add up to ₹400, but the total is ₹1,000."
+    },
+    {
+      "n": 21,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Percentages (Zoe pays ₹2,000 hotel, 50% Varun / 50% Zoe)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Varun +₹1450.00, Asha −₹450.00, Ravi −₹1150.00, Zoe +₹150.00"
+    },
+    {
+      "n": 22,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Percentages that don't make 100% are refused",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "The percentages add up to 70%. They need to add up to 100%."
+    },
+    {
+      "n": 23,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Yesterday's date and a note (₹400 coffee)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Varun +₹1750.00, Asha −₹550.00, Ravi −₹1250.00, Zoe +₹50.00"
+    },
+    {
+      "n": 24,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Wrong amounts are refused: letters, zero, empty name still saves as “Expense”?",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 25,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Double-tapping Save adds the expense only once",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Varun +₹1900.00, Asha −₹600.00, Ravi −₹1300.00, Zoe +₹0.00"
+    },
+    {
+      "n": 26,
+      "area": "Edit",
+      "coverage": "Money",
+      "name": "Edit an amount (Coffee ₹400 → ₹800) and balances follow",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Varun +₹2200.00, Asha −₹700.00, Ravi −₹1400.00, Zoe −₹100.00"
+    },
+    {
+      "n": 27,
+      "area": "Edit",
+      "coverage": "Money",
+      "name": "Edit clash: Asha saves first, Varun's older copy is warned, not overwritten",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Varun +₹2230.00, Asha −₹710.00, Ravi −₹1410.00, Zoe −₹110.00"
+    },
+    {
+      "n": 28,
+      "area": "Edit",
+      "coverage": "Money",
+      "name": "Delete an expense, then Undo brings it back",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "after delete: Varun +₹1230.00, Asha −₹710.00, Ravi −₹410.00, Zoe −₹110.00; restored: Varun +₹2230.00, Asha −₹710.00, Ravi −₹1410.00, Zoe −₹110.00"
+    },
+    {
+      "n": 29,
+      "area": "Edit",
+      "coverage": "Money",
+      "name": "Undo bar right after adding an expense removes it again",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Varun +₹2230.00, Asha −₹710.00, Ravi −₹1410.00, Zoe −₹110.00"
+    },
+    {
+      "n": 30,
+      "area": "Group settings",
+      "coverage": "Money",
+      "name": "Set the group's card markup to 3%",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 31,
+      "area": "Currency",
+      "coverage": "Money",
+      "name": "Card payment abroad: THB 1,000 at 2.5 with 3% card fee = ₹2,575",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Varun +₹4161.25, Asha −₹1353.75, Ravi −₹2053.75, Zoe −₹753.75"
+    },
+    {
+      "n": 32,
+      "area": "Currency",
+      "coverage": "Money",
+      "name": "Cash abroad has no card fee: THB 400 cash at 2.5 = ₹1,000",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Varun +₹4911.25, Asha −₹1603.75, Ravi −₹2303.75, Zoe −₹1003.75"
+    },
+    {
+      "n": 33,
+      "area": "Currency",
+      "coverage": "Money",
+      "name": "Card with the fee switched off: THB 200 at 2.5, no markup = ₹500",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Varun +₹4786.25, Asha −₹1228.75, Ravi −₹2428.75, Zoe −₹1128.75"
+    },
+    {
+      "n": 34,
+      "area": "Currency",
+      "coverage": "Money",
+      "name": "Custom 2% fee: THB 1,000 at 2.5 = ₹2,550",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Varun +₹4148.75, Asha +₹683.75, Ravi −₹3066.25, Zoe −₹1766.25"
+    },
+    {
+      "n": 35,
+      "area": "Currency",
+      "coverage": "Money",
+      "name": "Live exchange rate is fetched for USD (or, if the rate service is down, a rate is asked for)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "≈ ₹940.40, Cash, no card fee"
+    },
+    {
+      "n": 36,
+      "area": "Currency",
+      "coverage": "Money",
+      "name": "Balances shows the THB balance separately (without card fees)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 37,
+      "area": "Simple screens",
+      "coverage": "Regression",
+      "name": "Group top is short: balance, Settle up and Why? only (details moved to Balances)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 38,
+      "area": "Simple screens",
+      "coverage": "Regression",
+      "name": "Balances only explains; paying happens on Settle up (no duplicate buttons)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 39,
+      "area": "Simple screens",
+      "coverage": "Regression",
+      "name": "Activity has one Filter button that opens search, category and person",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 40,
+      "area": "Why?",
+      "coverage": "Money",
+      "name": "“Why?” lines add up to the balance shown",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Why? ⌄ You paid for the group +₹7,815 Your share of expenses incl. ₹31.25 card fees −₹3,666.25 You get back ₹4,148.75 Item by item Spa Today · share ₹637.50 (fe"
+    },
+    {
+      "n": 41,
+      "area": "Settle",
+      "coverage": "Money",
+      "name": "Group page has a “Settle up” button that opens the settle screen",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "3 payments suggested"
+    },
+    {
+      "n": 42,
+      "area": "Settle",
+      "coverage": "Money",
+      "name": "Bottom bar “Settle” inside a group goes to the same screen",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 43,
+      "area": "Settle",
+      "coverage": "Money",
+      "name": "Mark a payment as paid in full",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Ravi → Varun ₹3066.25; Varun +₹1082.50, Asha +₹683.75, Ravi +₹0.00, Zoe −₹1766.25"
+    },
+    {
+      "n": 44,
+      "area": "Settle",
+      "coverage": "Money",
+      "name": "Record a part payment (change the amount to less)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Zoe → Varun ₹541.00 of ₹1082.50; Varun +₹541.50, Asha +₹683.75, Ravi +₹0.00, Zoe −₹1225.25"
+    },
+    {
+      "n": 45,
+      "area": "Settle",
+      "coverage": "Money",
+      "name": "A zero or nonsense amount is refused",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 46,
+      "area": "Settle",
+      "coverage": "Money",
+      "name": "Double-tapping Record payment records it once",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Varun +₹0.00, Asha +₹683.75, Ravi +₹0.00, Zoe −₹683.75"
+    },
+    {
+      "n": 47,
+      "area": "Settle",
+      "coverage": "Money",
+      "name": "Undo a payment from the bar",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Varun +₹0.00, Asha +₹683.75, Ravi +₹0.00, Zoe −₹683.75"
+    },
+    {
+      "n": 48,
+      "area": "Settle",
+      "coverage": "Money",
+      "name": "“I’ve paid” is only a claim: balances don't move until Asha taps Confirm received",
+      "status": "skip",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "not run: Varun pays nobody who has joined right now"
+    },
+    {
+      "n": 49,
+      "area": "Settle",
+      "coverage": "Money",
+      "name": "Record a different payment on the payment screen (Zoe paid Asha ₹50)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Varun +₹0.00, Asha +₹633.75, Ravi +₹0.00, Zoe −₹633.75"
+    },
+    {
+      "n": 50,
+      "area": "Settle",
+      "coverage": "Money",
+      "name": "Paying more than owed (an extra zero) asks first and saves nothing until confirmed",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 51,
+      "area": "Settle",
+      "coverage": "Money",
+      "name": "You can't record paying yourself",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 52,
+      "area": "Settle",
+      "coverage": "Money",
+      "name": "Settle everything & close, then reopen",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 53,
+      "area": "Across groups",
+      "coverage": "Money",
+      "name": "Two more groups with Asha: she owes ₹500 in one, Varun owes ₹300 in the other",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 54,
+      "area": "Across groups",
+      "coverage": "Money",
+      "name": "Settle screen nets them into ONE payment: Asha pays Varun ₹200",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 55,
+      "area": "Across groups",
+      "coverage": "Money",
+      "name": "All square page: a “Hide amounts” switch swaps the money tile for counts, and the shared picture follows",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 56,
+      "area": "Couples",
+      "coverage": "Money",
+      "name": "Create a Couple group with the split worked out from incomes (55 / 45), add Asha",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 57,
+      "area": "Couples",
+      "coverage": "Money",
+      "name": "“Our split 55 / 45” is chosen by default: ₹1,000 lunch → Asha owes ₹450",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 58,
+      "area": "Couples",
+      "coverage": "Money",
+      "name": "Two payers: ₹2,000 dinner, you ₹1,500 + Asha ₹500 → Asha owes ₹850 in all",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 59,
+      "area": "Couples",
+      "coverage": "Money",
+      "name": "Money back: Asha got ₹200 back, shared 55 / 45 → Asha owes ₹960",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 60,
+      "area": "Browse",
+      "coverage": "Regression",
+      "name": "History filters by type and amount (money back only; ₹1,500 and more)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 61,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Save & add another keeps the split and opens a fresh form",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 62,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Repeat an expense, see the duplicate warning, then add it anyway",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 63,
+      "area": "Group settings",
+      "coverage": "Notifications",
+      "name": "Turn off payment notifications for one group",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 64,
+      "area": "Add people",
+      "coverage": "Privacy",
+      "name": "Search by name only finds friends; a full email gets the same neutral Add (no account revealed) and puts a stranger who is on Loopin in the group as an invited name",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 65,
+      "area": "Alerts",
+      "coverage": "Notifications",
+      "name": "Asha sees an unread alert badge and Varun's changes in Alerts",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 66,
+      "area": "Alerts",
+      "coverage": "Notifications",
+      "name": "Asha was told she was added to the new groups",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 67,
+      "area": "Home",
+      "coverage": "Regression",
+      "name": "Home opens on the boarding-pass money card (route, one amount, ONE cream button; no tint, no “Add expense”, no repeated amount), a quiet line under it for what needs you, then Your groups and the bottom bar, which keeps its “+”",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 68,
+      "area": "Home",
+      "coverage": "Regression",
+      "name": "On a small phone (375×667) the header, the boarding-pass card (one-amount ticket at most about 200px tall, both-ways about 260px) and its buttons (44px tall) sit inside the first screen above the bottom bar, the Your groups row starts above the bottom bar, and the next polaroid peeks in; the bottom bar's + goes to the group picker or the only group",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 69,
+      "area": "Home",
+      "coverage": "Regression",
+      "name": "Home lists each group once: polaroid cards only (no old vertical list, no “Show all N groups”), each open group on one card, and the stories row is absent when there are no stories",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 70,
+      "area": "Home",
+      "coverage": "Regression",
+      "name": "F6/F10/F19: FAQ, Privacy and Terms on Home each have a 44px tap area with space between them; Latest says “Payment”, never “Settle-up”; the You page footer has a Privacy link with a 44px target",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 71,
+      "area": "Home",
+      "coverage": "Regression",
+      "name": "F5: an open story's full-screen photo is requested big and sharp (its image address asks for 1920px or wider, quality 90)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 72,
+      "area": "Home",
+      "coverage": "Regression",
+      "name": "“+ New group” is the first card in Your groups (dashed, as tall as the polaroids, at least 44px), whatever the number of groups, and one tap opens the new-group page; “See all” stays in the header",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 73,
+      "area": "Home",
+      "coverage": "Regression",
+      "name": "Home order: Latest comes straight after Your groups (only the trip countdown may sit between); closed groups and Recently deleted are not on Home; the “saved on this phone” note is below everything but the footer",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 74,
+      "area": "Home",
+      "coverage": "Regression",
+      "name": "On the narrowest phone (320×640, also 360 and 390) the boarding-pass card has no sideways scroll: nothing is cut off, the amount always shows whole, the stub is 84px below 360px and 100px from 360px, the buttons keep their words inside, and the card has no tint",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 75,
+      "area": "Home",
+      "coverage": "Regression",
+      "name": "The bottom bar is nearly solid (background alpha 0.9 or more) so words never show through, and big amounts on Home are whole rupees",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 76,
+      "area": "Home",
+      "coverage": "Regression",
+      "name": "The sliding cards at the top: 4 to 7 of them, no two the same, each with words and a button that goes somewhere; no “Coming from another app?” card",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Your month so far November in numbers ₹7,106 your share 18 e · Postcards Send a postcard A trip photo, a real-looking stamp · PASSPORT LOOPIN ARRIVED Your trip passport Where have you be · Nothing booked yet Where to next? Start a trip group now. Th"
+    },
+    {
+      "n": 77,
+      "area": "Home",
+      "coverage": "Regression",
+      "name": "Tapping an expense in Latest opens it in its group, expanded, with Edit or delete",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 78,
+      "area": "Home",
+      "coverage": "Regression",
+      "name": "Messages at the top have a ✕: closing one hides it, and a refresh doesn't bring it back",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 79,
+      "area": "Home",
+      "coverage": "Regression",
+      "name": "Bottom bar is hidden while adding an expense",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 80,
+      "area": "Search",
+      "coverage": "Regression",
+      "name": "Search finds “Dinner” across groups",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 81,
+      "area": "Export",
+      "coverage": "Imports",
+      "name": "Spreadsheet download contains the expenses",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 82,
+      "area": "Group settings",
+      "coverage": "Money",
+      "name": "Change a group's currency (UAT Dinner club INR → USD at 0.012)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 83,
+      "area": "Group settings",
+      "coverage": "Regression",
+      "name": "Delete a group: it lands on Your groups with Recently deleted open (not on Home), You links to it, restore brings it back",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 84,
+      "area": "People",
+      "coverage": "Regression",
+      "name": "Rename someone on the People screen",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 85,
+      "area": "Account",
+      "coverage": "Privacy",
+      "name": "Signed in: You page shows the email; Sign in goes to it; privacy page opens",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 86,
+      "area": "Group settings",
+      "coverage": "Regression",
+      "name": "Rename a group, then Undo puts the old name back",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 87,
+      "area": "Group settings",
+      "coverage": "Money",
+      "name": "Show amounts in a second currency (USD) next to balances",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 88,
+      "area": "Close & reopen",
+      "coverage": "Regression",
+      "name": "Close a group from settings: it moves to Closed groups and new expenses are paused",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 89,
+      "area": "Close & reopen",
+      "coverage": "Regression",
+      "name": "Reopen it from the add screen",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 90,
+      "area": "People",
+      "coverage": "Regression",
+      "name": "Rename a person, then rename back",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 91,
+      "area": "People",
+      "coverage": "Permissions",
+      "name": "Remove someone settled up (the admin removes; they show under Removed), then bring them back",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 92,
+      "area": "People",
+      "coverage": "Permissions",
+      "name": "Remove someone who isn't in any expense (Sheldon)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 93,
+      "area": "People",
+      "coverage": "Permissions",
+      "name": "Someone owing money can't be marked as left until settled",
+      "status": "skip",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "not run: everyone settled"
+    },
+    {
+      "n": 94,
+      "area": "Edit",
+      "coverage": "Money",
+      "name": "Change who paid on an expense: balances move by exactly that amount",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 95,
+      "area": "Payments",
+      "coverage": "Money",
+      "name": "Delete a payment from the history, then restore it",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 96,
+      "area": "Browse",
+      "coverage": "Regression",
+      "name": "Filter a group's history by category and person",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 97,
+      "area": "Browse",
+      "coverage": "Regression",
+      "name": "Search by month: the recap shows totals",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 98,
+      "area": "Browse",
+      "coverage": "Regression",
+      "name": "Charts tab opens with the group's spending",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 99,
+      "area": "Alerts",
+      "coverage": "Notifications",
+      "name": "Alerts screen offers phone notifications on/off",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 100,
+      "area": "Alerts",
+      "coverage": "Notifications",
+      "name": "Notifications & email: opens from You, an email switch persists after a reload, and with it off an add-to-group email isn't sent; switched back on it is",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 101,
+      "area": "Add people",
+      "coverage": "Privacy",
+      "name": "Adding the email of someone already on Loopin gets the same reply as any email; they see an invitation on Home and in Alerts",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 102,
+      "area": "Privacy",
+      "coverage": "Privacy",
+      "name": "A stranger opening a group's address sees “Private group”: no name, no join link",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 103,
+      "area": "Privacy",
+      "coverage": "Privacy",
+      "name": "A forged “who you are” cookie is ignored",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 104,
+      "area": "Privacy",
+      "coverage": "Privacy",
+      "name": "An unsigned, plain “who you are” cookie (the old format) is ignored too",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 105,
+      "area": "Privacy",
+      "coverage": "Privacy",
+      "name": "Sign-in can't send you to another website afterwards (back=/\\evil.com)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 106,
+      "area": "Account",
+      "coverage": "Onboarding",
+      "name": "Sign out of this phone, sign back in: all groups come back",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 107,
+      "area": "Account",
+      "coverage": "Privacy",
+      "name": "Delete my email & sign-in",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 108,
+      "area": "Get the app",
+      "coverage": "Onboarding",
+      "name": "iPhone (Safari): invite link shows “Get the Loopin app” with Share → Add to Home Screen steps",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 109,
+      "area": "Get the app",
+      "coverage": "Onboarding",
+      "name": "iPhone (Chrome): steps use the Share button by the address bar",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 110,
+      "area": "Get the app",
+      "coverage": "Onboarding",
+      "name": "Android (Chrome): invite link offers the app; steps mention “Install app”",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 111,
+      "area": "Sign in",
+      "coverage": "Onboarding",
+      "name": "UX-04: the sign-in header is short (about 96px) on a short phone (390×667) and tall on a normal one (390×844), so the small-phone variant works for both width and height",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 112,
+      "area": "Get the app",
+      "coverage": "Onboarding",
+      "name": "Home has an “App” button and the service worker is registered (needed to install)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 113,
+      "area": "Get the app",
+      "coverage": "Onboarding",
+      "name": "First-time tour (iPhone) has the “App” button on every slide",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 114,
+      "area": "Navigation",
+      "coverage": "Regression",
+      "name": "Inside a group there's a back button to all groups",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 115,
+      "area": "Start screen",
+      "coverage": "Onboarding",
+      "name": "Tour → Home shows a start screen: create, join with a link, quick start, sign up / sign in",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 116,
+      "area": "Help",
+      "coverage": "Onboarding",
+      "name": "“?” on home opens the detailed How Loopin works guide (with photos), which links to the 1-minute tour",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "24 photos on the guide (image?url=%2Fphotos%2Fhero.jpg&w=3840&q=75:390 image?url=%2Fphotos%2Froadtrip.jpg&w=3840&q=75:390 image?url=%2Fphotos%2Fdinner.jpg&w=3840&q=75:390 image?url=%2Fphotos%2Fmarket.jpg&w=3840&q=75:390 image?url=%2Fphotos%2Ffriends.jpg&w=3840&q=75:390 image?url=%2Fphotos%2Fsunset.jpg&w=3840&q=75:0 trip-report.webp:0 image?url=%2Fphotos%2Fhome.jpg&w=3840&q=75:0 flat-month.webp:0 couple-month.webp:0 image?url=%2Fphotos%2Fplace-goa.jpg&w=3840&q=75:0 story-trip.webp:0 story-pot.webp:0 image?url=%2Fphotos%2Fplace-bali-2.jpg&w=3840&q=75:0 wrapped-total.webp:0 wrapped-receipt.webp:0 image?url=%2Fphotos%2Fplace-santorini.jpg&w=3840&q=75:0 passport-stamps.webp:0 friends-passports.webp:0 image?url=%2Fphotos%2Fplace-goa-4.jpg&w=3840&q=75:0 image?url=%2Fphotos%2Fplace-japan-2.jpg&w=3840&q=75:0 spin.webp:0 titles.webp:0 icon-192.png:192)"
+    },
+    {
+      "n": 117,
+      "area": "Help",
+      "coverage": "Onboarding",
+      "name": "The 1-minute tour has 7 slides (make a group, add what you paid, see who owes then settle, every trip becomes a story, send a postcard, keep the little moments, collect your passport), in words that work outside India, and none says “no sign-up”",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 118,
+      "area": "Help",
+      "coverage": "Onboarding",
+      "name": "The tour moves like stories: tap the right side for next, the left side to go back, and Back / Next buttons at the bottom",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 119,
+      "area": "Help",
+      "coverage": "Onboarding",
+      "name": "The guide has Home, Couples, the trip report, stories, Wrapped, the passport and moving over from another app, with real app screens that load",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 120,
+      "area": "Tags",
+      "coverage": "Regression",
+      "name": "Each expense shows its category: the icon's colour and shape, and the name for screen readers (Dinner → Bites & Sips, Taxi → Wheels & Wings)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 121,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "Create a Home group: it opens on This month, with Bills · List · Activity tabs",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 122,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "Add Rent (₹30,000 on the 1st, you pay) and Electricity (changes each month, Asha pays)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 123,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "The daily job runs twice: Rent is added once, Electricity waits for its amount",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 124,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "Asha taps “Enter amount”, types ₹2,840 and saves: Asha owes ₹13,580 in all",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 125,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "Shopping list: add Bread and Milk, tick both, enter ₹1,240 → one Groceries expense",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 126,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "A ₹1,500 Groceries budget with ₹1,240 spent shows “₹260 left” (nearly there)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 127,
+      "area": "Flat",
+      "coverage": "Notifications",
+      "name": "Reminders switch: on the flat's settings (off to start), not on the couple's",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 128,
+      "area": "Couples",
+      "coverage": "Money",
+      "name": "The couple's This month says if you're ahead, behind or even",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 129,
+      "area": "Couples",
+      "coverage": "Money",
+      "name": "Start a savings goal (₹1,00,000) and tap “I set money aside” (₹5,000)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 130,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "Delete the automatic Rent from its edit screen: the daily job doesn't add it back",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 131,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "Asha moves out: final payment shown, she's marked moved out, balances still add up to zero",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 132,
+      "area": "Daily job",
+      "coverage": "Regression",
+      "name": "Without the key the daily job is refused; with it, it runs",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 133,
+      "area": "Joining",
+      "coverage": "Sharing",
+      "name": "Zoe, already signed in, opens the flat's invite link, taps Join, and shows on People",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 134,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "Pause a bill and start it again from its page",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 135,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "Deposit: you put in ₹40,000; lease over with ₹2,000 kept back → ₹38,000 back to you",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 136,
+      "area": "Export",
+      "coverage": "Imports",
+      "name": "The flat's spreadsheet has the bills and the shopping",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 137,
+      "area": "Speed",
+      "coverage": "Regression",
+      "name": "People search answers fast (5 searches, each timed)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "median 19 ms, slowest 21 ms"
+    },
+    {
+      "n": 138,
+      "area": "Edit",
+      "coverage": "Money",
+      "name": "Change the split on an existing expense (Coffee ₹800: everyone → only You + Asha): balances move exactly",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 139,
+      "area": "Couples",
+      "coverage": "Money",
+      "name": "“Even out” on This month opens Settle; marking it paid makes you even",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 140,
+      "area": "Couples",
+      "coverage": "Money",
+      "name": "Settle-up minimum ₹50: a ₹45 balance isn't suggested as a payment, but stays in the balances",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 141,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "Milk (₹60 a day): tap today as “didn’t come” on its calendar and the month's total drops by ₹60",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 142,
+      "area": "Layout",
+      "coverage": "Regression",
+      "name": "Small Android phone (320 px), light mode: no screen scrolls sideways",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "23 screens checked in 10 s"
+    },
+    {
+      "n": 143,
+      "area": "Layout",
+      "coverage": "Regression",
+      "name": "Sign-in on small phones (320×568 and 375×667): Google and the email box are both on the first screen, no scrolling",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "320×568: email box ends at 369px; 375×667: email box ends at 369px"
+    },
+    {
+      "n": 144,
+      "area": "Group settings",
+      "coverage": "Money",
+      "name": "Settings has ONE Save; the group's currency is for the person who looks after it (Asha sees it as text, not a dropdown)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 145,
+      "area": "Edit",
+      "coverage": "Money",
+      "name": "Rename an expense (Taxi → Airport taxi): the history says exactly what changed",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 146,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "Skip a bill this time: next month's Rent is marked skipped and won't be added",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 147,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "A ₹1,000 Groceries budget with ₹1,240 spent shows “₹240 over”",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 148,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "Note when someone moved in (Zoe, on the 10th): it's recorded on People and in the history",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 149,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "Set up Maintenance shared by % (you 70, the other 30); Groceries is one of the tiles",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 150,
+      "area": "Couples",
+      "coverage": "Money",
+      "name": "Change the goal (target ₹80,000), then remove it",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 151,
+      "area": "New address",
+      "coverage": "Regression",
+      "name": "The old address forwards to loopinapps.com, and a signed-in person arrives still signed in after one tap (once)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 152,
+      "area": "Sign in",
+      "coverage": "Onboarding",
+      "name": "One screen for new and returning people; Continue with Google goes to Google with our app and PKCE; a forged return is refused",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 153,
+      "area": "Joining",
+      "coverage": "Sharing",
+      "name": "Someone added by name only: “not on Loopin yet” → Invite by email → they open it, sign up, “Continue as Rohit”, and take over the name",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 154,
+      "area": "Switching",
+      "coverage": "Imports",
+      "name": "“Coming from another app?” → pick the exported file → balances checked → Bring it over: a new group with the same expenses, payments and balances",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 155,
+      "area": "Trips",
+      "coverage": "Sharing",
+      "name": "Charts shows a few plain-English lines and “Trip report”; the report shares as a picture plus text (no link to the group)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 156,
+      "area": "Account",
+      "coverage": "Privacy",
+      "name": "You → Download all my data: one spreadsheet with every group, my share and my balance change",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 157,
+      "area": "Sign in",
+      "coverage": "Onboarding",
+      "name": "Fingerprint / face: turn it on, sign out, sign back in with one touch, then remove it",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 158,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Shares: ₹1,200 split 2 : 1 : 1 : 1 : 1 → Varun ₹400, the others ₹200 each",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 159,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Split by item: ₹1,180 bar bill, Pizza ₹600 for Varun and Asha, Beer ₹400 for Asha → tax and tip shared by what each had: Varun ₹354, Asha ₹826",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 160,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "A bill photo stays with the expense: Asha can open it, and someone outside the group can't",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 161,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Slow connection: Save shows Saving… and stays off; a second tap adds nothing; saved once",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 162,
+      "area": "Postcards",
+      "coverage": "Sharing",
+      "name": "A postcard link that doesn't exist: signed in → 'This screen isn't here'; signed out → sign-in first",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 163,
+      "area": "Edit",
+      "coverage": "Money",
+      "name": "Editing shows the bill photo already kept, with Replace and Remove; Remove takes it off when saved",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 164,
+      "area": "Sign in",
+      "coverage": "Onboarding",
+      "name": "A wrong code is refused with a clear message, and the right one still works",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 165,
+      "area": "Sign in",
+      "coverage": "Onboarding",
+      "name": "Right after signing in, “Sign in faster next time?” can be closed with ✕ and stays closed",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 166,
+      "area": "Settle",
+      "coverage": "Sharing",
+      "name": "Remind opens WhatsApp with the amount and who owes it",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 167,
+      "area": "Settle",
+      "coverage": "Money",
+      "name": "When every payment is under the group's minimum, Settle says “Nearly square”",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 168,
+      "area": "Add people",
+      "coverage": "Sharing",
+      "name": "The invite screen shows the group's link and a QR code",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 169,
+      "area": "Navigation",
+      "coverage": "Regression",
+      "name": "The group name at the top switches to another group",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 170,
+      "area": "Currency",
+      "coverage": "Money",
+      "name": "A yen group shows no decimals anywhere, and its settle-up minimum reads in whole yen",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 171,
+      "area": "Flat",
+      "coverage": "Money",
+      "name": "A bill whose payer has moved out waits with “Add it”, and Add it comes pre-filled",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 172,
+      "area": "Switching",
+      "coverage": "Imports",
+      "name": "A file that isn't a known export gets a clear message; a second currency is flagged",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 173,
+      "area": "Trips",
+      "coverage": "Sharing",
+      "name": "Close the imported trip: Home links to the trip report, which says All settled; Copy as text works",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 174,
+      "area": "Privacy",
+      "coverage": "Privacy",
+      "name": "A stranger can't open a group's report, its spreadsheet or someone else's data download",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 175,
+      "area": "Collect",
+      "coverage": "Money",
+      "name": "Varun makes a Farewell collection (₹500 each, his UPI), lists Zoya and Kabir, and picks Asha from his Loopin friends",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 176,
+      "area": "Collect",
+      "coverage": "Notifications",
+      "name": "Asha (on Loopin) finds it in Alerts: “Varun added you: ₹500 each”",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 177,
+      "area": "Collect",
+      "coverage": "Sharing",
+      "name": "Zoya opens the link with no sign-up: the UPI button has Varun's ID and ₹500 filled in; she ticks her name",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 178,
+      "area": "Collect",
+      "coverage": "Notifications",
+      "name": "Varun sees “Zoya says paid” in Alerts, taps Confirm received, marks Kabir as paid in cash: 2 of 3, ₹1,000 of ₹1,500",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 179,
+      "area": "Collect",
+      "coverage": "Notifications",
+      "name": "Varun reminds Asha inside Loopin (bell); a second reminder straight away is refused; Asha sees it in Alerts",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 180,
+      "area": "Collect",
+      "coverage": "Permissions",
+      "name": "Someone else can't change Varun's collection (no organiser buttons; a forged Confirm received is refused)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 181,
+      "area": "New group",
+      "coverage": "Regression",
+      "name": "“What’s it for?” offers Trip, Home, Couple, Game night, Collect and Anything Goes; Game night explains itself; Collect opens Collect",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 182,
+      "area": "Countdown",
+      "coverage": "Regression",
+      "name": "A trip made with a start date in 10 days: the group says “in 10 days”, Home shows the countdown strip with the trip's picture",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 183,
+      "area": "Countdown",
+      "coverage": "Regression",
+      "name": "A second trip in 30 days: the soonest stays in the countdown strip under the money card, the later one shows under “Also coming up”, one card at a time",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 184,
+      "area": "Groups",
+      "coverage": "Regression",
+      "name": "A photo picked while making a group becomes its picture",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 185,
+      "area": "Add",
+      "coverage": "Money",
+      "name": "Type it in one line: “Snacks 600 split with everyone” fills the name, amount and split, and nothing saves until Save",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 186,
+      "area": "Add",
+      "coverage": "Regression",
+      "name": "Add expense is tidy: the amount, the day under it, one What was it? field with Scan a bill · Speak · Type a line inside it, then two rows for who paid and the split; notes, several payers and Spin sit under a closed More link; the result for you is one quiet line under the card",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 187,
+      "area": "Add",
+      "coverage": "Regression",
+      "name": "Editing an expense that has notes opens More by itself, so nothing is hidden",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 188,
+      "area": "Words",
+      "coverage": "Regression",
+      "name": "No page says another app’s name: the tour, guide, FAQ, switching and import screens",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 189,
+      "area": "Words",
+      "coverage": "Regression",
+      "name": "Game night: none of poker, teen patti, buy-in, cash out, winnings or bet appears on the group-type chips, the game screens, the FAQ or How Loopin works; the calm line is on the game screen",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 190,
+      "area": "Words",
+      "coverage": "Regression",
+      "name": "The import screen gives generic export steps and no other app’s name",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 191,
+      "area": "Settle",
+      "coverage": "Sharing",
+      "name": "Varun adds his UPI ID on the You page; his WhatsApp Remind carries it and an “I’ve paid” link that opens without signing in",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 192,
+      "area": "Settle",
+      "coverage": "Money",
+      "name": "Outside India: the You page has no UPI box; Varun saves a PayPal link and the “I’ve paid” page offers PayPal",
+      "status": "na",
+      "runsOn": [
+        "desktop"
+      ],
+      "detail": "not applicable on android: this is the outside-India path (PayPal, Venmo, Revolut, Monzo); in India the UPI step above runs instead (runs on desktop)"
+    },
+    {
+      "n": 193,
+      "area": "Fun",
+      "coverage": "Regression",
+      "name": "React 🔥 to an expense: it shows under the expense; tapping 🔥 again takes it back",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 194,
+      "area": "Fun",
+      "coverage": "Regression",
+      "name": "Spin for it: the wheel lands on someone, and they become the payer",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 195,
+      "area": "Fun",
+      "coverage": "Sharing",
+      "name": "Wrapped: tap through the slides; the last one offers Share",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 196,
+      "area": "Fun",
+      "coverage": "Regression",
+      "name": "Titles: everyone in the group gets a fun title, shown as a small chip under their name on Balances",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 197,
+      "area": "Fun",
+      "coverage": "Sharing",
+      "name": "Where to? when making a trip (optional): the trip earns its passport stamp",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 198,
+      "area": "Fun",
+      "coverage": "Sharing",
+      "name": "Trip passport opens like a booklet, and several countries from before Loopin can be added at once",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 199,
+      "area": "Fun",
+      "coverage": "Sharing",
+      "name": "Share my passport sends one picture of the open booklet (details, map, every stamp), and nothing else",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 200,
+      "area": "Fun",
+      "coverage": "Sharing",
+      "name": "Passport Been tab: Thailand 5–10 May 2026 (6 days) and Goa 13–15 Mar 2026 (3 days) show as cards, and the numbers read 2 countries, 2 trips, 9 days away",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 201,
+      "area": "Money",
+      "coverage": "Money",
+      "name": "A big group of 12: a ₹1,200 dinner for everyone is ₹100 each, and all 12 balances are right",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Varun +1100.00, Meera −100.00, Dev −100.00, Isha −100.00, Neel −100.00, Tara −100.00, Kabir −100.00, Lata −100.00, Omar −100.00, Pia −100.00, Sana −100.00, Yash −100.00"
+    },
+    {
+      "n": 202,
+      "area": "Money",
+      "coverage": "Money",
+      "name": "In that group, ₹1,000 shared by 12 can't divide evenly: four people carry ₹83.34, eight ₹83.33, and nothing is lost",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Varun +1016.67, Meera +816.67, Dev −183.33, Isha −183.33, Neel −183.33, Tara −183.33, Kabir −183.33, Lata −183.33, Omar −183.33, Pia −183.33, Sana −183.33, Yash −183.33"
+    },
+    {
+      "n": 203,
+      "area": "Money",
+      "coverage": "Money",
+      "name": "Money back bigger than a share: Meera gets ₹600 back for the minibus, shared by all 12 (₹50 each)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Varun +1066.67, Meera +266.67, Dev −133.33, Isha −133.33, Neel −133.33, Tara −133.33, Kabir −133.33, Lata −133.33, Omar −133.33, Pia −133.33, Sana −133.33, Yash −133.33"
+    },
+    {
+      "n": 204,
+      "area": "Money",
+      "coverage": "Money",
+      "name": "Settle up for 12 people: at most 11 payments, and together they move what the two people who are owed are owed",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "10 payments, ₹1333.32"
+    },
+    {
+      "n": 205,
+      "area": "Money",
+      "coverage": "Money",
+      "name": "Yen has no decimals: ¥1,000 shared by 3 is ¥334 + ¥333 + ¥333, then Kenji pays ¥2,400 (¥800 each)",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Varun −133, Kenji +1267, Mika −1133"
+    },
+    {
+      "n": 206,
+      "area": "Imports",
+      "coverage": "Imports",
+      "name": "A plain spreadsheet from some other app: Loopin can't guess who paid, asks which column is which, and the balances come out exactly",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Meera +566.66, Dev −233.33, Isha −333.33"
+    },
+    {
+      "n": 207,
+      "area": "Imports",
+      "coverage": "Imports",
+      "name": "Loopin's own spreadsheet for the 12-person group (with its refund) is brought back in: the copy has the same 12 balances to the paisa",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "Varun +1066.67, Meera +266.67, Dev −133.33, Isha −133.33, Neel −133.33, Tara −133.33, Kabir −133.33, Lata −133.33, Omar −133.33, Pia −133.33, Sana −133.33, Yash −133.33"
+    },
+    {
+      "n": 208,
+      "area": "Sharing",
+      "coverage": "Sharing",
+      "name": "The pay link opened by someone who isn't signed in shows exactly what they owe (₹450); “I've paid” is only a claim until Varun confirms",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 209,
+      "area": "Sharing",
+      "coverage": "Sharing",
+      "name": "A postcard with a wax seal: Asha sends it to Ravi, who opens it, turns it over and reads the message",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 210,
+      "area": "Sharing",
+      "coverage": "Sharing",
+      "name": "A postcard sealed until next year can't be read early; once its day comes (the clock moved on in the test database) it opens",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 211,
+      "area": "Sharing",
+      "coverage": "Sharing",
+      "name": "One-side postcard: Asha sends it, Ravi reads it as one card (no flip), with the message on it",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 212,
+      "area": "Permissions",
+      "coverage": "Permissions",
+      "name": "A postcard is for its sender and its receiver only: a third person gets “not found”, and signed out is sent to sign in",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 213,
+      "area": "Safety",
+      "coverage": "Regression",
+      "name": "Report and block: Ravi reports Asha's postcard (“We'll look at this within 24 hours”), blocks her from there, her card is gone from his view, and he unblocks from You",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 214,
+      "area": "Safety",
+      "coverage": "Regression",
+      "name": "AI question: You → Privacy and safety starts “Not asked yet”; Don't allow records no, Allow records yes; Contact support is there",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 215,
+      "area": "Privacy",
+      "coverage": "Privacy",
+      "name": "Passport: hidden until the owner chooses. Ravi can't open Asha's before she answers; the question shows once, and Show opens it",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 216,
+      "area": "Sharing",
+      "coverage": "Sharing",
+      "name": "Not now keeps a passport hidden and the question never comes back",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 217,
+      "area": "Sharing",
+      "coverage": "Sharing",
+      "name": "Asha sends her passport to Ravi, who set his own to “Only me”: he gets it, and Asha still can't open his",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 218,
+      "area": "Privacy",
+      "coverage": "Privacy",
+      "name": "Someone who hid their passport can't send it either (“change who can see it first”), and turning it back on restores both",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 219,
+      "area": "Permissions",
+      "coverage": "Permissions",
+      "name": "Varun starts a new group; Ravi and Zoe join from its link. Ravi, an ordinary member, sees no delete / currency / remove controls",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 220,
+      "area": "Money",
+      "coverage": "Money",
+      "name": "“Yesterday” is yesterday where the person is: the saved day, and the time zone the app was told, both match",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "2026-11-13 in Asia/Kolkata"
+    },
+    {
+      "n": 221,
+      "area": "Permissions",
+      "coverage": "Permissions",
+      "name": "Ravi leaves the group himself; after that he sees it only up to the day he left",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 222,
+      "area": "Permissions",
+      "coverage": "Permissions",
+      "name": "A leaver trying to edit: the Add screen says he left and offers no Save, and Varun's old expense opens read-only",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 223,
+      "area": "Permissions",
+      "coverage": "Permissions",
+      "name": "Varun removes Zoe; she can't get back in with the old invite link or the old group address",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 224,
+      "area": "Regression",
+      "coverage": "Regression",
+      "name": "No screen scrolls sideways at this device's own size, including the 12-person and yen groups",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": "15 screens at 390 px wide"
+    },
+    {
+      "n": 225,
+      "area": "Regression",
+      "coverage": "Regression",
+      "name": "On a 1440 px wide screen the app stays one tidy, centred column (no stretched screens)",
+      "status": "na",
+      "runsOn": [
+        "desktop"
+      ],
+      "detail": "not applicable on android: a wide window only exists on a computer (runs on desktop)"
+    },
+    {
+      "n": 226,
+      "area": "Sharing",
+      "coverage": "Sharing",
+      "name": "Android contact picker: “Pick from contacts” adds the chosen names to a collection (the phone's picker is stood in for)",
+      "status": "pass",
+      "runsOn": [
+        "android"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 227,
+      "area": "Notifications",
+      "coverage": "Notifications",
+      "name": "Android buzz: tapping Add expense gives the light tap pattern (navigator.vibrate is stood in for and listened to)",
+      "status": "pass",
+      "runsOn": [
+        "android"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 228,
+      "area": "Onboarding",
+      "coverage": "Onboarding",
+      "name": "iPhone install hint: real Safari-engine on an iPhone 14 (not a pretend one) shows the “Add to Home Screen” steps from the invite link",
+      "status": "na",
+      "runsOn": [
+        "iphone"
+      ],
+      "detail": "not applicable on android: the Add to Home Screen steps are for Safari on an iPhone; Android and computers are shown other steps (runs on iphone)"
+    },
+    {
+      "n": 229,
+      "area": "Regression",
+      "coverage": "Regression",
+      "name": "iPhone has no buzz: tapping Add expense still works and the page throws no errors",
+      "status": "na",
+      "runsOn": [
+        "iphone"
+      ],
+      "detail": "not applicable on android: only iPhones lack vibration while still being phones; the other profiles are checked by the Android buzz step (runs on iphone)"
+    },
+    {
+      "n": 230,
+      "area": "Moments",
+      "coverage": "Privacy",
+      "name": "Varun adds a moment (a photo, “The boat we almost missed 😂”, Day 3): it shows in the group's strip and on Our moments",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 231,
+      "area": "Moments",
+      "coverage": "Privacy",
+      "name": "Asha sees “Varun added a moment” in Home's story circles, adds her own moment, and reacts 😂 to Varun's: the count shows 1",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 232,
+      "area": "Moments",
+      "coverage": "Privacy",
+      "name": "Ravi reports Varun's moment (and sees the thank-you), then blocks Varun: it disappears from his list, his story circles, and its photo address answers 404",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 233,
+      "area": "Moments",
+      "coverage": "Privacy",
+      "name": "A signed-in outsider and a signed-out browser both get 404 on the photo address and on the page",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 234,
+      "area": "Moments",
+      "coverage": "Privacy",
+      "name": "Ravi leaves: he still sees older moments with no Add button; Asha's new moment is hidden from him and its address answers 404",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    },
+    {
+      "n": 235,
+      "area": "Moments",
+      "coverage": "Privacy",
+      "name": "Varun, who looks after the group, removes Asha's moment; Asha deletes her own: each photo is gone for everyone",
+      "status": "pass",
+      "runsOn": [
+        "android",
+        "iphone",
+        "desktop"
+      ],
+      "detail": ""
+    }
+  ]
+}
