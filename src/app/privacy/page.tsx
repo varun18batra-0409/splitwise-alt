@@ -53,7 +53,7 @@ export default function Privacy() {
         <li>If you switch on notifications, a browser address to send them to.</li>
         <li>Your time zone, sent by your phone, so reminders arrive in the daytime where you are.</li>
         <li>Your Trip passport details: the home country you pick and any places you add by hand. Its trips come from your trip groups.</li>
-        <li>Your Want to go list: countries you add, private to you unless you show one (or the whole list) to a friend you are in a group with, who can then see only what you showed. Removing a place, leaving all your shared groups or blocking someone ends their view.</li>
+        <li>Your Want to go list: countries you add, private to you unless you show one (or the whole list) to a friend you are in a group with, who can then see only what you showed. Removing a place or blocking someone ends their view. If you are no longer in a group together, sharing pauses, and it picks up again if you are ever in a group together again (this is checked every time).</li>
         <li>Postcards you send or get: the card, your message and, if you add one, your own photo.</li>
         <li>Your answer to “Let AI read bills and lines”, on your account (or on your phone, if you have no account).</li>
         <li>Messages you send to support: the message, the date and any reply email you leave. If you’re signed in it’s saved with your account. If you’re not, it isn’t linked to an account, and your network address is kept for about two days, only to limit abuse.</li>

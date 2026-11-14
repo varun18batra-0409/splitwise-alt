@@ -9,14 +9,28 @@ vi.mock("next/headers", () => ({
   headers: async () => new Headers({ host: "loopin.test" }),
 }));
 vi.mock("react", async (orig) => ({ ...(await orig<typeof import("react")>()), cache: <T,>(f: T) => f }));
+// The server actions: the signed-in account is whatever the test sets; a redirect is caught and its address handed back.
+const session = vi.hoisted(() => ({ account: null as null | { id: string; name: string; email: string } }));
+vi.mock("@/lib/identity", async (orig) => ({ ...(await orig<typeof import("@/lib/identity")>()), getAccount: async () => session.account }));
+vi.mock("@/lib/fresh-redirect", () => ({
+  redirect: (url: string) => {
+    throw new Error(`REDIRECT ${url}`);
+  },
+}));
+vi.mock("next/server", async (orig) => ({ ...(await orig<typeof import("next/server")>()), after: () => undefined }));
 process.env.MAIL_OUTBOX = "1";
 
 const { db } = await import("@/lib/db");
 const { COUNTRIES } = await import("@/lib/geo");
 const { blockAccount, unblockAccount } = await import("@/lib/blocks");
 const { deleteAccount } = await import("@/lib/auth");
-const { loadInvitations } = await import("@/lib/invitations");
-const { addWishes, areCurrentFriends, currentFriends, loadMyWishes, matches, mySharing, planTogether, removeWish, setShares, sharedWithMe } = await import("@/lib/wishes-db");
+const { loadInvitations, declineInvitation } = await import("@/lib/invitations");
+const { addWishes, areCurrentFriends, currentFriends, findSharedTrip, loadMyWishes, matches, mySharing, planTogether, removeWish, setShares, sharedWithMe } = await import("@/lib/wishes-db");
+const { addRegistered } = await import("@/lib/invites");
+const { setMemberLeft } = await import("@/lib/people");
+const { canSeePassport } = await import("@/lib/passport-db");
+const { SHARE_ROW_LIMIT } = await import("@/lib/wishes");
+const { addWishesAction, removeWishAction, shareWishesAction, planTogetherAction } = await import("@/app/wish-actions");
 const { loadMyDataExtra } = await import("@/lib/my-data-extra");
 const { myDataCsv } = await import("@/lib/csv");
 const { mutualMatches, visibleTo, cleanCountry } = await import("@/lib/wishes");
@@ -63,6 +77,7 @@ async function pair() {
   await addWishes(owner.id, ["JP"]);
   await addWishes(viewer.id, ["JP"]);
   await setShares(owner.id, "JP", [viewer.id]);
+  await setShares(viewer.id, "JP", [owner.id]); // both ways, so there is a match to lose
   return { owner, viewer, g };
 }
 // (Created in the same millisecond, so compared as a set: sorted.)
@@ -138,11 +153,14 @@ describe("who sees what", () => {
     ["the friend was removed", async (p) => db.member.updateMany({ where: { accountId: p.owner.id }, data: { removedAt: new Date() } })],
     ["the friend is only pending (added, never opened it)", async (p) => db.member.updateMany({ where: { accountId: p.owner.id }, data: { addedBy: "someone-else", seenAt: null } })],
     ["the group was deleted", async (p) => db.group.update({ where: { id: p.g.id }, data: { deletedAt: new Date() } })],
+    ["you are only pending (added, never opened it)", async (p) => db.member.updateMany({ where: { accountId: p.viewer.id }, data: { addedBy: "someone-else", seenAt: null } })],
+    ["you were removed", async (p) => db.member.updateMany({ where: { accountId: p.viewer.id }, data: { removedAt: new Date(), leftAt: new Date() } })],
   ];
   for (const [why, change] of nothing)
     it(`shows nothing when ${why}`, async () => {
       const p = await pair();
       expect(await seen(p.viewer.id)).toEqual(["JP"]); // it works before the change
+      expect((await matches(p.viewer.id)).map((m) => m.countries)).toEqual([["JP"]]); // and so does the match
       await change(p);
       expect(await seen(p.viewer.id)).toEqual([]);
       expect(await matches(p.viewer.id)).toEqual([]);

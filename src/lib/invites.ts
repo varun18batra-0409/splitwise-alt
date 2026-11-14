@@ -210,6 +210,16 @@ const isAdmin = async (groupId: string, memberId: string) => (await groupAdminId
 // any member can bring back someone who left on their own.
 const bringBack = (groupId: string, actorId: string, memberId: string) => setMember(groupId, actorId, memberId, { leftAt: null });
 
+// The normal "added you to <group>" alert for someone brought back (they now have an invitation to open). Nothing if they blocked the one who did it.
+async function noteBroughtBack(group: { id: string; name: string }, actor: { name: string; accountId: string | null }, accountId: string, later?: Later) {
+  const job = async () => {
+    if (actor.accountId && (await hasBlocked(accountId, actor.accountId).catch(() => true))) return;
+    await deliverNotes([{ accountIds: [accountId], kind: "group_invite", title: `${actor.name} added you to ${group.name}`, body: "Tap to join, or choose Not now.", url: `/groups/${group.id}`, tag: `invite-${group.id}` }]);
+  };
+  if (later) later(job);
+  else await job().catch(() => undefined);
+}
+
 // Add someone who's already on Loopin (found by name among people you share a group with).
 // They're in the group at once as a name and invited, like an email add.
 // `later`: send the email and note after the reply (so adding is instant).
@@ -226,18 +236,22 @@ export async function addRegistered(groupId: string, actorId: string, accountId:
     const back = await bringBack(groupId, actorId, existing.id);
     if (!back.ok) return back;
     await copyPushTo(accountId, existing.id);
+    await noteBroughtBack(group, actor, accountId, opts.later);
     return { ok: true, memberId: existing.id, eventId: back.eventId ?? "", name: existing.name, email: account.email };
   }
   if (existing && !existing.leftAt) return { ok: false, error: `${existing.name} is already in this group.` };
 
   if (existing) {
-    // Someone who left on their own and is added back: back in, as before. Any member can do this (only removed people need the admin).
+    // Someone who left on their own and is added back by someone else: the same state as a fresh invitation (added by you, group not
+    // opened yet), NOT an instant rejoin. Their old "joined" mark must not make them a current member or friend again without their say;
+    // they count again once they open the group themselves. Any member can do this (only removed people need the admin).
     const { eventId } = await db.$transaction(async (tx) => {
-      await tx.member.update({ where: { id: existing.id }, data: { leftAt: null } });
+      await tx.member.update({ where: { id: existing.id }, data: { leftAt: null, addedBy: actorId, seenAt: null } });
       const eventId = await logEvent(tx, { groupId, actorId, kind: "members_added", text: `added ${existing.name} to the group` });
       return { eventId };
     });
     await copyPushTo(accountId, existing.id);
+    await noteBroughtBack(group, actor, accountId, opts.later);
     return { ok: true, memberId: existing.id, eventId, name: existing.name, email: account.email };
   }
   const mail = await inviteMailOk(actor);
@@ -277,7 +291,10 @@ export async function inviteByEmail(groupId: string, actorId: string, rawEmails:
       if (already.removedAt) {
         if (await isAdmin(groupId, actorId)) {
           const back = await bringBack(groupId, actorId, already.id);
-          if (back.ok) await copyPushTo(account.id, already.id);
+          if (back.ok) {
+            await copyPushTo(account.id, already.id);
+            await noteBroughtBack(group, actor, account.id, opts.later);
+          }
         }
       } else if (already.leftAt) {
         // Left on their own: invited to their own row. Join brings them back (they are not back until they tap it).

@@ -15,6 +15,8 @@ import { SHARE_ALL, SHARE_ROW_LIMIT, WISH_LIMIT, cleanCountries, cleanCountry, c
 
 const NOW = { ...JOINED, leftAt: null, removedAt: null }; // in the group right now
 
+const DECLINE_QUIET_MS = 30 * 86_400_000; // after "Not now" to a trip for a country, no new one for 30 days
+
 const first = (name: string) => name.trim().split(/\s+/)[0] || name;
 
 // The people you are in a group with right now (on Loopin, joined), without anyone blocked either way round.
@@ -102,16 +104,26 @@ export async function setShares(ownerId: string, rawScope: unknown, friendIds: s
     return { ok: false, shared: 0, error: "That place isn’t on your list." };
   const friends = new Set((await currentFriends(ownerId)).map((f) => f.id));
   const want = [...new Set(friendIds.filter((id) => friends.has(id)))];
-  await db.wishShare.deleteMany({ where: { ownerId, country: scope, friendId: { notIn: want } } });
+  // Only CURRENT friends can be un-ticked here. A row for someone you are not in a group with right now is paused (it shows nothing
+  // and comes back if you are in a group together again), so a save from the sheet must not delete it.
+  const drop = [...friends].filter((id) => !want.includes(id));
+  if (drop.length) await db.wishShare.deleteMany({ where: { ownerId, country: scope, friendId: { in: drop } } });
   let rows = await db.wishShare.count({ where: { ownerId } });
   let shared = 0;
   for (const friendId of want) {
     if (rows >= SHARE_ROW_LIMIT) return { ok: false, shared, error: "You’re sharing with a lot of people already." };
+    // A block ends sharing both ways (blocks.ts deletes the rows), so check right before writing, and again right after: if the block
+    // landed in between, take the row back out rather than leave one behind.
+    if (await isBlockedEitherWay(ownerId, friendId)) continue;
     try {
       await db.wishShare.create({ data: { ownerId, friendId, country: scope } });
       rows++;
     } catch (e) {
       if ((e as { code?: string })?.code !== "P2002") throw e; // already shared with them
+    }
+    if (await isBlockedEitherWay(ownerId, friendId)) {
+      await db.wishShare.deleteMany({ where: { ownerId, friendId } });
+      continue;
     }
     shared++;
   }
@@ -192,7 +204,7 @@ export async function findSharedTrip(accountId: string, friendId: string, countr
       tripCountry: country,
       deletedAt: null,
       members: { some: { accountId, ...NOW } },
-      AND: [{ OR: [{ members: { some: { accountId: friendId, removedAt: null } } }, { invites: { some: { email: friendEmail, declinedAt: null } } }] }],
+      AND: [{ OR: [{ members: { some: { accountId: friendId, removedAt: null, leftAt: null } } }, { invites: { some: { email: friendEmail, declinedAt: null } } }] }],
     },
     select: { id: true, members: { where: { accountId }, select: { id: true } } },
     orderBy: { createdAt: "desc" },
@@ -226,6 +238,19 @@ export async function planTogether(account: { id: string; name: string }, friend
   const there = await findSharedTrip(account.id, friendId, country);
   if (there) return { ok: true, groupId: there.groupId, memberId: there.memberId, existing: true };
 
+  // They said "Not now" to a trip for this country from you in the last 30 days: don't send another one straight away.
+  const friendRow = await db.account.findUnique({ where: { id: friendId }, select: { email: true, name: true } });
+  const turnedDown = friendRow
+    ? await db.invite.findFirst({
+        where: { email: friendRow.email, declinedAt: { gte: new Date(Date.now() - DECLINE_QUIET_MS) }, group: { type: "trip", tripCountry: country, members: { some: { accountId: account.id } } } },
+        select: { id: true },
+      })
+    : null;
+  if (turnedDown) {
+    const who = first(cleanNames([friendRow?.name ?? ""])[0] ?? "") || "They";
+    return { ok: false, error: `${who} said not now to ${countryOf(country)?.name ?? "that trip"}. Try again later.` };
+  }
+
   // The same tap twice (or two phones) makes one group.
   const key = opts.key;
   if (key) {
@@ -252,7 +277,13 @@ export async function planTogether(account: { id: string; name: string }, friend
     if (key) await db.requestKey.deleteMany({ where: { key, result: "" } }).catch(() => undefined);
     throw err;
   }
-  if (key) await db.requestKey.update({ where: { key }, data: { result: group.id } }).catch(() => undefined);
+  if (key) {
+    // If the key can't be filled in, don't leave it stuck on "Making your trip…": free it, so a retry goes on (and finds this trip).
+    await db.requestKey.update({ where: { key }, data: { result: group.id } }).catch(async (e) => {
+      console.error("planTogether: couldn't save the request key", e);
+      await db.requestKey.deleteMany({ where: { key, result: "" } }).catch(() => undefined);
+    });
+  }
   const me = group.members[0];
   await copyPushTo(account.id, me.id);
   // The group is made either way; if the invitation could not go out, you can invite from the group (no half-made state to undo).

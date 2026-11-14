@@ -106,6 +106,11 @@ export async function setMember(
           : {};
     // Taking out someone who had already left keeps the day they left.
     const leftAtNext = leaving ? (promoting ? m.leftAt! : new Date(data.leftAt!)) : null;
+    // Someone ELSE bringing a person with a sign-in back (they left on their own, or the admin removed them) is an invitation, not
+    // a rejoin: they count as pending (added by the one who brought them back, group not opened yet) until they open the group
+    // themselves. Their old "joined" mark would otherwise make them an instant current member and friend again with no say.
+    // Rejoining yourself, undo, and name-only rows (nobody to ask) are unchanged.
+    const invitedBack = !leaving && !undoing && memberId !== actorId && Boolean(m.accountId) && (alreadyLeft || m.removedAt !== null);
     await opts.afterRead?.();
     try {
     const eventId = await db.$transaction(async (tx) => {
@@ -117,7 +122,7 @@ export async function setMember(
         const owing = (await ledgerInTx(tx, groupId)).net[memberId] ?? 0;
         if (owing !== 0) throw new StillOwes(owing);
       }
-      await tx.member.update({ where: { id: memberId }, data: { leftAt: leftAtNext, ...removal } });
+      await tx.member.update({ where: { id: memberId }, data: { leftAt: leftAtNext, ...removal, ...(invitedBack ? { addedBy: actorId, seenAt: null } : {}) } });
       return logEvent(tx, {
         groupId,
         actorId,
