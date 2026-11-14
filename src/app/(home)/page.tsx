@@ -695,6 +695,9 @@ export default async function Home({
           {/* Money: a boarding pass with the route, the amount and the one next step; what needs you is a quiet line under it. */}
           <MoneyCard ticket={ticket} mode={mode} tone={mode === "owed" ? "owed" : mode === "owe" ? "owe" : "plain"} stub={stub} sideStubs={sideStubs} facts={facts} year={today.slice(0, 4)} need={need} />
 
+          {/* Coming up, straight after the money (the founder's order): one boarding pass per upcoming trip, earliest first, swiped sideways. */}
+          <ComingUp passes={passes} />
+
           {invitationsBlock}
 
           {/* Groups: polaroids you swipe sideways. "See all" opens the full list. */}
@@ -713,9 +716,6 @@ export default async function Home({
               </div>
             )}
           </section>
-
-          {/* Coming up: one boarding pass per upcoming trip, swiped sideways. */}
-          <ComingUp passes={passes} />
 
           {/* Latest */}
           {recent.length > 0 && (
