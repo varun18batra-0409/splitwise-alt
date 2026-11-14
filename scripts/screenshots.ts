@@ -354,6 +354,18 @@ await shot("68-home-first-screen", "/", async (p) => {
 if (wide) await page.setViewportSize(wide);
 // The whole Home at 390 (stories, boarding pass, groups, countdown, latest, the month card).
 await shot("69-home-full", "/");
+// The Home cards, each one (paused, then picked by its dot), at 390 and on the narrowest phone (320).
+for (const [prefix, w] of [["69", undefined], ["n320-69", 320]] as const) {
+  if (w) await page.setViewportSize({ width: w, height: 640 });
+  for (const n of [1, 2, 3, 4]) {
+    await shot(`${prefix}-home-card-${n}`, "/", async (p) => {
+      await p.getByRole("button", { name: /Pause the highlights/ }).click();
+      await p.getByRole("button", { name: new RegExp(`^Show ${n} of`) }).click();
+      await p.waitForTimeout(900);
+    }, false);
+  }
+  if (w) await page.setViewportSize(wide ?? screen);
+}
 // Collect: the organiser's screens, then what someone opening the link sees.
 let collectCode = "";
 if (!hosted) {

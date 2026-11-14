@@ -158,12 +158,13 @@ describe("a calmer Home", () => {
     expect(you).toContain("<GetAppButton");
     expect(you).toContain('href="/how-it-works"');
   });
-  it("one countdown with an Also line; no TripRow, no Also coming up cards, no sliding carousel, no Plan a trip card", () => {
+  it("one countdown with an Also line; no TripRow, no Also coming up cards, no Plan a trip card; the sliding Home cards are back", () => {
     expect(home).toContain("alsoLine(");
     expect(home).not.toContain("TripRow");
     expect(home).not.toContain("Also coming up");
-    expect(home).not.toContain("HomeBanner");
     expect(home).not.toContain("Plan a trip");
+    expect(home).toContain("<HomeBanner>");
+    expect(home).toContain("homeHighlights(");
     expect(home).toContain("data-month-card");
   });
   it("the Also line: Manali in 40 days; two trips and a third say 'and 1 more'", () => {

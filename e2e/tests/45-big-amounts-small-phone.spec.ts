@@ -66,7 +66,7 @@ test("a lakh amount fits at 320×640: the activity row and Home's two-sided tick
   await settled(page);
   const card = page.locator("[data-balance-card]").first();
   await expect(card).toHaveAttribute("data-ticket", "both");
-  await expect(card).toContainText("₹6,17,284"); // Home rounds to whole rupees
+  await expect(card).toContainText("₹6,17,283.94"); // Home is exact too
   await fullyVisible(page, "[data-balance-card] [data-net-balance]", "Home ticket amount");
   expect(await noSidewaysScroll(page), "Home does not scroll sideways").toBeLessThanOrEqual(1);
 

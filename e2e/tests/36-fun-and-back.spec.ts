@@ -59,6 +59,7 @@ test("titles, Wrapped, the passport and a game night: in, around, back out, and 
   // Friends' passports: from your own passport, everyone you've shared a group with.
   await page.goto("/passport");
   await settled(page);
+  await page.locator("summary", { hasText: "Passport settings" }).click(); // the link sits inside the collapsed settings
   await page.locator("[data-friends-link]").click();
   await page.waitForURL(/\/passport\/friends$/);
   await page.getByRole("link", { name: /Ravi/ }).click();

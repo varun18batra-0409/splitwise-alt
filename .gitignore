@@ -8,6 +8,7 @@ prisma/dev.db-journal
 .demo.json
 screenshots/
 public/photos/
+public/flags/
 e2e-report/
 e2e-results/
 e2e-private/

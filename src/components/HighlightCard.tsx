@@ -7,7 +7,7 @@ import type { Highlight, HighlightTone } from "@/lib/home/highlights";
 // photo (or a small drawn object) on the right, one button.
 
 // One calm card for every tone: #16161a with a quiet off-white label (no per-card colour wash).
-const PLAIN = { bg: "#16161a", fade: "22,22,26", eyebrow: "#f4f2ec8c" };
+const PLAIN = { bg: "linear-gradient(150deg,#241d1f 0%,#16161a 55%,#101012 100%)", fade: "22,22,26", eyebrow: "#f4f2ec8c" };
 const TONE: Record<HighlightTone, { bg: string; fade: string; eyebrow: string }> = {
   trip: PLAIN,
   sky: PLAIN,
@@ -25,8 +25,18 @@ export function HighlightCard({ h }: { h: Extract<Highlight, { kind: "card" }> }
   const t = TONE[h.tone];
   const picture = h.photo || h.cover;
   return (
-    <div className="relative flex min-h-[268px] flex-1 flex-col overflow-hidden px-5 pb-12 pt-5" style={{ background: t.bg }} data-highlight={h.id}>
-      {h.photo ? (
+    <div className="relative flex min-h-[268px] flex-1 flex-col overflow-hidden px-5 pb-12 pt-5" style={{ background: t.bg }} data-highlight={h.id} data-highlight-scene={h.scene && h.photo ? "photo" : undefined}>
+      {h.scene && h.photo ? (
+        // A real photo (a stamped passport, vintage postcards) fills the card; a dark wash from the left keeps the words readable.
+        <>
+          <Image src={h.photo} alt="" fill sizes="(max-width: 480px) 100vw, 480px" className="object-cover" />
+          <div aria-hidden className="absolute inset-0" style={{ background: "linear-gradient(90deg, rgba(16,14,14,0.92) 28%, rgba(16,14,14,0.62) 62%, rgba(16,14,14,0.38) 100%), linear-gradient(0deg, rgba(16,14,14,0.7), rgba(16,14,14,0) 45%)" }} />
+          {/* A little postmark, like the stamps in the passport. */}
+          <span aria-hidden className="absolute right-4 top-4 flex h-12 w-12 -rotate-[8deg] items-center justify-center rounded-full border border-dashed border-white/40 text-[8px] font-semibold uppercase tracking-[0.14em] text-white/70">
+            {h.art === "postcard" ? "Post" : "Visa"}
+          </span>
+        </>
+      ) : h.photo ? (
         <div className="absolute inset-y-0 left-[38%] right-0">
           <Image src={h.photo} alt="" fill sizes="(max-width: 480px) 65vw, 320px" className="object-cover" />
         </div>
@@ -35,9 +45,9 @@ export function HighlightCard({ h }: { h: Extract<Highlight, { kind: "card" }> }
           <GroupCover kind={h.cover} uid={`hl-${h.id}`} />
         </div>
       ) : null}
-      {picture && <div aria-hidden className="absolute inset-0" style={{ background: `linear-gradient(90deg, rgb(${t.fade}) 34%, rgba(${t.fade},0.55) 62%, rgba(${t.fade},0) 92%)` }} />}
+      {picture && !h.scene && <div aria-hidden className="absolute inset-0" style={{ background: `linear-gradient(90deg, rgb(${t.fade}) 34%, rgba(${t.fade},0.55) 62%, rgba(${t.fade},0) 92%)` }} />}
       {!picture && h.art && <Art kind={h.art} />}
-      {picture && h.art && ["sun", "rain", "cloud", "snow"].includes(h.art) && (
+      {picture && !h.scene && h.art && ["sun", "rain", "cloud", "snow"].includes(h.art) && (
         <span aria-hidden className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-black/35 backdrop-blur">
           <WeatherIcon kind={h.art} />
         </span>

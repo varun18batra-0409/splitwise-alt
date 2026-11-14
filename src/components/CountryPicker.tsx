@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { createPortal } from "react-dom";
+import { Flag } from "@/components/Flag";
 import { searchCountries } from "@/lib/geo";
 import { addPlacesAction } from "@/app/passport-actions";
 import { useFocusTrap } from "@/lib/use-focus-trap";
@@ -98,8 +99,8 @@ export function CountryPicker({ added, home = "", tile = false, mode = "been", a
                     <li key={c.code}>
                       <label className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${already ? "opacity-50" : "active:bg-mist"}`}>
                         <input type="checkbox" checked={on} disabled={already} onChange={() => toggle(c.code)} className="h-5 w-5 shrink-0" aria-label={c.name} />
-                        {/* A drawn code, not a flag emoji (no emoji as decoration). */}
-                        <span aria-hidden className="w-7 shrink-0 text-center text-[12px] font-semibold tabular-nums text-fg/55">{c.code}</span>
+                        {/* A real flag picture, not a flag emoji (those show as letters on Windows). */}
+                        <Flag code={c.code} size={24} />
                         <span className="min-w-0 flex-1 truncate">{c.name}</span>
                         {already && <span className="text-xs text-fg/60">{c.code === home ? "Home" : "Added"}</span>}
                       </label>

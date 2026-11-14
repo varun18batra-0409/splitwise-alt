@@ -32,6 +32,9 @@ const SLOTS = {
   "cover-party": ["photo-1492684223066-81342ee5ff30", "photo-1514525253161-7a46d19cd819"], // a night out
   "cover-birthday": ["photo-1530103862676-de8c9debad1d", "photo-1558636508-e0db3814bd1d"], // balloons and cake
   "cover-wedding": ["photo-1519741497674-611481863552", "photo-1511285560929-80b456fea0bc"], // a wedding
+  // The Home cards (src/lib/home/highlights.ts "scenes"): real photos behind the passport and postcards cards. None downloads: the drawn art stays.
+  "card-passport": ["xzy0G_SsZDU", "htQznS-Rx7w", "LPdaW746WAw", "Cg3fyYZMQ58"], // open passports with colourful entry stamps; the last on a world map
+  "card-postcards": ["dZZxUjWUx_o", "5OibzNX-6ww", "XVVSAH2CTKI"], // colour vintage postcards with handwriting and stamps
   // Destinations for the trip countdown (see src/lib/places.ts). Direct image
   // ids only: Unsplash's "download" links now need a sign-in.
   "place-goa": ["photo-1614082242765-7c98ca0f3df3"],

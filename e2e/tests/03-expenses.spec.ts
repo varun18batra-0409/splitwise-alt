@@ -174,14 +174,17 @@ test("group screens show exact amounts with paise from 1,000 up: ₹3,001.50 spl
   await B.waitForURL(/tab=activity/);
   await settled(B);
 
-  // Alice's Balances tab: the By person rows and the ticket read exactly (never ₹1,001).
+  // Alice's Balances tab: the By person rows (and then the Overview ticket) read exactly (never ₹1,001).
   await A.goto(`${g.path}?tab=balances`);
   await settled(A);
   const rows = A.locator("details.group\\/person > summary");
   await expect(rows.filter({ hasText: "Bob" })).toContainText("gets ₹2,001");
   await expect(rows.filter({ hasText: "Cara" })).toContainText("owes ₹1,000.50");
   await expect(rows.filter({ hasText: "Alice" })).toContainText("owes ₹1,000.50");
-  await expect(A.locator("[data-net-balance]").first()).toContainText("₹1,000.50");
+  // The boarding-pass ticket (with its exact amount) is on the Overview.
+  await A.goto(`${g.path}?tab=overview`);
+  await settled(A);
+  await expect(A.locator("[data-group-balance] [data-net-balance]").first()).toContainText("₹1,000.50");
   // The activity row says ₹3,001.50, not ₹3,002.
   await A.goto(`${g.path}?tab=activity`);
   await settled(A);

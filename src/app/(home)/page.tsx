@@ -23,7 +23,12 @@ import { homeMoney } from "@/lib/home/display";
 import { climateFor, tripMonth, usesFahrenheit, weatherWords } from "@/lib/climate";
 import { Polaroid } from "@/components/Polaroid";
 import { coverFor, coverOf } from "@/lib/covers";
-import { monthNumbers } from "@/lib/home/banner";
+import { monthNumbers, seasonNow } from "@/lib/home/banner";
+import { HomeBanner } from "@/components/HomeBanner";
+import { HighlightCard } from "@/components/HighlightCard";
+import { homeHighlights } from "@/lib/home/highlights";
+import { parseHandPlaces } from "@/lib/passport";
+import { nextDueDay } from "@/lib/home/bills";
 import { ActivityRow } from "@/components/ActivityRow";
 import { itemHref } from "@/lib/paths";
 import { db } from "@/lib/db";
@@ -43,12 +48,12 @@ import { alsoLine, homeTicket, mixedDirections, moneyMode, moneyPeople, rankGrou
 import { Stories } from "@/components/Stories";
 import { buildStories } from "@/lib/home/stories";
 import { loadMomentStoryGroups } from "@/lib/moments-db";
-import { placePhotos, tripPhotoSrc } from "@/lib/places";
+import { photoSet, placePhotos, tripPhotoSrc } from "@/lib/places";
 import { GroupCards, type GroupCardData } from "@/components/HomeGroups";
 import { tripTag } from "@/lib/home/group-card";
 import { loadNeedsYou } from "@/lib/needs-you";
 import { unreadPostcards } from "@/lib/blocks";
-import { billDueNeeds, needLine, postcardNeed, type DueBill, type NeedItem } from "@/lib/home/need-line";
+import { BILL_DUE_DAYS, billDueNeeds, needLine, postcardNeed, type DueBill, type NeedItem } from "@/lib/home/need-line";
 import { tripEmoji } from "@/lib/countdown";
 import { payersOf, spentAmount } from "@/lib/payers";
 import { getCategory } from "@/lib/categories";
@@ -421,6 +426,74 @@ export default async function Home({
   })();
   const alsoText = alsoLine(upcoming.slice(1).map((t) => ({ place: placeOf(t.g.group.name), days: t.phase.kind === "before" ? t.phase.days : 0 })));
 
+  // The sliding cards (4 to 7), picked for what's useful right now. Nothing here repeats what is already on Home: the countdown says
+  // its trip's usual weather, and the needs-you line says a bill due within 3 days and new postcards, so those are left out below.
+  const stopsOf = (g: (typeof all)[number]) => tripStops(g.group.name, g.group.tripPlace ?? "", g.group.tripCountry ?? "");
+  const homeCountry = (account?.homeCountry || region.country || "IN").toUpperCase();
+  const season = seasonNow(new Date(), tz, region.country);
+  // A group they left shows no bills.
+  const billRows = await db.bill.findMany({ where: { groupId: { in: open.filter((g) => !g.leaver).map((g) => g.group.id) }, deletedAt: null, paused: false }, take: 20 });
+  // The same count as the passport: countries with a stamp or a tick (home only if it has one).
+  const passportSet = new Set(
+    [
+      ...(account ? parseHandPlaces(account.places).map((p) => p.c) : []),
+      ...all
+        .filter((g) => g.group.type === "trip" && !g.group.deletedAt && (g.group.tripStart ? g.group.tripStart <= today : g.expenseCount > 0))
+        .flatMap((g) => stopsOf(g).map((s) => s.country || homeCountry)),
+    ].filter(Boolean),
+  );
+  const highlights = homeHighlights({
+    trips: trips.map((t) => {
+      const ph = placePhotos(t.g.group.name, t.g.group.tripPlace, 2);
+      return {
+        id: t.g.group.id,
+        name: placeOf(t.g.group.name),
+        phase: t.phase,
+        start: t.g.group.tripStart,
+        end: t.g.group.tripEnd || null,
+        stops: stopsOf(t.g),
+        photo: ph[0],
+        photo2: ph[1],
+        todaySpent: t.phase.kind === "before" ? undefined : todayIn(t.g).spent || undefined,
+      };
+    }),
+    justBack: live
+      .filter((g) => g.group.type === "trip" && g.group.tripStart && g.expenseCount > 0)
+      .map((g) => ({ g, ended: daysBetween(g.group.tripEnd || g.group.tripStart, today) }))
+      .filter(({ ended }) => ended >= 1 && ended <= 14)
+      .sort((a, b) => a.ended - b.ended)
+      .map(({ g, ended }) => ({
+        id: g.group.id,
+        name: placeOf(g.group.name),
+        endedDaysAgo: ended,
+        payments: g.transfers.length,
+        photo: placePhotos(g.group.name, g.group.tripPlace, 1)[0],
+        abroad: stopsOf(g).some((s) => s.country && s.country !== homeCountry),
+      })),
+    hasMonth: Boolean(month),
+    season,
+    // New postcards are the needs-you line's: no card for them (the "Send a postcard" card still comes).
+    postcardsNew: 0,
+    // A bill due within 3 days is the needs-you line's; the card only brings up one 4 to 5 days away.
+    billsDue: billRows.flatMap((b) => {
+      const due = nextDueDay(b, new Date());
+      const g = open.find((x) => x.group.id === b.groupId);
+      if (!due || !g || b.nature === "daily") return [];
+      const inDays = daysBetween(today, due);
+      if (inDays <= BILL_DUE_DAYS) return [];
+      return [{ groupId: b.groupId, billId: b.id, name: b.name, group: g.group.name, inDays, amount: b.nature === "fixed" && b.amount ? formatMoney(b.amount, g.group.currency) : "" }];
+    }),
+    passportCountries: passportSet.size,
+    // Said alongside, so "23 countries" next to a list of 22 abroad makes sense.
+    passportAbroad: [...passportSet].filter((c) => c !== homeCountry).length,
+    groups: open.length,
+    fahrenheit: usesFahrenheit(region.country),
+    // The countdown above already says this trip's usual weather.
+    skipWeather: nextTrip ? [nextTrip.g.group.id] : [],
+    // Real photos (slots card-passport and card-postcards in scripts/fetch-photos.mjs); none downloaded: the drawn art.
+    scenes: { passport: photoSet("card-passport")[0], postcards: photoSet("card-postcards")[0] },
+  });
+
   // First visit: show what Loopin does instead of an empty screen.
   const tourSeen = (await cookies()).get("lp_tour")?.value === "1";
   if (all.length === 0 && deletedGroups.length === 0 && collections.length === 0 && invitations.length === 0 && !error && !notice && !tourSeen) return <IntroTour signInHref="/signin" currency={region.currency} india={region.india} />;
@@ -613,41 +686,56 @@ export default async function Home({
             </Link>
           )}
 
-          {/* One static card for the month (no sliding, nothing that plays by itself). */}
-          {month && (
-            <div className="mt-8 overflow-hidden rounded-[24px] border border-line bg-white" data-month-card>
-              <div className="relative flex flex-col px-5 pb-5 pt-5">
-                <p className="relative text-[13px] text-fg/55">{month.wrapped ? "Your month, wrapped" : "Your month so far"}</p>
-                <p className="relative mt-1 font-display text-[27px] font-semibold leading-[1.1]">{month.name} in numbers</p>
-                <div className="relative mb-4 mt-5 flex flex-wrap items-end gap-x-4 gap-y-2 min-[360px]:gap-x-5" data-month-stats>
-                  {/* No "₹0 your share": a zero is left out. */}
-                  {month.share !== 0 && (
-                    <p className="shrink-0">
-                      <span className="block money text-[19px] font-semibold tabular-nums" data-month-share title={formatMoney(month.share, month.currency)} data-exact={formatMoney(month.share, month.currency)}>
-                        {month.converted ? "≈ " : ""}
-                        {homeMoney(month.share, month.currency)}
-                      </span>
-                      <span className="block whitespace-nowrap text-xs text-gray-600">your share</span>
-                    </p>
-                  )}
-                  <p className="shrink-0">
-                    <span className="block money text-[19px] font-semibold tabular-nums">{month.count}</span>
-                    <span className="block whitespace-nowrap text-xs text-gray-600">{month.count === 1 ? "expense" : "expenses"}</span>
-                  </p>
-                  {month.top && (
-                    // Whole words only: a long category wraps between words, never inside one.
-                    <p className="min-w-[4.5rem] flex-1 [overflow-wrap:normal]">
-                      <span className="block font-display text-[19px] font-semibold leading-tight">{month.top}</span>
-                      <span className="block text-xs text-gray-600">most spent on</span>
-                    </p>
-                  )}
-                </div>
-                <Link href={`/search?m=${month.month}`} className={`relative ${bannerButton}`}>
-                  See {month.name}
-                </Link>
-              </div>
-            </div>
-          )}
+          <div className="mt-8">
+            {/* The sliding cards, picked for you: the trip you're on, a trip just over, a bill a few days off, your month, a festival where
+                you live, your passport and postcards. Swipe, tap a dot, or pause; they glide by themselves unless animations are off. */}
+            <HomeBanner>
+              {highlights.map((h) =>
+                h.kind === "month" ? (
+                  month && (
+                    <div key="month" className="flex flex-1 flex-col">
+                      <div className="relative flex min-h-[268px] flex-1 flex-col overflow-hidden bg-[linear-gradient(150deg,#2a1f1c_0%,#17151a_60%,#101012_100%)] px-5 pb-12 pt-5" data-month-card>
+                        {/* The month's name, large and faint behind the numbers. */}
+                        <span aria-hidden className="pointer-events-none absolute -right-2 top-1 select-none font-display text-[120px] font-semibold leading-none text-white/[0.06]">
+                          {month.name.slice(0, 3)}
+                        </span>
+                        <p className="relative text-[13px] text-fg/65">{month.wrapped ? "Your month, wrapped" : "Your month so far"}</p>
+                        <p className="relative mt-1 font-display text-[27px] font-semibold leading-[1.1]">{month.name} in numbers</p>
+                        <div className="relative mb-4 mt-5 flex flex-wrap items-end gap-x-4 gap-y-2 min-[360px]:gap-x-5" data-month-stats>
+                          {/* No "₹0 your share": a zero is left out. */}
+                          {month.share !== 0 && (
+                            <p className="shrink-0">
+                              <span className="block money text-[19px] font-semibold tabular-nums" data-month-share title={formatMoney(month.share, month.currency)} data-exact={formatMoney(month.share, month.currency)}>
+                                {month.converted ? "≈ " : ""}
+                                {homeMoney(month.share, month.currency)}
+                              </span>
+                              <span className="block whitespace-nowrap text-xs text-fg/65">your share</span>
+                            </p>
+                          )}
+                          <p className="shrink-0">
+                            <span className="block money text-[19px] font-semibold tabular-nums">{month.count}</span>
+                            <span className="block whitespace-nowrap text-xs text-fg/65">{month.count === 1 ? "expense" : "expenses"}</span>
+                          </p>
+                          {month.top && (
+                            // Whole words only: a long category wraps between words, never inside one.
+                            <p className="min-w-[4.5rem] flex-1 [overflow-wrap:normal]">
+                              <span className="block font-display text-[19px] font-semibold leading-tight">{month.top}</span>
+                              <span className="block text-xs text-fg/65">most spent on</span>
+                            </p>
+                          )}
+                        </div>
+                        <Link href={`/search?m=${month.month}`} className={`relative mt-auto ${bannerButton}`}>
+                          See {month.name}
+                        </Link>
+                      </div>
+                    </div>
+                  )
+                ) : (
+                  <HighlightCard key={h.id} h={h} />
+                ),
+              )}
+            </HomeBanner>
+          </div>
         </>
       )}
 

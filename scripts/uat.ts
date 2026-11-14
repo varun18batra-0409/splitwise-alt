@@ -2162,7 +2162,7 @@ async function main() {
   // ===== 9. Home & Couple: bills, list, budgets, reminders, moving out, goals =====
   let gh = "";
   const homeId = () => gh.split("/").pop()!;
-  await step(V, "Flat", "Create a Home group: it opens on This month, with Bills · List · Activity tabs", async () => {
+  await step(V, "Flat", "Create a Home group: it opens on Overview, with Expenses · People tabs and Bills · List tiles", async () => {
     await go(V, "/groups/new");
     await V.getByRole("button", { name: /^Home/ }).click();
     await V.locator('input[name="groupName"]').fill("UAT Flat 402");
@@ -2175,9 +2175,10 @@ async function main() {
     await V.waitForURL(/invited=/);
     await tapJoin(A, "UAT Flat 402", gh);
     await go(V, gh);
-    const current = await V.locator('a[aria-current="page"]').filter({ hasText: /This month|Bills|List|Activity|Balances/ }).first().innerText();
-    assert(current.trim() === "This month", `opened on “${current}”`);
-    for (const t of ["Bills", "List", "Activity"]) assert(await V.getByRole("link", { name: t, exact: true }).count(), `no ${t} tab`);
+    const current = await V.locator('a[aria-current="page"]').filter({ hasText: /Overview|Expenses|People/ }).first().innerText();
+    assert(current.trim() === "Overview", `opened on “${current}”`);
+    for (const t of ["Expenses", "People"]) assert(await V.getByRole("link", { name: t, exact: true }).count(), `no ${t} tab`);
+    for (const t of ["Bills", "List"]) assert(await V.getByRole("link", { name: new RegExp(`^${t}`) }).count(), `no ${t} tile`);
     // Every tab's label fits on its tab (nothing cut off or spilling over).
     const spill = await V.evaluate(() =>
       [...document.querySelectorAll('nav[aria-label="Group sections"] a')].filter((a) => a.scrollWidth > a.clientWidth + 1).map((a) => a.textContent),

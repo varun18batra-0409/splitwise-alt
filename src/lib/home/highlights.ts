@@ -23,6 +23,7 @@ export type Highlight =
       button: string;
       href: string;
       photo?: string; // a place photo on the right
+      scene?: boolean; // the photo fills the whole card behind a dark wash (the passport and postcard photos)
       cover?: CoverId; // or one of Loopin's own pictures
       art?: "sun" | "rain" | "cloud" | "snow" | "postcard" | "passport" | "switch" | "bill";
     };
@@ -50,6 +51,10 @@ export type HighlightInput = {
   passportAbroad?: number; // of those, outside your home country
   groups: number;
   fahrenheit?: boolean;
+  // Trips whose usual weather is already said by the countdown on Home: no weather card for them (it would repeat).
+  skipWeather?: string[];
+  // Real photos for the passport and postcard cards (slots card-passport and card-postcards). None: the drawn art stays.
+  scenes?: { passport?: string; postcards?: string };
   max?: number;
 };
 
@@ -87,7 +92,7 @@ export function homeHighlights(x: HighlightInput): Highlight[] {
     const stop = t.stops[0];
     const c = stop ? climateFor(stop.city, stop.country, tripMonth(t.start, t.end)) : null;
     const where = place(t);
-    if (c) {
+    if (c && !x.skipWeather?.includes(t.id)) {
       const w = weatherWords(c, x.fahrenheit);
       add({
         id: `weather-${t.id}`,
@@ -222,5 +227,10 @@ export function homeHighlights(x: HighlightInput): Highlight[] {
     if (out.length >= 4) break;
     add(f);
   }
-  return out;
+  // The passport and postcard cards use a real photo when we have one (a dark wash keeps the words readable); otherwise the drawn art.
+  return out.map((h) => {
+    if (h.kind !== "card" || h.photo) return h;
+    const scene = h.art === "postcard" ? x.scenes?.postcards : h.art === "passport" ? x.scenes?.passport : undefined;
+    return scene ? { ...h, photo: scene, scene: true } : h;
+  });
 }

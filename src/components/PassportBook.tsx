@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { visibleBadges, type Badge, type IndexRow, type PassportCounts, type Stamp } from "@/lib/passport";
 import { BadgeIcon } from "@/components/PassportIcons";
-import { StampArt, stampInk } from "@/components/stamps/StampArt";
+import { Flag } from "@/components/Flag";
+import { StampArt } from "@/components/stamps/StampArt";
 import map from "@/generated/map.json";
 
 // The trip passport as a little booklet. A cover in Loopin's colours you tap to open, then
@@ -62,19 +63,6 @@ export function WorldMap({ index, className = "mt-2" }: { index: { code: string;
         ))}
       </svg>
     </div>
-  );
-}
-
-// A country's small picture on the index page, or (no photo) a drawn ring with its code.
-function IndexPhoto({ r }: { r: IndexRow }) {
-  if (r.photo)
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={r.photo} alt="" width={28} height={28} loading="lazy" className="h-7 w-7 shrink-0 rounded-[6px] object-cover" />;
-  const ink = stampInk(r.code, r.name);
-  return (
-    <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 text-[9px] font-extrabold" style={{ color: ink, borderColor: ink }}>
-      {r.code}
-    </span>
   );
 }
 
@@ -250,7 +238,7 @@ export function PassportBook({ name, stats, counts, milestones, pages, index, ba
                   {index.map((r) => (
                     <li key={r.code} className="py-1.5" data-index-country={r.code}>
                       <p className="flex items-center gap-2">
-                        <IndexPhoto r={r} />
+                        <Flag code={r.code} size={28} shape="tile" />
                         <span className="min-w-0 flex-1 truncate font-semibold">{r.name}</span>
                         <span className="shrink-0 text-[12px] text-[#5c564a]">{[r.trips ? `${r.trips} ${r.trips === 1 ? "trip" : "trips"}` : "", r.byHand ? "Been there" : ""].filter(Boolean).join(" · ")}</span>
                       </p>

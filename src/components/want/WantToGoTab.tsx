@@ -1,10 +1,10 @@
-import Image from "next/image";
 import { ShareIcon } from "@/components/PassportIcons";
 import { CountryPicker } from "@/components/CountryPicker";
 import { WishCard } from "@/components/want/WishCard";
 import { MatchCard } from "@/components/want/MatchCard";
 import { WishShareSheet } from "@/components/want/WishShareSheet";
 import { addWishesAction } from "@/app/wish-actions";
+import { Flag } from "@/components/Flag";
 import { countryPhoto } from "@/lib/country-photos";
 import { countryOf } from "@/lib/geo";
 import { SHARE_ALL, WISH_LIMIT, joinNames } from "@/lib/wishes";
@@ -91,12 +91,9 @@ export async function WantToGoTab({ accountId, wished, full }: { accountId: stri
                 <p className="text-[16px] font-semibold">{f.name}</p>
                 <ul className="mt-2.5 grid grid-cols-3 gap-x-2 gap-y-3 min-[390px]:grid-cols-4">
                   {f.countries.map((c) => {
-                    const photo = countryPhoto(c);
                     return (
                       <li key={c} className="flex min-w-0 flex-col items-center" data-shared-place={c}>
-                        <span className="relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-[14px] bg-[#efe8d6]">
-                          {photo ? <Image src={photo} alt="" fill sizes="56px" className="object-cover" /> : <span aria-hidden className="text-[13px] font-extrabold text-[#5c564a]">{c}</span>}
-                        </span>
+                        <Flag code={c} size={40} />
                         <span className="mt-1 w-full text-center text-[13px] leading-tight text-fg/85">{name(c)}</span>
                       </li>
                     );

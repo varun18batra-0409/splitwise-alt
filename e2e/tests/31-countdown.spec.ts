@@ -83,7 +83,7 @@ test("a trip with dates counts down on the group and Home; settings change it; t
   await expect(page.locator("[data-trip-strip]")).toContainText("tomorrow");
   // The later trip is one line inside the countdown ("Also: Manali in 40 days"), not a second card.
   await expect(page.locator("[data-trip-strip]")).toHaveCount(1);
-  await expect(page.locator("[data-trip-also]")).toHaveText(/^Also: Manali.* in 40 days$/);
+  await expect(page.locator("[data-trip-also]")).toHaveText(/^Also: .*Manali.* in 40 days$/);
   await expect(page.locator("[data-trip-row]")).toHaveCount(0);
   await ctx.close();
 

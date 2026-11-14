@@ -84,3 +84,24 @@ describe("Home highlights", () => {
     expect(seasonNow(new Date("2027-07-01T10:00:00Z"), "Asia/Kolkata", "IN")?.id).toBe("monsoon-in");
   });
 });
+
+describe("Home cards after the countdown and needs-you line", () => {
+  const goa = { id: "t1", name: "Goa", phase: { kind: "before" as const, days: 12 }, start: "2026-12-26", end: "2026-12-31", stops: [{ city: "Goa", country: "IN" }] };
+  it("no weather card for the trip whose weather the countdown already says; another trip keeps its own", () => {
+    const manali = { ...goa, id: "t2", name: "Manali", start: "2027-01-05", end: "2027-01-09", stops: [{ city: "Manali", country: "IN" }], phase: { kind: "before" as const, days: 30 } };
+    expect(homeHighlights({ ...base, trips: [goa] }).some((h) => h.id === "weather-t1")).toBe(true);
+    const ids = homeHighlights({ ...base, trips: [goa, manali], skipWeather: ["t1"] }).map((h) => h.id);
+    expect(ids).not.toContain("weather-t1");
+    expect(ids).toContain("weather-t2");
+  });
+  it("passport and postcard cards take a real photo when there is one, and keep the drawn art when there is not", () => {
+    const withPhotos = homeHighlights({ ...base, passportCountries: 22, scenes: { passport: "/photos/card-passport.jpg", postcards: "/photos/card-postcards.jpg" } });
+    const pass = withPhotos.find((h) => h.id === "fill-passport");
+    const post = withPhotos.find((h) => h.id === "fill-postcard");
+    expect(pass).toMatchObject({ photo: "/photos/card-passport.jpg", scene: true, title: "22 countries and counting" });
+    expect(post).toMatchObject({ photo: "/photos/card-postcards.jpg", scene: true });
+    const plain = homeHighlights({ ...base, passportCountries: 22 }).find((h) => h.id === "fill-passport");
+    expect(plain).toMatchObject({ art: "passport" });
+    expect(plain && "photo" in plain ? plain.photo : undefined).toBeUndefined();
+  });
+});
