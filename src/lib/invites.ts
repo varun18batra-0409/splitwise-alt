@@ -228,16 +228,15 @@ async function inviteBackTo(
     // An older open invitation to this address (sent before they were removed) must not carry on: the new one belongs to the admin.
     await db.invite.updateMany({ where: { groupId: group.id, email: account.email, acceptedAt: null, declinedAt: null }, data: { declinedAt: new Date() } });
   }
-  // Tapping "Invite back" again and again must not buzz their phone: no new alert or push while an invitation for this row is already
-  // open, or (for someone who left on their own) if they said "Not now" in the last 7 days. The invitation itself is still made.
+  // Tapping "Invite back" again and again must not buzz their phone or fill their inbox: while an invitation for this row is already
+  // open, no new alert, push or email goes out (the invitation itself is still there). (A "Not now" can't be told apart from a
+  // cancelled or replaced invitation, so it is not used here; the daily rate limit covers the rest.)
   let noAlert = false;
   if (o.spamGuard) {
     const prior = await db.invite.findUnique({ where: { groupId_email: { groupId: group.id, email: account.email } } });
-    const open = Boolean(prior && !prior.acceptedAt && !prior.declinedAt && inviteMemberId(prior) === row.id);
-    const recentNo = Boolean(prior?.declinedAt && !now.removedAt && prior.declinedAt.getTime() > Date.now() - 7 * 86_400_000);
-    noAlert = open || recentNo;
+    noAlert = Boolean(prior && !prior.acceptedAt && !prior.declinedAt && inviteMemberId(prior) === row.id);
   }
-  const r = await inviteOne(group, actor, account.email, row.name, { origin: o.origin, account, mail: o.mail, later: o.later, row, noAlert });
+  const r = await inviteOne(group, actor, account.email, row.name, { origin: o.origin, account, mail: o.mail && !noAlert, later: o.later, row, noAlert });
   if ("error" in r) return { ok: false, error: r.error };
   const eventId = await logEvent(db, { groupId: group.id, actorId: actor.id, kind: "member_invited", text: `invited ${row.name} back to the group` });
   return { ok: true, eventId };

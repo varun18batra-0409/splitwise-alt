@@ -104,9 +104,9 @@ const CLOSED = "This invitation is no longer open.";
 // Join. `key` is the token, or "m:<memberId>" for the older kind.
 export async function acceptInvitation(account: Account, key: string): Promise<Answer> {
   if (key.startsWith("m:")) {
-    const m = await db.member.findFirst({ where: { id: key.slice(2), accountId: account.id, addedBy: { not: "" }, seenAt: null, removedAt: null, group: { deletedAt: null } } });
+    const m = await db.member.findFirst({ where: { id: key.slice(2), accountId: account.id, addedBy: { not: "" }, seenAt: null, leftAt: null, removedAt: null, group: { deletedAt: null } } });
     if (!m) return { ok: false, error: GONE };
-    await db.member.updateMany({ where: { id: m.id, seenAt: null }, data: { seenAt: new Date(), leftAt: null } });
+    await db.member.updateMany({ where: { id: m.id, seenAt: null, leftAt: null, removedAt: null }, data: { seenAt: new Date() } });
     return { ok: true, groupId: m.groupId, memberId: m.id };
   }
   const inv = key ? await db.invite.findFirst({ where: { token: key, email: account.email }, include: { group: { select: { id: true, inviteCode: true, deletedAt: true } } } }) : null;
@@ -176,12 +176,12 @@ export async function acceptInvitation(account: Account, key: string): Promise<A
 // only the invitation is closed (a row with history is never unlinked, so nobody else can claim it). They can still join later from the group's invite link or a new invitation.
 export async function declineInvitation(account: Account, key: string): Promise<Answer> {
   if (key.startsWith("m:")) {
-    const m = await db.member.findFirst({ where: { id: key.slice(2), accountId: account.id, addedBy: { not: "" }, seenAt: null, removedAt: null, group: { deletedAt: null } } });
+    const m = await db.member.findFirst({ where: { id: key.slice(2), accountId: account.id, addedBy: { not: "" }, seenAt: null, leftAt: null, removedAt: null, group: { deletedAt: null } } });
     if (!m) return { ok: false, error: GONE };
     // Same as the live app: the account is taken off the row, which stays as a plain name (used or not): expenses, payments and
     // balances don't move. (People who left or were removed never get an "m:" card: they are invited back with a real invitation.)
     await db.$transaction([
-      db.member.updateMany({ where: { id: m.id, accountId: account.id, seenAt: null }, data: { accountId: null, claimedAt: null, addedBy: "" } }),
+      db.member.updateMany({ where: { id: m.id, accountId: account.id, seenAt: null, leftAt: null, removedAt: null }, data: { accountId: null, claimedAt: null, addedBy: "" } }),
       db.pushSubscription.deleteMany({ where: { memberId: m.id } }),
     ]);
     return { ok: true, groupId: m.groupId, memberId: m.id };

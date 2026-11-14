@@ -147,9 +147,14 @@ async function undoOnce(eventId: string, actorId: string | undefined, tz: string
   // except by whoever made that change in the first place.
   // Undoing someone's own leaving (leaving the group, or a move-out) would put them back without their say, so only they can do it
   // (a name nobody has claimed has no one to ask, so anyone can). The admin invites them back instead.
-  if (payload.type === "member_set" && payload.data.leftAt === null && !("removedAt" in payload.data) && ev.kind === "member_left" && payload.memberId !== actorId) {
-    const who = group.members.find((m) => m.id === payload.memberId);
-    if (who?.accountId) return { ok: false, error: `Only ${who.name} can undo leaving the group. You can invite them back from People.` };
+  // Also refused: anyone else undoing something the person did to THEMSELF (their own leave, or their own undo of a rejoin) that would
+  // put them back in. The only undo of that kind allowed to someone else is the admin's own removal action (the event is the admin's).
+  if (payload.type === "member_set" && payload.data.leftAt === null && payload.memberId !== actorId) {
+    const own = ev.actorId === payload.memberId;
+    if (own || (ev.kind === "member_left" && !("removedAt" in payload.data))) {
+      const who = group.members.find((m) => m.id === payload.memberId);
+      if (who?.accountId) return { ok: false, error: `Only ${who.name} can undo leaving the group. You can invite them back from People.` };
+    }
   }
   // Likewise undoing someone's own coming back (accepting an invitation, rejoining) would push them out: only they can.
   if (payload.type === "member_set" && ev.kind === "member_rejoined" && payload.memberId !== actorId) {
@@ -473,9 +478,13 @@ export async function removeMembers(groupId: string, actorId: string, memberIds:
     if (used > 0) return { ok: false, error: `${m.name} is already part of expenses, payments or moments, so they can’t be removed.` };
   }
   if (members.length === 0) return { ok: true };
-  const eventId = await db.$transaction(async (tx) => {
+  let eventId: string;
+  try {
+  eventId = await db.$transaction(async (tx) => {
     await markUndone(tx, mark);
-    await tx.member.deleteMany({ where: { id: { in: members.map((m) => m.id) } } });
+    // The "account holder who left or was removed" check again, inside the write: a leave racing this undo can't get the row deleted.
+    const del = await tx.member.deleteMany({ where: { id: { in: members.map((m) => m.id) }, groupId, OR: [{ accountId: null }, { leftAt: null, removedAt: null }] } });
+    if (del.count !== members.length) throw new MembersMoved();
     return logEvent(tx, {
       groupId,
       actorId,
@@ -507,8 +516,14 @@ export async function removeMembers(groupId: string, actorId: string, memberIds:
       },
     });
   });
+  } catch (err) {
+    if (err instanceof MembersMoved) return { ok: false, error: "Someone changed these people a moment ago, so this wasn’t undone. Look again." };
+    throw err;
+  }
   return { ok: true, eventId };
 }
+
+class MembersMoved extends Error {}
 
 async function restoreMembers(groupId: string, actorId: string, members: Extract<UndoPayload, { type: "members_restore" }>["members"], mark?: UndoMark): Promise<UndoResult> {
   const existing = await db.member.findMany({ where: { groupId } });

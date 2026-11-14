@@ -483,41 +483,52 @@ describe("undo of 'joined' can't be used to re-create or delete someone's remova
   });
 });
 
-describe("'Not now' on an older-style invitation (m:)", () => {
-  async function pendingRow(claimed: boolean) {
-    const w = await world();
-    const cat = await account("Cat");
-    const m = await db.member.create({ data: { groupId: w.g.id, name: "Cat", accountId: cat.id, claimedAt: claimed ? new Date() : null, addedBy: w.S, seenAt: null } });
-    return { w, cat, m };
-  }
-  it("same as the live app: Not now takes the account off the row, which stays as a plain name (never made a full member)", async () => {
-    const { cat, m } = await pendingRow(true);
-    expect((await declineInvitation(cat, `m:${m.id}`)).ok).toBe(true);
-    const after = await row(m.id);
-    expect(after.accountId).toBeNull();
-    expect(after.addedBy).toBe("");
-    expect(after.leftAt).toBeNull();
-  });
-  it("a row they never claimed is taken off their account too, as before", async () => {
-    const { cat, m } = await pendingRow(false);
-    expect((await declineInvitation(cat, `m:${m.id}`)).ok).toBe(true);
-    expect((await row(m.id)).accountId).toBeNull();
-  });
-});
-
 describe("'Invite back' does not buzz their phone again and again", () => {
-  it("a second tap while the invitation is open sends no second alert; after a recent Not now, none either", async () => {
+  it("a second tap while the invitation is open sends no second alert and no second email; still one invitation", async () => {
     const w = await world();
     await setMemberLeft(w.g.id, w.A, w.A, true);
     const notes = () => db.accountNote.count({ where: { accountId: w.ada.id, kind: "group_invite" } });
+    const mails = () => db.outbox.count({ where: { to: w.ada.email } });
     await addRegistered(w.g.id, w.B, w.ada.id, origin);
     expect(await notes()).toBe(1);
+    const mailsAfterFirst = await mails();
     await addRegistered(w.g.id, w.B, w.ada.id, origin);
     expect(await notes()).toBe(1); // still just the one alert
-    expect((await db.invite.count({ where: { groupId: w.g.id, email: w.ada.email, acceptedAt: null, declinedAt: null } })).valueOf()).toBe(1); // and one invitation
-    await declineInvitation(w.ada, (await openInvite(w, w.ada.email)).token); // Not now
-    await addRegistered(w.g.id, w.B, w.ada.id, origin);
-    expect(await notes()).toBe(1); // said no a moment ago: the invitation is there, but no new alert
-    expect((await loadInvitations(w.ada)).length).toBe(1);
+    expect(await mails()).toBe(mailsAfterFirst); // and no second email
+    expect(await db.invite.count({ where: { groupId: w.g.id, email: w.ada.email, acceptedAt: null, declinedAt: null } })).toBe(1);
+  });
+});
+
+describe("undo of someone's own undo can't put them back either", () => {
+  it("admin removes Ada, invites her back, she accepts, undoes her own rejoin; the admin can't undo THAT (she stays out), but can still undo their own removal action", async () => {
+    const w = await world();
+    expect((await setMemberLeft(w.g.id, w.S, w.A, true)).ok).toBe(true);
+    await tick();
+    await addRegistered(w.g.id, w.S, w.ada.id, origin);
+    expect((await acceptInvitation(w.ada, (await loadInvitations(w.ada))[0].key)).ok).toBe(true);
+    const rejoin = await db.groupEvent.findFirstOrThrow({ where: { groupId: w.g.id, kind: "member_rejoined" } });
+    const undoRejoin = await undoEvent(rejoin.id, w.A); // Ada undoes her own rejoin: out again (removed)
+    expect(undoRejoin.ok).toBe(true);
+    expect((await row(w.A)).removedAt).not.toBeNull();
+    const hers = await db.groupEvent.findFirstOrThrow({ where: { groupId: w.g.id, kind: "member_left", actorId: w.A }, orderBy: { createdAt: "desc" } });
+    const byAdmin = await undoEvent(hers.id, w.S);
+    expect(byAdmin.ok).toBe(false);
+    expect(!byAdmin.ok && byAdmin.error).toBe("Only Ada can undo leaving the group. You can invite them back from People.");
+    expect((await row(w.A)).removedAt).not.toBeNull();
+    expect((await row(w.A)).leftAt).not.toBeNull();
+  });
+});
+
+describe("'m:' invitations are only for rows still in the group", () => {
+  it("a row that was moved out (leftAt set) can't be accepted or declined with a typed key", async () => {
+    const w = await world();
+    const cat = await account("Cat");
+    const m = await db.member.create({ data: { groupId: w.g.id, name: "Cat", accountId: cat.id, claimedAt: new Date(), addedBy: w.S, seenAt: null, leftAt: new Date() } });
+    expect((await acceptInvitation(cat, `m:${m.id}`)).ok).toBe(false);
+    expect((await declineInvitation(cat, `m:${m.id}`)).ok).toBe(false);
+    const after = await row(m.id);
+    expect(after).toMatchObject({ accountId: cat.id, addedBy: w.S });
+    expect(after.leftAt).not.toBeNull();
+    expect(after.seenAt).toBeNull();
   });
 });
