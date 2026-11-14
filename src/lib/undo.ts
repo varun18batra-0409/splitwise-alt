@@ -130,7 +130,7 @@ async function undoOnce(eventId: string, actorId: string | undefined, tz: string
   // Someone who left can't change the group, except to undo their OWN "left the group" (and not if the admin has removed them since).
   const me = group.members.find((m) => m.id === actorId);
   const early = parseUndo(ev.undo);
-  const ownLeave = early?.type === "member_set" && early.data.leftAt === null && !("removedAt" in early.data) && ev.kind === "member_left" && ev.actorId === actorId && early.memberId === actorId;
+  const ownLeave = early?.type === "member_set" && early.data.leftAt === null && !("removedAt" in early.data) && ev.kind === "member_left" && early.memberId === actorId;
   if (me?.leftAt && (!ownLeave || me.removedAt)) return { ok: false, error: LEFT_ERROR };
 
   if (group.deletedAt) return { ok: false, error: "This group was deleted. Restore it first." };
@@ -145,11 +145,16 @@ async function undoOnce(eventId: string, actorId: string | undefined, tz: string
   // What only the person who looks after the group can do on the main screens
   // (currency, removing or marking someone else as left) can't be done through Undo either,
   // except by whoever made that change in the first place.
-  // Undoing someone's own "left the group" would put them back without their say, so only they can do it (a name nobody has claimed
-  // has no one to ask, so anyone can). The admin invites them back instead.
-  if (payload.type === "member_set" && payload.data.leftAt === null && ev.kind === "member_left" && ev.actorId === payload.memberId && payload.memberId !== actorId) {
+  // Undoing someone's own leaving (leaving the group, or a move-out) would put them back without their say, so only they can do it
+  // (a name nobody has claimed has no one to ask, so anyone can). The admin invites them back instead.
+  if (payload.type === "member_set" && payload.data.leftAt === null && !("removedAt" in payload.data) && ev.kind === "member_left" && payload.memberId !== actorId) {
     const who = group.members.find((m) => m.id === payload.memberId);
     if (who?.accountId) return { ok: false, error: `Only ${who.name} can undo leaving the group. You can invite them back from People.` };
+  }
+  // Likewise undoing someone's own coming back (accepting an invitation, rejoining) would push them out: only they can.
+  if (payload.type === "member_set" && ev.kind === "member_rejoined" && payload.memberId !== actorId) {
+    const who = group.members.find((m) => m.id === payload.memberId);
+    if (who?.accountId) return { ok: false, error: `Only ${who.name} can undo rejoining the group.` };
   }
   const adminOnly =
     payload.type === "currency_restore" ||
@@ -453,6 +458,9 @@ export async function removeMembers(groupId: string, actorId: string, memberIds:
   if (memberIds.includes(actorId)) return { ok: false, error: "You can’t remove yourself. Use “Leave group” instead." };
   const members = await db.member.findMany({ where: { id: { in: memberIds }, groupId } });
   for (const m of members) {
+    // Someone with their own account who has left or been removed is never taken out (or put back) by somebody else's undo:
+    // their row, and the removal record on it, stay exactly as they are.
+    if (m.accountId && (m.leftAt || m.removedAt)) return { ok: false, error: `${m.name} has left or been removed, so this can’t be undone.` };
     const used =
       (await db.expenseShare.count({ where: { memberId: m.id } })) +
       (await db.expense.count({ where: { groupId, OR: [{ paidById: m.id }, { createdById: m.id }, { payers: { contains: m.id } }] } })) +
@@ -491,6 +499,10 @@ export async function removeMembers(groupId: string, actorId: string, memberIds:
           seenAt: m.seenAt?.toISOString() ?? null,
           // Kept so the restored person can start one step ahead of it (old phone-only copies must not come back).
           grantEpoch: m.grantEpoch,
+          // Kept so undo + redo can't turn a left or removed person into an active one (or drop the removal record).
+          leftAt: m.leftAt?.toISOString() ?? null,
+          removedAt: m.removedAt?.toISOString() ?? null,
+          removedById: m.removedById,
         })),
       },
     });
@@ -522,6 +534,8 @@ async function restoreMembers(groupId: string, actorId: string, members: Extract
           ...(m.splitWeight ? { splitWeight: m.splitWeight } : {}),
           ...(m.notify ? { notify: m.notify } : {}),
           ...(m.joinedFrom ? { joinedFrom: new Date(m.joinedFrom) } : {}),
+          ...(m.leftAt ? { leftAt: new Date(m.leftAt) } : {}),
+          ...(m.removedAt ? { removedAt: new Date(m.removedAt), removedById: m.removedById ?? "" } : {}),
           // Changes saved before addedBy was kept: someone with a sign-in is
           // treated as added by whoever brings them back, until they open the group.
           ...(accountId

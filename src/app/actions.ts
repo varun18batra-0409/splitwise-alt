@@ -589,7 +589,8 @@ export async function setPersonLeft(formData: FormData) {
   if (memberId !== myId && formData.get("left") !== "1") {
     const row = await db.member.findFirst({ where: { id: memberId, groupId }, select: { accountId: true } });
     if (row?.accountId) {
-      const { origin } = await originAndIp();
+      const { origin, ip } = await originAndIp();
+      if (!(await allow(`add-person:${ip}`, 60, 3600))) redirect(`/groups/${groupId}/people?error=${encodeURIComponent("Too many adds from here. Wait a bit.")}`);
       const r = await addRegistered(groupId, myId, row.accountId, origin, { later: (job) => after(job) });
       redirect(`/groups/${groupId}/people${r.ok ? "?invitedBack=1" : `?error=${encodeURIComponent(r.error)}`}`);
     }

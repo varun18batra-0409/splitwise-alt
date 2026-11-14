@@ -25,8 +25,8 @@ const { addRegistered, inviteByEmail } = await import("@/lib/invites");
 const { acceptInvitation, declineInvitation, loadInvitations } = await import("@/lib/invitations");
 const { joinExisting } = await import("@/lib/join");
 const { confirmUsedPending } = await import("@/lib/membership");
-const { undoEvent } = await import("@/lib/undo");
-const { undoMoveOut } = await import("@/lib/home/moving-db");
+const { undoEvent, removeMembers } = await import("@/lib/undo");
+const { undoMoveOut, moveOut, saveDepositFor } = await import("@/lib/home/moving-db");
 const { netBalances } = await import("@/lib/balances");
 const { canSeePassport } = await import("@/lib/passport-db");
 const { addWishes, setShares, sharedWithMe, matches, currentFriends } = await import("@/lib/wishes-db");
@@ -310,5 +310,214 @@ describe("undo can't be used to put someone back", () => {
     const r = await undoMoveOut(w.g.id, w.B, w.A, { bills: [] } as never);
     expect(r).toEqual({ ok: false, error: "Only Ada can undo moving out. You can invite them back from People." });
     expect((await row(w.A)).leftAt).not.toBeNull();
+  });
+});
+
+const tick = () => new Promise((r) => setTimeout(r, 5)); // so "after the removal" is clearly later in time
+
+describe("an invitation sent before a removal does not survive it", () => {
+  it("invite back, then the admin removes her: the invitation is closed and cannot be accepted; a fresh admin invitation after the removal works", async () => {
+    const w = await world();
+    await setMemberLeft(w.g.id, w.A, w.A, true); // she left on her own
+    await addRegistered(w.g.id, w.S, w.ada.id, origin); // the admin invites her back...
+    const old = await openInvite(w, w.ada.email);
+    expect((await loadInvitations(w.ada)).length).toBe(1);
+    expect((await setMemberLeft(w.g.id, w.S, w.A, true)).ok).toBe(true); // ...then removes her (left -> removed)
+    expect((await row(w.A)).removedAt).not.toBeNull();
+    expect((await db.invite.findUniqueOrThrow({ where: { id: old.id } })).declinedAt).not.toBeNull(); // closed by the removal, same write
+    expect(await loadInvitations(w.ada)).toEqual([]);
+    expect((await acceptInvitation(w.ada, old.token)).ok).toBe(false);
+    // Even if that closing were missed, the old invitation is older than the removal and still counts for nothing.
+    await db.invite.update({ where: { id: old.id }, data: { declinedAt: null, createdAt: new Date(Date.now() - 60_000) } });
+    expect(await loadInvitations(w.ada)).toEqual([]);
+    expect((await acceptInvitation(w.ada, old.token)).ok).toBe(false);
+    expect((await row(w.A)).removedAt).not.toBeNull();
+    // A fresh invitation from the admin, after the removal, works.
+    await tick();
+    expect((await addRegistered(w.g.id, w.S, w.ada.id, origin)).ok).toBe(true);
+    const fresh = (await loadInvitations(w.ada))[0];
+    expect((await acceptInvitation(w.ada, fresh.key)).ok).toBe(true);
+    expect(await row(w.A)).toMatchObject({ id: w.A, leftAt: null, removedAt: null, removedById: "" });
+  });
+
+  it("a removal racing a rejoin, either way round, cannot leave someone removed-but-active", async () => {
+    const w = await world();
+    await setMemberLeft(w.g.id, w.A, w.A, true);
+    // The admin reads her as left; meanwhile she rejoins; the admin's write then finds her changed and does nothing.
+    const r1 = await setMember(w.g.id, w.S, w.A, { leftAt: new Date().toISOString() }, false, { afterRead: async () => void (await db.member.update({ where: { id: w.A }, data: { leftAt: null } })) });
+    expect(r1.ok).toBe(false);
+    expect(await row(w.A)).toMatchObject({ leftAt: null, removedAt: null });
+    // She reads herself as left and rejoins; meanwhile the admin removes her; her write finds her changed and does nothing.
+    await db.member.update({ where: { id: w.A }, data: { leftAt: new Date() } });
+    const r2 = await setMember(w.g.id, w.A, w.A, { leftAt: null }, false, { afterRead: async () => void (await db.member.update({ where: { id: w.A }, data: { removedAt: new Date(), removedById: w.S } })) });
+    expect(r2.ok).toBe(false);
+    const after = await row(w.A);
+    expect(after.removedAt).not.toBeNull();
+    expect(after.leftAt).not.toBeNull();
+  });
+});
+
+describe("accepting is one step, and it counts as a change", () => {
+  it("an invitation that is no longer open clears nothing", async () => {
+    const w = await world();
+    await setMemberLeft(w.g.id, w.A, w.A, true);
+    await addRegistered(w.g.id, w.B, w.ada.id, origin);
+    const inv = await openInvite(w, w.ada.email);
+    await db.invite.update({ where: { id: inv.id }, data: { acceptedAt: new Date() } }); // used by a tap that landed a moment earlier
+    const before = await row(w.A);
+    expect((await acceptInvitation(w.ada, inv.token)).ok).toBe(false);
+    expect((await row(w.A)).leftAt?.getTime()).toBe(before.leftAt?.getTime());
+  });
+
+  it("after she accepts, the admin's OLD removal can't be undone to push her out, and nobody else can undo her rejoining", async () => {
+    const w = await world();
+    const removed = await setMemberLeft(w.g.id, w.S, w.A, true);
+    if (!removed.ok || !removed.eventId) throw new Error("no event");
+    await tick();
+    await addRegistered(w.g.id, w.S, w.ada.id, origin);
+    expect((await acceptInvitation(w.ada, (await loadInvitations(w.ada))[0].key)).ok).toBe(true);
+    const undoOld = await undoEvent(removed.eventId, w.S);
+    expect(undoOld.ok).toBe(false);
+    expect((await row(w.A)).removedAt).toBeNull();
+    expect((await row(w.A)).leftAt).toBeNull();
+    const rejoin = await db.groupEvent.findFirstOrThrow({ where: { groupId: w.g.id, kind: "member_rejoined" } });
+    expect(rejoin.actorId).toBe(w.A);
+    const byAdmin = await undoEvent(rejoin.id, w.S);
+    expect(byAdmin).toEqual({ ok: false, error: "Only Ada can undo rejoining the group." });
+    expect((await row(w.A)).leftAt).toBeNull();
+  });
+});
+
+describe("a move-out, undone by the person themself", () => {
+  it("the REAL move-out, then Ada undoes it: bills and deposit are back and the undo moves no money; someone else is refused", async () => {
+    const [asha, ada, bea] = [await account("Asha"), await account("Ada"), await account("Bea")];
+    const g = await db.group.create({
+      data: {
+        name: `Flat ${++n} ${stamp}`, type: "home", currency: "INR", inviteCode: `bbf-${n}-${stamp}`,
+        members: {
+          create: [
+            { name: "Asha", accountId: asha.id, claimedAt: new Date(2026, 0, 1), createdAt: new Date(2026, 0, 1) },
+            { name: "Ada", accountId: ada.id, claimedAt: new Date(2026, 0, 2), createdAt: new Date(2026, 0, 2) },
+            { name: "Bea", accountId: bea.id, claimedAt: new Date(2026, 0, 3), createdAt: new Date(2026, 0, 3) },
+          ],
+        },
+      },
+      include: { members: true },
+    });
+    groupIds.push(g.id);
+    const id = (nm: string) => g.members.find((m) => m.name === nm)!.id;
+    const [S, A, B] = [id("Asha"), id("Ada"), id("Bea")];
+    // Dinner paid by Bea 9000, split three ways 3000 each: Ada -3000, Bea +6000, Asha -3000.
+    await db.expense.create({
+      data: {
+        groupId: g.id, description: "Dinner", amount: 9000, paidById: B, createdById: B, splitType: "equal", forMode: "everyone",
+        originalAmount: 9000, originalCurrency: "INR", baseCurrency: "INR", convertedAmount: 9000,
+        shares: { create: [{ memberId: A, amount: 3000 }, { memberId: B, amount: 3000 }, { memberId: S, amount: 3000 }] },
+      },
+    });
+    const wifi = await db.bill.create({ data: { groupId: g.id, name: "Wi-Fi", nature: "fixed", amount: 100000, day: 5, startMonth: "2026-10", payer: A } });
+    expect((await saveDepositFor(g.id, S, { heldBy: "Landlord", amounts: { [A]: "30000", [S]: "30000" } })).ok).toBe(true);
+    const netsNow = async () => {
+      const x = await db.group.findUniqueOrThrow({ where: { id: g.id }, include: { members: true, expenses: { where: { deletedAt: null }, include: { shares: true } }, payments: { where: { deletedAt: null } } } });
+      return netBalances(x.members.map((m) => m.id), x.expenses, x.payments);
+    };
+    const before = { [A]: -3000, [B]: 6000, [S]: -3000 };
+    expect(await netsNow()).toEqual(before);
+
+    const r = await moveOut(g.id, A, { leaverId: A, lastDay: "2026-10-20", depositTo: B, requestKey: `bbmv-${stamp}-abcdefgh` }, new Date("2026-10-20T06:00:00Z"));
+    expect(r.ok).toBe(true);
+    expect((await row(A)).leftAt).not.toBeNull();
+    const afterMove = await netsNow();
+    expect(afterMove[A]).toBe(0); // squared up on the way out (a payment from Ada: -3000 + 3000)
+    expect(Object.values(afterMove).reduce((a, b) => a + b, 0)).toBe(0);
+    expect((await db.bill.findUniqueOrThrow({ where: { id: wifi.id } })).payer).toBe(S); // handed on
+
+    const ev = await db.groupEvent.findFirstOrThrow({ where: { groupId: g.id, kind: "member_left" }, orderBy: { createdAt: "desc" } });
+    // Someone else (even the one who looks after the flat) is refused; nothing changes.
+    const byBea = await undoEvent(ev.id, B);
+    expect(byBea.ok).toBe(false);
+    expect(!byBea.ok && byBea.error).toBe("Only Ada can undo leaving the group. You can invite them back from People.");
+    expect((await undoEvent(ev.id, S)).ok).toBe(false);
+    expect((await row(A)).leftAt).not.toBeNull();
+    // Ada undoes her own move-out, although she has moved out.
+    const u = await undoEvent(ev.id, A);
+    expect(u.ok).toBe(true);
+    expect((await row(A)).leftAt).toBeNull();
+    expect((await db.bill.findUniqueOrThrow({ where: { id: wifi.id } })).payer).toBe(A); // bill back with her
+    const shares = await db.depositShare.findMany({ where: { deposit: { groupId: g.id } } });
+    expect(shares.find((x) => x.memberId === A)).toMatchObject({ amount: 3000000, status: "held", toMemberId: "" }); // deposit back with her
+    expect(shares.find((x) => x.memberId === B)).toBeUndefined();
+    // The undo itself moves no money: balances are exactly what the move-out left. (The square-up payment is its own line in Activity and stays
+    // until someone deletes it there; this undo restores the person, their bills and their deposit.)
+    expect(await netsNow()).toEqual(afterMove);
+  });
+});
+
+describe("undo of 'joined' can't be used to re-create or delete someone's removal record", () => {
+  it("a left or removed person with an account is not taken out by an undo of 'joined'", async () => {
+    const w = await world();
+    await setMemberLeft(w.g.id, w.A, w.A, true);
+    const left = await removeMembers(w.g.id, w.S, [w.A], true);
+    expect(left.ok).toBe(false);
+    expect(await db.member.count({ where: { id: w.A } })).toBe(1);
+    await setMemberLeft(w.g.id, w.S, w.A, true); // now removed by the admin
+    const removed = await removeMembers(w.g.id, w.S, [w.A], true);
+    expect(removed.ok).toBe(false);
+    expect(await row(w.A)).toMatchObject({ accountId: w.ada.id, removedById: w.S });
+    expect((await row(w.A)).removedAt).not.toBeNull();
+  });
+
+  it("restoring someone puts back their left / removed record too (name-only row: remove, then undo)", async () => {
+    const w = await world();
+    expect((await setMemberLeft(w.g.id, w.S, w.K, true)).ok).toBe(true); // Kiran (a name only) removed by the admin
+    const k = await row(w.K);
+    expect(k.removedAt).not.toBeNull();
+    const gone = await removeMembers(w.g.id, w.S, [w.K], true);
+    if (!gone.ok || !gone.eventId) throw new Error("no event");
+    expect(await db.member.count({ where: { id: w.K } })).toBe(0);
+    expect((await undoEvent(gone.eventId, w.S)).ok).toBe(true);
+    const back = await row(w.K);
+    expect(back.leftAt?.getTime()).toBe(k.leftAt?.getTime());
+    expect(back.removedAt?.getTime()).toBe(k.removedAt?.getTime());
+    expect(back.removedById).toBe(w.S);
+  });
+});
+
+describe("'Not now' on an older-style invitation (m:)", () => {
+  async function pendingRow(claimed: boolean) {
+    const w = await world();
+    const cat = await account("Cat");
+    const m = await db.member.create({ data: { groupId: w.g.id, name: "Cat", accountId: cat.id, claimedAt: claimed ? new Date() : null, addedBy: w.S, seenAt: null } });
+    return { w, cat, m };
+  }
+  it("same as the live app: Not now takes the account off the row, which stays as a plain name (never made a full member)", async () => {
+    const { cat, m } = await pendingRow(true);
+    expect((await declineInvitation(cat, `m:${m.id}`)).ok).toBe(true);
+    const after = await row(m.id);
+    expect(after.accountId).toBeNull();
+    expect(after.addedBy).toBe("");
+    expect(after.leftAt).toBeNull();
+  });
+  it("a row they never claimed is taken off their account too, as before", async () => {
+    const { cat, m } = await pendingRow(false);
+    expect((await declineInvitation(cat, `m:${m.id}`)).ok).toBe(true);
+    expect((await row(m.id)).accountId).toBeNull();
+  });
+});
+
+describe("'Invite back' does not buzz their phone again and again", () => {
+  it("a second tap while the invitation is open sends no second alert; after a recent Not now, none either", async () => {
+    const w = await world();
+    await setMemberLeft(w.g.id, w.A, w.A, true);
+    const notes = () => db.accountNote.count({ where: { accountId: w.ada.id, kind: "group_invite" } });
+    await addRegistered(w.g.id, w.B, w.ada.id, origin);
+    expect(await notes()).toBe(1);
+    await addRegistered(w.g.id, w.B, w.ada.id, origin);
+    expect(await notes()).toBe(1); // still just the one alert
+    expect((await db.invite.count({ where: { groupId: w.g.id, email: w.ada.email, acceptedAt: null, declinedAt: null } })).valueOf()).toBe(1); // and one invitation
+    await declineInvitation(w.ada, (await openInvite(w, w.ada.email)).token); // Not now
+    await addRegistered(w.g.id, w.B, w.ada.id, origin);
+    expect(await notes()).toBe(1); // said no a moment ago: the invitation is there, but no new alert
+    expect((await loadInvitations(w.ada)).length).toBe(1);
   });
 });

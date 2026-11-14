@@ -142,7 +142,7 @@ async function inviteOne(
   actor: Actor,
   email: string,
   wantedName: string,
-  o: { origin: string; account: { id: string } | null; mail: boolean; later?: Later; row?: { id: string; name: string } },
+  o: { origin: string; account: { id: string } | null; mail: boolean; later?: Later; row?: { id: string; name: string }; noAlert?: boolean },
 ): Promise<{ memberId: string; eventId: string; name: string } | { error: string }> {
   const prior = await db.invite.findUnique({ where: { groupId_email: { groupId: group.id, email } } });
   const priorOpen = Boolean(prior && !prior.acceptedAt && !prior.declinedAt);
@@ -189,7 +189,7 @@ async function inviteOne(
       );
     }
     if (blocked) return;
-    if (o.account) {
+    if (o.account && !o.noAlert) {
       await deliverNotes([{ accountIds: [o.account.id], kind: "group_invite", title: `${actor.name} added you to ${group.name}`, body: "Tap to join, or choose Not now.", url: `/groups/${group.id}`, tag: `invite-${group.id}` }]);
     }
   };
@@ -216,7 +216,7 @@ async function inviteBackTo(
   actor: Actor,
   account: { id: string; email: string },
   row: { id: string; name: string },
-  o: { origin: string; mail: boolean; later?: Later },
+  o: { origin: string; mail: boolean; later?: Later; spamGuard?: boolean },
 ): Promise<BackResult> {
   const now = await db.member.findFirst({
     where: { id: row.id, groupId: group.id, accountId: account.id, OR: [{ leftAt: { not: null } }, { removedAt: { not: null } }] },
@@ -228,7 +228,16 @@ async function inviteBackTo(
     // An older open invitation to this address (sent before they were removed) must not carry on: the new one belongs to the admin.
     await db.invite.updateMany({ where: { groupId: group.id, email: account.email, acceptedAt: null, declinedAt: null }, data: { declinedAt: new Date() } });
   }
-  const r = await inviteOne(group, actor, account.email, row.name, { origin: o.origin, account, mail: o.mail, later: o.later, row });
+  // Tapping "Invite back" again and again must not buzz their phone: no new alert or push while an invitation for this row is already
+  // open, or (for someone who left on their own) if they said "Not now" in the last 7 days. The invitation itself is still made.
+  let noAlert = false;
+  if (o.spamGuard) {
+    const prior = await db.invite.findUnique({ where: { groupId_email: { groupId: group.id, email: account.email } } });
+    const open = Boolean(prior && !prior.acceptedAt && !prior.declinedAt && inviteMemberId(prior) === row.id);
+    const recentNo = Boolean(prior?.declinedAt && !now.removedAt && prior.declinedAt.getTime() > Date.now() - 7 * 86_400_000);
+    noAlert = open || recentNo;
+  }
+  const r = await inviteOne(group, actor, account.email, row.name, { origin: o.origin, account, mail: o.mail, later: o.later, row, noAlert });
   if ("error" in r) return { ok: false, error: r.error };
   const eventId = await logEvent(db, { groupId: group.id, actorId: actor.id, kind: "member_invited", text: `invited ${row.name} back to the group` });
   return { ok: true, eventId };
@@ -250,7 +259,7 @@ export async function addRegistered(groupId: string, actorId: string, accountId:
     // invite back a removed person). They are back only when they accept.
     if (existing.removedAt && !(await isAdmin(groupId, actorId))) return { ok: false, error: `Only the person who looks after the group can bring ${existing.name} back.` };
     const mail = await inviteMailOk(actor);
-    const back = await inviteBackTo(group, actor, account, existing, { origin, mail, later: opts.later });
+    const back = await inviteBackTo(group, actor, account, existing, { origin, mail, later: opts.later, spamGuard: true });
     if (!back.ok) return back;
     return { ok: true, memberId: existing.id, eventId: "", name: existing.name, email: account.email, invitedBack: true };
   }

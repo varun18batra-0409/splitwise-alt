@@ -95,7 +95,8 @@ export async function joinNew(code: string, account: JoinAccount, typedName: str
   if (gone) return { ok: false, reason: "removed", adminName: removedBy(group, gone) };
   const mine = group.members.find((m) => m.accountId === account.id);
   if (mine) {
-    if (mine.leftAt) await db.member.update({ where: { id: mine.id }, data: { leftAt: null } });
+    // Only if they are still not removed (a removal landing a moment ago must not be undone by this write).
+    if (mine.leftAt && (await db.member.updateMany({ where: { id: mine.id, removedAt: null }, data: { leftAt: null } })).count !== 1) return { ok: false, reason: "retry" };
     await markSeen(mine.id);
     return { ok: true, memberId: mine.id };
   }

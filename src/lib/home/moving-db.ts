@@ -458,10 +458,13 @@ export async function undoMoveOut(groupId: string, actorId: string, memberId: st
   if (!m.leftAt) return { ok: false, error: `${m.name} is already back in the flat.` };
   // Only they can undo their own move-out (someone with an account is never put back without their say; the admin invites them back).
   if (m.accountId && memberId !== actorId) return { ok: false, error: `Only ${m.name} can undo moving out. You can invite them back from People.` };
+  // The admin removed them since: they don't undo their way back in.
+  if (m.removedAt) return { ok: false, error: `${m.name} was removed from the group, so the move-out can’t be undone.` };
   try {
     const eventId = await db.$transaction(async (tx) => {
       // First: the flat is open, in the same currency, and this person still in it (a closed flat is changed by reopening it first).
-      await guardGroup(tx, groupId, { currency: group.currency, actorId });
+      // (Someone undoing their OWN move-out has, of course, left: the check that the person acting is still in the flat is for everyone else.)
+      await guardGroup(tx, groupId, { currency: group.currency, ...(actorId === memberId ? {} : { actorId }) });
       await markUndone(tx, mark); // this undo is marked in the same transaction as the reversal
       if (info.deposit) {
         const d = info.deposit;
@@ -494,7 +497,7 @@ export async function undoMoveOut(groupId: string, actorId: string, memberId: st
         }
         await tx.bill.update({ where: { id: b.id }, data: b.before });
       }
-      const back = await tx.member.updateMany({ where: { id: memberId, leftAt: { not: null } }, data: { leftAt: null } });
+      const back = await tx.member.updateMany({ where: { id: memberId, leftAt: { not: null }, removedAt: null }, data: { leftAt: null } });
       if (back.count !== 1) throw new Error("ALREADY_BACK");
       return logEvent(tx, {
         groupId,

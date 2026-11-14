@@ -124,7 +124,18 @@ export async function setMember(
         const owing = (await ledgerInTx(tx, groupId)).net[memberId] ?? 0;
         if (owing !== 0) throw new StillOwes(owing);
       }
-      await tx.member.update({ where: { id: memberId }, data: { leftAt: leftAtNext, ...removal } });
+      // Written only if the person is still exactly as it was read (a removal racing a rejoin can't leave someone removed-but-active).
+      const wrote = await tx.member.updateMany({ where: { id: memberId, leftAt: m.leftAt, removedAt: m.removedAt }, data: { leftAt: leftAtNext, ...removal } });
+      if (wrote.count !== 1) throw new MemberMoved();
+      // Taking someone out ends every open invitation for their row (or to their address): an "invite back" sent before the removal
+      // must not bring them back after it.
+      if (removal.removedAt) {
+        const acct = m.accountId ? await tx.account.findUnique({ where: { id: m.accountId }, select: { email: true } }) : null;
+        await tx.invite.updateMany({
+          where: { groupId, acceptedAt: null, declinedAt: null, OR: [{ memberId }, { token: { startsWith: `${memberId}.` } }, ...(acct ? [{ email: acct.email }] : [])] },
+          data: { declinedAt: new Date() },
+        });
+      }
       return logEvent(tx, {
         groupId,
         actorId,
@@ -150,6 +161,7 @@ export async function setMember(
     }, { timeout: 15000 });
     return { ok: true, eventId };
     } catch (err) {
+      if (err instanceof MemberMoved) return { ok: false, error: `${m.name} was just changed by someone else. Look again, then try once more.` };
       if (err instanceof StillOwes) return { ok: false, error: owesText(err.net, group.currency, memberId === actorId, m.name) };
       if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
       throw err;
@@ -157,6 +169,8 @@ export async function setMember(
   }
   return { ok: true };
 }
+
+class MemberMoved extends Error {}
 
 class StillOwes extends Error {
   constructor(public net: number) {

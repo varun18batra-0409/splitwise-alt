@@ -63,7 +63,8 @@ export async function loadInvitations(account: Account | null): Promise<Invitati
     // only if the invitation is for their own row (a removed person's only if the admin sent it).
     const ownBack = own && own.id === inviteMemberId(i) && (own.leftAt || own.removedAt);
     if (own && !ownBack) continue;
-    if (own?.removedAt && !(await isGroupAdmin(g.id, i.invitedById))) continue;
+    // A removed person's only counts if the admin sent it AFTER the removal (an older one was closed by the removal, and never counts).
+    if (own?.removedAt && (i.createdAt.getTime() < own.removedAt.getTime() || !(await isGroupAdmin(g.id, i.invitedById)))) continue;
     const memberId = g.members.find((m) => m.id === inviteMemberId(i) && (own ? m.id === own.id : !m.removedAt && !m.accountId && !m.leftAt))?.id ?? "";
     // Their name was taken out of the group again (or taken by someone else): nothing to answer any more.
     if (!memberId) continue;
@@ -94,6 +95,8 @@ export async function invitationFor(account: Account | null, groupId: string): P
   return (await loadInvitations(account)).find((i) => i.groupId === groupId) ?? null;
 }
 
+class InviteClosed extends Error {}
+
 export type Answer = { ok: true; groupId: string; memberId: string } | { ok: false; error: string };
 const GONE = "This invitation is no longer there.";
 const CLOSED = "This invitation is no longer open.";
@@ -118,16 +121,40 @@ export async function acceptInvitation(account: Account, key: string): Promise<A
   if (!row || (row.removedAt && row.accountId !== account.id)) return { ok: false, error: CLOSED };
   let r: JoinOk | JoinFail;
   if (row.accountId === account.id) {
-    // Removed by the admin and invited back by the admin: accepting clears the removal on this same row (guarded on the state read,
-    // so a second tap or a race changes nothing twice). Anyone else's invitation, or one already used, can't bring them back.
-    if (row.removedAt) {
-      if (inv.acceptedAt || !(await isGroupAdmin(inv.groupId, inv.invitedById))) return { ok: false, error: CLOSED };
-      const cleared = await db.member.updateMany({ where: { id: row.id, accountId: account.id, removedAt: { not: null } }, data: { removedAt: null, removedById: "", leftAt: null } });
-      if (cleared.count !== 1) return { ok: false, error: CLOSED };
+    // Their own row. Closing the invitation and clearing the left / removed mark happen in ONE step, each guarded on what was read:
+    // if any part fails, nothing is changed. A removed person only comes back through an invitation the admin sent AFTER the removal.
+    const wasOut = Boolean(row.leftAt || row.removedAt);
+    if (row.removedAt && (inv.acceptedAt || inv.createdAt.getTime() < row.removedAt.getTime() || !(await isGroupAdmin(inv.groupId, inv.invitedById)))) return { ok: false, error: CLOSED };
+    try {
+      await db.$transaction(async (tx) => {
+        const closed = await tx.invite.updateMany({ where: { id: inv.id, acceptedAt: null, declinedAt: null }, data: { acceptedAt: new Date() } });
+        if (wasOut) {
+          if (closed.count !== 1) throw new InviteClosed();
+          const back = await tx.member.updateMany({ where: { id: row.id, accountId: account.id, leftAt: row.leftAt, removedAt: row.removedAt }, data: { leftAt: null, removedAt: null, removedById: "" } });
+          if (back.count !== 1) throw new InviteClosed();
+          // This counts as a change to that person, so an older undo (say, the admin's old removal) can't push them out again.
+          await logEvent(tx, {
+            groupId: inv.groupId,
+            actorId: row.id,
+            kind: "member_rejoined",
+            text: "rejoined the group",
+            undo: {
+              type: "member_set",
+              memberId: row.id,
+              data: row.removedAt
+                ? { leftAt: (row.leftAt ?? row.removedAt).toISOString(), removedAt: row.removedAt.toISOString(), removedById: row.removedById }
+                : { leftAt: row.leftAt!.toISOString() },
+            },
+          });
+        }
+        await tx.member.updateMany({ where: { id: row.id, seenAt: null }, data: { seenAt: new Date() } });
+      });
+    } catch (e) {
+      if (e instanceof InviteClosed) return { ok: false, error: CLOSED };
+      throw e;
     }
-    // Left on their own and invited back to their own row: joining brings them back (joinNew also refuses a removed person).
-    r = await joinNew(code, account, account.name);
-    if (r.ok && (row.leftAt || row.removedAt)) await logEvent(db, { groupId: inv.groupId, actorId: row.id, kind: "member_rejoined", text: "rejoined the group" });
+    await copyPushTo(account.id, row.id);
+    return { ok: true, groupId: inv.groupId, memberId: row.id };
   } else {
     // Link their name row if it is still free; if someone else took that name meanwhile, join as themselves (a new row, with their own name).
     r = await joinExisting(code, account, memberId);
@@ -151,7 +178,8 @@ export async function declineInvitation(account: Account, key: string): Promise<
   if (key.startsWith("m:")) {
     const m = await db.member.findFirst({ where: { id: key.slice(2), accountId: account.id, addedBy: { not: "" }, seenAt: null, removedAt: null, group: { deletedAt: null } } });
     if (!m) return { ok: false, error: GONE };
-    // Taken off the row, which stays as a plain name (used or not): expenses, payments and balances don't move.
+    // Same as the live app: the account is taken off the row, which stays as a plain name (used or not): expenses, payments and
+    // balances don't move. (People who left or were removed never get an "m:" card: they are invited back with a real invitation.)
     await db.$transaction([
       db.member.updateMany({ where: { id: m.id, accountId: account.id, seenAt: null }, data: { accountId: null, claimedAt: null, addedBy: "" } }),
       db.pushSubscription.deleteMany({ where: { memberId: m.id } }),
