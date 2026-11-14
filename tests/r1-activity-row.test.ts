@@ -27,11 +27,10 @@ describe("R1 item 3: invite friends lives on You only", () => {
 });
 
 describe("R1 item 4: the Collecting card", () => {
-  it("shows progress only: no green 'awaiting check' line, no 'to check' repeat", () => {
+  it("shows progress only on Home: no green 'awaiting check' line (the organiser's page adds a grey '₹300 to check', see r2-home)", () => {
     const card = src("src/components/CollectionsList.tsx");
     expect(card).not.toContain("awaiting check");
     expect(card).not.toContain("text-owed");
-    expect(card).not.toContain("to check`");
   });
   it("no Collection story circle", () => {
     expect(src("src/lib/home/stories.ts")).not.toContain('kind: "collect",');

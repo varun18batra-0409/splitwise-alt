@@ -271,15 +271,15 @@ if (!desktop && !hosted) {
   // [name, how the viewer's money is set up, what the card must say (so a broken setup is noticed, not photographed)]
   const states: [string, () => Promise<void>, { kind: string; has: RegExp }][] = [
     // Asha paid ₹54,122 for a trip bill that is only Varun's share: Varun owes Asha 5412200 paise, nobody else owes anyone.
-    ["owe", () => addExpense(tripId, A, [[V, 5412200]], "Boat tickets"), { kind: "one", has: /^one \| You .*Asha.* ₹54,122 .*Pay Asha$/ }],
+    ["owe", () => addExpense(tripId, A, [[V, 5412200]], "Boat tickets"), { kind: "one", has: /^one \| From To YOU ASH .*₹54,122 .*Pay Asha$/ }],
     // Varun paid ₹22,916 for Kabir's share of the flat: Kabir owes Varun 2291600 paise.
-    ["owed-one", () => addExpense(flatId, FV, [[FK, 2291600]], "Rent share"), { kind: "one", has: /^one \| Kabir .*You .*₹22,916 .*Remind Kabir$/ }],
+    ["owed-one", () => addExpense(flatId, FV, [[FK, 2291600]], "Rent share"), { kind: "one", has: /^one \| From To KAB YOU .*₹22,916 .*Remind Kabir$/ }],
     // Varun paid ₹31,480 for the trip, shared by Asha 12,000 + Ravi 11,000 + Meera 8,480 (1200000 + 1100000 + 848000 = 3148000 paise).
-    ["owed-several", () => addExpense(tripId, V, [[A, 1200000], [R, 1100000], [M, 848000]], "Dinner at Jay Fai"), { kind: "one", has: /^one \| 3 people .*You .*₹31,480 .*See who to remind$/ }],
+    ["owed-several", () => addExpense(tripId, V, [[A, 1200000], [R, 1100000], [M, 848000]], "Dinner at Jay Fai"), { kind: "one", has: /^one \| From To 3 PPL YOU .*₹31,480 .*Remind 3 people$/ }],
     // Both ways, in two groups so nobody is netted: Varun owes Asha ₹4,200 (trip) and Kabir owes Varun ₹22,916 (flat).
-    ["both", async () => { await addExpense(tripId, A, [[V, 420000]], "Boat tickets"); await addExpense(flatId, FV, [[FK, 2291600]], "Groceries"); }, { kind: "both", has: /^both \| You owe Asha .*₹4,200 Pay Asha Kabir owes you .*₹22,916 Remind Kabir$/ }],
+    ["both", async () => { await addExpense(tripId, A, [[V, 420000]], "Boat tickets"); await addExpense(flatId, FV, [[FK, 2291600]], "Groceries"); }, { kind: "both", has: /^both \| From To KAB YOU .*₹22,916 .*Remind Kabir .*From To YOU ASH .*₹4,200 .*Pay Asha$/ }],
     // Nothing added: every balance is 0.
-    ["square", async () => undefined, { kind: "square", has: /^square \| .*All square.*Nobody owes anybody$/ }],
+    ["square", async () => undefined, { kind: "square", has: /^square \| .*All square.*Nobody owes anybody.*SETTLED.*Add an expense$/ }],
   ];
   try {
     await db.expense.updateMany({ where: { id: { in: hadExpenses.map((x) => x.id) } }, data: { deletedAt: new Date() } });
@@ -296,7 +296,7 @@ if (!desktop && !hosted) {
         await shot(`n${w}-home-state-${name}`, "/");
       }
       // A long first name on the narrowest phone: the button says "Pay Bhagyalakshmi" (cut with "…" only if it cannot fit), the route
-      // line shortens with "…", and the amount stays whole.
+      // codes stay whole (BHA), and the amount stays whole.
       if (name === "owe") {
         const asha = await db.member.findUnique({ where: { id: A } });
         await db.member.update({ where: { id: A }, data: { name: "Bhagyalakshmi Venkataraman" } });
@@ -331,13 +331,8 @@ await shot("68-home-first-screen", "/", async (p) => {
   await p.waitForTimeout(400);
 }, false);
 if (wide) await page.setViewportSize(wide);
-for (const n of [2, 3, 4]) {
-  await shot(`69-home-card-${n}`, "/", async (p) => {
-    await p.getByRole("button", { name: /Pause the highlights/ }).click();
-    await p.getByRole("button", { name: new RegExp(`^Show ${n} of`) }).click();
-    await p.waitForTimeout(900);
-  }, false);
-}
+// The whole Home at 390 (stories, boarding pass, groups, countdown, latest, the month card).
+await shot("69-home-full", "/");
 // Collect: the organiser's screens, then what someone opening the link sees.
 let collectCode = "";
 if (!hosted) {
@@ -408,19 +403,10 @@ if (!hosted) {
       members: { create: [{ name: "Varun", accountId: acc.id, claimedAt: new Date() }, { name: "Nupur" }, { name: "Kabir" }] },
     },
   });
-  await shot("84-home-trips-row", "/", undefined, false);
-  // The same on a narrow phone (360 wide, many Androids): nothing squeezed or cut off.
+  // One countdown, the other trip as an "Also:" line inside it.
+  await shot("84-home-countdown-also", "/", undefined, false);
   await page.setViewportSize({ width: 360, height: 780 });
-  await shot("85-home-trips-narrow", "/", async (p) => {
-    await p.locator("[data-trip-row]").scrollIntoViewIfNeeded();
-  }, false);
-  // Swiped to the second trip.
-  await shot("86-home-trips-swiped", "/", async (p) => {
-    const row = p.locator("[data-trip-row]");
-    await row.scrollIntoViewIfNeeded();
-    await row.evaluate((el) => el.scrollTo({ left: el.clientWidth }));
-    await p.waitForTimeout(500);
-  }, false);
+  await shot("85-home-countdown-also-narrow", "/", undefined, false);
   await page.setViewportSize(screen);
   await shot("77-group-countdown", `/groups/${goa.id}`, undefined, false);
   await shot("77b-group-weather", `/groups/${goa.id}`, async (p) => {

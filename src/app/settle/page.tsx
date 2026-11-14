@@ -31,7 +31,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
   // The picture on the stub: the group of this person's biggest part (the first one listed).
   const coverOf = (it: Item): { cover?: StubCover; mark: ReturnType<typeof groupMark> } => {
     const g = all.find((x) => x.group.id === it.parts[0]?.groupId)?.group;
-    return g ? { cover: { id: g.id, cover: coverFor(g), photo: tripPhotoSrc(g), name: g.name }, mark: groupMark(g.type) } : { mark: "dot" };
+    return g ? { cover: { id: g.id, cover: coverFor(g), photo: tripPhotoSrc(g), name: g.name }, mark: groupMark(g.type) } : { mark: "plane" };
   };
   const payButtonsOf = (it: Item) => {
     if (it.net < 0 && !it.converted) {

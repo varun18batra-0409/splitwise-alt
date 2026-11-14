@@ -68,7 +68,7 @@ test("a trip with dates counts down on the group and Home; settings change it; t
   await page.getByRole("button", { name: "Save settings" }).click();
   await expect(page.getByText("The trip can’t end before it starts.")).toBeVisible();
 
-  // A second, later trip: the soonest stays in the strip under the money card, the later one shows under "Also coming up".
+  // A second, later trip: the soonest is the one countdown; the later one is its "Also:" line.
   await page.goto("/groups/new");
   await settled(page);
   await page.getByRole("button", { name: /^Trip/ }).click();
@@ -81,9 +81,10 @@ test("a trip with dates counts down on the group and Home; settings change it; t
   await settled(page);
   await expect(page.locator("[data-trip-strip]")).toHaveAttribute("data-countdown", "1");
   await expect(page.locator("[data-trip-strip]")).toContainText("tomorrow");
-  const row = page.locator("[data-trip-row]");
-  await expect(row.getByRole("region", { name: "Trip countdown", exact: true })).toHaveCount(1);
-  await expect(row.locator("[data-countdown]").nth(0)).toHaveAttribute("data-countdown", "40");
+  // The later trip is one line inside the countdown ("Also: Manali in 40 days"), not a second card.
+  await expect(page.locator("[data-trip-strip]")).toHaveCount(1);
+  await expect(page.locator("[data-trip-also]")).toHaveText(/^Also: Manali.* in 40 days$/);
+  await expect(page.locator("[data-trip-row]")).toHaveCount(0);
   await ctx.close();
 
   // Someone outside the group can't get the picture.

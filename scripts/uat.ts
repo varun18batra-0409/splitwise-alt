@@ -1339,16 +1339,19 @@ async function main() {
     const keys = (await money.locator("[data-money-action]").evaluateAll((els) => els.map((e) => e.getAttribute("data-money-action")))).join(",");
     const labels = await money.locator("[data-money-action]").allInnerTexts();
     if (kind === "square") {
-      // All square: the words only, no button (the “+ New group” tile below is the only way to start one).
+      // All square: the same pass with a SETTLED stamp and one quiet "Add an expense" link, no button.
       assert(tone === "square" && keys === "" && /All square/.test(text) && /Nobody owes anybody/.test(text), `all-square card: ${tone} ${keys} ${text}`);
-      assert((await money.getByRole("link").count()) === 0, "the all-square card still has a button");
+      assert((await money.locator("[data-settled-stamp]").count()) === 1, "the all-square pass has no SETTLED stamp");
+      assert((await money.getByRole("link").count()) === 1 && (await money.locator("[data-square-add]").count()) === 1, "the all-square pass should have only the quiet Add an expense link");
       assert((await money.locator("[data-money-people]").count()) === 0, "the money card names people when nothing is owed");
     } else if (kind === "neutral") {
       assert(keys === "settle" && /^Settle up$/.test(labels[0].trim()), `neutral card buttons: ${keys}`);
     } else if (kind === "one") {
       // One person or several: a route line, the amount once, and one button.
-      const route = (await money.locator("[data-route]").innerText()).replace(/\s+/g, " ").trim();
-      assert(/^You .+|.+ You$/.test(route), `the route line is "${route}"`);
+      const fromCode = ((await money.locator("[data-route-from]").innerText()) ?? "").trim();
+      const toCode = ((await money.locator("[data-route-to]").innerText()) ?? "").trim();
+      assert((fromCode === "YOU") !== (toCode === "YOU") && fromCode !== toCode, `the route codes are "${fromCode}" and "${toCode}" (one end is YOU)`);
+      assert((await money.locator("[data-route] [data-mark='plane'][data-takeoff]").count()) === 1, "the route has no take-off plane");
       const amount = (await money.locator("[data-net-balance]").first().innerText()).trim();
       assert(/[₹$€£]\s?\d/.test(amount), `the amount is "${amount}"`);
       assert(text.split(amount).length === 2, `the amount "${amount}" is repeated on the card: ${text}`);
@@ -1371,11 +1374,11 @@ async function main() {
       // Both ways: two lines, each with its own small button; never netted into one amount.
       assert(keys === "pay,remind", `both-ways buttons: ${keys}`);
       assert((await money.locator("[data-ticket-line]").count()) === 2, "both ways should be two lines");
-      assert(labels.map((l) => l.trim()).join("|") === "Pay|Remind", `both-ways button words: ${labels.join("|")}`);
-      assert(/You owe/.test(text) && / owes? you/.test(text), `both-ways lines lost their direction words: ${text}`);
+      assert(/^Pay \S+/.test(labels[0].trim()) || /^Remind /.test(labels[0].trim()), `both-ways button words: ${labels.join("|")}`);
+      assert((await money.locator("[data-route-from]").count()) === 2, "both ways should be two passes, each with its own route");
       assert((await money.locator("[data-money-action][data-emphasis='bright']").count()) === 1, "both-ways card should have one bright button");
     }
-    // What waits on you is one quiet line under the card (a 44px link, no dot, no box), never a section of its own.
+    // What waits on you is one quiet line under the card (a 44px link, full contrast, a small dot, no box), never a section of its own.
     assert((await V.locator("[data-needs-you]").count()) === 0, "Home still has a separate Needs you section");
     assert((await V.getByRole("heading", { name: "Needs you" }).count()) === 0, "Home still has a Needs you heading");
     assert((await money.locator("[data-need-line]").count()) === 0, "the need line is still inside the card");
@@ -1383,14 +1386,14 @@ async function main() {
     if (await needLine.count()) {
       const link = needLine.locator("[data-need-link]");
       assert((await link.boundingBox())!.height >= 44, "the need line is under 44px tall");
-      assert((await needLine.locator(".rounded-full").count()) === 0, "the need line still has a dot");
+      assert((await needLine.locator("[data-need-dot]").count()) === 1, "the need line has no marker dot");
       const n = Number(await needLine.getAttribute("data-need-count"));
       const t = (await link.innerText()).replace(/\s+/g, " ");
       if (n >= 2) {
         assert(/^\d+ (things need you|payments to confirm) See them/.test(t) && (await link.getAttribute("href")) === "/notifications", `the many-needs line is "${t}"`);
       } else {
-        assert(/(Confirm|Add|Add it|Needs a fix|Close it|View) ›$/.test(t), `the need line has no action word: ${t}`);
-        if (/Close it/.test(t)) assert(/^.+ is all square\. Close it ›$/.test(t), `the close line says: ${t}`);
+        assert(/(Confirm|Add|Add it|Needs a fix|Close it|View)$/.test(t), `the need line has no action word: ${t}`);
+        if (/Close it/.test(t)) assert(/^.+ is all square\. Close it$/.test(t), `the close line says: ${t}`);
         if (/says they paid/.test(t)) assert(/says they paid (you|[A-Z])/.test(t) && !/says they paid [₹$€£]/.test(t), `the need line doesn't say who was paid: ${t}`);
       }
     }
@@ -1409,7 +1412,7 @@ async function main() {
     await card.waitFor();
     const box = (await card.boundingBox())!;
     assert(box.y >= 0 && box.y + box.height <= 667, `the money card ends at ${Math.round(box.y + box.height)}px of 667`);
-    const limit = (await card.getAttribute("data-ticket")) === "both" ? 266 : 206;
+    const limit = (await card.getAttribute("data-ticket")) === "both" ? 330 : 290; // a boarding pass: route, amount, fields, button (both ways add the dots)
     assert(box.height <= limit, `the money card is ${Math.round(box.height)}px tall (should be about ${limit - 6} or less)`);
     for (const b of await card.locator("[data-money-action]").all()) {
       const bb = (await b.boundingBox())!;
@@ -1567,8 +1570,9 @@ async function main() {
       const over = (await card.evaluate((el) => {
         const bad: string[] = [];
         const cr = el.getBoundingClientRect();
-        if (cr.right > window.innerWidth + 0.5 || el.scrollWidth > el.clientWidth + 1) bad.push("card");
+        if (cr.right > window.innerWidth + 0.5 || (!el.hasAttribute("data-pass-stack") && el.scrollWidth > el.clientWidth + 1)) bad.push("card");
         el.querySelectorAll("[data-money-action], [data-money-people], [data-net-balance], [data-route]").forEach((e) => {
+          if (e.closest("[data-pass-stack] li:not(:first-child)")) return; // the next pass waits off to the side of the stack
           const r = e.getBoundingClientRect();
           const name = e.getAttribute("data-money-action") || (e.hasAttribute("data-net-balance") ? "amount" : e.hasAttribute("data-route") ? "route" : "people");
           if (r.right > cr.right + 0.5 || r.left < cr.left - 0.5) bad.push(name);
@@ -2007,9 +2011,10 @@ async function main() {
       await ctx.close();
     }
   });
-  await step(V, "Get the app", "Home has an “App” button and the service worker is registered (needed to install)", async () => {
-    await go(V, "/");
-    await V.getByRole("button", { name: "Get the app" }).waitFor();
+  await step(V, "Get the app", "You has the “Get the Loopin app” row (it moved off Home's header) and the service worker is registered (needed to install)", async () => {
+    await go(V, "/account");
+    await V.getByRole("button", { name: /^(Get it|Install)$/ }).waitFor();
+    assert((await V.getByRole("button", { name: "Get the app" }).count()) === 0, "Home's header App button is still there");
     const ok = await V.evaluate(async () => Boolean(await navigator.serviceWorker.getRegistration("/")));
     assert(ok, "no service worker registered");
   });
@@ -2053,8 +2058,10 @@ async function main() {
     await page.getByRole("heading", { name: "Continue to Loopin" }).waitFor();
     await ctx.close();
   });
-  await step(V, "Help", "“?” on home opens the detailed How Loopin works guide (with photos), which links to the 1-minute tour", async () => {
+  await step(V, "Help", "The “How Loopin works” row on You opens the detailed guide (with photos), which links to the 1-minute tour; Home's header has no “?”", async () => {
     await go(V, "/");
+    assert((await V.locator('header a[href="/how-it-works"]').count()) === 0, "Home's header still has the ? help button");
+    await go(V, "/account");
     await V.getByRole("link", { name: "How Loopin works" }).click();
     await V.waitForURL(/\/how-it-works/);
     await V.getByRole("heading", { name: "Add an expense in seconds" }).waitFor();
@@ -3207,16 +3214,14 @@ async function main() {
     assert(/10/.test((await card.locator("[data-countdown-big]").first().textContent()) ?? ""), "the strip doesn't show 10");
   });
 
-  await step(V, "Countdown", "A second trip in 30 days: the soonest stays in the countdown strip under the money card, the later one shows under “Also coming up”, one card at a time", async () => {
+  await step(V, "Countdown", "A second trip in 30 days: Home still has ONE countdown (the soonest) and the later trip is the one-line “Also: … in 30 days” inside it, not a card", async () => {
     await newTrip(V, `UAT Manali trip ${stamp % 1000}`, istDay(30));
     await go(V, "/");
-    assert((await V.locator("[data-trip-strip]").getAttribute("data-countdown")) === "10", "the soonest trip isn't in the strip under the money card");
-    const row = V.locator("[data-trip-row]");
-    const days = await row.locator("[data-countdown]").evaluateAll((els) => els.map((e) => e.getAttribute("data-countdown")));
-    assert(days[0] === "30", `later trips in the order ${days.join(", ")}`);
-    await V.getByRole("heading", { name: "Also coming up" }).waitFor();
-    const w = await row.evaluate((el) => [el.clientWidth, (el.firstElementChild as HTMLElement).clientWidth]);
-    assert(w[0] === w[1], `a card is ${w[1]}px in a ${w[0]}px row (should be one per screen)`);
+    assert((await V.locator("[data-trip-strip]").count()) === 1, "Home should have exactly one countdown");
+    assert((await V.locator("[data-trip-strip]").getAttribute("data-countdown")) === "10", "the soonest trip isn't the countdown");
+    const also = ((await V.locator("[data-trip-also]").textContent()) ?? "").trim();
+    assert(/^Also: Manali.* in 30 days$/.test(also), `the Also line says "${also}"`);
+    assert((await V.getByRole("heading", { name: "Also coming up" }).count()) === 0 && (await V.locator("[data-trip-row]").count()) === 0, "Home still has separate cards for other trips");
   });
 
   await step(V, "Groups", "A photo picked while making a group becomes its picture", async () => {

@@ -1,7 +1,6 @@
 import { neutralGameText } from "@/lib/game-words";
 import Link from "@/components/Link";
-import { GetAppButton } from "@/components/GetApp";
-import { PhoneOnlyNote } from "@/components/PhoneOnlyNote";
+import { SignInBanner } from "@/components/SignInBanner";
 import { Notice } from "@/components/Notice";
 import { IntroTour } from "@/components/IntroTour";
 import { JoinByLink } from "@/components/JoinByLink";
@@ -11,7 +10,6 @@ import { visitorRegion } from "@/lib/region";
 import { GAME_NIGHT_GAMES } from "@/lib/group-types";
 import { getTimeZone } from "@/lib/tz";
 import { getAccount, getMemberships } from "@/lib/identity";
-import { unreadPostcards } from "@/lib/blocks";
 import { PasskeyOffer } from "@/components/Passkeys";
 
 import { loadDeletedGroups } from "@/lib/group-data";
@@ -22,15 +20,10 @@ import { InvitationCard } from "@/components/InvitationCard";
 import { buildActivity, dayLabel } from "@/lib/activity";
 import { formatMoney } from "@/lib/money";
 import { homeMoney } from "@/lib/home/display";
-import { HomeBanner } from "@/components/HomeBanner";
-import { HighlightCard } from "@/components/HighlightCard";
-import { homeHighlights } from "@/lib/home/highlights";
-import { usesFahrenheit } from "@/lib/climate";
-import { parseHandPlaces } from "@/lib/passport";
-import { nextDueDay } from "@/lib/home/bills";
+import { climateFor, tripMonth, usesFahrenheit, weatherWords } from "@/lib/climate";
 import { Polaroid } from "@/components/Polaroid";
 import { coverFor, coverOf } from "@/lib/covers";
-import { monthNumbers, seasonNow } from "@/lib/home/banner";
+import { monthNumbers } from "@/lib/home/banner";
 import { ActivityRow } from "@/components/ActivityRow";
 import { itemHref } from "@/lib/paths";
 import { db } from "@/lib/db";
@@ -38,19 +31,15 @@ import { leaverOf } from "@/lib/left-view-db";
 import { gameVisible, stillIn } from "@/lib/left-view";
 import { canUndo } from "@/lib/undo";
 import { UndoBar } from "@/components/UndoBar";
-import { iconButtonClass } from "@/components/icons";
 import { BellButton } from "@/components/BellButton";
 import { countMyCollections, myCollections, progress } from "@/lib/collect";
 import { CollectionsSection } from "@/components/CollectionsList";
 import { FooterLinks, HOME_FOOTER_LINKS } from "@/components/FooterLinks";
 import { countdownWords, placeOf, tripPhase, type TripPhase } from "@/lib/countdown";
 import { todayKey } from "@/lib/dates";
-import { TripCountdown } from "@/components/TripCountdown";
-import { countdownStage } from "@/lib/countdown";
 import { countryOf, tripStops } from "@/lib/geo";
 import { MoneyCard, TripStrip, type NeedLine, type StubCover } from "@/components/HomeMoney";
-import { homeTicket, mixedDirections, moneyMode, moneyPeople, rankGroups, type InvolvedGroup } from "@/lib/home/money-card";
-import { TripRow } from "@/components/TripRow";
+import { alsoLine, homeTicket, mixedDirections, moneyMode, moneyPeople, rankGroups, type GroupFacts, type InvolvedGroup } from "@/lib/home/money-card";
 import { Stories } from "@/components/Stories";
 import { buildStories } from "@/lib/home/stories";
 import { loadMomentStoryGroups } from "@/lib/moments-db";
@@ -160,12 +149,11 @@ export default async function Home({
           ? `Signed in${account ? ` as ${account.email}` : ""}. Your groups are saved to your email.`
           : null;
 
-  // The sliding cards at the top: your month so far, and a seasonal nudge.
+  // The month card: your month so far.
   // Your month across every group you're in (closed ones too: it was still your money), the same
   // way Insights counts it.
   const month = monthNumbers(rows.monthGroups, toCommon, common, now, tz);
   const region = visitorRegion(await headers());
-  const season = seasonNow(new Date(), tz, region.country);
   // Stories about how a group is now (countdown, a year ago, just back, wrapped, hero) skip groups the viewer left.
   const live = stillIn(open);
   const byActivity = [...live].sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
@@ -284,7 +272,8 @@ export default async function Home({
   const stories = buildStories({
     now: new Date(),
     moments: momentGroups,
-    trips: trips.map((t) => ({
+    // A trip that is still to come is the countdown line (never also a circle); a trip that is on, or its moments, keep theirs.
+    trips: trips.filter((t) => t.phase.kind !== "before").map((t) => ({
       id: t.g.group.id,
       name: t.g.group.name,
       phase: t.phase,
@@ -380,8 +369,6 @@ export default async function Home({
         return [{ id: g.group.id, name: g.group.name, endedDaysAgo: ended, photos: placePhotos(g.group.name, g.group.tripPlace, 2), cover: coverFor(g.group), spent: formatMoney(g.spent, g.group.currency), topCategory: top ? getCategory(top[0]).label : undefined }];
       }),
   });
-  // The next trip (or the one you're on): a compact strip under the money card.
-  const hero = trips[0];
   // The polaroids in Your groups: newest activity first. A trip that is on carries its day ("Day 2 of 5") on its photo.
   const phaseOf = new Map(trips.map((t) => [t.g.group.id, t.phase]));
   const groupCards: GroupCardData[] = byActivity.map((g) => ({
@@ -403,77 +390,40 @@ export default async function Home({
   };
   const stubIds = ticket.kind === "square" || (ticket.kind === "neutral" && involved.length === 0) ? byActivity.slice(0, 1).map((g) => g.group.id) : rankGroups(involved).slice(0, 2).map((g) => g.id);
   const stub = stubIds.map(stubCover).filter((c): c is StubCover => Boolean(c));
-  // Trips at the same stage of the countdown each get their own words (slot 0, 1, 2… in that stage).
-  const stageSlot = new Map<string, number>();
-  {
-    const seen = new Map<string, number>();
-    for (const t of trips) {
-      const st = countdownStage(t.phase) ?? "none";
-      const n = seen.get(st) ?? 0;
-      stageSlot.set(t.g.group.id, n);
-      seen.set(st, n + 1);
-    }
+  // Each pass of a both-ways stack shows the picture of the groups its own money runs through.
+  const sideStub = (ids: string[]) =>
+    rankGroups(involved.filter((g) => ids.includes(g.id)))
+      .slice(0, 2)
+      .map((g) => stubCover(g.id))
+      .filter((c): c is StubCover => Boolean(c));
+  const sideStubs = ticket.kind === "both" ? { owe: sideStub(ticket.lines.find((l) => l.side === "owe")?.groupIds ?? []), owed: sideStub(ticket.lines.find((l) => l.side === "owed")?.groupIds ?? []) } : undefined;
+  // The pass's SINCE and ITEMS fields: per group with money open, the first item added since the group's last payment and how many there
+  // are (what has built up since the last settle-up). A group that can't be read just leaves its fields out.
+  const facts: Record<string, GroupFacts> = {};
+  if (ticket.kind === "one" || ticket.kind === "both") {
+    await Promise.all(
+      involved.map(async (g) => {
+        const after = open.find((x) => x.group.id === g.id)?.lastPaymentAt ?? null;
+        const where = { groupId: g.id, deletedAt: null, ...(after ? { createdAt: { gt: after } } : {}) };
+        try {
+          const [first, items] = await Promise.all([db.expense.findFirst({ where, orderBy: { createdAt: "asc" }, select: { spentAt: true, createdAt: true } }), db.expense.count({ where })]);
+          facts[g.id] = { since: first ? todayKey(first.spentAt ?? first.createdAt, tz) : null, items };
+        } catch {
+          /* left out */
+        }
+      }),
+    );
   }
-  // The sliding cards at the top (4 to 7), picked for what's useful right now.
-  const stopsOf = (g: (typeof all)[number]) => tripStops(g.group.name, g.group.tripPlace ?? "", g.group.tripCountry ?? "");
-  const homeCountry = (account?.homeCountry || region.country || "IN").toUpperCase();
-  const [postcardsNew, billRows] = await Promise.all([
-    account ? unreadPostcards(account.id) : Promise.resolve(0),
-    // A group they left shows no bills.
-    db.bill.findMany({ where: { groupId: { in: open.filter((g) => !g.leaver).map((g) => g.group.id) }, deletedAt: null, paused: false }, take: 20 }),
-  ]);
-  // The same count as the passport: countries with a stamp or a tick (home only if it has one).
-  const passportSet = new Set(
-    [
-      ...(account ? parseHandPlaces(account.places).map((p) => p.c) : []),
-      ...all
-        .filter((g) => g.group.type === "trip" && !g.group.deletedAt && (g.group.tripStart ? g.group.tripStart <= today : g.expenseCount > 0))
-        .flatMap((g) => stopsOf(g).map((s) => s.country || homeCountry)),
-    ].filter(Boolean),
-  );
-  const highlights = homeHighlights({
-    trips: trips.map((t) => {
-      const ph = placePhotos(t.g.group.name, t.g.group.tripPlace, 2);
-      return {
-        id: t.g.group.id,
-        name: placeOf(t.g.group.name),
-        phase: t.phase,
-        start: t.g.group.tripStart,
-        end: t.g.group.tripEnd || null,
-        stops: stopsOf(t.g),
-        photo: ph[0],
-        photo2: ph[1],
-        todaySpent: t.phase.kind === "before" ? undefined : todayIn(t.g).spent || undefined,
-      };
-    }),
-    justBack: live
-      .filter((g) => g.group.type === "trip" && g.group.tripStart && g.expenseCount > 0)
-      .map((g) => ({ g, ended: daysBetween(g.group.tripEnd || g.group.tripStart, today) }))
-      .filter(({ ended }) => ended >= 1 && ended <= 14)
-      .sort((a, b) => a.ended - b.ended)
-      .map(({ g, ended }) => ({
-        id: g.group.id,
-        name: placeOf(g.group.name),
-        endedDaysAgo: ended,
-        payments: g.transfers.length,
-        photo: placePhotos(g.group.name, g.group.tripPlace, 1)[0],
-        abroad: stopsOf(g).some((s) => s.country && s.country !== homeCountry),
-      })),
-    hasMonth: Boolean(month),
-    season,
-    postcardsNew,
-    billsDue: billRows.flatMap((b) => {
-      const due = nextDueDay(b, new Date());
-      const g = open.find((x) => x.group.id === b.groupId);
-      if (!due || !g || b.nature === "daily") return [];
-      return [{ groupId: b.groupId, billId: b.id, name: b.name, group: g.group.name, inDays: daysBetween(today, due), amount: b.nature === "fixed" && b.amount ? formatMoney(b.amount, g.group.currency) : "" }];
-    }),
-    passportCountries: passportSet.size,
-    // Said alongside, so "23 countries" next to a list of 22 abroad makes sense.
-    passportAbroad: [...passportSet].filter((c) => c !== homeCountry).length,
-    groups: open.length,
-    fahrenheit: usesFahrenheit(region.country),
-  });
+  // The ONE countdown: the next trip to come (with its usual weather when we know it); the others come into it as one "Also:" line.
+  const upcoming = trips.filter((t) => t.phase.kind === "before");
+  const nextTrip = upcoming[0];
+  const nextWeather = (() => {
+    if (!nextTrip) return undefined;
+    const stop = tripStops(nextTrip.g.group.name, nextTrip.g.group.tripPlace ?? "", nextTrip.g.group.tripCountry ?? "")[0];
+    const c = stop ? climateFor(stop.city, stop.country, tripMonth(nextTrip.g.group.tripStart, nextTrip.g.group.tripEnd || null)) : null;
+    return c ? weatherWords(c, usesFahrenheit(region.country)).line : undefined;
+  })();
+  const alsoText = alsoLine(upcoming.slice(1).map((t) => ({ place: placeOf(t.g.group.name), days: t.phase.kind === "before" ? t.phase.days : 0 })));
 
   // First visit: show what Loopin does instead of an empty screen.
   const tourSeen = (await cookies()).get("lp_tour")?.value === "1";
@@ -507,17 +457,10 @@ export default async function Home({
         </Notice>
       )}
 
+      {/* Just the wordmark and the bell. The app install and "How Loopin works" live in You. */}
       <header className="mb-4 flex items-center justify-between">
         <p className="font-display text-[26px] font-semibold leading-none tracking-tight">loopin</p>
-        <div className="flex items-center gap-2">
-          <GetAppButton variant="icon" />
-          <Link href="/how-it-works" aria-label="How Loopin works" className={`glass ${iconButtonClass} h-11! w-11! text-[17px] font-semibold`}>
-            ?
-          </Link>
-          {/* The bell opens Your updates; You is in the bottom bar. */}
-          <BellButton className="glass border border-fg/10" />
-
-        </div>
+        <BellButton className="glass border border-fg/10" />
       </header>
 
       {/* Someone added you to a group: it isn't in your groups until you tap Join. */}
@@ -606,7 +549,7 @@ export default async function Home({
           {stories.length > 0 && <Stories stories={stories} className="mb-4" />}
 
           {/* Money: a boarding pass with the route, the amount and the one next step; what needs you is a quiet line under it. */}
-          <MoneyCard ticket={ticket} mode={mode} tone={mode === "owed" ? "owed" : mode === "owe" ? "owe" : "plain"} stub={stub} need={need} />
+          <MoneyCard ticket={ticket} mode={mode} tone={mode === "owed" ? "owed" : mode === "owe" ? "owe" : "plain"} stub={stub} sideStubs={sideStubs} facts={facts} year={today.slice(0, 4)} need={need} />
 
           {invitationsBlock}
 
@@ -627,26 +570,11 @@ export default async function Home({
             )}
           </section>
 
-          {/* The next trip, as one compact countdown line. A trip that is on is tagged on its photo in Your groups instead. */}
-          {hero && hero.phase.kind === "before" && (
+          {/* The ONE countdown: the next trip to come, with its weather when we know it; other trips are one "Also:" line inside it. A trip that is on is tagged on its photo in Your groups instead. */}
+          {nextTrip && nextTrip.phase.kind === "before" && (
             <div className="mt-6">
-              <TripStrip groupId={hero.g.group.id} place={placeOf(hero.g.group.name)} phase={hero.phase} going={crewOf(hero.g).length} start={hero.g.group.tripStart} shareLine={countdownWords(hero.g.group.name, hero.phase)?.line ?? ""} thumb={stubCover(hero.g.group.id) ?? undefined} />
+              <TripStrip groupId={nextTrip.g.group.id} place={placeOf(nextTrip.g.group.name)} phase={nextTrip.phase} going={crewOf(nextTrip.g).length} start={nextTrip.g.group.tripStart} shareLine={countdownWords(nextTrip.g.group.name, nextTrip.phase)?.line ?? ""} thumb={stubCover(nextTrip.g.group.id) ?? undefined} weather={nextWeather} also={alsoText || undefined} />
             </div>
-          )}
-
-          {/* Any other trips coming up, one card at a time (soonest first). The soonest one is the countdown line above (a trip that is on is tagged in Your groups). */}
-          {trips.length > 1 && (
-            <section className="mt-8" aria-label="More trips">
-              <div className="mb-3 flex items-baseline justify-between">
-                <h2 className="font-display text-[22px] font-semibold tracking-tight">Also coming up</h2>
-                {trips.length > 2 && <span className="text-xs text-fg/60">Swipe for more</span>}
-              </div>
-              <TripRow>
-                {trips.slice(1).map((t) => (
-                  <TripCountdown key={t.g.group.id} group={t.g.group} phase={t.phase} slot={stageSlot.get(t.g.group.id) ?? 0} />
-                ))}
-              </TripRow>
-            </section>
           )}
 
           {/* Latest */}
@@ -689,58 +617,46 @@ export default async function Home({
             </Link>
           )}
 
-          <div className="mt-8">
-          {/* The sliding cards, picked for you: the trip you're on, the next trip's weather and what's on there,
-              a trip just over, postcards waiting, a bill due, your month, a festival where you live. */}
-            <HomeBanner>
-              {highlights.map((h) =>
-                h.kind === "month" ? (
-                  month && (
-                    <div key="month" className="flex flex-1 flex-col">
-
-                <div className="relative flex min-h-[268px] flex-1 flex-col overflow-hidden bg-white px-5 pb-12 pt-5">
-                  <p className="relative text-[13px] text-fg/55">{month.wrapped ? "Your month, wrapped" : "Your month so far"}</p>
-                  <p className="relative mt-1 font-display text-[27px] font-semibold leading-[1.1]">{month.name} in numbers</p>
-                  <div className="relative mb-4 mt-5 flex flex-wrap items-end gap-x-4 gap-y-2 min-[360px]:gap-x-5" data-month-stats>
-                    {/* No "₹0 your share": a zero is left out. */}
-                    {month.share !== 0 && (
-                      <p className="shrink-0">
-                        <span className="block money text-[19px] font-semibold tabular-nums" data-month-share title={formatMoney(month.share, month.currency)} data-exact={formatMoney(month.share, month.currency)}>
-                          {month.converted ? "≈ " : ""}
-                          {homeMoney(month.share, month.currency)}
-                        </span>
-                        <span className="block whitespace-nowrap text-xs text-gray-600">your share</span>
-                      </p>
-                    )}
+          {/* One static card for the month (no sliding, nothing that plays by itself). */}
+          {month && (
+            <div className="mt-8 overflow-hidden rounded-[24px] border border-line bg-white" data-month-card>
+              <div className="relative flex flex-col px-5 pb-5 pt-5">
+                <p className="relative text-[13px] text-fg/55">{month.wrapped ? "Your month, wrapped" : "Your month so far"}</p>
+                <p className="relative mt-1 font-display text-[27px] font-semibold leading-[1.1]">{month.name} in numbers</p>
+                <div className="relative mb-4 mt-5 flex flex-wrap items-end gap-x-4 gap-y-2 min-[360px]:gap-x-5" data-month-stats>
+                  {/* No "₹0 your share": a zero is left out. */}
+                  {month.share !== 0 && (
                     <p className="shrink-0">
-                      <span className="block money text-[19px] font-semibold tabular-nums">{month.count}</span>
-                      <span className="block whitespace-nowrap text-xs text-gray-600">{month.count === 1 ? "expense" : "expenses"}</span>
+                      <span className="block money text-[19px] font-semibold tabular-nums" data-month-share title={formatMoney(month.share, month.currency)} data-exact={formatMoney(month.share, month.currency)}>
+                        {month.converted ? "≈ " : ""}
+                        {homeMoney(month.share, month.currency)}
+                      </span>
+                      <span className="block whitespace-nowrap text-xs text-gray-600">your share</span>
                     </p>
-                    {month.top && (
-                      // Whole words only: a long category wraps between words, never inside one.
-                      <p className="min-w-[4.5rem] flex-1 [overflow-wrap:normal]">
-                        <span className="block font-display text-[19px] font-semibold leading-tight">{month.top}</span>
-                        <span className="block text-xs text-gray-600">most spent on</span>
-                      </p>
-                    )}
-                  </div>
-                  <Link href={`/search?m=${month.month}`} className={`relative mt-auto ${bannerButton}`}>
-                    See {month.name}
-                  </Link>
+                  )}
+                  <p className="shrink-0">
+                    <span className="block money text-[19px] font-semibold tabular-nums">{month.count}</span>
+                    <span className="block whitespace-nowrap text-xs text-gray-600">{month.count === 1 ? "expense" : "expenses"}</span>
+                  </p>
+                  {month.top && (
+                    // Whole words only: a long category wraps between words, never inside one.
+                    <p className="min-w-[4.5rem] flex-1 [overflow-wrap:normal]">
+                      <span className="block font-display text-[19px] font-semibold leading-tight">{month.top}</span>
+                      <span className="block text-xs text-gray-600">most spent on</span>
+                    </p>
+                  )}
                 </div>
-                    </div>
-                  )
-                ) : (
-                  <HighlightCard key={h.id} h={h} />
-                ),
-              )}
-            </HomeBanner>
-          </div>
+                <Link href={`/search?m=${month.month}`} className={`relative ${bannerButton}`}>
+                  See {month.name}
+                </Link>
+              </div>
+            </div>
+          )}
         </>
       )}
 
-      {/* Not signed in: these groups live only on this phone. Just above the footer, out of the way of the groups and Latest. */}
-      {all.length > 0 && !account && <PhoneOnlyNote plural className="mt-6" />}
+      {/* Not signed in: these groups live only on this phone. The one sign-in banner, dismissible, just above the footer. */}
+      {all.length > 0 && !account && <SignInBanner className="mt-6" />}
 
       <FooterLinks links={HOME_FOOTER_LINKS} className="mt-6 pb-6" />
     </>

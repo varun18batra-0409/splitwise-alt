@@ -3,6 +3,7 @@ import Link from "@/components/Link";
 import { unreadPostcards } from "@/lib/blocks";
 import { CompassIcon, PeoplePassportsIcon } from "@/components/DrawnIcons";
 import { BellIcon, ChartIcon } from "@/components/icons";
+import { GetAppButton } from "@/components/GetApp";
 import { DevicesLineIcon, DownloadLineIcon, HelpLineIcon, LockLineIcon, PostcardLineIcon, WalletLineIcon, YouList, YouRow } from "@/components/YouRows";
 import { InviteFriends } from "@/components/InviteFriends";
 import { saveMyName } from "@/app/actions";
@@ -135,8 +136,12 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
       <YouList label="Account" className="mt-8">
         {account && <YouRow href="/account/sign-in" icon={<DevicesLineIcon />} title="Sign-in & devices" line="Fingerprint sign-in, sign out of phones" />}
         <YouRow href="/account/data" icon={<DownloadLineIcon />} title="Export your data" line="A copy of everything in your groups" />
+        <YouRow href="/how-it-works" icon={<HelpLineIcon />} title="How Loopin works" line="Three steps, one minute" />
         <YouRow href="/support" icon={<HelpLineIcon />} title="Help & support" line="Guides and a way to reach us" />
       </YouList>
+
+      {/* Moved here from Home's header: puts Loopin on the home screen (hidden once it is installed). */}
+      <GetAppButton variant="card" className="mt-6" />
 
       <InviteFriends name={account?.name} className="mt-6" />
 

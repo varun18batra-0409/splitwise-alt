@@ -253,11 +253,11 @@ export function stripWords(place: string, p: TripPhase): { pre: string; num?: st
 // Money going both ways is two lines on the same ticket, never netted together. Nothing here changes a number: every amount is a
 // per-person total from moneyPeople (the same figures Settle up shows), added only within one currency.
 
-export type GroupMark = "plane" | "house" | "heart" | "spade" | "dot";
+export type GroupMark = "plane";
 
-// The little mark on the route line: a plane for trips, a house for flats, a heart for couples, a spade for game nights, else a dot.
-export function groupMark(type: string): GroupMark {
-  return type === "trip" ? "plane" : type === "home" ? "house" : type === "couple" ? "heart" : type === "pot" ? "spade" : "dot";
+// The mark on the route line is always the plane taking off, whatever the group type (the group's name is the GROUP field instead).
+export function groupMark(_type?: string): GroupMark {
+  return "plane";
 }
 
 // A group the money runs through. `weight`: how much of it is with you, in the common currency (0 when there is no saved rate).
@@ -301,6 +301,23 @@ export function routeCode(end: string): string {
   return [...end.replace(/[^\p{L}\p{N}]/gu, "")].slice(0, 3).join("").toUpperCase() || end.toUpperCase();
 }
 
+// A person's code on the boarding pass, never the same as another end of the same pass (`taken`, e.g. "YOU"). First choice is the
+// first three letters of the first name ("KAB"). If that is taken ("Youssef" and "YOU"): first letter + the last name's first two
+// letters ("YKH" for Youssef Khan), then first two letters + last initial, then first letter + last initial + next letter, and as a
+// last resort two letters and a digit ("YO2"). A short name stays short ("AL").
+export function personCode(fullName: string, taken: string[] = ["YOU"]): string {
+  const letters = (t: string) => [...t.replace(/[^\p{L}\p{N}]/gu, "")].map((c) => c.toUpperCase());
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  const first = letters(parts[0] ?? fullName);
+  const last = parts.length > 1 ? letters(parts[parts.length - 1]) : [];
+  const pick = (...a: (string | undefined)[]) => a.filter(Boolean).join("");
+  const options = [first.slice(0, 3).join(""), ...(last.length > 0 ? [pick(first[0], last[0], last[1]), pick(first[0], first[1], last[0]), pick(first[0], last[0], first[1])] : [])].filter(Boolean);
+  for (const c of options) if (!taken.includes(c)) return c;
+  const stem = first.slice(0, 2).join("") || "X";
+  for (let n = 2; n < 100; n++) if (!taken.includes(`${stem}${n}`)) return `${stem}${n}`;
+  return stem;
+}
+
 export function initialOf(name: string): string {
   return ([...name.trim()][0] ?? "?").toUpperCase();
 }
@@ -339,6 +356,11 @@ export type TicketLine = {
   faces: string[]; // initials, largest first (up to 3), only when there are several people
   peopleHref: string; // Settle up, scrolled to this side
   action: TicketAction;
+  fromCode: string; // the boarding pass's route codes: "KAB", "YOU", "3 PPL"
+  toCode: string;
+  groupIds: string[]; // the groups this side's money runs through (for the GROUP, SINCE and ITEMS fields and the stub's picture)
+  groupNames: string[];
+  weight: number; // this side's money in the common currency (0 for a part with no saved rate): only used to put the larger pass first
 };
 export type Ticket =
   | { kind: "square"; label: string; amount: string } // no button: the "+ New group" tile below is the only way to start one
@@ -375,7 +397,26 @@ function ticketLine(side: "owe" | "owed", entries: MoneyPerson[], common: string
         ? { key: "remind", label: `Remind ${firstWord(top.name)}`, fullLabel: `Remind ${top.name} on WhatsApp`, href: remind ?? peopleHref, bright: !short }
         : { key: "remind", label: short ? "Remind" : `Remind ${count} people`, fullLabel: `See the ${count} people who owe you, to remind them`, href: peopleHref, bright: !short };
   const phrase = side === "owe" ? `You owe ${count === 1 ? top.name : name}` : count === 1 ? `${top.name} owes you` : `${name} owe you`;
-  return { side, count, phrase, name, amount: total.text, exact: total.exact, faces: count > 1 ? people.slice(0, 3).map((p) => initialOf(p.name)) : [], peopleHref, action };
+  const them = count === 1 ? personCode(top.name, ["YOU"]) : `${count} PPL`;
+  const groupIds = [...new Set(people.flatMap((p) => p.parts.map((x) => x.groupId)))];
+  const groupNames = groupIds.map((id) => groups.find((g) => g.id === id)?.name).filter((n): n is string => Boolean(n));
+  const weight = entries.filter((e) => e.currency === common).reduce((t, e) => t + e.amount, 0);
+  return {
+    side,
+    count,
+    phrase,
+    name,
+    amount: total.text,
+    exact: total.exact,
+    faces: count > 1 ? people.slice(0, 3).map((p) => initialOf(p.name)) : [],
+    peopleHref,
+    action,
+    fromCode: side === "owe" ? "YOU" : them,
+    toCode: side === "owe" ? them : "YOU",
+    groupIds,
+    groupNames,
+    weight,
+  };
 }
 
 // ---- The ticket at the top of ONE group ----
@@ -443,4 +484,50 @@ export function homeTicket(x: {
     context,
     action: { key: "settle", label: "Settle up", fullLabel: "Settle up", href: "/settle", bright: true },
   };
+}
+
+// ---- The boarding pass's fields and order ----
+export type PassField = { key: "group" | "since" | "items"; label: string; value: string };
+export type GroupFacts = { since: string | null; items: number }; // since: a day, "2026-11-03"; items: expenses added since the group's last payment
+
+// "3 Nov" (this year) or "3 Nov 2025".
+export function shortDay(iso: string, thisYear: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return "";
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${Number(m[3])} ${months[Number(m[2]) - 1] ?? ""}${m[1] === thisYear ? "" : ` ${m[1]}`}`;
+}
+
+// The oldest day and the item count across the groups one pass runs through. A group with no facts is skipped; none known: nulls.
+export function sideFacts(ids: string[], facts: Record<string, GroupFacts | undefined>): { since: string | null; items: number | null } {
+  const known = ids.map((id) => facts[id]).filter((f): f is GroupFacts => Boolean(f));
+  const days = known.map((f) => f.since).filter((d): d is string => Boolean(d)).sort();
+  const items = known.reduce((t, f) => t + f.items, 0);
+  return { since: days[0] ?? null, items: items > 0 ? items : null };
+}
+
+// Up to three labelled fields, only the ones that are known and meaningful (never "0 items").
+export function passFields(x: { groupNames: string[]; since?: string | null; items?: number | null; thisYear: string }): PassField[] {
+  const out: PassField[] = [];
+  if (x.groupNames.length === 1) out.push({ key: "group", label: "Group", value: x.groupNames[0] });
+  else if (x.groupNames.length > 1) out.push({ key: "group", label: "Groups", value: `${x.groupNames.length} groups` });
+  const day = x.since ? shortDay(x.since, x.thisYear) : "";
+  if (day) out.push({ key: "since", label: "Since", value: day });
+  if (x.items && x.items > 0) out.push({ key: "items", label: "Items", value: String(x.items) });
+  return out;
+}
+
+// Money both ways: two passes, the larger one first (in the common currency); equal or unknown: the one you owe first.
+export function orderPasses<T extends { side: "owe" | "owed"; weight: number }>(lines: [T, T]): [T, T] {
+  const [a, b] = lines;
+  return b.weight > a.weight ? [b, a] : a.weight === b.weight && a.side !== "owe" ? [b, a] : [a, b];
+}
+
+// The one line under the countdown for the other trips coming up: "Also: Manali in 40 days", "Also: Manali in 40 days, Goa tomorrow and 1 more".
+export function alsoLine(trips: { place: string; days: number }[]): string {
+  if (trips.length === 0) return "";
+  const when = (d: number) => (d <= 0 ? "today" : d === 1 ? "tomorrow" : `in ${d} days`);
+  const shown = trips.slice(0, 2).map((t) => `${t.place} ${when(t.days)}`);
+  const more = trips.length - shown.length;
+  return `Also: ${shown.join(", ")}${more > 0 ? ` and ${more} more` : ""}`;
 }

@@ -56,13 +56,20 @@ function ticketFor(groups: PeopleGroup[], types: Record<string, string>, mode: M
 }
 
 describe("the mark on the route line", () => {
-  it("plane for trips, house for flats, heart for couples, spade for game nights, a dot for anything else", () => {
-    expect(groupMark("trip")).toBe("plane");
-    expect(groupMark("home")).toBe("house");
-    expect(groupMark("couple")).toBe("heart");
-    expect(groupMark("pot")).toBe("spade");
-    expect(groupMark("other")).toBe("dot");
-    expect(groupMark("")).toBe("dot");
+  it("always the plane taking off, for trip, home, couple, pot and anything else", () => {
+    for (const t of ["trip", "home", "couple", "pot", "other", ""]) expect(groupMark(t)).toBe("plane");
+  });
+  it("the drawn mark is one take-off plane (nose up, ground line), no house, heart, spade or dot", () => {
+    const src = readFileSync("src/components/HomeMoney.tsx", "utf8");
+    expect(src).toContain('data-mark="plane" data-takeoff');
+    expect(src).toContain("rotate(60)");
+    for (const gone of ['data-mark="house"', 'data-mark="heart"', 'data-mark="spade"', 'data-mark="dot"']) expect(src).not.toContain(gone);
+  });
+  it("every ticket's route uses it: Home, a group's page and Settle up all call groupMark", () => {
+    const t = ticketFor([grp("g1", "Flat", "INR", [], [["k", "Kabir", 1000]])], { g1: "home" }, "owed");
+    expect(t.kind === "one" && t.mark).toBe("plane");
+    const c = ticketFor([grp("g1", "Us", "INR", [["a", "Asha", 1000]])], { g1: "couple" }, "owe");
+    expect(c.kind === "one" && c.mark).toBe("plane");
   });
 });
 
@@ -176,7 +183,7 @@ describe("the ticket for each money situation", () => {
     const t = ticketFor(groups, { g1: "home" }, "owed");
     expect(t.kind).toBe("one");
     if (t.kind !== "one") return;
-    expect(t).toMatchObject({ from: "Kabir", to: "You", mark: "house", context: "Flat 402" });
+    expect(t).toMatchObject({ from: "Kabir", to: "You", mark: "plane", context: "Flat 402" });
     expect(t.line).toMatchObject({ side: "owed", amount: "₹22,916" });
     expect(t.line.action).toMatchObject({ key: "remind", label: "Remind Kabir", href: "/groups/g1/remind?from=k" });
     expect(t.line.action.href).toBe(remindHref(peopleOf(groups, "owed")[0]));

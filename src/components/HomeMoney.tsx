@@ -4,7 +4,8 @@ import { niceDate } from "@/lib/format";
 import { ShareCountdown } from "@/components/ShareCountdown";
 import { ExactAmount } from "@/components/ExactAmount";
 import { GroupCover } from "@/components/GroupCover";
-import { amountTier, routeCode, stripWords, type GroupMark, type Ticket, type TicketAction, type TicketLine } from "@/lib/home/money-card";
+import { PassStack } from "@/components/PassStack";
+import { amountTier, orderPasses, passFields, routeCode, sideFacts, stripWords, type GroupFacts, type GroupMark, type Ticket, type TicketAction, type TicketLine } from "@/lib/home/money-card";
 import type { CoverChoice } from "@/lib/covers";
 import type { TripPhase } from "@/lib/countdown";
 
@@ -33,36 +34,16 @@ function CoverBox({ c, sizes }: { c: StubCover; sizes: string }) {
   );
 }
 
-// The little mark on the route line: drawn, never an emoji.
-export function Mark({ mark }: { mark: GroupMark }) {
-  const common = { "aria-hidden": true, width: 14, height: 14, viewBox: "0 0 24 24", className: "shrink-0 text-fg/75" } as const;
-  if (mark === "plane")
-    return (
-      <svg {...common} fill="currentColor" data-mark="plane">
-        <path d="M21 15.5v-1.7l-7.6-4.7V3.8c0-.8-.6-1.5-1.4-1.5s-1.4.7-1.4 1.5v5.3L3 13.8v1.7l7.6-2.2v4.9l-2 1.5v1.4l3.4-.9 3.4.9v-1.4l-2-1.5v-4.9Z" />
-      </svg>
-    );
-  if (mark === "house")
-    return (
-      <svg {...common} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" data-mark="house">
-        <path d="M4 11 12 4l8 7M6.5 9.5V20h11V9.5M10 20v-5.5h4V20" />
-      </svg>
-    );
-  if (mark === "heart")
-    return (
-      <svg {...common} fill="currentColor" data-mark="heart">
-        <path d="M12 20.5C5 15.3 3 12 3 8.9 3 6.2 5 4.5 7.3 4.5c1.9 0 3.5 1 4.7 2.9 1.2-1.9 2.8-2.9 4.7-2.9C19 4.5 21 6.2 21 8.9c0 3.1-2 6.4-9 11.6Z" />
-      </svg>
-    );
-  if (mark === "spade")
-    return (
-      <svg {...common} fill="currentColor" data-mark="spade">
-        <path d="M12 2.5c3.2 3.6 7.5 6.3 7.5 10.3 0 2.4-1.8 4.1-4 4.1-1.1 0-2.1-.4-2.9-1.2.1 1.9.7 3.3 1.9 4.8h-5c1.2-1.5 1.8-2.9 1.9-4.8-.8.8-1.8 1.2-2.9 1.2-2.2 0-4-1.7-4-4.1C4.5 8.8 8.8 6.1 12 2.5Z" />
-      </svg>
-    );
+// The mark on every boarding-pass route line: ONE drawn plane taking off (side view, nose up about 30 degrees, a ground line under it),
+// whatever the group type, so every ticket in the app reads the same. Line style like the other icons; never an emoji.
+// `mark` is kept so callers don't change; it is always "plane" (see groupMark).
+export function Mark({ mark: _mark }: { mark?: GroupMark }) {
   return (
-    <svg {...common} fill="currentColor" data-mark="dot">
-      <circle cx="12" cy="12" r="3.5" />
+    <svg aria-hidden width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-fg/75" data-mark="plane" data-takeoff>
+      <path d="M3 21h18" />
+      <g transform="translate(12 11) rotate(60) scale(0.8) translate(-12 -12)">
+        <path d="M21 15.5v-1.7l-7.6-4.7V3.8c0-.8-.6-1.5-1.4-1.5s-1.4.7-1.4 1.5v5.3L3 13.8v1.7l7.6-2.2v4.9l-2 1.5v1.4l3.4-.9 3.4.9v-1.4l-2-1.5v-4.9Z" />
+      </g>
     </svg>
   );
 }
@@ -116,7 +97,7 @@ function Faces({ line }: { line: TicketLine }) {
 }
 
 // `action` is optional: on a group's own ticket the two lines carry no buttons (the one cream Settle up is below them).
-export type BothLineData = Omit<TicketLine, "action"> & { action?: TicketAction };
+export type BothLineData = Omit<TicketLine, "action" | "fromCode" | "toCode" | "groupIds" | "groupNames" | "weight"> & { action?: TicketAction };
 // The amount on a "both sides" line shrinks with its length (like amountTier does for the one-sided ticket), so a lakh amount is never clipped.
 export function bothAmountSize(text: string): string {
   const n = [...text].length;
@@ -150,9 +131,27 @@ export function BothLine({ line }: { line: BothLineData }) {
   );
 }
 
-// The ticket itself, shared by Home and a group's page: a stub with the group's picture(s), a dashed perforation with two bites,
-// then `children` (the route, the amount and the one action). `attrs` are the data-* hooks the page's tests read.
-export function TicketShell({ stub, label, attrs, children }: { stub: StubCover[]; label: string; attrs: Record<string, string | undefined>; children: React.ReactNode }) {
+// A thin barcode along the stub's bottom edge: decorative only (bars of different widths, ~20% off-white).
+const BARS = [2, 1, 3, 1, 1, 2, 3, 1, 2, 1, 1, 3, 2, 1, 3, 2, 1, 1, 2, 3, 1, 2, 1, 3, 1, 1, 2, 1];
+function Barcode() {
+  let x = 0;
+  const rects = BARS.map((w, i) => {
+    const r = <rect key={i} x={x} y={0} width={w} height={14} />;
+    x += w + 1.5;
+    return r;
+  });
+  return (
+    <span aria-hidden data-barcode className="pointer-events-none absolute inset-x-0 bottom-0 flex h-7 items-center justify-center bg-[#16161a]/80 px-2.5">
+      <svg viewBox={`0 0 ${x} 14`} preserveAspectRatio="none" className="h-3.5 w-full fill-fg/20">
+        {rects}
+      </svg>
+    </span>
+  );
+}
+
+// The ticket itself, shared by Home and a group's page: a stub with the group's picture(s), a dashed perforation with a half-circle
+// notch at the top and the bottom, then `children`. `attrs` are the data-* hooks the page's tests read. `barcode`: the thin barcode strip.
+export function TicketShell({ stub, label, attrs, barcode = false, children }: { stub: StubCover[]; label: string; attrs: Record<string, string | undefined>; barcode?: boolean; children: React.ReactNode }) {
   const covers = stub.slice(0, 2);
   return (
     <section aria-label={label} className="relative flex min-h-[176px] overflow-hidden rounded-[20px] bg-[#16161a] text-fg shadow-[inset_0_0_0_1px_#26262c]" {...attrs}>
@@ -164,46 +163,102 @@ export function TicketShell({ stub, label, attrs, children }: { stub: StubCover[
             <CoverBox c={c} sizes="100px" />
           </div>
         ))}
+        {barcode && <Barcode />}
       </div>
-      {/* The perforation, with the two half-circle bites of a ticket. */}
-      <span aria-hidden className="my-3.5 w-0 shrink-0 border-l-2 border-dashed border-[#34343b]" />
-      <span aria-hidden className="absolute -top-[11px] left-[75px] h-5 w-5 rounded-full bg-canvas shadow-[inset_0_0_0_1px_#26262c] min-[360px]:left-[91px]" />
-      <span aria-hidden className="absolute -bottom-[11px] left-[75px] h-5 w-5 rounded-full bg-canvas shadow-[inset_0_0_0_1px_#26262c] min-[360px]:left-[91px]" />
-      <div className="flex min-w-0 flex-1 flex-col px-3.5 pb-3.5 pt-4 min-[360px]:pl-[18px] min-[360px]:pr-4">{children}</div>
+      {/* The perforation (a dashed line, ~25% off-white) with the two 16px half-circle notches of a ticket. */}
+      <span aria-hidden className="my-3.5 w-0 shrink-0 border-l-2 border-dashed border-fg/25" data-perforation />
+      <span aria-hidden data-notch className="absolute -top-2 left-[77px] h-4 w-4 rounded-full bg-canvas shadow-[inset_0_0_0_1px_#26262c] min-[360px]:left-[93px]" />
+      <span aria-hidden data-notch className="absolute -bottom-2 left-[77px] h-4 w-4 rounded-full bg-canvas shadow-[inset_0_0_0_1px_#26262c] min-[360px]:left-[93px]" />
+      <div className="relative flex min-w-0 flex-1 flex-col px-3.5 pb-3.5 pt-4 min-[360px]:pl-[18px] min-[360px]:pr-4">{children}</div>
     </section>
   );
 }
 
-export function MoneyCard({ ticket, mode, tone, stub, need }: { ticket: Ticket; mode: string; tone: "owed" | "owe" | "plain"; stub: StubCover[]; need?: NeedLine | null }) {
-  // The route/amount block depends on the situation; the stub, perforation and notches are the same for all of them.
+// The route as printed on a boarding pass: small "From" and "To" labels (sentence case), under them the big codes with the plane
+// taking off between. Codes never truncate; the line between them gives way instead.
+function PassRoute({ from, to }: { from: string; to: string }) {
+  return (
+    <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-x-2" data-route data-pass-route>
+      <span className="text-[11px] leading-none text-fg/50">From</span>
+      <span aria-hidden />
+      <span className="text-right text-[11px] leading-none text-fg/50">To</span>
+      <span className="mt-1 shrink-0 whitespace-nowrap font-display text-[22px] font-semibold leading-none tracking-[0.04em] min-[360px]:text-[24px]" data-route-end data-route-from>
+        {from}
+      </span>
+      <span aria-hidden className="flex min-w-0 items-center gap-1.5 self-center pb-0.5">
+        <i className="h-px min-w-1 flex-1 [background:repeating-linear-gradient(90deg,rgb(244_242_236/0.3)_0_4px,transparent_4px_8px)]" />
+        <Mark />
+        <i className="h-px min-w-1 flex-1 [background:repeating-linear-gradient(90deg,rgb(244_242_236/0.3)_0_4px,transparent_4px_8px)]" />
+      </span>
+      <span className="mt-1 shrink-0 whitespace-nowrap font-display text-[22px] font-semibold leading-none tracking-[0.04em] min-[360px]:text-[24px]" data-route-end data-route-to>
+        {to}
+      </span>
+    </div>
+  );
+}
+
+// Small labelled fields, like GATE and SEAT: the label above, the value below. Values cut with "..." when long; the group's name gets the room.
+function PassFields({ fields }: { fields: ReturnType<typeof passFields> }) {
+  if (fields.length === 0) return null;
+  return (
+    <dl className="mt-3 flex min-w-0 gap-x-4" data-pass-fields>
+      {fields.map((f) => (
+        <div key={f.key} className={f.key === "group" ? "min-w-0 flex-1" : "shrink-0"} data-pass-field={f.key}>
+          <dt className="text-[11px] leading-none text-fg/50">{f.label}</dt>
+          <dd className="mt-1 truncate text-[13.5px] font-medium leading-tight text-fg/85">{f.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+export type PassFacts = Record<string, GroupFacts | undefined>;
+
+// One pass for one side: route, exact amount, the faces when several people, up to three fields and ONE button.
+function PassBody({ line, facts, year, bright }: { line: TicketLine; facts: PassFacts; year: string; bright: boolean }) {
+  const f = sideFacts(line.groupIds, facts);
   return (
     <>
-      <TicketShell
-        stub={stub}
-        label="Your money"
-        attrs={{ "data-balance-card": "", "data-money-mode": mode, "data-tone": tone === "plain" ? "square" : tone, "data-ticket": ticket.kind }}
-      >
-          {ticket.kind === "both" ? (
-            <div className="flex flex-1 flex-col justify-center" data-ticket-both>
-              {ticket.lines.map((l) => (
-                <BothLine key={l.side} line={l} />
-              ))}
-            </div>
-          ) : ticket.kind === "one" ? (
-            <>
-              <Route from={ticket.from} to={ticket.to} mark={ticket.mark} />
-              <Amount text={ticket.line.amount} exact={ticket.line.exact} tone={ticket.line.side} tier={amountTier(ticket.line.amount)} />
-              <p className={ticket.line.faces.length > 0 ? "sr-only" : "mt-1 truncate text-[13.5px] text-fg/55"} data-ticket-context>{ticket.context}</p>
-              {ticket.line.faces.length > 0 && <Faces line={ticket.line} />}
-              <div className="mt-auto pt-3">
-                <ActionButton a={ticket.line.action} className={`${CREAM} w-full`} />
-              </div>
-            </>
+      <PassRoute from={line.fromCode} to={line.toCode} />
+      <Amount text={line.amount} exact={line.exact} tone={line.side} tier={amountTier(line.amount)} />
+      {line.faces.length > 0 && <Faces line={line} />}
+      <PassFields fields={passFields({ groupNames: line.groupNames, since: f.since, items: f.items, thisYear: year })} />
+      <div className="mt-auto pt-3">
+        <ActionButton a={line.action} className={`${bright ? CREAM : OUTLINE} w-full`} />
+      </div>
+    </>
+  );
+}
+
+export function MoneyCard({ ticket, mode, tone, stub, sideStubs, facts = {}, need, year = String(new Date().getFullYear()) }: { ticket: Ticket; mode: string; tone: "owed" | "owe" | "plain"; stub: StubCover[]; sideStubs?: Record<"owe" | "owed", StubCover[]>; facts?: PassFacts; need?: NeedLine | null; year?: string }) {
+  const attrs = { "data-balance-card": "", "data-money-mode": mode, "data-tone": tone === "plain" ? "square" : tone, "data-ticket": ticket.kind };
+  return (
+    <>
+      {ticket.kind === "both" ? (
+        // Money both ways: two passes in a swipeable stack, the larger first. Only the first pass has the cream button.
+        <PassStack label="Your money, two passes" attrs={attrs}>
+          {orderPasses(ticket.lines).map((l, i) => (
+            <TicketShell key={l.side} stub={sideStubs?.[l.side]?.length ? sideStubs[l.side] : stub} label={l.side === "owe" ? "What you owe" : "What you are owed"} attrs={{ "data-ticket-line": l.side }} barcode>
+              <PassBody line={l} facts={facts} year={year} bright={i === 0} />
+            </TicketShell>
+          ))}
+        </PassStack>
+      ) : (
+        <TicketShell stub={stub} label="Your money" attrs={attrs} barcode>
+          {ticket.kind === "one" ? (
+            <PassBody line={ticket.line} facts={facts} year={year} bright />
           ) : ticket.kind === "square" ? (
-            // Nothing to do: "All square" and a quiet line, no button (the "+ New group" tile below is the only way to start one).
-            <div className="my-auto">
+            // Nothing to do: the same pass with a "SETTLED" stamp across it (stamp artwork, not green) and one quiet link.
+            <div className="relative flex flex-1 flex-col">
+              <p className="text-[11px] leading-none text-fg/50">Your money</p>
               <Amount text={ticket.amount} tone="plain" tier="l" />
               <p className="mt-1.5 truncate text-[13.5px] text-fg/55" data-ticket-context>{ticket.label}</p>
+              <span aria-hidden data-settled-stamp className="pointer-events-none absolute right-0 top-[38%] -rotate-[14deg] rounded-md border-2 border-double border-fg/35 px-2 py-0.5 font-display text-[17px] font-semibold tracking-[0.16em] text-fg/35 min-[360px]:text-[20px]">
+                SETTLED
+              </span>
+              <Link href="/add" className="mt-auto flex min-h-11 items-center self-start pt-2 text-[14px] font-medium text-fg/75 underline underline-offset-4 active:opacity-70" data-square-add>
+                Add an expense
+              </Link>
             </div>
           ) : (
             <>
@@ -215,14 +270,16 @@ export function MoneyCard({ ticket, mode, tone, stub, need }: { ticket: Ticket; 
               </div>
             </>
           )}
-      </TicketShell>
+        </TicketShell>
+      )}
       {need && (
-        // What waits on you, as one quiet line under the card (a 44px link): grey words, the action in off-white. No dot, no box.
+        // What waits on you, as one line under the pass (a 44px link): full contrast, up to two lines, a small off-white marker dot.
         <div className="mt-1 px-1" data-need-line data-need-count={need.count}>
-          <Link href={need.href} className="flex min-h-11 items-center justify-between gap-3 text-[14px] active:opacity-70" data-need-link>
-            <span className="min-w-0 flex-1 truncate font-medium text-fg/55">{need.text}</span>
+          <Link href={need.href} className="flex min-h-11 items-center gap-2.5 py-1 text-[14px] leading-snug active:opacity-70" data-need-link>
+            <span aria-hidden data-need-dot className="h-1.5 w-1.5 shrink-0 rounded-full bg-fg" />
+            <span className="line-clamp-2 min-w-0 flex-1 font-medium text-fg">{need.text}</span>
             <span className="shrink-0 font-semibold text-fg" data-need-action>
-              {need.action} <span aria-hidden>›</span>
+              {need.action}
             </span>
           </Link>
         </div>
@@ -231,7 +288,7 @@ export function MoneyCard({ ticket, mode, tone, stub, need }: { ticket: Ticket; 
   );
 }
 
-export function TripStrip({ groupId, place, phase, going, start, shareLine, thumb }: { groupId: string; place: string; phase: TripPhase; going: number; start: string; shareLine: string; thumb?: StubCover }) {
+export function TripStrip({ groupId, place, phase, going, start, shareLine, thumb, weather, also }: { groupId: string; place: string; phase: TripPhase; going: number; start: string; shareLine: string; thumb?: StubCover; weather?: string; also?: string }) {
   const w = stripWords(place, phase);
   if (!w) return null;
   const thisYear = String(new Date().getFullYear());
@@ -253,6 +310,8 @@ export function TripStrip({ groupId, place, phase, going, start, shareLine, thum
             {w.post}
           </b>
           {who && <span className="mt-0.5 block truncate text-[13.5px] text-fg/55">{who}</span>}
+          {weather && <span className="mt-0.5 block line-clamp-2 text-[13px] leading-snug text-fg/55" data-trip-weather>{weather}</span>}
+          {also && <span className="mt-0.5 block truncate text-[13px] text-fg/55" data-trip-also>{also}</span>}
         </span>
         <span aria-hidden className="text-fg/30">
           ›
