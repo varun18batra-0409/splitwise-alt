@@ -183,11 +183,22 @@ for (const [slot, ids] of Object.entries(SLOTS)) {
         : id.startsWith("photo-")
         ? `https://images.unsplash.com/${id}?w=${slot.startsWith("country-") ? 960 : big ? 2400 : slot.startsWith("cover-") ? 1600 : 1280}&q=${big ? 85 : slot.startsWith("cover-") ? 80 : 75}&fm=jpg&fit=crop`
         : `https://unsplash.com/photos/${id}/download?force=true&w=${slot.startsWith("place-") ? 2400 : 1280}`;
-      const r = await fetch(url, {
-        redirect: "follow",
-        headers: { "User-Agent": "LoopinBuild/1.0 (https://www.loopinapps.com; photos for trip stories)" },
-        signal: AbortSignal.timeout(20_000),
-      });
+      const UA = { "User-Agent": "LoopinBuild/1.0 (https://www.loopinapps.com; photos for trip stories)" };
+      let r = await fetch(url, { redirect: "follow", headers: UA, signal: AbortSignal.timeout(20_000) });
+      // Unsplash now refuses the short /download link without a key. For a short id, read the photo's own page instead and take its
+      // images.unsplash.com address (the og:image), then fetch that at the size this slot needs.
+      if (!r.ok && !id.startsWith("https://") && !id.startsWith("photo-")) {
+        const page = await fetch(`https://unsplash.com/photos/${id}`, { redirect: "follow", headers: { ...UA, Accept: "text/html" }, signal: AbortSignal.timeout(20_000) });
+        const html = page.ok ? await page.text() : "";
+        const og = html.match(/property="og:image"\s+content="(https:\/\/images\.unsplash\.com\/photo-[^"?]+)/) ?? html.match(/(https:\/\/images\.unsplash\.com\/photo-\d+-[0-9a-f]+)/);
+        if (og) {
+          const w = slot.startsWith("country-") ? 960 : big ? 2400 : slot.startsWith("cover-") ? 1600 : 1280;
+          r = await fetch(`${og[1]}?w=${w}&q=${big ? 85 : 75}&fm=jpg&fit=crop`, { redirect: "follow", headers: UA, signal: AbortSignal.timeout(20_000) });
+        } else if (html.includes("plus.unsplash.com")) {
+          console.log(`photos: ${slot} ✗ ${id} (Unsplash+ photo, not free)`);
+          continue;
+        }
+      }
       const type = r.headers.get("content-type") ?? "";
       const buf = Buffer.from(await r.arrayBuffer());
       if (!r.ok || !type.startsWith("image/") || buf.length < 20_000) {

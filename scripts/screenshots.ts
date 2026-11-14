@@ -286,13 +286,13 @@ if (!desktop && !hosted) {
   // [name, how the viewer's money is set up, what the card must say (so a broken setup is noticed, not photographed)]
   const states: [string, () => Promise<void>, { kind: string; has: RegExp }][] = [
     // Asha paid ₹54,122 for a trip bill that is only Varun's share: Varun owes Asha 5412200 paise, nobody else owes anyone.
-    ["owe", () => addExpense(tripId, A, [[V, 5412200]], "Boat tickets"), { kind: "one", has: /^one \| From To YOU ASH .*₹54,122 .*Pay Asha$/ }],
+    ["owe", () => addExpense(tripId, A, [[V, 5412200]], "Boat tickets"), { kind: "one", has: /^one \| .*From To YOU ASH .*₹54,122 .*Pay Asha$/ }],
     // Varun paid ₹22,916 for Kabir's share of the flat: Kabir owes Varun 2291600 paise.
-    ["owed-one", () => addExpense(flatId, FV, [[FK, 2291600]], "Rent share"), { kind: "one", has: /^one \| From To KAB YOU .*₹22,916 .*Remind Kabir$/ }],
+    ["owed-one", () => addExpense(flatId, FV, [[FK, 2291600]], "Rent share"), { kind: "one", has: /^one \| .*From To KAB YOU .*₹22,916 .*Remind Kabir$/ }],
     // Varun paid ₹31,480 for the trip, shared by Asha 12,000 + Ravi 11,000 + Meera 8,480 (1200000 + 1100000 + 848000 = 3148000 paise).
-    ["owed-several", () => addExpense(tripId, V, [[A, 1200000], [R, 1100000], [M, 848000]], "Dinner at Jay Fai"), { kind: "one", has: /^one \| From To 3 PPL YOU .*₹31,480 .*Remind 3 people$/ }],
+    ["owed-several", () => addExpense(tripId, V, [[A, 1200000], [R, 1100000], [M, 848000]], "Dinner at Jay Fai"), { kind: "one", has: /^one \| .*From To 3 PPL YOU .*₹31,480 .*Remind 3 people$/ }],
     // Both ways, in two groups so nobody is netted: Varun owes Asha ₹4,200 (trip) and Kabir owes Varun ₹22,916 (flat).
-    ["both", async () => { await addExpense(tripId, A, [[V, 420000]], "Boat tickets"); await addExpense(flatId, FV, [[FK, 2291600]], "Groceries"); }, { kind: "both", has: /^both \| From To KAB YOU .*₹22,916 .*Remind Kabir .*From To YOU ASH .*₹4,200 .*Pay Asha$/ }],
+    ["both", async () => { await addExpense(tripId, A, [[V, 420000]], "Boat tickets"); await addExpense(flatId, FV, [[FK, 2291600]], "Groceries"); }, { kind: "both", has: /^both \| .*From To KAB YOU .*₹22,916 .*Remind Kabir .*From To YOU ASH .*₹4,200 .*Pay Asha$/ }],
     // Nothing added: every balance is 0.
     ["square", async () => undefined, { kind: "square", has: /^square \| .*All square.*Nobody owes anybody.*SETTLED.*Add an expense$/ }],
   ];

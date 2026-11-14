@@ -97,6 +97,8 @@ test("a member sees a moment; someone who left sees only the older ones; strange
     // A stranger can't even open the page.
     const res = await N.goto(`${g.path}/moments`);
     expect(res?.status()).toBe(404);
+    // Leave that page completely first, so nothing still loading on it can interrupt the next visit.
+    await N.goto("about:blank");
     const res2 = await N.goto(`${g.path}/moments/${newer.id}`);
     expect(res2?.status()).toBe(404);
   } finally {
