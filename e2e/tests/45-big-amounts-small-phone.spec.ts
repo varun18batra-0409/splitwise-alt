@@ -96,7 +96,7 @@ test("a lakh amount fits at 320×640: the activity row and Home's two-sided tick
   // Edit the big expense once (add a note): the row now says "paid ₹12,34,567.88 · edited". Both the full amount and "edited" stay
   // visible (two lines allowed), nothing runs under the amount column, nothing scrolls sideways.
   await openEdit(page, g1.path, "Villa");
-  await page.getByRole("button", { name: /^Notes/ }).click();
+  await page.getByRole("button", { name: /^More options/ }).click();
   await page.getByPlaceholder("e.g. Rahul paid the tip separately").fill("Booked by phone");
   await openSplit(page);
   await page.getByRole("button", { name: "Everyone equally" }).click();

@@ -266,6 +266,10 @@ export async function loadHomeMemories(memberships: Record<string, string>): Pro
     take: 200,
   });
   if (!mine.length) return [];
+  // Someone in many trips: look at the 12 groups with the newest moments, so the row never misses the latest ones.
+  const latest = await db.moment.groupBy({ by: ["groupId"], where: { groupId: { in: mine.map((m) => m.groupId) } }, _max: { createdAt: true } });
+  const newest = new Map(latest.map((r) => [r.groupId, r._max.createdAt?.getTime() ?? 0]));
+  mine.sort((a, b) => (newest.get(b.groupId) ?? 0) - (newest.get(a.groupId) ?? 0));
   const blockedBy = new Map<string, ReadonlySet<string>>();
   for (const a of new Set(mine.map((m) => m.accountId).filter((x): x is string => Boolean(x)))) blockedBy.set(a, await blockedEitherWay(a));
   const groups: MemoryGroup[] = await Promise.all(

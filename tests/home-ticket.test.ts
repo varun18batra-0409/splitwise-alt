@@ -355,7 +355,8 @@ describe("R1 item 10: one balance, one number", () => {
   });
   it("Home's polaroids and the card use exact money (rounding stays on summaries like the month card)", () => {
     const home = readFileSync("src/app/(home)/page.tsx", "utf8");
-    expect(home).toContain("show: (n: number) => formatMoney(n, g.group.currency)");
+    // Polaroids show a status word only (the amount lives once, on the money pass).
+    expect(home).not.toContain("show: (n: number) => formatMoney(n, g.group.currency)");
     expect(home).toContain("const heroText = heroOf((n) => formatMoney(n, common))");
     expect(home).toContain("homeMoney(month.share, month.currency)"); // "November in numbers" stays rounded
   });

@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 // group), and Report and Block. Anyone who may not see it gets "not found", the same as a moment that doesn't exist.
 export default async function MomentPage({ params, searchParams }: { params: Promise<{ id: string; momentId: string }>; searchParams: Promise<{ from?: string }> }) {
   const { id, momentId } = await params;
-  const { from: cameFrom } = await searchParams;
+  const { from: cameFrom } = (await searchParams) ?? {};
   const viewer = await loadMomentViewer(id);
   const card = await loadMomentCard(viewer, momentId);
   if (!viewer || !card) notFound();
