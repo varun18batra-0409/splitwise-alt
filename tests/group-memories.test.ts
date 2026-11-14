@@ -47,8 +47,9 @@ describe("moments by day", () => {
 
 describe("the trip's passport stamp", () => {
   const thailand = { id: "g1", name: "Thailand trip", tripStart: "2026-05-05", tripEnd: "2026-05-10", tripPlace: "Bangkok, Phuket", tripCountry: "TH", memberCount: 4 };
-  it("Thailand 5–10 May 2026: THAILAND / MAY 2026, 5–10 May 2026, 6 days, Relive trip opens the report", () => {
-    expect(tripStampCard(thailand, "IN", "2026-11-14")).toEqual({ title: "Thailand", stampText: "THAILAND / MAY 2026", dates: "5–10 May 2026", days: 6, reliveHref: "/groups/g1/report" });
+  it("Thailand 5–10 May 2026: the passport's card: stamp over THAILAND and MAY 2026, dates 5–10 May (no year), 6 days, Relive trip opens the report", () => {
+    const c = tripStampCard(thailand, "IN", "2026-11-14");
+    expect(c).toMatchObject({ kind: "trip", groupId: "g1", title: "Thailand", countryName: "Thailand", stampWhen: "2026-05-05", dates: "5–10 May", days: 6, cta: { label: "Relive trip", href: "/groups/g1/report" } });
   });
   it("a trip that has not started, or has no dates, has no stamp", () => {
     expect(tripStampCard({ ...thailand, tripStart: "2027-01-05", tripEnd: "2027-01-10" }, "IN", "2026-11-14")).toBeNull();
@@ -56,7 +57,7 @@ describe("the trip's passport stamp", () => {
   });
   it("someone who left before the trip began did not go: no stamp; leaving during or after keeps it", () => {
     expect(tripStampCard(thailand, "IN", "2026-11-14", new Date("2026-05-01T00:00:00Z"))).toBeNull();
-    expect(tripStampCard(thailand, "IN", "2026-11-14", new Date("2026-05-07T00:00:00Z"))?.stampText).toBe("THAILAND / MAY 2026");
+    expect(tripStampCard(thailand, "IN", "2026-11-14", new Date("2026-05-07T00:00:00Z"))?.countryName).toBe("Thailand");
   });
 });
 

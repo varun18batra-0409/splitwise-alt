@@ -160,7 +160,7 @@ describe("R1 item 14: Our passports chip", () => {
   });
 });
 describe("R1 item 14: Record a payment", () => {
-  it("the button carries the amount ("Record ₹1,082.50") and a suggestion equal to the form is not offered again", () => {
+  it("the button carries the amount (Record ₹1,082.50) and a suggestion equal to the form is not offered again", () => {
     expect(src("src/components/RecordPaymentForm.tsx")).toContain("const button = recordButtonText(amount, currency)");
     const pay = src("src/app/groups/[id]/pay/page.tsx");
     expect(pay).toContain("t.from === from && t.to === to && parseAmount(qAmount, group.currency) === t.amount");

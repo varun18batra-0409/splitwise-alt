@@ -1,8 +1,7 @@
 import { db } from "./db";
 import { blockedEitherWay } from "./blocks";
 import { buildPassport, type PassportTrip } from "./passport";
-import { beenCards } from "./passport-cards";
-import { countryOf } from "./geo";
+import { beenCards, type BeenCardData } from "./passport-cards";
 import { dayKey } from "./dates";
 import { tripDays } from "./moments-text";
 
@@ -40,10 +39,11 @@ export function dayGroups<T extends { takenOn: string; createdAt: Date }>(cards:
 }
 
 // ---- The trip's stamp ----
-export type TripStamp = { title: string; stampText: string; dates: string; days: number; reliveHref: string };
+export type TripStamp = BeenCardData;
 
-// This trip's passport stamp, from today's passport helpers (buildPassport and beenCards): "THAILAND / MAY 2026" with its dates and days and the
-// Relive trip link. Null for a trip with no dates, one that hasn't started, or one this person left before it began (they didn't go).
+// This trip's passport card, from the passport's own helpers (buildPassport and beenCards), so the Memories tab draws the same StampCard
+// as the passport: the stamp reads "THAILAND / MAY 2026", the dates carry no year, and the one button is "Relive trip".
+// Null for a trip with no dates, one that hasn't started, or one this person left before it began (they didn't go).
 export function tripStampCard(
   group: { id: string; name: string; tripStart: string; tripEnd: string; tripPlace: string; tripCountry: string; memberCount: number },
   home: string,
@@ -54,11 +54,8 @@ export function tripStampCard(
   if (leftAt && leftAt.toISOString().slice(0, 10) < group.tripStart) return null;
   const trip: PassportTrip = { groupId: group.id, name: group.name, start: group.tripStart, end: group.tripEnd, place: group.tripPlace, country: group.tripCountry, people: group.memberCount };
   const passport = buildPassport([trip], [], home, today);
-  const card = beenCards(passport, {}, today).cards.find((c) => c.kind === "trip" && c.groupId === group.id);
-  if (!card) return null;
-  const country = countryOf(card.code)?.name ?? card.title;
-  const when = `${MONTHS[Number(group.tripStart.slice(5, 7)) - 1] ?? ""} ${group.tripStart.slice(0, 4)}`;
-  return { title: card.title, stampText: `${country} / ${when}`.toUpperCase(), dates: card.dates, days: card.days, reliveHref: card.reliveHref ?? `/groups/${group.id}/report` };
+  // No moments count is handed in on purpose: this is the Memories tab, so the button stays "Relive trip".
+  return beenCards({ ...passport, trips: [trip] }, {}, today).cards.find((c) => c.kind === "trip" && c.groupId === group.id) ?? null;
 }
 
 // ---- Postcards sent or received from this group ----

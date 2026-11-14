@@ -9,11 +9,11 @@ import { formatMoney } from "@/lib/money";
 import { exactMoney } from "@/lib/money-display";
 import { endCode, groupTicketSides, sideCodes, sinceLastPayment } from "@/lib/home/money-card";
 
-// R4: the group page's money ticket (Overview) shows the same figure as Settle up and the People tab. Amounts are paise: 180000 = ₹1,800.00.
-// Hand-worked below. You (y), Nupur (n), Ravi (r). Nupur paid Dinner ₹1,800.00 (180000) and Boat tickets ₹3,600.00 (360000), split equally.
-//   Dinner:  180000 / 3 = 60000 each.   Boat: 360000 / 3 = 120000 each.   Each person's share: 60000 + 120000 = 180000 = ₹1,800.00.
-//   Shares add up to 3 x 180000 = 540000 = ₹5,400.00 (what was spent).   Nupur paid 540000, her share is 180000, so she is +360000 = ₹3,600.00.
-//   You: -180000 (₹1,800.00).  Ravi: -180000 (₹1,800.00).  +360000 - 180000 - 180000 = 0.
+// R4: the group page's money ticket (Overview) shows the same figure as Settle up and the People tab. Amounts are paise: 180000 = ₹1,800.
+// Hand-worked below. You (y), Nupur (n), Ravi (r). Nupur paid Dinner ₹1,800 (180000) and Boat tickets ₹3,600 (360000), split equally.
+//   Dinner:  180000 / 3 = 60000 each.   Boat: 360000 / 3 = 120000 each.   Each person's share: 60000 + 120000 = 180000 = ₹1,800.
+//   Shares add up to 3 x 180000 = 540000 = ₹5,400 (what was spent).   Nupur paid 540000, her share is 180000, so she is +360000 = ₹3,600.
+//   You: -180000 (₹1,800).  Ravi: -180000 (₹1,800).  +360000 - 180000 - 180000 = 0.
 const ids = ["y", "n", "r"];
 const t0 = new Date("2026-10-08T10:00:00Z");
 function expense(id: string, description: string, amount: number, minutes: number) {
@@ -28,46 +28,51 @@ const nameOf = (id: string) => ({ y: "You", n: "Nupur", r: "Ravi" })[id] ?? "Som
 describe("the group ticket is Settle up is the People tab", () => {
   const net = netBalances(ids, [dinner, boat]);
   const transfers = smartSettle(net);
-  it("shares are ₹1,800.00 each and add up to ₹5,400.00", () => {
+  it("shares are ₹1,800 each and add up to ₹5,400", () => {
     expect([dinner, boat].flatMap((e) => e.shares).reduce((t, s) => t + s.amount, 0)).toBe(540000);
     for (const id of ids) expect([dinner, boat].flatMap((e) => e.shares).filter((s) => s.memberId === id).reduce((t, s) => t + s.amount, 0)).toBe(180000);
   });
-  it("Nupur +₹3,600.00, You -₹1,800.00, Ravi -₹1,800.00, and the balances add to zero", () => {
+  it("Nupur +₹3,600, You -₹1,800, Ravi -₹1,800, and the balances add to zero", () => {
     expect(net).toEqual({ y: -180000, n: 360000, r: -180000 });
     expect(Object.values(net).reduce((a, b) => a + b, 0)).toBe(0);
   });
-  it("Overview ticket: 'You owe Nupur' ₹1,800.00 (the very figure Settle up lists for you)", () => {
+  it("Overview ticket: 'You owe Nupur' ₹1,800 (the very figure Settle up lists for you)", () => {
     expect(transfers).toEqual(expect.arrayContaining([{ from: "y", to: "n", amount: 180000 }, { from: "r", to: "n", amount: 180000 }]));
     const sides = groupTicketSides({ mine: net.y, myId: "y", transfers, nameOf });
     expect(sides).toEqual([{ side: "owe", amount: 180000, names: ["Nupur"] }]);
     const ticket = exactMoney(sides[0].amount, "INR");
     const settleUp = formatMoney(transfers.find((t) => t.from === "y")!.amount, "INR"); // what the Settle up card prints
-    expect(ticket).toBe("₹1,800.00");
+    expect(ticket).toBe("₹1,800");
     expect(settleUp).toBe(ticket);
     expect(sideCodes("owe", sides[0].names)).toEqual({ from: "YOU", to: "NUP" });
   });
-  it("People tab: Nupur 'gets ₹3,600.00', You and Ravi 'owes ₹1,800.00' (same formatter the tab uses)", () => {
+  it("People tab: Nupur 'gets ₹3,600', You and Ravi 'owes ₹1,800' (same formatter the tab uses)", () => {
     const words = (b: number) => (b > 0 ? `gets ${formatMoney(b, "INR")}` : b < 0 ? `owes ${formatMoney(-b, "INR")}` : "settled");
-    expect([words(net.n), words(net.y), words(net.r)]).toEqual(["gets ₹3,600.00", "owes ₹1,800.00", "owes ₹1,800.00"]);
+    expect([words(net.n), words(net.y), words(net.r)]).toEqual(["gets ₹3,600", "owes ₹1,800", "owes ₹1,800"]);
     const tab = readFileSync("src/app/groups/[id]/_components/BalancesTab.tsx", "utf8");
     expect(tab).toContain("`gets ${money(b)}`");
     expect(tab).toContain("`owes ${money(-b)}`");
   });
-  it("Nupur's own ticket: ₹3,600.00 owed to her by 2 people, codes 2 PPL to YOU", () => {
+  it("Nupur's own ticket: ₹3,600 owed to her by 2 people, codes 2 PPL to YOU", () => {
     const sides = groupTicketSides({ mine: net.n, myId: "n", transfers, nameOf: (id) => ({ y: "Asha", n: "Nupur", r: "Ravi" })[id] ?? "?" });
     expect(sides).toHaveLength(1);
     expect(sides[0].amount).toBe(360000);
-    expect(exactMoney(sides[0].amount, "INR")).toBe("₹3,600.00");
+    expect(exactMoney(sides[0].amount, "INR")).toBe("₹3,600");
     expect(sideCodes("owed", sides[0].names)).toEqual({ from: "2 PPL", to: "YOU" });
   });
-  it("after both pay Nupur ₹1,800.00: everything is zero, no sides (All square)", () => {
+  it("after both pay Nupur ₹1,800: everything is zero, no sides (All square)", () => {
     const pays = [{ fromId: "y", toId: "n", amount: 180000 }, { fromId: "r", toId: "n", amount: 180000 }];
     const after = netBalances(ids, [dinner, boat], pays);
     expect(after).toEqual({ y: 0, n: 0, r: 0 });
     expect(smartSettle(after)).toEqual([]);
     expect(groupTicketSides({ mine: after.y, myId: "y", transfers: smartSettle(after), nameOf })).toEqual([]);
   });
-  it("₹1,000.00 split 3 ways is 33334 / 33333 / 33333 paise (sum 100000); the balances sum to zero", () => {
+  it("exactness: ₹1,000.50 (100050 paise) keeps its paise, ₹1,800 (180000) shows none", () => {
+    expect(exactMoney(100050, "INR")).toBe("₹1,000.50");
+    expect(formatMoney(100050, "INR")).toBe("₹1,000.50");
+    expect(exactMoney(180000, "INR")).toBe("₹1,800");
+  });
+  it("₹1,000 split 3 ways is 33334 / 33333 / 33333 paise (sum 100000); the balances sum to zero", () => {
     const s = splitEqual(100000, ids);
     if (!s.ok) throw new Error("split");
     expect(s.shares.map((x) => x.amount)).toEqual([33334, 33333, 33333]);
@@ -80,11 +85,11 @@ describe("the group ticket is Settle up is the People tab", () => {
 });
 
 describe("Recent expenses are the first rows of Expenses", () => {
-  it("same builder, same amounts: Boat tickets ₹3,600.00 then Dinner ₹1,800.00, newest first, at most 3", () => {
+  it("same builder, same amounts: Boat tickets ₹3,600 then Dinner ₹1,800, newest first, at most 3", () => {
     const all = buildActivity([dinner, boat], [], "y");
     const recent = recentRows([dinner, boat], [], "y");
     expect(recent.map((r) => r.id)).toEqual(all.slice(0, 3).map((r) => r.id));
-    expect(recent.map((r) => (r.kind === "expense" ? `${r.title} ${formatMoney(r.amount, "INR")}` : ""))).toEqual(["Boat tickets ₹3,600.00", "Dinner ₹1,800.00"]);
+    expect(recent.map((r) => (r.kind === "expense" ? `${r.title} ${formatMoney(r.amount, "INR")}` : ""))).toEqual(["Boat tickets ₹3,600", "Dinner ₹1,800"]);
     const many = Array.from({ length: 5 }, (_, i) => expense(`x${i}`, `Item ${i}`, 10000, 10 + i));
     expect(recentRows(many, [], "y")).toHaveLength(3);
   });

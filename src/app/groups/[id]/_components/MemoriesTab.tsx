@@ -1,6 +1,7 @@
 import Link from "@/components/Link";
 import { CameraPlusIcon } from "@/components/MomentIcons";
 import { MomentsFeed } from "@/components/MomentsFeed";
+import { StampCard } from "@/components/BeenCard";
 import { PostcardFront } from "@/components/postcards/Card";
 import { SealedEnvelope, SealMark } from "@/components/postcards/Sealed";
 import { SendPostcardCard } from "@/components/postcards/SendCard";
@@ -13,7 +14,6 @@ import { placePhoto } from "@/lib/places";
 import { placeOf } from "@/lib/countdown";
 import type { GroupView } from "./view";
 
-const PAPER = { backgroundColor: "#efe8d6", backgroundImage: "repeating-linear-gradient(115deg, rgba(38,35,29,0.035) 0 1px, transparent 1px 7px)" } as const;
 const TILT = ["-rotate-[2deg]", "rotate-[1.5deg]", "-rotate-[1deg]", "rotate-[2.5deg]"];
 
 // A group's Memories tab: its moments by day (newest day first while the trip is on; Day 1 first once it is over), the trip's passport stamp,
@@ -45,7 +45,6 @@ export function MemoriesTab({
   const short = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: tz });
   const empty = days.length === 0 && !stamp && postcards.length === 0;
   const hasPostcards = postcards.length > 0;
-  const stampLines = stamp?.stampText.split(" / ") ?? [];
   return (
     <div className="space-y-8" data-memories>
       {hasPostcards && <link rel="stylesheet" href={POSTCARD_FONTS_URL} precedence="default" />}
@@ -68,23 +67,8 @@ export function MemoriesTab({
       )}
 
       {stamp && (
-        <section aria-label="Trip stamp" className="rounded-[20px] border border-line bg-white p-4" data-trip-stamp>
-          <div className="flex items-center gap-4">
-            <div aria-hidden className="-rotate-3 shrink-0 rounded-[4px] px-3 py-2 text-center text-[#26231d] shadow-[0_6px_16px_-6px_rgba(0,0,0,0.7)]" style={PAPER}>
-              {stampLines.map((l, i) => (
-                <span key={i} className="block font-display text-[15px] font-semibold leading-tight tracking-[0.12em]">
-                  {l}
-                </span>
-              ))}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="break-words font-semibold leading-tight">{stamp.title}</p>
-              <p className="mt-0.5 text-[13px] text-fg/55">{[stamp.dates, stamp.days > 0 ? `${stamp.days} ${stamp.days === 1 ? "day" : "days"}` : ""].filter(Boolean).join(" · ")}</p>
-            </div>
-          </div>
-          <Link href={stamp.reliveHref} className={`${OUTLINE} mt-3 w-full`} data-relive>
-            Relive trip
-          </Link>
+        <section aria-label="Trip stamp" data-trip-stamp>
+          <StampCard c={stamp} />
         </section>
       )}
 
