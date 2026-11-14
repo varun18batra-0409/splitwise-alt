@@ -55,6 +55,20 @@ describe("the circles at the top of Our moments", () => {
     expect(s[1].frames).toHaveLength(2);
     expect(s.find((x) => x.label === "Zed")).toBeUndefined();
   });
+  it("two different people both named Sam get two circles, each with only their own moments", () => {
+    const sam1 = { ...card("m1", "Sam", false, 1), authorId: "mem-sam-1", authorAccountId: "acc-sam-1" };
+    const sam2 = { ...card("m2", "Sam", false, 2), authorId: "mem-sam-2", authorAccountId: "acc-sam-2" };
+    const sam1b = { ...card("m3", "Sam", false, 3), authorId: "mem-sam-1", authorAccountId: "acc-sam-1" };
+    const s = momentPageStories([sam1, sam2, sam1b], "g1", "Goa", now);
+    expect(s.map((x) => x.label)).toEqual(["Goa", "Sam", "Sam"]);
+    expect(s[1].frames).toHaveLength(2); // acc-sam-1: m1 and m3
+    expect(s[2].frames).toHaveLength(1); // acc-sam-2: m2
+    expect(s[1].id).not.toBe(s[2].id);
+  });
+  it("one person with two moments is still one circle", () => {
+    const s = momentPageStories([card("m2", "Riya", false, 1), card("m1", "Riya", false, 2)], "g1", "Goa", now);
+    expect(s.map((x) => x.label)).toEqual(["Goa", "Riya"]);
+  });
   it("nothing in the last week: no circles", () => {
     expect(momentPageStories([card("old", "Zed", false, 9)], "g1", "Goa", now)).toEqual([]);
   });

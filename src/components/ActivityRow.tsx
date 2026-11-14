@@ -2,7 +2,6 @@ import { neutralGameText } from "@/lib/game-words";
 import { getCategory } from "@/lib/categories";
 import { ExpenseGlyph } from "./ExpenseGlyph";
 import { formatMoney } from "@/lib/money";
-import { overviewMoney } from "@/lib/money-display";
 import type { ActivityItem } from "@/lib/activity";
 import { GearIcon, SettleIcon } from "./icons";
 import { paymentEffectLabel, paymentSubline, paymentTitle } from "@/lib/payment-words";
@@ -43,8 +42,8 @@ export function ActivityRow({
   delay?: number; // seconds, so a list's icons take turns
 }) {
   const money = (m: number) => formatMoney(m, currency);
-  // Rows show whole units from 1,000 up (display only); the exact amount rides along in title / data-exact, and the row opens the expense.
-  const short = (m: number) => overviewMoney(m, currency);
+  // Rows show the exact amount, paise included (the same figure as the expense and Settle up); never rounded.
+  const short = money;
 
   if (item.kind === "event") {
     return (
@@ -118,7 +117,7 @@ export function ActivityRow({
     const exact = o ? formatMoney(orig, o.currency) : money(base);
     return (
       <span className="whitespace-nowrap" title={exact} data-exact={exact}>
-        {o ? overviewMoney(orig, o.currency) : short(base)}
+        {exact}
       </span>
     );
   };

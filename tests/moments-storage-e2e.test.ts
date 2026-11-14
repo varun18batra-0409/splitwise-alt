@@ -848,4 +848,39 @@ describe("the lists, the strip and reactions use the same rules", () => {
     await run(actions.reactMomentAction, { momentId: m.id, emoji: "not an emoji" });
     expect(await db.momentReaction.count({ where: { momentId: m.id } })).toBe(1);
   });
+
+  it("a double tap: the second save hits the one-per-person rule and is treated as already saved (no error page)", async () => {
+    const w = await world("dbltap");
+    const m = await added(w, P.ann);
+    await as(P.bea);
+    // Stand in for the other tap winning the race: its row appears, then this save is refused with Prisma's unique-rule error (P2002).
+    const real = db.momentReaction.upsert.bind(db.momentReaction);
+    const spy = vi.spyOn(db.momentReaction, "upsert").mockImplementationOnce((async (args: Parameters<typeof real>[0]) => {
+      await real(args);
+      throw Object.assign(new Error("Unique constraint failed on the fields: (`momentId`,`memberId`)"), { code: "P2002" });
+    }) as unknown as typeof db.momentReaction.upsert);
+    try {
+      const went = await run(actions.reactMomentAction, { momentId: m.id, emoji: "😂" });
+      expect(went).toContain(`/groups/${w.id}/moments`); // a normal redirect back, not a thrown error
+    } finally {
+      spy.mockRestore();
+    }
+    const rows = await db.momentReaction.findMany({ where: { momentId: m.id } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ memberId: w.bea, emoji: "😂" });
+  });
+
+  it("any other database error is still raised, not hidden", async () => {
+    const w = await world("dbltap2");
+    const m = await added(w, P.ann);
+    await as(P.bea);
+    const spy = vi.spyOn(db.momentReaction, "upsert").mockImplementationOnce((async () => {
+      throw Object.assign(new Error("disk is full"), { code: "P1008" });
+    }) as unknown as typeof db.momentReaction.upsert);
+    try {
+      await expect(run(actions.reactMomentAction, { momentId: m.id, emoji: "😂" })).rejects.toThrow("disk is full");
+    } finally {
+      spy.mockRestore();
+    }
+  });
 });

@@ -185,6 +185,8 @@ export async function removeMoment(id: string): Promise<boolean> {
     await queuePhotoDeletes(tx, [m.blobKey, m.thumbKey]);
     await tx.momentReaction.deleteMany({ where: { momentId: id } });
     await tx.moment.deleteMany({ where: { id } });
+    // Nothing is left to look at, so its open reports are closed (the reports themselves stay as the record).
+    await tx.report.updateMany({ where: { kind: "moment", targetId: id, status: "open" }, data: { status: "resolved", resolvedAt: new Date() } });
     return true;
   });
   await flushPhotoDeletes();

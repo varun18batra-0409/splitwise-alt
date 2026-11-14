@@ -127,6 +127,8 @@ export async function deleteAccount(accountId: string, opts: { keepEndpoint?: st
       await queuePhotoDeletes(tx, mine.flatMap((m) => [m.blobKey, m.thumbKey]));
       await tx.momentReaction.deleteMany({ where: { momentId: { in: mine.map((m) => m.id) } } });
       await tx.moment.deleteMany({ where: { authorAccountId: accountId } });
+      // Open reports about those moments have nothing left to look at: close them (the reports stay as the record).
+      await tx.report.updateMany({ where: { kind: "moment", targetId: { in: mine.map((m) => m.id) }, status: "open" }, data: { status: "resolved", resolvedAt: new Date() } });
       await tx.passkey.deleteMany({ where: { accountId } });
       // Collections they organised hold other people's names under their account: they go too.
       await tx.collection.deleteMany({ where: { accountId } });

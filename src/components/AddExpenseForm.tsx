@@ -2,7 +2,7 @@
 
 import { avatarTone } from "@/components/ui";
 import { ExpenseGlyph } from "./ExpenseGlyph";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import { addExpense, lookupRate } from "@/app/actions";
 import { CATEGORIES, analyzeName, applySuggestion, getCategory } from "@/lib/categories";
 import { computeTotals, fxLine, PAYMENT_METHODS, rateDateLabel, type PaymentMethod } from "@/lib/conversion";
@@ -81,6 +81,12 @@ export function AddExpenseForm({
   const [amount, setAmount] = useState(initial?.amount ?? "");
   // Commas are only drawn while the field is not focused; `amount` itself stays as typed, so what is read and saved is unchanged.
   const [amountFocused, setAmountFocused] = useState(false);
+  // Dropping the commas on focus rewrites the box, which loses the selection: select-all then typing 2000 would give
+  // "15002000". Selecting the whole amount straight after the rewrite (same as Record payment) keeps "tap, type the new amount" working.
+  const amountRef = useRef<HTMLInputElement>(null);
+  useLayoutEffect(() => {
+    if (amountFocused) amountRef.current?.select();
+  }, [amountFocused]);
   const today = todayKey(new Date(), tz);
   const yesterday = addDays(today, -1);
   const [date, setDate] = useState(initial?.date ?? today);
@@ -520,6 +526,7 @@ export function AddExpenseForm({
               {(amountFocused ? amount : groupDigits(amount, currency)) || "0"}
             </span>
             <input
+              ref={amountRef}
               value={amountFocused ? amount : groupDigits(amount, currency)}
               onChange={(e) => setAmount(e.target.value)}
               onFocus={() => setAmountFocused(true)}

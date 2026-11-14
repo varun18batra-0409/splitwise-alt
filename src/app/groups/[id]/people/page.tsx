@@ -7,7 +7,6 @@ import { getAccount, getMyMemberId, privatePath } from "@/lib/identity";
 import { loadGroup } from "@/lib/group-data";
 import { canUndo } from "@/lib/undo";
 import { formatMoney } from "@/lib/money";
-import { overviewMoney } from "@/lib/money-display";
 import { cancelInvite, invitePersonByEmail, removePerson, renamePerson, setPersonLeft } from "@/app/actions";
 import { pickAdmin } from "@/lib/group-admin";
 import { Notice } from "@/components/Notice";
@@ -226,7 +225,7 @@ export default async function PeoplePage({
                   </ConfirmButton>
                 )}
                 <p className="mt-2 text-xs text-gray-400" title={bal !== 0 ? money(bal) : undefined} data-exact={bal !== 0 ? money(bal) : undefined}>
-                  {bal !== 0 ? `${m.name} must be settled up first (${bal > 0 ? "gets" : "owes"} ${overviewMoney(Math.abs(bal), group.currency)}).` : used.has(m.id) || m.accountId ? "They stay in the history. You can bring them back later." : "Not in any expense yet, so they’re removed completely."}
+                  {bal !== 0 ? `${m.name} must be settled up first (${bal > 0 ? "gets" : "owes"} ${money(Math.abs(bal))}).` : used.has(m.id) || m.accountId ? "They stay in the history. You can bring them back later." : "Not in any expense yet, so they’re removed completely."}
                 </p>
               </form>
             ) : (

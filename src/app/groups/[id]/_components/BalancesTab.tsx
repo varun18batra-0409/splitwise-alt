@@ -4,7 +4,6 @@ import { Notice } from "@/components/Notice";
 import { formatMoney, formatPercent } from "@/lib/money";
 import { foreignPartLine, ledgerSummary } from "@/lib/foreign-part";
 import { niceDate } from "@/lib/format";
-import { overviewMoney } from "@/lib/money-display";
 import { Avatar } from "@/components/ui";
 import type { GroupView } from "./view";
 import { WhyPanel } from "./WhyPanel";
@@ -62,8 +61,9 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
             const theirs = transfers.filter((t) => t.from === m.id || t.to === m.id);
             // Their part of the spending in each foreign currency, said plainly: "Thai baht part: you owe THB 5,099.17".
             const foreignParts = ledgers.map((l) => ({ currency: l.currency, amount: l.net[m.id] ?? 0 }));
-            const foreign = b === 0 ? "" : foreignPartLine(foreignParts, m.id === myId, overviewMoney);
-            const foreignExact = b === 0 ? "" : foreignPartLine(foreignParts, m.id === myId);
+            // Exact amounts everywhere on this tab (the same figures Settle up shows).
+            const foreign = b === 0 ? "" : foreignPartLine(foreignParts, m.id === myId);
+            const foreignExact = foreign;
             return (
               <li key={m.id}>
                 <details className="group/person" open={why === m.id}>
@@ -84,12 +84,12 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
                       </span>
                     </span>
                     <span
-                      className={`shrink-0 text-right money tabular-nums ${b > 0 ? "text-owed" : b < 0 ? "text-owe" : "text-gray-400"}`}
+                      className={`shrink-0 whitespace-nowrap text-right money tabular-nums ${b > 0 ? "text-owed" : b < 0 ? "text-owe" : "text-gray-400"}`}
                       title={b !== 0 ? money(Math.abs(b)) : undefined}
                       data-exact={b !== 0 ? money(Math.abs(b)) : undefined}
                       data-balance={b !== 0 ? money(Math.abs(b)) : "0"}
                     >
-                      {b > 0 ? `gets ${overviewMoney(b, group.currency)}` : b < 0 ? `owes ${overviewMoney(-b, group.currency)}` : "settled"}
+                      {b > 0 ? `gets ${money(b)}` : b < 0 ? `owes ${money(-b)}` : "settled"}
                     </span>
                     <svg aria-hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-fg/40 transition-transform group-open/person:rotate-90 motion-reduce:transition-none">
                       <path d="m9 6 6 6-6 6" />
@@ -135,7 +135,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
             title={ledgerSummary(ledgers.map((l) => ({ currency: l.currency, amount: l.net[myId] ?? 0 })), mine, group.currency)}
             data-exact={ledgerSummary(ledgers.map((l) => ({ currency: l.currency, amount: l.net[myId] ?? 0 })), mine, group.currency)}
           >
-            {ledgerSummary(ledgers.map((l) => ({ currency: l.currency, amount: l.net[myId] ?? 0 })), mine, group.currency, overviewMoney)}{hasMarkup ? " Overall includes card fees." : ""}
+            {ledgerSummary(ledgers.map((l) => ({ currency: l.currency, amount: l.net[myId] ?? 0 })), mine, group.currency)}{hasMarkup ? " Overall includes card fees." : ""}
           </p>
           <ul className="divide-y divide-line rounded-[20px] border border-line bg-white">
             {ledgers.map((l) => {
@@ -145,7 +145,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
                   <span className="block min-w-0">
                     <span className="block text-sm font-medium">{l.currency} expenses</span>
                     <span className="block text-xs text-gray-400" title={formatMoney(l.spent, l.currency)} data-exact={formatMoney(l.spent, l.currency)}>
-                      {overviewMoney(l.spent, l.currency)} spent
+                      {formatMoney(l.spent, l.currency)} spent
                       {payments.some((p) => p.fromId === myId || p.toId === myId) ? ", before payments" : ""}
                     </span>
                   </span>
@@ -154,7 +154,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
                     title={val !== 0 ? formatMoney(Math.abs(val), l.currency) : undefined}
                     data-exact={val !== 0 ? formatMoney(Math.abs(val), l.currency) : undefined}
                   >
-                    {val > 0 ? `you’re owed ${overviewMoney(val, l.currency)}` : val < 0 ? `you owe ${overviewMoney(-val, l.currency)}` : "even"}
+                    {val > 0 ? `you’re owed ${formatMoney(val, l.currency)}` : val < 0 ? `you owe ${formatMoney(-val, l.currency)}` : "even"}
                   </span>
                 </li>
               );
@@ -165,7 +165,7 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
 
       <section className="space-y-1 text-sm text-gray-500">
         <p>
-          <span title={money(spent)} data-exact={money(spent)}>{overviewMoney(spent, group.currency)}</span>
+          <span className="whitespace-nowrap tabular-nums" title={money(spent)} data-exact={money(spent)}>{money(spent)}</span>
           {eq(spent) && ` (${eq(spent)})`} spent across {expenses.length} {expenses.length === 1 ? "expense" : "expenses"} by {people.length}{" "}
           {people.length === 1 ? "person" : "people"}.
         </p>

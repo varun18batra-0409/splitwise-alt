@@ -26,10 +26,12 @@ export function momentPageStories(cards: MomentCard[], groupId: string, groupNam
   });
   const out: Story[] = [make("trip", place(groupName), recent)];
   const seen = new Set<string>();
+  // One circle per person, told apart by who they are (account, else member), not by name: two people both called Sam get two circles.
+  const who = (c: MomentCard) => c.authorAccountId || c.authorId;
   for (const c of recent) {
-    if (seen.has(c.authorName)) continue;
-    seen.add(c.authorName);
-    out.push(make(`by-${out.length}`, c.authorName, recent.filter((x) => x.authorName === c.authorName)));
+    if (seen.has(who(c))) continue;
+    seen.add(who(c));
+    out.push(make(`by-${out.length}`, c.authorName, recent.filter((x) => who(x) === who(c))));
   }
   return out;
 }

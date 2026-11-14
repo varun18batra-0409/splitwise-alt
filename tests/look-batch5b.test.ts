@@ -29,7 +29,9 @@ describe("Your groups", () => {
     expect(lines).toContain("text-owe");
     expect(lines).toContain("data-group-line");
     expect(lines).toContain("data-exact={exact}");
-    expect(lines).toContain("overviewMoney(b, g.group.currency)");
+    // Exact amounts (paise included), never the rounded Home figure.
+    expect(lines).toContain("formatMoney(b, g.group.currency)");
+    expect(lines).not.toContain("overviewMoney");
     expect(lines).toContain("<ChevronRight");
   });
   it("starts a group from a quiet row and lists collections in the same row style", () => {

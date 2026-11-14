@@ -10,7 +10,6 @@ import { getTimeZone } from "@/lib/tz";
 import { parseDetails } from "@/lib/events";
 import { viewerDetails } from "@/lib/left-view";
 import { PageHeader } from "@/components/ui";
-import { overviewAmountsInText } from "@/lib/money-display";
 import { PhoneStatus } from "@/components/PushControls";
 import { loadNeedsYou, withoutRepeats } from "@/lib/needs-you";
 import { InvitationCard } from "@/components/InvitationCard";
@@ -268,14 +267,14 @@ export default async function Notifications({ searchParams }: { searchParams: Pr
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block text-sm" title={neutralGameText(n.event.text)} data-exact={neutralGameText(n.event.text)}>
-                            <strong className="font-medium">{n.actorName}</strong> {overviewAmountsInText(neutralGameText(n.event.text))}
+                            <strong className="font-medium">{n.actorName}</strong> {neutralGameText(n.event.text)}
                             {n.event.undoneAt && <span className="text-gray-400"> (since undone)</span>}
                           </span>
                           {n.event.kind === "expense_edited" && details.length > 0 && (
                             <span className="mt-0.5 block text-xs text-gray-500" data-change-lines>
                               {details.map((d) => (
                                 <span key={d} className="block" title={d} data-exact={d}>
-                                  {overviewAmountsInText(d)}
+                                  {d}
                                 </span>
                               ))}
                             </span>

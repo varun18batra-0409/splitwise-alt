@@ -89,3 +89,55 @@ test("Insights add up: your share and group spend match what was entered, and Ho
     await expect(A.locator("[data-month-share]")).toHaveText("₹500");
   }
 });
+
+test("editing a ₹1,500 expense: select all, type 2000, save → ₹2,000 (not 15002000)", async () => {
+  await addEqualExpense(A, group.path, "Hotel", "1500");
+  await openEdit(A, group.path, "Hotel");
+  const amount = A.getByLabel("Amount", { exact: true });
+  // Not focused: commas are drawn.
+  await expect(amount).toHaveValue("1,500");
+  await amount.click();
+  await A.keyboard.press("ControlOrMeta+A");
+  await A.keyboard.type("2000");
+  await expect(amount).toHaveValue("2000");
+  await openSplit(A);
+  await A.getByRole("button", { name: "Everyone equally" }).click();
+  await A.getByRole("button", { name: "Save changes" }).click();
+  await A.waitForURL(/tab=activity/);
+  await settled(A);
+  const row = A.locator('li[id^="item-"] details > summary').filter({ hasText: "Hotel" }).first();
+  await expect(row).toContainText("2,000");
+  await expect(row).not.toContainText("15002000");
+  await expect(row).not.toContainText("1,500");
+});
+
+test("group screens show exact amounts with paise from 1,000 up: ₹3,001.50 split three ways → owes ₹1,000.50", async () => {
+  // Bob pays ₹3,001.50 for all three: each share is ₹1,000.50, so Alice and Cara each owe exactly ₹1,000.50 and Bob gets ₹2,001.
+  const g = await createGroup(A, groupName("Paise check"));
+  await joinGroup(B, g.invite, g.path);
+  const C = await contexts[2].newPage();
+  await joinGroup(C, g.invite, g.path);
+  await B.goto(`${g.path}/add`);
+  await settled(B);
+  await B.locator("#expense-name").fill("Villa");
+  await B.getByLabel("Amount", { exact: true }).fill("3001.50");
+  await openSplit(B);
+  await B.getByRole("button", { name: "Everyone equally" }).click();
+  await B.getByRole("button", { name: "Save expense" }).click();
+  await B.waitForURL(/tab=activity/);
+  await settled(B);
+
+  // Alice's Balances tab: the By person rows and the ticket read exactly (never ₹1,001).
+  await A.goto(`${g.path}?tab=balances`);
+  await settled(A);
+  const rows = A.locator("details.group\\/person > summary");
+  await expect(rows.filter({ hasText: "Bob" })).toContainText("gets ₹2,001");
+  await expect(rows.filter({ hasText: "Cara" })).toContainText("owes ₹1,000.50");
+  await expect(rows.filter({ hasText: "Alice" })).toContainText("owes ₹1,000.50");
+  await expect(A.locator("[data-net-balance]").first()).toContainText("₹1,000.50");
+  // The activity row says ₹3,001.50, not ₹3,002.
+  await A.goto(`${g.path}?tab=activity`);
+  await settled(A);
+  await expect(A.locator('li[id^="item-"]').filter({ hasText: "Villa" }).first()).toContainText("₹3,001.50");
+  await C.close();
+});
