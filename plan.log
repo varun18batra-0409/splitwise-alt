@@ -1,0 +1,7 @@
+-- This is an empty migration.
+plan exit: 0
+MODE=plan
+APPLY_STATUS=none
+PLAN_STATUS=0
+OUTCOME=ok
+REASON=
