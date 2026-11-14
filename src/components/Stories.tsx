@@ -83,7 +83,7 @@ export function Stories({ stories, className = "mb-6" }: { stories: Story[]; cla
                 title={s.label}
                 className="flex w-full flex-col items-center gap-1.5 text-center transition-opacity active:opacity-70 motion-reduce:transition-none"
               >
-                <span aria-hidden className={`block h-[80px] w-[80px] rounded-full p-[2.5px] ${isNew ? "bg-[conic-gradient(#e8c46a,#f0a35e,#6fe3a8,#e8c46a)]" : "bg-fg/25"}`}>
+                <span aria-hidden className={`block h-[80px] w-[80px] rounded-full p-[2.5px] ${isNew ? "bg-[conic-gradient(#e8c46a,#e9b08a,#d99aa6,#e8c46a)]" : "bg-fg/25"}`}>
                   <span className="relative block h-full w-full overflow-hidden rounded-full border-[3px] border-canvas bg-mist">
                     <Picture s={s} uid={`st-${s.id}`} />
                   </span>

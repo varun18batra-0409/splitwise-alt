@@ -123,9 +123,11 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
                   </span>
                   <span className="block truncate text-xs text-gray-400">{sub}</span>
                 </span>
-                <span className="shrink-0 text-[13px] tabular-nums text-fg/55" aria-hidden>
-                  {state === "private" || state === "unshared" ? <LockIcon size={16} /> : codes.slice(0, 4).join(" ")}
-                </span>
+                {(state === "private" || state === "unshared") && (
+                  <span className="shrink-0 text-fg/55" aria-hidden>
+                    <LockIcon size={16} />
+                  </span>
+                )}
                 <span aria-hidden className="text-gray-400">
                   ›
                 </span>

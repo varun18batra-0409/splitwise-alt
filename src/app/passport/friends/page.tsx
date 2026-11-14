@@ -88,9 +88,11 @@ export default async function FriendsPassports({ searchParams }: { searchParams:
                         .join(" · ")}
                     </span>
                   </span>
-                  <span className="shrink-0 text-[13px] tabular-nums text-fg/55" aria-hidden>
-                    {f.private ? <LockIcon size={16} /> : f.countries.slice(0, 4).join(" ")}
-                  </span>
+                  {f.private && (
+                    <span className="shrink-0 text-fg/55" aria-hidden>
+                      <LockIcon size={16} />
+                    </span>
+                  )}
                   <span aria-hidden className="text-gray-400">
                     ›
                   </span>
