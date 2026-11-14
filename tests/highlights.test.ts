@@ -5,7 +5,7 @@ import { homeHighlights, type HighlightInput } from "@/lib/home/highlights";
 import { seasonNow } from "@/lib/home/banner";
 
 const base: HighlightInput = { trips: [], justBack: [], hasMonth: false, season: null, postcardsNew: 0, billsDue: [], passportCountries: 0, groups: 2 };
-const titles = (h: ReturnType<typeof homeHighlights>) => h.map((x) => (x.kind === "month" ? "month" : `${x.eyebrow} | ${x.title}`));
+const titles = (h: ReturnType<typeof homeHighlights>) => h.map((x) => (x.kind === "month" ? "month" : x.kind === "memories" ? `memories | ${x.title}` : `${x.eyebrow} | ${x.title}`));
 
 describe("Usual weather for a trip", () => {
   it("knows the season: Goa in November is dry, Lonavala in July is monsoon, Manali in January is freezing", () => {
@@ -66,7 +66,7 @@ describe("Home highlights", () => {
     expect(busy.length).toBe(7);
     // The trip you're on comes first, then the next trip's weather and what's on.
     expect(titles(busy).slice(0, 3)).toEqual([
-      "Day 2 in Bangkok | ₹4,200 spent today",
+      "In Bangkok now | ₹4,200 spent today",
       "Goa in 12 days | Usually 33° by day, 21° at night",
       "While you’re in Goa | Christmas & New Year in Goa",
     ]);

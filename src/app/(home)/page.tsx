@@ -43,14 +43,18 @@ import { FooterLinks, HOME_FOOTER_LINKS } from "@/components/FooterLinks";
 import { countdownWords, placeOf, tripPhase, type TripPhase } from "@/lib/countdown";
 import { todayKey } from "@/lib/dates";
 import { countryOf, tripStops } from "@/lib/geo";
-import { MoneyCard, TripStrip, type NeedLine, type StubCover } from "@/components/HomeMoney";
-import { alsoLine, homeTicket, mixedDirections, moneyMode, moneyPeople, rankGroups, type GroupFacts, type InvolvedGroup } from "@/lib/home/money-card";
+import { ComingUp, MoneyCard, type NeedLine, type StubCover, type TripPassView } from "@/components/HomeMoney";
+import { homeTicket, mixedDirections, moneyMode, moneyPeople, rankGroups, type GroupFacts, type InvolvedGroup } from "@/lib/home/money-card";
 import { Stories } from "@/components/Stories";
 import { buildStories } from "@/lib/home/stories";
-import { loadMomentStoryGroups } from "@/lib/moments-db";
+import { loadHomeMemories, loadMomentStoryGroups } from "@/lib/moments-db";
+import { MemoriesCard } from "@/components/MemoriesCard";
+import { comingUp } from "@/lib/home/coming-up";
+import { passPhoto, type PassGroup } from "@/lib/home/pass-photo";
+import { countryPhoto } from "@/lib/country-photos";
+import { loadMyWishes } from "@/lib/wishes-db";
 import { photoSet, placePhotos, tripPhotoSrc } from "@/lib/places";
 import { GroupCards, type GroupCardData } from "@/components/HomeGroups";
-import { tripTag } from "@/lib/home/group-card";
 import { loadNeedsYou } from "@/lib/needs-you";
 import { unreadPostcards } from "@/lib/blocks";
 import { BILL_DUE_DAYS, billDueNeeds, needLine, postcardNeed, type DueBill, type NeedItem } from "@/lib/home/need-line";
@@ -104,7 +108,13 @@ export default async function Home({
   // Only the rows Home shows: the newest changes, this month, today's spending on trips, a finished trip's categories.
   const now = new Date();
   const today = todayKey(now, tz);
-  const rows = await loadHomeRows(all, { tz, now, today });
+  const [rows, memories, wishes] = await Promise.all([
+    loadHomeRows(all, { tz, now, today }),
+    // The latest trip with moments this person may see (the "Your memories" card).
+    loadHomeMemories(memberships, today),
+    // Want to go: the stub's picture when nothing else fits.
+    account ? loadMyWishes(account.id) : Promise.resolve([] as string[]),
+  ]);
 
   // Undo bar after a change made from the home screen (e.g. closing a group).
   let undoBar: { text: string; groupId: string; eventId: string } | null = null;
@@ -120,18 +130,14 @@ export default async function Home({
   }
 
   // Needs you: one line at the bottom of the money card, the most important first ("... and 2 more" when there are several): things only you can
-  // answer, a flat bill due soon, a postcard that arrived, and a group that is square and quiet (ready to close). Money you owe or are owed is
-  // the card's job, and new updates are the Alerts badge's, so neither repeats here. (src/lib/home/need-line.ts has the rules.)
-  const quietSince = Date.now() - 7 * 86_400_000;
+  // answer, a flat bill due soon and a postcard that arrived. Money you owe or are owed is the card's job, new updates are the Alerts badge's,
+  // and "this group is all square, close it" lives in Updates and on the group's own page: none of them repeats here. (src/lib/home/need-line.ts has the rules.)
   const NEED_ACTION: Record<"claim" | "payment" | "bill" | "collect", string> = { claim: "Confirm", payment: "Confirm", bill: "Add", collect: "Confirm" };
   const postcardItem = postcardNeed(postcardsNew);
   const needItems: NeedItem[] = [
     ...needs.items.map((it) => ({ key: it.id, kind: it.kind, text: it.text, action: it.action ?? NEED_ACTION[it.kind], href: it.href, orange: it.tone === "orange" })),
     ...billDueNeeds(dueSoon, today),
     ...(postcardItem ? [postcardItem] : []),
-    ...open
-      .filter((g) => !g.leaver && g.expenseCount > 0 && g.transfers.length === 0 && g.lastActivity.getTime() < quietSince)
-      .map((g) => ({ key: `close-${g.group.id}`, kind: "close" as const, text: `${g.group.name} is all square.`, action: "Close it", href: `/groups/${g.group.id}/settings#close` })),
   ];
 
   // The latest changes across open groups.
@@ -370,8 +376,8 @@ export default async function Home({
         return [{ id: g.group.id, name: g.group.name, endedDaysAgo: ended, photos: placePhotos(g.group.name, g.group.tripPlace, 2), cover: coverFor(g.group), spent: formatMoney(g.spent, g.group.currency), topCategory: top ? getCategory(top[0]).label : undefined }];
       }),
   });
-  // The polaroids in Your groups: newest activity first. A trip that is on carries its day ("Day 2 of 5") on its photo.
-  const phaseOf = new Map(trips.map((t) => [t.g.group.id, t.phase]));
+  // The polaroids in Your groups: newest activity first. Each says only a status word (no amount, no day count: the money pass and
+  // the Coming up passes say those, once).
   const groupCards: GroupCardData[] = byActivity.map((g) => ({
     id: g.group.id,
     name: g.group.name,
@@ -380,24 +386,74 @@ export default async function Home({
     // polaroid, the ticket's stub and the countdown thumb.
     photo: tripPhotoSrc(g.group),
     balance: g.myBalance,
-    money: (n: number) => formatMoney(n, g.group.currency),
-    show: (n: number) => formatMoney(n, g.group.currency),
-    tag: tripTag(phaseOf.get(g.group.id)),
   }));
-  // The stub's picture(s): the group with the most money (two when it spans groups), else your newest group. Same cover as its polaroid.
+  const stopsOf = (g: (typeof all)[number]) => tripStops(g.group.name, g.group.tripPlace ?? "", g.group.tripCountry ?? "");
+  const homeCountry = (account?.homeCountry || region.country || "IN").toUpperCase();
+  // The stub's picture(s), as a fallback: the group with the most money (two when it spans groups), else your newest group. Same cover as its polaroid.
   const stubCover = (id: string): StubCover | null => {
     const c = groupCards.find((x) => x.id === id);
     return c ? { id: c.id, cover: c.cover, photo: c.photo, name: c.name } : null;
   };
   const stubIds = ticket.kind === "square" || (ticket.kind === "neutral" && involved.length === 0) ? byActivity.slice(0, 1).map((g) => g.group.id) : rankGroups(involved).slice(0, 2).map((g) => g.id);
-  const stub = stubIds.map(stubCover).filter((c): c is StubCover => Boolean(c));
-  // Each pass of a both-ways stack shows the picture of the groups its own money runs through.
+  const groupStub = stubIds.map(stubCover).filter((c): c is StubCover => Boolean(c));
+  // The money pass's picture (src/lib/home/pass-photo.ts): a different photo of the trip where you owe most; a home interior for flat or
+  // couple money; else a country you've been to, one you want to go to, or a good travel photo. Never a polaroid's own photo.
+  const common3 = (g: (typeof open)[number], n: number) => (g.group.currency === common ? n : (toCommon(n, g.group.currency) ?? 0));
+  const passGroups: PassGroup[] = open
+    .filter((g) => !g.leaver)
+    .map((g) => {
+      const mine = g.transfers.filter((t) => t.from === g.myId || t.to === g.myId);
+      const placeOfGroup = g.group.type === "trip" ? placePhotos(g.group.name, g.group.tripPlace) : [];
+      return {
+        id: g.group.id,
+        type: g.group.type,
+        iOwe: mine.some((t) => t.from === g.myId),
+        isOwed: mine.some((t) => t.to === g.myId),
+        owe: mine.filter((t) => t.from === g.myId).reduce((sum, t) => sum + common3(g, t.amount), 0),
+        owed: mine.filter((t) => t.to === g.myId).reduce((sum, t) => sum + common3(g, t.amount), 0),
+        spend: common3(g, g.spent),
+        photos: placeOfGroup,
+        cover: tripPhotoSrc(g.group),
+      };
+    })
+    .filter((g) => g.iOwe || g.isOwed);
+  // Countries you've been to, newest first: trips that have started, then ones ticked by hand (newest last in the list); home last.
+  const visitedCodes = [
+    ...all
+      .filter((g) => g.group.type === "trip" && !g.group.deletedAt && g.group.tripStart && g.group.tripStart <= today)
+      .sort((a, b) => b.group.tripStart.localeCompare(a.group.tripStart))
+      .flatMap((g) => stopsOf(g).map((st) => st.country || homeCountry)),
+    ...(account ? parseHandPlaces(account.places).map((pl) => pl.c).reverse() : []),
+  ];
+  const visitedNewest = [...new Set(visitedCodes.filter((c) => c !== homeCountry)), ...(visitedCodes.includes(homeCountry) ? [homeCountry] : [])];
+  const avoidPhotos = groupCards.flatMap((c) => (c.photo ? [c.photo] : []));
+  const photoFor = (side: "owe" | "owed" | null): StubCover[] => {
+    const p = passPhoto({
+      side,
+      groups: passGroups,
+      avoid: avoidPhotos,
+      interiors: [...photoSet("home"), ...photoSet("cover-home")],
+      visited: visitedNewest,
+      want: [...wishes].reverse(),
+      general: ["cover-beach", "cover-city", "cover-mountains", "cover-lake", "hero", "sunset"].flatMap((slot) => photoSet(slot)),
+      countryPhoto: (code) => countryPhoto(code),
+    });
+    return p ? [{ id: `pass-${p.source}-${side ?? "all"}`, cover: { kind: "plain" }, photo: p.src, name: "Loopin" }] : [];
+  };
+  const stub = photoFor(ticket.kind === "one" ? ticket.line.side : null).length ? photoFor(ticket.kind === "one" ? ticket.line.side : null) : groupStub;
+  // Each pass of a both-ways stack has the picture for its own side; no photo to pick: the picture of the groups its money runs through.
   const sideStub = (ids: string[]) =>
     rankGroups(involved.filter((g) => ids.includes(g.id)))
       .slice(0, 2)
       .map((g) => stubCover(g.id))
       .filter((c): c is StubCover => Boolean(c));
-  const sideStubs = ticket.kind === "both" ? { owe: sideStub(ticket.lines.find((l) => l.side === "owe")?.groupIds ?? []), owed: sideStub(ticket.lines.find((l) => l.side === "owed")?.groupIds ?? []) } : undefined;
+  const sideStubs =
+    ticket.kind === "both"
+      ? {
+          owe: photoFor("owe").length ? photoFor("owe") : sideStub(ticket.lines.find((l) => l.side === "owe")?.groupIds ?? []),
+          owed: photoFor("owed").length ? photoFor("owed") : sideStub(ticket.lines.find((l) => l.side === "owed")?.groupIds ?? []),
+        }
+      : undefined;
   // The pass's SINCE and ITEMS fields: per group with money open, the first item added since the group's last payment and how many there
   // are (what has built up since the last settle-up). A group that can't be read just leaves its fields out.
   const facts: Record<string, GroupFacts> = {};
@@ -415,21 +471,27 @@ export default async function Home({
       }),
     );
   }
-  // The ONE countdown: the next trip to come (with its usual weather when we know it); the others come into it as one "Also:" line.
-  const upcoming = trips.filter((t) => t.phase.kind === "before");
-  const nextTrip = upcoming[0];
-  const nextWeather = (() => {
-    if (!nextTrip) return undefined;
-    const stop = tripStops(nextTrip.g.group.name, nextTrip.g.group.tripPlace ?? "", nextTrip.g.group.tripCountry ?? "")[0];
-    const c = stop ? climateFor(stop.city, stop.country, tripMonth(nextTrip.g.group.tripStart, nextTrip.g.group.tripEnd || null)) : null;
-    return c ? weatherWords(c, usesFahrenheit(region.country)).line : undefined;
-  })();
-  const alsoText = alsoLine(upcoming.slice(1).map((t) => ({ place: placeOf(t.g.group.name), days: t.phase.kind === "before" ? t.phase.days : 0 })));
+  // Coming up: one boarding pass per upcoming trip (trips only, earliest first, at most three); a trip that is on says "Day 2 of 5" on its pass.
+  // A finished trip leaves. The weather is the trip's usual weather when we know it, as one small pill.
+  const passes: TripPassView[] = comingUp(
+    trips.map((t) => {
+      const st = stopsOf(t.g)[0];
+      const c0 = st?.country ? countryOf(st.country) : undefined;
+      return { id: t.g.group.id, type: t.g.group.type, name: t.g.group.name, start: t.g.group.tripStart, end: t.g.group.tripEnd || null, phase: t.phase, going: crewOf(t.g).length, stop: st ? { city: st.city, country: st.country, countryName: c0?.name } : undefined };
+    }),
+    today.slice(0, 4),
+  ).flatMap((p) => {
+    const t = trips.find((x) => x.g.group.id === p.id)!;
+    const cover = stubCover(p.id);
+    if (!cover) return [];
+    const stop = stopsOf(t.g)[0];
+    const c = stop ? climateFor(stop.city, stop.country, tripMonth(t.g.group.tripStart, t.g.group.tripEnd || null)) : null;
+    const w = c ? weatherWords(c, usesFahrenheit(region.country)) : null;
+    return [{ ...p, stub: cover, shareLine: countdownWords(t.g.group.name, t.phase)?.line ?? "", weather: w ? { text: w.temps.replace(/^Usually /, ""), full: w.line } : undefined }];
+  });
 
-  // The sliding cards (4 to 7), picked for what's useful right now. Nothing here repeats what is already on Home: the countdown says
-  // its trip's usual weather, and the needs-you line says a bill due within 3 days and new postcards, so those are left out below.
-  const stopsOf = (g: (typeof all)[number]) => tripStops(g.group.name, g.group.tripPlace ?? "", g.group.tripCountry ?? "");
-  const homeCountry = (account?.homeCountry || region.country || "IN").toUpperCase();
+  // The sliding cards (4 to 7), picked for what's useful right now. Nothing here repeats what is already on Home: the Coming up passes say
+  // their trips' usual weather, and the needs-you line says a bill due within 3 days and new postcards, so those are left out below.
   const season = seasonNow(new Date(), tz, region.country);
   // A group they left shows no bills.
   const billRows = await db.bill.findMany({ where: { groupId: { in: open.filter((g) => !g.leaver).map((g) => g.group.id) }, deletedAt: null, paused: false }, take: 20 });
@@ -488,8 +550,9 @@ export default async function Home({
     passportAbroad: [...passportSet].filter((c) => c !== homeCountry).length,
     groups: open.length,
     fahrenheit: usesFahrenheit(region.country),
-    // The countdown above already says this trip's usual weather.
-    skipWeather: nextTrip ? [nextTrip.g.group.id] : [],
+    // The Coming up passes already say their trips' usual weather.
+    skipWeather: passes.map((p) => p.id),
+    memories,
     // Real photos (slots card-passport and card-postcards in scripts/fetch-photos.mjs); none downloaded: the drawn art.
     scenes: { passport: photoSet("card-passport")[0], postcards: photoSet("card-postcards")[0] },
   });
@@ -639,12 +702,8 @@ export default async function Home({
             )}
           </section>
 
-          {/* The ONE countdown: the next trip to come, with its weather when we know it; other trips are one "Also:" line inside it. A trip that is on is tagged on its photo in Your groups instead. */}
-          {nextTrip && nextTrip.phase.kind === "before" && (
-            <div className="mt-6">
-              <TripStrip groupId={nextTrip.g.group.id} place={placeOf(nextTrip.g.group.name)} phase={nextTrip.phase} going={crewOf(nextTrip.g).length} start={nextTrip.g.group.tripStart} shareLine={countdownWords(nextTrip.g.group.name, nextTrip.phase)?.line ?? ""} thumb={stubCover(nextTrip.g.group.id) ?? undefined} weather={nextWeather} also={alsoText || undefined} />
-            </div>
-          )}
+          {/* Coming up: one boarding pass per upcoming trip, swiped sideways. */}
+          <ComingUp passes={passes} />
 
           {/* Latest */}
           {recent.length > 0 && (
@@ -730,6 +789,8 @@ export default async function Home({
                       </div>
                     </div>
                   )
+                ) : h.kind === "memories" ? (
+                  <MemoriesCard key={h.id} h={h} />
                 ) : (
                   <HighlightCard key={h.id} h={h} />
                 ),

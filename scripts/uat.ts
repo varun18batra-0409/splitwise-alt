@@ -1456,8 +1456,9 @@ async function main() {
     assert(hrefs.length > 0 && new Set(hrefs).size === hrefs.length, `group cards: ${hrefs.join(" ")}`);
     // Every card says where you stand in words that are not just a colour.
     for (const t of await V.locator("[data-group-card]").evaluateAll((els) => els.map((e) => ({ tone: e.getAttribute("data-tone"), text: (e as HTMLElement).innerText })))) {
-      if (t.tone === "square") assert(/You’re square/.test(t.text), `a square card says: ${t.text}`);
-      else assert(t.tone === "owed" ? /^Owed /m.test(t.text) : /You owe /.test(t.text), `a ${t.tone} card says: ${t.text}`);
+      if (t.tone === "square") assert(/Square/.test(t.text), `a square card says: ${t.text}`);
+      else assert(t.tone === "owed" ? /Owed to you/.test(t.text) : /You owe/.test(t.text), `a ${t.tone} card says: ${t.text}`);
+      assert(!/[₹$€£]\s?\d/.test(t.text), `a polaroid repeats an amount: ${t.text}`);
     }
     // One stories row at most, and not again lower down; no row at all when there are no stories.
     assert((await V.locator("[data-stories]").count()) <= 1, "stories show twice on Home");
@@ -1546,7 +1547,7 @@ async function main() {
         }
         return out;
       })()`)) as string[];
-      const allowed = /^(Trip countdown|More trips)$/;
+      const allowed = /^Coming up$/;
       assert(between.every((b) => allowed.test(b)), `between Your groups and Latest: ${between.join(", ")}`);
     }
     const phone = V.getByText(/saved on this phone/);
@@ -3204,24 +3205,25 @@ async function main() {
     return new URL(page.url()).pathname.replace(/\/invite$/, "");
   }
 
-  await step(V, "Countdown", "A trip made with a start date in 10 days: the group says “in 10 days”, Home shows the countdown strip with the trip's picture", async () => {
+  await step(V, "Countdown", "A trip made with a start date in 10 days: the group says “in 10 days”, Home's Coming up shows its boarding pass with the trip's picture", async () => {
     const goa = await newTrip(V, `UAT Goa trip ${stamp % 1000}`, istDay(10));
     await go(V, goa);
     await V.locator("[data-countdown-line]").first().filter({ hasText: "in 10 days" }).waitFor();
     await go(V, "/");
-    const card = V.getByRole("region", { name: "Trip countdown", exact: true }).first();
+    const card = V.locator("[data-trip-pass]").first();
     assert((await card.getAttribute("data-countdown")) === "10", `Home countdown says ${await card.getAttribute("data-countdown")}`);
-    assert(await card.locator("[data-trip-thumb]").count(), "no picture on the countdown strip");
-    assert(/10/.test((await card.locator("[data-countdown-big]").first().textContent()) ?? ""), "the strip doesn't show 10");
+    assert(await card.locator("[data-ticket-stub] img").count(), "no picture on the trip pass stub");
+    assert(/10 days/.test((await card.locator('[data-pass-field="in"]').first().textContent()) ?? ""), "the pass doesn't say 10 days");
   });
 
-  await step(V, "Countdown", "A second trip in 30 days: Home still has ONE countdown (the soonest) and the later trip is the one-line “Also: … in 30 days” inside it, not a card", async () => {
+  await step(V, "Countdown", "A second trip in 30 days: Coming up is ONE section with two boarding passes, the soonest first; no “Also:” line, no separate cards", async () => {
     await newTrip(V, `UAT Manali trip ${stamp % 1000}`, istDay(30));
     await go(V, "/");
-    assert((await V.locator("[data-trip-strip]").count()) === 1, "Home should have exactly one countdown");
-    assert((await V.locator("[data-trip-strip]").getAttribute("data-countdown")) === "10", "the soonest trip isn't the countdown");
-    const also = ((await V.locator("[data-trip-also]").textContent()) ?? "").trim();
-    assert(/^Also: Manali.* in 30 days$/.test(also), `the Also line says "${also}"`);
+    assert((await V.locator("[data-coming-up]").count()) === 1, "Home should have exactly one Coming up section");
+    const passes = V.locator("[data-trip-pass]");
+    assert((await passes.count()) >= 2 && (await passes.count()) <= 3, `Coming up has ${await passes.count()} passes`);
+    assert((await passes.first().getAttribute("data-countdown")) === "10", "the soonest trip isn't the first pass");
+    assert((await V.locator("[data-trip-also]").count()) === 0, "the Also line is still on Home");
     assert((await V.getByRole("heading", { name: "Also coming up" }).count()) === 0 && (await V.locator("[data-trip-row]").count()) === 0, "Home still has separate cards for other trips");
   });
 

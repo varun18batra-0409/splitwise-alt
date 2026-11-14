@@ -487,7 +487,7 @@ export function homeTicket(x: {
 }
 
 // ---- The boarding pass's fields and order ----
-export type PassField = { key: "group" | "since" | "items" | "payments"; label: string; value: string };
+export type PassField = { key: "group" | "since" | "items" | "payments" | "date" | "in" | "now" | "going"; label: string; value: string };
 export type GroupFacts = { since: string | null; items: number }; // since: a day, "2026-11-03"; items: expenses added since the group's last payment
 
 // "3 Nov" (this year) or "3 Nov 2025".

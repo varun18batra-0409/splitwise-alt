@@ -30,9 +30,10 @@ test("a trip with dates counts down on the group and Home; settings change it; t
 
   await page.goto("/");
   await settled(page);
-  const card = page.getByRole("region", { name: "Trip countdown", exact: true });
+  // "Coming up": one boarding pass for the trip, with "In 12 days" among its fields.
+  const card = page.locator("[data-trip-pass]");
   await expect(card).toHaveAttribute("data-countdown", "12");
-  await expect(card.locator("[data-countdown-big]")).toHaveText("12");
+  await expect(card.locator('[data-pass-field="in"]')).toContainText("12 days");
 
   // Share: WhatsApp, everyone in the trip (in Loopin), more apps.
   await card.getByRole("button", { name: "Share" }).click();
@@ -68,7 +69,7 @@ test("a trip with dates counts down on the group and Home; settings change it; t
   await page.getByRole("button", { name: "Save settings" }).click();
   await expect(page.getByText("The trip can’t end before it starts.")).toBeVisible();
 
-  // A second, later trip: the soonest is the one countdown; the later one is its "Also:" line.
+  // A second, later trip: Coming up is one stack of passes, earliest first.
   await page.goto("/groups/new");
   await settled(page);
   await page.getByRole("button", { name: /^Trip/ }).click();
@@ -79,11 +80,12 @@ test("a trip with dates counts down on the group and Home; settings change it; t
   await page.waitForURL(/\/invite\?new=1/);
   await page.goto("/");
   await settled(page);
-  await expect(page.locator("[data-trip-strip]")).toHaveAttribute("data-countdown", "1");
-  await expect(page.locator("[data-trip-strip]")).toContainText("tomorrow");
-  // The later trip is one line inside the countdown ("Also: Manali in 40 days"), not a second card.
-  await expect(page.locator("[data-trip-strip]")).toHaveCount(1);
-  await expect(page.locator("[data-trip-also]")).toHaveText(/^Also: .*Manali.* in 40 days$/);
+  const passes = page.locator("[data-trip-pass]");
+  await expect(passes).toHaveCount(2);
+  await expect(passes.first()).toHaveAttribute("data-countdown", "1");
+  await expect(passes.first().locator('[data-pass-field="in"]')).toContainText("1 day");
+  await expect(passes.nth(1)).toHaveAttribute("data-countdown", "40");
+  await expect(page.locator("[data-trip-also]")).toHaveCount(0);
   await expect(page.locator("[data-trip-row]")).toHaveCount(0);
   await ctx.close();
 

@@ -129,7 +129,8 @@ describe("all square and the neutral card", () => {
     expect(hm).toContain("data-square-add");
     expect(hm).toContain("Add an expense");
   });
-  it("only the money uses the ticket shape: the Also coming up card has no perforation or notches", () => {
+  it("the ticket shape is for money AND upcoming trips: the old Also coming up card has no perforation or notches; Coming up reuses TicketShell", () => {
+    expect(src("src/components/HomeMoney.tsx")).toContain("<TicketShell\n      stub={[p.stub]}");
     const c = src("src/components/TripCountdown.tsx");
     expect(c).not.toContain("border-l-2 border-dashed");
     expect(c).not.toContain("half-circle");
@@ -158,8 +159,10 @@ describe("a calmer Home", () => {
     expect(you).toContain("<GetAppButton");
     expect(you).toContain('href="/how-it-works"');
   });
-  it("one countdown with an Also line; no TripRow, no Also coming up cards, no Plan a trip card; the sliding Home cards are back", () => {
-    expect(home).toContain("alsoLine(");
+  it("one Coming up section of trip passes (no countdown row, no Also line); no TripRow, no Also coming up cards, no Plan a trip card; the sliding Home cards are back", () => {
+    expect(home).toContain("<ComingUp");
+    expect(home).not.toContain("TripStrip");
+    expect(home).not.toContain("alsoLine(");
     expect(home).not.toContain("TripRow");
     expect(home).not.toContain("Also coming up");
     expect(home).not.toContain("Plan a trip");

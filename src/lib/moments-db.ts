@@ -7,6 +7,7 @@ import { dayLabel, momentAuthor } from "./moments-text";
 import { MOMENTS_PER_GROUP, MOMENTS_PER_PERSON_PER_DAY } from "./covers";
 import { claimKey, isDuplicateKey } from "./once";
 import { canSeeMoment, canOpenMoments, type MomentViewer } from "./moments-access";
+import { pickMemories, type HomeMemories, type MemoryTrip } from "./home/memories";
 
 // Moments in the database. Nothing here decides who may see a moment: callers pass a MomentViewer (loadMomentViewer) and every
 // row that is returned has gone through canSeeMoment. The photo bytes are never loaded by these lists (only by the photo route).
@@ -250,6 +251,35 @@ export async function loadMomentStoryGroups(memberships: Record<string, string>,
     });
   }
   return out;
+}
+
+// ---------- Home's "Your memories" card ----------
+// The most recent trip you are in with moments you may see (the card shows three small photos, a count and a link to the Memories tab).
+// Same people as the story circles (in the group right now); each candidate trip's rows are read with momentsWhere and then pickMemories
+// runs canSeeMoment on every one again. Looks at the six latest started trips at most.
+export async function loadHomeMemories(memberships: Record<string, string>, today: string): Promise<HomeMemories | null> {
+  const ids = Object.values(memberships);
+  if (!ids.length) return null;
+  const mine = await db.member.findMany({
+    where: { id: { in: ids }, leftAt: null, removedAt: null, ...JOINED, group: { deletedAt: null, type: "trip" } },
+    select: { id: true, groupId: true, accountId: true, group: { select: { name: true, tripStart: true, tripEnd: true } } },
+    take: 200,
+  });
+  const candidates = mine
+    .filter((m) => m.group.tripStart && m.group.tripStart <= today)
+    .sort((a, b) => (b.group.tripEnd || b.group.tripStart).localeCompare(a.group.tripEnd || a.group.tripStart))
+    .slice(0, 6);
+  if (!candidates.length) return null;
+  const blockedBy = new Map<string, ReadonlySet<string>>();
+  for (const a of new Set(candidates.map((m) => m.accountId).filter((x): x is string => Boolean(x)))) blockedBy.set(a, await blockedEitherWay(a));
+  const trips: MemoryTrip[] = await Promise.all(
+    candidates.map(async (m) => {
+      const viewer: MomentViewer = { groupId: m.groupId, groupType: "trip", groupDeleted: false, memberId: m.id, accountId: m.accountId, leftAt: null, removedAt: null, pending: false, isAdmin: false, blocked: (m.accountId && blockedBy.get(m.accountId)) || new Set<string>() };
+      const moments = await db.moment.findMany({ where: momentsWhere(viewer), orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: MOMENTS_PER_GROUP, select: MOMENT_FIELDS });
+      return { groupId: m.groupId, name: m.group.name, start: m.group.tripStart, end: m.group.tripEnd || null, viewer, moments };
+    }),
+  );
+  return pickMemories(trips, today, (id) => momentPhotoSrc(id, "t"));
 }
 
 // ---------- Download my data ----------

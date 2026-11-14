@@ -1,18 +1,17 @@
 import Image from "next/image";
 import Link from "@/components/Link";
-import { niceDate } from "@/lib/format";
 import { ShareCountdown } from "@/components/ShareCountdown";
 import { ExactAmount } from "@/components/ExactAmount";
 import { GroupCover } from "@/components/GroupCover";
 import { PassStack } from "@/components/PassStack";
-import { amountTier, orderPasses, passFields, routeCode, sideFacts, stripWords, type GroupFacts, type GroupMark, type Ticket, type TicketAction, type TicketLine } from "@/lib/home/money-card";
+import { amountTier, orderPasses, passFields, routeCode, sideFacts, type GroupFacts, type GroupMark, type PassField, type Ticket, type TicketAction, type TicketLine } from "@/lib/home/money-card";
+import type { TripPass } from "@/lib/home/coming-up";
 import type { CoverChoice } from "@/lib/covers";
-import type { TripPhase } from "@/lib/countdown";
 
 // Home's money card, as a boarding pass: a stub with the group's picture, a dashed perforation with two bites, then the route
 // ("You ┄ ✈ Nupur"), the amount, the group's name and ONE cream button. Money both ways is two lines on the same ticket.
 // No tinted wash and no coloured border: only the amount carries the colour (orange you owe, green you're owed).
-// Below it, a quiet line for what waits on you. Lower down, the countdown line for a trip that is coming up.
+// Below it, a quiet line for what waits on you. Lower down, "Coming up": a pass like it for each trip that is next.
 
 export const CREAM = "pop flex h-11 min-w-0 items-center justify-center whitespace-nowrap bg-fg px-3 text-[15px] font-semibold text-canvas [--pop-edge:#6e6b63]";
 export const OUTLINE = "flex h-11 min-w-0 items-center justify-center whitespace-nowrap rounded-full border border-fg/25 px-3.5 text-[15px] font-semibold text-fg transition-transform active:scale-[0.97] motion-reduce:transition-none motion-reduce:active:scale-100";
@@ -213,7 +212,7 @@ export function PassRoute({ from, to }: { from: string; to: string }) {
 }
 
 // Small labelled fields, like GATE and SEAT: the label above, the value below. Values cut with "..." when long; the group's name gets the room.
-export function PassFields({ fields }: { fields: ReturnType<typeof passFields> }) {
+export function PassFields({ fields }: { fields: PassField[] }) {
   if (fields.length === 0) return null;
   return (
     <dl className="mt-3 flex min-w-0 flex-wrap gap-x-4 gap-y-2" data-pass-fields>
@@ -311,37 +310,59 @@ export function MoneyCard({ ticket, mode, tone, stub, sideStubs, facts = {}, nee
   );
 }
 
-export function TripStrip({ groupId, place, phase, going, start, shareLine, thumb, weather, also }: { groupId: string; place: string; phase: TripPhase; going: number; start: string; shareLine: string; thumb?: StubCover; weather?: string; also?: string }) {
-  const w = stripWords(place, phase);
-  if (!w) return null;
-  const thisYear = String(new Date().getFullYear());
-  const date = start.startsWith(thisYear) ? niceDate(start).replace(/ \d{4}$/, "") : niceDate(start);
-  const who = going > 0 ? (phase.kind === "before" ? `${going} going, ${date}` : `${going} ${going === 1 ? "person" : "people"}`) : phase.kind === "before" ? date : "";
+// "Coming up": the trips that are next, each a boarding pass in the same family as the money pass (stub with the trip's place photo,
+// notches, perforation, barcode). Earliest first, trips only, at most three (see comingUp). From is YOU, To is the destination's code.
+// Weather (when we know it) is one small pill; one fun line for the stage; one outline "Open trip" and a small Share.
+export type TripPassView = TripPass & { stub: StubCover; weather?: { text: string; full: string }; shareLine: string };
+
+function TripPassCard({ p }: { p: TripPassView }) {
   return (
-    <section aria-label="Trip countdown" data-countdown={phase.kind === "before" ? String(phase.days) : phase.kind} data-trip-strip className="mt-3 flex items-center gap-2">
-      <Link href={`/groups/${groupId}`} className="flex min-h-[64px] min-w-0 flex-1 items-center gap-3 rounded-[18px] border border-line bg-[#16161a] py-2.5 pl-2.5 pr-4 active:bg-mist">
-        {/* The trip's own picture, small and rounded (the same one its polaroid shows). */}
-        {thumb && (
-          <span aria-hidden className="relative block h-11 w-16 shrink-0 overflow-hidden rounded-[10px] bg-mist" data-trip-thumb>
-            <CoverBox c={thumb} sizes="64px" />
-          </span>
-        )}
-        <span className="min-w-0 flex-1 leading-tight">
-          <b className="block truncate text-[16px] font-semibold">
-            {w.pre}
-            {w.num !== undefined && <span data-countdown-big>{w.num}</span>}
-            {w.post}
-          </b>
-          {who && <span className="mt-0.5 block truncate text-[13.5px] text-fg/55">{who}</span>}
-          {weather && <span className="mt-0.5 block line-clamp-2 text-[13px] leading-snug text-fg/55" data-trip-weather>{weather}</span>}
-          {also && <span className="mt-0.5 block truncate text-[13px] text-fg/55" data-trip-also>{also}</span>}
-        </span>
-        <span aria-hidden className="text-fg/30">
-          ›
-        </span>
-      </Link>
-      {/* Share the countdown (WhatsApp, the trip's crew, other apps). */}
-      <ShareCountdown groupId={groupId} line={shareLine} className="glass flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[0px]" />
+    <TicketShell
+      stub={[p.stub]}
+      label={`${p.title}, trip pass`}
+      attrs={{ "data-trip-pass": p.id, "data-trip-strip": "", "data-countdown": p.days !== null ? String(p.days) : p.phase.kind, "data-trip-stage": p.stage }}
+      barcode
+    >
+      <p className="truncate text-[13px] font-semibold text-fg/65" data-trip-title>
+        {p.title}
+      </p>
+      <div className="mt-2">
+        <PassRoute from={p.from} to={p.to} />
+      </div>
+      <PassFields fields={p.fields} />
+      {p.weather && (
+        <p className="mt-2.5 self-start rounded-full border border-fg/15 px-2.5 py-1 text-[12.5px] leading-tight text-fg/75" data-trip-weather title={p.weather.full}>
+          {p.weather.text}
+        </p>
+      )}
+      {p.quip && (
+        <p className="mt-2 line-clamp-2 text-[13.5px] leading-snug text-fg/65" data-trip-quip>
+          {p.quip}
+        </p>
+      )}
+      <div className="mt-auto flex items-center gap-2 pt-3">
+        <Link href={`/groups/${p.id}`} className={`${OUTLINE} flex-1`} data-trip-open>
+          Open trip
+        </Link>
+        {/* Share the countdown (WhatsApp, the trip's crew, other apps). */}
+        <ShareCountdown groupId={p.id} line={p.shareLine} className="glass flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[0px]" />
+      </div>
+    </TicketShell>
+  );
+}
+
+export function ComingUp({ passes }: { passes: TripPassView[] }) {
+  if (passes.length === 0) return null;
+  return (
+    <section aria-labelledby="coming-up-h" className="mt-6" data-coming-up>
+      <h2 id="coming-up-h" className="mb-2 font-display text-[20px] font-semibold tracking-tight">
+        Coming up
+      </h2>
+      <PassStack label="Upcoming trips" attrs={{ "data-coming-up-stack": "" }}>
+        {passes.map((p) => (
+          <TripPassCard key={p.id} p={p} />
+        ))}
+      </PassStack>
     </section>
   );
 }

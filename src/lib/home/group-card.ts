@@ -19,6 +19,14 @@ export function cardStatus(balance: number, format: (minor: number) => string): 
   return { text: "✓ You’re square", tone: "square" };
 }
 
+// What Home's polaroids print under the handwritten name: ONLY a short status word, no amount (the money pass above is the one place
+// the amount is on Home). "You owe" (orange ink), "Owed to you" (green ink), "Square" (neutral: green is only for money owed to you).
+export function cardWord(balance: number): { text: "You owe" | "Owed to you" | "Square"; tone: CardTone } {
+  if (balance > 0) return { text: "Owed to you", tone: "owed" };
+  if (balance < 0) return { text: "You owe", tone: "owe" };
+  return { text: "Square", tone: "square" };
+}
+
 // The little tag on a trip's photo while the trip is on: "Day 2 of 5". Not shown before or after the trip.
 export function tripTag(phase: TripPhase | null | undefined): string | null {
   if (!phase) return null;

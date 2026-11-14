@@ -2,7 +2,7 @@
 
 import { Children, useRef, useState } from "react";
 
-// Two boarding passes (money you owe and money owed to you): one on screen, the next peeks in at the edge. Swipe, use the arrow keys
+// Boarding passes (money you owe and money owed to you; the trips coming up): one on screen, the next peeks in at the edge. Swipe, use the arrow keys
 // on the strip, or tap a dot. Scroll-snap does the work, so it never moves by itself; with animations turned off it jumps.
 export function PassStack({ children, label, attrs }: { children: React.ReactNode; label: string; attrs?: Record<string, string | undefined> }) {
   const items = Children.toArray(children);
@@ -43,13 +43,15 @@ export function PassStack({ children, label, attrs }: { children: React.ReactNod
           </li>
         ))}
       </ul>
-      <div className="mt-1 flex justify-center">
+      {items.length > 1 && (
+      <div className="mt-1 flex justify-center" data-pass-dots>
         {items.map((_, i) => (
           <button key={i} type="button" onClick={() => go(i)} aria-label={`Show pass ${i + 1} of ${items.length}`} aria-current={i === at ? "true" : undefined} className="flex h-8 w-[26px] items-center justify-center">
             <span className={`block h-1.5 rounded-full transition-all motion-reduce:transition-none ${i === at ? "w-[18px] bg-fg" : "w-1.5 bg-fg/35"}`} />
           </button>
         ))}
       </div>
+      )}
     </div>
   );
 }
