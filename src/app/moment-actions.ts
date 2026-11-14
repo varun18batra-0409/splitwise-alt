@@ -25,7 +25,7 @@ export async function deleteMomentAction(f: FormData) {
   const viewer = await loadMomentViewer(m.groupId);
   if (!canDeleteMoment(viewer, m)) redirect("/");
   await removeMoment(m.id);
-  redirect(`/groups/${m.groupId}/moments?removed=1`);
+  redirect(`/groups/${m.groupId}?tab=memories&removed=1`);
 }
 
 // Tap an emoji to react; tap the same one again to take it back; a different one changes it. Current members only.

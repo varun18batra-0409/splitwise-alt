@@ -22,6 +22,8 @@ describe("moment photos never go through next/image", () => {
       "src/app/groups/[id]/moments/page.tsx",
       "src/app/groups/[id]/moments/new/MomentForm.tsx",
       "src/app/groups/[id]/_components/MomentsStrip.tsx",
+      "src/app/groups/[id]/_components/MemoriesTab.tsx",
+      "src/components/MomentsFeed.tsx",
       "src/app/stats/reports/page.tsx",
     ]) expect(readFileSync(f, "utf8"), f).not.toMatch(/from "next\/image"/);
     const stories = readFileSync("src/components/Stories.tsx", "utf8");

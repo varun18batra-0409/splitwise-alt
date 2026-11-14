@@ -875,17 +875,17 @@ async function main() {
     await go(V, `${g}?tab=balances`);
     await V.getByText("THB expenses").first().waitFor();
   });
-  await step(V, "Simple screens", "Group top is short: balance, Settle up and Why? only (details moved to Balances)", async () => {
+  await step(V, "Simple screens", "Group top is short: balance, Settle up and See breakdown only (details moved to People)", async () => {
     await go(V, g);
     const top = await V.locator("main section").first().innerText(); // everything above the tabs
     for (const gone of ["THB expenses", "spent across", "card markup"]) assert(!top.includes(gone), `group top still shows “${gone}”`);
     await V.getByRole("link", { name: "Settle up" }).first().waitFor();
-    await V.getByRole("link", { name: "Why?" }).first().waitFor();
+    await V.getByRole("link", { name: "See breakdown" }).first().waitFor();
   });
   await step(V, "Simple screens", "Balances only explains; paying happens on Settle up (no duplicate buttons)", async () => {
-    // “3 payments clear the whole trip” is the ticket's line at the top of the group, no longer a card of its own on Balances.
+    // How many payments are yours is the ticket's Payments field at the top of the group's Overview, no longer a card of its own on Balances.
     await go(V, g);
-    await V.getByText(/payments? clears? (it|the whole trip|everything)/).first().waitFor();
+    await V.locator("[data-pass-field='payments']").first().waitFor();
     await go(V, `${g}?tab=balances`);
     assert((await V.getByRole("button", { name: "Mark as paid" }).count()) === 0, "Balances still has Mark as paid");
     assert((await V.getByText(/payments? clears? everything/).count()) === 0, "Balances still repeats the payments-clear card");
@@ -905,7 +905,7 @@ async function main() {
   await step(V, "Why?", "“Why?” lines add up to the balance shown", async () => {
     const want = Math.round(expected().Varun);
     await go(V, g);
-    await V.getByRole("link", { name: "Why?" }).click();
+    await V.getByRole("link", { name: "See breakdown" }).click();
     await V.waitForURL(/why=/);
     const panel = V.locator("details[id^='why-'][open]").first();
     await panel.waitFor();

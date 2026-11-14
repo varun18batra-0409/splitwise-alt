@@ -79,7 +79,7 @@ describe("Trip passport: stamps", () => {
 
 describe("Stories on Home", () => {
   const now = new Date("2026-10-27T10:00:00Z");
-  it("a trip coming up, last night's game and a year ago; old games and far trips left out", () => {
+  it("a trip coming up, last night's game and a year ago; old games and far trips left out; a collection is no circle (its progress is the Collecting card)", () => {
     const s = buildStories({
       now,
       trips: [
@@ -95,7 +95,7 @@ describe("Stories on Home", () => {
       memories: [{ id: "g9", name: "Manali trip", years: 1, people: 6, days: 4 }],
       wrapped: [],
     });
-    expect(s.map((x) => x.id)).toEqual(["trip-g1-b3", "pot-p1", "memory-g9-1", "collect-c1-2"]);
+    expect(s.map((x) => x.id)).toEqual(["trip-g1-b3", "pot-p1", "memory-g9-1"]);
     expect(s[0]).toMatchObject({ headline: "Goa in 3 days", line: "5 of you, 3 sleeps to go", href: "/groups/g1" });
     expect(s.find((x) => x.kind === "pot")?.headline).toBe("Asha came out ahead by ₹600");
     expect(s.find((x) => x.kind === "memory")?.headline).toBe("A year ago: Manali");

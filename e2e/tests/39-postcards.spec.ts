@@ -15,9 +15,9 @@ test("Postcards: write from a group, the other person receives it, turns it over
   const g = await createGroup(A, groupName("Goa trip"), "Trip");
   await joinGroup(R, g.invite, g.path);
 
-  // The group offers it, once something has happened in it (an empty group shows how to start instead).
+  // The group offers it on its Memories tab.
   await addExpense(A, g.path, { name: "Beach shack lunch", amount: "800" });
-  await A.goto(g.path);
+  await A.goto(`${g.path}?tab=memories`);
   await settled(A);
   await A.locator("[data-send-postcard]").first().click();
   await A.waitForURL(/\/postcards\/new\?group=/);

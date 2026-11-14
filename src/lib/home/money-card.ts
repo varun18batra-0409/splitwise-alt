@@ -487,7 +487,7 @@ export function homeTicket(x: {
 }
 
 // ---- The boarding pass's fields and order ----
-export type PassField = { key: "group" | "since" | "items"; label: string; value: string };
+export type PassField = { key: "group" | "since" | "items" | "payments"; label: string; value: string };
 export type GroupFacts = { since: string | null; items: number }; // since: a day, "2026-11-03"; items: expenses added since the group's last payment
 
 // "3 Nov" (this year) or "3 Nov 2025".
@@ -530,4 +530,36 @@ export function alsoLine(trips: { place: string; days: number }[]): string {
   const shown = trips.slice(0, 2).map((t) => `${t.place} ${when(t.days)}`);
   const more = trips.length - shown.length;
   return `Also: ${shown.join(", ")}${more > 0 ? ` and ${more} more` : ""}`;
+}
+
+// ---- A group's own boarding pass (the group page and the Settle up cards) ----
+// Same pass as Home's, drawn by the same component. These two helpers only decide the words: the codes on the route, and the SINCE and
+// ITEMS fields. Neither works out a balance.
+
+// The codes at the two ends of a group's pass. One person: their code ("KAB"). Several: "3 PPL". Nobody to name: "GRP".
+// You are always "YOU"; the other end is never the same as yours (personCode steps aside if a name would also be YOU).
+export function sideCodes(side: "owe" | "owed", names: string[]): { from: string; to: string } {
+  const unique = names.filter((n, i) => names.indexOf(n) === i);
+  const them = unique.length === 1 ? personCode(unique[0], ["YOU"]) : unique.length > 1 ? `${unique.length} PPL` : "GRP";
+  return side === "owe" ? { from: "YOU", to: them } : { from: them, to: "YOU" };
+}
+
+// A code for one end that is just a name as the Settle up screens know it: "You", "3 people" or a person's name.
+export function endCode(end: string): string {
+  if (end === "You") return "YOU";
+  if (/^\d+ /.test(end)) return routeCode(end);
+  return personCode(end, ["YOU"]);
+}
+
+// What has built up in a group since its last payment: the day of the first expense added after it, and how many there are.
+// Deleted rows don't count; with no payment yet, every live expense counts. `dayOf` turns a moment into the viewer's day ("2026-11-03").
+export function sinceLastPayment(
+  expenses: { createdAt: Date; spentAt?: Date | null; deletedAt?: Date | null }[],
+  payments: { createdAt: Date; deletedAt?: Date | null }[],
+  dayOf: (d: Date) => string,
+): GroupFacts {
+  const last = payments.filter((p) => !p.deletedAt).reduce<number>((t, p) => Math.max(t, p.createdAt.getTime()), 0);
+  const fresh = expenses.filter((e) => !e.deletedAt && e.createdAt.getTime() > last).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  const first = fresh[0];
+  return { since: first ? dayOf(first.spentAt ?? first.createdAt) : null, items: fresh.length };
 }

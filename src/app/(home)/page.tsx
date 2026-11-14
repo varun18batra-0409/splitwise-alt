@@ -47,6 +47,8 @@ import { placePhotos, tripPhotoSrc } from "@/lib/places";
 import { GroupCards, type GroupCardData } from "@/components/HomeGroups";
 import { tripTag } from "@/lib/home/group-card";
 import { loadNeedsYou } from "@/lib/needs-you";
+import { unreadPostcards } from "@/lib/blocks";
+import { billDueNeeds, needLine, postcardNeed, type DueBill, type NeedItem } from "@/lib/home/need-line";
 import { tripEmoji } from "@/lib/countdown";
 import { payersOf, spentAmount } from "@/lib/payers";
 import { getCategory } from "@/lib/categories";
@@ -76,8 +78,9 @@ export default async function Home({
 }) {
   const { closed: justClosed, did, g: didGroup, undone, error, deleted, signedin, moved, collection } = await searchParams;
   const [tz, memberships] = await Promise.all([getTimeZone(), getMemberships()]);
-  // Independent reads, all at once.
-  const [overview, deletedGroups, account, collections, collectionsTotal, invitations, needs, momentGroups] = await Promise.all([
+  // Independent reads, all at once. (`dueSoon` is filled by the needs-you read, from the bill statuses it already works out.)
+  const dueSoon: DueBill[] = [];
+  const [overview, deletedGroups, account, collections, collectionsTotal, invitations, needs, momentGroups, postcardsNew] = await Promise.all([
     loadOverview(memberships),
     loadDeletedGroups(memberships),
     getAccount(),
@@ -86,9 +89,11 @@ export default async function Home({
     // Groups someone added you to, waiting for Join or Not now.
     getAccount().then((a) => loadInvitations(a)),
     // Things only you can answer (someone says they paid you, a bill waiting for its amount): the top two show on Home.
-    getAccount().then((a) => loadNeedsYou(memberships, a, 0)),
+    getAccount().then((a) => loadNeedsYou(memberships, a, 0, new Date(), dueSoon)),
     // New moments in your trip groups (the last 3 days; only ones you may see).
     loadMomentStoryGroups(memberships),
+    // Postcards that arrived and are unread (none from people you blocked, none still sealed).
+    getAccount().then((a) => (a ? unreadPostcards(a.id) : 0)),
   ]);
   const { all, open, closed, owedLines, oweLines, common, netCommon, netLines, netValue, toCommon } = overview;
   // Only the rows Home shows: the newest changes, this month, today's spending on trips, a finished trip's categories.
@@ -109,16 +114,19 @@ export default async function Home({
     }
   }
 
-  // Needs you: things only you can answer first, then a group that is square and quiet (ready to close). The top one is a line at the
-  // bottom of the money card. Money you owe or are owed is the card's job, and new updates are the Alerts badge's, so neither repeats here.
+  // Needs you: one line at the bottom of the money card, the most important first ("... and 2 more" when there are several): things only you can
+  // answer, a flat bill due soon, a postcard that arrived, and a group that is square and quiet (ready to close). Money you owe or are owed is
+  // the card's job, and new updates are the Alerts badge's, so neither repeats here. (src/lib/home/need-line.ts has the rules.)
   const quietSince = Date.now() - 7 * 86_400_000;
   const NEED_ACTION: Record<"claim" | "payment" | "bill" | "collect", string> = { claim: "Confirm", payment: "Confirm", bill: "Add", collect: "Confirm" };
-  type Need = { key: string; lead: string; text: React.ReactNode; sub?: string; action: string; href: string; orange?: boolean };
-  const needRows: Need[] = [
-    ...needs.items.map((it) => ({ key: it.id, lead: it.kind === "bill" ? "bill" : it.text.trim().charAt(0).toUpperCase(), text: it.text, sub: it.where, action: it.action ?? NEED_ACTION[it.kind], href: it.href, orange: it.tone === "orange" })),
+  const postcardItem = postcardNeed(postcardsNew);
+  const needItems: NeedItem[] = [
+    ...needs.items.map((it) => ({ key: it.id, kind: it.kind, text: it.text, action: it.action ?? NEED_ACTION[it.kind], href: it.href, orange: it.tone === "orange" })),
+    ...billDueNeeds(dueSoon, today),
+    ...(postcardItem ? [postcardItem] : []),
     ...open
       .filter((g) => !g.leaver && g.expenseCount > 0 && g.transfers.length === 0 && g.lastActivity.getTime() < quietSince)
-      .map((g) => ({ key: `close-${g.group.id}`, lead: "check", text: <>{g.group.name} is all square.</>, action: "Close it", href: `/groups/${g.group.id}/settings#close` })),
+      .map((g) => ({ key: `close-${g.group.id}`, kind: "close" as const, text: `${g.group.name} is all square.`, action: "Close it", href: `/groups/${g.group.id}/settings#close` })),
   ];
 
   // The latest changes across open groups.
@@ -192,20 +200,8 @@ export default async function Home({
     hero: { text: heroText.replace(/^([≈ ]*)[+−]/, "$1"), exact: heroExact !== heroText ? heroExact.replace(/^([≈ ]*)[+−]/, "$1") : undefined },
     groups: involved,
   });
-  // What waits on you, folded into the card: the top one as a line; two or more real ones as a count that opens Alerts (where all of them are listed
-  // under "Needs you"). The "ready to close" nudges are Home-only, so they are never counted in a number Alerts can't back up.
-  const realNeeds = needs.items;
-  const need: NeedLine | null =
-    realNeeds.length >= 2
-      ? {
-          text: realNeeds.every((n) => n.kind === "claim" || n.kind === "payment") ? `${realNeeds.length} payments to confirm` : `${realNeeds.length} things need you`,
-          action: "See them",
-          href: "/notifications",
-          count: realNeeds.length,
-        }
-      : needRows[0]
-        ? { text: needRows[0].text, action: needRows[0].action, href: needRows[0].href, count: 1 }
-        : null;
+  // What waits on you, folded into the card as one line.
+  const need: NeedLine | null = needLine(needItems);
   // Someone added you to a group: it isn't in your groups until you tap Join.
   const invitationsBlock =
     invitations.length > 0 ? (

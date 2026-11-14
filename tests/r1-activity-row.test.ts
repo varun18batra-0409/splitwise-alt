@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
+import { headerTripLine } from "@/lib/countdown";
+import { buildStories } from "@/lib/home/stories";
 
 const src = (f: string) => readFileSync(f, "utf8");
 
@@ -60,7 +62,9 @@ describe("R1 item 16: the Moments page", () => {
   const page = src("src/app/groups/[id]/moments/page.tsx");
   it("no tagline, the row's time is its own never-cut piece, and a short list puts Add at its end", () => {
     expect(page).not.toContain("One photo. A few words. Our story.");
-    expect(page).toContain('shrink-0 whitespace-nowrap text-fg/55" data-moment-time');
+    // The row is MomentsFeed, shared with the group's Memories tab.
+    expect(page).toContain("<MomentsFeed");
+    expect(src("src/components/MomentsFeed.tsx")).toContain('shrink-0 whitespace-nowrap text-fg/55" data-moment-time');
     expect(page).toContain("const floating = canAdd && cards.length > 2;");
     expect(page).toContain("data-moments-add-inline");
   });
@@ -119,7 +123,6 @@ describe("R1 item 12: no emoji as decoration", () => {
   });
 });
 
-import { headerTripLine } from "@/lib/countdown";
 describe("R1 item 14: group header line", () => {
   it("says 'Starts in 36 days', 'Starts tomorrow', 'Day 5 of 5', and nothing after the trip", () => {
     expect(headerTripLine({ kind: "before", days: 36 })).toBe("Starts in 36 days");
@@ -136,7 +139,6 @@ describe("R1 item 14: group header line", () => {
   });
 });
 
-import { buildStories } from "@/lib/home/stories";
 describe("R1 item 14: trip story says the day once", () => {
   it("'Goa · day 2 of 5' with no 'Day 2' label and no repeated 'Day 2 of 5'", () => {
     const [s] = buildStories({

@@ -100,6 +100,8 @@ export default async function GroupSettle({
 
   const cover: StubCover = { id: group.id, cover: coverFor(group), photo: tripPhotoSrc(group), name: group.name };
   const mark = groupMark(group.type);
+  // The pass's small labelled field: how many expenses the group holds (the group's name is already the line under the title).
+  const passFieldsHere = expenseCount > 0 ? [{ key: "items" as const, label: "Expenses", value: String(expenseCount) }] : [];
   const settleHref = `/groups/${group.id}/settle`;
   const confirmCount = claimsToMe.length + waiting.length;
   const mineList = ordered.filter((t) => t.from === myId || t.to === myId);
@@ -412,6 +414,7 @@ export default async function GroupSettle({
                       to={nameOf(t.to)}
                       mark={mark}
                       amount={money(t.amount)}
+                      fields={passFieldsHere}
                       tone={iPay ? "owe" : "owed"}
                       sr={`${nameOf(t.from)} ${iPay ? "pay" : "pays"} ${t.to === myId ? "you" : nameOf(t.to)} ${money(t.amount)}`}
                     >

@@ -72,7 +72,14 @@ test("a member sees a moment; someone who left sees only the older ones; strange
     await expect(R.locator("[data-moments-strip]")).toContainText("Our moments");
     await expect(R.getByRole("link", { name: "Add a moment" })).toBeVisible();
     await R.locator("[data-moments-strip] a").first().click();
-    await R.waitForURL(/\/moments$/);
+    // The strip opens the group's Memories tab: both moments as rows, by day, with Add a moment (no money on it).
+    await R.waitForURL(/tab=memories/);
+    await settled(R);
+    await expect(R.locator("[data-memories]")).toBeVisible();
+    await expect(R.locator("[data-moment-row]")).toHaveCount(2);
+    await expect(R.getByRole("link", { name: "Add a moment" }).first()).toBeVisible();
+    // The full Our moments page is still there (Home's story circles open it): the newest as a big card, the older as a row.
+    await R.goto(`${g.path}/moments`);
     await settled(R);
     await expect(R.getByRole("heading", { name: "Our moments" })).toHaveCount(1);
     await expect(R.locator("[data-moment]")).toHaveCount(1); // the newest as a big card

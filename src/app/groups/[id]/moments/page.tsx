@@ -6,9 +6,9 @@ import { dayKey } from "@/lib/dates";
 import { niceDate } from "@/lib/format";
 import { PageHeader } from "@/components/ui";
 import { Stories } from "@/components/Stories";
-import { CameraPlusIcon, ChevronRightIcon, SavedIcon } from "@/components/MomentIcons";
+import { CameraPlusIcon, SavedIcon } from "@/components/MomentIcons";
+import { MomentsFeed } from "@/components/MomentsFeed";
 import { canAddMoment, canDeleteMoment, canOpenMoments, canReactToMoment, canReportMoment, loadMomentViewer } from "@/lib/moments-access";
-import { timeAgo } from "@/lib/moments-text";
 import { listMoments, type MomentCard } from "@/lib/moments-db";
 import { momentPageStories } from "@/lib/moments-stories";
 import { coverFor } from "@/lib/covers";
@@ -52,27 +52,7 @@ export default async function MomentsPage({ params, searchParams }: { params: Pr
   });
   const stories = momentPageStories(cards, id, group.name, now, { photo: tripPhotoSrc(group), cover: coverFor(group) });
 
-  // With 20 or more, the older ones are grouped by day.
-  const rows = (list: MomentCard[]) =>
-    list.map((c) => (
-      <li key={c.id}>
-        <Link href={`${here}/${c.id}`} id={`m-${c.id}`} className="flex min-h-[4.5rem] items-center gap-3 rounded-[14px] border border-line bg-white p-2.5 active:bg-mist" data-moment-row={c.id}>
-          {/* A plain image on purpose: moment photos are private and never go through Next's image service. */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={c.thumb} alt="" width={72} height={56} loading="lazy" className="h-14 w-[4.5rem] shrink-0 rounded-[10px] bg-mist object-cover" />
-          <span className="min-w-0 flex-1 border-l border-line pl-3">
-            {/* Two lines: the name (never cut) and when, then the words. Each truncates on its own. */}
-            <span className="flex min-w-0 items-baseline gap-1.5 text-[15px]">
-              <span className="shrink-0 font-semibold">{c.authorName}</span>
-              <span className="min-w-0 truncate text-fg/55">added a moment</span>
-              <span className="shrink-0 whitespace-nowrap text-fg/55" data-moment-time>· {timeAgo(c.createdAt, now)}</span>
-            </span>
-            {c.caption && <span className="emoji-font-display block truncate font-display text-[15px] italic text-fg/75">“{c.caption}”</span>}
-          </span>
-          <ChevronRightIcon size={20} className="shrink-0 text-fg/55" />
-        </Link>
-      </li>
-    ));
+  // With 20 or more, the older ones are grouped by day (the rows are MomentsFeed, shared with the group's Memories tab).
   const grouped = older.length + 1 >= 20;
   const days = grouped ? [...new Set(older.map((c) => dayKey(c.createdAt, tz)))] : [];
 
@@ -98,12 +78,12 @@ export default async function MomentsPage({ params, searchParams }: { params: Pr
       ) : (
         <>
           <MomentBig card={newest} place={where} {...flags(newest)} guest={guest} back={here} link={`${here}/${newest.id}`} from="list" now={now} />
-          {older.length > 0 && !grouped && <ul className="mt-4 space-y-3">{rows(older)}</ul>}
+          {older.length > 0 && !grouped && <MomentsFeed cards={older} groupId={id} now={now} className="mt-4 space-y-3" />}
           {grouped &&
             days.map((d) => (
               <section key={d} className="mt-5">
                 <h2 className="mb-2 text-[13px] font-medium text-fg/55">{niceDate(d)}</h2>
-                <ul className="space-y-3">{rows(older.filter((c) => dayKey(c.createdAt, tz) === d))}</ul>
+                <MomentsFeed cards={older.filter((c) => dayKey(c.createdAt, tz) === d)} groupId={id} now={now} />
               </section>
             ))}
           <p className="mt-6 flex items-center justify-center gap-2 text-[15px] text-fg/75">

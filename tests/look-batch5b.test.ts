@@ -44,10 +44,12 @@ describe("Your groups", () => {
 
 describe("group header", () => {
   const head = src("src/app/groups/[id]/_components/GroupHeader.tsx");
-  it("has no emoji of its own and keeps the countdown, weather and Trip recap hooks", () => {
+  it("has no emoji of its own and keeps the countdown and weather hooks; Trip recap moved to the Overview's footer", () => {
     expect(head).not.toMatch(/[\u{1F300}-\u{1FAFF}☀-➿]/u);
-    for (const s of ["data-countdown-line", "data-trip-weather", "data-group-recap", "Trip recap"]) expect(head).toContain(s);
-    expect(head).toContain("Extended_Pictographic");
+    for (const s of ["data-countdown-line", "data-trip-weather", "data-group-line", "data-invite-pill"]) expect(head).toContain(s);
+    expect(head).not.toContain("data-group-recap");
+    const overview = src("src/app/groups/[id]/_components/OverviewTab.tsx");
+    for (const s of ["data-group-recap", "Trip recap"]) expect(overview).toContain(s);
   });
 });
 

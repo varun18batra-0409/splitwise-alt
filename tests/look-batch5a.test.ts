@@ -47,8 +47,8 @@ describe("the bell", () => {
 describe("recap stays reachable", () => {
   it("Home month card, each group, and the You page all open the recap", () => {
     expect(src("src/app/(home)/page.tsx")).toContain("/search?m=");
-    expect(src("src/app/groups/[id]/_components/GroupHeader.tsx")).toContain("/search?g=${group.id}");
-    expect(src("src/app/groups/[id]/_components/GroupHeader.tsx")).toContain("Trip recap");
+    expect(src("src/app/groups/[id]/_components/RecapTab.tsx")).toContain("/search?g=${group.id}");
+    expect(src("src/app/groups/[id]/_components/OverviewTab.tsx")).toContain("Trip recap");
     expect(src("src/app/account/page.tsx")).toContain('href="/search"');
     expect(src("src/app/account/page.tsx")).toContain("Your recap");
   });

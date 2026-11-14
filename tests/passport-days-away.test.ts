@@ -40,9 +40,10 @@ describe("daysAway", () => {
     expect(daysAway([t("", "")], TODAY)).toBe(0);
     expect(daysAway([t("2026-05-05", "", { undated: true })], TODAY)).toBe(0);
   });
-  it("a trip still to come is 0, and one starting today is 1", () => {
+  it("a trip still to come is 0; one that has started counts its WHOLE length, start to end inclusive (so the number matches the trip card)", () => {
     expect(daysAway([t("2026-12-01", "2026-12-05")], TODAY)).toBe(0);
-    expect(daysAway([t(TODAY, "2026-11-20")], TODAY)).toBe(1);
+    // Starting today for 8 days (TODAY to 2026-11-20 inclusive, worked by hand below) is 8, not 1.
+    expect(daysAway([t(TODAY, "2026-11-20")], TODAY)).toBe(8);
   });
   it("no trips is 0 (someone who left before a trip began never gets that trip in the list, so adds nothing)", () => {
     expect(daysAway([], TODAY)).toBe(0);

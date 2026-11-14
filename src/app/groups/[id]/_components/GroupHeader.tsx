@@ -1,5 +1,5 @@
 import Link from "@/components/Link";
-import { BackIcon, ChevronDown, GearIcon, InviteIcon, iconButtonClass } from "@/components/icons";
+import { BackIcon, ChevronDown, GearIcon, InviteIcon } from "@/components/icons";
 import { GroupCover } from "@/components/GroupCover";
 import { avatarTone } from "@/components/ui";
 import { tripPhotoSrc } from "@/lib/places";
@@ -13,7 +13,8 @@ import { membersAsOf } from "@/lib/left-view";
 
 type SwitchItem = { id: string; name: string; pic?: { kind: CoverChoice; src?: string } };
 
-// Back to all groups · group name (tap to switch group) · Invite · Settings.
+// Trips and other groups (the founder's mockup 03): back, the group's name (tap to switch group), a ⋯ menu, the picture as a rounded card,
+// "6 people · Starts in 36 days", the faces and a labelled Invite pill. Flats and couples (mockup 10) keep the picture edge to edge.
 // Home, Search and Settle also live in the bottom bar.
 export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchItem[] }) {
   const { group, myId } = v;
@@ -62,10 +63,12 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
     </details>
   );
 
+  const rowButton = "flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-fg/10 bg-fg/[0.06] text-fg/85 backdrop-blur transition-transform active:scale-95 active:bg-fg/10";
+
   const switcher = (big: boolean) => (
     <details className={`group/switch relative min-w-0 ${big ? "max-w-full" : "flex-1"}`}>
       <summary className="flex cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden">
-        <h1 className={`font-display font-semibold tracking-[-0.02em] ${big ? "line-clamp-2 text-[clamp(32px,10vw,44px)] leading-[1.02]" : "truncate text-[24px]"}`}>{group.name}</h1>
+        <h1 className={`font-display font-semibold tracking-[-0.02em] ${big ? "line-clamp-2 text-[clamp(32px,10vw,44px)] leading-[1.02]" : "line-clamp-2 text-[24px] leading-[1.1]"}`}>{group.name}</h1>
         <span className={`shrink-0 transition-transform group-open/switch:rotate-180 ${big ? "text-fg/80" : "text-gray-400"}`}>
           <ChevronDown size={18} />
         </span>
@@ -104,42 +107,106 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
     </details>
   );
 
-  // Recap is no longer in the bottom bar: a quiet link on each group opens it for this group.
-  const recapLink = (
-    <Link href={`/search?g=${group.id}`} className="-my-3 inline-flex min-h-11 items-center text-fg/75 underline-offset-4 active:text-fg" data-group-recap>
-      {group.type === "trip" ? "Trip recap" : "Recap"}<span aria-hidden> ›</span>
+  // Someone who left sees who was in the group on the day they left, not whoever joined since.
+  const people = (v.leaver ? membersAsOf(group.members, myId, v.leaver.leftAt) : group.members).filter((m) => !m.leftAt);
+  const names = people.map((m) => (m.id === myId ? "You" : m.name.trim().split(/\s+/)[0]));
+  const ordered = [...names.filter((n) => n === "You"), ...names.filter((n) => n !== "You")];
+  // A trip with no photo of its own shows a real photo of the place instead (Thailand → Maya Bay), the same as its polaroid.
+  const placeShot = tripPhotoSrc(group);
+  const flat = (group.type === "home" || group.type === "couple") && cover !== "plain";
+
+  // The one quiet line: how many, and the trip's dates or countdown (no pills), plus the usual weather.
+  const line = (shadow: boolean) => (
+    <div className={`flex flex-wrap items-center gap-x-2 text-[13px] text-fg/75 ${shadow ? "[text-shadow:0_1px_12px_rgba(0,0,0,0.5)]" : ""}`} data-group-line>
+      <span>
+        {people.length} {people.length === 1 ? "person" : "people"}
+      </span>
+      {tripPill && (
+        <>
+          <span aria-hidden>·</span>
+          {tripPill}
+        </>
+      )}
+      {weatherPill && (
+        <>
+          <span aria-hidden>·</span>
+          {weatherPill}
+        </>
+      )}
+    </div>
+  );
+
+  // Everyone's initials (opens People); a person is named in full in the label, not cut.
+  const faces = (
+    <Link href={`/groups/${group.id}?tab=balances`} className="flex min-h-11 items-center active:opacity-80" aria-label={`Everyone in ${group.name}: ${ordered.join(", ")}`}>
+      <span className="flex" aria-hidden>
+        {ordered.slice(0, 6).map((n, i) => (
+          <span key={`${n}-${i}`} className={`flex h-9 w-9 items-center justify-center rounded-full border-2 border-[var(--color-canvas)] text-[13px] font-bold ${i ? "-ml-2" : ""} ${avatarTone(n)}`}>
+            {n.charAt(0).toUpperCase()}
+          </span>
+        ))}
+        {ordered.length > 6 && (
+          <span className="-ml-2 flex h-9 min-w-9 items-center justify-center rounded-full border-2 border-[var(--color-canvas)] bg-mist px-1.5 text-[12px] font-semibold text-fg/80">+{ordered.length - 6}</span>
+        )}
+      </span>
     </Link>
   );
 
-  // A plain group (no picture): the compact header.
-  if (cover === "plain") {
+  if (!flat) {
     return (
-      <>
-      <header className="mb-2 flex items-center gap-2">
-        <Link href="/" aria-label="Back to all groups" className={iconButtonClass}>
-          <BackIcon size={20} />
-        </Link>
-        {switcher(false)}
-        <Link href={`/groups/${group.id}/invite`} aria-label="Add people" className={iconButtonClass}>
-          <InviteIcon size={20} />
-        </Link>
-        <Link href={`/groups/${group.id}/settings`} aria-label="Group settings" className={iconButtonClass}>
-          <GearIcon size={20} />
-        </Link>
+      <header className="mb-5">
+        <div className="flex items-center gap-2">
+          <Link href="/" aria-label="Back to all groups" className={rowButton}>
+            <BackIcon size={20} />
+          </Link>
+          {switcher(false)}
+          <details className="group/more relative shrink-0">
+            <summary aria-label="More about this group" className={`${rowButton} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>
+              <svg aria-hidden width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="5" cy="12" r="1.8" />
+                <circle cx="12" cy="12" r="1.8" />
+                <circle cx="19" cy="12" r="1.8" />
+              </svg>
+            </summary>
+            <div className="absolute right-0 top-full z-30 mt-2 w-56 rounded-2xl border border-line bg-white p-2 shadow-2xl shadow-black/60">
+              <Link href={`/groups/${group.id}/settings`} className="flex min-h-11 items-center gap-3 rounded-xl px-3 active:bg-mist">
+                <GearIcon size={18} />
+                Group settings
+              </Link>
+              {!v.leaver && (
+                <Link href={`/groups/${group.id}/passports`} className="flex min-h-11 items-center gap-3 rounded-xl px-3 active:bg-mist">
+                  Our passports
+                </Link>
+              )}
+            </div>
+          </details>
+        </div>
+        {cover !== "plain" && (
+          <div className="relative mt-3 h-[150px] overflow-hidden rounded-[20px] bg-mist min-[390px]:h-[168px]" data-group-photo>
+            {placeShot ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={placeShot} alt="" className="absolute inset-0 h-full w-full object-cover" />
+            ) : (
+              <GroupCover {...coverFor(group)} uid={`head-${group.id}`} letter={group.name} sizes="(max-width: 448px) 100vw, 448px" priority />
+            )}
+          </div>
+        )}
+        <div className="mt-3">{line(false)}</div>
+        <div className="mt-1 flex items-center justify-between gap-3">
+          {faces}
+          {!v.leaver && (
+            <Link href={`/groups/${group.id}/invite`} aria-label="Add people" className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border border-fg/25 px-4 text-[15px] font-semibold text-fg active:bg-fg/10" data-invite-pill>
+              <InviteIcon size={18} />
+              Invite
+            </Link>
+          )}
+        </div>
       </header>
-      <div className="mb-6 px-1 text-[13px]">{recapLink}</div>
-      </>
     );
   }
 
-  // With a picture: it runs edge to edge behind the buttons and the name, fading into the group's tint.
+  // Flats and couples: the picture runs edge to edge behind the buttons and the name, fading into the page.
   const glass = "glass flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full text-fg active:scale-95";
-  // Someone who left sees who was in the group on the day they left, not whoever joined since.
-  const people = (v.leaver ? membersAsOf(group.members, myId, v.leaver.leftAt) : group.members).filter((m) => !m.leftAt);
-  // A trip with no photo of its own shows a real photo of the place instead (Thailand → Maya Bay), the same as its polaroid.
-  const placeShot = tripPhotoSrc(group);
-  const names = people.map((m) => (m.id === myId ? "You" : m.name.trim().split(/\s+/)[0]));
-  const ordered = [...names.filter((n) => n === "You"), ...names.filter((n) => n !== "You")];
   return (
     <header className="relative -mx-5 -mt-[max(1.5rem,env(safe-area-inset-top))] mb-5 h-[300px] px-5 pt-[max(1.1rem,env(safe-area-inset-top))]">
       <div aria-hidden className="absolute inset-0 overflow-hidden">
@@ -165,35 +232,9 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
       </div>
       <div className="absolute inset-x-5 bottom-1">
         <div className="flex [text-shadow:0_2px_18px_rgba(0,0,0,0.35)]">{switcher(true)}</div>
-        <Link href={`/groups/${group.id}/people`} className="mt-2.5 flex items-center gap-2.5 active:opacity-80" aria-label={`Everyone in ${group.name}: ${ordered.join(", ")}`}>
-          <span className="flex" aria-hidden>
-            {ordered.slice(0, 4).map((n, i) => (
-              <span key={`${n}-${i}`} className={`flex h-7 w-7 items-center justify-center rounded-full border-2 border-[var(--color-canvas)] text-[11px] font-bold ${i ? "-ml-2" : ""} ${avatarTone(n)}`}>
-                {n.charAt(0).toUpperCase()}
-              </span>
-            ))}
-          </span>
-        </Link>
-        {/* One quiet line: what kind of group, how many, and the trip's dates or countdown (no pills). */}
-        <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[13px] text-fg/75 [text-shadow:0_1px_12px_rgba(0,0,0,0.5)]" data-group-line>
-          <span>
-            {people.length} {people.length === 1 ? "person" : "people"}
-          </span>
-          {tripPill && (
-            <>
-              <span aria-hidden>·</span>
-              {tripPill}
-            </>
-          )}
-          {weatherPill && (
-            <>
-              <span aria-hidden>·</span>
-              {weatherPill}
-            </>
-          )}
-          <span aria-hidden>·</span>
-          {recapLink}
-        </div>
+        <div className="mt-1">{faces}</div>
+        {/* One quiet line: how many, and the countdown (no pills). */}
+        {line(true)}
       </div>
     </header>
   );

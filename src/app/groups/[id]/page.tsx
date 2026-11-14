@@ -9,17 +9,18 @@ import { eventsFrom, loadGroupView, loadSwitchList } from "@/lib/group-data";
 import { db } from "@/lib/db";
 import { canUndo } from "@/lib/undo";
 import { UndoBar } from "@/components/UndoBar";
-import { SendPostcardCard } from "@/components/postcards/SendCard";
-import { placePhoto } from "@/lib/places";
-import { placeOf } from "@/lib/countdown";
 import { buildGroupView, type GroupEvent } from "./_components/view";
 import { getTimeZone } from "@/lib/tz";
 import { GroupHeader } from "./_components/GroupHeader";
 import { PhoneOnlyLine } from "@/components/PhoneOnlyLine";
-import { GroupSummary } from "./_components/GroupSummary";
+import { ClosedBanner, MoneyTicket } from "./_components/GroupSummary";
+import { GroupNotices } from "./_components/GroupNotices";
 import { ActivityTab } from "./_components/ActivityTab";
-import { BalancesTab } from "./_components/BalancesTab";
-import { ChartsTab } from "./_components/ChartsTab";
+import { PeopleTab } from "./_components/PeopleTab";
+import { RecapTab } from "./_components/RecapTab";
+import { OverviewTab, GroupFooter } from "./_components/OverviewTab";
+import { MemoriesTab } from "./_components/MemoriesTab";
+import { groupTabs, litTab, resolveTab, type TabId } from "./_components/tabs";
 import { ThisMonthTab } from "./_components/ThisMonthTab";
 import { BillsTab } from "./_components/BillsTab";
 import { ListTab } from "./_components/ListTab";
@@ -33,31 +34,16 @@ import { Notice } from "@/components/Notice";
 import { GroupTypeSheet } from "@/components/GroupTypeSheet";
 import { GamesTab } from "./_components/GamesTab";
 import { gamesToSettle, loadGames } from "@/lib/pot-db";
-import { MomentsStrip } from "./_components/MomentsStrip";
 import { canAddMoment, loadMomentViewer } from "@/lib/moments-access";
-import { momentStrip } from "@/lib/moments-db";
+import { listMoments, momentStrip } from "@/lib/moments-db";
+import { loadGroupPostcards, tripStampCard } from "@/lib/group-memories";
+import { sinceLastPayment } from "@/lib/home/money-card";
+import { headers } from "next/headers";
+import { visitorRegion } from "@/lib/region";
 
-const TABS = [
-  { id: "activity", label: "Activity" },
-  { id: "balances", label: "Balances" },
-  { id: "charts", label: "Charts" },
-] as const;
-// Home and Couple groups open on This month, with their bills and shopping list.
-const HOME_TABS = [
-  { id: "month", label: "This month" },
-  { id: "bills", label: "Bills" },
-  { id: "list", label: "List" },
-  { id: "activity", label: "Activity" },
-] as const;
-// Pot groups (card nights) open on their games.
-const POT_TABS = [
-  { id: "games", label: "Games" },
-  { id: "balances", label: "Balances" },
-  { id: "activity", label: "Activity" },
-] as const;
-type Tab = "activity" | "balances" | "charts" | "month" | "bills" | "list" | "games";
-
-// A group: header, your balance, and three tabs (Activity · Balances · Charts).
+// A group: header, then its tabs. Trips and other groups: Overview / Expenses / People / Memories (Trip recap sits behind the Overview).
+// Flats and couples: This month (their Overview) / Expenses / People. Card nights: Games / Balances / Activity. The addresses are the old ones
+// (?tab=activity is Expenses, ?tab=balances is People, ?tab=charts is Trip recap); see _components/tabs.ts.
 export default async function GroupPage({
   params,
   searchParams,
@@ -87,6 +73,7 @@ export default async function GroupPage({
     why?: string;
     n?: string;
     imported?: string;
+    removed?: string;
   }>;
 }) {
   const { id } = await params;
@@ -105,8 +92,9 @@ export default async function GroupPage({
     // This phone's old guest name was linked to an email since: say so, rather than "you're not in this group".
     redirect(await privatePath(id));
   }
-  // Balances and Charts never show the history, so they skip it (up to 500 rows). An Undo bar loads just what it needs below.
-  const noHistory = sp.tab === "balances" || sp.tab === "charts";
+  // Only Expenses shows the history (up to 500 rows); every other tab skips it. An Undo bar loads just what it needs below.
+  const raw = (sp.tab ?? "").toLowerCase();
+  const noHistory = raw !== "activity" && raw !== "expenses";
   const [data, tz, switchTo, account] = await Promise.all([loadGroupView(id, noHistory ? { viewer: myId, events: false } : { viewer: myId }), getTimeZone(), loadSwitchList(memberships, id), getAccount()]);
   if (!data) notFound();
   // Still in it? (A removed person's phone can remember the group.)
@@ -114,13 +102,14 @@ export default async function GroupPage({
 
   const v = await buildGroupView(data, myId, tz);
   const { group } = v;
-  // Someone who left (or was removed) sees Activity, Balances (their own) and Charts only.
+  // Someone who left (or was removed) sees Overview (their own money), Expenses and People, and Memories read-only (not if removed).
   const leaver = v.leaver;
   const home = !leaver && (group.type === "home" || group.type === "couple");
   const pot = !leaver && group.type === "pot";
-  const tabs = home ? HOME_TABS : pot ? POT_TABS : TABS;
-  const allowed: readonly string[] = home ? ["month", "bills", "list", "activity", "balances", "charts"] : pot ? ["games", "balances", "activity"] : ["activity", "balances", "charts"];
-  const tab: Tab = allowed.includes(sp.tab ?? "") ? (sp.tab as Tab) : home ? "month" : pot ? "games" : "activity";
+  // A group that isn't a trip shows Memories only once you have a postcard in it.
+  const hasPostcards = group.type !== "trip" && !leaver?.removed && account ? (await db.postcard.count({ where: { groupId: group.id, OR: [{ fromId: account.id }, { toId: account.id }] } })) > 0 : false;
+  const tabs = groupTabs({ type: group.type, leaver: leaver ? { removed: Boolean(leaver.removed) } : null, hasPostcards });
+  const tab: TabId = resolveTab(sp.tab, tabs, { type: group.type, leaver: leaver ? { removed: Boolean(leaver.removed) } : null });
 
   // Home & Couple: everything This month / Bills / List need, fetched together.
   const monthTab = home && tab === "month";
@@ -193,31 +182,47 @@ export default async function GroupPage({
   const justDid = sp.did ? undoEvents.find((x) => x.id === sp.did) : undefined;
   const showUndo = justDid && canUndo(justDid, undoEvents).ok;
 
-  // "Our moments" (trip groups only): the latest photos and how many, as far as this person may see them.
+  // "Our moments" (trip groups only): the small strip on Overview, and the whole list on Memories, as far as this person may see them.
   const momentViewer = group.type === "trip" ? await loadMomentViewer(group.id, myId) : null;
-  const strip = await momentStrip(momentViewer);
+  const strip = momentViewer && tab === "overview" ? { ...(await momentStrip(momentViewer)), canAdd: canAddMoment(momentViewer) } : null;
+  const memories =
+    tab === "memories"
+      ? await (async () => {
+          const homeCountry = (account?.homeCountry || visitorRegion(await headers()).country || "IN").toUpperCase();
+          const [cards, postcards] = await Promise.all([momentViewer ? listMoments(momentViewer) : Promise.resolve([]), account ? loadGroupPostcards(account.id, group.id) : Promise.resolve([])]);
+          const stamp = group.type === "trip" ? tripStampCard({ id: group.id, name: group.name, tripStart: group.tripStart, tripEnd: group.tripEnd, tripPlace: group.tripPlace ?? "", tripCountry: group.tripCountry ?? "", memberCount: group.members.length }, homeCountry, today, leaver?.leftAt ?? null) : null;
+          return { cards, postcards, stamp };
+        })()
+      : null;
+  // What has built up since the group's last payment: the pass's Since and Items fields (worked out from the rows already loaded).
+  const facts = tab === "overview" || pot ? sinceLastPayment(group.expenses, group.payments, (d) => dayKey(d, v.tz)) : { since: null, items: 0 };
 
   return (
     <>
       <GroupHeader v={v} switchTo={switchTo} />
       <LeftBanner v={v} />
-      <GroupSummary v={v} sp={sp} compact={home} />
+      <GroupNotices sp={sp} />
+      <ClosedBanner v={v} />
+      {/* Card nights keep their ticket above their tabs; trips and other groups show it on the Overview only; flats show it on This month. */}
+      {pot && <MoneyTicket v={v} facts={facts} />}
       {!account && <PhoneOnlyLine back={`/groups/${group.id}`} className="-mt-3 mb-2" />}
       {sp.imported && <ImportedNote code={sp.imported} groupId={group.id} />}
-      {momentViewer && <MomentsStrip groupId={group.id} count={strip.count} latest={strip.latest} canAdd={canAddMoment(momentViewer)} />}
 
-      <nav className="-mx-5 mb-5 flex gap-6 overflow-x-auto border-b border-line px-5 [scrollbar-width:none]" aria-label="Group sections">
-        {tabs.map((t) => (
-          <Link
-            key={t.id}
-            href={`/groups/${group.id}?tab=${t.id}`}
-            aria-current={t.id === tab ? "page" : undefined}
-            className={`relative shrink-0 whitespace-nowrap pb-3 pt-1 text-[15px] font-semibold transition-colors ${t.id === tab ? "text-fg" : "text-fg/60"}`}
-          >
-            {t.label}
-            {t.id === tab && <span aria-hidden className="absolute inset-x-0 -bottom-px h-[2px] rounded-full bg-fg" />}
-          </Link>
-        ))}
+      <nav className="-mx-5 mb-5 grid border-b border-line px-5" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }} aria-label="Group sections">
+        {tabs.map((t) => {
+          const lit = t.id === litTab(tab, tabs);
+          return (
+            <Link
+              key={t.id}
+              href={`/groups/${group.id}?tab=${t.id}`}
+              aria-current={lit ? "page" : undefined}
+              className={`relative flex min-h-11 items-center justify-center whitespace-nowrap pb-1 text-[14px] font-semibold transition-colors min-[360px]:text-[15px] ${lit ? "text-fg" : "text-fg/60"}`}
+            >
+              {t.label}
+              {lit && <span aria-hidden className="absolute inset-x-1 -bottom-px h-[2px] rounded-full bg-fg" />}
+            </Link>
+          );
+        })}
       </nav>
 
       {tab === "activity" && <LeftSections v={v} />}
@@ -244,28 +249,29 @@ export default async function GroupPage({
           gameResultIds={gameResultIds}
         />
       )}
-      {home && (tab === "balances" || tab === "charts") && (
-        <Link href={`/groups/${group.id}`} className="-mt-2 mb-5 inline-block text-sm text-gray-500">
-          ‹ This month
+      {home && (tab === "bills" || tab === "list") && (
+        <Link href={`/groups/${group.id}`} className="-mt-2 mb-5 inline-flex min-h-11 items-center text-sm text-gray-500" data-overview-back>
+          ‹ Overview
         </Link>
       )}
-      {tab === "month" && <ThisMonthTab v={v} extras={{ upcoming: comingUp, budgets, deposit, goals, insights: heads?.insights, forecast: heads?.forecast, shopping: { items: shopRows.slice(0, 3), total: shopRows.length } }} />}
+      {tab === "overview" && <OverviewTab v={v} facts={facts} strip={strip} />}
+      {tab === "month" && (
+        <>
+          <ThisMonthTab v={v} extras={{ upcoming: comingUp, budgets, deposit, goals, insights: heads?.insights, forecast: heads?.forecast, shopping: { items: shopRows.slice(0, 3), total: shopRows.length } }} />
+          <div className="mt-6">
+            <GroupFooter groupId={group.id} type={group.type} settings={false} />
+          </div>
+        </>
+      )}
       {tab === "bills" && <BillsTab v={v} bills={bills} saved={sp.saved === "bill"} forecast={heads?.forecast ?? null} />}
       {tab === "list" && list && (
         <ListTab v={v} items={list.items} usual={list.usual} notice={sp.bought ? "Added as an expense. Everyone has been told." : sp.told ? "Told everyone you’re going shopping." : undefined} />
       )}
       {tab === "games" && <GamesTab v={v} games={games} toSettle={toSettle} />}
-      {tab === "balances" && <BalancesTab v={v} paid={sp.paid === "1"} why={sp.why} />}
-      {tab === "charts" && <ChartsTab v={v} />}
-
-      {/* Below the group's own content, never above it; not while searching or before anything was added. */}
-      {(tab === "activity" || tab === "month" || tab === "games") && !leaver && group.expenses.length > 0 && !sp.q && !sp.cat && !sp.who && !sp.type && (
-        <SendPostcardCard
-          href={`/postcards/new?group=${group.id}`}
-          front={group.type === "trip" && !group.cover && placePhoto(group.name) ? `photo:${placePhoto(group.name)!.src}` : group.type === "pot" ? "print:cards" : group.type === "home" || group.type === "couple" ? "print:home" : "print:beach"}
-          words={group.type === "trip" ? placeOf(group.name) : ""}
-          className="mt-8"
-        />
+      {tab === "balances" && <PeopleTab v={v} paid={sp.paid === "1"} why={sp.why} />}
+      {tab === "recap" && <RecapTab v={v} />}
+      {tab === "memories" && memories && (
+        <MemoriesTab v={v} cards={memories.cards} stamp={memories.stamp} postcards={memories.postcards} today={today} canAdd={canAddMoment(momentViewer)} guest={Boolean(momentViewer) && momentViewer!.accountId === null} removed={sp.removed === "1"} />
       )}
 
       <LeftFootnote v={v} />

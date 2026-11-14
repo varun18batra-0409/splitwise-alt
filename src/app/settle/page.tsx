@@ -14,7 +14,7 @@ import { db } from "@/lib/db";
 import { payButtons } from "@/lib/pay-links";
 import { coverFor } from "@/lib/covers";
 import { tripPhotoSrc } from "@/lib/places";
-import { groupMark } from "@/lib/home/money-card";
+import { groupMark, passFields } from "@/lib/home/money-card";
 import { CREAM, type StubCover } from "@/components/HomeMoney";
 import { firstName, InfoNote, OUTLINE_PILL, PayTicket, PayView, QUIET } from "@/components/PayScreens";
 
@@ -152,6 +152,7 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
                         to={it.net < 0 ? it.name : "You"}
                         mark={c.mark}
                         amount={amount}
+                        fields={passFields({ groupNames: [...new Set(it.parts.map((p) => p.groupName))], thisYear: String(new Date().getFullYear()) })}
                         tone={it.net < 0 ? "owe" : it.net > 0 ? "owed" : "plain"}
                         sr={`${title} ${amount}`}
                       >
@@ -172,11 +173,9 @@ export default async function SettlePage({ searchParams }: { searchParams: Promi
                               <DifferentAmountLink href={differentAmountFor(it.parts[0].groupId, it.parts[0].fromId, it.parts[0].toId, toInputAmount(it.parts[0].amount, it.parts[0].currency), false)} />
                             ) : null}
                           </div>
-                          {/* Which group each part is in. */}
+                          {/* Which group each part is in (one group is already the pass's Group field). */}
                           <ul className="space-y-0.5 text-[12.5px] text-fg/55">
-                            {it.parts.length === 1 ? (
-                              <li>In {it.parts[0].groupName}</li>
-                            ) : (
+                            {it.parts.length === 1 ? null : (
                               <>
                                 <li>{`1 payment instead of ${it.parts.length}`}</li>
                                 {it.parts.map((p) => (

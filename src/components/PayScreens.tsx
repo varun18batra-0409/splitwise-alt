@@ -1,13 +1,13 @@
 import Image from "next/image";
 import Link from "@/components/Link";
 import { GroupCover } from "@/components/GroupCover";
-import { CREAM, Mark, Route, TicketShell, type StubCover } from "@/components/HomeMoney";
-import type { GroupMark } from "@/lib/home/money-card";
+import { Amount, CREAM, PassFields, PassRoute, Route, TicketShell, type StubCover } from "@/components/HomeMoney";
+import { amountTier, endCode, type GroupMark, type PassField } from "@/lib/home/money-card";
 import type { PayWays } from "@/lib/pay-links";
 import { maskPayWay } from "@/lib/pay-words";
 
-// The payment screens, drawn as the same boarding-pass ticket Home uses: a stub, a perforation, then the route ("Meera ┄ ✈ You"),
-// the amount and ONE cream action. This file only draws; every action, form field and amount is passed in by the page that owns it.
+// The payment screens, drawn as the same full boarding pass Home uses (HomeMoney's TicketShell, PassRoute, Amount and PassFields): a stub with
+// a barcode, a perforation with notches, the route (From KAB, plane taking off, To YOU), the amount, small labelled fields and ONE cream action. This file only draws; every action, form field and amount is passed in by the page that owns it.
 // Colour is only for money (orange you owe, green you're owed); everything else is off-white.
 
 export const OUTLINE_PILL =
@@ -21,16 +21,7 @@ export function firstName(name: string): string {
   return name.trim().split(/\s+/)[0] || name;
 }
 
-// A calm amount: steps down for very long figures so it never gets cut.
-function amountSize(text: string): string {
-  const n = [...text].length;
-  return n <= 10 ? "text-[26px]" : n <= 13 ? "text-[22px]" : "text-[19px]";
-}
 const TONE = { owe: "text-owe", owed: "text-owed", plain: "text-fg" } as const;
-
-export function TicketAmount({ text, tone }: { text: string; tone: keyof typeof TONE }) {
-  return <p className={`mt-2.5 font-display font-medium leading-none tracking-[-0.03em] lining-nums tabular-nums [overflow-wrap:normal] ${amountSize(text)} ${TONE[tone]}`}>{text}</p>;
-}
 
 function CoverFill({ c, sizes }: { c: StubCover; sizes: string }) {
   return (
@@ -43,7 +34,8 @@ function CoverFill({ c, sizes }: { c: StubCover; sizes: string }) {
 
 export type TicketStub = { letter: string } | { covers: StubCover[] };
 
-// One ticket for a payment. `stub`: the group's picture (all-groups) or the person's initial (inside a group).
+// One boarding pass for a payment. `stub`: the group's picture (all-groups Settle up, as on Home) or, inside a group whose picture is already
+// on the page above, the person's initial on paper. `fields`: the small labelled fields (Group, Since, Items); none are drawn when empty.
 // `sr` is the plain sentence for screen readers and tests ("Meera pays you ₹500"): the drawn route is hidden from them so it isn't read twice.
 export function PayTicket({
   as: Tag = "li",
@@ -52,11 +44,12 @@ export function PayTicket({
   stub,
   from,
   to,
-  mark,
+  mark: _mark,
   amount,
   tone,
   sr,
   showSr = true,
+  fields,
   children,
 }: {
   as?: "li" | "div";
@@ -65,42 +58,25 @@ export function PayTicket({
   stub: TicketStub;
   from: string;
   to: string;
-  mark: GroupMark;
+  mark?: GroupMark; // kept so callers don't change: the mark is always the plane taking off
   amount?: string;
   tone: keyof typeof TONE;
   sr: string;
   showSr?: boolean; // false when the ticket's own words already say it
+  fields?: PassField[];
   children?: React.ReactNode;
 }) {
-  const body = (
-    <>
-      <div aria-hidden>
-        <Route from={from} to={to} mark={mark} />
-      </div>
-      {amount && <TicketAmount text={amount} tone={tone} />}
-      {children}
-    </>
-  );
   return (
     <Tag id={id} className="scroll-mt-6" {...attrs}>
       {showSr && <span className="sr-only">{sr}</span>}
-      {"covers" in stub ? (
-        <TicketShell stub={stub.covers} label={sr} attrs={{}}>
-          {body}
-        </TicketShell>
-      ) : (
-        <section aria-label={sr} className="relative flex min-h-[176px] overflow-hidden rounded-[20px] bg-[#16161a] text-fg shadow-[inset_0_0_0_1px_#26262c]">
-          <div className="relative flex w-[84px] shrink-0 items-center justify-center bg-mist min-[360px]:w-[100px]" data-ticket-stub="letter">
-            <span aria-hidden className="font-display text-[38px] font-medium text-fg/75">
-              {stub.letter.trim().charAt(0).toUpperCase()}
-            </span>
-          </div>
-          <span aria-hidden className="my-3.5 w-0 shrink-0 border-l-2 border-dashed border-[#34343b]" />
-          <span aria-hidden className="absolute -top-[11px] left-[75px] h-5 w-5 rounded-full bg-canvas shadow-[inset_0_0_0_1px_#26262c] min-[360px]:left-[91px]" />
-          <span aria-hidden className="absolute -bottom-[11px] left-[75px] h-5 w-5 rounded-full bg-canvas shadow-[inset_0_0_0_1px_#26262c] min-[360px]:left-[91px]" />
-          <div className="flex min-w-0 flex-1 flex-col px-3.5 pb-2 pt-4 min-[360px]:pl-[18px] min-[360px]:pr-4">{body}</div>
-        </section>
-      )}
+      <TicketShell stub={"covers" in stub ? stub.covers : []} paper={"letter" in stub ? [stub.letter.trim().charAt(0).toUpperCase() || "?"] : undefined} label={sr} attrs={{}} barcode>
+        <div aria-hidden>
+          <PassRoute from={endCode(from)} to={endCode(to)} />
+        </div>
+        {amount && <Amount text={amount} tone={tone} tier={amountTier(amount)} />}
+        {fields && fields.length > 0 && <PassFields fields={fields} />}
+        {children}
+      </TicketShell>
     </Tag>
   );
 }

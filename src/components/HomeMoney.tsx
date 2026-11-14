@@ -15,7 +15,7 @@ import type { TripPhase } from "@/lib/countdown";
 // Below it, a quiet line for what waits on you. Lower down, the countdown line for a trip that is coming up.
 
 export const CREAM = "pop flex h-11 min-w-0 items-center justify-center whitespace-nowrap bg-fg px-3 text-[15px] font-semibold text-canvas [--pop-edge:#6e6b63]";
-const OUTLINE = "flex h-11 min-w-0 items-center justify-center whitespace-nowrap rounded-full border border-fg/25 px-3.5 text-[15px] font-semibold text-fg transition-transform active:scale-[0.97] motion-reduce:transition-none motion-reduce:active:scale-100";
+export const OUTLINE = "flex h-11 min-w-0 items-center justify-center whitespace-nowrap rounded-full border border-fg/25 px-3.5 text-[15px] font-semibold text-fg transition-transform active:scale-[0.97] motion-reduce:transition-none motion-reduce:active:scale-100";
 
 const AMOUNT_SIZE = { xl: "text-[32px] min-[360px]:text-[38px]", l: "text-[26px] min-[360px]:text-[28px]", m: "text-[20px] min-[360px]:text-[22px]" } as const;
 
@@ -133,7 +133,7 @@ export function BothLine({ line }: { line: BothLineData }) {
 
 // A thin barcode along the stub's bottom edge: decorative only (bars of different widths, ~20% off-white).
 const BARS = [2, 1, 3, 1, 1, 2, 3, 1, 2, 1, 1, 3, 2, 1, 3, 2, 1, 1, 2, 3, 1, 2, 1, 3, 1, 1, 2, 1];
-function Barcode() {
+function Barcode({ paper = false }: { paper?: boolean }) {
   let x = 0;
   const rects = BARS.map((w, i) => {
     const r = <rect key={i} x={x} y={0} width={w} height={14} />;
@@ -141,8 +141,8 @@ function Barcode() {
     return r;
   });
   return (
-    <span aria-hidden data-barcode className="pointer-events-none absolute inset-x-0 bottom-0 flex h-7 items-center justify-center bg-[#16161a]/80 px-2.5">
-      <svg viewBox={`0 0 ${x} 14`} preserveAspectRatio="none" className="h-3.5 w-full fill-fg/20">
+    <span aria-hidden data-barcode className={`pointer-events-none absolute inset-x-0 bottom-0 flex h-7 items-center justify-center px-2.5 ${paper ? "" : "bg-[#16161a]/80"}`}>
+      <svg viewBox={`0 0 ${x} 14`} preserveAspectRatio="none" className={`h-3.5 w-full ${paper ? "fill-[#26231d]/45" : "fill-fg/20"}`}>
         {rects}
       </svg>
     </span>
@@ -151,19 +151,34 @@ function Barcode() {
 
 // The ticket itself, shared by Home and a group's page: a stub with the group's picture(s), a dashed perforation with a half-circle
 // notch at the top and the bottom, then `children`. `attrs` are the data-* hooks the page's tests read. `barcode`: the thin barcode strip.
-export function TicketShell({ stub, label, attrs, barcode = false, children }: { stub: StubCover[]; label: string; attrs: Record<string, string | undefined>; barcode?: boolean; children: React.ReactNode }) {
-  const covers = stub.slice(0, 2);
+// `paper`: on a group's own page the group's picture is already above, so the stub is a paper-textured panel with the other people's
+// initials instead (up to three) and the same barcode.
+const PAPER_STUB = {
+  backgroundColor: "#e9e3d2",
+  backgroundImage:
+    "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .3 0 0 0 0 .25 0 0 0 0 .15 0 0 0 .35 0'/></filter><rect width='120' height='120' filter='url(%23n)'/></svg>\")",
+} as const;
+
+export function TicketShell({ stub, label, attrs, barcode = false, paper, children }: { stub: StubCover[]; label: string; attrs: Record<string, string | undefined>; barcode?: boolean; paper?: string[]; children: React.ReactNode }) {
+  const covers = paper ? [] : stub.slice(0, 2);
   return (
     <section aria-label={label} className="relative flex min-h-[176px] overflow-hidden rounded-[20px] bg-[#16161a] text-fg shadow-[inset_0_0_0_1px_#26262c]" {...attrs}>
       {/* The stub: the group's picture (a small stack of two when the money is across groups). */}
-      <div className="relative flex w-[84px] shrink-0 flex-col min-[360px]:w-[100px]" data-ticket-stub={covers.length}>
-        {covers.length === 0 && <span aria-hidden className="absolute inset-0 bg-mist" />}
+      <div className="relative flex w-[84px] shrink-0 flex-col min-[360px]:w-[100px]" data-ticket-stub={paper ? "paper" : covers.length} style={paper ? PAPER_STUB : undefined}>
+        {paper && (
+          <span aria-hidden data-stub-initials className="flex flex-1 flex-col items-center justify-center gap-1 pb-7 font-display text-[30px] font-medium leading-none text-[#26231d]/80">
+            {paper.slice(0, 3).map((c, i) => (
+              <span key={i}>{c}</span>
+            ))}
+          </span>
+        )}
+        {!paper && covers.length === 0 && <span aria-hidden className="absolute inset-0 bg-mist" />}
         {covers.map((c, i) => (
           <div key={c.id} className={`relative flex-1 overflow-hidden bg-mist ${i > 0 ? "border-t border-[#16161a]" : ""}`}>
             <CoverBox c={c} sizes="100px" />
           </div>
         ))}
-        {barcode && <Barcode />}
+        {barcode && <Barcode paper={Boolean(paper)} />}
       </div>
       {/* The perforation (a dashed line, ~25% off-white) with the two 16px half-circle notches of a ticket. */}
       <span aria-hidden className="my-3.5 w-0 shrink-0 border-l-2 border-dashed border-fg/25" data-perforation />
@@ -176,7 +191,7 @@ export function TicketShell({ stub, label, attrs, barcode = false, children }: {
 
 // The route as printed on a boarding pass: small "From" and "To" labels (sentence case), under them the big codes with the plane
 // taking off between. Codes never truncate; the line between them gives way instead.
-function PassRoute({ from, to }: { from: string; to: string }) {
+export function PassRoute({ from, to }: { from: string; to: string }) {
   return (
     <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-x-2" data-route data-pass-route>
       <span className="text-[11px] leading-none text-fg/50">From</span>
@@ -198,10 +213,10 @@ function PassRoute({ from, to }: { from: string; to: string }) {
 }
 
 // Small labelled fields, like GATE and SEAT: the label above, the value below. Values cut with "..." when long; the group's name gets the room.
-function PassFields({ fields }: { fields: ReturnType<typeof passFields> }) {
+export function PassFields({ fields }: { fields: ReturnType<typeof passFields> }) {
   if (fields.length === 0) return null;
   return (
-    <dl className="mt-3 flex min-w-0 gap-x-4" data-pass-fields>
+    <dl className="mt-3 flex min-w-0 flex-wrap gap-x-4 gap-y-2" data-pass-fields>
       {fields.map((f) => (
         <div key={f.key} className={f.key === "group" ? "min-w-0 flex-1" : "shrink-0"} data-pass-field={f.key}>
           <dt className="text-[11px] leading-none text-fg/50">{f.label}</dt>
@@ -230,6 +245,25 @@ function PassBody({ line, facts, year, bright }: { line: TicketLine; facts: Pass
   );
 }
 
+// Nothing to do: the same pass with a "SETTLED" stamp across it (stamp artwork, not green) and one quiet link. Home and a group's page share it.
+export function SquareBody({ amount, label, addHref, title = "Your money" }: { amount: string; label: string; addHref?: string; title?: string }) {
+  return (
+    <div className="relative flex flex-1 flex-col">
+      <p className="text-[11px] leading-none text-fg/50">{title}</p>
+      <Amount text={amount} tone="plain" tier="l" />
+      <p className="mt-1.5 truncate text-[13.5px] text-fg/55" data-ticket-context>{label}</p>
+      <span aria-hidden data-settled-stamp className="pointer-events-none absolute right-0 top-[38%] -rotate-[14deg] rounded-md border-2 border-double border-fg/35 px-2 py-0.5 font-display text-[17px] font-semibold tracking-[0.16em] text-fg/35 min-[360px]:text-[20px]">
+        SETTLED
+      </span>
+      {addHref && (
+        <Link href={addHref} className="mt-auto flex min-h-11 items-center self-start pt-2 text-[14px] font-medium text-fg/75 underline underline-offset-4 active:opacity-70" data-square-add>
+          Add an expense
+        </Link>
+      )}
+    </div>
+  );
+}
+
 export function MoneyCard({ ticket, mode, tone, stub, sideStubs, facts = {}, need, year = String(new Date().getFullYear()) }: { ticket: Ticket; mode: string; tone: "owed" | "owe" | "plain"; stub: StubCover[]; sideStubs?: Record<"owe" | "owed", StubCover[]>; facts?: PassFacts; need?: NeedLine | null; year?: string }) {
   const attrs = { "data-balance-card": "", "data-money-mode": mode, "data-tone": tone === "plain" ? "square" : tone, "data-ticket": ticket.kind };
   return (
@@ -248,18 +282,7 @@ export function MoneyCard({ ticket, mode, tone, stub, sideStubs, facts = {}, nee
           {ticket.kind === "one" ? (
             <PassBody line={ticket.line} facts={facts} year={year} bright />
           ) : ticket.kind === "square" ? (
-            // Nothing to do: the same pass with a "SETTLED" stamp across it (stamp artwork, not green) and one quiet link.
-            <div className="relative flex flex-1 flex-col">
-              <p className="text-[11px] leading-none text-fg/50">Your money</p>
-              <Amount text={ticket.amount} tone="plain" tier="l" />
-              <p className="mt-1.5 truncate text-[13.5px] text-fg/55" data-ticket-context>{ticket.label}</p>
-              <span aria-hidden data-settled-stamp className="pointer-events-none absolute right-0 top-[38%] -rotate-[14deg] rounded-md border-2 border-double border-fg/35 px-2 py-0.5 font-display text-[17px] font-semibold tracking-[0.16em] text-fg/35 min-[360px]:text-[20px]">
-                SETTLED
-              </span>
-              <Link href="/add" className="mt-auto flex min-h-11 items-center self-start pt-2 text-[14px] font-medium text-fg/75 underline underline-offset-4 active:opacity-70" data-square-add>
-                Add an expense
-              </Link>
-            </div>
+            <SquareBody amount={ticket.amount} label={ticket.label} addHref="/add" />
           ) : (
             <>
               <p className="truncate text-[13px] font-semibold text-fg/65">{ticket.label}</p>

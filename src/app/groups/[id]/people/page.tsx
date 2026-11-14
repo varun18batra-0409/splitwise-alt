@@ -246,7 +246,7 @@ export default async function PeoplePage({
 
   return (
     <>
-      <PageHeader title="People" back={`/groups/${group.id}/settings`} />
+      <PageHeader title="People" back={`/groups/${group.id}?tab=balances`} />
       {sp.error && <ErrorNote>{sp.error}</ErrorNote>}
       {sp.cancelled && (
         <Notice tone="success" params={["cancelled"]} className="mb-4">

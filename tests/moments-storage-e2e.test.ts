@@ -641,7 +641,7 @@ describe("deleting and removing: both files go, with the row", () => {
     const m = await added(w, P.bea);
     expect(blob.files.size).toBe(2);
     const went = await run(actions.deleteMomentAction, { momentId: m.id });
-    expect(went).toBe(`/groups/${w.id}/moments?removed=1`);
+    expect(went).toBe(`/groups/${w.id}?tab=memories&removed=1`);
     expect(await db.moment.count({ where: { id: m.id } })).toBe(0);
     expect(blob.files.size).toBe(0);
     expect(await leftovers()).toEqual(CLEAN);
@@ -656,7 +656,7 @@ describe("deleting and removing: both files go, with the row", () => {
     expect(await db.moment.count({ where: { id: m.id } })).toBe(1);
     expect(blob.files.size).toBe(2);
     await as(P.ann);
-    expect(await run(actions.deleteMomentAction, { momentId: m.id })).toBe(`/groups/${w.id}/moments?removed=1`);
+    expect(await run(actions.deleteMomentAction, { momentId: m.id })).toBe(`/groups/${w.id}?tab=memories&removed=1`);
     expect(await db.moment.count({ where: { id: m.id } })).toBe(0);
     expect(blob.files.size).toBe(0);
     expect(await leftovers()).toEqual(CLEAN);
@@ -678,7 +678,7 @@ describe("deleting and removing: both files go, with the row", () => {
     const m = await added(w, P.bea);
     await db.member.update({ where: { id: w.bea }, data: { leftAt: new Date(Date.now() + 1000) } });
     await as(P.bea);
-    expect(await run(actions.deleteMomentAction, { momentId: m.id })).toBe(`/groups/${w.id}/moments?removed=1`);
+    expect(await run(actions.deleteMomentAction, { momentId: m.id })).toBe(`/groups/${w.id}?tab=memories&removed=1`);
     expect(blob.files.size).toBe(0);
     expect(await leftovers()).toEqual(CLEAN);
   });
@@ -710,7 +710,7 @@ describe("deleting and removing: both files go, with the row", () => {
     const m = await added(w, P.bea);
     const report = await db.report.create({ data: { reporterId: P.dee.id, kind: "moment", targetId: m.id, targetAccountId: P.bea.id, reason: "abusive" } });
     await as(P.bea);
-    expect(await run(actions.deleteMomentAction, { momentId: m.id })).toBe(`/groups/${w.id}/moments?removed=1`);
+    expect(await run(actions.deleteMomentAction, { momentId: m.id })).toBe(`/groups/${w.id}?tab=memories&removed=1`);
     expect(await db.moment.count({ where: { id: m.id } })).toBe(0);
     expect(await db.report.findUniqueOrThrow({ where: { id: report.id } })).toMatchObject({ status: "open", resolvedAt: null });
     // The moment is already gone; the operator's "Remove the moment" must still close the report.
