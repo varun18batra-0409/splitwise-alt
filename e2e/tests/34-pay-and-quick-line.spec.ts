@@ -67,6 +67,13 @@ test("pay buttons, payment tracking and the quick line", async ({ browser }) => 
   await settled(R);
   await R.getByLabel("Amount (INR)").fill("12,50");
   await expect(R.getByRole("button", { name: "Record ₹12.50 from you" })).toBeVisible(); // how "12,50" was read: the button says it
+  // Typed the way people type: click the box, select all, type 1082.50. The box holds exactly what was typed, and the button reads it.
+  const payBox = R.getByLabel("Amount (INR)");
+  await payBox.click();
+  await R.keyboard.press("ControlOrMeta+A");
+  await R.keyboard.type("1082.50");
+  await expect(payBox).toHaveValue("1082.50");
+  await expect(R.getByRole("button", { name: "Record ₹1,082.50 from you" })).toBeVisible();
   await R.getByLabel("Amount (INR)").fill("3000");
   await R.getByRole("button", { name: /^Record / }).click();
   await R.waitForURL(/owes=/);

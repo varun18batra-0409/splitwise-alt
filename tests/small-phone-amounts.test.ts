@@ -18,4 +18,14 @@ describe("big amounts on small phones", () => {
     expect(home).not.toMatch(/mt-0\.5 block[^`]*font-display text-\[24px\]/);
     expect(home).toContain("whitespace-nowrap font-display");
   });
+
+  it("both amount boxes hold the plain typed amount: no grouping swap, no select-on-focus", () => {
+    for (const f of ["src/components/AddExpenseForm.tsx", "src/components/RecordPaymentForm.tsx"]) {
+      const form = src(f);
+      expect(form, f).not.toContain("groupDigits");
+      expect(form, f).not.toMatch(/amountFocused|setFocused|selectWholeAmount|select-amount/);
+      expect(form, f).toContain("value={amount}");
+      expect(form, f).toContain('inputMode="decimal"');
+    }
+  });
 });

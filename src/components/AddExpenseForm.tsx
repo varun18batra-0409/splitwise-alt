@@ -2,12 +2,11 @@
 
 import { avatarTone } from "@/components/ui";
 import { ExpenseGlyph } from "./ExpenseGlyph";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { addExpense, lookupRate } from "@/app/actions";
 import { CATEGORIES, analyzeName, applySuggestion, getCategory } from "@/lib/categories";
 import { computeTotals, fxLine, PAYMENT_METHODS, rateDateLabel, type PaymentMethod } from "@/lib/conversion";
 import { buildExpense, chosenMarkupBp, type ExpenseDraft } from "@/lib/expense";
-import { selectWholeAmount } from "@/lib/select-amount";
 import { amountEcho, currencyInfo, formatMoney, formatPercent, isSupportedCurrency, parseAmount, parsePercent } from "@/lib/money";
 import { QuickLine } from "./QuickLine";
 import { BillScan, type ScannedBill } from "./BillScan";
@@ -23,7 +22,7 @@ import { dayKey, todayKey } from "@/lib/dates";
 import { addDays } from "@/lib/local-time";
 import { inputClass, primaryButtonClass } from "./ui";
 import { errorNeedsMore, fasterEntryColumns, shouldOpenMore } from "@/lib/add-expense-more";
-import { currencySign, groupDigits, resultSentence, splitSubline, whoRowPhrase } from "@/lib/add-expense-sentence";
+import { currencySign, resultSentence, splitSubline, whoRowPhrase } from "@/lib/add-expense-sentence";
 
 type Member = { id: string; name: string };
 type RateState =
@@ -80,14 +79,8 @@ export function AddExpenseForm({
   // 1–4: what, how much, category, currency
   const [name, setName] = useState(initial?.name ?? "");
   const [amount, setAmount] = useState(initial?.amount ?? "");
-  // Commas are only drawn while the field is not focused; `amount` itself stays as typed, so what is read and saved is unchanged.
-  const [amountFocused, setAmountFocused] = useState(false);
-  // Dropping the commas on focus rewrites the box, which loses the selection: select-all then typing 2000 would give
-  // "15002000". Selecting the whole amount straight after the rewrite (same as Record payment) keeps "tap, type the new amount" working.
-  const amountRef = useRef<HTMLInputElement>(null);
-  useLayoutEffect(() => {
-    if (amountFocused) selectWholeAmount(amountRef.current);
-  }, [amountFocused]);
+  // The amount box always holds the plain typed amount ("1500", "1500.50"): its text never changes format on focus or blur,
+  // so the browser never rewrites the value under the cursor (select-all, caret and typing all behave as normal).
   const today = todayKey(new Date(), tz);
   const yesterday = addDays(today, -1);
   const [date, setDate] = useState(initial?.date ?? today);
@@ -524,14 +517,11 @@ export function AddExpenseForm({
           {/* The input is exactly as wide as its text: a hidden copy of the text sets the width of the grid cell. */}
           <span className="inline-grid min-w-0 max-w-full">
             <span aria-hidden className="invisible col-start-1 row-start-1 whitespace-pre px-0.5 text-center font-display font-semibold tracking-[-0.02em]">
-              {(amountFocused ? amount : groupDigits(amount, currency)) || "0"}
+              {amount || "0"}
             </span>
             <input
-              ref={amountRef}
-              value={amountFocused ? amount : groupDigits(amount, currency)}
+              value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              onFocus={() => setAmountFocused(true)}
-              onBlur={() => setAmountFocused(false)}
               inputMode="decimal"
               placeholder="0"
               autoComplete="off"

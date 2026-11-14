@@ -1,9 +1,8 @@
 "use client";
 
-import { selectWholeAmount } from "@/lib/select-amount";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { recordCustomPayment } from "@/app/actions";
-import { currencySign, groupDigits } from "@/lib/add-expense-sentence";
+import { currencySign } from "@/lib/add-expense-sentence";
 import { recordButtonLabel } from "@/lib/pay-words";
 
 // Record a payment, drawn as a ticket being filled in: From (avatar, name) ┄ ✈ To, the amount, a perforation, then what Smart Settle suggests.
@@ -46,13 +45,8 @@ export function RecordPaymentForm({
   const [from, setFrom] = useState(defaultFrom);
   const [to, setTo] = useState(defaultTo);
   const [amount, setAmount] = useState(defaultAmount);
-  const [focused, setFocused] = useState(false);
-  // Commas are dropped while the amount is being edited, which rewrites the box. Selecting the whole amount straight after
-  // keeps "tap, then type the new amount" working: without it the rewrite drops the selection and new digits land after the old ones (1082.50 → 1082.50541).
-  const amountRef = useRef<HTMLInputElement>(null);
-  useLayoutEffect(() => {
-    if (focused) selectWholeAmount(amountRef.current);
-  }, [focused]);
+  // The amount box always holds the plain typed amount ("1082.50"): its text never changes format on focus or blur,
+  // so the browser never rewrites the value under the cursor.
   // Folded away until tapped; From and To open independently. With nobody picked to be paid yet, the To list starts open.
   // (A submit with To empty opens it and says so, since a folded-away choice can't be focused.)
   const [open, setOpen] = useState<"from" | "to" | null>(defaultTo ? null : "to");
@@ -68,7 +62,6 @@ export function RecordPaymentForm({
   const label = (id: string) => (who(id)?.me ? "You" : who(id)?.name ?? "");
   const payer = who(from);
   const button = recordButtonLabel(amount, currency, payer ? { name: payer.name, me: payer.me } : null);
-  const shown = focused ? amount : groupDigits(amount, currency);
 
   const side = (which: "from" | "to", id: string, caption: string) => {
     const p = who(id);
@@ -182,20 +175,17 @@ export function RecordPaymentForm({
             {/* The input is exactly as wide as its text: a hidden copy of the text sets the width of the grid cell. */}
             <span className="inline-grid min-w-0 max-w-full">
               <span aria-hidden className="invisible col-start-1 row-start-1 whitespace-pre px-0.5 text-center font-display font-semibold tracking-[-0.02em]">
-                {shown || "0"}
+                {amount || "0"}
               </span>
               <input
-                ref={amountRef}
                 name="amount"
                 required
                 inputMode="decimal"
                 placeholder="0"
                 autoComplete="off"
                 aria-label={`Amount (${currency})`}
-                value={shown}
+                value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                onFocus={() => setFocused(true)}
-                onBlur={() => setFocused(false)}
                 className="col-start-1 row-start-1 w-full min-w-0 bg-transparent px-0.5 text-center font-display font-semibold tracking-[-0.02em] text-fg caret-fg outline-none placeholder:text-fg/25 focus-visible:shadow-[inset_0_-1px_0_0_rgb(244_242_236/0.22)]"
               />
             </span>

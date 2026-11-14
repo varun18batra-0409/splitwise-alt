@@ -2,7 +2,7 @@ import { test, expect } from "../fixtures";
 import type { Page } from "@playwright/test";
 import { testEmail, groupName } from "../env";
 import { signUp } from "../helpers/auth";
-import { addEqualExpense, allowTestCopy, contextFor, createGroup, joinGroup, settled } from "../helpers/app";
+import { addEqualExpense, allowTestCopy, contextFor, createGroup, joinGroup, openEdit, openSplit, settled } from "../helpers/app";
 
 // A lakh-sized amount on a 320 × 640 phone: nothing scrolls sideways, nothing is clipped, and the amount is always fully visible.
 // ₹12,34,567.88 shared by two is ₹6,17,283.94 each (1234567.88 / 2 = 617283.94, worked by hand).
@@ -90,10 +90,30 @@ test("a lakh amount fits at 320×640: the activity row and Home's two-sided tick
   expect(paid, "the paid line stops before the amount column").toBeLessThanOrEqual(effect + 1);
   expect(await noSidewaysScroll(page), "Activity does not scroll sideways").toBeLessThanOrEqual(1);
 
+  // Edit the big expense once (add a note): the row now says "paid ₹12,34,567.88 · edited". Both the full amount and "edited" stay
+  // visible (two lines allowed), nothing runs under the amount column, nothing scrolls sideways.
+  await openEdit(page, g1.path, "Villa");
+  await page.getByRole("button", { name: /^Notes/ }).click();
+  await page.getByPlaceholder("e.g. Rahul paid the tip separately").fill("Booked by phone");
+  await openSplit(page);
+  await page.getByRole("button", { name: "Everyone equally" }).click();
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await page.waitForURL(/tab=activity/);
+  await settled(page);
+  const edited = page.locator('li[id^="item-"]').filter({ hasText: "Villa" }).first();
+  await expect(edited.locator("[data-paid-line]").first()).toContainText("edited");
+  await textFullyShown(page, 'li[id^="item-"] [data-paid-line]', "₹12,34,567.88", "Edited paid line (amount)");
+  await textFullyShown(page, 'li[id^="item-"] [data-paid-line]', "edited", "Edited paid line (edited)");
+  await fullyVisible(page, 'li[id^="item-"] span.font-semibold[data-exact]', "Edited row amount");
+  const paid2 = await edited.locator("[data-paid-line]").first().evaluate((el) => el.getBoundingClientRect().right);
+  const effect2 = await edited.locator("span.font-semibold[data-exact]").first().evaluate((el) => el.getBoundingClientRect().left);
+  expect(paid2, "the edited paid line stops before the amount column").toBeLessThanOrEqual(effect2 + 1);
+  expect(await noSidewaysScroll(page), "the edited row does not scroll sideways").toBeLessThanOrEqual(1);
+
   // A three-person group with paise: Asha pays ₹18,51,851.82, each of the three owes ₹6,17,283.94 (1851851.82 / 3, worked by hand),
   // so the two others owe Asha ₹12,34,567.88. Smart Settle works from each person's net, so one person is never both a payer and a
-  // payee in the same group: this is the one-sided ticket (the two-sided one is Home's, above). Whatever the ticket is, its
-  // amounts are exact and fully visible at 320.
+  // payee in the same group: this is the one-sided ticket (the two-sided one is Home's, above). Its amounts are exact and
+  // fully visible at 320.
   const g3 = await createGroup(A, groupName("Big three"));
   await joinGroup(B, g3.invite, g3.path);
   await joinGroup(C, g3.invite, g3.path);
@@ -102,9 +122,7 @@ test("a lakh amount fits at 320×640: the activity row and Home's two-sided tick
   await settled(page);
   await expect(page.locator("[data-group-balance] [data-net-balance]").first()).toContainText("₹12,34,567.88");
   await fullyVisible(page, "[data-group-balance] [data-net-balance]", "Three-person ticket amount");
-  if (await page.locator("[data-group-balance] [data-ticket-both]").count()) {
-    await fullyVisible(page, "[data-group-balance] [data-ticket-both] [data-net-balance]", "Two-sided group ticket amount");
-  }
+  await expect(page.locator("[data-group-balance]")).toHaveAttribute("data-ticket", "one");
   expect(await noSidewaysScroll(page), "the three-person group does not scroll sideways").toBeLessThanOrEqual(1);
   await page.goto(`${g3.path}?tab=balances`);
   await settled(page);
