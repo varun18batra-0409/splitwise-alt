@@ -111,19 +111,19 @@ export function buildPassport(trips: PassportTrip[], hand: HandPlace[], home: st
 
   // Milestones worth showing off.
   const milestones: string[] = [];
-  if (abroad.some((r) => r.trips > 0)) milestones.push("First trip abroad ✈️");
+  if (abroad.some((r) => r.trips > 0)) milestones.push("First trip abroad");
   const top = (ladder: Mark["ladder"]) => marks.filter((m) => m.ladder === ladder).pop();
   const countriesMark = top("countries");
   if (countriesMark) milestones.push(countriesMark.chip);
-  else if (abroad.length >= 3) milestones.push(`${abroad.length} countries abroad 🌍`);
+  else if (abroad.length >= 3) milestones.push(`${abroad.length} countries abroad`);
   const continentsMark = top("continents");
   if (continentsMark && continentsMark.n >= 3) milestones.push(continentsMark.chip);
   for (const r of rows) for (const city of r.cities) {
     const n = cityTrips.get(`${r.code}|${city.toLowerCase()}`) ?? 0;
-    if (n >= 3) milestones.push(`${city} ×${n} 🔁`);
+    if (n >= 3) milestones.push(`${city} ×${n}`);
   }
-  if (stats.thisYear >= 3) milestones.push(`${stats.thisYear} trips this year 🔥`);
-  if (stats.trips >= 10) milestones.push("10 trips club 🏅");
+  if (stats.thisYear >= 3) milestones.push(`${stats.thisYear} trips this year`);
+  if (stats.trips >= 10) milestones.push("10 trips club");
 
   // Badges: about where you go and how, never about money.
   const mood = (t: PassportTrip) => tripEmoji(`${t.name} ${t.place}`);
@@ -185,15 +185,15 @@ const LADDERS = {
 };
 export function passportMarks(stats: { countries: number; continents: number; cities: number; trips: number }, beenAbroad: boolean): Mark[] {
   const out: Mark[] = [];
-  if (beenAbroad) out.push({ id: "abroad-1", ladder: "abroad", n: 1, chip: "Been abroad ✈️", title: "✈️ Your first stamp from abroad", body: "Your passport has its first country beyond home. Open it to see the stamp." });
+  if (beenAbroad) out.push({ id: "abroad-1", ladder: "abroad", n: 1, chip: "Been abroad", title: "Your first stamp from abroad", body: "Your passport has its first country beyond home. Open it to see the stamp." });
   for (const n of LADDERS.countries.filter((x) => stats.countries >= x))
-    out.push({ id: `countries-${n}`, ladder: "countries", n, chip: `${n} countries 🌍`, title: `🌍 ${n} countries`, body: `Your passport just reached ${n} countries. Open it to see every stamp.` });
+    out.push({ id: `countries-${n}`, ladder: "countries", n, chip: `${n} countries`, title: `${n} countries`, body: `Your passport just reached ${n} countries. Open it to see every stamp.` });
   for (const n of LADDERS.continents.filter((x) => stats.continents >= x))
-    out.push({ id: `continents-${n}`, ladder: "continents", n, chip: `${n} continents 🧭`, title: n === 7 ? "🧭 All seven continents" : `🧭 ${n} continents`, body: n === 7 ? "Every continent on Earth. Very few passports can say that." : `You’ve now been to ${n} continents. Your map is filling in.` });
+    out.push({ id: `continents-${n}`, ladder: "continents", n, chip: `${n} continents`, title: n === 7 ? "All seven continents" : `${n} continents`, body: n === 7 ? "Every continent on Earth. Very few passports can say that." : `You’ve now been to ${n} continents. Your map is filling in.` });
   for (const n of LADDERS.cities.filter((x) => stats.cities >= x))
-    out.push({ id: `cities-${n}`, ladder: "cities", n, chip: `${n} cities 🏙️`, title: `🏙️ ${n} cities`, body: `${n} different cities on your Loopin trips. Open your passport to see them all.` });
+    out.push({ id: `cities-${n}`, ladder: "cities", n, chip: `${n} cities`, title: `${n} cities`, body: `${n} different cities on your Loopin trips. Open your passport to see them all.` });
   for (const n of LADDERS.trips.filter((x) => stats.trips >= x))
-    out.push({ id: `trips-${n}`, ladder: "trips", n, chip: `${n} trips 🏅`, title: `🏅 ${n} trips with Loopin`, body: `That’s ${n} trips split and settled. Here’s to the next one.` });
+    out.push({ id: `trips-${n}`, ladder: "trips", n, chip: `${n} trips`, title: `${n} trips with Loopin`, body: `That’s ${n} trips split and settled. Here’s to the next one.` });
   return out;
 }
 

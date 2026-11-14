@@ -95,7 +95,7 @@ export function CountryPicker({ added, home = "", tile = false }: { added: strin
                     <li key={c.code}>
                       <label className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${already ? "opacity-50" : "active:bg-mist"}`}>
                         <input type="checkbox" checked={on} disabled={already} onChange={() => toggle(c.code)} className="h-5 w-5 shrink-0" aria-label={c.name} />
-                        <span className="text-xl leading-none">{c.flag}</span>
+                        <span aria-hidden className="w-7 shrink-0 text-center text-[12px] font-semibold tabular-nums text-fg/55">{c.code}</span>
                         <span className="min-w-0 flex-1 truncate">{c.name}</span>
                         {already && <span className="text-xs text-fg/60">{c.code === home ? "Home" : "Added"}</span>}
                       </label>

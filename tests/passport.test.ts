@@ -49,7 +49,7 @@ describe("Trip passport: stamps", () => {
       ["JP", 0, true, ""],
       ["TH", 1, false, "Bangkok/Phuket"],
     ]);
-    expect(p.milestones).toEqual(["First trip abroad ✈️", "3 countries abroad 🌍", "Goa ×3 🔁", "3 trips this year 🔥"]);
+    expect(p.milestones).toEqual(["First trip abroad", "3 countries abroad", "Goa ×3", "3 trips this year"]);
   });
   it("badges: earned ones, and how close the rest are", () => {
     const b = Object.fromEntries(p.badges.map((x) => [x.id, x.earned ? "✓" : `${x.have}/${x.need}`]));

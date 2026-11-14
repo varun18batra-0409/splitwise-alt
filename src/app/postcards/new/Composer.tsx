@@ -7,8 +7,8 @@ import { PostcardShare, face } from "@/components/postcards/PostcardView";
 import { shrink } from "@/components/OwnPhoto";
 import { avatarTone } from "@/components/ui";
 import { buzz } from "@/lib/haptics";
-import { LOOKS, PLACES, SEAL_COLOURS, SEAL_DESIGNS, TOUCHES, lookCss, waxSeal } from "@/lib/postcards/looks";
-import { COUNTRY_STAMP_IDS, HANDS, INKS, TONES, LETTERINGS, OPENERS, PAPERS, paperTones, PRINTS, THEME_STAMP_IDS, printSvg, stampSvg, withHome } from "@/lib/postcards/catalog";
+import { LOOKS, LOOK_PICKS, PLACES, SEAL_COLOURS, SEAL_DESIGNS, TOUCHES, TOUCH_PICKS, keptLook, keptTouches, lookCss, waxSeal } from "@/lib/postcards/looks";
+import { COUNTRY_STAMP_IDS, HANDS, HAND_PICKS, INKS, INK_PICKS, TONES, TONE_PICKS, OPENERS, PAPERS, PAPER_PICKS, keptHand, keptInk, keptLettering, keptPaper, keptTone, letteringPicks, paperTones, PRINTS, THEME_STAMP_IDS, printSvg, stampSvg, withHome } from "@/lib/postcards/catalog";
 import { MESSAGE_MAX, messageFit, overText, withOpener, roughMeasure, type MeasureEm } from "@/lib/postcards/fit";
 import { sendPostcardAction } from "@/app/postcard-actions";
 import type { PostcardGroup } from "@/lib/postcards/people";
@@ -56,19 +56,22 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
   const [own, setOwn] = useState<{ url: string; data: string } | null>(defaults.ownPhoto ? { url: defaults.ownPhoto.url, data: "" } : null);
   const [words, setWords] = useState(defaults.words);
   const [custom, setCustom] = useState(Boolean(defaults.words) && !wordOptions.includes(defaults.words));
-  const [lettering, setLettering] = useState(defaults.lettering ?? "classic");
-  const [tone, setTone] = useState(defaults.tone ?? "white");
-  const [look, setLook] = useState(defaults.look ?? "");
+  const [lettering, setLettering] = useState(keptLettering(defaults.lettering ?? "classic"));
+  const [tone, setTone] = useState(keptTone(defaults.tone ?? "white"));
+  const [look, setLook] = useState(() => {
+    const [id, n] = (defaults.look ?? "").split(":");
+    return id ? `${keptLook(id)}:${n ?? 100}` : "";
+  });
   const [wordsAt, setWordsAt] = useState(defaults.wordsAt ?? "bottom");
   const [wordsSize, setWordsSize] = useState(defaults.wordsSize ?? 100);
-  const [touches, setTouches] = useState<string[]>((defaults.touches ?? "").split(",").filter(Boolean));
+  const [touches, setTouches] = useState<string[]>(keptTouches(defaults.touches));
   const [seal, setSeal] = useState(defaults.seal ?? "crimson:initial");
   const [message, setMessage] = useState(defaults.message ?? "");
   const [signoff, setSignoff] = useState(defaults.signoff ?? "");
-  const [hand, setHand] = useState(defaults.hand ?? "caveat");
+  const [hand, setHand] = useState(keptHand(defaults.hand ?? "caveat"));
   const [stamp, setStamp] = useState(defaults.stamp);
-  const [paper, setPaper] = useState(defaults.paper ?? "cream");
-  const [ink, setInk] = useState(defaults.ink ?? "navy");
+  const [paper, setPaper] = useState(keptPaper(defaults.paper ?? "cream"));
+  const [ink, setInk] = useState(keptInk(defaults.ink ?? "navy"));
   const [to, setTo] = useState<string[]>(defaults.to);
   const [addr, setAddr] = useState<string[]>(defaults.address ?? ["", "", ""]);
   const [opensOn, setOpensOn] = useState("");
@@ -159,9 +162,27 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
         <input key={id} type="hidden" name="to" value={id} />
       ))}
 
-      {/* The card, turning as you move from front to back. */}
-      <div className="sticky top-[max(0.5rem,env(safe-area-inset-top))] z-20 -mx-1 pb-3">
-        <button type="button" onClick={() => setTab(showBack ? "front" : "back")} aria-label={showBack ? "Show the front" : "Show the back"} className="block w-full [perspective:1600px]" data-composer-card={showBack ? "back" : "front"}>
+      {/* The three steps, then the card, turning as you move from front to note. The card sits on a solid backing and is
+          kept short, and every choice below scrolls to just under it, so it never covers a chip. */}
+      <div className="mx-auto grid max-w-[340px] grid-cols-3 gap-1" role="tablist" aria-label="Postcard steps">
+        {(
+          [
+            ["front", "Front"],
+            ["back", "Note"],
+            ["send", "Send"],
+          ] as const
+        ).map(([id, l], n) => (
+          <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`flex flex-col items-center gap-1.5 py-1 text-[13px] font-semibold ${tab === id ? "text-fg" : "text-fg/55"}`} data-step={id}>
+            <span aria-hidden className={`flex size-7 items-center justify-center rounded-full border text-[13px] tabular-nums ${tab === id ? "border-fg bg-fg text-canvas" : "border-fg/30"}`}>
+              {n + 1}
+            </span>
+            {l}
+          </button>
+        ))}
+      </div>
+
+      <div className="sticky top-[max(0.5rem,env(safe-area-inset-top))] z-20 -mx-5 mt-2 bg-canvas px-5 pb-3 pt-1" data-composer-preview>
+        <button type="button" onClick={() => setTab(showBack ? "front" : "back")} aria-label={showBack ? "Show the front" : "Show the back"} className="mx-auto block w-full max-w-[min(100%,calc(30svh*1.5))] [perspective:1600px]" data-composer-card={showBack ? "back" : "front"}>
           <div className="relative transition-transform duration-[800ms] ease-[cubic-bezier(.2,.8,.2,1)] [transform-style:preserve-3d] motion-reduce:transition-none" style={{ transform: showBack ? "rotateY(180deg)" : "none" }}>
             <div className="[backface-visibility:hidden]" style={face(!showBack)}>
               <PostcardFront {...frontProps} />
@@ -173,22 +194,8 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
         </button>
       </div>
 
-      <div className="mx-auto mt-2 grid max-w-[320px] grid-cols-3 gap-1 rounded-full bg-mist p-1" role="tablist" aria-label="Postcard steps">
-        {(
-          [
-            ["front", "Front"],
-            ["back", "Back"],
-            ["send", "Send"],
-          ] as const
-        ).map(([id, l]) => (
-          <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`rounded-full py-2 text-sm font-semibold ${tab === id ? "shadow-[inset_0_0_0_1.5px_var(--color-fg)] text-fg" : "text-fg/55"}`}>
-            {l}
-          </button>
-        ))}
-      </div>
-
       {tab === "front" && (
-        <section aria-label="Front">
+        <section aria-label="Front" className="[&_*]:scroll-mt-[calc(30svh+4.5rem)]">
           <span className={label}>Picture</span>
           <div className="-mx-5 flex gap-2.5 overflow-x-auto px-5 pb-2 [scrollbar-width:none]" data-front-choices>
             <div className="relative shrink-0">
@@ -247,15 +254,15 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
 
           <span className={label}>Lettering</span>
           <div className="flex flex-wrap gap-1.5" data-letterings>
-            {LETTERINGS.filter((l) => !l.hidden || l.id === lettering).map((l) => (
+            {letteringPicks().map((l) => (
               <button key={l.id} type="button" className={`${chip(lettering === l.id)} !h-8 !px-3`} onClick={() => setLettering(l.id)} style={{ fontFamily: `'${l.family}', serif`, fontStyle: l.italic ? "italic" : undefined, fontSize: l.caps ? 13 : 14, fontWeight: 400 }}>
                 {l.name}
               </button>
             ))}
           </div>
           <span className={label}>Colour</span>
-          <div className="-mx-5 flex gap-3 overflow-x-auto px-5 pb-2 pt-1 [scrollbar-width:none]" data-tones>
-            {TONES.map((t) => (
+          <div className="flex flex-wrap gap-x-3 gap-y-3 pb-1 pt-1" data-tones>
+            {TONE_PICKS.map((id) => TONES.find((t) => t.id === id)!).map((t) => (
               <button key={t.id} type="button" onClick={() => setTone(t.id)} aria-label={`${t.name} words`} aria-pressed={tone === t.id} data-tone-choice={t.id} className="flex shrink-0 flex-col items-center gap-1.5">
                 <span aria-hidden className={`block size-9 rounded-full border border-white/15 shadow-[inset_0_-3px_6px_rgba(0,0,0,0.25)] transition-transform active:scale-95 ${tone === t.id ? "outline outline-2 outline-offset-[3px] outline-fg" : ""}`} style={{ background: t.c }} />
                 <span className={`text-[11px] ${tone === t.id ? "text-fg" : "text-fg/50"}`}>{t.name}</span>
@@ -281,8 +288,8 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
           )}
 
           <span className={label}>Look</span>
-          <div className="-mx-5 flex gap-2.5 overflow-x-auto px-5 pb-2 [scrollbar-width:none]" data-looks>
-            {LOOKS.map((l) => {
+          <div className="flex flex-wrap gap-x-2.5 gap-y-3 pb-1" data-looks>
+            {LOOK_PICKS.map((id) => LOOKS.find((l) => l.id === id)!).map((l) => {
               const on = lookId === l.id;
               const spec = l.id === "none" ? "" : `${l.id}:100`;
               const src = front === "own" ? own?.url : front.startsWith("photo:") ? front.slice(6) : "";
@@ -311,7 +318,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
 
           <span className={label}>Finishing touches</span>
           <div className="flex flex-wrap gap-2" data-touches-front>
-            {TOUCHES.filter((t) => t.side === "front" && !t.hidden).map((t) => (
+            {TOUCHES.filter((t) => t.side === "front" && (TOUCH_PICKS as readonly string[]).includes(t.id)).map((t) => (
               <button key={t.id} type="button" className={chip(touches.includes(t.id))} aria-pressed={touches.includes(t.id)} onClick={() => toggleTouch(t.id)}>
                 {t.name}
               </button>
@@ -319,13 +326,13 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
           </div>
 
           <button type="button" onClick={() => setTab("back")} className="pop mt-8 flex h-12 w-full items-center justify-center bg-fg text-[15px] font-semibold text-canvas">
-            Next: write on the back
+            Next: write your note
           </button>
         </section>
       )}
 
       {tab === "back" && (
-        <section aria-label="Back">
+        <section aria-label="Note" className="[&_*]:scroll-mt-[calc(30svh+4.5rem)]">
           <span className={label}>Start with</span>
           <div className="-mx-5 flex gap-2 overflow-x-auto px-5 [scrollbar-width:none]">
             {OPENERS.map((o) => (
@@ -335,14 +342,14 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
               </button>
             ))}
           </div>
-          <label className="mt-4 block">
-            <span className="sr-only">Your message</span>
+          <label className="mt-6 block">
+            <span className="mb-2.5 block text-[13px] font-semibold text-fg/55">Your message</span>
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value.slice(0, MESSAGE_MAX))}
               rows={5}
               placeholder="Write something they’ll want to keep…"
-              className="w-full resize-none rounded-[20px] border border-line bg-[#f4eee2] px-4 py-3 text-[19px] leading-snug text-[#2b2a5a] outline-none placeholder:text-[#2b2a5a]/40"
+              className="w-full resize-none rounded-[14px] border border-line bg-[#f4eee2] px-4 py-3 text-[19px] leading-snug text-[#2b2a5a] outline-none placeholder:text-[#2b2a5a]/40"
               style={{ fontFamily: `'${HANDS.find((h) => h.id === hand)?.family}', cursive`, color: INKS.find((i) => i.id === ink)?.c }}
             />
           </label>
@@ -353,43 +360,45 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
             </p>
           )}
 
-          <span className={label}>Handwriting</span>
-          <div className="-mx-5 flex gap-2 overflow-x-auto px-5 [scrollbar-width:none]" data-hands>
-            {HANDS.map((h) => (
-              <button key={h.id} type="button" onClick={() => setHand(h.id)} aria-label={h.family} className={`${chip(hand === h.id)} px-3.5 text-[19px] font-normal`} style={{ fontFamily: `'${h.family}', cursive` }}>
-                Hello
-              </button>
-            ))}
-          </div>
+          <label className="mt-4 flex items-center justify-between gap-4 border-b border-line pb-3">
+            <span className="text-[15px] font-semibold">From</span>
+            <input
+              value={signoff}
+              onChange={(e) => setSignoff(e.target.value.slice(0, 25))}
+              maxLength={25}
+              placeholder={firstOf(myName) || "Your name"}
+              aria-label="Signed"
+              data-signoff
+              className="min-w-0 flex-1 bg-transparent text-right text-[15px] text-fg/75 outline-none placeholder:text-fg/55 focus:text-fg"
+            />
+          </label>
 
-          <span className={label}>Stamp</span>
-          {rare.length > 0 && (
-            <p className="-mt-1 mb-2 text-[12.5px] text-[#e2c27a]/90" data-rare-note>
-              Limited stamps on issue now: {rare.map((r) => `${stampLabel(r.id)} until ${r.until}`).join(", ")}. They go in your stamp album.
-            </p>
-          )}
-          <div className="-mx-5 flex gap-3 overflow-x-auto px-5 pb-2 pt-1 [scrollbar-width:none]" data-stamps>
-            {stampList.map((s) => (
-              <button key={s} type="button" onClick={() => setStamp(s)} className={`shrink-0 rounded-[4px] p-0.5 transition-transform active:scale-95 ${stamp === s ? "outline outline-2 outline-offset-2 outline-fg" : ""}`} aria-label={`Stamp ${s}`} data-stamp-choice={s}>
-                <span aria-hidden className="block w-[50px] [&>svg]:h-auto [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: stampSvg(s, `c${s}`) }} />
-                {rareIds.includes(s) && <span className="mt-1 block text-center text-[9.5px] font-semibold uppercase tracking-[0.12em] text-[#e2c27a]">Limited</span>}
-              </button>
-            ))}
+          <span className={label}>Handwriting style</span>
+          <div className="grid grid-cols-3 gap-2" data-hands>
+            {HAND_PICKS.map((hp) => {
+              const h = HANDS.find((x) => x.id === hp.id)!;
+              return (
+                <button key={h.id} type="button" onClick={() => setHand(h.id)} aria-label={`${hp.name} handwriting`} aria-pressed={hand === h.id} className={`flex h-11 items-center justify-center gap-2 rounded-[14px] border text-[13px] transition-transform active:scale-95 ${hand === h.id ? "border-[1.5px] border-fg text-fg" : "border-fg/15 text-fg/55"}`}>
+                  <span aria-hidden className="text-[19px] leading-none" style={{ fontFamily: `'${h.family}', cursive` }}>Aa</span>
+                  {hp.name}
+                </button>
+              );
+            })}
           </div>
 
           <span className={label}>Ink</span>
-          <div className="-mx-5 flex gap-3 overflow-x-auto px-5 pb-2 pt-1 [scrollbar-width:none]" data-inks>
-            {INKS.map((i) => (
+          <div className="flex flex-wrap gap-x-4 gap-y-3 pb-1 pt-1" data-inks>
+            {INK_PICKS.map((id) => INKS.find((i) => i.id === id)!).map((i) => (
               <button key={i.id} type="button" onClick={() => setInk(i.id)} aria-label={`${i.name} ink`} aria-pressed={ink === i.id} data-ink-choice={i.id} className="flex shrink-0 flex-col items-center gap-1.5">
                 <span aria-hidden className={`block size-9 rounded-full shadow-[inset_0_-3px_6px_rgba(0,0,0,0.35),inset_0_2px_3px_rgba(255,255,255,0.18)] transition-transform active:scale-95 ${ink === i.id ? "outline outline-2 outline-offset-[3px] outline-fg" : ""}`} style={{ background: i.c }} />
-                <span className={`text-[11px] ${ink === i.id ? "text-fg" : "text-fg/50"}`}>{i.name}</span>
+                <span className={`text-[11px] ${ink === i.id ? "text-fg" : "text-fg/55"}`}>{i.name}</span>
               </button>
             ))}
           </div>
 
           <span className={label}>Paper</span>
-          <div className="-mx-5 grid auto-cols-[54px] grid-flow-col grid-rows-2 gap-x-3 gap-y-3 overflow-x-auto px-5 pb-2 pt-1 [scrollbar-width:none]" data-papers>
-            {PAPERS.map((p) => {
+          <div className="flex flex-wrap gap-x-4 gap-y-3 pb-1 pt-1" data-papers>
+            {PAPER_PICKS.map((id) => PAPERS.find((p) => p.id === id)!).map((p) => {
               const [a, b, c] = paperTones(p.id);
               return (
                 <button key={p.id} type="button" onClick={() => setPaper(p.id)} aria-label={`${p.name} paper`} aria-pressed={paper === p.id} data-paper-choice={p.id} className="flex shrink-0 flex-col items-center gap-1.5">
@@ -398,15 +407,30 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
                     className={`block h-9 w-[54px] rounded-[3px] shadow-[0_3px_8px_-3px_rgba(0,0,0,0.6)] transition-transform active:scale-95 ${paper === p.id ? "outline outline-2 outline-offset-[3px] outline-fg" : ""}`}
                     style={{ background: p.id === "airmail" ? `repeating-linear-gradient(-45deg,#c8453a 0 5px,${a} 5px 10px,#2f5fa7 10px 15px,${a} 15px 20px)` : `radial-gradient(120% 90% at 0% 0%,${a},${b} 70%,${c})` }}
                   />
-                  <span className={`nobreak text-[11px] ${paper === p.id ? "text-fg" : "text-fg/50"}`}>{p.name}</span>
+                  <span className={`nobreak text-[11px] ${paper === p.id ? "text-fg" : "text-fg/55"}`}>{p.name}</span>
                 </button>
               );
             })}
           </div>
 
+          <span className={label}>Stamp</span>
+          {rare.length > 0 && (
+            <p className="-mt-1 mb-2 text-[12.5px] text-fg/60" data-rare-note>
+              Limited stamps on issue now: {rare.map((r) => `${stampLabel(r.id)} until ${r.until}`).join(", ")}. They go in your stamp album.
+            </p>
+          )}
+          <div className="-mx-5 flex gap-3 overflow-x-auto px-5 pb-2 pt-1 [scrollbar-width:none]" data-stamps>
+            {stampList.map((s) => (
+              <button key={s} type="button" onClick={() => setStamp(s)} className={`shrink-0 rounded-[4px] p-0.5 transition-transform active:scale-95 ${stamp === s ? "outline outline-2 outline-offset-2 outline-fg" : ""}`} aria-label={`Stamp ${s}`} data-stamp-choice={s}>
+                <span aria-hidden className="block w-[50px] [&>svg]:h-auto [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: stampSvg(s, `c${s}`) }} />
+                {rareIds.includes(s) && <span className="mt-1 block text-center text-[10.5px] font-semibold text-fg/55">Limited</span>}
+              </button>
+            ))}
+          </div>
+
           <span className={label}>Finishing touches</span>
           <div className="flex flex-wrap gap-2" data-touches-back>
-            {TOUCHES.filter((t) => t.side === "back" && !t.hidden).map((t) => (
+            {TOUCHES.filter((t) => t.side === "back" && (TOUCH_PICKS as readonly string[]).includes(t.id)).map((t) => (
               <button key={t.id} type="button" className={chip(touches.includes(t.id))} aria-pressed={touches.includes(t.id)} onClick={() => toggleTouch(t.id)}>
                 {t.name}
               </button>
@@ -414,7 +438,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
           </div>
 
           {touches.includes("seal") && (
-            <div className="mt-4 rounded-[20px] border border-line bg-mist/60 px-4 py-4" data-seal-picker>
+            <div className="mt-4 rounded-[20px] border border-line bg-mist px-4 py-4" data-seal-picker>
               <span className="mb-3 block text-[13px] font-semibold text-fg/55">Wax colour</span>
               <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 pt-1 [scrollbar-width:none]" data-wax-colours>
                 {SEAL_COLOURS.map((c) => {
@@ -442,7 +466,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
             </div>
           )}
 
-          <span className={label}>Address (write anything)</span>
+          <span className={label}>Address on the card</span>
           <div className="space-y-2">
             {[0, 1, 2].map((i) => (
               <input
@@ -460,19 +484,8 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
               />
             ))}
           </div>
-          <span className={label}>Signed</span>
-          <input
-            value={signoff}
-            onChange={(e) => setSignoff(e.target.value.slice(0, 25))}
-            maxLength={25}
-            placeholder={firstOf(myName) || "Your name"}
-            aria-label="Signed"
-            data-signoff
-            className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-base outline-none focus:border-fg/40"
-          />
-          <p className="mt-1.5 text-xs text-fg/60">How it’s signed at the end: your name, a nickname, “Mom &amp; Dad”, anything.</p>
           <button type="button" onClick={() => setTab("send")} disabled={!message.trim() || fit.over > 0} className="pop mt-8 flex h-12 w-full items-center justify-center bg-fg text-[15px] font-semibold text-canvas disabled:opacity-50">
-            {fit.over > 0 ? "Trim it to fit the card" : message.trim() ? "Next: send it" : "Write a few words first"}
+            {fit.over > 0 ? "Trim it to fit the card" : message.trim() ? "Choose recipient" : "Write a few words first"}
           </button>
         </section>
       )}
@@ -480,13 +493,13 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
       {tab === "send" && (
         <section aria-label="Send to">
           {!message.trim() && (
-            <button type="button" onClick={() => setTab("back")} className="mt-6 flex w-full items-center justify-between rounded-[18px] bg-mist px-4 py-3 text-left text-sm text-fg/80 active:opacity-80" data-write-first>
+            <button type="button" onClick={() => setTab("back")} className="mt-6 flex w-full items-center justify-between rounded-[14px] border border-line bg-mist px-4 py-3 text-left text-sm text-fg/80 active:opacity-80" data-write-first>
               <span>Write a few words on the back first</span>
               <span aria-hidden>›</span>
             </button>
           )}
           {message.trim() && (
-            <div className="mt-6 rounded-[20px] border border-line bg-mist/60 px-4 py-4" data-whatsapp-anyone>
+            <div className="mt-6 rounded-[20px] border border-line bg-mist px-4 py-4" data-whatsapp-anyone>
               <p className="mb-3 text-[15px] font-semibold">Send to anyone on WhatsApp</p>
               <PostcardShare front={frontProps} back={backProps} name="postcard" />
             </div>
@@ -513,7 +526,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
                         <button type="button" onClick={() => toggle(p.id)} aria-pressed={on} className="flex w-full items-center gap-3 py-2.5 text-left" data-recipient={p.name}>
                           <span aria-hidden className={`flex h-9 w-9 items-center justify-center rounded-full text-[13px] font-bold ${avatarTone(p.name)}`}>{p.name.charAt(0).toUpperCase()}</span>
                           <span className="flex-1 text-[15px] font-semibold">{p.name}</span>
-                          <span aria-hidden className={`flex h-6 w-6 items-center justify-center rounded-full border-[1.5px] ${on ? "border-fg bg-fg text-canvas" : "border-fg/30"}`}>
+                          <span aria-hidden className={`flex h-6 w-6 items-center justify-center rounded-full border-[1.5px] ${on ? "border-fg text-fg" : "border-fg/30"}`}>
                             {on && (
                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M5 12.5l4.5 4.5L19 7.5" />
@@ -574,8 +587,8 @@ function OpensOn({ value, onChange, label, chip }: { value: string; onChange: (v
         <DateField min={iso(tomorrow)} max={iso(new Date(now.getFullYear() + 2, now.getMonth(), now.getDate()))} value={value} onChange={(e) => onChange(e.target.value)} aria-label="Day it opens" className="mt-3" />
       )}
       {value && (
-        <p className="mt-3 flex items-center gap-2 rounded-[16px] border border-[#8e1f26]/40 bg-[#8e1f26]/10 px-4 py-3 text-[13.5px] text-fg/85" data-sealed-note>
-          <span aria-hidden className="h-3 w-3 shrink-0 rounded-full bg-[radial-gradient(circle_at_35%_30%,#d0505a,#8e1f26_55%,#4e0d12)]" />
+        <p className="mt-3 flex items-center gap-2 rounded-[16px] border border-line bg-mist px-4 py-3 text-[13.5px] text-fg/85" data-sealed-note>
+          <span aria-hidden className="h-3 w-3 shrink-0 rounded-full border-[1.5px] border-fg" />
           Sealed until {nice}. They’ll know it’s coming, but can’t read it till then.
         </p>
       )}

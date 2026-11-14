@@ -3745,7 +3745,7 @@ async function main() {
   async function sendPostcard(page: Page, to: string, message: string, until?: "a year"): Promise<string> {
     await go(page, `/postcards/new?group=${mainGid}`);
     await page.getByRole("button", { name: "Print: Mountains" }).click();
-    await page.getByRole("tab", { name: "Back" }).click();
+    await page.getByRole("tab", { name: "Note" }).click();
     await page.getByRole("button", { name: "Wax seal" }).click();
     await page.getByRole("button", { name: "Gold wax", exact: true }).click();
     await page.getByRole("textbox", { name: "Your message" }).fill(message);

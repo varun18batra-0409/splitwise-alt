@@ -620,7 +620,7 @@ if (!hosted) {
       await p.waitForTimeout(1200);
     }, false);
     await shot("132-postcard-compose-back", `/postcards/new?group=${lona.id}`, async (p) => {
-      await p.getByRole("tab", { name: "Back" }).click();
+      await p.getByRole("tab", { name: "Note" }).click();
       await p.getByRole("textbox", { name: "Your message" }).fill("Remember the bus that never came? Best wrong turn ever. Same time next year?");
       await p.waitForTimeout(1300);
     }, false);
@@ -641,7 +641,7 @@ if (!hosted) {
       await p.waitForTimeout(1300);
     }, false);
     await shot("133b-postcard-sealed-choice", `/postcards/new?group=${lona.id}`, async (p) => {
-      await p.getByRole("tab", { name: "Back" }).click();
+      await p.getByRole("tab", { name: "Note" }).click();
       await p.getByRole("textbox", { name: "Your message" }).fill("Open this on New Year's.");
       await p.getByRole("tab", { name: "Send" }).click();
       await p.getByRole("button", { name: "New Year’s Day" }).click();
@@ -649,25 +649,23 @@ if (!hosted) {
       await p.waitForTimeout(800);
     }, false);
     await shot("132c-postcard-wax-seal", `/postcards/new?group=${lona.id}`, async (p) => {
-      await p.getByRole("tab", { name: "Back" }).click();
+      await p.getByRole("tab", { name: "Note" }).click();
       await p.getByRole("textbox", { name: "Your message" }).fill("Remember the bus that never came? Best wrong turn ever.");
       await p.getByRole("button", { name: "Wax seal" }).click();
-      await p.getByRole("button", { name: "Customs label" }).click();
+      await p.getByRole("button", { name: "Coffee ring" }).click();
       await p.getByRole("button", { name: "Gold wax", exact: true }).click();
       await p.getByRole("button", { name: "Seal design: Crest" }).click();
       await p.locator("[data-seal-picker]").scrollIntoViewIfNeeded();
       await p.waitForTimeout(1200);
     }, false);
     await shot("131c-postcard-front-touches", `/postcards/new?group=${lona.id}`, async (p) => {
-      await p.getByRole("button", { name: "Hotel sticker" }).click();
-      await p.getByRole("button", { name: "Rail ticket" }).click();
-      await p.getByRole("button", { name: "Luggage tag" }).click();
-      await p.getByRole("button", { name: "Paper clip" }).click();
+      await p.getByRole("button", { name: "Tape" }).click();
+      await p.getByRole("button", { name: "Pressed flower" }).click();
       await p.locator("[data-touches-front]").scrollIntoViewIfNeeded();
       await p.waitForTimeout(1200);
     }, false);
     await shot("132b-postcard-colours", `/postcards/new?group=${lona.id}`, async (p) => {
-      await p.getByRole("tab", { name: "Back" }).click();
+      await p.getByRole("tab", { name: "Note" }).click();
       await p.getByRole("textbox", { name: "Your message" }).fill("Remember the bus that never came? Best wrong turn ever. Same time next year?");
       await p.getByRole("button", { name: "Sepia ink" }).click();
       await p.getByRole("button", { name: "Sage paper" }).click();

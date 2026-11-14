@@ -62,7 +62,17 @@ export const LETTERINGS: Lettering[] = [
   { id: "blackletter", name: "Old English", family: "UnifrakturMaguntia" },
   { id: "stencil", name: "Stencil", family: "Stardos Stencil", caps: true },
 ];
-export const letteringOf = (id: string) => LETTERINGS.find((l) => l.id === id) ?? LETTERINGS[0];
+// The picker offers five. Every other id stays valid (old cards keep their id) and is drawn as the nearest kept one.
+export const LETTERING_PICKS = ["classic", "italic", "poster", "typewriter", "script"] as const;
+const LETTERING_NEAREST: Record<string, string> = {
+  bold: "classic", slab: "classic", retro: "classic", artdeco: "classic", engraved: "classic", editorial: "classic",
+  riviera: "italic", elegant: "italic", vogue: "italic",
+  roman: "poster", deco: "poster", condensed: "poster", woodtype: "poster", collegiate: "poster", neon: "poster", stencil: "poster",
+  signpainter: "script", bollywood: "script", sport: "script", blackletter: "script",
+};
+export const keptLettering = (id: string) => LETTERING_NEAREST[id] ?? id;
+export const letteringOf = (id: string) => LETTERINGS.find((l) => l.id === keptLettering(id)) ?? LETTERINGS[0];
+export const letteringPicks = () => LETTERING_PICKS.map((id) => LETTERINGS.find((l) => l.id === id)!);
 
 // ---------- Handwriting ----------
 export const HANDS: { id: string; family: string; size: number }[] = [
@@ -85,7 +95,18 @@ export const HANDS: { id: string; family: string; size: number }[] = [
   { id: "allura", family: "Allura", size: 1.22 },
   { id: "grace", family: "Covered By Your Grace", size: 1.1 },
 ];
-export const handOf = (id: string) => HANDS.find((h) => h.id === id) ?? HANDS[0];
+// Three to pick from. The other ids stay valid for old cards and are drawn as the nearest of these three.
+export const HAND_PICKS = [
+  { id: "caveat", name: "Classic" },
+  { id: "kalam", name: "Casual" },
+  { id: "patrick", name: "Neat" },
+] as const;
+const HAND_NEAREST: Record<string, string> = {
+  homemade: "kalam", nothing: "kalam", reenie: "kalam", indie: "kalam", shadows: "kalam", gochi: "kalam", grace: "kalam",
+  dancing: "caveat", sacramento: "caveat", labelle: "caveat", cedarville: "caveat", satisfy: "caveat", parisienne: "caveat", delafield: "caveat", allura: "caveat",
+};
+export const keptHand = (id: string) => HAND_NEAREST[id] ?? id;
+export const handOf = (id: string) => HANDS.find((h) => h.id === keptHand(id)) ?? HANDS[0];
 
 // Google Fonts for the lettering and handwriting (loaded only on postcard screens).
 export const POSTCARD_FONTS_URL =
@@ -111,8 +132,16 @@ export const PAPERS = [
   { id: "rose", name: "Rose", g: ["#fbecee", "#f1d6da", "#e6c0c6"] },
   { id: "stone", name: "Stone", g: ["#efeeeb", "#dedcd6", "#cdcac2"] },
 ] as const;
-export const paperOf = (id: string) => PAPERS.find((p) => p.id === id)?.id ?? "cream";
-export const paperTones = (id: string) => (PAPERS.find((p) => p.id === id) ?? PAPERS[0]).g;
+// Four to pick from. The other papers stay valid for old cards and are drawn as the nearest of these four.
+export const PAPER_PICKS = ["cream", "ivory", "airmail", "sage"] as const;
+const PAPER_NEAREST: Record<string, string> = {
+  kraft: "cream", parchment: "cream", aged: "cream", butter: "cream", blush: "cream", rose: "cream",
+  linen: "ivory", stone: "ivory", sky: "ivory", dusk: "ivory", lavender: "ivory",
+  mint: "sage",
+};
+export const keptPaper = (id: string) => PAPER_NEAREST[id] ?? id;
+export const paperOf = (id: string) => PAPERS.find((p) => p.id === keptPaper(id))?.id ?? "cream";
+export const paperTones = (id: string) => (PAPERS.find((p) => p.id === keptPaper(id)) ?? PAPERS[0]).g;
 
 // ---------- Colour of the words on the front ----------
 export const TONES = [
@@ -136,7 +165,15 @@ export const TONES = [
   { id: "plum", name: "Plum", c: "#4a1d44", dark: true },
   { id: "chocolate", name: "Chocolate", c: "#3e2516", dark: true },
 ] as const;
-export const toneOf = (id: string) => TONES.find((t) => t.id === id) ?? TONES[0];
+// Six to pick from. The other colours stay valid for old cards and are drawn as the nearest of these six.
+export const TONE_PICKS = ["white", "cream", "gold", "coral", "navy", "black"] as const;
+const TONE_NEAREST: Record<string, string> = {
+  ivory: "cream", sunflower: "gold", blush: "coral", peach: "coral", red: "coral",
+  sea: "white", sky: "white", mint: "white", lilac: "white",
+  teal: "navy", plum: "navy", forest: "black", chocolate: "black",
+};
+export const keptTone = (id: string) => TONE_NEAREST[id] ?? id;
+export const toneOf = (id: string) => TONES.find((t) => t.id === keptTone(id)) ?? TONES[0];
 
 // ---------- Ink ----------
 export const INKS = [
@@ -158,8 +195,16 @@ export const INKS = [
   { id: "slate", name: "Slate", c: "#3b4652" },
   { id: "indigo", name: "Indigo", c: "#2e2a7a" },
 ] as const;
-export const inkOf = (id: string) => (INKS.find((i) => i.id === id) ?? INKS[0]).id;
-export const inkColor = (id: string) => (INKS.find((i) => i.id === id) ?? INKS[0]).c;
+// Four to pick from. The other inks stay valid for old cards and are drawn as the nearest of these four.
+export const INK_PICKS = ["navy", "black", "sepia", "green"] as const;
+const INK_NEAREST: Record<string, string> = {
+  blue: "navy", indigo: "navy", violet: "navy", slate: "navy",
+  teal: "green", turquoise: "green", emerald: "green", olive: "green",
+  brown: "sepia", burnt: "sepia", oxblood: "sepia", crimson: "sepia", plum: "sepia",
+};
+export const keptInk = (id: string) => INK_NEAREST[id] ?? id;
+export const inkOf = (id: string) => (INKS.find((i) => i.id === keptInk(id)) ?? INKS[0]).id;
+export const inkColor = (id: string) => (INKS.find((i) => i.id === keptInk(id)) ?? INKS[0]).c;
 
 // ---------- Warm openers ----------
 export const OPENERS = [

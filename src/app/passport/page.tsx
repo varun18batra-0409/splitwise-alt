@@ -81,7 +81,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
       <PageHeader title="Your passport" back="/account" hideTitle />
       <div className="relative mb-5 min-h-[104px] pr-24">
         <PassportArt />
-        <p aria-hidden className="font-display text-[30px] font-semibold leading-[1.1] tracking-[-0.02em] min-[360px]:text-[34px]">
+        <p aria-hidden className="font-display text-[30px] font-semibold leading-[1.1] tracking-[-0.02em]">
           Your passport
         </p>
         <p className="mt-1.5 text-[16px] leading-snug text-fg/75">{PASSPORT_TABS.length > 1 ? "Places behind you. Plans ahead." : "Places behind you."}</p>
@@ -131,7 +131,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
           </Link>
         </div>
         {sp.added && (
-          <p role="status" className="mb-3 text-sm text-owed">
+          <p role="status" className="mb-3 text-sm text-fg/75">
             {Number(sp.added) > 1 ? `${Number(sp.added)} countries added to your passport.` : Number(sp.added) === 1 ? "Added to your passport." : "Those were already in your passport."}
           </p>
         )}
@@ -169,7 +169,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
                   Share passport
                 </>
               }
-              className="pop flex w-full items-center justify-center gap-2.5 bg-fg px-5 py-3.5 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63]"
+              className="flex h-12 w-full items-center justify-center gap-2.5 rounded-full border border-fg/25 px-5 text-center text-[15px] font-semibold text-fg active:scale-[0.97] active:bg-fg/10"
             />
           </div>
         )}
@@ -225,7 +225,7 @@ export default async function PassportPage({ searchParams }: { searchParams: Pro
               })}
             </form>
             {sp.shared && (
-              <p role="status" className="mt-2 text-sm text-owed">
+              <p role="status" className="mt-2 text-sm text-fg/75">
                 {sp.shared === "private" ? "Only you can see your passport now." : "People in your groups can see your passport."}
               </p>
             )}

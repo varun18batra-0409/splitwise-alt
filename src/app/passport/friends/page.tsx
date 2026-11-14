@@ -1,5 +1,6 @@
 import Link from "@/components/Link";
 import { PeoplePassportsIcon } from "@/components/DrawnIcons";
+import { LockIcon } from "@/components/PassportIcons";
 import { getAccount } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
 import { todayKey } from "@/lib/dates";
@@ -87,8 +88,8 @@ export default async function FriendsPassports({ searchParams }: { searchParams:
                         .join(" · ")}
                     </span>
                   </span>
-                  <span className="shrink-0 text-base tracking-tight" aria-hidden>
-                    {f.private ? "🔒" : f.countries.slice(0, 4).map((c) => countryOf(c)?.flag).join("")}
+                  <span className="shrink-0 text-[13px] tabular-nums text-fg/55" aria-hidden>
+                    {f.private ? <LockIcon size={16} /> : f.countries.slice(0, 4).join(" ")}
                   </span>
                   <span aria-hidden className="text-gray-400">
                     ›

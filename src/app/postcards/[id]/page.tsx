@@ -44,7 +44,6 @@ export default async function PostcardPage({ params, searchParams }: { params: P
   return (
     <>
       <link rel="stylesheet" href={POSTCARD_FONTS_URL} precedence="default" />
-      <div aria-hidden data-tint="postcard" className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(120%_80%_at_50%_20%,#3a2c20_0%,#1a1410_55%,#0d0d0f_100%)]" />
       <PageHeader title={mine ? `To ${first(to?.name)}` : `From ${first(from?.name)}`} back="/postcards" />
       {sent && (
         <Notice params={["sent"]} className="mb-5">
@@ -80,7 +79,7 @@ export default async function PostcardPage({ params, searchParams }: { params: P
           </div>
           <p className="mt-6 text-center text-sm text-fg/50">Tap the card to turn it over</p>
           {mine && shut && (
-            <p className="mt-3 text-center text-sm text-[#e2a3a7]" data-sealed-until>
+            <p className="mt-3 text-center text-sm text-fg/75" data-sealed-until>
               Sealed for {first(to?.name)} until {opens}
             </p>
           )}
@@ -115,12 +114,12 @@ export default async function PostcardPage({ params, searchParams }: { params: P
           </Link>
         )}
         {mine && (
-          <Link href={`/postcards/new?from=${p.id}`} className="pop flex h-12 items-center justify-center bg-fg text-[15px] font-semibold text-canvas" data-send-again>
+          <Link href={`/postcards/new?from=${p.id}`} className="flex h-12 items-center justify-center rounded-full border border-fg/25 text-[15px] font-semibold active:scale-[0.97]" data-send-again>
             Reuse this card for someone else
           </Link>
         )}
         {!mine && !shut && (
-          <Link href={`/postcards/new?from=${p.id}`} className="flex h-12 items-center justify-center rounded-full border border-fg/18 text-[15px] font-semibold active:scale-[0.97]" data-send-new>
+          <Link href={`/postcards/new?from=${p.id}`} className="flex h-12 items-center justify-center rounded-full border border-fg/25 text-[15px] font-semibold active:scale-[0.97]" data-send-new>
             Send this design to someone else
           </Link>
         )}

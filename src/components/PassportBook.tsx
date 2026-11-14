@@ -352,7 +352,7 @@ export function PassportBook({ name, stats, milestones, pages, index, badges = [
           {/* The stamp pages */}
           {pages.map((p, k) => (
             <Sheet key={k} n={k + 3} of={total} label={`${p.title}, page ${k + 1}`}>
-              <p className="absolute left-6 top-4 text-[11px] font-semibold tracking-[0.2em] text-[#8a8270]">VISAS · STAMPS</p>
+              <p className="absolute left-6 top-4 text-[12px] font-semibold text-[#8a8270]">Visas and stamps</p>
               <div className="absolute inset-x-2 bottom-7 top-12">
                 {p.stamps.map((s, i) => (
                   <StampMark key={s.id} s={s} i={i} />
@@ -364,7 +364,7 @@ export function PassportBook({ name, stats, milestones, pages, index, badges = [
           {/* The index at the back */}
           <Sheet n={total} of={total} label="Countries">
             <div className="flex h-full flex-col px-6 pb-9 pt-5">
-              <p className="text-[11px] font-semibold tracking-[0.2em] text-[#8a8270]">COUNTRIES</p>
+              <p className="text-[12px] font-semibold text-[#8a8270]">Countries</p>
               {index.length === 0 ? (
                 <p className="mt-6 text-sm text-[#5c564a]">Countries you visit show up here.</p>
               ) : (

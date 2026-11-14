@@ -159,7 +159,7 @@ export function BeenCardSmall({ c }: { c: BeenCardData }) {
           <span className="min-w-0">{c.friendsLabel}</span>
         </p>
         {c.reliveHref && (
-          <Link href={c.reliveHref} className="mt-1 inline-flex min-h-11 items-center text-[14px] font-semibold text-fg underline underline-offset-4" data-been-relive>
+          <Link href={c.reliveHref} className="mt-3 inline-flex h-10 items-center justify-center rounded-full border border-fg/25 px-4 text-[14px] font-semibold text-fg active:scale-[0.97] active:bg-fg/10" data-been-relive>
             Relive this trip
           </Link>
         )}
