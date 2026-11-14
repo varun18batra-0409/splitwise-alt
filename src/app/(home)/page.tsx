@@ -504,6 +504,17 @@ export default async function Home({
         .flatMap((g) => stopsOf(g).map((s) => s.country || homeCountry)),
     ].filter(Boolean),
   );
+  // The Home passport card's stamps: your latest countries abroad from trips that have started (newest first, one stamp each, at most 2).
+  const keepsakeStamps = all
+    .filter((g) => g.group.type === "trip" && !g.group.deletedAt && g.group.tripStart && g.group.tripStart <= today)
+    .sort((a, b) => b.group.tripStart.localeCompare(a.group.tripStart))
+    .flatMap((g) => stopsOf(g).filter((st) => st.country && st.country.toUpperCase() !== homeCountry).map((st) => ({ code: st.country.toUpperCase(), when: g.group.tripStart })))
+    .filter((st, i, list) => list.findIndex((o) => o.code === st.code) === i)
+    .slice(0, 2)
+    .flatMap((st) => {
+      const c = countryOf(st.code);
+      return c ? [{ code: c.code, country: c.name, when: st.when }] : [];
+    });
   const highlights = homeHighlights({
     trips: trips.map((t) => {
       const ph = placePhotos(t.g.group.name, t.g.group.tripPlace, 2);
@@ -553,7 +564,7 @@ export default async function Home({
     // The Coming up passes already say their trips' usual weather.
     skipWeather: passes.map((p) => p.id),
     // Real photos (slots card-passport and card-postcards in scripts/fetch-photos.mjs); none downloaded: the drawn art.
-    scenes: { passport: photoSet("card-passport")[0], postcards: photoSet("card-postcards")[0] },
+    scenes: { passport: photoSet("card-passport")[0], postcards: photoSet("card-postcards")[0], stamps: keepsakeStamps, postcardPhoto: photoSet("card-postcard-photo")[0] },
   });
 
   // First visit: show what Loopin does instead of an empty screen.

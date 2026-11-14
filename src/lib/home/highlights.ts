@@ -24,9 +24,14 @@ export type Highlight =
       href: string;
       photo?: string; // a place photo on the right
       scene?: boolean; // the photo fills the whole card behind a dark wash (the passport and postcard photos)
+      // The object on top of that photo, as in the mockups: a passport with your own stamps (14), a postcard with a photo taped on (15).
+      keepsake?: { kind: "passport"; stamps: KeepsakeStamp[] } | { kind: "postcard"; photo?: string };
       cover?: CoverId; // or one of Loopin's own pictures
       art?: "sun" | "rain" | "cloud" | "snow" | "postcard" | "passport" | "switch" | "bill";
     };
+
+// A stamp on the Home passport card: one of your own countries abroad and the month you went ("" = ticked by hand).
+export type KeepsakeStamp = { code: string; country: string; when: string };
 
 export type HighlightTrip = {
   id: string;
@@ -54,7 +59,8 @@ export type HighlightInput = {
   // Trips whose usual weather is already said by the countdown on Home: no weather card for them (it would repeat).
   skipWeather?: string[];
   // Real photos for the passport and postcard cards (slots card-passport and card-postcards). None: the drawn art stays.
-  scenes?: { passport?: string; postcards?: string };
+  // stamps: your latest countries abroad (at most 2) for the passport; postcardPhoto: the photo taped on the postcard.
+  scenes?: { passport?: string; postcards?: string; stamps?: KeepsakeStamp[]; postcardPhoto?: string };
   max?: number;
 };
 
@@ -226,10 +232,13 @@ export function homeHighlights(x: HighlightInput): Highlight[] {
     if (out.length >= 4) break;
     add(f);
   }
-  // The passport and postcard cards use a real photo when we have one (a dark wash keeps the words readable); otherwise the drawn art.
+  // The passport and postcard cards: a real photo with the keepsake on top (a dark wash keeps the words readable); otherwise the drawn art.
   return out.map((h) => {
     if (h.kind !== "card" || h.photo) return h;
-    const scene = h.art === "postcard" ? x.scenes?.postcards : h.art === "passport" ? x.scenes?.passport : undefined;
-    return scene ? { ...h, photo: scene, scene: true } : h;
+    if (h.art === "postcard" && x.scenes?.postcards)
+      return { ...h, photo: x.scenes.postcards, scene: true, keepsake: { kind: "postcard" as const, photo: x.scenes.postcardPhoto } };
+    if (h.art === "passport" && x.scenes?.passport)
+      return { ...h, photo: x.scenes.passport, scene: true, keepsake: { kind: "passport" as const, stamps: (x.scenes.stamps ?? []).slice(0, 2) } };
+    return h;
   });
 }

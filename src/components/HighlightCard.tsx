@@ -1,6 +1,7 @@
 import Link from "@/components/Link";
 import Image from "next/image";
 import { GroupCover } from "./GroupCover";
+import { StampArt } from "./stamps/StampArt";
 import type { Highlight, HighlightTone } from "@/lib/home/highlights";
 
 // One of the sliding cards at the top of Home: words on the left, a place
@@ -31,10 +32,7 @@ export function HighlightCard({ h }: { h: Extract<Highlight, { kind: "card" }> }
         <>
           <Image src={h.photo} alt="" fill sizes="(max-width: 480px) 100vw, 480px" className="object-cover" />
           <div aria-hidden className="absolute inset-0" style={{ background: "linear-gradient(90deg, rgba(16,14,14,0.92) 28%, rgba(16,14,14,0.62) 62%, rgba(16,14,14,0.38) 100%), linear-gradient(0deg, rgba(16,14,14,0.7), rgba(16,14,14,0) 45%)" }} />
-          {/* A little postmark, like the stamps in the passport. */}
-          <span aria-hidden className="absolute right-4 top-4 flex h-12 w-12 -rotate-[8deg] items-center justify-center rounded-full border border-dashed border-white/40 text-[8px] font-semibold uppercase tracking-[0.14em] text-white/70">
-            {h.art === "postcard" ? "Post" : "Visa"}
-          </span>
+          {h.keepsake && <Keepsake k={h.keepsake} />}
         </>
       ) : h.photo ? (
         <div className="absolute inset-y-0 left-[38%] right-0">
@@ -80,6 +78,76 @@ function WeatherIcon({ kind }: { kind: string }) {
       {kind === "rain" && <path d="M9 19.5l-.8 2M13 19.5l-.8 2M17 19.5l-.8 2" stroke="#9fd3ff" />}
       {kind === "snow" && <path d="M9 20.5h.01M12.5 21.5h.01M16 20.5h.01" strokeWidth={2.4} />}
     </svg>
+  );
+}
+
+// The keepsake on a photo card, as in the mockups: a burgundy passport with your own stamps (14), or a cream postcard with a photo
+// taped on, a stamp and "Wish you were here" (15). It sits on the right, between the headline and the words at the bottom, and is a
+// little smaller under 360px so it never covers the words.
+type KeepsakeProps = NonNullable<Extract<Highlight, { kind: "card" }>["keepsake"]>;
+function Keepsake({ k }: { k: KeepsakeProps }) {
+  return (
+    <div aria-hidden data-keepsake={k.kind} className="pointer-events-none absolute right-[-6px] top-[56px] h-[150px] w-[150px] origin-top-right max-[359px]:scale-[0.74] min-[360px]:max-[399px]:scale-[0.86]">
+      {k.kind === "passport" ? <PassportKeepsake stamps={k.stamps} /> : <PostcardKeepsake photo={k.photo} />}
+    </div>
+  );
+}
+
+function PassportKeepsake({ stamps }: { stamps: { code: string; country: string; when: string }[] }) {
+  const gold = "#d8b46a";
+  return (
+    <>
+      <div
+        className="absolute right-[14px] top-0 flex h-[128px] w-[92px] rotate-[8deg] flex-col items-center rounded-[4px_9px_9px_4px] pt-[18px]"
+        style={{
+          background: "linear-gradient(155deg,#7a2634 0%,#561a26 55%,#3d111b 100%)",
+          boxShadow: "0 20px 30px -12px rgba(0,0,0,0.9), inset 4px 0 0 rgba(0,0,0,0.28), inset -1px 0 0 rgba(255,255,255,0.08)",
+        }}
+      >
+        <span className="font-display text-[9px] font-semibold tracking-[0.22em]" style={{ color: gold }}>
+          PASSPORT
+        </span>
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke={gold} strokeWidth={1.1} className="mt-[14px]">
+          <circle cx="12" cy="12" r="9" />
+          <ellipse cx="12" cy="12" rx="4" ry="9" />
+          <path d="M3 12h18M4.6 7.5h14.8M4.6 16.5h14.8" />
+        </svg>
+      </div>
+      {stamps[0] && (
+        <div className="absolute left-0 top-[66px]">
+          <StampArt variant="card" code={stamps[0].code} country={stamps[0].country} when={stamps[0].when} tilt={-9} scale={0.78} />
+        </div>
+      )}
+      {stamps[1] && (
+        <div className="absolute bottom-[-6px] right-[2px]">
+          <StampArt variant="card" code={stamps[1].code} country={stamps[1].country} when={stamps[1].when} tilt={7} scale={0.7} />
+        </div>
+      )}
+    </>
+  );
+}
+
+function PostcardKeepsake({ photo }: { photo?: string }) {
+  return (
+    <div className="absolute right-[6px] top-[10px] h-[104px] w-[146px] -rotate-[6deg] bg-[#f3ecdc] shadow-[0_20px_30px_-12px_rgba(0,0,0,0.9)]">
+      {/* The photo, taped on the left half. */}
+      <div className="absolute left-[8px] top-[15px] h-[62px] w-[62px] rotate-[-3deg] bg-white p-[3px] shadow-[0_2px_5px_rgba(0,0,0,0.25)]">
+        <div className="relative h-full w-full overflow-hidden bg-[#9fb7c4]">{photo && <Image src={photo} alt="" fill sizes="80px" className="object-cover" />}</div>
+        <span className="absolute -top-[7px] left-[15px] h-[12px] w-[30px] rotate-[4deg] bg-[#efe3bf]/80 shadow-[0_1px_1px_rgba(0,0,0,0.08)]" />
+      </div>
+      <span className="absolute bottom-[12px] left-[77px] top-[12px] w-px bg-[#d8cfba]" />
+      {/* The stamp (a little piece of the same photo, with a perforated edge) and the postmark's waves. */}
+      <div className="absolute right-[8px] top-[8px] h-[30px] w-[25px] bg-[#f3ecdc] p-[2px] outline outline-[2px] outline-offset-[-1px] outline-dotted outline-[#e2d8c2]">
+        <div className="relative h-full w-full overflow-hidden border border-[#b9a98a] bg-[#c97c5d]">{photo && <Image src={photo} alt="" fill sizes="32px" className="object-cover" />}</div>
+      </div>
+      <svg width="36" height="20" viewBox="0 0 48 20" className="absolute right-[27px] top-[12px] opacity-50" fill="none" stroke="#3a3540" strokeWidth={1}>
+        {[3, 8, 13, 18].map((y) => (
+          <path key={y} d={`M0 ${y}q6 -3 12 0t12 0t12 0t12 0`} />
+        ))}
+      </svg>
+      <p className="absolute left-[83px] top-[45px] w-[60px] font-hand text-[15px] font-bold leading-[0.95] text-[#2b3a67]">Wish you were here</p>
+      <span className="absolute bottom-[14px] left-[84px] h-px w-[50px] bg-[#cfc6b1]" />
+    </div>
   );
 }
 

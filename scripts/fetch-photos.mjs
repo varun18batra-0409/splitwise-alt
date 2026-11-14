@@ -32,9 +32,11 @@ const SLOTS = {
   "cover-party": ["photo-1492684223066-81342ee5ff30", "photo-1514525253161-7a46d19cd819"], // a night out
   "cover-birthday": ["photo-1530103862676-de8c9debad1d", "photo-1558636508-e0db3814bd1d"], // balloons and cake
   "cover-wedding": ["photo-1519741497674-611481863552", "photo-1511285560929-80b456fea0bc"], // a wedding
-  // The Home cards (src/lib/home/highlights.ts "scenes"): real photos behind the passport and postcards cards. None downloads: the drawn art stays.
-  "card-passport": ["xzy0G_SsZDU", "htQznS-Rx7w", "LPdaW746WAw", "Cg3fyYZMQ58"], // open passports with colourful entry stamps; the last on a world map
-  "card-postcards": ["dZZxUjWUx_o", "5OibzNX-6ww", "XVVSAH2CTKI"], // colour vintage postcards with handwriting and stamps
+  // The Home cards (src/lib/home/highlights.ts "scenes"): a real photo behind the passport and postcard keepsakes (mockups 14 and 15).
+  // None downloads: the drawn art stays. Each checked by eye on a contact sheet (14 Nov).
+  "card-passport": ["photo-1436491865332-7a61a109cc05"], // a plane's wing above the clouds at sunset
+  "card-postcards": ["photo-1588668214407-6ea9a6d8c272"], // a volcano and sea of cloud at sunrise
+  "card-postcard-photo": ["photo-1552465011-b4e21bf6e79a"], // longtail boats under limestone cliffs: the photo taped on the postcard
   // Destinations for the trip countdown (see src/lib/places.ts). Direct image
   // ids only: Unsplash's "download" links now need a sign-in.
   "place-goa": ["photo-1614082242765-7c98ca0f3df3"],
@@ -184,21 +186,9 @@ for (const [slot, ids] of Object.entries(SLOTS)) {
         ? `https://images.unsplash.com/${id}?w=${slot.startsWith("country-") ? 960 : big ? 2400 : slot.startsWith("cover-") ? 1600 : 1280}&q=${big ? 85 : slot.startsWith("cover-") ? 80 : 75}&fm=jpg&fit=crop`
         : `https://unsplash.com/photos/${id}/download?force=true&w=${slot.startsWith("place-") ? 2400 : 1280}`;
       const UA = { "User-Agent": "LoopinBuild/1.0 (https://www.loopinapps.com; photos for trip stories)" };
-      let r = await fetch(url, { redirect: "follow", headers: UA, signal: AbortSignal.timeout(20_000) });
-      // Unsplash now refuses the short /download link without a key. For a short id, read the photo's own page instead and take its
-      // images.unsplash.com address (the og:image), then fetch that at the size this slot needs.
-      if (!r.ok && !id.startsWith("https://") && !id.startsWith("photo-")) {
-        const page = await fetch(`https://unsplash.com/photos/${id}`, { redirect: "follow", headers: { ...UA, Accept: "text/html" }, signal: AbortSignal.timeout(20_000) });
-        const html = page.ok ? await page.text() : "";
-        const og = html.match(/property="og:image"\s+content="(https:\/\/images\.unsplash\.com\/photo-[^"?]+)/) ?? html.match(/(https:\/\/images\.unsplash\.com\/photo-\d+-[0-9a-f]+)/);
-        if (og) {
-          const w = slot.startsWith("country-") ? 960 : big ? 2400 : slot.startsWith("cover-") ? 1600 : 1280;
-          r = await fetch(`${og[1]}?w=${w}&q=${big ? 85 : 75}&fm=jpg&fit=crop`, { redirect: "follow", headers: UA, signal: AbortSignal.timeout(20_000) });
-        } else if (html.includes("plus.unsplash.com")) {
-          console.log(`photos: ${slot} ✗ ${id} (Unsplash+ photo, not free)`);
-          continue;
-        }
-      }
+      // Short Unsplash page ids no longer download from the build machines (the website is behind a robot check); only full
+      // "photo-…" image addresses do. A short id left in a list simply fails and the next candidate is tried.
+      const r = await fetch(url, { redirect: "follow", headers: UA, signal: AbortSignal.timeout(20_000) });
       const type = r.headers.get("content-type") ?? "";
       const buf = Buffer.from(await r.arrayBuffer());
       if (!r.ok || !type.startsWith("image/") || buf.length < 20_000) {

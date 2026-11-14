@@ -104,4 +104,20 @@ describe("Home cards after the countdown and needs-you line", () => {
     expect(plain).toMatchObject({ art: "passport" });
     expect(plain && "photo" in plain ? plain.photo : undefined).toBeUndefined();
   });
+  it("the photo cards carry their keepsake: the passport with your own stamps (at most 2), the postcard with its taped photo", () => {
+    const stamps = [
+      { code: "TH", country: "Thailand", when: "2026-05-05" },
+      { code: "JP", country: "Japan", when: "2025-10-01" },
+      { code: "FR", country: "France", when: "2025-04-01" },
+    ];
+    const cards = homeHighlights({ ...base, passportCountries: 4, scenes: { passport: "/photos/card-passport.jpg", postcards: "/photos/card-postcards.jpg", stamps, postcardPhoto: "/photos/card-postcard-photo.jpg" } });
+    expect(cards.find((h) => h.id === "fill-passport")).toMatchObject({ keepsake: { kind: "passport", stamps: stamps.slice(0, 2) } });
+    expect(cards.find((h) => h.id === "fill-postcard")).toMatchObject({ keepsake: { kind: "postcard", photo: "/photos/card-postcard-photo.jpg" } });
+    // Nobody abroad yet: the passport alone, never someone else's stamps.
+    const fresh = homeHighlights({ ...base, scenes: { passport: "/photos/card-passport.jpg" } }).find((h) => h.id === "fill-passport");
+    expect(fresh).toMatchObject({ keepsake: { kind: "passport", stamps: [] } });
+    // No photo: no keepsake, the drawn art.
+    const plain = homeHighlights({ ...base }).find((h) => h.id === "fill-passport");
+    expect(plain && "keepsake" in plain ? plain.keepsake : undefined).toBeUndefined();
+  });
 });
