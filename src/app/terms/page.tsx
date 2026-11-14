@@ -78,7 +78,7 @@ export default function Terms() {
 
       <h2 className={h}>Leaving</h2>
       <p className={p}>
-        You can stop using Loopin any time. “You → Download all my data” gives you a copy, and “You → Delete my email &amp; sign-in” removes your
+        You can stop using Loopin any time. “You → Export your data → Download all my data” gives you a copy, and “You → Export your data → Delete my email &amp; sign-in” removes your
         sign-in. Groups can be deleted from their settings; they’re erased for good after 30 days.
       </p>
 

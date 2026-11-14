@@ -215,7 +215,7 @@ export default async function HowItWorks() {
         </p>
         <p>
           Reading a bill or a line with AI is always your choice: the first time, Loopin asks before anything is sent. Say <strong>Not now</strong> and the photo is still attached, and you fill in the rest.
-          Change it any time in <strong>You → Privacy and safety</strong>.
+          Change it any time in <strong>You → Privacy & sharing</strong>.
         </p>
         <p>Change the date if it wasn’t today, and add a note if it helps (“Sam paid the tip”). Next time, Loopin starts with the same split you used last.</p>
         <p>
@@ -260,7 +260,7 @@ export default async function HowItWorks() {
         </p>
         <p className="mt-4">
           <strong>Your month</strong> on Home charts your spending, and <strong>Trip recap</strong> in a group does the same for that trip; the search finds any expense across your groups. <strong>Download</strong> in a group’s settings
-          gives you its expenses as a spreadsheet, and <strong>You → Download all my data</strong> gives you everything of yours in one file.
+          gives you its expenses as a spreadsheet, and <strong>You → Export your data → Download all my data</strong> gives you everything of yours in one file.
         </p>
       </Section>
 
@@ -415,7 +415,7 @@ export default async function HowItWorks() {
             <><strong>Write back.</strong> Press a wax seal back on a card you got, or reply with your own.</>,
             <><strong>Reuse a design.</strong> Send the same card to someone else, or borrow the look of one you received.</>,
             <><strong>Stamp album.</strong> Every stamp you send or get is kept: You → Your postcards → Stamp album.</>,
-            <><strong>Report or block.</strong> Something unwelcome? Tap <strong>Report</strong> or <strong>Block</strong> on the card, a friend’s passport, a moment or a person in People. You’ll still see shared group expenses and balances. Unblock in You → Privacy and safety.</>,
+            <><strong>Report or block.</strong> Something unwelcome? Tap <strong>Report</strong> or <strong>Block</strong> on the card, a friend’s passport, a moment or a person in People. You’ll still see shared group expenses and balances. Unblock in You → Privacy & sharing.</>,
           ]}
         />
       </Section>
@@ -448,11 +448,11 @@ export default async function HowItWorks() {
         <p>Most changes can be undone, and the history shows who changed what. Undo works on the latest change to something: once a newer change has touched it, undo that first. It won’t change the balance of someone who has left the group. Everyone in the group gets an alert; you choose which alerts per group in its settings. To choose what Loopin sends you everywhere, on your phone and by email, open <strong>You</strong> and then <strong>Notifications &amp; email</strong>.</p>
         <p>
           Left a group? You still see it as it was the day you left, plus any later change to your own share. Something unwelcome? <strong>Report</strong> or <strong>Block</strong> someone;
-          you’ll both still see shared group money, because it has to add up. Questions or problems: <strong>You → Privacy and safety → Contact support</strong>.
+          you’ll both still see shared group money, because it has to add up. Questions or problems: <strong>You → Help & support</strong>.
         </p>
         <p>
           You sign in with Google, your email (a code, no password) or your fingerprint or face, so your groups come back on any phone. Only people in a group can see it.
-          No ads, and we don’t sell your data. <strong>You → Download all my data</strong> gives you a copy. <Link href="/privacy" className="underline underline-offset-4">Privacy</Link>
+          No ads, and we don’t sell your data. <strong>You → Export your data → Download all my data</strong> gives you a copy. <Link href="/privacy" className="underline underline-offset-4">Privacy</Link>
         </p>
       </section>
 

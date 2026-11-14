@@ -467,6 +467,7 @@ export function AddExpenseForm({
         refund: kind === "refund",
         name: who,
         money,
+        showPaid: !foreign,
       })
     : [];
   const paidLabel = kind === "refund" ? "Got the money" : "Paid by";
@@ -1336,9 +1337,7 @@ export function AddExpenseForm({
               </span>
             ))}
           </p>
-        ) : (
-          <p className="text-fg/55">The result shows once it adds up</p>
-        )}
+        ) : null}
       </div>
       {usingLast && !panel && (
         <p className="mt-1 text-center text-[13px] text-fg/55">
@@ -1357,7 +1356,7 @@ export function AddExpenseForm({
           aria-expanded={showMore}
           className="mx-auto flex min-h-11 items-center gap-1.5 text-sm text-fg/75 active:text-fg"
         >
-          <span>{showMore ? "Hide notes and more" : `Notes${members.length > 1 ? ", several payers" : ""}${members.length > 1 && kind === "expense" && spin ? ", spin" : ""}`}</span>
+          <span>{showMore ? "Hide more options" : "More options"}</span>
           <svg aria-hidden width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 transition-transform ${showMore ? "-rotate-90" : "rotate-0"}`}>
             <path d="m9 6 6 6-6 6" />
           </svg>

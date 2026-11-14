@@ -191,4 +191,11 @@ describe("groupDigits (display only: the typed amount is what is saved)", () => 
     expect(parseAmount(groupDigits("123456", "INR"), "INR")).toBe(parseAmount("123456", "INR"));
     expect(parseAmount(groupDigits("1800", "THB"), "THB")).toBe(parseAmount("1800", "THB"));
   });
+  // Hand-worked: ฿1,800 (≈ ₹5,151.34 with the fee) split 4 ways; you paid it all. Others owe you 3 × 450 THB-equivalent = ₹3,863.50 (386350 paise).
+  it("R1: foreign currency leaves out 'You paid ≈ …' (the conversion line says it) and keeps only what you get back", () => {
+    const pairs = [{ from: "a", to: "me", amount: 128784 }, { from: "b", to: "me", amount: 128783 }, { from: "c", to: "me", amount: 128783 }];
+    const base = { payers: [{ memberId: "me", amount: 515134 }], total: 515134, pairs, myId: "me", myShare: 128784, inShares: true, justMe: false, refund: false, name, money: inr };
+    expect(resultSentence(base).map((p) => p.text)).toEqual(["You paid ₹5,151.34.", "You get back"]);
+    expect(resultSentence({ ...base, showPaid: false })).toEqual([{ text: "You get back", amount: "₹3,863.5.", tone: "owed" }]);
+  });
 });

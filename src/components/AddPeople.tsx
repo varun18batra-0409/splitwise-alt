@@ -7,7 +7,7 @@ import { reportSpeed } from "./speedReport";
 import { whatsappLink } from "@/lib/whatsapp";
 import { INVITE_EMAIL_HINT, inviteLabel, type InviteChannel } from "@/lib/invite-label";
 
-type Found = { accountId: string; name: string; inGroup: boolean; known: boolean; invited?: boolean; removed?: boolean; mayAdd?: boolean };
+type Found = { accountId: string; name: string; inGroup: boolean; known: boolean; invited?: boolean; removed?: boolean; left?: boolean; mayAdd?: boolean };
 const isEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(s.trim());
 
 // 1. Search people already on Loopin (friends you share a group with, by name only: no emails
@@ -103,8 +103,8 @@ export function PeopleSearch({ groupId }: { groupId: string }) {
                 <form action={addPerson} onSubmit={() => cache.current.clear()}>
                   <input type="hidden" name="groupId" value={groupId} />
                   <input type="hidden" name="accountId" value={f.accountId} />
-                  <button type="submit" className="pop shrink-0 bg-fg px-3 py-1.5 text-sm font-semibold text-canvas [--pop-edge:#6e6b63]">
-                    {f.removed ? "Bring back" : "Add"}
+                  <button type="submit" className="shrink-0 rounded-full border border-fg/30 px-3 py-1.5 text-sm font-semibold text-fg active:bg-fg/10">
+                    {f.removed || f.left ? "Invite back" : "Add"}
                   </button>
                 </form>
               )}
@@ -125,7 +125,7 @@ export function PeopleSearch({ groupId }: { groupId: string }) {
               <form action={invitePeople}>
                 <input type="hidden" name="groupId" value={groupId} />
                 <input type="hidden" name="emails" value={q.trim()} />
-                <button type="submit" className="pop shrink-0 bg-fg px-3 py-1.5 text-sm font-semibold text-canvas [--pop-edge:#6e6b63]" data-add-by-email>
+                <button type="submit" className="shrink-0 rounded-full border border-fg/30 px-3 py-1.5 text-sm font-semibold text-fg active:bg-fg/10" data-add-by-email>
                   Add
                 </button>
               </form>
@@ -205,7 +205,7 @@ export function ContactInvite({ groupId, groupName, link }: { groupId: string; g
         <form action={invitePeople} className="mt-3">
           <input type="hidden" name="groupId" value={groupId} />
           <input type="hidden" name="emails" value={picked.map((c) => c.email).filter(Boolean).join(",")} />
-          <button type="submit" className="pop block w-full bg-fg px-4 py-2.5 text-sm font-semibold text-canvas [--pop-edge:#6e6b63]">
+          <button type="submit" className="block w-full rounded-full border border-fg/30 px-4 py-2.5 text-sm font-semibold text-fg active:bg-fg/10">
             Email the invite to {picked.filter((c) => c.email).length} {picked.filter((c) => c.email).length === 1 ? "person" : "people"}
           </button>
         </form>

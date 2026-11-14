@@ -134,11 +134,12 @@ async function Owes({ s, money, to, from, token, undone }: { s: Shown; money: st
       )}
 
       <section className="mt-7" aria-label={`Pay ${to}`}>
-        {step(1, `Pay ${to} ${money}`)}
+        {/* The amount is said once (the header above) and the payee at most twice: no names or sums in these steps. */}
+        {step(1, "Pay")}
         {upi ? (
           <div className="space-y-3">
             <a href={upi.href} className="pop block w-full bg-fg px-4 py-3.5 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63]" data-pay="upi">
-              Open payment app
+              Pay with UPI
             </a>
             <div className="flex items-center gap-3 rounded-2xl border border-line px-4 py-3">
               <span className="min-w-0 flex-1">
@@ -154,7 +155,7 @@ async function Owes({ s, money, to, from, token, undone }: { s: Shown; money: st
           </div>
         ) : other ? (
           <a href={other.href} target="_blank" rel="noopener noreferrer" className="pop block w-full bg-fg px-4 py-3.5 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63]" data-pay={other.kind}>
-            Open payment app ({other.label})
+            Pay with {other.label}
           </a>
         ) : (
           <p className="rounded-2xl border border-line px-4 py-3 text-sm text-gray-500">Pay {to} the way you usually do: UPI, cash or a bank transfer.</p>
@@ -162,16 +163,16 @@ async function Owes({ s, money, to, from, token, undone }: { s: Shown; money: st
       </section>
 
       <section className="mt-7" aria-label="Tell them you paid">
-        {step(2, `Tell ${to}`)}
+        {step(2, "Then tell them")}
         <form action={iPaidAction}>
           <input type="hidden" name="token" value={token} />
           {/* The one cream button: "Open payment app" when there is one, otherwise this. */}
           <button type="submit" className={upi || other ? secondaryButtonClass : "pop block w-full bg-fg px-4 py-3.5 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63]"} data-i-paid data-haptic="success">
-            I’ve paid {money}
+            I’ve paid
           </button>
         </form>
         <p className="mt-3 text-center text-xs text-fg/55">
-          Only if you’re {from}. {to} is asked to confirm; it counts once they do.
+          Only if you’re {from}. They’re asked to confirm; it counts once they do.
         </p>
       </section>
     </>

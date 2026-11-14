@@ -76,8 +76,8 @@ describe("download my data: the extra parts", () => {
     for (const word of ["postcards", "passport", "collections", "notification settings", "Anyone signed in", "current Loopin name", "the date", "postmark place"]) expect(privacy).toContain(word);
   });
 
-  it("the account page shows the download to any signed-in user", () => {
-    const page = readFileSync("src/app/account/page.tsx", "utf8");
+  it("the Your data page (a row on You) shows the download to any signed-in user", () => {
+    const page = readFileSync("src/app/account/data/page.tsx", "utf8");
     expect(page).toMatch(/\(account \|\| groups\.length > 0\) && \(\s*<a href="\/api\/my-data"/);
   });
 });

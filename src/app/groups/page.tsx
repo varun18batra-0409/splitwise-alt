@@ -1,6 +1,5 @@
 import Link from "@/components/Link";
 import { PageHeader } from "@/components/ui";
-import { PhoneOnlyNote } from "@/components/PhoneOnlyNote";
 import { GroupLine, GroupRow } from "@/components/GroupLines";
 import { getAccount, getMemberships } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
@@ -71,7 +70,7 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
       )}
       {justDeleted && deletedBlock}
       {justDeleted && deletedBlock && <ScrollToOnMount id="deleted" />}
-      {!account && live.length + closed.length > 0 && <PhoneOnlyNote plural className="mb-4" />}
+      {/* No sign-in note here: that lives once on Home (the banner) and on You (founder rule B6). */}
       {live.length > 6 && <GroupSearch />}
       {live.length === 0 ? (
         <p className="py-6 text-sm text-gray-500">No open groups. Create one, or reopen a closed one.</p>

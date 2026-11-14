@@ -3,6 +3,7 @@ import { formatMoney } from "./money";
 import { billStatuses } from "./home/bills-db";
 import { billHold } from "./home/bills";
 import { collectSentence, paidAction, paidToViewer } from "./home/display";
+import type { DueBill } from "./home/need-line";
 
 // Alerts: "Needs you" (things only you can answer) kept apart from "Activity" (what happened).
 // Four kinds, each one line that goes straight to where you act:
@@ -30,7 +31,9 @@ export type NeedsYouItem = {
 
 export type NeedsYou = { items: NeedsYouItem[]; invitations: number; total: number };
 
-export async function loadNeedsYou(memberships: Record<string, string>, account: { id: string } | null, invitations: number, now = new Date()): Promise<NeedsYou> {
+// `dueSoon`: when given, the flat bills that are coming up and are yours to pay (or nobody's in particular) are added to it, read from the same
+// bill statuses this already works out (Home turns them into its "due soon" line). Nothing about the returned value changes.
+export async function loadNeedsYou(memberships: Record<string, string>, account: { id: string } | null, invitations: number, now = new Date(), dueSoon?: DueBill[]): Promise<NeedsYou> {
   const myIds = Object.values(memberships);
   const items: NeedsYouItem[] = [];
 
@@ -66,6 +69,9 @@ export async function loadNeedsYou(memberships: Record<string, string>, account:
     // Bills that wait for an amount, where I'm the one who pays this month.
     for (const m of live.filter((x) => x.group.type === "home" && !x.leftAt)) {
       for (const b of await billStatuses(m.groupId, now)) {
+        if (dueSoon && b.status === "upcoming" && b.bill.nature !== "daily" && (b.payerId === m.id || !b.payerId)) {
+          dueSoon.push({ groupId: m.groupId, billId: b.bill.id, name: b.bill.name, group: m.group.name, due: b.due });
+        }
         if (b.status !== "waiting" || b.payerId !== m.id) continue;
         const hold = billHold({ nature: b.bill.nature, reason: b.reason, payerId: b.payerId });
         if (hold === "amount") {

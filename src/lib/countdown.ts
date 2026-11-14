@@ -80,6 +80,21 @@ export function placeOf(name: string): string {
 }
 
 // The words on the countdown: big part (number or word) and the line around it.
+// The short trip line in a group's header, next to "4 people": no place name (the title says it) and no emoji.
+// "Starts in 36 days", "Starts tomorrow", "Starts today", "Day 5 of 5". After the trip: nothing.
+export function headerTripLine(p: TripPhase): string | null {
+  switch (p.kind) {
+    case "before":
+      return p.days === 1 ? "Starts tomorrow" : `Starts in ${p.days} days`;
+    case "today":
+      return "Starts today";
+    case "during":
+      return `Day ${p.day} of ${p.of}`;
+    case "after":
+      return null;
+  }
+}
+
 export function countdownWords(name: string, p: TripPhase): { big: string; small: string; line: string } | null {
   const place = placeOf(name);
   const e = tripEmoji(name);
@@ -252,4 +267,26 @@ export function countdownCard(name: string, p: TripPhase, slot = 0): { kicker: s
   const k = (slot + turn) % s.kickers.length;
   const q = (slot + turn) % s.quips.length;
   return { kicker: s.kickers[k], quip: s.quips[q](placeOf(name), tripEmoji(name)) };
+}
+
+// ---------- One fun line for a trip's boarding pass ----------
+// The pass already says the date and how long is left, so this line never says it again: the stage's lines that count down
+// ("Two weeks to Goa", "Goa tomorrow", "Day one in Goa", anything with sleeps, weeks or days) are left out, and no emoji is
+// printed. `slot`: this pass's place among the passes at the same stage on one screen, so each gets its own line.
+const EMOJI_RE = /[\p{Extended_Pictographic}️‍]/gu;
+const COUNTS_DOWN = /sleep|tomorrow|week|month|\bdays?\b|^(it.s|still|day|last day)\b|\bone\b.*\baway\b/i;
+export function passLines(name: string, p: TripPhase): string[] {
+  const stage = countdownStage(p);
+  if (!stage) return [];
+  const place = placeOf(name);
+  return STAGE[stage].quips
+    .map((q) => q(place, "").replace(EMOJI_RE, "").replace(/\s+/g, " ").trim())
+    .filter((t, i) => i > 0 && t && !COUNTS_DOWN.test(t));
+}
+
+export function passQuip(name: string, p: TripPhase, slot = 0): string | null {
+  const lines = passLines(name, p);
+  if (!lines.length) return null;
+  const turn = p.kind === "before" ? p.days : p.kind === "during" ? p.day : 0;
+  return lines[(slot + turn) % lines.length];
 }

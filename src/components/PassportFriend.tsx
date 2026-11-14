@@ -1,5 +1,6 @@
 import Link from "@/components/Link";
 import { PageHeader } from "@/components/ui";
+import { LockIcon } from "@/components/PassportIcons";
 import { nudgePassportAction } from "@/app/passport-actions";
 
 // For someone who doesn't share a group with this person: a friendly closed door.
@@ -8,8 +9,8 @@ export function Locked() {
     <>
       <PageHeader title="Passport" back="/passport/friends" />
       <div className="rounded-2xl bg-mist px-5 py-8 text-center" data-passport-locked>
-        <p className="text-3xl" aria-hidden>
-          🔒
+        <p className="flex justify-center text-fg/75" aria-hidden>
+          <LockIcon size={32} />
         </p>
         <p className="mt-2 font-semibold">You can’t open this passport</p>
         <p className="mt-1 text-sm text-gray-500">You can see the passports of people you share a group with.</p>
@@ -27,7 +28,7 @@ export function NudgeBox({ accountId, first, sent, error }: { accountId: string;
     <section aria-label={`Nudge ${first}`} className="mt-5 rounded-2xl border border-line px-4 py-4 text-center">
       {sent ? (
         <p role="status" className="text-sm text-owed">
-          Nudged ✓ {first} will see it in Alerts.
+          Nudged. {first} will see it in Alerts.
         </p>
       ) : (
         <>
@@ -37,7 +38,7 @@ export function NudgeBox({ accountId, first, sent, error }: { accountId: string;
           <form action={nudgePassportAction} className="mt-3">
             <input type="hidden" name="accountId" value={accountId} />
             <button type="submit" className="rounded-full border border-line px-4 py-2 text-sm font-semibold active:bg-mist">
-              👋 Nudge {first}
+              Nudge {first}
             </button>
           </form>
         </>

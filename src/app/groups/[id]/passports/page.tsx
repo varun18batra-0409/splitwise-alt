@@ -88,7 +88,7 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
           <PassportCompare
             showMap={(map as { ok: boolean }).ok}
             sets={[
-              { key: "all", label: "Everywhere", countries: together.map(c3) },
+              { key: "all", label: "Everywhere", countries: together.map(c3), hideCount: true },
               ...(shared.length > 0 ? [{ key: "shared", label: "Shared", countries: shared.map(c3) }] : []),
               ...onlyBy.map(({ p, codes }) => ({ key: p.mine ? "you" : p.m.id, label: `Only ${p.mine ? "you" : first(p.m.name)}`, countries: codes.map(c3) })),
             ]}

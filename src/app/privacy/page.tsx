@@ -53,6 +53,7 @@ export default function Privacy() {
         <li>If you switch on notifications, a browser address to send them to.</li>
         <li>Your time zone, sent by your phone, so reminders arrive in the daytime where you are.</li>
         <li>Your Trip passport details: the home country you pick and any places you add by hand. Its trips come from your trip groups.</li>
+        <li>Your Want to go list: countries you add, private to you unless you show one (or the whole list) to a friend you are in a group with, who can then see only what you showed. Removing a place or blocking someone ends their view. If you are no longer in a group together, sharing pauses, and it picks up again if you are ever in a group together again (this is checked every time).</li>
         <li>Postcards you send or get: the card, your message and, if you add one, your own photo.</li>
         <li>Your answer to “Let AI read bills and lines”, on your account (or on your phone, if you have no account).</li>
         <li>Messages you send to support: the message, the date and any reply email you leave. If you’re signed in it’s saved with your account. If you’re not, it isn’t linked to an account, and your network address is kept for about two days, only to limit abuse.</li>
@@ -97,7 +98,7 @@ export default function Privacy() {
       <h2 className={h}>Reporting and blocking</h2>
       <ul className={ul}>
         <li>On a postcard you got, on a friend’s passport, on a moment in a group you’re in, or on a person in a group’s People screen, you can <strong>Report</strong> it (spam, abusive or something else, with an optional note). Only Loopin sees a report, and we look at it within 24 hours.</li>
-        <li><strong>Block</strong> stops their postcards, passport and nudges reaching you, hides yours from them, and stops notifications about their activity. You’ll still both see shared group expenses, because the money has to add up. You can unblock from You → Privacy and safety.</li>
+        <li><strong>Block</strong> stops their postcards, passport and nudges reaching you, hides yours from them, and stops notifications about their activity. You’ll still both see shared group expenses, because the money has to add up. You can unblock from You → Privacy & sharing.</li>
       </ul>
 
       <h2 className={h}>Emails and notifications</h2>
@@ -113,7 +114,7 @@ export default function Privacy() {
         <li><strong>Vercel:</strong> runs the app (our servers are in Mumbai) and keeps your photos in its private file storage.</li>
         <li><strong>Turso:</strong> keeps the database: your groups, expenses, accounts and the rest.</li>
         <li><strong>Resend:</strong> sends our emails. It gets the address, and the words of the email (sign-in codes, invites), and it carries the support messages and reply email you send us, and for a message sent while signed in, the email address you signed in with.</li>
-        <li><strong>Anthropic (Claude):</strong> reads a bill photo you scan, or a typed or spoken expense Loopin can’t follow on its own, but only after you say yes. Loopin asks you the first time. It gets that photo or line, and the first names in the group. Anthropic doesn’t use it to train its models. Say no, or change your mind any time, in You → Privacy and safety; then bill photos are only attached and lines stay as you typed them.</li>
+        <li><strong>Anthropic (Claude):</strong> reads a bill photo you scan, or a typed or spoken expense Loopin can’t follow on its own, but only after you say yes. Loopin asks you the first time. It gets that photo or line, and the first names in the group. Anthropic doesn’t use it to train its models. Say no, or change your mind any time, in You → Privacy & sharing; then bill photos are only attached and lines stay as you typed them.</li>
         <li><strong>Google:</strong> if you choose Continue with Google, it tells us your email and name. Speaking an expense uses your browser’s own voice typing (Google’s in Chrome, Apple’s in Safari); Loopin only receives the words. Postcard lettering is loaded by your browser from Google Fonts.</li>
         <li><strong>Frankfurter:</strong> gives us currency exchange rates. It is only asked for rates, never about you.</li>
       </ul>
@@ -131,7 +132,7 @@ export default function Privacy() {
         <li>The person who added a moment can delete it, and so can whoever looks after the group. The photo is erased too, and it can’t be brought back. A moment’s photo that was already open on someone’s phone can stay on that phone for up to 30 days.</li>
         <li>A whole group can be deleted from its settings. Whoever deleted it, or looks after it, can restore it for 30 days; after that it’s erased for good, with everything in it.</li>
         <li>
-          “You → Delete my email &amp; sign-in” erases your email and sign-in, your passkeys, the postcards you sent or got (including their photos), the moments you added (with their photos), your alerts, the collections you organised, the saved copy of support messages you sent while signed in, and the blocks you made or that were made against you.
+          “You → Export your data → Delete my email &amp; sign-in” erases your email and sign-in, your passkeys, the postcards you sent or got (including their photos), the moments you added (with their photos), your alerts, the collections you organised, the saved copy of support messages you sent while signed in, and the blocks you made or that were made against you.
         </li>
         <li>Deleting your email also stops notifications on your other phones.</li>
         <li>
@@ -139,14 +140,14 @@ export default function Privacy() {
         </li>
         <li>Support messages that were already emailed to Loopin’s support inbox aren’t erased by the app, and messages sent while signed out aren’t linked to an account, so deleting your account doesn’t reach them. To have one removed, use <a href="/support" className="underline underline-offset-4">Contact support</a>.</li>
         <li>Reports stay with us so we can act on them: the ones you made, and reports made about you, including the reporter’s note, are kept even after you delete your account.</li>
-        <li>“You → Download all my data” gives you, in one spreadsheet: your account details; your groups, expenses and payments; your messages to support; your postcards, sent and received (for each: the date, the other person’s current Loopin name, the words on the front, the message and the postmark place; text only, no photos; a postcard still sealed for you, and cards from people you blocked or who blocked you, are left out); your passport (home country, places and countries); the moments you added (the date, the group, your words and the day; text only, no photos); the collections you organise (the title, amount, date, and how many people are listed, have said they paid and are checked, but not their names or phone numbers) and the collections you are on the list of (your own line); and your notification settings. Reports you sent and reports about you are not in it. Anyone signed in can download it.</li>
+        <li>“You → Export your data → Download all my data” gives you, in one spreadsheet: your account details; your groups, expenses and payments; your messages to support; your postcards, sent and received (for each: the date, the other person’s current Loopin name, the words on the front, the message and the postmark place; text only, no photos; a postcard still sealed for you, and cards from people you blocked or who blocked you, are left out); your passport (home country, places and countries); your Want to go list and the first names of the friends you showed each place to (never anyone else’s list); the moments you added (the date, the group, your words and the day; text only, no photos); the collections you organise (the title, amount, date, and how many people are listed, have said they paid and are checked, but not their names or phone numbers) and the collections you are on the list of (your own line); and your notification settings. Reports you sent and reports about you are not in it. Anyone signed in can download it.</li>
         <li>Encrypted backups are kept for 14 days and then removed. Something you delete can stay in a backup until then.</li>
       </ul>
 
       <h2 className={h}>Your rights</h2>
       <p className={p}>
         Under India’s Digital Personal Data Protection Act, 2023, you can ask to see the data we hold about you, correct it, have it erased, and complain if
-        something is wrong. The quickest way is in the app: “You → Download all my data” gives you your account details, groups, expenses, payments, postcards, passport, collections, notification settings and messages to support (not reports or our own records; use Contact support for those), edit things in the app to correct them, and “You → Delete my
+        something is wrong. The quickest way is in the app: “You → Export your data → Download all my data” gives you your account details, groups, expenses, payments, postcards, passport, collections, notification settings and messages to support (not reports or our own records; use Contact support for those), edit things in the app to correct them, and “You → Export your data → Delete my
         email &amp; sign-in” to erase it.
         {contactReady ? (
           <>

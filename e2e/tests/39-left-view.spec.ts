@@ -60,7 +60,7 @@ test("someone who left sees the group up to that day; their share can't be chang
   await expect(R.getByText("Dinner").first()).toBeVisible();
   await expect(R.getByText("Taxi")).toHaveCount(0);
   await expect(R.locator("[data-left-footnote]")).toContainText("New expenses the group adds without you aren’t shown.");
-  // Only Activity, Balances and Charts.
+  // Only Overview, Expenses and People (and Memories, read-only).
   for (const t of ["This month", "Bills", "List", "Games"]) await expect(R.getByRole("link", { name: t, exact: true })).toHaveCount(0);
 
   // Balances: only his own line.

@@ -2,11 +2,11 @@ import Image from "next/image";
 import Link from "@/components/Link";
 import { Polaroid } from "@/components/Polaroid";
 import type { CoverChoice } from "@/lib/covers";
-import { CARD_ROW_MAX, cardBalance, cardStatus, rowEnd } from "@/lib/home/group-card";
+import { CARD_ROW_MAX, cardWord, rowEnd } from "@/lib/home/group-card";
 
 // "Your groups" on Home: a row of polaroids you swipe sideways. Each shows the group's own picture, its name in handwriting,
-// and its status under it ("You owe ₹54,122" in orange, "Owed ₹3,450" and "✓ You’re square" in green). A trip that is on carries a small
-// tag on its photo ("Day 2 of 5"). Cards tilt a little, alternately; the tilt is off for people who ask for less motion.
+// and ONE status word under it ("You owe" in orange, "Owed to you" in green, "Square" in grey): never an amount (the money pass above
+// has it) and never a trip's day count (the Coming up pass has it). Cards tilt a little, alternately; the tilt is off for people who ask for less motion.
 // The first card is a dashed "+ New group" (one tap to the new-group page); the polaroids are 140px wide so the next one peeks in.
 
 export type GroupCardData = {
@@ -14,10 +14,8 @@ export type GroupCardData = {
   name: string;
   cover: { kind: CoverChoice; src?: string };
   photo?: string; // a place photo for a trip with no picture of its own
-  balance: number; // minor units, in the group's currency; + is owed to you
-  money: (minor: number) => string; // formats in the group's currency, exact (read out to screen readers, shown on hold)
-  show?: (minor: number) => string; // what the polaroid prints: whole units for big amounts (display only); money() when absent
-  tag?: string | null; // "Day 2 of 5"
+  balance: number; // minor units, in the group's currency; + is owed to you (only its sign is used here)
+  tag?: string | null; // a small tag on the photo (Home no longer sets one)
 };
 
 const tilt = ["-rotate-[2deg]", "rotate-[1.5deg]"];
@@ -45,18 +43,15 @@ export function GroupCards({ groups, total }: { groups: GroupCardData[]; total: 
         </Link>
       </li>
       {shown.map((g, i) => {
-        const b = cardBalance(g.balance, g.show ?? g.money);
-        const exact = cardBalance(g.balance, g.money);
-        const status = cardStatus(g.balance, g.show ?? g.money);
+        const status = cardWord(g.balance);
         return (
           <li key={g.id} className="w-[140px] shrink-0 snap-start">
             <Link
               href={`/groups/${g.id}`}
-              aria-label={`${g.name}, ${exact.spoken}${g.tag ? `, ${g.tag}` : ""}`}
+              aria-label={`${g.name}, ${status.text.toLowerCase()}${g.tag ? `, ${g.tag}` : ""}`}
               className={`lp-press block ${tilt[i % 2]} active:rotate-0 motion-reduce:rotate-0`}
               data-group-card
-              data-tone={b.tone}
-              title={g.show ? `${g.name}: ${exact.text}` : undefined}
+              data-tone={status.tone}
             >
               <Polaroid
                 cover={g.cover}
@@ -64,7 +59,7 @@ export function GroupCards({ groups, total }: { groups: GroupCardData[]; total: 
                 letter={g.name}
                 caption={g.name}
                 note={status.text}
-                noteTone={status.tone === "square" ? "owed" : status.tone}
+                noteTone={status.tone === "square" ? undefined : status.tone}
                 photoClass="h-[112px]"
                 captionClass="text-[20px]"
                 noteClass="text-[12.5px]"

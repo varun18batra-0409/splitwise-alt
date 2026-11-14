@@ -551,12 +551,13 @@ async function main() {
     g = new URL(V.url()).pathname.replace(/\/invite$/, "");
     await V.getByText("is ready. Now bring your people in").waitFor();
     for (const t of ["People on Loopin", "From your contacts", "By email"]) await V.getByText(t, { exact: true }).waitFor();
-    // F3: the "(you)" row never says "Not on Loopin yet". F14: WhatsApp and Copy link up front, the rest under More ways, WhatsApp in Loopin's own green.
+    // F3: the "(you)" row never says "Not on Loopin yet". F14: WhatsApp and Copy link up front, the rest under More ways to share, WhatsApp as the one cream button.
     assert(!/Not on Loopin yet/.test(await V.locator("li").filter({ hasText: "(you)" }).first().innerText()), "the (you) row says “Not on Loopin yet”");
     await V.locator("[data-more-ways] > summary").waitFor();
     await V.getByRole("button", { name: "Copy link" }).waitFor();
     const wa = await V.locator("[data-invite-whatsapp]").evaluate((el) => getComputedStyle(el).backgroundColor);
-    assert(wa === "rgb(111, 227, 168)", `the WhatsApp invite button is ${wa}, not Loopin's green (#6fe3a8)`);
+    // The one cream main button (green is kept for money only).
+    assert(wa === "rgb(244, 242, 236)", `the WhatsApp invite button is ${wa}, not Loopin's cream main button (#f4f2ec)`);
     assert((await V.getByText("Add members yourself").count()) === 0, "old “Add members yourself” still there");
     const m = /\/join\/([A-Za-z0-9_-]+)/.exec(await V.content());
     assert(m, "no join link on the page");
@@ -875,17 +876,17 @@ async function main() {
     await go(V, `${g}?tab=balances`);
     await V.getByText("THB expenses").first().waitFor();
   });
-  await step(V, "Simple screens", "Group top is short: balance, Settle up and Why? only (details moved to Balances)", async () => {
+  await step(V, "Simple screens", "Group top is short: balance, Settle up and See breakdown only (details moved to People)", async () => {
     await go(V, g);
     const top = await V.locator("main section").first().innerText(); // everything above the tabs
     for (const gone of ["THB expenses", "spent across", "card markup"]) assert(!top.includes(gone), `group top still shows “${gone}”`);
     await V.getByRole("link", { name: "Settle up" }).first().waitFor();
-    await V.getByRole("link", { name: "Why?" }).first().waitFor();
+    await V.getByRole("link", { name: "See breakdown" }).first().waitFor();
   });
   await step(V, "Simple screens", "Balances only explains; paying happens on Settle up (no duplicate buttons)", async () => {
-    // “3 payments clear the whole trip” is the ticket's line at the top of the group, no longer a card of its own on Balances.
+    // How many payments are yours is the ticket's Payments field at the top of the group's Overview, no longer a card of its own on Balances.
     await go(V, g);
-    await V.getByText(/payments? clears? (it|the whole trip|everything)/).first().waitFor();
+    await V.locator("[data-pass-field='payments']").first().waitFor();
     await go(V, `${g}?tab=balances`);
     assert((await V.getByRole("button", { name: "Mark as paid" }).count()) === 0, "Balances still has Mark as paid");
     assert((await V.getByText(/payments? clears? everything/).count()) === 0, "Balances still repeats the payments-clear card");
@@ -905,7 +906,7 @@ async function main() {
   await step(V, "Why?", "“Why?” lines add up to the balance shown", async () => {
     const want = Math.round(expected().Varun);
     await go(V, g);
-    await V.getByRole("link", { name: "Why?" }).click();
+    await V.getByRole("link", { name: "See breakdown" }).click();
     await V.waitForURL(/why=/);
     const panel = V.locator("details[id^='why-'][open]").first();
     await panel.waitFor();
@@ -1339,16 +1340,19 @@ async function main() {
     const keys = (await money.locator("[data-money-action]").evaluateAll((els) => els.map((e) => e.getAttribute("data-money-action")))).join(",");
     const labels = await money.locator("[data-money-action]").allInnerTexts();
     if (kind === "square") {
-      // All square: the words only, no button (the “+ New group” tile below is the only way to start one).
+      // All square: the same pass with a SETTLED stamp and one quiet "Add an expense" link, no button.
       assert(tone === "square" && keys === "" && /All square/.test(text) && /Nobody owes anybody/.test(text), `all-square card: ${tone} ${keys} ${text}`);
-      assert((await money.getByRole("link").count()) === 0, "the all-square card still has a button");
+      assert((await money.locator("[data-settled-stamp]").count()) === 1, "the all-square pass has no SETTLED stamp");
+      assert((await money.getByRole("link").count()) === 1 && (await money.locator("[data-square-add]").count()) === 1, "the all-square pass should have only the quiet Add an expense link");
       assert((await money.locator("[data-money-people]").count()) === 0, "the money card names people when nothing is owed");
     } else if (kind === "neutral") {
       assert(keys === "settle" && /^Settle up$/.test(labels[0].trim()), `neutral card buttons: ${keys}`);
     } else if (kind === "one") {
       // One person or several: a route line, the amount once, and one button.
-      const route = (await money.locator("[data-route]").innerText()).replace(/\s+/g, " ").trim();
-      assert(/^You .+|.+ You$/.test(route), `the route line is "${route}"`);
+      const fromCode = ((await money.locator("[data-route-from]").innerText()) ?? "").trim();
+      const toCode = ((await money.locator("[data-route-to]").innerText()) ?? "").trim();
+      assert((fromCode === "YOU") !== (toCode === "YOU") && fromCode !== toCode, `the route codes are "${fromCode}" and "${toCode}" (one end is YOU)`);
+      assert((await money.locator("[data-route] [data-mark='plane'][data-takeoff]").count()) === 1, "the route has no take-off plane");
       const amount = (await money.locator("[data-net-balance]").first().innerText()).trim();
       assert(/[₹$€£]\s?\d/.test(amount), `the amount is "${amount}"`);
       assert(text.split(amount).length === 2, `the amount "${amount}" is repeated on the card: ${text}`);
@@ -1371,11 +1375,11 @@ async function main() {
       // Both ways: two lines, each with its own small button; never netted into one amount.
       assert(keys === "pay,remind", `both-ways buttons: ${keys}`);
       assert((await money.locator("[data-ticket-line]").count()) === 2, "both ways should be two lines");
-      assert(labels.map((l) => l.trim()).join("|") === "Pay|Remind", `both-ways button words: ${labels.join("|")}`);
-      assert(/You owe/.test(text) && / owes? you/.test(text), `both-ways lines lost their direction words: ${text}`);
+      assert(/^Pay \S+/.test(labels[0].trim()) || /^Remind /.test(labels[0].trim()), `both-ways button words: ${labels.join("|")}`);
+      assert((await money.locator("[data-route-from]").count()) === 2, "both ways should be two passes, each with its own route");
       assert((await money.locator("[data-money-action][data-emphasis='bright']").count()) === 1, "both-ways card should have one bright button");
     }
-    // What waits on you is one quiet line under the card (a 44px link, no dot, no box), never a section of its own.
+    // What waits on you is one quiet line under the card (a 44px link, full contrast, a small dot, no box), never a section of its own.
     assert((await V.locator("[data-needs-you]").count()) === 0, "Home still has a separate Needs you section");
     assert((await V.getByRole("heading", { name: "Needs you" }).count()) === 0, "Home still has a Needs you heading");
     assert((await money.locator("[data-need-line]").count()) === 0, "the need line is still inside the card");
@@ -1383,14 +1387,14 @@ async function main() {
     if (await needLine.count()) {
       const link = needLine.locator("[data-need-link]");
       assert((await link.boundingBox())!.height >= 44, "the need line is under 44px tall");
-      assert((await needLine.locator(".rounded-full").count()) === 0, "the need line still has a dot");
+      assert((await needLine.locator("[data-need-dot]").count()) === 1, "the need line has no marker dot");
       const n = Number(await needLine.getAttribute("data-need-count"));
       const t = (await link.innerText()).replace(/\s+/g, " ");
       if (n >= 2) {
         assert(/^\d+ (things need you|payments to confirm) See them/.test(t) && (await link.getAttribute("href")) === "/notifications", `the many-needs line is "${t}"`);
       } else {
-        assert(/(Confirm|Add|Add it|Needs a fix|Close it|View) ›$/.test(t), `the need line has no action word: ${t}`);
-        if (/Close it/.test(t)) assert(/^.+ is all square\. Close it ›$/.test(t), `the close line says: ${t}`);
+        assert(/(Confirm|Add|Add it|Needs a fix|Close it|View)$/.test(t), `the need line has no action word: ${t}`);
+        if (/Close it/.test(t)) assert(/^.+ is all square\. Close it$/.test(t), `the close line says: ${t}`);
         if (/says they paid/.test(t)) assert(/says they paid (you|[A-Z])/.test(t) && !/says they paid [₹$€£]/.test(t), `the need line doesn't say who was paid: ${t}`);
       }
     }
@@ -1409,7 +1413,7 @@ async function main() {
     await card.waitFor();
     const box = (await card.boundingBox())!;
     assert(box.y >= 0 && box.y + box.height <= 667, `the money card ends at ${Math.round(box.y + box.height)}px of 667`);
-    const limit = (await card.getAttribute("data-ticket")) === "both" ? 266 : 206;
+    const limit = (await card.getAttribute("data-ticket")) === "both" ? 330 : 290; // a boarding pass: route, amount, fields, button (both ways add the dots)
     assert(box.height <= limit, `the money card is ${Math.round(box.height)}px tall (should be about ${limit - 6} or less)`);
     for (const b of await card.locator("[data-money-action]").all()) {
       const bb = (await b.boundingBox())!;
@@ -1453,8 +1457,9 @@ async function main() {
     assert(hrefs.length > 0 && new Set(hrefs).size === hrefs.length, `group cards: ${hrefs.join(" ")}`);
     // Every card says where you stand in words that are not just a colour.
     for (const t of await V.locator("[data-group-card]").evaluateAll((els) => els.map((e) => ({ tone: e.getAttribute("data-tone"), text: (e as HTMLElement).innerText })))) {
-      if (t.tone === "square") assert(/You’re square/.test(t.text), `a square card says: ${t.text}`);
-      else assert(t.tone === "owed" ? /^Owed /m.test(t.text) : /You owe /.test(t.text), `a ${t.tone} card says: ${t.text}`);
+      if (t.tone === "square") assert(/Square/.test(t.text), `a square card says: ${t.text}`);
+      else assert(t.tone === "owed" ? /Owed to you/.test(t.text) : /You owe/.test(t.text), `a ${t.tone} card says: ${t.text}`);
+      assert(!/[₹$€£]\s?\d/.test(t.text), `a polaroid repeats an amount: ${t.text}`);
     }
     // One stories row at most, and not again lower down; no row at all when there are no stories.
     assert((await V.locator("[data-stories]").count()) <= 1, "stories show twice on Home");
@@ -1543,7 +1548,7 @@ async function main() {
         }
         return out;
       })()`)) as string[];
-      const allowed = /^(Trip countdown|More trips)$/;
+      const allowed = /^Coming up$/;
       assert(between.every((b) => allowed.test(b)), `between Your groups and Latest: ${between.join(", ")}`);
     }
     const phone = V.getByText(/saved on this phone/);
@@ -1567,8 +1572,9 @@ async function main() {
       const over = (await card.evaluate((el) => {
         const bad: string[] = [];
         const cr = el.getBoundingClientRect();
-        if (cr.right > window.innerWidth + 0.5 || el.scrollWidth > el.clientWidth + 1) bad.push("card");
+        if (cr.right > window.innerWidth + 0.5 || (!el.hasAttribute("data-pass-stack") && el.scrollWidth > el.clientWidth + 1)) bad.push("card");
         el.querySelectorAll("[data-money-action], [data-money-people], [data-net-balance], [data-route]").forEach((e) => {
+          if (e.closest("[data-pass-stack] li:not(:first-child)")) return; // the next pass waits off to the side of the stack
           const r = e.getBoundingClientRect();
           const name = e.getAttribute("data-money-action") || (e.hasAttribute("data-net-balance") ? "amount" : e.hasAttribute("data-route") ? "route" : "people");
           if (r.right > cr.right + 0.5 || r.left < cr.left - 0.5) bad.push(name);
@@ -1730,9 +1736,10 @@ async function main() {
     assert((await V.locator('input[name="secondaryCurrency"]').inputValue()) === "USD", "the second-currency chip didn't set USD");
     await V.getByRole("button", { name: "Save settings" }).click();
     await V.waitForURL(/saved=settings/);
-    await go(V, g2);
+    // The ≈ USD line sits with the balances on the People tab (the Overview pass shows one balance, or "All square").
+    await go(V, `${g2}?tab=balances`);
     const t = await V.locator("main").innerText();
-    assert(/USD|\$/.test(t), "no USD shown on the group page");
+    assert(/amounts in USD|USD amounts/.test(t), "no USD shown with the group's balances");
   });
   await step(V, "Close & reopen", "Close a group from settings: it moves to Closed groups and new expenses are paused", async () => {
     await go(V, `${g2}/settings`);
@@ -1767,10 +1774,18 @@ async function main() {
     await V.locator("[data-removed-section]").waitFor();
     assert((await V.locator("[data-removed-section]").getByText("Removed from the group").count()) === 1, "Asha isn't shown as removed");
     assert((await V.getByText("Left the group", { exact: true }).count()) === 0, "a removed person is shown as having left");
+    // Asha has an account, so she comes back only by accepting an invitation (the agreed invite-back rule).
     await V.locator("details summary").filter({ hasText: "Asha" }).first().click();
-    await clickAndWait(V, V.getByRole("button", { name: "Bring Asha back" }));
+    await V.getByText("They rejoin when they accept your invitation.").first().waitFor();
+    await clickAndWait(V, V.getByRole("button", { name: "Invite Asha back" }));
     await go(V, `${g2}/people`);
-    assert((await V.locator("[data-removed-section]").count()) === 0, "Asha still shows as removed");
+    assert((await V.locator("[data-removed-section]").count()) === 1, "Asha came back without accepting the invitation");
+    // Asha accepts on her Home: now she's back in the group.
+    await go(A, "/");
+    await A.locator("[data-invitation]").filter({ hasText: "UAT Flat" }).getByRole("button", { name: "Join", exact: true }).click();
+    await A.waitForURL(/\/groups\//);
+    await go(V, `${g2}/people`);
+    assert((await V.locator("[data-removed-section]").count()) === 0, "Asha still shows as removed after accepting");
   });
   await step(V, "People", "Remove someone who isn't in any expense (Sheldon)", async () => {
     await go(V, `${g3}/people`);
@@ -1937,6 +1952,8 @@ async function main() {
   });
   await step(A, "Account", "Sign out of this phone, sign back in: all groups come back", async () => {
     await go(A, "/account");
+    await A.getByRole("link", { name: /Sign-in & devices/ }).click();
+    await A.waitForURL(/\/account\/sign-in/);
     await A.getByRole("button", { name: "Sign out", exact: true }).click();
     await A.waitForURL(base + "/");
     await go(A, "/signin");
@@ -1951,6 +1968,8 @@ async function main() {
     await go(x.page, "/signin?mode=signup");
     await signup(x.page, "Throwaway", email("throwaway"));
     await go(x.page, "/account");
+    await x.page.getByRole("link", { name: /Export your data/ }).click();
+    await x.page.waitForURL(/\/account\/data/);
     await x.page.getByRole("button", { name: /Delete my email/ }).click();
     await x.page.waitForURL(/deleted=account/);
     assert((await db.account.count({ where: { email: email("throwaway") } })) === 0, "account still exists");
@@ -2007,9 +2026,10 @@ async function main() {
       await ctx.close();
     }
   });
-  await step(V, "Get the app", "Home has an “App” button and the service worker is registered (needed to install)", async () => {
-    await go(V, "/");
-    await V.getByRole("button", { name: "Get the app" }).waitFor();
+  await step(V, "Get the app", "You has the “Get the Loopin app” row (it moved off Home's header) and the service worker is registered (needed to install)", async () => {
+    await go(V, "/account");
+    await V.getByRole("button", { name: /^(Get it|Install)$/ }).waitFor();
+    assert((await V.getByRole("button", { name: "Get the app" }).count()) === 0, "Home's header App button is still there");
     const ok = await V.evaluate(async () => Boolean(await navigator.serviceWorker.getRegistration("/")));
     assert(ok, "no service worker registered");
   });
@@ -2053,8 +2073,10 @@ async function main() {
     await page.getByRole("heading", { name: "Continue to Loopin" }).waitFor();
     await ctx.close();
   });
-  await step(V, "Help", "“?” on home opens the detailed How Loopin works guide (with photos), which links to the 1-minute tour", async () => {
+  await step(V, "Help", "The “How Loopin works” row on You opens the detailed guide (with photos), which links to the 1-minute tour; Home's header has no “?”", async () => {
     await go(V, "/");
+    assert((await V.locator('header a[href="/how-it-works"]').count()) === 0, "Home's header still has the ? help button");
+    await go(V, "/account");
     await V.getByRole("link", { name: "How Loopin works" }).click();
     await V.waitForURL(/\/how-it-works/);
     await V.getByRole("heading", { name: "Add an expense in seconds" }).waitFor();
@@ -2155,7 +2177,7 @@ async function main() {
   // ===== 9. Home & Couple: bills, list, budgets, reminders, moving out, goals =====
   let gh = "";
   const homeId = () => gh.split("/").pop()!;
-  await step(V, "Flat", "Create a Home group: it opens on This month, with Bills · List · Activity tabs", async () => {
+  await step(V, "Flat", "Create a Home group: it opens on Overview, with Expenses · People tabs and Bills · Shopping tiles", async () => {
     await go(V, "/groups/new");
     await V.getByRole("button", { name: /^Home/ }).click();
     await V.locator('input[name="groupName"]').fill("UAT Flat 402");
@@ -2168,9 +2190,10 @@ async function main() {
     await V.waitForURL(/invited=/);
     await tapJoin(A, "UAT Flat 402", gh);
     await go(V, gh);
-    const current = await V.locator('a[aria-current="page"]').filter({ hasText: /This month|Bills|List|Activity|Balances/ }).first().innerText();
-    assert(current.trim() === "This month", `opened on “${current}”`);
-    for (const t of ["Bills", "List", "Activity"]) assert(await V.getByRole("link", { name: t, exact: true }).count(), `no ${t} tab`);
+    const current = await V.locator('a[aria-current="page"]').filter({ hasText: /Overview|Expenses|People/ }).first().innerText();
+    assert(current.trim() === "Overview", `opened on “${current}”`);
+    for (const t of ["Expenses", "People"]) assert(await V.getByRole("link", { name: t, exact: true }).count(), `no ${t} tab`);
+    for (const t of ["Bills", "Shopping"]) assert(await V.getByRole("link", { name: new RegExp(`^${t}`) }).count(), `no ${t} tile`);
     // Every tab's label fits on its tab (nothing cut off or spilling over).
     const spill = await V.evaluate(() =>
       [...document.querySelectorAll('nav[aria-label="Group sections"] a')].filter((a) => a.scrollWidth > a.clientWidth + 1).map((a) => a.textContent),
@@ -2781,8 +2804,10 @@ async function main() {
     assert(path && statSync(path).size > 10_000, "the picture is empty");
   });
 
-  await step(V, "Account", "You → Download all my data: one spreadsheet with every group, my share and my balance change", async () => {
+  await step(V, "Account", "You → Export your data → Download all my data: one spreadsheet with every group, my share and my balance change", async () => {
     await go(V, "/account");
+    await V.getByRole("link", { name: /Export your data/ }).click();
+    await V.waitForURL(/\/account\/data/);
     const [file] = await Promise.all([V.waitForEvent("download"), V.getByRole("link", { name: "Download all my data" }).click()]);
     const { readFileSync } = await import("node:fs");
     const body = readFileSync((await file.path())!, "utf8");
@@ -2802,6 +2827,8 @@ async function main() {
     await go(page, "/signin");
     await signup(page, "Pia", email("pia"));
     await go(page, "/account");
+    await page.getByRole("link", { name: /Sign-in & devices/ }).click();
+    await page.waitForURL(/\/account\/sign-in/);
     await page.getByRole("button", { name: /Turn on fingerprint \/ face sign-in/ }).click();
     await page.getByText(/Android phone|This device|Mac|Windows computer/).first().waitFor();
     const keys = await db.passkey.count({ where: { accountId: (await db.account.findUniqueOrThrow({ where: { email: email("pia") } })).id } });
@@ -2813,6 +2840,7 @@ async function main() {
     await page.waitForURL(/signedin=1/);
     await go(page, "/account");
     await page.getByText(email("pia")).first().waitFor();
+    await go(page, "/account/sign-in");
     await page.getByRole("button", { name: "Remove" }).click();
     await page.waitForURL(/removed=passkey/);
     const left = await db.passkey.count({ where: { accountId: (await db.account.findUniqueOrThrow({ where: { email: email("pia") } })).id } });
@@ -2994,8 +3022,7 @@ async function main() {
 
   await step(V, "Add people", "The invite screen shows the group's link and a QR code", async () => {
     await go(V, `${g}/invite`);
-    await V.locator("[data-more-ways] > summary").click(); // F14: WhatsApp and Copy link are the main ways; the rest is under More ways
-    await V.getByText("Share the group link or QR code").click();
+    await V.locator("[data-more-ways] > summary").click(); // F14: WhatsApp and Copy link are the main ways; the QR is under More ways to share
     await V.waitForTimeout(500);
     assert((await V.locator("svg").filter({ has: V.locator("path") }).count()) > 0, "no QR code");
     assert(/\/join\//.test(await V.locator("main").innerText()) || (await V.locator('a[href*="/join/"], input[value*="/join/"]').count()) > 0, "no invite link shown");
@@ -3104,7 +3131,7 @@ async function main() {
     await due.getByText("on Loopin").waitFor();
     const p = await V.locator("[data-collection-progress]").innerText();
     // The organiser's summary: nothing confirmed or reported yet, 3 x ₹500 = ₹1,500 remaining and the goal, and "3 still to pay".
-    assert(/₹0 confirmed|₹0\s+confirmed/.test(p) && /₹1,500\s+remaining/.test(p) && /Goal: ₹1,500/.test(p) && /3 still to pay/.test(p), `progress reads “${p.replace(/\s+/g, " ")}”`);
+    assert(/₹0 confirmed|₹0\s+confirmed/.test(p) && /₹1,500\s+remaining/.test(p) && /Goal: ₹1,500/.test(p) && (await due.getByRole("listitem").count()) === 3, `progress reads “${p.replace(/\s+/g, " ")}”`);
   });
 
   // Notifications are written just after the page answers: give them a moment.
@@ -3151,7 +3178,7 @@ async function main() {
     await V.getByRole("region", { name: "Paid" }).getByText(/Confirmed · cash/).waitFor();
     const p = await V.locator("[data-collection-progress]").innerText();
     // Zoya ₹500 + Kabir ₹500 (cash) = ₹1,000 confirmed of a ₹1,500 goal: ₹500 remaining, 2 confirmed, 1 still to pay, nothing reported.
-    assert(/₹1,000\s+confirmed/.test(p) && /₹500\s+remaining/.test(p) && /Goal: ₹1,500/.test(p) && /2 confirmed · 1 still to pay/.test(p) && (await V.locator("[data-collection-reported]").count()) === 0, `progress reads “${p.replace(/\s+/g, " ")}”`);
+    assert(/₹1,000\s+confirmed/.test(p) && /₹500\s+remaining/.test(p) && /Goal: ₹1,500/.test(p) && (await V.getByRole("region", { name: "Paid" }).getByText(/^Confirmed/).count()) === 2 && (await V.getByRole("region", { name: "Still to pay" }).getByRole("listitem").count()) === 1 && (await V.locator("[data-collection-reported]").count()) === 0, `progress reads “${p.replace(/\s+/g, " ")}”`);
   });
 
   await step(V, "Collect", "Varun reminds Asha inside Loopin (bell); a second reminder straight away is refused; Asha sees it in Alerts", async () => {
@@ -3196,27 +3223,26 @@ async function main() {
     return new URL(page.url()).pathname.replace(/\/invite$/, "");
   }
 
-  await step(V, "Countdown", "A trip made with a start date in 10 days: the group says “in 10 days”, Home shows the countdown strip with the trip's picture", async () => {
+  await step(V, "Countdown", "A trip made with a start date in 10 days: the group says “in 10 days”, Home's Coming up shows its boarding pass with the trip's picture", async () => {
     const goa = await newTrip(V, `UAT Goa trip ${stamp % 1000}`, istDay(10));
     await go(V, goa);
     await V.locator("[data-countdown-line]").first().filter({ hasText: "in 10 days" }).waitFor();
     await go(V, "/");
-    const card = V.getByRole("region", { name: "Trip countdown", exact: true }).first();
+    const card = V.locator("[data-trip-pass]").first();
     assert((await card.getAttribute("data-countdown")) === "10", `Home countdown says ${await card.getAttribute("data-countdown")}`);
-    assert(await card.locator("[data-trip-thumb]").count(), "no picture on the countdown strip");
-    assert(/10/.test((await card.locator("[data-countdown-big]").first().textContent()) ?? ""), "the strip doesn't show 10");
+    assert(await card.locator("[data-ticket-stub] img").count(), "no picture on the trip pass stub");
+    assert(/10 days/.test((await card.locator('[data-pass-field="in"]').first().textContent()) ?? ""), "the pass doesn't say 10 days");
   });
 
-  await step(V, "Countdown", "A second trip in 30 days: the soonest stays in the countdown strip under the money card, the later one shows under “Also coming up”, one card at a time", async () => {
+  await step(V, "Countdown", "A second trip in 30 days: Coming up is ONE section with two boarding passes, the soonest first; no “Also:” line, no separate cards", async () => {
     await newTrip(V, `UAT Manali trip ${stamp % 1000}`, istDay(30));
     await go(V, "/");
-    assert((await V.locator("[data-trip-strip]").getAttribute("data-countdown")) === "10", "the soonest trip isn't in the strip under the money card");
-    const row = V.locator("[data-trip-row]");
-    const days = await row.locator("[data-countdown]").evaluateAll((els) => els.map((e) => e.getAttribute("data-countdown")));
-    assert(days[0] === "30", `later trips in the order ${days.join(", ")}`);
-    await V.getByRole("heading", { name: "Also coming up" }).waitFor();
-    const w = await row.evaluate((el) => [el.clientWidth, (el.firstElementChild as HTMLElement).clientWidth]);
-    assert(w[0] === w[1], `a card is ${w[1]}px in a ${w[0]}px row (should be one per screen)`);
+    assert((await V.locator("[data-coming-up]").count()) === 1, "Home should have exactly one Coming up section");
+    const passes = V.locator("[data-trip-pass]");
+    assert((await passes.count()) >= 2 && (await passes.count()) <= 3, `Coming up has ${await passes.count()} passes`);
+    assert((await passes.first().getAttribute("data-countdown")) === "10", "the soonest trip isn't the first pass");
+    assert((await V.locator("[data-trip-also]").count()) === 0, "the Also line is still on Home");
+    assert((await V.getByRole("heading", { name: "Also coming up" }).count()) === 0 && (await V.locator("[data-trip-row]").count()) === 0, "Home still has separate cards for other trips");
   });
 
   await step(V, "Groups", "A photo picked while making a group becomes its picture", async () => {
@@ -3366,7 +3392,7 @@ async function main() {
 
   // UPI is shown only to people in India (by design: the You page decides from the phone's language and region), so this runs on the India-region profiles.
   await stepOn(["android", "iphone"], "UPI is shown only in India; this viewer is en-GB in London, who gets the pay-link step below instead", V, "Settle", "Varun adds his UPI ID on the You page; his WhatsApp Remind carries it and an “I’ve paid” link that opens without signing in", async () => {
-    await go(V, "/account#pay");
+    await go(V, "/account/pay");
     const pay = V.getByRole("region", { name: "How friends pay you back" });
     await pay.getByLabel("UPI ID (India)").fill("varun@okicici");
     await pay.getByRole("button", { name: "Save pay details" }).click();
@@ -3385,7 +3411,7 @@ async function main() {
     await go(page, payPath);
     await page.locator("[data-paylink='owes']").waitFor();
     assert(((await page.locator("[data-pay='upi']").getAttribute("href")) ?? "").startsWith("upi://pay?pa=varun%40okicici"), "no UPI button for Varun");
-    assert(/Open payment app/.test(await page.locator("[data-pay='upi']").innerText()), "the UPI button isn't “Open payment app”");
+    assert(/^Pay with UPI$/.test((await page.locator("[data-pay='upi']").innerText()).trim()), "the UPI button isn't “Pay with UPI”");
     assert(/This records a payment made outside Loopin\. Loopin doesn't move money\./.test(await page.locator("body").innerText()), "the payment line is missing on the I’ve paid page");
     assert(await page.locator("[data-i-paid]").count(), "no I’ve paid button");
     // A made-up link: a friendly page, not an error.
@@ -3394,7 +3420,7 @@ async function main() {
     await ctx.close();
   });
   await stepOn(["desktop"], "this is the outside-India path (PayPal, Venmo, Revolut, Monzo); in India the UPI step above runs instead", V, "Settle", "Outside India: the You page has no UPI box; Varun saves a PayPal link and the “I’ve paid” page offers PayPal", async () => {
-    await go(V, "/account#pay");
+    await go(V, "/account/pay");
     const pay = V.getByRole("region", { name: "How friends pay you back" });
     assert((await pay.getByLabel("UPI ID (India)").count()) === 0, "a UPI box is shown outside India");
     await pay.getByLabel(/PayPal, Venmo, Cash App, Revolut or Monzo link/).fill("paypal.me/varunuat");
@@ -3412,7 +3438,7 @@ async function main() {
     await page.locator("[data-paylink='owes']").waitFor();
     const href = (await page.locator("[data-pay='paypal']").getAttribute("href")) ?? "";
     assert(href.startsWith("https://paypal.me/varunuat/"), `PayPal button goes to ${href}`);
-    assert(/Open payment app \(PayPal\)/.test(await page.locator("[data-pay='paypal']").innerText()), "the button isn't “Open payment app (PayPal)”");
+    assert(/^Pay with PayPal$/.test((await page.locator("[data-pay='paypal']").innerText()).trim()), "the button isn't “Pay with PayPal”");
     assert((await page.locator("[data-pay='upi']").count()) === 0, "a UPI button is shown for a PayPal-only person");
     await ctx.close();
   });
@@ -3479,13 +3505,13 @@ async function main() {
     await go(V, "/account");
     await V.getByRole("link", { name: /Your trip passport/ }).click();
     await V.waitForURL(/\/passport/);
-    // The Been cards come first; the booklet is behind a quiet link.
-    await V.getByRole("link", { name: "Open the passport book" }).click();
+    // The Been cards come first; the booklet opens from the passport art.
+    await V.getByRole("link", { name: "Open your passport book" }).click();
     await V.waitForURL(/\/passport\?book=1/);
     await V.getByRole("button", { name: "Open your passport" }).click();
     await V.getByRole("button", { name: "Next page" }).waitFor();
     await go(V, "/passport");
-    await V.getByRole("button", { name: "Add a visited place" }).click();
+    await V.getByRole("button", { name: "Add visited place" }).click();
     const sheet = V.getByRole("dialog", { name: "Add countries" });
     await sheet.getByLabel("Search countries").fill("thai");
     await sheet.getByRole("checkbox", { name: "Thailand" }).check();
@@ -3502,7 +3528,7 @@ async function main() {
 
   await step(V, "Fun", "Share my passport sends one picture of the open booklet (details, map, every stamp), and nothing else", async () => {
     await go(V, "/passport");
-    await V.getByRole("button", { name: "Share passport", exact: true }).click();
+    await V.getByRole("button", { name: "Share", exact: true }).click();
     const sheet = V.getByRole("dialog", { name: "Share your passport" });
     await sheet.getByText("WhatsApp", { exact: true }).waitFor();
     assert((await sheet.locator("[data-album-preview]").count()) === 0, "still offers an album of several pictures");
@@ -3532,17 +3558,18 @@ async function main() {
       const row = await dana.page.locator("[data-passport-stats-row]").getAttribute("data-passport-stats-row");
       assert(row === "2|2|9", `the numbers row says ${row}, not 2|2|9`);
       const rowText = (await dana.page.locator("[data-passport-stats-row]").innerText()).replace(/\s+/g, " ");
-      for (const w of ["countries", "trips", "days away"]) assert(rowText.includes(w), `the numbers row is missing “${w}”: ${rowText}`);
-      const big = dana.page.locator("[data-been-card='big']");
-      assert((await big.getAttribute("data-group")) === thai.id, "the newest trip (Thailand) isn't the big card");
-      const bigText = (await big.innerText()).replace(/\s+/g, " ");
-      for (const w of ["Thailand", "Bangkok · Phuket", "5–10 May 2026 · 6 days", "6 people"]) assert(bigText.includes(w), `the big card is missing “${w}”: ${bigText}`);
-      assert((await big.locator("[data-been-relive]").getAttribute("href")) === `/groups/${thai.id}/report`, "Relive this trip doesn't go to the trip");
-      const small = dana.page.locator("[data-been-card='small']");
-      assert((await small.getAttribute("data-group")) === goa.id, "Goa isn't the small card");
-      const smallText = (await small.innerText()).replace(/\s+/g, " ");
-      for (const w of ["Goa", "13–15 Mar 2026 · 3 days", "With 3 friends"]) assert(smallText.includes(w), `the Goa card is missing “${w}”: ${smallText}`);
-      assert((await dana.page.getByRole("link", { name: "Open the passport book" }).count()) === 1, "no quiet link to the passport book");
+      for (const w of ["countries", "trips", "days travelled"]) assert(rowText.includes(w), `the numbers row is missing “${w}”: ${rowText}`);
+      // One card design for every trip: newest first. Thailand, then Goa.
+      const thaiCard = dana.page.locator(`[data-been-card='trip'][data-group='${thai.id}']`);
+      const thaiText = (await thaiCard.innerText()).replace(/\s+/g, " ");
+      for (const w of ["Thailand", "Bangkok · Phuket", "5–10 May · 6 days", "THAILAND", "MAY 2026", "Relive trip"]) assert(thaiText.includes(w), `the Thailand card is missing “${w}”: ${thaiText}`);
+      assert((await thaiCard.locator("[data-been-cta]").getAttribute("href")) === `/groups/${thai.id}/report`, "Relive trip doesn't go to the trip");
+      const goaCard = dana.page.locator(`[data-been-card='trip'][data-group='${goa.id}']`);
+      const goaText = (await goaCard.innerText()).replace(/\s+/g, " ");
+      for (const w of ["Goa", "13–15 Mar · 3 days", "INDIA", "MAR 2026"]) assert(goaText.includes(w), `the Goa card is missing “${w}”: ${goaText}`);
+      const order = await dana.page.locator("[data-been-card='trip']").evaluateAll((els) => els.map((e) => e.getAttribute("data-group")));
+      assert(order[0] === thai.id && order[1] === goa.id, `the cards aren't newest first: ${order.join(",")}`);
+      assert((await dana.page.getByRole("link", { name: "Open your passport book" }).count()) === 1, "no quiet link to the passport book");
     } finally {
       await dana.ctx.close();
     }
@@ -3810,11 +3837,11 @@ async function main() {
     // Every page already accepts dialogs (newPage); a second accept would throw, so this one is skipped if already handled.
     R.once("dialog", (d) => void d.accept().catch(() => undefined));
     await R.getByRole("button", { name: /^Block / }).click();
-    await R.waitForURL(/\/account\?blocked=1/);
+    await R.waitForURL(/\/account\/privacy\?blocked=1/);
     await R.getByText("You’ll still see shared group expenses and balances.").waitFor();
     const gone = await R.goto(base + cardPath);
     assert(gone?.status() === 404, `a blocked person's postcard still opens (status ${gone?.status()})`);
-    await go(R, "/account#blocked");
+    await go(R, "/account/privacy");
     // Every page already accepts dialogs (newPage); a second accept would throw, so this one is skipped if already handled.
     R.once("dialog", (d) => void d.accept().catch(() => undefined));
     await R.getByRole("button", { name: "Unblock" }).click();
@@ -3822,8 +3849,10 @@ async function main() {
     const back = await R.goto(base + cardPath);
     assert(back?.status() === 200, `after unblocking the postcard doesn't open (status ${back?.status()})`);
   });
-  await step(A, "Safety", "AI question: You → Privacy and safety starts “Not asked yet”; Don't allow records no, Allow records yes; Contact support is there", async () => {
+  await step(A, "Safety", "AI question: You → Privacy & sharing starts “Not asked yet”; Don't allow records no, Allow records yes; Help & support on You reaches Contact support", async () => {
     await go(A, "/account");
+    await A.getByRole("link", { name: /Privacy & sharing/ }).click();
+    await A.waitForURL(/\/account\/privacy/);
     await A.locator("[data-ai-setting='unasked']").waitFor();
     await A.getByRole("button", { name: /^Don.t allow$/ }).click();
     await A.locator("[data-ai-setting='no']").waitFor();
@@ -3831,7 +3860,8 @@ async function main() {
     await A.getByRole("button", { name: "Allow", exact: true }).click();
     await A.locator("[data-ai-setting='yes']").waitFor();
     assert((await db.account.findUniqueOrThrow({ where: { id: ashaAcc.id } })).aiConsent === "yes", "Allow wasn't saved");
-    await A.locator("[data-contact-support]").waitFor();
+    await go(A, "/account");
+    assert((await A.getByRole("link", { name: /Help & support/ }).getAttribute("href")) === "/support", "You has no Help & support row to Contact support");
   });
 
   // ----- Sharing: a passport is hidden until its owner says yes -----
@@ -4084,6 +4114,9 @@ Object.defineProperty(navigator, "contacts", { value: { select: async () => [{ n
     await who.getByRole("button", { name: "Add moment" }).click();
     await who.waitForURL(/\/moments$/);
   };
+  // The screenshot run before this one adds many moments from this same machine, which uses up the
+  // "60 moments an hour from one place" limit. Start the Moments steps with a fresh count (test copy only).
+  await db.rateLimit.deleteMany({ where: { key: { startsWith: "moment" } } });
   await step(V, "Moments", "Varun adds a moment (a photo, “The boat we almost missed 😂”, Day 3): it shows in the group's strip and on Our moments", async () => {
     const acc = async (n: string) => (await db.account.findUniqueOrThrow({ where: { email: email(n) } })).id;
     const grp = await db.group.create({
@@ -4119,7 +4152,8 @@ Object.defineProperty(navigator, "contacts", { value: { select: async () => [{ n
   await step(A, "Moments", "Asha sees “Varun added a moment” in Home's story circles, adds her own moment, and reacts 😂 to Varun's: the count shows 1", async () => {
     await go(A, "/");
     await A.locator("[data-story='moment']").first().waitFor();
-    assert(/Moments/.test(await A.locator("[data-story='moment']").first().innerText()), "the moment circle has no label");
+    // Story circles are by group: the circle is labelled with the group's name.
+    assert(/^UAT Mom/.test((await A.locator("[data-story='moment'] [data-story-label]").first().innerText()).trim()), "the moment circle isn’t labelled with its group");
     await addMomentThroughTheForm(A, "Worth the early alarm.", "");
     momentTwo = (await db.moment.findFirstOrThrow({ where: { groupId: momentsGroup.split("/").pop()!, caption: "Worth the early alarm." } })).id;
     await go(A, `${momentsGroup}/moments/${momentOne}`);

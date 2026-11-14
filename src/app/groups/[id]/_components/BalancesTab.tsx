@@ -2,7 +2,7 @@ import Link from "@/components/Link";
 import { PassportIcon, PeoplePassportsIcon, SquareSeal } from "@/components/DrawnIcons";
 import { Notice } from "@/components/Notice";
 import { formatMoney, formatPercent } from "@/lib/money";
-import { foreignPartLine, ledgerSummary } from "@/lib/foreign-part";
+import { foreignPartLine } from "@/lib/foreign-part";
 import { niceDate } from "@/lib/format";
 import { Avatar } from "@/components/ui";
 import type { GroupView } from "./view";
@@ -129,14 +129,8 @@ export function BalancesTab({ v, paid, why }: { v: GroupView; paid?: boolean; wh
       {ledgers.length > 0 && mine !== 0 && (
         <section>
           <h2 className="font-display text-lg font-semibold tracking-tight">Spent in other currencies</h2>
-          <p
-            className="mb-3 text-sm text-gray-500"
-            data-ledger-summary
-            title={ledgerSummary(ledgers.map((l) => ({ currency: l.currency, amount: l.net[myId] ?? 0 })), mine, group.currency)}
-            data-exact={ledgerSummary(ledgers.map((l) => ({ currency: l.currency, amount: l.net[myId] ?? 0 })), mine, group.currency)}
-          >
-            {ledgerSummary(ledgers.map((l) => ({ currency: l.currency, amount: l.net[myId] ?? 0 })), mine, group.currency)}{hasMarkup ? " Overall includes card fees." : ""}
-          </p>
+          {/* The cards below say it once; the "Overall you're owed" sentence repeated the ticket and them, so it is gone. */}
+          {hasMarkup ? <p className="mb-3 text-sm text-gray-500">Overall includes card fees.</p> : <div className="mb-3" />}
           <ul className="divide-y divide-line rounded-[20px] border border-line bg-white">
             {ledgers.map((l) => {
               const val = l.net[myId] ?? 0;

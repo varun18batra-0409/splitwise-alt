@@ -21,4 +21,5 @@ export const HOME_FOOTER_LINKS = [
   { href: "/terms", label: "Terms" },
 ];
 
-export const ACCOUNT_FOOTER_LINKS = [{ href: "/how-it-works", label: "How Loopin works" }, ...HOME_FOOTER_LINKS];
+// You already has a "How Loopin works" row, so its footer is the same three links (said once).
+export const ACCOUNT_FOOTER_LINKS = HOME_FOOTER_LINKS;

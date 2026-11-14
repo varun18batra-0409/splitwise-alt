@@ -13,7 +13,8 @@ import { GroupChanged, groupChangedText, guardGroup, ledgerInTx } from "./money-
 // - Rename: any member can fix anyone's name (no two people with the same name).
 // - Leave: only with a zero balance. They stay in the history and balances,
 //   but aren't offered when adding new expenses or payments.
-// - Rejoin: brings them back.
+// - Rejoin: brings them back. Only the person themself, or (for a name nobody has claimed) anyone; someone with their own
+//   account is invited back and rejoins by accepting (invites.ts).
 // - Removed: when someone else (the admin) takes a person out, it is "removed", not
 //   "left": removedAt is set, they can't rejoin on their own or with the link, and
 //   only the admin can bring them back. Undoing the removal clears it.
@@ -106,6 +107,12 @@ export async function setMember(
           : {};
     // Taking out someone who had already left keeps the day they left.
     const leftAtNext = leaving ? (promoting ? m.leftAt! : new Date(data.leftAt!)) : null;
+    // Someone ELSE putting back a person who has their own sign-in (they left on their own, or the admin removed them) is not allowed:
+    // that person has to accept an invitation themselves (invites.ts inviteBackTo; accepting clears the mark on this same row).
+    // Rejoining yourself, undo, and name-only rows (nobody to ask) are direct, as before.
+    if (!leaving && !undoing && memberId !== actorId && m.accountId && (alreadyLeft || m.removedAt !== null)) {
+      return { ok: false, error: `${m.name} has their own Loopin account, so they need to accept an invitation to come back. Use Invite back.` };
+    }
     await opts.afterRead?.();
     try {
     const eventId = await db.$transaction(async (tx) => {
@@ -117,7 +124,18 @@ export async function setMember(
         const owing = (await ledgerInTx(tx, groupId)).net[memberId] ?? 0;
         if (owing !== 0) throw new StillOwes(owing);
       }
-      await tx.member.update({ where: { id: memberId }, data: { leftAt: leftAtNext, ...removal } });
+      // Written only if the person is still exactly as it was read (a removal racing a rejoin can't leave someone removed-but-active).
+      const wrote = await tx.member.updateMany({ where: { id: memberId, leftAt: m.leftAt, removedAt: m.removedAt }, data: { leftAt: leftAtNext, ...removal } });
+      if (wrote.count !== 1) throw new MemberMoved();
+      // Taking someone out ends every open invitation for their row (or to their address): an "invite back" sent before the removal
+      // must not bring them back after it.
+      if (removal.removedAt) {
+        const acct = m.accountId ? await tx.account.findUnique({ where: { id: m.accountId }, select: { email: true } }) : null;
+        await tx.invite.updateMany({
+          where: { groupId, acceptedAt: null, declinedAt: null, OR: [{ memberId }, { token: { startsWith: `${memberId}.` } }, ...(acct ? [{ email: acct.email }] : [])] },
+          data: { declinedAt: new Date() },
+        });
+      }
       return logEvent(tx, {
         groupId,
         actorId,
@@ -143,6 +161,7 @@ export async function setMember(
     }, { timeout: 15000 });
     return { ok: true, eventId };
     } catch (err) {
+      if (err instanceof MemberMoved) return { ok: false, error: `${m.name} was just changed by someone else. Look again, then try once more.` };
       if (err instanceof StillOwes) return { ok: false, error: owesText(err.net, group.currency, memberId === actorId, m.name) };
       if (err instanceof GroupChanged) return { ok: false, error: groupChangedText(err) };
       throw err;
@@ -150,6 +169,8 @@ export async function setMember(
   }
   return { ok: true };
 }
+
+class MemberMoved extends Error {}
 
 class StillOwes extends Error {
   constructor(public net: number) {

@@ -15,6 +15,9 @@ async function fullyVisible(page: Page, selector: string, label: string) {
   const n = await els.count();
   expect(n, `${label}: found`).toBeGreaterThan(0);
   for (let i = 0; i < n; i++) {
+    // Passes in a swipe stack sit side by side: bring each one into view first, the way a person swipes to it.
+    await els.nth(i).scrollIntoViewIfNeeded();
+    await page.waitForTimeout(300);
     const r = await els.nth(i).evaluate((el) => {
       const b = el.getBoundingClientRect();
       return { scroll: el.scrollWidth, client: el.clientWidth, left: b.left, right: b.right, vw: window.innerWidth };
@@ -66,7 +69,7 @@ test("a lakh amount fits at 320×640: the activity row and Home's two-sided tick
   await settled(page);
   const card = page.locator("[data-balance-card]").first();
   await expect(card).toHaveAttribute("data-ticket", "both");
-  await expect(card).toContainText("₹6,17,284"); // Home rounds to whole rupees
+  await expect(card).toContainText("₹6,17,283.94"); // Home is exact too
   await fullyVisible(page, "[data-balance-card] [data-net-balance]", "Home ticket amount");
   expect(await noSidewaysScroll(page), "Home does not scroll sideways").toBeLessThanOrEqual(1);
 
@@ -93,7 +96,7 @@ test("a lakh amount fits at 320×640: the activity row and Home's two-sided tick
   // Edit the big expense once (add a note): the row now says "paid ₹12,34,567.88 · edited". Both the full amount and "edited" stay
   // visible (two lines allowed), nothing runs under the amount column, nothing scrolls sideways.
   await openEdit(page, g1.path, "Villa");
-  await page.getByRole("button", { name: /^Notes/ }).click();
+  await page.getByRole("button", { name: /^More options/ }).click();
   await page.getByPlaceholder("e.g. Rahul paid the tip separately").fill("Booked by phone");
   await openSplit(page);
   await page.getByRole("button", { name: "Everyone equally" }).click();

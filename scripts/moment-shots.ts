@@ -20,6 +20,9 @@ export async function assertMomentPhotosDecoded(p: Page, label: string): Promise
     for (const im of imgs) im.loading = "eager";
     for (const im of imgs) im.scrollIntoView({ block: "center" });
     window.scrollTo(0, 0);
+    // scrollIntoView also slides sideways rows (story circles, Memories) to their last photo; put every row back at its start,
+    // as a person opening the page would see it.
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>("*"))) if (el.scrollLeft > 0) el.scrollLeft = 0;
   });
   // No named functions inside the browser code: the script runner adds a helper (__name) that the page doesn't have.
   await p

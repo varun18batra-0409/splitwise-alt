@@ -504,7 +504,7 @@ export function Composer({ groupId, groups, photos, words: wordOptions, defaults
               <PostcardShare front={frontProps} back={backProps} name="postcard" />
             </div>
           )}
-          <p className="mt-7 text-[15px] font-semibold">Or send it in Loopin</p>
+          <p className="mt-7 text-[15px] font-semibold">{message.trim() ? "Or send it in Loopin" : "Send it in Loopin"}</p>
           {groups.length === 0 && <p className="mt-2 text-sm leading-relaxed text-fg/60">In Loopin, postcards go to friends you share a group with. Invite someone to a group and they’ll show here.</p>}
           {groups.map((g) => {
             const all = g.people.every((p) => to.includes(p.id));

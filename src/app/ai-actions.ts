@@ -51,5 +51,5 @@ export async function saveAiConsentForm(f: FormData): Promise<void> {
   const { redirect } = await import("next/navigation");
   const answer = String(f.get("answer") ?? "");
   await setAiConsentAction(answer);
-  redirect(`/account?ai=${answer === "yes" ? "on" : "off"}#privacy`);
+  redirect(`/account/privacy?ai=${answer === "yes" ? "on" : "off"}`);
 }

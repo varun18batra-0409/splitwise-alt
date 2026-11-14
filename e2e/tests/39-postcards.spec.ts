@@ -15,9 +15,9 @@ test("Postcards: write from a group, the other person receives it, turns it over
   const g = await createGroup(A, groupName("Goa trip"), "Trip");
   await joinGroup(R, g.invite, g.path);
 
-  // The group offers it, once something has happened in it (an empty group shows how to start instead).
+  // The group offers it on its Memories tab.
   await addExpense(A, g.path, { name: "Beach shack lunch", amount: "800" });
-  await A.goto(g.path);
+  await A.goto(`${g.path}?tab=memories`);
   await settled(A);
   await A.locator("[data-send-postcard]").first().click();
   await A.waitForURL(/\/postcards\/new\?group=/);
@@ -97,7 +97,9 @@ test("Postcards: write from a group, the other person receives it, turns it over
   await expect(R.locator("[data-back-message]")).toHaveCount(0);
   await R.goto("/postcards/stamps");
   await settled(R);
-  await expect(R.locator("[data-album-count]")).toContainText("of 9 collected");
+  await expect(R.locator("[data-album-stamp]")).toHaveCount(9);
+  // "0 of 9 collected" is hidden until there is a first stamp (R1 item 13).
+  await expect(R.locator("[data-album-count]")).toHaveCount(0);
 
   // Someone who isn't the sender or the receiver gets nothing.
   const stranger = await signUp("Zed", testEmail("pc-zed"));

@@ -46,6 +46,6 @@ export async function recordAiConsent(accountId: string | null | undefined, answ
 export function consentRefusal(consent: AiConsent): { needsConsent: boolean; error: string } | null {
   if (consent === "yes") return null;
   return consent === "no"
-    ? { needsConsent: false, error: "AI reading is off. You can turn it on in You → Privacy." }
+    ? { needsConsent: false, error: "AI reading is off. You can turn it on in You → Privacy & sharing." }
     : { needsConsent: true, error: "Loopin asks before its AI reads anything. Allow it, or fill this in by hand." };
 }

@@ -46,7 +46,7 @@ const sections = (): { title: string; items: QA[] }[] => [
       },
       {
         q: "Does Loopin’s AI read my bills?",
-        a: "Only if you say yes. The first time a bill photo or a line Loopin can’t follow could go to Anthropic, an AI company, Loopin asks. Anthropic doesn’t use it to train its models, and you can change your answer any time in You → Privacy and safety.",
+        a: "Only if you say yes. The first time a bill photo or a line Loopin can’t follow could go to Anthropic, an AI company, Loopin asks. Anthropic doesn’t use it to train its models, and you can change your answer any time in You → Privacy & sharing.",
       },
       { q: "Two people paid, or we got money back?", a: "Pick more than one payer and type what each paid. For a refund or returned item, switch to Money back; it’s shared the same way and the balances move back." },
       {
@@ -127,7 +127,7 @@ const sections = (): { title: string; items: QA[] }[] => [
       { q: "What is Wrapped?", a: "A trip told as a few posters: the total you spent together, where the money went, the biggest day and everyone’s title. Open it from a group’s Charts, and share it as a picture. You can hide the amounts first." },
       {
         q: "What is the trip passport?",
-        a: "A card for every trip with its stamp on the place’s photo, and your countries, trips and days away on top. You can add countries you visited before Loopin with Add a visited place, share your passport to WhatsApp as a picture, and open the old passport book from a link at the bottom.",
+        a: "A card for every trip with its stamp on the place’s photo, and your countries, trips and days travelled on top. You can add countries you visited before Loopin with Add a visited place, share your passport to WhatsApp as a picture, and open the old passport book from a link at the bottom.",
       },
       {
         q: "Who can see my passport?",
@@ -156,22 +156,22 @@ const sections = (): { title: string; items: QA[] }[] => [
       { q: "Who can see my group?", a: "Only the people in it. Anyone else opening its address sees “Private group”, with no names or amounts." },
       {
         q: "Can I download my data?",
-        a: "Yes. You → Download all my data gives you one spreadsheet with your account details, your groups, expenses and payments, postcards, passport, the moments you added, collections, notification settings and messages to support. Each group’s settings also has Download spreadsheet for just that group.",
+        a: "Yes. You → Export your data → Download all my data gives you one spreadsheet with your account details, your groups, expenses and payments, postcards, passport, the moments you added, collections, notification settings and messages to support. Each group’s settings also has Download spreadsheet for just that group.",
       },
       {
         q: "How do I delete a group, or my account?",
-        a: "A group can be deleted from its settings; whoever deleted it or looks after it can restore it from Your groups → Recently deleted for 30 days, and after that it’s erased for good. To remove your account, go to You → Delete my email & sign-in. Your name stays in shared groups’ history, because those are other people’s records too.",
+        a: "A group can be deleted from its settings; whoever deleted it or looks after it can restore it from Your groups → Recently deleted for 30 days, and after that it’s erased for good. To remove your account, go to You → Export your data → Delete my email & sign-in. Your name stays in shared groups’ history, because those are other people’s records too.",
       },
       { q: "Does Loopin upload my contacts?", a: "No. When you pick someone from your contacts, only that person’s name and number are saved to the group. Loopin never uploads your address book." },
       {
         q: "How do I report or block someone?",
-        a: "On a postcard you got, a friend’s passport, a moment, or a person in People, tap Report or Block. Blocking stops their postcards, passport and nudges reaching you, and hides yours from them. You’ll both still see shared group expenses and balances, because the money has to add up. Unblock from You → Privacy and safety.",
+        a: "On a postcard you got, a friend’s passport, a moment, or a person in People, tap Report or Block. Blocking stops their postcards, passport and nudges reaching you, and hides yours from them. You’ll both still see shared group expenses and balances, because the money has to add up. Unblock from You → Privacy & sharing.",
       },
       {
         q: "How do I contact support?",
         a: (
           <>
-            Open <strong>You → Privacy and safety → Contact support</strong>, or go straight to the{" "}
+            Open <strong>You → Help & support</strong>, or go straight to the{" "}
             <a href={supportHref()} className={link}>
               support page
             </a>

@@ -3,7 +3,6 @@
 // all square -> Add expense is bright and the second button becomes New group (there is nothing to settle).
 import type { TripPhase } from "../countdown";
 import { personKey, phoneKeyResolver, regionForGroup, settleRowId } from "../cross-settle";
-import { homeMoney } from "./display";
 import { formatMoney } from "../money";
 
 export type MoneyMode = "owe" | "owed" | "even" | "square";
@@ -118,13 +117,13 @@ function uniquePeople(entries: MoneyPerson[]): { name: string; e: MoneyPerson }[
   return list.map((e) => ({ name: e.solo && (count.get(e.name.trim().toLowerCase()) ?? 0) > 1 ? `${e.name} (${e.groupName})` : e.name, e }));
 }
 
-// Amounts follow Home's rule (homeMoney): whole units from 1,000, exact below; the exact amount rides along for title/aria.
+// Amounts are exact (paise included), the same figure the group and Settle up show; the exact amount also rides along for title/aria.
 // Never more than 3 names: the top two of the main side, then one from the other side.
 export function whoLine(entries: MoneyPerson[], otherSide: MoneyPerson[] = [], side: "owe" | "owed" = "owe"): WhoLine {
   const list = uniquePeople(entries);
   const parts = list.slice(0, 2).map(({ name, e }) => ({
     name,
-    amount: `${e.approx ? "≈ " : ""}${homeMoney(e.amount, e.currency)}`,
+    amount: `${e.approx ? "≈ " : ""}${formatMoney(e.amount, e.currency)}`,
     exact: `${e.approx ? "≈ " : ""}${formatMoney(e.amount, e.currency)}`,
   }));
   const others = Math.max(0, list.length - 2);
@@ -142,14 +141,14 @@ export function whoLine(entries: MoneyPerson[], otherSide: MoneyPerson[] = [], s
     ? oneCurrency
       ? {
           name: `${rest.length} people`,
-          amount: `${approx ? "≈ " : ""}${homeMoney(sum, top.e.currency)}`,
+          amount: `${approx ? "≈ " : ""}${formatMoney(sum, top.e.currency)}`,
           exact: `${approx ? "≈ " : ""}${formatMoney(sum, top.e.currency)}`,
           kind,
           phrase: "",
         }
       : {
           name: top.name,
-          amount: `${top.e.approx ? "≈ " : ""}${homeMoney(top.e.amount, top.e.currency)}`,
+          amount: `${top.e.approx ? "≈ " : ""}${formatMoney(top.e.amount, top.e.currency)}`,
           exact: `${top.e.approx ? "≈ " : ""}${formatMoney(top.e.amount, top.e.currency)}`,
           kind,
           phrase: "",
@@ -198,7 +197,7 @@ export function moneyActions(mode: MoneyMode, people: MoneyPerson[], common: str
   const top = people[0];
   if (mode === "owe" && top) {
     const first = firstName(top.name);
-    const label = personButtonLabel("Pay", first, top.approx ? undefined : homeMoney(top.amount, top.currency));
+    const label = personButtonLabel("Pay", first, top.approx ? undefined : formatMoney(top.amount, top.currency));
     return [{ key: "pay", label, fullLabel: `Pay ${top.name} ${top.approx ? "≈ " : ""}${formatMoney(top.amount, top.currency)}`, href: payHref(top, common), bright: true }, add];
   }
   const remind = mode === "owed" && top ? remindHref(top) : null;
@@ -254,11 +253,11 @@ export function stripWords(place: string, p: TripPhase): { pre: string; num?: st
 // Money going both ways is two lines on the same ticket, never netted together. Nothing here changes a number: every amount is a
 // per-person total from moneyPeople (the same figures Settle up shows), added only within one currency.
 
-export type GroupMark = "plane" | "house" | "heart" | "spade" | "dot";
+export type GroupMark = "plane";
 
-// The little mark on the route line: a plane for trips, a house for flats, a heart for couples, a spade for game nights, else a dot.
-export function groupMark(type: string): GroupMark {
-  return type === "trip" ? "plane" : type === "home" ? "house" : type === "couple" ? "heart" : type === "pot" ? "spade" : "dot";
+// The mark on the route line is always the plane taking off, whatever the group type (the group's name is the GROUP field instead).
+export function groupMark(_type?: string): GroupMark {
+  return "plane";
 }
 
 // A group the money runs through. `weight`: how much of it is with you, in the common currency (0 when there is no saved rate).
@@ -293,12 +292,38 @@ export function firstWord(name: string): string {
   return name.trim().split(/\s+/)[0] || name.trim();
 }
 
+// The route line's short codes: the first 3 letters in capitals ("KAB", "YOU"), or "3 PPL" for several people. The name itself
+// appears only in the button, so it is never shown twice on the card.
+export function routeCode(end: string): string {
+  if (end === "You") return "YOU";
+  const m = /^(\d+) /.exec(end);
+  if (m) return `${m[1]} PPL`;
+  return [...end.replace(/[^\p{L}\p{N}]/gu, "")].slice(0, 3).join("").toUpperCase() || end.toUpperCase();
+}
+
+// A person's code on the boarding pass, never the same as another end of the same pass (`taken`, e.g. "YOU"). First choice is the
+// first three letters of the first name ("KAB"). If that is taken ("Youssef" and "YOU"): first letter + the last name's first two
+// letters ("YKH" for Youssef Khan), then first two letters + last initial, then first letter + last initial + next letter, and as a
+// last resort two letters and a digit ("YO2"). A short name stays short ("AL").
+export function personCode(fullName: string, taken: string[] = ["YOU"]): string {
+  const letters = (t: string) => [...t.replace(/[^\p{L}\p{N}]/gu, "")].map((c) => c.toUpperCase());
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  const first = letters(parts[0] ?? fullName);
+  const last = parts.length > 1 ? letters(parts[parts.length - 1]) : [];
+  const pick = (...a: (string | undefined)[]) => a.filter(Boolean).join("");
+  const options = [first.slice(0, 3).join(""), ...(last.length > 0 ? [pick(first[0], last[0], last[1]), pick(first[0], first[1], last[0]), pick(first[0], last[0], first[1])] : [])].filter(Boolean);
+  for (const c of options) if (!taken.includes(c)) return c;
+  const stem = first.slice(0, 2).join("") || "X";
+  for (let n = 2; n < 100; n++) if (!taken.includes(`${stem}${n}`)) return `${stem}${n}`;
+  return stem;
+}
+
 export function initialOf(name: string): string {
   return ([...name.trim()][0] ?? "?").toUpperCase();
 }
 
 // The amount for one side: per-person totals added within each currency, a currency never added into another
-// ("₹4,200 · $20"). Amounts follow Home's rule (homeMoney); `exact` is the full amount for the tooltip and screen readers.
+// ("₹4,200 · $20"). Amounts are exact (formatMoney, never rounded); `exact` is the same amount for the tooltip and screen readers.
 export function sideTotal(entries: MoneyPerson[]): { text: string; exact: string } {
   const order: string[] = [];
   const sums = new Map<string, { amount: number; approx: boolean }>();
@@ -309,7 +334,7 @@ export function sideTotal(entries: MoneyPerson[]): { text: string; exact: string
     s.approx ||= e.approx;
     sums.set(e.currency, s);
   }
-  const text = order.map((c) => `${sums.get(c)!.approx ? "≈ " : ""}${homeMoney(sums.get(c)!.amount, c)}`).join(" · ");
+  const text = order.map((c) => `${sums.get(c)!.approx ? "≈ " : ""}${formatMoney(sums.get(c)!.amount, c)}`).join(" · ");
   const exact = order.map((c) => `${sums.get(c)!.approx ? "≈ " : ""}${formatMoney(sums.get(c)!.amount, c)}`).join(" · ");
   return { text, exact };
 }
@@ -331,6 +356,11 @@ export type TicketLine = {
   faces: string[]; // initials, largest first (up to 3), only when there are several people
   peopleHref: string; // Settle up, scrolled to this side
   action: TicketAction;
+  fromCode: string; // the boarding pass's route codes: "KAB", "YOU", "3 PPL"
+  toCode: string;
+  groupIds: string[]; // the groups this side's money runs through (for the GROUP, SINCE and ITEMS fields and the stub's picture)
+  groupNames: string[];
+  weight: number; // this side's money in the common currency (0 for a part with no saved rate): only used to put the larger pass first
 };
 export type Ticket =
   | { kind: "square"; label: string; amount: string } // no button: the "+ New group" tile below is the only way to start one
@@ -365,9 +395,28 @@ function ticketLine(side: "owe" | "owed", entries: MoneyPerson[], common: string
         }
       : count === 1
         ? { key: "remind", label: `Remind ${firstWord(top.name)}`, fullLabel: `Remind ${top.name} on WhatsApp`, href: remind ?? peopleHref, bright: !short }
-        : { key: "remind", label: short ? "Remind" : "See who to remind", fullLabel: `See the ${count} people who owe you, to remind them`, href: peopleHref, bright: !short };
+        : { key: "remind", label: short ? "Remind" : `Remind ${count} people`, fullLabel: `See the ${count} people who owe you, to remind them`, href: peopleHref, bright: !short };
   const phrase = side === "owe" ? `You owe ${count === 1 ? top.name : name}` : count === 1 ? `${top.name} owes you` : `${name} owe you`;
-  return { side, count, phrase, name, amount: total.text, exact: total.exact, faces: count > 1 ? people.slice(0, 3).map((p) => initialOf(p.name)) : [], peopleHref, action };
+  const them = count === 1 ? personCode(top.name, ["YOU"]) : `${count} PPL`;
+  const groupIds = [...new Set(people.flatMap((p) => p.parts.map((x) => x.groupId)))];
+  const groupNames = groupIds.map((id) => groups.find((g) => g.id === id)?.name).filter((n): n is string => Boolean(n));
+  const weight = entries.filter((e) => e.currency === common).reduce((t, e) => t + e.amount, 0);
+  return {
+    side,
+    count,
+    phrase,
+    name,
+    amount: total.text,
+    exact: total.exact,
+    faces: count > 1 ? people.slice(0, 3).map((p) => initialOf(p.name)) : [],
+    peopleHref,
+    action,
+    fromCode: side === "owe" ? "YOU" : them,
+    toCode: side === "owe" ? them : "YOU",
+    groupIds,
+    groupNames,
+    weight,
+  };
 }
 
 // ---- The ticket at the top of ONE group ----
@@ -435,4 +484,82 @@ export function homeTicket(x: {
     context,
     action: { key: "settle", label: "Settle up", fullLabel: "Settle up", href: "/settle", bright: true },
   };
+}
+
+// ---- The boarding pass's fields and order ----
+export type PassField = { key: "group" | "since" | "items" | "payments" | "date" | "in" | "now" | "going"; label: string; value: string };
+export type GroupFacts = { since: string | null; items: number }; // since: a day, "2026-11-03"; items: expenses added since the group's last payment
+
+// "3 Nov" (this year) or "3 Nov 2025".
+export function shortDay(iso: string, thisYear: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return "";
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${Number(m[3])} ${months[Number(m[2]) - 1] ?? ""}${m[1] === thisYear ? "" : ` ${m[1]}`}`;
+}
+
+// The oldest day and the item count across the groups one pass runs through. A group with no facts is skipped; none known: nulls.
+export function sideFacts(ids: string[], facts: Record<string, GroupFacts | undefined>): { since: string | null; items: number | null } {
+  const known = ids.map((id) => facts[id]).filter((f): f is GroupFacts => Boolean(f));
+  const days = known.map((f) => f.since).filter((d): d is string => Boolean(d)).sort();
+  const items = known.reduce((t, f) => t + f.items, 0);
+  return { since: days[0] ?? null, items: items > 0 ? items : null };
+}
+
+// Up to three labelled fields, only the ones that are known and meaningful (never "0 items").
+export function passFields(x: { groupNames: string[]; since?: string | null; items?: number | null; thisYear: string }): PassField[] {
+  const out: PassField[] = [];
+  if (x.groupNames.length === 1) out.push({ key: "group", label: "Group", value: x.groupNames[0] });
+  else if (x.groupNames.length > 1) out.push({ key: "group", label: "Groups", value: `${x.groupNames.length} groups` });
+  const day = x.since ? shortDay(x.since, x.thisYear) : "";
+  if (day) out.push({ key: "since", label: "Since", value: day });
+  if (x.items && x.items > 0) out.push({ key: "items", label: "Items", value: String(x.items) });
+  return out;
+}
+
+// Money both ways: two passes, the larger one first (in the common currency); equal or unknown: the one you owe first.
+export function orderPasses<T extends { side: "owe" | "owed"; weight: number }>(lines: [T, T]): [T, T] {
+  const [a, b] = lines;
+  return b.weight > a.weight ? [b, a] : a.weight === b.weight && a.side !== "owe" ? [b, a] : [a, b];
+}
+
+// The one line under the countdown for the other trips coming up: "Also: Manali in 40 days", "Also: Manali in 40 days, Goa tomorrow and 1 more".
+export function alsoLine(trips: { place: string; days: number }[]): string {
+  if (trips.length === 0) return "";
+  const when = (d: number) => (d <= 0 ? "today" : d === 1 ? "tomorrow" : `in ${d} days`);
+  const shown = trips.slice(0, 2).map((t) => `${t.place} ${when(t.days)}`);
+  const more = trips.length - shown.length;
+  return `Also: ${shown.join(", ")}${more > 0 ? ` and ${more} more` : ""}`;
+}
+
+// ---- A group's own boarding pass (the group page and the Settle up cards) ----
+// Same pass as Home's, drawn by the same component. These two helpers only decide the words: the codes on the route, and the SINCE and
+// ITEMS fields. Neither works out a balance.
+
+// The codes at the two ends of a group's pass. One person: their code ("KAB"). Several: "3 PPL". Nobody to name: "GRP".
+// You are always "YOU"; the other end is never the same as yours (personCode steps aside if a name would also be YOU).
+export function sideCodes(side: "owe" | "owed", names: string[]): { from: string; to: string } {
+  const unique = names.filter((n, i) => names.indexOf(n) === i);
+  const them = unique.length === 1 ? personCode(unique[0], ["YOU"]) : unique.length > 1 ? `${unique.length} PPL` : "GRP";
+  return side === "owe" ? { from: "YOU", to: them } : { from: them, to: "YOU" };
+}
+
+// A code for one end that is just a name as the Settle up screens know it: "You", "3 people" or a person's name.
+export function endCode(end: string): string {
+  if (end === "You") return "YOU";
+  if (/^\d+ /.test(end)) return routeCode(end);
+  return personCode(end, ["YOU"]);
+}
+
+// What has built up in a group since its last payment: the day of the first expense added after it, and how many there are.
+// Deleted rows don't count; with no payment yet, every live expense counts. `dayOf` turns a moment into the viewer's day ("2026-11-03").
+export function sinceLastPayment(
+  expenses: { createdAt: Date; spentAt?: Date | null; deletedAt?: Date | null }[],
+  payments: { createdAt: Date; deletedAt?: Date | null }[],
+  dayOf: (d: Date) => string,
+): GroupFacts {
+  const last = payments.filter((p) => !p.deletedAt).reduce<number>((t, p) => Math.max(t, p.createdAt.getTime()), 0);
+  const fresh = expenses.filter((e) => !e.deletedAt && e.createdAt.getTime() > last).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  const first = fresh[0];
+  return { since: first ? dayOf(first.spentAt ?? first.createdAt) : null, items: fresh.length };
 }

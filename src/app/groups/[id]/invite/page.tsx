@@ -19,6 +19,7 @@ import { GroupCover } from "@/components/GroupCover";
 import { coverFor } from "@/lib/covers";
 import { inviteMemberId, inviteRowLabel } from "@/lib/invites";
 import { invitedNotice } from "@/lib/invite-label";
+import { SITE_URL } from "@/lib/site";
 
 // "invited" in the address: who was just added, as [name, email] pairs. The email is only there when the
 // person typed it themselves ("By email"); someone found by search carries their name alone.
@@ -60,7 +61,7 @@ export default async function AddPeoplePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ new?: string; invited?: string; error?: string; did?: string; undone?: string; newlink?: string }>;
+  searchParams: Promise<{ new?: string; invited?: string; error?: string; did?: string; undone?: string; newlink?: string; back?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -90,7 +91,9 @@ export default async function AddPeoplePage({
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
   const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-  const link = `${proto}://${host}/join/${group.inviteCode}`;
+  // In production the link is always the real site address (never localhost, never a preview address); elsewhere it follows the page's own host.
+  const origin = process.env.VERCEL_ENV === "production" ? SITE_URL : `${proto}://${host}`;
+  const link = `${origin}/join/${group.inviteCode}`;
   const qr = await QRCode.toString(link, { type: "svg", margin: 1, errorCorrectionLevel: "M", color: { dark: "#0d0d0f", light: "#f4f2ec" } });
   const myFirst = (group.members.find((m) => m.id === myId)?.name ?? "").trim().split(/\s+/)[0] ?? "";
   const whatsapp = whatsappLink(inviteMessage(group.type, group.name, link, myFirst));
@@ -127,10 +130,19 @@ export default async function AddPeoplePage({
       {!sp.undone &&
         justInvited(sp.invited).map(([name, email]) => (
           <Notice key={`${name}-${email}`} tone="success" params={["invited"]} className="mb-4">
-            <span className="block font-semibold" data-invited-title>{name} is in the group</span>
-            <span className="block text-sm">
-              You can add {name} to expenses now. {invitedNotice(email)}
-            </span>
+            {sp.back === "1" ? (
+              <>
+                <span className="block font-semibold" data-invited-title>Invited back</span>
+                <span className="block text-sm" data-invited-back>{name} will rejoin when they accept. Nothing about the money changes.</span>
+              </>
+            ) : (
+              <>
+                <span className="block font-semibold" data-invited-title>{name} is in the group</span>
+                <span className="block text-sm">
+                  You can add {name} to expenses now. {invitedNotice(email)}
+                </span>
+              </>
+            )}
           </Notice>
         ))}
 
@@ -141,38 +153,33 @@ export default async function AddPeoplePage({
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(20,20,24,0.15),#141418)]" />
         </div>
         <div className="relative -mt-7 px-5 pb-5">
-          <p className="font-hand text-[22px] font-bold leading-none text-[#ffd9a8]">Bring your people in</p>
+          <p className="text-[13px] font-medium leading-none text-fg/65">Bring your people in</p>
           <p className="mt-1 font-display text-[24px] font-semibold leading-tight tracking-tight">{group.name}</p>
           <div className="mt-4 flex items-center gap-2 rounded-2xl border border-line bg-canvas/50 px-3.5 py-2.5">
             <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-fg/70">{link.replace(/^https?:\/\//, "")}</span>
             <CopyButton text={link} label="Copy link" />
           </div>
-          <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="pop mt-3 flex w-full items-center justify-center gap-2.5 bg-[#6fe3a8] px-4 py-3.5 text-[15px] font-semibold text-[#0b2a1b] [--pop-edge:#3b9c70]" data-invite-whatsapp>
+          <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="pop mt-3 flex w-full items-center justify-center gap-2.5 bg-fg px-4 py-3.5 text-[15px] font-semibold text-canvas [--pop-edge:#6e6b63]" data-invite-whatsapp>
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5z" />
             </svg>
             Invite on WhatsApp
           </a>
-          {/* F14: WhatsApp and Copy link are the main ways; everything else is one tap further. */}
+          {/* WhatsApp and Copy link are the main ways. One control, "More ways to share", holds the rest: the phone's share sheet, the QR code and a new link. */}
           <details className="group/more mt-2" data-more-ways>
-            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-center gap-1.5 text-xs font-semibold text-fg/60 [&::-webkit-details-marker]:hidden">
-              More ways <span className="transition-transform group-open/more:rotate-90">›</span>
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-center gap-1.5 text-sm font-semibold text-fg/75 [&::-webkit-details-marker]:hidden">
+              More ways to share <span aria-hidden className="transition-transform group-open/more:rotate-90">›</span>
             </summary>
             <div className="mt-1">
               <ShareInvite code={group.inviteCode} groupName={group.name} />
             </div>
-            <details className="group/link mt-2">
-              <summary className="flex cursor-pointer list-none items-center justify-center gap-1.5 py-1.5 text-xs font-semibold text-fg/60 [&::-webkit-details-marker]:hidden">
-                Share the group link or QR code <span className="transition-transform group-open/link:rotate-90">›</span>
-              </summary>
-              <div
-                className="mx-auto mt-3 w-full max-w-[200px] overflow-hidden rounded-2xl bg-[#f4f2ec] p-3 [&_svg]:h-auto [&_svg]:w-full"
-                role="img"
-                aria-label={`QR code to join ${group.name}`}
-                dangerouslySetInnerHTML={{ __html: qr }}
-              />
-              <p className="mt-2 text-center text-xs text-gray-400">Anyone with it can ask to join after signing up</p>
-            </details>
+            <div
+              className="mx-auto mt-4 w-full max-w-[200px] overflow-hidden rounded-2xl bg-[#f4f2ec] p-3 [&_svg]:h-auto [&_svg]:w-full"
+              role="img"
+              aria-label={`QR code to join ${group.name}`}
+              dangerouslySetInnerHTML={{ __html: qr }}
+            />
+            <p className="mt-2 text-balance text-center text-xs text-gray-400">Anyone with the link or code can ask to join after signing up</p>
             {pickAdmin(group.members)?.id === myId && (
               <form action={makeNewInviteLink} className="mt-1 text-center" data-new-invite-link>
                 <input type="hidden" name="groupId" value={group.id} />
@@ -205,7 +212,8 @@ export default async function AddPeoplePage({
         <form action={invitePeople} className="flex gap-2">
           <input type="hidden" name="groupId" value={group.id} />
           <input name="emails" type="text" inputMode="email" autoComplete="off" required placeholder="friend@example.com" aria-label="Email addresses to invite" className={inputClass} />
-          <button type="submit" className="pop shrink-0 bg-fg px-4 text-sm font-semibold text-canvas [--pop-edge:#6e6b63]">
+          {/* Outline: "Invite on WhatsApp" is the one cream button on this screen. */}
+          <button type="submit" className="shrink-0 rounded-full border border-fg/30 px-4 text-sm font-semibold text-fg active:bg-fg/10">
             Invite
           </button>
         </form>

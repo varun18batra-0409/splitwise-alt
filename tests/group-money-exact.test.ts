@@ -51,7 +51,8 @@ describe("People page and This month use exact amounts for balances", () => {
     const people = readFileSync("src/app/groups/[id]/people/page.tsx", "utf8");
     expect(people).not.toContain("<Amt");
     expect(people).toContain("`gets ${money(bal)}`");
-    expect(people).toContain("`owes ${money(bal)}`");
+    expect(people).toContain("`owes ${money(-bal)}`"); // the owed amount is shown as a plain positive figure (no minus sign), still the exact formatter
+    for (const bad of ["homeMoney", "overviewMoney"]) expect(people).not.toContain(bad);
     const month = readFileSync("src/app/groups/[id]/_components/ThisMonthTab.tsx", "utf8");
     for (const line of month.split("\n").filter((l) => /Overall you|ahead|behind|Yours|put in/.test(l))) expect(line, line).not.toContain("<Amt");
     expect(month).toContain("{money(mine)}");

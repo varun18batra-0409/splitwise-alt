@@ -31,6 +31,7 @@ export function ActivityRow({
   currency,
   nameOf,
   groupName,
+  dateLabel,
   motion,
   delay = 0,
 }: {
@@ -38,12 +39,20 @@ export function ActivityRow({
   currency: string;
   nameOf: (id: string) => string; // returns "You" for me
   groupName?: string; // shown on the home screen, where groups are mixed
+  dateLabel?: string; // "Today", "Yesterday": shown after the group name (Home)
   motion?: "loop" | "once"; // the icon moves: now and then (Home), or once when seen (a group's list)
   delay?: number; // seconds, so a list's icons take turns
 }) {
   const money = (m: number) => formatMoney(m, currency);
   // Rows show the exact amount, paise included (the same figure as the expense and Settle up); never rounded.
   const short = money;
+  // Third line: the group and the date. It may be cut; the names and amounts above never are.
+  const where = [groupName, dateLabel].filter(Boolean).join(" · ");
+  const whereLine = where ? (
+    <p className="mt-0.5 truncate text-[13px] leading-snug text-fg/60" data-where-line>
+      {where}
+    </p>
+  ) : null;
 
   if (item.kind === "event") {
     return (
@@ -53,7 +62,7 @@ export function ActivityRow({
         </span>
         <p className="min-w-0 flex-1 text-sm text-gray-500">
           <span className="font-medium text-ink">{nameOf(item.actorId)}</span> {neutralGameText(item.text)}
-          {groupName && <span className="text-gray-400"> · {groupName}</span>}
+          {where && <span className="text-gray-400"> · {where}</span>}
         </p>
       </div>
     );
@@ -64,6 +73,9 @@ export function ActivityRow({
 
   if (item.kind === "payment") {
     const to = nameOf(item.toId);
+    // A plain payment has nothing more to say than the title; its amount is on the right.
+    const subRaw = paymentSubline(item.status, to, deleted, deletedNote);
+    const sub = subRaw === "Payment" && !(deleted || item.effect === 0) ? "" : subRaw;
     // Wording lives in payment-words.ts: a payment only said (not yet confirmed) never reads "paid you" or "you received".
     return (
       <div className={`flex items-center gap-3.5 py-3.5 ${deleted ? "opacity-[.85]" : ""}`}>
@@ -74,10 +86,19 @@ export function ActivityRow({
           <p className={`line-clamp-2 break-words text-[15px] font-semibold leading-snug tracking-tight ${deleted ? "line-through decoration-gray-400" : ""}`}>
             {paymentTitle(nameOf(item.fromId), to, item.status, deleted)}
           </p>
-          <p className={meta}>
-            {paymentSubline(item.status, to, deleted, deletedNote)} · <span className="whitespace-nowrap" title={money(item.amount)} data-exact={money(item.amount)}>{short(item.amount)}</span>
-            {groupName && ` · ${groupName}`}
-          </p>
+          {sub && (
+            <p className={meta}>
+              {sub}
+              {/* The amount sits on the right ("you received"); repeat it here only when it isn't yours or the row is deleted. */}
+              {(deleted || item.effect === 0) && (
+                <>
+                  {" · "}
+                  <span className="whitespace-nowrap" title={money(item.amount)} data-exact={money(item.amount)}>{short(item.amount)}</span>
+                </>
+              )}
+            </p>
+          )}
+          {whereLine}
         </div>
         {deleted || item.effect === 0 ? (
           <Effect label={paymentEffectLabel(item.status, item.effect, deleted)} cls="" />
@@ -97,8 +118,8 @@ export function ActivityRow({
           <p className="truncate text-[15px] font-semibold tracking-tight">{neutralGameText(item.title)}</p>
           <p className={meta}>
             Game result · {(item.payerIds ?? [item.paidById]).map(nameOf).join(" + ")} came out ahead by <span className="whitespace-nowrap" title={money(item.amount)} data-exact={money(item.amount)}>{short(item.amount)}</span>
-            {groupName && ` · ${groupName}`}
           </p>
+          {whereLine}
         </div>
         {item.effect > 0 ? (
           <Effect label="you were up" amount={short(item.effect)} exact={money(item.effect)} cls="text-owed" />
@@ -135,24 +156,21 @@ export function ActivityRow({
           )}
         </p>
         {deleted ? (
-          <p className={meta}>
-            {deletedNote} · {shown(o?.amount ?? 0, item.amount)}
-            {groupName && ` · ${groupName}`}
-          </p>
+          <>
+            <p className={meta}>
+              {deletedNote} · {shown(o?.amount ?? 0, item.amount)}
+            </p>
+            {whereLine}
+          </>
         ) : (
-          // One line: the names take what is left and are cut first with "…"; "paid THB 225 · edited" can use two lines, so nothing runs under the amount column.
-          <p className="mt-0.5 flex min-w-0 items-baseline gap-x-1 text-[13px] leading-snug text-fg/60">
-            <span className="min-w-0 shrink-[4] truncate" title={(item.payerIds ?? [item.paidById]).map(nameOf).join(" + ")}>
-              {(item.payerIds ?? [item.paidById]).map(nameOf).join(" + ")}
-            </span>{" "}
-            {/* May take two lines (like the other rows), so a lakh-sized total stays readable; the amount itself never breaks, and this
-                can shrink, so it never runs under the amount on the right. The names give way first. */}
-            <span className="min-w-0 line-clamp-2 break-words" data-paid-line>
-              {item.refund ? "got back" : "paid"} {shown(o?.amount ?? 0, item.amount)}
+          // Line 2: "Kabir paid ₹1,180". The payer's name is never cut: it wraps. Line 3: group and date, which may be cut.
+          <>
+            <p className="mt-0.5 break-words text-[13px] leading-snug text-fg/60" data-paid-line>
+              {(item.payerIds ?? [item.paidById]).map(nameOf).join(" + ")} {item.refund ? "got back" : "paid"} {shown(o?.amount ?? 0, item.amount)}
               {item.edited && " · edited"}
-            </span>{" "}
-            {groupName && <span className="min-w-0 shrink truncate">· {groupName}</span>}
-          </p>
+            </p>
+            {whereLine}
+          </>
         )}
       </div>
       {deleted ? (

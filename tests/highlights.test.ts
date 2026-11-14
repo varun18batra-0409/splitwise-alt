@@ -66,7 +66,7 @@ describe("Home highlights", () => {
     expect(busy.length).toBe(7);
     // The trip you're on comes first, then the next trip's weather and what's on.
     expect(titles(busy).slice(0, 3)).toEqual([
-      "Day 2 in Bangkok | ₹4,200 spent today",
+      "In Bangkok now | ₹4,200 spent today",
       "Goa in 12 days | Usually 33° by day, 21° at night",
       "While you’re in Goa | Christmas & New Year in Goa",
     ]);
@@ -82,5 +82,45 @@ describe("Home highlights", () => {
     expect(seasonNow(new Date("2027-01-10T10:00:00Z"), "Australia/Sydney", "AU")?.id).toBe("summer-south");
     expect(seasonNow(new Date("2027-07-01T10:00:00Z"), "America/New_York", "US")?.id).toBe("july4");
     expect(seasonNow(new Date("2027-07-01T10:00:00Z"), "Asia/Kolkata", "IN")?.id).toBe("monsoon-in");
+  });
+});
+
+describe("Home cards after the countdown and needs-you line", () => {
+  const goa = { id: "t1", name: "Goa", phase: { kind: "before" as const, days: 12 }, start: "2026-12-26", end: "2026-12-31", stops: [{ city: "Goa", country: "IN" }] };
+  it("no weather card for the trip whose weather the countdown already says; another trip keeps its own", () => {
+    const manali = { ...goa, id: "t2", name: "Manali", start: "2027-01-05", end: "2027-01-09", stops: [{ city: "Manali", country: "IN" }], phase: { kind: "before" as const, days: 30 } };
+    expect(homeHighlights({ ...base, trips: [goa] }).some((h) => h.id === "weather-t1")).toBe(true);
+    const ids = homeHighlights({ ...base, trips: [goa, manali], skipWeather: ["t1"] }).map((h) => h.id);
+    expect(ids).not.toContain("weather-t1");
+    expect(ids).toContain("weather-t2");
+  });
+  it("passport and postcard cards take a real photo when there is one, and keep the drawn art when there is not", () => {
+    const withPhotos = homeHighlights({ ...base, passportCountries: 22, scenes: { passport: "/photos/card-passport.jpg", postcards: "/photos/card-postcards.jpg" } });
+    const pass = withPhotos.find((h) => h.id === "fill-passport");
+    const post = withPhotos.find((h) => h.id === "fill-postcard");
+    expect(pass).toMatchObject({ photo: "/photos/card-passport.jpg", scene: true, title: "22 countries and counting" });
+    expect(post).toMatchObject({ photo: "/photos/card-postcards.jpg", scene: true });
+    const plain = homeHighlights({ ...base, passportCountries: 22 }).find((h) => h.id === "fill-passport");
+    expect(plain).toMatchObject({ art: "passport" });
+    expect(plain && "photo" in plain ? plain.photo : undefined).toBeUndefined();
+  });
+  it("the photo cards carry their keepsake: the passport with your own stamps (at most 2), the postcard with its taped photo", () => {
+    const stamps = [
+      { code: "TH", country: "Thailand", when: "2026-05-05" },
+      { code: "JP", country: "Japan", when: "2025-10-01" },
+      { code: "FR", country: "France", when: "2025-04-01" },
+    ];
+    const cards = homeHighlights({ ...base, passportCountries: 4, scenes: { passport: "/photos/card-passport.jpg", postcards: "/photos/card-postcards.jpg", stamps, postcardPhoto: "/photos/card-postcard-photo.jpg" } });
+    expect(cards.find((h) => h.id === "fill-passport")).toMatchObject({ keepsake: { kind: "passport", stamps: stamps.slice(0, 2) } });
+    expect(cards.find((h) => h.id === "fill-postcard")).toMatchObject({ keepsake: { kind: "postcard", photo: "/photos/card-postcard-photo.jpg" } });
+    // Nobody abroad yet: the passport alone, never someone else's stamps.
+    const fresh = homeHighlights({ ...base, scenes: { passport: "/photos/card-passport.jpg" } }).find((h) => h.id === "fill-passport");
+    expect(fresh).toMatchObject({ keepsake: { kind: "passport", stamps: [] } });
+    // "Where to next?" takes a real place photo when there is one.
+    const next = homeHighlights({ ...base, scenes: { nextTrip: "/photos/country-jp.jpg" } }).find((h) => h.id === "fill-trip");
+    expect(next).toMatchObject({ photo: "/photos/country-jp.jpg" });
+    // No photo: no keepsake, the drawn art.
+    const plain = homeHighlights({ ...base }).find((h) => h.id === "fill-passport");
+    expect(plain && "keepsake" in plain ? plain.keepsake : undefined).toBeUndefined();
   });
 });

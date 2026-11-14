@@ -7,6 +7,7 @@ import { dayLabel, momentAuthor } from "./moments-text";
 import { MOMENTS_PER_GROUP, MOMENTS_PER_PERSON_PER_DAY } from "./covers";
 import { claimKey, isDuplicateKey } from "./once";
 import { canSeeMoment, canOpenMoments, type MomentViewer } from "./moments-access";
+import { MEMORY_MAX, pickMemories, type HomeMemory, type MemoryGroup } from "./home/memories";
 
 // Moments in the database. Nothing here decides who may see a moment: callers pass a MomentViewer (loadMomentViewer) and every
 // row that is returned has gone through canSeeMoment. The photo bytes are never loaded by these lists (only by the photo route).
@@ -250,6 +251,35 @@ export async function loadMomentStoryGroups(memberships: Record<string, string>,
     });
   }
   return out;
+}
+
+// ---------- Home's "Memories" row ----------
+// The newest moments (at most MEMORY_MAX) you may see across your groups, as square polaroids under the story circles.
+// Same people as the story circles (in the group right now). Each group's rows are read with momentsWhere (blocks, and nothing after
+// you left), then pickMemories runs canSeeMoment on every one again. Photo bytes are never read here, only their addresses.
+export async function loadHomeMemories(memberships: Record<string, string>): Promise<HomeMemory[]> {
+  const ids = Object.values(memberships);
+  if (!ids.length) return [];
+  const mine = await db.member.findMany({
+    where: { id: { in: ids }, leftAt: null, removedAt: null, ...JOINED, group: { deletedAt: null, type: "trip" } },
+    select: { id: true, groupId: true, accountId: true, group: { select: { name: true } } },
+    take: 200,
+  });
+  if (!mine.length) return [];
+  // Someone in many trips: look at the 12 groups with the newest moments, so the row never misses the latest ones.
+  const latest = await db.moment.groupBy({ by: ["groupId"], where: { groupId: { in: mine.map((m) => m.groupId) } }, _max: { createdAt: true } });
+  const newest = new Map(latest.map((r) => [r.groupId, r._max.createdAt?.getTime() ?? 0]));
+  mine.sort((a, b) => (newest.get(b.groupId) ?? 0) - (newest.get(a.groupId) ?? 0));
+  const blockedBy = new Map<string, ReadonlySet<string>>();
+  for (const a of new Set(mine.map((m) => m.accountId).filter((x): x is string => Boolean(x)))) blockedBy.set(a, await blockedEitherWay(a));
+  const groups: MemoryGroup[] = await Promise.all(
+    mine.slice(0, 12).map(async (m) => {
+      const viewer: MomentViewer = { groupId: m.groupId, groupType: "trip", groupDeleted: false, memberId: m.id, accountId: m.accountId, leftAt: null, removedAt: null, pending: false, isAdmin: false, blocked: (m.accountId && blockedBy.get(m.accountId)) || new Set<string>() };
+      const moments = await db.moment.findMany({ where: momentsWhere(viewer), orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: MEMORY_MAX, select: { id: true, groupId: true, authorId: true, authorAccountId: true, caption: true, createdAt: true } });
+      return { groupId: m.groupId, name: m.group.name.replace(/\s+trip$/i, "").trim() || m.group.name, viewer, moments };
+    }),
+  );
+  return pickMemories(groups, (id) => momentPhotoSrc(id, "t"));
 }
 
 // ---------- Download my data ----------

@@ -72,7 +72,7 @@ test("Gestures: swipe to delete an expense, drag a sheet closed, confetti on all
   // A sheet: drag it down from its top and it closes.
   await A.goto("/passport");
   await settled(A);
-  await A.getByRole("button", { name: "Add a visited place" }).click();
+  await A.getByRole("button", { name: "Add visited place" }).click();
   const sheet = A.getByRole("dialog", { name: "Add countries" });
   await expect(sheet).toBeVisible();
   // Dragging lower down (the list) scrolls the list instead of closing.

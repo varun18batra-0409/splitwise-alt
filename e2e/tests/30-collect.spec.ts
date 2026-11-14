@@ -38,8 +38,10 @@ test("the form refuses a bad UPI ID (and keeps what was typed), then makes the l
   await org.waitForURL(/\/c\/[A-Za-z0-9_-]+\?new=1/);
   link = new URL(org.url()).pathname;
   await expect(org.locator("[data-collection-title]")).toHaveText(title);
-  // Ravi and Meera are listed and nobody has paid: "2 still to pay" (the organiser's summary; payers still read "No one has said they've paid yet").
-  await expect(org.locator("[data-collection-progress]")).toContainText("2 still to pay");
+  // Ravi and Meera are listed and nobody has paid: the organiser's header says "2 people" and has no "still to pay" counts line (payers still read "No one has said they've paid yet").
+  await expect(org.locator("[data-collection-title]")).toBeVisible();
+  await expect(org.getByText(/2 people/).first()).toBeVisible();
+  await expect(org.locator("[data-collection-progress]")).not.toContainText("still to pay");
   await expect(org.getByRole("button", { name: "Share collection link" })).toBeVisible();
 });
 
@@ -78,8 +80,11 @@ test("the organiser checks Ravi off, marks Meera's cash, sees it on Home, and cl
 
   await org.getByRole("region", { name: "Still to pay", exact: true }).getByRole("button", { name: "Paid cash" }).click();
   // Both are confirmed now: 2 x ₹300 = ₹600 confirmed against a goal of ₹600.
-  await expect(org.locator("[data-collection-progress]")).toContainText("2 confirmed");
-  await expect(org.locator("[data-collection-progress]")).toContainText("₹600");
+  // The stat boxes: ₹600 confirmed, ₹0 remaining.
+  await expect(org.locator("[data-collection-confirmed]")).toHaveText("₹600");
+  await expect(org.locator("[data-collection-progress]")).toContainText("confirmed");
+  await expect(org.locator("[data-collection-progress]")).toContainText("₹0");
+  await expect(org.locator("[data-collection-progress]")).toContainText("remaining");
   await expect(org.locator("[data-collection-progress]")).toContainText("Goal: ₹600");
 
   await org.goto("/");

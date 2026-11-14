@@ -109,7 +109,7 @@ function Sticker({ children }: { children: ReactNode }) {
 
 function Words({ kicker, head, line, calm }: { kicker?: string; head: string; line?: string; calm?: boolean }) {
   return (
-    <div className="lp-slide-in pointer-events-none absolute inset-x-0 bottom-[132px] z-20 px-6 text-[#f7f4ec]">
+    <div className="lp-slide-in pointer-events-none absolute inset-x-0 bottom-[96px] z-20 px-6 text-[#f7f4ec]">
       {kicker && <Sticker>{kicker}</Sticker>}
       <p className={`break-words font-display font-semibold tracking-[-0.02em] ${calm ? "text-[clamp(24px,7vw,28px)] leading-[1.15]" : "text-[clamp(28px,8.5vw,36px)] leading-[1.1]"}`} data-story-headline>
         {head}
@@ -146,7 +146,7 @@ function Slide({ f, uid, story }: { f: Frame; uid: string; story: Story }) {
     return (
       <div className="absolute inset-0 text-[#f7f4ec]">
         <Backdrop accent={accent} />
-        <div className="lp-slide-in pointer-events-none relative flex h-full flex-col justify-center px-7 pb-[140px] pt-24">
+        <div className="lp-slide-in pointer-events-none relative flex h-full flex-col justify-center px-7 pb-[110px] pt-24">
           <Sticker>{f.kicker}</Sticker>
           <p className="mt-1 break-words font-display font-semibold leading-[0.95] tracking-[-0.02em]" style={{ fontSize: `min(84px, ${Math.floor(170 / Math.max(5, f.big.length))}vw)` }} data-story-headline>
             {f.big}
@@ -158,7 +158,7 @@ function Slide({ f, uid, story }: { f: Frame; uid: string; story: Story }) {
   return (
     <div className="absolute inset-0 text-[#f7f4ec]">
       <Backdrop accent={accent} />
-      <div className="lp-slide-in pointer-events-none relative flex h-full flex-col justify-center px-7 pb-[140px] pt-24">
+      <div className="lp-slide-in pointer-events-none relative flex h-full flex-col justify-center px-7 pb-[110px] pt-24">
         <p className="font-display text-[28px] font-semibold leading-none tracking-[-0.02em]" data-story-headline>
           {f.kicker}
         </p>
@@ -366,12 +366,18 @@ function Viewer({ stories, start, onSeen, onClose }: { stories: Story[]; start: 
         <button type="button" aria-label="Previous" onClick={tap(prev)} className="absolute inset-y-0 left-0 z-10 w-1/3" />
         <button type="button" aria-label="Next" onClick={tap(next)} className="absolute inset-y-0 right-0 z-10 w-2/3" />
 
-        {/* One thing to do next, on every slide. */}
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 px-6 pb-[max(28px,env(safe-area-inset-bottom))]">
-          <Link ref={cta} href={story.href} replace className="pop pointer-events-auto relative block px-4 py-4 text-center text-base font-semibold" style={{ background: "#f4f2ec", color: "#0d0d0f" }}>
+        {/* One thing to do next, on every slide: a small pill at the bottom left over a soft shade, so the photo shows. */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex flex-col items-start gap-1 bg-gradient-to-t from-black/55 to-transparent px-5 pb-[max(16px,env(safe-area-inset-bottom))] pt-10" data-story-bar>
+          <Link
+            ref={cta}
+            href={story.href}
+            replace
+            className="pointer-events-auto relative inline-flex h-10 items-center rounded-full border border-[#f7f4ec]/55 bg-black/35 px-4 text-sm font-semibold text-[#f7f4ec] backdrop-blur-sm after:absolute after:inset-x-0 after:-inset-y-[2px] active:bg-black/55"
+            data-story-cta
+          >
             {story.cta}
           </Link>
-          <p className="mt-2 text-center text-[11px]" style={{ color: `${ink}99` }}>
+          <p className="text-[10px] leading-tight" style={{ color: `${ink}99` }}>
             Hold to pause. Swipe up to open, down to close.
           </p>
         </div>

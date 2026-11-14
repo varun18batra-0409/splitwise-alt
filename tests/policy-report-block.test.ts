@@ -238,15 +238,15 @@ describe("blocking never touches shared money", () => {
 });
 
 describe("block and unblock actions", () => {
-  it("block from a screen, then unblock from the You page list; strangers can't be blocked", async () => {
+  it("block from a screen, then unblock from the Privacy list (a sub-page of You); strangers can't be blocked", async () => {
     const t = await crew("ba");
     const outsider = await account(`Out${stamp.slice(-4)}`);
     await signedInAs(t.asha);
-    expect(await redirected(() => blockAction(form({ accountId: t.ben.id, back: "/passport/friends" })))).toBe("/account?blocked=1#blocked");
+    expect(await redirected(() => blockAction(form({ accountId: t.ben.id, back: "/passport/friends" })))).toBe("/account/privacy?blocked=1#blocked");
     expect(await blockedByMe(t.asha.id)).toEqual([t.ben.id]);
     await redirected(() => blockAction(form({ accountId: outsider.id })));
     expect(await blockedByMe(t.asha.id)).toEqual([t.ben.id]);
-    expect(await redirected(() => unblockAction(form({ accountId: t.ben.id })))).toBe("/account?unblocked=1#blocked");
+    expect(await redirected(() => unblockAction(form({ accountId: t.ben.id })))).toBe("/account/privacy?unblocked=1#blocked");
     expect(await blockedByMe(t.asha.id)).toEqual([]);
   });
 });

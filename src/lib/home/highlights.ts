@@ -23,9 +23,15 @@ export type Highlight =
       button: string;
       href: string;
       photo?: string; // a place photo on the right
+      scene?: boolean; // the photo fills the whole card behind a dark wash (the passport and postcard photos)
+      // The object on top of that photo, as in the mockups: a passport with your own stamps (14), a postcard with a photo taped on (15).
+      keepsake?: { kind: "passport"; stamps: KeepsakeStamp[] } | { kind: "postcard"; photo?: string };
       cover?: CoverId; // or one of Loopin's own pictures
       art?: "sun" | "rain" | "cloud" | "snow" | "postcard" | "passport" | "switch" | "bill";
     };
+
+// A stamp on the Home passport card: one of your own countries abroad and the month you went ("" = ticked by hand).
+export type KeepsakeStamp = { code: string; country: string; when: string; byHand?: boolean };
 
 export type HighlightTrip = {
   id: string;
@@ -50,6 +56,11 @@ export type HighlightInput = {
   passportAbroad?: number; // of those, outside your home country
   groups: number;
   fahrenheit?: boolean;
+  // Trips whose usual weather is already said by the countdown on Home: no weather card for them (it would repeat).
+  skipWeather?: string[];
+  // Real photos for the passport and postcard cards (slots card-passport and card-postcards). None: the drawn art stays.
+  // stamps: your latest countries abroad (at most 2) for the passport; postcardPhoto: the photo taped on the postcard.
+  scenes?: { passport?: string; postcards?: string; stamps?: KeepsakeStamp[]; postcardPhoto?: string; nextTrip?: string };
   max?: number;
 };
 
@@ -65,13 +76,12 @@ export function homeHighlights(x: HighlightInput): Highlight[] {
 
   // 1. The trip you're on: today there, and a postcard from it.
   for (const t of x.trips.filter((t) => t.phase.kind === "today" || t.phase.kind === "during").slice(0, 2)) {
-    const day = t.phase.kind === "during" ? t.phase.day : 1;
-    const where = place(t);
+        const where = place(t);
     add({
       id: `on-${t.id}`,
       kind: "card",
       tone: "trip",
-      eyebrow: `Day ${day} in ${where}`,
+      eyebrow: `In ${where} now`,
       title: t.todaySpent ? `${t.todaySpent} spent today` : "Wish they were here?",
       text: t.todaySpent ? "Send a postcard from here: your photo, a stamp and a wax seal." : "Turn today’s photo into a postcard, with a stamp and a wax seal.",
       button: "Send a postcard",
@@ -87,7 +97,7 @@ export function homeHighlights(x: HighlightInput): Highlight[] {
     const stop = t.stops[0];
     const c = stop ? climateFor(stop.city, stop.country, tripMonth(t.start, t.end)) : null;
     const where = place(t);
-    if (c) {
+    if (c && !x.skipWeather?.includes(t.id)) {
       const w = weatherWords(c, x.fahrenheit);
       add({
         id: `weather-${t.id}`,
@@ -117,7 +127,7 @@ export function homeHighlights(x: HighlightInput): Highlight[] {
       });
     if (i === 0 && !c && !on) {
       // A trip we know nothing about the weather of still gets a nudge to plan.
-      add({ id: `plan-${t.id}`, kind: "card", tone: "trip", eyebrow: `${where} ${when(t.phase.days)}`, title: "Who’s booking what?", text: "Add the stays and tickets as they’re booked, so nobody pays twice.", button: "Open the trip", href: `/groups/${t.id}`, photo: t.photo });
+      add({ id: `plan-${t.id}`, kind: "card", tone: "trip", eyebrow: where, title: "Who’s booking what?", text: "Add the stays and tickets as they’re booked, so nobody pays twice.", button: "Open the trip", href: `/groups/${t.id}`, photo: t.photo });
     }
   }
 
@@ -222,5 +232,15 @@ export function homeHighlights(x: HighlightInput): Highlight[] {
     if (out.length >= 4) break;
     add(f);
   }
-  return out;
+  // The passport and postcard cards: a real photo with the keepsake on top (a dark wash keeps the words readable); otherwise the drawn art.
+  return out.map((h) => {
+    if (h.kind !== "card" || h.photo) return h;
+    // "Where to next?": a real place photo (a country on your Want to go list, else a travel photo), never the drawn palm.
+    if (h.id === "fill-trip" && x.scenes?.nextTrip) return { ...h, photo: x.scenes.nextTrip };
+    if (h.art === "postcard" && x.scenes?.postcards)
+      return { ...h, photo: x.scenes.postcards, scene: true, keepsake: { kind: "postcard" as const, photo: x.scenes.postcardPhoto } };
+    if (h.art === "passport" && x.scenes?.passport)
+      return { ...h, photo: x.scenes.passport, scene: true, keepsake: { kind: "passport" as const, stamps: (x.scenes.stamps ?? []).slice(0, 2) } };
+    return h;
+  });
 }

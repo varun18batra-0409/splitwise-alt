@@ -23,7 +23,7 @@ If the tests are pointed at loopinapps.com, or the staging database turns out to
 | `05-splitwise-import.spec.ts` | A made-up Splitwise file (fictional people), and a wrong file (a Loopin spreadsheet) that is refused with a clear message |
 
 | `10-auth.spec.ts` | Stage 1: sign out and back in (groups come back); a stranger sees "Private group" and can't download it; fingerprint/face on → sign in with one touch → remove; Google starts safely (skipped where Google isn't set up); delete a test account |
-| `11-groups.spec.ts` | Stage 1: Home group opens on This month; Couple split from incomes (55/45); rename + Undo; close + reopen; delete → Your groups, Recently deleted (open after the delete, behind a tap later; not on Home) → Restore |
+| `11-groups.spec.ts` | Stage 1: Home group opens on Overview; Couple split from incomes (55/45); rename + Undo; close + reopen; delete → Your groups, Recently deleted (open after the delete, behind a tap later; not on Home) → Restore |
 | `12-invites.spec.ts` | Stage 1: invite link (no joining without signing in); invite by email ("Invited" until they join); add someone you share a group with by name, a stranger only by email; someone added by name takes over their name |
 
 | `20-splits.spec.ts` | Stage 2: every split (equally, only some, one person, exact amounts, %, shares), two payers, money back; wrong amounts and % refused; double tap saves once; edit amount, payer, split and name; delete + Restore; Undo after adding and after deleting; a must-fail check. Balances are compared with a separate hand-written tally after every step |

@@ -133,11 +133,15 @@ describe("fix 2: leaving the history out changes nothing else", () => {
     expect(await eventsFrom(w.gid, other.events[0].id)).toEqual([]); // belongs to another group
   });
 
-  it("the Undo bar is still wired on the Balances, Charts and Settle pages", async () => {
+  it("the Undo bar is still wired on every group tab (People, Recap, Overview, Expenses) and the Settle page", async () => {
     const { readFileSync } = await import("node:fs");
     const page = readFileSync("src/app/groups/[id]/page.tsx", "utf8");
-    expect(page).toContain('sp.tab === "balances" || sp.tab === "charts"');
+    // Tabs now resolve through tabs.ts; only Expenses loads the history, every other tab (People, Recap, Overview, Memories) skips it
+    // and loads just what the Undo bar needs.
+    expect(page).toContain('const noHistory = raw !== "activity" && raw !== "expenses"');
     expect(page).toContain("events: false");
+    expect(page).toContain("if (noHistory && sp.did)");
+    expect(page).toContain("resolveTab(sp.tab, tabs,");
     expect(page).toContain("eventsFrom(group.id, sp.did)");
     expect(page).toContain("canUndo(justDid, undoEvents)");
     const settle = readFileSync("src/app/groups/[id]/settle/page.tsx", "utf8");

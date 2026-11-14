@@ -25,14 +25,16 @@ export async function deleteMomentAction(f: FormData) {
   const viewer = await loadMomentViewer(m.groupId);
   if (!canDeleteMoment(viewer, m)) redirect("/");
   await removeMoment(m.id);
-  redirect(`/groups/${m.groupId}/moments?removed=1`);
+  redirect(`/groups/${m.groupId}?tab=memories&removed=1`);
 }
 
 // Tap an emoji to react; tap the same one again to take it back; a different one changes it. Current members only.
 export async function reactMomentAction(f: FormData) {
   const m = await loadMomentRow(idOf(f));
   if (!m) redirect("/");
-  const back = f.get("from") === "view" ? `/groups/${m.groupId}/moments/${m.id}` : `/groups/${m.groupId}/moments#m-${m.id}`;
+  // Back to where the reaction was made: the big view (keeping "from Home" so its Back still goes home) or the list.
+  const from = f.get("from");
+  const back = from === "home" ? `/groups/${m.groupId}/moments/${m.id}?from=home` : from === "view" ? `/groups/${m.groupId}/moments/${m.id}` : `/groups/${m.groupId}/moments#m-${m.id}`;
   const viewer = await loadMomentViewer(m.groupId);
   if (!viewer || !canReactToMoment(viewer, m)) redirect(back);
   const emoji = String(f.get("emoji") ?? "");

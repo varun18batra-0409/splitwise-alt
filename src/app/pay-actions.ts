@@ -16,9 +16,9 @@ export async function savePayWays(f: FormData) {
   const account = await getAccount();
   if (!account) redirect("/signin?back=/account");
   const r = cleanPayWays({ upiId: field(f, "upiId").slice(0, 120), payLink: field(f, "payLink").slice(0, 300) });
-  if (!r.ok) redirect(`/account?${new URLSearchParams({ pay: "error", payError: r.error })}#pay`);
+  if (!r.ok) redirect(`/account/pay?${new URLSearchParams({ pay: "error", payError: r.error })}`);
   await db.account.update({ where: { id: account.id }, data: { upiId: r.ways.upiId, payLink: r.ways.payLink } });
-  redirect("/account?pay=saved#pay");
+  redirect("/account/pay?pay=saved");
 }
 
 // "Confirm received" / "Not received" on a payment someone else recorded (older ones that already count).

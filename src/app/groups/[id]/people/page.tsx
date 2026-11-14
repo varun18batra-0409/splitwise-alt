@@ -32,7 +32,7 @@ export default async function PeoplePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; did?: string; undone?: string; invited?: string; cancelled?: string }>;
+  searchParams: Promise<{ error?: string; did?: string; undone?: string; invited?: string; cancelled?: string; invitedBack?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -100,7 +100,7 @@ export default async function PeoplePage({
                 )}
               </span>
               <span className="block text-xs text-gray-400">
-                {m.removedAt ? "Removed from the group" : m.leftAt ? "Left the group" : leaver && !me ? "—" : bal > 0 ? `gets ${money(bal)}` : bal < 0 ? `owes ${money(bal)}` : "settled up"}
+                {m.removedAt ? "Removed from the group" : m.leftAt ? "Left the group" : leaver && !me ? "—" : bal > 0 ? `gets ${money(bal)}` : bal < 0 ? `owes ${money(-bal)}` : "settled up"}
               </span>
             </span>
             <span className="text-sm text-gray-400 group-open/p:hidden">Edit</span>
@@ -177,9 +177,9 @@ export default async function PeoplePage({
                   {hidden}
                   <input type="hidden" name="left" value="0" />
                   <button type="submit" className={small}>
-                    Bring {m.name} back
+                    {m.accountId ? `Invite ${m.name} back` : `Bring ${m.name} back`}
                   </button>
-                  <p className="mt-2 text-xs text-gray-400">{m.name} can’t rejoin on their own or with the old link.</p>
+                  <p className="mt-2 text-xs text-gray-400">{m.name} can’t rejoin on their own or with the old link.{m.accountId ? " They rejoin when they accept your invitation." : ""}</p>
                 </form>
               ) : (
                 <p className="text-xs text-gray-400" data-removed-note>
@@ -192,7 +192,7 @@ export default async function PeoplePage({
                   {hidden}
                   <input type="hidden" name="left" value="0" />
                   <button type="submit" className={small}>
-                    {me ? "Rejoin the group" : `Bring ${m.name} back`}
+                    {me ? "Rejoin the group" : m.accountId ? `Invite ${m.name} back` : `Bring ${m.name} back`}
                   </button>
                 </form>
                 {/* Someone who left on their own can still be taken out by whoever looks after the group (then they can't rejoin by themselves). */}
@@ -224,7 +224,7 @@ export default async function PeoplePage({
                   </ConfirmButton>
                 )}
                 <p className="mt-2 text-xs text-gray-400" title={bal !== 0 ? money(bal) : undefined} data-exact={bal !== 0 ? money(bal) : undefined}>
-                  {bal !== 0 ? `${m.name} must be settled up first (${bal > 0 ? "gets" : "owes"} ${money(Math.abs(bal))}).` : used.has(m.id) || m.accountId ? "They stay in the history. You can bring them back later." : "Not in any expense yet, so they’re removed completely."}
+                  {bal !== 0 ? `${m.name} must be settled up first.` : used.has(m.id) || m.accountId ? "They stay in the history. You can bring them back later." : "Not in any expense yet, so they’re removed completely."}
                 </p>
               </form>
             ) : (
@@ -235,7 +235,7 @@ export default async function PeoplePage({
                 <button type="submit" disabled={bal !== 0} className={small}>
                   {bal !== 0 ? "Settle up first" : "Leave group"}
                 </button>
-                {bal !== 0 && <p className="mt-2 text-xs text-gray-400">You must be settled up first ({bal > 0 ? "get" : "owe"} {money(bal)}).</p>}
+                {bal !== 0 && <p className="mt-2 text-xs text-gray-400">You must be settled up first.</p>}
               </form>
             )}
           </div>
@@ -246,11 +246,17 @@ export default async function PeoplePage({
 
   return (
     <>
-      <PageHeader title="People" back={`/groups/${group.id}/settings`} />
+      <PageHeader title="People" back={`/groups/${group.id}?tab=balances`} />
       {sp.error && <ErrorNote>{sp.error}</ErrorNote>}
       {sp.cancelled && (
         <Notice tone="success" params={["cancelled"]} className="mb-4">
           Invitation cancelled. The name stays in the group, and can be claimed with “That’s me” or invited again.
+        </Notice>
+      )}
+      {sp.invitedBack && (
+        <Notice tone="success" params={["invitedBack"]} className="mb-4">
+          <span className="block font-semibold">Invited back</span>
+          <span className="block text-sm" data-invited-back>They’ll rejoin when they accept. Nothing about the money changes.</span>
         </Notice>
       )}
       {sp.invited && (

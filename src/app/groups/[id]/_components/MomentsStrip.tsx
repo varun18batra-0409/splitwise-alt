@@ -2,7 +2,7 @@ import Link from "@/components/Link";
 import { CameraIcon, PlusSmallIcon } from "@/components/MomentIcons";
 import { momentPhotoSrc } from "@/lib/moments-db";
 
-// A small "Our moments" row on a trip group's page: the latest photos and how many. Tapping opens the Our moments page.
+// A small "Our moments" row on a trip group's Overview: the latest photos and how many. Tapping opens the group's Memories tab.
 // Empty: one line that opens the add form. Someone who left sees it read-only (no "+"); someone who can't add and has nothing to see gets nothing.
 export function MomentsStrip({ groupId, count, latest, canAdd }: { groupId: string; count: number; latest: string[]; canAdd: boolean }) {
   if (count === 0) {
@@ -16,7 +16,7 @@ export function MomentsStrip({ groupId, count, latest, canAdd }: { groupId: stri
   }
   return (
     <div className="mb-5 flex h-16 items-center gap-3 rounded-[20px] border border-line bg-white pl-4 pr-2" data-moments-strip={count}>
-      <Link href={`/groups/${groupId}/moments`} className="flex min-w-0 flex-1 items-center gap-3 self-stretch" aria-label={`Our moments, ${count === 1 ? "1 moment" : `${count} moments`}`}>
+      <Link href={`/groups/${groupId}?tab=memories`} className="flex min-w-0 flex-1 items-center gap-3 self-stretch" aria-label={`Our moments, ${count === 1 ? "1 moment" : `${count} moments`}`}>
         <span className="min-w-0 flex-1">
           <span className="block whitespace-nowrap text-[15px] font-semibold leading-tight">Our moments</span>
           <span className="block whitespace-nowrap text-[13px] text-fg/55">{count === 1 ? "1 moment" : `${count} moments`}</span>

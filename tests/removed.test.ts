@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { setMemberLeft } from "@/lib/people";
 import { joinExisting, joinNew, newInviteLink, waitingInvites, NEW_LINK_ADMIN_ONLY } from "@/lib/join";
 import { undoEvent } from "@/lib/undo";
+import { addRegistered } from "@/lib/invites";
+import { acceptInvitation } from "@/lib/invitations";
 import { canSeePassport, passportFriends } from "@/lib/passport-db";
 
 // Removed by the admin is not the same as left on your own.
@@ -42,7 +44,11 @@ async function flat(label: string) {
   return { groupId: g.id, code: g.inviteCode, accounts: { asha, ravi, sam }, asha: id("Asha"), ravi: id("Ravi"), sam: id("Sam"), kiran: id("Kiran") };
 }
 
+process.env.MAIL_OUTBOX = "1";
+
 afterAll(async () => {
+  await db.invite.deleteMany({ where: { groupId: { in: groupIds } } });
+  await db.outbox.deleteMany({ where: { to: { contains: stamp } } });
   await db.group.deleteMany({ where: { id: { in: groupIds } } });
   await db.account.deleteMany({ where: { id: { in: accountIds } } });
 });
@@ -103,14 +109,22 @@ describe("removed by the admin", () => {
     expect(row.removedById).toBe("");
   });
 
-  it("only the admin can bring a removed person back; when they do, the removal is cleared", async () => {
+  it("only the admin can bring a removed person back, and only by INVITING him: the removal clears when he accepts", async () => {
     const f = await flat("f");
     await setMemberLeft(f.groupId, f.asha, f.ravi, true);
     const refused = await setMemberLeft(f.groupId, f.sam, f.ravi, false);
     expect(refused).toEqual({ ok: false, error: "Only the person who looks after this group can bring back someone they removed." });
     expect((await db.member.findUniqueOrThrow({ where: { id: f.ravi } })).removedAt).not.toBeNull();
-    const back = await setMemberLeft(f.groupId, f.asha, f.ravi, false);
-    expect(back.ok).toBe(true);
+    // The admin cannot put him back directly either (he has his own account): he must accept.
+    const direct = await setMemberLeft(f.groupId, f.asha, f.ravi, false);
+    expect(direct.ok).toBe(false);
+    expect((await db.member.findUniqueOrThrow({ where: { id: f.ravi } })).removedAt).not.toBeNull();
+    // Sam (not the admin) cannot invite him back; the admin can.
+    expect((await addRegistered(f.groupId, f.sam, f.accounts.ravi.id, "https://loopin.test")).ok).toBe(false);
+    expect((await addRegistered(f.groupId, f.asha, f.accounts.ravi.id, "https://loopin.test")).ok).toBe(true);
+    expect((await db.member.findUniqueOrThrow({ where: { id: f.ravi } })).removedAt).not.toBeNull(); // still removed until he accepts
+    const inv = await db.invite.findFirstOrThrow({ where: { groupId: f.groupId, email: f.accounts.ravi.email, acceptedAt: null, declinedAt: null } });
+    expect((await acceptInvitation(f.accounts.ravi, inv.token)).ok).toBe(true);
     const row = await db.member.findUniqueOrThrow({ where: { id: f.ravi } });
     expect(row).toMatchObject({ leftAt: null, removedAt: null, removedById: "" });
     // and the link works for him again (he's already in)

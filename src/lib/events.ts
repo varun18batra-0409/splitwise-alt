@@ -172,7 +172,7 @@ export type UndoPayload =
   | {
       type: "members_restore";
       // accountId … joinedFrom: missing in changes saved before they were kept.
-      members: { id: string; name: string; phone: string; createdAt: string; accountId?: string | null; claimedAt?: string | null; splitWeight?: number; notify?: string; joinedFrom?: string | null; addedBy?: string; seenAt?: string | null; grantEpoch?: number }[];
+      members: { id: string; name: string; phone: string; createdAt: string; accountId?: string | null; claimedAt?: string | null; splitWeight?: number; notify?: string; joinedFrom?: string | null; addedBy?: string; seenAt?: string | null; grantEpoch?: number; leftAt?: string | null; removedAt?: string | null; removedById?: string }[];
     }
   | { type: "member_set"; memberId: string; data: { name?: string; leftAt?: string | null; removedAt?: string | null; removedById?: string }; moveOut?: MoveOutUndo }
   | { type: "settle_all"; paymentIds: string[]; apply: boolean }

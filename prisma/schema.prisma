@@ -267,6 +267,35 @@ model Account {
   // "Let Loopin's AI read this?": "yes" | "no" | "" (never asked: nothing is sent to the AI). Added later: existing accounts start as "".
   aiConsent   String    @default("")
   aiConsentAt DateTime?
+  // "Want to go" (add-only; the lists themselves are WishPlace / WishShare rows, no new columns here).
+  wishPlaces     WishPlace[] @relation("WishOwner")
+  wishSharesOut  WishShare[] @relation("WishShareOwner")
+  wishSharesIn   WishShare[] @relation("WishShareFriend")
+}
+
+// "Want to go": a private list of countries on your passport. Only you see it, unless you share a country (or the whole list)
+// with a friend you are in a group with right now (WishShare). Country codes only, never free text. Max 200 per person.
+model WishPlace {
+  id        String   @id @default(cuid())
+  accountId String
+  account   Account  @relation("WishOwner", fields: [accountId], references: [id], onDelete: Cascade)
+  country   String // ISO code, upper case
+  createdAt DateTime @default(now())
+  @@unique([accountId, country])
+}
+
+// One country (or "*" = the whole list, places added later included) the owner has shown to one friend. A row alone never shows
+// anything: the friend must also be in a group with the owner right now and no block either way (checked on every read).
+model WishShare {
+  id        String   @id @default(cuid())
+  ownerId   String
+  owner     Account  @relation("WishShareOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  friendId  String
+  friend    Account  @relation("WishShareFriend", fields: [friendId], references: [id], onDelete: Cascade)
+  country   String // ISO code, or "*" = the whole list
+  createdAt DateTime @default(now())
+  @@unique([ownerId, friendId, country])
+  @@index([friendId])
 }
 
 // Notifications for a person rather than a group (Collect: "Asha added you",

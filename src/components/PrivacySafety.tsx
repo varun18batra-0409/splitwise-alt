@@ -3,7 +3,6 @@ import { ConfirmButton } from "@/components/ConfirmButton";
 import { aiConsentFor, type AiConsent } from "@/lib/ai-consent";
 import { saveAiConsentForm } from "@/app/ai-actions";
 import { unblockAction } from "@/app/safety-actions";
-import { supportHref } from "@/lib/support";
 
 // "Privacy and safety" on the You page: whether Loopin's AI may read bills and lines, the people you blocked, and a way to reach us.
 export async function PrivacySafety({ accountId, flags }: { accountId: string | null; flags: { ai?: string; blocked?: string; unblocked?: string } }) {
@@ -11,14 +10,12 @@ export async function PrivacySafety({ accountId, flags }: { accountId: string | 
   const blocks = accountId ? await db.block.findMany({ where: { blockerId: accountId }, orderBy: { createdAt: "desc" }, take: 100, select: { blockedId: true } }) : [];
   const names = blocks.length ? await db.account.findMany({ where: { id: { in: blocks.map((b) => b.blockedId) } }, select: { id: true, name: true } }) : [];
   const nameOf = new Map(names.map((n) => [n.id, n.name.trim() || "Someone"]));
-  const href = supportHref();
   const on = consent === "yes";
   const pill = "min-h-11 rounded-full border px-4 text-sm font-semibold";
   return (
-    <section className="mt-10 border-t border-line pt-8" id="privacy" aria-label="Privacy and safety">
-      <h2 className="mb-1 text-base font-semibold">Privacy and safety</h2>
+    <section id="privacy" aria-label="Privacy and safety">
 
-      <div className="mt-3 rounded-2xl border border-line px-4 py-4" data-ai-setting={consent || "unasked"}>
+      <div className="rounded-2xl border border-line px-4 py-4" data-ai-setting={consent || "unasked"}>
         <p className="font-medium">Let AI read bills and lines</p>
         <p className="mt-1 text-sm text-gray-500">
           {on
@@ -74,11 +71,6 @@ export async function PrivacySafety({ accountId, flags }: { accountId: string | 
           )}
         </div>
       )}
-
-      <a href={href} className="mt-4 flex min-h-11 items-center justify-between gap-3 rounded-2xl border border-line px-4 py-3 text-sm font-medium active:bg-mist" data-contact-support>
-        <span>Contact support</span>
-        <span aria-hidden className="text-gray-400">›</span>
-      </a>
     </section>
   );
 }

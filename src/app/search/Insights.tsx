@@ -105,14 +105,15 @@ export function Insights({ d }: { d: InsightsData }) {
 
         {/* Where it leaves you: your cut of the costs vs what you paid. Answers "why isn't this what I owe?" */}
         {(d.me.share !== 0 || d.me.paid !== 0) && (
-          <div className="mt-4 grid grid-cols-3 divide-x divide-fg/10 rounded-2xl bg-fg/[0.05] py-2.5 text-center" aria-label="Your share, what you paid, and where that leaves you">
-            <p className="px-1">
+          <div className={`mt-4 grid ${d.view === "share" ? "grid-cols-2" : "grid-cols-3"} divide-x divide-fg/10 rounded-2xl bg-fg/[0.05] py-2.5 text-center`} aria-label={d.view === "share" ? "What you paid, and where that leaves you" : "Your share, what you paid, and where that leaves you"} data-recap-ministats={d.view === "share" ? "2" : "3"}>
+            {/* On the "Your share" view the big number above already is your share, so the cell is left out. */}
+            {d.view !== "share" && <p className="px-1">
               <span className="block text-[11px] text-fg/50">Your share</span>
               <span className="block text-sm font-semibold tabular-nums" title={signedMoney(d.me.share, d.currency)} data-exact={signedMoney(d.me.share, d.currency)}>
                 {approx}
                 {signedOverview(d.me.share, d.currency)}
               </span>
-            </p>
+            </p>}
             <p className="px-1">
               <span className="block text-[11px] text-fg/50">You paid</span>
               <span className="block text-sm font-semibold tabular-nums" title={signedMoney(d.me.paid, d.currency)} data-exact={signedMoney(d.me.paid, d.currency)}>

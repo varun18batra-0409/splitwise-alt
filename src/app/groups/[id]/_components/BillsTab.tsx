@@ -2,7 +2,6 @@ import { roundToWhole } from "@/lib/round-whole";
 import Link from "@/components/Link";
 import type { BillStatus } from "@/lib/home/bills-db";
 import { Notice } from "@/components/Notice";
-import { parseSplit } from "@/lib/home/bills-db";
 import { billBadge, billHold, ordinalDay, type BillBadge } from "@/lib/home/bills";
 import { niceDate } from "@/lib/format";
 import { ExpenseGlyph } from "@/components/ExpenseGlyph";
@@ -27,28 +26,9 @@ const shortDate = (iso: string) => {
 };
 
 // Bills: everything that comes round every month, set up once.
-export function BillsTab({ v, bills, saved }: { v: GroupView; bills: BillStatus[]; saved?: boolean }) {
+// `forecast`: next month's estimate from monthInsights, the one function This month uses too (so both screens show the same number).
+export function BillsTab({ v, bills, saved, forecast }: { v: GroupView; bills: BillStatus[]; saved?: boolean; forecast: { total: number; mine: number } | null }) {
   const { group, myId, money, nameOf } = v;
-  const active = group.members.filter((m) => !m.leftAt);
-
-  // My part of one month of a bill (the usual amount for ones that vary).
-  const monthly = (b: BillStatus) => {
-    const amt = b.bill.nature === "daily" ? b.bill.amount * 30 : b.bill.nature === "varies" ? (b.usual ?? b.bill.amount) : b.bill.amount;
-    return Math.round(amt / Math.max(1, b.bill.every));
-  };
-  const myPart = (b: BillStatus) => {
-    const split = parseSplit(b.bill.split);
-    if (split.mode === "percent") return Math.round((monthly(b) * (split.pct[myId] ?? 0)) / 10000);
-    if (split.mode === "amounts") return Math.round((split.amt[myId] ?? 0) / Math.max(1, b.bill.every));
-    const people = split.mode === "some" ? active.filter((m) => split.ids.includes(m.id)) : active;
-    if (!people.some((m) => m.id === myId)) return 0;
-    const w = (id: string) => (split.mode === "group" ? (people.find((m) => m.id === id)?.splitWeight ?? 100) : 100);
-    const total = people.reduce((s, m) => s + w(m.id), 0);
-    return total ? Math.round((monthly(b) * w(myId)) / total) : 0;
-  };
-  const live = bills.filter((b) => b.status !== "paused");
-  const total = live.reduce((s, b) => s + monthly(b), 0);
-  const mine = live.reduce((s, b) => s + myPart(b), 0);
 
   const row = (b: BillStatus) => {
     const payer = b.payerId ?? (b.bill.payer || null);
@@ -108,9 +88,9 @@ export function BillsTab({ v, bills, saved }: { v: GroupView; bills: BillStatus[
     <div>
       {saved && <Notice tone="success" params={["saved"]} className="mb-4">Bill saved. Everyone in the group has been told.</Notice>}
       <div>
-        <p className="text-sm text-fg/60">Regular bills</p>
-        <p className="money text-[28px] font-semibold tabular-nums">{total > 0 ? `About ${money(total)} a\u00a0month` : money(total)}</p>
-        {total > 0 && <p className="text-sm text-fg/60">Your share about {money(roundToWhole(mine, group.currency))}</p>}
+        <p className="text-sm text-fg/60">Next month, about</p>
+        <p className="money text-[28px] font-semibold tabular-nums" data-bills-estimate={forecast ? forecast.total : 0}>{money(forecast ? roundToWhole(forecast.total, group.currency) : 0)}</p>
+        {forecast && <p className="text-sm text-fg/60">Your share {money(roundToWhole(forecast.mine, group.currency))}</p>}
       </div>
 
       {bills.length === 0 && (

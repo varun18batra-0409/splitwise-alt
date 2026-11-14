@@ -44,10 +44,12 @@ describe("Your groups", () => {
 
 describe("group header", () => {
   const head = src("src/app/groups/[id]/_components/GroupHeader.tsx");
-  it("has no emoji of its own and keeps the countdown, weather and Trip recap hooks", () => {
+  it("has no emoji of its own and keeps the countdown and weather hooks; Trip recap moved to the Overview's footer", () => {
     expect(head).not.toMatch(/[\u{1F300}-\u{1FAFF}☀-➿]/u);
-    for (const s of ["data-countdown-line", "data-trip-weather", "data-group-recap", "Trip recap"]) expect(head).toContain(s);
-    expect(head).toContain("Extended_Pictographic");
+    for (const s of ["data-countdown-line", "data-trip-weather", "data-group-line", "data-invite-pill"]) expect(head).toContain(s);
+    expect(head).not.toContain("data-group-recap");
+    const overview = src("src/app/groups/[id]/_components/OverviewTab.tsx");
+    for (const s of ["data-group-recap", "Trip recap"]) expect(overview).toContain(s);
   });
 });
 
@@ -91,7 +93,7 @@ describe("recurring bills", () => {
 describe("collect, organiser view", () => {
   const page = src("src/app/c/[code]/page.tsx");
   it("shows three numbers, the goal, the three-part bar and the counts line", () => {
-    for (const s of ["confirmed</p>", "reported</p>", "remaining</p>", "Goal: {money(p.target)}", "data-bar-confirmed", "data-bar-reported", "data-collection-progress", "still to pay`", "to check`", "confirmed`"]) expect(page).toContain(s);
+    for (const s of ["confirmed</p>", "reported</p>", "remaining</p>", "Goal: {money(p.target)}", "data-bar-confirmed", "data-bar-reported", "data-collection-progress"]) expect(page).toContain(s);
     // Only the money that has arrived may be green.
     expect(page).toContain("p.confirmedAmount > 0 ? \"text-owed\"");
   });

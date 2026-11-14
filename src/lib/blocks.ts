@@ -45,6 +45,8 @@ export async function blockAccount(blockerId: string, blockedId: string): Promis
   if (!blockerId || !blockedId || blockerId === blockedId) return false;
   if (!(await db.account.findUnique({ where: { id: blockedId }, select: { id: true } }))) return false;
   await db.block.upsert({ where: { blockerId_blockedId: { blockerId, blockedId } }, create: { blockerId, blockedId }, update: {} });
+  // "Want to go" shares between the two end, both ways. Unblocking does not bring them back: share again if you want to.
+  await db.wishShare.deleteMany({ where: { OR: [{ ownerId: blockerId, friendId: blockedId }, { ownerId: blockedId, friendId: blockerId }] } });
   return true;
 }
 

@@ -14,7 +14,7 @@ test("sign out of this phone, sign back in: your groups come back", async ({ bro
   const name = groupName("Comeback");
   await createGroup(page, name);
 
-  await page.goto("/account");
+  await page.goto("/account/sign-in");
   await settled(page);
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await page.waitForURL((u) => u.pathname === "/");
@@ -41,7 +41,7 @@ test("sign out other phones: the other phone loses your groups, this one keeps t
   await settled(a);
   await expect(a.getByText(name).first()).toBeVisible();
 
-  await b.goto("/account");
+  await b.goto("/account/sign-in");
   await settled(b);
   await b.getByRole("button", { name: "Sign out other phones" }).click();
   await b.waitForURL(/others=out/);
@@ -90,7 +90,7 @@ test("fingerprint / face: turn it on, sign out, sign back in with one touch, rem
     options: { protocol: "ctap2", transport: "internal", hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true },
   });
 
-  await page.goto("/account");
+  await page.goto("/account/sign-in");
   await settled(page);
   await page.getByRole("button", { name: /Turn on fingerprint \/ face sign-in/ }).click();
   // The phone appears in the list (named from the browser: a Pixel → "Android phone").
@@ -110,6 +110,8 @@ test("fingerprint / face: turn it on, sign out, sign back in with one touch, rem
   await page.waitForURL(/signedin=1/);
   await page.goto("/account");
   await expect(page.getByText(email)).toBeVisible();
+  await page.goto("/account/sign-in");
+  await settled(page);
 
   await page.getByRole("button", { name: "Remove" }).click();
   await page.waitForURL(/removed=passkey/);
@@ -136,7 +138,7 @@ test("delete my email & sign-in (a test account on the test copy only)", async (
   const user = await signUp("Lee", email);
   const ctx = await contextFor(browser, user);
   const page = await ctx.newPage();
-  await page.goto("/account");
+  await page.goto("/account/data");
   await settled(page);
   await page.getByRole("button", { name: /Delete my email/ }).click();
   await page.waitForURL(/deleted=account/);

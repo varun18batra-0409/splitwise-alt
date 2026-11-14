@@ -55,7 +55,7 @@ export function useAiConsent() {
                 Let Loopin’s AI read this?
               </p>
               <p className="mt-2 text-sm leading-relaxed text-fg/65">
-                To fill in the expense, Loopin sends this {what} and your group’s first names to Anthropic, an AI company, which doesn’t use it to train its models. You can change this any time in You → Privacy.
+                To fill in the expense, Loopin sends this {what} and your group’s first names to Anthropic, an AI company, which doesn’t use it to train its models. You can change this any time in You → Privacy & sharing.
               </p>
               <button type="button" disabled={busy} onClick={() => void answer(true)} data-ai-allow className="pop mt-5 block w-full bg-fg px-5 py-3.5 text-center text-base font-semibold text-canvas disabled:opacity-60">
                 Allow

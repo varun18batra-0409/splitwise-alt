@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { formatMoney } from "@/lib/money";
-import { maskPayWay, recordButtonLabel, recordedWords } from "@/lib/pay-words";
+import { maskPayWay, recordButtonLabel, recordButtonText, recordedWords } from "@/lib/pay-words";
 
 // The payment screens (Settle up, Pay, Waiting, Did you get this, Record a payment, Payment recorded) were only restyled:
 // the words and counts they show are checked with hand-worked numbers, and the pages are read as text to prove every
@@ -25,6 +25,17 @@ describe("Record a payment: the button follows the amount and who paid", () => {
   });
   it("no payer picked: Record payment", () => {
     expect(recordButtonLabel("500", "INR", null)).toBe("Record payment");
+  });
+});
+
+describe("Record a payment: the button shows the amount, no payer", () => {
+  it("1082.50 -> Record ₹1,082.50 (108250 paise); typed with a comma 12,50 -> Record ₹12.50", () => {
+    expect(recordButtonText("1082.50", "INR")).toBe("Record ₹1,082.50");
+    expect(recordButtonText("12,50", "INR")).toBe("Record ₹12.50");
+  });
+  it("nothing usable typed: Record payment, and the label never says 'from you'", () => {
+    for (const t of ["", "0", "abc"]) expect(recordButtonText(t, "INR")).toBe("Record payment");
+    expect(recordButtonText("500", "INR")).not.toContain("from");
   });
 });
 
@@ -139,7 +150,7 @@ describe("restyle only: every action, field and hook is still on the pages", () 
   });
   it("the Balances tab keeps the numbers and hooks its tests read", () => {
     const b = src("src/app/groups/[id]/_components/BalancesTab.tsx");
-    for (const s of ["data-balance=", "data-exact=", "data-title=", "data-foreign-part", "data-ledger-summary", "data-our-passports", "data-passport-link"]) expect(b).toContain(s);
+    for (const s of ["data-balance=", "data-exact=", "data-title=", "data-foreign-part", "data-our-passports", "data-passport-link"]) expect(b).toContain(s);
   });
 });
 

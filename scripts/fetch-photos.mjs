@@ -32,6 +32,11 @@ const SLOTS = {
   "cover-party": ["photo-1492684223066-81342ee5ff30", "photo-1514525253161-7a46d19cd819"], // a night out
   "cover-birthday": ["photo-1530103862676-de8c9debad1d", "photo-1558636508-e0db3814bd1d"], // balloons and cake
   "cover-wedding": ["photo-1519741497674-611481863552", "photo-1511285560929-80b456fea0bc"], // a wedding
+  // The Home cards (src/lib/home/highlights.ts "scenes"): a real photo behind the passport and postcard keepsakes (mockups 14 and 15).
+  // None downloads: the drawn art stays. Each checked by eye on a contact sheet (14 Nov).
+  "card-passport": ["photo-1436491865332-7a61a109cc05"], // a plane's wing above the clouds at sunset
+  "card-postcards": ["photo-1588668214407-6ea9a6d8c272"], // a volcano and sea of cloud at sunrise
+  "card-postcard-photo": ["photo-1552465011-b4e21bf6e79a"], // longtail boats under limestone cliffs: the photo taped on the postcard
   // Destinations for the trip countdown (see src/lib/places.ts). Direct image
   // ids only: Unsplash's "download" links now need a sign-in.
   "place-goa": ["photo-1614082242765-7c98ca0f3df3"],
@@ -119,6 +124,14 @@ const INDIA = {
 // An entry can also be a list of candidates for one slot (tried in order).
 for (const [slot, ids] of Object.entries(INDIA)) ids.forEach((id, i) => (SLOTS[i ? `${slot}-${i + 1}` : slot] = Array.isArray(id) ? id : [id]));
 
+// Country photos for the passport (src/lib/country-photos.ts): one slot per country, "country-xx". A country that already has a
+// place photo above (TH, ID, AE, SG, MV, VN, LK, JP, GB, NP, US, GR, BT, CH, FR, IN) reuses it and has no slot here.
+// Candidates per country live in scripts/photo-candidates.mjs (COUNTRY_PHOTOS): landmark or landscape, colour, no faces, no flags,
+// no text. The first that downloads (and isn't black and white) is the photo. A country with no candidate yet, or none that
+// downloads, simply has no photo: the passport draws its stamp on cream paper instead (never a wrong picture).
+import { COUNTRY_PHOTOS } from "./photo-candidates.mjs";
+for (const [code, ids] of Object.entries(COUNTRY_PHOTOS)) if (ids.length) SLOTS[`country-${code.toLowerCase()}`] = ids;
+
 // The photo's own colour, so a group's screens can be tinted to match it: the average of its most
 // colourful, mid-bright spots (sky, sea, sand, stone), measured on a tiny 12×12 copy.
 async function toneOf(buf) {
@@ -170,13 +183,12 @@ for (const [slot, ids] of Object.entries(SLOTS)) {
       const url = id.startsWith("https://")
         ? id
         : id.startsWith("photo-")
-        ? `https://images.unsplash.com/${id}?w=${big ? 2400 : slot.startsWith("cover-") ? 1600 : 1280}&q=${big ? 85 : slot.startsWith("cover-") ? 80 : 75}&fm=jpg&fit=crop`
+        ? `https://images.unsplash.com/${id}?w=${slot.startsWith("country-") ? 960 : big ? 2400 : slot.startsWith("cover-") ? 1600 : 1280}&q=${big ? 85 : slot.startsWith("cover-") ? 80 : 75}&fm=jpg&fit=crop`
         : `https://unsplash.com/photos/${id}/download?force=true&w=${slot.startsWith("place-") ? 2400 : 1280}`;
-      const r = await fetch(url, {
-        redirect: "follow",
-        headers: { "User-Agent": "LoopinBuild/1.0 (https://www.loopinapps.com; photos for trip stories)" },
-        signal: AbortSignal.timeout(20_000),
-      });
+      const UA = { "User-Agent": "LoopinBuild/1.0 (https://www.loopinapps.com; photos for trip stories)" };
+      // Short Unsplash page ids no longer download from the build machines (the website is behind a robot check); only full
+      // "photo-…" image addresses do. A short id left in a list simply fails and the next candidate is tried.
+      const r = await fetch(url, { redirect: "follow", headers: UA, signal: AbortSignal.timeout(20_000) });
       const type = r.headers.get("content-type") ?? "";
       const buf = Buffer.from(await r.arrayBuffer());
       if (!r.ok || !type.startsWith("image/") || buf.length < 20_000) {

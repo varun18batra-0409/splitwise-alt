@@ -25,14 +25,14 @@ export function passportRoster<T extends RosterMember>(members: T[], viewerId: s
 }
 
 // Your passport, from every trip group you're in (any phone you signed in on).
-export async function loadPassport(account: { id: string; homeCountry: string; places: string }, fallbackHome: string, today: string, opts: { forFriend?: boolean } = {}) {
+export async function loadPassport(account: { id: string; homeCountry: string; places: string }, fallbackHome: string, today: string, opts: { forFriend?: boolean; withMoments?: boolean } = {}) {
   const groups = await db.group.findMany({
     where: { type: "trip", deletedAt: null, members: { some: { accountId: account.id, ...JOINED } } }, // added-but-never-opened trips don't count; people who left still do
     select: {
       id: true, name: true, tripStart: true, tripEnd: true, tripPlace: true, tripCountry: true, createdAt: true,
       _count: { select: { members: true, expenses: { where: { deletedAt: null } } } },
       // Your own row (did you leave before the trip?) and the last thing spent (when an undated trip happened).
-      members: { where: { accountId: account.id }, select: { leftAt: true, removedAt: true } },
+      members: { where: { accountId: account.id }, select: { id: true, leftAt: true, removedAt: true } },
       expenses: { where: { deletedAt: null, kind: { not: "pot" } }, select: { spentAt: true, createdAt: true }, orderBy: { createdAt: "desc" }, take: 1 },
     },
     orderBy: [{ tripStart: "desc" }, { createdAt: "desc" }],
@@ -97,6 +97,23 @@ export async function loadPassport(account: { id: string; homeCountry: string; p
       if (!first) continue;
       const x = (extras[o.groupId] ??= { names: [] });
       if (x.names.length < 3) x.names.push(first);
+    }
+  }
+  // Your own view only: how many moments you can see in each recent trip (decides "View memories" on its card). The same
+  // access rules as the moments page: loadMomentViewer + momentStrip. Only the 12 newest trips (the cards shown first).
+  if (opts.withMoments && !opts.forFriend) {
+    const { loadMomentViewer } = await import("./moments-access");
+    const { momentStrip } = await import("./moments-db");
+    const newest = [...trips].sort((a, b) => b.start.localeCompare(a.start)).slice(0, 12);
+    for (const t of newest) {
+      const mine = groups.find((g) => g.id === t.groupId)?.members[0];
+      if (!mine || mine.removedAt) continue;
+      try {
+        const n = (await momentStrip(await loadMomentViewer(t.groupId, mine.id))).count;
+        if (n > 0) (extras[t.groupId] ??= { names: [] }).moments = n;
+      } catch {
+        // a card must never break the page: no count means "Relive trip"
+      }
     }
   }
   return { ...passport, home, unplaced, trips, extras };

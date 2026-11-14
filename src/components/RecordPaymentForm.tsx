@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { recordCustomPayment } from "@/app/actions";
 import { currencySign } from "@/lib/add-expense-sentence";
-import { recordButtonLabel } from "@/lib/pay-words";
+import { recordButtonLabel, recordButtonText } from "@/lib/pay-words";
 
 // Record a payment, drawn as a ticket being filled in: From (avatar, name) ┄ ✈ To, the amount, a perforation, then what Smart Settle suggests.
 // Tapping From or To opens the same list of people as before (radio buttons named fromId / toId, in the DOM even when folded away).
@@ -61,7 +61,10 @@ export function RecordPaymentForm({
   const who = (id: string) => people.find((p) => p.id === id);
   const label = (id: string) => (who(id)?.me ? "You" : who(id)?.name ?? "");
   const payer = who(from);
-  const button = recordButtonLabel(amount, currency, payer ? { name: payer.name, me: payer.me } : null);
+  // The button carries the amount as a last check before saving ("Record ₹1,082.50"); with nothing usable typed it says "Record payment".
+  // The fuller words ("Will record ₹500 from you") are read out as the amount or payer changes.
+  const spoken = recordButtonLabel(amount, currency, payer ? { name: payer.name, me: payer.me } : null);
+  const button = recordButtonText(amount, currency);
 
   const side = (which: "from" | "to", id: string, caption: string) => {
     const p = who(id);
@@ -228,7 +231,7 @@ export function RecordPaymentForm({
             </button>
             {/* Said aloud as the amount or the payer changes (the button's own label is read only when it is reached). */}
             <p className="sr-only" aria-live="polite" data-record-live>
-              {button === "Record payment" ? "" : button.replace(/^Record /, "Will record ")}
+              {spoken === "Record payment" ? "" : spoken.replace(/^Record /, "Will record ")}
             </p>
           </>
         )}

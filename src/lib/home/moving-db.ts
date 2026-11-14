@@ -456,10 +456,15 @@ export async function undoMoveOut(groupId: string, actorId: string, memberId: st
   const m = group.members.find((x) => x.id === memberId);
   if (!m) return { ok: false, error: "That person is no longer in the group." };
   if (!m.leftAt) return { ok: false, error: `${m.name} is already back in the flat.` };
+  // Only they can undo their own move-out (someone with an account is never put back without their say; the admin invites them back).
+  if (m.accountId && memberId !== actorId) return { ok: false, error: `Only ${m.name} can undo moving out. You can invite them back from People.` };
+  // The admin removed them since: they don't undo their way back in.
+  if (m.removedAt) return { ok: false, error: `${m.name} was removed from the group, so the move-out can’t be undone.` };
   try {
     const eventId = await db.$transaction(async (tx) => {
       // First: the flat is open, in the same currency, and this person still in it (a closed flat is changed by reopening it first).
-      await guardGroup(tx, groupId, { currency: group.currency, actorId });
+      // (Someone undoing their OWN move-out has, of course, left: the check that the person acting is still in the flat is for everyone else.)
+      await guardGroup(tx, groupId, { currency: group.currency, ...(actorId === memberId ? {} : { actorId }) });
       await markUndone(tx, mark); // this undo is marked in the same transaction as the reversal
       if (info.deposit) {
         const d = info.deposit;
@@ -492,7 +497,8 @@ export async function undoMoveOut(groupId: string, actorId: string, memberId: st
         }
         await tx.bill.update({ where: { id: b.id }, data: b.before });
       }
-      await tx.member.update({ where: { id: memberId }, data: { leftAt: null } });
+      const back = await tx.member.updateMany({ where: { id: memberId, leftAt: { not: null }, removedAt: null }, data: { leftAt: null } });
+      if (back.count !== 1) throw new Error("ALREADY_BACK");
       return logEvent(tx, {
         groupId,
         actorId,
@@ -517,6 +523,7 @@ export async function undoMoveOut(groupId: string, actorId: string, memberId: st
       return { ok: false, error: `This month’s ${bill} was already added, so the move-out can’t be undone. Edit ${bill} instead.` };
     }
     if (err instanceof GroupChanged) return { ok: false, error: err.reason === "closed" ? "This group is closed. Reopen it to change expenses." : groupChangedText(err) };
+    if (msg.includes("ALREADY_BACK")) return { ok: false, error: `${m.name} is already back in the flat.` };
     if (msg.includes("DEPOSIT_CHANGED")) {
       return { ok: false, error: "The deposit changed since the move-out (returned or handed on), so this can’t be undone. Change the deposit back first." };
     }
