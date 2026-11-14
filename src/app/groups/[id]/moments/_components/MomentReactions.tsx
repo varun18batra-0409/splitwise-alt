@@ -9,7 +9,7 @@ const chip = "emoji-font inline-flex h-11 min-w-[3.25rem] items-center justify-c
 const plain = `${chip} border border-fg/25 text-fg/75`;
 const mine = `${chip} border-[1.5px] border-fg text-fg`;
 
-export function MomentReactions({ card, canReact, from }: { card: MomentCard; canReact: boolean; from: "list" | "view" }) {
+export function MomentReactions({ card, canReact, from }: { card: MomentCard; canReact: boolean; from: "list" | "view" | "home" }) {
   const hidden = (
     <>
       <input type="hidden" name="momentId" value={card.id} />

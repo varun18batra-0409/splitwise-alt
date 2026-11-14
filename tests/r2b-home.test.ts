@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { cardWord } from "@/lib/home/group-card";
 import { passPhoto, type PassGroup } from "@/lib/home/pass-photo";
 import { COMING_UP_MAX, comingUp, destinationCode, nameCode, type ComingUpTrip } from "@/lib/home/coming-up";
 import { passLines, passQuip, tripPhase } from "@/lib/countdown";
-import { memoriesLine, pickMemories, type MemoryTrip } from "@/lib/home/memories";
+import { MEMORY_MAX, pickMemories, type MemoryGroup } from "@/lib/home/memories";
 import { homeHighlights } from "@/lib/home/highlights";
 import type { MomentViewer } from "@/lib/moments-access";
 
@@ -208,89 +208,67 @@ describe("3. Coming up: one boarding pass per upcoming trip", () => {
   });
 });
 
-describe("4. memories on Home: only moments canSeeMoment allows", () => {
+describe("4. Memories on Home: square polaroids, only moments canSeeMoment allows", () => {
   const viewer = (o: Partial<MomentViewer> = {}): MomentViewer => ({ groupId: "goa", groupType: "trip", groupDeleted: false, memberId: "me", accountId: "acc-me", leftAt: null, removedAt: null, pending: false, isAdmin: false, blocked: new Set<string>(), ...o });
   const at = (h: number) => new Date(Date.UTC(2026, 10, 10, h));
-  const mo = (id: string, o: { groupId?: string; acc?: string; h?: number } = {}) => ({ id, groupId: o.groupId ?? "goa", authorId: `m-${o.acc ?? "x"}`, authorAccountId: o.acc ?? "acc-x", createdAt: at(o.h ?? 1) });
-  const trip = (o: Partial<MemoryTrip> = {}): MemoryTrip => ({ groupId: "goa", name: "Goa trip 2026", start: "2026-11-03", end: "2026-11-07", viewer: viewer(), moments: [], ...o });
+  const mo = (id: string, o: { groupId?: string; acc?: string; h?: number; caption?: string } = {}) => ({ id, groupId: o.groupId ?? "goa", authorId: `m-${o.acc ?? "x"}`, authorAccountId: o.acc ?? "acc-x", createdAt: at(o.h ?? 1), caption: o.caption ?? `cap ${id}` });
+  const grp = (o: Partial<MemoryGroup> = {}): MemoryGroup => ({ groupId: "goa", name: "Goa", viewer: viewer(), moments: [], ...o });
   const thumb = (id: string) => `/api/moment-photo/${id}?s=t`;
-  const today = "2026-11-14";
+  const ids = (r: { id: string }[]) => r.map((x) => x.id);
 
-  it("Relive Goa, 12 moments from 5 days, three thumbs (the newest), opens that group's memories tab", () => {
-    const moments = Array.from({ length: 12 }, (_, i) => mo(`m${i}`, { h: i }));
-    const r = pickMemories([trip({ moments })], today, thumb)!;
-    expect(r.title).toBe("Relive Goa");
-    expect(r.line).toBe("12 moments from 5 days");
-    expect(r.count).toBe(12);
-    expect(r.thumbs).toEqual([thumb("m11"), thumb("m10"), thumb("m9")]);
-    expect(r.href).toBe("/groups/goa?tab=memories");
+  it("nothing visible gives an empty list (and the component renders nothing)", () => {
+    expect(pickMemories([], thumb)).toEqual([]);
+    expect(pickMemories([grp()], thumb)).toEqual([]);
+    const ui = src("src/components/MemoryPolaroids.tsx");
+    expect(ui).toContain("if (memories.length === 0) return null;");
   });
-  it("lines: one moment, a one-day trip", () => {
-    expect(memoriesLine(1, 3)).toBe("1 moment from 3 days");
-    expect(memoriesLine(4, 1)).toBe("4 moments");
+  it("newest first across groups, each with its caption, group name, small photo and a link to the moment viewer", () => {
+    const goa = grp({ moments: [mo("g1", { h: 1 }), mo("g2", { h: 5, caption: "The boat" })] });
+    const bali = grp({ groupId: "bali", name: "Bali", viewer: viewer({ groupId: "bali" }), moments: [mo("b1", { groupId: "bali", h: 3 })] });
+    const r = pickMemories([goa, bali], thumb);
+    expect(ids(r)).toEqual(["g2", "b1", "g1"]);
+    expect(r[0]).toEqual({ id: "g2", groupId: "goa", groupName: "Goa", caption: "The boat", thumb: thumb("g2"), href: "/groups/goa/moments/g2?from=home" });
+    expect(r[1].href).toBe("/groups/bali/moments/b1?from=home");
   });
-  it("no leak: a blocked person's moments are not counted and their photo address is never returned", () => {
+  it("at most 10 (the newest ten)", () => {
+    const moments = Array.from({ length: 14 }, (_, i) => mo(`m${i}`, { h: i }));
+    const r = pickMemories([grp({ moments })], thumb);
+    expect(r).toHaveLength(MEMORY_MAX);
+    expect(MEMORY_MAX).toBe(10);
+    expect(ids(r)[0]).toBe("m13");
+    expect(ids(r)[9]).toBe("m4");
+  });
+  it("no leak: a blocked person's moments are never listed and their photo address is never returned", () => {
     const v = viewer({ blocked: new Set(["acc-bad"]) });
-    const r = pickMemories([trip({ viewer: v, moments: [mo("ok1", { h: 1 }), mo("bad1", { acc: "acc-bad", h: 9 }), mo("bad2", { acc: "acc-bad", h: 8 }), mo("ok2", { h: 2 })] })], today, thumb)!;
-    expect(r.count).toBe(2);
+    const r = pickMemories([grp({ viewer: v, moments: [mo("ok1", { h: 1 }), mo("bad1", { acc: "acc-bad", h: 9 }), mo("ok2", { h: 2 })] })], thumb);
+    expect(ids(r)).toEqual(["ok2", "ok1"]);
     expect(JSON.stringify(r)).not.toContain("bad");
-    expect(r.thumbs).toEqual([thumb("ok2"), thumb("ok1")]);
   });
-  it("no leak: moments from another group, added after you left, or for someone not in the group yet are never shown", () => {
-    const left = viewer({ leftAt: at(5) });
-    const r = pickMemories([trip({ viewer: left, moments: [mo("early", { h: 3 }), mo("late", { h: 8 }), mo("other", { groupId: "bali", h: 4 })] })], today, thumb)!;
-    expect(r.thumbs).toEqual([thumb("early")]);
-    expect(pickMemories([trip({ viewer: viewer({ pending: true }), moments: [mo("a")] })], today, thumb)).toBeNull();
-    expect(pickMemories([trip({ viewer: viewer({ removedAt: at(2) }), moments: [mo("a")] })], today, thumb)).toBeNull();
-    expect(pickMemories([trip({ moments: [mo("x", { groupId: "bali" })] })], today, thumb)).toBeNull();
+  it("no leak: another group's moment, one added after you left, or a pending / removed viewer gives nothing", () => {
+    const left = grp({ viewer: viewer({ leftAt: at(5) }), moments: [mo("early", { h: 3 }), mo("late", { h: 8 }), mo("other", { groupId: "bali", h: 4 })] });
+    expect(ids(pickMemories([left], thumb))).toEqual(["early"]);
+    expect(pickMemories([grp({ viewer: viewer({ pending: true }), moments: [mo("a")] })], thumb)).toEqual([]);
+    expect(pickMemories([grp({ viewer: viewer({ removedAt: at(2) }), moments: [mo("a")] })], thumb)).toEqual([]);
+    expect(pickMemories([grp({ moments: [mo("x", { groupId: "bali" })] })], thumb)).toEqual([]);
   });
-  it("only when such a trip exists: no moments, or a trip that hasn't started, gives nothing", () => {
-    expect(pickMemories([], today, thumb)).toBeNull();
-    expect(pickMemories([trip()], today, thumb)).toBeNull();
-    expect(pickMemories([trip({ start: "2026-12-01", end: "2026-12-03", moments: [mo("a")] })], today, thumb)).toBeNull();
-  });
-  it("the most recent trip with something you can see wins, even if a newer trip has only hidden moments", () => {
-    const newer = trip({ groupId: "bali", name: "Bali trip", start: "2026-11-09", end: "2026-11-12", viewer: viewer({ groupId: "bali", blocked: new Set(["acc-bad"]) }), moments: [mo("h1", { groupId: "bali", acc: "acc-bad" })] });
-    const older = trip({ moments: [mo("g1")] });
-    expect(pickMemories([older, newer], today, thumb)?.groupId).toBe("goa");
-    const visibleNewer = trip({ groupId: "bali", name: "Bali trip", start: "2026-11-09", end: "2026-11-12", viewer: viewer({ groupId: "bali" }), moments: [mo("b1", { groupId: "bali" })] });
-    expect(pickMemories([older, visibleNewer], today, thumb)?.title).toBe("Relive Bali");
-  });
-  it("the card is one of the Home cards, only when memories exist, and has the outline button", () => {
-    const base = { trips: [], justBack: [], hasMonth: false, season: null, postcardsNew: 0, billsDue: [], passportCountries: 0, groups: 1 };
-    const none = homeHighlights(base);
-    expect(none.some((h) => h.kind === "memories")).toBe(false);
-    const r = pickMemories([trip({ moments: [mo("g1")] })], today, thumb)!;
-    const some = homeHighlights({ ...base, memories: r });
-    const card = some.find((h) => h.kind === "memories");
-    expect(card && card.kind === "memories" && card.title).toBe("Relive Goa");
-    expect(some.length).toBeLessThanOrEqual(7);
-    const ui = src("src/components/MemoriesCard.tsx");
-    expect(ui).toContain("Open memories");
-    expect(ui).toContain("Your memories");
-    expect(ui).not.toContain("bg-fg ");
+  it("the old carousel card is gone; the row sits right under the story circles, and the loader uses the viewer's own filter", () => {
+    const home = src("src/app/(home)/page.tsx");
+    expect(home).not.toContain("MemoriesCard");
+    expect(existsSync(`${__dirname}/../src/components/MemoriesCard.tsx`)).toBe(false);
+    const stories = home.indexOf("<Stories stories={stories} className=\"mb-4\" />");
+    expect(stories).toBeGreaterThan(0);
+    expect(home.indexOf("<MemoryPolaroids memories={memories} />")).toBeGreaterThan(stories);
+    expect(home.indexOf("<MemoryPolaroids memories={memories} />")).toBeLessThan(home.indexOf("<MoneyCard"));
+    expect(homeHighlights({ trips: [], justBack: [], hasMonth: false, season: null, postcardsNew: 0, billsDue: [], passportCountries: 0, groups: 1 }).some((h) => (h.kind as string) === "memories")).toBe(false);
     const db = src("src/lib/moments-db.ts");
     expect(db.slice(db.indexOf("export async function loadHomeMemories"))).toContain("momentsWhere(viewer)");
+    const ui = src("src/components/MemoryPolaroids.tsx");
+    expect(ui).toContain("aspect-square");
+    expect(ui).toContain("font-hand");
+    expect(ui).toContain("snap-x");
   });
-});
-
-describe("5. the story viewer's button is small and the photo shows", () => {
-  const st = src("src/components/Stories.tsx");
-  it("a compact outline pill at the bottom left, not a full-width cream bar; the hooks stay", () => {
-    const bar = st.slice(st.indexOf("One thing to do next"));
-    expect(bar).toContain("inline-flex h-10");
-    expect(bar).toContain("rounded-full border");
-    expect(bar).toContain("items-start");
-    expect(bar).not.toContain("block px-4 py-4");
-    expect(bar).not.toContain('background: "#f4f2ec"');
-    expect(bar).toContain("ref={cta}");
-    expect(bar).toContain("replace");
-    expect(bar).toContain("href={story.href}");
-    expect(bar).toContain("text-[10px]");
-    expect(st).toContain("cta.current?.click()");
-  });
-  it("the words sit lower so the picture is clear above the headline", () => {
-    expect(st).toContain("bottom-[96px]");
-    expect(st).not.toContain("bottom-[132px]");
+  it("the moment viewer sends Back home only for from=home", () => {
+    const page = src("src/app/groups/[id]/moments/[momentId]/page.tsx");
+    expect(page).toContain('cameFrom === "home" ? "/" : here');
   });
 });

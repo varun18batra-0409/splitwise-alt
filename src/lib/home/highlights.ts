@@ -3,7 +3,6 @@ import { happeningsFor } from "../happenings";
 import type { TripPhase } from "../countdown";
 import type { Season } from "./banner";
 import type { CoverId } from "../covers";
-import type { HomeMemories } from "./memories";
 
 // The cards that slide by at the top of Home, picked for you: what's useful
 // right now comes first (the trip you're on, the next trip's weather and
@@ -14,8 +13,6 @@ import type { HomeMemories } from "./memories";
 export type HighlightTone = "trip" | "sky" | "warm" | "teal" | "rose" | "night" | "paper";
 export type Highlight =
   | { id: string; kind: "month" }
-  // "Your memories": a three-photo collage of the latest trip's moments (only ones this person may see).
-  | { id: string; kind: "memories"; title: string; line: string; thumbs: string[]; href: string }
   | {
       id: string;
       kind: "card";
@@ -58,7 +55,6 @@ export type HighlightInput = {
   skipWeather?: string[];
   // Real photos for the passport and postcard cards (slots card-passport and card-postcards). None: the drawn art stays.
   scenes?: { passport?: string; postcards?: string };
-  memories?: HomeMemories | null;
   max?: number;
 };
 
@@ -156,9 +152,6 @@ export function homeHighlights(x: HighlightInput): Highlight[] {
         art: "passport",
       });
   }
-
-  // 3b. Memories to relive: the latest trip with moments you can see.
-  if (x.memories && x.memories.thumbs.length > 0) add({ id: `memories-${x.memories.groupId}`, kind: "memories", title: x.memories.title, line: x.memories.line, thumbs: x.memories.thumbs, href: x.memories.href });
 
   // 4. Postcards waiting for you.
   if (x.postcardsNew > 0)

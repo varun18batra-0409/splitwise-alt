@@ -32,7 +32,9 @@ export async function deleteMomentAction(f: FormData) {
 export async function reactMomentAction(f: FormData) {
   const m = await loadMomentRow(idOf(f));
   if (!m) redirect("/");
-  const back = f.get("from") === "view" ? `/groups/${m.groupId}/moments/${m.id}` : `/groups/${m.groupId}/moments#m-${m.id}`;
+  // Back to where the reaction was made: the big view (keeping "from Home" so its Back still goes home) or the list.
+  const from = f.get("from");
+  const back = from === "home" ? `/groups/${m.groupId}/moments/${m.id}?from=home` : from === "view" ? `/groups/${m.groupId}/moments/${m.id}` : `/groups/${m.groupId}/moments#m-${m.id}`;
   const viewer = await loadMomentViewer(m.groupId);
   if (!viewer || !canReactToMoment(viewer, m)) redirect(back);
   const emoji = String(f.get("emoji") ?? "");

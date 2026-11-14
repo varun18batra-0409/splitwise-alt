@@ -1038,6 +1038,30 @@ if (!hosted) {
     { name: "G5-trip-recap", path: `${gt}?tab=charts` },
     { name: "G6-trip-memories-after", path: `/groups/${over.id}?tab=memories` },
   ]);
+  // Home's Memories polaroids (under the story circles) with the moments above, at 390 and the narrowest phone (320), then one tapped open:
+  // the moment big, Back going home. The same Home with no moments is 01-home / 69-home-full (no Memories row at all).
+  await gshots(varu, [
+    {
+      name: "H2-home-memories",
+      path: "/",
+      widths: [390, 320],
+      full: false,
+      prepare: async (p) => {
+        await p.locator("[data-memories-row]").waitFor({ timeout: 10_000 });
+        await p.locator("[data-memories-row]").scrollIntoViewIfNeeded();
+      },
+    },
+    {
+      name: "H2b-home-memory-open",
+      path: "/",
+      full: false,
+      prepare: async (p) => {
+        await p.locator("[data-memory]").first().click();
+        await p.waitForURL(/\/moments\/[^/]+\?from=home/, { timeout: 15_000 });
+        await p.waitForTimeout(600);
+      },
+    },
+  ]);
   // Riya left an hour ago: her tabs (Overview / Expenses / People / Memories) with the "You left on" banner, and Memories up to that day.
   await gshots(riya, [
     { name: "G10-leaver-view", path: `/groups/${gone.id}` },

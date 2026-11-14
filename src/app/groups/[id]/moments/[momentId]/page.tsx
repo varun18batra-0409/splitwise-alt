@@ -10,8 +10,9 @@ export const dynamic = "force-dynamic";
 
 // One moment, full size, with its words, day and reactions. The "⋯" menu holds Delete (the author), Remove (whoever looks after the
 // group), and Report and Block. Anyone who may not see it gets "not found", the same as a moment that doesn't exist.
-export default async function MomentPage({ params }: { params: Promise<{ id: string; momentId: string }> }) {
+export default async function MomentPage({ params, searchParams }: { params: Promise<{ id: string; momentId: string }>; searchParams: Promise<{ from?: string }> }) {
   const { id, momentId } = await params;
+  const { from: cameFrom } = await searchParams;
   const viewer = await loadMomentViewer(id);
   const card = await loadMomentCard(viewer, momentId);
   if (!viewer || !card) notFound();
@@ -20,7 +21,8 @@ export default async function MomentPage({ params }: { params: Promise<{ id: str
   const here = `/groups/${id}/moments`;
   return (
     <div className="pb-16">
-      <PageHeader title="Moment" back={here} />
+      {/* Opened from Home's Memories row: Back goes home. Anything else about `from` is ignored. */}
+      <PageHeader title="Moment" back={cameFrom === "home" ? "/" : here} />
       <MomentBig
         card={card}
         place={group.name.replace(/\s+trip$/i, "").trim() || group.name}
@@ -29,7 +31,7 @@ export default async function MomentPage({ params }: { params: Promise<{ id: str
         canReport={canReportMoment(viewer, card)}
         guest={viewer.accountId === null}
         back={`${here}/${card.id}`}
-        from="view"
+        from={cameFrom === "home" ? "home" : "view"}
         now={new Date()}
       />
     </div>

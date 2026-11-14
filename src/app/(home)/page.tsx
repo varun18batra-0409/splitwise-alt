@@ -48,7 +48,7 @@ import { homeTicket, mixedDirections, moneyMode, moneyPeople, rankGroups, type G
 import { Stories } from "@/components/Stories";
 import { buildStories } from "@/lib/home/stories";
 import { loadHomeMemories, loadMomentStoryGroups } from "@/lib/moments-db";
-import { MemoriesCard } from "@/components/MemoriesCard";
+import { MemoryPolaroids } from "@/components/MemoryPolaroids";
 import { comingUp } from "@/lib/home/coming-up";
 import { passPhoto, type PassGroup } from "@/lib/home/pass-photo";
 import { countryPhoto } from "@/lib/country-photos";
@@ -110,8 +110,8 @@ export default async function Home({
   const today = todayKey(now, tz);
   const [rows, memories, wishes] = await Promise.all([
     loadHomeRows(all, { tz, now, today }),
-    // The latest trip with moments this person may see (the "Your memories" card).
-    loadHomeMemories(memberships, today),
+    // The newest moments this person may see: the Memories polaroids under the story circles.
+    loadHomeMemories(memberships),
     // Want to go: the stub's picture when nothing else fits.
     account ? loadMyWishes(account.id) : Promise.resolve([] as string[]),
   ]);
@@ -552,7 +552,6 @@ export default async function Home({
     fahrenheit: usesFahrenheit(region.country),
     // The Coming up passes already say their trips' usual weather.
     skipWeather: passes.map((p) => p.id),
-    memories,
     // Real photos (slots card-passport and card-postcards in scripts/fetch-photos.mjs); none downloaded: the drawn art.
     scenes: { passport: photoSet("card-passport")[0], postcards: photoSet("card-postcards")[0] },
   });
@@ -679,6 +678,8 @@ export default async function Home({
           {/* Stories on top, like Instagram: a row of circles. Hidden when there are none (then a greeting fills the space). */}
           <h1 className={stories.length > 0 ? "sr-only" : "mb-4 mt-1 font-display text-[32px] font-semibold leading-[1.05] tracking-tight"}>{greeting(new Date(), tz, account?.name)}</h1>
           {stories.length > 0 && <Stories stories={stories} className="mb-4" />}
+          {/* Memories: square polaroids of recent moments you may see. Nothing at all when there are none. */}
+          <MemoryPolaroids memories={memories} />
 
           {/* Money: a boarding pass with the route, the amount and the one next step; what needs you is a quiet line under it. */}
           <MoneyCard ticket={ticket} mode={mode} tone={mode === "owed" ? "owed" : mode === "owe" ? "owe" : "plain"} stub={stub} sideStubs={sideStubs} facts={facts} year={today.slice(0, 4)} need={need} />
@@ -789,8 +790,6 @@ export default async function Home({
                       </div>
                     </div>
                   )
-                ) : h.kind === "memories" ? (
-                  <MemoriesCard key={h.id} h={h} />
                 ) : (
                   <HighlightCard key={h.id} h={h} />
                 ),

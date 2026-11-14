@@ -5,7 +5,7 @@ import { homeHighlights, type HighlightInput } from "@/lib/home/highlights";
 import { seasonNow } from "@/lib/home/banner";
 
 const base: HighlightInput = { trips: [], justBack: [], hasMonth: false, season: null, postcardsNew: 0, billsDue: [], passportCountries: 0, groups: 2 };
-const titles = (h: ReturnType<typeof homeHighlights>) => h.map((x) => (x.kind === "month" ? "month" : x.kind === "memories" ? `memories | ${x.title}` : `${x.eyebrow} | ${x.title}`));
+const titles = (h: ReturnType<typeof homeHighlights>) => h.map((x) => (x.kind === "month" ? "month" : `${x.eyebrow} | ${x.title}`));
 
 describe("Usual weather for a trip", () => {
   it("knows the season: Goa in November is dry, Lonavala in July is monsoon, Manali in January is freezing", () => {
