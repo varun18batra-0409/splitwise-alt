@@ -15,8 +15,6 @@ import { SHARE_ALL, SHARE_ROW_LIMIT, WISH_LIMIT, cleanCountries, cleanCountry, c
 
 const NOW = { ...JOINED, leftAt: null, removedAt: null }; // in the group right now
 
-const DECLINE_QUIET_MS = 30 * 86_400_000; // after "Not now" to a trip for a country, no new one for 30 days
-
 const first = (name: string) => name.trim().split(/\s+/)[0] || name;
 
 // The people you are in a group with right now (on Loopin, joined), without anyone blocked either way round.
@@ -195,7 +193,7 @@ export async function matches(viewerId: string): Promise<Match[]> {
 // ---------- Plan together ----------
 
 // A trip group for this country that you are in now and your friend is in (or was invited to and has not turned down).
-// Until they tap Join an invited friend is only a name in the group, so the invitation counts too.
+// Until they tap Join an invited friend is only a name in the group, so a still-open invitation counts too (one they accepted and then left does not).
 export async function findSharedTrip(accountId: string, friendId: string, country: string): Promise<{ groupId: string; memberId: string } | null> {
   const friendEmail = (await db.account.findUnique({ where: { id: friendId }, select: { email: true } }))?.email ?? "";
   const g = await db.group.findFirst({
@@ -204,7 +202,7 @@ export async function findSharedTrip(accountId: string, friendId: string, countr
       tripCountry: country,
       deletedAt: null,
       members: { some: { accountId, ...NOW } },
-      AND: [{ OR: [{ members: { some: { accountId: friendId, removedAt: null, leftAt: null } } }, { invites: { some: { email: friendEmail, declinedAt: null } } }] }],
+      AND: [{ OR: [{ members: { some: { accountId: friendId, removedAt: null, leftAt: null } } }, { invites: { some: { email: friendEmail, declinedAt: null, acceptedAt: null } } }] }],
     },
     select: { id: true, members: { where: { accountId }, select: { id: true } } },
     orderBy: { createdAt: "desc" },
@@ -237,19 +235,6 @@ export async function planTogether(account: { id: string; name: string }, friend
   // A trip for this country that you are both in already.
   const there = await findSharedTrip(account.id, friendId, country);
   if (there) return { ok: true, groupId: there.groupId, memberId: there.memberId, existing: true };
-
-  // They said "Not now" to a trip for this country from you in the last 30 days: don't send another one straight away.
-  const friendRow = await db.account.findUnique({ where: { id: friendId }, select: { email: true, name: true } });
-  const turnedDown = friendRow
-    ? await db.invite.findFirst({
-        where: { email: friendRow.email, declinedAt: { gte: new Date(Date.now() - DECLINE_QUIET_MS) }, group: { type: "trip", tripCountry: country, members: { some: { accountId: account.id } } } },
-        select: { id: true },
-      })
-    : null;
-  if (turnedDown) {
-    const who = first(cleanNames([friendRow?.name ?? ""])[0] ?? "") || "They";
-    return { ok: false, error: `${who} said not now to ${countryOf(country)?.name ?? "that trip"}. Try again later.` };
-  }
 
   // The same tap twice (or two phones) makes one group.
   const key = opts.key;

@@ -24,7 +24,8 @@ const { db } = await import("@/lib/db");
 const { COUNTRIES } = await import("@/lib/geo");
 const { blockAccount, unblockAccount } = await import("@/lib/blocks");
 const { deleteAccount } = await import("@/lib/auth");
-const { loadInvitations, declineInvitation } = await import("@/lib/invitations");
+const { loadInvitations, declineInvitation, acceptInvitation } = await import("@/lib/invitations");
+const { confirmUsedPending } = await import("@/lib/membership");
 const { addWishes, areCurrentFriends, currentFriends, findSharedTrip, loadMyWishes, matches, mySharing, planTogether, removeWish, setShares, sharedWithMe } = await import("@/lib/wishes-db");
 const { addRegistered } = await import("@/lib/invites");
 const { setMemberLeft } = await import("@/lib/people");
@@ -393,7 +394,7 @@ describe("plan together: blocks, left friends, and 'not now'", () => {
     expect((await findSharedTrip(A.id, B.id, "JP"))?.groupId).toBe(live.id); // positive control
   });
 
-  it("if the friend said Not now to a Japan trip from you in the last 30 days, no new trip: a calm message; after 30 days it goes ahead", async () => {
+  it("a cancelled or declined invitation does not block Plan together (the old 30-day 'not now' rule is gone): a new trip is made", async () => {
     const { A, B } = await matched();
     const first = await planTogether(A, B.id, "JP", opts(k()));
     expect(first.ok).toBe(true);
@@ -401,18 +402,39 @@ describe("plan together: blocks, left friends, and 'not now'", () => {
     groupIds.push(first.groupId);
     const inv = await db.invite.findFirstOrThrow({ where: { groupId: first.groupId } });
     const bRow = await db.account.findUniqueOrThrow({ where: { id: B.id } });
-    expect((await declineInvitation(bRow, inv.token)).ok).toBe(true);
+    expect((await declineInvitation(bRow, inv.token)).ok).toBe(true); // B: Not now (this also marks the invitation declined)
     const again = await planTogether(A, B.id, "JP", opts(k()));
-    expect(again).toEqual({ ok: false, error: "Bea said not now to Japan. Try again later." });
-    expect(await db.group.count({ where: { type: "trip", tripCountry: "JP", members: { some: { accountId: A.id } } } })).toBe(1); // no second trip
-    await db.invite.update({ where: { id: inv.id }, data: { declinedAt: new Date(Date.now() - 31 * 86_400_000) } });
-    const later = await planTogether(A, B.id, "JP", opts(k()));
-    if (later.ok) groupIds.push(later.groupId);
-    expect(later.ok).toBe(true);
+    expect(again.ok).toBe(true);
+    if (!again.ok) return;
+    groupIds.push(again.groupId);
+    expect(again.groupId).not.toBe(first.groupId);
+    expect(again.existing).toBe(false);
+  });
+
+  it("findSharedTrip: a still-open invitation counts; one that was accepted and then left does not", async () => {
+    const A = await account("Ada");
+    const B = await account("Bea");
+    const g = await db.group.create({
+      data: {
+        name: `Japan ${++n} ${stamp}`, type: "trip", tripCountry: "JP", inviteCode: `wish-${n}-${stamp}`,
+        members: { create: [{ name: "Ada", accountId: A.id, claimedAt: new Date() }, { name: "Bea", accountId: B.id, claimedAt: new Date(), leftAt: new Date() }] },
+      },
+    });
+    groupIds.push(g.id);
+    // Bea accepted the invitation and then left: she is not "in" the trip.
+    await db.invite.create({ data: { groupId: g.id, email: B.email, invitedById: "x", token: `tok-${n}-${stamp}`, acceptedAt: new Date() } });
+    expect(await findSharedTrip(A.id, B.id, "JP")).toBeNull();
+    // An invitation that is still waiting (and she has no row at all) does count.
+    await db.member.deleteMany({ where: { groupId: g.id, accountId: B.id } });
+    await db.invite.updateMany({ where: { groupId: g.id }, data: { acceptedAt: null } });
+    expect((await findSharedTrip(A.id, B.id, "JP"))?.groupId).toBe(g.id);
+    // Declined: no.
+    await db.invite.updateMany({ where: { groupId: g.id }, data: { declinedAt: new Date() } });
+    expect(await findSharedTrip(A.id, B.id, "JP")).toBeNull();
   });
 });
 
-describe("someone who left is brought back by another member", () => {
+describe("someone who left is invited back by another member (never put back for them)", () => {
   // A and B are friends with a match; A leaves on their own; B adds A again.
   async function leftThenReadded() {
     const A = await account("Ada");
@@ -430,50 +452,57 @@ describe("someone who left is brought back by another member", () => {
     expect((await setMemberLeft(g.id, a, a, true)).ok).toBe(true); // A leaves on their own (nothing owed)
     return { A, B, g, a, b };
   }
+  const acct = (id: string) => db.account.findUniqueOrThrow({ where: { id } });
 
-  it("B re-adds A: A is pending, not a current member; B sees none of A's list, no match, no passport; A sees nothing of B's either", async () => {
+  it("B re-adds A: A's row stays LEFT, an invitation exists; B sees none of A's list, no match, no passport; A sees nothing of B's; looking A up does not make them a member", async () => {
     const { A, B, g, a, b } = await leftThenReadded();
     const r = await addRegistered(g.id, b, A.id, "https://loopin.test");
     expect(r.ok).toBe(true);
     const row = await db.member.findUniqueOrThrow({ where: { id: a } });
-    expect(row).toMatchObject({ leftAt: null, addedBy: b, seenAt: null }); // pending, the same as a fresh invitation
+    expect(row.leftAt).not.toBeNull(); // still left
+    expect(row).toMatchObject({ accountId: A.id, addedBy: "" }); // no pending marks: nothing for confirmUsedPending to find
     expect(await db.member.count({ where: { groupId: g.id, accountId: A.id } })).toBe(1); // same row: balances and history are untouched
+    expect(await db.invite.count({ where: { groupId: g.id, email: A.email, memberId: a, acceptedAt: null, declinedAt: null } })).toBe(1);
+    // The lookup that runs on every page for a signed-in account.
+    expect(await confirmUsedPending(A.id)).toEqual([]);
+    expect((await db.member.findUniqueOrThrow({ where: { id: a } })).leftAt).not.toBeNull();
     expect(await currentFriends(B.id)).toEqual([]);
     expect(await seen(B.id)).toEqual([]);
     expect(await matches(B.id)).toEqual([]);
     expect(await matches(A.id)).toEqual([]);
     expect(await seen(A.id)).toEqual([]);
     expect((await canSeePassport(B.id, A.id)).ok).toBe(false);
-    // They have a normal invitation waiting.
-    const invites = await loadInvitations(await db.account.findUniqueOrThrow({ where: { id: A.id } }));
-    expect(invites.some((i) => i.groupId === g.id)).toBe(true);
+    // A has a normal invitation waiting.
+    expect((await loadInvitations(await acct(A.id))).some((i) => i.groupId === g.id)).toBe(true);
     // The share rows are kept (paused), not deleted.
     expect(await db.wishShare.count({ where: { OR: [{ ownerId: A.id }, { ownerId: B.id }] } })).toBe(2);
   });
 
-  it("when A opens the group (seenAt set) everything works again", async () => {
+  it("when A ACCEPTS, it is the same row, no longer left, and everything works again", async () => {
     const { A, B, g, a, b } = await leftThenReadded();
     await addRegistered(g.id, b, A.id, "https://loopin.test");
-    await db.member.update({ where: { id: a }, data: { seenAt: new Date() } }); // what opening the group does
+    const inv = (await loadInvitations(await acct(A.id))).find((i) => i.groupId === g.id)!;
+    expect((await acceptInvitation(await acct(A.id), inv.key)).ok).toBe(true);
+    expect(await db.member.findUniqueOrThrow({ where: { id: a } })).toMatchObject({ leftAt: null, accountId: A.id });
+    expect(await db.member.count({ where: { groupId: g.id, accountId: A.id } })).toBe(1);
     expect(await seen(B.id)).toEqual(["JP"]);
     expect((await matches(B.id)).length).toBe(1);
     expect((await canSeePassport(B.id, A.id)).ok).toBe(true);
   });
 
-  it("'bring back' from People by another member is pending too; A rejoining themself is not", async () => {
+  it("'bring back' from People by another member is refused for someone with an account (use Invite back); A rejoining themself is direct", async () => {
     const { A, B, g, a, b } = await leftThenReadded();
-    expect((await setMemberLeft(g.id, b, a, false)).ok).toBe(true);
-    expect(await db.member.findUniqueOrThrow({ where: { id: a } })).toMatchObject({ leftAt: null, addedBy: b, seenAt: null });
+    const refused = await setMemberLeft(g.id, b, a, false);
+    expect(refused.ok).toBe(false);
+    expect((await db.member.findUniqueOrThrow({ where: { id: a } })).leftAt).not.toBeNull();
     expect(await seen(B.id)).toEqual([]);
-    // Another round: A leaves again... (pending people can still leave) and rejoins themself.
-    await db.member.update({ where: { id: a }, data: { addedBy: "", seenAt: null, leftAt: new Date() } });
     expect((await setMemberLeft(g.id, a, a, false)).ok).toBe(true);
-    expect(await db.member.findUniqueOrThrow({ where: { id: a } })).toMatchObject({ leftAt: null, addedBy: "" }); // unchanged: their own choice
+    expect(await db.member.findUniqueOrThrow({ where: { id: a } })).toMatchObject({ leftAt: null, addedBy: "" });
     expect(await seen(B.id)).toEqual(["JP"]);
     void A;
   });
 
-  it("the admin bringing back a REMOVED person: pending too (and the removal is cleared)", async () => {
+  it("the admin and a REMOVED person: the removal stays until the person accepts the invitation", async () => {
     const A = await account("Ada"); // looks after the group (first in)
     const B = await account("Bea");
     const g = await db.group.create({
@@ -487,9 +516,14 @@ describe("someone who left is brought back by another member", () => {
     const a = g.members.find((m) => m.accountId === A.id)!.id;
     const b = g.members.find((m) => m.accountId === B.id)!.id;
     expect((await setMemberLeft(g.id, a, b, true)).ok).toBe(true); // removed
-    expect((await setMemberLeft(g.id, a, b, false)).ok).toBe(true); // brought back
-    expect(await db.member.findUniqueOrThrow({ where: { id: b } })).toMatchObject({ leftAt: null, removedAt: null, removedById: "", addedBy: a, seenAt: null });
+    expect((await addRegistered(g.id, a, B.id, "https://loopin.test")).ok).toBe(true); // invited back
+    expect(await db.member.findUniqueOrThrow({ where: { id: b } })).toMatchObject({ removedById: a, accountId: B.id });
+    expect((await db.member.findUniqueOrThrow({ where: { id: b } })).removedAt).not.toBeNull();
     expect(await currentFriends(A.id)).toEqual([]);
+    const inv = (await loadInvitations(await acct(B.id))).find((i) => i.groupId === g.id)!;
+    expect((await acceptInvitation(await acct(B.id), inv.key)).ok).toBe(true);
+    expect(await db.member.findUniqueOrThrow({ where: { id: b } })).toMatchObject({ leftAt: null, removedAt: null, removedById: "" });
+    expect((await currentFriends(A.id)).map((f) => f.id)).toEqual([B.id]);
   });
 });
 

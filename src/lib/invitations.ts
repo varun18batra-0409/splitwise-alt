@@ -1,4 +1,6 @@
 import { db } from "./db";
+import { logEvent } from "./events";
+import { isGroupAdmin } from "./group-admin";
 import { blockedByMe } from "./blocks";
 import { copyPushTo, inviteMemberId } from "./invites";
 import { joinExisting, joinNew, NAME_NEEDED, type JoinFail, type JoinOk } from "./join";
@@ -57,9 +59,12 @@ export async function loadInvitations(account: Account | null): Promise<Invitati
     const g = i.group;
     if (fromBlocked(g.members, i.invitedById)) continue;
     const own = g.members.find((m) => m.accountId === account.id);
-    // Already in, or taken out of, that group: nothing to answer. (Someone who left on their own and was invited to their own row does have something to answer.)
-    if (own && !(own.leftAt && !own.removedAt && own.id === inviteMemberId(i))) continue;
-    const memberId = g.members.find((m) => m.id === inviteMemberId(i) && !m.removedAt && (own ? m.id === own.id : !m.accountId && !m.leftAt))?.id ?? "";
+    // Already in that group: nothing to answer. Someone who left on their own, or whom the admin removed, has something to answer
+    // only if the invitation is for their own row (a removed person's only if the admin sent it).
+    const ownBack = own && own.id === inviteMemberId(i) && (own.leftAt || own.removedAt);
+    if (own && !ownBack) continue;
+    if (own?.removedAt && !(await isGroupAdmin(g.id, i.invitedById))) continue;
+    const memberId = g.members.find((m) => m.id === inviteMemberId(i) && (own ? m.id === own.id : !m.removedAt && !m.accountId && !m.leftAt))?.id ?? "";
     // Their name was taken out of the group again (or taken by someone else): nothing to answer any more.
     if (!memberId) continue;
     out.push({
@@ -113,8 +118,16 @@ export async function acceptInvitation(account: Account, key: string): Promise<A
   if (!row || (row.removedAt && row.accountId !== account.id)) return { ok: false, error: CLOSED };
   let r: JoinOk | JoinFail;
   if (row.accountId === account.id) {
+    // Removed by the admin and invited back by the admin: accepting clears the removal on this same row (guarded on the state read,
+    // so a second tap or a race changes nothing twice). Anyone else's invitation, or one already used, can't bring them back.
+    if (row.removedAt) {
+      if (inv.acceptedAt || !(await isGroupAdmin(inv.groupId, inv.invitedById))) return { ok: false, error: CLOSED };
+      const cleared = await db.member.updateMany({ where: { id: row.id, accountId: account.id, removedAt: { not: null } }, data: { removedAt: null, removedById: "", leftAt: null } });
+      if (cleared.count !== 1) return { ok: false, error: CLOSED };
+    }
     // Left on their own and invited back to their own row: joining brings them back (joinNew also refuses a removed person).
     r = await joinNew(code, account, account.name);
+    if (r.ok && (row.leftAt || row.removedAt)) await logEvent(db, { groupId: inv.groupId, actorId: row.id, kind: "member_rejoined", text: "rejoined the group" });
   } else {
     // Link their name row if it is still free; if someone else took that name meanwhile, join as themselves (a new row, with their own name).
     r = await joinExisting(code, account, memberId);
@@ -132,7 +145,8 @@ export async function acceptInvitation(account: Account, key: string): Promise<A
 }
 
 // Not now. The name stays in the group exactly as it is (its expenses and payments, and every balance);
-// the invitation card goes away. They can still join later from the group's invite link or a new invitation.
+// the invitation card goes away. For someone who left or was removed, the row stays left / removed and keeps its account:
+// only the invitation is closed (a row with history is never unlinked, so nobody else can claim it). They can still join later from the group's invite link or a new invitation.
 export async function declineInvitation(account: Account, key: string): Promise<Answer> {
   if (key.startsWith("m:")) {
     const m = await db.member.findFirst({ where: { id: key.slice(2), accountId: account.id, addedBy: { not: "" }, seenAt: null, removedAt: null, group: { deletedAt: null } } });
@@ -146,7 +160,8 @@ export async function declineInvitation(account: Account, key: string): Promise<
   }
   const inv = key ? await db.invite.findFirst({ where: { token: key, email: account.email } }) : null;
   if (!inv) return { ok: false, error: GONE };
-  await db.invite.update({ where: { id: inv.id }, data: { declinedAt: new Date() } });
+  // Only closes the invitation (and only if it is still open): the member row is not touched.
+  await db.invite.updateMany({ where: { id: inv.id, acceptedAt: null }, data: { declinedAt: new Date() } });
   return { ok: true, groupId: inv.groupId, memberId: inviteMemberId(inv) };
 }
 

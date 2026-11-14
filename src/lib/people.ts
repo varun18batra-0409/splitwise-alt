@@ -13,7 +13,8 @@ import { GroupChanged, groupChangedText, guardGroup, ledgerInTx } from "./money-
 // - Rename: any member can fix anyone's name (no two people with the same name).
 // - Leave: only with a zero balance. They stay in the history and balances,
 //   but aren't offered when adding new expenses or payments.
-// - Rejoin: brings them back.
+// - Rejoin: brings them back. Only the person themself, or (for a name nobody has claimed) anyone; someone with their own
+//   account is invited back and rejoins by accepting (invites.ts).
 // - Removed: when someone else (the admin) takes a person out, it is "removed", not
 //   "left": removedAt is set, they can't rejoin on their own or with the link, and
 //   only the admin can bring them back. Undoing the removal clears it.
@@ -106,11 +107,12 @@ export async function setMember(
           : {};
     // Taking out someone who had already left keeps the day they left.
     const leftAtNext = leaving ? (promoting ? m.leftAt! : new Date(data.leftAt!)) : null;
-    // Someone ELSE bringing a person with a sign-in back (they left on their own, or the admin removed them) is an invitation, not
-    // a rejoin: they count as pending (added by the one who brought them back, group not opened yet) until they open the group
-    // themselves. Their old "joined" mark would otherwise make them an instant current member and friend again with no say.
-    // Rejoining yourself, undo, and name-only rows (nobody to ask) are unchanged.
-    const invitedBack = !leaving && !undoing && memberId !== actorId && Boolean(m.accountId) && (alreadyLeft || m.removedAt !== null);
+    // Someone ELSE putting back a person who has their own sign-in (they left on their own, or the admin removed them) is not allowed:
+    // that person has to accept an invitation themselves (invites.ts inviteBackTo; accepting clears the mark on this same row).
+    // Rejoining yourself, undo, and name-only rows (nobody to ask) are direct, as before.
+    if (!leaving && !undoing && memberId !== actorId && m.accountId && (alreadyLeft || m.removedAt !== null)) {
+      return { ok: false, error: `${m.name} has their own Loopin account, so they need to accept an invitation to come back. Use Invite back.` };
+    }
     await opts.afterRead?.();
     try {
     const eventId = await db.$transaction(async (tx) => {
@@ -122,7 +124,7 @@ export async function setMember(
         const owing = (await ledgerInTx(tx, groupId)).net[memberId] ?? 0;
         if (owing !== 0) throw new StillOwes(owing);
       }
-      await tx.member.update({ where: { id: memberId }, data: { leftAt: leftAtNext, ...removal, ...(invitedBack ? { addedBy: actorId, seenAt: null } : {}) } });
+      await tx.member.update({ where: { id: memberId }, data: { leftAt: leftAtNext, ...removal } });
       return logEvent(tx, {
         groupId,
         actorId,

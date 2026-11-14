@@ -7,7 +7,7 @@ import { reportSpeed } from "./speedReport";
 import { whatsappLink } from "@/lib/whatsapp";
 import { INVITE_EMAIL_HINT, inviteLabel, type InviteChannel } from "@/lib/invite-label";
 
-type Found = { accountId: string; name: string; inGroup: boolean; known: boolean; invited?: boolean; removed?: boolean; mayAdd?: boolean };
+type Found = { accountId: string; name: string; inGroup: boolean; known: boolean; invited?: boolean; removed?: boolean; left?: boolean; mayAdd?: boolean };
 const isEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(s.trim());
 
 // 1. Search people already on Loopin (friends you share a group with, by name only: no emails
@@ -104,7 +104,7 @@ export function PeopleSearch({ groupId }: { groupId: string }) {
                   <input type="hidden" name="groupId" value={groupId} />
                   <input type="hidden" name="accountId" value={f.accountId} />
                   <button type="submit" className="pop shrink-0 bg-fg px-3 py-1.5 text-sm font-semibold text-canvas [--pop-edge:#6e6b63]">
-                    {f.removed ? "Bring back" : "Add"}
+                    {f.removed || f.left ? "Invite back" : "Add"}
                   </button>
                 </form>
               )}

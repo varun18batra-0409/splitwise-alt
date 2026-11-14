@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { addRegistered, freeName, inviteByEmail, inviteMemberId, inviteRowLabel, nameFromEmail, newInviteToken, searchPeople } from "@/lib/invites";
 import { groupPeople, setMemberLeft, setMember } from "@/lib/people";
+import { acceptInvitation, loadInvitations } from "@/lib/invitations";
 
 // Adding people: everyone added by email (or found by name) is in the group at once as a name and
 // is invited; their account is linked only when they join. The adder gets the same reply whether or
@@ -316,34 +317,50 @@ describe("a removed person can't be added back by anyone but the admin", () => {
     expect(await setMemberLeft(gid, sam, ravi, false)).toEqual({ ok: false, error: "Only the person who looks after this group can bring back someone they removed." });
   });
 
-  it("Asha brings him back by search: leftAt, removedAt and removedById are all cleared; People lists him once", async () => {
+  const ravi$ = () => ({ id: rAcc, name: "Ravi", email: em("ravi") });
+  const openToken = async () => (await db.invite.findFirstOrThrow({ where: { groupId: gid, email: em("ravi"), acceptedAt: null, declinedAt: null } })).token;
+
+  it("Asha 'brings him back' by search: he is only INVITED (still removed, same row, history untouched) until he accepts; then the removal is cleared", async () => {
     const r = await addRegistered(gid, asha, rAcc, origin);
     expect(r.ok && r.name).toBe("Ravi");
+    expect(r.ok && r.invitedBack).toBe(true);
+    expect(await raviRow()).toMatchObject({ removedById: asha, accountId: rAcc }); // nothing changed yet
+    expect((await raviRow()).removedAt).not.toBeNull();
+    const inv = await db.invite.findFirstOrThrow({ where: { groupId: gid, email: em("ravi") } });
+    expect(inv).toMatchObject({ invitedById: asha, memberId: ravi, acceptedAt: null, declinedAt: null });
+    expect((await loadInvitations(ravi$())).map((i) => i.memberId)).toEqual([ravi]); // he has something to answer
+    const joined = await acceptInvitation(ravi$(), inv.token);
+    expect(joined.ok).toBe(true);
     expect(await raviRow()).toMatchObject({ leftAt: null, removedAt: null, removedById: "" });
     const { active, left, removed } = groupPeople(await db.member.findMany({ where: { groupId: gid } }));
     expect(active.map((m) => m.name).sort()).toEqual(["Asha", "Ravi", "Sam"]);
     expect([left.length, removed.length]).toEqual([0, 0]);
     expect(await db.member.count({ where: { groupId: gid, accountId: rAcc } })).toBe(1); // no second row
-    expect(await db.invite.count({ where: { groupId: gid } })).toBe(0); // brought back as himself: no invitation needed
   });
 
-  it("Asha brings him back by email too (removed again first); a repeat does nothing more", async () => {
+  it("by email too (removed again first): invited, not back; accepting brings him back; a repeat does nothing more", async () => {
     expect((await setMemberLeft(gid, asha, ravi, true)).ok).toBe(true);
     const r = await inviteByEmail(gid, asha, em("ravi"), origin);
     expect(r.people.map((p) => p.email)).toEqual([em("ravi")]);
+    expect((await raviRow()).removedAt).not.toBeNull(); // still removed
+    expect((await acceptInvitation(ravi$(), await openToken())).ok).toBe(true);
     expect(await raviRow()).toMatchObject({ leftAt: null, removedAt: null, removedById: "" });
     const again = await inviteByEmail(gid, asha, em("ravi"), origin);
     expect(again.people.length).toBe(1);
+    expect(await db.invite.count({ where: { groupId: gid, email: em("ravi"), acceptedAt: null, declinedAt: null } })).toBe(0); // already in: nothing sent
     expect(await db.member.count({ where: { groupId: gid, accountId: rAcc } })).toBe(1);
   });
 
-  it("setMember: bringing back a removed person whose 'left' mark is missing clears the removal (admin); a no-op change is still a no-op", async () => {
+  it("setMember: nobody (not even the admin) puts back a person with an account directly; a no-op change is still a no-op", async () => {
     expect((await setMemberLeft(gid, asha, ravi, true)).ok).toBe(true);
-    await db.member.update({ where: { id: ravi }, data: { leftAt: null } }); // half-written
-    const back = await setMember(gid, asha, ravi, { leftAt: null });
-    expect(back.ok).toBe(true);
-    expect(await raviRow()).toMatchObject({ leftAt: null, removedAt: null, removedById: "" });
-    // Nothing to change now: ok, no new history line.
+    const before = await raviRow();
+    const refused = await setMember(gid, asha, ravi, { leftAt: null });
+    expect(refused.ok).toBe(false);
+    expect(!refused.ok && refused.error).toMatch(/needs? to accept an invitation|need to accept an invitation/);
+    expect(await raviRow()).toMatchObject({ removedById: asha, accountId: rAcc, leftAt: before.leftAt });
+    expect((await raviRow()).removedAt).not.toBeNull();
+    // Back in by his own accepting (set directly here): nothing to change, no new history line.
+    await db.member.update({ where: { id: ravi }, data: { leftAt: null, removedAt: null, removedById: "" } });
     const events = await db.groupEvent.count({ where: { groupId: gid } });
     expect(await setMember(gid, asha, ravi, { leftAt: null })).toEqual({ ok: true });
     expect(await db.groupEvent.count({ where: { groupId: gid } })).toBe(events);

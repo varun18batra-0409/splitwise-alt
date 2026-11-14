@@ -61,7 +61,7 @@ export default async function AddPeoplePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ new?: string; invited?: string; error?: string; did?: string; undone?: string; newlink?: string }>;
+  searchParams: Promise<{ new?: string; invited?: string; error?: string; did?: string; undone?: string; newlink?: string; back?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -130,10 +130,19 @@ export default async function AddPeoplePage({
       {!sp.undone &&
         justInvited(sp.invited).map(([name, email]) => (
           <Notice key={`${name}-${email}`} tone="success" params={["invited"]} className="mb-4">
-            <span className="block font-semibold" data-invited-title>{name} is in the group</span>
-            <span className="block text-sm">
-              You can add {name} to expenses now. {invitedNotice(email)}
-            </span>
+            {sp.back === "1" ? (
+              <>
+                <span className="block font-semibold" data-invited-title>Invited back</span>
+                <span className="block text-sm" data-invited-back>{name} will rejoin when they accept. Nothing about the money changes.</span>
+              </>
+            ) : (
+              <>
+                <span className="block font-semibold" data-invited-title>{name} is in the group</span>
+                <span className="block text-sm">
+                  You can add {name} to expenses now. {invitedNotice(email)}
+                </span>
+              </>
+            )}
           </Notice>
         ))}
 

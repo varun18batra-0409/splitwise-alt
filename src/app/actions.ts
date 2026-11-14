@@ -155,7 +155,10 @@ export async function addPerson(formData: FormData) {
   const { origin, ip } = await originAndIp();
   if (!(await allow(`add-person:${ip}`, 60, 3600))) redirect(`/groups/${group.id}/invite?error=${encodeURIComponent("Too many adds from here. Wait a bit.")}`);
   const r = await addRegistered(group.id, me.id, String(formData.get("accountId") ?? ""), origin, { later: (job) => after(job) });
-  const q = r.ok ? new URLSearchParams({ invited: JSON.stringify([[r.name, ""]]), ...(r.eventId ? { did: r.eventId } : {}) }) : new URLSearchParams({ error: r.error });
+  // Someone brought back who has their own account is only invited: they rejoin when they accept ("back" tells the screen to say so).
+  const q = r.ok
+    ? new URLSearchParams({ invited: JSON.stringify([[r.name, ""]]), ...(r.invitedBack ? { back: "1" } : r.eventId ? { did: r.eventId } : {}) })
+    : new URLSearchParams({ error: r.error });
   redirect(`/groups/${group.id}/invite?${q}`);
 }
 
@@ -581,6 +584,16 @@ export async function removePerson(formData: FormData) {
 
 export async function setPersonLeft(formData: FormData) {
   const { groupId, memberId, myId } = await peopleContext(formData);
+  // Someone with their own account is never put back by somebody else: they get an invitation and rejoin when they accept.
+  // (Rejoining yourself, and bringing back a name nobody has claimed, are direct.)
+  if (memberId !== myId && formData.get("left") !== "1") {
+    const row = await db.member.findFirst({ where: { id: memberId, groupId }, select: { accountId: true } });
+    if (row?.accountId) {
+      const { origin } = await originAndIp();
+      const r = await addRegistered(groupId, myId, row.accountId, origin, { later: (job) => after(job) });
+      redirect(`/groups/${groupId}/people${r.ok ? "?invitedBack=1" : `?error=${encodeURIComponent(r.error)}`}`);
+    }
+  }
   // You can always leave or rejoin yourself. Taking someone else out is for whoever looks after the group; any member can bring back
   // someone who left on their own (only a person the admin removed needs the admin: setMemberLeft checks that).
   if (memberId !== myId && formData.get("left") === "1" && !(await isGroupAdmin(groupId, myId))) backToPeople(groupId, { ok: false, error: ADMIN_ONLY });

@@ -7,7 +7,6 @@ import { allow } from "./rate-limit";
 import { deliverNotes } from "./account-notes";
 import { hasBlocked } from "./blocks";
 import { groupAdminId } from "./group-admin";
-import { setMember } from "./people";
 import { randomBytes } from "node:crypto";
 import { validSub } from "./push-subs";
 
@@ -22,7 +21,7 @@ const inviteMailOk = (actor: { id: string; accountId?: string | null }) => allow
 
 // `removed`: the admin took this person out of the group. Only the admin may bring them back, so for
 // everyone else the screen shows "Removed" and no Add (`mayAdd` false).
-export type Found = { accountId: string; name: string; inGroup: boolean; known: boolean; invited: boolean; removed: boolean; mayAdd: boolean };
+export type Found = { accountId: string; name: string; inGroup: boolean; known: boolean; invited: boolean; removed: boolean; left: boolean; mayAdd: boolean };
 
 // What the invite screen shows for an invitation that has no name row of its own: the typed email only to the
 // person who invited; everyone else just sees who invited.
@@ -77,6 +76,7 @@ export async function searchPeople(memberships: Record<string, string>, groupId:
   ]);
   const inGroup = new Set(groupRows.filter((m) => !m.leftAt && !m.removedAt).map((m) => m.accountId!));
   const removedIn = new Set(groupRows.filter((m) => m.removedAt).map((m) => m.accountId!));
+  const leftIn = new Set(groupRows.filter((m) => m.leftAt && !m.removedAt).map((m) => m.accountId!));
   const iAmAdmin = Boolean(adminId) && adminId === memberships[groupId];
   const groupName = new Map<string, string>();
   for (const r of knownRows) if (r.accountId && !groupName.has(r.accountId)) groupName.set(r.accountId, r.name);
@@ -86,7 +86,7 @@ export async function searchPeople(memberships: Record<string, string>, groupId:
   // Already invited to this group and not joined yet: shown as "Invited".
   const waiting = shown.length ? await db.invite.findMany({ where: { groupId, acceptedAt: null, declinedAt: null, email: { in: shown.map((a) => a.email) } }, select: { email: true } }) : [];
   const invitedEmails = new Set(waiting.map((i) => i.email));
-  const out: Found[] = shown.map((a) => ({ accountId: a.id, name: shownName(a), inGroup: inGroup.has(a.id), known: true, invited: invitedEmails.has(a.email), removed: removedIn.has(a.id), mayAdd: !removedIn.has(a.id) || iAmAdmin }));
+  const out: Found[] = shown.map((a) => ({ accountId: a.id, name: shownName(a), inGroup: inGroup.has(a.id), known: true, invited: invitedEmails.has(a.email), removed: removedIn.has(a.id), left: leftIn.has(a.id), mayAdd: !removedIn.has(a.id) || iAmAdmin }));
   // A full email of someone you share nothing with is not looked up here: the screen offers the same
   // "Add" for any email (on Loopin → added; not yet → invited), so nobody can check who has an account.
   // Don't offer the person searching (they're already in the group).
@@ -107,7 +107,7 @@ export async function copyPushTo(accountId: string, memberId: string) {
   }
 }
 
-type Result = { ok: true; memberId: string; eventId: string; name: string; email: string } | { ok: false; error: string };
+type Result = { ok: true; memberId: string; eventId: string; name: string; email: string; invitedBack?: boolean } | { ok: false; error: string };
 
 // ---- Invitations ----
 //
@@ -206,18 +206,32 @@ async function loadInviteGroup(groupId: string, actorId: string) {
 
 export const alreadyInvitedAs = (name: string) => `That email is already invited as ${name}. Cancel that first.`;
 const isAdmin = async (groupId: string, memberId: string) => (await groupAdminId(groupId)) === memberId;
-// Bringing someone back (leftAt, removedAt and removedById are all cleared together). Only a person the admin removed needs the admin (checked by the callers);
-// any member can bring back someone who left on their own.
-const bringBack = (groupId: string, actorId: string, memberId: string) => setMember(groupId, actorId, memberId, { leftAt: null });
-
-// The normal "added you to <group>" alert for someone brought back (they now have an invitation to open). Nothing if they blocked the one who did it.
-async function noteBroughtBack(group: { id: string; name: string }, actor: { name: string; accountId: string | null }, accountId: string, later?: Later) {
-  const job = async () => {
-    if (actor.accountId && (await hasBlocked(accountId, actor.accountId).catch(() => true))) return;
-    await deliverNotes([{ accountIds: [accountId], kind: "group_invite", title: `${actor.name} added you to ${group.name}`, body: "Tap to join, or choose Not now.", url: `/groups/${group.id}`, tag: `invite-${group.id}` }]);
-  };
-  if (later) later(job);
-  else await job().catch(() => undefined);
+// Someone WITH AN ACCOUNT who left on their own, or whom the admin removed, is never put back by somebody else: they are sent an
+// ordinary invitation for their own row, and the row stays left / removed (history, balance and ownership untouched) until THEY accept
+// (invitations.ts clears leftAt / removedAt then). Only the admin may invite back a removed person. Reads the row again right before
+// writing, so a person who has rejoined (or been removed) in the meantime is handled, not overwritten. No money changes.
+type BackResult = { ok: true; eventId: string } | { ok: false; error: string; inGroup?: boolean };
+async function inviteBackTo(
+  group: InviteGroup,
+  actor: Actor,
+  account: { id: string; email: string },
+  row: { id: string; name: string },
+  o: { origin: string; mail: boolean; later?: Later },
+): Promise<BackResult> {
+  const now = await db.member.findFirst({
+    where: { id: row.id, groupId: group.id, accountId: account.id, OR: [{ leftAt: { not: null } }, { removedAt: { not: null } }] },
+    select: { removedAt: true },
+  });
+  if (!now) return { ok: false, error: `${row.name} is already in this group.`, inGroup: true };
+  if (now.removedAt) {
+    if (!(await isAdmin(group.id, actor.id))) return { ok: false, error: `Only the person who looks after the group can bring ${row.name} back.` };
+    // An older open invitation to this address (sent before they were removed) must not carry on: the new one belongs to the admin.
+    await db.invite.updateMany({ where: { groupId: group.id, email: account.email, acceptedAt: null, declinedAt: null }, data: { declinedAt: new Date() } });
+  }
+  const r = await inviteOne(group, actor, account.email, row.name, { origin: o.origin, account, mail: o.mail, later: o.later, row });
+  if ("error" in r) return { ok: false, error: r.error };
+  const eventId = await logEvent(db, { groupId: group.id, actorId: actor.id, kind: "member_invited", text: `invited ${row.name} back to the group` });
+  return { ok: true, eventId };
 }
 
 // Add someone who's already on Loopin (found by name among people you share a group with).
@@ -230,29 +244,15 @@ export async function addRegistered(groupId: string, actorId: string, accountId:
   const account = await db.account.findUnique({ where: { id: accountId } });
   if (!account) return { ok: false, error: "That person isn't on Loopin." };
   const existing = group.members.find((m) => m.accountId === accountId);
-  // Taken out by the person who looks after the group: only they can bring them back, by any route.
-  if (existing?.removedAt) {
-    if (!(await isAdmin(groupId, actorId))) return { ok: false, error: `Only the person who looks after the group can bring ${existing.name} back.` };
-    const back = await bringBack(groupId, actorId, existing.id);
-    if (!back.ok) return back;
-    await copyPushTo(accountId, existing.id);
-    await noteBroughtBack(group, actor, accountId, opts.later);
-    return { ok: true, memberId: existing.id, eventId: back.eventId ?? "", name: existing.name, email: account.email };
-  }
-  if (existing && !existing.leftAt) return { ok: false, error: `${existing.name} is already in this group.` };
-
+  if (existing && !existing.leftAt && !existing.removedAt) return { ok: false, error: `${existing.name} is already in this group.` };
   if (existing) {
-    // Someone who left on their own and is added back by someone else: the same state as a fresh invitation (added by you, group not
-    // opened yet), NOT an instant rejoin. Their old "joined" mark must not make them a current member or friend again without their say;
-    // they count again once they open the group themselves. Any member can do this (only removed people need the admin).
-    const { eventId } = await db.$transaction(async (tx) => {
-      await tx.member.update({ where: { id: existing.id }, data: { leftAt: null, addedBy: actorId, seenAt: null } });
-      const eventId = await logEvent(tx, { groupId, actorId, kind: "members_added", text: `added ${existing.name} to the group` });
-      return { eventId };
-    });
-    await copyPushTo(accountId, existing.id);
-    await noteBroughtBack(group, actor, accountId, opts.later);
-    return { ok: true, memberId: existing.id, eventId, name: existing.name, email: account.email };
+    // Left on their own, or removed by the person who looks after the group: an invitation to their own row (only the admin may
+    // invite back a removed person). They are back only when they accept.
+    if (existing.removedAt && !(await isAdmin(groupId, actorId))) return { ok: false, error: `Only the person who looks after the group can bring ${existing.name} back.` };
+    const mail = await inviteMailOk(actor);
+    const back = await inviteBackTo(group, actor, account, existing, { origin, mail, later: opts.later });
+    if (!back.ok) return back;
+    return { ok: true, memberId: existing.id, eventId: "", name: existing.name, email: account.email, invitedBack: true };
   }
   const mail = await inviteMailOk(actor);
   const actorAccountId = (await db.member.findUnique({ where: { id: actorId }, select: { accountId: true } }))?.accountId;
@@ -288,18 +288,14 @@ export async function inviteByEmail(groupId: string, actorId: string, rawEmails:
     const already = account ? group.members.find((m) => m.accountId === account.id) : undefined;
     if (account && already) {
       // The same quiet reply for everyone. Only the person who looks after the group can bring back someone they removed.
-      if (already.removedAt) {
-        if (await isAdmin(groupId, actorId)) {
-          const back = await bringBack(groupId, actorId, already.id);
-          if (back.ok) {
-            await copyPushTo(account.id, already.id);
-            await noteBroughtBack(group, actor, account.id, opts.later);
-          }
+      if (already.removedAt || already.leftAt) {
+        // Left on their own, or removed (admin only): invited to their own row. They are not back until they accept.
+        if (already.removedAt && !(await isAdmin(groupId, actorId))) {
+          people.push({ name: wanted, email });
+          continue;
         }
-      } else if (already.leftAt) {
-        // Left on their own: invited to their own row. Join brings them back (they are not back until they tap it).
-        const again = await inviteOne(group, actor, email, already.name, { origin, account, mail, later: opts.later, row: already });
-        if ("error" in again) {
+        const again = await inviteBackTo(group, actor, account, already, { origin, mail, later: opts.later });
+        if (!again.ok && !again.inGroup) {
           bad.push(`${email} (${again.error})`);
           continue;
         }

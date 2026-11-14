@@ -127,7 +127,11 @@ async function undoOnce(eventId: string, actorId: string | undefined, tz: string
   });
   if (!group) return { ok: false, error: "This group no longer exists." };
   if (!actorId || !group.members.some((m) => m.id === actorId)) return { ok: false, error: "Only people in this group can undo its changes." };
-  if (group.members.find((m) => m.id === actorId)?.leftAt) return { ok: false, error: LEFT_ERROR };
+  // Someone who left can't change the group, except to undo their OWN "left the group" (and not if the admin has removed them since).
+  const me = group.members.find((m) => m.id === actorId);
+  const early = parseUndo(ev.undo);
+  const ownLeave = early?.type === "member_set" && early.data.leftAt === null && !("removedAt" in early.data) && ev.kind === "member_left" && ev.actorId === actorId && early.memberId === actorId;
+  if (me?.leftAt && (!ownLeave || me.removedAt)) return { ok: false, error: LEFT_ERROR };
 
   if (group.deletedAt) return { ok: false, error: "This group was deleted. Restore it first." };
 
@@ -141,6 +145,12 @@ async function undoOnce(eventId: string, actorId: string | undefined, tz: string
   // What only the person who looks after the group can do on the main screens
   // (currency, removing or marking someone else as left) can't be done through Undo either,
   // except by whoever made that change in the first place.
+  // Undoing someone's own "left the group" would put them back without their say, so only they can do it (a name nobody has claimed
+  // has no one to ask, so anyone can). The admin invites them back instead.
+  if (payload.type === "member_set" && payload.data.leftAt === null && ev.kind === "member_left" && ev.actorId === payload.memberId && payload.memberId !== actorId) {
+    const who = group.members.find((m) => m.id === payload.memberId);
+    if (who?.accountId) return { ok: false, error: `Only ${who.name} can undo leaving the group. You can invite them back from People.` };
+  }
   const adminOnly =
     payload.type === "currency_restore" ||
     ((payload.type === "members_remove" || payload.type === "members_restore") && ev.actorId !== actorId) ||

@@ -1,5 +1,6 @@
 import Link from "@/components/Link";
 import { redirect } from "next/navigation";
+import { invitationFor } from "@/lib/invitations";
 import { pickAdmin } from "@/lib/group-admin";
 import { GetAppButton } from "@/components/GetApp";
 import { db } from "@/lib/db";
@@ -62,6 +63,8 @@ export default async function JoinPage({
   // Taken out of this group by whoever looks after it: the link doesn't bring them back in.
   const removedMe = account ? group.members.find((m) => m.accountId === account.id && m.removedAt) : undefined;
   if (removedMe) {
+    // The admin invited them back: that invitation is answered from Home (Join / Not now), which clears the removal when they accept.
+    if (account && (await invitationFor(account, group.id))) redirect("/");
     const by = group.members.find((m) => m.id === removedMe.removedById)?.name ?? pickAdmin(group.members)?.name ?? "The person who looks after the group";
     return (
       <section className="vault mt-10 rounded-[24px] px-6 py-10 text-center" data-join-removed>

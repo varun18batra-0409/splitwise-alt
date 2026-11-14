@@ -32,7 +32,7 @@ export default async function PeoplePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; did?: string; undone?: string; invited?: string; cancelled?: string }>;
+  searchParams: Promise<{ error?: string; did?: string; undone?: string; invited?: string; cancelled?: string; invitedBack?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -177,9 +177,9 @@ export default async function PeoplePage({
                   {hidden}
                   <input type="hidden" name="left" value="0" />
                   <button type="submit" className={small}>
-                    Bring {m.name} back
+                    {m.accountId ? `Invite ${m.name} back` : `Bring ${m.name} back`}
                   </button>
-                  <p className="mt-2 text-xs text-gray-400">{m.name} can’t rejoin on their own or with the old link.</p>
+                  <p className="mt-2 text-xs text-gray-400">{m.name} can’t rejoin on their own or with the old link.{m.accountId ? " They rejoin when they accept your invitation." : ""}</p>
                 </form>
               ) : (
                 <p className="text-xs text-gray-400" data-removed-note>
@@ -192,7 +192,7 @@ export default async function PeoplePage({
                   {hidden}
                   <input type="hidden" name="left" value="0" />
                   <button type="submit" className={small}>
-                    {me ? "Rejoin the group" : `Bring ${m.name} back`}
+                    {me ? "Rejoin the group" : m.accountId ? `Invite ${m.name} back` : `Bring ${m.name} back`}
                   </button>
                 </form>
                 {/* Someone who left on their own can still be taken out by whoever looks after the group (then they can't rejoin by themselves). */}
@@ -251,6 +251,12 @@ export default async function PeoplePage({
       {sp.cancelled && (
         <Notice tone="success" params={["cancelled"]} className="mb-4">
           Invitation cancelled. The name stays in the group, and can be claimed with “That’s me” or invited again.
+        </Notice>
+      )}
+      {sp.invitedBack && (
+        <Notice tone="success" params={["invitedBack"]} className="mb-4">
+          <span className="block font-semibold">Invited back</span>
+          <span className="block text-sm" data-invited-back>They’ll rejoin when they accept. Nothing about the money changes.</span>
         </Notice>
       )}
       {sp.invited && (
