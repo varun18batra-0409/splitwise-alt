@@ -41,8 +41,9 @@ describe("R1 item 4: the Collecting card", () => {
 
 describe("R1 items 5, 11, 12, 13: passport book", () => {
   const book = src("src/components/PassportBook.tsx");
-  it("the cover and page 1 read one `counts` object (the stamps drawn)", () => {
-    expect(book).toContain("const counts = { countries: stats.countries, stamps: stampCount, trips: stats.trips }");
+  it("the cover and page 1 read one `counts` object (passportCounts, worked out once by the page)", () => {
+    expect(book).toContain("counts: PassportCounts");
+    expect(book).toContain("{ name, stats, counts, milestones, pages, index, badges = [], own = true }");
     expect(book).toContain("data-cover-counts={`${counts.countries}|${counts.stamps}`}");
     expect(book).toContain("data-passport-counts={`${counts.countries}|${counts.stamps}|${counts.trips}`}");
   });

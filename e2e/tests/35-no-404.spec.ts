@@ -27,6 +27,7 @@ test("every link in the app opens a real screen (no 404s)", async ({ browser }) 
     "/",
     "/account",
     "/passport",
+    "/passport?tab=want",
     "/settle",
     "/search",
     "/notifications",

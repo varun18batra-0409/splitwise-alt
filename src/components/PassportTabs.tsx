@@ -2,32 +2,38 @@ import Link from "@/components/Link";
 
 // The passport's header art and its tab switch.
 //
-// To add a tab later (Want to go): add it to `PASSPORT_TABS` with its label and make the page draw it.
+// Tabs: Been (stamps) and Want to go (a private list of places). To add one, put it in `PASSPORT_TABS` and make the page draw it.
 // The switch only appears once there is more than one, so a lone "Been" never looks like a choice.
 export type PassportTab = "been" | "want";
-export const PASSPORT_TABS: { id: PassportTab; label: string }[] = [{ id: "been", label: "Been" }];
+export const PASSPORT_TABS: { id: PassportTab; label: string }[] = [
+  { id: "been", label: "Been" },
+  { id: "want", label: "Want to go" },
+];
 
 export function passportTab(raw: string | undefined): PassportTab {
   return PASSPORT_TABS.some((t) => t.id === raw) ? (raw as PassportTab) : "been";
 }
 
-// A little leather passport, drawn (the booklet's cover in small: dark, off-white foil, a globe).
+// A little leather passport (the book's cover in small: deep red leather, off-white foil, a globe). It is the way into the book:
+// a 44 px or bigger tap target, smaller on the narrowest phones rather than hidden.
 export function PassportArt() {
   return (
-    <svg aria-hidden width="104" height="104" viewBox="0 0 104 104" fill="none" className="pointer-events-none absolute right-0 top-0 hidden opacity-90 min-[360px]:block" data-passport-art>
-      <g transform="rotate(14 60 52)">
-        <rect x="34" y="8" width="54" height="76" rx="5" fill="#16161a" stroke="#f4f2ec" strokeOpacity="0.25" />
-        <rect x="34" y="8" width="6" height="76" rx="3" fill="#0d0d0f" />
-        <text x="63" y="30" textAnchor="middle" fontSize="7.5" fontWeight="600" letterSpacing="1.6" fill="#f4f2ec" fillOpacity="0.55" style={{ fontFamily: "var(--font-display), serif" }}>
-          PASSPORT
-        </text>
-        <g stroke="#f4f2ec" strokeOpacity="0.55" strokeWidth="1.1">
-          <circle cx="63" cy="52" r="13" />
-          <ellipse cx="63" cy="52" rx="5.5" ry="13" />
-          <path d="M50 52h26M52 44h22M52 60h22" />
+    <Link href="/passport?book=1" aria-label="Open your passport book" className="absolute right-0 top-0 flex h-[76px] w-[70px] items-center justify-center rounded-[14px] active:opacity-70 min-[360px]:h-[104px] min-[360px]:w-[104px]" data-passport-art>
+      <svg aria-hidden width="100%" height="100%" viewBox="0 0 104 104" fill="none" className="pointer-events-none">
+        <g transform="rotate(14 60 52)">
+          <rect x="34" y="8" width="54" height="76" rx="5" fill="#4a1a24" stroke="#f4f2ec" strokeOpacity="0.25" />
+          <rect x="34" y="8" width="6" height="76" rx="3" fill="#2e0f16" />
+          <text x="64" y="30" textAnchor="middle" fontSize="7.5" fontWeight="600" letterSpacing="1.6" fill="#ece8dc" fillOpacity="0.75" style={{ fontFamily: "var(--font-display), serif" }}>
+            PASSPORT
+          </text>
+          <g stroke="#ece8dc" strokeOpacity="0.7" strokeWidth="1.1">
+            <circle cx="63" cy="52" r="13" />
+            <ellipse cx="63" cy="52" rx="5.5" ry="13" />
+            <path d="M50 52h26M52 44h22M52 60h22" />
+          </g>
         </g>
-      </g>
-    </svg>
+      </svg>
+    </Link>
   );
 }
 

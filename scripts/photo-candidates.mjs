@@ -14,6 +14,67 @@ const CANDIDATES = {
     "photo-1758272133719-959319bc2364", "photo-1446160657592-4782fb76fb99", "photo-1542051841857-5f90071e7989",
   ],
 };
+// The passport's country photos (read by scripts/fetch-photos.mjs). Up to 3 "photo-…" ids per country code: a landmark or landscape,
+// colour, no faces, no flags, no text. The first good one becomes country-xx. Countries still to fill (no id yet, so the passport
+// draws its stamp instead): MY KH LA PH KR CN HK TW TR IT ES PT DE NL BE AT CZ HU HR IS NO SE DK FI IE PL CA MX BR AR PE AU NZ
+// ZA KE TZ EG MA MU SC SA QA OM JO GE AZ UZ KZ. (Run this file to download previews of them all, then pick.)
+// Unsplash photo ids found by name on unsplash.com (free licence); the first that downloads and isn't black-and-white is used.
+// Every chosen photo is checked by eye on the contact sheet (screenshots: country-photos) before release.
+export const COUNTRY_PHOTOS = {
+  MY: ["-9B08uduMyY", "X38XxZqtNZg"],
+  KH: ["jMW9bO1j9D0", "ridd77X1G6Y"],
+  LA: ["in6sTbsTFz8", "dhbcpyJo4m8"],
+  PH: ["9ZXHUr5aCwM", "IL-fBBnF-GU"],
+  KR: ["RbaGeW_LbGs", "Via0Hy2rYIc"],
+  CN: ["HwY9R6_YzgM", "Wbu_scb-9HQ"],
+  HK: ["4vf1KEkD7Gc", "o6k0ZH1eOwg"],
+  TW: ["au3CYbd7vCU", "C04mAEfPx20"],
+  TR: ["7ng3ISrlg1I", "ygtKS8lyjb4"],
+  IT: ["5mcnzeSHFvE", "ACCwzsy1_1A"],
+  ES: ["D8n_RJ3keAw", "bNW-YvtON_Q"],
+  PT: ["0sODcpe2RPo", "GwNkrz7Q9XY"],
+  DE: ["nYvXQ-xl53o", "Yj8-A1aJW4c"],
+  NL: ["KNSvGgGitnM", "4jOae5vjpcc"],
+  BE: ["rPJQs6PunBk", "krmUt2tle_0"],
+  AT: ["q2dUSl9S4Xg", "UJEOLuvPPHM"],
+  CZ: ["3Ovurn490hw", "6En4WYsNYXM"],
+  HU: ["EyDPhY_idpQ", "sMyQb3i9bNA"],
+  HR: ["5maoPl591Sk", "C2-XJaEpeKY"],
+  IS: ["NUlzQUQgX2Y", "ds4TwK7SuOg"],
+  NO: ["a1PKUohb4Gc", "Yoz5EEuSmaM"],
+  SE: ["ovCfRHRg2IQ", "WhE-76oHOBI"],
+  DK: ["3_ZGrsirryY", "RaRnuPiLHmc"],
+  FI: ["WayYTO9oyOQ", "u8RZBtEcIDw"],
+  IE: ["nNfIwdHgCyI", "qycLnGpX_bA"],
+  PL: ["2lK0291iNHI", "Uuhv9tA9eOI"],
+  CA: ["Y6I4VvyN_sA", "EU8M2UI8DB0"],
+  MX: ["8L7mOETNgHA", "T7gn0lcMREk"],
+  BR: ["aMBnG1e9kiE", "aUXsL7rDOcw"],
+  AR: ["5RFMPufTKPA", "9ORm3U9u52E"],
+  PE: ["CAKGakBldi8", "4hMET7vYTAQ"],
+  AU: ["Hao52Fu9-F8", "-9HX_7HiMok"],
+  NZ: ["b3UJ-VRT040", "SXTj90G1f5c"],
+  ZA: ["tRPvXfu5Xf0", "zrOjcQXAdvk"],
+  KE: ["89IBtfoz3Vw", "B2ixJqf-qzU"],
+  TZ: ["JnfqKdwfVD8", "1pZJqQlgpsY"],
+  EG: ["ER37sUV9Zzc", "vqRMXgVtGXM"],
+  MA: ["FvaiA2QPgzI", "NncAbldgViA"],
+  MU: ["Qxxv8M2_aNI", "WV4B_aVj0aQ"],
+  SC: ["7cZP91vsQUg", "jPmurJKSL_0"],
+  SA: ["_UxsPARhtOg", "KvQ8sir6X-s"],
+  QA: ["1UF8ddEalwk", "jJtqDVzozQY"],
+  OM: ["dZd4XWMiM9g", "k8oak9BhX7M"],
+  JO: ["6yFP4mTiRNg", "Ak7CSzNUVKA"],
+  GE: ["5iQWgow3_S0", "2ZcyeRzucoo"],
+  AZ: ["y4JwCUo1LHk", "g3LiYwSVDjQ"],
+  UZ: ["dtDTZnWIfH4", "cKBg2lao-k8"],
+  KZ: ["txoO-N2-Aq8", "F9UqMqRL46k"],
+};
+
+
+// Run directly (node scripts/photo-candidates.mjs) to download the previews above and the older ones below.
+if (process.argv[1]?.endsWith("photo-candidates.mjs")) {
+  Object.assign(CANDIDATES, Object.fromEntries(Object.entries(COUNTRY_PHOTOS).filter(([, ids]) => ids.length).map(([c, ids]) => [`country-${c.toLowerCase()}`, ids])));
 mkdirSync("screenshots/candidates", { recursive: true });
 for (const [slot, ids] of Object.entries(CANDIDATES)) {
   for (const [i, id] of ids.entries()) {
@@ -26,4 +87,5 @@ for (const [slot, ids] of Object.entries(CANDIDATES)) {
       console.log(`${slot}-${i + 1} ${id} failed`);
     }
   }
+}
 }

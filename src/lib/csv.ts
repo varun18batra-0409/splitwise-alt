@@ -146,6 +146,9 @@ export type MyDataExtra = {
   settings?: { setting: string; where: string; status: string }[];
   // Moments you added (text only, no photos; nothing written by other people). `link` is the in-app address of the viewer.
   moments?: { createdAt: Date; group: string; caption: string; day: string; link: string }[];
+  // "Want to go": your own list, and the first names of the friends you showed each place to ("Whole list" when you showed it all).
+  // Never anyone else's list.
+  wishes?: { country: string; sharedWith: string[] }[];
 };
 
 function extraLines(extra: MyDataExtra, tz?: string): (string | number)[][] {
@@ -167,6 +170,10 @@ function extraLines(extra: MyDataExtra, tz?: string): (string | number)[][] {
   if (extra.moments) {
     out.push([], ["Moments you added (text only, no photos)"], ["Date", "Group", "Words", "Day", "Open in Loopin"]);
     for (const m of extra.moments) out.push([dayKey(m.createdAt, tz), m.group, m.caption, m.day, m.link]);
+  }
+  if (extra.wishes) {
+    out.push([], ["Places you want to go (only you, and the friends named here)"], ["Country", "Shown to"]);
+    for (const w of extra.wishes) out.push([w.country, w.sharedWith.join("; ")]);
   }
   if (extra.settings) {
     out.push([], ["Your notification settings"], ["Setting", "Where", "Status"]);

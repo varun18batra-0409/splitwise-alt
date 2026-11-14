@@ -132,6 +132,9 @@ export async function deleteAccount(accountId: string, opts: { keepEndpoint?: st
       // Collections they organised hold other people's names under their account: they go too.
       await tx.collection.deleteMany({ where: { accountId } });
       await tx.accountNote.deleteMany({ where: { accountId } });
+      // "Want to go": their list, and every share they made or were given (other people's lists are untouched).
+      await tx.wishShare.deleteMany({ where: { OR: [{ ownerId: accountId }, { friendId: accountId }] } });
+      await tx.wishPlace.deleteMany({ where: { accountId } });
       // Blocks you made or that were made against you go with the account (reports stay: they are the record of what was reported).
       // Messages this account sent to support go with it (reports stay, as they are the record of what was reported).
       await tx.report.deleteMany({ where: { kind: "support", reporterId: accountId } });
