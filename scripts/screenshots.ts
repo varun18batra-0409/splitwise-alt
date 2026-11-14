@@ -128,6 +128,15 @@ await shot("38-guide-abroad", "/how-it-works#abroad", async (p) => {
   await p.waitForTimeout(2500);
 }, false);
 await shot("32-group-settle", `${g}/settle`);
+await shot("S1-settle-pass", "/settle"); // all groups
+await shot("S2-group-settle-pass", `${g}/settle`);
+for (const w of [320] as const) {
+  if (desktop) break;
+  await page.setViewportSize({ width: w, height: 640 });
+  await shot(`n${w}-S1-settle-pass`, "/settle");
+  await shot(`n${w}-S2-group-settle-pass`, `${g}/settle`);
+  await page.setViewportSize(screen);
+}
 await shot("29-why", `${g}?tab=balances&why=${demo.trip.me}#why-${demo.trip.me}`);
 await shot("30-add-only-some", `${g}/add`, async (p) => {
   await p.locator("[data-row-paid]").first().click(); // tap the Paid by row to open the payer and split controls
@@ -173,6 +182,12 @@ await shot("43-settings-sharing", `${g}/settings#sharing`);
 const f = `/groups/${demo.flat.id}`;
 const c = `/groups/${demo.couple.id}`;
 await shot("50-flat-month", f);
+await shot("G7-flat-overview", f);
+await shot("G8-flat-bills", f, async (p) => {
+  await p.locator('a[href*="tab=bills"]').first().click(); // from the Overview tile, so the page shows "‹ Overview"
+  await p.waitForURL(/tab=bills/);
+  await p.waitForTimeout(600);
+});
 await shot("51-flat-bills", `${f}?tab=bills`);
 await shot("52-add-bill", `${f}/bills/new`);
 await shot("53-add-bill-electricity", `${f}/bills/new`, async (p) => {
@@ -291,6 +306,12 @@ if (!desktop && !hosted) {
       if (!want.has.test(now)) problems.push(`home-state-${name} says: ${now}`);
       await page.setViewportSize(screen);
       await shot(`home-state-${name}`, "/");
+      await shot(`H1-home-pass-${name}`, "/");
+      if (name === "owe" || name === "both") {
+        await page.setViewportSize({ width: 320, height: 640 });
+        await shot(`n320-H1-home-pass-${name}`, "/");
+        await page.setViewportSize(screen);
+      }
       for (const w of [360, 320] as const) {
         await page.setViewportSize({ width: w, height: w === 320 ? 640 : 780 });
         await shot(`n${w}-home-state-${name}`, "/");
@@ -443,6 +464,7 @@ if (!hosted) {
       await recordMove(two.id, v, { memberId: r, kind: "return", amount: "0" });
     }
     await shot("92-pot-games", `/groups/${pot.id}`, undefined, false);
+    await shot("G9-pot-group", `/groups/${pot.id}`);
     if (two.ok) await shot("93-pot-live", `/groups/${pot.id}/pot/${two.id}`);
     if (one.ok) await shot("94-pot-done", `/groups/${pot.id}/pot/${one.id}`);
     await shot("95-pot-new-game", `/groups/${pot.id}/pot/new`, undefined, false);
@@ -904,6 +926,87 @@ if (!hosted) {
   ]);
   // Riya left an hour ago: she sees "Before she left", no Add button, and not the newer moment.
   await shots(riya, W, [["leaver", `/groups/${gone.id}/moments`, undefined, true]]);
+
+  // ===== GROUP PAGE (batch R4): Overview / Expenses / People / Memories, Trip recap, the left view =====
+  // Same trips as above, plus a few expenses so the pass, Recent expenses and People have something to say. Names: G*-name at 390, and
+  // n320-G*-name / n360-G*-name for the narrow phones (the same pattern as the other narrow shots).
+  const ymd = (plus: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(Date.now() + plus * 86_400_000));
+  // One equal expense (amount in minor units, divisible by 3 so the shares add up exactly), paid by `by`, `ago` minutes ago.
+  const spend = async (g: Awaited<ReturnType<typeof trip>>, description: string, amount: number, by: string, ago: number) => {
+    const paidById = g.members.find((m) => m.name === by)!.id;
+    const when = mins(ago);
+    await db.expense.create({
+      data: {
+        groupId: g.id, description, amount, splitType: "equal", forMode: "everyone", category: guessCategory(description), paidById,
+        originalAmount: amount, originalCurrency: g.currency, baseCurrency: g.currency, convertedAmount: amount, createdById: paidById, spentAt: when, createdAt: when,
+        shares: { create: g.members.map((m) => ({ memberId: m.id, amount: amount / g.members.length })) },
+      },
+    });
+  };
+  // Thailand trip: Nupur paid more than Varu, so Varu owes (a boarding pass with a Pay button).
+  await spend(thai, "Dinner at the night market", 450000, "Nupur", 200);
+  await spend(thai, "Longtail boat to Railay", 240000, "Varu", 260);
+  await spend(thai, "Hotel in Phuket", 1500000, "Nupur", 400);
+  await spend(thai, "Grab to the pier", 90000, "Riya", 90);
+  // A trip that has ended, with moments and enough expenses for the Memories tab to say so. Made on the same dates as the others so the
+  // Day chips work, then moved back into the past (the moments' days move with it).
+  const over = await trip("Phuket, trip over", undefined, "Phuket");
+  {
+    uploaders.clear(); // the earlier uploader pages were closed above
+    const old = 36_000; // minutes: about 25 days ago
+    const up = [["Nupur", nupur, "Sunrise from the viewpoint", "2026-11-10"], ["Riya", riya, "The best pad thai of the trip", "2026-11-11"], ["Varu", varu, "Everyone on the ferry", "2026-11-12"], ["Nupur", nupur, "Goodbye, Phuket", "2026-11-14"]] as const;
+    for (let i = 0; i < up.length; i++) await put(over, up[i][0], up[i][1], up[i][2], up[i][3], mins(old + i * 60));
+    for (const u of uploaders.values()) await u.context().close();
+    uploaders.clear();
+    await spend(over, "Hotel in Phuket", 1500000, "Nupur", old + 600);
+    await spend(over, "Dinner at the night market", 450000, "Varu", old + 500);
+    await spend(over, "Longtail boat to Railay", 240000, "Riya", old + 400);
+    const start = ymd(-30);
+    await db.group.update({ where: { id: over.id }, data: { tripStart: start, tripEnd: ymd(-26) } });
+    for (const m of await db.moment.findMany({ where: { groupId: over.id }, select: { id: true, takenOn: true } }))
+      if (m.takenOn) await db.moment.update({ where: { id: m.id }, data: { takenOn: ymd(-30 + (Number(m.takenOn.slice(8)) - 10)) } });
+  }
+  // The group where Riya left an hour ago: a few expenses from before she left, so her view has a pass and rows.
+  await spend(gone, "Hotel in Koh Samui", 900000, "Nupur", 500);
+  await spend(gone, "Boat to the island", 300000, "Riya", 450);
+
+  const gshots = async (who: { id: string }, list: { name: string; path: string; prepare?: (p: Page) => Promise<void>; full?: boolean; widths?: readonly number[] }[]) => {
+    const c = await browser.newContext({ viewport: screen, deviceScaleFactor: desktop ? 1 : 2, ...(ios ? { isMobile: true, hasTouch: true } : {}), colorScheme: "dark", reducedMotion: "reduce", locale: "en-IN", timezoneId: "Asia/Kolkata" });
+    await c.addCookies([{ name: SESSION_COOKIE, value: await encodeSession({ m: {}, a: who.id, v: 0 }), url: base }]);
+    const p = await c.newPage();
+    for (const s of list) {
+      for (const w of s.widths ?? [390]) {
+        const name = w === 390 ? s.name : `n${w}-${s.name}`;
+        try {
+          await p.setViewportSize({ width: w, height: 780 });
+          await p.goto(base + s.path, { waitUntil: "networkidle", timeout: 30_000 });
+          await p.waitForTimeout(800);
+          if (s.prepare) await s.prepare(p).catch((e) => console.log("  (could not prepare", name, String(e).split("\n")[0], ")"));
+          await assertMomentPhotosDecoded(p, name);
+          await p.screenshot({ path: `${out}/${name}.png`, fullPage: s.full ?? true });
+          console.log("✓", name);
+        } catch (e) {
+          console.log("✗", name, String(e).split("\n")[0]);
+        }
+      }
+    }
+    await c.close();
+  };
+  const gt = `/groups/${thai.id}`;
+  await gshots(varu, [
+    { name: "G1-trip-overview", path: gt, widths: [390, 320, 360] },
+    { name: "G2-trip-expenses", path: `${gt}?tab=activity` },
+    { name: "G3-trip-people", path: `${gt}?tab=balances` },
+    { name: "G4-trip-memories", path: `${gt}?tab=memories`, widths: [390, 360] },
+    { name: "G5-trip-recap", path: `${gt}?tab=charts` },
+    { name: "G6-trip-memories-after", path: `/groups/${over.id}?tab=memories` },
+  ]);
+  // Riya left an hour ago: her tabs (Overview / Expenses / People / Memories) with the "You left on" banner, and Memories up to that day.
+  await gshots(riya, [
+    { name: "G10-leaver-view", path: `/groups/${gone.id}` },
+    { name: "G10b-leaver-people", path: `/groups/${gone.id}?tab=balances` },
+    { name: "G10c-leaver-memories", path: `/groups/${gone.id}?tab=memories` },
+  ]);
 }
 // The "I've paid" link from a Remind, as the person who owes sees it (no sign-in).
 let payPath = "";
