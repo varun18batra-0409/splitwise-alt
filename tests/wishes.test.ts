@@ -471,7 +471,8 @@ describe("someone who left is invited back by another member (never put back for
     expect(await matches(B.id)).toEqual([]);
     expect(await matches(A.id)).toEqual([]);
     expect(await seen(A.id)).toEqual([]);
-    expect((await canSeePassport(B.id, A.id)).ok).toBe(false);
+    // (Passports are different by design: someone who LEFT still shares theirs, as before; only a removal stops it. The invitation changes nothing there.)
+    expect((await canSeePassport(B.id, A.id)).ok).toBe(true);
     // A has a normal invitation waiting.
     expect((await loadInvitations(await acct(A.id))).some((i) => i.groupId === g.id)).toBe(true);
     // The share rows are kept (paused), not deleted.

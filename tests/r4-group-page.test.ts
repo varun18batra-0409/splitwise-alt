@@ -62,7 +62,12 @@ describe("Memories", () => {
   it("one main button, Add a moment, only when you can add; Relive trip is an outline", () => {
     expect(mem).toContain("Add a moment");
     expect(mem).toContain("trip && canAdd");
-    expect(mem).toContain("Relive trip");
+    // The trip stamp is the passport's own StampCard; its one button is an outline link, and the "Relive trip" label comes from passport-cards.
+    expect(mem).toContain("<StampCard");
+    const been = src("src/components/BeenCard.tsx");
+    expect(been).toContain("border border-fg/25");
+    expect(been).not.toContain("${CREAM}");
+    expect(src("src/lib/passport-cards.ts")).toContain('label: "Relive trip"');
     expect(mem.match(/\$\{CREAM\}/g)?.length).toBe(1);
   });
   it("postcards: only the ones loaded for you, sealed ones say only when they open", () => {

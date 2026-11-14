@@ -333,15 +333,22 @@ describe("people", () => {
     return before === null && after !== null;
   }, { ledger: false }));
 
-  it("bring back someone who left on their own (any member; they can also rejoin themselves)", () => table("bring-back-left", ["admin", "member", "left"], async (_p, w) => {
+  // Someone with their own account is never put back by another person: "bring back" now INVITES them (the row stays left until they
+  // accept). Any member can invite someone who left; only the admin can invite someone they removed. Rejoining yourself is direct.
+  it("invite back someone who left on their own (any member; the row stays left; they can also rejoin themselves directly)", () => table("bring-back-left", ["admin", "member", "left"], async (p, w) => {
     await attempt(() => A.setPersonLeft(form({ groupId: w.id, memberId: w.rows.lou, left: "0" })));
-    return (await db.member.findUniqueOrThrow({ where: { id: w.rows.lou } })).leftAt === null;
+    const row = await db.member.findUniqueOrThrow({ where: { id: w.rows.lou } });
+    if (p === "left") return row.leftAt === null; // Lou herself: direct
+    const invited = await db.invite.count({ where: { groupId: w.id, memberId: w.rows.lou, acceptedAt: null, declinedAt: null } });
+    return invited === 1 && row.leftAt !== null; // everyone else: an invitation, and she is NOT back
   }, { ledger: false }));
 
-  it("bring back someone the admin removed (the admin only; not themselves)", () => table("bring-back-removed", ["admin"], async (_p, w) => {
+  it("invite back someone the admin removed (the admin only; not themselves); never reinstated directly", () => table("bring-back-removed", ["admin"], async (_p, w) => {
     await attempt(() => A.setPersonLeft(form({ groupId: w.id, memberId: w.rows.rex, left: "0" })));
     const row = await db.member.findUniqueOrThrow({ where: { id: w.rows.rex } });
-    return row.leftAt === null && row.removedAt === null;
+    expect(row.removedAt).not.toBeNull(); // still removed, whoever tapped
+    const invited = await db.invite.count({ where: { groupId: w.id, memberId: w.rows.rex, acceptedAt: null, declinedAt: null } });
+    return invited === 1;
   }, { ledger: false }));
 });
 

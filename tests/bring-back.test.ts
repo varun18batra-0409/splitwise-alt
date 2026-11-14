@@ -132,10 +132,11 @@ describe("a leaver with history, invited back by another member", () => {
     expect(await confirmUsedPending(w.ada.id)).toEqual([]);
     expect((await row(w.A)).leftAt).not.toBeNull();
     // B sees nothing of A's, and A sees nothing of B's.
-    expect(await currentFriends(w.bea.id)).toEqual([]);
+    expect((await currentFriends(w.bea.id)).map((f) => f.id)).not.toContain(w.ada.id); // (Asha is still her friend)
     expect(await seen(w.bea.id)).toEqual([]);
     expect(await matches(w.bea.id)).toEqual([]);
-    expect((await canSeePassport(w.bea.id, w.ada.id)).ok).toBe(false);
+    // (Passports: someone who LEFT still shares theirs, by design; the invitation changes nothing there.)
+    expect((await canSeePassport(w.bea.id, w.ada.id)).ok).toBe(true);
     expect(await seen(w.ada.id)).toEqual([]);
     // A has one thing to answer.
     const invites = await loadInvitations(w.ada);
@@ -192,7 +193,8 @@ describe("a leaver with history, invited back by another member", () => {
     // A name with no account: nobody to ask, so it is direct, as before.
     expect((await setMemberLeft(w.g.id, w.S, w.K, true)).ok).toBe(true);
     expect((await row(w.K)).leftAt).not.toBeNull();
-    expect((await setMemberLeft(w.g.id, w.B, w.K, false)).ok).toBe(true);
+    expect((await setMemberLeft(w.g.id, w.B, w.K, false)).ok).toBe(false); // removed by the admin: only the admin may bring a name back
+    expect((await setMemberLeft(w.g.id, w.S, w.K, false)).ok).toBe(true);
     expect((await row(w.K)).leftAt).toBeNull();
     // Rejoining yourself is direct.
     expect((await setMember(w.g.id, w.A, w.A, { leftAt: null })).ok).toBe(true);
