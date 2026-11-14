@@ -531,4 +531,14 @@ describe("'m:' invitations are only for rows still in the group", () => {
     expect(after.leftAt).not.toBeNull();
     expect(after.seenAt).toBeNull();
   });
+  it("same as the live app: Not now on a pending row in the group takes the account off it; the row stays as a plain name, never a full member", async () => {
+    const w = await world();
+    const cat = await account("Cat");
+    const m = await db.member.create({ data: { groupId: w.g.id, name: "Cat", accountId: cat.id, claimedAt: new Date(), addedBy: w.S, seenAt: null } });
+    expect((await declineInvitation(cat, `m:${m.id}`)).ok).toBe(true);
+    const after = await row(m.id);
+    expect(after.accountId).toBeNull();
+    expect(after.addedBy).toBe("");
+    expect(after.leftAt).toBeNull();
+  });
 });
