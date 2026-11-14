@@ -15,11 +15,41 @@ import { loadNeedsYou, withoutRepeats } from "@/lib/needs-you";
 import { InvitationCard } from "@/components/InvitationCard";
 import { loadInvitations } from "@/lib/invitations";
 
+// The one word on the pill at the right of each row.
 const NEED_ACTION: Record<"claim" | "payment" | "bill" | "collect", string> = {
-  claim: "Confirm received",
-  payment: "Confirm received",
-  bill: "Enter amount",
-  collect: "Check it",
+  claim: "Review",
+  payment: "Review",
+  bill: "Enter",
+  collect: "Check",
+};
+
+const tileSvg = { width: 22, height: 22, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round" } as const;
+const NEED_ICON: Record<"claim" | "payment" | "bill" | "collect", React.ReactNode> = {
+  claim: (
+    <svg {...tileSvg}>
+      <path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v3" />
+      <path d="M4 7.5V17a2 2 0 0 0 2 2h12.5a1.5 1.5 0 0 0 1.5-1.5v-8A1.5 1.5 0 0 0 18.5 8H6.5A2.5 2.5 0 0 1 4 7.5Z" />
+      <path d="M16 13.5h.01" />
+    </svg>
+  ),
+  payment: (
+    <svg {...tileSvg}>
+      <path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v3" />
+      <path d="M4 7.5V17a2 2 0 0 0 2 2h12.5a1.5 1.5 0 0 0 1.5-1.5v-8A1.5 1.5 0 0 0 18.5 8H6.5A2.5 2.5 0 0 1 4 7.5Z" />
+      <path d="M16 13.5h.01" />
+    </svg>
+  ),
+  bill: (
+    <svg {...tileSvg}>
+      <path d="M6 3.5h12v17l-2.4-1.6-2.4 1.6-2.4-1.6-2.4 1.6-2.4-1.6Z" />
+      <path d="M9 8.5h6M9 12h6" />
+    </svg>
+  ),
+  collect: (
+    <svg {...tileSvg}>
+      <path d="M22 11.1V12a10 10 0 1 1-5.9-9.1M22 4 12 14l-3-3" />
+    </svg>
+  ),
 };
 
 const ICON: Record<string, string> = {
@@ -32,24 +62,24 @@ const ICON: Record<string, string> = {
   payment_restored: "↺",
   payment_confirmed: "✓",
   payment_claimed: "…",
-  members_removed: "👤",
-  display_currency_changed: "💱",
+  members_removed: "−",
+  display_currency_changed: "¤",
   group_renamed: "✎",
-  currency_changed: "💱",
+  currency_changed: "¤",
   markup_changed: "％",
-  members_added: "👤",
-  group_closed: "⏸",
-  group_reopened: "▶",
-  group_imported: "📥",
-  group_settled_closed: "🎉",
+  members_added: "＋",
+  group_closed: "•",
+  group_reopened: "•",
+  group_imported: "＋",
+  group_settled_closed: "✓",
   member_renamed: "✎",
-  member_left: "👋",
-  member_rejoined: "👤",
-  trip_dates_set: "⏳",
-  countdown_shared: "⏳",
-  pot_started: "🃏",
-  pot_finished: "🏆",
-  pot_reopened: "🃏",
+  member_left: "−",
+  member_rejoined: "＋",
+  trip_dates_set: "•",
+  countdown_shared: "•",
+  pot_started: "•",
+  pot_finished: "✓",
+  pot_reopened: "•",
   pot_deleted: "✕",
   split_changed: "÷",
   bill_added: "↻",
@@ -58,7 +88,8 @@ const ICON: Record<string, string> = {
 
 // Everything other people added, changed or deleted in your groups, newest first.
 // Opening this page marks them as read.
-export default async function Notifications() {
+export default async function Notifications({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+  const sp = await searchParams;
   const [memberships, tz, account] = await Promise.all([getMemberships(), getTimeZone(), getAccount()]);
   const [{ items }, notes, invitations] = await Promise.all([loadNotifications(memberships, 100), account ? loadNotes(account.id, 50) : Promise.resolve([]), loadInvitations(account)]);
   const needs = await loadNeedsYou(memberships, account, invitations.length);
@@ -84,13 +115,35 @@ export default async function Notifications() {
   const rows = all.filter((r) => kept.has(r));
   const time = (d: Date) => d.toLocaleTimeString("en-IN", { timeZone: tz, hour: "numeric", minute: "2-digit" });
 
+  // "Needs you" is the first tab when anything waits on you; "All" is everything, as before.
+  const tab: "needs" | "all" = sp.tab === "all" ? "all" : sp.tab === "needs" ? "needs" : needs.total > 0 ? "needs" : "all";
+  const tabClass = (on: boolean) =>
+    `flex min-h-10 flex-1 items-center justify-center rounded-full border-[1.5px] text-sm transition-colors ${on ? "border-fg font-semibold text-fg" : "border-transparent text-fg/55"}`;
+
   return (
     <>
-      <PageHeader title="Alerts" back="/" />
+      <PageHeader title="Your updates" back="/" />
+      <nav aria-label="Updates view" data-updates-tabs className="mb-5 flex gap-1 rounded-full border border-line p-1">
+        <Link href="/notifications?tab=needs" replace aria-current={tab === "needs" ? "page" : undefined} className={tabClass(tab === "needs")} data-tab="needs">
+          Needs you
+        </Link>
+        <Link href="/notifications?tab=all" replace aria-current={tab === "all" ? "page" : undefined} className={tabClass(tab === "all")} data-tab="all">
+          All
+        </Link>
+      </nav>
+
+      {tab === "needs" && needs.total === 0 && (
+        <div className="px-1 py-10 text-center" data-needs-empty>
+          <p className="text-[15px] text-fg/75">Nothing needs you right now.</p>
+          <Link href="/notifications?tab=all" replace className="mt-1 inline-flex min-h-11 items-center text-sm text-fg/55 underline underline-offset-4 active:text-fg">
+            See all updates
+          </Link>
+        </div>
+      )}
+
       {/* Things only you can answer, first. */}
       {needs.total > 0 && (
         <section aria-label="Needs you" className="mb-8" data-needs-you={needs.total}>
-          <h2 className="mb-2.5 px-1 font-display text-lg font-semibold tracking-tight">Needs you</h2>
           {invitations.length > 0 && (
             <div className="mb-3 space-y-3" data-invitations>
               {invitations.map((inv) => (
@@ -99,18 +152,24 @@ export default async function Notifications() {
             </div>
           )}
           {needs.items.length > 0 && (
-            <ul className="divide-y divide-line rounded-2xl border border-owe/30 bg-owe/[0.05]">
-              {needs.items.map((it) => (
+            <ul className="divide-y divide-line overflow-hidden rounded-[20px] border border-line bg-white">
+              {needs.items.map((it, i) => (
                 <li key={it.id} data-need={it.kind}>
                   <Link href={it.href} className="flex items-center gap-3 px-4 py-3 active:bg-mist">
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-medium">{it.text}</span>
-                      <span className="block truncate text-xs text-gray-400">
-                        {it.where} · <span className={it.tone === "orange" ? "text-orange-400" : undefined}>{it.action ?? NEED_ACTION[it.kind]}</span>
-                      </span>
+                    <span aria-hidden className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-[#1f1f24] text-fg/75">
+                      {NEED_ICON[it.kind]}
                     </span>
-                    <span aria-hidden className="text-gray-400">
-                      ›
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[15px] font-medium leading-snug">{it.text}</span>
+                      <span className="mt-0.5 block truncate text-[13px] text-fg/55">{it.where}</span>
+                    </span>
+                    {/* One cream pill for the whole screen (the first row, when no invitation card carries one); the rest are outlines. */}
+                    <span
+                      className={`flex min-h-9 shrink-0 items-center whitespace-nowrap rounded-full px-3.5 text-[13px] font-semibold ${
+                        i === 0 && invitations.length === 0 ? "bg-fg text-canvas" : "border border-fg/25 text-fg"
+                      }`}
+                    >
+                      {it.action ?? NEED_ACTION[it.kind]}
                     </span>
                   </Link>
                 </li>
@@ -120,6 +179,7 @@ export default async function Notifications() {
         </section>
       )}
 
+      {tab === "all" && <>
       {/* Notifications: what this phone allows, then what Loopin sends. */}
       <PhoneStatus />
       {account && (
@@ -144,7 +204,7 @@ export default async function Notifications() {
             role="switch"
             aria-checked={account.collectPush}
             aria-label="Collection notifications on this phone"
-            className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${account.collectPush ? "bg-meter-up" : "bg-fg/15"}`}
+            className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${account.collectPush ? "bg-fg" : "bg-fg/15"}`}
           >
             <span className={`absolute top-1 h-5 w-5 rounded-full bg-canvas transition-all ${account.collectPush ? "left-6" : "left-1"}`} />
           </button>
@@ -167,7 +227,7 @@ export default async function Notifications() {
                     return (
                       <li key={note.id}>
                         <Link href={note.url} className="flex gap-3 py-3 active:bg-gray-50">
-                          <span aria-hidden className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-owed/[0.12] text-owed ring-1 ring-inset ring-owed/15 ${note.seenAt ? "opacity-70" : ""}`}>
+                          <span aria-hidden className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-mist text-fg/75 ${note.seenAt ? "opacity-70" : ""}`}>
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
                               {note.kind === "collect_reminder" ? (
                                 <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0" />
@@ -186,7 +246,7 @@ export default async function Notifications() {
                             </span>
                             <span className="mt-0.5 block text-xs text-gray-400">{note.kind.startsWith("passport_") ? "Passport" : "Collection"} · {time(note.createdAt)}</span>
                           </span>
-                          {!note.seenAt && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-owe" aria-label="New" />}
+                          {!note.seenAt && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-fg" aria-label="New" />}
                         </Link>
                       </li>
                     );
@@ -206,14 +266,14 @@ export default async function Notifications() {
                           </span>
                         </span>
                         <span className="min-w-0 flex-1">
-                          <span className="block text-sm">
+                          <span className="block text-sm" title={neutralGameText(n.event.text)} data-exact={neutralGameText(n.event.text)}>
                             <strong className="font-medium">{n.actorName}</strong> {neutralGameText(n.event.text)}
                             {n.event.undoneAt && <span className="text-gray-400"> (since undone)</span>}
                           </span>
                           {n.event.kind === "expense_edited" && details.length > 0 && (
                             <span className="mt-0.5 block text-xs text-gray-500" data-change-lines>
                               {details.map((d) => (
-                                <span key={d} className="block">
+                                <span key={d} className="block" title={d} data-exact={d}>
                                   {d}
                                 </span>
                               ))}
@@ -223,7 +283,7 @@ export default async function Notifications() {
                             {n.groupName} · {time(n.event.createdAt)}
                           </span>
                         </span>
-                        {n.unread && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-owe" aria-label="New" />}
+                        {n.unread && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-fg" aria-label="New" />}
                       </Link>
                     </li>
                   );
@@ -233,6 +293,7 @@ export default async function Notifications() {
           ))}
         </div>
       )}
+      </>}
     </>
   );
 }

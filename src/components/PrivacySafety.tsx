@@ -33,10 +33,10 @@ export async function PrivacySafety({ accountId, flags }: { accountId: string | 
           </p>
         )}
         <form action={saveAiConsentForm} className="mt-3 flex gap-2">
-          <button type="submit" name="answer" value="yes" aria-pressed={on} className={`${pill} ${on ? "border-fg bg-fg text-canvas" : "border-line active:bg-mist"}`}>
+          <button type="submit" name="answer" value="yes" aria-pressed={on} className={`${pill} ${on ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] text-fg" : "border-fg/15 active:bg-mist"}`}>
             Allow
           </button>
-          <button type="submit" name="answer" value="no" aria-pressed={consent === "no"} className={`${pill} ${consent === "no" ? "border-fg bg-fg text-canvas" : "border-line active:bg-mist"}`}>
+          <button type="submit" name="answer" value="no" aria-pressed={consent === "no"} className={`${pill} ${consent === "no" ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] text-fg" : "border-fg/15 active:bg-mist"}`}>
             Don’t allow
           </button>
         </form>

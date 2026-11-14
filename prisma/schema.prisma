@@ -777,3 +777,37 @@ model Report {
   resolvedAt      DateTime?
   @@index([status, createdAt])
 }
+
+// A moment: one photo and a few words added to a trip group. Only that group sees it (see src/lib/moments-access.ts).
+// Plain ids, no database links to Group or Account (like PaymentClaim), so nothing existing changes.
+model Moment {
+  id              String   @id @default(cuid())
+  groupId         String
+  authorId        String // the member who added it
+  authorAccountId String // their account (adding needs sign-in): blocks, reports, my data, account deletion
+  caption         String   @default("") // up to 80 characters, may be empty
+  takenOn         String   @default("") // "YYYY-MM-DD" from the Day chips; "" = no day
+  type            String   @default("image/webp")
+  width           Int      @default(0) // of the full photo, so the page doesn't jump while it loads
+  height          Int      @default(0)
+  blobKey         String   @default("") // the full photo (up to 1600 px) in file storage
+  thumbKey        String   @default("") // the small copy (up to 480 px) for strips, rows and story circles
+  data            Bytes // only when file storage is off (local and tests); empty on the live app
+  thumbData       Bytes
+  createdAt       DateTime @default(now())
+  reactions       MomentReaction[]
+  @@index([groupId, createdAt])
+  @@index([authorAccountId])
+}
+
+// One reaction per person per moment.
+model MomentReaction {
+  id        String   @id @default(cuid())
+  momentId  String
+  moment    Moment   @relation(fields: [momentId], references: [id], onDelete: Cascade)
+  memberId  String
+  emoji     String
+  createdAt DateTime @default(now())
+  @@unique([momentId, memberId])
+  @@index([momentId])
+}

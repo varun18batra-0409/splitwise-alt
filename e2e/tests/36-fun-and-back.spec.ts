@@ -41,7 +41,7 @@ test("titles, Wrapped, the passport and a game night: in, around, back out, and 
   await link.click();
   await page.waitForURL(/\/passport\/friends\/[^/?]+\?from=/);
   await expect(page.getByRole("button", { name: "Open your passport" })).toBeVisible();
-  await R.goto("/passport");
+  await R.goto("/passport?open=who");
   await settled(R);
   await R.getByRole("button", { name: "Only me" }).click();
   await R.waitForURL(/shared=private/);
@@ -52,7 +52,7 @@ test("titles, Wrapped, the passport and a game night: in, around, back out, and 
   const C = await (await contextFor(browser, cara)).newPage();
   await C.goto(ravisPassport);
   await C.waitForURL(/\/private/);
-  await R.goto("/passport");
+  await R.goto("/passport?open=who");
   await settled(R);
   await R.getByRole("button", { name: "People in my groups" }).click();
   await R.waitForURL(/shared=groups/);
@@ -68,7 +68,7 @@ test("titles, Wrapped, the passport and a game night: in, around, back out, and 
   // His trip with Asha is still going, so friends don't see it yet: the passport is empty → nudge him (Alerts only).
   await page.getByRole("button", { name: "👋 Nudge Ravi" }).click();
   await page.waitForURL(/nudged=1/);
-  await R.goto("/notifications");
+  await R.goto("/notifications?tab=all");
   await settled(R);
   await expect(R.getByText(/Asha wants to see where you’ve been/)).toBeVisible();
   // A second nudge straight away is refused politely.
@@ -121,9 +121,14 @@ test("titles, Wrapped, the passport and a game night: in, around, back out, and 
   await settled(page);
   await page.getByRole("link", { name: /Your trip passport/ }).click();
   await page.waitForURL(/\/passport$/);
+  // The cards (Been) come first; the old booklet is behind "Open the passport book".
+  await page.getByRole("link", { name: "Open the passport book" }).click();
+  await page.waitForURL(/\/passport\?book=1/);
   await page.getByRole("button", { name: "Open your passport" }).click();
   await page.getByRole("button", { name: "Next page" }).click();
-  await page.getByRole("button", { name: "+ Add countries" }).click();
+  await page.goto("/passport");
+  await settled(page);
+  await page.getByRole("button", { name: "Add a visited place" }).click();
   const sheet = page.getByRole("dialog", { name: "Add countries" });
   await sheet.getByLabel("Search countries").fill("ital");
   await sheet.getByRole("checkbox", { name: "Italy" }).check();
@@ -133,13 +138,14 @@ test("titles, Wrapped, the passport and a game night: in, around, back out, and 
   await expect(sheet.getByRole("button", { name: "Add 2 countries" })).toBeVisible();
   await sheet.getByRole("button", { name: "Add 2 countries" }).click();
   await page.waitForURL(/added=2/);
-  await expect(page.locator("[data-index-country='IT']")).toHaveCount(1);
-  await page.getByRole("button", { name: "Remove Italy" }).click();
+  await expect(page.locator("[data-been-card='hand'][data-country='IT']")).toHaveCount(1);
+  await page.locator("[data-been-card='hand'][data-country='IT'] summary").click();
+  await page.getByRole("button", { name: "Remove from passport" }).click();
   await page.waitForURL((u) => u.pathname === "/passport" && !u.search.includes("added"));
-  await expect(page.locator("[data-index-country='IT']")).toHaveCount(0);
-  await expect(page.locator("[data-index-country='JP']")).toHaveCount(1);
+  await expect(page.locator("[data-been-card='hand'][data-country='IT']")).toHaveCount(0);
+  await expect(page.locator("[data-been-card='hand'][data-country='JP']")).toHaveCount(1);
   // Already-added countries are ticked and can't be added twice.
-  await page.getByRole("button", { name: "+ Add countries" }).click();
+  await page.getByRole("button", { name: "Add a visited place" }).click();
   await sheet.getByLabel("Search countries").fill("japan");
   await expect(sheet.getByRole("checkbox", { name: "Japan" })).toBeDisabled();
   await sheet.getByRole("button", { name: "Close" }).click();

@@ -6,6 +6,7 @@ import { SESSION_COOKIE, encodeSession } from "../src/lib/session";
 import { guessCategory } from "../src/lib/categories";
 
 import { base, hosted, signInOnTestCopy, withBypass } from "./hosted";
+import { assertMomentPhotosDecoded, realPhotos } from "./moment-shots";
 const demo = JSON.parse(readFileSync(".demo.json", "utf8"));
 // SHOT_ENGINE=webkit: the same screens in Safari's engine (iPhone), saved to screenshots/ios.
 // SHOT_ENGINE=desktop: the same screens on a 1440×900 desktop (Chromium, no touch), saved to screenshots/desktop.
@@ -97,9 +98,10 @@ await shot("22-settle-everything", `${g}/settle`, async (p) => {
   await p.getByRole("button", { name: /Settle everything/ }).scrollIntoViewIfNeeded();
 }, false);
 await shot("23-add-expense-differently", `${g}/add`, async (p) => {
+  await p.locator("[data-row-paid]").first().click(); // tap the Paid by row to open the payer and split controls
   await p.getByRole("button", { name: /Custom/ }).click();
   await p.locator("[data-more] > button").click(); // More: notes, several payers, spin
-  await p.getByRole("button", { name: /Change/ }).first().click();
+  await p.getByRole("button", { name: /Today.*Change/ }).first().click();
   await p.waitForTimeout(300);
 });
 await shot("28-settle", "/settle");
@@ -128,6 +130,7 @@ await shot("38-guide-abroad", "/how-it-works#abroad", async (p) => {
 await shot("32-group-settle", `${g}/settle`);
 await shot("29-why", `${g}?tab=balances&why=${demo.trip.me}#why-${demo.trip.me}`);
 await shot("30-add-only-some", `${g}/add`, async (p) => {
+  await p.locator("[data-row-paid]").first().click(); // tap the Paid by row to open the payer and split controls
   await p.getByRole("button", { name: /Only some/ }).click();
   await p.getByRole("button", { name: /Ravi/ }).last().click();
   await p.waitForTimeout(300);
@@ -139,7 +142,7 @@ await shot("31-currency-details", `${g}/add`, async (p) => {
   await p.getByLabel("Search currencies").fill("baht");
   await p.getByRole("button", { name: /THB/ }).first().click();
   await p.waitForTimeout(2500);
-  await p.getByRole("button", { name: "Change rate" }).click();
+  await p.getByRole("button", { name: "Details", exact: true }).click();
   await p.waitForTimeout(300);
 });
 await shot("39-new-group-types", "/groups/new", async (p) => {
@@ -158,6 +161,7 @@ await shot("41-add-payers-shares", `${g}/add`, async (p) => {
   await p.getByLabel("Amount", { exact: true }).fill("3000");
   await p.locator("[data-more] > button").click();
   await p.getByRole("switch", { name: /More than one person paid/ }).click();
+  await p.locator("[data-row-paid]").first().click(); // tap the Paid by row to open the payer and split controls
   await p.getByRole("button", { name: /Custom/ }).click();
   await p.getByRole("button", { name: "Shares", exact: true }).click();
 });
@@ -185,6 +189,7 @@ if (demo.couple.goal) await shot("60-couple-goal", `${c}/goals/${demo.couple.goa
 await shot("61-new-goal", `${c}/goals/new`);
 await shot("15-new-group", "/groups/new");
 await shot("25-account", "/account");
+await shot("25b-groups", "/groups");
 await shot("26-signin", "/signin", undefined, false);
 // Sign-in on small phones: Google and the email box must both be on the first screen.
 for (const [n, w, h] of [["26b-signin-320x568", 320, 568], ["26c-signin-375x667", 375, 667]] as const) {
@@ -220,6 +225,98 @@ if (!desktop && !hosted) {
   if (other && was) await db.member.update({ where: { id: other.id }, data: { name: was } }).catch(() => undefined);
   await page.setViewportSize(screen);
 }
+// Home's money card in every state (phones only). The demo data only shows one of them, so this puts the viewer's money into each
+// state in turn, takes Home at 390, 360 and 320, then puts everything back. How:
+//   - the viewer's live expenses and payments in the three open groups (trip, flat, couple) are soft-deleted (deletedAt set), so every
+//     balance is 0 and Home says "All square". They are restored at the end by clearing deletedAt on exactly those ids;
+//   - each state adds one or two plain expenses (one payer, exact shares that add up to the amount, no events, so nothing shows in
+//     Alerts or Latest), and they are deleted for good when the next state starts.
+// The groups' own balances only come from live expenses and payments (src/lib/balances-db.ts), so this is all the card needs.
+// Finally Home is read again and must say exactly what it said before; if not, the run fails.
+if (!desktop && !hosted) {
+  const { db } = await import("../src/lib/db");
+  const tripId = demo.trip.id as string;
+  const flatId = demo.flat.id as string;
+  const open3 = [tripId, flatId, demo.couple.id as string];
+  const members = async (groupId: string) => new Map((await db.member.findMany({ where: { groupId } })).map((m) => [m.name, m.id]));
+  const trip = await members(tripId);
+  const flat = await members(flatId);
+  const [V, A, R, M] = ["Varun", "Asha", "Ravi", "Meera"].map((n) => trip.get(n)!);
+  const [FV, FK] = ["Varun", "Kabir"].map((n) => flat.get(n)!);
+  const card = () => page.getByRole("region", { name: "Your money" });
+  const read = async () => {
+    await page.setViewportSize(screen);
+    await page.goto(base + "/", { waitUntil: "networkidle", timeout: 30_000 });
+    await card().waitFor();
+    return `${await card().getAttribute("data-ticket")} | ${(await card().innerText()).replace(/\s+/g, " ").trim()}`;
+  };
+  const before = await read();
+
+  const hadExpenses = await db.expense.findMany({ where: { groupId: { in: open3 }, deletedAt: null }, select: { id: true } });
+  const hadPayments = await db.payment.findMany({ where: { groupId: { in: open3 }, deletedAt: null }, select: { id: true } });
+  const made: string[] = [];
+  // One expense: `by` paid `amount` paise, split exactly as `shares` (member id, paise) says; the shares add up to the amount.
+  const addExpense = async (groupId: string, by: string, shares: [string, number][], description = "Dinner at Jay Fai") => {
+    const amount = shares.reduce((t, [, a]) => t + a, 0);
+    const e = await db.expense.create({
+      data: { groupId, description, amount, splitType: "exact", forMode: "selected", paidById: by, createdById: by, shares: { create: shares.map(([memberId, a]) => ({ memberId, amount: a })) } },
+    });
+    made.push(e.id);
+  };
+  const clearMade = async () => {
+    if (made.length) await db.expense.deleteMany({ where: { id: { in: made } } }); // their shares go with them
+    made.length = 0;
+  };
+  const problems: string[] = [];
+  // [name, how the viewer's money is set up, what the card must say (so a broken setup is noticed, not photographed)]
+  const states: [string, () => Promise<void>, { kind: string; has: RegExp }][] = [
+    // Asha paid ₹54,122 for a trip bill that is only Varun's share: Varun owes Asha 5412200 paise, nobody else owes anyone.
+    ["owe", () => addExpense(tripId, A, [[V, 5412200]], "Boat tickets"), { kind: "one", has: /^one \| You .*Asha.* ₹54,122 .*Pay Asha$/ }],
+    // Varun paid ₹22,916 for Kabir's share of the flat: Kabir owes Varun 2291600 paise.
+    ["owed-one", () => addExpense(flatId, FV, [[FK, 2291600]], "Rent share"), { kind: "one", has: /^one \| Kabir .*You .*₹22,916 .*Remind Kabir$/ }],
+    // Varun paid ₹31,480 for the trip, shared by Asha 12,000 + Ravi 11,000 + Meera 8,480 (1200000 + 1100000 + 848000 = 3148000 paise).
+    ["owed-several", () => addExpense(tripId, V, [[A, 1200000], [R, 1100000], [M, 848000]], "Dinner at Jay Fai"), { kind: "one", has: /^one \| 3 people .*You .*₹31,480 .*See who to remind$/ }],
+    // Both ways, in two groups so nobody is netted: Varun owes Asha ₹4,200 (trip) and Kabir owes Varun ₹22,916 (flat).
+    ["both", async () => { await addExpense(tripId, A, [[V, 420000]], "Boat tickets"); await addExpense(flatId, FV, [[FK, 2291600]], "Groceries"); }, { kind: "both", has: /^both \| You owe Asha .*₹4,200 Pay Asha Kabir owes you .*₹22,916 Remind Kabir$/ }],
+    // Nothing added: every balance is 0.
+    ["square", async () => undefined, { kind: "square", has: /^square \| .*All square.*Nobody owes anybody$/ }],
+  ];
+  try {
+    await db.expense.updateMany({ where: { id: { in: hadExpenses.map((x) => x.id) } }, data: { deletedAt: new Date() } });
+    await db.payment.updateMany({ where: { id: { in: hadPayments.map((x) => x.id) } }, data: { deletedAt: new Date() } });
+    for (const [name, setup, want] of states) {
+      await clearMade();
+      await setup();
+      const now = await read();
+      if (!want.has.test(now)) problems.push(`home-state-${name} says: ${now}`);
+      await page.setViewportSize(screen);
+      await shot(`home-state-${name}`, "/");
+      for (const w of [360, 320] as const) {
+        await page.setViewportSize({ width: w, height: w === 320 ? 640 : 780 });
+        await shot(`n${w}-home-state-${name}`, "/");
+      }
+      // A long first name on the narrowest phone: the button says "Pay Bhagyalakshmi" (cut with "…" only if it cannot fit), the route
+      // line shortens with "…", and the amount stays whole.
+      if (name === "owe") {
+        const asha = await db.member.findUnique({ where: { id: A } });
+        await db.member.update({ where: { id: A }, data: { name: "Bhagyalakshmi Venkataraman" } });
+        await page.setViewportSize({ width: 320, height: 640 });
+        await shot("n320-home-state-owe-longname", "/");
+        if (asha) await db.member.update({ where: { id: A }, data: { name: asha.name } });
+      }
+    }
+  } finally {
+    await clearMade();
+    await db.expense.updateMany({ where: { id: { in: hadExpenses.map((x) => x.id) } }, data: { deletedAt: null } });
+    await db.payment.updateMany({ where: { id: { in: hadPayments.map((x) => x.id) } }, data: { deletedAt: null } });
+    await db.member.update({ where: { id: A }, data: { name: "Asha" } }).catch(() => undefined);
+  }
+  const after = await read();
+  if (after !== before) problems.push(`Home did not come back after the state shots.\n  before: ${before}\n  after:  ${after}`);
+  if (problems.length) throw new Error(`Home money-card states:\n  ${problems.join("\n  ")}`);
+  console.log("✓ Home money-card states restored: Home reads the same as before");
+  await page.setViewportSize(screen);
+}
 // Phase 5
 await shot("62-trip-report", `${g}/report`);
 await shot("63-charts-insights", `${g}?tab=charts`, undefined, false);
@@ -227,7 +324,7 @@ await shot("64-switching", "/switching");
 await shot("65-import", "/import");
 await shot("66-people-not-on-loopin", `${g}/people`);
 await shot("67-splash", "/splash", undefined, false);
-// The first screen of a small phone (375×667): header, stories, the money card with both buttons, the start of the group row.
+// The first screen of a small phone (375×667): header, stories, the boarding-pass money card with its one button, the start of the group row.
 const wide = page.viewportSize();
 await shot("68-home-first-screen", "/", async (p) => {
   await p.setViewportSize({ width: 375, height: 667 });
@@ -272,7 +369,7 @@ if (!hosted) {
       { accountId: acc.id, kind: "collect_added", title: "Diwali fund", body: "Nupur added you: ₹500 each. Tap to pay and tick your name.", url: `/c/${collectCode}`, seenAt: new Date() },
     ],
   });
-  await shot("83-alerts-collect", "/notifications", undefined, false);
+  await shot("83-alerts-collect", "/notifications?tab=all", undefined, false);
   // A trip in 12 days, for the countdown.
   const ist = (plus: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(now + plus * 86_400_000));
   const goa = await db.group.create({
@@ -453,17 +550,17 @@ if (!hosted) {
     await shot("108-passport", "/passport", undefined, false);
     // 108 shows the one-time question; from here Varun has said Show.
     await db.account.update({ where: { id: acc.id }, data: { passportChoiceAt: new Date() } });
-    await shot("109-passport-open", "/passport", async (p) => {
+    await shot("109-passport-open", "/passport?book=1", async (p) => {
       await p.getByRole("button", { name: "Open your passport" }).click();
       await p.waitForTimeout(800);
     }, false);
-    await shot("110-passport-stamps", "/passport", async (p) => {
+    await shot("110-passport-stamps", "/passport?book=1", async (p) => {
       await p.getByRole("button", { name: "Open your passport" }).click();
       await p.waitForTimeout(800);
       await p.getByRole("button", { name: "Next page" }).click();
       await p.waitForTimeout(700);
     }, false);
-    await shot("111-passport-been", "/passport", async (p) => {
+    await shot("111-passport-been", "/passport?book=1", async (p) => {
       await p.getByRole("button", { name: "Open your passport" }).click();
       await p.waitForTimeout(800);
       const pages = await p.locator("[data-page]").count();
@@ -473,7 +570,7 @@ if (!hosted) {
       }
       await p.waitForTimeout(700);
     }, false);
-    await shot("112-passport-index", "/passport", async (p) => {
+    await shot("112-passport-index", "/passport?book=1", async (p) => {
       await p.getByRole("button", { name: "Open your passport" }).click();
       await p.waitForTimeout(800);
       const pages = await p.locator("[data-page]").count();
@@ -523,7 +620,7 @@ if (!hosted) {
       await p.waitForTimeout(1200);
     }, false);
     await shot("132-postcard-compose-back", `/postcards/new?group=${lona.id}`, async (p) => {
-      await p.getByRole("tab", { name: "Back" }).click();
+      await p.getByRole("tab", { name: "Note" }).click();
       await p.getByRole("textbox", { name: "Your message" }).fill("Remember the bus that never came? Best wrong turn ever. Same time next year?");
       await p.waitForTimeout(1300);
     }, false);
@@ -544,7 +641,7 @@ if (!hosted) {
       await p.waitForTimeout(1300);
     }, false);
     await shot("133b-postcard-sealed-choice", `/postcards/new?group=${lona.id}`, async (p) => {
-      await p.getByRole("tab", { name: "Back" }).click();
+      await p.getByRole("tab", { name: "Note" }).click();
       await p.getByRole("textbox", { name: "Your message" }).fill("Open this on New Year's.");
       await p.getByRole("tab", { name: "Send" }).click();
       await p.getByRole("button", { name: "New Year’s Day" }).click();
@@ -552,25 +649,23 @@ if (!hosted) {
       await p.waitForTimeout(800);
     }, false);
     await shot("132c-postcard-wax-seal", `/postcards/new?group=${lona.id}`, async (p) => {
-      await p.getByRole("tab", { name: "Back" }).click();
+      await p.getByRole("tab", { name: "Note" }).click();
       await p.getByRole("textbox", { name: "Your message" }).fill("Remember the bus that never came? Best wrong turn ever.");
       await p.getByRole("button", { name: "Wax seal" }).click();
-      await p.getByRole("button", { name: "Customs label" }).click();
+      await p.getByRole("button", { name: "Coffee ring" }).click();
       await p.getByRole("button", { name: "Gold wax", exact: true }).click();
       await p.getByRole("button", { name: "Seal design: Crest" }).click();
       await p.locator("[data-seal-picker]").scrollIntoViewIfNeeded();
       await p.waitForTimeout(1200);
     }, false);
     await shot("131c-postcard-front-touches", `/postcards/new?group=${lona.id}`, async (p) => {
-      await p.getByRole("button", { name: "Hotel sticker" }).click();
-      await p.getByRole("button", { name: "Rail ticket" }).click();
-      await p.getByRole("button", { name: "Luggage tag" }).click();
-      await p.getByRole("button", { name: "Paper clip" }).click();
+      await p.getByRole("button", { name: "Tape" }).click();
+      await p.getByRole("button", { name: "Pressed flower" }).click();
       await p.locator("[data-touches-front]").scrollIntoViewIfNeeded();
       await p.waitForTimeout(1200);
     }, false);
     await shot("132b-postcard-colours", `/postcards/new?group=${lona.id}`, async (p) => {
-      await p.getByRole("tab", { name: "Back" }).click();
+      await p.getByRole("tab", { name: "Note" }).click();
       await p.getByRole("textbox", { name: "Your message" }).fill("Remember the bus that never came? Best wrong turn ever. Same time next year?");
       await p.getByRole("button", { name: "Sepia ink" }).click();
       await p.getByRole("button", { name: "Sage paper" }).click();
@@ -583,7 +678,7 @@ if (!hosted) {
     }, false);
     await shot("118-passport-picture", "/passport/image", undefined, false);
     await shot("118d-passport-share-sheet", "/passport", async (p) => {
-      await p.getByRole("button", { name: "Share", exact: true }).first().click();
+      await p.getByRole("button", { name: "Share passport", exact: true }).click();
       await p.waitForTimeout(800);
     }, false);
     await db.account.update({ where: { id: priya.id }, data: { passportChoiceAt: new Date(), places: JSON.stringify([{ c: "JP" }, { c: "FR" }, { c: "GR" }, { c: "TH" }, { c: "AE" }, { c: "ID" }]) } });
@@ -627,13 +722,202 @@ if (!hosted) {
       await p.waitForTimeout(900);
     }, false);
     await shot("113-passport-pick", "/passport", async (p) => {
-      await p.getByRole("button", { name: "+ Add countries" }).click();
+      await p.getByRole("button", { name: "Add a visited place" }).click();
       const sheet = p.getByRole("dialog", { name: "Add countries" });
       await sheet.getByRole("checkbox", { name: "Albania" }).check();
       await sheet.getByRole("checkbox", { name: "Andorra" }).check();
       await p.waitForTimeout(300);
     }, false);
+
+    // --- Narrow phones (320 and 360): the postcard editor (Front and Note), Our passports and Wrapped ---
+    {
+      const before = page.viewportSize();
+      for (const w of [320, 360] as const) {
+        await page.setViewportSize({ width: w, height: w === 320 ? 640 : 780 });
+        await shot(`n${w}-postcard-front`, `/postcards/new?group=${lona.id}`, async (p) => {
+          await p.waitForTimeout(1200);
+        }, false);
+        await shot(`n${w}-postcard-note`, `/postcards/new?group=${lona.id}`, async (p) => {
+          await p.getByRole("tab", { name: "Note" }).click();
+          await p.getByRole("textbox", { name: "Your message" }).fill("Remember the bus that never came? Best wrong turn ever. Same time next year?");
+          await p.waitForTimeout(1300);
+        }, false);
+        await shot(`n${w}-our-passports`, `/groups/${pune.id}/passports`, undefined, false);
+        await shot(`n${w}-wrapped-intro`, `/groups/${pune.id}/wrapped`, undefined, false);
+        await shot(`n${w}-wrapped-total`, `/groups/${pune.id}/wrapped`, async (p) => {
+          for (let k = 0; k < 7; k++) {
+            if ((await p.locator("[data-wrapped-slide='total']").count()) > 0) break;
+            await p.getByRole("button", { name: "Next" }).click();
+            await p.waitForTimeout(250);
+          }
+          await p.waitForTimeout(800);
+        }, false);
+        await shot(`n${w}-passport`, "/passport");
+      }
+      if (before) await page.setViewportSize(before);
+    }
+
+    // --- Passport Been tab (part P1): full, and long names, at 320 / 360 / 390 ---
+    {
+      const before = page.viewportSize();
+      for (const w of [320, 360, 390] as const) {
+        await page.setViewportSize({ width: w, height: 780 });
+        await shot(`P1-been-full-${w}`, "/passport?all=1");
+      }
+      // Long names: a country with a long name, and two long city stops at home.
+      await db.account.update({ where: { id: acc.id }, data: { homeCountry: "IN" } });
+      await db.group.create({
+        data: {
+          name: "Balkans", type: "trip", currency: "EUR", inviteCode: `shotsbalk${now.toString(36)}`, tripStart: "2026-06-02", tripEnd: "2026-06-09", tripPlace: "Sarajevo, Mostar", tripCountry: "BA",
+          members: { create: [{ name: "Varun", accountId: acc.id, claimedAt: new Date() }, { name: "Ravi" }] },
+        },
+      });
+      await db.group.create({
+        data: {
+          name: "South tip", type: "trip", currency: "INR", inviteCode: `shotssouth${now.toString(36)}`, tripStart: "2026-07-01", tripEnd: "2026-07-04", tripPlace: "Thiruvananthapuram, Kanyakumari", tripCountry: "IN",
+          members: { create: [{ name: "Varun", accountId: acc.id, claimedAt: new Date() }, { name: "Ravi" }] },
+        },
+      });
+      for (const w of [320, 360, 390] as const) {
+        await page.setViewportSize({ width: w, height: 780 });
+        await shot(`P1-been-long-names-${w}`, "/passport?all=1");
+      }
+      await shot("P1-passport-book", "/passport?book=1", undefined, false);
+      if (before) await page.setViewportSize(before);
+    }
   }
+}
+// ===== MOMENTS (part M1): the strip, Our moments, the add form, the viewer, the report page and a Home story frame, at 320 / 360 / 390 =====
+// A trip group made straight in the database with three people; each state is photographed as the person who sees it. (Local copy only.)
+if (!hosted) {
+  const { db } = await import("../src/lib/db");
+  const tag = Date.now().toString(36);
+  const acct = (n: string) => db.account.create({ data: { email: `shots-mo-${n.toLowerCase()}-${tag}@uat.loopin.test`, name: n } });
+  const [varu, nupur, riya] = [await acct("Varu"), await acct("Nupur"), await acct("Riya")];
+  // Real photos of the trip's place (the build's downloaded Thailand pictures), sent through the same form and /api/moment route a phone
+  // uses (the form shrinks them to 1600 / 480 px). Never the app icon or a hand-made file: those hide real picture problems.
+  const photos = realPhotos("thailand");
+  let turn = 0;
+  const nextPhoto = () => photos[turn++ % photos.length];
+  const trip = async (name: string, riyaLeft?: Date, place = "Phuket") =>
+    db.group.create({
+      data: {
+        name, type: "trip", currency: "THB", inviteCode: `shotsmo${tag}${Math.random().toString(36).slice(2, 6)}`, tripStart: "2026-11-10", tripEnd: "2026-11-14", tripPlace: place, tripCountry: "TH",
+        members: {
+          create: [
+            { name: "Varu", accountId: varu.id, claimedAt: new Date(), createdAt: new Date(Date.now() - 5000) },
+            { name: "Nupur", accountId: nupur.id, claimedAt: new Date(), createdAt: new Date(Date.now() - 4000) },
+            { name: "Riya", accountId: riya.id, claimedAt: new Date(), createdAt: new Date(Date.now() - 3000), ...(riyaLeft ? { leftAt: riyaLeft } : {}) },
+          ],
+        },
+      },
+      include: { members: true },
+    });
+  const mins = (m: number) => new Date(Date.now() - m * 60_000);
+  const uploaders = new Map<string, Page>();
+  const uploader = async (acc: { id: string }) => {
+    let up = uploaders.get(acc.id);
+    if (!up) {
+      const c = await browser.newContext({ viewport: screen, deviceScaleFactor: 1, ...(ios ? { isMobile: true, hasTouch: true } : {}), colorScheme: "dark", locale: "en-IN", timezoneId: "Asia/Kolkata" });
+      await c.addCookies([{ name: SESSION_COOKIE, value: await encodeSession({ m: {}, a: acc.id, v: 0 }), url: base }]);
+      up = await c.newPage();
+      uploaders.set(acc.id, up);
+    }
+    return up;
+  };
+  // Adds one moment the way a person does (the real form), then sets its "when" so the list reads like a real trip.
+  const put = async (g: Awaited<ReturnType<typeof trip>>, by: "Varu" | "Nupur" | "Riya", acc: { id: string }, caption: string, takenOn: string, at: Date) => {
+    const up = await uploader(acc);
+    await up.goto(`${base}/groups/${g.id}/moments/new`, { waitUntil: "networkidle", timeout: 30_000 });
+    await up.getByLabel("Choose a photo").setInputFiles(nextPhoto());
+    await up.locator('img[alt="Your photo"]').waitFor({ timeout: 20_000 });
+    if (caption) await up.getByPlaceholder("The boat we almost missed").fill(caption);
+    if (takenOn) await up.getByRole("button", { name: `Day ${Number(takenOn.slice(8)) - 9}`, exact: true }).click();
+    await up.getByRole("button", { name: "Add moment" }).click();
+    await up.waitForURL(/\/moments$/, { timeout: 30_000 });
+    const row = await db.moment.findFirstOrThrow({ where: { groupId: g.id, authorId: g.members.find((m) => m.name === by)!.id, caption }, orderBy: { createdAt: "desc" }, select: { id: true } });
+    return db.moment.update({ where: { id: row.id }, data: { createdAt: at } });
+  };
+  const lone = await trip("Goa long weekend", undefined, "Goa");
+  const thai = await trip("Thailand trip");
+  const first = await put(thai, "Nupur", nupur, "The boat we almost missed 😂", "2026-11-12", mins(12));
+  await put(thai, "Riya", riya, "Worth the early alarm.", "2026-11-11", mins(90));
+  await put(thai, "Varu", varu, "Sunset at Railay", "2026-11-10", mins(200));
+  await put(thai, "Nupur", nupur, "Noodles at midnight", "2026-11-13", mins(300));
+  await put(thai, "Riya", riya, "Last one from the pier", "2026-11-14", mins(400));
+  for (const [by, emoji] of [["Varu", "😂"], ["Riya", "😂"], ["Nupur", "❤️"]] as const) await db.momentReaction.create({ data: { momentId: first.id, memberId: thai.members.find((m) => m.name === by)!.id, emoji } });
+  const single = await trip("Krabi weekend", undefined, "Krabi");
+  await put(single, "Nupur", nupur, "The boat we almost missed 😂", "2026-11-12", mins(12));
+  const crowd = await trip("Phi Phi islands", undefined, "Phi Phi");
+  const lines = ["Longtail boats at dawn", "Cold coconut, finally", "Monkey beach", "Riya vs the waves", "Snorkel day", "Dinner on the sand", "Last ferry back", "The view from the hostel"];
+  for (let i = 0; i < lines.length; i++) await put(crowd, i % 2 ? "Nupur" : "Riya", i % 2 ? nupur : riya, lines[i], `2026-11-${10 + (i % 5)}`, mins(30 + i * 90));
+  const gone = await trip("Koh Samui, Riya left", mins(60)); // Riya left an hour ago
+  await put(gone, "Nupur", nupur, "Before she left", "2026-11-11", mins(300));
+  await put(gone, "Nupur", nupur, "After she left (hidden from Riya)", "2026-11-12", mins(10));
+  for (const up of uploaders.values()) await up.context().close();
+  const longCaption = "A caption of exactly eighty characters, to see how it wraps on a small phone!!!!"; // 80
+
+  const shots = async (who: { id: string }, widths: readonly number[], list: [string, string, ((p: Page) => Promise<void>)?, boolean?][]) => {
+    const c = await browser.newContext({ viewport: screen, deviceScaleFactor: desktop ? 1 : 2, ...(ios ? { isMobile: true, hasTouch: true } : {}), colorScheme: "dark", reducedMotion: "reduce", locale: "en-IN", timezoneId: "Asia/Kolkata" });
+    await c.addCookies([{ name: SESSION_COOKIE, value: await encodeSession({ m: {}, a: who.id, v: 0 }), url: base }]);
+    const p = await c.newPage();
+    for (const w of widths) {
+      await p.setViewportSize({ width: w, height: 780 });
+      for (const [name, path, prepare, full] of list) {
+        try {
+          await p.goto(base + path, { waitUntil: "networkidle", timeout: 30_000 });
+          await p.waitForTimeout(700);
+          if (prepare) await prepare(p).catch((e) => console.log("  (could not prepare", name, String(e).split("\n")[0], ")"));
+          await assertMomentPhotosDecoded(p, `M1-${name}-${w}`); // fails the screenshot (✗) if any moment picture did not draw
+          await p.screenshot({ path: `${out}/M1-${name}-${w}.png`, fullPage: full ?? true });
+          console.log("✓", `M1-${name}-${w}`);
+        } catch (e) {
+          console.log("✗", `M1-${name}-${w}`, String(e).split("\n")[0]);
+        }
+      }
+    }
+    await c.close();
+  };
+  const W = [320, 360, 390] as const;
+  const photo = async (p: Page) => {
+    await p.getByLabel("Choose a photo").setInputFiles(photos[0]);
+    await p.locator('img[alt="Your photo"]').waitFor();
+  };
+  await shots(varu, W, [
+    ["strip-empty", `/groups/${lone.id}`, undefined, false],
+    ["strip-with-moments", `/groups/${thai.id}`, undefined, false],
+    ["moments-one", `/groups/${single.id}/moments`, undefined, true],
+    ["moments-many", `/groups/${crowd.id}/moments`, undefined, true],
+    ["moments", `/groups/${thai.id}/moments`, undefined, true],
+    ["add-empty", `/groups/${thai.id}/moments/new`, undefined, false],
+    ["add-photo", `/groups/${thai.id}/moments/new`, async (p) => {
+      await photo(p);
+      await p.getByPlaceholder("The boat we almost missed").fill("The boat we almost missed 😂");
+      await p.getByRole("button", { name: "Day 3", exact: true }).click();
+    }, true],
+    ["add-80-characters", `/groups/${thai.id}/moments/new`, async (p) => {
+      await photo(p);
+      await p.getByPlaceholder("The boat we almost missed").fill(longCaption);
+      await p.getByRole("button", { name: "Day 5", exact: true }).click();
+    }, true],
+    ["viewer", `/groups/${thai.id}/moments/${first.id}`, undefined, true],
+    ["viewer-reactions", `/groups/${thai.id}/moments/${first.id}`, async (p) => {
+      await p.locator("[data-reactions] summary[aria-label='React']").click();
+    }, true],
+    ["home-story-circles", "/", undefined, false],
+    ["home-story-frame", "/", async (p) => {
+      await p.locator("[data-story='moment']").first().click();
+      await p.waitForTimeout(900);
+    }, false],
+  ]);
+  // As the author, the "⋯" menu has Delete; as someone else it has Report and Block.
+  await shots(nupur, W, [["menu-author", `/groups/${thai.id}/moments/${first.id}`, async (p) => { await p.locator("[data-moment-menu] summary").click(); }, true]]);
+  await shots(riya, W, [
+    ["menu-other", `/groups/${thai.id}/moments/${first.id}`, async (p) => { await p.locator("[data-moment-menu] summary").click(); }, true],
+    ["report", `/report?kind=moment&id=${first.id}&back=${encodeURIComponent(`/groups/${thai.id}/moments/${first.id}`)}`, undefined, true],
+  ]);
+  // Riya left an hour ago: she sees "Before she left", no Add button, and not the newer moment.
+  await shots(riya, W, [["leaver", `/groups/${gone.id}/moments`, undefined, true]]);
 }
 // The "I've paid" link from a Remind, as the person who owes sees it (no sign-in).
 let payPath = "";

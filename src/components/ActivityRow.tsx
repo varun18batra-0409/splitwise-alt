@@ -8,14 +8,14 @@ import { paymentEffectLabel, paymentSubline, paymentTitle } from "@/lib/payment-
 
 // Right-hand side: what it meant for you. The amount first (bold), what it is
 // underneath; rows that weren't yours stay quiet.
-function Effect({ label, amount, sub, cls }: { label: string; amount?: string; sub?: string; cls: string }) {
-  if (!amount) return <span className="shrink-0 text-right text-[12px] leading-tight text-fg/60">{label}</span>;
+function Effect({ label, amount, exact, sub, cls }: { label: string; amount?: string; exact?: string; sub?: string; cls: string }) {
+  if (!amount) return <span className="shrink-0 whitespace-nowrap text-right text-[12px] leading-tight text-fg/60">{label}</span>;
   return (
-    <span className="shrink-0 text-right leading-tight">
-      <span className={`block text-[15px] font-semibold tabular-nums tracking-tight ${cls}`}>{amount}</span>
+    <span className="shrink-0 whitespace-nowrap text-right leading-tight">
+      <span className={`block text-[15px] font-semibold tabular-nums tracking-tight ${cls}`} title={exact} data-exact={exact}>{amount}</span>
       <span className="mt-0.5 block text-[11px] text-fg/60">
         {label}
-        {sub && <span className="tabular-nums"> · {sub}</span>}
+        {sub && <span className="whitespace-nowrap tabular-nums"> · {sub}</span>}
       </span>
     </span>
   );
@@ -42,6 +42,8 @@ export function ActivityRow({
   delay?: number; // seconds, so a list's icons take turns
 }) {
   const money = (m: number) => formatMoney(m, currency);
+  // Rows show the exact amount, paise included (the same figure as the expense and Settle up); never rounded.
+  const short = money;
 
   if (item.kind === "event") {
     return (
@@ -65,7 +67,7 @@ export function ActivityRow({
     // Wording lives in payment-words.ts: a payment only said (not yet confirmed) never reads "paid you" or "you received".
     return (
       <div className={`flex items-center gap-3.5 py-3.5 ${deleted ? "opacity-[.85]" : ""}`}>
-        <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-owed/[0.12] text-owed ring-1 ring-inset ring-owed/15">
+        <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-mist text-fg/75">
           <SettleIcon size={18} />
         </span>
         <div className="min-w-0 flex-1">
@@ -73,14 +75,14 @@ export function ActivityRow({
             {paymentTitle(nameOf(item.fromId), to, item.status, deleted)}
           </p>
           <p className={meta}>
-            {paymentSubline(item.status, to, deleted, deletedNote)} · {money(item.amount)}
+            {paymentSubline(item.status, to, deleted, deletedNote)} · <span className="whitespace-nowrap" title={money(item.amount)} data-exact={money(item.amount)}>{short(item.amount)}</span>
             {groupName && ` · ${groupName}`}
           </p>
         </div>
         {deleted || item.effect === 0 ? (
           <Effect label={paymentEffectLabel(item.status, item.effect, deleted)} cls="" />
         ) : (
-          <Effect label={paymentEffectLabel(item.status, item.effect, deleted)} amount={money(Math.abs(item.effect))} cls={item.status === "waiting" ? "text-fg/70" : "text-fg"} />
+          <Effect label={paymentEffectLabel(item.status, item.effect, deleted)} amount={short(Math.abs(item.effect))} exact={money(Math.abs(item.effect))} cls={item.status === "waiting" ? "text-fg/70" : "text-fg"} />
         )}
       </div>
     );
@@ -94,14 +96,14 @@ export function ActivityRow({
         <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-semibold tracking-tight">{neutralGameText(item.title)}</p>
           <p className={meta}>
-            Game result · {(item.payerIds ?? [item.paidById]).map(nameOf).join(" + ")} came out ahead by {money(item.amount)}
+            Game result · {(item.payerIds ?? [item.paidById]).map(nameOf).join(" + ")} came out ahead by <span className="whitespace-nowrap" title={money(item.amount)} data-exact={money(item.amount)}>{short(item.amount)}</span>
             {groupName && ` · ${groupName}`}
           </p>
         </div>
         {item.effect > 0 ? (
-          <Effect label="you were up" amount={money(item.effect)} cls="text-owed" />
+          <Effect label="you were up" amount={short(item.effect)} exact={money(item.effect)} cls="text-owed" />
         ) : item.effect < 0 ? (
-          <Effect label="you were down" amount={money(-item.effect)} cls="text-owe" />
+          <Effect label="you were down" amount={short(-item.effect)} exact={money(-item.effect)} cls="text-owe" />
         ) : (
           <Effect label="even" cls="" />
         )}
@@ -111,7 +113,14 @@ export function ActivityRow({
   const cat = getCategory(item.category);
   // Foreign-currency expense: show the amount in its own currency first, then the group currency.
   const o = item.original;
-  const shown = (orig: number, base: number) => (o ? formatMoney(orig, o.currency) : money(base));
+  const shown = (orig: number, base: number) => {
+    const exact = o ? formatMoney(orig, o.currency) : money(base);
+    return (
+      <span className="whitespace-nowrap" title={exact} data-exact={exact}>
+        {exact}
+      </span>
+    );
+  };
   return (
     <div className={`flex items-center gap-3.5 py-3.5 ${deleted ? "opacity-[.85]" : ""}`}>
       <ExpenseGlyph title={item.title} category={item.category} motion={deleted ? undefined : motion} delay={delay} label={cat.label} />
@@ -125,31 +134,33 @@ export function ActivityRow({
             </svg>
           )}
         </p>
-        <p className={meta}>
-          {deleted
-            ? `${deletedNote} · ${shown(o?.amount ?? 0, item.amount)}`
-            : (
-                <>
-                  {(item.payerIds ?? [item.paidById]).map((id, i) => (
-                    // A long name is cut with "…" so "paid THB 225" always stays on the row.
-                    <span key={id}>
-                      {i > 0 && " + "}
-                      <span className="inline-block max-w-[8.5rem] truncate align-bottom" title={nameOf(id)}>{nameOf(id)}</span>
-                    </span>
-                  ))}{" "}
-                  {item.refund ? "got back" : "paid"} {shown(o?.amount ?? 0, item.amount)}
-                </>
-              )}
-          {item.edited && !deleted && " · edited"}
-          {groupName && ` · ${groupName}`}
-        </p>
+        {deleted ? (
+          <p className={meta}>
+            {deletedNote} · {shown(o?.amount ?? 0, item.amount)}
+            {groupName && ` · ${groupName}`}
+          </p>
+        ) : (
+          // One line: the names take what is left and are cut first with "…"; "paid THB 225 · edited" can use two lines, so nothing runs under the amount column.
+          <p className="mt-0.5 flex min-w-0 items-baseline gap-x-1 text-[13px] leading-snug text-fg/60">
+            <span className="min-w-0 shrink-[4] truncate" title={(item.payerIds ?? [item.paidById]).map(nameOf).join(" + ")}>
+              {(item.payerIds ?? [item.paidById]).map(nameOf).join(" + ")}
+            </span>{" "}
+            {/* May take two lines (like the other rows), so a lakh-sized total stays readable; the amount itself never breaks, and this
+                can shrink, so it never runs under the amount on the right. The names give way first. */}
+            <span className="min-w-0 line-clamp-2 break-words" data-paid-line>
+              {item.refund ? "got back" : "paid"} {shown(o?.amount ?? 0, item.amount)}
+              {item.edited && " · edited"}
+            </span>{" "}
+            {groupName && <span className="min-w-0 shrink truncate">· {groupName}</span>}
+          </p>
+        )}
       </div>
       {deleted ? (
         <Effect label="deleted" cls="" />
       ) : item.effect > 0 ? (
-        <Effect label="you lent" amount={money(item.effect)} sub={o ? formatMoney(o.effect, o.currency) : undefined} cls="text-owed" />
+        <Effect label="you lent" amount={short(item.effect)} exact={money(item.effect)} sub={o ? formatMoney(o.effect, o.currency) : undefined} cls="text-owed" />
       ) : item.effect < 0 ? (
-        <Effect label="you owe" amount={money(-item.effect)} sub={o ? formatMoney(-o.effect, o.currency) : undefined} cls="text-owe" />
+        <Effect label="you owe" amount={short(-item.effect)} exact={money(-item.effect)} sub={o ? formatMoney(-o.effect, o.currency) : undefined} cls="text-owe" />
       ) : (
         // Zero for you: either it wasn't yours at all, or you paid exactly your own part.
         <Effect

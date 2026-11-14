@@ -23,7 +23,7 @@ function Submit({ host, confirmText }: { host: boolean; confirmText: string | nu
       }}
       className="pop block w-full bg-fg px-4 py-3.5 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63] disabled:opacity-60"
     >
-      {pending ? "Working it out…" : host ? "Calculate & settle 🏁" : "Save the count"}
+      {pending ? "Working it out…" : host ? "Calculate & settle" : "Save the count"}
     </button>
   );
 }

@@ -148,7 +148,7 @@ export function QuickLine({
             onClick={listen}
             aria-label={listening ? "Stop listening" : "Say it"}
             aria-pressed={listening}
-            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${listening ? "animate-pulse border-owed bg-owed/15 text-owed" : "border-line text-fg/80 active:bg-mist"}`}
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${listening ? "animate-pulse border-[1.5px] border-fg text-fg" : "border-line text-fg/80 active:bg-mist"}`}
           >
             <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5 11a7 7 0 0 0 14 0M12 18v3" />

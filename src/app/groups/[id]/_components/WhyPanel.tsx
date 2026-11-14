@@ -28,7 +28,7 @@ export function WhyPanel({ v, memberId, open, summary }: { v: GroupView; memberI
   ];
 
   return (
-    <details className="group/why border border-line bg-white" open={open} id={`why-${memberId}`}>
+    <details className="group/why overflow-hidden rounded-[20px] border border-line bg-white" open={open} id={`why-${memberId}`}>
       <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-sm font-medium [&::-webkit-details-marker]:hidden">
         Why?
         <span className="text-gray-400 group-open/why:rotate-180">⌄</span>

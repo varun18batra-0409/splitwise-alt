@@ -23,6 +23,7 @@ import { db } from "@/lib/db";
 import { inviteMemberId } from "@/lib/invites";
 import { invitedNotice } from "@/lib/invite-label";
 import { SafetyLinks } from "@/components/SafetyLinks";
+import { DateField } from "@/components/DateField";
 
 // Everyone in the group: fix a name, remove someone (the admin) or
 // leave / bring back. Every change notifies the others and can be undone.
@@ -156,7 +157,7 @@ export default async function PeoplePage({
                 <label className="text-gray-500" htmlFor={`in-${m.id}`}>
                   Moved in on
                 </label>
-                <input id={`in-${m.id}`} type="date" name="day" defaultValue={m.joinedFrom ? m.joinedFrom.toISOString().slice(0, 10) : ""} className={`${inputClass} w-auto py-1.5`} />
+                <DateField id={`in-${m.id}`} name="day" defaultValue={m.joinedFrom ? m.joinedFrom.toISOString().slice(0, 10) : ""} size="sm" inline clearable={false} />
                 <button type="submit" className={`${small} shrink-0`}>
                   Save
                 </button>
@@ -222,8 +223,8 @@ export default async function PeoplePage({
                     Remove {m.name}
                   </ConfirmButton>
                 )}
-                <p className="mt-2 text-xs text-gray-400">
-                  {bal !== 0 ? `${m.name} must be settled up first (${bal > 0 ? "gets" : "owes"} ${money(bal)}).` : used.has(m.id) || m.accountId ? "They stay in the history. You can bring them back later." : "Not in any expense yet, so they’re removed completely."}
+                <p className="mt-2 text-xs text-gray-400" title={bal !== 0 ? money(bal) : undefined} data-exact={bal !== 0 ? money(bal) : undefined}>
+                  {bal !== 0 ? `${m.name} must be settled up first (${bal > 0 ? "gets" : "owes"} ${money(Math.abs(bal))}).` : used.has(m.id) || m.accountId ? "They stay in the history. You can bring them back later." : "Not in any expense yet, so they’re removed completely."}
                 </p>
               </form>
             ) : (
@@ -259,7 +260,7 @@ export default async function PeoplePage({
       )}
 
       <Link href={`/groups/${group.id}/passports`} className="mb-4 flex items-center gap-3 rounded-2xl border border-line px-4 py-3 active:bg-mist" data-our-passports>
-        <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-owed/40 text-owed"><PeoplePassportsIcon size={18} /></span>
+        <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-fg/25 text-fg/75"><PeoplePassportsIcon size={18} /></span>
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold">Our passports</span>
           <span className="block text-xs text-gray-500">Where everyone in {group.name} has been</span>

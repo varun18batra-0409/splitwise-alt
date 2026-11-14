@@ -3,10 +3,10 @@ import { TrophyIcon } from "@/components/DrawnIcons";
 import Link from "@/components/Link";
 import { db } from "@/lib/db";
 import { getMyMemberId, privatePath } from "@/lib/identity";
-import { ErrorNote, PageHeader, inputClass, secondaryButtonClass } from "@/components/ui";
+import { ErrorNote, PageHeader, inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
 import { Notice } from "@/components/Notice";
 import { ConfirmButton } from "@/components/ConfirmButton";
-import { GAME_NOTE, TOOK_HOME_NOTES, gameEmoji, neutralGameText } from "@/lib/game-words";
+import { GAME_NOTE, TOOK_HOME_NOTES, neutralGameText } from "@/lib/game-words";
 import { PotBuyIn } from "@/components/PotBuyIn";
 import { PotCount } from "@/components/PotCount";
 import { PotName } from "@/components/PotName";
@@ -18,9 +18,10 @@ import { UndoBar } from "@/components/UndoBar";
 import { canUndo } from "@/lib/undo";
 import { decimalsOf, formatMoney, toInputAmount } from "@/lib/money";
 import { recordCustomPayment } from "@/app/actions";
-import { actionFormClass, DifferentAmountLink, differentAmountFor, filledActionClass, SettleRow } from "@/components/SettleRow";
+import { actionFormClass, DifferentAmountLink, differentAmountFor, filledActionClass, outlineButtonClass, SettleRow } from "@/components/SettleRow";
 import { FreshKey } from "@/components/FreshKey";
 import { getTimeZone } from "@/lib/tz";
+import { SelectField } from "@/components/SelectField";
 
 // One game of Game night: chips in and took home, live; then who came out ahead,
 // who came out behind and who pays whom. Settling up happens in the group, as always.
@@ -119,7 +120,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
                           <input type="hidden" name="amount" value={toInputAmount(left, group.currency)} />
                           <input type="hidden" name="back" value={`pot:${game.id}`} />
                           <FreshKey name="rid" />
-                          <button type="submit" className={filledActionClass} aria-label={`Mark paid: ${you(t.from)} ${t.from === myId ? "pay" : "pays"} ${youLow(t.to)}`}>
+                          <button type="submit" className={pending.length === 1 ? filledActionClass : outlineButtonClass} aria-label={`Mark paid: ${you(t.from)} ${t.from === myId ? "pay" : "pays"} ${youLow(t.to)}`}>
                             Mark paid
                           </button>
                         </form>
@@ -135,7 +136,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
             <form action={markGamePaidAction} className="mt-3">
               <input type="hidden" name="gameId" value={game.id} />
               <FreshKey name="rid" />
-              <ConfirmButton message={`Mark all ${pending.length} payments of this game paid? Everyone is told, and you can undo it.`} className={secondaryButtonClass}>
+              <ConfirmButton message={`Mark all ${pending.length} payments of this game paid? Everyone is told, and you can undo it.`} className={primaryButtonClass}>
                 Mark all {pending.length} paid
               </ConfirmButton>
             </form>
@@ -199,23 +200,23 @@ export default async function GamePage({ params, searchParams }: { params: Promi
       {sp.reopened && <Notice params={["reopened"]} className="mb-4">Reopened. Its result is out of the balances until you finish it again.</Notice>}
 
       {/* The table */}
-      <section aria-label="The table" className="relative overflow-hidden rounded-[24px] px-5 pb-5 pt-5 text-fg [background:radial-gradient(90%_100%_at_100%_0%,#1f6b4a_0%,transparent_60%),linear-gradient(160deg,#123a2a_0%,#0b1612_80%)]">
+      <section aria-label="The table" className="relative overflow-hidden rounded-[20px] border border-line bg-[#16161a] px-5 pb-5 pt-5 text-fg">
         <p className="pr-14 text-[11px] font-semibold text-fg/55">
           {potGameLabel(game.game)} · {youLow(game.hostId)} hosted · {open ? "playing" : "finished"}
         </p>
         {open ? (
           <>
-            <p className="mt-2 money text-[40px] font-semibold leading-none tabular-nums" data-pot-out>
+            <p className="mt-2 money text-[34px] font-semibold leading-none tabular-nums" data-pot-out>
               {money(totals.out)}
             </p>
-            <p className="mt-1 font-hand text-[21px] font-bold leading-none text-[#ffd9a8]">chips in play</p>
+            <p className="mt-1.5 text-[13px] leading-none text-fg/60">chips in play</p>
           </>
         ) : (
           <>
-            <p className="mt-2 flex items-center gap-2.5 font-display text-[34px] font-semibold leading-none">
-              Game over <TrophyIcon size={30} className="text-[#e8d29a]" />
+            <p className="mt-2 flex items-center gap-2.5 font-display text-[28px] font-semibold leading-none">
+              Game over <TrophyIcon size={30} className="text-fg/75" />
             </p>
-            <p className="mt-1.5 font-hand text-[21px] font-bold leading-none text-[#ffd9a8]">
+            <p className="mt-2 text-[15px] leading-snug text-fg/75">
               {ranked[0] && ranked[0].net > 0 ? `${you(ranked[0].memberId)} came out ahead by ${money(ranked[0].net)}` : "everyone broke even"}
             </p>
           </>
@@ -234,9 +235,6 @@ export default async function GamePage({ params, searchParams }: { params: Promi
             </span>
           </p>
         </div>
-        <span aria-hidden className="pointer-events-none absolute -right-2 -top-3 select-none text-[70px] opacity-[0.12]">
-          {gameEmoji(game.game)}
-        </span>
       </section>
 
       {/* Who pays whom: first thing you see once it's finished */}
@@ -364,7 +362,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
       {open && totals.taken > 0 && playing.length === 0 && (
         <section aria-label="Finish" className="mt-6 space-y-3">
           {!totals.balanced && (
-            <div className="rounded-2xl border border-owe/40 bg-owe/[0.08] px-4 py-3.5" role="status" data-pot-gap={totals.gap}>
+            <div className="rounded-[20px] border border-line bg-[#16161a] px-4 py-3.5" role="status" data-pot-gap={totals.gap}>
               <p className="text-sm font-semibold text-owe">
                 {totals.gap < 0 ? `${gapText} is missing from the count` : `${gapText} more came back than went in`}
               </p>
@@ -384,13 +382,13 @@ export default async function GamePage({ params, searchParams }: { params: Promi
                   <form action={adjustAction} className="flex gap-2">
                     <input type="hidden" name="gameId" value={game.id} />
                     <input type="hidden" name="mode" value="one" />
-                    <select name="memberId" aria-label="Put it on" className={`${inputClass} flex-1`}>
+                    <SelectField name="memberId" aria-label="Put it on" className="min-w-0 flex-1">
                       {players.map((p) => (
                         <option key={p} value={p}>
                           Put it on {nameOf(p)}
                         </option>
                       ))}
-                    </select>
+                    </SelectField>
                     <button type="submit" className="shrink-0 rounded-xl border border-line px-3 text-sm font-semibold active:bg-mist">
                       Fix
                     </button>
@@ -402,7 +400,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
           {host ? (
             form(
               finishGameAction,
-              totals.balanced ? "Finish: put it into Money owed 🏁" : "Finish (when it adds up)",
+              totals.balanced ? "Finish: put it into Money owed" : "Finish (when it adds up)",
               `pop block w-full bg-fg px-4 py-3.5 text-center text-base font-semibold text-canvas [--pop-edge:#6e6b63] ${totals.balanced ? "" : "opacity-50"}`,
               totals.balanced ? potResultLine(lines.map((l) => ({ name: nameOf(l.memberId), net: l.net })), group.currency) : undefined,
             )
@@ -447,7 +445,7 @@ export default async function GamePage({ params, searchParams }: { params: Promi
       {host && (
         <section aria-label="Host" className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
           {open ? (
-            form(deleteGameAction, "Delete game", "text-xs text-red-500 underline", "Delete this game? Everything recorded in it goes too.")
+            form(deleteGameAction, "Delete game", "text-xs text-fg/75 underline", "Delete this game? Everything recorded in it goes too.")
           ) : group.closed ? (
             <p className="text-xs text-gray-500">Reopen the group to change this game.</p>
           ) : (

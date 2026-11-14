@@ -24,7 +24,7 @@ describe("a Settle up row", () => {
   });
   it("someone owes me: Remind is the filled button; the outlined one records that they paid me", () => {
     const p = planSettleRow({ ...base, iAmPaid: true });
-    expect(p).toMatchObject({ main: "remind", action: "record", actionFilled: false, actionLabel: "They’ve paid me", filledButtons: 1, differentAmount: true });
+    expect(p).toMatchObject({ main: "remind", action: "record", actionFilled: false, actionLabel: "Mark paid", filledButtons: 1, differentAmount: true });
   });
   it("they already say they paid me: no Remind, no second way to record it; the box above answers it", () => {
     const p = planSettleRow({ ...base, iAmPaid: true, theirClaimWaiting: true });

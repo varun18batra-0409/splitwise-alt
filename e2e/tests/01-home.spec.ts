@@ -10,17 +10,17 @@ test("first visit shows the tour, then a start screen with the main ways in", as
   await expect(page.getByText("Create your first group").first()).toBeVisible();
   // The tour's Home button (src/components/IntroTour.tsx, aria-label "Home").
   await page.getByRole("link", { name: "Home", exact: true }).first().click();
-  await expect(page.getByRole("heading", { name: "Start with one group." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Good times. Shared fairly." })).toBeVisible();
   await expect(page.getByRole("link", { name: "Create a group" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "I have an invite link" })).toBeVisible();
-  await expect(page.getByRole("link", { name: /Sign in to start/ }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Join with a link" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Already here\? Sign in/ }).first()).toBeVisible();
 });
 
 test("key pages open from Home: guide, sign in, moving over from another app, privacy, terms", async ({ page }) => {
   await page.goto("/");
   await settled(page);
   await page.getByRole("link", { name: "Home", exact: true }).first().click();
-  await expect(page.getByRole("heading", { name: "Start with one group." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Good times. Shared fairly." })).toBeVisible();
 
   await page.getByRole("link", { name: "How Loopin works" }).first().click();
   await expect(page).toHaveURL(/\/how-it-works$/);
@@ -32,7 +32,7 @@ test("key pages open from Home: guide, sign in, moving over from another app, pr
   await expect(page.getByRole("heading", { name: "Bring your groups. Keep your balances." })).toBeVisible();
 
   await page.goto("/");
-  await page.getByRole("link", { name: /Sign in to start/ }).first().click();
+  await page.getByRole("link", { name: /Already here\? Sign in/ }).first().click();
   await expect(page).toHaveURL(/\/signin/);
   await expect(page.getByRole("heading", { name: "Continue to Loopin" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Email me a code" })).toBeVisible();

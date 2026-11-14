@@ -155,3 +155,26 @@ export function cleanCover(input: string, type: string, hasOwnPhoto = false): st
   if (!isCoverChoice(c)) return "";
   return c === typeDefault(type) ? "" : c;
 }
+
+// ---------- Moments (a photo and a few words in a trip group) ----------
+// The full photo: up to 1600 px, aiming for ~450 KB, never over 1 MB. The small copy (strips, rows, story circles): up to 480 px,
+// aiming for ~60 KB, never over 120 KB. Both are redrawn on the phone, which drops camera details and location.
+export const MOMENT_FULL_STEPS: readonly (readonly [maxSide: number, quality: number])[] = [
+  [1600, 0.8],
+  [1600, 0.72],
+  [1440, 0.7],
+  [1280, 0.66],
+];
+export const MOMENT_THUMB_STEPS: readonly (readonly [maxSide: number, quality: number])[] = [
+  [480, 0.72],
+  [400, 0.66],
+];
+export const MOMENT_FULL_TARGET = 450_000;
+export const MOMENT_FULL_MAX = 1_000_000; // the most the server takes
+export const MOMENT_THUMB_TARGET = 60_000;
+export const MOMENT_THUMB_MAX = 120_000;
+export const MOMENT_FULL_SIDE = 1600; // the longest side the server takes, in pixels
+export const MOMENT_THUMB_SIDE = 480;
+export const MOMENT_CAPTION_MAX = 80; // characters people see (emoji count as one)
+export const MOMENTS_PER_PERSON_PER_DAY = 10; // per person, per group, in any 24 hours
+export const MOMENTS_PER_GROUP = 300;

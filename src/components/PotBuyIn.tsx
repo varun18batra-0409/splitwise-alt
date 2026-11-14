@@ -66,7 +66,7 @@ export function PotBuyIn({
         {players.map((p) => (
           <label
             key={p.id}
-            className="flex cursor-pointer items-center gap-2 rounded-full border border-line px-3 py-1.5 text-sm has-[:checked]:border-fg has-[:checked]:bg-fg has-[:checked]:text-canvas has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent"
+            className="flex cursor-pointer items-center gap-2 rounded-full border border-fg/15 px-3 py-1.5 text-sm has-[:checked]:border-fg has-[:checked]:shadow-[inset_0_0_0_0.5px_var(--color-fg)] has-[:checked]:text-fg has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent"
           >
             <input type="checkbox" name="memberIds" value={p.id} checked={ticked.includes(p.id)} onChange={(e) => setTicked((t) => (e.target.checked ? [...t, p.id] : t.filter((x) => x !== p.id)))} className="sr-only" />
             <span className="font-semibold">{p.name}</span>

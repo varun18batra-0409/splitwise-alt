@@ -2,6 +2,8 @@ import { ACCOUNT_FOOTER_LINKS, FooterLinks } from "@/components/FooterLinks";
 import Link from "@/components/Link";
 import { unreadPostcards } from "@/lib/blocks";
 import { CompassIcon, PeoplePassportsIcon } from "@/components/DrawnIcons";
+import { BellIcon, ChartIcon } from "@/components/icons";
+import { DevicesLineIcon, DownloadLineIcon, HelpLineIcon, LockLineIcon, PostcardLineIcon, WalletLineIcon, YouList, YouRow } from "@/components/YouRows";
 import { InviteFriends } from "@/components/InviteFriends";
 import { PushEndpointField } from "@/components/PushEndpointField";
 import { deleteMyAccount, removeMyPasskey, saveMyName, signOutOtherPhonesAction, signOutThisPhone } from "@/app/actions";
@@ -42,18 +44,17 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
 
   return (
     <>
-      <PageHeader title="You" back="/" />
+      <PageHeader title="You" back="/" bell />
 
       {account ? (
-        <section aria-label="Your profile" className="vault rounded-[20px] px-5 py-5 text-fg">
+        <section aria-label="Your profile" className="rounded-[20px] border border-line bg-white px-5 py-5 text-fg">
           <div className="flex items-center gap-4">
-            <span aria-hidden className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-fg/10 font-display text-2xl font-semibold">
+            <span aria-hidden className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[#1f1f24] font-display text-3xl font-semibold">
               {(shown || account.email).slice(0, 1).toUpperCase()}
             </span>
             <div className="min-w-0">
               <p className="truncate font-display text-2xl font-semibold leading-tight">{shown || "Add your name"}</p>
-              <p className="mt-0.5 text-sm text-fg/55">Signed in as</p>
-              <p className="break-all text-sm text-fg/80">{account.email}</p>
+              <p className="mt-0.5 break-all text-[13px] text-fg/55">Signed in as {account.email}</p>
             </div>
           </div>
           {nameState === "saved" && (
@@ -81,7 +82,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
               {nameState === "empty" && <p className="text-sm text-red-400">Type a name.</p>}
               {sameNameGroups > 0 && (
                 <label className="flex items-start gap-2.5 text-sm text-fg/80">
-                  <input type="checkbox" name="groups" defaultChecked className="mt-0.5 h-4 w-4 accent-fg" />
+                  <input type="checkbox" name="groups" defaultChecked className="mt-0.5 h-5 w-5" />
                   <span>
                     Also change it in {sameNameGroups === 1 ? "the 1 group" : `the ${sameNameGroups} groups`} where you’re {account.name}
                   </span>
@@ -98,7 +99,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           </p>
         </section>
       ) : (
-        <section className="vault rounded-[20px] px-5 py-5 text-fg">
+        <section className="rounded-[20px] border border-line bg-white px-5 py-5 text-fg">
           <p className="font-display text-xl font-semibold">Not signed in</p>
           <p className="mt-2 text-sm text-fg/60">
             {groups.length
@@ -119,40 +120,34 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         </Link>
       )}
 
-      {/* The trip passport: a stamp for every trip. */}
+      {/* Your things: passport, postcards, friends, recap. */}
       {account && (
-        <Link href="/passport" className="mt-6 flex items-center gap-4 rounded-[20px] border border-line bg-white px-5 py-4 text-fg active:opacity-90">
-          <span aria-hidden className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-[#d8bd7a]/50 bg-[radial-gradient(circle_at_30%_25%,rgba(216,189,122,0.18),transparent_70%)] text-[#e8d29a]"><CompassIcon size={24} /></span>
-          <span className="min-w-0 flex-1">
-            <span className="block font-display text-lg font-semibold">Your trip passport</span>
-            <span className="block text-sm text-gray-500">A stamp for every place you’ve been</span>
-          </span>
-          <span aria-hidden className="text-xl">›</span>
-        </Link>
+        <YouList className="mt-6">
+          <YouRow href="/passport" icon={<CompassIcon size={22} />} title="Your trip passport" line="A stamp for every place you’ve been" />
+          <YouRow hook="postcards" href="/postcards" icon={<PostcardLineIcon />} title="Your postcards" line={`${postcardsNew ? `${postcardsNew} new · ` : ""}Warm notes from people you’ve shared a group with`} />
+          <YouRow href="/passport/friends" icon={<PeoplePassportsIcon size={22} />} title="Friends’ passports" line="Where friends in your groups have been" />
+          <YouRow href="/search" icon={<ChartIcon size={22} />} title="Your recap" line="Your spending, month by month" />
+        </YouList>
       )}
-      {/* Postcards: their own row, right below the passport. */}
+      {!account && (
+        <YouList className="mt-6">
+          <YouRow href="/search" icon={<ChartIcon size={22} />} title="Your recap" line="Your spending, month by month" />
+        </YouList>
+      )}
+
+      {/* Preferences and account: each row goes straight to its section below, or to its own page. */}
       {account && (
-        <Link href="/postcards" className="mt-3 flex items-center gap-4 rounded-[20px] border border-line bg-white px-5 py-4 text-fg active:opacity-90" data-postcards-link>
-          <span aria-hidden className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-[#e9b9a0]/45 bg-[radial-gradient(circle_at_30%_25%,rgba(233,185,160,0.16),transparent_70%)] text-[#f0c9b2]">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="1.5" /><path d="M12 8v8M15 9h3.5v3.5H15zM5.5 10h4M5.5 13h4" /></svg>
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block font-display text-lg font-semibold">Your postcards</span>
-            <span className="block text-sm text-gray-500">{postcardsNew ? `${postcardsNew} new · ` : ""}Warm notes to people you’ve shared a group with</span>
-          </span>
-          <span aria-hidden className="text-xl">›</span>
-        </Link>
+        <YouList label="Preferences" className="mt-8">
+          <YouRow hook="notify" href="/account/notifications" icon={<BellIcon size={22} />} title="Notifications & email" line="Choose what Loopin sends you" />
+          <YouRow href="#pay" icon={<WalletLineIcon />} title="How friends pay you" line="Your UPI ID or pay link" />
+          <YouRow href="#privacy" icon={<LockLineIcon />} title="Privacy & sharing" line="Blocked people and what others can see" />
+        </YouList>
       )}
-      {account && (
-        <Link href="/passport/friends" className="mt-3 flex items-center gap-4 rounded-[20px] border border-line bg-white px-5 py-4 text-fg active:opacity-90">
-          <span aria-hidden className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-owed/40 bg-[radial-gradient(circle_at_30%_25%,rgba(111,227,168,0.16),transparent_70%)] text-owed"><PeoplePassportsIcon size={24} /></span>
-          <span className="min-w-0 flex-1">
-            <span className="block font-display text-lg font-semibold">Friends’ passports</span>
-            <span className="block text-sm text-gray-500">Where friends in your groups have been</span>
-          </span>
-          <span aria-hidden className="text-xl">›</span>
-        </Link>
-      )}
+      <YouList label="Account" className="mt-8">
+        {account && <YouRow href="#sign-in" icon={<DevicesLineIcon />} title="Sign-in & devices" line="Fingerprint sign-in, sign out of phones" />}
+        <YouRow href="#data" icon={<DownloadLineIcon />} title="Export your data" line="A copy of everything in your groups" />
+        <YouRow href="/support" icon={<HelpLineIcon />} title="Help & support" line="Guides and a way to reach us" />
+      </YouList>
 
       {/* How friends pay you back: a Pay button on Settle up for anyone who owes you. */}
       {account && (
@@ -198,14 +193,11 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         <h2 className="mb-1 text-base font-semibold">Notifications</h2>
         <p className="mb-4 text-sm text-gray-500">Whether this phone lets Loopin notify you.</p>
         <PhoneStatus compact />
-        <Link href="/account/notifications" className="mt-3 flex min-h-11 items-center justify-between gap-3 rounded-2xl border border-line px-4 py-3 text-sm font-medium active:bg-mist" data-notify-link>
-          <span>Notifications &amp; email</span>
-          <span aria-hidden className="text-gray-400">›</span>
-        </Link>
+        {/* The link to the email and phone choices is the Notifications row under Preferences, near the top. */}
       </section>
 
       {account && (
-        <section className="mt-10 border-t border-line pt-8">
+        <section className="mt-10 scroll-mt-4 border-t border-line pt-8" id="sign-in">
           <h2 className="mb-1 text-base font-semibold">Fingerprint / face sign-in</h2>
           <p className="mb-4 text-sm text-gray-500">Sign in with one touch instead of a code. Your fingerprint never leaves your phone; Loopin only gets a key that proves it’s you.</p>
           {passkeys.length > 0 && (
@@ -263,7 +255,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
 
       <PrivacySafety accountId={account?.id ?? null} flags={{ ai, blocked, unblocked }} />
 
-      <section className="mt-10 border-t border-line pt-8">
+      <section className="mt-10 scroll-mt-4 border-t border-line pt-8" id="data">
         <h2 className="mb-1 text-base font-semibold">Your data</h2>
         <p className="mb-4 text-sm text-gray-500">
           One spreadsheet with every expense and payment in all your groups, your share of each, your account details, your postcards, passport,
@@ -279,7 +271,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             <PushEndpointField />
             <ConfirmButton
               message="Delete your sign-in, email, postcards and passkeys? Your groups stay on this phone and in each group’s history."
-              className="w-full rounded-full border border-red-500/40 px-5 py-3.5 text-center text-base font-medium text-red-400 active:bg-red-500/10"
+              className="mx-auto block min-h-11 px-4 py-2 text-center text-sm text-fg/75 underline underline-offset-4 active:text-fg"
             >
               Delete my email &amp; sign-in
             </ConfirmButton>

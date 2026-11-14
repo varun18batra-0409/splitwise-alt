@@ -7,6 +7,8 @@ import { MAX_IMPORT_BYTES, balancesOf, planRow, previewText } from "@/lib/splitw
 import { detectFormat, parseImport, type ColumnMap, type Detected } from "@/lib/import-formats";
 import { POPULAR_CURRENCIES } from "@/lib/money";
 import { inputClass, primaryButtonClass } from "./ui";
+import { SelectField } from "@/components/SelectField";
+import { ChevronDown } from "@/components/icons";
 
 // "Bring a group over from another app": pick the app's exported spreadsheet
 // (CSV), check what was found, say which person is you, and import.
@@ -88,16 +90,15 @@ export function SplitwiseImport({ yourName }: { yourName: string }) {
           <ColumnSelect label="Date" value={map.date} headers={generic.headers} none="No date column (use today)" onChange={(v) => setMap({ ...map, date: v })} />
           <label className="block text-sm">
             <span className="mb-1 block font-medium text-gray-600">How each one was shared</span>
-            <select
+            <SelectField
               aria-label="How each one was shared"
               value={map.split}
               onChange={(e) => setMap({ ...map, split: e.target.value as ColumnMap["split"] })}
-              className={inputClass}
             >
               <option value="everyone">Equally between everyone</option>
               <option value="column">Equally between the people named in a column</option>
               <option value="shares">Each person has their own column with their share</option>
-            </select>
+            </SelectField>
           </label>
           {map.split === "column" && (
             <ColumnSelect label="Who it was for" value={map.forCol ?? -1} headers={generic.headers} onChange={(v) => setMap({ ...map, forCol: v })} />
@@ -115,7 +116,7 @@ export function SplitwiseImport({ yourName }: { yourName: string }) {
                       role="checkbox"
                       aria-checked={on}
                       onClick={() => setMap({ ...map, shareCols: on ? (map.shareCols ?? []).filter((x) => x !== i) : [...(map.shareCols ?? []), i] })}
-                      className={`rounded-full border px-3 py-1.5 ${on ? "border-fg bg-fg text-canvas" : "border-line"}`}
+                      className={`rounded-full border px-3 py-1.5 ${on ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] text-fg" : "border-fg/15"}`}
                     >
                       {h || `Column ${i + 1}`}
                     </button>
@@ -126,13 +127,13 @@ export function SplitwiseImport({ yourName }: { yourName: string }) {
           )}
           <label className="block text-sm">
             <span className="mb-1 block font-medium text-gray-600">Currency of the amounts</span>
-            <select aria-label="Currency of the amounts" value={currency} onChange={(e) => setCurrency(e.target.value)} className={inputClass}>
+            <SelectField aria-label="Currency of the amounts" value={currency} onChange={(e) => setCurrency(e.target.value)}>
               {POPULAR_CURRENCIES.map((c) => (
                 <option key={c} value={c}>
                   {c}
                 </option>
               ))}
-            </select>
+            </SelectField>
           </label>
         </section>
       )}
@@ -178,7 +179,7 @@ export function SplitwiseImport({ yourName }: { yourName: string }) {
             )}
             {ok.skipped.filter((s) => !s.reason.startsWith("in ")).length > 0 && (
               <details className="mt-2 text-gray-500">
-                <summary className="cursor-pointer">{ok.skipped.filter((s) => !s.reason.startsWith("in ")).length} line(s) skipped</summary>
+                <summary className="cursor-pointer">{ok.skipped.filter((s) => !s.reason.startsWith("in ")).length} line(s) skipped <ChevronDown size={14} className="chev ml-1.5 inline-block align-[-2px] text-fg/55" /></summary>
                 <ul className="mt-1 space-y-0.5 text-xs">
                   {ok.skipped
                     .filter((s) => !s.reason.startsWith("in "))
@@ -203,7 +204,7 @@ export function SplitwiseImport({ yourName }: { yourName: string }) {
                   role="radio"
                   aria-checked={meNow === i}
                   onClick={() => setMe(i)}
-                  className={`rounded-full border px-4 py-2 text-sm ${meNow === i ? "border-fg bg-fg font-semibold text-canvas" : "border-line bg-white"}`}
+                  className={`rounded-full border px-4 py-2 text-sm ${meNow === i ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] font-semibold text-fg" : "border-fg/15 bg-white"}`}
                 >
                   {p}
                 </button>
@@ -227,7 +228,7 @@ export function SplitwiseImport({ yourName }: { yourName: string }) {
                   role="radio"
                   aria-checked={type === t.id}
                   onClick={() => setType(t.id)}
-                  className={`rounded-full py-2.5 text-sm ${type === t.id ? "bg-fg font-semibold text-canvas" : "text-gray-500"}`}
+                  className={`rounded-full py-2.5 text-sm ${type === t.id ? "shadow-[inset_0_0_0_1.5px_var(--color-fg)] font-semibold text-fg" : "text-gray-500"}`}
                 >
                   {t.label}
                 </button>
@@ -248,7 +249,7 @@ function ColumnSelect({ label, value, headers, onChange, none }: { label: string
   return (
     <label className="block text-sm">
       <span className="mb-1 block font-medium text-gray-600">{label}</span>
-      <select aria-label={`${label} column`} value={value} onChange={(e) => onChange(Number(e.target.value))} className={inputClass}>
+      <SelectField aria-label={`${label} column`} value={value} onChange={(e) => onChange(Number(e.target.value))}>
         {none && <option value={-1}>{none}</option>}
         {!none && value < 0 && <option value={-1}>Pick a column</option>}
         {headers.map((h, i) => (
@@ -256,7 +257,7 @@ function ColumnSelect({ label, value, headers, onChange, none }: { label: string
             {h || `Column ${i + 1}`}
           </option>
         ))}
-      </select>
+      </SelectField>
     </label>
   );
 }

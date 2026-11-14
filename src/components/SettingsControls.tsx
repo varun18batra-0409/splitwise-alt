@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { POPULAR_CURRENCIES, currencyInfo } from "@/lib/money";
+import { POPULAR_CURRENCIES } from "@/lib/money";
 import { CurrencyPicker } from "./CurrencyPicker";
 
 // Matching chip controls for Settings (instead of the phone's own dropdowns).
 // Each keeps a real form field with the same name, so the one Save sends it.
 
 const chip =
-  "flex min-h-11 items-center justify-center rounded-xl border border-line px-3 py-2 text-center text-sm font-medium has-[:checked]:border-accent has-[:checked]:bg-accent-soft has-[:checked]:text-accent-dark";
+  "flex min-h-11 items-center justify-center rounded-xl border border-fg/15 px-3 py-2 text-center text-sm font-medium text-fg/85 has-[:checked]:border-fg has-[:checked]:bg-accent-soft has-[:checked]:shadow-[inset_0_0_0_0.5px_var(--color-fg)] has-[:checked]:text-fg";
 
 export function ChipRadios({
   name,
@@ -62,8 +62,8 @@ export function SecondCurrencyChips({ groupCurrency, defaultValue }: { groupCurr
   const options = [
     { value: "", label: "Automatic" },
     { value: "none", label: "Off" },
-    ...popular.map((c) => ({ value: c, label: `${currencyInfo(c).flag} ${c}` })),
-    ...(extra ? [{ value: extra, label: `${currencyInfo(extra).flag} ${extra}` }] : []),
+    ...popular.map((c) => ({ value: c, label: c })),
+    ...(extra ? [{ value: extra, label: extra }] : []),
   ];
   return (
     <div>
@@ -76,7 +76,7 @@ export function SecondCurrencyChips({ groupCurrency, defaultValue }: { groupCurr
             role="radio"
             aria-checked={v === o.value}
             onClick={() => pick(o.value)}
-            className={`${chip} ${v === o.value ? "border-accent bg-accent-soft text-accent-dark" : ""}`}
+            className={`${chip} ${v === o.value ? "!border-fg bg-accent-soft shadow-[inset_0_0_0_0.5px_var(--color-fg)] !text-fg" : ""}`}
           >
             {o.label}
           </button>

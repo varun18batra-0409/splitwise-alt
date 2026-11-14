@@ -11,6 +11,14 @@ export function cardBalance(balance: number, format: (minor: number) => string):
   return { text: "square", tone: "square", spoken: "all square" };
 }
 
+// What Home's polaroids print under the handwritten name: "You owe ₹54,122" (orange), "Owed ₹3,450" (green), "✓ You’re square" (green: you, not necessarily everyone in the group).
+// Same balance as cardBalance, only the words differ. `tone` stays "square" when even, so tests and colours can tell it apart.
+export function cardStatus(balance: number, format: (minor: number) => string): { text: string; tone: CardTone } {
+  if (balance > 0) return { text: `Owed ${format(balance)}`, tone: "owed" };
+  if (balance < 0) return { text: `You owe ${format(-balance)}`, tone: "owe" };
+  return { text: "✓ You’re square", tone: "square" };
+}
+
 // The little tag on a trip's photo while the trip is on: "Day 2 of 5". Not shown before or after the trip.
 export function tripTag(phase: TripPhase | null | undefined): string | null {
   if (!phase) return null;

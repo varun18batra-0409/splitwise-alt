@@ -17,14 +17,14 @@ export default async function NewGamePage({ params, searchParams }: { params: Pr
   if (!myId || !group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
   if (group.type !== "pot") redirect(`/groups/${group.id}`);
   const chip =
-    "relative flex h-14 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-xl border border-line text-[13px] font-semibold has-[:checked]:border-fg has-[:checked]:bg-fg has-[:checked]:text-canvas has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent";
+    "relative flex h-12 cursor-pointer items-center justify-center rounded-[14px] border border-fg/15 px-1 text-center text-[13px] font-medium text-fg/55 has-[:checked]:border-[1.5px] has-[:checked]:border-fg has-[:checked]:text-fg has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent";
   return (
     <>
       <PageHeader title="Start a game" back={`/groups/${group.id}`} />
       {sp.error && <ErrorNote>{sp.error.slice(0, 160)}</ErrorNote>}
       {sp.first && (
-        <p className="-mt-3 mb-5 rounded-xl bg-owed/10 px-4 py-3 text-sm text-owed">
-          Your Game night is ready 🃏 Add the players below: just their names is fine, nobody has to join Loopin.
+        <p className="-mt-3 mb-5 rounded-[14px] border border-[#26262c] bg-[#16161a] px-4 py-3 text-sm text-fg">
+          Your Game night is ready. Add the players below: just their names is fine, nobody has to join Loopin.
         </p>
       )}
       <p className="-mt-3 mb-2 text-sm text-gray-500">Everyone puts chips in to play and takes home what’s left at the end. Loopin works out who came out ahead and who pays whom.</p>
@@ -37,7 +37,6 @@ export default async function NewGamePage({ params, searchParams }: { params: Pr
             {POT_GAMES.map((g, i) => (
               <label key={g.id} className={chip}>
                 <input type="radio" name="game" value={g.id} defaultChecked={i === 0} className="sr-only" />
-                <span aria-hidden className="text-base leading-none">{g.emoji}</span>
                 <span>{g.label}</span>
               </label>
             ))}
@@ -55,7 +54,7 @@ export default async function NewGamePage({ params, searchParams }: { params: Pr
             {group.members.map((m) => (
               <li key={m.id}>
                 <label className="flex cursor-pointer items-center gap-3 px-4 py-3">
-                  <input type="checkbox" name="players" value={m.id} defaultChecked className="h-5 w-5 accent-[#6fe3a8]" />
+                  <input type="checkbox" name="players" value={m.id} defaultChecked className="h-5 w-5" />
                   <span className="min-w-0 flex-1 truncate">{m.id === myId ? `${m.name} (you)` : m.name}</span>
                   {!m.accountId && <span className="text-[11px] text-gray-400">just a name</span>}
                 </label>

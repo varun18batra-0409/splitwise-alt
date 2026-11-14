@@ -4,6 +4,10 @@ import { getCategory } from "@/lib/categories";
 import { daysLeft, monthKey } from "@/lib/home/month";
 import { aheadBehind, monthSummary } from "@/lib/home/summary";
 import type { GroupView } from "./view";
+import { Amt } from "@/components/Amt";
+import { overviewMoney } from "@/lib/money-display";
+import { BillsIcon, CartIcon, ChevronRight, DepositIcon, PieIcon, PlusIcon } from "@/components/icons";
+import { ExpenseGlyph } from "@/components/ExpenseGlyph";
 
 // Extra parts of This month that come from bills, budgets, goals, the deposit
 // and insights (each section is hidden when it has nothing to show).
@@ -14,6 +18,7 @@ export type MonthExtras = {
   forecast?: { total: number; mine: number } | null;
   deposit?: { total: number; mine: number } | null;
   goals?: { id: string; name: string; saved: number; target: number }[];
+  shopping?: { items: { id: string; text: string }[]; total: number };
 };
 
 const card = "rounded-2xl border border-line bg-white";
@@ -39,21 +44,33 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
   const myPart = s.total > 0 ? Math.min(100, Math.max(0, Math.round((s.paidByMe * 100) / s.total))) : agreed;
   const change = s.total - s.lastTotal;
 
+  // The flat's own row of ways in: only the ones this group has (Deposit is for flats; couples have Bills, Shopping and Budget).
+  const tiles = [
+    { label: "Bills", href: `/groups/${group.id}?tab=bills`, icon: <BillsIcon size={24} /> },
+    { label: "Shopping", href: `/groups/${group.id}?tab=list`, icon: <CartIcon size={24} /> },
+    { label: "Budget", href: `/groups/${group.id}/budgets`, icon: <PieIcon size={24} /> },
+    ...(group.type === "home" ? [{ label: "Deposit", href: `/groups/${group.id}/deposit`, icon: <DepositIcon size={24} /> }] : []),
+  ];
+  const next = extras.upcoming?.[0];
+  const rest = extras.upcoming?.slice(1) ?? [];
+  const shop = extras.shopping;
+
   return (
     <div className="space-y-8">
+      {/* The month's money comes first; the shortcuts, next bill and shopping list follow. */}
       <section className="vault rounded-[24px] px-5 py-5">
         {couple ? (
           <>
             <p className="text-sm text-gray-500">{monthName} together</p>
-            <p className="mt-1 money text-[40px] font-semibold leading-none tracking-tight tabular-nums">{money(s.total)}</p>
+            <p className="mt-1 money text-[40px] font-semibold leading-none tracking-tight tabular-nums"><Amt minor={s.total} currency={group.currency} /></p>
             {s.lastTotal > 0 && (
               <p className="mt-1.5 text-sm text-gray-500">
-                {change <= 0 ? `${money(-change)} less than last month` : `${money(change)} more than last month`}
+                {change <= 0 ? <><Amt minor={-change} currency={group.currency} /> less than last month</> : <><Amt minor={change} currency={group.currency} /> more than last month</>}
               </p>
             )}
             <div className="my-4 h-px bg-line" />
-            <p className={`money text-[22px] font-semibold tabular-nums ${mine > 0 ? "text-owed" : mine < 0 ? "text-owe" : ""}`}>
-              {aheadBehind(mine) === "ahead" ? `Overall you’re ${money(mine)} ahead` : aheadBehind(mine) === "behind" ? `Overall you’re ${money(-mine)} behind` : "You’re even"}
+            <p className="money text-[22px] font-semibold tabular-nums">
+              {aheadBehind(mine) === "ahead" ? <>Overall you’re <span className="whitespace-nowrap text-owed" data-balance-line>{money(mine)}</span> ahead</> : aheadBehind(mine) === "behind" ? <>Overall you’re <span className="whitespace-nowrap text-owe" data-balance-line>{money(-mine)}</span> behind</> : "You’re even"}
             </p>
             {s.total > 0 && (
               <>
@@ -89,13 +106,13 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
               <p className="text-sm text-gray-500">{monthName} · your share</p>
               <p className="text-xs text-gray-500">{left === 0 ? "Last day" : left === 1 ? "1 day left" : `${left} days left`}</p>
             </div>
-            <p className="mt-1 money text-[40px] font-semibold leading-none tracking-tight tabular-nums">{money(s.mine)}</p>
-            <p className="mt-1.5 text-sm text-gray-500">of {money(s.total)} for the {group.type === "home" ? "home" : "group"} so far</p>
+            <p className="mt-1 money text-[40px] font-semibold leading-none tracking-tight tabular-nums"><Amt minor={s.mine} currency={group.currency} /></p>
+            <p className="mt-1.5 text-sm text-gray-500">of <Amt minor={s.total} currency={group.currency} /> for the {group.type === "home" ? "home" : "group"} so far</p>
             <div className="my-4 h-px bg-line" />
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className={`money text-[22px] font-semibold tabular-nums ${mine > 0 ? "text-owed" : mine < 0 ? "text-owe" : ""}`}>
-                  {mine > 0 ? `Overall you’re owed ${money(mine)}` : mine < 0 ? `Overall you owe ${money(-mine)}` : "Overall you’re all square"}
+                <p className="money text-[22px] font-semibold tabular-nums">
+                  {mine > 0 ? <>Overall you’re owed <span className="whitespace-nowrap text-owed" data-balance-line>{money(mine)}</span></> : mine < 0 ? <>Overall you owe <span className="whitespace-nowrap text-owe" data-balance-line>{money(-mine)}</span></> : "Overall you’re all square"}
                 </p>
                 {settleDayText && <p className="mt-0.5 text-xs text-gray-500">{settleDayText}</p>}
               </div>
@@ -109,7 +126,74 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
         )}
       </section>
 
-      {extras.upcoming && extras.upcoming.length > 0 && (
+      <nav aria-label="Your flat" data-flat-tiles className={`grid grid-cols-2 gap-2.5 ${tiles.length === 4 ? "min-[340px]:grid-cols-4" : "min-[340px]:grid-cols-3"}`}>
+        {tiles.map((t) => (
+          <Link key={t.label} href={t.href} className="flex flex-col items-center gap-2 rounded-[20px] border border-line bg-white px-2 py-4 text-fg/75 active:bg-fg/10">
+            {t.icon}
+            <span className="text-[13px] text-fg">{t.label}</span>
+          </Link>
+        ))}
+      </nav>
+
+      {next && (
+        <section aria-label="Next bill" data-next-bill className="rounded-[20px] border border-line bg-white p-4">
+          <div className="flex items-center gap-3.5">
+            <ExpenseGlyph title={next.name} category="bills" size={44} />
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] text-fg/60">Next bill</p>
+              <p className="break-words font-display text-[18px] font-semibold leading-tight tracking-tight">
+                {next.name}
+                {next.amount ? <> · <span className="money tabular-nums">{next.amount}</span></> : null}
+              </p>
+              <p className="text-[13px] text-fg/60">{next.when} · {next.who}</p>
+            </div>
+          </div>
+          <div className="mt-3.5 flex flex-wrap gap-2.5">
+            <Link href={`/groups/${group.id}/bills/${next.id}`} className="inline-flex min-h-11 items-center rounded-full border border-fg/25 px-4 text-sm font-semibold text-fg active:bg-fg/10">
+              View bill
+            </Link>
+            {next.status === "enter" && next.href && (
+              <Link href={next.href} className="inline-flex min-h-11 items-center rounded-full border border-fg/25 px-4 text-sm font-semibold text-fg active:bg-fg/10">
+                Enter amount
+              </Link>
+            )}
+          </div>
+        </section>
+      )}
+
+      {shop && (
+        <section aria-label="Shopping list" data-shopping-card className="rounded-[20px] border border-line bg-white p-4">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className={h2}>Shopping list</h2>
+            <Link href={`/groups/${group.id}?tab=list`} className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-fg">
+              <PlusIcon size={16} />
+              Add item
+            </Link>
+          </div>
+          {shop.items.length === 0 ? (
+            <p className="text-sm text-fg/60">Nothing on the list. Add what’s running low.</p>
+          ) : (
+            <ul>
+              {shop.items.map((i) => (
+                <li key={i.id} className="border-b border-line last:border-0">
+                  <Link href={`/groups/${group.id}?tab=list`} className="flex items-center gap-3 py-3">
+                    <span aria-hidden className="h-5 w-5 shrink-0 rounded-[6px] border-[1.5px] border-fg/40" />
+                    <span className="min-w-0 flex-1 truncate text-[15px]">{i.text}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          {shop.total > shop.items.length && (
+            <Link href={`/groups/${group.id}?tab=list`} className="mt-1 inline-flex min-h-11 items-center gap-1 text-sm text-fg/75">
+              See all {shop.total}
+              <ChevronRight size={14} />
+            </Link>
+          )}
+        </section>
+      )}
+
+      {rest.length > 0 && (
         <section>
           <div className="mb-1 flex items-baseline justify-between">
             <h2 className={h2}>Coming up</h2>
@@ -118,7 +202,7 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
             </Link>
           </div>
           <ul className="divide-y divide-line border-y border-line">
-            {extras.upcoming.map((b) => (
+            {rest.map((b) => (
               <li key={b.id} className="flex items-center gap-3 py-3">
                 <span className="min-w-0 flex-1">
                   <span className="block font-medium">{b.name}</span>
@@ -169,7 +253,7 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
                 <span className="h-2 overflow-hidden rounded-full bg-mist">
                   <span className="block h-full rounded-full bg-gray-600" style={{ width: `${Math.max(2, Math.round((Math.max(0, c.amount) * 100) / Math.max(1, s.byCategory[0].amount)))}%` }} />
                 </span>
-                <span className="text-right money tabular-nums">{money(c.amount)}</span>
+                <span className="text-right money tabular-nums"><Amt minor={c.amount} currency={group.currency} /></span>
               </li>
             ))}
           </ul>
@@ -190,22 +274,22 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
                 <div className="flex justify-between text-sm">
                   <span>{getCategory(b.category).label}</span>
                   <span>
-                    <span className={`money tabular-nums ${b.level === "over" ? "text-owe" : ""}`}>{money(b.spent)}</span>{" "}
+                    <span className={`money tabular-nums ${b.level === "over" ? "text-owe" : ""}`}><span title={money(b.spent)} data-exact={money(b.spent)}>{overviewMoney(b.spent, group.currency)}</span></span>{" "}
                     <span className="text-gray-500">of {money(b.amount)}</span>
                   </span>
                 </div>
                 <div className="mt-2 h-2 overflow-hidden rounded-full bg-mist">
                   <div
-                    className={`h-full rounded-full ${b.level === "over" ? "bg-meter-down" : b.level === "near" ? "bg-[#d9a441]" : "bg-meter-up"}`}
+                    className="h-full rounded-full bg-fg"
                     style={{ width: `${Math.min(100, Math.round((Math.max(0, b.spent) * 100) / Math.max(1, b.amount)))}%` }}
                   />
                 </div>
                 {b.level === "over" && (
                   <p className="mt-1.5 text-xs text-owe">
-                    {money(b.spent - b.amount)} over{left > 0 ? `, with ${left} ${left === 1 ? "day" : "days"} to go` : ""}
+                    {overviewMoney(b.spent - b.amount, group.currency)} over{left > 0 ? `, with ${left} ${left === 1 ? "day" : "days"} to go` : ""}
                   </p>
                 )}
-                {b.level === "near" && <p className="mt-1.5 text-xs text-gray-500">{money(b.amount - b.spent)} left for the month</p>}
+                {b.level === "near" && <p className="mt-1.5 text-xs text-gray-500">{overviewMoney(b.amount - b.spent, group.currency)} left for the month</p>}
               </li>
             ))}
           </ul>
@@ -224,7 +308,7 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
           {extras.deposit && (
             <Link href={`/groups/${group.id}/deposit`} className={`${card} p-3.5 text-fg`}>
               <p className="text-xs text-gray-500">Deposit</p>
-              <p className="mt-1 money text-[22px] font-semibold tabular-nums">{money(extras.deposit.total)}</p>
+              <p className="mt-1 money text-[22px] font-semibold tabular-nums" title={money(extras.deposit.total)} data-exact={money(extras.deposit.total)}>{money(extras.deposit.total)}</p>
               <p className="mt-0.5 text-xs text-gray-500">Yours {money(extras.deposit.mine)}</p>
             </Link>
           )}
@@ -240,7 +324,7 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
                 <span className="text-sm text-gray-500">{Math.min(100, Math.round((g.saved * 100) / Math.max(1, g.target)))}%</span>
               </div>
               <p className="mt-1 text-sm">
-                <span className="money tabular-nums">{money(g.saved)}</span> <span className="text-gray-500">of {money(g.target)} set aside</span>
+                <span className="money tabular-nums" title={money(g.saved)} data-exact={money(g.saved)}>{overviewMoney(g.saved, group.currency)}</span> <span className="text-gray-500">of {money(g.target)} set aside</span>
               </p>
               <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-mist">
                 <div className="h-full rounded-full bg-fg" style={{ width: `${Math.min(100, Math.round((g.saved * 100) / Math.max(1, g.target)))}%` }} />

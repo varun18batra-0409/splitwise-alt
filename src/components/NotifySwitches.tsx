@@ -12,7 +12,7 @@ type Off = Record<Channel, Record<string, boolean>>;
 
 function Track({ on }: { on: boolean }) {
   return (
-    <span aria-hidden className={`relative h-7 w-12 shrink-0 rounded-full transition-colors motion-reduce:transition-none ${on ? "bg-meter-up" : "bg-fg/15"}`}>
+    <span aria-hidden className={`relative h-7 w-12 shrink-0 rounded-full transition-colors motion-reduce:transition-none ${on ? "bg-fg" : "bg-fg/15"}`}>
       <span className={`absolute top-1 h-5 w-5 rounded-full bg-canvas transition-all motion-reduce:transition-none ${on ? "left-6" : "left-1"}`} />
     </span>
   );
@@ -75,7 +75,7 @@ export function NotifySwitches({ initial }: { initial: Off }) {
   return (
     <>
       {error && (
-        <p role="alert" className="mb-4 rounded-xl bg-owe/10 px-4 py-3 text-sm text-owe">
+        <p role="alert" className="mb-4 rounded-[20px] border border-line bg-white px-4 py-3 text-sm text-owe">
           {error}
         </p>
       )}

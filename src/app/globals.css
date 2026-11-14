@@ -21,7 +21,7 @@
   --color-canvas: #0d0d0f; /* page background */
   --color-white: #16161a; /* cards, sheets, inputs */
   --color-mist: #1f1f24; /* raised: chips, hover, tracks */
-  --color-line: #2b2b31; /* hairlines */
+  --color-line: #26262c; /* hairlines */
   --color-fg: #f4f2ec; /* primary text (warm off-white) */
   --color-ink: #f4f2ec;
 
@@ -39,11 +39,11 @@
   /* Actions are monochrome (off-white on black), like CRED. Colour is kept for money. */
   --color-accent: #f4f2ec; /* buttons, links, focus, selection */
   --color-accent-dark: #f4f2ec; /* selected / emphasised text */
-  --color-accent-soft: #232328; /* selected background */
+  --color-accent-soft: #1f1f24; /* selected background */
   --color-owed: #6fe3a8; /* "owed to you" amounts */
-  --color-owed-soft: #11281d;
+  --color-owed-soft: #16161a; /* a plain card: no tinted boxes */
   --color-owe: #ffab6b; /* "you owe" text */
-  --color-owe-soft: #2e1e12;
+  --color-owe-soft: #16161a;
   --color-meter-up: #25a96f; /* bars: checked for colour-blind contrast on the dark surface */
   --color-meter-down: #d4782a;
   --color-lagoon: #0d0d0f;
@@ -143,28 +143,11 @@ fieldset {
   }
 }
 
-/* The balance card: smoked glass with a soft light from the top corner and a fine bright edge. */
+/* The plain card: #16161a with a 1px #26262c edge. No gradient, glow or bright rim. */
 .vault {
   position: relative;
-  background:
-    radial-gradient(120% 80% at 100% 0%, rgb(244 242 236 / 0.08), transparent 55%),
-    linear-gradient(165deg, #1c1c21 0%, #131316 75%);
-  border: 1px solid transparent;
-  background-clip: padding-box;
-}
-.vault::before {
-  content: "";
-  position: absolute;
-  inset: -1px;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(135deg, rgb(244 242 236 / 0.4), rgb(244 242 236 / 0.04) 45%, rgb(244 242 236 / 0.18));
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
+  background: #16161a;
+  border: 1px solid #26262c;
 }
 
 /* The one orchestrated moment: meter bars sweep out from zero when the page opens. */
@@ -204,6 +187,68 @@ fieldset {
   :focus-visible {
     outline: 2px solid var(--color-accent);
     outline-offset: 2px;
+  }
+
+  /* Loopin's own tick boxes and round buttons (the phone's blue ones are switched off). */
+  input[type="checkbox"]:not(.sr-only):not(.appearance-none),
+  input[type="radio"]:not(.sr-only):not(.appearance-none) {
+    -webkit-appearance: none;
+    appearance: none;
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    margin: 0;
+    border: 1.5px solid rgb(244 242 236 / 0.4);
+    background-color: transparent;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 100% 100%;
+    cursor: pointer;
+  }
+  input[type="checkbox"]:not(.sr-only):not(.appearance-none) {
+    border-radius: 6px;
+  }
+  input[type="radio"]:not(.sr-only):not(.appearance-none) {
+    border-radius: 9999px;
+  }
+  input[type="checkbox"]:not(.sr-only):not(.appearance-none):checked {
+    background-color: #f4f2ec;
+    border-color: #f4f2ec;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%230d0d0f' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5.2 10.4 3.2 3.2 6.4-6.8'/%3E%3C/svg%3E");
+  }
+  input[type="radio"]:not(.sr-only):not(.appearance-none):checked {
+    background-color: #f4f2ec;
+    border-color: #f4f2ec;
+    background-image: radial-gradient(circle, #0d0d0f 0 3.5px, transparent 4px);
+  }
+  input[type="checkbox"]:not(.sr-only):not(.appearance-none):disabled,
+  input[type="radio"]:not(.sr-only):not(.appearance-none):disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  input[type="checkbox"]:not(.sr-only):not(.appearance-none):focus-visible,
+  input[type="radio"]:not(.sr-only):not(.appearance-none):focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  /* No phone triangle on "open/close" lines; a drawn chevron (.chev) shows where there is one. */
+  summary {
+    list-style: none;
+  }
+  summary::-webkit-details-marker {
+    display: none;
+  }
+  .chev {
+    transition: rotate 150ms ease;
+  }
+  details[open] > summary .chev {
+    rotate: 180deg;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chev {
+    transition: none;
   }
 }
 
@@ -383,6 +428,16 @@ form[aria-busy="true"] button[type="submit"] {
   animation: lp-drift 14s ease-in-out infinite alternate;
   transform-origin: 60% 40%;
 }
+/* The start screen's pictures settle in once. */
+@keyframes lp-settle {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+.lp-settle {
+  animation: lp-settle 520ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+}
 /* Cards give a little when pressed. */
 .lp-press {
   transition: transform 120ms ease-out;
@@ -393,6 +448,7 @@ form[aria-busy="true"] button[type="submit"] {
 @media (prefers-reduced-motion: reduce) {
   .lp-page,
   .lp-rise > *,
+  .lp-settle,
   .lp-drift {
     animation: none;
   }
@@ -742,4 +798,29 @@ body:has([data-tint]) {
 }
 .hit-lg::after {
   inset: -18px 0;
+}
+
+/* Emoji that draw in colour on every phone and computer (not a grey outline): used on reactions, the emoji picker and moment captions. */
+.emoji-font {
+  font-family: var(--font-sans, system-ui), system-ui, -apple-system, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+}
+.emoji-font-display {
+  font-family: var(--font-display, serif), "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", serif;
+}
+
+/* Payment recorded: the torn-off stub drops a few pixels and turns, once. With reduced motion it simply sits turned. */
+@keyframes lp-stub-drop {
+  from {
+    transform: translateY(-6px) rotate(0deg);
+  }
+}
+.lp-stub {
+  transform: rotate(-4deg);
+  transform-origin: 12% 0;
+  animation: lp-stub-drop 420ms cubic-bezier(0.2, 0.7, 0.2, 1) 1 both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-stub {
+    animation: none;
+  }
 }

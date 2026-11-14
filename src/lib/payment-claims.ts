@@ -1,5 +1,6 @@
 import { after } from "next/server";
 import { db } from "./db";
+import { hasLeft, LEFT_ERROR } from "./active";
 import { loadGroup } from "./group-data";
 import { logEvent } from "./events";
 import { formatMoney } from "./money";
@@ -100,6 +101,7 @@ export async function withdrawClaim(claimId: string, actorMemberId: string | und
   if (!claim) return { ok: false, error: notThere };
   if (!actorMemberId || claim.fromId !== actorMemberId) return { ok: false, error: "Only the person who said they paid can take it back." };
   if (claim.status === "withdrawn") return { ok: true, claimId };
+  if (await hasLeft(claim.groupId, actorMemberId)) return { ok: false, error: LEFT_ERROR }; // someone who left can't change anything in the group
   if (claim.status !== "waiting") return { ok: false, error: claim.status === "confirmed" ? "It’s already confirmed, so it can’t be taken back." : "That one isn’t waiting any more." };
   const done = await db.paymentClaim.updateMany({ where: { id: claim.id, status: "waiting" }, data: { status: "withdrawn", slot: claim.id, decidedAt: new Date(), decidedById: actorMemberId } });
   if (done.count !== 1) {

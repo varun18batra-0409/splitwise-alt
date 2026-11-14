@@ -154,7 +154,7 @@ export function GetAppButton({ variant = "icon", className = "" }: { variant?: "
           <span className="block text-sm font-medium">Get the Loopin app</span>
           <span className="block text-xs text-gray-400">On your home screen in seconds</span>
         </span>
-        <button type="button" onClick={go} className="pop shrink-0 bg-fg px-4 py-2 text-sm font-semibold text-canvas [--pop-edge:#6e6b63]">
+        <button type="button" onClick={go} className="shrink-0 rounded-full border border-fg/25 bg-transparent px-4 py-2 text-sm font-semibold text-fg transition-transform active:scale-[0.97]">
           {prompt ? "Install" : "Get it"}
         </button>
         {variant === "banner" && (

@@ -5,6 +5,7 @@ import { getMyMemberId, privatePath } from "@/lib/identity";
 import { loadGroup } from "@/lib/group-data";
 import { getTimeZone } from "@/lib/tz";
 import { formatMoney } from "@/lib/money";
+import { Amt } from "@/components/Amt";
 import { dateRange, tripReport } from "@/lib/trip-report";
 import { PageHeader } from "@/components/ui";
 import { TripShare } from "@/components/TripShare";
@@ -22,7 +23,8 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
   if (!myId || !data.group.members.some((m) => m.id === myId)) redirect(await privatePath(id));
   const { group, expenses, transfers } = data;
   const r = tripReport({ name: group.name, type: group.type, currency: group.currency, members: group.members, expenses, transfers, tz: await getTimeZone() });
-  const m = (x: number) => formatMoney(x, group.currency);
+  const m = (x: number) => <Amt minor={x} currency={group.currency} />; // whole units from 1,000 up; exact in the tooltip / data-exact
+  const exact = (x: number) => formatMoney(x, group.currency); // the settle-up lines stay exact
   const title = group.type === "trip" ? "Trip report" : "Group report";
 
   return (
@@ -44,7 +46,9 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
             <h1 className="mt-1 font-display text-[28px] font-semibold leading-tight">{group.name}</h1>
             <p className="mt-4 money text-[40px] font-semibold leading-none tabular-nums">{m(r.total)}</p>
             <p className="mt-2 text-sm text-fg/70">
-              {[r.people > 1 ? `about ${m(r.perPerson)} each` : "", r.days > 1 ? `${m(r.perDay)} a day` : ""].filter(Boolean).join(" · ")}
+              {r.people > 1 && <>about {m(r.perPerson)} each</>}
+              {r.people > 1 && r.days > 1 && " · "}
+              {r.days > 1 && <>{m(r.perDay)} a day</>}
             </p>
 
             <ul className="mt-6 space-y-3">
@@ -61,7 +65,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
                     </span>
                   </div>
                   <div className="mt-1 h-1.5 rounded-full bg-line">
-                    <div className="meter-bar h-1.5 origin-left rounded-full bg-owed" style={{ width: `${Math.max(2, c.pct)}%` }} />
+                    <div className="meter-bar h-1.5 origin-left rounded-full bg-fg" style={{ width: `${Math.max(2, c.pct)}%` }} />
                   </div>
                   </Link>
                 </li>
@@ -113,7 +117,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
                       {s.from} → {s.to}
                     </span>
                     {/* The colour rule: orange only when it is money you pay, green when it is coming to you, plain when it is between two others. */}
-                    <span className={`tabular-nums ${s.fromId === myId ? "text-owe" : s.toId === myId ? "text-owed" : "text-fg/80"}`}>{m(s.amount)}</span>
+                    <span className={`tabular-nums ${s.fromId === myId ? "text-owe" : s.toId === myId ? "text-owed" : "text-fg/80"}`}>{exact(s.amount)}</span>
                   </li>
                 ))}
               </ul>

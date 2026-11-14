@@ -121,6 +121,13 @@ export async function deleteAccount(accountId: string, opts: { keepEndpoint?: st
       await tx.loginCode.deleteMany({ where: { email: acc.email } });
       await tx.postcard.deleteMany({ where: { id: { in: cards.map((c) => c.id) } } });
       await tx.postcardPhoto.deleteMany({ where: { id: { in: goneIds } } });
+      // Moments they added go too, photos and all (reactions on them with them). Reactions they made elsewhere stay, like
+      // reactions on expenses, under the group's own name.
+      const mine = await tx.moment.findMany({ where: { authorAccountId: accountId }, select: { id: true, blobKey: true, thumbKey: true } });
+      await queuePhotoDeletes(tx, mine.flatMap((m) => [m.blobKey, m.thumbKey]));
+      await tx.momentReaction.deleteMany({ where: { momentId: { in: mine.map((m) => m.id) } } });
+      await tx.moment.deleteMany({ where: { authorAccountId: accountId } });
+      // Open reports about those moments are left open on purpose: the operator still sees them (repeat offenders stay visible).
       await tx.passkey.deleteMany({ where: { accountId } });
       // Collections they organised hold other people's names under their account: they go too.
       await tx.collection.deleteMany({ where: { accountId } });

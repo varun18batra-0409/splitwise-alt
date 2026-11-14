@@ -306,4 +306,36 @@ describe("loadPassport counts only trips you really joined", () => {
     expect(pending.id).not.toBe(opened.id);
     expect(left.id).not.toBe(opened.id);
   });
+  it("the faces on your own trip cards: none for a group you were removed from, and only people who joined and weren't removed", async () => {
+    const me = await account("LxMe");
+    const kim = await account("Kim Lee");
+    const pat = await account("Pat");
+    const rob = await account("Rob");
+    const mk = async (label: string, myRemoved: boolean) => {
+      const base = { claimedAt: new Date(), addedBy: "", seenAt: null };
+      const g = await db.group.create({
+        data: {
+          name: `Lx${label} ${stamp}`, type: "trip", inviteCode: `lx-${label}-${stamp}`, tripStart: "2024-03-01", tripEnd: "2024-03-05", tripPlace: "Bangkok", tripCountry: "TH",
+          members: {
+            create: [
+              { ...base, name: "LxMe", accountId: me.id, createdAt: new Date(2024, 0, 1), ...(myRemoved ? { leftAt: new Date(), removedAt: new Date(), removedById: "admin" } : {}) },
+              { ...base, name: "Kim Lee", accountId: kim.id, createdAt: new Date(2024, 0, 2) },
+              { ...base, name: "Pat", accountId: pat.id, createdAt: new Date(2024, 0, 3), addedBy: "someone-else" }, // never opened it
+              { ...base, name: "Rob", accountId: rob.id, createdAt: new Date(2024, 0, 4), leftAt: new Date(), removedAt: new Date(), removedById: "admin" },
+            ],
+          },
+        },
+      });
+      groupIds.push(g.id);
+      return g;
+    };
+    const inG = await mk("In", false);
+    const outG = await mk("Out", true);
+    const p = await loadPassport({ id: me.id, homeCountry: "IN", places: "" }, "IN", "2025-01-01");
+    expect(p.extras[inG.id]).toEqual({ names: ["Kim"] }); // not Pat (never opened it), not Rob (removed), not me
+    expect(p.extras[outG.id]).toBeUndefined(); // removed from this one: no faces at all
+    // A friend's view never gets faces.
+    const f = await loadPassport({ id: me.id, homeCountry: "IN", places: "" }, "IN", "2025-01-01", { forFriend: true });
+    expect(f.extras).toEqual({});
+  });
 });

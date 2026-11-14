@@ -16,9 +16,10 @@ const seen = () => {
 };
 import { useEffect, useMemo, useRef, useState } from "react";
 import { decimalsOf, formatMoney } from "@/lib/money";
+import { CameraIcon } from "./MomentIcons";
 
-// The intro tour, in the visitor's own currency: six swipeable slides (make a group, add what you paid,
-// see who owes then settle, every trip becomes a story, send a postcard, collect your passport), each with a small animated picture. Shown to
+// The intro tour, in the visitor's own currency: seven swipeable slides (make a group, add what you paid,
+// see who owes then settle, every trip becomes a story, send a postcard, keep moments, collect your passport), each with a small animated picture. Shown to
 // first-time visitors on the home screen, and any time at /welcome (the "1-minute tour" link in How Loopin works).
 
 type Slide = { id: string; title: string; caption: string; art: React.ReactNode };
@@ -43,11 +44,10 @@ function Cheers() {
   const shots: [CoverChoice, string, number, string][] = [
     ["beach", "Trip", -9, "rise-2"],
     ["city", "Home", 2, "rise-3"],
-    ["couple", "Us", 10, "rise-4"],
+    ["couple", "Couple", 10, "rise-4"],
   ];
   return (
     <div className="relative flex flex-col items-center">
-      <span aria-hidden className="absolute -top-6 left-1/2 h-40 w-64 -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(216,189,122,0.18),transparent)]" />
       <div className="relative flex items-end">
         {shots.map(([kind, label, tilt, d], i) => (
           <span key={label} className={`rise ${d} relative block w-[96px] bg-[#f4f1e8] p-[5px] pb-0 shadow-[0_16px_28px_-12px_rgba(0,0,0,0.95)] ${i ? "-ml-4" : ""}`} style={{ transform: `rotate(${tilt}deg) translateY(${i === 1 ? -10 : 0}px)`, zIndex: i === 1 ? 2 : 1 }}>
@@ -91,20 +91,20 @@ function PostcardArt() {
 // A passport page with three stamps (place names only).
 function PassportArt() {
   return (
-    <div className="rise relative w-full max-w-[260px] rounded-[22px] border border-[#d8bd7a]/35 bg-[radial-gradient(120%_80%_at_50%_0%,#2a2620_0%,#16161a_70%)] p-5 shadow-[0_24px_40px_-18px_rgba(0,0,0,0.95)]" data-tour-passport>
-      <p className="text-center text-[11px] font-semibold uppercase tracking-[0.28em] text-[#e8d29a]">Passport</p>
+    <div className="rise relative w-full max-w-[260px] rounded-[22px] border border-line bg-white p-5 shadow-[0_24px_40px_-18px_rgba(0,0,0,0.95)]" data-tour-passport>
+      <p className="text-center text-[13px] font-semibold text-fg/55">Passport</p>
       <div className="mt-4 grid grid-cols-3 gap-2">
         {["Goa", "Lisbon", "Bangkok"].map((place, i) => (
           <span
             key={place}
-            className="flex aspect-square items-center justify-center rounded-full border-2 border-[#d8bd7a]/60 px-1 text-center font-hand text-[16px] font-bold leading-none text-[#e8d29a]"
+            className="flex aspect-square items-center justify-center rounded-full border-2 border-fg/40 px-1 text-center font-display text-[13px] font-semibold leading-none text-fg/75"
             style={{ transform: `rotate(${[-8, 5, -3][i]}deg)` }}
           >
             {place}
           </span>
         ))}
       </div>
-      <p className="mt-4 text-center font-hand text-[19px] font-bold text-[#ffd9a8]">3 stamps and counting</p>
+      <p className="mt-4 text-center text-sm text-fg/75">3 stamps and counting</p>
     </div>
   );
 }
@@ -113,19 +113,19 @@ function PassportArt() {
 // Only things Wrapped really shows: the total, the biggest splurge, who paid most, the busiest day.
 function StoryPoster({ L }: { L: Local }) {
   return (
-    <div className="rise relative w-full max-w-[260px] overflow-hidden rounded-[24px] border border-line bg-[radial-gradient(120%_70%_at_50%_0%,#2a2620_0%,#16161a_65%,#0d0d0f_100%)] p-4 shadow-[0_24px_40px_-18px_rgba(0,0,0,0.95)]">
+    <div className="rise relative w-full max-w-[260px] overflow-hidden rounded-[24px] border border-line bg-white p-4 shadow-[0_24px_40px_-18px_rgba(0,0,0,0.95)]">
       <div className="flex gap-1" aria-hidden>
         {[0, 1, 2, 3, 4].map((i) => (
           <span key={i} className={`h-[3px] flex-1 rounded-full ${i < 2 ? "bg-fg" : "bg-fg/25"}`} />
         ))}
       </div>
-      <p className="mt-6 font-hand text-[22px] font-bold leading-none text-[#d8bd7a]">{L.india ? "Goa, wrapped" : "Lake weekend, wrapped"}</p>
+      <p className="mt-6 text-[13px] font-medium leading-none text-fg/60">{L.india ? "Goa, wrapped" : "Lake weekend, wrapped"}</p>
       <p className="mt-2 font-display text-[34px] font-semibold leading-[1.02] tracking-tight text-fg">{L.m(L.india ? 48600 : 1240)}</p>
       <p className="mt-1 text-xs text-fg/60">4 of you · about {L.m(L.india ? 12150 : 310)} each</p>
       <ul className="mt-5 space-y-2 border-t border-fg/10 pt-4" data-story-lines>
         {["The splurge", "Where the money went", "The biggest day"].map((t, i) => (
           <li key={t} className={`rise rise-${i + 2} flex items-baseline gap-2.5 font-display text-[19px] font-semibold leading-tight tracking-tight text-fg`}>
-            <span aria-hidden className="font-hand text-[15px] font-bold text-[#d8bd7a]">
+            <span aria-hidden className="text-[13px] font-medium text-fg/55">
               {i + 1}
             </span>
             {t}
@@ -149,6 +149,24 @@ function local(currency: string, india: boolean): Local {
   };
 }
 
+// A moment, drawn: a photo, a few words, the day and a reaction. (No real photo: it's only a picture of the idea.)
+function MomentArt() {
+  return (
+    <Card className="!p-0 overflow-hidden">
+      <div className="rise flex h-[120px] items-center justify-center bg-mist text-fg/55">
+        <CameraIcon size={34} />
+      </div>
+      <div className="px-4 pb-4 pt-3">
+        <p className="rise rise-2 font-display text-[20px] font-semibold leading-snug">The boat we almost missed</p>
+        <p className="rise rise-2 mt-0.5 text-[13px] text-fg/55">Day 3 · Only your group</p>
+        <span className="rise rise-3 mt-3 inline-flex h-9 items-center gap-1.5 rounded-full border-[1.5px] border-fg px-3 text-sm tabular-nums">
+          <span aria-hidden>😂</span> 4
+        </span>
+      </div>
+    </Card>
+  );
+}
+
 function makeSlides(L: Local): Slide[] {
   const v = L.india ? { dinner: 1200, each: 300, back: 900 } : { dinner: 120, each: 30, back: 90 };
   return [
@@ -164,16 +182,21 @@ function makeSlides(L: Local): Slide[] {
       caption: "Type it, scan the bill or just say it. Loopin splits it to the last paisa or cent, in any currency.",
       art: (
         <Card>
-          <p className="rise text-xs text-gray-400">Beach dinner · you paid</p>
-          <p className="rise rise-2 mt-1 font-display text-[40px] font-semibold leading-none tracking-tight">{L.m(v.dinner)}</p>
-          <div className="rise rise-3 mt-4 grid grid-cols-2 gap-2">
-            {["You", "Asha", "Ravi", "Meera"].map((n) => (
-              <span key={n} className="flex items-center gap-2 rounded-xl bg-mist px-2.5 py-2 text-sm">
-                <Dot name={n} tone="bg-canvas" />
-                <span className="min-w-0 flex-1 truncate">{n}</span>
-                <span className="tabular-nums text-fg/80">{L.m(v.each)}</span>
+          <p className="rise text-xs text-gray-400">Beach dinner</p>
+          <p className="rise rise-2 mt-1 font-display text-[34px] font-semibold leading-none tracking-tight">{L.m(v.dinner)}</p>
+          <div className="rise rise-3 mt-4 space-y-2">
+            <span className="flex items-center gap-2.5 rounded-[14px] bg-mist px-3 py-2.5 text-sm">
+              <Dot name="You" tone="bg-canvas" />
+              <span className="min-w-0 flex-1 truncate">Paid by You</span>
+              <span className="text-fg/75">Change</span>
+            </span>
+            <span className="flex items-center gap-2.5 rounded-[14px] bg-mist px-3 py-2.5 text-sm">
+              <span className="min-w-0 flex-1">
+                <span className="block truncate">Split between 4 people</span>
+                <span className="block truncate text-xs text-fg/55">Equally · {L.m(v.each)} each</span>
               </span>
-            ))}
+              <span className="text-fg/75">Change</span>
+            </span>
           </div>
           <p className={`rise rise-4 mt-4 text-right text-sm font-semibold ${owed}`}>You’re owed {L.m(v.back)}</p>
         </Card>
@@ -216,6 +239,12 @@ function makeSlides(L: Local): Slide[] {
       title: "Send a postcard.",
       caption: "Pick a photo from the trip, write a line and send it to a friend, in Loopin or on WhatsApp.",
       art: <PostcardArt />,
+    },
+    {
+      id: "moment",
+      title: "Keep the little moments.",
+      caption: "Add one photo and a few words to your trip group. Only the people in it see them.",
+      art: <MomentArt />,
     },
     {
       id: "passport",
@@ -311,7 +340,7 @@ export function IntroTour({
               else if (!last) go(active + 1);
             }}
           >
-            <h1 className="font-display text-[40px] font-semibold leading-[1.05] tracking-tight">{s.title}</h1>
+            <h1 className="font-display text-[32px] font-semibold leading-[1.1] tracking-tight">{s.title}</h1>
             <div className="flex flex-1 items-center justify-center py-8">{s.art}</div>
             <p className="min-h-[3.5rem] text-center text-sm text-gray-500">{s.caption}</p>
           </section>
@@ -330,16 +359,17 @@ export function IntroTour({
             className="rounded-full px-4 py-2 text-sm font-medium text-gray-600 active:bg-mist disabled:opacity-0"
             data-tour-back
           >
-            ← Back
+            Back
           </button>
           <span className="text-xs tabular-nums text-gray-400" data-tour-at>
             {active + 1} / {slides.length}
           </span>
           <button type="button" onClick={() => go(last ? 0 : active + 1)} className="rounded-full px-4 py-2 text-sm font-medium text-fg active:bg-mist" data-tour-next>
-            {last ? "↺ See it again" : "Next →"}
+            {last ? "See it again" : "Next"}
           </button>
         </div>
-        {last && (
+        {/* One link under the button: sign-in when it applies, otherwise the guide. */}
+        {last && !signInHref && (
           <Link href="/how-it-works" onClick={seen} className="block text-center text-xs text-gray-500" data-tour-guide-link>
             <span className="font-medium text-fg underline underline-offset-4">Every feature, explained</span>
           </Link>

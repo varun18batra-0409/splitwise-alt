@@ -1,5 +1,6 @@
 import Link from "@/components/Link";
 import { PeoplePassportsIcon } from "@/components/DrawnIcons";
+import { LockIcon } from "@/components/PassportIcons";
 import { getAccount } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
 import { todayKey } from "@/lib/dates";
@@ -54,7 +55,7 @@ export default async function FriendsPassports({ searchParams }: { searchParams:
         <p className="py-6 text-center text-sm text-gray-500">Nobody matches “{q}”.</p>
       ) : owners.length === 0 ? (
         <div className="rounded-2xl bg-mist px-5 py-8 text-center">
-          <span aria-hidden className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-owed/40 text-owed">
+          <span aria-hidden className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-fg/25 text-fg/75">
             <PeoplePassportsIcon size={26} />
           </span>
           <p className="mt-2 font-semibold">No friends here yet</p>
@@ -87,9 +88,11 @@ export default async function FriendsPassports({ searchParams }: { searchParams:
                         .join(" · ")}
                     </span>
                   </span>
-                  <span className="shrink-0 text-base tracking-tight" aria-hidden>
-                    {f.private ? "🔒" : f.countries.slice(0, 4).map((c) => countryOf(c)?.flag).join("")}
-                  </span>
+                  {f.private && (
+                    <span className="shrink-0 text-fg/55" aria-hidden>
+                      <LockIcon size={16} />
+                    </span>
+                  )}
                   <span aria-hidden className="text-gray-400">
                     ›
                   </span>

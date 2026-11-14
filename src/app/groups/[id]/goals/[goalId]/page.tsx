@@ -11,6 +11,8 @@ import { dayKey } from "@/lib/dates";
 import { getTimeZone } from "@/lib/tz";
 import { FreshKey } from "@/components/FreshKey";
 import { leaverOf } from "@/lib/left-view-db";
+import { DateField } from "@/components/DateField";
+import { ChevronDown } from "@/components/icons";
 
 // A savings goal ("new" to start one): the ring, what a month gets you there,
 // and "I set money aside". The money stays in people's own accounts.
@@ -53,7 +55,7 @@ export default async function GoalPage({
           </label>
           <label className="block">
             <span className="mb-2 block text-sm text-gray-500">By when? (optional)</span>
-            <input name="byDate" type="date" className={inputClass} />
+            <DateField name="byDate" />
           </label>
           <button type="submit" className={primaryButtonClass}>
             Start goal
@@ -163,13 +165,13 @@ export default async function GoalPage({
       )}
 
       <details className="mt-8">
-        <summary className="cursor-pointer text-sm text-gray-500">Change or remove this goal</summary>
+        <summary className="cursor-pointer text-sm text-gray-500">Change or remove this goal <ChevronDown size={14} className="chev ml-1.5 inline-block align-[-2px] text-fg/55" /></summary>
         <form action={saveGoal} className="mt-4 space-y-4">
           <input type="hidden" name="groupId" value={group.id} />
           <input type="hidden" name="goalId" value={goal.id} />
           <input name="name" defaultValue={goal.name} maxLength={40} aria-label="Goal name" className={inputClass} />
           <input name="target" defaultValue={toInputAmount(goal.target, group.currency)} inputMode="decimal" aria-label="Target" className={inputClass} />
-          <input name="byDate" type="date" defaultValue={goal.byDate} aria-label="By when" className={inputClass} />
+          <DateField name="byDate" defaultValue={goal.byDate} aria-label="By when" />
           <button type="submit" className={secondaryButtonClass}>
             Save changes
           </button>

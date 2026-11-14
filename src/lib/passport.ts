@@ -8,7 +8,8 @@ import { continentOf } from "./continents";
 // "Been there" stamp, kept apart from the trip ones. The counts are of places,
 // not stamps: Italy three times is still one country. Pure.
 
-export type PassportTrip = { groupId: string; name: string; start: string; end: string; place: string; country: string; people: number };
+// undated: the trip has no dates of its own (its day was guessed from the spending), so it adds no "days away".
+export type PassportTrip = { groupId: string; name: string; start: string; end: string; place: string; country: string; people: number; undated?: boolean };
 export type HandPlace = { c: string };
 export type Stamp = {
   id: string;
@@ -110,19 +111,19 @@ export function buildPassport(trips: PassportTrip[], hand: HandPlace[], home: st
 
   // Milestones worth showing off.
   const milestones: string[] = [];
-  if (abroad.some((r) => r.trips > 0)) milestones.push("First trip abroad ✈️");
+  if (abroad.some((r) => r.trips > 0)) milestones.push("First trip abroad");
   const top = (ladder: Mark["ladder"]) => marks.filter((m) => m.ladder === ladder).pop();
   const countriesMark = top("countries");
   if (countriesMark) milestones.push(countriesMark.chip);
-  else if (abroad.length >= 3) milestones.push(`${abroad.length} countries abroad 🌍`);
+  else if (abroad.length >= 3) milestones.push(`${abroad.length} countries abroad`);
   const continentsMark = top("continents");
   if (continentsMark && continentsMark.n >= 3) milestones.push(continentsMark.chip);
   for (const r of rows) for (const city of r.cities) {
     const n = cityTrips.get(`${r.code}|${city.toLowerCase()}`) ?? 0;
-    if (n >= 3) milestones.push(`${city} ×${n} 🔁`);
+    if (n >= 3) milestones.push(`${city} ×${n}`);
   }
-  if (stats.thisYear >= 3) milestones.push(`${stats.thisYear} trips this year 🔥`);
-  if (stats.trips >= 10) milestones.push("10 trips club 🏅");
+  if (stats.thisYear >= 3) milestones.push(`${stats.thisYear} trips this year`);
+  if (stats.trips >= 10) milestones.push("10 trips club");
 
   // Badges: about where you go and how, never about money.
   const mood = (t: PassportTrip) => tripEmoji(`${t.name} ${t.place}`);
@@ -147,6 +148,32 @@ export function buildPassport(trips: PassportTrip[], hand: HandPlace[], home: st
   return { stamps, been, index: rows, stats, milestones, badges, marks };
 }
 
+const DAY_MS = 86_400_000;
+const isDay = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`));
+const dayNo = (s: string) => Math.round(Date.parse(`${s}T00:00:00Z`) / DAY_MS);
+
+// How many days a trip lasts, both ends counted: 5–10 May is 6. No end date: 1. Not dated: 0.
+export function tripDays(start: string, end: string): number {
+  if (!isDay(start)) return 0;
+  if (!isDay(end) || end <= start) return 1;
+  return Math.min(366, dayNo(end) - dayNo(start) + 1);
+}
+
+// "Days away": the distinct days spent on trips that have started. A trip still going counts only up to
+// today; trips that overlap count each day once; a trip without dates counts 0, a trip with no end date 1;
+// a trip that hasn't started counts 0. Pure.
+export function daysAway(trips: { start: string; end: string; undated?: boolean }[], today: string): number {
+  const days = new Set<number>();
+  for (const t of trips) {
+    if (t.undated || !isDay(t.start) || t.start > today) continue;
+    const last = isDay(t.end) && t.end > t.start ? (t.end < today ? t.end : today) : t.start;
+    const from = dayNo(t.start);
+    const to = Math.min(dayNo(last), from + 365);
+    for (let d = from; d <= to; d++) days.add(d);
+  }
+  return days.size;
+}
+
 // Passport moments: crossing 5, 10, 25… countries, a new continent, 10 cities.
 // Each has an id so it's celebrated once (an alert), never again. Never about money.
 export type Mark = { id: string; ladder: "abroad" | "countries" | "continents" | "cities" | "trips"; n: number; chip: string; title: string; body: string };
@@ -158,15 +185,15 @@ const LADDERS = {
 };
 export function passportMarks(stats: { countries: number; continents: number; cities: number; trips: number }, beenAbroad: boolean): Mark[] {
   const out: Mark[] = [];
-  if (beenAbroad) out.push({ id: "abroad-1", ladder: "abroad", n: 1, chip: "Been abroad ✈️", title: "✈️ Your first stamp from abroad", body: "Your passport has its first country beyond home. Open it to see the stamp." });
+  if (beenAbroad) out.push({ id: "abroad-1", ladder: "abroad", n: 1, chip: "Been abroad", title: "Your first stamp from abroad", body: "Your passport has its first country beyond home. Open it to see the stamp." });
   for (const n of LADDERS.countries.filter((x) => stats.countries >= x))
-    out.push({ id: `countries-${n}`, ladder: "countries", n, chip: `${n} countries 🌍`, title: `🌍 ${n} countries`, body: `Your passport just reached ${n} countries. Open it to see every stamp.` });
+    out.push({ id: `countries-${n}`, ladder: "countries", n, chip: `${n} countries`, title: `${n} countries`, body: `Your passport just reached ${n} countries. Open it to see every stamp.` });
   for (const n of LADDERS.continents.filter((x) => stats.continents >= x))
-    out.push({ id: `continents-${n}`, ladder: "continents", n, chip: `${n} continents 🧭`, title: n === 7 ? "🧭 All seven continents" : `🧭 ${n} continents`, body: n === 7 ? "Every continent on Earth. Very few passports can say that." : `You’ve now been to ${n} continents. Your map is filling in.` });
+    out.push({ id: `continents-${n}`, ladder: "continents", n, chip: `${n} continents`, title: n === 7 ? "All seven continents" : `${n} continents`, body: n === 7 ? "Every continent on Earth. Very few passports can say that." : `You’ve now been to ${n} continents. Your map is filling in.` });
   for (const n of LADDERS.cities.filter((x) => stats.cities >= x))
-    out.push({ id: `cities-${n}`, ladder: "cities", n, chip: `${n} cities 🏙️`, title: `🏙️ ${n} cities`, body: `${n} different cities on your Loopin trips. Open your passport to see them all.` });
+    out.push({ id: `cities-${n}`, ladder: "cities", n, chip: `${n} cities`, title: `${n} cities`, body: `${n} different cities on your Loopin trips. Open your passport to see them all.` });
   for (const n of LADDERS.trips.filter((x) => stats.trips >= x))
-    out.push({ id: `trips-${n}`, ladder: "trips", n, chip: `${n} trips 🏅`, title: `🏅 ${n} trips with Loopin`, body: `That’s ${n} trips split and settled. Here’s to the next one.` });
+    out.push({ id: `trips-${n}`, ladder: "trips", n, chip: `${n} trips`, title: `${n} trips with Loopin`, body: `That’s ${n} trips split and settled. Here’s to the next one.` });
   return out;
 }
 

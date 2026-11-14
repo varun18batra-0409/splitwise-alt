@@ -1,6 +1,7 @@
 import { PassportCompare } from "@/components/PassportCompare";
 import { notFound, redirect } from "next/navigation";
 import Link from "@/components/Link";
+import { LockIcon } from "@/components/PassportIcons";
 import { db } from "@/lib/db";
 import { getMyMemberId, privatePath } from "@/lib/identity";
 import { getTimeZone } from "@/lib/tz";
@@ -54,7 +55,7 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
   const lines: string[] = [];
   const most = [...visible].sort((a, b) => b.codes.length - a.codes.length)[0];
   if (most && visible.length > 1 && most.codes.length > (visible.find((x) => x !== most)?.codes.length ?? 0))
-    lines.push(`🧭 Most travelled: ${most.mine ? "you" : first(most.m.name)}, ${most.codes.length} ${most.codes.length === 1 ? "country" : "countries"}`);
+    lines.push(`Most travelled: ${most.mine ? "you" : first(most.m.name)}, ${most.codes.length} ${most.codes.length === 1 ? "country" : "countries"}`);
   // Every country only one of you has been to, person by person, and the ones you've all been to.
   const onlyBy =
     visible.length > 1
@@ -72,8 +73,9 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
       <PageHeader title="Our passports" back={back} />
       <section aria-label="Together" className="rounded-[22px] border border-line bg-white px-5 py-5">
         <p className="text-sm text-gray-500">{group.name}</p>
-        <p className="mt-1 font-display text-[28px] font-semibold leading-tight" data-group-countries={together.length}>
-          {together.length === 0 ? "No countries yet" : `Between you: ${together.length} ${together.length === 1 ? "country" : "countries"}`}
+        {together.length > 0 && <p className="mt-1 text-[15px] text-fg/75">Between you</p>}
+        <p className="mt-0.5 font-display text-[28px] font-semibold leading-tight" data-group-countries={together.length}>
+          {together.length === 0 ? "No countries yet" : <span className="whitespace-nowrap">{together.length} {together.length === 1 ? "country" : "countries"}</span>}
         </p>
         {lines.length > 0 && (
           <ul className="mt-4 space-y-1.5 text-sm text-fg/85">
@@ -121,9 +123,11 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
                   </span>
                   <span className="block truncate text-xs text-gray-400">{sub}</span>
                 </span>
-                <span className="shrink-0 text-base" aria-hidden>
-                  {state === "private" || state === "unshared" ? "🔒" : codes.slice(0, 4).map((c) => countryOf(c)?.flag).join("")}
-                </span>
+                {(state === "private" || state === "unshared") && (
+                  <span className="shrink-0 text-fg/55" aria-hidden>
+                    <LockIcon size={16} />
+                  </span>
+                )}
                 <span aria-hidden className="text-gray-400">
                   ›
                 </span>

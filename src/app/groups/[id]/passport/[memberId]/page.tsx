@@ -22,7 +22,7 @@ export default async function MemberPassport({ params }: { params: Promise<{ id:
     <>
       <PageHeader title={`${first}’s passport`} back={`/groups/${id}?tab=balances`} />
       <div className="rounded-2xl bg-mist px-5 py-8 text-center">
-        <span aria-hidden className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-owed/40 text-owed">
+        <span aria-hidden className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-fg/25 text-fg/75">
           <PassportIcon size={26} />
         </span>
         <p className="mt-2 font-semibold">{first} isn’t on Loopin yet</p>

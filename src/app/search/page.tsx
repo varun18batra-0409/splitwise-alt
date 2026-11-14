@@ -14,6 +14,7 @@ import { nextDueDay } from "@/lib/home/bills";
 import { niceDate } from "@/lib/format";
 import { getTimeZone } from "@/lib/tz";
 import { formatMoney } from "@/lib/money";
+import { overviewMoney } from "@/lib/money-display";
 import { ActivityRow } from "@/components/ActivityRow";
 import { itemHref } from "@/lib/paths";
 import { PageHeader } from "@/components/ui";
@@ -163,7 +164,7 @@ export default async function SearchPage({
     catHref: (id) => href({ c: id }),
   };
   const chip = (on: boolean) =>
-    `shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-sm ${on ? "border-fg bg-fg font-medium text-canvas" : "border-line text-gray-600 active:bg-mist"}`;
+    `shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-sm ${on ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] font-medium text-fg" : "border-fg/15 text-fg/85 active:bg-mist"}`;
   const periodName = period.month ? monthLabel(period.month) : period.year ?? "All time";
   const monthLabelShort = (week: string) => new Date(`${week}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
   const back = groupId ? `/groups/${groupId}` : "/";
@@ -196,9 +197,13 @@ export default async function SearchPage({
         )}
       </h2>
       {sum.count > 0 && (
-        <p className="mb-4 text-sm text-gray-500">
-          {sum.count} {sum.count === 1 ? "expense" : "expenses"} · {sum.totals.map((t) => formatMoney(t.spent, t.currency)).join(" + ")} spent · my cut{" "}
-          {sum.totals.map((t) => formatMoney(t.mine, t.currency)).join(" + ")}
+        <p
+          className="mb-4 text-sm text-gray-500"
+          title={`${sum.totals.map((t) => formatMoney(t.spent, t.currency)).join(" + ")} spent · my cut ${sum.totals.map((t) => formatMoney(t.mine, t.currency)).join(" + ")}`}
+          data-exact={`${sum.totals.map((t) => formatMoney(t.spent, t.currency)).join(" + ")} | ${sum.totals.map((t) => formatMoney(t.mine, t.currency)).join(" + ")}`}
+        >
+          {sum.count} {sum.count === 1 ? "expense" : "expenses"} · {sum.totals.map((t) => overviewMoney(t.spent, t.currency)).join(" + ")} spent · my cut{" "}
+          {sum.totals.map((t) => overviewMoney(t.mine, t.currency)).join(" + ")}
         </p>
       )}
 

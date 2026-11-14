@@ -51,12 +51,12 @@ export function titleIconPath(title: string): string {
   return PATHS[BY_TITLE[title] ?? "medal"];
 }
 
-// A gold-rimmed medallion with the title's icon in the accent colour.
-export function TitleIcon({ title, size = 44, accent = "#6fe3a8" }: { title: string; size?: number; accent?: string }) {
+// An off-white-rimmed medallion with the title's icon in the accent colour.
+export function TitleIcon({ title, size = 44, accent = "#f4f2ec" }: { title: string; size?: number; accent?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden fill="none">
-      <circle cx="24" cy="24" r="22.5" fill="#141417" stroke="#d8bd7a" strokeOpacity="0.75" strokeWidth="1.5" />
-      <circle cx="24" cy="24" r="19" stroke="#d8bd7a" strokeOpacity="0.28" strokeWidth="1" strokeDasharray="1.2 2.4" />
+      <circle cx="24" cy="24" r="22.5" fill="#141417" stroke="#f4f2ec" strokeOpacity="0.75" strokeWidth="1.5" />
+      <circle cx="24" cy="24" r="19" stroke="#f4f2ec" strokeOpacity="0.28" strokeWidth="1" strokeDasharray="1.2 2.4" />
       <g transform="translate(12 12)">
         <path d={titleIconPath(title)} stroke={accent} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
       </g>

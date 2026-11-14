@@ -133,7 +133,7 @@ export function PhoneStatus({ compact = false }: { compact?: boolean }) {
   return (
     <section className={compact ? "rounded-2xl border border-line p-4" : "mb-4 rounded-2xl border border-line p-4"} data-phone-status>
       <div className="flex items-center gap-3">
-        <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#d8bd7a]/45 text-[#e8d29a]">
+        <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-fg/25 text-fg/75">
           <BellIcon size={20} />
         </span>
         <div className="min-w-0 flex-1">
@@ -150,7 +150,7 @@ export function PhoneStatus({ compact = false }: { compact?: boolean }) {
             aria-label="Notifications on this phone"
             disabled={state === "working"}
             onClick={on ? turnOff : turnOn}
-            className={`relative h-8 w-14 shrink-0 rounded-full transition-colors disabled:opacity-60 ${on ? "bg-owed" : "bg-gray-300"}`}
+            className={`relative h-8 w-14 shrink-0 rounded-full transition-colors disabled:opacity-60 ${on ? "bg-fg" : "bg-fg/15"}`}
           >
             <span className={`absolute top-1 h-6 w-6 rounded-full bg-canvas transition-all ${on ? "left-7" : "left-1"}`} />
           </button>

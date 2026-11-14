@@ -20,8 +20,8 @@ describe("passport moments", () => {
     const ids = p.marks.map((m) => m.id);
     expect(ids).toEqual(expect.arrayContaining(["abroad-1", "countries-5", "continents-2", "continents-3"]));
     expect(ids).not.toContain("countries-10");
-    expect(p.milestones).toContain("5 countries 🌍");
-    expect(p.milestones).toContain("3 continents 🧭");
+    expect(p.milestones).toContain("5 countries");
+    expect(p.milestones).toContain("3 continents");
     expect(newestMark(p.marks, new Set())?.id).toBe("continents-3");
     expect(newestMark(p.marks, new Set(ids))).toBeUndefined();
   });

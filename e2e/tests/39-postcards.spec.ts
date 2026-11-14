@@ -29,7 +29,7 @@ test("Postcards: write from a group, the other person receives it, turns it over
   await A.getByRole("button", { name: "Look: Golden hour" }).click();
   await A.getByRole("button", { name: "Tape" }).click();
   await expect(A.locator("[data-postcard-front] [data-touch='tape']").first()).toBeVisible();
-  await A.getByRole("tab", { name: "Back" }).click();
+  await A.getByRole("tab", { name: "Note" }).click();
   await A.getByRole("button", { name: "Same time next year?" }).click();
   await A.getByRole("button", { name: "Bottle green ink" }).click();
   await A.getByRole("button", { name: "Wax seal" }).click();
@@ -68,7 +68,7 @@ test("Postcards: write from a group, the other person receives it, turns it over
   await R.locator("[data-send-new]").click();
   await R.waitForURL(/\/postcards\/new\?from=/);
   await settled(R);
-  await R.getByRole("tab", { name: "Back" }).click();
+  await R.getByRole("tab", { name: "Note" }).click();
   await expect(R.getByRole("textbox", { name: "Your message" })).toHaveValue("");
   await R.goto("/postcards");
   await settled(R);
@@ -81,7 +81,7 @@ test("Postcards: write from a group, the other person receives it, turns it over
   await A.locator("[data-send-again]").click();
   await A.waitForURL(/\/postcards\/new\?from=/);
   await settled(A);
-  await A.getByRole("tab", { name: "Back" }).click();
+  await A.getByRole("tab", { name: "Note" }).click();
   await expect(A.getByRole("textbox", { name: "Your message" })).toHaveValue(/fancy dinner/);
   await A.getByRole("tab", { name: "Send" }).click();
   await A.getByRole("button", { name: "A year from today" }).click();

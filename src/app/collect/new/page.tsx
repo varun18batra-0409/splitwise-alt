@@ -23,8 +23,8 @@ export default async function NewCollection() {
       <>
         <PageHeader title="Collect money" back="/" />
         <section className="vault rounded-[24px] px-6 py-8 text-fg">
-          <p className="font-hand text-[26px] font-bold leading-none text-fg/80">Chasing 30 people for {example}?</p>
-          <h1 className="mt-3 font-display text-2xl font-semibold leading-tight">One link. People pay you directly and mark it; you confirm when it arrives.</h1>
+          <p className="font-hand text-[22px] font-bold leading-none text-fg/75">Chasing 30 people for {example}?</p>
+          <h1 className="mt-3 font-display text-[clamp(20px,6vw,22px)] font-semibold leading-snug tracking-tight">One link. People pay you directly and mark it; you confirm when it arrives.</h1>
           <p className="mt-2 text-sm text-fg/60">
             Sign in first so the collection is saved to you. It takes about 30 seconds and there’s no password. The people paying don’t need to sign up.
           </p>

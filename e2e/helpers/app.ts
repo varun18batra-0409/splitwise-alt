@@ -54,6 +54,12 @@ export async function joinGroup(page: Page, invite: string, groupPath: string) {
   await page.waitForURL(new RegExp(`${groupPath}$`));
 }
 
+// Add expense says "<Payer> paid, split equally between all 4": tapping a part of that sentence opens the payer and split controls.
+export async function openSplit(page: Page) {
+  if (!(await page.locator("[data-split-panel]").count())) await page.locator("[data-row-paid]").first().click();
+  await page.locator("[data-split-panel]").waitFor();
+}
+
 // Add an expense, paid by the person adding it, split "Everyone equally"
 // (src/components/AddExpenseForm.tsx).
 export async function addEqualExpense(page: Page, groupPath: string, name: string, amount: string) {
@@ -61,6 +67,7 @@ export async function addEqualExpense(page: Page, groupPath: string, name: strin
   await settled(page);
   await page.locator("#expense-name").fill(name);
   await page.getByLabel("Amount", { exact: true }).fill(amount);
+  await openSplit(page);
   await page.getByRole("button", { name: "Everyone equally" }).click();
   await page.getByRole("button", { name: "Save expense" }).click();
   await afterSave(page);
@@ -101,7 +108,10 @@ export async function readBalances(page: Page, groupPath: string): Promise<Recor
   for (const row of await rows.all()) {
     const name = (await row.locator(".font-medium").first().innerText()).replace(/ \(you\)$/, "").trim();
     const text = (await row.locator("span.money").last().innerText()).replace(/\s+/g, " ");
-    const amount = toPaise(/[\d,]+(\.\d+)?/.exec(text)?.[0] ?? "0"); // "gets ₹600" or "owes EUR 15"
+    // The row shows whole units from 1,000 up; the exact amount rides in data-balance, and that is what is checked.
+    const exactEl = row.locator("[data-balance]").first();
+    const exact = (await exactEl.count()) ? ((await exactEl.getAttribute("data-balance")) ?? "") : text;
+    const amount = toPaise(/[\d,]+(\.\d+)?/.exec(exact)?.[0] ?? "0"); // "gets ₹600" or "owes EUR 15"
     out[name] = text.startsWith("gets") ? amount : text.startsWith("owes") ? -amount : 0;
   }
   return out;

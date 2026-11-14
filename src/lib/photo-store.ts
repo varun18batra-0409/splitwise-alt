@@ -10,7 +10,9 @@ export const blobOn = () => Boolean(process.env.VERCEL && (process.env.BLOB_READ
 
 const EMPTY = () => new Uint8Array(new ArrayBuffer(0));
 
-export async function storePhoto(folder: "group" | "postcard" | "receipt", bytes: Uint8Array, type: string): Promise<{ blobKey: string; data: Uint8Array<ArrayBuffer> }> {
+// `dbFallback: false` (moments): when file storage is connected and a file can't be saved this throws, instead of putting a
+// 1 MB photo in the database. With file storage off (local and tests) the bytes go in the row as before.
+export async function storePhoto(folder: "group" | "postcard" | "receipt" | "moment", bytes: Uint8Array, type: string, opts: { dbFallback?: boolean } = {}): Promise<{ blobKey: string; data: Uint8Array<ArrayBuffer> }> {
   const asDb = () => {
     const data = new Uint8Array(new ArrayBuffer(bytes.length));
     data.set(bytes);
@@ -23,7 +25,8 @@ export async function storePhoto(folder: "group" | "postcard" | "receipt", bytes
     await put(key, Buffer.from(bytes), { access: "private", contentType: type, addRandomSuffix: false });
     return { blobKey: key, data: EMPTY() };
   } catch (err) {
-    console.error("photo store: kept in the database", String(err).slice(0, 160));
+    if (opts.dbFallback === false) throw err;
+    console.error("photo store: kept in the database", Array.from(String(err)).slice(0, 160).join(""));
     return asDb();
   }
 }
@@ -36,7 +39,7 @@ export async function readPhoto(row: { data: Uint8Array; blobKey?: string | null
     if (!r || r.statusCode !== 200 || !r.stream) return null;
     return new Uint8Array(await new Response(r.stream).arrayBuffer());
   } catch (err) {
-    console.error("photo store: read failed", String(err).slice(0, 160));
+    console.error("photo store: read failed", Array.from(String(err)).slice(0, 160).join(""));
     return null;
   }
 }
@@ -81,12 +84,14 @@ export async function flushPhotoDeletes(limit = 50, now = new Date()): Promise<{
     if (!due.length) return result;
     const keys = due.map((d) => d.key);
     // A file a photo row still points at must never be deleted.
-    const [g, r, p] = await Promise.all([
+    const [g, r, p, mo] = await Promise.all([
       db.groupPhoto.findMany({ where: { blobKey: { in: keys } }, select: { blobKey: true } }),
       db.receipt.findMany({ where: { blobKey: { in: keys } }, select: { blobKey: true } }),
       db.postcardPhoto.findMany({ where: { blobKey: { in: keys } }, select: { blobKey: true } }),
+      db.moment.findMany({ where: { OR: [{ blobKey: { in: keys } }, { thumbKey: { in: keys } }] }, select: { blobKey: true, thumbKey: true } }),
     ]);
     const used = new Set([...g, ...r, ...p].map((x) => x.blobKey));
+    for (const m of mo) for (const k of [m.blobKey, m.thumbKey]) if (keys.includes(k)) used.add(k); // a moment has two files
     if (used.size) {
       await db.blobTrash.deleteMany({ where: { key: { in: [...used] } } });
       result.kept = used.size;
@@ -99,7 +104,7 @@ export async function flushPhotoDeletes(limit = 50, now = new Date()): Promise<{
       await del(todo.map((d) => d.key));
     } catch (err) {
       // "Not found" means it's already gone, which is what we wanted.
-      if (!notFound(err)) error = String(err).slice(0, 160);
+      if (!notFound(err)) error = Array.from(String(err)).slice(0, 160).join("");
     }
     if (!error) {
       await db.blobTrash.deleteMany({ where: { key: { in: todo.map((d) => d.key) } } });
@@ -113,8 +118,8 @@ export async function flushPhotoDeletes(limit = 50, now = new Date()): Promise<{
     }
     result.failed = todo.length;
   } catch (err) {
-    console.error("photo store: clean-up failed", String(err).slice(0, 160));
-    result.error = String(err).slice(0, 160);
+    console.error("photo store: clean-up failed", Array.from(String(err)).slice(0, 160).join(""));
+    result.error = Array.from(String(err)).slice(0, 160).join("");
     result.failed = Math.max(result.failed, 1);
   }
   return result;
@@ -134,7 +139,7 @@ export async function removePhotos(keys: (string | null | undefined)[]) {
     const { db } = await import("./db");
     await queuePhotoDeletes(db, list);
   } catch (err) {
-    console.error("photo store: couldn't queue delete", String(err).slice(0, 160));
+    console.error("photo store: couldn't queue delete", Array.from(String(err)).slice(0, 160).join(""));
     return;
   }
   await flushPhotoDeletes();

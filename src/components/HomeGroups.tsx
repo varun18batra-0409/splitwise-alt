@@ -2,12 +2,12 @@ import Image from "next/image";
 import Link from "@/components/Link";
 import { Polaroid } from "@/components/Polaroid";
 import type { CoverChoice } from "@/lib/covers";
-import { CARD_ROW_MAX, cardBalance, rowEnd } from "@/lib/home/group-card";
+import { CARD_ROW_MAX, cardBalance, cardStatus, rowEnd } from "@/lib/home/group-card";
 
 // "Your groups" on Home: a row of polaroids you swipe sideways. Each shows the group's own picture, its name in handwriting,
-// and where you stand (green when you're owed, orange when you owe, "square" when even). A trip that is on carries a small
+// and its status under it ("You owe ₹54,122" in orange, "Owed ₹3,450" and "✓ You’re square" in green). A trip that is on carries a small
 // tag on its photo ("Day 2 of 5"). Cards tilt a little, alternately; the tilt is off for people who ask for less motion.
-// The first card is a dashed "+ New group" (one tap to the new-group page); the polaroids are 124px wide so the next one peeks in.
+// The first card is a dashed "+ New group" (one tap to the new-group page); the polaroids are 140px wide so the next one peeks in.
 
 export type GroupCardData = {
   id: string;
@@ -47,8 +47,9 @@ export function GroupCards({ groups, total }: { groups: GroupCardData[]; total: 
       {shown.map((g, i) => {
         const b = cardBalance(g.balance, g.show ?? g.money);
         const exact = cardBalance(g.balance, g.money);
+        const status = cardStatus(g.balance, g.show ?? g.money);
         return (
-          <li key={g.id} className="w-[124px] shrink-0 snap-start">
+          <li key={g.id} className="w-[140px] shrink-0 snap-start">
             <Link
               href={`/groups/${g.id}`}
               aria-label={`${g.name}, ${exact.spoken}${g.tag ? `, ${g.tag}` : ""}`}
@@ -62,16 +63,17 @@ export function GroupCards({ groups, total }: { groups: GroupCardData[]; total: 
                 uid={`home-${g.id}`}
                 letter={g.name}
                 caption={g.name}
-                note={b.text}
-                noteTone={b.tone === "square" ? undefined : b.tone}
-                photoClass="h-[99px]"
-                captionClass="text-[19px]"
-                noteClass="text-[12px]"
+                note={status.text}
+                noteTone={status.tone === "square" ? "owed" : status.tone}
+                photoClass="h-[112px]"
+                captionClass="text-[20px]"
+                noteClass="text-[12.5px]"
                 wrapCaption
-                sizes="124px"
-                className="w-[124px]"
+                wrapNote
+                sizes="140px"
+                className="w-[140px]"
               >
-                {g.photo && <Image src={g.photo} alt="" aria-hidden fill sizes="124px" quality={70} className="object-cover" />}
+                {g.photo && <Image src={g.photo} alt="" aria-hidden fill sizes="140px" quality={75} className="object-cover" />}
                 {g.tag && (
                   <span className="absolute left-1.5 top-1.5 rounded-full bg-black/65 px-2 py-0.5 text-[11px] font-semibold leading-tight text-[#f7f4ec] backdrop-blur-sm" data-trip-tag>
                     {g.tag}
@@ -83,7 +85,7 @@ export function GroupCards({ groups, total }: { groups: GroupCardData[]; total: 
         );
       })}
       {end && (
-        <li className="flex w-[124px] shrink-0 snap-start">
+        <li className="flex w-[140px] shrink-0 snap-start">
           <Link
             href="/groups"
             className="flex min-h-[44px] flex-1 items-center justify-center rounded-md border border-dashed border-fg/25 px-3 text-center text-sm font-medium text-fg/80 active:bg-mist"

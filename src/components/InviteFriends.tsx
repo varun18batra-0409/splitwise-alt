@@ -30,7 +30,7 @@ export function InviteFriends({ name, className = "" }: { name?: string | null; 
   }
   return (
     <button type="button" onClick={share} className={`lp-press flex w-full items-center gap-3 rounded-2xl border border-line px-4 py-3.5 text-left active:bg-mist ${className}`}>
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-owed/15 text-owed" aria-hidden>
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-mist text-fg/75" aria-hidden>
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
           <circle cx="9" cy="8" r="3.5" />
           <path d="M2.5 20c.9-3.4 3.4-5.5 6.5-5.5s5.6 2.1 6.5 5.5M18 8v6M15 11h6" />

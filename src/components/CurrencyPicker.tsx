@@ -59,8 +59,7 @@ export function CurrencyPicker({
                       c.code === value ? "bg-accent-soft" : "active:bg-gray-50"
                     }`}
                   >
-                    <span className="text-lg">{c.flag}</span>
-                    <span className="w-11 font-medium">{c.code}</span>
+                    <span className="w-12 font-semibold">{c.code}</span>
                     <span className="truncate text-gray-500">{c.name}</span>
                     {c.code === value && <span className="ml-auto text-accent">✓</span>}
                   </button>

@@ -5,7 +5,7 @@ import type { Db } from "./events";
 // Deleted groups: whoever deleted them or looks after them can restore them for 30 days (RESTORE_DAYS).
 // After that, the daily job erases them for good, as the privacy page says:
 // the group, its people, expenses, payments, history, bills, list, budgets,
-// goals, deposit, photos and receipts. Groups that were only closed are never touched.
+// goals, deposit, photos, receipts and moments (with their photo files). Groups that were only closed are never touched.
 
 export async function eraseExpiredGroups(now = new Date(), limit = 100): Promise<number> {
   const before = new Date(now.getTime() - RESTORE_DAYS * 86_400_000);
@@ -49,11 +49,16 @@ export async function eraseGroups(allIds: string[], opts: { afterRead?: () => Pr
       await tx.reaction.deleteMany({ where: { member: inG() } });
       // Photo files in file storage go too (group picture and bill photos). Their keys go on the to-delete list in the
       // same step as the rows: a failed delete is then tried again later, never forgotten.
+      const moments = await tx.moment.findMany({ where: inG(), select: { id: true, blobKey: true, thumbKey: true } });
       const files = [
         ...(await tx.groupPhoto.findMany({ where: inG(), select: { blobKey: true } })),
         ...(await tx.receipt.findMany({ where: inG(), select: { blobKey: true } })),
       ].map((f) => f.blobKey);
-      await queuePhotoDeletes(tx, files);
+      await queuePhotoDeletes(tx, [...files, ...moments.flatMap((m) => [m.blobKey, m.thumbKey])]);
+      await tx.momentReaction.deleteMany({ where: { momentId: { in: moments.map((m) => m.id) } } });
+      await tx.moment.deleteMany({ where: inG() });
+      // The group is gone for good, so there is nothing left to look at: close the open reports about its moments.
+      await tx.report.updateMany({ where: { kind: "moment", targetId: { in: moments.map((m) => m.id) }, status: "open" }, data: { status: "resolved", resolvedAt: new Date() } });
       await tx.expenseShare.deleteMany({ where: { expense: inG() } });
       await tx.expenseItem.deleteMany({ where: { expense: inG() } });
       await tx.expense.deleteMany({ where: inG() });

@@ -248,3 +248,191 @@ export function stripWords(place: string, p: TripPhase): { pre: string; num?: st
   if (p.kind === "during") return { pre: `${place}, day ${p.day} of ${p.of}`, post: "" };
   return null;
 }
+
+// ---- Home's boarding-pass money card ----
+// One ticket: a stub with the group's picture, then the route ("You ┄ ✈ Nupur"), the amount, the group's name and ONE action.
+// Money going both ways is two lines on the same ticket, never netted together. Nothing here changes a number: every amount is a
+// per-person total from moneyPeople (the same figures Settle up shows), added only within one currency.
+
+export type GroupMark = "plane" | "house" | "heart" | "spade" | "dot";
+
+// The little mark on the route line: a plane for trips, a house for flats, a heart for couples, a spade for game nights, else a dot.
+export function groupMark(type: string): GroupMark {
+  return type === "trip" ? "plane" : type === "home" ? "house" : type === "couple" ? "heart" : type === "pot" ? "spade" : "dot";
+}
+
+// A group the money runs through. `weight`: how much of it is with you, in the common currency (0 when there is no saved rate).
+export type InvolvedGroup = { id: string; name: string; type: string; weight: number };
+
+// Most money first; ties by name then id, so the stub never flickers between two groups.
+export function rankGroups(groups: InvolvedGroup[]): InvolvedGroup[] {
+  return [...groups].sort((a, b) => b.weight - a.weight || a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+}
+
+// The grey line under the amount: the group's name, "Thailand Trip and 2 more" when the money spans several groups.
+export function ticketContext(ranked: InvolvedGroup[]): string {
+  if (ranked.length === 0) return "";
+  const rest = ranked.length - 1;
+  return rest === 0 ? ranked[0].name : `${ranked[0].name} and ${rest} more`;
+}
+
+// "3 flatmates" when everyone is from a flat, else "3 people".
+export function crowdWord(types: string[]): "flatmates" | "people" {
+  return types.length > 0 && types.every((t) => t === "home") ? "flatmates" : "people";
+}
+
+// The two ends of the route line. First names only (the card is narrow); you are always "You".
+export function routeEnds(side: "owe" | "owed", firstNames: string[], crowd: "flatmates" | "people"): { from: string; to: string } {
+  const them = firstNames.length === 1 ? firstNames[0] : `${firstNames.length} ${side === "owed" ? crowd : "people"}`;
+  return side === "owe" ? { from: "You", to: them } : { from: them, to: "You" };
+}
+
+// The first name as written, whole ("Bhagyalakshmi"), for button words. A button that is too narrow cuts it with "…" in the
+// browser (CSS), so nothing is ever dropped here; firstName above (12 letters at most) is for the narrow route line.
+export function firstWord(name: string): string {
+  return name.trim().split(/\s+/)[0] || name.trim();
+}
+
+export function initialOf(name: string): string {
+  return ([...name.trim()][0] ?? "?").toUpperCase();
+}
+
+// The amount for one side: per-person totals added within each currency, a currency never added into another
+// ("₹4,200 · $20"). Amounts follow Home's rule (homeMoney); `exact` is the full amount for the tooltip and screen readers.
+export function sideTotal(entries: MoneyPerson[]): { text: string; exact: string } {
+  const order: string[] = [];
+  const sums = new Map<string, { amount: number; approx: boolean }>();
+  for (const e of entries) {
+    const s = sums.get(e.currency) ?? { amount: 0, approx: false };
+    if (!sums.has(e.currency)) order.push(e.currency);
+    s.amount += e.amount;
+    s.approx ||= e.approx;
+    sums.set(e.currency, s);
+  }
+  const text = order.map((c) => `${sums.get(c)!.approx ? "≈ " : ""}${homeMoney(sums.get(c)!.amount, c)}`).join(" · ");
+  const exact = order.map((c) => `${sums.get(c)!.approx ? "≈ " : ""}${formatMoney(sums.get(c)!.amount, c)}`).join(" · ");
+  return { text, exact };
+}
+
+// How big the amount can be drawn so it always fits (the amount is never the thing that gets cut).
+export function amountTier(text: string): "xl" | "l" | "m" {
+  const n = [...text].length;
+  return n <= 9 ? "xl" : n <= 12 ? "l" : "m";
+}
+
+export type TicketAction = { key: "pay" | "remind" | "settle" | "new-group"; label: string; fullLabel: string; href: string; bright: boolean };
+export type TicketLine = {
+  side: "owe" | "owed";
+  count: number; // people on this side
+  phrase: string; // "You owe Nupur", "Kabir owes you", "3 people owe you"
+  name: string; // "Nupur" / "3 flatmates"
+  amount: string;
+  exact: string;
+  faces: string[]; // initials, largest first (up to 3), only when there are several people
+  peopleHref: string; // Settle up, scrolled to this side
+  action: TicketAction;
+};
+export type Ticket =
+  | { kind: "square"; label: string; amount: string } // no button: the "+ New group" tile below is the only way to start one
+  | { kind: "neutral"; label: string; amount: string; exact?: string; context: string; action: TicketAction }
+  | { kind: "one"; line: TicketLine; from: string; to: string; mark: GroupMark; context: string }
+  | { kind: "both"; lines: [TicketLine, TicketLine]; mark: GroupMark; context: string };
+
+function distinctPeople(entries: MoneyPerson[]): MoneyPerson[] {
+  const seen = new Set<string>();
+  return entries.filter((e) => (seen.has(e.key) ? false : (seen.add(e.key), true)));
+}
+
+function ticketLine(side: "owe" | "owed", entries: MoneyPerson[], common: string, groups: InvolvedGroup[], short: boolean): TicketLine {
+  const people = distinctPeople(entries);
+  const top = people[0];
+  const count = people.length;
+  const total = sideTotal(entries);
+  const types = people.flatMap((p) => p.parts.map((x) => groups.find((g) => g.id === x.groupId)?.type ?? "")).filter(Boolean);
+  const crowd = crowdWord(types);
+  const name = count === 1 ? firstName(top.name) : `${count} ${side === "owed" ? crowd : "people"}`;
+  const peopleHref = side === "owe" ? "/settle#pay" : "/settle#remind";
+  const remind = count === 1 ? remindHref(top) : null;
+  const action: TicketAction =
+    side === "owe"
+      ? {
+          key: "pay",
+          label: short && count > 1 ? "Pay" : `Pay ${firstWord(top.name)}`,
+          fullLabel: `Pay ${top.name} ${top.approx ? "≈ " : ""}${formatMoney(top.amount, top.currency)}`,
+          // Several people in a both-ways ticket: the list where each has a row; otherwise the biggest person's row.
+          href: short && count > 1 ? peopleHref : payHref(top, common),
+          bright: true,
+        }
+      : count === 1
+        ? { key: "remind", label: `Remind ${firstWord(top.name)}`, fullLabel: `Remind ${top.name} on WhatsApp`, href: remind ?? peopleHref, bright: !short }
+        : { key: "remind", label: short ? "Remind" : "See who to remind", fullLabel: `See the ${count} people who owe you, to remind them`, href: peopleHref, bright: !short };
+  const phrase = side === "owe" ? `You owe ${count === 1 ? top.name : name}` : count === 1 ? `${top.name} owes you` : `${name} owe you`;
+  return { side, count, phrase, name, amount: total.text, exact: total.exact, faces: count > 1 ? people.slice(0, 3).map((p) => initialOf(p.name)) : [], peopleHref, action };
+}
+
+// ---- The ticket at the top of ONE group ----
+// Same ticket as Home, for this group only. The numbers are the group's own: `mine` is your balance there (what the page already
+// shows) and `transfers` are its Smart Settle payments. Nothing is worked out again here: it only decides which sides to show.
+export type GroupSide = { side: "owe" | "owed"; amount: number; names: string[] };
+
+// Who you pay / who pays you, largest payment first. Money both ways is two sides and is never netted; otherwise one side, with
+// your own balance as the amount (|mine|), exactly as the page showed it before. Nothing owed: no sides (all square).
+export function groupTicketSides(x: { mine: number; myId: string; transfers: { from: string; to: string; amount: number }[]; nameOf: (id: string) => string }): GroupSide[] {
+  const toMe = x.transfers.filter((t) => t.to === x.myId && t.amount > 0).sort((a, b) => b.amount - a.amount);
+  const fromMe = x.transfers.filter((t) => t.from === x.myId && t.amount > 0).sort((a, b) => b.amount - a.amount);
+  const sum = (l: { amount: number }[]) => l.reduce((t, e) => t + e.amount, 0);
+  if (toMe.length > 0 && fromMe.length > 0) {
+    return [
+      { side: "owe", amount: sum(fromMe), names: fromMe.map((t) => x.nameOf(t.to)) },
+      { side: "owed", amount: sum(toMe), names: toMe.map((t) => x.nameOf(t.from)) },
+    ];
+  }
+  if (x.mine === 0) return [];
+  return x.mine > 0
+    ? [{ side: "owed", amount: x.mine, names: toMe.map((t) => x.nameOf(t.from)) }]
+    : [{ side: "owe", amount: -x.mine, names: fromMe.map((t) => x.nameOf(t.to)) }];
+}
+
+// The one quiet line under the amount: "3 payments clear it", "1 payment clears it". Short so it stays on one line at 320px.
+export function clearsLine(payments: number, _groupType?: string): string {
+  if (payments <= 0) return "Nobody owes anybody";
+  return `${payments === 1 ? "1 payment clears" : `${payments} payments clear`} it`;
+}
+
+// Builds the ticket from what Home already knows. `owe` / `owed`: moneyPeople for each side (largest first). `groups`: every group
+// with a payment between you and someone. `hero`: the card's existing total, used only when no one can be named.
+export function homeTicket(x: {
+  mode: MoneyMode;
+  acrossCurrencies: boolean;
+  owe: MoneyPerson[];
+  owed: MoneyPerson[];
+  common: string;
+  hero: { text: string; exact?: string };
+  groups: InvolvedGroup[];
+}): Ticket {
+  if (x.mode === "square") return { kind: "square", label: "Nobody owes anybody", amount: "All square" };
+  const ranked = rankGroups(x.groups);
+  const mark = groupMark(ranked[0]?.type ?? "");
+  const context = ticketContext(ranked);
+  const owe = distinctPeople(x.owe).length > 0;
+  const owed = distinctPeople(x.owed).length > 0;
+  if (owe && owed) {
+    return { kind: "both", mark, context, lines: [ticketLine("owe", x.owe, x.common, x.groups, true), ticketLine("owed", x.owed, x.common, x.groups, true)] };
+  }
+  if (owe || owed) {
+    const side = owe ? "owe" : "owed";
+    const line = ticketLine(side, owe ? x.owe : x.owed, x.common, x.groups, false);
+    const first = distinctPeople(owe ? x.owe : x.owed).map((p) => firstName(p.name));
+    const crowd = line.count > 1 ? crowdWord(distinctPeople(owe ? x.owe : x.owed).flatMap((p) => p.parts.map((q) => x.groups.find((g) => g.id === q.groupId)?.type ?? "")).filter(Boolean)) : "people";
+    return { kind: "one", line, mark, context, ...routeEnds(side, first, crowd) };
+  }
+  // Nobody to name (it evens out, or the people can't be told apart): the card's own total with a way to Settle up.
+  return {
+    kind: "neutral",
+    label: moneyLabel({ mode: x.mode, acrossCurrencies: x.acrossCurrencies }),
+    amount: x.hero.text,
+    exact: x.hero.exact,
+    context,
+    action: { key: "settle", label: "Settle up", fullLabel: "Settle up", href: "/settle", bright: true },
+  };
+}

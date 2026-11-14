@@ -19,6 +19,9 @@ import { payersOf } from "@/lib/payers";
 import { ALL_REACTIONS, quickReactions, reactionSummary } from "@/lib/reactions";
 import { reactAction } from "@/app/reaction-actions";
 import type { GroupEvent, GroupView } from "./view";
+import { DateField } from "@/components/DateField";
+import { SelectField } from "@/components/SelectField";
+import { ChevronDown } from "@/components/icons";
 
 const PAID_WITH: Record<string, string> = { card: "Card", cash: "Cash", bank: "Bank / UPI" };
 const FOR_MODE: Record<string, string> = { everyone: "Everyone", selected: "Selected people", one: "One person" };
@@ -64,7 +67,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
   if (all.length === 0) {
     return (
       <div className="vault relative overflow-hidden rounded-[22px] px-6 py-9 text-center">
-        <span aria-hidden className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-[#d8bd7a]/45 text-[#e8d29a]">
+        <span aria-hidden className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-fg/25 text-fg/75">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
             <path d="M6 3h12v18l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4L6 21ZM9 8h6M9 11.5h6M9 15h4" />
           </svg>
@@ -96,6 +99,7 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
             <summary className="flex cursor-pointer list-none flex-wrap items-center gap-2 [&::-webkit-details-marker]:hidden">
               <span className="rounded-full border border-line px-4 py-1.5 text-sm font-medium text-fg group-open/filter:bg-mist">
                 {filtering ? `Filtered · ${items.length} ${items.length === 1 ? "match" : "matches"}` : "Filter"}
+                <ChevronDown size={14} className="chev ml-1.5 inline-block align-[-2px] text-fg/55" />
               </span>
               {filtering && (
                 <Link href={`/groups/${group.id}?tab=activity`} className="text-sm font-medium text-gray-500 underline underline-offset-4">
@@ -132,45 +136,45 @@ export function ActivityTab({ v, filter = {}, shown = PAGE, openId, reactions = 
                 ).map(([id, label]) => (
                   <label key={id || "all"} className="cursor-pointer">
                     <input type="radio" name="type" value={id} defaultChecked={(filter.type ?? "") === id} className="peer sr-only" />
-                    <span className="block rounded-full border border-line px-3 py-1.5 text-sm text-gray-500 peer-checked:border-fg peer-checked:bg-accent-soft peer-checked:text-fg">
+                    <span className="block rounded-full border border-fg/15 px-3 py-1.5 text-sm text-fg/85 peer-checked:border-fg peer-checked:bg-accent-soft peer-checked:shadow-[inset_0_0_0_0.5px_var(--color-fg)] peer-checked:text-fg">
                       {label}
                     </span>
                   </label>
                 ))}
               </div>
               <div className="flex gap-2">
-                <select name="cat" defaultValue={filter.cat ?? ""} aria-label="Category" className={`${field} flex-1`}>
+                <SelectField name="cat" defaultValue={filter.cat ?? ""} aria-label="Category" size="sm" className="min-w-0 flex-1">
                   <option value="">All categories</option>
                   {CATEGORIES.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.short}
                     </option>
                   ))}
-                </select>
-                <select name="who" defaultValue={filter.who ?? ""} aria-label="Person" className={`${field} flex-1`}>
+                </SelectField>
+                <SelectField name="who" defaultValue={filter.who ?? ""} aria-label="Person" size="sm" className="min-w-0 flex-1">
                   <option value="">Everyone</option>
                   {v.people.map((m) => (
                     <option key={m.id} value={m.id}>
                       {m.id === myId ? "You" : m.name}{m.leftAt || m.removedAt ? " (left)" : ""}
                     </option>
                   ))}
-                </select>
+                </SelectField>
               </div>
               <div className="flex gap-2">
-                <select name="by" defaultValue={filter.by ?? ""} aria-label="Paid by" className={`${field} flex-1`}>
+                <SelectField name="by" defaultValue={filter.by ?? ""} aria-label="Paid by" size="sm" className="min-w-0 flex-1">
                   <option value="">Paid by anyone</option>
                   {v.people.map((m) => (
                     <option key={m.id} value={m.id}>
                       Paid by {m.id === myId ? "you" : m.name}{m.leftAt || m.removedAt ? " (left)" : ""}
                     </option>
                   ))}
-                </select>
+                </SelectField>
               </div>
               <div className="flex items-center gap-2 text-sm text-gray-500">
                 <span className="w-14 shrink-0">Dates</span>
-                <input type="date" name="from" defaultValue={filter.from ?? ""} aria-label="From date" className={`${field} flex-1`} />
+                <DateField name="from" defaultValue={filter.from ?? ""} aria-label="From date" placeholder="Any" size="sm" className="min-w-0 flex-1" />
                 <span>–</span>
-                <input type="date" name="to" defaultValue={filter.to ?? ""} aria-label="To date" className={`${field} flex-1`} />
+                <DateField name="to" defaultValue={filter.to ?? ""} aria-label="To date" placeholder="Any" size="sm" className="min-w-0 flex-1" />
               </div>
               <div className="flex flex-wrap gap-3 pl-16 text-sm">
                 {[thisMonth, lastMonth].map((m) => (

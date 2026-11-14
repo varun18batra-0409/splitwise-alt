@@ -23,9 +23,9 @@ export function PassportCompare({ sets, showMap = false }: { sets: CompareSet[];
             aria-selected={s.key === set.key}
             onClick={() => setOn(s.key)}
             data-compare-tab={s.key}
-            className={`max-w-full shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-[13px] ${s.key === set.key ? "border-fg bg-fg font-semibold text-canvas" : "border-line text-fg/70 active:bg-mist"}`}
+            className={`max-w-full shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-[13px] ${s.key === set.key ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] font-semibold text-fg" : "border-fg/15 text-fg/85 active:bg-mist"}`}
           >
-            {s.label} <span className={s.key === set.key ? "text-canvas/60" : "text-fg/60"}>{s.countries.length}</span>
+            {s.label} <span className={s.key === set.key ? "text-fg/55" : "text-fg/60"}>{s.countries.length}</span>
           </button>
         ))}
       </div>
@@ -38,8 +38,8 @@ export function PassportCompare({ sets, showMap = false }: { sets: CompareSet[];
       <ul role="tabpanel" className="mt-3 grid grid-cols-5 gap-x-1 gap-y-2.5" data-compare-list={set.key}>
         {set.countries.map((c) => (
           <li key={c.code} className="flex min-w-0 flex-col items-center" title={c.name}>
-            <span aria-hidden className="text-[26px] leading-none">
-              {c.flag}
+            <span aria-hidden className="flex h-8 min-w-8 items-center justify-center rounded-full border border-fg/25 px-1.5 text-[12px] font-semibold tabular-nums text-fg/75">
+              {c.code}
             </span>
             <span className="mt-1 w-full truncate text-center text-[10.5px] leading-tight text-fg/65">{c.name}</span>
           </li>

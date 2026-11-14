@@ -68,7 +68,7 @@ export function ListTab({ v, items, usual, notice }: { v: GroupView; items: Item
             className="w-full rounded-xl border border-line bg-mist px-4 py-3 text-base text-fg outline-none placeholder:text-gray-400 focus:border-accent"
           />
         </label>
-        <button type="submit" className="pop shrink-0 bg-fg px-4 text-sm font-semibold text-canvas [--pop-edge:#6e6b63]">
+        <button type="submit" className="shrink-0 rounded-full border border-fg/25 px-5 text-sm font-semibold text-fg active:bg-fg/10">
           Add
         </button>
       </form>

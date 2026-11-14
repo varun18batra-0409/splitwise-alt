@@ -4,20 +4,20 @@ import { barSize } from "@/lib/chart-labels";
 // Single-series charts use the one accent colour; every bar carries its value
 // as text, and a table view is one tap away for screen readers and exact numbers.
 
-export type BarDatum = { key: string; label: string; value: number; valueText: string; icon?: React.ReactNode; href?: string };
+export type BarDatum = { key: string; label: string; value: number; valueText: string; exactText?: string; icon?: React.ReactNode; href?: string };
 
 // Horizontal bars: comparing amounts between categories or people.
-export function HBarChart({ title, data, total }: { title: string; data: BarDatum[]; total?: string }) {
+export function HBarChart({ title, data, total, totalExact }: { title: string; data: BarDatum[]; total?: string; totalExact?: string }) {
   const max = Math.max(1, ...data.map((d) => d.value));
   return (
     <figure>
       <figcaption className="mb-3 flex items-baseline justify-between gap-3">
         <span className="font-display text-base font-semibold tracking-tight">{title}</span>
-        {total && <span className="text-sm tabular-nums text-gray-500">{total}</span>}
+        {total && <span className="text-sm tabular-nums text-gray-500" title={totalExact} data-exact={totalExact}>{total}</span>}
       </figcaption>
       <ul className="space-y-3">
         {data.map((d) => (
-          <li key={d.key} title={`${d.label}: ${d.valueText}`}>
+          <li key={d.key} title={`${d.label}: ${d.exactText ?? d.valueText}`}>
             <BarRow d={d} max={max} />
           </li>
         ))}
@@ -37,12 +37,12 @@ export function ColumnChart({ title, data, total }: { title: string; data: BarDa
         <span className="font-display text-base font-semibold tracking-tight">{title}</span>
         {total && <span className="text-sm tabular-nums text-gray-500">{total}</span>}
       </figcaption>
-      {peak && <p className="mb-2 text-xs text-gray-500">Busiest day: {peak.label}, {peak.valueText}</p>}
-      <div className="flex h-36 items-end gap-[2px] border-b border-line" role="img" aria-label={`${title}. Busiest day ${peak?.label}, ${peak?.valueText}`}>
+      {peak && <p className="mb-2 text-xs text-gray-500">Busiest day: {peak.label}, <span title={peak.exactText} data-exact={peak.exactText}>{peak.valueText}</span></p>}
+      <div className="flex h-36 items-end gap-[2px] border-b border-line" role="img" aria-label={`${title}. Busiest day ${peak?.label}, ${peak?.exactText ?? peak?.valueText}`}>
         {data.map((d) => (
-          <div key={d.key} className="flex h-full flex-1 items-end" title={`${d.label}: ${d.valueText}`}>
+          <div key={d.key} className="flex h-full flex-1 items-end" title={`${d.label}: ${d.exactText ?? d.valueText}`}>
             <div
-              className={`w-full rounded-t-[4px] ${d === peak ? "bg-meter-up" : "bg-meter-up/50"}`}
+              className={`w-full rounded-t-[4px] ${d === peak ? "bg-fg" : "bg-fg/55"}`}
               style={{ height: `${barSize(d.value, max)}%` }}
             />
           </div>
@@ -66,7 +66,7 @@ function TableView({ data }: { data: BarDatum[] }) {
           {data.map((d) => (
             <tr key={d.key} className="border-t border-gray-100">
               <td className="py-1.5">{d.label}</td>
-              <td className="py-1.5 text-right tabular-nums">{d.valueText}</td>
+              <td className="py-1.5 text-right tabular-nums">{d.exactText ?? d.valueText}</td>
             </tr>
           ))}
         </tbody>
@@ -83,13 +83,13 @@ function BarRow({ d, max }: { d: BarDatum; max: number }) {
           {d.icon}
           <span className="truncate">{d.label}</span>
         </span>
-        <span className="shrink-0 tabular-nums text-gray-500">
+        <span className="shrink-0 tabular-nums text-gray-500" data-exact={d.exactText}>
           {d.valueText}
           {d.href && <span aria-hidden className="ml-1.5 text-fg/60">›</span>}
         </span>
       </div>
       <div className="h-2 rounded-full bg-mist">
-        <div className="h-2 rounded-r-[4px] rounded-l-full bg-meter-up" style={{ width: `${barSize(d.value, max)}%` }} />
+        <div className="h-2 rounded-r-[4px] rounded-l-full bg-fg/75" style={{ width: `${barSize(d.value, max)}%` }} />
       </div>
     </>
   );

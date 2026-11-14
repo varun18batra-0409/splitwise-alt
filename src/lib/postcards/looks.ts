@@ -6,7 +6,7 @@ type Look = { id: string; name: string; sepia?: number; gray?: number; sat?: num
 export const LOOKS: Look[] = [
   { id: "none", name: "Natural" },
   { id: "golden", name: "Golden hour", sepia: 0.22, sat: 1.25, con: 1.05, bri: 1.05, hue: -8 },
-  { id: "kodak", name: "Kodak warm", sepia: 0.14, sat: 1.35, con: 1.1, hue: -4 },
+  { id: "kodak", name: "Warm film", sepia: 0.14, sat: 1.35, con: 1.1, hue: -4 },
   { id: "faded", name: "Faded 70s", sepia: 0.35, sat: 0.78, con: 0.84, bri: 1.08 },
   { id: "matte", name: "Matte", sat: 0.88, con: 0.82, bri: 1.1 },
   { id: "riviera", name: "Riviera", sat: 1.15, con: 1.06, bri: 1.04, hue: 10 },
@@ -16,8 +16,13 @@ export const LOOKS: Look[] = [
 ];
 
 // "golden:70" → the look and its strength (0–100).
+// Five to pick from. The other looks stay valid for old cards and are drawn as the nearest kept one.
+export const LOOK_PICKS = ["none", "golden", "faded", "bw", "sepia"] as const;
+const LOOK_NEAREST: Record<string, string> = { kodak: "golden", riviera: "golden", matte: "faded", cool: "none" };
+export const keptLook = (id: string) => LOOK_NEAREST[id] ?? id;
 export function lookOf(spec: string): { id: string; amount: number } {
-  const [id, n] = String(spec || "").split(":");
+  const [rawId, n] = String(spec || "").split(":");
+  const id = keptLook(rawId);
   const look = LOOKS.find((l) => l.id === id);
   if (!look || look.id === "none") return { id: "none", amount: 0 };
   const amount = Math.max(0, Math.min(100, Math.round(Number(n ?? 100))));
@@ -388,8 +393,19 @@ export const cleanTouches = (raw: string) =>
   [...new Set(String(raw || "").split(","))]
     .filter((t) => TOUCHES.some((x) => x.id === t))
     .join(",");
+// Four to pick from (two on each side). The other touches stay valid for old cards: the front stickers are drawn as
+// the tape, "Lipstick kiss" as the coffee ring, and the stamp-like labels on the back are left off (a card shows one
+// stamp, one postmark and one seal at most).
+export const TOUCH_PICKS = ["tape", "flower", "seal", "coffee"] as const;
+const TOUCH_NEAREST: Record<string, string> = {
+  clip: "tape", ticket: "tape", luggage: "tape", sticker: "tape", boarding: "tape", map: "tape", compass: "tape", film: "tape", corners: "tape",
+  kiss: "coffee",
+};
+export const keptTouch = (id: string) => TOUCH_NEAREST[id] ?? id;
+export const keptTouches = (raw: string | undefined) =>
+  [...new Set(String(raw || "").split(",").map(keptTouch))].filter((t) => (TOUCH_PICKS as readonly string[]).includes(t));
 export const touchesOn = (raw: string | undefined, side: "front" | "back") => {
-  const ids = new Set(String(raw || "").split(","));
+  const ids = new Set(keptTouches(raw));
   return TOUCHES.filter((t) => t.side === side && ids.has(t.id));
 };
 

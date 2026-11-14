@@ -7,17 +7,17 @@ export type Line = [kicker: string, line: string];
 // For places Loopin has photos of (the slot names in places.ts, without "place-").
 const PLACE: Record<string, Line[]> = {
   goa: [["Susegad mode", "Life moves slower here. The bill doesn't."], ["Local tip", "Rent the scooty. Wear the helmet."], ["Goa rules", "Fish thali for lunch is not optional"], ["Plot twist", "The beach shack is the fancy dinner"]],
-  thailand: [["Sawasdee", "Pad thai count: rising 🍜"], ["Local tip", "7-Eleven toasties at 2am are a rite of passage"], ["Island time", "Ferry tickets, tuk-tuks, repeat"], ["Plot twist", "Someone buys elephant pants. Everyone buys elephant pants"]],
-  bali: [["Selamat datang", "Villa with a pool, obviously 🌴"], ["Local tip", "Scooter, sunscreen, Nasi goreng. In that order."], ["Bali belly", "Nobody's ordering the street salad"], ["Plot twist", "The swing photo takes 45 minutes"]],
+  thailand: [["Sawasdee", "Pad thai count: rising"], ["Local tip", "7-Eleven toasties at 2am are a rite of passage"], ["Island time", "Ferry tickets, tuk-tuks, repeat"], ["Plot twist", "Someone buys elephant pants. Everyone buys elephant pants"]],
+  bali: [["Selamat datang", "Villa with a pool, obviously"], ["Local tip", "Scooter, sunscreen, Nasi goreng. In that order."], ["Bali belly", "Nobody's ordering the street salad"], ["Plot twist", "The swing photo takes 45 minutes"]],
   dubai: [["Marhaba", "Everything here is the tallest, biggest or shiniest"], ["Local tip", "Metro is cheap. Taxis are not."], ["Desert plans", "Dune bashing first, buffet after"], ["Plot twist", "The mall has a ski slope. Of course it does"]],
-  manali: [["Hello hills", "Cold enough for two hoodies 🧣"], ["Local tip", "Old Manali cafés beat Mall Road"], ["Snow check", "Rohtang permits: someone sort it"], ["Plot twist", "Maggi at the top tastes like a five-star meal"]],
-  ladakh: [["Julley!", "Altitude: high. Phone signal: low."], ["Local tip", "Day one is for resting. Seriously."], ["Road trip", "Khardung La or bust 🏍️"], ["Plot twist", "Everyone's an amateur photographer now"]],
-  kerala: [["Namaskaram", "Backwaters, banana chips, zero rush 🌴"], ["Local tip", "The houseboat lunch is the best meal of the trip"], ["God's own country", "Monsoon or not, it's green"], ["Plot twist", "Someone gets a full Ayurvedic massage and never recovers"]],
+  manali: [["Hello hills", "Cold enough for two hoodies"], ["Local tip", "Old Manali cafés beat Mall Road"], ["Snow check", "Rohtang permits: someone sort it"], ["Plot twist", "Maggi at the top tastes like a five-star meal"]],
+  ladakh: [["Julley!", "Altitude: high. Phone signal: low."], ["Local tip", "Day one is for resting. Seriously."], ["Road trip", "Khardung La or bust"], ["Plot twist", "Everyone's an amateur photographer now"]],
+  kerala: [["Namaskaram", "Backwaters, banana chips, zero rush"], ["Local tip", "The houseboat lunch is the best meal of the trip"], ["God's own country", "Monsoon or not, it's green"], ["Plot twist", "Someone gets a full Ayurvedic massage and never recovers"]],
   singapore: [["Hello Singapore", "Clean streets, cold air-con, hot food"], ["Local tip", "Hawker centres > fancy restaurants"], ["Rules", "Gum's restricted. Yes, really."], ["Plot twist", "Marina Bay at night. Every night."]],
   maldives: [["Island mode", "Water so blue it looks edited"], ["Local tip", "The seaplane is the tour"], ["Packing list", "Swimsuits. More swimsuits."], ["Plot twist", "Nobody checks the time for five days"]],
-  vietnam: [["Xin chào", "Pho for breakfast is the right choice 🍜"], ["Local tip", "You'll be a dong millionaire. Spend wisely."], ["Coffee check", "Egg coffee: try it once"], ["Plot twist", "Crossing the road is the adventure sport"]],
+  vietnam: [["Xin chào", "Pho for breakfast is the right choice"], ["Local tip", "You'll be a dong millionaire. Spend wisely."], ["Coffee check", "Egg coffee: try it once"], ["Plot twist", "Crossing the road is the adventure sport"]],
   srilanka: [["Ayubowan", "Tea country, beaches, and a train ride for the ages"], ["Local tip", "Kandy to Ella by train. Book early."], ["Food check", "Kottu roti, every night"], ["Plot twist", "Everyone comes home with tea"]],
-  japan: [["Konnichiwa", "Bullet trains and convenience-store snacks 🍙"], ["Local tip", "Get a Suica card on day one"], ["Food check", "Ramen counts as three meals"], ["Plot twist", "Vending machines everywhere. Everyone tries all of them"]],
+  japan: [["Konnichiwa", "Bullet trains and convenience-store snacks"], ["Local tip", "Get a Suica card on day one"], ["Food check", "Ramen counts as three meals"], ["Plot twist", "Vending machines everywhere. Everyone tries all of them"]],
   london: [["Cheers!", "Bring an umbrella. Then bring another."], ["Local tip", "Tap your card on the Tube. No ticket needed."], ["Pub o'clock", "One pint turns into a pub crawl"], ["Plot twist", "Everything costs pounds. Nobody converts."]],
   jaipur: [["Padharo", "Pink City, fort views, chai stops"], ["Local tip", "Bargain at Johari Bazaar. Then bargain again."], ["Food check", "Dal baati churma, extra ghee"], ["Plot twist", "Someone buys a bedsheet they absolutely did not need"]],
   nepal: [["Namaste", "Mountains, momos, monasteries"], ["Local tip", "Thamel for gear, Pokhara for slowing down"], ["Trek talk", "Every step up is a step closer to dal bhat"], ["Plot twist", "Everyone falls in love with the momos"]],
@@ -29,9 +29,9 @@ const PLACE: Record<string, Line[]> = {
   meghalaya: [["Khublei", "Clouds, waterfalls and living root bridges"], ["Local tip", "Shillong cafés are the warm-up"], ["Rain check", "Pack a raincoat. Pack two."], ["Plot twist", "The 3,000 steps to the root bridge are worth it"]],
   switzerland: [["Grüezi", "Mountains, trains and very good chocolate"], ["Local tip", "The Swiss Travel Pass can pay for itself"], ["Food check", "Fondue is a whole evening"], ["Plot twist", "Everything is on time. Including the bill."]],
   ahmedabad: [["Kem cho", "Thepla, dhokla, Manek Chowk at midnight"], ["Local tip", "The old-city heritage walk starts early"], ["Food check", "Gujarati thali, unlimited refills"]],
-  alibaug: [["Weekend mode", "Ferry across, flip-flops on"], ["Local tip", "The ro-ro ferry beats the drive"], ["Plot twist", "The weekend somehow becomes three days"]],
+  alibaug: [["Weekend mode", "Ferry across, flip‑flops on"], ["Local tip", "The ro-ro ferry beats the drive"], ["Plot twist", "The weekend somehow becomes three days"]],
   amritsar: [["Sat Sri Akal", "Langar, lassi and Amritsari kulcha"], ["Local tip", "The Golden Temple at dawn is unreal"], ["Food check", "One kulcha is never enough"]],
-  chikmagalur: [["Coffee country", "Estates, mist and filter coffee ☕"], ["Local tip", "Mullayanagiri for the sunrise"], ["Plot twist", "Everyone buys coffee to take home"]],
+  chikmagalur: [["Coffee country", "Estates, mist and filter coffee"], ["Local tip", "Mullayanagiri for the sunrise"], ["Plot twist", "Everyone buys coffee to take home"]],
   coorg: [["Scotland of India", "Coffee, mist and homestays"], ["Local tip", "Try the pandi curry"], ["Plot twist", "Nobody wants to drive back"]],
   corbett: [["Jungle time", "Safari at dawn, stories by night"], ["Local tip", "Book the safari zone early"], ["Plot twist", "Everyone swears they saw a tiger"]],
   darjeeling: [["Hello hills", "Toy train, tea gardens, Kanchenjunga"], ["Local tip", "Tiger Hill for sunrise, early alarm"], ["Food check", "Momos and Darjeeling tea, on repeat"]],
@@ -186,10 +186,10 @@ function worldLines(country?: string | null, city?: string | null, countryName?:
 
 // When the place isn't one Loopin knows: by the kind of trip.
 const MOOD: Record<"beach" | "hills" | "city" | "any", Line[]> = {
-  beach: [["Forecast", "100% chance of flip-flops 🩴"], ["Packing list", "Sunscreen. More sunscreen. A hat you'll lose."], ["Beach rules", "Coconut water counts as hydration"], ["Plot twist", "The beach shack is the fancy dinner"]],
-  hills: [["Forecast", "Cold enough for two hoodies 🧣"], ["Packing list", "Warm socks. Maggi. A speaker for the drive."], ["Spotted", "Chai at altitude hits different ☕"], ["Plot twist", "Nobody packed the charger"]],
-  city: [["Forecast", "High chance of street food 🌮"], ["Packing list", "Comfy shoes. You'll walk 20,000 steps."], ["After dark", "The city looks better at night. So do the bills."], ["Plot twist", "Someone gets lost. It's always the same someone"]],
-  any: [["Forecast", "Good times, with a chance of receipts 🧾"], ["Packing list", "Charger, ID, snacks. In that order."], ["Spotted", "The group chat, already planning outfits"], ["Plot twist", "Loopin keeps the maths. You keep the memories"]],
+  beach: [["Forecast", "100% chance of flip‑flops"], ["Packing list", "Sunscreen. More sunscreen. A hat you'll lose."], ["Beach rules", "Coconut water counts as hydration"], ["Plot twist", "The beach shack is the fancy dinner"]],
+  hills: [["Forecast", "Cold enough for two hoodies"], ["Packing list", "Warm socks. Maggi. A speaker for the drive."], ["Spotted", "Chai at altitude hits different"], ["Plot twist", "Nobody packed the charger"]],
+  city: [["Forecast", "High chance of street food"], ["Packing list", "Comfy shoes. You'll walk 20,000 steps."], ["After dark", "The city looks better at night. So do the bills."], ["Plot twist", "Someone gets lost. It's always the same someone"]],
+  any: [["Forecast", "Good times, with a chance of receipts"], ["Packing list", "Charger, ID, snacks. In that order."], ["Spotted", "The group chat, already planning outfits"], ["Plot twist", "Loopin keeps the maths. You keep the memories"]],
 };
 
 // About the time of year: monsoon where there's a monsoon, and winter or summer by hemisphere.
@@ -210,7 +210,7 @@ function seasonLines(month?: number | null, country?: string | null): Line[] {
 // About the people: just you, two of you, a few, or a whole squad.
 function crewLines(people: number): Line[] {
   if (people <= 1) return [["Solo mode", "Your pace, your plan, your playlist"], ["Table for one", "Eat where you like, for as long as you like"]];
-  if (people <= 2) return [["Just you two", "Table for two, every night 💛"], ["Couple goals", "One splits the bill, one picks the place"]];
+  if (people <= 2) return [["Just you two", "Table for two, every night"], ["Couple goals", "One splits the bill, one picks the place"]];
   if (people <= 4) return [["Small crew", `${people} of you. Perfect car size.`], ["Group decision", "It takes 20 minutes to pick a restaurant"]];
   if (people <= 8) return [["The squad", `${people} of you. Somebody's always late.`], ["Group chat", `${people} opinions on where to eat`]];
   return [["Full house", `${people} of you. That's a lot of receipts.`], ["Headcount", "Count everyone before you leave. Twice."]];

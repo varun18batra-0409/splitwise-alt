@@ -448,8 +448,11 @@ export async function removeMembers(groupId: string, actorId: string, memberIds:
       (await db.expense.count({ where: { groupId, OR: [{ paidById: m.id }, { createdById: m.id }, { payers: { contains: m.id } }] } })) +
       (await db.payment.count({ where: { OR: [{ fromId: m.id }, { toId: m.id }] } })) +
       // An "I've paid" claim (waiting or answered) counts as being part of a payment too.
-      (await db.paymentClaim.count({ where: { OR: [{ fromId: m.id }, { toId: m.id }] } }));
-    if (used > 0) return { ok: false, error: `${m.name} is already part of expenses or payments, so they can’t be removed.` };
+      (await db.paymentClaim.count({ where: { OR: [{ fromId: m.id }, { toId: m.id }] } })) +
+      // A moment they added, or a reaction they left, counts too: taking the person out would leave photos with no author (and their files behind).
+      (await db.moment.count({ where: { groupId, authorId: m.id } })) +
+      (await db.momentReaction.count({ where: { memberId: m.id } }));
+    if (used > 0) return { ok: false, error: `${m.name} is already part of expenses, payments or moments, so they can’t be removed.` };
   }
   if (members.length === 0) return { ok: true };
   const eventId = await db.$transaction(async (tx) => {

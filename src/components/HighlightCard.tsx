@@ -6,24 +6,26 @@ import type { Highlight, HighlightTone } from "@/lib/home/highlights";
 // One of the sliding cards at the top of Home: words on the left, a place
 // photo (or a small drawn object) on the right, one button.
 
+// One calm card for every tone: #16161a with a quiet off-white label (no per-card colour wash).
+const PLAIN = { bg: "#16161a", fade: "22,22,26", eyebrow: "#f4f2ec8c" };
 const TONE: Record<HighlightTone, { bg: string; fade: string; eyebrow: string }> = {
-  trip: { bg: "#0f1416", fade: "15,20,22", eyebrow: "#a8d8f0" },
-  sky: { bg: "#0d1b26", fade: "13,27,38", eyebrow: "#9fd3ff" },
-  warm: { bg: "#1d140e", fade: "29,20,14", eyebrow: "#e2bf95" },
-  teal: { bg: "#0f1d1c", fade: "15,29,28", eyebrow: "#8fd9c4" },
-  rose: { bg: "#1f1015", fade: "31,16,21", eyebrow: "#f0b2bf" },
-  night: { bg: "#120a10", fade: "18,10,16", eyebrow: "#ffc93c" },
-  paper: { bg: "#18150f", fade: "24,21,15", eyebrow: "#e6d3a3" },
+  trip: PLAIN,
+  sky: PLAIN,
+  warm: PLAIN,
+  teal: PLAIN,
+  rose: PLAIN,
+  night: PLAIN,
+  paper: PLAIN,
 };
 
 const button =
-  "inline-flex h-10 items-center self-start rounded-full border border-fg/25 bg-fg/[0.12] px-[18px] text-sm font-semibold text-fg backdrop-blur active:bg-fg/20";
+  "inline-flex h-10 items-center self-start rounded-full border border-fg/25 bg-transparent px-[18px] text-sm font-semibold text-fg active:bg-fg/10";
 
 export function HighlightCard({ h }: { h: Extract<Highlight, { kind: "card" }> }) {
   const t = TONE[h.tone];
   const picture = h.photo || h.cover;
   return (
-    <div className="relative flex h-[268px] flex-col overflow-hidden px-5 pb-12 pt-5" style={{ background: t.bg }} data-highlight={h.id}>
+    <div className="relative flex min-h-[268px] flex-1 flex-col overflow-hidden px-5 pb-12 pt-5" style={{ background: t.bg }} data-highlight={h.id}>
       {h.photo ? (
         <div className="absolute inset-y-0 left-[38%] right-0">
           <Image src={h.photo} alt="" fill sizes="(max-width: 480px) 65vw, 320px" className="object-cover" />
@@ -44,7 +46,7 @@ export function HighlightCard({ h }: { h: Extract<Highlight, { kind: "card" }> }
         {h.eyebrow}
       </p>
       <p className="relative z-[1] mt-1 max-w-[60%] font-display text-[25px] font-semibold leading-[1.1]">{h.title}</p>
-      <p className="relative z-[1] mt-auto line-clamp-3 max-w-[60%] text-[13px] leading-snug text-gray-700">{h.text}</p>
+      <p className="relative z-[1] mt-auto max-w-[60%] pt-2 text-[13px] leading-snug text-gray-700">{h.text}</p>
       <Link href={h.href} className={`relative z-[1] mt-3 ${button}`}>
         {h.button}
       </Link>
@@ -71,8 +73,20 @@ function WeatherIcon({ kind }: { kind: string }) {
   );
 }
 
-// Small drawn objects for cards without a place photo.
+// Small drawn objects for cards without a place photo. Under 360px wide the picture sits small (64px) in its own box in the
+// top right corner, clipped to that box, so it never runs into the headline or the seal into the words. From 360px it is the
+// bigger picture behind the right half, a little smaller up to 400px.
 function Art({ kind }: { kind: string }) {
+  return (
+    <div aria-hidden className="pointer-events-none absolute right-4 top-4 h-16 w-16 overflow-hidden min-[360px]:inset-0 min-[360px]:h-auto min-[360px]:w-auto min-[360px]:origin-top-right min-[360px]:overflow-visible min-[360px]:max-[399px]:scale-[0.8]">
+      <div className="absolute left-0 top-0 h-[170px] w-[170px] origin-top-left scale-[0.36] min-[360px]:inset-0 min-[360px]:h-auto min-[360px]:w-auto min-[360px]:scale-100">
+        <ArtPicture kind={kind} />
+      </div>
+    </div>
+  );
+}
+
+function ArtPicture({ kind }: { kind: string }) {
   if (kind === "postcard")
     return (
       <div aria-hidden className="absolute right-4 top-9">

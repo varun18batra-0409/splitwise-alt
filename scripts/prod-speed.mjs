@@ -36,7 +36,7 @@ page.on("requestfinished", (r) => { const x = reqs.get(r); if (x) x.end = Math.r
 await page.goto(base + "/how-it-works", { waitUntil: "networkidle" });
 await page.waitForTimeout(1500);
 const loaded = () => page.waitForFunction(() => !document.querySelector('[role="progressbar"]'), null, { timeout: 20000 }).catch(() => {});
-for (const label of ["Search", "Settle", "Alerts", "Search", "Settle", "Alerts"]) {
+for (const label of ["Groups", "Settle", "You", "Groups", "Settle", "You"]) {
   reqs.clear();
   t0 = performance.now();
   const before = page.url();
@@ -55,9 +55,9 @@ reqs.clear(); t0 = performance.now();
 await page.locator("nav").getByRole("link", { name: "Settle" }).last().click();
 await page.waitForURL(/settle/);
 const a = Math.round(performance.now() - t0);
-await page.locator("nav").getByRole("link", { name: "Search" }).last().click();
-await page.waitForURL(/search/);
-log(`quick taps: Settle after ${a} ms, then Search after ${Math.round(performance.now() - t0)} ms`);
+await page.locator("nav").getByRole("link", { name: "Groups" }).last().click();
+await page.waitForURL(/groups/);
+log(`quick taps: Settle after ${a} ms, then Groups after ${Math.round(performance.now() - t0)} ms`);
 for (const x of reqs.values()) log(`   ${x.kind.padEnd(9)} ${String(x.start).padStart(5)} → ${String(x.end ?? "?").padStart(5)} ms  ${x.url.slice(0, 60)}`);
 await browser.close();
 const { writeFileSync, mkdirSync } = await import("node:fs");

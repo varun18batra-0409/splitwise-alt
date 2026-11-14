@@ -6,6 +6,7 @@ import { PhoneOnlyNote } from "@/components/PhoneOnlyNote";
 import { Notice } from "@/components/Notice";
 import { IntroTour } from "@/components/IntroTour";
 import { JoinByLink } from "@/components/JoinByLink";
+import { StartHero } from "@/components/StartHero";
 import { cookies, headers } from "next/headers";
 import { visitorRegion } from "@/lib/region";
 import { GAME_NIGHT_GAMES } from "@/lib/group-types";
@@ -38,7 +39,8 @@ import { leaverOf } from "@/lib/left-view-db";
 import { gameVisible, stillIn } from "@/lib/left-view";
 import { canUndo } from "@/lib/undo";
 import { UndoBar } from "@/components/UndoBar";
-import { PersonIcon, iconButtonClass } from "@/components/icons";
+import { iconButtonClass } from "@/components/icons";
+import { BellButton } from "@/components/BellButton";
 import { countMyCollections, myCollections, progress } from "@/lib/collect";
 import { CollectionsSection } from "@/components/CollectionsList";
 import { FooterLinks, HOME_FOOTER_LINKS } from "@/components/FooterLinks";
@@ -47,12 +49,13 @@ import { todayKey } from "@/lib/dates";
 import { TripCountdown } from "@/components/TripCountdown";
 import { countdownStage } from "@/lib/countdown";
 import { countryOf, tripStops } from "@/lib/geo";
-import { MoneyCard, TripStrip, type NeedLine } from "@/components/HomeMoney";
-import { mixedDirections, moneyActions, moneyLabel, moneyMode, moneyPeople, whoLine } from "@/lib/home/money-card";
+import { MoneyCard, TripStrip, type NeedLine, type StubCover } from "@/components/HomeMoney";
+import { homeTicket, mixedDirections, moneyMode, moneyPeople, rankGroups, type InvolvedGroup } from "@/lib/home/money-card";
 import { TripRow } from "@/components/TripRow";
 import { Stories } from "@/components/Stories";
 import { buildStories } from "@/lib/home/stories";
-import { placePhoto, placePhotos } from "@/lib/places";
+import { loadMomentStoryGroups } from "@/lib/moments-db";
+import { placePhotos, tripPhotoSrc } from "@/lib/places";
 import { GroupCards, type GroupCardData } from "@/components/HomeGroups";
 import { tripTag } from "@/lib/home/group-card";
 import { loadNeedsYou } from "@/lib/needs-you";
@@ -66,7 +69,7 @@ export const metadata = { alternates: { canonical: "/" } };
 
 const countPasskeys = (accountId: string) => db.passkey.count({ where: { accountId } });
 
-// Home: stories, your money card (coloured by where you stand, with who, the one next step, and what needs you), your groups as polaroids, and the
+// Home: stories, your money card (a boarding pass: route, amount, one button; what needs you is a quiet line under it), your groups as polaroids, and the
 // latest changes. Search, Settle and Alerts live in the bottom bar.
 export default async function Home({
   searchParams,
@@ -86,7 +89,7 @@ export default async function Home({
   const { closed: justClosed, did, g: didGroup, undone, error, deleted, signedin, moved, collection } = await searchParams;
   const [tz, memberships] = await Promise.all([getTimeZone(), getMemberships()]);
   // Independent reads, all at once.
-  const [overview, deletedGroups, account, collections, collectionsTotal, invitations, needs] = await Promise.all([
+  const [overview, deletedGroups, account, collections, collectionsTotal, invitations, needs, momentGroups] = await Promise.all([
     loadOverview(memberships),
     loadDeletedGroups(memberships),
     getAccount(),
@@ -96,6 +99,8 @@ export default async function Home({
     getAccount().then((a) => loadInvitations(a)),
     // Things only you can answer (someone says they paid you, a bill waiting for its amount): the top two show on Home.
     getAccount().then((a) => loadNeedsYou(memberships, a, 0)),
+    // New moments in your trip groups (the last 3 days; only ones you may see).
+    loadMomentStoryGroups(memberships),
   ]);
   const { all, open, closed, owedLines, oweLines, common, netCommon, netLines, netValue, toCommon } = overview;
   // Only the rows Home shows: the newest changes, this month, today's spending on trips, a finished trip's categories.
@@ -125,7 +130,7 @@ export default async function Home({
     ...needs.items.map((it) => ({ key: it.id, lead: it.kind === "bill" ? "bill" : it.text.trim().charAt(0).toUpperCase(), text: it.text, sub: it.where, action: it.action ?? NEED_ACTION[it.kind], href: it.href, orange: it.tone === "orange" })),
     ...open
       .filter((g) => !g.leaver && g.expenseCount > 0 && g.transfers.length === 0 && g.lastActivity.getTime() < quietSince)
-      .map((g) => ({ key: `close-${g.group.id}`, lead: "check", text: <>Everyone’s square in <span className="font-semibold">{g.group.name}</span></>, action: "Close it", href: `/groups/${g.group.id}/settings#close` })),
+      .map((g) => ({ key: `close-${g.group.id}`, lead: "check", text: <>{g.group.name} is all square.</>, action: "Close it", href: `/groups/${g.group.id}/settings#close` })),
   ];
 
   // The latest changes across open groups.
@@ -174,29 +179,32 @@ export default async function Home({
   // Several currencies with no saved rate and money going both ways: no single "you owe", so the card stays neutral.
   const acrossCurrencies = !netCommon && mixedDirections(netLines);
   const mode = acrossCurrencies ? "even" : moneyMode({ owedLines: owedLines.length, oweLines: oweLines.length, netValue });
-  // Who the money is with: the same transfers Settle up uses, largest first (names only; amounts are on Settle up).
-  const people =
-    mode === "owe" || mode === "owed"
-      ? moneyPeople(
-          open.map((g) => ({ groupId: g.group.id, groupName: g.group.name, currency: g.group.currency, myId: g.myId, members: g.group.members, transfers: g.transfers })),
-          mode,
-          common,
-          toCommon,
-        )
-      : [];
-  // Money going the other way too (you owe Nupur ₹1,800, Ravi owes you ₹1,000 -> the card says ₹800): the biggest of them joins the line.
-  const otherSide =
-    people.length > 0
-      ? moneyPeople(
-          open.map((g) => ({ groupId: g.group.id, groupName: g.group.name, currency: g.group.currency, myId: g.myId, members: g.group.members, transfers: g.transfers })),
-          mode === "owe" ? "owed" : "owe",
-          common,
-          toCommon,
-        )
-      : [];
-  const who = people.length > 0 ? whoLine(people, otherSide, mode === "owe" ? "owe" : "owed") : null;
-  // Pay the person you owe most (their row on Settle up), or remind the person who owes you most (WhatsApp). Else today's buttons.
-  const actions = moneyActions(mode, people, common);
+  // Who the money is with, each side on its own: the same transfers Settle up uses, largest first. Money both ways stays as two lines
+  // on the ticket (never netted together), so both sides are worked out whenever anything is open.
+  const peopleGroups = open.map((g) => ({ groupId: g.group.id, groupName: g.group.name, currency: g.group.currency, myId: g.myId, members: g.group.members, transfers: g.transfers }));
+  const owePeople = mode === "square" ? [] : moneyPeople(peopleGroups, "owe", common, toCommon);
+  const owedPeople = mode === "square" ? [] : moneyPeople(peopleGroups, "owed", common, toCommon);
+  // The groups the money runs through, for the stub's picture: how much is with you in each (in the common currency; a group with no
+  // saved rate counts 0 and only wins when nothing else is there).
+  const involved: InvolvedGroup[] = open
+    .filter((g) => !g.leaver && g.transfers.some((t) => t.from === g.myId || t.to === g.myId))
+    .map((g) => ({
+      id: g.group.id,
+      name: g.group.name,
+      type: g.group.type,
+      weight: g.transfers
+        .filter((t) => t.from === g.myId || t.to === g.myId)
+        .reduce((sum, t) => sum + (g.group.currency === common ? t.amount : (toCommon(t.amount, g.group.currency) ?? 0)), 0),
+    }));
+  const ticket = homeTicket({
+    mode,
+    acrossCurrencies,
+    owe: owePeople,
+    owed: owedPeople,
+    common,
+    hero: { text: heroText.replace(/^([≈ ]*)[+−]/, "$1"), exact: heroExact !== heroText ? heroExact.replace(/^([≈ ]*)[+−]/, "$1") : undefined },
+    groups: involved,
+  });
   // What waits on you, folded into the card: the top one as a line; two or more real ones as a count that opens Alerts (where all of them are listed
   // under "Needs you"). The "ready to close" nudges are Home-only, so they are never counted in a number Alerts can't back up.
   const realNeeds = needs.items;
@@ -276,6 +284,7 @@ export default async function Home({
   );
   const stories = buildStories({
     now: new Date(),
+    moments: momentGroups,
     trips: trips.map((t) => ({
       id: t.g.group.id,
       name: t.g.group.name,
@@ -380,12 +389,21 @@ export default async function Home({
     id: g.group.id,
     name: g.group.name,
     cover: coverFor(g.group),
-    photo: g.group.type === "trip" && !g.group.cover ? placePhoto(g.group.name)?.src : undefined,
+    // A trip shows its place's real photo whenever it has none of its own (also when a drawn picture was stored): the same on its
+    // polaroid, the ticket's stub and the countdown thumb.
+    photo: tripPhotoSrc(g.group),
     balance: g.myBalance,
     money: (n: number) => formatMoney(n, g.group.currency),
     show: (n: number) => homeMoney(n, g.group.currency),
     tag: tripTag(phaseOf.get(g.group.id)),
   }));
+  // The stub's picture(s): the group with the most money (two when it spans groups), else your newest group. Same cover as its polaroid.
+  const stubCover = (id: string): StubCover | null => {
+    const c = groupCards.find((x) => x.id === id);
+    return c ? { id: c.id, cover: c.cover, photo: c.photo, name: c.name } : null;
+  };
+  const stubIds = ticket.kind === "square" || (ticket.kind === "neutral" && involved.length === 0) ? byActivity.slice(0, 1).map((g) => g.group.id) : rankGroups(involved).slice(0, 2).map((g) => g.id);
+  const stub = stubIds.map(stubCover).filter((c): c is StubCover => Boolean(c));
   // Trips at the same stage of the countdown each get their own words (slot 0, 1, 2… in that stage).
   const stageSlot = new Map<string, number>();
   {
@@ -497,10 +515,9 @@ export default async function Home({
           <Link href="/how-it-works" aria-label="How Loopin works" className={`glass ${iconButtonClass} h-11! w-11! text-[17px] font-semibold`}>
             ?
           </Link>
-          <Link href="/account" aria-label={account ? `Account: ${account.email}` : "Sign in or account"} className={`relative glass ${iconButtonClass} h-11! w-11!`}>
-            {account?.name ? <span className="text-[15px] font-bold">{account.name.trim().charAt(0).toUpperCase()}</span> : <PersonIcon size={20} />}
-            {account && <span className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-owed" aria-hidden />}
-          </Link>
+          {/* The bell opens Your updates; You is in the bottom bar. */}
+          <BellButton className="glass border border-fg/10" />
+
         </div>
       </header>
 
@@ -509,41 +526,47 @@ export default async function Home({
 
       {all.length === 0 ? (
         <>
-          {/* Start card: nothing here yet. */}
-          <section aria-label="Start" className="vault rounded-[26px] px-5 pb-5 pt-6 text-fg" data-start-card>
-            <p className="text-sm text-fg/60">Welcome to Loopin</p>
-            <h1 className="mt-1 font-display text-[32px] font-semibold leading-[1.08] tracking-tight [text-wrap:balance]">Start with one group.</h1>
-            <p className="mt-2 text-fg/65">Add what you paid, and Loopin keeps track of who owes whom.</p>
+          {/* Start screen: nothing here yet. Two photos and a receipt, the promise, then the ways in. */}
+          <section aria-label="Start" className="text-fg" data-start-card>
+            <StartHero />
+            <h1 className="font-display text-[clamp(30px,9vw,34px)] font-semibold leading-[1.08] tracking-tight">
+              Good times. <span className="block">Shared fairly.</span>
+            </h1>
+            <p className="mt-2.5 max-w-[19rem] text-[15px] leading-snug text-fg/65">Split expenses, settle up and keep the memories.</p>
             <div className="mt-6 space-y-3">
               <Link href="/groups/new" className="pop block bg-fg px-4 py-3.5 text-center font-semibold text-canvas">
                 Create a group
               </Link>
               <JoinByLink />
             </div>
+            {!account && (
+              <p className="mt-4 text-center text-[15px] text-fg/65">
+                <Link href="/signin" className="inline-block py-3">
+                  Already here? <span className="font-semibold text-fg underline underline-offset-4">Sign in</span>
+                </Link>
+              </p>
+            )}
+            <p className="mt-1 text-center text-xs text-fg/55">
+              <Link href="/terms" className="inline-flex min-h-11 items-center px-2">
+                Terms
+              </Link>
+              <span aria-hidden>·</span>
+              <Link href="/privacy" className="inline-flex min-h-11 items-center px-2">
+                Privacy
+              </Link>
+            </p>
           </section>
 
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <Link href="/switching" className="flex min-h-[92px] flex-col justify-center rounded-2xl border border-line px-4 py-3 active:bg-mist [&>span]:[text-wrap:balance]">
-              <span className="text-[13px] text-fg/60">Coming from another app?</span>
-              <span className="mt-0.5 text-sm font-semibold leading-snug [text-wrap:balance]">Bring your groups over</span>
+          <div className="mt-6 grid grid-cols-2 gap-3">
+            <Link href="/switching" className="flex min-h-[84px] flex-col justify-center rounded-2xl border border-line px-4 py-3 active:bg-mist [&>span]:[text-wrap:balance]">
+              <span className="text-[13px] text-fg/55">Coming from another app?</span>
+              <span className="mt-0.5 text-sm font-medium leading-snug text-fg/85 [text-wrap:balance]">Bring your groups over</span>
             </Link>
-            <Link href="/how-it-works" className="flex min-h-[92px] flex-col justify-center rounded-2xl border border-line px-4 py-3 active:bg-mist [&>span]:[text-wrap:balance]">
-              <span className="text-[13px] text-fg/60">How Loopin works</span>
-              <span className="mt-0.5 text-sm font-semibold leading-snug [text-wrap:balance]">Three steps, one minute</span>
+            <Link href="/how-it-works" className="flex min-h-[84px] flex-col justify-center rounded-2xl border border-line px-4 py-3 active:bg-mist [&>span]:[text-wrap:balance]">
+              <span className="text-[13px] text-fg/55">How Loopin works</span>
+              <span className="mt-0.5 text-sm font-medium leading-snug text-fg/85 [text-wrap:balance]">Three steps, one minute</span>
             </Link>
           </div>
-
-          {!account && (
-            <Link href="/signin" className="mt-4 flex items-center gap-3 rounded-2xl border border-line px-4 py-3.5 active:bg-mist">
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold">Sign in to start</span>
-                <span className="block text-xs text-fg/60">Google or email, no password. Your groups follow you to a new phone.</span>
-              </span>
-              <span className="text-gray-400" aria-hidden>
-                ›
-              </span>
-            </Link>
-          )}
 
           <section className="mt-8">
             <h2 className="mb-2 font-display text-lg font-semibold tracking-tight">Quick start</h2>
@@ -583,19 +606,8 @@ export default async function Home({
           <h1 className={stories.length > 0 ? "sr-only" : "mb-4 mt-1 font-display text-[32px] font-semibold leading-[1.05] tracking-tight"}>{greeting(new Date(), tz, account?.name)}</h1>
           {stories.length > 0 && <Stories stories={stories} className="mb-4" />}
 
-          {/* Money: coloured by where you stand; the amount, who it is with, the one next step, and what needs you. */}
-          <MoneyCard
-            label={moneyLabel({ mode, acrossCurrencies })}
-            who={who}
-            whoHref={mode === "owe" ? "/settle#pay" : "/settle#remind"}
-            amount={mode === "square" ? "All square" : netCommon ? heroText.replace(/^([≈ ]*)[+−]/, "$1") : heroText /* several currencies: each keeps its own sign */}
-            amountClass={mode === "square" ? "text-[24px]" : heroText.length <= 9 ? "text-[32px]" : heroText.length <= 12 ? "text-[26px]" : "text-[20px]"}
-            tone={mode === "owed" ? "owed" : mode === "owe" ? "owe" : "plain"}
-            mode={mode}
-            actions={actions}
-            need={need}
-            exact={mode !== "square" && heroExact !== heroText ? heroExact.replace(/^([≈ ]*)[+−]/, "$1") : undefined}
-          />
+          {/* Money: a boarding pass with the route, the amount and the one next step; what needs you is a quiet line under it. */}
+          <MoneyCard ticket={ticket} mode={mode} tone={mode === "owed" ? "owed" : mode === "owe" ? "owe" : "plain"} stub={stub} need={need} />
 
           {invitationsBlock}
 
@@ -619,7 +631,7 @@ export default async function Home({
           {/* The next trip, as one compact countdown line. A trip that is on is tagged on its photo in Your groups instead. */}
           {hero && hero.phase.kind === "before" && (
             <div className="mt-6">
-              <TripStrip groupId={hero.g.group.id} place={placeOf(hero.g.group.name)} phase={hero.phase} going={crewOf(hero.g).length} start={hero.g.group.tripStart} shareLine={countdownWords(hero.g.group.name, hero.phase)?.line ?? ""} />
+              <TripStrip groupId={hero.g.group.id} place={placeOf(hero.g.group.name)} phase={hero.phase} going={crewOf(hero.g).length} start={hero.g.group.tripStart} shareLine={countdownWords(hero.g.group.name, hero.phase)?.line ?? ""} thumb={stubCover(hero.g.group.id) ?? undefined} />
             </div>
           )}
 
@@ -665,7 +677,7 @@ export default async function Home({
           {/* New here (one group, no expenses yet): a gentle pointer to the 1-minute tour. */}
           {open.length <= 1 && open.every((g) => g.expenseCount === 0) && (
             <Link href="/how-it-works" className="mt-6 flex items-center gap-3 rounded-2xl border border-line bg-mist px-4 py-3 text-sm active:bg-line">
-              <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#d8bd7a]/45 text-[#e8d29a]">
+              <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-fg/25 text-fg/75">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M8 5.5v13l10.5-6.5Z" />
                 </svg>
@@ -685,22 +697,22 @@ export default async function Home({
               {highlights.map((h) =>
                 h.kind === "month" ? (
                   month && (
-                    <div key="month">
+                    <div key="month" className="flex flex-1 flex-col">
 
-                <div className="relative flex h-[268px] flex-col overflow-hidden bg-[radial-gradient(90%_90%_at_90%_10%,#4a2c16_0%,transparent_60%),linear-gradient(160deg,#24170f_0%,#121014_75%)] px-5 pb-12 pt-5">
-                  <p aria-hidden className="absolute -right-3 -top-6 font-display text-[150px] font-semibold leading-none text-fg/[0.06]">
-                    {month.name.slice(0, 3)}
-                  </p>
-                  <p className="relative text-sm text-[#d9b38c]">{month.wrapped ? "Your month, wrapped" : "Your month so far"}</p>
+                <div className="relative flex min-h-[268px] flex-1 flex-col overflow-hidden bg-white px-5 pb-12 pt-5">
+                  <p className="relative text-[13px] text-fg/55">{month.wrapped ? "Your month, wrapped" : "Your month so far"}</p>
                   <p className="relative mt-1 font-display text-[27px] font-semibold leading-[1.1]">{month.name} in numbers</p>
-                  <div className="relative mt-auto flex flex-wrap items-end gap-x-4 gap-y-2 min-[360px]:gap-x-5" data-month-stats>
-                    <p className="shrink-0">
-                      <span className="block money text-[19px] font-semibold tabular-nums" data-month-share>
-                        {month.converted ? "≈ " : ""}
-                        {formatMoney(month.share, month.currency)}
-                      </span>
-                      <span className="block whitespace-nowrap text-xs text-gray-600">your share</span>
-                    </p>
+                  <div className="relative mb-4 mt-5 flex flex-wrap items-end gap-x-4 gap-y-2 min-[360px]:gap-x-5" data-month-stats>
+                    {/* No "₹0 your share": a zero is left out. */}
+                    {month.share !== 0 && (
+                      <p className="shrink-0">
+                        <span className="block money text-[19px] font-semibold tabular-nums" data-month-share title={formatMoney(month.share, month.currency)} data-exact={formatMoney(month.share, month.currency)}>
+                          {month.converted ? "≈ " : ""}
+                          {homeMoney(month.share, month.currency)}
+                        </span>
+                        <span className="block whitespace-nowrap text-xs text-gray-600">your share</span>
+                      </p>
+                    )}
                     <p className="shrink-0">
                       <span className="block money text-[19px] font-semibold tabular-nums">{month.count}</span>
                       <span className="block whitespace-nowrap text-xs text-gray-600">{month.count === 1 ? "expense" : "expenses"}</span>
@@ -713,7 +725,7 @@ export default async function Home({
                       </p>
                     )}
                   </div>
-                  <Link href={`/search?m=${month.month}`} className={`relative mt-3 ${bannerButton}`}>
+                  <Link href={`/search?m=${month.month}`} className={`relative mt-auto ${bannerButton}`}>
                     See {month.name}
                   </Link>
                 </div>
@@ -757,7 +769,7 @@ function PotTeaser({ className = "" }: { className?: string }) {
 
 // The pill-shaped buttons on the sliding cards.
 const bannerButton =
-  "inline-flex h-10 items-center self-start rounded-full border border-fg/25 bg-fg/[0.12] px-[18px] text-sm font-semibold text-fg backdrop-blur active:bg-fg/20";
+  "inline-flex h-10 items-center self-start rounded-full border border-fg/25 bg-transparent px-[18px] text-sm font-semibold text-fg active:bg-fg/10";
 
 function greeting(now: Date, tz: string, name?: string | null): string {
   const h = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: tz }).format(now));

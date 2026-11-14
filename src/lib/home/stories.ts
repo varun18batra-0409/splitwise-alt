@@ -9,11 +9,11 @@ import { lineForPhoto } from "./photo-tags";
 // Each story is 4–6 slides you tap through (photos of the place, a few
 // playful numbers, the crew), with one thing to do next. Pure, so it can be tested.
 
-export type StoryKind = "trip" | "pot" | "square" | "collect" | "memory" | "wrapped";
+export type StoryKind = "trip" | "pot" | "square" | "collect" | "memory" | "wrapped" | "moment";
 export type Tone = "sun" | "coral" | "sky" | "pink" | "lilac" | "mint";
 // One slide: a full photo with words, a bold poster, or a short list.
 export type Frame =
-  | { kind: "photo"; photo: string; kicker?: string; head: string; line?: string }
+  | { kind: "photo"; photo: string; kicker?: string; head: string; line?: string; calm?: boolean } // calm: a person's own words (a moment), set smaller and plain
   | { kind: "art"; art: StoryKind; kicker?: string; head: string; line?: string } // designed artwork (card night, collection…) instead of a photo
   | { kind: "poster"; tone: Tone; kicker: string; big: string; line?: string }
   | { kind: "list"; tone: Tone; kicker: string; rows: { label: string; value?: string; good?: boolean; bad?: boolean; share?: number }[]; line?: string };
@@ -45,15 +45,18 @@ export type StoryInput = {
   collections: { id: string; code: string; title: string; paid: number; people: number; in?: string; reported?: string; target?: string; paidNames?: string[]; reportedNames?: string[]; dueNames?: string[] }[];
   memories: ({ id: string; name: string; years: number; people: number; days: number; spent?: string; crew?: string[] } & Pic)[];
   wrapped: ({ id: string; name: string; endedDaysAgo: number; spent?: string; topCategory?: string } & Pic)[];
+  // New moments in a trip group (the last 3 days, only ones this person may see: src/lib/moments-db.ts loadMomentStoryGroups).
+  // `frames` newest first; `thumb` is the small copy, `full` the photo.
+  moments?: { groupId: string; groupName: string; newestId: string; at: Date; frames: { id: string; thumb: string; full: string; kicker: string; head: string; line: string }[] }[];
 };
 
 const place = (name: string) => name.replace(/\s+trip$/i, "").trim() || name;
 
 // A playful line for each stage of the countdown.
 function tripLine(p: TripPhase, people: number): string {
-  if (p.kind === "today") return "Bags packed? It starts today ✈️";
-  if (p.kind === "during") return p.day === p.of ? "Last day. Make it count 🌅" : `Day ${p.day} of ${p.of}. Keep the receipts coming`;
-  if (p.kind === "before" && p.days === 1) return "Tomorrow! Charge your phone 🔋";
+  if (p.kind === "today") return "Bags packed? It starts today";
+  if (p.kind === "during") return p.day === p.of ? "Last day. Make it count" : `Day ${p.day} of ${p.of}. Keep the receipts coming`;
+  if (p.kind === "before" && p.days === 1) return "Tomorrow! Charge your phone";
   if (p.kind === "before" && p.days <= 7) return `${people} of you, ${p.days} sleeps to go`;
   if (p.kind === "before" && p.days <= 30) return "Start the packing list";
   return "Mark it in your calendar";
@@ -92,7 +95,7 @@ function tripFrames(t: StoryInput["trips"][number]): Frame[] {
   const out: (Frame | null)[] = [];
   if (p.kind === "before") {
     out.push(photo(0, p.days === 1 ? "Tomorrow" : `In ${p.days} days`, where, tripLine(p, t.people)));
-    out.push({ kind: "poster", tone: "sun", kicker: p.days === 1 ? "Sleeps to go" : "Sleeps to go", big: String(p.days), line: p.days <= 3 ? "Not that anyone's counting 👀" : "Someone has a countdown on their lock screen" });
+    out.push({ kind: "poster", tone: "sun", kicker: p.days === 1 ? "Sleeps to go" : "Sleeps to go", big: String(p.days), line: p.days <= 3 ? "Not that anyone's counting" : "Someone has a countdown on their lock screen" });
     { const c = cap(0, 1); out.push(photo(1, c[0], c[1])); }
     out.push(crew);
     { const c = cap(1, 2); out.push(photo(2, c[0], c[1])); }
@@ -103,9 +106,9 @@ function tripFrames(t: StoryInput["trips"][number]): Frame[] {
     out.push(
       d && d.count > 0
         ? { kind: "poster", tone: "coral", kicker: "Spent today", big: d.spent, line: `${d.count} ${d.count === 1 ? "expense" : "expenses"} so far. The night is young.` }
-        : { kind: "poster", tone: "coral", kicker: "Spent today", big: "Nothing", line: "Suspiciously quiet… 👀" },
+        : { kind: "poster", tone: "coral", kicker: "Spent today", big: "Nothing", line: "Suspiciously quiet…" },
     );
-    if (d?.top) out.push({ kind: "poster", tone: "mint", kicker: "Carrying the team today", big: d.top, line: "Somebody buy them a drink 🍹" });
+    if (d?.top) out.push({ kind: "poster", tone: "mint", kicker: "Carrying the team today", big: d.top, line: "Somebody buy them a drink" });
     { const c = cap(0, 1); out.push(photo(1, c[0], c[1])); }
     if (d?.biggest) out.push({ kind: "poster", tone: "pink", kicker: "Biggest bill today", big: d.biggest.amount, line: d.biggest.what });
     out.push(crew);
@@ -150,7 +153,7 @@ export function buildStories(i: StoryInput): Story[] {
       { kind: "poster", tone: "lilac", kicker: "Also inside", big: "Awards", line: "Who's the Banker? Who's the Snack Lord? Find out." },
       ...(photos[1] ? [{ kind: "photo", photo: photos[1], kicker: "Ready when you are", head: "Watch the whole thing", line: "Then share it to the group" } as Frame] : []),
     ];
-    out.push({ id: `wrapped-${w.id}`, kind: "wrapped", label: place(w.name), short: "Wrapped", headline: `${place(w.name)}, wrapped`, line: "Who paid most, the biggest night and more", cta: "Watch it", href: `/groups/${w.id}/wrapped`, photo: photos[0], cover: w.cover, emoji: "🎬", big: "Wrapped", frames, at: now - w.endedDaysAgo * 86_400_000 + 3_600_000 });
+    out.push({ id: `wrapped-${w.id}`, kind: "wrapped", label: place(w.name), short: "Wrapped", headline: `${place(w.name)}, wrapped`, line: "Who paid most, the biggest night and more", cta: "Watch it", href: `/groups/${w.id}/wrapped`, photo: photos[0], cover: w.cover, emoji: "", big: "Wrapped", frames, at: now - w.endedDaysAgo * 86_400_000 + 3_600_000 });
   }
   for (const g of i.games) {
     if (now - g.finishedAt.getTime() > 3 * 86_400_000) continue;
@@ -183,12 +186,12 @@ export function buildStories(i: StoryInput): Story[] {
     if (now - s.at.getTime() > 3 * 86_400_000) continue;
     const photos = s.photos?.length ? s.photos : s.photo ? [s.photo] : [];
     const frames: Frame[] = [
-      photos[0] ? { kind: "photo", photo: photos[0], kicker: "Breaking news", head: `${place(s.name)} is all square`, line: "Nobody owes anybody. Nice one 🎉" } : { kind: "art", art: "square", kicker: "Breaking news", head: `${place(s.name)} is all square`, line: "Nobody owes anybody. Nice one." },
+      photos[0] ? { kind: "photo", photo: photos[0], kicker: "Breaking news", head: `${place(s.name)} is all square`, line: "Nobody owes anybody. Nice one" } : { kind: "art", art: "square", kicker: "Breaking news", head: `${place(s.name)} is all square`, line: "Nobody owes anybody. Nice one." },
       ...(s.spent ? [{ kind: "poster", tone: "sun", kicker: "Spent together", big: s.spent, line: s.people ? `Split ${s.people} ways, without a single fight*` : "Without a single fight*" } as Frame] : []),
       ...(s.payments ? [{ kind: "poster", tone: "sky", kicker: "Payments it took", big: String(s.payments), line: "*that we know of" } as Frame] : []),
       ...(photos[1] ? [{ kind: "photo", photo: photos[1], kicker: "Bragging rights", head: "Share it with the group", line: "Friendships: intact ✓" } as Frame] : []),
     ];
-    out.push({ id: `square-${s.id}-${s.at.getTime()}`, kind: "square", label: place(s.name), short: "All square", headline: `${place(s.name)} is all square`, line: "Nobody owes anybody. Nice one 🎉", cta: "Share it", href: `/groups/${s.id}/square`, photo: photos[0], cover: s.cover, art: "square", emoji: "🎉", big: "All square", frames, at: s.at.getTime() });
+    out.push({ id: `square-${s.id}-${s.at.getTime()}`, kind: "square", label: place(s.name), short: "All square", headline: `${place(s.name)} is all square`, line: "Nobody owes anybody. Nice one", cta: "Share it", href: `/groups/${s.id}/square`, photo: photos[0], cover: s.cover, art: "square", emoji: "", big: "All square", frames, at: s.at.getTime() });
   }
   for (const c of i.collections) {
     if (c.people === 0) continue;
@@ -220,7 +223,7 @@ export function buildStories(i: StoryInput): Story[] {
     const photos = m.photos?.length ? m.photos : m.photo ? [m.photo] : [];
     const ago = m.years === 1 ? "A year ago" : `${m.years} years ago`;
     const frames: Frame[] = [
-      photos[0] ? { kind: "photo", photo: photos[0], kicker: `${ago} today`, head: place(m.name), line: "Remember this? 🌴" } : { kind: "poster", tone: "coral", kicker: `${ago} today`, big: place(m.name), line: "Remember this? 🌴" },
+      photos[0] ? { kind: "photo", photo: photos[0], kicker: `${ago} today`, head: place(m.name), line: "Remember this?" } : { kind: "poster", tone: "coral", kicker: `${ago} today`, big: place(m.name), line: "Remember this?" },
       { kind: "poster", tone: "sun", kicker: "The trip", big: `${m.days} ${m.days === 1 ? "day" : "days"}`, line: `${m.people} of you. Zero regrets.` },
       ...(m.spent ? [{ kind: "poster", tone: "pink", kicker: "Spent together", big: m.spent, line: "Money well spent, obviously" } as Frame] : []),
       ...(m.crew && m.crew.length > 1 ? [{ kind: "list", tone: "sky", kicker: "Who was there", rows: m.crew.slice(0, 8).map((n) => ({ label: n })), line: "Time for a sequel?" } as Frame] : []),
@@ -232,7 +235,7 @@ export function buildStories(i: StoryInput): Story[] {
       label: place(m.name),
       short: m.years === 1 ? "A year ago" : `${m.years} yrs ago`,
       headline: `${ago}: ${place(m.name)}`,
-      line: `${m.people} of you${m.days > 1 ? `, ${m.days} days` : ""}. Remember that? 🌴`,
+      line: `${m.people} of you${m.days > 1 ? `, ${m.days} days` : ""}. Remember that?`,
       cta: "Relive it",
       href: `/groups/${m.id}?tab=activity`,
       photo: photos[0],
@@ -241,6 +244,26 @@ export function buildStories(i: StoryInput): Story[] {
       big: m.years === 1 ? "1 year" : `${m.years} years`,
       frames,
       at: now - 86_400_000,
+    });
+  }
+  // Moments: one story per group. Its id has the newest moment in it, so the circle lights up again when another one arrives.
+  // The words are the person's own caption and day only: nothing is ever written about someone's photo.
+  for (const mo of i.moments ?? []) {
+    if (!mo.frames.length) continue;
+    const n = mo.frames.length;
+    out.push({
+      id: `moment-${mo.groupId}-${mo.newestId}`,
+      kind: "moment",
+      label: place(mo.groupName),
+      short: "Moments",
+      headline: mo.frames[0].kicker,
+      line: n === 1 ? "A new moment" : `${n} new moments`,
+      cta: "See our moments",
+      href: `/groups/${mo.groupId}/moments`,
+      photo: mo.frames[0].thumb,
+      emoji: "📸",
+      frames: mo.frames.map((f): Frame => ({ kind: "photo", photo: f.full, kicker: f.kicker, head: f.head, line: f.line || undefined, calm: true })),
+      at: mo.at.getTime(),
     });
   }
   return out.sort((a, b) => b.at - a.at).slice(0, 12);

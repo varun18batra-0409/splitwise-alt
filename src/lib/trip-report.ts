@@ -130,8 +130,9 @@ export function reportText(r: TripReport): string {
 }
 
 // Up to three short lines for the top of a trip's (or any group's) Charts tab.
-export function insightLines(r: TripReport, myId: string): string[] {
-  const m = (x: number) => formatMoney(x, r.currency);
+// `fmt` is for the screen (whole units from 1,000 up); the default stays exact.
+export function insightLines(r: TripReport, myId: string, fmt: (minor: number, currency: string) => string = formatMoney): string[] {
+  const m = (x: number) => fmt(x, r.currency);
   const out: string[] = [];
   if (r.count < 3 || r.total <= 0) return out;
   const top = r.categories[0];

@@ -1,5 +1,6 @@
 import { COUNTRIES, countryOf, tripStops } from "@/lib/geo";
 import { inputClass } from "./ui";
+import { SelectField } from "@/components/SelectField";
 
 // "Where to?" for a trip: the places it goes, for everyone's trip passport.
 // Optional: Loopin guesses from the trip's name when it can.
@@ -16,14 +17,14 @@ export function WhereTo({ name, place = "", country = "", optional }: { name: st
       </p>
       <div className="grid grid-cols-[minmax(0,1fr)_9rem] gap-2">
         <input name="tripPlace" defaultValue={place} maxLength={80} placeholder="e.g. Bangkok, Phuket" aria-label="Places" autoComplete="off" className={inputClass} />
-        <select name="tripCountry" defaultValue={country} aria-label="Country" className={`${inputClass} min-w-0`}>
+        <SelectField name="tripCountry" defaultValue={country} aria-label="Country" className="min-w-0">
           <option value="">Country…</option>
           {COUNTRIES.map((c) => (
             <option key={c.code} value={c.code}>
               {c.flag} {c.name}
             </option>
           ))}
-        </select>
+        </SelectField>
       </div>
     </fieldset>
   );

@@ -20,6 +20,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { base, bypass, hosted, withBypass } from "./hosted";
+import { assertMomentPhotosDecoded, realPhotos } from "./moment-shots";
 import { chromium, webkit, devices, type Browser, type BrowserContext, type BrowserContextOptions, type Page, type Route } from "playwright";
 import { db } from "../src/lib/db";
 import { netBalances } from "../src/lib/balances";
@@ -91,8 +92,12 @@ const rupees = (paise: number) => `₹${(paise / 100).toFixed(2)}`;
 // A step that hangs (a screen that never finishes on the hosted copy) fails on
 // its own after two minutes instead of stopping the whole run.
 const STEP_LIMIT_MS = 120_000;
+// Every page crash (a React error, an uncaught throw), with the step it happened in and the page's address, listed at the end of the run.
+let stepNow = "(before the first step)";
+const pageCrashes: string[] = [];
 async function step(page: Page | null, area: string, name: string, fn: () => Promise<void | string | NotRun>, only?: Profile[], limitMs = STEP_LIMIT_MS) {
   const n = results.length + 1;
+  stepNow = `${area} — ${name}`;
   try {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const note = await Promise.race([
@@ -218,10 +223,16 @@ function watch(page: Page) {
   page.on("requestfinished", (r) => open.delete(r));
   page.on("requestfailed", (r) => open.delete(r));
   const keep = (t: string) => {
-    errs.push(t.slice(0, 160));
+    errs.push(Array.from(t).slice(0, 160).join(""));
     if (errs.length > 3) errs.shift();
   };
-  page.on("pageerror", (e) => keep(`pageerror ${String(e)}`));
+  page.on("pageerror", (e) => {
+    keep(`pageerror ${String(e)}`);
+    const where = page.url().replace(/^https?:\/\/[^/]+/, "").replace(/[?#].*$/, "");
+    const line = `${Array.from(String(e)).slice(0, 90).join("")} | on ${where} | in ${Array.from(stepNow).slice(0, 120).join("")}`;
+    pageCrashes.push(line);
+    console.log("! page crash:", line);
+  });
   page.on("console", (m) => {
     if (m.type() === "error") keep(`console ${m.text()}`);
   });
@@ -285,9 +296,13 @@ async function shownBalances(page: Page, groupPath: string): Promise<Record<stri
   for (let i = 0; i < n; i++) {
     const t = (await rows.nth(i).innerText()).replace(/\s+/g, " ");
     const name = t.replace(/^[A-Z] /, "").split(" ")[0];
-    const gets = /gets (₹[\d,.]+)/.exec(t);
-    const owes = /owes (₹[\d,.]+)/.exec(t);
-    out[name] = gets ? minor(gets[1]) : owes ? -minor(owes[1]) : 0;
+    // The row shows whole rupees from ₹1,000 up; the exact amount is in data-balance, which is what is checked here.
+    const exactEl = rows.nth(i).locator("[data-balance]").first();
+    const exact = (await exactEl.count()) ? ((await exactEl.getAttribute("data-balance")) ?? "") : "";
+    const amt = /(₹[\d,.]+)/.exec(exact);
+    const gets = /\bgets\b/.test(t);
+    const owes = /\bowes\b/.test(t);
+    out[name] = amt && gets ? minor(amt[1]) : amt && owes ? -minor(amt[1]) : 0;
   }
   return out;
 }
@@ -327,8 +342,12 @@ async function shownBalancesIn(page: Page, groupPath: string, currency: string):
   for (let i = 0; i < count; i++) {
     const t = (await rows.nth(i).innerText()).replace(/\s+/g, " ");
     const name = t.replace(/^[A-Z] /, "").split(" ")[0];
-    const m = /\b(gets|owes) (?:[A-Z]{3} )?\D?([\d,]+(?:\.\d+)?)/.exec(t);
-    const v = m ? Math.round(parseFloat(m[2].replace(/,/g, "")) * 10 ** d) : 0;
+    // The row shows whole units from 1,000 up; the exact amount is in data-balance, which is what is checked here.
+    const exactEl = rows.nth(i).locator("[data-balance]").first();
+    const exact = (await exactEl.count()) ? ((await exactEl.getAttribute("data-balance")) ?? "") : "";
+    const m = /\b(gets|owes)\b/.exec(t);
+    const num = /([\d,]+(?:\.\d+)?)/.exec(exact);
+    const v = m && num ? Math.round(parseFloat(num[1].replace(/,/g, "")) * 10 ** d) : 0;
     result[name] = m ? (m[1] === "gets" ? v : -v) : 0;
   }
   return result;
@@ -402,6 +421,7 @@ async function pickCurrency(page: Page, code: string) {
 }
 async function fillExpense(page: Page, o: AddOpts) {
   const label = (p: string) => (p === o.me ? "You" : p);
+  await openSplit(page);
   if (o.payer) await page.getByRole("button", { name: new RegExp(`^(✓ )?${label(o.payer)}$`) }).first().click();
   await page.locator("#expense-name").fill(o.name);
   if (!o.inGroupCurrency) await pickCurrency(page, o.currency ?? "INR");
@@ -411,7 +431,7 @@ async function fillExpense(page: Page, o: AddOpts) {
     await page.getByRole("button", { name: o.date, exact: true }).click();
   }
   if (o.currency && o.currency !== "INR") {
-    await page.getByRole("button", { name: "Change rate" }).click();
+    await page.getByRole("button", { name: "Details", exact: true }).click(); // the quiet "≈ ₹… with your card's fee" line opens the rate, fee and maths
     await page.getByRole("button", { name: o.method ?? "Card", exact: true }).click();
     if (o.rate) {
       const edit = page.getByRole("button", { name: "Edit rate" });
@@ -427,6 +447,7 @@ async function fillExpense(page: Page, o: AddOpts) {
     }
   }
   // Split: always start from "Everyone equally" (the app remembers the last split).
+  await openSplit(page);
   await page.getByRole("button", { name: "Everyone equally" }).click();
   const s = o.split ?? { kind: "everyone" };
   if (s.kind === "only") {
@@ -452,6 +473,11 @@ async function fillExpense(page: Page, o: AddOpts) {
     await openMore(page);
     await page.getByPlaceholder(/Rahul paid the tip/).fill(o.notes);
   }
+}
+// Add expense has two rows (Paid by, Split between): tapping either opens the payer and split controls under it.
+async function openSplit(page: Page) {
+  if (!(await page.locator("[data-split-panel]").count())) await page.locator("[data-row-paid]").first().click();
+  await page.locator("[data-split-panel]").waitFor();
 }
 // Add expense keeps notes, several payers and Spin for it under "More" (closed unless the expense already uses them).
 async function openMore(page: Page) {
@@ -727,6 +753,7 @@ async function main() {
     const href = await editPath(V, "Coffee");
     await go(V, href);
     await V.getByLabel("Amount", { exact: true }).fill("800");
+    await openSplit(V);
     await V.getByRole("button", { name: "Everyone equally" }).click();
     await V.getByRole("button", { name: "Save changes" }).click();
     await V.waitForURL(/tab=activity/);
@@ -740,6 +767,7 @@ async function main() {
     await go(V, href);
     await go(A, href);
     await A.getByLabel("Amount", { exact: true }).fill("240");
+    await openSplit(A);
     await A.getByRole("button", { name: "Everyone equally" }).click();
     await A.getByRole("button", { name: "Save changes" }).click();
     await A.waitForURL(/tab=activity/);
@@ -747,6 +775,7 @@ async function main() {
     e.amount = 24000;
     e.shares = equal(24000, PEOPLE);
     await V.getByLabel("Amount", { exact: true }).fill("999");
+    await openSplit(V);
     await V.getByRole("button", { name: "Everyone equally" }).click();
     await V.getByRole("button", { name: "Save changes" }).click();
     await V.getByText(/changed this expense a moment ago/).waitFor();
@@ -788,10 +817,14 @@ async function main() {
     assert(/75/.test(box), "no ₹75 card fee shown");
     await V.getByRole("button", { name: "Hide details" }).click();
     const line = await V.locator("[data-fx-card] [data-fx-line]").innerText();
-    assert(/2,575/.test(line) && /card fee/.test(line), `one sum line: ${line}`);
+    assert(/2,575/.test(line) && /3% fee/.test(line), `one quiet line: ${line}`);
     const card = await V.locator("[data-fx-card]").innerText();
-    assert(/Balances stay in INR/.test(card) && /Change rate/.test(card) && /Card fee: 3%/.test(card), `foreign card controls: ${card.replace(/\s+/g, " ")}`);
-    assert((card.match(/2,575/g) ?? []).length === 1, `the sum is repeated on the foreign card: ${card.replace(/\s+/g, " ")}`);
+    assert(/Details/.test(card), `the foreign line has no Details link: ${card.replace(/\s+/g, " ")}`);
+    assert((card.match(/2,575/g) ?? []).length === 1, `the sum is repeated on the foreign line: ${card.replace(/\s+/g, " ")}`);
+    await V.getByRole("button", { name: "Details", exact: true }).click();
+    const maths = await V.locator("[data-fx-maths]").innerText();
+    assert(/Balances stay in INR/.test(maths) && /2,575/.test(maths), `the details lost the maths: ${maths.replace(/\s+/g, " ")}`);
+    await V.getByRole("button", { name: "Hide details" }).click();
     await save(V, { me: "Varun", name: "", amount: "" });
     ledger.push({ key: "Beach shack", payer: "Varun", amount: 257500, shares: equal(257500, PEOPLE), active: true });
     return checkBalances(V, g);
@@ -850,9 +883,12 @@ async function main() {
     await V.getByRole("link", { name: "Why?" }).first().waitFor();
   });
   await step(V, "Simple screens", "Balances only explains; paying happens on Settle up (no duplicate buttons)", async () => {
+    // “3 payments clear the whole trip” is the ticket's line at the top of the group, no longer a card of its own on Balances.
+    await go(V, g);
+    await V.getByText(/payments? clears? (it|the whole trip|everything)/).first().waitFor();
     await go(V, `${g}?tab=balances`);
     assert((await V.getByRole("button", { name: "Mark as paid" }).count()) === 0, "Balances still has Mark as paid");
-    await V.getByText(/payments? clears? everything/).first().waitFor();
+    assert((await V.getByText(/payments? clears? everything/).count()) === 0, "Balances still repeats the payments-clear card");
     await V.getByText("spent across").first().waitFor();
   });
   await step(V, "Simple screens", "Activity has one Filter button that opens search, category and person", async () => {
@@ -902,7 +938,7 @@ async function main() {
     await other.click();
     await page.waitForURL(/\/pay\?/);
     if (o.amount !== undefined) await page.locator('input[name="amount"]:not([type="hidden"])').fill(o.amount);
-    const b = page.getByRole("button", { name: "Record payment" });
+    const b = page.getByRole("button", { name: /^Record / });
     if (o.dbl) await b.dblclick();
     else await b.click();
   };
@@ -919,27 +955,18 @@ async function main() {
     await V.waitForURL(/\/settle/);
     const n = await settleCards(V).count();
     assert(n >= 1 && n <= 3, `${n} payments suggested for 4 people`);
-    // One layout: a row has one filled main button (Open payment app / Remind, or its one action when it has neither), no amount box,
-    // and a "Paid a different amount?" link unless a claim is waiting.
-    for (let i = 0; i < n; i++) {
-      const row = settleCards(V).nth(i);
-      const filled = await row.locator(".pop").count();
-      const apps = await row.locator("[data-pay]").count();
-      // One filled button when there is any pay option (a second saved way, e.g. PayPal, is a quiet "or pay with" link, never filled).
-      // A payment between two other people has a quiet outline "Mark paid" (yours is the filled one); a waiting claim has none.
-      const quiet = filled === 0 && ((await row.locator("[data-claim-waiting], [data-claim-above]").count()) > 0 || (await row.locator("[data-mark-paid]").count()) >= 1);
-      assert((apps <= 1 && filled === 1) || quiet, `row ${i} has ${filled} filled buttons`);
-      assert((await row.locator('input[name="amount"]:not([type="hidden"])').count()) === 0, `row ${i} still has an amount box`);
-      assert((await row.getByText("Mark paid", { exact: true }).count()) <= 1, `row ${i} has look-alike buttons`);
+    // One cream button on the whole Settle page: the first of your tickets ("Pay …" / "Remind …"), or "Confirm received" when someone is waiting on you.
+    // The other tickets, "Between others" rows and the closing buttons are outlined or quiet. No amount box on any row.
+    for (let i = 0; i < n; i++) assert((await settleCards(V).nth(i).locator('input[name="amount"]:not([type="hidden"])').count()) === 0, `row ${i} still has an amount box`);
+    const cream = await V.locator("main .pop").count();
+    const waitingCream = await V.getByRole("region", { name: "Did you get these?" }).locator(".pop").count();
+    if (waitingCream > 0) {
+      assert(cream === 1 && waitingCream === 1, `${cream} cream buttons while someone waits on you (want only the first “Confirm received”)`);
+    } else {
+      assert(cream <= 1, `${cream} cream buttons on Settle up`);
+      if (cream === 1) assert((await V.getByRole("region", { name: "Yours" }).locator("li[data-transfer-row]").first().locator(".pop").count()) === 1, "the cream button is not on the first of your tickets");
     }
-    // Under the rows: at most ONE main closing button; Mark all, Settle everything and "Record a different payment" are quiet links under More options.
-    assert((await V.locator("[data-settle-actions] .pop").count()) <= 1, "more than one filled closing button under the payments");
-    // One filled button per screen area: on the whole page, the rows' own main buttons plus at most one closing button,
-    // and none at all when a single payment is shown (that payment's own button is the main one).
-    const rowFilled = await settleCards(V).locator(".pop").count();
-    const allFilled = await V.locator("main .pop").count();
-    assert(allFilled <= rowFilled + 1, `${allFilled} filled buttons on Settle up, but the rows have ${rowFilled}`);
-    if (n === 1) assert((await V.locator("[data-settle-actions] .pop").count()) === 0, "a second big button under a single payment");
+    assert((await V.locator("[data-settle-actions] .pop").count()) === 0, "a cream closing button under the payments");
     // F1/F18: one wording, "Mark all N paid", quiet and under More options; it counts only other people's payments (never mine).
     const markAll = V.locator("[data-settle-actions]").getByRole("button", { name: /Mark all/ });
     assert((await V.getByRole("button", { name: /^Mark all paid \(\d+\)$/ }).count()) === 0, "the old “Mark all paid (N)” wording is back");
@@ -948,9 +975,20 @@ async function main() {
     const mineCount = await settleCards(V).filter({ hasText: /^(?:[A-Z] )?You pay / }).count();
     const m = await markAll.count();
     if (m) assert(new RegExp(`^Mark all ${n - mineCount} paid$`).test(((await markAll.first().innerText()) ?? "").trim()), `Mark all says ${await markAll.first().innerText()} but ${n - mineCount} payments are other people's`);
-    // F8: a row paid by UPI (rupees, the person has a UPI ID) shows no "or pay with PayPal" link.
-    const rowsWithAlt = await V.locator("main li[data-transfer-row]").evaluateAll((els) => els.filter((e) => e.querySelector("[data-pay='upi']") && e.querySelector("[data-pay-alt]")).length);
-    assert(rowsWithAlt === 0, "a UPI row still offers “or pay with PayPal”");
+    // F8: the Pay view (opened from "Pay <name>") is where the payment app lives: an INR UPI payee shows the UPI button and no PayPal link;
+    // a payee with a pay link (non-INR) shows that link.
+    const payLinks = V.getByRole("region", { name: "Yours" }).getByRole("link", { name: /^Pay / });
+    const payCount = await payLinks.count();
+    for (let i = 0; i < payCount; i++) {
+      await go(V, `${g}/settle`);
+      await V.getByRole("region", { name: "Yours" }).getByRole("link", { name: /^Pay / }).nth(i).click();
+      await V.locator("[data-pay-view]").waitFor();
+      const upi = await V.locator("[data-pay-view] [data-pay='upi']").count();
+      const alt = await V.locator("[data-pay-view] [data-pay-alt='paypal'], [data-pay-view] [data-pay='paypal']").count();
+      const inr = /₹/.test(await V.locator("[data-pay-amount]").innerText());
+      if (inr && upi) assert(alt === 0, "a UPI payee's Pay view still offers PayPal");
+      if (!inr && !upi) assert((await V.locator("[data-pay-view] [data-pay]").count()) <= 1, "a pay-link payee's Pay view has more than one main link");
+    }
     return `${n} payments suggested`;
   });
   await step(V, "Settle", "Bottom bar “Settle” inside a group goes to the same screen", async () => {
@@ -1011,7 +1049,7 @@ async function main() {
     const before = await checkBalances(V, g);
     await mine.first().locator("[data-i-paid]").click();
     await V.waitForURL(/claimed=1/);
-    await V.getByText("Waiting for Asha to confirm").waitFor();
+    await V.getByRole("heading", { name: "Waiting for Asha" }).waitFor();
     await checkBalances(V, g); // the claim moved nothing
     // Asha's Alerts lists it once, under "Needs you" (not again in Activity).
     await go(A, "/notifications");
@@ -1025,23 +1063,34 @@ async function main() {
     assert((await A.locator('[data-need="claim"]').count()) === 0, "Needs you still lists the confirmed claim");
     return `${before} → after Confirm: ${await checkBalances(V, g)}`;
   });
+  // Record a payment: From and To are folded away until tapped (the To list starts open when nobody is picked yet).
+  const pickFrom = async (page: Page, name: string) => {
+    const l = page.locator("label", { hasText: name }).first();
+    if (!(await l.isVisible())) await page.locator('[data-pick="from"]').click();
+    await l.click();
+  };
+  const pickTo = async (page: Page, name: string) => {
+    const l = page.locator("label[data-to]", { hasText: name });
+    if (!(await l.isVisible())) await page.locator('[data-pick="to"]').click();
+    await l.click();
+  };
   await step(V, "Settle", "Record a different payment on the payment screen (Zoe paid Asha ₹50)", async () => {
     await go(V, `${g}/pay`);
-    await V.locator("label", { hasText: "Zoe" }).first().click();
-    await V.locator("label[data-to]", { hasText: "Asha" }).click();
+    await pickFrom(V, "Zoe");
+    await pickTo(V, "Asha");
     await V.locator('input[name="amount"]:not([type="hidden"])').fill("50");
-    await V.getByRole("button", { name: "Record payment" }).click();
+    await V.getByRole("button", { name: /^Record / }).click();
     await V.waitForURL(/paid=1/);
     payments.push({ from: "Zoe", to: "Asha", amount: 5000, active: true, key: "manual" });
     return checkBalances(V, g);
   });
   await step(V, "Settle", "Paying more than owed (an extra zero) asks first and saves nothing until confirmed", async () => {
     await go(V, `${g}/pay`);
-    await V.locator("label", { hasText: "Zoe" }).first().click();
-    await V.locator("label[data-to]", { hasText: "Asha" }).click();
+    await pickFrom(V, "Zoe");
+    await pickTo(V, "Asha");
     await V.locator('input[name="amount"]:not([type="hidden"])').fill("50000");
     const before = await db.payment.count({ where: { groupId: g.split("/").pop()!, deletedAt: null } });
-    await V.getByRole("button", { name: "Record payment" }).click();
+    await V.getByRole("button", { name: /^Record / }).click();
     await V.locator("[data-over-warning]").waitFor();
     const t = (await V.locator("[data-over-warning]").innerText()).replace(/\s+/g, " ");
     // Two wordings, depending on whether the person paid is owed anything right now (pay-record.ts overpayQuestion).
@@ -1054,18 +1103,19 @@ async function main() {
   });
   await step(V, "Settle", "You can't record paying yourself", async () => {
     await go(V, `${g}/pay`);
-    await V.locator("label", { hasText: "Asha" }).first().click();
+    await pickFrom(V, "Asha");
     const target = V.locator("label[data-to]", { hasText: "Asha" });
     assert(!(await target.isVisible()), "“Asha → Asha” is still offered under Paid to");
     // Even if forced, the server says no.
+    // The amount is typed first: the form's radios are controlled by the page, so a choice forced in the DOM must come last or typing resets it.
+    await V.locator('input[name="amount"]:not([type="hidden"])').fill("10");
     await V.evaluate(() => {
       const r = document.querySelector<HTMLInputElement>('label[data-to] input[name="toId"]');
       const from = document.querySelector<HTMLInputElement>('input[name="fromId"]:checked');
       if (r && from) r.value = from.value;
       if (r) r.checked = true;
     });
-    await V.locator('input[name="amount"]:not([type="hidden"])').fill("10");
-    await V.getByRole("button", { name: "Record payment" }).click();
+    await V.getByRole("button", { name: /^Record / }).click();
     await V.getByText(/two different people/).waitFor();
   });
   await step(V, "Settle", "Settle everything & close, then reopen", async () => {
@@ -1115,8 +1165,8 @@ async function main() {
     assert(/1 payment instead of 2/.test(t), "doesn't say 1 payment instead of 2");
     // Here a payment is recorded at once (unlike a group's own “I’ve paid” claim), so it never says “I’ve paid”.
     assert((await V.locator("main summary", { hasText: "I’ve paid" }).count()) === 0, "the all-groups Settle screen says “I’ve paid”");
-    // "They’ve paid me" (Varun is owed) opens a preview of each group's part and the total; only "Record in 2 groups" saves.
-    await card.locator("summary", { hasText: "They’ve paid me" }).click();
+    // "Mark paid" (Varun is owed) opens a preview of each group's part and the total; only "Record in 2 groups" saves.
+    await card.locator("summary", { hasText: "Mark paid" }).click();
     const lines = (await card.locator("[data-cross-lines]").innerText()).replace(/\s+/g, " ");
     assert(/UAT Flat: Asha pays you ₹500/.test(lines) && /UAT Dinner club: you pay Asha ₹300/.test(lines), `preview lines: ${lines}`);
     assert(/Together: Asha pays you ₹200/.test(await card.locator("[data-cross-total]").innerText()), "preview total isn't Asha pays you ₹200");
@@ -1167,6 +1217,7 @@ async function main() {
   });
   await step(V, "Couples", "“Our split 55 / 45” is chosen by default: ₹1,000 lunch → Asha owes ₹450", async () => {
     await go(V, `${gc}/add`);
+    await openSplit(V); // the split choices sit behind the "Paid by / Split between" rows
     const chip = V.getByRole("button", { name: /Our split/ });
     assert((await chip.getAttribute("aria-pressed")) === "true", "Our split isn't selected by default");
     await V.locator("#expense-name").fill("Lunch");
@@ -1194,6 +1245,7 @@ async function main() {
   await step(V, "Couples", "Money back: Asha got ₹200 back, shared 55 / 45 → Asha owes ₹960", async () => {
     await go(V, `${gc}/add`);
     await V.getByRole("radio", { name: "Money back" }).click();
+    await openSplit(V);
     await V.getByRole("button", { name: /^(✓ )?Asha$/ }).first().click();
     await V.locator("#expense-name").fill("Refund");
     await V.getByLabel("Amount", { exact: true }).fill("200");
@@ -1217,6 +1269,7 @@ async function main() {
     await V.waitForURL(/\/add\?again=/);
     await V.getByText(/Saved Groceries/).waitFor();
     assert((await V.locator("#expense-name").inputValue()) === "", "name not cleared");
+    await openSplit(V);
     assert((await V.getByRole("button", { name: /Our split/ }).getAttribute("aria-pressed")) === "true", "split not kept");
   });
   await step(V, "Add", "Repeat an expense, see the duplicate warning, then add it anyway", async () => {
@@ -1261,74 +1314,83 @@ async function main() {
   });
   await step(A, "Alerts", "Asha sees an unread alert badge and Varun's changes in Alerts", async () => {
     await go(A, "/");
-    const nav = A.getByRole("navigation", { name: "Main" });
-    const label = await nav.getByRole("link", { name: /Alerts/ }).getAttribute("aria-label");
-    assert(/new/.test(label ?? ""), `Alerts label: ${label}`);
-    await go(A, "/notifications");
+    // The unread count moved from the bottom bar to the bell at the top right of Home (aria-label "Updates (N new)").
+    const label = await A.locator("[data-bell]").first().getAttribute("aria-label");
+    assert(/new/.test(label ?? ""), `Updates bell label: ${label}`);
+    await go(A, "/notifications?tab=all");
     await A.getByText(/Varun/).first().waitFor();
   });
   await step(A, "Alerts", "Asha was told she was added to the new groups", async () => {
-    await go(A, "/notifications");
+    await go(A, "/notifications?tab=all");
     await A.getByText(/added Asha to the group/).first().waitFor();
   });
-  await step(V, "Home", "Home opens on the money card (net amount, Add expense and Settle up), then Your groups and the bottom bar, which keeps its “+”", async () => {
+  await step(V, "Home", "Home opens on the boarding-pass money card (route, one amount, ONE cream button; no tint, no “Add expense”, no repeated amount), a quiet line under it for what needs you, then Your groups and the bottom bar, which keeps its “+”", async () => {
     await go(V, "/");
     const money = V.getByRole("region", { name: "Your money" });
-    await money.getByText(/Coming back to you|You owe|It all evens out|Nobody owes anybody|Across currencies/).first().waitFor();
-    assert((await money.getByText(/You owe, to /).count()) === 0, "the money card still says “You owe, to N people”");
-    await money.locator("[data-net-balance]").waitFor();
-    // The card takes the colour of your position (data-tone). When money is owed either way, one line names who it is with and how much
-    // ("Nupur ₹1,800 · Ravi ₹650", names in bold, one 44px link to Settle up); the bright button does the obvious next thing.
-    const text = await money.innerText();
+    await money.locator("[data-net-balance]").first().waitFor();
+    const kind = await money.getAttribute("data-ticket"); // square | neutral | one | both
     const tone = await money.getAttribute("data-tone");
-    const wantTone = /You owe/.test(text) ? "owe" : /Coming back to you/.test(text) ? "owed" : "square";
-    assert(tone === wantTone, `the money card tone is ${tone}, expected ${wantTone}`);
-    const who = money.locator("[data-money-people]");
+    const text = (await money.innerText()).replace(/\s+/g, " ");
+    assert(!/Add expense/.test(text), "the money card still has an Add expense button");
+    assert(!/Coming back to you|You owe, to /.test(text), `the money card still has the old wording: ${text}`);
+    // Calm dark card: no gradient wash and no coloured border, whatever the state.
+    const look = await money.evaluate((el) => ({ bg: getComputedStyle(el).backgroundImage, border: getComputedStyle(el).borderTopWidth }));
+    assert(look.bg === "none" && look.border === "0px", `the money card is tinted or outlined (${look.bg}, ${look.border})`);
     const keys = (await money.locator("[data-money-action]").evaluateAll((els) => els.map((e) => e.getAttribute("data-money-action")))).join(",");
-    if (wantTone === "square") {
-      assert((await who.count()) === 0, "the money card names people when nothing is owed");
-      assert(/^add,(settle|new-group)$/.test(keys), `the money card buttons are ${keys}`);
-    } else {
-      assert((await who.count()) === 1, "the money card has no line saying who it is with");
-      assert((await who.boundingBox())!.height >= 44, "the who-line is under 44px tall");
-      assert(/^\/settle(#|$)/.test((await who.getAttribute("href")) ?? ""), "the who-line doesn't go to Settle up");
-      const line = (await who.innerText()).replace(/\s+/g, " ").trim();
-      assert(/^\S.*[₹$€£]\s?\d/.test(line), `the who-line has no amounts: ${line}`);
-      assert((await who.locator("b").count()) >= 1, "the who-line names aren't bold");
-      // UX-01: each row of the who-line (main side; "You owe …" / "… owes you" when money also goes the other way) is whole:
-      // nothing cut off, and the direction words are on screen whenever the opposite row is.
-      const rows = (await who.locator("[data-who-line]").evaluateAll(
-        (els) => els.map((e) => ({ row: e.getAttribute("data-who-row"), cut: e.scrollWidth > e.clientWidth + 1, text: (e as HTMLElement).innerText })),
-      )) as { row: string; cut: boolean; text: string }[];
-      assert(rows.length >= 1 && rows[0].row === "main", "the who-line has no main row");
-      assert(rows.every((r) => !r.cut), `a who-line row is cut off: ${rows.filter((r) => r.cut).map((r) => r.text).join(" | ")}`);
-      const opp = rows.find((r) => r.row === "opposite");
-      if (opp) assert(/(^You owe )|( owes? you )/.test(opp.text.replace(/\s+/g, " ") + " ") && /\d/.test(opp.text), `the other-way row lost its direction words or amount: ${opp.text}`);
-      const main = money.locator("[data-money-action][data-emphasis='bright']");
-      const label = (await main.innerText()).trim();
-      const href = (await main.getAttribute("href")) ?? "";
-      if (wantTone === "owe") {
-        assert(keys === "pay,add" && /^Pay \S+/.test(label), `main button is "${label}" (${keys})`);
+    const labels = await money.locator("[data-money-action]").allInnerTexts();
+    if (kind === "square") {
+      // All square: the words only, no button (the “+ New group” tile below is the only way to start one).
+      assert(tone === "square" && keys === "" && /All square/.test(text) && /Nobody owes anybody/.test(text), `all-square card: ${tone} ${keys} ${text}`);
+      assert((await money.getByRole("link").count()) === 0, "the all-square card still has a button");
+      assert((await money.locator("[data-money-people]").count()) === 0, "the money card names people when nothing is owed");
+    } else if (kind === "neutral") {
+      assert(keys === "settle" && /^Settle up$/.test(labels[0].trim()), `neutral card buttons: ${keys}`);
+    } else if (kind === "one") {
+      // One person or several: a route line, the amount once, and one button.
+      const route = (await money.locator("[data-route]").innerText()).replace(/\s+/g, " ").trim();
+      assert(/^You .+|.+ You$/.test(route), `the route line is "${route}"`);
+      const amount = (await money.locator("[data-net-balance]").first().innerText()).trim();
+      assert(/[₹$€£]\s?\d/.test(amount), `the amount is "${amount}"`);
+      assert(text.split(amount).length === 2, `the amount "${amount}" is repeated on the card: ${text}`);
+      const label = labels[0].trim();
+      const href = (await money.locator("[data-money-action]").getAttribute("href")) ?? "";
+      assert(keys === (tone === "owe" ? "pay" : "remind"), `main button is "${label}" (${keys}) on a ${tone} card`);
+      if (tone === "owe") {
+        assert(/^Pay \S+/.test(label), `Pay button says "${label}"`);
         assert(/^\/settle#pay-/.test(href) || /^\/groups\/[^/]+\/settle$/.test(href), `Pay goes to ${href}`);
       } else {
-        assert(keys === "remind,add" && /^Remind \S+/.test(label), `main button is "${label}" (${keys})`);
-        assert(/^\/groups\/[^/]+\/remind\?from=/.test(href), `Remind goes to ${href}`);
+        assert(/^Remind (\S+|all \d+)$/.test(label), `Remind button says "${label}"`);
+        assert(/^\/groups\/[^/]+\/remind\?from=/.test(href) || href === "/settle#remind", `Remind goes to ${href}`);
       }
-      assert((await money.locator("[data-money-action='add']").innerText()).includes("Add expense"), "the second button isn't Add expense");
+      const who = money.locator("[data-money-people]");
+      if (await who.count()) {
+        assert((await who.boundingBox())!.height >= 44, "the faces link is under 44px tall");
+        assert(/^\/settle(#|$)/.test((await who.getAttribute("href")) ?? ""), "the faces link doesn't go to Settle up");
+      }
+    } else {
+      // Both ways: two lines, each with its own small button; never netted into one amount.
+      assert(keys === "pay,remind", `both-ways buttons: ${keys}`);
+      assert((await money.locator("[data-ticket-line]").count()) === 2, "both ways should be two lines");
+      assert(labels.map((l) => l.trim()).join("|") === "Pay|Remind", `both-ways button words: ${labels.join("|")}`);
+      assert(/You owe/.test(text) && / owes? you/.test(text), `both-ways lines lost their direction words: ${text}`);
+      assert((await money.locator("[data-money-action][data-emphasis='bright']").count()) === 1, "both-ways card should have one bright button");
     }
-    // What waits on you is one line at the bottom of the card (a 44px link), never a section of its own.
+    // What waits on you is one quiet line under the card (a 44px link, no dot, no box), never a section of its own.
     assert((await V.locator("[data-needs-you]").count()) === 0, "Home still has a separate Needs you section");
     assert((await V.getByRole("heading", { name: "Needs you" }).count()) === 0, "Home still has a Needs you heading");
-    const needLine = money.locator("[data-need-line]");
+    assert((await money.locator("[data-need-line]").count()) === 0, "the need line is still inside the card");
+    const needLine = V.locator("[data-need-line]");
     if (await needLine.count()) {
       const link = needLine.locator("[data-need-link]");
-      assert((await link.boundingBox())!.height >= 44, "the folded need line is under 44px tall");
+      assert((await link.boundingBox())!.height >= 44, "the need line is under 44px tall");
+      assert((await needLine.locator(".rounded-full").count()) === 0, "the need line still has a dot");
       const n = Number(await needLine.getAttribute("data-need-count"));
       const t = (await link.innerText()).replace(/\s+/g, " ");
       if (n >= 2) {
         assert(/^\d+ (things need you|payments to confirm) See them/.test(t) && (await link.getAttribute("href")) === "/notifications", `the many-needs line is "${t}"`);
       } else {
         assert(/(Confirm|Add|Add it|Needs a fix|Close it|View) ›$/.test(t), `the need line has no action word: ${t}`);
+        if (/Close it/.test(t)) assert(/^.+ is all square\. Close it ›$/.test(t), `the close line says: ${t}`);
         if (/says they paid/.test(t)) assert(/says they paid (you|[A-Z])/.test(t) && !/says they paid [₹$€£]/.test(t), `the need line doesn't say who was paid: ${t}`);
       }
     }
@@ -1339,7 +1401,7 @@ async function main() {
     await nav.waitFor();
     assert(await nav.getByRole("link", { name: "Add expense" }).count(), "the bottom bar lost its “+”");
   });
-  await step(V, "Home", "On a small phone (375×667) the header, the money card (with its who-line, at most about 165px tall, or 210px with a need line) and both buttons (44px tall) sit inside the first screen above the bottom bar, the Your groups row starts above the bottom bar, and the next card peeks in; Add expense goes to the group picker or the only group", async () => {
+  await step(V, "Home", "On a small phone (375×667) the header, the boarding-pass card (one-amount ticket at most about 200px tall, both-ways about 260px) and its buttons (44px tall) sit inside the first screen above the bottom bar, the Your groups row starts above the bottom bar, and the next polaroid peeks in; the bottom bar's + goes to the group picker or the only group", async () => {
     const was = V.viewportSize();
     await V.setViewportSize({ width: 375, height: 667 });
     await go(V, "/");
@@ -1347,8 +1409,7 @@ async function main() {
     await card.waitFor();
     const box = (await card.boundingBox())!;
     assert(box.y >= 0 && box.y + box.height <= 667, `the money card ends at ${Math.round(box.y + box.height)}px of 667`);
-    // Compact: about 165px tall, about 210px with the "needs you" line folded in (a few px of slack for fonts).
-    const limit = ((await card.locator("[data-need-line]").count()) ? 216 : 172) + ((await card.locator("[data-who-row='opposite']").count()) ? 24 : 0);
+    const limit = (await card.getAttribute("data-ticket")) === "both" ? 266 : 206;
     assert(box.height <= limit, `the money card is ${Math.round(box.height)}px tall (should be about ${limit - 6} or less)`);
     for (const b of await card.locator("[data-money-action]").all()) {
       const bb = (await b.boundingBox())!;
@@ -1356,17 +1417,16 @@ async function main() {
     }
     const emphasis = await card.locator("[data-money-action]").evaluateAll((els) => els.map((e) => e.getAttribute("data-emphasis")));
     assert(emphasis.filter((e) => e === "bright").length === 1, `money buttons emphasis: ${emphasis.join(",")}`);
-    // At least the first group card is whole above the fold, and above the bottom bar.
+    // At least the first group card starts above the bottom bar.
     const nav = (await V.getByRole("navigation", { name: "Main" }).boundingBox())!;
     const first = (await V.locator("[data-group-card]").first().boundingBox())!;
     assert(first.y < nav.y, `the first group card starts at ${Math.round(first.y)}px, under the bottom bar (${Math.round(nav.y)}px)`);
-    // The tinted card is taller than the old slim one, so the group cards only need to start on the first screen; the buttons must be whole above the bar.
     for (const b of await card.locator("[data-money-action]").all()) {
       const bb = (await b.boundingBox())!;
       assert(bb.y + bb.height <= nav.y + 1, `a money button ends at ${Math.round(bb.y + bb.height)}px, under the bottom bar (${Math.round(nav.y)}px)`);
     }
-    // Polaroids are about 124px wide, so two whole cards (“+ New group” and the first group) fit and the next one peeks in from the right.
-    assert(Math.round(first.width) <= 130, `a group card is ${Math.round(first.width)}px wide (should be about 124)`);
+    // Polaroids are about 140px wide, so “+ New group” and the first group fit whole and the next one peeks in from the right.
+    assert(Math.round(first.width) >= 134 && Math.round(first.width) <= 146, `a group card is ${Math.round(first.width)}px wide (should be about 140)`);
     const newCard = (await V.locator("[data-group-card-new]").boundingBox())!;
     assert(newCard.x + newCard.width <= 375 && first.x + first.width <= 375, "“+ New group” and the first group card aren't both whole on the first screen");
     const cards = await V.locator("[data-group-card]").all();
@@ -1374,14 +1434,14 @@ async function main() {
       const second = (await cards[1].boundingBox())!;
       assert(second.x < 375 && second.x + second.width > 375, `the next card doesn't peek in (it spans ${Math.round(second.x)}–${Math.round(second.x + second.width)}px of 375)`);
     }
-    // The stories row, when there is one, is above the money card with 72px circles.
+    // The stories row, when there is one, is above the money card with 80px circles.
     if (await V.locator("[data-stories]").count()) {
       const st = (await V.locator("[data-stories] button").first().boundingBox())!;
       assert(st.y + st.height <= box.y, "the stories row isn't above the money card");
       const ring = (await V.locator("[data-stories] li").first().locator("span").first().boundingBox())!;
-      assert(Math.round(ring.width) === 72 && Math.round(ring.height) === 72, `a story circle is ${Math.round(ring.width)}×${Math.round(ring.height)}px`);
+      assert(Math.round(ring.width) === 80 && Math.round(ring.height) === 80, `a story circle is ${Math.round(ring.width)}×${Math.round(ring.height)}px`);
     }
-    await card.locator("[data-money-action='add']").click();
+    await V.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Add expense" }).click();
     await V.waitForURL((u) => u.pathname === "/add" || /\/groups\/[^/]+\/add$/.test(u.pathname));
     if (was) await V.setViewportSize(was);
   });
@@ -1393,8 +1453,8 @@ async function main() {
     assert(hrefs.length > 0 && new Set(hrefs).size === hrefs.length, `group cards: ${hrefs.join(" ")}`);
     // Every card says where you stand in words that are not just a colour.
     for (const t of await V.locator("[data-group-card]").evaluateAll((els) => els.map((e) => ({ tone: e.getAttribute("data-tone"), text: (e as HTMLElement).innerText })))) {
-      if (t.tone === "square") assert(/square/.test(t.text), `a square card says: ${t.text}`);
-      else assert(t.tone === "owed" ? /\+/.test(t.text) : /−/.test(t.text), `a ${t.tone} card says: ${t.text}`);
+      if (t.tone === "square") assert(/You’re square/.test(t.text), `a square card says: ${t.text}`);
+      else assert(t.tone === "owed" ? /^Owed /m.test(t.text) : /You owe /.test(t.text), `a ${t.tone} card says: ${t.text}`);
     }
     // One stories row at most, and not again lower down; no row at all when there are no stories.
     assert((await V.locator("[data-stories]").count()) <= 1, "stories show twice on Home");
@@ -1494,39 +1554,37 @@ async function main() {
     }
     assert((await V.getByText(/^(Recently deleted|Hide recently deleted)/).count()) === 0, "Recently deleted is still on Home");
   });
-  await step(V, "Home", "On the narrowest phone (320×640) the money card has no sideways scroll: no part of the who-line is cut off (also at 360 and 390), both directions show, the buttons keep their words inside, the card is tinted", async () => {
+  await step(V, "Home", "On the narrowest phone (320×640, also 360 and 390) the boarding-pass card has no sideways scroll: nothing is cut off, the amount always shows whole, the stub is 84px below 360px and 100px from 360px, the buttons keep their words inside, and the card has no tint", async () => {
     const was = V.viewportSize();
     await V.setViewportSize({ width: 320, height: 640 });
     await go(V, "/");
     const card = V.getByRole("region", { name: "Your money" });
     await card.waitFor();
-    const over = (await card.evaluate((el) => {
-      const bad: string[] = [];
-      const cr = el.getBoundingClientRect();
-      if (cr.right > 320.5 || el.scrollWidth > el.clientWidth + 1) bad.push("card");
-      el.querySelectorAll("[data-money-action], [data-who-line], [data-need-link]").forEach((e) => {
-        const r = e.getBoundingClientRect();
-        if (r.right > cr.right + 0.5 || r.left < cr.left - 0.5) bad.push(e.getAttribute("data-money-action") || (e.hasAttribute("data-who-line") ? "who-line" : "need-line"));
-      });
-      return bad;
-    })) as string[];
-    assert(over.length === 0, `at 320px these spill out of the money card: ${over.join(", ")}`);
-    assert((await V.evaluate("document.documentElement.scrollWidth <= window.innerWidth")) as boolean, "Home scrolls sideways at 320px");
-    const tone = await card.getAttribute("data-tone");
-    if (tone !== "square") {
-      const bg = await card.evaluate((el) => getComputedStyle(el).backgroundImage);
-      assert(/gradient/.test(bg), "a card that owes or is owed has no tint");
-    }
-    // UX-01: at 320, 360 and 390 px every who-line row is whole (scrollWidth <= clientWidth) and, with money going both ways, both rows show.
     for (const w of [320, 360, 390]) {
       await V.setViewportSize({ width: w, height: 700 });
       await go(V, "/");
       await card.waitFor();
-      const rows = (await card.evaluate(
-        "Array.from(document.querySelectorAll('[aria-label=\"Your money\"] [data-who-line]')).map(function(e){return {row:e.getAttribute('data-who-row'),cut:e.scrollWidth>e.clientWidth+1,text:e.innerText}})",
-      )) as { row: string; cut: boolean; text: string }[];
-      assert(rows.every((r) => !r.cut), `at ${w}px a who-line row is cut off: ${rows.filter((r) => r.cut).map((r) => r.text).join(" | ")}`);
-      if (rows.some((r) => r.row === "opposite")) assert(rows.length === 2 && rows[0].row === "main", `at ${w}px both directions should show as two rows`);
+      const over = (await card.evaluate((el) => {
+        const bad: string[] = [];
+        const cr = el.getBoundingClientRect();
+        if (cr.right > window.innerWidth + 0.5 || el.scrollWidth > el.clientWidth + 1) bad.push("card");
+        el.querySelectorAll("[data-money-action], [data-money-people], [data-net-balance], [data-route]").forEach((e) => {
+          const r = e.getBoundingClientRect();
+          const name = e.getAttribute("data-money-action") || (e.hasAttribute("data-net-balance") ? "amount" : e.hasAttribute("data-route") ? "route" : "people");
+          if (r.right > cr.right + 0.5 || r.left < cr.left - 0.5) bad.push(name);
+          // The amount is never the thing that is cut: it fits its own box.
+          if (e.hasAttribute("data-net-balance") && (e as HTMLElement).scrollWidth > (e as HTMLElement).clientWidth + 1) bad.push("amount cut");
+        });
+        return bad;
+      })) as string[];
+      assert(over.length === 0, `at ${w}px these spill out of the money card: ${over.join(", ")}`);
+      assert((await V.evaluate("document.documentElement.scrollWidth <= window.innerWidth")) as boolean, `Home scrolls sideways at ${w}px`);
+      const stub = (await card.locator("[data-ticket-stub]").boundingBox())!;
+      assert(Math.round(stub.width) === (w < 360 ? 84 : 100), `at ${w}px the stub is ${Math.round(stub.width)}px wide`);
+      const amounts = await card.locator("[data-net-balance]").allInnerTexts();
+      assert(amounts.every((t) => /[\d]/.test(t) || /All square/.test(t)) && amounts.every((t) => !t.includes("…")), `at ${w}px an amount is cut: ${amounts.join(" | ")}`);
+      const bg = await card.evaluate((el) => getComputedStyle(el).backgroundImage);
+      assert(bg === "none", `the money card has a wash at ${w}px: ${bg}`);
     }
     if (was) await V.setViewportSize(was);
   });
@@ -1737,6 +1795,7 @@ async function main() {
     await V.locator('li[id^="item-"] details > summary').filter({ hasText: "Water" }).first().click();
     const href = await V.getByRole("link", { name: "Edit or delete" }).first().getAttribute("href");
     await go(V, href!);
+    await openSplit(V);
     await V.getByRole("button", { name: /^(✓ )?Asha$/ }).first().click();
     await V.getByRole("button", { name: "Save changes" }).click();
     await V.waitForURL(/tab=activity/);
@@ -1775,7 +1834,7 @@ async function main() {
     assert((await V.locator("main svg, main [role=img]").count()) > 0 || /Food|food/.test(await V.locator("main").innerText()), "no chart content");
   });
   await step(V, "Alerts", "Alerts screen offers phone notifications on/off", async () => {
-    await go(V, "/notifications");
+    await go(V, "/notifications?tab=all");
     await V.getByText("This phone", { exact: true }).first().waitFor();
     await V.getByText("What Loopin sends").first().waitFor();
     await V.getByRole("link", { name: /Notifications & email/ }).waitFor();
@@ -1971,12 +2030,12 @@ async function main() {
     const { ctx, page } = await phone("Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36");
     await go(page, "/");
     await page.getByRole("link", { name: "Home", exact: true }).first().click();
-    await page.getByRole("heading", { name: "Start with one group." }).waitFor();
-    await page.getByRole("link", { name: /Sign in to start/ }).first().waitFor();
+    await page.getByRole("heading", { name: "Good times. Shared fairly." }).waitFor();
+    await page.getByRole("link", { name: /Already here\? Sign in/ }).first().waitFor();
     // Join with a pasted link
     // (Tapped again if the first tap landed before the page came alive, as a person would.)
     for (let i = 0; i < 4 && !(await page.getByLabel("Invite link").count()); i++) {
-      await page.getByRole("button", { name: "I have an invite link" }).click();
+      await page.getByRole("button", { name: "Join with a link" }).click();
       await page.getByLabel("Invite link").waitFor({ timeout: 2_000 }).catch(() => undefined);
     }
     await page.getByLabel("Invite link").fill(`https://getloopin.vercel.app${invite}`);
@@ -2010,21 +2069,21 @@ async function main() {
     await V.waitForURL(/\/welcome/);
     return `${imgs} photos on the guide (${sizes})`;
   });
-  await step(null, "Help", "The 1-minute tour has 6 slides (make a group, add what you paid, see who owes then settle, every trip becomes a story, send a postcard, collect your passport), in words that work outside India, and none says “no sign-up”", async () => {
+  await step(null, "Help", "The 1-minute tour has 7 slides (make a group, add what you paid, see who owes then settle, every trip becomes a story, send a postcard, keep the little moments, collect your passport), in words that work outside India, and none says “no sign-up”", async () => {
     const { ctx, page } = await person(browser);
     await go(page, "/welcome");
     const seen: string[] = [];
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 7; i++) {
       seen.push((await page.locator("main").innerText()).replace(/\s+/g, " "));
       const next = page.getByRole("button", { name: /Next/ });
-      if (i < 5) {
+      if (i < 6) {
         await next.click();
         await page.waitForTimeout(500);
       }
     }
-    assert((await page.locator("[data-tour-slide]").count()) === 6, `${await page.locator("[data-tour-slide]").count()} slides, not 6 (the tour stays at 6 or fewer)`);
+    assert((await page.locator("[data-tour-slide]").count()) === 7, `${await page.locator("[data-tour-slide]").count()} slides, not 7 (the tour is 7 slides)`);
     const all = seen.join(" ");
-    for (const t of ["Make a group.", "Add what you paid.", "See who owes. Then settle.", "Every trip becomes a story.", "Send a postcard.", "Collect your passport."]) assert(all.includes(t), `no “${t}” slide`);
+    for (const t of ["Make a group.", "Add what you paid.", "See who owes. Then settle.", "Every trip becomes a story.", "Send a postcard.", "Keep the little moments.", "Collect your passport."]) assert(all.includes(t), `no “${t}” slide`);
     assert(/to the last paisa or cent/.test(all), "the add slide doesn’t say “to the last paisa or cent”");
     assert(/Pay each other however you like/.test(all), "the settle slide doesn’t say “Pay each other however you like”");
     assert(!/no sign-up/i.test(all), "a slide still says “no sign-up”");
@@ -2129,7 +2188,7 @@ async function main() {
     await V.getByRole("button", { name: "Add bill" }).click();
     await V.waitForURL(/tab=bills&saved=bill/);
     const t = (await V.locator("main").innerText()).replace(/\s+/g, " ");
-    assert(/repeats on the day/.test(t) && /Rent/.test(t) && /Electricity/.test(t), `Bills tab says: ${t.slice(0, 200)}`);
+    assert(/repeats? on the day/.test(t) && /Rent/.test(t) && /Electricity/.test(t), `Bills tab says: ${t.slice(0, 200)}`);
     // Both start next month when their day has passed; for the test, make them due already.
     const thisMonth = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit" }).format(new Date()).slice(0, 7);
     await db.bill.updateMany({ where: { groupId: homeId() }, data: { startMonth: thisMonth, day: 1 } });
@@ -2345,6 +2404,7 @@ async function main() {
     const before = await shownBalances(V, g);
     const href = await editPath(V, "Coffee");
     await go(V, href);
+    await openSplit(V);
     await V.getByRole("button", { name: "Only some" }).click();
     for (const [who, want] of [["You", true], ["Asha", true], ["Ravi", false], ["Zoe", false]] as const) {
       const b = V.getByRole("button", { name: new RegExp(`^(✓ )?${who}$`) }).last();
@@ -2509,7 +2569,7 @@ async function main() {
     await V.locator("details summary").filter({ hasText: zoe.name }).first().click();
     const day = `${new Date().toISOString().slice(0, 8)}10`;
     await V.locator(`#in-${zoe.id}`).fill(day);
-    await V.locator(`#in-${zoe.id}`).locator("xpath=..").getByRole("button", { name: "Save" }).click();
+    await V.locator(`#in-${zoe.id}`).locator("xpath=ancestor::form[1]").getByRole("button", { name: "Save" }).click();
     // Already on /people, so wait for the save itself (not the address).
     let after = await db.member.findUnique({ where: { id: zoe.id } });
     for (let i = 0; i < 40 && after?.joinedFrom?.toISOString().slice(0, 10) !== day; i++) {
@@ -2960,6 +3020,7 @@ async function main() {
     await go(V, `/groups/${grp.id}/add`);
     await V.locator("#expense-name").fill("Ramen");
     await V.getByLabel("Amount", { exact: true }).fill("1000");
+    await openSplit(V);
     await V.getByRole("button", { name: "Everyone equally" }).click();
     await save(V, { me: "Varun", name: "Ramen", amount: "1000" });
     const t = await V.locator("main").innerText();
@@ -3042,13 +3103,14 @@ async function main() {
     for (const n of ["Zoya", "Kabir", "Asha"]) await due.getByRole("listitem").filter({ hasText: n }).first().waitFor();
     await due.getByText("on Loopin").waitFor();
     const p = await V.locator("[data-collection-progress]").innerText();
-    assert(/No one has said they've paid yet/.test(p) && /₹0/.test(p) && /₹1,500/.test(p), `progress reads “${p.replace(/\s+/g, " ")}”`);
+    // The organiser's summary: nothing confirmed or reported yet, 3 x ₹500 = ₹1,500 remaining and the goal, and "3 still to pay".
+    assert(/₹0 confirmed|₹0\s+confirmed/.test(p) && /₹1,500\s+remaining/.test(p) && /Goal: ₹1,500/.test(p) && /3 still to pay/.test(p), `progress reads “${p.replace(/\s+/g, " ")}”`);
   });
 
   // Notifications are written just after the page answers: give them a moment.
   async function alertSays(page: Page, re: RegExp) {
     for (let i = 0; i < 6; i++) {
-      await go(page, "/notifications");
+      await go(page, "/notifications?tab=all");
       if (await page.getByText(re).count()) return;
       await page.waitForTimeout(1500);
     }
@@ -3077,18 +3139,19 @@ async function main() {
     await ctx.close();
   });
 
-  await step(V, "Collect", "Varun sees “Zoya says paid” in Alerts, taps Got it, marks Kabir as paid in cash: 2 of 3, ₹1,000 of ₹1,500", async () => {
+  await step(V, "Collect", "Varun sees “Zoya says paid” in Alerts, taps Confirm received, marks Kabir as paid in cash: 2 of 3, ₹1,000 of ₹1,500", async () => {
     await alertSays(V, /Zoya says they paid ₹500/);
     await go(V, collectPath);
     const paid = V.getByRole("region", { name: "Paid" });
-    await paid.getByText("₹500 · says paid").waitFor();
-    await paid.getByRole("button", { name: "Got it" }).click();
+    await paid.getByText("Says paid", { exact: true }).waitFor();
+    await paid.getByRole("button", { name: "Confirm received" }).click();
     await V.waitForLoadState("networkidle").catch(() => undefined);
-    await paid.getByText(/checked by you/).waitFor();
+    await paid.getByText("Confirmed", { exact: true }).waitFor();
     await V.getByRole("region", { name: "Still to pay" }).getByRole("listitem").filter({ hasText: "Kabir" }).getByRole("button", { name: "Paid cash" }).click();
-    await V.getByRole("region", { name: "Paid" }).getByText(/cash · checked by you/).waitFor();
+    await V.getByRole("region", { name: "Paid" }).getByText(/Confirmed · cash/).waitFor();
     const p = await V.locator("[data-collection-progress]").innerText();
-    assert(/2 of 3 say they've paid/.test(p) && /Confirmed ₹1,000/.test(p) && /₹1,500/.test(p) && (await V.locator("[data-collection-reported]").count()) === 0, `progress reads “${p.replace(/\s+/g, " ")}”`);
+    // Zoya ₹500 + Kabir ₹500 (cash) = ₹1,000 confirmed of a ₹1,500 goal: ₹500 remaining, 2 confirmed, 1 still to pay, nothing reported.
+    assert(/₹1,000\s+confirmed/.test(p) && /₹500\s+remaining/.test(p) && /Goal: ₹1,500/.test(p) && /2 confirmed · 1 still to pay/.test(p) && (await V.locator("[data-collection-reported]").count()) === 0, `progress reads “${p.replace(/\s+/g, " ")}”`);
   });
 
   await step(V, "Collect", "Varun reminds Asha inside Loopin (bell); a second reminder straight away is refused; Asha sees it in Alerts", async () => {
@@ -3100,10 +3163,10 @@ async function main() {
     await alertSays(A, /Reminder from Varun/);
   });
 
-  await step(null, "Collect", "Someone else can't change Varun's collection (no organiser buttons; a forged Got it is refused)", async () => {
+  await step(null, "Collect", "Someone else can't change Varun's collection (no organiser buttons; a forged Confirm received is refused)", async () => {
     const { ctx, page } = await person(browser);
     await go(page, collectPath);
-    assert((await page.getByRole("button", { name: "Got it" }).count()) === 0, "a stranger sees Got it");
+    assert((await page.getByRole("button", { name: "Confirm received" }).count()) === 0, "a stranger sees Confirm received");
     assert((await page.getByRole("button", { name: "Close collection" }).count()) === 0, "a stranger sees Close");
     await ctx.close();
   });
@@ -3133,14 +3196,15 @@ async function main() {
     return new URL(page.url()).pathname.replace(/\/invite$/, "");
   }
 
-  await step(V, "Countdown", "A trip made with a start date in 10 days: the group says “in 10 days”, Home shows the countdown with the plane taking off", async () => {
+  await step(V, "Countdown", "A trip made with a start date in 10 days: the group says “in 10 days”, Home shows the countdown strip with the trip's picture", async () => {
     const goa = await newTrip(V, `UAT Goa trip ${stamp % 1000}`, istDay(10));
     await go(V, goa);
     await V.locator("[data-countdown-line]").first().filter({ hasText: "in 10 days" }).waitFor();
     await go(V, "/");
     const card = V.getByRole("region", { name: "Trip countdown", exact: true }).first();
     assert((await card.getAttribute("data-countdown")) === "10", `Home countdown says ${await card.getAttribute("data-countdown")}`);
-    assert(await card.locator("[data-takeoff]").count(), "no plane on the countdown");
+    assert(await card.locator("[data-trip-thumb]").count(), "no picture on the countdown strip");
+    assert(/10/.test((await card.locator("[data-countdown-big]").first().textContent()) ?? ""), "the strip doesn't show 10");
   });
 
   await step(V, "Countdown", "A second trip in 30 days: the soonest stays in the countdown strip under the money card, the later one shows under “Also coming up”, one card at a time", async () => {
@@ -3175,19 +3239,38 @@ async function main() {
     await V.getByLabel("Type the expense in one line").fill("Snacks 600 split with everyone");
     await V.getByRole("button", { name: "Fill", exact: true }).click();
     assert((await V.locator("#expense-name").inputValue()) === "Snacks", `name is “${await V.locator("#expense-name").inputValue()}”`);
-    assert((await V.getByLabel("Amount", { exact: true }).inputValue()) === "600", "amount not filled");
+    assert((await V.getByLabel("Amount", { exact: true }).inputValue()).replace(/,/g, "") === "600", "amount not filled");
     await V.getByRole("group", { name: "Quick line" }).getByRole("status").filter({ hasText: "Check below" }).waitFor();
   });
 
-  await step(V, "Add", "Add expense is tidy: the date under the amount, one Faster entry row (Scan a bill · Speak · Type a line), then What was it?, Who paid and the split; notes, several payers and Spin sit under a closed More; the summary line sits above Save", async () => {
+  await step(V, "Add", "Add expense is tidy: the amount, the day under it, one What was it? field with Scan a bill · Speak · Type a line inside it, then two rows for who paid and the split; notes, several payers and Spin sit under a closed More link; the result for you is one quiet line under the card", async () => {
     await go(V, `${g}/add`);
     await V.getByLabel("Amount", { exact: true }).fill("1200");
     await V.locator("#expense-name").fill("Beach dinner");
     const row = V.getByRole("group", { name: "Faster entry" });
-    assert((await row.getByRole("button").allTextContents()).map((t) => t.trim()).join("|").match(/^(Scan a bill|Bill photo)\|Speak\|Type a line$/), "the Faster entry row isn't Scan a bill · Speak · Type a line");
+    const names = await row.getByRole("button").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
+    assert(names.join("|").match(/^(Scan a bill|Bill photo)\|Speak\|Type a line$/), `the Faster entry icons aren't Scan a bill · Speak · Type a line: ${names.join("|")}`);
     const y = async (loc: ReturnType<Page["locator"]>) => (await loc.first().boundingBox())!.y;
-    const order = [await y(V.getByRole("button", { name: /^(Today|Yesterday)/ })), await y(row), await y(V.locator("#expense-name")), await y(V.getByText("Who paid?")), await y(V.getByText("How to split?"))];
+    const order = [await y(V.getByRole("button", { name: /^(Today|Yesterday)/ })), await y(V.locator("#expense-name")), await y(V.locator("[data-sentence-card]"))];
     assert(order.every((v, i) => i === 0 || v > order[i - 1]), `the form order is off: ${order.map(Math.round).join(", ")}`);
+    // The icons sit inside the same field as the name.
+    const inField = await row.evaluate((el) => Boolean(el.parentElement?.querySelector("#expense-name")));
+    assert(inField, "the Faster entry icons aren't inside the What was it? field");
+    // Two rows say who paid and who it is split between; tapping one opens the real controls under it.
+    const rows = (await V.locator("[data-sentence-card]").innerText()).replace(/\s+/g, " ");
+    assert(/^Paid by .*You.* Change Split between .+/.test(rows), `the two rows read: ${rows}`);
+    assert((await V.locator("[data-payer-row]").count()) === 0, "the payer chips show before a row is tapped");
+    const paidRow = V.locator("[data-row-paid]");
+    await paidRow.click();
+    assert((await V.locator("[data-payer-row]").count()) === 1 && (await V.locator("[data-split-row]").count()) === 1, "tapping the row didn't open Who paid / How to split");
+    assert((await paidRow.getAttribute("aria-expanded")) === "true", "the row doesn't say it is expanded");
+    await V.getByRole("button", { name: "Done", exact: true }).click();
+    // Focus moves back once the panel has closed (the next tick), so wait briefly for it.
+    const back = await V.waitForFunction(() => Boolean(document.activeElement?.hasAttribute("data-row-paid")), undefined, { timeout: 2000 }).then(() => true, () => false);
+    assert(back, "Done didn't give focus back to the row");
+    const result = (await V.locator("[data-expense-result]").innerText()).replace(/\s+/g, " ");
+    assert(/You (paid|get back|owe)|Just you|Nobody owes|square/.test(result), `the result for you reads: ${result}`);
+    assert((await V.locator("[data-fx-card]").count()) === 0, "the foreign-currency line shows on an expense in the group's own currency");
     const more = V.locator("[data-more] > button");
     assert((await more.getAttribute("aria-expanded")) === "false", "More isn't closed to start with");
     assert((await V.getByPlaceholder(/Rahul paid the tip/).count()) === 0, "notes are showing while More is closed");
@@ -3195,15 +3278,6 @@ async function main() {
     await V.getByPlaceholder(/Rahul paid the tip/).waitFor();
     await V.getByRole("switch", { name: /More than one person paid/ }).waitFor();
     await V.getByRole("button", { name: /Spin for it/ }).waitFor();
-    await V.locator("[data-expense-summary]").waitFor();
-    const pill = await V.locator("[data-expense-summary]").evaluate((el) => {
-      const c = getComputedStyle(el);
-      return { bg: c.backgroundColor, ws: c.whiteSpace, overflow: c.textOverflow, cut: el.scrollWidth > el.clientWidth + 1 };
-    });
-    assert(!/rgba\(.*,\s*0?\.\d+\)$/.test(pill.bg) && pill.bg !== "rgba(0, 0, 0, 0)", `the summary pill is see-through: ${pill.bg}`);
-    // F4: money is never cut off with an ellipsis: the pill wraps onto a second line instead.
-    assert(pill.ws !== "nowrap" && pill.overflow !== "ellipsis" && !pill.cut, "the summary pill is still clipped with an ellipsis instead of wrapping");
-    assert((await V.locator("[data-payer-row]").count()) === 1 && (await V.locator("[data-split-row]").count()) === 1, "Who paid / How to split chips aren't each one scrolling row");
   });
   await step(V, "Add", "Editing an expense that has notes opens More by itself, so nothing is hidden", async () => {
     const e = await db.expense.findFirstOrThrow({ where: { groupId: g.split("/").pop()!, deletedAt: null, NOT: { notes: "" } }, orderBy: { createdAt: "desc" } });
@@ -3366,6 +3440,7 @@ async function main() {
     await set.waitFor({ timeout: 8000 });
     const who = ((await set.textContent()) ?? "").replace(/^Set | as payer$/g, "").replace(/^yourself$/, "You");
     await set.click();
+    await openSplit(V); // the payer chips sit behind the "Paid by" row
     await V.getByRole("button", { name: who, exact: true, pressed: true }).waitFor();
   });
 
@@ -3404,9 +3479,13 @@ async function main() {
     await go(V, "/account");
     await V.getByRole("link", { name: /Your trip passport/ }).click();
     await V.waitForURL(/\/passport/);
+    // The Been cards come first; the booklet is behind a quiet link.
+    await V.getByRole("link", { name: "Open the passport book" }).click();
+    await V.waitForURL(/\/passport\?book=1/);
     await V.getByRole("button", { name: "Open your passport" }).click();
     await V.getByRole("button", { name: "Next page" }).waitFor();
-    await V.getByRole("button", { name: "+ Add countries" }).click();
+    await go(V, "/passport");
+    await V.getByRole("button", { name: "Add a visited place" }).click();
     const sheet = V.getByRole("dialog", { name: "Add countries" });
     await sheet.getByLabel("Search countries").fill("thai");
     await sheet.getByRole("checkbox", { name: "Thailand" }).check();
@@ -3414,20 +3493,59 @@ async function main() {
     await sheet.getByRole("checkbox", { name: "Japan" }).check();
     await sheet.getByRole("button", { name: "Add 2 countries" }).click();
     await V.waitForURL(/added=2/);
+    await go(V, "/passport?all=1"); // every card, however many trips there are
     await V.locator("[data-country-stamp='TH'][data-by-hand='1']").waitFor({ state: "attached" });
     await V.locator("[data-country-stamp='JP'][data-by-hand='1']").waitFor({ state: "attached" });
+    await go(V, "/passport?book=1");
     await V.locator("[data-index-country='JP']").waitFor({ state: "attached" });
   });
 
   await step(V, "Fun", "Share my passport sends one picture of the open booklet (details, map, every stamp), and nothing else", async () => {
     await go(V, "/passport");
-    await V.getByRole("button", { name: "Share", exact: true }).first().click();
+    await V.getByRole("button", { name: "Share passport", exact: true }).click();
     const sheet = V.getByRole("dialog", { name: "Share your passport" });
     await sheet.getByText("WhatsApp", { exact: true }).waitFor();
     assert((await sheet.locator("[data-album-preview]").count()) === 0, "still offers an album of several pictures");
     const res = await V.request.get(`${base}/passport/image`);
     assert(res.ok() && (res.headers()["content-type"] ?? "").startsWith("image/png") && (await res.body()).length > 40_000, `picture: ${res.status()} ${res.headers()["content-type"]}`);
     await sheet.getByRole("button", { name: "Close" }).click();
+  });
+
+  // ----- Passport, Been tab (UAT step 8 of the passport/moments plan) -----
+  await step(null, "Fun", "Passport Been tab: Thailand 5–10 May 2026 (6 days) and Goa 13–15 Mar 2026 (3 days) show as cards, and the numbers read 2 countries, 2 trips, 9 days away", async () => {
+    const dana = await person(browser);
+    try {
+      await go(dana.page, "/signin?back=/passport");
+      await signup(dana.page, "Dana", email("dana-been"));
+      const acc = await db.account.findUniqueOrThrow({ where: { email: email("dana-been") } });
+      await db.account.update({ where: { id: acc.id }, data: { homeCountry: "IN", passportChoiceAt: new Date() } });
+      const mk = (name: string, start: string, end: string, place: string, country: string, others: string[]) =>
+        db.group.create({
+          data: {
+            name, currency: "INR", type: "trip", inviteCode: `been-${Math.random().toString(36).slice(2, 8)}-${stamp}`, tripStart: start, tripEnd: end, tripPlace: place, tripCountry: country,
+            members: { create: [{ name: "Dana", accountId: acc.id, claimedAt: new Date() }, ...others.map((n) => ({ name: n }))] },
+          },
+        });
+      const thai = await mk("Thailand", "2026-05-05", "2026-05-10", "Bangkok, Phuket", "TH", ["Nupur", "Riya", "Dev", "Meera", "Ravi"]); // 6 people
+      const goa = await mk("Goa trip", "2026-03-13", "2026-03-15", "Goa", "", ["Nupur", "Riya", "Dev"]); // 4 people
+      await go(dana.page, "/passport");
+      const row = await dana.page.locator("[data-passport-stats-row]").getAttribute("data-passport-stats-row");
+      assert(row === "2|2|9", `the numbers row says ${row}, not 2|2|9`);
+      const rowText = (await dana.page.locator("[data-passport-stats-row]").innerText()).replace(/\s+/g, " ");
+      for (const w of ["countries", "trips", "days away"]) assert(rowText.includes(w), `the numbers row is missing “${w}”: ${rowText}`);
+      const big = dana.page.locator("[data-been-card='big']");
+      assert((await big.getAttribute("data-group")) === thai.id, "the newest trip (Thailand) isn't the big card");
+      const bigText = (await big.innerText()).replace(/\s+/g, " ");
+      for (const w of ["Thailand", "Bangkok · Phuket", "5–10 May 2026 · 6 days", "6 people"]) assert(bigText.includes(w), `the big card is missing “${w}”: ${bigText}`);
+      assert((await big.locator("[data-been-relive]").getAttribute("href")) === `/groups/${thai.id}/report`, "Relive this trip doesn't go to the trip");
+      const small = dana.page.locator("[data-been-card='small']");
+      assert((await small.getAttribute("data-group")) === goa.id, "Goa isn't the small card");
+      const smallText = (await small.innerText()).replace(/\s+/g, " ");
+      for (const w of ["Goa", "13–15 Mar 2026 · 3 days", "With 3 friends"]) assert(smallText.includes(w), `the Goa card is missing “${w}”: ${smallText}`);
+      assert((await dana.page.getByRole("link", { name: "Open the passport book" }).count()) === 1, "no quiet link to the passport book");
+    } finally {
+      await dana.ctx.close();
+    }
   });
 
   // =====================================================================
@@ -3472,9 +3590,11 @@ async function main() {
   await step(V, "Money", "Money back bigger than a share: Meera gets ₹600 back for the minibus, shared by all 12 (₹50 each)", async () => {
     await go(V, `${tw.path}/add`);
     await V.getByRole("radio", { name: "Money back" }).click();
+    await openSplit(V);
     await V.getByRole("button", { name: /^(✓ )?Meera$/ }).first().click();
     await V.locator("#expense-name").fill("Minibus refund");
     await V.getByLabel("Amount", { exact: true }).fill("600");
+    await openSplit(V);
     const everyone = V.getByRole("button", { name: "Everyone equally" });
     if (await everyone.count()) await everyone.click();
     await save(V, { me: "Varun", name: "Minibus refund", amount: "600" }, "Save money back");
@@ -3625,7 +3745,7 @@ async function main() {
   async function sendPostcard(page: Page, to: string, message: string, until?: "a year"): Promise<string> {
     await go(page, `/postcards/new?group=${mainGid}`);
     await page.getByRole("button", { name: "Print: Mountains" }).click();
-    await page.getByRole("tab", { name: "Back" }).click();
+    await page.getByRole("tab", { name: "Note" }).click();
     await page.getByRole("button", { name: "Wax seal" }).click();
     await page.getByRole("button", { name: "Gold wax", exact: true }).click();
     await page.getByRole("textbox", { name: "Your message" }).fill(message);
@@ -3735,10 +3855,11 @@ async function main() {
     await Z.waitForURL(/shared=private/);
     await go(Z, "/passport");
     assert((await Z.getByText("Show your places to people in your groups?").count()) === 0, "the passport question came back after Not now");
+    await go(Z, "/passport?open=who"); // "Who can see it" is a folded row now
     assert((await Z.getByRole("button", { name: "Only me" }).getAttribute("aria-pressed")) === "true", "Not now should leave it on Only me");
   });
   await step(A, "Sharing", "Asha sends her passport to Ravi, who set his own to “Only me”: he gets it, and Asha still can't open his", async () => {
-    await go(R, "/passport");
+    await go(R, "/passport?open=who");
     await R.getByRole("button", { name: "Only me" }).click();
     await R.getByText("Only you can see your passport now.").waitFor();
     await go(A, "/passport/send");
@@ -3761,7 +3882,7 @@ async function main() {
       await R.waitForURL(/error=private/);
       await R.getByText("Your passport isn’t shown to people in your groups yet. Choose who can see it first.").waitFor();
     } finally {
-      await go(R, "/passport");
+      await go(R, "/passport?open=who");
       await R.getByRole("button", { name: "People in my groups" }).click();
       await R.getByText("People in your groups can see your passport.").waitFor();
     }
@@ -3943,6 +4064,137 @@ Object.defineProperty(navigator, "contacts", { value: { select: async () => [{ n
     return `navigator.vibrate is ${has}`;
   });
 
+  // ===== MOMENTS (Part M1): a photo and a few words in a trip group; only that group sees them =====
+  // Varun looks after "UAT Moments trip"; Asha and Ravi are in it; Zoe is a signed-in stranger to it; a fresh browser is signed out.
+  // The group is set up straight in the database (the people are already signed in); every moment is added through the real screens.
+  let momentsGroup = "";
+  let momentOne = ""; // Varun's, Day 3
+  let momentTwo = ""; // Asha's
+  let momentPhotoTurn = 0;
+  let momentThree = ""; // Asha's, added after Ravi left
+  const momentPhotoUrl = (id: string, s: "t" | "f" = "f") => `${base}/api/moment-photo/${id}?s=${s}`;
+  const addMomentThroughTheForm = async (who: Page, caption: string, dayLabel: string) => {
+    await go(who, `${momentsGroup}/moments/new`);
+    // A real place photo (the build's downloaded Thailand pictures), shrunk by the form like a phone would; never a hand-made file.
+    const photos = realPhotos("thailand");
+    await who.getByLabel("Choose a photo").setInputFiles(photos[momentPhotoTurn++ % photos.length]);
+    await who.locator('img[alt="Your photo"]').waitFor();
+    await who.getByPlaceholder("The boat we almost missed").fill(caption);
+    if (dayLabel) await who.getByRole("button", { name: dayLabel, exact: true }).click();
+    await who.getByRole("button", { name: "Add moment" }).click();
+    await who.waitForURL(/\/moments$/);
+  };
+  await step(V, "Moments", "Varun adds a moment (a photo, “The boat we almost missed 😂”, Day 3): it shows in the group's strip and on Our moments", async () => {
+    const acc = async (n: string) => (await db.account.findUniqueOrThrow({ where: { email: email(n) } })).id;
+    const grp = await db.group.create({
+      data: {
+        name: "UAT Moments trip", currency: "INR", type: "trip", inviteCode: `mom-${Math.random().toString(36).slice(2, 8)}-${stamp}`, tripStart: "2026-11-10", tripEnd: "2026-11-14",
+        members: {
+          create: [
+            { name: "Varun", accountId: await acc("varun"), claimedAt: new Date(), createdAt: new Date(Date.now() - 4000) },
+            { name: "Asha", accountId: await acc("asha"), claimedAt: new Date(), createdAt: new Date(Date.now() - 3000) },
+            { name: "Ravi", accountId: await acc("ravi"), claimedAt: new Date(), createdAt: new Date(Date.now() - 2000) },
+          ],
+        },
+      },
+    });
+    momentsGroup = `/groups/${grp.id}`;
+    await go(V, momentsGroup);
+    assert((await V.locator("[data-moments-strip='empty']").count()) === 1, "no “Add the first moment” line on the empty group");
+    await addMomentThroughTheForm(V, "The boat we almost missed 😂", "Day 3");
+    momentOne = (await db.moment.findFirstOrThrow({ where: { groupId: grp.id, caption: "The boat we almost missed 😂" } })).id;
+    const row = await db.moment.findUniqueOrThrow({ where: { id: momentOne } });
+    assert(row.takenOn === "2026-11-12", `the day saved is ${row.takenOn}, not Day 3 (2026-11-12)`);
+    const page = await V.locator("main").innerText();
+    assert(page.includes("The boat we almost missed 😂") && page.includes("Day 3"), "Our moments doesn't show the caption and Day 3");
+    assert((await V.getByText("Saved with this trip").count()) === 1, "no “Saved with this trip”");
+    assert((await assertMomentPhotosDecoded(V, "Our moments")) >= 1, "Our moments shows no moment photo");
+    assert((await V.locator("[data-bottom-nav]").count()) === 0, "the tab bar shows on Our moments (the Add button is the one floating bar)");
+    await go(V, momentsGroup);
+    assert(/Our moments/.test(await V.locator("[data-moments-strip]").innerText()), "no strip on the group page");
+    assert((await assertMomentPhotosDecoded(V, "the group's strip")) >= 1, "the strip shows no moment photo");
+    const photo = await V.request.get(momentPhotoUrl(momentOne), { headers: bypass });
+    assert(photo.status() === 200 && /private, no-cache/.test(photo.headers()["cache-control"] ?? "") && Boolean(photo.headers()["etag"]), `the photo answered ${photo.status()}`);
+  });
+  await step(A, "Moments", "Asha sees “Varun added a moment” in Home's story circles, adds her own moment, and reacts 😂 to Varun's: the count shows 1", async () => {
+    await go(A, "/");
+    await A.locator("[data-story='moment']").first().waitFor();
+    assert(/Moments/.test(await A.locator("[data-story='moment']").first().innerText()), "the moment circle has no label");
+    await addMomentThroughTheForm(A, "Worth the early alarm.", "");
+    momentTwo = (await db.moment.findFirstOrThrow({ where: { groupId: momentsGroup.split("/").pop()!, caption: "Worth the early alarm." } })).id;
+    await go(A, `${momentsGroup}/moments/${momentOne}`);
+    await A.locator("[data-reactions] summary[aria-label='React']").click();
+    await A.getByRole("button", { name: "React 😂", exact: true }).click();
+    await A.waitForURL(new RegExp(`/moments/${momentOne}$`));
+    const chip = A.locator(`[data-reactions='${momentOne}'] button[aria-pressed='true']`);
+    await chip.waitFor();
+    assert(/😂\s*1/.test(await chip.innerText()), `the reaction chip reads “${await chip.innerText()}”, not “😂 1”`);
+    assert((await assertMomentPhotosDecoded(A, "the big moment")) >= 1, "the big moment shows no photo");
+  });
+  await step(R, "Moments", "Ravi reports Varun's moment (and sees the thank-you), then blocks Varun: it disappears from his list, his story circles, and its photo address answers 404", async () => {
+    await go(R, `${momentsGroup}/moments/${momentOne}`);
+    await R.locator("[data-moment-menu] summary").click();
+    await R.getByRole("link", { name: "Report this moment", exact: true }).click();
+    assert((await R.locator("input[name=reason]:checked").count()) === 0, "a reason is already picked on the moment report");
+    await R.getByLabel("Spam").check();
+    await R.getByRole("button", { name: "Send report" }).click();
+    await R.locator("[data-report-done]").waitFor();
+    assert((await db.report.count({ where: { kind: "moment", targetId: momentOne } })) === 1, "the moment report wasn't saved");
+    await R.getByRole("button", { name: /Block Varun/ }).click();
+    await R.waitForURL(/blocked=1/);
+    await go(R, `${momentsGroup}/moments`);
+    assert((await R.getByText("The boat we almost missed").count()) === 0, "a blocked person's moment is still in the list");
+    await go(R, "/");
+    const circles = await R.locator("[data-story='moment']").evaluateAll((els) => els.map((e) => (e as HTMLElement).innerText));
+    assert(!circles.some((t) => /Varun/.test(t)), "a blocked person's moment is still in the story circles");
+    const photo = await R.request.get(momentPhotoUrl(momentOne), { headers: bypass });
+    assert(photo.status() === 404, `a blocked person's photo answered ${photo.status()}, not 404`);
+    const mine = await R.request.get(momentPhotoUrl(momentTwo), { headers: bypass });
+    assert(mine.status() === 200, `Asha's photo answered ${mine.status()} for Ravi (not blocked), not 200`);
+  });
+  await step(Z, "Moments", "A signed-in outsider and a signed-out browser both get 404 on the photo address and on the page", async () => {
+    assert((await Z.request.get(momentPhotoUrl(momentTwo), { headers: bypass })).status() === 404, "an outsider could open the photo");
+    const stranger = await Z.goto(base + `${momentsGroup}/moments`);
+    assert(stranger?.status() === 404, `an outsider's Our moments answered ${stranger?.status()}`);
+    const anon = await person(browser);
+    try {
+      for (const s of ["f", "t"] as const) assert((await anon.page.request.get(momentPhotoUrl(momentTwo, s), { headers: bypass })).status() === 404, `a signed-out browser could open the ${s} photo`);
+      const r = await anon.page.goto(base + `${momentsGroup}/moments`);
+      assert(r?.status() === 404, `a signed-out Our moments answered ${r?.status()}`);
+    } finally {
+      await anon.ctx.close();
+    }
+  });
+  await step(R, "Moments", "Ravi leaves: he still sees older moments with no Add button; Asha's new moment is hidden from him and its address answers 404", async () => {
+    // (Leaving itself is covered by the left-view steps; here it is set directly so the step is about moments.)
+    await db.member.updateMany({ where: { groupId: momentsGroup.split("/").pop()!, name: "Ravi" }, data: { leftAt: new Date() } });
+    await new Promise((r) => setTimeout(r, 1200)); // a moment added now is after he left
+    await addMomentThroughTheForm(A, "After Ravi left", "");
+    momentThree = (await db.moment.findFirstOrThrow({ where: { groupId: momentsGroup.split("/").pop()!, caption: "After Ravi left" } })).id;
+    await go(R, `${momentsGroup}/moments`);
+    const text = await R.locator("main").innerText();
+    assert(text.includes("Worth the early alarm."), "someone who left no longer sees a moment from before they left");
+    assert(!text.includes("After Ravi left"), "someone who left sees a moment added after they left");
+    assert((await R.getByRole("link", { name: "Add your moment" }).count()) === 0, "someone who left is offered “Add your moment”");
+    const late = await R.request.get(momentPhotoUrl(momentThree), { headers: bypass });
+    assert(late.status() === 404, `a moment added after they left answered ${late.status()}, not 404`);
+    const early = await R.request.get(momentPhotoUrl(momentTwo), { headers: bypass });
+    assert(early.status() === 200, `a moment from before they left answered ${early.status()}, not 200`);
+  });
+  await step(V, "Moments", "Varun, who looks after the group, removes Asha's moment; Asha deletes her own: each photo is gone for everyone", async () => {
+    await go(V, `${momentsGroup}/moments/${momentTwo}`);
+    await V.locator("[data-moment-menu] summary").click();
+    await V.getByRole("button", { name: "Remove this moment" }).click();
+    await V.waitForURL(/removed=1/);
+    assert((await db.moment.count({ where: { id: momentTwo } })) === 0, "the admin's remove didn't delete the moment");
+    await go(A, `${momentsGroup}/moments/${momentThree}`);
+    await A.locator("[data-moment-menu] summary").click();
+    await A.getByRole("button", { name: "Delete this moment" }).click();
+    await A.waitForURL(/removed=1/);
+    assert((await db.moment.count({ where: { id: momentThree } })) === 0, "the author's delete didn't delete the moment");
+    for (const id of [momentTwo, momentThree]) assert((await A.request.get(momentPhotoUrl(id), { headers: bypass })).status() === 404, "a deleted moment's photo still opens");
+  });
+
   await browser.close();
   writeReports();
 }
@@ -3983,6 +4235,7 @@ function coverOf(area: string, name: string): Cover {
     case "Account":
       return /Delete|Download all my data|privacy/i.test(name) ? "Privacy" : "Onboarding";
     case "Privacy":
+    case "Moments":
       return "Privacy";
     default:
       return "Regression";
@@ -4008,6 +4261,7 @@ function writeReports() {
     `|---|---|---|---|`,
     ...results.map((r) => `| ${mark(r.status)} | ${r.area} | ${r.name} | ${r.detail.replace(/\|/g, "/")} |`),
   ];
+  if (pageCrashes.length) lines.push(``, `## Page crashes (${pageCrashes.length})`, ``, ...[...new Set(pageCrashes)].map((c) => `- ${c}`));
   writeFileSync(`${out}/report.md`, lines.join("\n"));
   // The first line is read by the CI workflows; failures follow, one per line, starting with ✗.
   writeFileSync(`${out}/summary.txt`, `${head}\n${results.filter((r) => r.status === "fail").map((r) => `✗ ${r.area} — ${r.name}: ${r.detail}`).concat(results.filter((r) => r.status === "skip").map((r) => `○ ${r.area} — ${r.name}: ${r.detail}`)).join("\n")}`);

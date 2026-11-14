@@ -39,13 +39,17 @@ test("pay buttons, payment tracking and the quick line", async ({ browser }) => 
   await R.getByRole("button", { name: "Fill", exact: true }).click();
   await expect(R.getByRole("group", { name: "Quick line" }).getByRole("status")).toContainText("Asha paid");
   await expect(R.locator("#expense-name")).toHaveValue("Dinner");
-  await expect(R.getByLabel("Amount", { exact: true })).toHaveValue("1000");
+  await expect(R.getByLabel("Amount", { exact: true })).toHaveValue(/^1,?000$/); // grouped once the field isn't being typed in
   await R.getByRole("button", { name: "Save expense" }).click();
   await R.waitForURL(/tab=activity/);
   expect(await readBalances(R, g.path)).toMatchObject({ Asha: 50000, Ravi: -50000 });
 
   // Settle up: Ravi gets "Open payment app", which opens his UPI app with ₹500 filled in.
   await R.goto(`${g.path}/settle`);
+  await settled(R);
+  // The ticket says "Pay Asha" (cream); it opens the steps, where "Open payment app" lives.
+  await R.getByRole("link", { name: "Pay Asha" }).click();
+  await R.waitForURL(/settle\?pay=/);
   await settled(R);
   const upi = R.locator("[data-pay='upi']");
   await expect(upi).toHaveText(/Open payment app/);
@@ -55,14 +59,23 @@ test("pay buttons, payment tracking and the quick line", async ({ browser }) => 
   const payments = () => db.payment.count({ where: { groupId, deletedAt: null } });
 
   // A typo with an extra zero: ₹3,000 when Ravi owes ₹500. It asks first; Cancel is focused and saves nothing.
-  await R.getByText("More options").first().click(); // F1: under the row's quiet "More options"
+  await R.goto(`${g.path}/settle`);
+  await settled(R);
+  await R.locator("details[data-more-options] summary").first().click(); // under the ticket's quiet "More ›"
   await R.getByRole("link", { name: "Paid a different amount?" }).click();
   await R.waitForURL(/\/pay\?/);
   await settled(R);
   await R.getByLabel("Amount (INR)").fill("12,50");
-  await expect(R.locator("[data-amount-echo='₹12.50']")).toBeVisible(); // how "12,50" was read
+  await expect(R.getByRole("button", { name: "Record ₹12.50 from you" })).toBeVisible(); // how "12,50" was read: the button says it
+  // Typed the way people type: click the box, select all, type 1082.50. The box holds exactly what was typed, and the button reads it.
+  const payBox = R.getByLabel("Amount (INR)");
+  await payBox.click();
+  await R.keyboard.press("ControlOrMeta+A");
+  await R.keyboard.type("1082.50");
+  await expect(payBox).toHaveValue("1082.50");
+  await expect(R.getByRole("button", { name: "Record ₹1,082.50 from you" })).toBeVisible();
   await R.getByLabel("Amount (INR)").fill("3000");
-  await R.getByRole("button", { name: "Record payment" }).click();
+  await R.getByRole("button", { name: /^Record / }).click();
   await R.waitForURL(/owes=/);
   await expect(R.locator("[data-over-warning]")).toContainText("This is ₹2,500 more than what's owed. Record it anyway?");
   await expect(R.locator("[data-over-cancel]")).toBeFocused();
@@ -76,7 +89,7 @@ test("pay buttons, payment tracking and the quick line", async ({ browser }) => 
   await settled(R);
   await R.locator("[data-i-paid]").click();
   await R.waitForURL(/claimed=1/);
-  await expect(R.getByText("Waiting for Asha to confirm")).toBeVisible();
+  await expect(R.getByRole("heading", { name: "Waiting for Asha" })).toBeVisible();
   expect(await payments()).toBe(0);
   expect(await readBalances(R, g.path)).toMatchObject({ Asha: 50000, Ravi: -50000 });
 
@@ -87,6 +100,9 @@ test("pay buttons, payment tracking and the quick line", async ({ browser }) => 
   await expect(ask.locator("[data-waiting='Ravi']")).toContainText("Ravi says they paid you ₹500");
   await ask.getByRole("button", { name: "Confirm received" }).click();
   await A.waitForURL(/ok=1/);
+  // The question is gone once answered: checked on the plain Settle page (the ok=1 page is the "Payment recorded" screen, which never had it).
+  await A.goto(`${g.path}/settle`);
+  await settled(A);
   await expect(A.getByRole("region", { name: "Did you get these?" })).toHaveCount(0);
   expect(await payments()).toBe(1);
   await A.goto(`${g.path}?tab=activity`);

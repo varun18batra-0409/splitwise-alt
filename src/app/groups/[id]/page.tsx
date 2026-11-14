@@ -15,7 +15,7 @@ import { placeOf } from "@/lib/countdown";
 import { buildGroupView, type GroupEvent } from "./_components/view";
 import { getTimeZone } from "@/lib/tz";
 import { GroupHeader } from "./_components/GroupHeader";
-import { PhoneOnlyNote } from "@/components/PhoneOnlyNote";
+import { PhoneOnlyLine } from "@/components/PhoneOnlyLine";
 import { GroupSummary } from "./_components/GroupSummary";
 import { ActivityTab } from "./_components/ActivityTab";
 import { BalancesTab } from "./_components/BalancesTab";
@@ -33,6 +33,9 @@ import { Notice } from "@/components/Notice";
 import { GroupTypeSheet } from "@/components/GroupTypeSheet";
 import { GamesTab } from "./_components/GamesTab";
 import { gamesToSettle, loadGames } from "@/lib/pot-db";
+import { MomentsStrip } from "./_components/MomentsStrip";
+import { canAddMoment, loadMomentViewer } from "@/lib/moments-access";
+import { momentStrip } from "@/lib/moments-db";
 
 const TABS = [
   { id: "activity", label: "Activity" },
@@ -122,7 +125,7 @@ export default async function GroupPage({
   // Home & Couple: everything This month / Bills / List need, fetched together.
   const monthTab = home && tab === "month";
   const active = group.expenses.filter((e) => !e.deletedAt);
-  const [bills, budgets, depositShares, heads, goalRows, list, games] = await Promise.all([
+  const [bills, budgets, depositShares, heads, goalRows, list, games, shopRows] = await Promise.all([
     home && (tab === "month" || tab === "bills") ? billStatuses(group.id) : Promise.resolve<Awaited<ReturnType<typeof billStatuses>>>([]),
     monthTab ? budgetsNow(group.id, active, myId, v.tz) : Promise.resolve<Awaited<ReturnType<typeof budgetsNow>>>([]),
     // The deposit tile (held shares only).
@@ -143,6 +146,8 @@ export default async function GroupPage({
         ]).then(([items, history]) => ({ items, usual: usualItems(history.map((h) => h.text), items.map((i) => i.text)) }))
       : Promise.resolve(null),
     pot && tab === "games" ? loadGames(group.id) : Promise.resolve([] as Awaited<ReturnType<typeof loadGames>>),
+    // The overview's shopping card: the first few things still to buy (the same rows the List tab shows as "To buy").
+    monthTab ? db.listItem.findMany({ where: { groupId: group.id, expenseId: "", boughtAt: null }, orderBy: { createdAt: "asc" }, select: { id: true, text: true } }) : Promise.resolve([] as { id: string; text: string }[]),
   ]);
   const toSettle = games.length ? await gamesToSettle(group.id, games) : {};
   // Reactions on expenses, for the Activity list.
@@ -187,13 +192,18 @@ export default async function GroupPage({
   const justDid = sp.did ? undoEvents.find((x) => x.id === sp.did) : undefined;
   const showUndo = justDid && canUndo(justDid, undoEvents).ok;
 
+  // "Our moments" (trip groups only): the latest photos and how many, as far as this person may see them.
+  const momentViewer = group.type === "trip" ? await loadMomentViewer(group.id, myId) : null;
+  const strip = await momentStrip(momentViewer);
+
   return (
     <>
       <GroupHeader v={v} switchTo={switchTo} />
       <LeftBanner v={v} />
       <GroupSummary v={v} sp={sp} compact={home} />
-      {!account && <PhoneOnlyNote back={`/groups/${group.id}`} className="mb-5" />}
+      {!account && <PhoneOnlyLine back={`/groups/${group.id}`} className="-mt-3 mb-2" />}
       {sp.imported && <ImportedNote code={sp.imported} groupId={group.id} />}
+      {momentViewer && <MomentsStrip groupId={group.id} count={strip.count} latest={strip.latest} canAdd={canAddMoment(momentViewer)} />}
 
       <nav className="-mx-5 mb-5 flex gap-6 overflow-x-auto border-b border-line px-5 [scrollbar-width:none]" aria-label="Group sections">
         {tabs.map((t) => (
@@ -204,7 +214,7 @@ export default async function GroupPage({
             className={`relative shrink-0 whitespace-nowrap pb-3 pt-1 text-[15px] font-semibold transition-colors ${t.id === tab ? "text-fg" : "text-fg/60"}`}
           >
             {t.label}
-            {t.id === tab && <span aria-hidden className="absolute inset-x-0 -bottom-px h-[2px] rounded-full bg-[var(--color-tint,var(--color-fg))]" />}
+            {t.id === tab && <span aria-hidden className="absolute inset-x-0 -bottom-px h-[2px] rounded-full bg-fg" />}
           </Link>
         ))}
       </nav>
@@ -238,7 +248,7 @@ export default async function GroupPage({
           ‹ This month
         </Link>
       )}
-      {tab === "month" && <ThisMonthTab v={v} extras={{ upcoming: comingUp, budgets, deposit, goals, insights: heads?.insights, forecast: heads?.forecast }} />}
+      {tab === "month" && <ThisMonthTab v={v} extras={{ upcoming: comingUp, budgets, deposit, goals, insights: heads?.insights, forecast: heads?.forecast, shopping: { items: shopRows.slice(0, 3), total: shopRows.length } }} />}
       {tab === "bills" && <BillsTab v={v} bills={bills} saved={sp.saved === "bill"} />}
       {tab === "list" && list && (
         <ListTab v={v} items={list.items} usual={list.usual} notice={sp.bought ? "Added as an expense. Everyone has been told." : sp.told ? "Told everyone you’re going shopping." : undefined} />
