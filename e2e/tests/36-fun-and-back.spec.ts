@@ -67,7 +67,7 @@ test("titles, Wrapped, the passport and a game night: in, around, back out, and 
   const ravisPage = new URL(page.url()).pathname;
   await expect(page.getByRole("button", { name: "Open your passport" })).toBeVisible();
   // His trip with Asha is still going, so friends don't see it yet: the passport is empty → nudge him (Alerts only).
-  await page.getByRole("button", { name: "👋 Nudge Ravi" }).click();
+  await page.getByRole("button", { name: "Nudge Ravi" }).click();
   await page.waitForURL(/nudged=1/);
   await R.goto("/notifications?tab=all");
   await settled(R);
@@ -75,7 +75,7 @@ test("titles, Wrapped, the passport and a game night: in, around, back out, and 
   // A second nudge straight away is refused politely.
   await page.goto(ravisPage);
   await settled(page);
-  await page.getByRole("button", { name: "👋 Nudge Ravi" }).click();
+  await page.getByRole("button", { name: "Nudge Ravi" }).click();
   await expect(page.getByText("You nudged them recently")).toBeVisible();
   // The screen's Back goes to the friends list.
   await page.getByRole("link", { name: "Back", exact: true }).click();

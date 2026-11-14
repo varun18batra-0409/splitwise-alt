@@ -15,6 +15,9 @@ async function fullyVisible(page: Page, selector: string, label: string) {
   const n = await els.count();
   expect(n, `${label}: found`).toBeGreaterThan(0);
   for (let i = 0; i < n; i++) {
+    // Passes in a swipe stack sit side by side: bring each one into view first, the way a person swipes to it.
+    await els.nth(i).scrollIntoViewIfNeeded();
+    await page.waitForTimeout(300);
     const r = await els.nth(i).evaluate((el) => {
       const b = el.getBoundingClientRect();
       return { scroll: el.scrollWidth, client: el.clientWidth, left: b.left, right: b.right, vw: window.innerWidth };

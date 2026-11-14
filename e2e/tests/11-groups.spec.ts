@@ -17,15 +17,15 @@ test.beforeAll(async ({ browser }) => {
 });
 test.afterAll(async () => ctx?.close());
 
-test("a Home group opens on Overview, with Expenses · People and the Bills · List tiles", async () => {
+test("a Home group opens on Overview, with Expenses · People and the Bills · Shopping tiles", async () => {
   const g = await createGroup(page, groupName("Flat"), "Home");
   await page.goto(g.path);
   await settled(page);
   await expect(page.locator('a[aria-current="page"]')).toHaveText("Overview");
-  // The section tabs: Overview / Expenses / People. Bills and List are tiles on the Overview.
+  // The section tabs: Overview / Expenses / People. Bills and Shopping are tiles on the Overview.
   const tabs = page.getByRole("navigation", { name: "Group sections" });
   for (const t of ["Overview", "Expenses", "People"]) await expect(tabs.getByRole("link", { name: t, exact: true })).toBeVisible();
-  for (const t of ["Bills", "List"]) await expect(page.getByRole("link", { name: new RegExp(`^${t}`) }).first()).toBeVisible();
+  for (const t of ["Bills", "Shopping"]) await expect(page.getByRole("link", { name: new RegExp(`^${t}`) }).first()).toBeVisible();
 });
 
 test("a Couple group: split worked out from incomes (₹1,10,000 / ₹90,000 → 55 / 45)", async () => {
