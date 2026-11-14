@@ -175,10 +175,9 @@ test("Postcards: a one-side card is written, sent, read and shelved", async ({ b
 
 // Your uploads and My moments: an earlier upload comes back for its owner only; a moment photo is copied onto the card.
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
-const TINY_JPEG = Buffer.from(
-  "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=",
-  "base64",
-);
+// A small but complete JPEG (header, picture data, end marker) like a real moment's photo: copying it onto a card strips its hidden
+// details, and that check refuses a JPEG that has no end marker.
+const TINY_JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xff, 0xda, 0x00, 0x02, 0x07, 0x00, 0xff, 0xd9]);
 test("Postcards: reuse an earlier upload (only yours) and send a photo from your own moment", async ({ browser }) => {
   test.setTimeout(240_000);
   const asha = await signUp("Asha", testEmail("pc2-asha"));

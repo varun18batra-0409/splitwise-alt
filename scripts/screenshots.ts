@@ -626,7 +626,9 @@ if (!hosted) {
     // The editor, one tool open per shot, at 390. (The card stays on screen; the options sit above the tool row.)
     const ed = `/postcards/new?group=${lona.id}`;
     const tool = (name: string) => async (p: Page) => {
-      await p.locator(`[data-tool="${name}"]`).click();
+      const t = p.locator(`[data-tool="${name}"]`);
+      await t.scrollIntoViewIfNeeded();
+      await t.click();
       await p.waitForTimeout(500);
     };
     const note = "Remember the bus that never came? Best wrong turn ever.";

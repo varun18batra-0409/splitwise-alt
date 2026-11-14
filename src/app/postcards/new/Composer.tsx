@@ -245,12 +245,13 @@ export function Composer({ groupId, groups, photos, photosLabel, words: wordOpti
   const showBack = tab === "back";
   const trip = front.startsWith("photo:") ? front.slice(6) : "";
   const lookSrc = front === "own" ? own?.url ?? "" : trip;
+  const cardW = typing ? "w-[min(60cqw,90cqh)]" : "w-[min(96cqw,144cqh)]";
   const preview = oneSide ? (
-    <div className="w-[min(96cqw,144cqh)]" data-composer-card="oneside">
+    <div className={cardW} data-composer-card="oneside">
       <PostcardOneSide {...oneProps} />
     </div>
   ) : (
-    <button type="button" onClick={flip} aria-label={showBack ? "Show the front" : "Show the back"} className="block w-[min(96cqw,144cqh)] [perspective:1600px]" data-composer-card={showBack ? "back" : "front"}>
+    <button type="button" onClick={flip} aria-label={showBack ? "Show the front" : "Show the back"} className={`block ${cardW} [perspective:1600px]`} data-composer-card={showBack ? "back" : "front"}>
       <div className="relative transition-transform duration-[800ms] ease-[cubic-bezier(.2,.8,.2,1)] [transform-style:preserve-3d] motion-reduce:transition-none" style={{ transform: showBack ? "rotateY(180deg)" : "none" }}>
         <div className="[backface-visibility:hidden]" style={face(!showBack)}>
           <PostcardFront {...frontProps} />
@@ -345,7 +346,7 @@ export function Composer({ groupId, groups, photos, photosLabel, words: wordOpti
         <div className="fixed inset-0 z-30 mx-auto flex max-w-md flex-col gap-2.5 bg-canvas px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.5rem,env(safe-area-inset-top))] max-[359px]:px-4" data-composer data-step-now={tab}>
           <TopBar title={title} steps={steps} step={tab} onStep={goStep} onBack={() => goStep(order[Math.max(0, order.indexOf(tab) - 1)])} backHref={backHref} error={error} />
           {tab === "front" && <FormatSwitch format={format} onChange={changeFormat} />}
-          <div className={`flex min-h-0 items-center justify-center [container-type:size] ${typing ? "h-[16svh] flex-none" : "flex-1"}`} data-composer-preview data-typing={typing ? "" : undefined}>
+          <div className="flex min-h-0 flex-1 items-center justify-center [container-type:size]" data-composer-preview data-typing={typing ? "" : undefined}>
             {preview}
           </div>
           {panel}
