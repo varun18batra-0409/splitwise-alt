@@ -121,14 +121,14 @@ test("titles, Wrapped, the passport and a game night: in, around, back out, and 
   await settled(page);
   await page.getByRole("link", { name: /Your trip passport/ }).click();
   await page.waitForURL(/\/passport$/);
-  // The cards (Been) come first; the old booklet is behind "Open the passport book".
-  await page.getByRole("link", { name: "Open the passport book" }).click();
+  // The cards (Been) come first; the old booklet is behind the passport art ("Open your passport book").
+  await page.getByRole("link", { name: "Open your passport book" }).click();
   await page.waitForURL(/\/passport\?book=1/);
   await page.getByRole("button", { name: "Open your passport" }).click();
   await page.getByRole("button", { name: "Next page" }).click();
   await page.goto("/passport");
   await settled(page);
-  await page.getByRole("button", { name: "Add a visited place" }).click();
+  await page.getByRole("button", { name: "Add visited place" }).click();
   const sheet = page.getByRole("dialog", { name: "Add countries" });
   await sheet.getByLabel("Search countries").fill("ital");
   await sheet.getByRole("checkbox", { name: "Italy" }).check();
@@ -145,7 +145,7 @@ test("titles, Wrapped, the passport and a game night: in, around, back out, and 
   await expect(page.locator("[data-been-card='hand'][data-country='IT']")).toHaveCount(0);
   await expect(page.locator("[data-been-card='hand'][data-country='JP']")).toHaveCount(1);
   // Already-added countries are ticked and can't be added twice.
-  await page.getByRole("button", { name: "Add a visited place" }).click();
+  await page.getByRole("button", { name: "Add visited place" }).click();
   await sheet.getByLabel("Search countries").fill("japan");
   await expect(sheet.getByRole("checkbox", { name: "Japan" })).toBeDisabled();
   await sheet.getByRole("button", { name: "Close" }).click();

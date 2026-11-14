@@ -119,6 +119,14 @@ const INDIA = {
 // An entry can also be a list of candidates for one slot (tried in order).
 for (const [slot, ids] of Object.entries(INDIA)) ids.forEach((id, i) => (SLOTS[i ? `${slot}-${i + 1}` : slot] = Array.isArray(id) ? id : [id]));
 
+// Country photos for the passport (src/lib/country-photos.ts): one slot per country, "country-xx". A country that already has a
+// place photo above (TH, ID, AE, SG, MV, VN, LK, JP, GB, NP, US, GR, BT, CH, FR, IN) reuses it and has no slot here.
+// Candidates per country live in scripts/photo-candidates.mjs (COUNTRY_PHOTOS): landmark or landscape, colour, no faces, no flags,
+// no text. The first that downloads (and isn't black and white) is the photo. A country with no candidate yet, or none that
+// downloads, simply has no photo: the passport draws its stamp on cream paper instead (never a wrong picture).
+import { COUNTRY_PHOTOS } from "./photo-candidates.mjs";
+for (const [code, ids] of Object.entries(COUNTRY_PHOTOS)) if (ids.length) SLOTS[`country-${code.toLowerCase()}`] = ids;
+
 // The photo's own colour, so a group's screens can be tinted to match it: the average of its most
 // colourful, mid-bright spots (sky, sea, sand, stone), measured on a tiny 12×12 copy.
 async function toneOf(buf) {
@@ -170,7 +178,7 @@ for (const [slot, ids] of Object.entries(SLOTS)) {
       const url = id.startsWith("https://")
         ? id
         : id.startsWith("photo-")
-        ? `https://images.unsplash.com/${id}?w=${big ? 2400 : slot.startsWith("cover-") ? 1600 : 1280}&q=${big ? 85 : slot.startsWith("cover-") ? 80 : 75}&fm=jpg&fit=crop`
+        ? `https://images.unsplash.com/${id}?w=${slot.startsWith("country-") ? 960 : big ? 2400 : slot.startsWith("cover-") ? 1600 : 1280}&q=${big ? 85 : slot.startsWith("cover-") ? 80 : 75}&fm=jpg&fit=crop`
         : `https://unsplash.com/photos/${id}/download?force=true&w=${slot.startsWith("place-") ? 2400 : 1280}`;
       const r = await fetch(url, {
         redirect: "follow",

@@ -1,30 +1,24 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { visibleBadges, type Badge, type IndexRow, type Stamp } from "@/lib/passport";
+import { visibleBadges, type Badge, type IndexRow, type PassportCounts, type Stamp } from "@/lib/passport";
 import { BadgeIcon } from "@/components/PassportIcons";
+import { StampArt, stampInk } from "@/components/stamps/StampArt";
 import map from "@/generated/map.json";
 
 // The trip passport as a little booklet. A cover in Loopin's colours you tap to open, then
 // pages you swipe like a real passport: the photo page with your counts, the
-// stamp pages (one stamp per trip, inked at a slant), and an index at the back.
+// stamp pages (six stamps a page, each inked at a slant: the same drawing as the share picture), and an index at the back.
 
-const INKS = ["#2b4c7e", "#a53a3a", "#2f7d4f", "#6a3d8f", "#8a5a2b", "#1f6f78"];
-// The letters drawn in the middle of a stamp: a city's initials ("PUNE" → "P", "New Delhi" → "ND").
-const initialsOf = (name: string) => name.trim().split(/\s+/).map((w) => [...w][0] ?? "").join("").slice(0, 2).toUpperCase();
-const hash = (s: string) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
-// Written out by hand, so the phone and the server always agree ("SEP 2026").
-const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-const month = (d: string) => (/^\d{4}-\d{2}/.test(d) ? `${MONTHS[Number(d.slice(5, 7)) - 1] ?? ""} ${d.slice(0, 4)}` : "");
-// The cover in Loopin's own colours: the dark surface, off-white foil, a touch of green.
+// The cover in Loopin's own colours: the dark surface and off-white foil. No green: that is for money.
 const GOLD = "#ece8dc";
-const GREEN = "#6fe3a8";
 const PAPER = "#efe8d6";
 
 type Page = { title: string; stamps: Stamp[] };
 type Props = {
   name: string;
   stats: { cities: number; countries: number; trips: number; thisYear: number; abroad?: number };
+  counts: PassportCounts; // the one set of numbers (passportCounts): the cover and the first page both read it
   milestones: string[];
   pages: Page[];
   index: IndexRow[];
@@ -46,135 +40,9 @@ function Emblem({ size = 92 }: { size?: number }) {
       <circle cx="50" cy="50" r="44" />
       <circle cx="50" cy="50" r="36" strokeDasharray="1.5 3" />
       <path d="M50 10 L57 50 L50 90 L43 50 Z" fill={GOLD} fillOpacity="0.9" />
-      <path d="M50 10 L57 50 L43 50 Z" fill={GREEN} />
+      <path d="M50 10 L57 50 L43 50 Z" fill={GOLD} />
       <path d="M10 50 L50 43 L90 50 L50 57 Z" fill={GOLD} fillOpacity="0.45" />
       <circle cx="50" cy="50" r="4" fill="#16161a" />
-    </svg>
-  );
-}
-
-// One stamp, drawn like a real customs stamp: a double ring with the place
-// running round the edge, or a boxed "arrived" stamp for a city at home; a few
-// shapes so a page doesn't look printed; a touch of uneven ink.
-// (Exported for the Been cards, which sit one on a photo: `at` then places it instead of the page grid.)
-export function StampMark({ s, i, at }: { s: Stamp; i: number; at?: { left: string; top: string } }) {
-  const h = hash(s.id);
-  const ink = INKS[hash(s.code + s.name) % INKS.length];
-  const tilt = (h % 19) - 9;
-  // Scattered in a loose 2 × 3 grid, each a little off its spot.
-  const col = i % 2;
-  const rowN = Math.floor(i / 2);
-  const dx = ((h >>> 3) % 25) - 12;
-  const dy = ((h >>> 7) % 17) - 8;
-  const pos = at ?? { left: `calc(${col * 50 + 25}% + ${dx}px)`, top: `calc(${rowN * 33.3 + 16.6}% + ${dy}px)` };
-  const shape = s.kind === "country" ? (["circle", "circle", "oval", "octagon"] as const)[(h >>> 5) % 4] : (["box", "ticket"] as const)[(h >>> 5) % 2];
-  const dash = s.byHand ? "5 3.5" : undefined;
-  const when = s.byHand ? "BEEN THERE" : month(s.when);
-  const id = `st-${h.toString(36)}-${i}`;
-  const common = { position: "absolute" as const, ...pos, transform: `translate(-50%,-50%) rotate(${tilt}deg)`, color: ink, opacity: s.byHand ? 0.6 : 0.9 };
-  const name = s.name.toUpperCase();
-  const mark = s.kind === "country" ? s.code.toUpperCase() : initialsOf(s.name);
-  if (shape === "circle" || shape === "oval") {
-    const w = shape === "oval" ? 150 : 124;
-    const ht = shape === "oval" ? 108 : 124;
-    const rx = w / 2 - 3;
-    const ry = ht / 2 - 3;
-    const irx = rx - 15;
-    const iry = ry - 15;
-    // The words follow the ring: the place along the top, the date along the bottom.
-    const top = `M ${w / 2 - irx - 7} ${ht / 2} A ${irx + 7} ${iry + 7} 0 0 1 ${w / 2 + irx + 7} ${ht / 2}`;
-    const bottom = `M ${w / 2 - irx - 7} ${ht / 2} A ${irx + 7} ${iry + 7} 0 0 0 ${w / 2 + irx + 7} ${ht / 2}`;
-    const fit = Math.min(12.5, (Math.PI * (irx + 7) * 0.9) / Math.max(6, name.length) / 0.68);
-    return (
-      <svg width={w} height={ht} viewBox={`0 0 ${w} ${ht}`} style={common} className="mix-blend-multiply" data-stamp={s.name} data-country-stamp={s.code} data-by-hand={s.byHand ? "1" : "0"} aria-label={`${s.name}, ${s.byHand ? "been there" : when}`} role="img">
-        <defs>
-          <path id={`${id}-t`} d={top} />
-          <path id={`${id}-b`} d={bottom} />
-        </defs>
-        <g filter="url(#lp-ink)" fill="none" stroke="currentColor">
-          <ellipse cx={w / 2} cy={ht / 2} rx={rx} ry={ry} strokeWidth="2.6" strokeDasharray={dash} />
-          <ellipse cx={w / 2} cy={ht / 2} rx={irx} ry={iry} strokeWidth="1.2" strokeDasharray={dash} />
-        </g>
-        <g fill="currentColor" fontWeight="700" style={{ letterSpacing: "0.08em" }}>
-          <text fontSize={fit}>
-            <textPath href={`#${id}-t`} xlinkHref={`#${id}-t`} startOffset="50%" textAnchor="middle">
-              {name}
-            </textPath>
-          </text>
-          <text fontSize="10" fontWeight="800" dy="8">
-            <textPath href={`#${id}-b`} xlinkHref={`#${id}-b`} startOffset="50%" textAnchor="middle">
-              {when}
-            </textPath>
-          </text>
-        </g>
-        {/* A drawn mark in the middle (the country code in the display type), not a flag emoji. */}
-        <text x={w / 2} y={ht / 2 + 1} textAnchor="middle" dominantBaseline="central" fill="currentColor" fontWeight="800" fontSize={shape === "oval" ? 26 : 30} style={{ fontFamily: "var(--font-display), serif", letterSpacing: "0.04em" }}>
-          {mark}
-        </text>
-        {s.cities.length > 0 && (
-          <text x={w / 2} y={ht / 2 + (shape === "oval" ? 21 : 24)} textAnchor="middle" fill="currentColor" fontSize="7.5" fontWeight="700">
-            {s.cities.join(" · ").slice(0, 22)}
-          </text>
-        )}
-      </svg>
-    );
-  }
-  if (shape === "octagon") {
-    const w = 124;
-    const c = 36;
-    const oct = (o: number) => `${c + o},${o} ${w - c - o},${o} ${w - o},${c + o} ${w - o},${w - c - o} ${w - c - o},${w - o} ${c + o},${w - o} ${o},${w - c - o} ${o},${c + o}`;
-    return (
-      <svg width={w} height={w} viewBox={`0 0 ${w} ${w}`} style={common} className="mix-blend-multiply" data-stamp={s.name} data-country-stamp={s.code} data-by-hand={s.byHand ? "1" : "0"} aria-label={`${s.name}, ${s.byHand ? "been there" : when}`} role="img">
-        <g filter="url(#lp-ink)" fill="none" stroke="currentColor">
-          <polygon points={oct(3)} strokeWidth="2.6" strokeDasharray={dash} />
-          <polygon points={oct(9)} strokeWidth="1.1" strokeDasharray={dash} />
-        </g>
-        <text x={w / 2} y={36} textAnchor="middle" fill="currentColor" fontWeight="800" fontSize="24" style={{ fontFamily: "var(--font-display), serif", letterSpacing: "0.04em" }}>
-          {mark}
-        </text>
-        <text x={w / 2} y={66} textAnchor="middle" fill="currentColor" fontWeight="800" fontSize={name.length > 11 ? 9 : 12} style={{ letterSpacing: "0.06em" }}>
-          {name.length > 16 ? `${name.slice(0, 15)}…` : name}
-        </text>
-        <line x1="30" x2={w - 30} y1="76" y2="76" stroke="currentColor" strokeWidth="1" />
-        <text x={w / 2} y={90} textAnchor="middle" fill="currentColor" fontWeight="700" fontSize="8" style={{ letterSpacing: "0.14em" }}>
-          {when}
-        </text>
-        {s.cities.length > 0 && (
-          <text x={w / 2} y={102} textAnchor="middle" fill="currentColor" fontSize="7">
-            {s.cities.join(" · ").slice(0, 20)}
-          </text>
-        )}
-      </svg>
-    );
-  }
-  // A city at home: a boxed "arrived" stamp (or a ticket with notched corners).
-  const w = Math.min(150, Math.max(112, s.name.length * 9 + 40));
-  const ht = 70;
-  const ticket = shape === "ticket";
-  // The place must sit inside the inner frame (w - 26 wide): long names are cut with "…" and the type steps down to fit.
-  const placeText = s.name.length > 16 ? `${s.name.slice(0, 15)}…` : s.name;
-  const placeSize = Math.max(9, Math.min(s.name.length > 12 ? 13 : 16, (w - 26) / (placeText.length * 0.64)));
-  return (
-    <svg width={w} height={ht} viewBox={`0 0 ${w} ${ht}`} style={common} className="mix-blend-multiply" data-stamp={s.name} data-by-hand="0" aria-label={`${s.name}, ${when}`} role="img">
-      <g filter="url(#lp-ink)" fill="none" stroke="currentColor">
-        {ticket ? (
-          <path d={`M10 2 H${w - 10} A8 8 0 0 0 ${w - 2} 10 V${ht - 10} A8 8 0 0 0 ${w - 10} ${ht - 2} H10 A8 8 0 0 0 2 ${ht - 10} V10 A8 8 0 0 0 10 2 Z`} strokeWidth="2.4" />
-        ) : (
-          <rect x="2" y="2" width={w - 4} height={ht - 4} rx="5" strokeWidth="2.4" />
-        )}
-        <rect x="7" y="7" width={w - 14} height={ht - 14} rx="3" strokeWidth="1" />
-      </g>
-      <g fill="currentColor" textAnchor="middle">
-        <text x={w / 2} y="20" fontSize="7.5" fontWeight="700" style={{ letterSpacing: "0.2em" }}>
-          ✈ ARRIVED
-        </text>
-        <text x={w / 2} y="41" fontSize={placeSize} fontWeight="800" style={{ fontFamily: "var(--font-display), serif" }}>
-          {placeText}
-        </text>
-        <text x={w / 2} y="56" fontSize="7.5" fontWeight="700" style={{ letterSpacing: "0.16em" }}>
-          {when}
-        </text>
-      </g>
     </svg>
   );
 }
@@ -197,6 +65,19 @@ export function WorldMap({ index, className = "mt-2" }: { index: { code: string;
   );
 }
 
+// A country's small picture on the index page, or (no photo) a drawn ring with its code.
+function IndexPhoto({ r }: { r: IndexRow }) {
+  if (r.photo)
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={r.photo} alt="" width={28} height={28} loading="lazy" className="h-7 w-7 shrink-0 rounded-[6px] object-cover" />;
+  const ink = stampInk(r.code, r.name);
+  return (
+    <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 text-[9px] font-extrabold" style={{ color: ink, borderColor: ink }}>
+      {r.code}
+    </span>
+  );
+}
+
 function Sheet({ n, children, label }: { n: number; of?: number; children: React.ReactNode; label: string }) {
   return (
     <section aria-label={label} aria-roledescription="page" className="relative h-full w-full shrink-0 snap-center overflow-hidden rounded-r-[14px] rounded-l-[4px] text-[#26231d]" style={paper} data-page={n}>
@@ -208,10 +89,7 @@ function Sheet({ n, children, label }: { n: number; of?: number; children: React
   );
 }
 
-export function PassportBook({ name, stats, milestones, pages, index, badges = [], own = true }: Props) {
-  // One source for the numbers: the stamps actually drawn on the pages. The cover and page 1 both read `counts`.
-  const stampCount = pages.reduce((t, p) => t + p.stamps.length, 0);
-  const counts = { countries: stats.countries, stamps: stampCount, trips: stats.trips };
+export function PassportBook({ name, stats, counts, milestones, pages, index, badges = [], own = true }: Props) {
   const shownMilestones = milestones.filter((m) => !/\b\d+\s+(countries|trips)\b/i.test(m));
   const [open, setOpen] = useState(false);
   const [gone, setGone] = useState(false); // the cover, once it has swung away
@@ -261,13 +139,6 @@ export function PassportBook({ name, stats, milestones, pages, index, badges = [
 
   return (
     <div className="relative" data-passport>
-      {/* Uneven ink for the stamps (used by every stamp on the page). */}
-      <svg width="0" height="0" className="absolute" aria-hidden>
-        <filter id="lp-ink">
-          <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="3" result="n" />
-          <feDisplacementMap in="SourceGraphic" in2="n" scale="0.9" />
-        </filter>
-      </svg>
       <div className="relative h-[480px] [perspective:1400px]">
         {/* Page edges peeking out under the book. */}
         <span aria-hidden className="absolute inset-y-2 left-1 right-[-5px] rounded-r-[14px] bg-[#d9d1bc]" />
@@ -277,7 +148,7 @@ export function PassportBook({ name, stats, milestones, pages, index, badges = [
           {/* The photo page */}
           <Sheet n={1} of={total} label="Your details">
             <div className="flex h-full flex-col px-6 pb-8 pt-6">
-              <p className="text-[11px] font-semibold tracking-[0.2em] text-[#7a7262]">LOOPIN · TRAVEL DOCUMENT</p>
+              <p className="text-[12px] font-semibold text-[#7a7262]">Loopin travel document</p>
               <div className="mt-4 flex gap-4">
                 <div aria-hidden className="flex h-[108px] w-[86px] shrink-0 items-center justify-center rounded-[6px] border border-[#cfc6b1] bg-[#e4dcc6] font-display text-[44px] font-semibold text-[#5c564a]">
                   {([...(name.trim() || "You")][0] ?? "Y").toUpperCase()}
@@ -289,14 +160,14 @@ export function PassportBook({ name, stats, milestones, pages, index, badges = [
                   </div>
                   <div>
                     <dt className="text-[10px] text-[#8a8270]">Places</dt>
-                    <dd className="font-semibold tabular-nums" data-passport-stats={`${stats.cities}|${stats.countries}`}>
-                      {[stats.countries ? `${stats.countries} ${stats.countries === 1 ? "country" : "countries"}${stats.abroad && stats.abroad < stats.countries ? ` (${stats.abroad} abroad)` : ""}` : "", stats.cities ? `${stats.cities} ${stats.cities === 1 ? "city" : "cities"}` : ""].filter(Boolean).join(", ") || "Your first stamp is coming"}
+                    <dd className="font-semibold tabular-nums" data-passport-stats={`${counts.cities}|${counts.countries}`}>
+                      {[counts.countries ? `${counts.countries} ${counts.countries === 1 ? "country" : "countries"}${stats.abroad && stats.abroad < counts.countries ? ` (${stats.abroad} abroad)` : ""}` : "", counts.cities ? `${counts.cities} ${counts.cities === 1 ? "city" : "cities"}` : ""].filter(Boolean).join(", ") || "Your first stamp is coming"}
                     </dd>
                   </div>
                   <div>
                     <dt className="text-[10px] text-[#8a8270]">Trips</dt>
                     <dd className="font-semibold tabular-nums">
-                      {stats.trips ? `${stats.trips} with Loopin${stats.thisYear ? `, ${stats.thisYear} this year` : ""}` : "None yet. Start one!"}
+                      {counts.trips ? `${counts.trips} with Loopin${stats.thisYear ? `, ${stats.thisYear} this year` : ""}` : "None yet. Start one!"}
                     </dd>
                   </div>
                 </dl>
@@ -326,11 +197,11 @@ export function PassportBook({ name, stats, milestones, pages, index, badges = [
                   ))}
                 </ul>
               )}
-              {pages.length === 0 ? <p className="mt-auto text-sm text-[#7a7262]">No stamps yet. Your next trip earns the first one ✈️</p> : <span className="mt-auto" />}
+              {pages.length === 0 ? <p className="mt-auto text-sm text-[#7a7262]">No stamps yet. Your next trip earns the first one.</p> : <span className="mt-auto" />}
               <p aria-hidden className="mt-4 overflow-hidden whitespace-nowrap font-mono text-[11px] leading-[1.35] tracking-[0.04em] text-[#5c564a]/80">
                 {mrz}
                 <br />
-                {`${String(stats.countries).padStart(2, "0")}C${String(stats.cities).padStart(3, "0")}T${String(stats.trips).padStart(3, "0")}`.padEnd(36, "<")}
+                {`${String(counts.countries).padStart(2, "0")}C${String(counts.cities).padStart(3, "0")}T${String(counts.trips).padStart(3, "0")}`.padEnd(36, "<")}
               </p>
             </div>
           </Sheet>
@@ -338,9 +209,9 @@ export function PassportBook({ name, stats, milestones, pages, index, badges = [
           {/* Where you've been: the world map and the badges */}
           <Sheet n={2} of={total} label="Map and badges">
             <div className="flex h-full flex-col px-5 pb-8 pt-5">
-              <p className="text-[11px] font-semibold tracking-[0.2em] text-[#8a8270]">{own ? "WHERE YOU’VE BEEN" : `WHERE ${(name || "THEY").toUpperCase()} HAS BEEN`}</p>
+              <p className="text-[12px] font-semibold text-[#8a8270]">{own ? "Where you’ve been" : `Where ${name || "they"} has been`}</p>
               <WorldMap index={index} />
-              <p className="mt-3 text-[11px] font-semibold tracking-[0.2em] text-[#8a8270]">BADGES</p>
+              <p className="mt-3 text-[12px] font-semibold text-[#8a8270]">Badges</p>
               <ul className="mt-2 grid grid-cols-3 gap-1.5" data-badges>
                 {visibleBadges(badges).map((b) => (
                   <li key={b.id} title={b.why} className={`rounded-[10px] border px-1.5 py-1.5 text-center ${b.earned ? "border-[#26231d]/40 bg-[#26231d]/[0.07]" : "border-[#26231d]/10 opacity-60"}`} data-badge={b.id} data-earned={b.earned ? "1" : "0"}>
@@ -359,9 +230,10 @@ export function PassportBook({ name, stats, milestones, pages, index, badges = [
           {pages.map((p, k) => (
             <Sheet key={k} n={k + 3} of={total} label={`${p.title}, page ${k + 1}`}>
               <p className="absolute left-6 top-4 text-[12px] font-semibold text-[#8a8270]">Visas and stamps</p>
-              <div className="absolute inset-x-2 bottom-7 top-12">
-                {p.stamps.map((s, i) => (
-                  <StampMark key={s.id} s={s} i={i} />
+              {/* Six to a page, two across, each at its own slant. */}
+              <div className="absolute inset-x-3 bottom-7 top-12 grid grid-cols-2 grid-rows-3 place-items-center" data-stamp-page>
+                {p.stamps.map((s) => (
+                  <StampArt key={s.id} s={s} size={108} />
                 ))}
               </div>
             </Sheet>
@@ -377,12 +249,12 @@ export function PassportBook({ name, stats, milestones, pages, index, badges = [
                 <ul className="mt-3 min-h-0 flex-1 divide-y divide-[#26231d]/10 overflow-y-auto pr-1 text-[13px]" data-passport-index>
                   {index.map((r) => (
                     <li key={r.code} className="py-1.5" data-index-country={r.code}>
-                      <p className="flex items-baseline gap-2">
-                        <span>{r.flag}</span>
+                      <p className="flex items-center gap-2">
+                        <IndexPhoto r={r} />
                         <span className="min-w-0 flex-1 truncate font-semibold">{r.name}</span>
                         <span className="shrink-0 text-[12px] text-[#5c564a]">{[r.trips ? `${r.trips} ${r.trips === 1 ? "trip" : "trips"}` : "", r.byHand ? "Been there" : ""].filter(Boolean).join(" · ")}</span>
                       </p>
-                      {r.cities.length > 0 && <p className="truncate pl-7 text-[12px] text-[#7a7262]">{r.cities.join(", ")}</p>}
+                      {r.cities.length > 0 && <p className="truncate pl-9 text-[12px] text-[#7a7262]">{r.cities.join(", ")}</p>}
                     </li>
                   ))}
                 </ul>
@@ -398,7 +270,7 @@ export function PassportBook({ name, stats, milestones, pages, index, badges = [
             onClick={() => setOpen(true)}
             aria-label="Open your passport"
             className="absolute inset-0 z-20 flex origin-left flex-col items-center rounded-r-[14px] rounded-l-[4px] border border-[#2b2b31] bg-[#16161a] px-6 pt-12 text-center shadow-[0_24px_40px_-24px_rgba(0,0,0,0.9)] transition-[transform,opacity] duration-[650ms] ease-[cubic-bezier(0.3,0.7,0.2,1)] motion-reduce:transition-none"
-            style={{ transform: open ? "rotateY(-105deg)" : "none", opacity: open ? 0 : 1, color: GOLD, backgroundImage: "radial-gradient(120% 80% at 30% 0%, rgba(111,227,168,0.07), transparent 55%), repeating-linear-gradient(45deg, rgba(255,255,255,0.018) 0 2px, transparent 2px 5px)" }}
+            style={{ transform: open ? "rotateY(-105deg)" : "none", opacity: open ? 0 : 1, color: GOLD, backgroundImage: "repeating-linear-gradient(45deg, rgba(255,255,255,0.018) 0 2px, transparent 2px 5px)" }}
           >
             <span aria-hidden className="absolute inset-y-0 left-0 w-3 bg-[linear-gradient(90deg,rgba(0,0,0,0.35),transparent)]" />
             <span className="font-display text-[15px] font-semibold tracking-[0.32em]">LOOPIN</span>
@@ -406,7 +278,7 @@ export function PassportBook({ name, stats, milestones, pages, index, badges = [
               <Emblem />
             </span>
             <span className="mt-12 font-display text-[30px] font-semibold tracking-[0.28em]">PASSPORT</span>
-            <span className="mt-3 h-px w-14" style={{ background: GREEN }} aria-hidden />
+            <span className="mt-3 h-px w-14" style={{ background: GOLD }} aria-hidden />
             <span className="mt-3 text-[13px] opacity-80">{name || "Traveller"}</span>
             {(counts.countries > 0 || counts.stamps > 0) && (
               <span className="mt-6 text-[13px] font-semibold tracking-[0.06em] opacity-90" data-cover-counts={`${counts.countries}|${counts.stamps}`}>

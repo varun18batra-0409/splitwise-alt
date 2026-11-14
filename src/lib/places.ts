@@ -109,10 +109,11 @@ export function placeSlot(tripName: string): string | null {
 }
 
 // Every picture of a slot that downloaded: the slot itself, then slot-2, slot-3…
-export function photoSet(slot: string): string[] {
+// (`from` lets a test hand in its own list of downloaded photos.)
+export function photoSet(slot: string, from: Record<string, { src: string } | undefined> = have): string[] {
   const out: string[] = [];
   for (const k of [slot, ...Array.from({ length: 8 }, (_, i) => `${slot}-${i + 2}`)]) {
-    const src = have[k]?.src;
+    const src = from[k]?.src;
     if (src && !out.includes(src)) out.push(src);
   }
   return out;

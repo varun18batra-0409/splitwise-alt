@@ -14,6 +14,17 @@ const CANDIDATES = {
     "photo-1758272133719-959319bc2364", "photo-1446160657592-4782fb76fb99", "photo-1542051841857-5f90071e7989",
   ],
 };
+// The passport's country photos (read by scripts/fetch-photos.mjs). Up to 3 "photo-…" ids per country code: a landmark or landscape,
+// colour, no faces, no flags, no text. The first good one becomes country-xx. Countries still to fill (no id yet, so the passport
+// draws its stamp instead): MY KH LA PH KR CN HK TW TR IT ES PT DE NL BE AT CZ HU HR IS NO SE DK FI IE PL CA MX BR AR PE AU NZ
+// ZA KE TZ EG MA MU SC SA QA OM JO GE AZ UZ KZ. (Run this file to download previews of them all, then pick.)
+export const COUNTRY_PHOTOS = Object.fromEntries(
+  "MY KH LA PH KR CN HK TW TR IT ES PT DE NL BE AT CZ HU HR IS NO SE DK FI IE PL CA MX BR AR PE AU NZ ZA KE TZ EG MA MU SC SA QA OM JO GE AZ UZ KZ".split(" ").map((c) => [c, []]),
+);
+
+// Run directly (node scripts/photo-candidates.mjs) to download the previews above and the older ones below.
+if (process.argv[1]?.endsWith("photo-candidates.mjs")) {
+  Object.assign(CANDIDATES, Object.fromEntries(Object.entries(COUNTRY_PHOTOS).filter(([, ids]) => ids.length).map(([c, ids]) => [`country-${c.toLowerCase()}`, ids])));
 mkdirSync("screenshots/candidates", { recursive: true });
 for (const [slot, ids] of Object.entries(CANDIDATES)) {
   for (const [i, id] of ids.entries()) {
@@ -26,4 +37,5 @@ for (const [slot, ids] of Object.entries(CANDIDATES)) {
       console.log(`${slot}-${i + 1} ${id} failed`);
     }
   }
+}
 }

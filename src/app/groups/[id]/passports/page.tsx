@@ -10,6 +10,7 @@ import { loadPassport, passportRoster } from "@/lib/passport-db";
 import { blockedEitherWay } from "@/lib/blocks";
 import { passportShared } from "@/lib/passport";
 import { countryOf } from "@/lib/geo";
+import { countryPhoto } from "@/lib/country-photos";
 import { Avatar, PageHeader } from "@/components/ui";
 import map from "@/generated/map.json";
 
@@ -65,7 +66,7 @@ export default async function GroupPassports({ params }: { params: Promise<{ id:
           .filter((r) => r.codes.length > 0)
       : [];
   const shared = visible.length > 1 ? together.filter((c) => visible.filter((p) => p.codes.includes(c)).length === visible.length) : [];
-  const c3 = (code: string) => ({ code, flag: countryOf(code)?.flag ?? "", name: shortName(code) });
+  const c3 = (code: string) => ({ code, flag: countryOf(code)?.flag ?? "", name: shortName(code), photo: countryPhoto(code) ?? undefined });
   const back = `/groups/${id}`;
   const order = [...people].sort((a, b) => Number(b.mine) - Number(a.mine) || Number(Boolean(a.m.leftAt)) - Number(Boolean(b.m.leftAt)) || b.codes.length - a.codes.length);
   return (

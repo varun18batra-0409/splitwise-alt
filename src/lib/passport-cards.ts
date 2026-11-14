@@ -1,5 +1,6 @@
 import { countryOf } from "./geo";
-import { daysAway, tripDays, type PassportTrip, type Stamp } from "./passport";
+import { passportCounts, tripDays, type PassportTrip, type Stamp } from "./passport";
+import { cardPhoto } from "./country-photos";
 
 // The "Been" tab of the passport: one card per trip (newest first), then one small card for each
 // country added by hand. Pure: the page draws it, this decides what it says.
@@ -19,15 +20,13 @@ export type BeenCardData = {
   groupId?: string;
   groupName: string; // for choosing the picture
   place: string; // "Where to?" as typed, for choosing the picture
-  dates: string; // "5–10 May 2026" ("" for a country added by hand or a trip without dates)
+  dates: string; // "5–10 May" (no year: the stamp has it; "" for a country added by hand or a trip without dates)
   days: number; // 0 = not shown
   people: number;
-  initials: string[]; // up to 3
-  peopleLabel: string; // under the big card: "6 people, one good trip"
-  friendsLabel: string; // on a small card: "With 3 friends"
-  reliveHref?: string;
-  momentsHref?: string;
-  stamp: Stamp; // the one drawn on the photo: the place and the month
+  countryName: string; // the stamp always names the country: a trip to Goa is "INDIA / MAR 2026"
+  stampWhen: string; // the trip's start day ("" = been there)
+  cta?: { label: "Relive trip" | "View memories"; href: string }; // the one button; none for a country added by hand
+  photo?: string; // the picture on the left; none = the drawn stamp on cream paper
 };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -45,7 +44,13 @@ export function tripDates(start: string, end: string): string {
   return `${dm(start)} – ${dm(end)} ${y}`;
 }
 
-const initialOf = (name: string) => ([...name.trim()][0] ?? "").toUpperCase();
+// The same without the year, for a card (the stamp carries it): 5–10 May · 28 Feb – 1 Mar · 30 Dec – 2 Jan · 5 May.
+export function tripDatesShort(start: string, end: string): string {
+  if (!ok(start)) return "";
+  if (!ok(end) || end <= start) return dm(start);
+  if (end.slice(0, 4) === start.slice(0, 4) && end.slice(5, 7) === start.slice(5, 7)) return `${Number(start.slice(8, 10))}–${dm(end)}`;
+  return `${dm(start)} – ${dm(end)}`;
+}
 
 // The number row. Anything that is 0 is left out.
 // The days are the real total of trip days (a trip that has started counts all its days); the label stays short so it fits one line at 320 px.
@@ -59,9 +64,10 @@ export function beenStats(countries: number, trips: number, days: number, _inPro
 }
 
 export function beenCards(
-  p: { trips: PassportTrip[]; stamps: Stamp[]; been: Stamp[]; stats: { countries: number; trips: number } },
+  p: { trips: PassportTrip[]; stamps: Stamp[]; been: Stamp[]; stats: { countries: number; trips: number; cities?: number } },
   extras: Record<string, TripExtras> = {},
   today: string,
+  have?: Record<string, { src: string } | undefined>, // the downloaded photos (tests hand in their own)
 ): { stats: { n: number; label: string }[]; cards: BeenCardData[] } {
   const cards: BeenCardData[] = [];
   // A trip that has started has stamps; a trip still to come has none and no card.
@@ -78,10 +84,8 @@ export function beenCards(
     const title = abroad.length ? abroad.map((s) => s.name).join(" · ") : own.map((s) => s.name).join(" · ");
     const cities = abroad.length ? abroad.flatMap((s) => s.cities) : [];
     const x = extras[t.groupId];
-    const names = (x?.names ?? []).slice(0, 3);
     const days = t.undated ? 0 : tripDays(t.start, t.end);
-    const others = Math.max(0, t.people - 1);
-    cards.push({
+    const card: BeenCardData = {
       id: t.groupId,
       kind: "trip",
       title,
@@ -91,40 +95,25 @@ export function beenCards(
       groupId: t.groupId,
       groupName: t.name,
       place: t.place,
-      dates: t.undated ? "" : tripDates(t.start, t.end),
+      dates: t.undated ? "" : tripDatesShort(t.start, t.end),
       days,
       people: t.people,
-      initials: names.map(initialOf).filter(Boolean),
-      peopleLabel: t.people > 1 ? `${t.people} people, one good trip` : "Just you",
-      friendsLabel: others > 0 ? `With ${others} ${others === 1 ? "friend" : "friends"}` : "Just you",
-      reliveHref: `/groups/${t.groupId}/report`,
-      momentsHref: x?.moments ? `/groups/${t.groupId}/moments` : undefined,
-      // Abroad: the country's stamp. At home: the city's own stamp (PUNE, GOA), as "Trips here get city stamps" says.
-      stamp: abroad.length ? { id: `card-${t.groupId}`, kind: "country", code, name: country, flag: first.flag, when: t.start, cities: [], groupId: t.groupId, byHand: false } : { ...first, id: `card-${t.groupId}`, when: t.start },
-    });
+      countryName: country,
+      stampWhen: t.start,
+      // One button: your moments if there are any to see, otherwise the trip's story.
+      cta: x?.moments ? { label: "View memories", href: `/groups/${t.groupId}/moments` } : { label: "Relive trip", href: `/groups/${t.groupId}/report` },
+    };
+    card.photo = cardPhoto(card, have);
+    cards.push(card);
   }
-  // Countries added by hand: no dates, no Relive.
+  // Countries added by hand: no dates, no button; only a photo that is really that country.
   for (const s of p.been) {
-    cards.push({
-      id: s.id,
-      kind: "hand",
-      title: s.name,
-      cities: [],
-      code: s.code,
-      flag: s.flag,
-      groupName: s.name,
-      place: "",
-      dates: "",
-      days: 0,
-      people: 0,
-      initials: [],
-      peopleLabel: "",
-      friendsLabel: "",
-      stamp: s,
-    });
+    const card: BeenCardData = { id: s.id, kind: "hand", title: s.name, cities: [], code: s.code, flag: s.flag, groupName: s.name, place: "", dates: "", days: 0, people: 0, countryName: s.name, stampWhen: "" };
+    card.photo = cardPhoto(card, have);
+    cards.push(card);
   }
-  const inProgress = p.trips.some((t) => !t.undated && ok(t.start) && t.start <= today && ok(t.end) && t.end > today);
-  return { stats: beenStats(p.stats.countries, p.stats.trips, daysAway(p.trips, today), inProgress), cards };
+  const c = passportCounts({ trips: p.trips, stamps: p.stamps, been: p.been, stats: { countries: p.stats.countries, trips: p.stats.trips, cities: p.stats.cities ?? 0 } }, today);
+  return { stats: beenStats(c.countries, c.trips, c.days), cards };
 }
 
 // The first few cards, with the rest behind "See all".

@@ -3479,13 +3479,13 @@ async function main() {
     await go(V, "/account");
     await V.getByRole("link", { name: /Your trip passport/ }).click();
     await V.waitForURL(/\/passport/);
-    // The Been cards come first; the booklet is behind a quiet link.
-    await V.getByRole("link", { name: "Open the passport book" }).click();
+    // The Been cards come first; the booklet opens from the passport art.
+    await V.getByRole("link", { name: "Open your passport book" }).click();
     await V.waitForURL(/\/passport\?book=1/);
     await V.getByRole("button", { name: "Open your passport" }).click();
     await V.getByRole("button", { name: "Next page" }).waitFor();
     await go(V, "/passport");
-    await V.getByRole("button", { name: "Add a visited place" }).click();
+    await V.getByRole("button", { name: "Add visited place" }).click();
     const sheet = V.getByRole("dialog", { name: "Add countries" });
     await sheet.getByLabel("Search countries").fill("thai");
     await sheet.getByRole("checkbox", { name: "Thailand" }).check();
@@ -3502,7 +3502,7 @@ async function main() {
 
   await step(V, "Fun", "Share my passport sends one picture of the open booklet (details, map, every stamp), and nothing else", async () => {
     await go(V, "/passport");
-    await V.getByRole("button", { name: "Share passport", exact: true }).click();
+    await V.getByRole("button", { name: "Share", exact: true }).click();
     const sheet = V.getByRole("dialog", { name: "Share your passport" });
     await sheet.getByText("WhatsApp", { exact: true }).waitFor();
     assert((await sheet.locator("[data-album-preview]").count()) === 0, "still offers an album of several pictures");
@@ -3532,17 +3532,18 @@ async function main() {
       const row = await dana.page.locator("[data-passport-stats-row]").getAttribute("data-passport-stats-row");
       assert(row === "2|2|9", `the numbers row says ${row}, not 2|2|9`);
       const rowText = (await dana.page.locator("[data-passport-stats-row]").innerText()).replace(/\s+/g, " ");
-      for (const w of ["countries", "trips", "days away"]) assert(rowText.includes(w), `the numbers row is missing “${w}”: ${rowText}`);
-      const big = dana.page.locator("[data-been-card='big']");
-      assert((await big.getAttribute("data-group")) === thai.id, "the newest trip (Thailand) isn't the big card");
-      const bigText = (await big.innerText()).replace(/\s+/g, " ");
-      for (const w of ["Thailand", "Bangkok · Phuket", "5–10 May 2026 · 6 days", "6 people"]) assert(bigText.includes(w), `the big card is missing “${w}”: ${bigText}`);
-      assert((await big.locator("[data-been-relive]").getAttribute("href")) === `/groups/${thai.id}/report`, "Relive this trip doesn't go to the trip");
-      const small = dana.page.locator("[data-been-card='small']");
-      assert((await small.getAttribute("data-group")) === goa.id, "Goa isn't the small card");
-      const smallText = (await small.innerText()).replace(/\s+/g, " ");
-      for (const w of ["Goa", "13–15 Mar 2026 · 3 days", "With 3 friends"]) assert(smallText.includes(w), `the Goa card is missing “${w}”: ${smallText}`);
-      assert((await dana.page.getByRole("link", { name: "Open the passport book" }).count()) === 1, "no quiet link to the passport book");
+      for (const w of ["countries", "trips", "days travelled"]) assert(rowText.includes(w), `the numbers row is missing “${w}”: ${rowText}`);
+      // One card design for every trip: newest first. Thailand, then Goa.
+      const thaiCard = dana.page.locator(`[data-been-card='trip'][data-group='${thai.id}']`);
+      const thaiText = (await thaiCard.innerText()).replace(/\s+/g, " ");
+      for (const w of ["Thailand", "Bangkok · Phuket", "5–10 May · 6 days", "THAILAND", "MAY 2026", "Relive trip"]) assert(thaiText.includes(w), `the Thailand card is missing “${w}”: ${thaiText}`);
+      assert((await thaiCard.locator("[data-been-cta]").getAttribute("href")) === `/groups/${thai.id}/report`, "Relive trip doesn't go to the trip");
+      const goaCard = dana.page.locator(`[data-been-card='trip'][data-group='${goa.id}']`);
+      const goaText = (await goaCard.innerText()).replace(/\s+/g, " ");
+      for (const w of ["Goa", "13–15 Mar · 3 days", "INDIA", "MAR 2026"]) assert(goaText.includes(w), `the Goa card is missing “${w}”: ${goaText}`);
+      const order = await dana.page.locator("[data-been-card='trip']").evaluateAll((els) => els.map((e) => e.getAttribute("data-group")));
+      assert(order[0] === thai.id && order[1] === goa.id, `the cards aren't newest first: ${order.join(",")}`);
+      assert((await dana.page.getByRole("link", { name: "Open your passport book" }).count()) === 1, "no quiet link to the passport book");
     } finally {
       await dana.ctx.close();
     }

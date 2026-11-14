@@ -24,7 +24,8 @@ export type Stamp = {
 };
 // A badge: earned, or how close you are ("2 of 3").
 export type Badge = { id: string; emoji: string; title: string; why: string; earned: boolean; have: number; need: number };
-export type IndexRow = { code: string; name: string; flag: string; home: boolean; trips: number; byHand: boolean; cities: string[] };
+// photo: the country's picture, filled in by the server for the passport's index page (never read from photos.json on the phone).
+export type IndexRow = { code: string; name: string; flag: string; home: boolean; trips: number; byHand: boolean; cities: string[]; photo?: string };
 
 // Countries only (cities come from real trips). Older lists may have a city: it's dropped.
 export function parseHandPlaces(json: string): HandPlace[] {
@@ -146,6 +147,15 @@ export function buildPassport(trips: PassportTrip[], hand: HandPlace[], home: st
   ];
 
   return { stamps, been, index: rows, stats, milestones, badges, marks };
+}
+
+// The numbers of one passport, worked out once. The stats row, the book's cover and first page, and the share picture all read
+// this one object, so they can never disagree. `countries` counts places (Italy three times is one), `trips` the trips that have
+// started, `days` the distinct days of those trips (overlaps count once), `stamps` what is drawn in the book (trip stamps plus
+// "Been there" ones), `cities` the different cities. Pure.
+export type PassportCounts = { countries: number; trips: number; days: number; stamps: number; cities: number };
+export function passportCounts(p: { trips: { start: string; end: string; undated?: boolean }[]; stamps: unknown[]; been: unknown[]; stats: { countries: number; trips: number; cities: number } }, today: string): PassportCounts {
+  return { countries: p.stats.countries, trips: p.stats.trips, days: daysAway(p.trips, today), stamps: p.stamps.length + p.been.length, cities: p.stats.cities };
 }
 
 // Which badges to show: the ones earned, plus the next one to win (the unearned one closest to done; a tie goes to the first in the

@@ -583,6 +583,14 @@ if (!hosted) {
     // Postcards: one from Meera (received, a Goa photo), one sent back (a print), the composer.
     const meera = await db.account.create({ data: { email: `shots-meera-${Date.now()}@uat.loopin.test`, name: "Meera", passportChoiceAt: new Date() } });
     await db.member.create({ data: { groupId: lona.id, name: "Meera", accountId: meera.id, claimedAt: new Date() } });
+    // R3, Want to go: Varun wants Japan and Iceland, Meera wants Japan and Peru. Varun shows Japan to Meera: 108b. Meera then shows
+    // her whole list to Varun, so Japan is a match: 108c.
+    for (const c of ["JP", "IS"]) await db.wishPlace.create({ data: { accountId: acc.id, country: c } });
+    for (const c of ["JP", "PE"]) await db.wishPlace.create({ data: { accountId: meera.id, country: c } });
+    await db.wishShare.create({ data: { ownerId: acc.id, friendId: meera.id, country: "JP" } });
+    await shot("108b-want-to-go", "/passport?tab=want", undefined, false);
+    await db.wishShare.create({ data: { ownerId: meera.id, friendId: acc.id, country: "*" } });
+    await shot("108c-want-to-go-match", "/passport?tab=want", undefined, false);
     const got = await db.postcard.create({
       data: { fromId: meera.id, toId: acc.id, groupId: lona.id, front: "photo:/photos/place-goa.jpg", words: "Goa", lettering: "classic", message: "Wish you were here. The beach shack turned out to be the fancy dinner, Ravi forgot the rules of every card game, and we watched the sun go down three evenings in a row. Same time next year?", hand: "caveat", stamp: "c:IN", paper: "cream", look: "golden:70", touches: "seal,flower", address: JSON.stringify(["Varun", "the flat that never has milk", "Bengaluru"]), place: "Goa" },
     });
@@ -678,7 +686,7 @@ if (!hosted) {
     }, false);
     await shot("118-passport-picture", "/passport/image", undefined, false);
     await shot("118d-passport-share-sheet", "/passport", async (p) => {
-      await p.getByRole("button", { name: "Share passport", exact: true }).click();
+      await p.getByRole("button", { name: "Share", exact: true }).click();
       await p.waitForTimeout(800);
     }, false);
     await db.account.update({ where: { id: priya.id }, data: { passportChoiceAt: new Date(), places: JSON.stringify([{ c: "JP" }, { c: "FR" }, { c: "GR" }, { c: "TH" }, { c: "AE" }, { c: "ID" }]) } });
@@ -721,8 +729,24 @@ if (!hosted) {
       }
       await p.waitForTimeout(900);
     }, false);
+    // A contact sheet of the country photos in use, for review (countries with no photo show the drawn ring the passport uses).
+    {
+      const { COUNTRY_SLOT, countryPhoto } = await import("../src/lib/country-photos");
+      const { countryOf } = await import("../src/lib/geo");
+      const tiles = Object.keys(COUNTRY_SLOT).map((c) => ({ c, name: countryOf(c)?.name ?? c, src: countryPhoto(c) }));
+      const html = `<body style="margin:0;background:#0d0d0f;color:#f4f2ec;font:12px sans-serif"><div style="display:grid;grid-template-columns:repeat(8,1fr);gap:8px;padding:12px">${tiles
+        .map((t) => `<div>${t.src ? `<img src="${base}${t.src}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px">` : `<div style="aspect-ratio:1;border-radius:10px;background:#efe8d6"></div>`}<div>${t.c} ${t.name}${t.src ? "" : " (no photo)"}</div></div>`)
+        .join("")}</div></body>`;
+      await page.setViewportSize({ width: 1200, height: 900 });
+      await page.goto(base + "/");
+      await page.setContent(html, { waitUntil: "load" });
+      await page.waitForTimeout(1500);
+      await page.screenshot({ path: `${out}/country-photos-contact-sheet.png`, fullPage: true });
+      await page.setViewportSize(screen);
+      console.log("✓ country-photos-contact-sheet");
+    }
     await shot("113-passport-pick", "/passport", async (p) => {
-      await p.getByRole("button", { name: "Add a visited place" }).click();
+      await p.getByRole("button", { name: "Add visited place" }).click();
       const sheet = p.getByRole("dialog", { name: "Add countries" });
       await sheet.getByRole("checkbox", { name: "Albania" }).check();
       await sheet.getByRole("checkbox", { name: "Andorra" }).check();
@@ -753,6 +777,7 @@ if (!hosted) {
           await p.waitForTimeout(800);
         }, false);
         await shot(`n${w}-passport`, "/passport");
+        await shot(`n${w}-want-to-go`, "/passport?tab=want"); // a match, a list and Add | Share
       }
       if (before) await page.setViewportSize(before);
     }

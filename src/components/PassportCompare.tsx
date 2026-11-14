@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { WorldMap } from "@/components/PassportBook";
+import { stampInk } from "@/components/stamps/StampArt";
 
 // Our passports, in one small box: tabs for every country between you, the
-// ones you've all been to ("Shared"), and the ones only one of you has (the tabs wrap onto a second row, none is ever cut off); under them, the
-// flags with a short name each.
-export type CompareSet = { key: string; label: string; countries: { code: string; flag: string; name: string }[]; hideCount?: boolean }; // hideCount: the number is already said above (the "Everywhere" tab)
+// ones you've all been to ("Shared"), and the ones only one of you has (the tabs wrap onto a second row, none is ever cut off); under them, a
+// small photo of each country with its short name (a drawn stamp ring where we have no photo).
+export type CompareSet = { key: string; label: string; countries: { code: string; flag: string; name: string; photo?: string }[]; hideCount?: boolean }; // hideCount: the number is already said above (the "Everywhere" tab)
 
 export function PassportCompare({ sets, showMap = false }: { sets: CompareSet[]; showMap?: boolean }) {
   const [on, setOn] = useState(sets[0]?.key);
@@ -36,13 +37,20 @@ export function PassportCompare({ sets, showMap = false }: { sets: CompareSet[];
           <WorldMap className="" index={set.countries.map((c) => ({ code: c.code, name: c.name, trips: 1 }))} />
         </div>
       )}
-      <ul role="tabpanel" className="mt-3 grid grid-cols-5 gap-x-1 gap-y-2.5" data-compare-list={set.key}>
+      <ul role="tabpanel" className="mt-3 grid grid-cols-4 gap-x-2 gap-y-3 min-[400px]:grid-cols-5" data-compare-list={set.key}>
         {set.countries.map((c) => (
           <li key={c.code} className="flex min-w-0 flex-col items-center" title={c.name}>
-            <span aria-hidden className="flex h-8 min-w-8 items-center justify-center rounded-full border border-fg/25 px-1.5 text-[12px] font-semibold tabular-nums text-fg/75">
-              {c.code}
-            </span>
-            <span className="mt-1 w-full truncate text-center text-[10.5px] leading-tight text-fg/65">{c.name}</span>
+            {c.photo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={c.photo} alt="" width={56} height={56} loading="lazy" className="h-14 w-14 rounded-[14px] object-cover" />
+            ) : (
+              <span aria-hidden className="flex h-14 w-14 items-center justify-center rounded-[14px] bg-[#efe8d6]">
+                <span className="flex h-10 w-10 items-center justify-center rounded-full border-2 text-[11px] font-extrabold" style={{ color: stampInk(c.code, c.name), borderColor: stampInk(c.code, c.name) }}>
+                  {c.code}
+                </span>
+              </span>
+            )}
+            <span className="mt-1 w-full text-center text-[12px] leading-tight text-fg/75">{c.name}</span>
           </li>
         ))}
       </ul>
