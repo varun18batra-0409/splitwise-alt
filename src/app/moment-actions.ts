@@ -44,14 +44,17 @@ export async function reactMomentAction(f: FormData) {
     if (had?.emoji === emoji) await db.momentReaction.deleteMany({ where: { momentId: m.id, memberId: viewer.memberId } });
     else await db.momentReaction.upsert({ where: key, create: { momentId: m.id, memberId: viewer.memberId, emoji }, update: { emoji } });
   } catch (err) {
-    // A double tap: the other tap saved this person's reaction a moment ago (one per person per moment). It is already saved, so
-    // carry on quietly instead of showing an error page. Anything else is a real problem.
+    // A double tap: the other tap saved this person's reaction a moment ago (one per person per moment), so no error page.
+    // Retry once as a change to the emoji chosen here, so when the two taps were different emojis the last choice wins.
+    // Anything else is a real problem.
     if ((err as { code?: string })?.code !== "P2002") throw err;
+    await db.momentReaction.updateMany({ where: { momentId: m.id, memberId: viewer.memberId }, data: { emoji } });
   }
   redirect(back); // outside the try: a redirect is thrown and must not be swallowed
 }
 
 // Operator only, from /stats/reports: remove a reported moment (photo files too) and mark its open reports as dealt with.
+// If the author already removed it, the reports are still closed.
 export async function removeReportedMomentAction(f: FormData) {
   const me = await getAccount();
   if (!isOwner(me)) redirect("/");
@@ -59,7 +62,7 @@ export async function removeReportedMomentAction(f: FormData) {
   if (!id) redirect("/stats/reports");
   const open = await db.report.findFirst({ where: { kind: "moment", targetId: id, status: "open" }, select: { id: true } });
   if (open) {
-    await removeMoment(id); // also marks its open reports as resolved
+    await removeMoment(id, { resolveReports: true }); // also closes its open reports, whether or not the moment is still there
   }
   redirect("/stats/reports");
 }

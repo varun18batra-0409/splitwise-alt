@@ -19,6 +19,9 @@ export default async function Reports() {
   const ids = [...new Set(rows.flatMap((r) => [r.reporterId, r.targetAccountId]).filter(Boolean))];
   const people = ids.length ? await db.account.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, email: true } }) : [];
   const who = new Map(people.map((p) => [p.id, `${p.name || "No name"} (${p.email})`]));
+  // Which reported moments still exist (the author may have deleted theirs; the report stays open so it is still seen).
+  const momentIds = [...new Set(rows.filter((r) => r.kind === "moment").map((r) => r.targetId))];
+  const alive = new Set(momentIds.length ? (await db.moment.findMany({ where: { id: { in: momentIds } }, select: { id: true } })).map((m) => m.id) : []);
   const tz = await getTimeZone();
   const when = (d: Date) => d.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: tz });
   const list = (items: typeof rows) => (
@@ -32,7 +35,7 @@ export default async function Reports() {
           <p className="text-sm text-gray-500">From: {r.reporterId ? (who.get(r.reporterId) ?? "an account that no longer exists") : "someone not signed in"}</p>
           {r.contact && <p className="text-sm text-gray-500">Reply to: {r.contact}</p>}
           {r.note && <p className="mt-1 break-words text-sm">“{r.note}”</p>}
-          {r.kind === "moment" && r.status === "open" && (
+          {r.kind === "moment" && r.status === "open" && alive.has(r.targetId) && (
             <div className="mt-2 flex items-center gap-3" data-moment-report={r.targetId}>
               {/* A plain image on purpose: moment photos never go through Next's image service (it has no cookies). */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -45,6 +48,11 @@ export default async function Reports() {
                 </button>
               </form>
             </div>
+          )}
+          {r.kind === "moment" && r.status === "open" && !alive.has(r.targetId) && (
+            <p className="mt-2 rounded-xl bg-mist px-3 py-2 text-sm text-gray-500" data-moment-gone={r.targetId}>
+              The moment was removed by its author.
+            </p>
           )}
           {r.status === "open" ? (
             <form action={resolveReportAction} className="mt-2">

@@ -704,6 +704,22 @@ describe("deleting and removing: both files go, with the row", () => {
     expect(blob.files.size).toBe(2); // the other moment's two files
     expect(await leftovers()).toEqual(CLEAN);
   });
+
+  it("the author deleting their own reported moment leaves the report open; the operator's remove of it afterwards still closes it", async () => {
+    const w = await world("del-author-reported");
+    const m = await added(w, P.bea);
+    const report = await db.report.create({ data: { reporterId: P.dee.id, kind: "moment", targetId: m.id, targetAccountId: P.bea.id, reason: "abusive" } });
+    await as(P.bea);
+    expect(await run(actions.deleteMomentAction, { momentId: m.id })).toBe(`/groups/${w.id}/moments?removed=1`);
+    expect(await db.moment.count({ where: { id: m.id } })).toBe(0);
+    expect(await db.report.findUniqueOrThrow({ where: { id: report.id } })).toMatchObject({ status: "open", resolvedAt: null });
+    // The moment is already gone; the operator's "Remove the moment" must still close the report.
+    await as(P.op);
+    expect(await run(actions.removeReportedMomentAction, { momentId: m.id })).toBe("/stats/reports");
+    const after = await db.report.findUniqueOrThrow({ where: { id: report.id } });
+    expect(after.status).toBe("resolved");
+    expect(after.resolvedAt).not.toBeNull();
+  });
 });
 
 describe("account deletion and the 30-day purge", () => {
@@ -849,7 +865,7 @@ describe("the lists, the strip and reactions use the same rules", () => {
     expect(await db.momentReaction.count({ where: { momentId: m.id } })).toBe(1);
   });
 
-  it("a double tap: the second save hits the one-per-person rule and is treated as already saved (no error page)", async () => {
+  it("a double tap with the same emoji: the second save hits the one-per-person rule and is treated as already saved (no error page)", async () => {
     const w = await world("dbltap");
     const m = await added(w, P.ann);
     await as(P.bea);
@@ -862,6 +878,25 @@ describe("the lists, the strip and reactions use the same rules", () => {
     try {
       const went = await run(actions.reactMomentAction, { momentId: m.id, emoji: "😂" });
       expect(went).toContain(`/groups/${w.id}/moments`); // a normal redirect back, not a thrown error
+    } finally {
+      spy.mockRestore();
+    }
+    const rows = await db.momentReaction.findMany({ where: { momentId: m.id } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ memberId: w.bea, emoji: "😂" });
+  });
+
+  it("a double tap with two different emojis: the last choice wins (retried once as an update)", async () => {
+    const w = await world("dbltap3");
+    const m = await added(w, P.ann);
+    await as(P.bea);
+    // The other tap (🔥) got in first; this one (😂) is refused by the unique rule, then retried as a change to 😂.
+    const spy = vi.spyOn(db.momentReaction, "upsert").mockImplementationOnce((async () => {
+      await db.momentReaction.create({ data: { momentId: m.id, memberId: w.bea, emoji: "🔥" } });
+      throw Object.assign(new Error("Unique constraint failed on the fields: (`momentId`,`memberId`)"), { code: "P2002" });
+    }) as unknown as typeof db.momentReaction.upsert);
+    try {
+      expect(await run(actions.reactMomentAction, { momentId: m.id, emoji: "😂" })).toContain(`/groups/${w.id}/moments`);
     } finally {
       spy.mockRestore();
     }

@@ -140,12 +140,13 @@ export function ActivityRow({
             {groupName && ` · ${groupName}`}
           </p>
         ) : (
-          // One line: the names take what is left and are cut with "…"; "paid THB 225" and the amount column never squeeze them to nothing.
+          // One line: the names take what is left and are cut first with "…"; "paid THB 225 · edited" can also be cut, so nothing runs under the amount column.
           <p className="mt-0.5 flex min-w-0 items-baseline gap-x-1 text-[13px] leading-snug text-fg/60">
-            <span className="min-w-0 truncate" title={(item.payerIds ?? [item.paidById]).map(nameOf).join(" + ")}>
+            <span className="min-w-0 shrink-[4] truncate" title={(item.payerIds ?? [item.paidById]).map(nameOf).join(" + ")}>
               {(item.payerIds ?? [item.paidById]).map(nameOf).join(" + ")}
             </span>{" "}
-            <span className="shrink-0 whitespace-nowrap">
+            {/* Can shrink and be cut with "…" (the names give way first), so it never runs under the amount on the right. */}
+            <span className="min-w-0 truncate whitespace-nowrap" data-paid-line>
               {item.refund ? "got back" : "paid"} {shown(o?.amount ?? 0, item.amount)}
               {item.edited && " · edited"}
             </span>{" "}

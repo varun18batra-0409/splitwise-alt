@@ -24,7 +24,6 @@ import { inviteMemberId } from "@/lib/invites";
 import { invitedNotice } from "@/lib/invite-label";
 import { SafetyLinks } from "@/components/SafetyLinks";
 import { DateField } from "@/components/DateField";
-import { Amt } from "@/components/Amt";
 
 // Everyone in the group: fix a name, remove someone (the admin) or
 // leave / bring back. Every change notifies the others and can be undone.
@@ -101,7 +100,7 @@ export default async function PeoplePage({
                 )}
               </span>
               <span className="block text-xs text-gray-400">
-                {m.removedAt ? "Removed from the group" : m.leftAt ? "Left the group" : leaver && !me ? "—" : bal > 0 ? <>gets <Amt minor={bal} currency={group.currency} /></> : bal < 0 ? <>owes <Amt minor={Math.abs(bal)} currency={group.currency} /></> : "settled up"}
+                {m.removedAt ? "Removed from the group" : m.leftAt ? "Left the group" : leaver && !me ? "—" : bal > 0 ? `gets ${money(bal)}` : bal < 0 ? `owes ${money(bal)}` : "settled up"}
               </span>
             </span>
             <span className="text-sm text-gray-400 group-open/p:hidden">Edit</span>

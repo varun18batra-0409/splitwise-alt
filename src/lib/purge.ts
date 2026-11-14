@@ -57,6 +57,8 @@ export async function eraseGroups(allIds: string[], opts: { afterRead?: () => Pr
       await queuePhotoDeletes(tx, [...files, ...moments.flatMap((m) => [m.blobKey, m.thumbKey])]);
       await tx.momentReaction.deleteMany({ where: { momentId: { in: moments.map((m) => m.id) } } });
       await tx.moment.deleteMany({ where: inG() });
+      // The group is gone for good, so there is nothing left to look at: close the open reports about its moments.
+      await tx.report.updateMany({ where: { kind: "moment", targetId: { in: moments.map((m) => m.id) }, status: "open" }, data: { status: "resolved", resolvedAt: new Date() } });
       await tx.expenseShare.deleteMany({ where: { expense: inG() } });
       await tx.expenseItem.deleteMany({ where: { expense: inG() } });
       await tx.expense.deleteMany({ where: inG() });

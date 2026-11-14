@@ -90,25 +90,49 @@ test("Insights add up: your share and group spend match what was entered, and Ho
   }
 });
 
-test("editing a ₹1,500 expense: select all, type 2000, save → ₹2,000 (not 15002000)", async () => {
-  await addEqualExpense(A, group.path, "Hotel", "1500");
-  await openEdit(A, group.path, "Hotel");
-  const amount = A.getByLabel("Amount", { exact: true });
-  // Not focused: commas are drawn.
-  await expect(amount).toHaveValue("1,500");
-  await amount.click();
-  await A.keyboard.press("ControlOrMeta+A");
-  await A.keyboard.type("2000");
-  await expect(amount).toHaveValue("2000");
-  await openSplit(A);
-  await A.getByRole("button", { name: "Everyone equally" }).click();
-  await A.getByRole("button", { name: "Save changes" }).click();
-  await A.waitForURL(/tab=activity/);
-  await settled(A);
-  const row = A.locator('li[id^="item-"] details > summary').filter({ hasText: "Hotel" }).first();
-  await expect(row).toContainText("2,000");
+// The amount box draws "1,500" when not focused and "1500" when focused. Focusing rewrites it, which used to lose the selection, so
+// new digits landed after the old ones (15002000). Both ways in below type WITHOUT select-all: the box must already have the whole amount selected.
+async function saveEditedAs(page: Page, name: string, shown: string) {
+  await openSplit(page);
+  await page.getByRole("button", { name: "Everyone equally" }).click();
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await page.waitForURL(/tab=activity/);
+  await settled(page);
+  const row = page.locator('li[id^="item-"] details > summary').filter({ hasText: name }).first();
+  await expect(row).toContainText(shown);
   await expect(row).not.toContainText("15002000");
   await expect(row).not.toContainText("1,500");
+}
+
+test("editing a ₹1,500 expense: Tab into the amount box and type 2000 (no select-all) → ₹2,000", async () => {
+  await addEqualExpense(A, group.path, "Hotel tab", "1500");
+  await openEdit(A, group.path, "Hotel tab");
+  const amount = A.getByLabel("Amount", { exact: true });
+  await expect(amount).toHaveValue("1,500"); // not focused: commas are drawn
+  // Walk back from the name box with Shift+Tab until the amount box has focus: a keyboard arrival, no mouse click.
+  await A.locator("#expense-name").focus();
+  let arrived = false;
+  for (let i = 0; i < 10 && !arrived; i++) {
+    await A.keyboard.press("Shift+Tab");
+    arrived = await A.evaluate(() => document.activeElement?.getAttribute("aria-label") === "Amount");
+  }
+  expect(arrived, "the amount box can be reached with the keyboard").toBe(true);
+  await expect(amount).toHaveValue("1500"); // focused: commas dropped
+  await A.keyboard.type("2000");
+  await expect(amount).toHaveValue("2000");
+  await saveEditedAs(A, "Hotel tab", "2,000");
+});
+
+test("editing a ₹1,500 expense: tap into the amount box and type 2000 (no select-all) → ₹2,000", async () => {
+  await addEqualExpense(A, group.path, "Hotel tap", "1500");
+  await openEdit(A, group.path, "Hotel tap");
+  const amount = A.getByLabel("Amount", { exact: true });
+  await expect(amount).toHaveValue("1,500");
+  await amount.click();
+  await expect(amount).toHaveValue("1500");
+  await A.keyboard.type("2000");
+  await expect(amount).toHaveValue("2000");
+  await saveEditedAs(A, "Hotel tap", "2,000");
 });
 
 test("group screens show exact amounts with paise from 1,000 up: ₹3,001.50 split three ways → owes ₹1,000.50", async () => {
@@ -139,5 +163,24 @@ test("group screens show exact amounts with paise from 1,000 up: ₹3,001.50 spl
   await A.goto(`${g.path}?tab=activity`);
   await settled(A);
   await expect(A.locator('li[id^="item-"]').filter({ hasText: "Villa" }).first()).toContainText("₹3,001.50");
+  // The People page says the same exact figures (never ₹1,001).
+  await A.goto(`${g.path}/people`);
+  await settled(A);
+  await expect(A.locator("details > summary").filter({ hasText: "Cara" }).first()).toContainText("owes ₹1,000.50");
+  await expect(A.locator("details > summary").filter({ hasText: "Bob" }).first()).toContainText("gets ₹2,001");
+  await expect(A.locator("details > summary").filter({ hasText: "Cara" }).first()).not.toContainText("₹1,001");
   await C.close();
+});
+
+test("a flat (Home group) shows the exact balance on This month: owes ₹1,000.50, not ₹1,001", async () => {
+  // Bob pays ₹2,001 for the two of them: Alice's half is ₹1,000.50.
+  const flat = await createGroup(A, groupName("Flat exact"), "Home");
+  await joinGroup(B, flat.invite, flat.path);
+  await addEqualExpense(B, flat.path, "Rent top-up", "2001");
+  await A.goto(flat.path);
+  await settled(A);
+  const line = A.locator("[data-balance-line]").first();
+  await expect(line).toHaveText("₹1,000.50");
+  await expect(A.getByText(/Overall you owe/).first()).toContainText("₹1,000.50");
+  await expect(A.getByText(/Overall you owe/).first()).not.toContainText("₹1,001");
 });

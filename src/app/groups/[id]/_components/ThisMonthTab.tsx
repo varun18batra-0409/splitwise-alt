@@ -70,13 +70,13 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
             )}
             <div className="my-4 h-px bg-line" />
             <p className="money text-[22px] font-semibold tabular-nums">
-              {aheadBehind(mine) === "ahead" ? <>Overall you’re <Amt minor={mine} currency={group.currency} className="text-owed" /> ahead</> : aheadBehind(mine) === "behind" ? <>Overall you’re <Amt minor={-mine} currency={group.currency} className="text-owe" /> behind</> : "You’re even"}
+              {aheadBehind(mine) === "ahead" ? <>Overall you’re <span className="whitespace-nowrap text-owed" data-balance-line>{money(mine)}</span> ahead</> : aheadBehind(mine) === "behind" ? <>Overall you’re <span className="whitespace-nowrap text-owe" data-balance-line>{money(-mine)}</span> behind</> : "You’re even"}
             </p>
             {s.total > 0 && (
               <>
                 <p className="mt-1 text-xs text-gray-500">
-                  This month you put in <Amt minor={s.paidByMe} currency={group.currency} />; your {agreed}% share is <Amt minor={s.mine} currency={group.currency} />
-                  {s.paidByMe !== s.mine ? <> (<Amt minor={Math.abs(s.paidByMe - s.mine)} currency={group.currency} /> {s.paidByMe > s.mine ? "ahead" : "behind"})</> : ""}.
+                  This month you put in {money(s.paidByMe)}; your {agreed}% share is {money(s.mine)}
+                  {s.paidByMe !== s.mine ? ` (${money(Math.abs(s.paidByMe - s.mine))} ${s.paidByMe > s.mine ? "ahead" : "behind"})` : ""}.
                 </p>
                 <div className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-mist" aria-hidden>
                   <div className="bg-fg" style={{ width: `${myPart}%` }} />
@@ -112,7 +112,7 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="money text-[22px] font-semibold tabular-nums">
-                  {mine > 0 ? <>Overall you’re owed <Amt minor={mine} currency={group.currency} className="text-owed" /></> : mine < 0 ? <>Overall you owe <Amt minor={-mine} currency={group.currency} className="text-owe" /></> : "Overall you’re all square"}
+                  {mine > 0 ? <>Overall you’re owed <span className="whitespace-nowrap text-owed" data-balance-line>{money(mine)}</span></> : mine < 0 ? <>Overall you owe <span className="whitespace-nowrap text-owe" data-balance-line>{money(-mine)}</span></> : "Overall you’re all square"}
                 </p>
                 {settleDayText && <p className="mt-0.5 text-xs text-gray-500">{settleDayText}</p>}
               </div>
@@ -308,8 +308,8 @@ export function ThisMonthTab({ v, extras = {} }: { v: GroupView; extras?: MonthE
           {extras.deposit && (
             <Link href={`/groups/${group.id}/deposit`} className={`${card} p-3.5 text-fg`}>
               <p className="text-xs text-gray-500">Deposit</p>
-              <p className="mt-1 money text-[22px] font-semibold tabular-nums" title={money(extras.deposit.total)} data-exact={money(extras.deposit.total)}>{overviewMoney(extras.deposit.total, group.currency)}</p>
-              <p className="mt-0.5 text-xs text-gray-500">Yours {overviewMoney(extras.deposit.mine, group.currency)}</p>
+              <p className="mt-1 money text-[22px] font-semibold tabular-nums" title={money(extras.deposit.total)} data-exact={money(extras.deposit.total)}>{money(extras.deposit.total)}</p>
+              <p className="mt-0.5 text-xs text-gray-500">Yours {money(extras.deposit.mine)}</p>
             </Link>
           )}
         </div>

@@ -7,6 +7,7 @@ import { addExpense, lookupRate } from "@/app/actions";
 import { CATEGORIES, analyzeName, applySuggestion, getCategory } from "@/lib/categories";
 import { computeTotals, fxLine, PAYMENT_METHODS, rateDateLabel, type PaymentMethod } from "@/lib/conversion";
 import { buildExpense, chosenMarkupBp, type ExpenseDraft } from "@/lib/expense";
+import { selectWholeAmount } from "@/lib/select-amount";
 import { amountEcho, currencyInfo, formatMoney, formatPercent, isSupportedCurrency, parseAmount, parsePercent } from "@/lib/money";
 import { QuickLine } from "./QuickLine";
 import { BillScan, type ScannedBill } from "./BillScan";
@@ -85,7 +86,7 @@ export function AddExpenseForm({
   // "15002000". Selecting the whole amount straight after the rewrite (same as Record payment) keeps "tap, type the new amount" working.
   const amountRef = useRef<HTMLInputElement>(null);
   useLayoutEffect(() => {
-    if (amountFocused) amountRef.current?.select();
+    if (amountFocused) selectWholeAmount(amountRef.current);
   }, [amountFocused]);
   const today = todayKey(new Date(), tz);
   const yesterday = addDays(today, -1);

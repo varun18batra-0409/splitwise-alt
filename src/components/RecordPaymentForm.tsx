@@ -1,5 +1,6 @@
 "use client";
 
+import { selectWholeAmount } from "@/lib/select-amount";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { recordCustomPayment } from "@/app/actions";
 import { currencySign, groupDigits } from "@/lib/add-expense-sentence";
@@ -50,7 +51,7 @@ export function RecordPaymentForm({
   // keeps "tap, then type the new amount" working: without it the rewrite drops the selection and new digits land after the old ones (1082.50 → 1082.50541).
   const amountRef = useRef<HTMLInputElement>(null);
   useLayoutEffect(() => {
-    if (focused) amountRef.current?.select();
+    if (focused) selectWholeAmount(amountRef.current);
   }, [focused]);
   // Folded away until tapped; From and To open independently. With nobody picked to be paid yet, the To list starts open.
   // (A submit with To empty opens it and says so, since a folded-away choice can't be focused.)
