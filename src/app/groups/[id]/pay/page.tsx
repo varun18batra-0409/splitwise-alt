@@ -43,6 +43,8 @@ export default async function RecordPayment({
   const fill = (f: string, t: string, a: number) =>
     `/groups/${group.id}/pay?${new URLSearchParams({ from: f, to: t, amount: toInputAmount(a, group.currency) })}`;
 
+  // A suggestion that is exactly what the form already says (same From, To and amount) is not offered again.
+  const suggestions = transfers.filter((t) => !(t.from === from && t.to === to && parseAmount(qAmount, group.currency) === t.amount));
   const fromSettle = sp.back === "settle";
   const owes = /^\d{1,12}$/.test(sp.owes ?? "") ? Number(sp.owes) : null;
   const typed = parseAmount(sp.amount ?? "", group.currency);
@@ -77,11 +79,11 @@ export default async function RecordPayment({
         }
         note={PAYMENT_LINE}
       >
-        {transfers.length > 0 && (
+        {suggestions.length > 0 && (
           <section aria-label="Smart Settle suggests">
             <p className="mb-1 text-[13px] text-fg/55">Smart Settle suggests</p>
             <ul className="divide-y divide-[#26262c]">
-              {transfers.map((t) => (
+              {suggestions.map((t) => (
                 <li key={`${t.from}-${t.to}`}>
                   <Link href={fill(t.from, t.to, t.amount)} className="flex min-h-11 items-center justify-between gap-3 py-2 text-[14px] active:opacity-70">
                     <span className="min-w-0 truncate">

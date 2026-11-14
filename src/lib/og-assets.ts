@@ -33,7 +33,7 @@ export async function loadOgFonts(origin: string): Promise<OgFont[]> {
 }
 
 // The world map with your countries filled in, as a picture inside the picture.
-export async function worldMapImage(origin: string, trips: string[], been: string[], colours = { trips: "#2f7d4f", been: "#8fc4a8" }): Promise<string | null> {
+export async function worldMapImage(origin: string, trips: string[], been: string[], colours = { trips: "#26231d", been: "#a79f8c" }): Promise<string | null> {
   if (!(map as { ok: boolean }).ok) return null;
   try {
     const r = await fetch(new URL("/world.svg", origin));

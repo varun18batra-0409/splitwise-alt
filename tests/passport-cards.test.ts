@@ -10,15 +10,15 @@ const build = (trips: PassportTrip[], hand: { c: string }[] = []) => {
 };
 
 describe("Been cards: the founder's picture", () => {
-  // Thailand 5–10 May 2026 (6 days) and Goa 13–15 Mar 2026 (3 days): 2 countries, 2 trips, 9 days away.
+  // Thailand 5–10 May 2026 (6 days) and Goa 13–15 Mar 2026 (3 days): 2 countries, 2 trips, 9 days travelled.
   const p = build([trip("goa", "Goa trip", "2026-03-13", "2026-03-15", 4), trip("thai", "Thailand", "2026-05-05", "2026-05-10", 6, "Bangkok, Phuket", "TH")]);
   const { stats, cards } = beenCards(p, { thai: { names: ["Nupur", "Riya", "Dev", "Extra"] } }, TODAY);
 
-  it("the numbers row says 2 countries, 2 trips, 9 days away", () => {
+  it("the numbers row says 2 countries, 2 trips, 9 days travelled", () => {
     expect(stats).toEqual([
       { n: 2, label: "countries" },
       { n: 2, label: "trips" },
-      { n: 9, label: "days away" },
+      { n: 9, label: "days travelled" },
     ]);
   });
   it("the newest trip comes first, with its place, cities, dates and days", () => {
@@ -65,7 +65,7 @@ describe("Been cards: countries added by hand", () => {
     expect(stats).toEqual([
       { n: 3, label: "countries" },
       { n: 1, label: "trip" },
-      { n: 3, label: "days away" },
+      { n: 3, label: "days travelled" },
     ]);
   });
 });
@@ -73,7 +73,7 @@ describe("Been cards: countries added by hand", () => {
 describe("Been cards: zero numbers are hidden", () => {
   it("nothing yet: no numbers at all", () => expect(beenStats(0, 0, 0)).toEqual([]));
   it("only countries from before Loopin: just the countries", () => expect(beenStats(4, 0, 0)).toEqual([{ n: 4, label: "countries" }]));
-  it("singular words for 1", () => expect(beenStats(1, 1, 1)).toEqual([{ n: 1, label: "country" }, { n: 1, label: "trip" }, { n: 1, label: "day away" }]));
+  it("singular words for 1", () => expect(beenStats(1, 1, 1)).toEqual([{ n: 1, label: "country" }, { n: 1, label: "trip" }, { n: 1, label: "day travelled" }]));
   it("a trip still to come has no card and adds nothing", () => {
     const p = build([trip("later", "Goa trip", "2026-12-20", "2026-12-25", 3)]);
     const r = beenCards(p, {}, TODAY);
@@ -127,18 +127,18 @@ describe("See all", () => {
   });
 });
 
-describe("Been: days away (counted so far for a trip still going), and long names", () => {
-  it("a trip still going counts its days up to today and says plain 'days away' (short enough for 320 px)", () => {
-    // Today is 13 Nov. A trip 10–16 Nov is in progress: it counts 10, 11, 12, 13 = 4 days so far (not its 7).
+describe("Been: days travelled (counted so far for a trip still going), and long names", () => {
+  it("a trip still going counts all its days and says plain 'days travelled' (short enough for 320 px)", () => {
+    // Today is 13 Nov. A trip 10–16 Nov is in progress: it counts its whole 10..16 = 7 days (the card above would show 7).
     const going = build([trip("now", "Phuket", "2026-11-10", "2026-11-16", 3, "Phuket", "TH")]);
     expect(beenCards(going, {}, TODAY).stats).toEqual([
       { n: 1, label: "country" },
       { n: 1, label: "trip" },
-      { n: 4, label: "days away" },
+      { n: 7, label: "days travelled" },
     ]);
     const done = build([trip("old", "Goa trip", "2026-03-13", "2026-03-15", 4)]);
-    expect(beenCards(done, {}, TODAY).stats.at(-1)).toEqual({ n: 3, label: "days away" });
-    expect(beenStats(2, 1, 1, true).at(-1)).toEqual({ n: 1, label: "day away" });
+    expect(beenCards(done, {}, TODAY).stats.at(-1)).toEqual({ n: 3, label: "days travelled" });
+    expect(beenStats(2, 1, 1, true).at(-1)).toEqual({ n: 1, label: "day travelled" });
   });
   it("a long single word steps the type down by its own width; short names keep full size", () => {
     // 18 letters at 0.6 em: 100 / (18 × 0.6) = 9.2 of the box's width, never below 14 px.

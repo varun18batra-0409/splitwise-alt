@@ -131,7 +131,8 @@ export default async function GroupPage({
     // The deposit tile (held shares only).
     monthTab ? db.depositShare.findMany({ where: { deposit: { groupId: group.id }, status: "held" } }) : Promise.resolve([] as { amount: number; memberId: string }[]),
     // Heads up and next month's estimate.
-    monthTab
+    // The Bills tab shows the same estimate (one function, one number), so it asks for it too.
+    monthTab || (home && tab === "bills")
       ? monthInsights(group.id, active, myId, Object.fromEntries(group.members.filter((m) => !m.leftAt).map((m) => [m.id, m.splitWeight])), group.currency, v.tz)
       : Promise.resolve<Awaited<ReturnType<typeof monthInsights>> | null>(null),
     // Savings goals (kept count of only).
@@ -249,7 +250,7 @@ export default async function GroupPage({
         </Link>
       )}
       {tab === "month" && <ThisMonthTab v={v} extras={{ upcoming: comingUp, budgets, deposit, goals, insights: heads?.insights, forecast: heads?.forecast, shopping: { items: shopRows.slice(0, 3), total: shopRows.length } }} />}
-      {tab === "bills" && <BillsTab v={v} bills={bills} saved={sp.saved === "bill"} />}
+      {tab === "bills" && <BillsTab v={v} bills={bills} saved={sp.saved === "bill"} forecast={heads?.forecast ?? null} />}
       {tab === "list" && list && (
         <ListTab v={v} items={list.items} usual={list.usual} notice={sp.bought ? "Added as an expense. Everyone has been told." : sp.told ? "Told everyone you’re going shopping." : undefined} />
       )}

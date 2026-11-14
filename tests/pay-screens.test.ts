@@ -139,7 +139,7 @@ describe("restyle only: every action, field and hook is still on the pages", () 
   });
   it("the Balances tab keeps the numbers and hooks its tests read", () => {
     const b = src("src/app/groups/[id]/_components/BalancesTab.tsx");
-    for (const s of ["data-balance=", "data-exact=", "data-title=", "data-foreign-part", "data-ledger-summary", "data-our-passports", "data-passport-link"]) expect(b).toContain(s);
+    for (const s of ["data-balance=", "data-exact=", "data-title=", "data-foreign-part", "data-our-passports", "data-passport-link"]) expect(b).toContain(s);
   });
 });
 

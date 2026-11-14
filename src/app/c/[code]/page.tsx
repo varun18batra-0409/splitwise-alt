@@ -131,10 +131,8 @@ export default async function CollectionPage({ params, searchParams }: Props) {
       {name.trim().charAt(0).toUpperCase()}
     </span>
   );
-  // The organiser's summary: three numbers, the goal, the three-part bar and one counts line. Money received may be green; the rest is off-white.
+  // The organiser's summary: three numbers, the goal and the three-part bar (the stat boxes say it; there is no counts line under them). Money received may be green; the rest is off-white.
   const remaining = Math.max(0, p.target - p.confirmedAmount - p.reportedAmount);
-  const toCheck = p.paidCount - p.checked;
-  const counts = [p.checked > 0 ? `${p.checked} confirmed` : "", toCheck > 0 ? `${toCheck} to check` : "", p.dueCount > 0 ? `${p.dueCount} still to pay` : ""].filter(Boolean);
 
   return (
     <>
@@ -215,7 +213,6 @@ export default async function CollectionPage({ params, searchParams }: Props) {
               <span className="lp-bar-x block h-full bg-fg" style={{ width: `${Math.max(bar.confirmedPct, p.checked ? 4 : 0)}%` }} data-bar-confirmed />
               <span className="block h-full bg-fg/55" style={{ width: `${bar.reportedPct}%` }} data-bar-reported />
             </div>
-            <p className="mt-2.5 text-center text-sm text-fg/60">{counts.length ? counts.join(" · ") : "No names yet"}</p>
           </div>
         </section>
       )}

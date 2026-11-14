@@ -127,7 +127,7 @@ const sections = (): { title: string; items: QA[] }[] => [
       { q: "What is Wrapped?", a: "A trip told as a few posters: the total you spent together, where the money went, the biggest day and everyone’s title. Open it from a group’s Charts, and share it as a picture. You can hide the amounts first." },
       {
         q: "What is the trip passport?",
-        a: "A card for every trip with its stamp on the place’s photo, and your countries, trips and days away on top. You can add countries you visited before Loopin with Add a visited place, share your passport to WhatsApp as a picture, and open the old passport book from a link at the bottom.",
+        a: "A card for every trip with its stamp on the place’s photo, and your countries, trips and days travelled on top. You can add countries you visited before Loopin with Add a visited place, share your passport to WhatsApp as a picture, and open the old passport book from a link at the bottom.",
       },
       {
         q: "Who can see my passport?",

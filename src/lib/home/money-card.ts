@@ -3,7 +3,6 @@
 // all square -> Add expense is bright and the second button becomes New group (there is nothing to settle).
 import type { TripPhase } from "../countdown";
 import { personKey, phoneKeyResolver, regionForGroup, settleRowId } from "../cross-settle";
-import { homeMoney } from "./display";
 import { formatMoney } from "../money";
 
 export type MoneyMode = "owe" | "owed" | "even" | "square";
@@ -118,13 +117,13 @@ function uniquePeople(entries: MoneyPerson[]): { name: string; e: MoneyPerson }[
   return list.map((e) => ({ name: e.solo && (count.get(e.name.trim().toLowerCase()) ?? 0) > 1 ? `${e.name} (${e.groupName})` : e.name, e }));
 }
 
-// Amounts follow Home's rule (homeMoney): whole units from 1,000, exact below; the exact amount rides along for title/aria.
+// Amounts are exact (paise included), the same figure the group and Settle up show; the exact amount also rides along for title/aria.
 // Never more than 3 names: the top two of the main side, then one from the other side.
 export function whoLine(entries: MoneyPerson[], otherSide: MoneyPerson[] = [], side: "owe" | "owed" = "owe"): WhoLine {
   const list = uniquePeople(entries);
   const parts = list.slice(0, 2).map(({ name, e }) => ({
     name,
-    amount: `${e.approx ? "≈ " : ""}${homeMoney(e.amount, e.currency)}`,
+    amount: `${e.approx ? "≈ " : ""}${formatMoney(e.amount, e.currency)}`,
     exact: `${e.approx ? "≈ " : ""}${formatMoney(e.amount, e.currency)}`,
   }));
   const others = Math.max(0, list.length - 2);
@@ -142,14 +141,14 @@ export function whoLine(entries: MoneyPerson[], otherSide: MoneyPerson[] = [], s
     ? oneCurrency
       ? {
           name: `${rest.length} people`,
-          amount: `${approx ? "≈ " : ""}${homeMoney(sum, top.e.currency)}`,
+          amount: `${approx ? "≈ " : ""}${formatMoney(sum, top.e.currency)}`,
           exact: `${approx ? "≈ " : ""}${formatMoney(sum, top.e.currency)}`,
           kind,
           phrase: "",
         }
       : {
           name: top.name,
-          amount: `${top.e.approx ? "≈ " : ""}${homeMoney(top.e.amount, top.e.currency)}`,
+          amount: `${top.e.approx ? "≈ " : ""}${formatMoney(top.e.amount, top.e.currency)}`,
           exact: `${top.e.approx ? "≈ " : ""}${formatMoney(top.e.amount, top.e.currency)}`,
           kind,
           phrase: "",
@@ -198,7 +197,7 @@ export function moneyActions(mode: MoneyMode, people: MoneyPerson[], common: str
   const top = people[0];
   if (mode === "owe" && top) {
     const first = firstName(top.name);
-    const label = personButtonLabel("Pay", first, top.approx ? undefined : homeMoney(top.amount, top.currency));
+    const label = personButtonLabel("Pay", first, top.approx ? undefined : formatMoney(top.amount, top.currency));
     return [{ key: "pay", label, fullLabel: `Pay ${top.name} ${top.approx ? "≈ " : ""}${formatMoney(top.amount, top.currency)}`, href: payHref(top, common), bright: true }, add];
   }
   const remind = mode === "owed" && top ? remindHref(top) : null;
@@ -293,12 +292,21 @@ export function firstWord(name: string): string {
   return name.trim().split(/\s+/)[0] || name.trim();
 }
 
+// The route line's short codes: the first 3 letters in capitals ("KAB", "YOU"), or "3 PPL" for several people. The name itself
+// appears only in the button, so it is never shown twice on the card.
+export function routeCode(end: string): string {
+  if (end === "You") return "YOU";
+  const m = /^(\d+) /.exec(end);
+  if (m) return `${m[1]} PPL`;
+  return [...end.replace(/[^\p{L}\p{N}]/gu, "")].slice(0, 3).join("").toUpperCase() || end.toUpperCase();
+}
+
 export function initialOf(name: string): string {
   return ([...name.trim()][0] ?? "?").toUpperCase();
 }
 
 // The amount for one side: per-person totals added within each currency, a currency never added into another
-// ("₹4,200 · $20"). Amounts follow Home's rule (homeMoney); `exact` is the full amount for the tooltip and screen readers.
+// ("₹4,200 · $20"). Amounts are exact (formatMoney, never rounded); `exact` is the same amount for the tooltip and screen readers.
 export function sideTotal(entries: MoneyPerson[]): { text: string; exact: string } {
   const order: string[] = [];
   const sums = new Map<string, { amount: number; approx: boolean }>();
@@ -309,7 +317,7 @@ export function sideTotal(entries: MoneyPerson[]): { text: string; exact: string
     s.approx ||= e.approx;
     sums.set(e.currency, s);
   }
-  const text = order.map((c) => `${sums.get(c)!.approx ? "≈ " : ""}${homeMoney(sums.get(c)!.amount, c)}`).join(" · ");
+  const text = order.map((c) => `${sums.get(c)!.approx ? "≈ " : ""}${formatMoney(sums.get(c)!.amount, c)}`).join(" · ");
   const exact = order.map((c) => `${sums.get(c)!.approx ? "≈ " : ""}${formatMoney(sums.get(c)!.amount, c)}`).join(" · ");
   return { text, exact };
 }
@@ -365,7 +373,7 @@ function ticketLine(side: "owe" | "owed", entries: MoneyPerson[], common: string
         }
       : count === 1
         ? { key: "remind", label: `Remind ${firstWord(top.name)}`, fullLabel: `Remind ${top.name} on WhatsApp`, href: remind ?? peopleHref, bright: !short }
-        : { key: "remind", label: short ? "Remind" : "See who to remind", fullLabel: `See the ${count} people who owe you, to remind them`, href: peopleHref, bright: !short };
+        : { key: "remind", label: short ? "Remind" : `Remind ${count} people`, fullLabel: `See the ${count} people who owe you, to remind them`, href: peopleHref, bright: !short };
   const phrase = side === "owe" ? `You owe ${count === 1 ? top.name : name}` : count === 1 ? `${top.name} owes you` : `${name} owe you`;
   return { side, count, phrase, name, amount: total.text, exact: total.exact, faces: count > 1 ? people.slice(0, 3).map((p) => initialOf(p.name)) : [], peopleHref, action };
 }

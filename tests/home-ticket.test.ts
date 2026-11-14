@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import {
   amountTier,
   clearsLine,
@@ -12,6 +13,7 @@ import {
   payHref,
   rankGroups,
   remindHref,
+  routeCode,
   routeEnds,
   sideTotal,
   ticketContext,
@@ -180,14 +182,14 @@ describe("the ticket for each money situation", () => {
     expect(t.line.action.href).toBe(remindHref(peopleOf(groups, "owed")[0]));
   });
 
-  it("three flatmates owe you 12,000 + 11,000 + 8,480 = ₹31,480: “3 flatmates” to You, faces K A M, “See who to remind” to the list (one at a time there; no bulk send)", () => {
+  it("three flatmates owe you 12,000 + 11,000 + 8,480 = ₹31,480: “3 flatmates” to You, faces K A M, “Remind 3 people” to the list (one at a time there; no bulk send)", () => {
     const groups = [grp("g1", "Flat 402", "INR", [], [["a", "Asha", 1100000], ["k", "Kabir", 1200000], ["m", "Meera", 848000]])];
     const t = ticketFor(groups, { g1: "home" }, "owed");
     expect(t.kind).toBe("one");
     if (t.kind !== "one") return;
     expect(t).toMatchObject({ from: "3 flatmates", to: "You" });
     expect(t.line).toMatchObject({ count: 3, amount: "₹31,480", faces: ["K", "A", "M"], peopleHref: "/settle#remind" });
-    expect(t.line.action).toMatchObject({ key: "remind", label: "See who to remind", href: "/settle#remind" });
+    expect(t.line.action).toMatchObject({ key: "remind", label: "Remind 3 people", href: "/settle#remind" });
   });
 
   it("you owe three people: “You” to “3 people”, and Pay goes to the biggest one (Kabir ₹12,000)", () => {
@@ -264,6 +266,30 @@ describe("the ticket for each money situation", () => {
   });
 });
 
+describe("R1 item 2: route codes and button labels", () => {
+  it("the route shows short codes, not names", () => {
+    expect(routeCode("Kabir")).toBe("KAB");
+    expect(routeCode("You")).toBe("YOU");
+    expect(routeCode("3 people")).toBe("3 PPL");
+    expect(routeCode("3 flatmates")).toBe("3 PPL");
+    expect(routeCode("Al")).toBe("AL");
+  });
+  it("one person you owe: 'Pay Asha'; several owe you: 'Remind 3 people'; one owes you: 'Remind Kabir'", () => {
+    const owe = ticketFor([grp("g1", "Goa", "INR", [["a", "Asha Rao", 100000]])], { g1: "trip" }, "owe");
+    expect(owe.kind === "one" && owe.line.action.label).toBe("Pay Asha");
+    const many = ticketFor([grp("g1", "Flat", "INR", [], [["a", "Asha", 1], ["k", "Kabir", 2], ["m", "Meera", 3]])], { g1: "home" }, "owed");
+    expect(many.kind === "one" && many.line.action.label).toBe("Remind 3 people");
+    const one = ticketFor([grp("g1", "Flat", "INR", [], [["k", "Kabir Rao", 1000]])], { g1: "home" }, "owed");
+    expect(one.kind === "one" && one.line.action.label).toBe("Remind Kabir");
+  });
+  it("the card has no 'See who' text link; the avatars are the link", () => {
+    const src = readFileSync("src/components/HomeMoney.tsx", "utf8");
+    expect(src).not.toContain("See who ›");
+    expect(src).toContain("data-money-people");
+    expect(src).toContain("routeCode(t)");
+  });
+});
+
 describe("the ticket at the top of one group", () => {
   const names: Record<string, string> = { me: "You", a: "Asha Rao", b: "Ravi", c: "Meera" };
   const nameOf = (id: string) => names[id] ?? "Someone";
@@ -309,5 +335,21 @@ describe("the status under each polaroid's name", () => {
   });
   it("it is the same balance and tone as the polaroid's tag hook, only the words differ", () => {
     for (const b of [-5412200, 0, 300000]) expect(cardStatus(b, f).tone).toBe(cardBalance(b, f).tone);
+  });
+});
+
+describe("R1 item 10: one balance, one number", () => {
+  // Hand-worked: Nupur is owed 4,797,491 paise = ₹47,974.91 (the group shows ₹47,974.91; Home used to say ₹47,975).
+  it("Home's ticket amount is the exact figure the group shows", () => {
+    const groups = [grp("g1", "Thailand Trip", "INR", [["n", "Nupur Shah", 4797491]])];
+    const t = ticketFor(groups, { g1: "trip" }, "owe");
+    expect(t.kind === "one" && t.line.amount).toBe("₹47,974.91");
+    expect(t.kind === "one" && t.line.exact).toBe("₹47,974.91");
+  });
+  it("Home's polaroids and the card use exact money (rounding stays on summaries like the month card)", () => {
+    const home = readFileSync("src/app/(home)/page.tsx", "utf8");
+    expect(home).toContain("show: (n: number) => formatMoney(n, g.group.currency)");
+    expect(home).toContain("const heroText = heroOf((n) => formatMoney(n, common))");
+    expect(home).toContain("homeMoney(month.share, month.currency)"); // "November in numbers" stays rounded
   });
 });

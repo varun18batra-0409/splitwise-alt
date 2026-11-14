@@ -97,7 +97,7 @@ export function ChartsTab({ v }: { v: GroupView }) {
           )}
           <div className="flex flex-wrap gap-x-5 gap-y-2">
             <Link href={`/groups/${group.id}/wrapped`} className="inline-flex min-h-11 items-center text-sm font-semibold text-fg underline underline-offset-4">
-              🎬 Watch the Wrapped ›
+              Watch the Wrapped ›
             </Link>
             <Link href={`/groups/${group.id}/report`} className="inline-flex min-h-11 items-center text-sm font-semibold text-fg underline underline-offset-4">
               {group.type === "trip" ? "Trip report, to share" : "Group report, to share"} ›
@@ -126,12 +126,12 @@ export function ChartsTab({ v }: { v: GroupView }) {
 // One quiet colour per category, used in the per-person bars and their keys.
 const CAT_COLOUR: Record<string, string> = {
   accommodation: "#b8a3ea",
-  food: "#e9b872",
+  food: "#ece7da",
   transport: "#86b8ea",
-  activities: "#e6d47e",
+  activities: "#c2b59b",
   shopping: "#e7a0c6",
-  groceries: "#9fceaa",
-  bills: "#a9b2c0",
+  groceries: "#d3d9e3",
+  bills: "#9aa0ab",
   other: "#6f6f7a",
 };
 

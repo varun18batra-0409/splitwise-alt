@@ -161,7 +161,8 @@ export default async function Notifications({ searchParams }: { searchParams: Pr
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-[15px] font-medium leading-snug">{it.text}</span>
-                      <span className="mt-0.5 block truncate text-[13px] text-fg/55">{it.where}</span>
+                      {/* A collection's name is already in the sentence above, so its line says when instead. */}
+                      <span className="mt-0.5 block truncate text-[13px] text-fg/55">{it.kind === "collect" ? time(it.at) : it.where}</span>
                     </span>
                     {/* One cream pill for the whole screen (the first row, when no invitation card carries one); the rest are outlines. */}
                     <span

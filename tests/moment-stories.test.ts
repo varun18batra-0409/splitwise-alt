@@ -15,7 +15,7 @@ const frame = (id: string, kicker: string, head = "", line = "") => ({ id, thumb
 describe("the story built from moments", () => {
   it("is one circle per group, with the small copy as its picture and each photo as a frame", () => {
     const [s] = buildStories({ ...base, moments: [{ groupId: "g1", groupName: "Thailand trip", newestId: "m2", at: new Date("2026-11-13T11:00:00Z"), frames: [frame("m2", "Nupur added a moment", "The boat we almost missed 😂", "Day 3"), frame("m1", "You added a moment")] }] });
-    expect(s).toMatchObject({ kind: "moment", label: "Thailand", short: "Moments", cta: "See our moments", href: "/groups/g1/moments", photo: "/api/moment-photo/m2?s=t", headline: "Nupur added a moment", line: "2 new moments" });
+    expect(s).toMatchObject({ kind: "moment", label: "Thailand", short: "Thailand", cta: "See our moments", href: "/groups/g1/moments", photo: "/api/moment-photo/m2?s=t", headline: "Nupur added a moment", line: "2 new moments" });
     expect(s.frames).toEqual([
       { kind: "photo", photo: "/api/moment-photo/m2?s=f", kicker: "Nupur added a moment", head: "The boat we almost missed 😂", line: "Day 3", calm: true },
       { kind: "photo", photo: "/api/moment-photo/m1?s=f", kicker: "You added a moment", head: "", line: undefined, calm: true },
@@ -68,6 +68,22 @@ describe("the circles at the top of Our moments", () => {
   it("one person with two moments is still one circle", () => {
     const s = momentPageStories([card("m2", "Riya", false, 1), card("m1", "Riya", false, 2)], "g1", "Goa", now);
     expect(s.map((x) => x.label)).toEqual(["Goa", "Riya"]);
+  });
+  it("R1 item 6: the group circle shows the group's picture, never a member's photo; each person shows their own newest photo; no photo twice", () => {
+    const cards = [card("m3", "Nupur", false, 0.1), card("m2", "Riya", false, 2), card("m1", "Nupur", false, 6)];
+    const s = momentPageStories(cards, "g1", "Thailand trip", now, { photo: "/places/thailand.jpg", cover: { kind: "beach" } });
+    expect(s[0]).toMatchObject({ photo: "/places/thailand.jpg", cover: { kind: "beach" } });
+    expect(s[1].photo).toBe("/t/m3"); // Nupur's newest, not her older m1
+    expect(s[2].photo).toBe("/t/m2");
+    const shown = s.map((x) => x.photo);
+    expect(new Set(shown).size).toBe(shown.length);
+  });
+  it("R1 item 6: Home's moment circles are labelled by group, not all 'Moments'", () => {
+    const [a, b] = buildStories({ ...base, moments: [
+      { groupId: "g1", groupName: "Thailand trip", newestId: "m1", at: now, frames: [frame("m1", "x added a moment")] },
+      { groupId: "g2", groupName: "Goa trip", newestId: "m2", at: new Date(now.getTime() - 1000), frames: [frame("m2", "y added a moment")] },
+    ] });
+    expect([a.short, b.short]).toEqual(["Thailand", "Goa"]);
   });
   it("nothing in the last week: no circles", () => {
     expect(momentPageStories([card("old", "Zed", false, 9)], "g1", "Goa", now)).toEqual([]);

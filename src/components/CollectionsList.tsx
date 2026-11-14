@@ -12,7 +12,8 @@ export type CollectionRow = {
   entries: { name: string; amount: number; status: string }[];
 };
 
-// Collect: the collections you're running (open first), each with how far along it is.
+// Collect: the collections you're running (open first), each with how far along it is. Progress only: what needs you to check is the
+// quiet line under Home's money card (never repeated here, and never green: that money has not arrived).
 // On Home it shows the first few with "See all"; on its own page (limit left out) it shows every one.
 // `total`: the real number of collections when `list` holds only the newest (Home loads 20): "See all N" says the real N.
 export function CollectionsSection({ list, limit, total, className = "mt-8" }: { list: CollectionRow[]; limit?: number; total?: number; className?: string }) {
@@ -30,7 +31,6 @@ export function CollectionsSection({ list, limit, total, className = "mt-8" }: {
         {shown.map((c) => {
           const p = progress(c.entries, c.amount);
           const bar = progressBar(p);
-          const toCheck = p.paidCount - p.checked;
           return (
             <li key={c.id}>
               <Link href={`/c/${c.code}`} className={`block overflow-hidden rounded-2xl border border-line px-4 py-3.5 active:bg-mist ${c.closedAt ? "opacity-60" : ""}`}>
@@ -53,11 +53,6 @@ export function CollectionsSection({ list, limit, total, className = "mt-8" }: {
                       </span>
                     ))}
                   </span>
-                  {toCheck > 0 && !c.closedAt && (
-                    <span className="min-w-0 max-w-full break-words font-medium text-owed">
-                      {p.reportedAmount > 0 ? `${formatMoney(p.reportedAmount, c.currency)} reported, awaiting check` : `${toCheck} to check`}
-                    </span>
-                  )}
                 </span>
               </Link>
             </li>

@@ -11,6 +11,8 @@ import { canAddMoment, canDeleteMoment, canOpenMoments, canReactToMoment, canRep
 import { timeAgo } from "@/lib/moments-text";
 import { listMoments, type MomentCard } from "@/lib/moments-db";
 import { momentPageStories } from "@/lib/moments-stories";
+import { coverFor } from "@/lib/covers";
+import { tripPhotoSrc } from "@/lib/places";
 import { MomentBig } from "./_components/MomentBig";
 
 export const metadata = { title: "Our moments", robots: { index: false } };
@@ -25,7 +27,7 @@ export default async function MomentsPage({ params, searchParams }: { params: Pr
   const sp = await searchParams;
   const viewer = await loadMomentViewer(id);
   if (!canOpenMoments(viewer) || viewer.groupType !== "trip") notFound();
-  const [group, cards, tz] = await Promise.all([db.group.findUnique({ where: { id }, select: { name: true } }), listMoments(viewer), getTimeZone()]);
+  const [group, cards, tz] = await Promise.all([db.group.findUnique({ where: { id }, select: { id: true, name: true, type: true, cover: true, coverAt: true, tripPlace: true } }), listMoments(viewer), getTimeZone()]);
   if (!group) notFound();
   const now = new Date();
   const where = place(group.name);
@@ -34,12 +36,21 @@ export default async function MomentsPage({ params, searchParams }: { params: Pr
   const guest = viewer.accountId === null;
   const leftAlready = Boolean(viewer.leftAt);
   const [newest, ...older] = cards;
+  // The Add button floats at the bottom only when there is a long list to scroll; on a short one it sits at the end of the list, so it
+  // never covers the first post's caption or reactions.
+  const floating = canAdd && cards.length > 2;
+  const addLink = (
+    <Link href={`${here}/new`} className="pop flex min-h-14 w-full items-center justify-center gap-3 bg-fg px-5 text-base font-semibold text-canvas">
+      <CameraPlusIcon size={24} />
+      Add your moment
+    </Link>
+  );
   const flags = (c: MomentCard) => ({
     canReact: canReactToMoment(viewer, c),
     canDelete: canDeleteMoment(viewer, c),
     canReport: canReportMoment(viewer, c),
   });
-  const stories = momentPageStories(cards, id, group.name, now);
+  const stories = momentPageStories(cards, id, group.name, now, { photo: tripPhotoSrc(group), cover: coverFor(group) });
 
   // With 20 or more, the older ones are grouped by day.
   const rows = (list: MomentCard[]) =>
@@ -53,7 +64,8 @@ export default async function MomentsPage({ params, searchParams }: { params: Pr
             {/* Two lines: the name (never cut) and when, then the words. Each truncates on its own. */}
             <span className="flex min-w-0 items-baseline gap-1.5 text-[15px]">
               <span className="shrink-0 font-semibold">{c.authorName}</span>
-              <span className="min-w-0 truncate text-fg/55">added a moment · {timeAgo(c.createdAt, now)}</span>
+              <span className="min-w-0 truncate text-fg/55">added a moment</span>
+              <span className="shrink-0 whitespace-nowrap text-fg/55" data-moment-time>· {timeAgo(c.createdAt, now)}</span>
             </span>
             {c.caption && <span className="emoji-font-display block truncate font-display text-[15px] italic text-fg/75">“{c.caption}”</span>}
           </span>
@@ -65,7 +77,7 @@ export default async function MomentsPage({ params, searchParams }: { params: Pr
   const days = grouped ? [...new Set(older.map((c) => dayKey(c.createdAt, tz)))] : [];
 
   return (
-    <div className="pb-60">
+    <div className={floating ? "pb-60" : "pb-10"}>
       <PageHeader title="Our moments" back={`/groups/${id}`} hideTitle />
       {stories.length > 0 && <Stories stories={stories} className="-mt-3 mb-5" />}
       <p aria-hidden className="font-display text-[34px] font-semibold leading-tight tracking-[-0.02em]">
@@ -101,14 +113,14 @@ export default async function MomentsPage({ params, searchParams }: { params: Pr
         </>
       )}
 
-      {canAdd ? (
+      {canAdd && !floating ? (
+        <div className="mt-6" data-moments-add-inline>
+          {addLink}
+        </div>
+      ) : canAdd ? (
         <div className="fixed inset-x-0 bottom-0 z-20 bg-[#0d0d0f] px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3" data-moments-add-panel>
           <div className="mx-auto max-w-[416px]">
-            <Link href={`${here}/new`} className="pop flex min-h-14 w-full items-center justify-center gap-3 bg-fg px-5 text-base font-semibold text-canvas">
-              <CameraPlusIcon size={24} />
-              Add your moment
-            </Link>
-            <p className="mt-2 text-center font-display text-[13px] italic text-fg/55">One photo. A few words. Our story.</p>
+            {addLink}
           </div>
         </div>
       ) : guest ? (

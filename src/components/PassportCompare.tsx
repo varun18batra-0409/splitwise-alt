@@ -6,7 +6,7 @@ import { WorldMap } from "@/components/PassportBook";
 // Our passports, in one small box: tabs for every country between you, the
 // ones you've all been to ("Shared"), and the ones only one of you has (the tabs wrap onto a second row, none is ever cut off); under them, the
 // flags with a short name each.
-export type CompareSet = { key: string; label: string; countries: { code: string; flag: string; name: string }[] };
+export type CompareSet = { key: string; label: string; countries: { code: string; flag: string; name: string }[]; hideCount?: boolean }; // hideCount: the number is already said above (the "Everywhere" tab)
 
 export function PassportCompare({ sets, showMap = false }: { sets: CompareSet[]; showMap?: boolean }) {
   const [on, setOn] = useState(sets[0]?.key);
@@ -25,7 +25,8 @@ export function PassportCompare({ sets, showMap = false }: { sets: CompareSet[];
             data-compare-tab={s.key}
             className={`max-w-full shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-[13px] ${s.key === set.key ? "border-fg shadow-[inset_0_0_0_0.5px_var(--color-fg)] font-semibold text-fg" : "border-fg/15 text-fg/85 active:bg-mist"}`}
           >
-            {s.label} <span className={s.key === set.key ? "text-fg/55" : "text-fg/60"}>{s.countries.length}</span>
+            {s.label}
+            {!s.hideCount && <span className={s.key === set.key ? "text-fg/55" : "text-fg/60"}> {s.countries.length}</span>}
           </button>
         ))}
       </div>

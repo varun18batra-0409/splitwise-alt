@@ -87,6 +87,9 @@ export function resultSentence(x: {
   refund: boolean;
   name: (id: string) => string; // "You" for yourself
   money: (minor: number) => string;
+  // Foreign currency: the conversion line above already says what the whole thing comes to, so the sentence leaves out "You paid ≈ ₹5,151.34."
+  // and gives only what it means for you ("You get back ≈ ₹3,863.50."). Default true.
+  showPaid?: boolean;
 }): ResultPart[] {
   const lines = youResult(x.pairs, x.myId, x.justMe, x.name, x.money, x.inShares);
   if (lines.length === 1 && lines[0].tone === "plain") return [{ text: lines[0].lead, amount: "", tone: "plain" }];
@@ -95,8 +98,10 @@ export function resultSentence(x: {
   const verb = x.refund ? "got" : "paid";
   const head: ResultPart = { text: `${who} ${verb} ${x.money(x.total)}${x.refund ? " back" : ""}.`, amount: "", tone: "plain" };
   if (!x.refund && !iPaid && x.inShares && x.myShare > 0 && lines.length === 1 && lines[0].tone === "owe") {
+    if (x.showPaid === false) return [{ text: "Your share is", amount: `${x.money(x.myShare)}.`, tone: "owe" }];
     return [head, { text: "Your share is", amount: `${x.money(x.myShare)}.`, tone: "owe" }];
   }
+  if (x.showPaid === false) return lines.map((l) => ({ text: l.lead, amount: `${l.amount}.`, tone: l.tone }));
   return [head, ...lines.map((l) => ({ text: l.lead, amount: `${l.amount}.`, tone: l.tone }))];
 }
 

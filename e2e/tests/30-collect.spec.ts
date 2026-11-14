@@ -38,8 +38,10 @@ test("the form refuses a bad UPI ID (and keeps what was typed), then makes the l
   await org.waitForURL(/\/c\/[A-Za-z0-9_-]+\?new=1/);
   link = new URL(org.url()).pathname;
   await expect(org.locator("[data-collection-title]")).toHaveText(title);
-  // Ravi and Meera are listed and nobody has paid: "2 still to pay" (the organiser's summary; payers still read "No one has said they've paid yet").
-  await expect(org.locator("[data-collection-progress]")).toContainText("2 still to pay");
+  // Ravi and Meera are listed and nobody has paid: the organiser's header says "2 people" and has no "still to pay" counts line (payers still read "No one has said they've paid yet").
+  await expect(org.locator("[data-collection-title]")).toBeVisible();
+  await expect(org.getByText(/2 people/).first()).toBeVisible();
+  await expect(org.locator("[data-collection-progress]")).not.toContainText("still to pay");
   await expect(org.getByRole("button", { name: "Share collection link" })).toBeVisible();
 });
 

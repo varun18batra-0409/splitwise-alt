@@ -5,7 +5,7 @@ import { avatarTone } from "@/components/ui";
 import { tripPhotoSrc } from "@/lib/places";
 import { coverFor, coverOf, type CoverChoice } from "@/lib/covers";
 import type { GroupView } from "./view";
-import { countdownWords, placeOf, tripPhase } from "@/lib/countdown";
+import { countdownWords, headerTripLine, placeOf, tripPhase } from "@/lib/countdown";
 import { todayKey } from "@/lib/dates";
 import { climateFor, tripMonth, weatherWords } from "@/lib/climate";
 import { tripStops } from "@/lib/geo";
@@ -25,9 +25,9 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
   const hot = phase && (phase.kind !== "before" || phase.days <= 7);
   // Part of the one quiet line under the name: the countdown (full strength when it is close), or "Add dates" as an underlined link.
   const tripPill =
-    group.type !== "trip" || group.closed ? null : words ? (
+    group.type !== "trip" || group.closed ? null : words && phase && headerTripLine(phase) ? (
       <span data-countdown-line className={hot ? "font-semibold text-fg" : undefined}>
-        {words.line.replace(/\s*[\p{Extended_Pictographic}\uFE0F]+\s*$/u, "")}
+        {headerTripLine(phase)}
       </span>
     ) : !group.tripStart ? (
       <Link href={`/groups/${group.id}/settings#trip`} className="-my-3 inline-flex min-h-11 items-center font-semibold text-fg underline underline-offset-4" data-add-dates>
@@ -134,14 +134,12 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
 
   // With a picture: it runs edge to edge behind the buttons and the name, fading into the group's tint.
   const glass = "glass flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full text-fg active:scale-95";
-  const type = ({ trip: "Trip", home: "Home", couple: "Couple", pot: "Game night" } as Record<string, string | undefined>)[group.type];
   // Someone who left sees who was in the group on the day they left, not whoever joined since.
   const people = (v.leaver ? membersAsOf(group.members, myId, v.leaver.leftAt) : group.members).filter((m) => !m.leftAt);
   // A trip with no photo of its own shows a real photo of the place instead (Thailand → Maya Bay), the same as its polaroid.
   const placeShot = tripPhotoSrc(group);
   const names = people.map((m) => (m.id === myId ? "You" : m.name.trim().split(/\s+/)[0]));
   const ordered = [...names.filter((n) => n === "You"), ...names.filter((n) => n !== "You")];
-  const crew = ordered.length <= 1 ? ordered.join("") : ordered.length <= 4 ? `${ordered.slice(0, -1).join(", ")} and ${ordered[ordered.length - 1]}` : `${ordered.slice(0, 3).join(", ")} and ${ordered.length - 3} more`;
   return (
     <header className="relative -mx-5 -mt-[max(1.5rem,env(safe-area-inset-top))] mb-5 h-[300px] px-5 pt-[max(1.1rem,env(safe-area-inset-top))]">
       <div aria-hidden className="absolute inset-0 overflow-hidden">
@@ -175,14 +173,10 @@ export function GroupHeader({ v, switchTo }: { v: GroupView; switchTo: SwitchIte
               </span>
             ))}
           </span>
-          <span className="truncate text-[13px] text-fg/75" aria-hidden>
-            {crew}
-          </span>
         </Link>
         {/* One quiet line: what kind of group, how many, and the trip's dates or countdown (no pills). */}
         <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[13px] text-fg/75 [text-shadow:0_1px_12px_rgba(0,0,0,0.5)]" data-group-line>
           <span>
-            {type ? `${type}, ` : ""}
             {people.length} {people.length === 1 ? "person" : "people"}
           </span>
           {tripPill && (

@@ -79,9 +79,8 @@ describe("story labels", () => {
     const shortOf = (k: string) => stories.find((s) => s.kind === k)?.short;
     expect(shortOf("pot")).toBe("Game night");
     expect(shortOf("square")).toBe("All square");
-    expect(shortOf("collect")).toBe("Collection");
+    expect(stories.some((s) => s.kind === "collect")).toBe(false); // no "Collection" story circle (R1 item 4)
     expect(shortOf("memory")).toBe("A year ago");
     expect(shortOf("wrapped")).toBe("Wrapped");
-    expect(stories.find((s) => s.kind === "collect")?.label).toBe("Teacher’s Day…"); // the full-ish label is unchanged
   });
 });

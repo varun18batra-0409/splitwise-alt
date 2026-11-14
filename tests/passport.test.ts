@@ -205,3 +205,18 @@ describe("Day-end pulse and memory lane", () => {
     expect(memoryText({ place: "Goa", years: 2, people: 3, days: 1 })).toBe("2 years ago today: Goa, 3 of you 🌴 Tap to relive it");
   });
 });
+
+import { visibleBadges, type Badge } from "@/lib/passport";
+describe("R1 item 13: badges show only earned ones plus the next one", () => {
+  const b = (id: string, have: number, need: number): Badge => ({ id, emoji: "", title: id, why: "", earned: have >= need, have: Math.min(have, need), need });
+  it("one earned (1 of 1), the closest unearned is 2 of 3, the 0 of 3 wall is hidden", () => {
+    const list = [b("a", 1, 1), b("b", 0, 3), b("c", 2, 3), b("d", 0, 5)];
+    expect(visibleBadges(list).map((x) => x.id)).toEqual(["a", "c"]);
+  });
+  it("nothing earned: just the next one (ties go to the first in the list)", () => {
+    expect(visibleBadges([b("a", 0, 3), b("b", 0, 3)]).map((x) => x.id)).toEqual(["a"]);
+  });
+  it("everything earned: all of them, no extra", () => {
+    expect(visibleBadges([b("a", 1, 1), b("b", 3, 3)]).map((x) => x.id)).toEqual(["a", "b"]);
+  });
+});

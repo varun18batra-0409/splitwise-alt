@@ -91,7 +91,7 @@ describe("recurring bills", () => {
 describe("collect, organiser view", () => {
   const page = src("src/app/c/[code]/page.tsx");
   it("shows three numbers, the goal, the three-part bar and the counts line", () => {
-    for (const s of ["confirmed</p>", "reported</p>", "remaining</p>", "Goal: {money(p.target)}", "data-bar-confirmed", "data-bar-reported", "data-collection-progress", "still to pay`", "to check`", "confirmed`"]) expect(page).toContain(s);
+    for (const s of ["confirmed</p>", "reported</p>", "remaining</p>", "Goal: {money(p.target)}", "data-bar-confirmed", "data-bar-reported", "data-collection-progress"]) expect(page).toContain(s);
     // Only the money that has arrived may be green.
     expect(page).toContain("p.confirmedAmount > 0 ? \"text-owed\"");
   });

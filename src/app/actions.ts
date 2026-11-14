@@ -695,7 +695,7 @@ export async function signOutOtherPhonesAction(formData?: FormData) {
       .catch(() => undefined);
   }
   const ok = await signOutOtherPhones();
-  redirect(ok ? "/account?others=out#other-phones" : "/signin");
+  redirect(ok ? "/account/sign-in?others=out#other-phones" : "/signin");
 }
 
 export async function signOutThisPhone(formData?: FormData) {
@@ -801,5 +801,5 @@ export async function removeMyPasskey(formData: FormData) {
   if (!account) redirect("/signin?back=/account");
   const { removePasskey } = await import("@/lib/passkeys");
   await removePasskey(account.id, String(formData.get("id") ?? ""));
-  redirect("/account?removed=passkey");
+  redirect("/account/sign-in?removed=passkey");
 }

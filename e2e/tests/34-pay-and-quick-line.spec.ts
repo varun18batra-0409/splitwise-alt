@@ -18,7 +18,7 @@ test("pay buttons, payment tracking and the quick line", async ({ browser }) => 
   await joinGroup(R, g.invite, g.path);
 
   // Asha: how friends pay her back. A wrong UPI ID is refused.
-  await A.goto("/account#pay");
+  await A.goto("/account/pay");
   await settled(A);
   const pay = A.getByRole("region", { name: "How friends pay you back" });
   await pay.getByLabel("UPI ID (India)").fill("asha");
@@ -66,14 +66,15 @@ test("pay buttons, payment tracking and the quick line", async ({ browser }) => 
   await R.waitForURL(/\/pay\?/);
   await settled(R);
   await R.getByLabel("Amount (INR)").fill("12,50");
-  await expect(R.getByRole("button", { name: "Record ₹12.50 from you" })).toBeVisible(); // how "12,50" was read: the button says it
+  await expect(R.locator("[data-record-live]")).toHaveText("Will record ₹12.50 from you"); // how "12,50" was read (the button itself just says "Record payment")
   // Typed the way people type: click the box, select all, type 1082.50. The box holds exactly what was typed, and the button reads it.
   const payBox = R.getByLabel("Amount (INR)");
   await payBox.click();
   await R.keyboard.press("ControlOrMeta+A");
   await R.keyboard.type("1082.50");
   await expect(payBox).toHaveValue("1082.50");
-  await expect(R.getByRole("button", { name: "Record ₹1,082.50 from you" })).toBeVisible();
+  await expect(R.locator("[data-record-live]")).toHaveText("Will record ₹1,082.50 from you");
+  await expect(R.getByRole("button", { name: "Record payment" })).toBeVisible();
   await R.getByLabel("Amount (INR)").fill("3000");
   await R.getByRole("button", { name: /^Record / }).click();
   await R.waitForURL(/owes=/);
@@ -107,7 +108,7 @@ test("pay buttons, payment tracking and the quick line", async ({ browser }) => 
   expect(await payments()).toBe(1);
   await A.goto(`${g.path}?tab=activity`);
   await settled(A);
-  await expect(A.getByText(/Confirmed ✓ · ₹500/).first()).toBeVisible();
+  await expect(A.getByText(/Confirmed ✓/).first()).toBeVisible();
 
   await A.context().close();
   await R.context().close();

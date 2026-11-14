@@ -60,3 +60,21 @@ export const AddIcon = ({ size = 18, className }: P) => (
     <path d="M12 5v14M5 12h14" />
   </svg>
 );
+
+// One simple line icon per passport badge (no emoji): same stroke family as the rest.
+const BADGE_PATHS: Record<string, string> = {
+  "first-abroad": "M21 15.5v-1.7l-7.6-4.7V3.8c0-.8-.6-1.5-1.4-1.5s-1.4.7-1.4 1.5v5.3L3 13.8v1.7l7.6-2.2v4.9l-2 1.5v1.4l3.4-.9 3.4.9v-1.4l-2-1.5v-4.9Z",
+  beach: "M4 19h16M12 19V9M5 10a7 7 0 0 1 14 0Z",
+  hills: "m3 19 6-10 4 6 2-3 6 7Z",
+  city: "M5 20V8h6v12M11 20V4h8v16M3 20h18M8 11h0M8 14h0M14 8h2M14 12h2M14 16h2",
+  cities: "M4 20V11h5v9M9 20V6h6v14M15 20v-8h5v8M3 20h18",
+  countries: "M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17ZM3.5 12h17M12 3.5c2.4 2.4 3.4 5.3 3.4 8.5s-1 6.1-3.4 8.5c-2.4-2.4-3.4-5.3-3.4-8.5s1-6.1 3.4-8.5Z",
+  frequent: "M3 17h18M5 13l3-5h4l-1 5M14 13l5-6",
+  year: "M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 .3 1.2 1 2 2 2 0-3-.5-5 1-8Z",
+  trips: "M12 4.5l2.2 4.5 5 .7-3.6 3.5.9 5-4.5-2.4-4.5 2.4.9-5L4.8 9.7l5-.7Z",
+};
+export const BadgeIcon = ({ id, size = 20, className }: P & { id: string }) => (
+  <svg {...base(size, className)} data-badge-icon={id}>
+    <path d={BADGE_PATHS[id] ?? "M12 4.5l2.2 4.5 5 .7-3.6 3.5.9 5-4.5-2.4-4.5 2.4.9-5L4.8 9.7l5-.7Z"} />
+  </svg>
+);

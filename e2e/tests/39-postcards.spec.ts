@@ -97,7 +97,9 @@ test("Postcards: write from a group, the other person receives it, turns it over
   await expect(R.locator("[data-back-message]")).toHaveCount(0);
   await R.goto("/postcards/stamps");
   await settled(R);
-  await expect(R.locator("[data-album-count]")).toContainText("of 9 collected");
+  await expect(R.locator("[data-album-stamp]")).toHaveCount(9);
+  // "0 of 9 collected" is hidden until there is a first stamp (R1 item 13).
+  await expect(R.locator("[data-album-count]")).toHaveCount(0);
 
   // Someone who isn't the sender or the receiver gets nothing.
   const stranger = await signUp("Zed", testEmail("pc-zed"));

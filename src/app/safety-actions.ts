@@ -50,7 +50,7 @@ export async function blockAction(f: FormData) {
   // Only someone you know: you share (or shared) a group, or they sent you a postcard.
   const known = (await sharesGroup(me!.id, accountId)) || Boolean(await db.postcard.findFirst({ where: { fromId: accountId, toId: me!.id }, select: { id: true } }));
   if (known) await blockAccount(me!.id, accountId);
-  redirect("/account?blocked=1#blocked");
+  redirect("/account/privacy?blocked=1#blocked");
 }
 
 export async function unblockAction(f: FormData) {
@@ -58,7 +58,7 @@ export async function unblockAction(f: FormData) {
   if (!me) redirect("/signin?back=/account");
   const accountId = field(f, "accountId", 40);
   if (ID.test(accountId)) await unblockAccount(me!.id, accountId);
-  redirect("/account?unblocked=1#blocked");
+  redirect("/account/privacy?unblocked=1#blocked");
 }
 
 // Owner only: mark a report as dealt with.

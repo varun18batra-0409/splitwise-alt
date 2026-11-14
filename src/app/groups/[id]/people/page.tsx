@@ -100,7 +100,7 @@ export default async function PeoplePage({
                 )}
               </span>
               <span className="block text-xs text-gray-400">
-                {m.removedAt ? "Removed from the group" : m.leftAt ? "Left the group" : leaver && !me ? "—" : bal > 0 ? `gets ${money(bal)}` : bal < 0 ? `owes ${money(bal)}` : "settled up"}
+                {m.removedAt ? "Removed from the group" : m.leftAt ? "Left the group" : leaver && !me ? "—" : bal > 0 ? `gets ${money(bal)}` : bal < 0 ? `owes ${money(-bal)}` : "settled up"}
               </span>
             </span>
             <span className="text-sm text-gray-400 group-open/p:hidden">Edit</span>
@@ -224,7 +224,7 @@ export default async function PeoplePage({
                   </ConfirmButton>
                 )}
                 <p className="mt-2 text-xs text-gray-400" title={bal !== 0 ? money(bal) : undefined} data-exact={bal !== 0 ? money(bal) : undefined}>
-                  {bal !== 0 ? `${m.name} must be settled up first (${bal > 0 ? "gets" : "owes"} ${money(Math.abs(bal))}).` : used.has(m.id) || m.accountId ? "They stay in the history. You can bring them back later." : "Not in any expense yet, so they’re removed completely."}
+                  {bal !== 0 ? `${m.name} must be settled up first.` : used.has(m.id) || m.accountId ? "They stay in the history. You can bring them back later." : "Not in any expense yet, so they’re removed completely."}
                 </p>
               </form>
             ) : (
@@ -235,7 +235,7 @@ export default async function PeoplePage({
                 <button type="submit" disabled={bal !== 0} className={small}>
                   {bal !== 0 ? "Settle up first" : "Leave group"}
                 </button>
-                {bal !== 0 && <p className="mt-2 text-xs text-gray-400">You must be settled up first ({bal > 0 ? "get" : "owe"} {money(bal)}).</p>}
+                {bal !== 0 && <p className="mt-2 text-xs text-gray-400">You must be settled up first.</p>}
               </form>
             )}
           </div>

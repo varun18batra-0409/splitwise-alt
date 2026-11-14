@@ -128,7 +128,6 @@ export async function GET(req: Request) {
                 <span style={{ fontSize: 15, letterSpacing: 4, color: MUTED, fontWeight: 700 }}>BADGES</span>
                 {badges.map((b) => (
                   <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 16px", borderRadius: 999, border: "2px solid #2b4c7e55", color: "#2b4c7e", fontSize: 20, fontWeight: 700 }}>
-                    <span>{b.emoji}</span>
                     <span>{b.title}</span>
                     <span style={{ fontWeight: 500, color: MUTED, fontSize: 16 }}>{b.why}</span>
                   </div>

@@ -148,12 +148,12 @@ describe("the who-line: names with amounts", () => {
     expect(l.text).toBe("Chirag ₹3,000 · Bela ₹200 · 1 other");
   });
 
-  it("rounding is Home's rule: exact under ₹1,000, whole rupees from ₹1,000, exact amount kept for the tooltip", () => {
+  it("R1 item 10: amounts on Home's money card are exact (paise included), never rounded, and the same as the tooltip", () => {
     const one = (paise: number) => who([iPay("g1", "Goa", "INR", [["n", "Nupur", paise]])]).parts[0];
     expect(one(99999)).toMatchObject({ amount: "₹999.99", exact: "₹999.99" }); // ₹999.99 stays exact
     expect(one(100000)).toMatchObject({ amount: "₹1,000", exact: "₹1,000" });
-    expect(one(100049)).toMatchObject({ amount: "₹1,000", exact: "₹1,000.49" }); // 1000.49 rounds down
-    expect(one(100050)).toMatchObject({ amount: "₹1,001", exact: "₹1,000.50" }); // 1000.50 rounds up
+    expect(one(100049)).toMatchObject({ amount: "₹1,000.49", exact: "₹1,000.49" }); // shown exactly: 100049 paise
+    expect(one(100050)).toMatchObject({ amount: "₹1,000.50", exact: "₹1,000.50" }); // 100050 paise, not rounded to ₹1,001
     expect(who([iPay("g1", "Goa", "INR", [["n", "Nupur", 100050]])]).label).toBe("Nupur ₹1,000.50"); // spoken label is exact
   });
 

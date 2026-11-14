@@ -5,27 +5,17 @@ import { CompassIcon, PeoplePassportsIcon } from "@/components/DrawnIcons";
 import { BellIcon, ChartIcon } from "@/components/icons";
 import { DevicesLineIcon, DownloadLineIcon, HelpLineIcon, LockLineIcon, PostcardLineIcon, WalletLineIcon, YouList, YouRow } from "@/components/YouRows";
 import { InviteFriends } from "@/components/InviteFriends";
-import { PushEndpointField } from "@/components/PushEndpointField";
-import { deleteMyAccount, removeMyPasskey, saveMyName, signOutOtherPhonesAction, signOutThisPhone } from "@/app/actions";
+import { saveMyName } from "@/app/actions";
 import { db } from "@/lib/db";
 import { sameName } from "@/lib/names";
-import { listPasskeys } from "@/lib/passkeys";
-import { PasskeyAdd } from "@/components/Passkeys";
-import { niceDate } from "@/lib/format";
-import { PhoneStatus } from "@/components/PushControls";
 import { getAccount, getMemberships } from "@/lib/identity";
 import { loadDeletedGroups, loadMyGroups } from "@/lib/group-data";
-import { ConfirmButton } from "@/components/ConfirmButton";
-import { PageHeader, inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
-import { savePayWays } from "@/app/pay-actions";
-import { headers } from "next/headers";
-import { visitorRegion } from "@/lib/region";
-import { PrivacySafety } from "@/components/PrivacySafety";
+import { PageHeader, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
 
-// You: signed-in email (optional), sign out, delete your data, privacy.
-export default async function AccountPage({ searchParams }: { searchParams: Promise<{ name?: string; groups?: string; pay?: string; payError?: string; others?: string; ai?: string; blocked?: string; unblocked?: string }> }) {
-  const { name: nameState, groups: renamed, pay: payState, payError, others, ai, blocked, unblocked } = await searchParams;
-  const signedOutOthers = others === "out";
+// You: who you are, then one row per thing. Each row opens its own page (pay details, privacy, sign-in, your data, notifications, support);
+// nothing is written twice on this page.
+export default async function AccountPage({ searchParams }: { searchParams: Promise<{ name?: string; groups?: string }> }) {
+  const { name: nameState, groups: renamed } = await searchParams;
   const account = await getAccount();
   const postcardsNew = account ? await unreadPostcards(account.id) : 0;
   const memberships = await getMemberships();
@@ -33,7 +23,6 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const deletedCount = (await loadDeletedGroups(memberships)).length;
   const admins = (process.env.ADMIN_EMAIL ?? "").split(",").map((s) => s.trim().toLowerCase());
   const isAdmin = Boolean(account && admins.includes(account.email));
-  const passkeys = account ? await listPasskeys(account.id) : [];
   // Groups where you still go by your profile name: renamed with it if you like.
   const sameNameGroups = account?.name
     ? (await db.member.findMany({ where: { accountId: account.id, leftAt: null, group: { deletedAt: null } }, select: { name: true } })).filter((m) =>
@@ -139,145 +128,17 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
       {account && (
         <YouList label="Preferences" className="mt-8">
           <YouRow hook="notify" href="/account/notifications" icon={<BellIcon size={22} />} title="Notifications & email" line="Choose what Loopin sends you" />
-          <YouRow href="#pay" icon={<WalletLineIcon />} title="How friends pay you" line="Your UPI ID or pay link" />
-          <YouRow href="#privacy" icon={<LockLineIcon />} title="Privacy & sharing" line="Blocked people and what others can see" />
+          <YouRow href="/account/pay" icon={<WalletLineIcon />} title="How friends pay you" line="Your UPI ID or pay link" />
+          <YouRow href="/account/privacy" icon={<LockLineIcon />} title="Privacy & sharing" line="Blocked people and what others can see" />
         </YouList>
       )}
       <YouList label="Account" className="mt-8">
-        {account && <YouRow href="#sign-in" icon={<DevicesLineIcon />} title="Sign-in & devices" line="Fingerprint sign-in, sign out of phones" />}
-        <YouRow href="#data" icon={<DownloadLineIcon />} title="Export your data" line="A copy of everything in your groups" />
+        {account && <YouRow href="/account/sign-in" icon={<DevicesLineIcon />} title="Sign-in & devices" line="Fingerprint sign-in, sign out of phones" />}
+        <YouRow href="/account/data" icon={<DownloadLineIcon />} title="Export your data" line="A copy of everything in your groups" />
         <YouRow href="/support" icon={<HelpLineIcon />} title="Help & support" line="Guides and a way to reach us" />
       </YouList>
 
-      {/* How friends pay you back: a Pay button on Settle up for anyone who owes you. */}
-      {account && (
-        <section id="pay" aria-label="How friends pay you back" className="mt-6 scroll-mt-4 rounded-[20px] border border-line px-5 py-5">
-          <h2 className="font-display text-lg font-semibold tracking-tight">How friends pay you back</h2>
-          <p className="mt-1 text-sm text-gray-500">
-            People who owe you get a Pay button with the amount filled in. Only people in your groups who owe you see these. Loopin never moves money.
-          </p>
-          {payState === "saved" && (
-            <p role="status" className="mt-3 text-sm text-emerald-400">
-              Saved.
-            </p>
-          )}
-          {payState === "error" && payError && (
-            <p role="alert" className="mt-3 text-sm text-red-400">
-              {payError.slice(0, 160)}
-            </p>
-          )}
-          <form action={savePayWays} className="mt-4 space-y-3">
-            {/* UPI only works in India: shown there, or to anyone who already saved one. */}
-            {(account.upiId || ((account.homeCountry || visitorRegion(await headers()).country || "IN").toUpperCase() === "IN")) ? (
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium text-gray-600">UPI ID (India)</span>
-                <input name="upiId" defaultValue={account.upiId} maxLength={120} placeholder="e.g. asha@okicici" autoComplete="off" autoCapitalize="none" spellCheck={false} className={inputClass} />
-              </label>
-            ) : (
-              <input type="hidden" name="upiId" value="" data-upi-hidden="1" />
-            )}
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-gray-600">PayPal, Venmo, Cash App, Revolut or Monzo link</span>
-              <input name="payLink" defaultValue={account.payLink} maxLength={300} placeholder="e.g. paypal.me/asha or venmo.com/u/asha" autoComplete="off" autoCapitalize="none" spellCheck={false} className={inputClass} />
-            </label>
-            <button type="submit" className={secondaryButtonClass}>
-              Save pay details
-            </button>
-          </form>
-        </section>
-      )}
-
       <InviteFriends name={account?.name} className="mt-6" />
-
-      <section className="mt-10 border-t border-line pt-8" id="notifications">
-        <h2 className="mb-1 text-base font-semibold">Notifications</h2>
-        <p className="mb-4 text-sm text-gray-500">Whether this phone lets Loopin notify you.</p>
-        <PhoneStatus compact />
-        {/* The link to the email and phone choices is the Notifications row under Preferences, near the top. */}
-      </section>
-
-      {account && (
-        <section className="mt-10 scroll-mt-4 border-t border-line pt-8" id="sign-in">
-          <h2 className="mb-1 text-base font-semibold">Fingerprint / face sign-in</h2>
-          <p className="mb-4 text-sm text-gray-500">Sign in with one touch instead of a code. Your fingerprint never leaves your phone; Loopin only gets a key that proves it’s you.</p>
-          {passkeys.length > 0 && (
-            <ul className="mb-4 divide-y divide-line border-y border-line">
-              {passkeys.map((p) => (
-                <li key={p.id} className="flex items-center gap-3 py-3">
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-medium">{p.label || "Passkey"}</span>
-                    <span className="block text-xs text-gray-500">
-                      Added {niceDate(p.createdAt.toISOString().slice(0, 10))}
-                      {p.lastUsedAt ? ` · last used ${niceDate(p.lastUsedAt.toISOString().slice(0, 10))}` : ""}
-                    </span>
-                  </span>
-                  <form action={removeMyPasskey}>
-                    <input type="hidden" name="id" value={p.id} />
-                    <ConfirmButton message="Remove this fingerprint / face sign-in?" className="rounded-full border border-line px-3.5 py-1.5 text-sm text-fg active:bg-mist">
-                      Remove
-                    </ConfirmButton>
-                  </form>
-                </li>
-              ))}
-            </ul>
-          )}
-          <PasskeyAdd className={secondaryButtonClass} label={passkeys.length ? "Add this phone too" : "Turn on fingerprint / face sign-in"} />
-        </section>
-      )}
-
-      {account && (
-        <section className="mt-10 border-t border-line pt-8">
-          <h2 className="mb-1 text-base font-semibold">Sign out of this phone</h2>
-          <p className="mb-4 text-sm text-gray-500">This phone forgets your groups. They stay safe in your email — sign in again to get them back.</p>
-          <form action={signOutThisPhone}>
-            <PushEndpointField />
-            <ConfirmButton message="Sign out of this phone?" className={secondaryButtonClass}>
-              Sign out
-            </ConfirmButton>
-          </form>
-          <h2 className="mb-1 mt-8 text-base font-semibold" id="other-phones">
-            Sign out on all other phones
-          </h2>
-          <p className="mb-4 text-sm text-gray-500">Lost a phone, or signed in somewhere you shouldn’t stay? Every other phone and browser is signed out. This one stays signed in.</p>
-          {signedOutOthers && (
-            <p className="mb-4 rounded-xl bg-mist px-4 py-3 text-sm" role="status" data-signed-out-others>
-              Done. Every other phone has been signed out.
-            </p>
-          )}
-          <form action={signOutOtherPhonesAction}>
-            <PushEndpointField />
-            <ConfirmButton message="Sign out on every other phone and browser?" className={secondaryButtonClass}>
-              Sign out other phones
-            </ConfirmButton>
-          </form>
-        </section>
-      )}
-
-      <PrivacySafety accountId={account?.id ?? null} flags={{ ai, blocked, unblocked }} />
-
-      <section className="mt-10 scroll-mt-4 border-t border-line pt-8" id="data">
-        <h2 className="mb-1 text-base font-semibold">Your data</h2>
-        <p className="mb-4 text-sm text-gray-500">
-          One spreadsheet with every expense and payment in all your groups, your share of each, your account details, your postcards, passport,
-          collections and notification settings. To remove a whole group for everyone, use “Delete group” in its settings.
-        </p>
-        {(account || groups.length > 0) && (
-          <a href="/api/my-data" download className={`mb-4 ${secondaryButtonClass}`}>
-            Download all my data
-          </a>
-        )}
-        {account && (
-          <form action={deleteMyAccount}>
-            <PushEndpointField />
-            <ConfirmButton
-              message="Delete your sign-in, email, postcards and passkeys? Your groups stay on this phone and in each group’s history."
-              className="mx-auto block min-h-11 px-4 py-2 text-center text-sm text-fg/75 underline underline-offset-4 active:text-fg"
-            >
-              Delete my email &amp; sign-in
-            </ConfirmButton>
-          </form>
-        )}
-      </section>
 
       {isAdmin && (
         <Link href="/stats" className={`mt-10 ${secondaryButtonClass}`}>

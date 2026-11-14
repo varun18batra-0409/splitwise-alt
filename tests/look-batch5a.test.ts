@@ -56,10 +56,26 @@ describe("recap stays reachable", () => {
 
 describe("You page", () => {
   const you = src("src/app/account/page.tsx");
-  it("has the three lists, and everything from the old page is still on it", () => {
+  it("has the three lists, each row opening its own page (R1 item 3)", () => {
     for (const s of ["Your trip passport", "Your postcards", "Friends’ passports", "Preferences", "Notifications & email", "Privacy & sharing", "Sign-in & devices", "Export your data", "Help & support"]) expect(you).toContain(s);
-    for (const s of ['href="/passport"', 'href="/postcards"', 'href="/passport/friends"', 'href="/account/notifications"', 'href="#pay"', 'href="#privacy"', 'href="#sign-in"', 'href="#data"', 'href="/support"']) expect(you).toContain(s);
-    for (const s of ['id="pay"', 'id="sign-in"', 'id="data"', 'id="notifications"', 'id="other-phones"', "savePayWays", "saveMyName", "signOutThisPhone", "signOutOtherPhonesAction", "deleteMyAccount", "removeMyPasskey", "<PasskeyAdd", "<PrivacySafety", "<InviteFriends", "/api/my-data", "data-deleted-link", "ACCOUNT_FOOTER_LINKS"]) expect(you).toContain(s);
+    for (const s of ['href="/passport"', 'href="/postcards"', 'href="/passport/friends"', 'href="/account/notifications"', 'href="/account/pay"', 'href="/account/privacy"', 'href="/account/sign-in"', 'href="/account/data"', 'href="/support"', "<InviteFriends", "data-deleted-link", "ACCOUNT_FOOTER_LINKS", "saveMyName"]) expect(you).toContain(s);
+  });
+  it("the settings are not repeated as full sections under the rows", () => {
+    for (const s of ['id="pay"', 'id="sign-in"', 'id="data"', 'id="notifications"', "<PrivacySafety", "<PhoneStatus", "signOutThisPhone", "deleteMyAccount", "<PasskeyAdd", "/api/my-data", "savePayWays", "Contact support"]) expect(you).not.toContain(s);
+  });
+  it("each row's page holds its section", () => {
+    const page = (n: string) => src(`src/app/account/${n}/page.tsx`);
+    expect(page("pay")).toContain("savePayWays");
+    expect(page("privacy")).toContain("<PrivacySafety");
+    for (const s of ["signOutThisPhone", "signOutOtherPhonesAction", "<PasskeyAdd", "removeMyPasskey"]) expect(page("sign-in")).toContain(s);
+    for (const s of ["/api/my-data", "deleteMyAccount"]) expect(page("data")).toContain(s);
+    expect(src("src/components/PrivacySafety.tsx")).not.toContain("Contact support");
+  });
+  it("actions come back to the right page", () => {
+    expect(src("src/app/pay-actions.ts")).toContain("/account/pay?");
+    expect(src("src/app/safety-actions.ts")).toContain("/account/privacy?blocked=1");
+    expect(src("src/app/ai-actions.ts")).toContain("/account/privacy?ai=");
+    expect(src("src/app/actions.ts")).toContain("/account/sign-in?others=out");
   });
   it("keeps the test hooks and has one link per name the tests click", () => {
     const rows = src("src/components/YouRows.tsx");

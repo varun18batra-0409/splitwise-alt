@@ -6,11 +6,15 @@ import type { MomentCard } from "./moments-db";
 const WEEK = 7 * 86_400_000;
 const place = (name: string) => name.replace(/\s+trip$/i, "").trim() || name;
 
-export function momentPageStories(cards: MomentCard[], groupId: string, groupName: string, now = new Date()): Story[] {
+// `groupPic`: the group's own picture (its place photo or cover). The group circle shows that, never a member's photo, so it is not the
+// same picture as the first person's circle next to it. A person's circle shows that person's newest photo.
+export type GroupPic = { photo?: string; cover?: { kind: string; src?: string } };
+
+export function momentPageStories(cards: MomentCard[], groupId: string, groupName: string, now = new Date(), groupPic?: GroupPic): Story[] {
   const recent = cards.filter((c) => now.getTime() - c.createdAt.getTime() <= WEEK); // newest first
   if (!recent.length) return [];
   const frame = (c: MomentCard): Frame => ({ kind: "photo", photo: c.full, kicker: c.authorIsMe ? "You added a moment" : `${c.authorName} added a moment`, head: c.caption, line: c.day || undefined, calm: true });
-  const make = (idKey: string, label: string, list: MomentCard[]): Story => ({
+  const make = (idKey: string, label: string, list: MomentCard[], pic?: GroupPic): Story => ({
     id: `mp-${groupId}-${idKey}-${list[0].id}`,
     kind: "moment",
     label,
@@ -19,12 +23,12 @@ export function momentPageStories(cards: MomentCard[], groupId: string, groupNam
     line: "",
     cta: "Open it",
     href: `/groups/${groupId}/moments/${list[0].id}`,
-    photo: list[0].thumb,
+    ...(pic ? { photo: pic.photo, cover: pic.cover } : { photo: list[0].thumb }),
     emoji: "📸",
     frames: list.slice(0, 6).map(frame),
     at: list[0].createdAt.getTime(),
   });
-  const out: Story[] = [make("trip", place(groupName), recent)];
+  const out: Story[] = [make("trip", place(groupName), recent, groupPic ?? {})];
   const seen = new Set<string>();
   // One circle per person, told apart by who they are (account, else member), not by name: two people both called Sam get two circles.
   const who = (c: MomentCard) => c.authorAccountId || c.authorId;

@@ -61,7 +61,9 @@ export function RecordPaymentForm({
   const who = (id: string) => people.find((p) => p.id === id);
   const label = (id: string) => (who(id)?.me ? "You" : who(id)?.name ?? "");
   const payer = who(from);
-  const button = recordButtonLabel(amount, currency, payer ? { name: payer.name, me: payer.me } : null);
+  // The button always says "Record payment"; the fuller words ("Record ₹500 from you") are only read out as the amount or payer changes.
+  const button = "Record payment";
+  const spoken = recordButtonLabel(amount, currency, payer ? { name: payer.name, me: payer.me } : null);
 
   const side = (which: "from" | "to", id: string, caption: string) => {
     const p = who(id);
@@ -228,7 +230,7 @@ export function RecordPaymentForm({
             </button>
             {/* Said aloud as the amount or the payer changes (the button's own label is read only when it is reached). */}
             <p className="sr-only" aria-live="polite" data-record-live>
-              {button === "Record payment" ? "" : button.replace(/^Record /, "Will record ")}
+              {spoken === "Record payment" ? "" : spoken.replace(/^Record /, "Will record ")}
             </p>
           </>
         )}

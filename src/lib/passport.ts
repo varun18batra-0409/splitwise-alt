@@ -8,7 +8,7 @@ import { continentOf } from "./continents";
 // "Been there" stamp, kept apart from the trip ones. The counts are of places,
 // not stamps: Italy three times is still one country. Pure.
 
-// undated: the trip has no dates of its own (its day was guessed from the spending), so it adds no "days away".
+// undated: the trip has no dates of its own (its day was guessed from the spending), so it adds no "days travelled".
 export type PassportTrip = { groupId: string; name: string; start: string; end: string; place: string; country: string; people: number; undated?: boolean };
 export type HandPlace = { c: string };
 export type Stamp = {
@@ -148,6 +148,15 @@ export function buildPassport(trips: PassportTrip[], hand: HandPlace[], home: st
   return { stamps, been, index: rows, stats, milestones, badges, marks };
 }
 
+// Which badges to show: the ones earned, plus the next one to win (the unearned one closest to done; a tie goes to the first in the
+// list). No wall of "0 of 3": once everything is earned, only the earned ones show. Pure.
+export function visibleBadges(badges: Badge[]): Badge[] {
+  const next = badges
+    .filter((b) => !b.earned)
+    .sort((a, b) => b.have / b.need - a.have / a.need)[0];
+  return badges.filter((b) => b.earned || b === next);
+}
+
 const DAY_MS = 86_400_000;
 const isDay = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`));
 const dayNo = (s: string) => Math.round(Date.parse(`${s}T00:00:00Z`) / DAY_MS);
@@ -159,14 +168,14 @@ export function tripDays(start: string, end: string): number {
   return Math.min(366, dayNo(end) - dayNo(start) + 1);
 }
 
-// "Days away": the distinct days spent on trips that have started. A trip still going counts only up to
-// today; trips that overlap count each day once; a trip without dates counts 0, a trip with no end date 1;
-// a trip that hasn't started counts 0. Pure.
+// "Days travelled": the distinct days of the trips that have started, the whole trip (a 5-day trip on its second day is 5, so the
+// number never sits below the card it is above). Trips that overlap count each day once; a trip without dates counts 0, a trip
+// with no end date 1; a trip that hasn't started counts 0. Pure.
 export function daysAway(trips: { start: string; end: string; undated?: boolean }[], today: string): number {
   const days = new Set<number>();
   for (const t of trips) {
     if (t.undated || !isDay(t.start) || t.start > today) continue;
-    const last = isDay(t.end) && t.end > t.start ? (t.end < today ? t.end : today) : t.start;
+    const last = isDay(t.end) && t.end > t.start ? t.end : t.start;
     const from = dayNo(t.start);
     const to = Math.min(dayNo(last), from + 365);
     for (let d = from; d <= to; d++) days.add(d);

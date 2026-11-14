@@ -71,9 +71,10 @@ test("Insights add up: your share and group spend match what was entered, and Ho
   await A.goto(`/search?g=${gid}`);
   await settled(A);
   await expect(A.locator("[data-insights-total]"), "Insights: Alice's share this month").toHaveText("₹500");
-  // Alice paid the ₹1,200 dinner: your share ₹500, you paid ₹1,200, so the others owe her ₹700.
-  await expect(A.getByLabel("Your share, what you paid, and where that leaves you")).toContainText("₹1,200");
-  await expect(A.getByLabel("Your share, what you paid, and where that leaves you")).toContainText("₹700");
+  // Alice paid the ₹1,200 dinner: your share ₹500 (the big number; not repeated below), you paid ₹1,200, so the others owe her ₹700.
+  await expect(A.getByLabel("What you paid, and where that leaves you")).toContainText("₹1,200");
+  await expect(A.getByLabel("What you paid, and where that leaves you")).toContainText("₹700");
+  await expect(A.locator("[data-recap-ministats]")).toHaveAttribute("data-recap-ministats", "2");
   await A.goto(`/search?g=${gid}&v=spent`);
   await settled(A);
   await expect(A.locator("[data-insights-total]"), "Insights: the group's spending this month").toHaveText("₹1,500");

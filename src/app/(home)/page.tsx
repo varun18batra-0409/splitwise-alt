@@ -1,6 +1,5 @@
 import { neutralGameText } from "@/lib/game-words";
 import Link from "@/components/Link";
-import { InviteFriends } from "@/components/InviteFriends";
 import { GetAppButton } from "@/components/GetApp";
 import { PhoneOnlyNote } from "@/components/PhoneOnlyNote";
 import { Notice } from "@/components/Notice";
@@ -174,7 +173,7 @@ export default async function Home({
   // Big amounts show whole units (display only); the exact amount rides along in the tooltip.
   const heroOf = (money: (n: number) => string) =>
     netCommon ? `${netCommon.converted ? "≈ " : ""}${netCommon.value > 0 ? "+" : netCommon.value < 0 ? "−" : ""}${money(Math.abs(netCommon.value))}` : netLines.join(" · ");
-  const heroText = heroOf((n) => homeMoney(n, common));
+  const heroText = heroOf((n) => formatMoney(n, common)); // exact, the same figure as the group and Settle up (rounding stays on summaries)
   const heroExact = heroOf((n) => formatMoney(n, common));
   // Several currencies with no saved rate and money going both ways: no single "you owe", so the card stays neutral.
   const acrossCurrencies = !netCommon && mixedDirections(netLines);
@@ -394,7 +393,7 @@ export default async function Home({
     photo: tripPhotoSrc(g.group),
     balance: g.myBalance,
     money: (n: number) => formatMoney(n, g.group.currency),
-    show: (n: number) => homeMoney(n, g.group.currency),
+    show: (n: number) => formatMoney(n, g.group.currency),
     tag: tripTag(phaseOf.get(g.group.id)),
   }));
   // The stub's picture(s): the group with the most money (two when it spans groups), else your newest group. Same cover as its polaroid.
@@ -664,7 +663,7 @@ export default async function Home({
                   <li key={r.item.id}>
                     {/* Tap: opens it in its group, already expanded (details, Edit, Delete). */}
                     <Link href={itemHref(r.groupId, r.item)} className="block active:bg-mist">
-                      <ActivityRow item={r.item} currency={r.currency} nameOf={r.nameOf} groupName={`${r.groupName}, ${dayLabel(r.item.date, new Date(), tz)}`} motion="loop" delay={0.6 + (i % 5)} />
+                      <ActivityRow item={r.item} currency={r.currency} nameOf={r.nameOf} groupName={r.groupName} dateLabel={dayLabel(r.item.date, new Date(), tz)} motion="loop" delay={0.6 + (i % 5)} />
                     </Link>
                   </li>
                 ))}
@@ -739,8 +738,6 @@ export default async function Home({
           </div>
         </>
       )}
-
-      {all.length > 0 && <InviteFriends name={account?.name} className="mt-8" />}
 
       {/* Not signed in: these groups live only on this phone. Just above the footer, out of the way of the groups and Latest. */}
       {all.length > 0 && !account && <PhoneOnlyNote plural className="mt-6" />}

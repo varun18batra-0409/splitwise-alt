@@ -80,6 +80,21 @@ export function placeOf(name: string): string {
 }
 
 // The words on the countdown: big part (number or word) and the line around it.
+// The short trip line in a group's header, next to "4 people": no place name (the title says it) and no emoji.
+// "Starts in 36 days", "Starts tomorrow", "Starts today", "Day 5 of 5". After the trip: nothing.
+export function headerTripLine(p: TripPhase): string | null {
+  switch (p.kind) {
+    case "before":
+      return p.days === 1 ? "Starts tomorrow" : `Starts in ${p.days} days`;
+    case "today":
+      return "Starts today";
+    case "during":
+      return `Day ${p.day} of ${p.of}`;
+    case "after":
+      return null;
+  }
+}
+
 export function countdownWords(name: string, p: TripPhase): { big: string; small: string; line: string } | null {
   const place = placeOf(name);
   const e = tripEmoji(name);

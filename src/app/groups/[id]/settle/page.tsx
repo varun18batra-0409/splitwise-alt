@@ -495,7 +495,7 @@ export default async function GroupSettle({
       {owedToMe && !myWays && me && (
         <div className="mb-4 rounded-[20px] border border-line bg-white px-4 py-3 text-sm text-fg/70">
           Get paid in one tap: add your UPI ID or PayPal / Venmo link on{" "}
-          <Link href="/account#pay" className="font-semibold text-fg underline underline-offset-2">
+          <Link href="/account/pay" className="font-semibold text-fg underline underline-offset-2">
             your You page
           </Link>
           . People who owe you get a Pay button.

@@ -102,7 +102,12 @@ function tripFrames(t: StoryInput["trips"][number]): Frame[] {
     { const c = cap(2, 3); out.push(photo(3, c[0], c[1], "Add bookings now, sort the money later")); }
   } else {
     const d = t.today;
-    out.push(photo(0, p.kind === "today" ? "Today" : `Day ${p.kind === "during" ? p.day : 1}`, p.kind === "today" ? `${where} starts today` : `${where}, day ${p.kind === "during" ? p.day : 1}`, tripLine(p, t.people)));
+    // The day is said once: "Goa · day 2 of 5", with the playful line under it (no "Day 2" label above, no "Day 2 of 5" repeated below).
+    out.push(
+      p.kind === "during"
+        ? photo(0, undefined, `${where} · day ${p.day} of ${p.of}`, p.day === p.of ? "Last day. Make it count" : "Keep the receipts coming")
+        : photo(0, p.kind === "today" ? "Today" : "Day 1", p.kind === "today" ? `${where} starts today` : `${where}, day 1`, tripLine(p, t.people)),
+    );
     out.push(
       d && d.count > 0
         ? { kind: "poster", tone: "coral", kicker: "Spent today", big: d.spent, line: `${d.count} ${d.count === 1 ? "expense" : "expenses"} so far. The night is young.` }
@@ -193,32 +198,7 @@ export function buildStories(i: StoryInput): Story[] {
     ];
     out.push({ id: `square-${s.id}-${s.at.getTime()}`, kind: "square", label: place(s.name), short: "All square", headline: `${place(s.name)} is all square`, line: "Nobody owes anybody. Nice one", cta: "Share it", href: `/groups/${s.id}/square`, photo: photos[0], cover: s.cover, art: "square", emoji: "", big: "All square", frames, at: s.at.getTime() });
   }
-  for (const c of i.collections) {
-    if (c.people === 0) continue;
-    const all = c.paid === c.people;
-    const frames: Frame[] = [
-      { kind: "art", art: "collect", kicker: c.title, head: all ? "Everyone’s in" : `${c.paid} of ${c.people} paid`, line: all ? "Time to close it" : c.paid === 0 ? "Who’s going first?" : "The jar is filling up" },
-      ...(c.in && c.target ? [{ kind: "poster", tone: "coral", kicker: "Confirmed", big: c.in, line: `of ${c.target}${c.reported ? ` · ${c.reported} reported, awaiting check` : ""}` } as Frame] : []),
-      ...((c.paidNames?.length || c.reportedNames?.length || c.dueNames?.length)
-        ? [{ kind: "list", tone: "mint", kicker: "Roll call", rows: [...(c.paidNames ?? []).slice(0, 5).map((n) => ({ label: n, value: "Checked ✓", good: true })), ...(c.reportedNames ?? []).slice(0, 5).map((n) => ({ label: n, value: "Says paid", good: false })), ...(c.dueNames ?? []).slice(0, 5).map((n) => ({ label: n, value: "Not yet", bad: true }))], line: (c.dueNames?.length ?? 0) > 0 ? "A gentle nudge might help" : "Legends, all of them" } as Frame]
-        : []),
-    ];
-    out.push({
-      id: `collect-${c.id}-${c.paid}`,
-      kind: "collect",
-      short: "Collection",
-      label: c.title.length > 14 ? `${c.title.slice(0, 13)}…` : c.title,
-      headline: all ? `${c.title}: everyone’s in` : `${c.title}: ${c.paid} of ${c.people} paid`,
-      line: all ? "Time to close it" : c.paid === 0 ? "Share the link to get it going" : "Nearly there. A nudge might help",
-      cta: "Open the collection",
-      href: `/c/${c.code}`,
-      art: "collect",
-      emoji: "🪙",
-      big: `${c.paid}/${c.people}`,
-      frames,
-      at: now - 2 * 86_400_000,
-    });
-  }
+  // A collection is no story circle (R1): its progress is the Collecting card, what needs you is the line under the money card.
   for (const m of i.memories) {
     const photos = m.photos?.length ? m.photos : m.photo ? [m.photo] : [];
     const ago = m.years === 1 ? "A year ago" : `${m.years} years ago`;
@@ -255,7 +235,7 @@ export function buildStories(i: StoryInput): Story[] {
       id: `moment-${mo.groupId}-${mo.newestId}`,
       kind: "moment",
       label: place(mo.groupName),
-      short: "Moments",
+      short: place(mo.groupName), // the group's name under the circle, never the same word on every one
       headline: mo.frames[0].kicker,
       line: n === 1 ? "A new moment" : `${n} new moments`,
       cta: "See our moments",

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { daysAway, tripDays } from "@/lib/passport";
 
-// "Days away": distinct days on trips that have started, both ends counted. Worked out by hand.
+// "Days travelled": distinct days on trips that have started, both ends counted. Worked out by hand.
 const t = (start: string, end = "", extra: { undated?: boolean } = {}) => ({ start, end, ...extra });
 const TODAY = "2026-11-13";
 
@@ -22,8 +22,9 @@ describe("daysAway", () => {
   it("overlapping trips count each day once: 1–5 Jun and 4–8 Jun is 1..8 = 8, not 10", () => {
     expect(daysAway([t("2026-06-01", "2026-06-05"), t("2026-06-04", "2026-06-08")], TODAY)).toBe(8);
   });
-  it("a trip still going counts only up to today: 10–20 Jun, today 12 Jun, is 10, 11, 12 = 3", () => {
-    expect(daysAway([t("2026-06-10", "2026-06-20")], "2026-06-12")).toBe(3);
+  it("a trip still going counts all its days (R1): 10–20 Jun, today 12 Jun, is 10..20 = 11; a 5-day trip on day 2 is 5", () => {
+    expect(daysAway([t("2026-06-10", "2026-06-20")], "2026-06-12")).toBe(11);
+    expect(daysAway([t("2026-06-11", "2026-06-15")], "2026-06-12")).toBe(5);
   });
   it("across a year end: 30 Jan–2 Feb 2027 is 30, 31, 1, 2 = 4", () => {
     expect(daysAway([t("2027-01-30", "2027-02-02")], "2027-06-01")).toBe(4);

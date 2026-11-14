@@ -1,4 +1,4 @@
-// The number row at the top of the Been tab: countries · trips · days away. A number that is 0 is left out.
+// The number row at the top of the Been tab: countries · trips · days travelled. A number that is 0 is left out.
 export function PassportStats({ stats }: { stats: { n: number; label: string }[] }) {
   if (!stats.length) return null;
   return (

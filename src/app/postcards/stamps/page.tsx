@@ -27,10 +27,13 @@ export default async function StampAlbumPage() {
   return (
     <>
       <PageHeader title="Stamp album" back="/postcards" />
-      <p className="-mt-4 mb-2 text-sm leading-relaxed text-fg/60">Limited stamps, each on issue for a few days or weeks a year. Send or receive a card with one to keep it here.</p>
-      <p className="mb-8 font-display text-[22px] font-semibold tracking-tight" data-album-count>
-        {count} of {list.length} collected
-      </p>
+      <p className={`-mt-4 text-sm leading-relaxed text-fg/60 ${count > 0 ? "mb-2" : "mb-8"}`}>Limited stamps, each on issue for a few days or weeks a year. Send or receive a card with one to keep it here.</p>
+      {/* No "0 of 9 collected": the count shows once there is a first stamp. */}
+      {count > 0 && (
+        <p className="mb-8 font-display text-[22px] font-semibold tracking-tight" data-album-count>
+          {count} of {list.length} collected
+        </p>
+      )}
       <ul className="grid grid-cols-3 gap-x-4 gap-y-7 rounded-[22px] bg-[radial-gradient(120%_90%_at_0%_0%,#2a2620,#1b1915_70%)] px-5 py-7 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
         {list.map((id, i) => {
           const r = RARE[id.slice(2)];

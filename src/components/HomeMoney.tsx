@@ -4,7 +4,7 @@ import { niceDate } from "@/lib/format";
 import { ShareCountdown } from "@/components/ShareCountdown";
 import { ExactAmount } from "@/components/ExactAmount";
 import { GroupCover } from "@/components/GroupCover";
-import { amountTier, stripWords, type GroupMark, type Ticket, type TicketAction, type TicketLine } from "@/lib/home/money-card";
+import { amountTier, routeCode, stripWords, type GroupMark, type Ticket, type TicketAction, type TicketLine } from "@/lib/home/money-card";
 import type { CoverChoice } from "@/lib/covers";
 import type { TripPhase } from "@/lib/countdown";
 
@@ -68,7 +68,8 @@ export function Mark({ mark }: { mark: GroupMark }) {
 }
 
 export function Route({ from, to, mark }: { from: string; to: string; mark: GroupMark }) {
-  const end = (t: string) => <span className={`text-[13px] font-semibold text-fg/65 ${t === "You" ? "shrink-0" : "min-w-0 truncate"}`}>{t}</span>;
+  // Short codes ("KAB ✈ YOU"): the person's name is in the button below, so it is not said twice.
+  const end = (t: string) => <span className="shrink-0 text-[13px] font-semibold tracking-[0.08em] text-fg/65" data-route-end>{routeCode(t)}</span>;
   return (
     <p className="flex items-center gap-2" data-route>
       {end(from)}
@@ -102,7 +103,7 @@ export function ActionButton({ a, className }: { a: TicketAction; className: str
 
 function Faces({ line }: { line: TicketLine }) {
   return (
-    <Link href={line.peopleHref} aria-label={`${line.phrase}. See who, in Settle up`} className="-my-0.5 mt-1 flex min-h-11 items-center gap-2 self-start pr-2 active:opacity-70" data-money-people>
+    <Link href={line.peopleHref} aria-label={`${line.phrase}. See who, in Settle up`} className="-my-0.5 mt-1 flex min-h-11 items-center self-start pr-2 active:opacity-70" data-money-people>
       <span aria-hidden className="flex">
         {line.faces.map((f, i) => (
           <span key={i} className="-ml-1.5 grid h-6 w-6 place-items-center rounded-full border-2 border-[#16161a] bg-[#2a2a31] text-[11px] font-bold text-fg/90 first:ml-0">
@@ -110,7 +111,6 @@ function Faces({ line }: { line: TicketLine }) {
           </span>
         ))}
       </span>
-      <span className="text-[12.5px] text-fg/55">See who ›</span>
     </Link>
   );
 }

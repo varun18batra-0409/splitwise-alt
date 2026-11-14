@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Badge, IndexRow, Stamp } from "@/lib/passport";
+import { visibleBadges, type Badge, type IndexRow, type Stamp } from "@/lib/passport";
+import { BadgeIcon } from "@/components/PassportIcons";
 import map from "@/generated/map.json";
 
 // The trip passport as a little booklet. A cover in Loopin's colours you tap to open, then
@@ -189,7 +190,7 @@ export function WorldMap({ index, className = "mt-2" }: { index: { code: string;
       <img src="/world.svg" alt="" aria-hidden className="absolute inset-0 h-full w-full" />
       <svg viewBox="0 0 2000 1001" className="absolute inset-0 h-full w-full" role="img" aria-label={index.length ? `Countries: ${index.map((r) => r.name).join(", ")}` : "No countries yet"}>
         {index.map((r) => (
-          <use key={r.code} href={`/world.svg#${r.code}`} fill={r.trips > 0 ? "#2f7d4f" : "#7fb59a"} stroke="#efe8d6" strokeWidth="0.6" />
+          <use key={r.code} href={`/world.svg#${r.code}`} fill={r.trips > 0 ? "#26231d" : "#a79f8c"} stroke="#efe8d6" strokeWidth="0.6" />
         ))}
       </svg>
     </div>
@@ -208,7 +209,9 @@ function Sheet({ n, children, label }: { n: number; of?: number; children: React
 }
 
 export function PassportBook({ name, stats, milestones, pages, index, badges = [], own = true }: Props) {
+  // One source for the numbers: the stamps actually drawn on the pages. The cover and page 1 both read `counts`.
   const stampCount = pages.reduce((t, p) => t + p.stamps.length, 0);
+  const counts = { countries: stats.countries, stamps: stampCount, trips: stats.trips };
   const shownMilestones = milestones.filter((m) => !/\b\d+\s+(countries|trips)\b/i.test(m));
   const [open, setOpen] = useState(false);
   const [gone, setGone] = useState(false); // the cover, once it has swung away
@@ -299,12 +302,12 @@ export function PassportBook({ name, stats, milestones, pages, index, badges = [
                 </dl>
               </div>
               {/* The counts, big, as soon as the passport opens. */}
-              <dl className="mt-5 grid grid-cols-3 border-y border-[#26231d]/15 py-3 text-center" data-passport-counts={`${stats.countries}|${stampCount}|${stats.trips}`}>
+              <dl className="mt-5 grid grid-cols-3 border-y border-[#26231d]/15 py-3 text-center" data-passport-counts={`${counts.countries}|${counts.stamps}|${counts.trips}`}>
                 {(
                   [
-                    [stats.countries, stats.countries === 1 ? "country" : "countries"],
-                    [stampCount, stampCount === 1 ? "stamp" : "stamps"],
-                    [stats.trips, stats.trips === 1 ? "trip" : "trips"],
+                    [counts.countries, counts.countries === 1 ? "country" : "countries"],
+                    [counts.stamps, counts.stamps === 1 ? "stamp" : "stamps"],
+                    [counts.trips, counts.trips === 1 ? "trip" : "trips"],
                   ] as const
                 ).map(([n, label], i) => (
                   <div key={label} className={`flex flex-col-reverse ${i ? "border-l border-[#26231d]/12" : ""}`}>
@@ -339,10 +342,10 @@ export function PassportBook({ name, stats, milestones, pages, index, badges = [
               <WorldMap index={index} />
               <p className="mt-3 text-[11px] font-semibold tracking-[0.2em] text-[#8a8270]">BADGES</p>
               <ul className="mt-2 grid grid-cols-3 gap-1.5" data-badges>
-                {badges.map((b) => (
-                  <li key={b.id} title={b.why} className={`rounded-[10px] border px-1.5 py-1.5 text-center ${b.earned ? "border-[#2f7d4f]/40 bg-[#2f7d4f]/[0.07]" : "border-[#26231d]/10 opacity-60"}`} data-badge={b.id} data-earned={b.earned ? "1" : "0"}>
-                    <span className={`block text-[20px] leading-none ${b.earned ? "" : "grayscale"}`} aria-hidden>
-                      {b.emoji}
+                {visibleBadges(badges).map((b) => (
+                  <li key={b.id} title={b.why} className={`rounded-[10px] border px-1.5 py-1.5 text-center ${b.earned ? "border-[#26231d]/40 bg-[#26231d]/[0.07]" : "border-[#26231d]/10 opacity-60"}`} data-badge={b.id} data-earned={b.earned ? "1" : "0"}>
+                    <span className="flex h-5 justify-center text-[#26231d]">
+                      <BadgeIcon id={b.id} size={20} />
                     </span>
                     <span className="mt-0.5 block text-[10px] font-bold leading-[1.15]">{b.title}</span>
                     <span className="block truncate text-[9px] text-[#5c564a]">{b.earned ? b.why : `${b.have} of ${b.need}`}</span>
@@ -405,9 +408,9 @@ export function PassportBook({ name, stats, milestones, pages, index, badges = [
             <span className="mt-12 font-display text-[30px] font-semibold tracking-[0.28em]">PASSPORT</span>
             <span className="mt-3 h-px w-14" style={{ background: GREEN }} aria-hidden />
             <span className="mt-3 text-[13px] opacity-80">{name || "Traveller"}</span>
-            {(stats.countries > 0 || stampCount > 0) && (
-              <span className="mt-6 text-[13px] font-semibold tracking-[0.06em] opacity-90" data-cover-counts>
-                {stats.countries} {stats.countries === 1 ? "country" : "countries"}, {stampCount} {stampCount === 1 ? "stamp" : "stamps"}
+            {(counts.countries > 0 || counts.stamps > 0) && (
+              <span className="mt-6 text-[13px] font-semibold tracking-[0.06em] opacity-90" data-cover-counts={`${counts.countries}|${counts.stamps}`}>
+                {counts.countries} {counts.countries === 1 ? "country" : "countries"}, {counts.stamps} {counts.stamps === 1 ? "stamp" : "stamps"}
               </span>
             )}
             <span className="mt-auto pb-8 text-sm opacity-70">Tap to open</span>
